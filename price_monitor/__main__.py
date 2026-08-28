@@ -12,7 +12,7 @@ from price_monitor.config import load_config
 from price_monitor.market_data import fetch_candles
 from price_monitor.models import ExchangeError
 from price_monitor.notifier import TelegramError, send_telegram_message
-from price_monitor.state import is_in_cooldown, load_state, record_alert, save_state
+from price_monitor.state import load_state, record_alert, save_state, should_notify
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("price_monitor")
@@ -74,6 +74,8 @@ def main() -> int:
             volume_zscore_threshold=params.volume_zscore_threshold,
             volume_min_price_move_z=params.volume_min_price_move_z,
             min_history=params.min_history,
+            price_zscore_override=params.price_zscore_override,
+            volume_zscore_override=params.volume_zscore_override,
         )
         if signal is None:
             log.info("%s: not enough history yet, skipping", asset.label)
@@ -88,13 +90,19 @@ def main() -> int:
         if not signal.is_alert:
             continue
 
-        if is_in_cooldown(state, state_key, params.cooldown_minutes):
-            log.info("%s: alert condition met but still in cooldown, skipping notification", asset.label)
+        if not should_notify(
+            state, state_key, signal.severity, params.cooldown_minutes, params.escalation_factor,
+            override_severity=params.price_zscore_override,
+        ):
+            log.info(
+                "%s: alert condition met but not a big enough escalation during cooldown, skipping",
+                asset.label,
+            )
             continue
 
         try:
             send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id, format_alert(signal))
-            record_alert(state, state_key)
+            record_alert(state, state_key, signal.severity)
             alerts_sent += 1
             log.info("%s: alert sent", asset.label)
         except TelegramError as exc:

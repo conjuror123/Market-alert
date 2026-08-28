@@ -27,9 +27,12 @@ _OVERRIDABLE = {
     "mad_window": (int, "mad_window"),
     "ewma_lambda": (float, "ewma_lambda"),
     "price_zscore_threshold": (float, "price_zscore_threshold"),
+    "price_zscore_override": (float, "price_zscore_override"),
     "volume_zscore_threshold": (float, "volume_zscore_threshold"),
+    "volume_zscore_override": (float, "volume_zscore_override"),
     "volume_min_price_move_z": (float, "volume_min_price_move_z"),
     "cooldown_minutes": (int, "cooldown_minutes"),
+    "escalation_factor": (float, "escalation_factor"),
     "min_history": (int, "min_history"),
 }
 
@@ -51,9 +54,12 @@ class EffectiveParams:
     mad_window: int
     ewma_lambda: float
     price_zscore_threshold: float
+    price_zscore_override: float
     volume_zscore_threshold: float
+    volume_zscore_override: float
     volume_min_price_move_z: float
     cooldown_minutes: int
+    escalation_factor: float
     min_history: int
 
 
@@ -65,9 +71,17 @@ class Config:
     mad_window: int = 288
     ewma_lambda: float = 0.94
     price_zscore_threshold: float = 3.0
+    # An overwhelming reading on EWMA or robust z alone (>= this) bypasses the dual
+    # confirmation requirement - see the module docstring in analysis.py for why.
+    price_zscore_override: float = 6.0
     volume_zscore_threshold: float = 4.0
+    volume_zscore_override: float = 8.0
     volume_min_price_move_z: float = 1.5
-    cooldown_minutes: int = 120
+    cooldown_minutes: int = 2880
+    # A repeat alert during cooldown only sends if its severity is at least this many
+    # times the severity that triggered the last alert - lets a genuinely escalating
+    # situation through without flat-cooldown chatter for routine repeats.
+    escalation_factor: float = 1.3
     min_history: int = 60
     health_alert_after_failures: int = 3
     health_reminder_every_failures: int = 24
@@ -144,11 +158,17 @@ def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
         ewma_lambda=env_float("EWMA_LAMBDA", raw.get("ewma_lambda", 0.94)),
         price_zscore_threshold=env_float(
             "PRICE_ZSCORE_THRESHOLD", raw.get("price_zscore_threshold", 3.0)),
+        price_zscore_override=env_float(
+            "PRICE_ZSCORE_OVERRIDE", raw.get("price_zscore_override", 6.0)),
         volume_zscore_threshold=env_float(
             "VOLUME_ZSCORE_THRESHOLD", raw.get("volume_zscore_threshold", 4.0)),
+        volume_zscore_override=env_float(
+            "VOLUME_ZSCORE_OVERRIDE", raw.get("volume_zscore_override", 8.0)),
         volume_min_price_move_z=env_float(
             "VOLUME_MIN_PRICE_MOVE_Z", raw.get("volume_min_price_move_z", 1.5)),
-        cooldown_minutes=env_int("COOLDOWN_MINUTES", raw.get("cooldown_minutes", 120)),
+        cooldown_minutes=env_int("COOLDOWN_MINUTES", raw.get("cooldown_minutes", 2880)),
+        escalation_factor=env_float(
+            "ESCALATION_FACTOR", raw.get("escalation_factor", 1.3)),
         min_history=env_int("MIN_HISTORY", raw.get("min_history", 60)),
         health_alert_after_failures=env_int(
             "HEALTH_ALERT_AFTER_FAILURES", raw.get("health_alert_after_failures", 3)),

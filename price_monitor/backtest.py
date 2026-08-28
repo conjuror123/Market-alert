@@ -3,10 +3,15 @@
 Simulates running the exact same `analyze()` logic the live monitor uses, one hour
 at a time, over up to a year of real historical candles per asset - at each step it
 only ever sees data up to that point (no lookahead), exactly like the hourly
-GitHub Actions run does. This answers the question the config thresholds can't
-answer on their own: how often would this actually have fired, would it have caught
-the real big moves, and how much does requiring *both* signals (EWMA + robust z)
-actually buy over using either alone or over a naive fixed-percentage rule.
+GitHub Actions run does. Crucially, it also simulates *notification delivery*
+(cooldown + escalation), reusing `price_monitor.state.should_notify`/`record_alert`
+directly with historical timestamps: a "signal fired" and "a notification was
+actually sent" are different things once cooldown is in the picture, and only the
+second one is what the user actually experiences. Reports: how many notifications
+you'd actually receive per week, whether the biggest historical moves would actually
+have reached you (not just crossed a threshold internally), how much requiring both
+signals (EWMA + robust z) buys over using either alone, and a naive fixed-percentage
+comparison.
 
 Usage:
     python -m price_monitor.backtest [--days 365] [--out data/backtest_results.json]
@@ -22,13 +27,15 @@ import logging
 import math
 import sys
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
+from datetime import datetime, timezone
 
 import requests
 
 from price_monitor import coinbase, yahoo
 from price_monitor.analysis import ewma_volatility, log_returns, robust_z_score
 from price_monitor.config import AssetConfig, Config, EffectiveParams, load_config
+from price_monitor.state import record_alert, should_notify
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("price_monitor.backtest")
@@ -64,12 +71,18 @@ def compute_zscore_series(candles, ewma_lambda: float, mad_window: int, min_hist
     returns = log_returns(closes)
     n = len(candles)
 
+    # Mirrors analyze()'s stale-candle handling: a return of exactly 0.0 means a
+    # repeated/stale quote, not genuine calm, so it's dropped from the baseline
+    # window. Built up incrementally (not re-filtered from scratch each step) to
+    # keep this an O(n) pass instead of O(n * mad_window).
+    nonzero_returns: list[float] = [r for r in returns[:min_history - 1] if r != 0.0]
+
     series = []
     for i in range(min_history, n):
         if i - 1 < 0:
             continue
         last_return = returns[i - 1]
-        history_returns = returns[max(0, i - 1 - mad_window):i - 1]
+        history_returns = nonzero_returns[-mad_window:]
 
         ewma_sigma = ewma_volatility(history_returns, ewma_lambda)
         ewma_z = last_return / ewma_sigma if ewma_sigma > 0 else 0.0
@@ -86,18 +99,64 @@ def compute_zscore_series(candles, ewma_lambda: float, mad_window: int, min_hist
             "robust_z": r_z,
             "volume_z": v_z,
         })
+
+        if last_return != 0.0:
+            nonzero_returns.append(last_return)
     return series
 
 
-def _price_fires(step: dict, threshold: float) -> bool:
+def _price_dual_fires(step: dict, threshold: float) -> bool:
+    """Threshold-only dual confirmation, no override, no cooldown - the diagnostic
+    used to show how much noise the "both signals must agree" rule cuts on its own."""
     return abs(step["ewma_z"]) >= threshold and abs(step["robust_z"]) >= threshold
 
 
-def _volume_fires(step: dict, volume_threshold: float, min_price_move_z: float) -> bool:
+def _price_alert(step: dict, params: EffectiveParams) -> bool:
+    return (
+        _price_dual_fires(step, params.price_zscore_threshold)
+        or abs(step["ewma_z"]) >= params.price_zscore_override
+        or abs(step["robust_z"]) >= params.price_zscore_override
+    )
+
+
+def _volume_confirmed_fires(step: dict, volume_threshold: float, min_price_move_z: float) -> bool:
     return (
         step["volume_z"] >= volume_threshold
         and max(abs(step["ewma_z"]), abs(step["robust_z"])) >= min_price_move_z
     )
+
+
+def _volume_alert(step: dict, params: EffectiveParams) -> bool:
+    return (
+        _volume_confirmed_fires(step, params.volume_zscore_threshold, params.volume_min_price_move_z)
+        or step["volume_z"] >= params.volume_zscore_override
+    )
+
+
+def _severity(step: dict) -> float:
+    return max(abs(step["ewma_z"]), abs(step["robust_z"]), step["volume_z"])
+
+
+def simulate_notifications(series: list[dict], params: EffectiveParams) -> set[int]:
+    """Walks the series in order applying the exact same cooldown/escalation gate
+    the live monitor uses (`price_monitor.state`), with each step's own historical
+    timestamp standing in for "now". Returns the open_times that would actually have
+    produced a Telegram notification - the real, user-facing alert rate."""
+    state: dict = {}
+    key = "asset"
+    notified = set()
+    for step in series:
+        if not (_price_alert(step, params) or _volume_alert(step, params)):
+            continue
+        severity = _severity(step)
+        now = datetime.fromtimestamp(step["open_time"], tz=timezone.utc)
+        if should_notify(
+            state, key, severity, params.cooldown_minutes, params.escalation_factor,
+            override_severity=params.price_zscore_override, now=now,
+        ):
+            record_alert(state, key, severity, now=now)
+            notified.add(step["open_time"])
+    return notified
 
 
 @dataclass
@@ -111,12 +170,12 @@ class AssetReport:
     price_alerts_dual: int
     price_alerts_ewma_only: int
     price_alerts_robust_only: int
-    volume_alerts: int
-    combined_alerts: int
-    alerts_per_week: float
+    volume_alerts_raw: int
+    notifications_sent: int
+    notifications_per_week: float
     biggest_moves: list[dict]
     naive_pct_alert_counts: dict[str, int]
-    threshold_sweep: dict[str, int]
+    threshold_sweep: dict[str, float]
 
 
 def build_report(asset: AssetConfig, series: list[dict], params: EffectiveParams) -> AssetReport:
@@ -124,17 +183,17 @@ def build_report(asset: AssetConfig, series: list[dict], params: EffectiveParams
     days_covered = hours / 24 if hours else 0.0
     weeks = days_covered / 7 if days_covered else 1e-9
 
-    dual = [s for s in series if _price_fires(s, params.price_zscore_threshold)]
+    # Diagnostic-only counts: raw signal crossings, no override, no cooldown - these
+    # exist purely to show how much noise the dual-confirmation rule cuts.
+    dual = [s for s in series if _price_dual_fires(s, params.price_zscore_threshold)]
     ewma_only = [s for s in series if abs(s["ewma_z"]) >= params.price_zscore_threshold]
     robust_only = [s for s in series if abs(s["robust_z"]) >= params.price_zscore_threshold]
-    volume = [
+    volume_raw = [
         s for s in series
-        if _volume_fires(s, params.volume_zscore_threshold, params.volume_min_price_move_z)
+        if _volume_confirmed_fires(s, params.volume_zscore_threshold, params.volume_min_price_move_z)
     ]
 
-    dual_times = {s["open_time"] for s in dual}
-    volume_times = {s["open_time"] for s in volume}
-    combined_count = len(dual_times | volume_times)
+    notified = simulate_notifications(series, params)
 
     biggest = sorted(series, key=lambda s: abs(s["return_pct"]), reverse=True)[:5]
     biggest_moves = [
@@ -143,7 +202,7 @@ def build_report(asset: AssetConfig, series: list[dict], params: EffectiveParams
             "return_pct": round(s["return_pct"], 3),
             "ewma_z": round(s["ewma_z"], 2),
             "robust_z": round(s["robust_z"], 2),
-            "caught_by_dual_signal": _price_fires(s, params.price_zscore_threshold),
+            "notified": s["open_time"] in notified,
         }
         for s in biggest
     ]
@@ -154,12 +213,17 @@ def build_report(asset: AssetConfig, series: list[dict], params: EffectiveParams
     }
 
     # Always include the asset's own current threshold in the swept set, even if it
-    # isn't one of the round default steps, so its "current" point is exact.
+    # isn't one of the round default steps, so its "current" point is exact. Each
+    # swept value re-simulates the full notification pipeline (cooldown + escalation
+    # included) at that price_zscore_threshold, keeping every other param fixed - so
+    # this is the real per-week rate a given threshold would produce, not a raw
+    # signal-crossing count.
     sweep_thresholds = sorted(set(THRESHOLD_SWEEP) | {params.price_zscore_threshold})
-    sweep = {
-        f"{t:g}": sum(1 for s in series if _price_fires(s, t))
-        for t in sweep_thresholds
-    }
+    sweep = {}
+    for t in sweep_thresholds:
+        trial_params = replace(params, price_zscore_threshold=t)
+        trial_notified = simulate_notifications(series, trial_params)
+        sweep[f"{t:g}"] = round(len(trial_notified) / weeks, 2)
 
     return AssetReport(
         label=asset.label,
@@ -170,19 +234,22 @@ def build_report(asset: AssetConfig, series: list[dict], params: EffectiveParams
         params={
             "interval": params.interval,
             "price_zscore_threshold": params.price_zscore_threshold,
+            "price_zscore_override": params.price_zscore_override,
             "volume_zscore_threshold": params.volume_zscore_threshold,
+            "volume_zscore_override": params.volume_zscore_override,
             "volume_min_price_move_z": params.volume_min_price_move_z,
             "ewma_lambda": params.ewma_lambda,
             "mad_window": params.mad_window,
             "min_history": params.min_history,
             "cooldown_minutes": params.cooldown_minutes,
+            "escalation_factor": params.escalation_factor,
         },
         price_alerts_dual=len(dual),
         price_alerts_ewma_only=len(ewma_only),
         price_alerts_robust_only=len(robust_only),
-        volume_alerts=len(volume),
-        combined_alerts=combined_count,
-        alerts_per_week=round(combined_count / weeks, 2),
+        volume_alerts_raw=len(volume_raw),
+        notifications_sent=len(notified),
+        notifications_per_week=round(len(notified) / weeks, 2),
         biggest_moves=biggest_moves,
         naive_pct_alert_counts=naive_counts,
         threshold_sweep=sweep,
@@ -190,16 +257,22 @@ def build_report(asset: AssetConfig, series: list[dict], params: EffectiveParams
 
 
 def print_summary(reports: list[AssetReport]) -> None:
-    header = f"{'Актив':<32}{'Дней':>7}{'Алертов':>9}{'/неделю':>9}{'EWMA-only':>11}{'Robust-only':>12}"
+    header = f"{'Актив':<32}{'Дней':>7}{'Увед.':>7}{'/неделю':>9}{'Recall':>8}"
     print(header)
     print("-" * len(header))
+    total_caught = total_moves = 0
     for r in reports:
+        caught = sum(1 for m in r.biggest_moves if m["notified"])
+        total_caught += caught
+        total_moves += len(r.biggest_moves)
         print(
-            f"{r.label:<32}{r.days_covered:>7.0f}{r.combined_alerts:>9}{r.alerts_per_week:>9.2f}"
-            f"{r.price_alerts_ewma_only:>11}{r.price_alerts_robust_only:>12}"
+            f"{r.label:<32}{r.days_covered:>7.0f}{r.notifications_sent:>7}{r.notifications_per_week:>9.2f}"
+            f"{caught:>5}/{len(r.biggest_moves)}"
         )
     print()
-    print("Наивный % порог (одинаковый для всех активов) vs адаптивный z-score:")
+    print(f"Итоговый recall на топ-5 крупнейших движений по каждому активу: {total_caught}/{total_moves}")
+    print()
+    print("Наивный % порог (одинаковый для всех активов) vs адаптивный z-score (сырые срабатывания, без cooldown):")
     for r in reports:
         naive_str = ", ".join(f"{k}: {v}" for k, v in r.naive_pct_alert_counts.items())
         print(f"  {r.label:<32} наивный[{naive_str}]  z-score(dual): {r.price_alerts_dual}")
@@ -231,9 +304,11 @@ def main() -> int:
         series = compute_zscore_series(candles, params.ewma_lambda, params.mad_window, params.min_history)
         report = build_report(asset, series, params)
         reports.append(report)
+        caught = sum(1 for m in report.biggest_moves if m["notified"])
         log.info(
-            "  %s: %d alerts over %.0f days (%.2f/week)",
-            asset.label, report.combined_alerts, report.days_covered, report.alerts_per_week,
+            "  %s: %d notifications over %.0f days (%.2f/week), recall %d/%d",
+            asset.label, report.notifications_sent, report.days_covered,
+            report.notifications_per_week, caught, len(report.biggest_moves),
         )
 
     print()
@@ -242,12 +317,16 @@ def main() -> int:
     out = {
         "global_defaults": {
             "price_zscore_threshold": cfg.price_zscore_threshold,
+            "price_zscore_override": cfg.price_zscore_override,
             "volume_zscore_threshold": cfg.volume_zscore_threshold,
+            "volume_zscore_override": cfg.volume_zscore_override,
             "volume_min_price_move_z": cfg.volume_min_price_move_z,
             "ewma_lambda": cfg.ewma_lambda,
             "mad_window": cfg.mad_window,
             "min_history": cfg.min_history,
             "interval": cfg.interval,
+            "cooldown_minutes": cfg.cooldown_minutes,
+            "escalation_factor": cfg.escalation_factor,
         },
         "assets": [asdict(r) for r in reports],
     }

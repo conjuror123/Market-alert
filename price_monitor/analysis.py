@@ -1,7 +1,7 @@
 """Anomaly detection: is the latest price move / volume abnormal for THIS asset,
 based on its own recent volatility and volume behaviour rather than a fixed % threshold.
 
-Two independent signals have to agree before a price move is flagged:
+Two independent signals normally have to agree before a price move is flagged:
 
 1. EWMA volatility z-score - an adaptive estimate of "how big moves normally are for
    this asset right now" (RiskMetrics-style exponentially weighted variance). Reacts
@@ -11,9 +11,19 @@ Two independent signals have to agree before a price move is flagged:
    rolling window. MAD is not distorted by a handful of previous spikes the way a
    plain standard deviation would be, so it acts as a sanity check on signal (1).
 
+Requiring both keeps routine noise quiet, but it has one failure mode: right after a
+burst of activity, EWMA volatility is already elevated, which caps how large ewma_z
+can get even for a genuinely extreme move (the robust baseline, averaged over a much
+longer window, isn't fooled the same way). A backtest found real cases where a top-5
+historical move for an asset had robust_z past 8 but ewma_z just under the threshold,
+so it was missed. `price_zscore_override` is the fix: an overwhelming reading on
+*either* signal alone bypasses the confirmation requirement - confirmation exists to
+filter borderline cases, not to gate events that are extreme by any measure.
+
 Volume is scored the same way (robust median/MAD z-score) and, combined with even a
 moderate price move, is used to flag volume surges that a pure price-based check
-would miss (e.g. accumulation/distribution before a breakout).
+would miss (e.g. accumulation/distribution before a breakout); it gets the same
+extreme-override treatment.
 """
 from __future__ import annotations
 
@@ -40,6 +50,12 @@ class Signal:
     @property
     def is_alert(self) -> bool:
         return self.price_alert or self.volume_alert
+
+    @property
+    def severity(self) -> float:
+        """A single comparable "how extreme was this" scalar, used to decide whether
+        a new alert during cooldown is a big enough escalation to send anyway."""
+        return max(abs(self.ewma_z), abs(self.robust_z), self.volume_z)
 
 
 def log_returns(closes: list[float]) -> list[float]:
@@ -96,6 +112,8 @@ def analyze(
     volume_zscore_threshold: float,
     volume_min_price_move_z: float,
     min_history: int,
+    price_zscore_override: float,
+    volume_zscore_override: float,
 ) -> Signal | None:
     """Analyze the most recent closed candle against the asset's own recent history.
 
@@ -109,7 +127,13 @@ def analyze(
 
     returns = log_returns(closes)
     last_return = returns[-1]
-    history_returns = returns[:-1][-mad_window:]
+    # A return of exactly 0.0 almost always means the source repeated a stale quote
+    # (seen especially on spot FX pairs off-hours), not that the market genuinely
+    # didn't move - treating a run of those as "calm" would artificially shrink both
+    # baselines and make ordinary moves look extreme. Drop them from the baseline
+    # window (the current candle being evaluated is never filtered, even if it's a
+    # stale 0.0 itself - a same-as-before candle simply won't look anomalous).
+    history_returns = [r for r in returns[:-1] if r != 0.0][-mad_window:]
 
     ewma_sigma = ewma_volatility(history_returns, ewma_lambda)
     ewma_z = last_return / ewma_sigma if ewma_sigma > 0 else 0.0
@@ -119,24 +143,35 @@ def analyze(
     history_volumes = volumes[:-1][-mad_window:]
     volume_z = robust_z_score(last_volume, history_volumes)
 
-    price_alert = abs(ewma_z) >= price_zscore_threshold and abs(robust_z) >= price_zscore_threshold
-    volume_alert = (
-        volume_z >= volume_zscore_threshold
-        and max(abs(ewma_z), abs(robust_z)) >= volume_min_price_move_z
-    )
+    price_dual = abs(ewma_z) >= price_zscore_threshold and abs(robust_z) >= price_zscore_threshold
+    price_override = abs(ewma_z) >= price_zscore_override or abs(robust_z) >= price_zscore_override
+    price_alert = price_dual or price_override
+
+    volume_confirmed = volume_z >= volume_zscore_threshold and max(abs(ewma_z), abs(robust_z)) >= volume_min_price_move_z
+    volume_override = volume_z >= volume_zscore_override
+    volume_alert = volume_confirmed or volume_override
 
     reasons = []
     if price_alert:
         direction = "рост" if last_return > 0 else "падение"
-        reasons.append(
-            f"аномальное {direction} цены: EWMA z={ewma_z:.2f}, робастный z={robust_z:.2f} "
-            f"(порог {price_zscore_threshold})"
-        )
+        if price_override and not price_dual:
+            reasons.append(
+                f"экстремальное {direction} цены: EWMA z={ewma_z:.2f}, робастный z={robust_z:.2f} "
+                f"— один из сигналов сам по себе выше порога {price_zscore_override}, подтверждение не требуется"
+            )
+        else:
+            reasons.append(
+                f"аномальное {direction} цены: EWMA z={ewma_z:.2f}, робастный z={robust_z:.2f} "
+                f"(порог {price_zscore_threshold})"
+            )
     if volume_alert:
-        reasons.append(
-            f"всплеск объёма: z={volume_z:.2f} (порог {volume_zscore_threshold}) "
-            f"на фоне движения цены z={max(abs(ewma_z), abs(robust_z)):.2f}"
-        )
+        if volume_override and not volume_confirmed:
+            reasons.append(f"экстремальный всплеск объёма: z={volume_z:.2f} (порог {volume_zscore_override})")
+        else:
+            reasons.append(
+                f"всплеск объёма: z={volume_z:.2f} (порог {volume_zscore_threshold}) "
+                f"на фоне движения цены z={max(abs(ewma_z), abs(robust_z)):.2f}"
+            )
 
     return Signal(
         symbol=symbol,
