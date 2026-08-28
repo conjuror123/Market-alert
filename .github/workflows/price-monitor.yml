@@ -2,7 +2,9 @@ name: Price Spike Monitor
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    # Раз в час, через 5 минут после начала часа — даёт Coinbase время закрыть и
+    # проиндексировать часовую свечу перед тем, как мы её запросим.
+    - cron: "5 * * * *"
   workflow_dispatch: {}
 
 permissions:
