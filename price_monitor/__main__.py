@@ -18,15 +18,38 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("price_monitor")
 
 
-def format_alert(signal) -> str:
+def format_alert(signal, params) -> str:
     direction_emoji = "🚀" if signal.last_return_pct >= 0 else "🔻"
+    direction_word = "выросла" if signal.last_return_pct >= 0 else "упала"
     lines = [
         f"{direction_emoji} <b>{signal.symbol}</b> — необычное движение рынка",
         f"Цена: {signal.last_close:g} ({signal.last_return_pct:+.2f}% за последний интервал)",
-        f"EWMA z-score: {signal.ewma_z:.2f} | Робастный z-score: {signal.robust_z:.2f} | Объём z-score: {signal.volume_z:.2f}",
         "",
     ]
-    lines.extend(f"• {r}" for r in signal.reasons)
+
+    if signal.price_alert:
+        price_severity = max(abs(signal.ewma_z), abs(signal.robust_z))
+        lines.append(
+            f"Цена {direction_word} сильнее, чем обычно бывает у этого актива: "
+            f"отклонение от привычного разброса движений в {price_severity:.1f} раза "
+            f"(обычный порог для тревоги — {params.price_zscore_threshold:.1f})."
+        )
+    if signal.volume_alert:
+        lines.append(
+            f"Объём торгов необычно высокий: отклонение в {signal.volume_z:.1f} раза "
+            f"больше привычного (обычный порог для тревоги — {params.volume_zscore_threshold:.1f})."
+        )
+
+    lines += [
+        "",
+        "ℹ️ <b>Технические детали</b>",
+        f"EWMA z-score (отклонение по недавней волатильности): {signal.ewma_z:.2f} "
+        f"— обычно от -2 до 2, тревога начинается от ±{params.price_zscore_threshold:.1f}",
+        f"Робастный z-score (отклонение от долгосрочного ориентира): {signal.robust_z:.2f} "
+        f"— обычно от -2 до 2, тревога начинается от ±{params.price_zscore_threshold:.1f}",
+        f"Объём z-score (отклонение объёма торгов от привычного): {signal.volume_z:.2f} "
+        f"— обычно от 0 до 2, тревога начинается от {params.volume_zscore_threshold:.1f}",
+    ]
     return "\n".join(lines)
 
 
@@ -101,7 +124,7 @@ def main() -> int:
             continue
 
         try:
-            send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id, format_alert(signal))
+            send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id, format_alert(signal, params))
             record_alert(state, state_key, signal.severity)
             alerts_sent += 1
             log.info("%s: alert sent", asset.label)
