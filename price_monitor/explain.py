@@ -27,6 +27,10 @@ log = logging.getLogger("price_monitor.explain")
 
 EXPLANATION_HEADER = "🧠 <b>Возможная причина (по новостям, определено автоматически)</b>"
 
+# How many days after an alert we still consider news "about" it. Only matters
+# when an alert sits unprocessed for a while - see _scope_query.
+NEWS_WINDOW_DAYS = 2
+
 SYSTEM_PROMPT = (
     "Ты помогаешь трейдеру понять, почему актив резко изменился в цене. Тебе дают "
     "название актива, цифры движения и заголовки недавних новостей о нём. Если "
@@ -60,17 +64,26 @@ def _build_user_prompt(entry: dict, articles: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def _augment_query_with_after(query: str, alert_time: datetime | None) -> str:
-    """Add Google News' "after:" search operator so the (Google-imposed, fixed)
-    100-result cap isn't spent on coverage from days or weeks before the alert.
-    Google's date operator is day-granularity only and its own timezone handling
-    is unclear, so this asks for one extra day of buffer - _filter_after does
-    the exact cutoff against the real alert time.
+def _scope_query(query: str, alert_time: datetime | None) -> str:
+    """Add Google News' "after:"/"before:" search operators so the
+    (Google-imposed, fixed) 100-result cap isn't spent on coverage from
+    outside a window around the alert. Google's date operators are
+    day-granularity only and its own timezone handling is unclear, so this
+    asks for one extra day of buffer on each side - _filter_after and
+    _filter_before do the exact cutoffs against the real timestamps.
+
+    The upper bound matters only when an alert sits unprocessed for a while:
+    without one, an old alert's search would run "from just before it to
+    right now" - for an alert from a week ago, "right now" is overwhelmingly
+    today's unrelated news, not coverage of that old move. For an alert
+    processed promptly (the normal case) "now" is already inside the window,
+    so this has no effect.
     """
     if alert_time is None:
         return query
-    cutoff_date = (alert_time - timedelta(days=1)).strftime("%Y-%m-%d")
-    return f"{query} after:{cutoff_date}"
+    after_date = (alert_time - timedelta(days=1)).strftime("%Y-%m-%d")
+    before_date = (alert_time + timedelta(days=NEWS_WINDOW_DAYS + 1)).strftime("%Y-%m-%d")
+    return f"{query} after:{after_date} before:{before_date}"
 
 
 def _filter_after(articles: list[dict], cutoff: datetime | None) -> list[dict]:
@@ -84,11 +97,17 @@ def _filter_after(articles: list[dict], cutoff: datetime | None) -> list[dict]:
     return [a for a in articles if a["published"] is not None and a["published"] >= cutoff]
 
 
+def _filter_before(articles: list[dict], cutoff: datetime) -> list[dict]:
+    """Keep only articles published at/before `cutoff` - see _scope_query for
+    why an upper bound matters at all."""
+    return [a for a in articles if a["published"] is not None and a["published"] <= cutoff]
+
+
 def _effective_cutoff(alert_time: datetime) -> datetime:
     """The actual "at/after" boundary passed to _filter_after.
 
     Normally that's just the alert time itself. But late in the UTC day (Google
-    News runs on UTC, see _augment_query_with_after) there simply isn't much
+    News runs on UTC, see _scope_query) there simply isn't much
     more coverage published between, say, 23:30 and midnight - filtering to the
     exact alert minute would starve the LLM of context it would otherwise have
     had. For alerts from 18:00 UTC onward, widen the window back to 18:00 UTC
@@ -135,13 +154,14 @@ def explain_entry(cfg: Config, entry: dict, query: str) -> str | None:
         alert_time = None
 
     try:
-        articles = fetch_news(_augment_query_with_after(query, alert_time), limit=100)
+        articles = fetch_news(_scope_query(query, alert_time), limit=100)
     except NewsError as exc:
         log.warning("%s: news fetch failed: %s", entry["symbol"], exc)
         articles = []
 
     if alert_time is not None:
         articles = _filter_after(articles, _effective_cutoff(alert_time))
+        articles = _filter_before(articles, alert_time + timedelta(days=NEWS_WINDOW_DAYS))
         if not articles:
             return None
 
