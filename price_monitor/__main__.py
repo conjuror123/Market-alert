@@ -126,14 +126,15 @@ def main() -> int:
             continue
 
         try:
-            message_id = send_telegram_message(
-                cfg.telegram_bot_token, cfg.telegram_chat_id, format_alert(signal, params))
+            alert_text = format_alert(signal, params)
+            message_id = send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id, alert_text)
             record_alert(state, state_key, signal.severity)
             record_sent_alert(
                 alerts_log,
                 chat_id=cfg.telegram_chat_id,
                 message_id=message_id,
                 symbol=asset.label,
+                message_text=alert_text,
                 last_close=signal.last_close,
                 last_return_pct=signal.last_return_pct,
                 ewma_z=signal.ewma_z,

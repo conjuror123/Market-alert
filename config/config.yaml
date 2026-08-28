@@ -21,6 +21,11 @@
 # ближайшего месяца, который сам переезжает на следующий контракт при экспирации —
 # в момент такого ролловера возможен ценовой гэп, не связанный с реальным движением
 # рынка, и он может изредка (несколько раз в год) вызвать ложный алерт.
+#
+# news_query — необязательное поле, поисковый запрос для Google News, когда вы
+# вручную запускаете "Explain Alerts" (объяснение алерта через LLM, см. README).
+# Нужен, только если label не годится как поисковый запрос (смешивает русский и
+# английский, содержит скобки и т.п.) — если не задать, используется label как есть.
 assets:
   - symbol: BTC-USD
     source: coinbase
@@ -34,12 +39,15 @@ assets:
   - symbol: "GC=F"
     source: yahoo
     label: "Золото (Gold futures)"
+    news_query: "gold price"
   - symbol: "CL=F"
     source: yahoo
     label: "Нефть WTI (Crude Oil futures)"
+    news_query: "WTI crude oil price"
   - symbol: "ES=F"
     source: yahoo
     label: "S&P 500 (E-mini futures)"
+    news_query: "S&P 500"
     # Бэктест нашёл: объём E-mini фьючерса имеет резкую внутридневную сезонность
     # (тихая ночная сессия против насыщенной сессии NYSE), и робастный z-score
     # относительно скользящего окна из обеих смешанных вместе даёт абсурдные
@@ -52,12 +60,15 @@ assets:
   - symbol: "ZB=F"
     source: yahoo
     label: "US 30Y Treasury Bond futures"
+    news_query: "30 year Treasury bond yield"
   - symbol: "EURUSD=X"
     source: yahoo
     label: "EUR/USD"
+    news_query: "EUR USD euro dollar exchange rate"
   - symbol: "CNY=X"
     source: yahoo
     label: "USD/CNY"
+    news_query: "USD CNY yuan exchange rate"
 
 # Таймфрейм свечей — общий для всех активов (обоих источников) и должен
 # соответствовать частоте запуска workflow (по умолчанию раз в час, см.
@@ -132,3 +143,12 @@ health_alert_after_failures: 3
 # (24 ≈ раз в сутки при часовом опросе), чтобы не забыть о долгой проблеме, но и не
 # спамить каждый час. 0 — напомнить один раз и больше не повторять.
 health_reminder_every_failures: 24
+
+# LLM для отдельного, запускаемого вручную шага "Explain Alerts" (объяснение алерта
+# по новостям, см. README). base_url должен принимать запросы в формате OpenAI
+# /chat/completions — так устроены DeepSeek, OpenAI и большинство других
+# провайдеров, так что смена провайдера — это только эти два значения плюс то, какой
+# секрет подставлен в LLM_API_KEY в .github/workflows/explain-alerts.yml. Сам ключ
+# сюда не пишется — он берётся из секрета репозитория.
+llm_base_url: "https://api.deepseek.com"
+llm_model: "deepseek-chat"

@@ -42,6 +42,7 @@ class AssetConfig:
     symbol: str
     source: str
     label: str
+    news_query: str = ""
     overrides: dict = field(default_factory=dict)
 
 
@@ -93,6 +94,14 @@ class Config:
         os.path.dirname(__file__), "..", "data", "alerts_log.json"))
     coinbase_base_url: str = "https://api.exchange.coinbase.com"
     yahoo_base_url: str = "https://query1.finance.yahoo.com"
+    # LLM used by the (separate, manually-triggered) "explain alerts" step - see
+    # price_monitor/explain.py and price_monitor/llm.py. Any provider with an
+    # OpenAI-compatible /chat/completions endpoint works here; switching providers
+    # later is just these two values plus which secret LLM_API_KEY is mapped to in
+    # .github/workflows/explain-alerts.yml, no code changes.
+    llm_base_url: str = "https://api.deepseek.com"
+    llm_model: str = "deepseek-chat"
+    llm_api_key: str = ""
 
     def params_for(self, asset: AssetConfig) -> EffectiveParams:
         values = {}
@@ -125,10 +134,12 @@ def _parse_assets(raw_assets: list) -> list[AssetConfig]:
                         f"config.yaml assets[{i}] ('{item['symbol']}') has invalid "
                         f"{key}={item[key]!r}, expected {type_.__name__}"
                     ) from exc
+        label = item.get("label", item["symbol"])
         assets.append(AssetConfig(
             symbol=item["symbol"],
             source=source,
-            label=item.get("label", item["symbol"]),
+            label=label,
+            news_query=item.get("news_query", label),
             overrides=overrides,
         ))
     return assets
@@ -178,6 +189,9 @@ def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
             "HEALTH_REMINDER_EVERY_FAILURES", raw.get("health_reminder_every_failures", 24)),
         telegram_bot_token=os.environ.get("TELEGRAM_BOT_TOKEN", ""),
         telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID", ""),
+        llm_base_url=os.environ.get("LLM_BASE_URL", raw.get("llm_base_url", "https://api.deepseek.com")),
+        llm_model=os.environ.get("LLM_MODEL", raw.get("llm_model", "deepseek-chat")),
+        llm_api_key=os.environ.get("LLM_API_KEY", ""),
     )
     state_path_override = os.environ.get("STATE_PATH")
     if state_path_override:

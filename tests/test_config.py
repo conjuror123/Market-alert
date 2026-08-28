@@ -13,6 +13,18 @@ def test_parse_assets_keeps_explicit_label():
     assert assets[0].label == "Gold"
 
 
+def test_parse_assets_news_query_defaults_to_label():
+    assets = _parse_assets([{"symbol": "GC=F", "source": "yahoo", "label": "Золото (Gold futures)"}])
+    assert assets[0].news_query == "Золото (Gold futures)"
+
+
+def test_parse_assets_keeps_explicit_news_query():
+    assets = _parse_assets([{
+        "symbol": "GC=F", "source": "yahoo", "label": "Золото (Gold futures)", "news_query": "gold price",
+    }])
+    assert assets[0].news_query == "gold price"
+
+
 def test_parse_assets_rejects_unknown_source():
     with pytest.raises(ValueError):
         _parse_assets([{"symbol": "BTC-USD", "source": "binance"}])
