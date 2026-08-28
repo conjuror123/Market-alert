@@ -28,7 +28,7 @@ import requests
 
 from price_monitor import coinbase, yahoo
 from price_monitor.analysis import ewma_volatility, log_returns, robust_z_score
-from price_monitor.config import AssetConfig, Config, load_config
+from price_monitor.config import AssetConfig, Config, EffectiveParams, load_config
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("price_monitor.backtest")
@@ -42,13 +42,15 @@ NAIVE_PCT_THRESHOLDS = [1.0, 2.0, 3.0]
 THRESHOLD_SWEEP = [2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
 
 
-def fetch_backtest_history(asset: AssetConfig, cfg: Config, days: float, session: requests.Session):
+def fetch_backtest_history(
+    asset: AssetConfig, params: EffectiveParams, cfg: Config, days: float, session: requests.Session
+):
     if asset.source == "coinbase":
         return coinbase.fetch_full_history(
-            asset.symbol, cfg.interval, days, cfg.coinbase_base_url, session=session)
+            asset.symbol, params.interval, days, cfg.coinbase_base_url, session=session)
     if asset.source == "yahoo":
         return yahoo.fetch_klines(
-            asset.symbol, cfg.interval, limit=1_000_000, base_url=cfg.yahoo_base_url,
+            asset.symbol, params.interval, limit=1_000_000, base_url=cfg.yahoo_base_url,
             session=session, range_=f"{int(days) + 5}d")
     raise ValueError(f"Unknown source '{asset.source}'")
 
@@ -105,6 +107,7 @@ class AssetReport:
     source: str
     hours: int
     days_covered: float
+    params: dict
     price_alerts_dual: int
     price_alerts_ewma_only: int
     price_alerts_robust_only: int
@@ -116,15 +119,18 @@ class AssetReport:
     threshold_sweep: dict[str, int]
 
 
-def build_report(asset: AssetConfig, series: list[dict], cfg: Config) -> AssetReport:
+def build_report(asset: AssetConfig, series: list[dict], params: EffectiveParams) -> AssetReport:
     hours = len(series)
     days_covered = hours / 24 if hours else 0.0
     weeks = days_covered / 7 if days_covered else 1e-9
 
-    dual = [s for s in series if _price_fires(s, cfg.price_zscore_threshold)]
-    ewma_only = [s for s in series if abs(s["ewma_z"]) >= cfg.price_zscore_threshold]
-    robust_only = [s for s in series if abs(s["robust_z"]) >= cfg.price_zscore_threshold]
-    volume = [s for s in series if _volume_fires(s, cfg.volume_zscore_threshold, cfg.volume_min_price_move_z)]
+    dual = [s for s in series if _price_fires(s, params.price_zscore_threshold)]
+    ewma_only = [s for s in series if abs(s["ewma_z"]) >= params.price_zscore_threshold]
+    robust_only = [s for s in series if abs(s["robust_z"]) >= params.price_zscore_threshold]
+    volume = [
+        s for s in series
+        if _volume_fires(s, params.volume_zscore_threshold, params.volume_min_price_move_z)
+    ]
 
     dual_times = {s["open_time"] for s in dual}
     volume_times = {s["open_time"] for s in volume}
@@ -137,7 +143,7 @@ def build_report(asset: AssetConfig, series: list[dict], cfg: Config) -> AssetRe
             "return_pct": round(s["return_pct"], 3),
             "ewma_z": round(s["ewma_z"], 2),
             "robust_z": round(s["robust_z"], 2),
-            "caught_by_dual_signal": _price_fires(s, cfg.price_zscore_threshold),
+            "caught_by_dual_signal": _price_fires(s, params.price_zscore_threshold),
         }
         for s in biggest
     ]
@@ -147,9 +153,12 @@ def build_report(asset: AssetConfig, series: list[dict], cfg: Config) -> AssetRe
         for pct in NAIVE_PCT_THRESHOLDS
     }
 
+    # Always include the asset's own current threshold in the swept set, even if it
+    # isn't one of the round default steps, so its "current" point is exact.
+    sweep_thresholds = sorted(set(THRESHOLD_SWEEP) | {params.price_zscore_threshold})
     sweep = {
         f"{t:g}": sum(1 for s in series if _price_fires(s, t))
-        for t in THRESHOLD_SWEEP
+        for t in sweep_thresholds
     }
 
     return AssetReport(
@@ -158,6 +167,16 @@ def build_report(asset: AssetConfig, series: list[dict], cfg: Config) -> AssetRe
         source=asset.source,
         hours=hours,
         days_covered=round(days_covered, 1),
+        params={
+            "interval": params.interval,
+            "price_zscore_threshold": params.price_zscore_threshold,
+            "volume_zscore_threshold": params.volume_zscore_threshold,
+            "volume_min_price_move_z": params.volume_min_price_move_z,
+            "ewma_lambda": params.ewma_lambda,
+            "mad_window": params.mad_window,
+            "min_history": params.min_history,
+            "cooldown_minutes": params.cooldown_minutes,
+        },
         price_alerts_dual=len(dual),
         price_alerts_ewma_only=len(ewma_only),
         price_alerts_robust_only=len(robust_only),
@@ -198,13 +217,19 @@ def main() -> int:
 
     reports = []
     for asset in cfg.assets:
-        log.info("Fetching %.0f days of history for %s (%s)...", args.days, asset.label, asset.symbol)
+        params = cfg.params_for(asset)
+        overridden = sorted(asset.overrides)
+        log.info(
+            "Fetching %.0f days of history for %s (%s)%s...",
+            args.days, asset.label, asset.symbol,
+            f" [overrides: {', '.join(overridden)}]" if overridden else "",
+        )
         t0 = time.monotonic()
-        candles = fetch_backtest_history(asset, cfg, args.days, session)
+        candles = fetch_backtest_history(asset, params, cfg, args.days, session)
         log.info("  %d candles fetched in %.1fs", len(candles), time.monotonic() - t0)
 
-        series = compute_zscore_series(candles, cfg.ewma_lambda, cfg.mad_window, cfg.min_history)
-        report = build_report(asset, series, cfg)
+        series = compute_zscore_series(candles, params.ewma_lambda, params.mad_window, params.min_history)
+        report = build_report(asset, series, params)
         reports.append(report)
         log.info(
             "  %s: %d alerts over %.0f days (%.2f/week)",
@@ -215,7 +240,7 @@ def main() -> int:
     print_summary(reports)
 
     out = {
-        "generated_with_thresholds": {
+        "global_defaults": {
             "price_zscore_threshold": cfg.price_zscore_threshold,
             "volume_zscore_threshold": cfg.volume_zscore_threshold,
             "volume_min_price_move_z": cfg.volume_min_price_move_z,

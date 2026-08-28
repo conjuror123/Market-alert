@@ -56,6 +56,7 @@ def main() -> int:
 
     for asset in cfg.assets:
         state_key = f"{asset.source}:{asset.symbol}"
+        params = cfg.params_for(asset)
         try:
             candles = fetch_candles(asset, cfg, session=session)
         except ExchangeError as exc:
@@ -67,12 +68,12 @@ def main() -> int:
         signal = analyze(
             symbol=asset.label,
             candles=candles,
-            ewma_lambda=cfg.ewma_lambda,
-            mad_window=cfg.mad_window,
-            price_zscore_threshold=cfg.price_zscore_threshold,
-            volume_zscore_threshold=cfg.volume_zscore_threshold,
-            volume_min_price_move_z=cfg.volume_min_price_move_z,
-            min_history=cfg.min_history,
+            ewma_lambda=params.ewma_lambda,
+            mad_window=params.mad_window,
+            price_zscore_threshold=params.price_zscore_threshold,
+            volume_zscore_threshold=params.volume_zscore_threshold,
+            volume_min_price_move_z=params.volume_min_price_move_z,
+            min_history=params.min_history,
         )
         if signal is None:
             log.info("%s: not enough history yet, skipping", asset.label)
@@ -87,7 +88,7 @@ def main() -> int:
         if not signal.is_alert:
             continue
 
-        if is_in_cooldown(state, state_key, cfg.cooldown_minutes):
+        if is_in_cooldown(state, state_key, params.cooldown_minutes):
             log.info("%s: alert condition met but still in cooldown, skipping notification", asset.label)
             continue
 

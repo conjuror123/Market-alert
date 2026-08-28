@@ -23,10 +23,11 @@ def fetch_candles(
             f"Unknown source '{asset.source}' for {asset.symbol}. Supported: {sorted(SOURCES)}"
         ) from exc
 
+    params = cfg.params_for(asset)
     return fetch_fn(
         symbol=asset.symbol,
-        interval=cfg.interval,
-        limit=cfg.lookback,
+        interval=params.interval,
+        limit=params.lookback,
         base_url=base_url_fn(cfg),
         session=session,
     )

@@ -1,4 +1,14 @@
-"""Configuration loading: YAML file defaults, overridable via environment variables."""
+"""Configuration loading: YAML file defaults, overridable via environment variables.
+
+Each asset in config.yaml can also override any detection parameter for itself
+(interval, lookback, thresholds, EWMA lambda, MAD window, min history, cooldown) -
+see `Config.params_for`. With at most ~100 assets, a per-asset knob for every
+parameter is affordable and worth it: the backtest showed real assets need real
+per-asset tuning (an equity-index future's volume seasonality vs. a currency
+pair's stale-quote noise are not the same problem with the same fix), so this
+config is deliberately "one asset, one dial per parameter" rather than a single
+global compromise.
+"""
 from __future__ import annotations
 
 import os
@@ -10,12 +20,41 @@ DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "c
 
 VALID_SOURCES = {"coinbase", "yahoo"}
 
+# Per-asset override keys, mapped to the (type, Config attribute) they fall back to.
+_OVERRIDABLE = {
+    "interval": (str, "interval"),
+    "lookback": (int, "lookback"),
+    "mad_window": (int, "mad_window"),
+    "ewma_lambda": (float, "ewma_lambda"),
+    "price_zscore_threshold": (float, "price_zscore_threshold"),
+    "volume_zscore_threshold": (float, "volume_zscore_threshold"),
+    "volume_min_price_move_z": (float, "volume_min_price_move_z"),
+    "cooldown_minutes": (int, "cooldown_minutes"),
+    "min_history": (int, "min_history"),
+}
+
 
 @dataclass
 class AssetConfig:
     symbol: str
     source: str
     label: str
+    overrides: dict = field(default_factory=dict)
+
+
+@dataclass
+class EffectiveParams:
+    """Fully resolved detection parameters for one asset - global defaults with
+    that asset's overrides applied."""
+    interval: str
+    lookback: int
+    mad_window: int
+    ewma_lambda: float
+    price_zscore_threshold: float
+    volume_zscore_threshold: float
+    volume_min_price_move_z: float
+    cooldown_minutes: int
+    min_history: int
 
 
 @dataclass
@@ -39,6 +78,12 @@ class Config:
     coinbase_base_url: str = "https://api.exchange.coinbase.com"
     yahoo_base_url: str = "https://query1.finance.yahoo.com"
 
+    def params_for(self, asset: AssetConfig) -> EffectiveParams:
+        values = {}
+        for key, (_, attr) in _OVERRIDABLE.items():
+            values[attr] = asset.overrides.get(key, getattr(self, attr))
+        return EffectiveParams(**values)
+
 
 def _parse_assets(raw_assets: list) -> list[AssetConfig]:
     assets = []
@@ -54,10 +99,21 @@ def _parse_assets(raw_assets: list) -> list[AssetConfig]:
                 f"config.yaml assets[{i}] has unknown source '{source}'. "
                 f"Supported: {sorted(VALID_SOURCES)}"
             )
+        overrides = {}
+        for key, (type_, _) in _OVERRIDABLE.items():
+            if key in item:
+                try:
+                    overrides[key] = type_(item[key])
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        f"config.yaml assets[{i}] ('{item['symbol']}') has invalid "
+                        f"{key}={item[key]!r}, expected {type_.__name__}"
+                    ) from exc
         assets.append(AssetConfig(
             symbol=item["symbol"],
             source=source,
             label=item.get("label", item["symbol"]),
+            overrides=overrides,
         ))
     return assets
 
