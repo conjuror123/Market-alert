@@ -251,33 +251,59 @@ price_monitor/
   state.py       — escalation-aware cooldown между ценовыми алертами
   health.py      — алерт на отказ самого мониторинга (см. раздел ниже)
   backtest.py    — walk-forward бэктест порогов и симуляция реальной доставки алертов
+  test_notify.py — ручная проверка доставки в Telegram, без реального алерта
   __main__.py    — точка входа одного прогона мониторинга
 config/config.yaml — список активов и пороги
 data/state.json     — персистентное состояние (коммитится обратно в репо)
 .github/workflows/
   price-monitor.yml — запуск раз в час (cron) + workflow_dispatch
+  test-notify.yml    — ручной запуск test_notify.py из вкладки Actions
   tests.yml          — юнит-тесты на push/PR
-tests/                — pytest-тесты для analysis.py, config.py, yahoo.py, state.py, health.py, backtest.py
+tests/                — pytest-тесты на все модули выше
 ```
 
 ## Настройка
 
 1. Создайте Telegram-бота через [@BotFather](https://t.me/BotFather), получите
-   `TELEGRAM_BOT_TOKEN`. Узнайте `TELEGRAM_CHAT_ID` (например, через
-   `https://api.telegram.org/bot<TOKEN>/getUpdates` после того как напишете боту).
-2. В настройках репозитория **Settings → Secrets and variables → Actions → Secrets**
+   `TELEGRAM_BOT_TOKEN`.
+2. Определите `TELEGRAM_CHAT_ID` — куда бот будет писать:
+   - **Личный чат с ботом** — напишите боту `/start`, затем узнайте свой числовой
+     ID (например, через `https://api.telegram.org/bot<TOKEN>/getUpdates` после
+     сообщения, или через любого стороннего "Get My ID" бота — это просто ваш
+     Telegram user ID, он не привязан к конкретному боту).
+   - **Публичный канал** (рекомендуется, если хотите, чтобы уведомления мог
+     читать не только один человек) — создайте канал, сделайте его публичным
+     (`Settings → New Channel → Public channel`, задайте `@username`), добавьте
+     бота **администратором** с правом "Post Messages". `TELEGRAM_CHAT_ID` в
+     этом случае — просто `@username` канала, числовой ID не нужен. Любой
+     находит канал по имени и подписывается сам.
+   - **Группа** — тоже работает, добавьте бота обычным участником; узнать
+     числовой `chat_id` группы сложнее (обычно через `getUpdates` после любого
+     сообщения в группе), в отличие от канала, где хватает `@username`.
+3. В настройках репозитория **Settings → Secrets and variables → Actions → Secrets**
    добавьте:
    - `TELEGRAM_BOT_TOKEN`
    - `TELEGRAM_CHAT_ID`
-3. Список активов задаётся в `config/config.yaml` (раздел `assets`) — правьте его
+4. Список активов задаётся в `config/config.yaml` (раздел `assets`) — правьте его
    напрямую и коммитьте, отдельной secret/variable для этого нет.
-4. Убедитесь, что workflow `price-monitor.yml` находится на **дефолтной ветке**
+5. Убедитесь, что workflow `price-monitor.yml` находится на **дефолтной ветке**
    репозитория — GitHub Actions запускает `schedule`-триггеры только с дефолтной
    ветки. После смёржа PR в основную ветку планировщик заработает автоматически на
    ближайшем часовом тике (5-я минута каждого часа); расписания cron в GitHub Actions
    могут срабатывать с задержкой в периоды высокой нагрузки на инфраструктуру GitHub.
-5. Права `contents: write` уже прописаны в workflow — они нужны, чтобы job мог
-   закоммитить обновлённый `data/state.json` обратно в репозиторий.
+6. Права `contents: write` уже прописаны в `price-monitor.yml` — они нужны, чтобы
+   job мог закоммитить обновлённый `data/state.json` обратно в репозиторий.
+
+### Проверка доставки без ожидания реального алерта
+
+Обычный прогон шлёт сообщение только когда сработала аномалия — по спокойному
+рынку можно долго ничего не увидеть и не понять, правильно ли вообще настроен бот.
+Чтобы проверить именно доставку (токен верный, бот действительно админ канала),
+не дожидаясь алерта: вкладка **Actions → Test Telegram Notification → Run
+workflow**. Это отдельный workflow (`.github/workflows/test-notify.yml`,
+скрипт — `price_monitor/test_notify.py`), который не трогает состояние
+мониторинга и не зависит от рыночных данных — просто шлёт одно фиксированное
+сообщение и завершается.
 
 ## Локальный запуск
 
