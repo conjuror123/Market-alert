@@ -41,6 +41,23 @@ Finance) и **EUR/USD, USD/CNY** (форекс, Yahoo Finance) — см. `config
 одному активу выдерживается cooldown (по умолчанию 2 часа) — состояние хранится в
 `data/state.json` и коммитится обратно в репозиторий workflow'ом после каждого запуска.
 
+## Алерт на отказ самого мониторинга
+
+Если получение данных или отправка в Telegram упали хотя бы по одному активу
+несколько запусков подряд (`health_alert_after_failures`, по умолчанию 3 — то есть
+~3 часа при часовом опросе), приходит отдельное сообщение «мониторинг не работает» с
+перечнем того, что именно сломалось. Пока проблема не устранена, раз в
+`health_reminder_every_failures` неудачных запусков (по умолчанию 24, то есть
+примерно раз в сутки) приходит напоминание, чтобы долгую проблему не забыть, но не
+спамить каждый час. Когда всё снова начинает работать — приходит сообщение
+«мониторинг восстановился». Логика — в `price_monitor/health.py`, состояние (счётчик
+подряд идущих неудачных запусков) хранится в том же `data/state.json`.
+
+Есть один неустранимый случай: если сам `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`
+неверны или бот заблокирован, отправить уведомление об этом, разумеется, тоже не
+получится — в этом случае единственный сигнал будет красный ❌ у workflow во вкладке
+Actions репозитория, стоит иногда туда заглядывать.
+
 ## Активы и источники данных
 
 Каждый актив в `config/config.yaml` — это `symbol` (тикер) + `source` (откуда брать
@@ -99,14 +116,15 @@ price_monitor/
   models.py      — общие типы (Candle, ExchangeError)
   analysis.py    — EWMA-волатильность, робастный z-score, логика алертов
   notifier.py    — отправка сообщений в Telegram
-  state.py       — cooldown между алертами
+  state.py       — cooldown между ценовыми алертами
+  health.py      — алерт на отказ самого мониторинга (см. раздел ниже)
   __main__.py    — точка входа одного прогона мониторинга
 config/config.yaml — список активов и пороги
 data/state.json     — персистентное состояние (коммитится обратно в репо)
 .github/workflows/
   price-monitor.yml — запуск раз в час (cron) + workflow_dispatch
   tests.yml          — юнит-тесты на push/PR
-tests/                — pytest-тесты для analysis.py, config.py, yahoo.py, state.py
+tests/                — pytest-тесты для analysis.py, config.py, yahoo.py, state.py, health.py
 ```
 
 ## Настройка
@@ -149,7 +167,7 @@ pytest -q
 можно переопределить переменными окружения (см. `price_monitor/config.py`):
 `INTERVAL`, `LOOKBACK`, `MAD_WINDOW`, `EWMA_LAMBDA`, `PRICE_ZSCORE_THRESHOLD`,
 `VOLUME_ZSCORE_THRESHOLD`, `VOLUME_MIN_PRICE_MOVE_Z`, `COOLDOWN_MINUTES`,
-`MIN_HISTORY`.
+`MIN_HISTORY`, `HEALTH_ALERT_AFTER_FAILURES`, `HEALTH_REMINDER_EVERY_FAILURES`.
 
 ## Ограничения
 

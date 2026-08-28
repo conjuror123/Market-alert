@@ -30,6 +30,8 @@ class Config:
     volume_min_price_move_z: float = 1.5
     cooldown_minutes: int = 120
     min_history: int = 60
+    health_alert_after_failures: int = 3
+    health_reminder_every_failures: int = 24
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
     state_path: str = field(default_factory=lambda: os.path.join(
@@ -92,6 +94,10 @@ def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
             "VOLUME_MIN_PRICE_MOVE_Z", raw.get("volume_min_price_move_z", 1.5)),
         cooldown_minutes=env_int("COOLDOWN_MINUTES", raw.get("cooldown_minutes", 120)),
         min_history=env_int("MIN_HISTORY", raw.get("min_history", 60)),
+        health_alert_after_failures=env_int(
+            "HEALTH_ALERT_AFTER_FAILURES", raw.get("health_alert_after_failures", 3)),
+        health_reminder_every_failures=env_int(
+            "HEALTH_REMINDER_EVERY_FAILURES", raw.get("health_reminder_every_failures", 24)),
         telegram_bot_token=os.environ.get("TELEGRAM_BOT_TOKEN", ""),
         telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID", ""),
     )

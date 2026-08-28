@@ -6,6 +6,7 @@ import sys
 
 import requests
 
+from price_monitor import health
 from price_monitor.analysis import analyze
 from price_monitor.config import load_config
 from price_monitor.market_data import fetch_candles
@@ -29,12 +30,28 @@ def format_alert(signal) -> str:
     return "\n".join(lines)
 
 
+def format_health_down(streak: int, error_details: list[str]) -> str:
+    lines = [
+        f"⚠️ <b>Мониторинг не работает уже {streak} запуск(ов) подряд</b>",
+        "Проверьте вкладку Actions в репозитории — возможно, сломался источник",
+        "данных или недействителен токен Telegram.",
+        "",
+    ]
+    lines.extend(f"• {d}" for d in error_details[:10])
+    return "\n".join(lines)
+
+
+def format_health_recovered(streak: int) -> str:
+    return f"✅ Мониторинг восстановился после {streak} неудачных запуск(ов) подряд."
+
+
 def main() -> int:
     cfg = load_config()
     state = load_state(cfg.state_path)
     session = requests.Session()
 
     had_error = False
+    error_details: list[str] = []
     alerts_sent = 0
 
     for asset in cfg.assets:
@@ -44,6 +61,7 @@ def main() -> int:
         except ExchangeError as exc:
             log.error("Failed to fetch data for %s (%s): %s", asset.label, asset.symbol, exc)
             had_error = True
+            error_details.append(f"{asset.label}: не удалось получить данные ({exc})")
             continue
 
         signal = analyze(
@@ -81,6 +99,26 @@ def main() -> int:
         except TelegramError as exc:
             log.error("%s: failed to send Telegram alert: %s", asset.label, exc)
             had_error = True
+            error_details.append(f"{asset.label}: не удалось отправить алерт в Telegram ({exc})")
+
+    if had_error:
+        streak = health.record_failure(state)
+        if health.should_alert_down(streak, cfg.health_alert_after_failures, cfg.health_reminder_every_failures):
+            try:
+                send_telegram_message(
+                    cfg.telegram_bot_token, cfg.telegram_chat_id, format_health_down(streak, error_details))
+                log.info("Monitoring-down alert sent (streak=%d)", streak)
+            except TelegramError as exc:
+                log.error("Failed to send monitoring-down alert: %s", exc)
+    else:
+        previous_streak = health.record_success(state)
+        if previous_streak >= cfg.health_alert_after_failures:
+            try:
+                send_telegram_message(
+                    cfg.telegram_bot_token, cfg.telegram_chat_id, format_health_recovered(previous_streak))
+                log.info("Monitoring-recovered alert sent")
+            except TelegramError as exc:
+                log.error("Failed to send monitoring-recovered alert: %s", exc)
 
     save_state(cfg.state_path, state)
     log.info("Run complete. Alerts sent: %d", alerts_sent)
