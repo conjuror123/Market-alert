@@ -210,15 +210,28 @@ def test_html_special_characters_in_explanation_are_escaped(tmp_path, monkeypatc
     assert "&amp;" in edits[0]
 
 
-def test_scope_query_adds_after_and_before_around_the_alert():
-    alert_time = datetime(2026, 8, 28, 14, 16, tzinfo=timezone.utc)
-    # after: one day before the alert; before: NEWS_WINDOW_DAYS (2) after it,
-    # plus a day of slack on each side for Google's day-granularity operators.
-    assert _scope_query("Ethereum", alert_time) == "Ethereum after:2026-08-27 before:2026-08-31"
+def test_scope_query_adds_after_and_before_in_pacific_calendar_days():
+    lower_cutoff = datetime(2026, 8, 28, 14, 16, tzinfo=timezone.utc)
+    upper_cutoff = datetime(2026, 8, 30, 14, 16, tzinfo=timezone.utc)
+    # 14:16 UTC in August is 07:16 America/Los_Angeles (PDT, UTC-7) - same
+    # Pacific calendar day as the UTC one here, so after: matches exactly;
+    # before: is the day *after* upper_cutoff's Pacific day (see docstring).
+    assert (
+        _scope_query("Ethereum", lower_cutoff, upper_cutoff)
+        == "Ethereum after:2026-08-28 before:2026-08-31"
+    )
 
 
-def test_scope_query_unchanged_when_alert_time_unknown():
-    assert _scope_query("Ethereum", None) == "Ethereum"
+def test_scope_query_after_moves_to_previous_pacific_day_late_in_utc_day():
+    # 02:00 UTC is 19:00 the *previous* day in America/Los_Angeles (PDT) -
+    # after: must use that earlier Pacific date, or it would exclude articles
+    # published between 19:00 Pacific and the UTC-day rollover.
+    lower_cutoff = datetime(2026, 8, 28, 2, 0, tzinfo=timezone.utc)
+    assert _scope_query("Ethereum", lower_cutoff, None) == "Ethereum after:2026-08-27"
+
+
+def test_scope_query_unchanged_when_lower_cutoff_unknown():
+    assert _scope_query("Ethereum", None, None) == "Ethereum"
 
 
 def test_filter_after_drops_articles_published_before_the_alert():
@@ -290,7 +303,7 @@ def test_explain_entry_augments_query_and_drops_stale_articles(tmp_path, monkeyp
     }
     explain.explain_entry(cfg, entry, "Ethereum")
 
-    assert calls == [("Ethereum after:2026-08-27 before:2026-08-31", 100)]
+    assert calls == [("Ethereum after:2026-08-28 before:2026-08-31", 100)]
     user_message = captured["messages"][1]["content"]
     assert "fresh" in user_message
     assert "old" not in user_message

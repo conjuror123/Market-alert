@@ -15,6 +15,7 @@ import html
 import logging
 import sys
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from price_monitor.alerts_log import load_alerts_log, pending_entries, save_alerts_log
 from price_monitor.config import Config, load_config
@@ -30,6 +31,13 @@ EXPLANATION_HEADER = "🧠 <b>Возможная причина (по новос
 # How many days after an alert we still consider news "about" it. Only matters
 # when an alert sits unprocessed for a while - see _scope_query.
 NEWS_WINDOW_DAYS = 2
+
+# Google News' after:/before: search operators turned out (verified live,
+# against both a summer and a winter date, i.e. across the DST transition) to
+# use America/Los_Angeles calendar days, not UTC ones - presumably tied to the
+# hl=en-US/gl=US params news.py always sends. Using the real zoneinfo entry
+# (not a hardcoded UTC-7) means this stays correct through DST changes.
+_GOOGLE_NEWS_TZ = ZoneInfo("America/Los_Angeles")
 
 SYSTEM_PROMPT = (
     "Ты помогаешь трейдеру понять, почему актив резко изменился в цене. Тебе дают "
@@ -64,13 +72,23 @@ def _build_user_prompt(entry: dict, articles: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def _scope_query(query: str, alert_time: datetime | None) -> str:
+def _scope_query(query: str, lower_cutoff: datetime | None, upper_cutoff: datetime | None) -> str:
     """Add Google News' "after:"/"before:" search operators so the
     (Google-imposed, fixed) 100-result cap isn't spent on coverage from
-    outside a window around the alert. Google's date operators are
-    day-granularity only and its own timezone handling is unclear, so this
-    asks for one extra day of buffer on each side - _filter_after and
-    _filter_before do the exact cutoffs against the real timestamps.
+    outside [lower_cutoff, upper_cutoff]. Google's date operators are
+    day-granularity only, in America/Los_Angeles days (see _GOOGLE_NEWS_TZ) -
+    dates are converted to that zone before formatting, rather than padded
+    with a blind day of buffer on each side.
+
+    after: is set to the Pacific calendar day containing lower_cutoff - that
+    day always starts at or before lower_cutoff itself, in any timezone, so
+    this never excludes anything it shouldn't. before: needs the day *after*
+    the Pacific calendar day containing upper_cutoff, since Google's before:
+    excludes everything from the start of that date onward; using the same
+    date would risk cutting off part of upper_cutoff's own day. Either way,
+    _filter_after/_filter_before still do the exact cutoff against the real
+    UTC timestamps afterwards - this only controls how tightly scoped the raw
+    Google fetch is, never correctness.
 
     The upper bound matters only when an alert sits unprocessed for a while:
     without one, an old alert's search would run "from just before it to
@@ -79,11 +97,13 @@ def _scope_query(query: str, alert_time: datetime | None) -> str:
     processed promptly (the normal case) "now" is already inside the window,
     so this has no effect.
     """
-    if alert_time is None:
+    if lower_cutoff is None:
         return query
-    after_date = (alert_time - timedelta(days=1)).strftime("%Y-%m-%d")
-    before_date = (alert_time + timedelta(days=NEWS_WINDOW_DAYS + 1)).strftime("%Y-%m-%d")
-    return f"{query} after:{after_date} before:{before_date}"
+    parts = [query, f"after:{lower_cutoff.astimezone(_GOOGLE_NEWS_TZ).date()}"]
+    if upper_cutoff is not None:
+        before_date = upper_cutoff.astimezone(_GOOGLE_NEWS_TZ).date() + timedelta(days=1)
+        parts.append(f"before:{before_date}")
+    return " ".join(parts)
 
 
 def _filter_after(articles: list[dict], cutoff: datetime | None) -> list[dict]:
@@ -106,12 +126,12 @@ def _filter_before(articles: list[dict], cutoff: datetime) -> list[dict]:
 def _effective_cutoff(alert_time: datetime) -> datetime:
     """The actual "at/after" boundary passed to _filter_after.
 
-    Normally that's just the alert time itself. But late in the UTC day (Google
-    News runs on UTC, see _scope_query) there simply isn't much
-    more coverage published between, say, 23:30 and midnight - filtering to the
-    exact alert minute would starve the LLM of context it would otherwise have
-    had. For alerts from 18:00 UTC onward, widen the window back to 18:00 UTC
-    the same day instead.
+    Normally that's just the alert time itself. But late in the UTC day there
+    simply isn't much more coverage published between, say, 23:30 and midnight
+    (this is about news publishing patterns, unrelated to the Pacific-day
+    quirk in _scope_query) - filtering to the exact alert minute would starve
+    the LLM of context it would otherwise have had. For alerts from 18:00 UTC
+    onward, widen the window back to 18:00 UTC the same day instead.
 
     Alerts from 00:00-06:00 UTC have the opposite problem (the day's news cycle
     hasn't built up yet) but there's no similar fix - artificially reaching back
@@ -153,15 +173,18 @@ def explain_entry(cfg: Config, entry: dict, query: str) -> str | None:
     except (KeyError, ValueError):
         alert_time = None
 
+    lower_cutoff = _effective_cutoff(alert_time) if alert_time is not None else None
+    upper_cutoff = alert_time + timedelta(days=NEWS_WINDOW_DAYS) if alert_time is not None else None
+
     try:
-        articles = fetch_news(_scope_query(query, alert_time), limit=100)
+        articles = fetch_news(_scope_query(query, lower_cutoff, upper_cutoff), limit=100)
     except NewsError as exc:
         log.warning("%s: news fetch failed: %s", entry["symbol"], exc)
         articles = []
 
     if alert_time is not None:
-        articles = _filter_after(articles, _effective_cutoff(alert_time))
-        articles = _filter_before(articles, alert_time + timedelta(days=NEWS_WINDOW_DAYS))
+        articles = _filter_after(articles, lower_cutoff)
+        articles = _filter_before(articles, upper_cutoff)
         if not articles:
             return None
 
