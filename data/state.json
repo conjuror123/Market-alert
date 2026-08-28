@@ -1,1 +1,5 @@
-{}
+{
+  "_monitoring_health": {
+    "consecutive_failures": 0
+  }
+}
