@@ -105,6 +105,10 @@ class Config:
     # Model used off-peak, when DeepSeek charges half price - stronger model.
     llm_model_offpeak: str = "deepseek-v4-pro"
     llm_api_key: str = ""
+    # Minimum age (hours) an alert must reach before "Explain Alerts" will
+    # process it - too soon after the alert and there's barely any post-alert
+    # news window to search yet. See explain.py's _is_old_enough.
+    explain_min_age_hours: float = 6.0
 
     def params_for(self, asset: AssetConfig) -> EffectiveParams:
         values = {}
@@ -198,6 +202,8 @@ def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
         llm_model_offpeak=os.environ.get(
             "LLM_MODEL_OFFPEAK", raw.get("llm_model_offpeak", "deepseek-v4-pro")),
         llm_api_key=os.environ.get("LLM_API_KEY", ""),
+        explain_min_age_hours=env_float(
+            "EXPLAIN_MIN_AGE_HOURS", raw.get("explain_min_age_hours", 6.0)),
     )
     state_path_override = os.environ.get("STATE_PATH")
     if state_path_override:

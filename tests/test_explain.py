@@ -1,10 +1,10 @@
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from price_monitor import explain
 from price_monitor.alerts_log import load_alerts_log, record_sent_alert, save_alerts_log
 from price_monitor.config import AssetConfig, Config
-from price_monitor.explain import _augment_query_with_after, _effective_cutoff, _filter_after
+from price_monitor.explain import _augment_query_with_after, _effective_cutoff, _filter_after, _is_old_enough
 from price_monitor.llm import LLMError
 from price_monitor.news import NewsError
 from price_monitor.notifier import TelegramError
@@ -20,7 +20,10 @@ def make_config(tmp_path, llm_api_key="secret-key"):
     )
 
 
-def seed_pending_entry(path):
+def seed_pending_entry(path, sent_at=None):
+    """Defaults to an alert well past the default 6h min-age gate, since most
+    tests here care about what happens once an entry is actually eligible for
+    processing - tests for the age gate itself pass an explicit sent_at."""
     entries = []
     record_sent_alert(
         entries,
@@ -33,6 +36,7 @@ def seed_pending_entry(path):
         ewma_z=-3.60,
         robust_z=-3.61,
         volume_z=0.70,
+        now=sent_at or (datetime.now(timezone.utc) - timedelta(hours=8)),
     )
     save_alerts_log(path, entries)
 
@@ -345,3 +349,51 @@ def test_late_alert_widens_window_instead_of_finding_nothing(tmp_path, monkeypat
 
     assert result == "ok"
     assert "earlier that evening" in captured["messages"][1]["content"]
+
+
+def test_is_old_enough_true_once_min_age_reached():
+    now = datetime(2026, 8, 28, 12, 0, tzinfo=timezone.utc)
+    entry = {"sent_at": (now - timedelta(hours=6)).isoformat()}
+    assert _is_old_enough(entry, min_age_hours=6.0, now=now) is True
+
+
+def test_is_old_enough_false_before_min_age():
+    now = datetime(2026, 8, 28, 12, 0, tzinfo=timezone.utc)
+    entry = {"sent_at": (now - timedelta(hours=5, minutes=59)).isoformat()}
+    assert _is_old_enough(entry, min_age_hours=6.0, now=now) is False
+
+
+def test_is_old_enough_true_when_sent_at_missing():
+    assert _is_old_enough({}, min_age_hours=6.0) is True
+
+
+def test_main_skips_alert_younger_than_min_age_without_spending_tokens(tmp_path, monkeypatch):
+    cfg = make_config(tmp_path)
+    seed_pending_entry(cfg.alerts_log_path, sent_at=datetime.now(timezone.utc) - timedelta(hours=1))
+    monkeypatch.setattr(explain, "load_config", lambda: cfg)
+
+    def boom(*args, **kwargs):
+        raise AssertionError("should not be called")
+
+    monkeypatch.setattr(explain, "fetch_news", boom)
+    monkeypatch.setattr(explain, "chat_completion", boom)
+    monkeypatch.setattr(explain, "edit_telegram_message", boom)
+
+    assert explain.main() == 0
+    saved = load_alerts_log(cfg.alerts_log_path)
+    assert saved[0]["explained"] is False
+
+
+def test_main_processes_alert_older_than_min_age(tmp_path, monkeypatch):
+    cfg = make_config(tmp_path)
+    seed_pending_entry(cfg.alerts_log_path, sent_at=datetime.now(timezone.utc) - timedelta(hours=8))
+    monkeypatch.setattr(explain, "load_config", lambda: cfg)
+    monkeypatch.setattr(explain, "fetch_news", lambda query, limit=6: [
+        {"title": "headline", "source": "", "link": "", "published": datetime.now(timezone.utc)}
+    ])
+    monkeypatch.setattr(explain, "chat_completion", lambda **kwargs: "explanation")
+    monkeypatch.setattr(explain, "edit_telegram_message", lambda *a, **k: None)
+
+    assert explain.main() == 0
+    saved = load_alerts_log(cfg.alerts_log_path)
+    assert saved[0]["explained"] is True

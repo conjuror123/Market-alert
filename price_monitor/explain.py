@@ -104,6 +104,23 @@ def _effective_cutoff(alert_time: datetime) -> datetime:
     return alert_time
 
 
+def _is_old_enough(entry: dict, min_age_hours: float, now: datetime | None = None) -> bool:
+    """Whether enough time has passed since the alert to bother processing it
+    yet. Running "Explain Alerts" soon after an alert fires means whatever
+    news exists so far only covers a sliver of time (see _effective_cutoff) -
+    better to wait so there's a real window of coverage to search, and so the
+    window's width doesn't vary wildly run to run depending on exactly when
+    you happen to click "Run workflow". See explain_min_age_hours in
+    config.yaml.
+    """
+    try:
+        alert_time = datetime.fromisoformat(entry["sent_at"])
+    except (KeyError, ValueError):
+        return True
+    now = now or datetime.now(timezone.utc)
+    return now - alert_time >= timedelta(hours=min_age_hours)
+
+
 def explain_entry(cfg: Config, entry: dict, query: str) -> str | None:
     """Fetch news for `query` and ask the LLM to explain this one alert entry.
 
@@ -155,6 +172,10 @@ def main() -> int:
     had_error = False
 
     for entry in todo:
+        if not _is_old_enough(entry, cfg.explain_min_age_hours):
+            log.info("%s: alert too recent, skipping for now (will retry later)", entry["symbol"])
+            continue
+
         query = query_by_symbol.get(entry["symbol"], entry["symbol"])
         try:
             explanation = explain_entry(cfg, entry, query)
