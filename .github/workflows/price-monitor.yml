@@ -39,10 +39,10 @@ jobs:
 
       - name: Commit updated state
         run: |
-          if [ -n "$(git status --porcelain data/state.json)" ]; then
+          if [ -n "$(git status --porcelain data/state.json data/alerts_log.json)" ]; then
             git config user.name "price-monitor-bot"
             git config user.email "actions@github.com"
-            git add data/state.json
+            git add data/state.json data/alerts_log.json
             git commit -m "chore: update monitor state [skip ci]"
             git push
           else

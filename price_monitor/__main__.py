@@ -7,6 +7,7 @@ import sys
 import requests
 
 from price_monitor import health
+from price_monitor.alerts_log import load_alerts_log, record_sent_alert, save_alerts_log
 from price_monitor.analysis import analyze
 from price_monitor.config import load_config
 from price_monitor.market_data import fetch_candles
@@ -71,6 +72,7 @@ def format_health_recovered(streak: int) -> str:
 def main() -> int:
     cfg = load_config()
     state = load_state(cfg.state_path)
+    alerts_log = load_alerts_log(cfg.alerts_log_path)
     session = requests.Session()
 
     had_error = False
@@ -124,8 +126,20 @@ def main() -> int:
             continue
 
         try:
-            send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id, format_alert(signal, params))
+            message_id = send_telegram_message(
+                cfg.telegram_bot_token, cfg.telegram_chat_id, format_alert(signal, params))
             record_alert(state, state_key, signal.severity)
+            record_sent_alert(
+                alerts_log,
+                chat_id=cfg.telegram_chat_id,
+                message_id=message_id,
+                symbol=asset.label,
+                last_close=signal.last_close,
+                last_return_pct=signal.last_return_pct,
+                ewma_z=signal.ewma_z,
+                robust_z=signal.robust_z,
+                volume_z=signal.volume_z,
+            )
             alerts_sent += 1
             log.info("%s: alert sent", asset.label)
         except TelegramError as exc:
@@ -153,6 +167,7 @@ def main() -> int:
                 log.error("Failed to send monitoring-recovered alert: %s", exc)
 
     save_state(cfg.state_path, state)
+    save_alerts_log(cfg.alerts_log_path, alerts_log)
     log.info("Run complete. Alerts sent: %d", alerts_sent)
     return 1 if had_error else 0
 

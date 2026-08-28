@@ -89,6 +89,8 @@ class Config:
     telegram_chat_id: str = ""
     state_path: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(__file__), "..", "data", "state.json"))
+    alerts_log_path: str = field(default_factory=lambda: os.path.join(
+        os.path.dirname(__file__), "..", "data", "alerts_log.json"))
     coinbase_base_url: str = "https://api.exchange.coinbase.com"
     yahoo_base_url: str = "https://query1.finance.yahoo.com"
 
@@ -180,4 +182,7 @@ def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
     state_path_override = os.environ.get("STATE_PATH")
     if state_path_override:
         cfg.state_path = state_path_override
+    alerts_log_path_override = os.environ.get("ALERTS_LOG_PATH")
+    if alerts_log_path_override:
+        cfg.alerts_log_path = alerts_log_path_override
     return cfg

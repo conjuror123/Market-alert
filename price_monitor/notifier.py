@@ -8,7 +8,8 @@ class TelegramError(RuntimeError):
     pass
 
 
-def send_telegram_message(bot_token: str, chat_id: str, text: str, timeout: int = 15) -> None:
+def send_telegram_message(bot_token: str, chat_id: str, text: str, timeout: int = 15) -> int:
+    """Send a message, returning its Telegram message_id (needed to edit it later)."""
     if not bot_token or not chat_id:
         raise TelegramError("TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID are not configured")
 
@@ -25,3 +26,4 @@ def send_telegram_message(bot_token: str, chat_id: str, text: str, timeout: int 
     )
     if resp.status_code != 200:
         raise TelegramError(f"Telegram API error {resp.status_code}: {resp.text[:300]}")
+    return resp.json()["result"]["message_id"]
