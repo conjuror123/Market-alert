@@ -14,7 +14,7 @@ from __future__ import annotations
 import html
 import logging
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from price_monitor.alerts_log import load_alerts_log, pending_entries, save_alerts_log
 from price_monitor.config import Config, load_config
@@ -26,6 +26,13 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("price_monitor.explain")
 
 EXPLANATION_HEADER = "🧠 <b>Возможная причина (по новостям, определено автоматически)</b>"
+
+# How many news items to actually hand to the LLM, after date-filtering. Google
+# News RSS itself caps at 100 results per query regardless of any limit we ask
+# for, so we pull that many (pre-filtered server-side, see
+# _augment_query_with_after) and keep only the freshest few in Google's own
+# relevance order.
+MAX_ARTICLES = 6
 
 SYSTEM_PROMPT = (
     "Ты помогаешь трейдеру понять, почему актив резко изменился в цене. Тебе дают "
@@ -60,13 +67,44 @@ def _build_user_prompt(entry: dict, articles: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def _augment_query_with_after(query: str, alert_time: datetime | None) -> str:
+    """Add Google News' "after:" search operator so the (Google-imposed, fixed)
+    100-result cap isn't spent on coverage from days or weeks before the alert.
+    Google's date operator is day-granularity only and its own timezone handling
+    is unclear, so this asks for one extra day of buffer - _filter_after does
+    the exact cutoff against the real alert time.
+    """
+    if alert_time is None:
+        return query
+    cutoff_date = (alert_time - timedelta(days=1)).strftime("%Y-%m-%d")
+    return f"{query} after:{cutoff_date}"
+
+
+def _filter_after(articles: list[dict], alert_time: datetime | None) -> list[dict]:
+    """Keep only articles published at/after the alert. We're explaining a move
+    that already happened, so a prediction or rumor from before it isn't a
+    cause - it's speculation. Articles with no known publish date are dropped
+    too, since there's no way to confirm they qualify.
+    """
+    if alert_time is None:
+        return articles
+    return [a for a in articles if a["published"] is not None and a["published"] >= alert_time]
+
+
 def explain_entry(cfg: Config, entry: dict, query: str) -> str:
     """Fetch news for `query` and ask the LLM to explain this one alert entry."""
     try:
-        articles = fetch_news(query, limit=6)
+        alert_time = datetime.fromisoformat(entry["sent_at"])
+    except (KeyError, ValueError):
+        alert_time = None
+
+    try:
+        articles = fetch_news(_augment_query_with_after(query, alert_time), limit=100)
     except NewsError as exc:
         log.warning("%s: news fetch failed, asking the LLM without headlines: %s", entry["symbol"], exc)
         articles = []
+
+    articles = _filter_after(articles, alert_time)[:MAX_ARTICLES]
 
     return chat_completion(
         base_url=cfg.llm_base_url,

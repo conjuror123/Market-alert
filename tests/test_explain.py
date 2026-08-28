@@ -1,8 +1,10 @@
 import os
+from datetime import datetime, timezone
 
 from price_monitor import explain
 from price_monitor.alerts_log import load_alerts_log, record_sent_alert, save_alerts_log
 from price_monitor.config import AssetConfig, Config
+from price_monitor.explain import _augment_query_with_after, _filter_after
 from price_monitor.llm import LLMError
 from price_monitor.news import NewsError
 from price_monitor.notifier import TelegramError
@@ -183,3 +185,70 @@ def test_html_special_characters_in_explanation_are_escaped(tmp_path, monkeypatc
     assert "&lt;5%" in edits[0]
     assert "&gt;" in edits[0]
     assert "&amp;" in edits[0]
+
+
+def test_augment_query_adds_after_operator_a_day_before_the_alert():
+    alert_time = datetime(2026, 8, 28, 14, 16, tzinfo=timezone.utc)
+    assert _augment_query_with_after("Ethereum", alert_time) == "Ethereum after:2026-08-27"
+
+
+def test_augment_query_unchanged_when_alert_time_unknown():
+    assert _augment_query_with_after("Ethereum", None) == "Ethereum"
+
+
+def test_filter_after_drops_articles_published_before_the_alert():
+    alert_time = datetime(2026, 8, 28, 14, 16, tzinfo=timezone.utc)
+    articles = [
+        {"title": "before", "published": datetime(2026, 8, 28, 14, 0, tzinfo=timezone.utc)},
+        {"title": "at", "published": datetime(2026, 8, 28, 14, 16, tzinfo=timezone.utc)},
+        {"title": "after", "published": datetime(2026, 8, 28, 15, 0, tzinfo=timezone.utc)},
+    ]
+    kept = _filter_after(articles, alert_time)
+    assert [a["title"] for a in kept] == ["at", "after"]
+
+
+def test_filter_after_drops_articles_with_unknown_date():
+    alert_time = datetime(2026, 8, 28, 14, 16, tzinfo=timezone.utc)
+    articles = [{"title": "no date", "published": None}]
+    assert _filter_after(articles, alert_time) == []
+
+
+def test_filter_after_keeps_everything_when_alert_time_unknown():
+    articles = [{"title": "no date", "published": None}]
+    assert _filter_after(articles, None) == articles
+
+
+def test_explain_entry_augments_query_and_drops_stale_articles(tmp_path, monkeypatch):
+    cfg = make_config(tmp_path)
+    monkeypatch.setattr(explain, "chat_completion", lambda **kwargs: "ok")
+
+    calls = []
+
+    def fake_fetch_news(query, limit=6):
+        calls.append((query, limit))
+        alert_time = datetime(2026, 8, 28, 14, 16, tzinfo=timezone.utc)
+        return [
+            {"title": "old", "source": "", "link": "",
+             "published": alert_time.replace(hour=10)},
+            {"title": "fresh", "source": "", "link": "",
+             "published": alert_time.replace(hour=15)},
+        ]
+
+    monkeypatch.setattr(explain, "fetch_news", fake_fetch_news)
+
+    captured = {}
+    monkeypatch.setattr(
+        explain, "chat_completion",
+        lambda **kwargs: captured.setdefault("messages", kwargs["messages"]) or "ok",
+    )
+
+    entry = {
+        "symbol": "Ethereum", "last_return_pct": -1.45, "last_close": 2473.66,
+        "sent_at": "2026-08-28T14:16:00+00:00",
+    }
+    explain.explain_entry(cfg, entry, "Ethereum")
+
+    assert calls == [("Ethereum after:2026-08-27", 100)]
+    user_message = captured["messages"][1]["content"]
+    assert "fresh" in user_message
+    assert "old" not in user_message
