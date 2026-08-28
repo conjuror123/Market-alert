@@ -1,4 +1,4 @@
-"""Entry point: run one monitoring pass over all configured symbols."""
+"""Entry point: run one monitoring pass over all configured assets."""
 from __future__ import annotations
 
 import logging
@@ -8,7 +8,8 @@ import requests
 
 from price_monitor.analysis import analyze
 from price_monitor.config import load_config
-from price_monitor.exchange import ExchangeError, fetch_klines
+from price_monitor.market_data import fetch_candles
+from price_monitor.models import ExchangeError
 from price_monitor.notifier import TelegramError, send_telegram_message
 from price_monitor.state import is_in_cooldown, load_state, record_alert, save_state
 
@@ -36,22 +37,17 @@ def main() -> int:
     had_error = False
     alerts_sent = 0
 
-    for symbol in cfg.symbols:
+    for asset in cfg.assets:
+        state_key = f"{asset.source}:{asset.symbol}"
         try:
-            candles = fetch_klines(
-                symbol=symbol,
-                interval=cfg.interval,
-                limit=cfg.lookback,
-                base_url=cfg.exchange_base_url,
-                session=session,
-            )
+            candles = fetch_candles(asset, cfg, session=session)
         except ExchangeError as exc:
-            log.error("Failed to fetch data for %s: %s", symbol, exc)
+            log.error("Failed to fetch data for %s (%s): %s", asset.label, asset.symbol, exc)
             had_error = True
             continue
 
         signal = analyze(
-            symbol=symbol,
+            symbol=asset.label,
             candles=candles,
             ewma_lambda=cfg.ewma_lambda,
             mad_window=cfg.mad_window,
@@ -61,29 +57,29 @@ def main() -> int:
             min_history=cfg.min_history,
         )
         if signal is None:
-            log.info("%s: not enough history yet, skipping", symbol)
+            log.info("%s: not enough history yet, skipping", asset.label)
             continue
 
         log.info(
             "%s: return=%.3f%% ewma_z=%.2f robust_z=%.2f volume_z=%.2f alert=%s",
-            symbol, signal.last_return_pct, signal.ewma_z, signal.robust_z,
+            asset.label, signal.last_return_pct, signal.ewma_z, signal.robust_z,
             signal.volume_z, signal.is_alert,
         )
 
         if not signal.is_alert:
             continue
 
-        if is_in_cooldown(state, symbol, cfg.cooldown_minutes):
-            log.info("%s: alert condition met but still in cooldown, skipping notification", symbol)
+        if is_in_cooldown(state, state_key, cfg.cooldown_minutes):
+            log.info("%s: alert condition met but still in cooldown, skipping notification", asset.label)
             continue
 
         try:
             send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id, format_alert(signal))
-            record_alert(state, symbol)
+            record_alert(state, state_key)
             alerts_sent += 1
-            log.info("%s: alert sent", symbol)
+            log.info("%s: alert sent", asset.label)
         except TelegramError as exc:
-            log.error("%s: failed to send Telegram alert: %s", symbol, exc)
+            log.error("%s: failed to send Telegram alert: %s", asset.label, exc)
             had_error = True
 
     save_state(cfg.state_path, state)

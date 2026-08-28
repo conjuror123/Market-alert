@@ -1,7 +1,7 @@
 import math
 
 from price_monitor.analysis import analyze, ewma_volatility, log_returns, robust_z_score
-from price_monitor.exchange import Candle
+from price_monitor.models import Candle
 
 
 def make_candles(closes, volumes=None):

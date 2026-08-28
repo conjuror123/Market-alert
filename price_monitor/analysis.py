@@ -20,7 +20,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from price_monitor.exchange import Candle
+from price_monitor.models import Candle
 
 MAD_CONSISTENCY_CONST = 1.4826  # scales MAD to be comparable to a normal std-dev
 

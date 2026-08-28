@@ -2,8 +2,8 @@ name: Price Spike Monitor
 
 on:
   schedule:
-    # Раз в час, через 5 минут после начала часа — даёт Coinbase время закрыть и
-    # проиндексировать часовую свечу перед тем, как мы её запросим.
+    # Раз в час, через 5 минут после начала часа — даёт источникам данных (Coinbase,
+    # Yahoo Finance) время закрыть и проиндексировать часовую свечу перед запросом.
     - cron: "5 * * * *"
   workflow_dispatch: {}
 
@@ -35,7 +35,6 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          SYMBOLS: ${{ vars.SYMBOLS }}
         run: python -m price_monitor
 
       - name: Commit updated state

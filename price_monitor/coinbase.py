@@ -1,17 +1,17 @@
-"""Public market data client (Coinbase Exchange REST API, no API key required).
+"""Coinbase Exchange public REST client (crypto spot pairs, no API key required).
 
 Binance's public API returns HTTP 451 (geo-restricted) from US-based IP ranges,
 which is exactly where GitHub Actions' default hosted runners live - so it isn't a
 reliable choice for this workflow. Coinbase Exchange's public candles endpoint is
-free, unauthenticated, not geo-restricted for US traffic, and offers a native
-900-second (15 minute) granularity that lines up with the schedule this app runs on.
+free, unauthenticated, and not geo-restricted for US traffic.
 """
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
 
 import requests
+
+from price_monitor.models import Candle, ExchangeError
 
 CANDLES_ENDPOINT = "/products/{symbol}/candles"
 
@@ -27,21 +27,6 @@ GRANULARITY_SECONDS = {
 
 # The API refuses requests spanning more than 300 candles in one call.
 MAX_CANDLES_PER_REQUEST = 300
-
-
-@dataclass
-class Candle:
-    open_time: int
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: float
-    close_time: int
-
-
-class ExchangeError(RuntimeError):
-    pass
 
 
 def _granularity_seconds(interval: str) -> int:

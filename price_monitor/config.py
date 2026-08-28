@@ -8,12 +8,21 @@ import yaml
 
 DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "config.yaml")
 
+VALID_SOURCES = {"coinbase", "yahoo"}
+
+
+@dataclass
+class AssetConfig:
+    symbol: str
+    source: str
+    label: str
+
 
 @dataclass
 class Config:
-    symbols: list[str]
-    interval: str = "15m"
-    lookback: int = 500
+    assets: list[AssetConfig]
+    interval: str = "1h"
+    lookback: int = 300
     mad_window: int = 288
     ewma_lambda: float = 0.94
     price_zscore_threshold: float = 3.0
@@ -25,11 +34,30 @@ class Config:
     telegram_chat_id: str = ""
     state_path: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(__file__), "..", "data", "state.json"))
-    exchange_base_url: str = "https://api.exchange.coinbase.com"
+    coinbase_base_url: str = "https://api.exchange.coinbase.com"
+    yahoo_base_url: str = "https://query1.finance.yahoo.com"
 
 
-def _split_env_list(value: str) -> list[str]:
-    return [s.strip().upper() for s in value.split(",") if s.strip()]
+def _parse_assets(raw_assets: list) -> list[AssetConfig]:
+    assets = []
+    for i, item in enumerate(raw_assets):
+        if not isinstance(item, dict) or "symbol" not in item or "source" not in item:
+            raise ValueError(
+                f"config.yaml assets[{i}] must be a mapping with at least "
+                f"'symbol' and 'source' keys, got: {item!r}"
+            )
+        source = item["source"]
+        if source not in VALID_SOURCES:
+            raise ValueError(
+                f"config.yaml assets[{i}] has unknown source '{source}'. "
+                f"Supported: {sorted(VALID_SOURCES)}"
+            )
+        assets.append(AssetConfig(
+            symbol=item["symbol"],
+            source=source,
+            label=item.get("label", item["symbol"]),
+        ))
+    return assets
 
 
 def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
@@ -38,10 +66,9 @@ def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
         with open(path, "r", encoding="utf-8") as f:
             raw = yaml.safe_load(f) or {}
 
-    symbols_env = os.environ.get("SYMBOLS")
-    symbols = _split_env_list(symbols_env) if symbols_env else raw.get("symbols", [])
-    if not symbols:
-        raise ValueError("No symbols configured. Set SYMBOLS env var or config/config.yaml symbols list.")
+    assets = _parse_assets(raw.get("assets", []))
+    if not assets:
+        raise ValueError("No assets configured. Add an 'assets' list to config/config.yaml.")
 
     def env_float(name: str, default: float) -> float:
         v = os.environ.get(name)
@@ -52,9 +79,9 @@ def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
         return int(v) if v not in (None, "") else default
 
     cfg = Config(
-        symbols=symbols,
-        interval=os.environ.get("INTERVAL", raw.get("interval", "15m")),
-        lookback=env_int("LOOKBACK", raw.get("lookback", 500)),
+        assets=assets,
+        interval=os.environ.get("INTERVAL", raw.get("interval", "1h")),
+        lookback=env_int("LOOKBACK", raw.get("lookback", 300)),
         mad_window=env_int("MAD_WINDOW", raw.get("mad_window", 288)),
         ewma_lambda=env_float("EWMA_LAMBDA", raw.get("ewma_lambda", 0.94)),
         price_zscore_threshold=env_float(
