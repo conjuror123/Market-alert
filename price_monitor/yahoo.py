@@ -88,15 +88,20 @@ def fetch_klines(
     retries: int = 3,
     backoff_seconds: float = 2.0,
     session: requests.Session | None = None,
+    range_: str = DEFAULT_RANGE,
 ) -> list[Candle]:
     """Fetch the most recent `limit` candles for `symbol`/`interval`, oldest first.
 
     `symbol` is a Yahoo Finance ticker, e.g. "GC=F" (gold futures) or "EURUSD=X".
+    `range_` overrides how far back Yahoo looks before `limit` trims the tail - the
+    production monitor never needs more than DEFAULT_RANGE, but offline backtesting
+    passes e.g. "370d" to pull a full year of hourly history (Yahoo serves up to ~2
+    years of 60m bars).
     """
     granularity = _granularity_seconds(interval)
     yahoo_interval = YAHOO_INTERVAL[interval]
     url = f"{base_url}{CHART_ENDPOINT.format(symbol=urllib.parse.quote(symbol))}"
-    params = {"interval": yahoo_interval, "range": DEFAULT_RANGE}
+    params = {"interval": yahoo_interval, "range": range_}
     headers = {"User-Agent": "Mozilla/5.0 (market-alert-bot)"}
     sess = session or requests
     last_error: Exception | None = None
