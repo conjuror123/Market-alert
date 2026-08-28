@@ -1,5 +1,9 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0
+  },
+  "coinbase:ETH-USD": {
+    "last_alert_at": "2026-08-28T14:16:56.219584+00:00",
+    "last_severity": 3.6110305025449905
   }
 }
