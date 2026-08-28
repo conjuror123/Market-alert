@@ -141,6 +141,30 @@ def test_telegram_edit_error_leaves_entry_pending_for_retry(tmp_path, monkeypatc
     assert saved[0]["explained"] is False
 
 
+def test_explain_entry_passes_time_based_model_choice(tmp_path, monkeypatch):
+    cfg = make_config(tmp_path)
+    cfg.llm_model_peak = "flash-x"
+    cfg.llm_model_offpeak = "pro-x"
+    monkeypatch.setattr(explain, "fetch_news", lambda query, limit=6: [])
+    monkeypatch.setattr(explain, "select_model", lambda peak, offpeak, now=None: f"{peak}/{offpeak}")
+
+    captured = {}
+
+    def fake_chat_completion(**kwargs):
+        captured.update(kwargs)
+        return "ok"
+
+    monkeypatch.setattr(explain, "chat_completion", fake_chat_completion)
+
+    entry = {
+        "symbol": "Ethereum", "last_return_pct": -1.0, "last_close": 100.0,
+        "sent_at": "2026-01-01T00:00:00+00:00",
+    }
+    explain.explain_entry(cfg, entry, "Ethereum")
+
+    assert captured["model"] == "flash-x/pro-x"
+
+
 def test_html_special_characters_in_explanation_are_escaped(tmp_path, monkeypatch):
     cfg = make_config(tmp_path)
     seed_pending_entry(cfg.alerts_log_path)

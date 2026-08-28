@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 
 from price_monitor.alerts_log import load_alerts_log, pending_entries, save_alerts_log
 from price_monitor.config import Config, load_config
-from price_monitor.llm import LLMError, chat_completion
+from price_monitor.llm import LLMError, chat_completion, select_model
 from price_monitor.news import NewsError, fetch_news
 from price_monitor.notifier import TelegramError, edit_telegram_message
 
@@ -71,7 +71,7 @@ def explain_entry(cfg: Config, entry: dict, query: str) -> str:
     return chat_completion(
         base_url=cfg.llm_base_url,
         api_key=cfg.llm_api_key,
-        model=cfg.llm_model,
+        model=select_model(cfg.llm_model_peak, cfg.llm_model_offpeak),
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": _build_user_prompt(entry, articles)},

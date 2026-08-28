@@ -97,10 +97,13 @@ class Config:
     # LLM used by the (separate, manually-triggered) "explain alerts" step - see
     # price_monitor/explain.py and price_monitor/llm.py. Any provider with an
     # OpenAI-compatible /chat/completions endpoint works here; switching providers
-    # later is just these two values plus which secret LLM_API_KEY is mapped to in
+    # later is just these values plus which secret LLM_API_KEY is mapped to in
     # .github/workflows/explain-alerts.yml, no code changes.
     llm_base_url: str = "https://api.deepseek.com"
-    llm_model: str = "deepseek-chat"
+    # Model used during DeepSeek's peak-price hours (see llm.py) - cheaper/faster.
+    llm_model_peak: str = "deepseek-v4-flash"
+    # Model used off-peak, when DeepSeek charges half price - stronger model.
+    llm_model_offpeak: str = "deepseek-v4-pro"
     llm_api_key: str = ""
 
     def params_for(self, asset: AssetConfig) -> EffectiveParams:
@@ -190,7 +193,10 @@ def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
         telegram_bot_token=os.environ.get("TELEGRAM_BOT_TOKEN", ""),
         telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID", ""),
         llm_base_url=os.environ.get("LLM_BASE_URL", raw.get("llm_base_url", "https://api.deepseek.com")),
-        llm_model=os.environ.get("LLM_MODEL", raw.get("llm_model", "deepseek-chat")),
+        llm_model_peak=os.environ.get(
+            "LLM_MODEL_PEAK", raw.get("llm_model_peak", "deepseek-v4-flash")),
+        llm_model_offpeak=os.environ.get(
+            "LLM_MODEL_OFFPEAK", raw.get("llm_model_offpeak", "deepseek-v4-pro")),
         llm_api_key=os.environ.get("LLM_API_KEY", ""),
     )
     state_path_override = os.environ.get("STATE_PATH")
