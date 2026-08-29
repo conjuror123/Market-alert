@@ -71,12 +71,12 @@ class Config:
     lookback: int = 300
     mad_window: int = 288
     ewma_lambda: float = 0.94
-    price_zscore_threshold: float = 3.0
+    price_zscore_threshold: float = 7.0
     # An overwhelming reading on EWMA or robust z alone (>= this) bypasses the dual
     # confirmation requirement - see the module docstring in analysis.py for why.
-    price_zscore_override: float = 6.0
-    volume_zscore_threshold: float = 4.0
-    volume_zscore_override: float = 8.0
+    price_zscore_override: float = 22.0
+    volume_zscore_threshold: float = 22.0
+    volume_zscore_override: float = 22.0
     volume_min_price_move_z: float = 1.5
     cooldown_minutes: int = 2880
     # A repeat alert during cooldown only sends if its severity is at least this many
@@ -179,13 +179,13 @@ def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
         mad_window=env_int("MAD_WINDOW", raw.get("mad_window", 288)),
         ewma_lambda=env_float("EWMA_LAMBDA", raw.get("ewma_lambda", 0.94)),
         price_zscore_threshold=env_float(
-            "PRICE_ZSCORE_THRESHOLD", raw.get("price_zscore_threshold", 3.0)),
+            "PRICE_ZSCORE_THRESHOLD", raw.get("price_zscore_threshold", 7.0)),
         price_zscore_override=env_float(
-            "PRICE_ZSCORE_OVERRIDE", raw.get("price_zscore_override", 6.0)),
+            "PRICE_ZSCORE_OVERRIDE", raw.get("price_zscore_override", 22.0)),
         volume_zscore_threshold=env_float(
-            "VOLUME_ZSCORE_THRESHOLD", raw.get("volume_zscore_threshold", 4.0)),
+            "VOLUME_ZSCORE_THRESHOLD", raw.get("volume_zscore_threshold", 22.0)),
         volume_zscore_override=env_float(
-            "VOLUME_ZSCORE_OVERRIDE", raw.get("volume_zscore_override", 8.0)),
+            "VOLUME_ZSCORE_OVERRIDE", raw.get("volume_zscore_override", 22.0)),
         volume_min_price_move_z=env_float(
             "VOLUME_MIN_PRICE_MOVE_Z", raw.get("volume_min_price_move_z", 1.5)),
         cooldown_minutes=env_int("COOLDOWN_MINUTES", raw.get("cooldown_minutes", 2880)),
