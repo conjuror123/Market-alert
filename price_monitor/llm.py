@@ -44,7 +44,10 @@ def chat_completion(
     api_key: str,
     model: str,
     messages: list[dict],
-    temperature: float = 0.3,
+    # DeepSeek's own docs (api-docs.deepseek.com/quick_start/parameter_settings)
+    # recommend 1.0 for data-analysis-style tasks (also their API default) -
+    # lower values there are for coding/math, higher for creative writing.
+    temperature: float = 1.0,
     timeout: int = 60,
 ) -> str:
     if not api_key:
