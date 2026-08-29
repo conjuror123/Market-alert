@@ -18,7 +18,7 @@ import yaml
 
 DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "config.yaml")
 
-VALID_SOURCES = {"coinbase", "yahoo"}
+VALID_SOURCES = {"coinbase", "yahoo", "twelvedata"}
 
 # Per-asset override keys, mapped to the (type, Config attribute) they fall back to.
 _OVERRIDABLE = {
@@ -94,6 +94,11 @@ class Config:
         os.path.dirname(__file__), "..", "data", "alerts_log.json"))
     coinbase_base_url: str = "https://api.exchange.coinbase.com"
     yahoo_base_url: str = "https://query1.finance.yahoo.com"
+    twelvedata_base_url: str = "https://api.twelvedata.com"
+    # Free API key from twelvedata.com - required for any asset with
+    # source: twelvedata (currently the forex pairs). Not read from
+    # config.yaml; comes from the TWELVEDATA_API_KEY secret only.
+    twelvedata_api_key: str = ""
     # LLM used by the (separate, manually-triggered) "explain alerts" step - see
     # price_monitor/explain.py and price_monitor/llm.py. Any provider with an
     # OpenAI-compatible /chat/completions endpoint works here; switching providers
@@ -204,6 +209,7 @@ def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
         llm_model_offpeak=os.environ.get(
             "LLM_MODEL_OFFPEAK", raw.get("llm_model_offpeak", "deepseek-v4-pro")),
         llm_api_key=os.environ.get("LLM_API_KEY", ""),
+        twelvedata_api_key=os.environ.get("TWELVEDATA_API_KEY", ""),
         explain_min_age_hours=env_float(
             "EXPLAIN_MIN_AGE_HOURS", raw.get("explain_min_age_hours", 12.0)),
     )

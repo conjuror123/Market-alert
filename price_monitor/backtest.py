@@ -32,7 +32,7 @@ from datetime import datetime, timezone
 
 import requests
 
-from price_monitor import coinbase, yahoo
+from price_monitor import coinbase, twelvedata, yahoo
 from price_monitor.analysis import ewma_volatility, log_returns, robust_z_score
 from price_monitor.config import AssetConfig, Config, EffectiveParams, load_config
 from price_monitor.state import record_alert, should_notify
@@ -59,6 +59,10 @@ def fetch_backtest_history(
         return yahoo.fetch_klines(
             asset.symbol, params.interval, limit=1_000_000, base_url=cfg.yahoo_base_url,
             session=session, range_=f"{int(days) + 5}d")
+    if asset.source == "twelvedata":
+        return twelvedata.fetch_full_history(
+            asset.symbol, params.interval, days, cfg.twelvedata_base_url,
+            api_key=cfg.twelvedata_api_key, session=session)
     raise ValueError(f"Unknown source '{asset.source}'")
 
 

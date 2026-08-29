@@ -25,6 +25,11 @@ def test_parse_assets_keeps_explicit_news_query():
     assert assets[0].news_query == "gold price"
 
 
+def test_parse_assets_accepts_twelvedata_source():
+    assets = _parse_assets([{"symbol": "EUR/USD", "source": "twelvedata", "label": "EUR/USD"}])
+    assert assets[0].source == "twelvedata"
+
+
 def test_parse_assets_rejects_unknown_source():
     with pytest.raises(ValueError):
         _parse_assets([{"symbol": "BTC-USD", "source": "binance"}])

@@ -1,7 +1,17 @@
-# Список отслеживаемых активов. У каждого — свой источник данных (публичные API,
-# ключи не нужны):
-#   coinbase — крипто-пары Coinbase Exchange, формат BASE-QUOTE (например BTC-USD).
-#   yahoo    — фьючерсы/индексы/валюта через Yahoo Finance, тикер как на finance.yahoo.com.
+# Список отслеживаемых активов. У каждого — свой источник данных:
+#   coinbase   — крипто-пары Coinbase Exchange, формат BASE-QUOTE (например BTC-USD),
+#                ключ не нужен.
+#   yahoo      — фьючерсы/индексы через Yahoo Finance, тикер как на finance.yahoo.com,
+#                ключ не нужен (неофициальный эндпоинт, см. README).
+#   twelvedata — валютные пары через Twelve Data, формат BASE/QUOTE (например EUR/USD),
+#                нужен бесплатный ключ (секрет TWELVEDATA_API_KEY, см. README). Отдельный
+#                провайдер именно для форекса — если Yahoo ляжет, валютные пары всё равно
+#                продолжат работать, и наоборот.
+#
+# ВАЖНО про Twelve Data: бесплатный тариф — 8 запросов в минуту и 800 в сутки, по одному
+# запросу на актив. Именно поэтому валютных пар ровно 8 — это использует весь минутный
+# лимит за один прогон, но не больше: добавлять девятую пару на этом тарифе нельзя, не
+# убрав одну из текущих (или не перейдя на платный план).
 #
 # У любого актива можно переопределить любой из общих параметров ниже по файлу —
 # просто добавьте тот же ключ прямо в запись актива (interval, lookback, mad_window,
@@ -13,10 +23,10 @@
 # разная чувствительность (см. находки бэктеста в README), а не один компромиссный
 # порог на всех.
 #
-# ВАЖНО про валютные пары (EURUSD=X, CNY=X и т.п.): у спот-форекса нет единого
-# биржевого объёма, Yahoo всегда отдаёт по ним volume=0 — для таких активов работает
-# только ценовой сигнал (EWMA + робастный z-score), сигнал по объёму для них никогда
-# не сработает, и это ожидаемо.
+# ВАЖНО про валютные пары (EUR/USD, USD/CNY и т.п.): у спот-форекса нет единого
+# биржевого объёма ни у одного провайдера — Twelve Data всегда отдаёт по ним volume=0,
+# для таких активов работает только ценовой сигнал (EWMA + робастный z-score), сигнал
+# по объёму для них никогда не сработает, и это ожидаемо, а не недостаток источника.
 # ВАЖНО про фьючерсы (GC=F, CL=F, ES=F, ZB=F): Yahoo отдаёт "непрерывный" контракт
 # ближайшего месяца, который сам переезжает на следующий контракт при экспирации —
 # в момент такого ролловера возможен ценовой гэп, не связанный с реальным движением
@@ -61,12 +71,36 @@ assets:
     source: yahoo
     label: "US 30Y Treasury Bond futures"
     news_query: "30 year Treasury bond yield"
-  - symbol: "EURUSD=X"
-    source: yahoo
+  - symbol: "EUR/USD"
+    source: twelvedata
     label: "EUR/USD"
     news_query: "EUR USD euro dollar exchange rate"
-  - symbol: "CNY=X"
-    source: yahoo
+  - symbol: "GBP/USD"
+    source: twelvedata
+    label: "GBP/USD"
+    news_query: "GBP USD pound dollar exchange rate"
+  - symbol: "USD/JPY"
+    source: twelvedata
+    label: "USD/JPY"
+    news_query: "USD JPY dollar yen exchange rate"
+  - symbol: "USD/CHF"
+    source: twelvedata
+    label: "USD/CHF"
+    news_query: "USD CHF dollar franc exchange rate"
+  - symbol: "USD/CAD"
+    source: twelvedata
+    label: "USD/CAD"
+    news_query: "USD CAD dollar Canadian dollar exchange rate"
+  - symbol: "AUD/USD"
+    source: twelvedata
+    label: "AUD/USD"
+    news_query: "AUD USD Australian dollar exchange rate"
+  - symbol: "NZD/USD"
+    source: twelvedata
+    label: "NZD/USD"
+    news_query: "NZD USD New Zealand dollar exchange rate"
+  - symbol: "USD/CNY"
+    source: twelvedata
     label: "USD/CNY"
     news_query: "USD CNY yuan exchange rate"
   - symbol: "DX-Y.NYB"
