@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import html
 import logging
+import os
 import sys
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -28,9 +29,13 @@ log = logging.getLogger("price_monitor.explain")
 
 EXPLANATION_HEADER = "🧠 <b>Возможная причина (по новостям, определено автоматически)</b>"
 
-# How many days after an alert we still consider news "about" it. Only matters
-# when an alert sits unprocessed for a while - see _scope_query.
-NEWS_WINDOW_DAYS = 2
+# News is only searched for in [alert + START, alert + END] - a fixed window
+# relative to the alert, not to whenever the workflow happens to run. Waiting
+# until the window has fully elapsed (see explain_min_age_hours, which should
+# match NEWS_WINDOW_END_HOURS) means the search always covers the same real
+# span of time regardless of when you click "Run workflow".
+NEWS_WINDOW_START_HOURS = 6
+NEWS_WINDOW_END_HOURS = 12
 
 # Google News' after:/before: search operators turned out (verified live,
 # against both a summer and a winter date, i.e. across the DST transition) to
@@ -96,13 +101,6 @@ def _scope_query(query: str, lower_cutoff: datetime | None, upper_cutoff: dateti
     _filter_after/_filter_before still do the exact cutoff against the real
     UTC timestamps afterwards - this only controls how tightly scoped the raw
     Google fetch is, never correctness.
-
-    The upper bound matters only when an alert sits unprocessed for a while:
-    without one, an old alert's search would run "from just before it to
-    right now" - for an alert from a week ago, "right now" is overwhelmingly
-    today's unrelated news, not coverage of that old move. For an alert
-    processed promptly (the normal case) "now" is already inside the window,
-    so this has no effect.
     """
     if lower_cutoff is None:
         return query
@@ -130,34 +128,12 @@ def _filter_before(articles: list[dict], cutoff: datetime) -> list[dict]:
     return [a for a in articles if a["published"] is not None and a["published"] <= cutoff]
 
 
-def _effective_cutoff(alert_time: datetime) -> datetime:
-    """The actual "at/after" boundary passed to _filter_after.
-
-    Normally that's just the alert time itself. But late in the UTC day there
-    simply isn't much more coverage published between, say, 23:30 and midnight
-    (this is about news publishing patterns, unrelated to the Pacific-day
-    quirk in _scope_query) - filtering to the exact alert minute would starve
-    the LLM of context it would otherwise have had. For alerts from 18:00 UTC
-    onward, widen the window back to 18:00 UTC the same day instead.
-
-    Alerts from 00:00-06:00 UTC have the opposite problem (the day's news cycle
-    hasn't built up yet) but there's no similar fix - artificially reaching back
-    into the previous day would pull in news about a different move entirely.
-    explain_entry() just skips those when nothing survives the filter.
-    """
-    if alert_time.hour >= 18:
-        return alert_time.replace(hour=18, minute=0, second=0, microsecond=0)
-    return alert_time
-
-
 def _is_old_enough(entry: dict, min_age_hours: float, now: datetime | None = None) -> bool:
-    """Whether enough time has passed since the alert to bother processing it
-    yet. Running "Explain Alerts" soon after an alert fires means whatever
-    news exists so far only covers a sliver of time (see _effective_cutoff) -
-    better to wait so there's a real window of coverage to search, and so the
-    window's width doesn't vary wildly run to run depending on exactly when
-    you happen to click "Run workflow". See explain_min_age_hours in
-    config.yaml.
+    """Whether enough time has passed since the alert for the full
+    [alert + NEWS_WINDOW_START_HOURS, alert + NEWS_WINDOW_END_HOURS] window to
+    have already elapsed - running before that would search a window that
+    partly hasn't happened yet. min_age_hours should match
+    NEWS_WINDOW_END_HOURS (see explain_min_age_hours in config.yaml).
     """
     try:
         alert_time = datetime.fromisoformat(entry["sent_at"])
@@ -167,21 +143,22 @@ def _is_old_enough(entry: dict, min_age_hours: float, now: datetime | None = Non
     return now - alert_time >= timedelta(hours=min_age_hours)
 
 
-def explain_entry(cfg: Config, entry: dict, query: str) -> str | None:
-    """Fetch news for `query` and ask the LLM to explain this one alert entry.
-
-    Returns None if there isn't enough post-alert news to work with (fetch
-    failed, or nothing survived the date filter) - the caller should leave the
-    entry unexplained for a later retry rather than spend tokens asking the LLM
-    to explain an empty context.
+def explain_entry(cfg: Config, entry: dict, query: str) -> str:
+    """Fetch news for `query` (within [alert + NEWS_WINDOW_START_HOURS,
+    alert + NEWS_WINDOW_END_HOURS]) and ask the LLM to explain this one alert
+    entry. If nothing turns up in that window, the LLM is still asked - the
+    window is fixed relative to the alert, so unlike an open-ended "up to
+    now" search, waiting and retrying later would search the exact same
+    window and find the exact same (lack of) results. The system prompt
+    already handles "no headlines found" honestly.
     """
     try:
         alert_time = datetime.fromisoformat(entry["sent_at"])
     except (KeyError, ValueError):
         alert_time = None
 
-    lower_cutoff = _effective_cutoff(alert_time) if alert_time is not None else None
-    upper_cutoff = alert_time + timedelta(days=NEWS_WINDOW_DAYS) if alert_time is not None else None
+    lower_cutoff = alert_time + timedelta(hours=NEWS_WINDOW_START_HOURS) if alert_time is not None else None
+    upper_cutoff = alert_time + timedelta(hours=NEWS_WINDOW_END_HOURS) if alert_time is not None else None
 
     try:
         articles = fetch_news(_scope_query(query, lower_cutoff, upper_cutoff), limit=100)
@@ -192,8 +169,6 @@ def explain_entry(cfg: Config, entry: dict, query: str) -> str | None:
     if alert_time is not None:
         articles = _filter_after(articles, lower_cutoff)
         articles = _filter_before(articles, upper_cutoff)
-        if not articles:
-            return None
 
     return chat_completion(
         base_url=cfg.llm_base_url,
@@ -206,15 +181,39 @@ def explain_entry(cfg: Config, entry: dict, query: str) -> str | None:
     )
 
 
+def _select_todo(entries: list[dict], only_message_id: int | None) -> list[dict]:
+    """Which pending entries this run should process - all of them, or (when
+    someone fills in the "Message ID" workflow input) just the one they
+    picked. Explaining a specific alert is the common case in practice: it's
+    the only way to control exactly which (and how many) alerts spend tokens
+    in a given run."""
+    todo = pending_entries(entries)
+    if only_message_id is None:
+        return todo
+    return [e for e in todo if e.get("message_id") == only_message_id]
+
+
 def main() -> int:
     cfg = load_config()
     if not cfg.llm_api_key:
         print("LLM_API_KEY не задан в окружении.", file=sys.stderr)
         return 1
 
+    raw_message_id = os.environ.get("EXPLAIN_MESSAGE_ID", "").strip()
+    only_message_id: int | None = None
+    if raw_message_id:
+        try:
+            only_message_id = int(raw_message_id)
+        except ValueError:
+            print(f"Message ID должен быть числом, получено: {raw_message_id!r}", file=sys.stderr)
+            return 1
+
     entries = load_alerts_log(cfg.alerts_log_path)
-    todo = pending_entries(entries)
+    todo = _select_todo(entries, only_message_id)
     if not todo:
+        if only_message_id is not None:
+            print(f"Алерт с ID {only_message_id} не найден среди необъяснённых.", file=sys.stderr)
+            return 1
         log.info("No pending alerts to explain.")
         return 0
 
@@ -232,10 +231,6 @@ def main() -> int:
         except LLMError as exc:
             log.error("%s: LLM call failed, will retry next run: %s", entry["symbol"], exc)
             had_error = True
-            continue
-
-        if explanation is None:
-            log.info("%s: not enough post-alert news yet, skipping for now (will retry later)", entry["symbol"])
             continue
 
         base_text = entry.get("message_text") or f"{entry['symbol']}: {entry['last_return_pct']:+.2f}%"

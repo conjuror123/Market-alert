@@ -12,7 +12,7 @@ from price_monitor.analysis import analyze
 from price_monitor.config import load_config
 from price_monitor.market_data import fetch_candles
 from price_monitor.models import ExchangeError
-from price_monitor.notifier import TelegramError, send_telegram_message
+from price_monitor.notifier import TelegramError, edit_telegram_message, send_telegram_message
 from price_monitor.state import load_state, record_alert, save_state, should_notify
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -52,6 +52,14 @@ def format_alert(signal, params) -> str:
         f"— обычно от 0 до 2, тревога начинается от {params.volume_zscore_threshold:.1f}",
     ]
     return "\n".join(lines)
+
+
+def append_id_footer(alert_text: str, message_id: int) -> str:
+    """Adds a quiet "ID: <n>" line, so the ID needed to explain this one alert
+    later (see explain.py's EXPLAIN_MESSAGE_ID) is visible right in the
+    message - Telegram doesn't show message IDs in its UI otherwise. Only
+    knowable after sending (Telegram assigns it), hence the separate edit."""
+    return f"{alert_text}\n\n<i>ID: {message_id}</i>"
 
 
 def format_health_down(streak: int, error_details: list[str]) -> str:
@@ -129,12 +137,20 @@ def main() -> int:
             alert_text = format_alert(signal, params)
             message_id = send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id, alert_text)
             record_alert(state, state_key, signal.severity)
+
+            final_text = append_id_footer(alert_text, message_id)
+            try:
+                edit_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id, message_id, final_text)
+            except TelegramError as exc:
+                log.warning("%s: alert sent but failed to add ID footer: %s", asset.label, exc)
+                final_text = alert_text
+
             record_sent_alert(
                 alerts_log,
                 chat_id=cfg.telegram_chat_id,
                 message_id=message_id,
                 symbol=asset.label,
-                message_text=alert_text,
+                message_text=final_text,
                 last_close=signal.last_close,
                 last_return_pct=signal.last_return_pct,
                 ewma_z=signal.ewma_z,
@@ -142,7 +158,7 @@ def main() -> int:
                 volume_z=signal.volume_z,
             )
             alerts_sent += 1
-            log.info("%s: alert sent", asset.label)
+            log.info("%s: alert sent (id=%s)", asset.label, message_id)
         except TelegramError as exc:
             log.error("%s: failed to send Telegram alert: %s", asset.label, exc)
             had_error = True

@@ -5,11 +5,11 @@ from price_monitor import explain
 from price_monitor.alerts_log import load_alerts_log, record_sent_alert, save_alerts_log
 from price_monitor.config import AssetConfig, Config
 from price_monitor.explain import (
-    _effective_cutoff,
     _filter_after,
     _filter_before,
     _is_old_enough,
     _scope_query,
+    _select_todo,
 )
 from price_monitor.llm import LLMError
 from price_monitor.news import NewsError
@@ -26,15 +26,15 @@ def make_config(tmp_path, llm_api_key="secret-key"):
     )
 
 
-def seed_pending_entry(path, sent_at=None):
-    """Defaults to an alert well past the default 6h min-age gate, since most
+def seed_pending_entry(path, sent_at=None, message_id=42):
+    """Defaults to an alert well past the default 12h min-age gate, since most
     tests here care about what happens once an entry is actually eligible for
     processing - tests for the age gate itself pass an explicit sent_at."""
     entries = []
     record_sent_alert(
         entries,
         chat_id="@chan",
-        message_id=42,
+        message_id=message_id,
         symbol="Ethereum",
         message_text="Ethereum - необычное движение рынка",
         last_close=2473.66,
@@ -42,7 +42,7 @@ def seed_pending_entry(path, sent_at=None):
         ewma_z=-3.60,
         robust_z=-3.61,
         volume_z=0.70,
-        now=sent_at or (datetime.now(timezone.utc) - timedelta(hours=8)),
+        now=sent_at or (datetime.now(timezone.utc) - timedelta(hours=14)),
     )
     save_alerts_log(path, entries)
 
@@ -103,7 +103,11 @@ def test_full_flow_explains_and_edits_message(tmp_path, monkeypatch):
     assert saved[0]["explanation"] == "Падение связано с общей распродажей на рынке."
 
 
-def test_news_fetch_failure_skips_this_run_without_calling_the_llm(tmp_path, monkeypatch):
+def test_news_fetch_failure_still_asks_llm(tmp_path, monkeypatch):
+    """The window is fixed relative to the alert, so unlike the old "up to
+    now" search, there's no value in skipping and retrying later - the LLM is
+    asked anyway (with no headlines), same as when the search simply finds
+    nothing."""
     cfg = make_config(tmp_path)
     seed_pending_entry(cfg.alerts_log_path)
     monkeypatch.setattr(explain, "load_config", lambda: cfg)
@@ -111,16 +115,13 @@ def test_news_fetch_failure_skips_this_run_without_calling_the_llm(tmp_path, mon
     def failing_fetch(query, limit=6):
         raise NewsError("boom")
 
-    def boom(*args, **kwargs):
-        raise AssertionError("should not be called")
-
     monkeypatch.setattr(explain, "fetch_news", failing_fetch)
-    monkeypatch.setattr(explain, "chat_completion", boom)
-    monkeypatch.setattr(explain, "edit_telegram_message", boom)
+    monkeypatch.setattr(explain, "chat_completion", lambda **kwargs: "Явной причины в новостях не нашлось.")
+    monkeypatch.setattr(explain, "edit_telegram_message", lambda *a, **k: None)
 
     assert explain.main() == 0
     saved = load_alerts_log(cfg.alerts_log_path)
-    assert saved[0]["explained"] is False
+    assert saved[0]["explained"] is True
 
 
 def test_llm_error_leaves_entry_pending_for_retry(tmp_path, monkeypatch):
@@ -273,6 +274,7 @@ def test_filter_before_drops_articles_with_unknown_date():
 
 
 def test_explain_entry_augments_query_and_drops_stale_articles(tmp_path, monkeypatch):
+    # alert at 14:16 -> window is [20:16 same day, 02:16 next day].
     cfg = make_config(tmp_path)
 
     calls = []
@@ -282,9 +284,9 @@ def test_explain_entry_augments_query_and_drops_stale_articles(tmp_path, monkeyp
         alert_time = datetime(2026, 8, 28, 14, 16, tzinfo=timezone.utc)
         return [
             {"title": "old", "source": "", "link": "",
-             "published": alert_time.replace(hour=10)},
+             "published": alert_time + timedelta(hours=3)},  # 17:16 - before the window
             {"title": "fresh", "source": "", "link": "",
-             "published": alert_time.replace(hour=15)},
+             "published": alert_time + timedelta(hours=8)},  # 22:16 - inside the window
         ]
 
     monkeypatch.setattr(explain, "fetch_news", fake_fetch_news)
@@ -303,7 +305,7 @@ def test_explain_entry_augments_query_and_drops_stale_articles(tmp_path, monkeyp
     }
     explain.explain_entry(cfg, entry, "Ethereum")
 
-    assert calls == [("Ethereum after:2026-08-28 before:2026-08-31", 100)]
+    assert calls == [("Ethereum after:2026-08-28 before:2026-08-29", 100)]
     user_message = captured["messages"][1]["content"]
     assert "fresh" in user_message
     assert "old" not in user_message
@@ -316,8 +318,9 @@ def test_explain_entry_drops_articles_from_long_after_a_stale_alert(tmp_path, mo
     old alert."""
     cfg = make_config(tmp_path)
     monkeypatch.setattr(explain, "fetch_news", lambda query, limit=6: [
+        # alert at 10:00 -> window is [16:00, 22:00] the same day.
         {"title": "coverage of the actual old move", "source": "", "link": "",
-         "published": datetime(2026, 8, 1, 12, 0, tzinfo=timezone.utc)},
+         "published": datetime(2026, 8, 1, 18, 0, tzinfo=timezone.utc)},
         {"title": "unrelated news from today", "source": "", "link": "",
          "published": datetime.now(timezone.utc)},
     ])
@@ -341,65 +344,14 @@ def test_explain_entry_drops_articles_from_long_after_a_stale_alert(tmp_path, mo
     assert "unrelated news from today" not in user_message
 
 
-def test_effective_cutoff_is_the_alert_time_before_18_utc():
-    alert_time = datetime(2026, 8, 28, 14, 16, tzinfo=timezone.utc)
-    assert _effective_cutoff(alert_time) == alert_time
-
-
-def test_effective_cutoff_widens_to_18_utc_from_18_onward():
-    alert_time = datetime(2026, 8, 28, 23, 30, tzinfo=timezone.utc)
-    assert _effective_cutoff(alert_time) == datetime(2026, 8, 28, 18, 0, tzinfo=timezone.utc)
-
-
-def test_effective_cutoff_exactly_18_is_unchanged():
-    alert_time = datetime(2026, 8, 28, 18, 0, tzinfo=timezone.utc)
-    assert _effective_cutoff(alert_time) == alert_time
-
-
-def test_explain_entry_returns_none_when_nothing_survives_the_filter(tmp_path, monkeypatch):
+def test_explain_entry_asks_llm_with_no_headlines_when_nothing_survives_filter(tmp_path, monkeypatch):
+    """No skip-and-retry here: the window is fixed relative to the alert, so
+    retrying later would search the exact same window and find the exact same
+    (lack of) results - the LLM is asked anyway and can say so honestly."""
     cfg = make_config(tmp_path)
     monkeypatch.setattr(explain, "fetch_news", lambda query, limit=6: [
         {"title": "too old", "source": "", "link": "",
          "published": datetime(2026, 8, 28, 10, 0, tzinfo=timezone.utc)}
-    ])
-
-    def boom(**kwargs):
-        raise AssertionError("chat_completion should not be called with no surviving articles")
-
-    monkeypatch.setattr(explain, "chat_completion", boom)
-
-    entry = {
-        "symbol": "Ethereum", "last_return_pct": -1.45, "last_close": 2473.66,
-        "sent_at": "2026-08-28T14:16:00+00:00",
-    }
-    assert explain.explain_entry(cfg, entry, "Ethereum") is None
-
-
-def test_main_skips_entry_with_no_post_alert_news_without_spending_tokens(tmp_path, monkeypatch):
-    cfg = make_config(tmp_path)
-    seed_pending_entry(cfg.alerts_log_path)
-    monkeypatch.setattr(explain, "load_config", lambda: cfg)
-    monkeypatch.setattr(explain, "fetch_news", lambda query, limit=6: [])
-
-    def boom(*args, **kwargs):
-        raise AssertionError("should not be called")
-
-    monkeypatch.setattr(explain, "chat_completion", boom)
-    monkeypatch.setattr(explain, "edit_telegram_message", boom)
-
-    assert explain.main() == 0
-    saved = load_alerts_log(cfg.alerts_log_path)
-    assert saved[0]["explained"] is False
-
-
-def test_late_alert_widens_window_instead_of_finding_nothing(tmp_path, monkeypatch):
-    """An alert at 23:30 UTC would filter down to nothing if we cut exactly at
-    the alert minute - _effective_cutoff widens back to 18:00 UTC so there's
-    still something to work with."""
-    cfg = make_config(tmp_path)
-    monkeypatch.setattr(explain, "fetch_news", lambda query, limit=6: [
-        {"title": "earlier that evening", "source": "", "link": "",
-         "published": datetime(2026, 8, 28, 19, 0, tzinfo=timezone.utc)}
     ])
 
     captured = {}
@@ -412,12 +364,12 @@ def test_late_alert_widens_window_instead_of_finding_nothing(tmp_path, monkeypat
 
     entry = {
         "symbol": "Ethereum", "last_return_pct": -1.45, "last_close": 2473.66,
-        "sent_at": "2026-08-28T23:30:00+00:00",
+        "sent_at": "2026-08-28T14:16:00+00:00",
     }
-    result = explain.explain_entry(cfg, entry, "Ethereum")
-
-    assert result == "ok"
-    assert "earlier that evening" in captured["messages"][1]["content"]
+    assert explain.explain_entry(cfg, entry, "Ethereum") == "ok"
+    user_message = captured["messages"][1]["content"]
+    assert "too old" not in user_message
+    assert "Заголовков новостей не найдено" in user_message
 
 
 def test_is_old_enough_true_once_min_age_reached():
@@ -455,11 +407,107 @@ def test_main_skips_alert_younger_than_min_age_without_spending_tokens(tmp_path,
 
 def test_main_processes_alert_older_than_min_age(tmp_path, monkeypatch):
     cfg = make_config(tmp_path)
-    seed_pending_entry(cfg.alerts_log_path, sent_at=datetime.now(timezone.utc) - timedelta(hours=8))
+    seed_pending_entry(cfg.alerts_log_path, sent_at=datetime.now(timezone.utc) - timedelta(hours=14))
     monkeypatch.setattr(explain, "load_config", lambda: cfg)
     monkeypatch.setattr(explain, "fetch_news", lambda query, limit=6: [
         {"title": "headline", "source": "", "link": "", "published": datetime.now(timezone.utc)}
     ])
+    monkeypatch.setattr(explain, "chat_completion", lambda **kwargs: "explanation")
+    monkeypatch.setattr(explain, "edit_telegram_message", lambda *a, **k: None)
+
+    assert explain.main() == 0
+    saved = load_alerts_log(cfg.alerts_log_path)
+    assert saved[0]["explained"] is True
+
+
+def test_select_todo_returns_all_pending_when_no_filter():
+    entries = [{"message_id": 1, "explained": False}, {"message_id": 2, "explained": False}]
+    assert _select_todo(entries, only_message_id=None) == entries
+
+
+def test_select_todo_filters_to_one_message_id():
+    entries = [{"message_id": 1, "explained": False}, {"message_id": 2, "explained": False}]
+    assert _select_todo(entries, only_message_id=2) == [entries[1]]
+
+
+def test_select_todo_still_excludes_already_explained():
+    entries = [{"message_id": 1, "explained": True}, {"message_id": 2, "explained": False}]
+    assert _select_todo(entries, only_message_id=1) == []
+
+
+def seed_two_pending_entries(path, ages_hours=(14, 14)):
+    entries = []
+    for message_id, symbol, age in [(101, "Ethereum", ages_hours[0]), (202, "Bitcoin", ages_hours[1])]:
+        record_sent_alert(
+            entries,
+            chat_id="@chan",
+            message_id=message_id,
+            symbol=symbol,
+            message_text=f"{symbol} - необычное движение рынка",
+            last_close=100.0,
+            last_return_pct=-1.0,
+            ewma_z=-3.5,
+            robust_z=-3.5,
+            volume_z=0.5,
+            now=datetime.now(timezone.utc) - timedelta(hours=age),
+        )
+    save_alerts_log(path, entries)
+
+
+def test_main_with_message_id_env_processes_only_that_entry(tmp_path, monkeypatch):
+    cfg = make_config(tmp_path)
+    seed_two_pending_entries(cfg.alerts_log_path)
+    monkeypatch.setattr(explain, "load_config", lambda: cfg)
+    monkeypatch.setenv("EXPLAIN_MESSAGE_ID", "202")
+    monkeypatch.setattr(explain, "fetch_news", lambda query, limit=6: [])
+    monkeypatch.setattr(explain, "chat_completion", lambda **kwargs: "explanation")
+
+    edits = []
+    monkeypatch.setattr(
+        explain, "edit_telegram_message",
+        lambda token, chat_id, message_id, text: edits.append(message_id),
+    )
+
+    assert explain.main() == 0
+    assert edits == [202]
+    saved = {e["message_id"]: e["explained"] for e in load_alerts_log(cfg.alerts_log_path)}
+    assert saved == {101: False, 202: True}
+
+
+def test_main_with_unknown_message_id_env_returns_error(tmp_path, monkeypatch, capsys):
+    cfg = make_config(tmp_path)
+    seed_two_pending_entries(cfg.alerts_log_path)
+    monkeypatch.setattr(explain, "load_config", lambda: cfg)
+    monkeypatch.setenv("EXPLAIN_MESSAGE_ID", "999")
+
+    def boom(*args, **kwargs):
+        raise AssertionError("should not be called")
+
+    monkeypatch.setattr(explain, "fetch_news", boom)
+    monkeypatch.setattr(explain, "chat_completion", boom)
+    monkeypatch.setattr(explain, "edit_telegram_message", boom)
+
+    assert explain.main() == 1
+    assert "999" in capsys.readouterr().err
+
+
+def test_main_with_non_numeric_message_id_env_returns_error(tmp_path, monkeypatch, capsys):
+    cfg = make_config(tmp_path)
+    monkeypatch.setattr(explain, "load_config", lambda: cfg)
+    monkeypatch.setenv("EXPLAIN_MESSAGE_ID", "not-a-number")
+
+    assert explain.main() == 1
+    assert "not-a-number" in capsys.readouterr().err
+
+
+def test_main_ignores_blank_message_id_env(tmp_path, monkeypatch):
+    """Github Actions passes an empty string for an unfilled optional input -
+    that should behave like the input was never set (process all pending)."""
+    cfg = make_config(tmp_path)
+    seed_pending_entry(cfg.alerts_log_path)
+    monkeypatch.setattr(explain, "load_config", lambda: cfg)
+    monkeypatch.setenv("EXPLAIN_MESSAGE_ID", "")
+    monkeypatch.setattr(explain, "fetch_news", lambda query, limit=6: [])
     monkeypatch.setattr(explain, "chat_completion", lambda **kwargs: "explanation")
     monkeypatch.setattr(explain, "edit_telegram_message", lambda *a, **k: None)
 

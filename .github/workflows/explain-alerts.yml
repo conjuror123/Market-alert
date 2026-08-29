@@ -1,7 +1,15 @@
 name: Explain Alerts
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      message_id:
+        description: >-
+          ID конкретного алерта (число из строки "ID: ..." в самом сообщении в
+          Telegram). Оставьте пустым, чтобы обработать все ещё не объяснённые
+          алерты сразу.
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -31,6 +39,7 @@ jobs:
           # подставлен) и llm_base_url/llm_model в config/config.yaml. Код трогать
           # не нужно, см. price_monitor/llm.py.
           LLM_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          EXPLAIN_MESSAGE_ID: ${{ github.event.inputs.message_id }}
         run: python -m price_monitor.explain
 
       - name: Commit updated alerts log
