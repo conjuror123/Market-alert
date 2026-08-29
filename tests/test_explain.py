@@ -62,23 +62,30 @@ def test_missing_api_key_returns_error_without_any_calls(tmp_path, monkeypatch, 
     assert "LLM_API_KEY" in capsys.readouterr().err
 
 
-def test_no_pending_entries_returns_0_and_does_nothing(tmp_path, monkeypatch):
+def test_main_requires_message_id_env(tmp_path, monkeypatch, capsys):
+    """There is no "process everything" mode - a run always needs an explicit
+    Message ID, so a single click can never spend tokens on an entire backlog
+    of pending alerts at once."""
     cfg = make_config(tmp_path)
     monkeypatch.setattr(explain, "load_config", lambda: cfg)
+    monkeypatch.delenv("EXPLAIN_MESSAGE_ID", raising=False)
 
     def boom(*args, **kwargs):
         raise AssertionError("should not be called")
 
+    monkeypatch.setattr(explain, "fetch_news", boom)
     monkeypatch.setattr(explain, "chat_completion", boom)
     monkeypatch.setattr(explain, "edit_telegram_message", boom)
 
-    assert explain.main() == 0
+    assert explain.main() == 1
+    assert "Message ID" in capsys.readouterr().err
 
 
 def test_full_flow_explains_and_edits_message(tmp_path, monkeypatch):
     cfg = make_config(tmp_path)
     seed_pending_entry(cfg.alerts_log_path)
     monkeypatch.setattr(explain, "load_config", lambda: cfg)
+    monkeypatch.setenv("EXPLAIN_MESSAGE_ID", "42")
     monkeypatch.setattr(explain, "fetch_news", lambda query, limit=6: [
         {"title": "Ethereum falls on macro selloff", "source": "Example",
          "published": datetime.now(timezone.utc), "link": ""}
@@ -111,6 +118,7 @@ def test_news_fetch_failure_still_asks_llm(tmp_path, monkeypatch):
     cfg = make_config(tmp_path)
     seed_pending_entry(cfg.alerts_log_path)
     monkeypatch.setattr(explain, "load_config", lambda: cfg)
+    monkeypatch.setenv("EXPLAIN_MESSAGE_ID", "42")
 
     def failing_fetch(query, limit=6):
         raise NewsError("boom")
@@ -128,6 +136,7 @@ def test_llm_error_leaves_entry_pending_for_retry(tmp_path, monkeypatch):
     cfg = make_config(tmp_path)
     seed_pending_entry(cfg.alerts_log_path)
     monkeypatch.setattr(explain, "load_config", lambda: cfg)
+    monkeypatch.setenv("EXPLAIN_MESSAGE_ID", "42")
     monkeypatch.setattr(explain, "fetch_news", lambda query, limit=6: [
         {"title": "some headline", "source": "", "link": "", "published": datetime.now(timezone.utc)}
     ])
@@ -147,6 +156,7 @@ def test_telegram_edit_error_leaves_entry_pending_for_retry(tmp_path, monkeypatc
     cfg = make_config(tmp_path)
     seed_pending_entry(cfg.alerts_log_path)
     monkeypatch.setattr(explain, "load_config", lambda: cfg)
+    monkeypatch.setenv("EXPLAIN_MESSAGE_ID", "42")
     monkeypatch.setattr(explain, "fetch_news", lambda query, limit=6: [
         {"title": "some headline", "source": "", "link": "", "published": datetime.now(timezone.utc)}
     ])
@@ -193,6 +203,7 @@ def test_html_special_characters_in_explanation_are_escaped(tmp_path, monkeypatc
     cfg = make_config(tmp_path)
     seed_pending_entry(cfg.alerts_log_path)
     monkeypatch.setattr(explain, "load_config", lambda: cfg)
+    monkeypatch.setenv("EXPLAIN_MESSAGE_ID", "42")
     monkeypatch.setattr(explain, "fetch_news", lambda query, limit=6: [
         {"title": "some headline", "source": "", "link": "", "published": datetime.now(timezone.utc)}
     ])
@@ -392,6 +403,7 @@ def test_main_skips_alert_younger_than_min_age_without_spending_tokens(tmp_path,
     cfg = make_config(tmp_path)
     seed_pending_entry(cfg.alerts_log_path, sent_at=datetime.now(timezone.utc) - timedelta(hours=1))
     monkeypatch.setattr(explain, "load_config", lambda: cfg)
+    monkeypatch.setenv("EXPLAIN_MESSAGE_ID", "42")
 
     def boom(*args, **kwargs):
         raise AssertionError("should not be called")
@@ -409,6 +421,7 @@ def test_main_processes_alert_older_than_min_age(tmp_path, monkeypatch):
     cfg = make_config(tmp_path)
     seed_pending_entry(cfg.alerts_log_path, sent_at=datetime.now(timezone.utc) - timedelta(hours=14))
     monkeypatch.setattr(explain, "load_config", lambda: cfg)
+    monkeypatch.setenv("EXPLAIN_MESSAGE_ID", "42")
     monkeypatch.setattr(explain, "fetch_news", lambda query, limit=6: [
         {"title": "headline", "source": "", "link": "", "published": datetime.now(timezone.utc)}
     ])
@@ -420,19 +433,14 @@ def test_main_processes_alert_older_than_min_age(tmp_path, monkeypatch):
     assert saved[0]["explained"] is True
 
 
-def test_select_todo_returns_all_pending_when_no_filter():
-    entries = [{"message_id": 1, "explained": False}, {"message_id": 2, "explained": False}]
-    assert _select_todo(entries, only_message_id=None) == entries
-
-
 def test_select_todo_filters_to_one_message_id():
     entries = [{"message_id": 1, "explained": False}, {"message_id": 2, "explained": False}]
-    assert _select_todo(entries, only_message_id=2) == [entries[1]]
+    assert _select_todo(entries, message_id=2) == [entries[1]]
 
 
 def test_select_todo_still_excludes_already_explained():
     entries = [{"message_id": 1, "explained": True}, {"message_id": 2, "explained": False}]
-    assert _select_todo(entries, only_message_id=1) == []
+    assert _select_todo(entries, message_id=1) == []
 
 
 def seed_two_pending_entries(path, ages_hours=(14, 14)):
@@ -500,17 +508,21 @@ def test_main_with_non_numeric_message_id_env_returns_error(tmp_path, monkeypatc
     assert "not-a-number" in capsys.readouterr().err
 
 
-def test_main_ignores_blank_message_id_env(tmp_path, monkeypatch):
-    """Github Actions passes an empty string for an unfilled optional input -
-    that should behave like the input was never set (process all pending)."""
+def test_main_with_blank_message_id_env_returns_error(tmp_path, monkeypatch, capsys):
+    """A required workflow input GitHub Actions failed to enforce, or an
+    empty string passed some other way, must not silently fall back to
+    processing everything."""
     cfg = make_config(tmp_path)
     seed_pending_entry(cfg.alerts_log_path)
     monkeypatch.setattr(explain, "load_config", lambda: cfg)
     monkeypatch.setenv("EXPLAIN_MESSAGE_ID", "")
-    monkeypatch.setattr(explain, "fetch_news", lambda query, limit=6: [])
-    monkeypatch.setattr(explain, "chat_completion", lambda **kwargs: "explanation")
-    monkeypatch.setattr(explain, "edit_telegram_message", lambda *a, **k: None)
 
-    assert explain.main() == 0
-    saved = load_alerts_log(cfg.alerts_log_path)
-    assert saved[0]["explained"] is True
+    def boom(*args, **kwargs):
+        raise AssertionError("should not be called")
+
+    monkeypatch.setattr(explain, "fetch_news", boom)
+    monkeypatch.setattr(explain, "chat_completion", boom)
+    monkeypatch.setattr(explain, "edit_telegram_message", boom)
+
+    assert explain.main() == 1
+    assert "Message ID" in capsys.readouterr().err

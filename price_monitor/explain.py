@@ -181,16 +181,15 @@ def explain_entry(cfg: Config, entry: dict, query: str) -> str:
     )
 
 
-def _select_todo(entries: list[dict], only_message_id: int | None) -> list[dict]:
-    """Which pending entries this run should process - all of them, or (when
-    someone fills in the "Message ID" workflow input) just the one they
-    picked. Explaining a specific alert is the common case in practice: it's
-    the only way to control exactly which (and how many) alerts spend tokens
-    in a given run."""
-    todo = pending_entries(entries)
-    if only_message_id is None:
-        return todo
-    return [e for e in todo if e.get("message_id") == only_message_id]
+def _select_todo(entries: list[dict], message_id: int) -> list[dict]:
+    """The one pending entry matching `message_id` (from the "Message ID"
+    workflow input), or an empty list if it's not pending. There is no "leave
+    it blank to explain everything" mode: that would spend LLM tokens on
+    every not-yet-explained alert at once, with no way to preview or limit
+    the cost before it happens - always requiring a specific ID keeps each
+    run's cost predictable (one alert, one call).
+    """
+    return [e for e in pending_entries(entries) if e.get("message_id") == message_id]
 
 
 def main() -> int:
@@ -200,22 +199,20 @@ def main() -> int:
         return 1
 
     raw_message_id = os.environ.get("EXPLAIN_MESSAGE_ID", "").strip()
-    only_message_id: int | None = None
-    if raw_message_id:
-        try:
-            only_message_id = int(raw_message_id)
-        except ValueError:
-            print(f"Message ID должен быть числом, получено: {raw_message_id!r}", file=sys.stderr)
-            return 1
+    if not raw_message_id:
+        print("Укажите Message ID — какой конкретно алерт объяснить (см. README).", file=sys.stderr)
+        return 1
+    try:
+        message_id = int(raw_message_id)
+    except ValueError:
+        print(f"Message ID должен быть числом, получено: {raw_message_id!r}", file=sys.stderr)
+        return 1
 
     entries = load_alerts_log(cfg.alerts_log_path)
-    todo = _select_todo(entries, only_message_id)
+    todo = _select_todo(entries, message_id)
     if not todo:
-        if only_message_id is not None:
-            print(f"Алерт с ID {only_message_id} не найден среди необъяснённых.", file=sys.stderr)
-            return 1
-        log.info("No pending alerts to explain.")
-        return 0
+        print(f"Алерт с ID {message_id} не найден среди необъяснённых.", file=sys.stderr)
+        return 1
 
     query_by_symbol = _news_query_by_symbol(cfg)
     had_error = False
