@@ -110,6 +110,32 @@ def test_full_flow_explains_and_edits_message(tmp_path, monkeypatch):
     assert saved[0]["explanation"] == "Падение связано с общей распродажей на рынке."
 
 
+def test_full_flow_saves_model_and_request_messages_for_later_debugging(tmp_path, monkeypatch):
+    """If a bogus explanation ever shows up, this is what lets you check
+    afterwards what was actually sent to the LLM and which model answered -
+    without it, that information is gone once the run's Actions log expires."""
+    cfg = make_config(tmp_path)
+    cfg.llm_model_peak = "flash-x"
+    cfg.llm_model_offpeak = "pro-x"
+    alert_time = datetime.now(timezone.utc) - timedelta(hours=14)
+    seed_pending_entry(cfg.alerts_log_path, sent_at=alert_time)
+    monkeypatch.setattr(explain, "load_config", lambda: cfg)
+    monkeypatch.setenv("EXPLAIN_MESSAGE_ID", "42")
+    monkeypatch.setattr(explain, "fetch_news", lambda query, limit=6: [
+        {"title": "Ethereum falls on macro selloff", "source": "Example",
+         "published": alert_time + timedelta(hours=8), "link": ""}
+    ])
+    monkeypatch.setattr(explain, "chat_completion", lambda **kwargs: "Падение связано с общей распродажей.")
+    monkeypatch.setattr(explain, "edit_telegram_message", lambda *a, **k: None)
+
+    assert explain.main() == 0
+    saved = load_alerts_log(cfg.alerts_log_path)[0]
+    assert saved["llm_model"] in ("flash-x", "pro-x")
+    assert saved["llm_messages"][0]["role"] == "system"
+    assert saved["llm_messages"][1]["role"] == "user"
+    assert "Ethereum falls on macro selloff" in saved["llm_messages"][1]["content"]
+
+
 def test_news_fetch_failure_still_asks_llm(tmp_path, monkeypatch):
     """The window is fixed relative to the alert, so unlike the old "up to
     now" search, there's no value in skipping and retrying later - the LLM is
@@ -377,7 +403,7 @@ def test_explain_entry_asks_llm_with_no_headlines_when_nothing_survives_filter(t
         "symbol": "Ethereum", "last_return_pct": -1.45, "last_close": 2473.66,
         "sent_at": "2026-08-28T14:16:00+00:00",
     }
-    assert explain.explain_entry(cfg, entry, "Ethereum") == "ok"
+    assert explain.explain_entry(cfg, entry, "Ethereum").text == "ok"
     user_message = captured["messages"][1]["content"]
     assert "too old" not in user_message
     assert "Заголовков новостей не найдено" in user_message

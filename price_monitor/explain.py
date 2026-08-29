@@ -15,6 +15,7 @@ import html
 import logging
 import os
 import sys
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -59,6 +60,17 @@ SYSTEM_PROMPT = (
     "очевидной причины в новостях не нашлось - не выдумывай её. Пиши простым "
     "текстом, без markdown-разметки."
 )
+
+
+@dataclass
+class ExplainResult:
+    """What explain_entry produced, kept alongside the explanation text itself
+    so a bogus answer can be diagnosed later without guessing what was sent -
+    which model, and the exact request messages (system + user prompt,
+    including which articles the LLM actually saw)."""
+    text: str
+    model: str
+    messages: list[dict]
 
 
 def _news_query_by_symbol(cfg: Config) -> dict[str, str]:
@@ -143,7 +155,7 @@ def _is_old_enough(entry: dict, min_age_hours: float, now: datetime | None = Non
     return now - alert_time >= timedelta(hours=min_age_hours)
 
 
-def explain_entry(cfg: Config, entry: dict, query: str) -> str:
+def explain_entry(cfg: Config, entry: dict, query: str) -> ExplainResult:
     """Fetch news for `query` (within [alert + NEWS_WINDOW_START_HOURS,
     alert + NEWS_WINDOW_END_HOURS]) and ask the LLM to explain this one alert
     entry. If nothing turns up in that window, the LLM is still asked - the
@@ -170,15 +182,18 @@ def explain_entry(cfg: Config, entry: dict, query: str) -> str:
         articles = _filter_after(articles, lower_cutoff)
         articles = _filter_before(articles, upper_cutoff)
 
-    return chat_completion(
+    model = select_model(cfg.llm_model_peak, cfg.llm_model_offpeak)
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": _build_user_prompt(entry, articles)},
+    ]
+    text = chat_completion(
         base_url=cfg.llm_base_url,
         api_key=cfg.llm_api_key,
-        model=select_model(cfg.llm_model_peak, cfg.llm_model_offpeak),
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": _build_user_prompt(entry, articles)},
-        ],
+        model=model,
+        messages=messages,
     )
+    return ExplainResult(text=text, model=model, messages=messages)
 
 
 def _select_todo(entries: list[dict], message_id: int) -> list[dict]:
@@ -224,14 +239,14 @@ def main() -> int:
 
         query = query_by_symbol.get(entry["symbol"], entry["symbol"])
         try:
-            explanation = explain_entry(cfg, entry, query)
+            result = explain_entry(cfg, entry, query)
         except LLMError as exc:
             log.error("%s: LLM call failed, will retry next run: %s", entry["symbol"], exc)
             had_error = True
             continue
 
         base_text = entry.get("message_text") or f"{entry['symbol']}: {entry['last_return_pct']:+.2f}%"
-        new_text = f"{base_text}\n\n{EXPLANATION_HEADER}\n{html.escape(explanation, quote=False)}"
+        new_text = f"{base_text}\n\n{EXPLANATION_HEADER}\n{html.escape(result.text, quote=False)}"
 
         try:
             edit_telegram_message(cfg.telegram_bot_token, entry["chat_id"], entry["message_id"], new_text)
@@ -241,7 +256,13 @@ def main() -> int:
             continue
 
         entry["explained"] = True
-        entry["explanation"] = explanation
+        entry["explanation"] = result.text
+        # Kept so a bogus explanation can be diagnosed later - which model
+        # answered, and exactly what it was asked (including which news
+        # articles it actually saw), without having to guess or dig through
+        # Actions run logs that eventually expire.
+        entry["llm_model"] = result.model
+        entry["llm_messages"] = result.messages
         entry["explained_at"] = datetime.now(timezone.utc).isoformat()
         log.info("%s: explained and message updated", entry["symbol"])
 
