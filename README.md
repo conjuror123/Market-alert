@@ -177,7 +177,7 @@ python -m price_monitor.backtest --days 365 --out data/backtest_results.json
 `analysis.py` и `config.yaml`).
 
 Полная версия отчёта с графиками — на
-[дашборде бэктеста](https://claude.ai/code/artifact/de0b0c0f-533d-447f-a18a-35f18bf4ee14)
+[дашборде бэктеста](https://claude.ai/code/artifact/272f70f2-5d26-4a94-b8a4-75a8c7ff69db)
 (приватная ссылка, поделиться можно через меню Share на странице).
 
 </details>
