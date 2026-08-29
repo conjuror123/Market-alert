@@ -69,6 +69,10 @@ assets:
     source: yahoo
     label: "USD/CNY"
     news_query: "USD CNY yuan exchange rate"
+  - symbol: "DX-Y.NYB"
+    source: yahoo
+    label: "Индекс доллара (DXY)"
+    news_query: "US dollar index DXY"
 
 # Таймфрейм свечей — общий для всех активов (обоих источников) и должен
 # соответствовать частоте запуска workflow (по умолчанию раз в час, см.
