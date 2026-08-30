@@ -9,25 +9,29 @@ spans Sunday through Friday, so fetching it specifically on Sunday - which is
 exactly when weekly_digest.py runs - already returns the coming week's
 events, with no separate "next week" request needed.
 
-Scraping ForexFactory's own historical calendar pages is blocked by a
+Historical backfill (past years, not "this week") can't come from
+ForexFactory itself: scraping its historical calendar pages is blocked by a
 Cloudflare bot challenge (confirmed live, HTTP 403 with a "Just a moment..."
-JS challenge even with a realistic browser User-Agent), so there's no way to
-backfill years of past events from ForexFactory itself the way candle_store's
-history was backfilled from price APIs. Historical backfill instead uses
-Financial Modeling Prep's Economic Calendar API (fetch_fmp_range /
-fetch_fmp_history below) - a free-tier-with-key source that actually serves
-past dates, unlike ForexFactory's feed which only ever exposes "this week".
-Run as a one-off (see backfill-calendar.yml): `python -m
-price_monitor.economic_calendar --backfill-fmp --since 2023-04-01`.
+JS challenge even with a realistic browser User-Agent), and Financial
+Modeling Prep's Economic Calendar API - initially tried as a paid-key
+alternative - turned out to need a paid plan even for the "stable" tier
+(confirmed live, HTTP 402 Payment Required on a real free-tier key).
+Historical backfill instead imports a third-party CSV scrape of
+ForexFactory already hosted on GitHub (fetch_spoluan_year /
+import_spoluan_years below) - raw.githubusercontent.com isn't behind
+Cloudflare, so it's reachable with no key at all. Run as a one-off (see
+backfill-calendar.yml): `python -m price_monitor.economic_calendar
+--import-spoluan --since-year 2021 --until-year 2023`.
 """
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import json
 import logging
 import os
 import sys
-import time
 from datetime import datetime, timedelta, timezone
 
 import requests
@@ -36,15 +40,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("price_monitor.economic_calendar")
 
 CALENDAR_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
-
-# https://financialmodelingprep.com/stable/economic-calendar - confirmed via
-# FMP's own docs page: `from`/`to` accept at most 90 days between them per
-# request (daysMax: 90 in the page's embedded params). Per FMP's FAQ, the
-# "date" field this endpoint returns is UTC, but comes back as a naive string
-# with no offset - see _normalize_fmp_event. Worth spot-checking against a
-# known event once real data comes back from a live backfill run.
-FMP_CALENDAR_URL = "https://financialmodelingprep.com/stable/economic-calendar"
-FMP_MAX_DAYS_PER_REQUEST = 90
 
 
 class CalendarError(RuntimeError):
@@ -56,7 +51,7 @@ def fetch_calendar(session: requests.Session | None = None, timeout: int = 15) -
     title, country (currency code, or "All" for events affecting everyone),
     date (ISO8601 string, fixed -04:00 offset from the source - see
     parse_event_time), impact ("Low"/"Medium"/"High"/"Holiday"), forecast,
-    previous."""
+    previous, actual (empty for events that haven't happened yet)."""
     get = session.get if session is not None else requests.get
     try:
         resp = get(CALENDAR_URL, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"})
@@ -75,6 +70,7 @@ def fetch_calendar(session: requests.Session | None = None, timeout: int = 15) -
                 "impact": item["impact"],
                 "forecast": item.get("forecast", ""),
                 "previous": item.get("previous", ""),
+                "actual": item.get("actual", ""),
             })
         except KeyError:
             log.warning("Skipping malformed calendar event: %r", item)
@@ -127,136 +123,122 @@ def merge_events(path: str, events: list[dict]) -> int:
     return added
 
 
-def _fmp_date_to_iso_utc(date_str: str) -> str | None:
-    """FMP's "date" comes back as a naive string, no UTC offset (see
-    FMP_CALENDAR_URL above for why this is treated as UTC). Normalized to an
-    explicit-offset ISO8601 string so it stores and dedupes the same way as
-    ForexFactory's own -04:00-offset dates (see _event_key/parse_event_time) -
-    the actual offset only matters for parse_event_time's conversion to UTC,
-    which either representation already satisfies. Some events (e.g. all-day
-    entries) may come back as a bare date with no time component."""
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+# https://github.com/spoluan/forex-factory-scraper (MIT) - one CSV per year of
+# scraped ForexFactory calendar data, checked into the repo itself and served
+# straight off raw.githubusercontent.com (no Cloudflare, no key). Only
+# 2010-2023 exist - 2024+ requests confirmed live as HTTP 404, so anything
+# from 2024 onward has to come from ForexFactory's own live feed above
+# (fetch_calendar), accumulated forward week by week.
+_SPOLUAN_CSV_URL = (
+    "https://raw.githubusercontent.com/spoluan/forex-factory-scraper/master/"
+    "datasets/forex_factory_calendar_{year}.csv"
+)
+
+# The scraper's own "Combined DateTime" column isn't UTC - verified live by
+# cross-checking known-time events across 2021-2023: every FOMC Statement
+# (always released 2:00pm US Eastern) and every Non-Farm Employment Change
+# (always released 8:30am US Eastern) lines up exactly with
+# real_UTC_time + 8h, year-round including across the US's own DST switches -
+# i.e. a fixed UTC+8 offset (no DST of its own), not US Eastern time as one
+# might otherwise assume from the source. This is presumably whatever
+# timezone ForexFactory's website happened to be displaying in when this was
+# scraped, not a documented property of the site.
+_SPOLUAN_DISPLAY_UTC_OFFSET_HOURS = 8
+
+
+def _spoluan_event_time_to_iso_utc(date_str: str, time_str: str, combined_str: str) -> str | None:
+    """"All Day" rows (holidays, etc.) carry no real time-of-day - Combined
+    DateTime is always midnight in the scraper's own display offset for
+    those, which would misleadingly shift them to the previous UTC day if
+    corrected the same way as timed events, so they're anchored to UTC
+    midnight of the given date instead."""
+    if time_str == "All Day":
         try:
-            return datetime.strptime(date_str, fmt).replace(tzinfo=timezone.utc).isoformat()
+            return datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc).isoformat()
         except ValueError:
-            continue
-    return None
+            return None
+    try:
+        naive = datetime.strptime(combined_str, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
+    return (naive - timedelta(hours=_SPOLUAN_DISPLAY_UTC_OFFSET_HOURS)).replace(tzinfo=timezone.utc).isoformat()
 
 
-def _normalize_fmp_event(item: dict) -> dict | None:
-    title = item.get("event") or item.get("title")
-    date_iso = _fmp_date_to_iso_utc(item.get("date", "")) if item.get("date") else None
+def _normalize_spoluan_row(row: dict) -> dict | None:
+    title = row.get("Event")
+    date_iso = _spoluan_event_time_to_iso_utc(
+        row.get("Date", ""), row.get("Time", ""), row.get("Combined DateTime", ""))
     if not title or not date_iso:
-        log.warning("Skipping malformed FMP calendar event: %r", item)
+        log.warning("Skipping malformed spoluan calendar row: %r", row)
         return None
     return {
         "title": title,
-        "country": item.get("country") or "",
+        "country": row.get("Currency") or "",
         "date": date_iso,
-        "impact": item.get("impact") or "",
-        "forecast": item.get("estimate") or item.get("forecast") or "",
-        "previous": item.get("previous") or "",
+        # This scraper's own impact taxonomy is Low/Medium/High/Non-economic -
+        # it has no separate "Holiday" tier the way ForexFactory's live feed
+        # does (bank holidays come through here tagged "Low").
+        "impact": row.get("Impact") or "",
+        "forecast": row.get("Forecast") or "",
+        "previous": row.get("Previous") or "",
+        "actual": row.get("Actual") or "",
     }
 
 
-def fetch_fmp_range(
-    api_key: str, from_date: str, to_date: str,
-    session: requests.Session | None = None, timeout: int = 30,
-) -> list[dict]:
-    """One historical window (<= FMP_MAX_DAYS_PER_REQUEST days, "YYYY-MM-DD"
-    strings) of past events from Financial Modeling Prep - the source used
-    for the historical backfill ForexFactory's own feed can't provide (see
-    module docstring). Unlike fetch_calendar this keeps every impact level,
-    not just Medium/High - the local archive is meant to hold everything;
-    filtering to what's shown happens at read time (see weekly_digest.py)."""
+def fetch_spoluan_year(year: int, session: requests.Session | None = None, timeout: int = 30) -> list[dict]:
+    """One calendar year (2010-2023 only, see _SPOLUAN_CSV_URL) of historical
+    events, normalized to the same shape as fetch_calendar's events."""
     get = session.get if session is not None else requests.get
     try:
-        resp = get(
-            FMP_CALENDAR_URL, params={"from": from_date, "to": to_date, "apikey": api_key}, timeout=timeout)
+        resp = get(_SPOLUAN_CSV_URL.format(year=year), timeout=timeout)
         resp.raise_for_status()
-        # Logged so a live backfill run's own log tells us how much of FMP's
-        # free-tier bandwidth allowance (512 MB/30 days, shown on their
-        # dashboard) a run actually cost - cheaper to check this from a small
-        # test window than to guess before running the full historical range.
-        log.info("  response size: %.1f KB", len(resp.content) / 1024)
-        raw = resp.json()
-    except (requests.RequestException, ValueError) as exc:
-        raise CalendarError(f"FMP fetch failed for [{from_date}, {to_date}]: {exc}") from exc
+    except requests.RequestException as exc:
+        raise CalendarError(f"failed to fetch spoluan calendar CSV for {year}: {exc}") from exc
 
-    if isinstance(raw, dict):
-        # A bad key/plan/param returns a JSON *object* (e.g. an error
-        # message) instead of the usual list - surface that loudly instead of
-        # silently treating it as zero events.
-        raise CalendarError(f"FMP returned an error for [{from_date}, {to_date}]: {raw}")
-
+    rows = csv.DictReader(io.StringIO(resp.text))
     events = []
-    for item in raw:
-        normalized = _normalize_fmp_event(item)
+    for row in rows:
+        normalized = _normalize_spoluan_row(row)
         if normalized is not None:
             events.append(normalized)
     return events
 
 
-def fetch_fmp_history(
-    api_key: str, since: datetime, until: datetime,
-    session: requests.Session | None = None, delay: float = 1.0,
-) -> list[dict]:
-    """Chunks [since, until] into <= FMP_MAX_DAYS_PER_REQUEST-day windows (the
-    API's own per-request limit) and fetches each in turn, sleeping `delay`
-    seconds between requests to stay comfortably under the free tier's daily
-    rate limit for what's meant to be an occasional one-off backfill, not a
-    routine call. A window that fails is logged and skipped rather than
-    aborting the whole run - a single bad chunk shouldn't lose everything
-    already fetched for the rest of the range."""
+def import_spoluan_years(years: list[int], session: requests.Session | None = None) -> list[dict]:
+    """Fetches each year in turn; a year that fails (e.g. one outside
+    2010-2023) is logged and skipped rather than aborting the whole import."""
     events = []
-    window_start = since
-    step = timedelta(days=FMP_MAX_DAYS_PER_REQUEST)
-    while window_start < until:
-        window_end = min(window_start + step, until)
-        from_str, to_str = window_start.strftime("%Y-%m-%d"), window_end.strftime("%Y-%m-%d")
-        log.info("Fetching FMP economic calendar [%s, %s]...", from_str, to_str)
+    for year in years:
+        log.info("Fetching spoluan calendar CSV for %d...", year)
         try:
-            chunk = fetch_fmp_range(api_key, from_str, to_str, session=session)
+            chunk = fetch_spoluan_year(year, session=session)
             log.info("  got %d events", len(chunk))
             events.extend(chunk)
         except CalendarError as exc:
             log.error("  %s", exc)
-        window_start = window_end + timedelta(days=1)
-        if delay and window_start < until:
-            time.sleep(delay)
     return events
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--backfill-fmp", action="store_true", help="One-off historical backfill via FMP")
-    parser.add_argument("--since", help="YYYY-MM-DD - required with --backfill-fmp")
-    parser.add_argument("--until", help="YYYY-MM-DD, default: today (UTC)")
-    parser.add_argument("--delay", type=float, default=1.0, help="Seconds between FMP requests")
+    parser.add_argument("--import-spoluan", action="store_true", help="One-off historical import from GitHub")
+    parser.add_argument("--since-year", type=int, help="First year to import (inclusive)")
+    parser.add_argument("--until-year", type=int, help="Last year to import (inclusive), default: --since-year")
     args = parser.parse_args()
 
-    if not args.backfill_fmp:
-        parser.error("nothing to do - pass --backfill-fmp")
-    if not args.since:
-        parser.error("--since is required with --backfill-fmp")
+    if not args.import_spoluan:
+        parser.error("nothing to do - pass --import-spoluan")
+    if not args.since_year:
+        parser.error("--since-year is required with --import-spoluan")
+    until_year = args.until_year or args.since_year
 
-    api_key = os.environ.get("FMP_API_KEY", "")
-    if not api_key:
-        log.error("FMP_API_KEY is not set")
-        return 1
-
-    since = datetime.strptime(args.since, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-    until = (
-        datetime.strptime(args.until, "%Y-%m-%d").replace(tzinfo=timezone.utc) if args.until
-        else datetime.now(timezone.utc)
-    )
     calendar_dir = os.environ.get(
         "CALENDAR_DIR", os.path.join(os.path.dirname(__file__), "..", "data", "economic_calendar"))
 
     session = requests.Session()
-    events = fetch_fmp_history(api_key, since, until, session=session, delay=args.delay)
+    events = import_spoluan_years(range(args.since_year, until_year + 1), session=session)
     added = merge_events(store_path(calendar_dir), events)
-    log.info("Fetched %d events from FMP (%s..%s), %d new after dedup", len(events), args.since, args.until or "now", added)
+    log.info("Fetched %d events (%d..%d), %d new after dedup", len(events), args.since_year, until_year, added)
     return 0
 
 

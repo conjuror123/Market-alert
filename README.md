@@ -349,25 +349,39 @@ Medium/High) в `data/economic_calendar/calendar.ndjson` — тем же спо�
 прошлых дат — только «эта неделя», а прямой скрейпинг архивных страниц
 (`forexfactory.com/calendar?week=...`) заблокирован Cloudflare (проверено
 вживую: HTTP 403, JS-челлендж "Just a moment...", даже с реалистичным
-браузерным User-Agent). Поэтому глубокий бэкфилл истории календаря сделан не
-из ForexFactory, а через Financial Modeling Prep — `fetch_fmp_range` /
-`fetch_fmp_history` в `economic_calendar.py`. Разовый запуск:
+браузерным User-Agent). Пробовали в качестве платной альтернативы Financial
+Modeling Prep — оказалось, что Economic Calendar у них платный даже на
+"stable" тарифе (проверено вживую реальным ключом: HTTP 402 Payment Required),
+так что от этого источника отказались.
+
+Вместо этого глубокий бэкфилл берёт готовый CSV-дамп ForexFactory с GitHub —
+`github.com/spoluan/forex-factory-scraper` (MIT, по файлу на год, 2010–2023;
+2024+ проверены вживую — 404, дальше данных нет). Раздаётся с
+`raw.githubusercontent.com`, а это не forexfactory.com — Cloudflare туда не
+дотягивается, и ключ не нужен вообще. Разовый импорт:
 
 ```bash
-python -m price_monitor.economic_calendar --backfill-fmp --since 2023-04-01
+python -m price_monitor.economic_calendar --import-spoluan --since-year 2021 --until-year 2023
 ```
 
-Как и `TWELVEDATA_API_KEY`, ключ (`FMP_API_KEY`) не вставляется в чат или
-локальное окружение — для него отдельный workflow: **Actions → Backfill
-Economic Calendar → Run workflow** (поля `since`/`until`). У эндпоинта
-`https://financialmodelingprep.com/stable/economic-calendar` лимит — не больше
-90 дней между `from` и `to` за один запрос (проверено по их же документации),
-поэтому `fetch_fmp_history` сама режет диапазон на окна по 90 дней с паузой
-между запросами. Собственный код бота честно предполагает, что поле `date` от
-FMP — уже UTC без явного смещения (так утверждает FAQ FMP), но эта деталь ещё
-не сверена с полученными данными вживую — стоит перепроверить по первому же
-реальному прогону бэкфилла, прежде чем полагаться на точность времени вплоть
-до часа.
+(или **Actions → Backfill Economic Calendar → Run workflow**, поля
+`since_year`/`until_year`) — 2021 выбран как нижняя граница, потому что именно
+с этого года начинается локальная история свечей (`data/candle_history/`, см.
+выше), более ранние календарные данные пока не нужны.
+
+Времена в CSV этого скрейпера — **не UTC и не US Eastern**, а фиксированное
+UTC+8 без перехода на летнее время: проверено вживую по датам/времени FOMC
+Statement (реально всегда 14:00 US Eastern) и Non-Farm Employment Change
+(реально всегда 8:30 US Eastern) за 2021–2023 — оба идеально ложатся на
+`реальное_UTC_время + 8ч` в любой месяц года, несмотря на переходы США на
+летнее время. Похоже, это просто тайм-зона, в которую был выставлен сайт
+ForexFactory в момент скрейпинга, а не документированное свойство самого
+источника — `_normalize_spoluan_row` в `economic_calendar.py` компенсирует
+это вычитанием 8 часов (кроме событий "All Day", у которых нет реального
+времени суток — они просто приводятся к полуночи UTC той же календарной даты).
+У этого скрейпера также своя, более простая шкала `impact` — `Low/Medium/
+High/Non-economic`, без отдельной метки `Holiday` (праздники приходят как
+`Low`) — не путать со шкалой живого фида ForexFactory выше.
 
 </details>
 
@@ -677,9 +691,10 @@ data/economic_calendar/    — локальный архив событий ка
   backfill-history.yml  — ручной глубокий докач data/candle_history/ (нужен для
                           валютных пар — работает с секретом TWELVEDATA_API_KEY,
                           не раскрывая его)
-  backfill-calendar.yml — ручной глубокий докач data/economic_calendar/ через
-                          Financial Modeling Prep — работает с секретом
-                          FMP_API_KEY, не раскрывая его
+  backfill-calendar.yml — ручной импорт data/economic_calendar/ из готового
+                          CSV-дампа ForexFactory на GitHub (2010-2023, MIT) —
+                          ключ не нужен, raw.githubusercontent.com не за
+                          Cloudflare
   tests.yml             — юнит-тесты на push/PR
 
 tests/ — pytest-тесты на все модули выше
