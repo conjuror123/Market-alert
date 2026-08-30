@@ -26,7 +26,7 @@ import sys
 
 import requests
 
-from price_monitor import candle_store, decision_log, health
+from price_monitor import candle_store, decision_log, health, weekly_digest
 from price_monitor.alerts_log import load_alerts_log, record_sent_alert, save_alerts_log
 from price_monitor.analysis import Signal, analyze
 from price_monitor.config import Config, EffectiveParams, load_config
@@ -286,6 +286,11 @@ def main() -> int:
                 log.error("%s: failed to send Telegram daily alert: %s", asset.label, exc)
                 had_error = True
                 error_details.append(f"{asset.label}: не удалось отправить дневной алерт в Telegram ({exc})")
+
+    # No-ops except during the one hourly run that lands on Sunday ~12:00
+    # Israel time - see weekly_digest.py's module docstring for why this
+    # piggybacks on the existing hourly trigger instead of its own schedule.
+    weekly_digest.maybe_send_weekly_digest(cfg, state, session)
 
     if had_error:
         streak = health.record_failure(state)

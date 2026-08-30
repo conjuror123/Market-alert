@@ -134,6 +134,9 @@ class Config:
         os.path.dirname(__file__), "..", "data", "candle_history"))
     decision_log_dir: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(__file__), "..", "data", "decision_log"))
+    # Local store for economic_calendar.py / weekly_digest.py - see README.
+    calendar_dir: str = field(default_factory=lambda: os.path.join(
+        os.path.dirname(__file__), "..", "data", "economic_calendar"))
     coinbase_base_url: str = "https://api.exchange.coinbase.com"
     yahoo_base_url: str = "https://query1.finance.yahoo.com"
     twelvedata_base_url: str = "https://api.twelvedata.com"
@@ -278,4 +281,7 @@ def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
     decision_log_dir_override = os.environ.get("DECISION_LOG_DIR")
     if decision_log_dir_override:
         cfg.decision_log_dir = decision_log_dir_override
+    calendar_dir_override = os.environ.get("CALENDAR_DIR")
+    if calendar_dir_override:
+        cfg.calendar_dir = calendar_dir_override
     return cfg

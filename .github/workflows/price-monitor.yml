@@ -42,11 +42,11 @@ jobs:
 
       - name: Commit updated state
         run: |
-          mkdir -p data/candle_history data/decision_log
-          if [ -n "$(git status --porcelain data/state.json data/alerts_log.json data/candle_history data/decision_log)" ]; then
+          mkdir -p data/candle_history data/decision_log data/economic_calendar
+          if [ -n "$(git status --porcelain data/state.json data/alerts_log.json data/candle_history data/decision_log data/economic_calendar)" ]; then
             git config user.name "price-monitor-bot"
             git config user.email "actions@github.com"
-            git add data/state.json data/alerts_log.json data/candle_history data/decision_log
+            git add data/state.json data/alerts_log.json data/candle_history data/decision_log data/economic_calendar
             git commit -m "chore: update monitor state [skip ci]"
             git push
           else
