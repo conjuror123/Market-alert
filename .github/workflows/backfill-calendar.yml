@@ -1,27 +1,34 @@
 name: Backfill Economic Calendar
 
 # Ручной, разовый импорт локального архива календаря (data/economic_calendar/,
-# см. README) за годы, которые задают since-year/until-year - в отличие от
-# price-monitor.yml, который раз в неделю (см. weekly_digest.py) добавляет
-# только текущую неделю с фида ForexFactory. ForexFactory сам отдаёт только
-# "эту неделю" и блокирует скрейпинг архива Cloudflare'ом, а Financial
-# Modeling Prep (пробовали как платную альтернативу) оказался платным даже на
-# "stable" тарифе (see README) - поэтому историю берём из готового CSV-дампа
-# ForexFactory, лежащего на GitHub (raw.githubusercontent.com, не за
-# Cloudflare, без ключа).
+# см. README) - в отличие от price-monitor.yml, который раз в неделю (см.
+# weekly_digest.py) добавляет только текущую неделю с фида ForexFactory.
+# ForexFactory сам отдаёт только "эту неделю" и блокирует скрейпинг архива
+# Cloudflare'ом, а Financial Modeling Prep (пробовали как платную
+# альтернативу) оказался платным даже на "stable" тарифе (см. README) -
+# поэтому историю берём из готовых CSV-дампов ForexFactory, лежащих на
+# GitHub (raw.githubusercontent.com, не за Cloudflare, без ключа). Архив
+# хранит только High Impact события (см. README) - импортёр сам отфильтрует
+# всё остальное, даже если spoluan's CSV содержит и Medium/Low.
 
 on:
   workflow_dispatch:
     inputs:
       since_year:
-        description: 'Первый год для импорта (включительно)'
-        required: true
-        type: string
-      until_year:
-        description: 'Последний год (включительно), по умолчанию - since_year'
+        description: 'Первый год для импорта из spoluan (включительно), 2010-2023 - можно оставить пустым'
         required: false
         default: ''
         type: string
+      until_year:
+        description: 'Последний год для spoluan (включительно), по умолчанию - since_year'
+        required: false
+        default: ''
+        type: string
+      ehsan_high_impact:
+        description: 'Также импортировать High Impact ~2020-2026 из ehsanrs2 (см. README)'
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: write
@@ -45,21 +52,22 @@ jobs:
 
       - name: Run calendar backfill
         run: |
-          python -m price_monitor.economic_calendar --import-spoluan \
-            --since-year "${{ github.event.inputs.since_year }}" \
-            ${{ github.event.inputs.until_year != '' && format('--until-year {0}', github.event.inputs.until_year) || '' }}
+          python -m price_monitor.economic_calendar \
+            ${{ github.event.inputs.since_year != '' && format('--import-spoluan --since-year {0}', github.event.inputs.since_year) || '' }} \
+            ${{ github.event.inputs.until_year != '' && format('--until-year {0}', github.event.inputs.until_year) || '' }} \
+            ${{ github.event.inputs.ehsan_high_impact == 'true' && '--import-ehsan-high-impact' || '' }}
 
       - name: Commit updated calendar history
         # Same reasoning as backfill-history.yml's commit step: keep whatever
-        # was fetched and merged for earlier years in this run even if a
-        # later year fails partway through.
+        # was fetched and merged so far in this run even if a later step
+        # fails partway through.
         if: always()
         run: |
           if [ -n "$(git status --porcelain data/economic_calendar)" ]; then
             git config user.name "price-monitor-bot"
             git config user.email "actions@github.com"
             git add data/economic_calendar
-            git commit -m "chore: import economic calendar history since ${{ github.event.inputs.since_year }} [skip ci]"
+            git commit -m "chore: import economic calendar history [skip ci]"
             git push
           else
             echo "No calendar changes to commit."

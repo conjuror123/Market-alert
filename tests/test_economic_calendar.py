@@ -145,6 +145,17 @@ def test_merge_events_persists_valid_json_lines(tmp_path):
     assert len(lines) == 2
 
 
+def test_filter_high_impact_only_keeps_only_high():
+    events = [
+        {"title": "a", "impact": "High"},
+        {"title": "b", "impact": "Medium"},
+        {"title": "c", "impact": "Low"},
+        {"title": "d", "impact": "Holiday"},
+        {"title": "e", "impact": "Non-economic"},
+    ]
+    assert [e["title"] for e in economic_calendar.filter_high_impact_only(events)] == ["a"]
+
+
 # --- Historical import from the spoluan/forex-factory-scraper GitHub CSVs ---
 
 SPOLUAN_CSV = (
@@ -243,3 +254,55 @@ def test_import_spoluan_years_aggregates_all_years(monkeypatch):
 
     events = import_spoluan_years([2021, 2022, 2023])
     assert [e["title"] for e in events] == ["event 2021", "event 2022", "event 2023"]
+
+
+# --- Historical import from the ehsanrs2/forexfactory-scraper GitHub CSV ---
+
+EHSAN_CSV = (
+    "DateTime,Currency,Impact,Event,Actual,Forecast,Previous,Detail\n"
+    "2024-05-01T19:00:00+01:00,USD,High Impact Expected,FOMC Statement,,,,\n"
+    "2024-11-07T19:00:00+00:00,USD,High Impact Expected,FOMC Statement,,,,\n"
+    ",,,,,,,\n"  # a fully blank row
+)
+
+
+def test_normalize_ehsan_row_converts_bst_offset_to_utc():
+    # Real FOMC Statement release: 2024-05-01 14:00 US Eastern (EDT, UTC-4) =
+    # 2024-05-01 18:00 UTC. The source's own "+01:00" (British Summer Time)
+    # is a correct, DST-aware ISO8601 offset - a plain fromisoformat parse
+    # should recover the same real UTC instant, no manual correction needed
+    # (unlike spoluan's fixed-offset quirk above).
+    row = {"DateTime": "2024-05-01T19:00:00+01:00", "Currency": "USD", "Impact": "High Impact Expected",
+           "Event": "FOMC Statement", "Actual": "", "Forecast": "", "Previous": ""}
+    normalized = economic_calendar._normalize_ehsan_row(row)
+    assert normalized["date"] == "2024-05-01T18:00:00+00:00"
+    assert normalized["impact"] == "High"
+
+
+def test_normalize_ehsan_row_returns_none_for_blank_or_malformed_rows():
+    assert economic_calendar._normalize_ehsan_row({"Event": "", "DateTime": ""}) is None
+    assert economic_calendar._normalize_ehsan_row({"Event": "CPI m/m", "DateTime": "not a datetime"}) is None
+
+
+def test_fetch_ehsan_high_impact_parses_csv_and_skips_blank_rows(monkeypatch):
+    calls = []
+
+    def fake_get(url, timeout):
+        calls.append(url)
+        return FakeResponse(200, text=EHSAN_CSV)
+
+    monkeypatch.setattr(economic_calendar.requests, "get", fake_get)
+    events = economic_calendar.fetch_ehsan_high_impact()
+
+    assert calls == [economic_calendar._EHSAN_HIGH_IMPACT_CSV_URL]
+    assert len(events) == 2
+    assert all(e["impact"] == "High" for e in events)
+
+
+def test_fetch_ehsan_high_impact_raises_calendar_error_on_http_failure(monkeypatch):
+    def fake_get(url, timeout):
+        return FakeResponse(404, text="Not Found")
+
+    monkeypatch.setattr(economic_calendar.requests, "get", fake_get)
+    with pytest.raises(CalendarError):
+        economic_calendar.fetch_ehsan_high_impact()

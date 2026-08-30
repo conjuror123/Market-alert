@@ -88,7 +88,13 @@ def maybe_send_weekly_digest(
         log.error("Failed to fetch economic calendar for weekly digest: %s", exc)
         return False
 
-    economic_calendar.merge_events(economic_calendar.store_path(cfg.calendar_dir), raw_events)
+    # The archive only keeps High-impact events (see economic_calendar's
+    # module docstring for why) - the Telegram digest below still shows
+    # Medium+High regardless, since that's about what's coming up this week,
+    # not about the archive's cross-period consistency.
+    economic_calendar.merge_events(
+        economic_calendar.store_path(cfg.calendar_dir),
+        economic_calendar.filter_high_impact_only(raw_events))
 
     digest_events = [e for e in raw_events if e["impact"] in _DIGEST_IMPACTS]
     digest_text = format_digest(digest_events)

@@ -16,12 +16,25 @@ JS challenge even with a realistic browser User-Agent), and Financial
 Modeling Prep's Economic Calendar API - initially tried as a paid-key
 alternative - turned out to need a paid plan even for the "stable" tier
 (confirmed live, HTTP 402 Payment Required on a real free-tier key).
-Historical backfill instead imports a third-party CSV scrape of
-ForexFactory already hosted on GitHub (fetch_spoluan_year /
-import_spoluan_years below) - raw.githubusercontent.com isn't behind
-Cloudflare, so it's reachable with no key at all. Run as a one-off (see
-backfill-calendar.yml): `python -m price_monitor.economic_calendar
---import-spoluan --since-year 2021 --until-year 2023`.
+Historical backfill instead imports third-party CSV scrapes of ForexFactory
+already hosted on GitHub - raw.githubusercontent.com isn't behind
+Cloudflare, so both are reachable with no key at all:
+- fetch_spoluan_year / import_spoluan_years: 2010-2023, every impact level.
+- fetch_ehsan_high_impact: ~2020 to whenever the maintainer last ran it
+  (checked live), High-impact events only.
+Run as a one-off (see backfill-calendar.yml): `python -m
+price_monitor.economic_calendar --import-spoluan --since-year 2021
+--until-year 2023 --import-ehsan-high-impact`.
+
+The archive only ever keeps High-impact events (see filter_high_impact_only)
+even though the spoluan import above can fetch every impact level: Medium/Low
+coverage exists for 2010-2023 (from spoluan) but nowhere past that (neither
+ehsan's dump nor ForexFactory's own live feed's Medium/Low events are
+retained), so keeping mixed completeness would be misleading - "no Medium
+events found near this date" would mean two different things depending on
+which period it's asked about. High-impact coverage alone stays consistent
+across the whole archive, at the cost of not being able to show Medium/Low
+context for calibration_review.py's future enrichment.
 """
 from __future__ import annotations
 
@@ -99,6 +112,13 @@ def load_events(path: str) -> list[dict]:
 
 def _event_key(event: dict) -> tuple:
     return (event["country"], event["title"], event["date"])
+
+
+def filter_high_impact_only(events: list[dict]) -> list[dict]:
+    """The local archive only ever keeps High-impact events - see the module
+    docstring for why. Every event that gets merged into the store (from any
+    source) should be filtered through this first."""
+    return [e for e in events if e["impact"] == "High"]
 
 
 def merge_events(path: str, events: list[dict]) -> int:
@@ -219,26 +239,102 @@ def import_spoluan_years(years: list[int], session: requests.Session | None = No
     return events
 
 
+# https://github.com/ehsanrs2/forexfactory-scraper (GPLv3) - a single static
+# CSV snapshot checked into the repo, High-impact events only, covering
+# ~2020 to whenever the maintainer last ran it (2026-01-30 as of this
+# writing, confirmed live) - there's no per-year split or way to request a
+# narrower range, unlike spoluan's dump, so this is always fetched whole.
+_EHSAN_HIGH_IMPACT_CSV_URL = (
+    "https://raw.githubusercontent.com/ehsanrs2/forexfactory-scraper/main/high_impact_events_calendar.csv"
+)
+
+
+def _normalize_ehsan_row(row: dict) -> dict | None:
+    title = row.get("Event")
+    date_str = row.get("DateTime")
+    if not title or not date_str:
+        log.warning("Skipping malformed ehsan calendar row: %r", row)
+        return None
+    try:
+        # Unlike spoluan's dump, this one's own DateTime already carries an
+        # explicit, correct UTC offset (verified live against known release
+        # times - e.g. FOMC Statement - across seasons, so it tracks real
+        # DST rather than being a fixed display offset) - no manual
+        # correction needed, just the standard ISO8601 parse.
+        date_iso = datetime.fromisoformat(date_str).astimezone(timezone.utc).isoformat()
+    except ValueError:
+        log.warning("Skipping ehsan calendar row with unparseable date: %r", row)
+        return None
+    return {
+        "title": title,
+        "country": row.get("Currency") or "",
+        "date": date_iso,
+        # This file is High-impact only by construction (see
+        # _EHSAN_HIGH_IMPACT_CSV_URL) - "High Impact Expected" is its only
+        # actual value, normalized here to match the other sources' "High".
+        "impact": "High",
+        "forecast": row.get("Forecast") or "",
+        "previous": row.get("Previous") or "",
+        "actual": row.get("Actual") or "",
+    }
+
+
+def fetch_ehsan_high_impact(session: requests.Session | None = None, timeout: int = 30) -> list[dict]:
+    get = session.get if session is not None else requests.get
+    try:
+        resp = get(_EHSAN_HIGH_IMPACT_CSV_URL, timeout=timeout)
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        raise CalendarError(f"failed to fetch ehsan high-impact calendar CSV: {exc}") from exc
+
+    rows = csv.DictReader(io.StringIO(resp.text))
+    events = []
+    for row in rows:
+        normalized = _normalize_ehsan_row(row)
+        if normalized is not None:
+            events.append(normalized)
+    return events
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--import-spoluan", action="store_true", help="One-off historical import from GitHub")
-    parser.add_argument("--since-year", type=int, help="First year to import (inclusive)")
-    parser.add_argument("--until-year", type=int, help="Last year to import (inclusive), default: --since-year")
+    parser.add_argument("--import-spoluan", action="store_true", help="Historical import from GitHub (2010-2023)")
+    parser.add_argument("--since-year", type=int, help="First year to import (inclusive) - with --import-spoluan")
+    parser.add_argument("--until-year", type=int, help="Last year (inclusive), default: --since-year")
+    parser.add_argument(
+        "--import-ehsan-high-impact", action="store_true",
+        help="Historical High-impact-only import from GitHub (~2020 onward)")
     args = parser.parse_args()
 
-    if not args.import_spoluan:
-        parser.error("nothing to do - pass --import-spoluan")
-    if not args.since_year:
+    if not args.import_spoluan and not args.import_ehsan_high_impact:
+        parser.error("nothing to do - pass --import-spoluan and/or --import-ehsan-high-impact")
+    if args.import_spoluan and not args.since_year:
         parser.error("--since-year is required with --import-spoluan")
-    until_year = args.until_year or args.since_year
 
     calendar_dir = os.environ.get(
         "CALENDAR_DIR", os.path.join(os.path.dirname(__file__), "..", "data", "economic_calendar"))
-
     session = requests.Session()
-    events = import_spoluan_years(range(args.since_year, until_year + 1), session=session)
-    added = merge_events(store_path(calendar_dir), events)
-    log.info("Fetched %d events (%d..%d), %d new after dedup", len(events), args.since_year, until_year, added)
+    events = []
+
+    if args.import_spoluan:
+        until_year = args.until_year or args.since_year
+        spoluan_events = import_spoluan_years(range(args.since_year, until_year + 1), session=session)
+        log.info("spoluan: %d events fetched", len(spoluan_events))
+        events.extend(spoluan_events)
+
+    if args.import_ehsan_high_impact:
+        try:
+            ehsan_events = fetch_ehsan_high_impact(session=session)
+            log.info("ehsan high-impact: %d events fetched", len(ehsan_events))
+            events.extend(ehsan_events)
+        except CalendarError as exc:
+            log.error("  %s", exc)
+
+    kept = filter_high_impact_only(events)
+    added = merge_events(store_path(calendar_dir), kept)
+    log.info(
+        "Fetched %d events, %d High-impact after filtering, %d new after dedup",
+        len(events), len(kept), added)
     return 0
 
 
