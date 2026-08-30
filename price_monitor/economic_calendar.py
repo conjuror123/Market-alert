@@ -94,6 +94,15 @@ def parse_event_time(date_str: str) -> datetime:
     return datetime.fromisoformat(date_str).astimezone(timezone.utc)
 
 
+def events_in_window(events: list[dict], lower: datetime, upper: datetime) -> list[dict]:
+    """Archive events with a time in [lower, upper] (inclusive both ends,
+    same convention as explain.py's _filter_after/_filter_before), sorted by
+    date. Used by daily_signal_review.py to show calendar context next to
+    each backtest event."""
+    matched = [e for e in events if lower <= parse_event_time(e["date"]) <= upper]
+    return sorted(matched, key=lambda e: e["date"])
+
+
 def store_path(base_dir: str) -> str:
     return os.path.join(base_dir, "calendar.ndjson")
 

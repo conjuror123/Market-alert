@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 
 import pytest
 import requests
@@ -111,6 +112,29 @@ def test_parse_event_time_converts_to_utc():
     parsed = parse_event_time("2026-09-04T08:30:00-04:00")
     assert parsed.utcoffset().total_seconds() == 0
     assert parsed.hour == 12
+
+
+def test_events_in_window_keeps_only_events_inside_the_range_inclusive():
+    events = [
+        {"title": "before", "date": datetime(2024, 1, 1, 11, 59, tzinfo=timezone.utc).isoformat()},
+        {"title": "lower bound", "date": datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc).isoformat()},
+        {"title": "inside", "date": datetime(2024, 1, 1, 13, 0, tzinfo=timezone.utc).isoformat()},
+        {"title": "upper bound", "date": datetime(2024, 1, 1, 14, 0, tzinfo=timezone.utc).isoformat()},
+        {"title": "after", "date": datetime(2024, 1, 1, 14, 1, tzinfo=timezone.utc).isoformat()},
+    ]
+    matched = economic_calendar.events_in_window(
+        events, datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc), datetime(2024, 1, 1, 14, 0, tzinfo=timezone.utc))
+    assert [e["title"] for e in matched] == ["lower bound", "inside", "upper bound"]
+
+
+def test_events_in_window_returns_events_sorted_by_date():
+    events = [
+        {"title": "second", "date": datetime(2024, 1, 1, 13, 0, tzinfo=timezone.utc).isoformat()},
+        {"title": "first", "date": datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc).isoformat()},
+    ]
+    matched = economic_calendar.events_in_window(
+        events, datetime(2024, 1, 1, 0, 0, tzinfo=timezone.utc), datetime(2024, 1, 2, 0, 0, tzinfo=timezone.utc))
+    assert [e["title"] for e in matched] == ["first", "second"]
 
 
 def test_merge_events_is_idempotent_and_deduplicates(tmp_path):
