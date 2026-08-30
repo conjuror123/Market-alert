@@ -1,5 +1,6 @@
 import json
 import os
+from dataclasses import replace
 
 from price_monitor import backtest as backtest_module
 from price_monitor import yahoo
@@ -8,6 +9,8 @@ from price_monitor.backtest import (
     _price_alert,
     _severity,
     _volume_alert,
+    calibrate_recall_threshold,
+    cluster_events,
     fetch_backtest_history,
     simulate_notifications,
 )
@@ -163,3 +166,54 @@ def test_main_skips_an_asset_that_fails_and_still_processes_the_rest(tmp_path, m
         out = json.load(f)
     labels = {a["label"] for a in out["assets"]}
     assert labels == {"Bitcoin", "Ethereum"}  # EUR/USD skipped, the rest still made it in
+
+
+def test_months_covered_top_n_scales_with_history_length():
+    assert backtest_module.months_covered_top_n(30) == 1
+    assert backtest_module.months_covered_top_n(365) == 12
+    assert backtest_module.months_covered_top_n(5) == 1  # floored at 1, never zero
+
+
+def test_calibrate_recall_threshold_finds_threshold_for_target_recall():
+    """Eight escalating-severity spikes among 128 quiet daily periods (top_n
+    = round(128/30) = 4): the threshold search should land wherever recall on
+    the top-4 by size is closest to 50% (2 of the 4 biggest caught)."""
+    params = replace(
+        BASE_PARAMS, interval="1d", cooldown_minutes=1, escalation_factor=1.0,
+        volume_zscore_threshold=1e9, volume_zscore_override=1e9,
+    )
+    day = 86400
+    series = [step(open_time=i * day) for i in range(128)]
+    for idx, z in zip([10, 25, 40, 55, 70, 85, 100, 115], range(1, 9)):
+        series[idx] = step(open_time=idx * day, ewma_z=float(z), robust_z=float(z), return_pct=float(z))
+
+    tuned, top_n, recall = calibrate_recall_threshold(series, params, target_fraction=0.5)
+
+    assert top_n == 4
+    assert recall == 0.5
+    assert 6.0 < tuned.price_zscore_threshold <= 7.0
+    assert tuned.price_zscore_override == round(tuned.price_zscore_threshold * 3, 1)
+
+
+def test_cluster_events_splits_when_gap_exceeds_window():
+    day = 86400
+    events = [(0, "A"), (day, "B"), (10 * day, "C")]
+    assert cluster_events(events, gap_seconds=2 * day) == [
+        [(0, "A"), (day, "B")],
+        [(10 * day, "C")],
+    ]
+
+
+def test_cluster_events_rolling_window_extends_chain():
+    """Each event sits within the gap of the *previous* one, but the first
+    and last are 6 days apart - still one cluster, since the merge window
+    rolls forward with each new item rather than being fixed from the start."""
+    day = 86400
+    events = [(0, "A"), (2 * day, "B"), (4 * day, "C"), (6 * day, "D")]
+    clusters = cluster_events(events, gap_seconds=2 * day)
+    assert len(clusters) == 1
+    assert len(clusters[0]) == 4
+
+
+def test_cluster_events_handles_empty_input():
+    assert cluster_events([], gap_seconds=86400) == []

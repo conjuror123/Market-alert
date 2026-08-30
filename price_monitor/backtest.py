@@ -92,6 +92,18 @@ def daily_params_view(params: EffectiveParams) -> EffectiveParams:
 YAHOO_MAX_HOURLY_DAYS = 729
 
 
+def fetch_local_history(asset: AssetConfig, cfg: Config) -> list:
+    """Reads whatever history is already in data/candle_history/ instead of
+    hitting the network - fast, needs no API key, and is exactly what the
+    daily-signal recall calibration wants (as much real history as we've
+    already backfilled, not a fresh re-fetch of it). See README, --local-history."""
+    path = candle_store.store_path(cfg.candle_history_dir, asset.source, asset.symbol)
+    candles = candle_store.load_candles(path)
+    if not candles:
+        raise ExchangeError(f"No local candle history found for {asset.label} at {path}")
+    return candles
+
+
 def fetch_backtest_history(
     asset: AssetConfig, params: EffectiveParams, cfg: Config, days: float, session: requests.Session
 ):
@@ -229,11 +241,12 @@ class AssetReport:
     notifications_sent: int
     notifications_per_week: float
     biggest_moves: list[dict]
+    notified_open_times: list[int]
     naive_pct_alert_counts: dict[str, int]
     threshold_sweep: dict[str, float]
 
 
-def build_report(asset: AssetConfig, series: list[dict], params: EffectiveParams) -> AssetReport:
+def build_report(asset: AssetConfig, series: list[dict], params: EffectiveParams, top_n: int = 5) -> AssetReport:
     periods = len(series)
     days_covered = periods / _periods_per_day(params.interval) if periods else 0.0
     weeks = days_covered / 7 if days_covered else 1e-9
@@ -250,10 +263,11 @@ def build_report(asset: AssetConfig, series: list[dict], params: EffectiveParams
 
     notified = simulate_notifications(series, params)
 
-    biggest = sorted(series, key=lambda s: abs(s["return_pct"]), reverse=True)[:5]
+    biggest = sorted(series, key=lambda s: abs(s["return_pct"]), reverse=True)[:top_n]
     biggest_moves = [
         {
             "open_time": s["open_time"],
+            "date": datetime.fromtimestamp(s["open_time"], tz=timezone.utc).strftime("%Y-%m-%d"),
             "return_pct": round(s["return_pct"], 3),
             "ewma_z": round(s["ewma_z"], 2),
             "robust_z": round(s["robust_z"], 2),
@@ -306,9 +320,91 @@ def build_report(asset: AssetConfig, series: list[dict], params: EffectiveParams
         notifications_sent=len(notified),
         notifications_per_week=round(len(notified) / weeks, 2),
         biggest_moves=biggest_moves,
+        notified_open_times=sorted(notified),
         naive_pct_alert_counts=naive_counts,
         threshold_sweep=sweep,
     )
+
+
+def months_covered_top_n(days_covered: float) -> int:
+    """How many "biggest moves" to evaluate recall against - one per month of
+    available history, so a deeper history (more months) gets a bigger,
+    statistically sturdier sample instead of a fixed top-5 regardless of how
+    much data is actually available. See README, "Дневной сигнал"."""
+    return max(1, round(days_covered / 30))
+
+
+def calibrate_recall_threshold(
+    series: list[dict], params: EffectiveParams, target_fraction: float = 0.5,
+    lo: float = 0.5, hi: float = 15.0, step: float = 0.1,
+) -> tuple[EffectiveParams, int, float]:
+    """Searches price_zscore_threshold for the value whose recall on this
+    asset's own top-N historical moves (N = one per month of history, see
+    months_covered_top_n) lands closest to `target_fraction`. This is the
+    daily signal's calibration target - see README, "Дневной сигнал": catch
+    roughly half of each asset's biggest moves, not a target notification
+    frequency (that's how the hourly signal is calibrated instead).
+
+    price_zscore_override is derived as 3x the found threshold (matching the
+    hourly signal's own threshold:override ratio, ~7:22) rather than searched
+    independently - it exists to let a single overwhelming reading bypass
+    dual confirmation and cooldown, not to be finely tuned itself.
+
+    Returns (tuned_params, top_n, achieved_recall_fraction).
+    """
+    periods = len(series)
+    days_covered = periods / _periods_per_day(params.interval) if periods else 0.0
+    top_n = months_covered_top_n(days_covered)
+    top_open_times = {
+        s["open_time"] for s in sorted(series, key=lambda s: abs(s["return_pct"]), reverse=True)[:top_n]
+    }
+
+    candidates = [round(lo + i * step, 2) for i in range(int(round((hi - lo) / step)) + 1)]
+    best_threshold = candidates[0]
+    best_recall = 0.0
+    best_diff = None
+    for t in candidates:
+        trial_params = replace(params, price_zscore_threshold=t, price_zscore_override=round(t * 3, 1))
+        notified = simulate_notifications(series, trial_params)
+        caught = sum(1 for ot in top_open_times if ot in notified)
+        recall = caught / top_n if top_n else 0.0
+        diff = abs(recall - target_fraction)
+        # Ties broken toward the higher (more conservative, less noisy) threshold.
+        if best_diff is None or diff < best_diff - 1e-9 or (abs(diff - best_diff) <= 1e-9 and t > best_threshold):
+            best_diff, best_threshold, best_recall = diff, t, recall
+
+    tuned = replace(params, price_zscore_threshold=best_threshold, price_zscore_override=round(best_threshold * 3, 1))
+    return tuned, top_n, best_recall
+
+
+# Window for the cross-asset "distinct events" diagnostic - purely a backtest
+# reporting statistic, never used to gate delivery (every asset still sends
+# its own Telegram alert independently and always will - see README). Merges
+# any two notifications within this many days of each other (rolling: a third
+# notification within the window of the second extends the same event
+# further), across every asset, into one counted event - so a correlated
+# multi-asset burst doesn't inflate the "how often does this bother the user"
+# number the way summing independent per-asset rates would.
+GLOBAL_EVENT_GAP_DAYS = 2.0
+
+
+def cluster_events(
+    timestamped: list[tuple[int, str]], gap_seconds: float
+) -> list[list[tuple[int, str]]]:
+    """Groups (open_time, label) pairs into events for the cross-asset
+    frequency diagnostic (see GLOBAL_EVENT_GAP_DAYS) - a rolling merge, not a
+    fixed window: each new item joins the current cluster if it's within
+    `gap_seconds` of the *previous* item in time, so a chain of near-daily
+    firings can extend one cluster indefinitely, exactly like the existing
+    per-asset cooldown/escalation state already behaves."""
+    ordered = sorted(timestamped, key=lambda item: item[0])
+    clusters: list[list[tuple[int, str]]] = []
+    for item in ordered:
+        if clusters and item[0] - clusters[-1][-1][0] <= gap_seconds:
+            clusters[-1].append(item)
+        else:
+            clusters.append([item])
+    return clusters
 
 
 def print_summary(reports: list[AssetReport]) -> None:
@@ -325,7 +421,8 @@ def print_summary(reports: list[AssetReport]) -> None:
             f"{caught:>5}/{len(r.biggest_moves)}"
         )
     print()
-    print(f"Итоговый recall на топ-5 крупнейших движений по каждому активу: {total_caught}/{total_moves}")
+    print(f"Итоговый recall на топ-N крупнейших движений по каждому активу (N ≈ месяцев истории): "
+          f"{total_caught}/{total_moves}")
     print()
     print("Наивный % порог (одинаковый для всех активов) vs адаптивный z-score (сырые срабатывания, без cooldown):")
     for r in reports:
@@ -346,6 +443,19 @@ def main() -> int:
     )
     parser.add_argument("--out", default="data/backtest_results.json", help="Where to write the JSON report")
     parser.add_argument("--config", default=None, help="Path to config.yaml (default: config/config.yaml)")
+    parser.add_argument(
+        "--local-history", action="store_true",
+        help="Read data/candle_history/ instead of fetching over the network - fast, no API "
+             "key needed, uses however much history is already saved locally (ignores "
+             "--days/--since). Best for a re-run once the local store already has deep history.",
+    )
+    parser.add_argument(
+        "--calibrate-daily-recall", action="store_true",
+        help="For the daily signal, search each asset's own price_zscore_threshold for the "
+             "value whose recall on that asset's top-N historical moves (N = one per month of "
+             "history) is closest to 50%%, instead of using daily_price_zscore_threshold from "
+             "config.yaml as-is. See README, \"Дневной сигнал\".",
+    )
     args = parser.parse_args()
 
     if args.since:
@@ -360,31 +470,42 @@ def main() -> int:
     for asset in cfg.assets:
         params = cfg.params_for(asset)
         overridden = sorted(asset.overrides)
-        log.info(
-            "Fetching %.0f days of history for %s (%s)%s...",
-            args.days, asset.label, asset.symbol,
-            f" [overrides: {', '.join(overridden)}]" if overridden else "",
-        )
         t0 = time.monotonic()
-        try:
-            candles = fetch_backtest_history(asset, params, cfg, args.days, session)
-        except ExchangeError as exc:
-            # One asset failing (rate limit, transient error) must not lose
-            # everything already fetched and merged for the assets before it
-            # in this same run - see README, this cost real API credits.
-            log.error("  Failed to fetch history for %s (%s): %s", asset.label, asset.symbol, exc)
-            continue
+        if args.local_history:
+            log.info("Reading local history for %s (%s)...", asset.label, asset.symbol)
+            try:
+                candles = fetch_local_history(asset, cfg)
+            except ExchangeError as exc:
+                log.error("  %s", exc)
+                continue
+        else:
+            log.info(
+                "Fetching %.0f days of history for %s (%s)%s...",
+                args.days, asset.label, asset.symbol,
+                f" [overrides: {', '.join(overridden)}]" if overridden else "",
+            )
+            try:
+                candles = fetch_backtest_history(asset, params, cfg, args.days, session)
+            except ExchangeError as exc:
+                # One asset failing (rate limit, transient error) must not lose
+                # everything already fetched and merged for the assets before it
+                # in this same run - see README, this cost real API credits.
+                log.error("  Failed to fetch history for %s (%s): %s", asset.label, asset.symbol, exc)
+                continue
         log.info("  %d candles fetched in %.1fs", len(candles), time.monotonic() - t0)
 
         # Piggyback on this fetch to seed/extend the permanent local candle
         # history (see candle_store.py) - the daily signal in __main__.py
         # depends on this store having real day-scale history, and this is
         # the cheapest way to get there (already-fetched data, no extra
-        # requests). Safe to call every time the backtest is re-run.
-        history_path = candle_store.store_path(cfg.candle_history_dir, asset.source, asset.symbol)
-        added = candle_store.merge_history(history_path, candles)
-        if added:
-            log.info("  %d new candles merged into local history (%s)", added, history_path)
+        # requests). Safe to call every time the backtest is re-run. Skipped
+        # in --local-history mode since the source *is* that same store -
+        # merging it into itself would just be a no-op.
+        if not args.local_history:
+            history_path = candle_store.store_path(cfg.candle_history_dir, asset.source, asset.symbol)
+            added = candle_store.merge_history(history_path, candles)
+            if added:
+                log.info("  %d new candles merged into local history (%s)", added, history_path)
 
         series = compute_zscore_series(candles, params.ewma_lambda, params.mad_window, params.min_history)
         report = build_report(asset, series, params)
@@ -402,7 +523,19 @@ def main() -> int:
         if len(daily_candles) >= daily_params.min_history + 1:
             daily_series = compute_zscore_series(
                 daily_candles, daily_params.ewma_lambda, daily_params.mad_window, daily_params.min_history)
-            daily_report = build_report(asset, daily_series, daily_params)
+
+            top_n = months_covered_top_n(len(daily_series) / _periods_per_day(daily_params.interval))
+            if args.calibrate_daily_recall:
+                old_threshold = daily_params.price_zscore_threshold
+                daily_params, top_n, achieved_recall = calibrate_recall_threshold(daily_series, daily_params)
+                log.info(
+                    "  %s (daily): calibrated threshold %.1f -> %.1f (override -> %.1f), "
+                    "recall %.0f%% on top-%d",
+                    asset.label, old_threshold, daily_params.price_zscore_threshold,
+                    daily_params.price_zscore_override, achieved_recall * 100, top_n,
+                )
+
+            daily_report = build_report(asset, daily_series, daily_params, top_n=top_n)
             daily_reports.append(daily_report)
             d_caught = sum(1 for m in daily_report.biggest_moves if m["notified"])
             log.info(
@@ -422,6 +555,24 @@ def main() -> int:
         print()
         print("Дневной сигнал (см. README):")
         print_summary(daily_reports)
+
+        # Cross-asset "distinct events" diagnostic - reporting only, never
+        # used to gate delivery (see GLOBAL_EVENT_GAP_DAYS docstring/README).
+        all_daily_notifications = [
+            (t, r.label) for r in daily_reports for t in r.notified_open_times
+        ]
+        if len(all_daily_notifications) >= 2:
+            clusters = cluster_events(all_daily_notifications, GLOBAL_EVENT_GAP_DAYS * 86400)
+            span_days = (max(t for t, _ in all_daily_notifications)
+                         - min(t for t, _ in all_daily_notifications)) / 86400
+            weeks = max(span_days / 7, 1e-9)
+            print()
+            print(
+                f"Дедуплицированная частота дневного сигнала по всему портфелю "
+                f"(окно склейки {GLOBAL_EVENT_GAP_DAYS:g} дня, только диагностика - "
+                f"доставку в Telegram не затрагивает, см. README): "
+                f"{len(clusters)} событий за {span_days:.0f} дней ({len(clusters) / weeks:.2f}/неделю)"
+            )
 
     out = {
         "global_defaults": {

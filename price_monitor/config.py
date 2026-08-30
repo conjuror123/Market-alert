@@ -79,12 +79,16 @@ class EffectiveParams:
     daily_price_zscore_threshold: float = 4.0
     daily_price_zscore_override: float = 8.0
     daily_min_history: int = 30
-    # 43200 = 30 days - deliberately much longer than the hourly cooldown
-    # (itself 14 days): this signal only ever evaluates one already-closed day
-    # at a time (see candle_store.daily_closes), so the same value recurs
-    # unchanged for a full day regardless of how often the hourly workflow
-    # re-checks it - a short cooldown here would do nothing useful.
-    daily_cooldown_minutes: int = 43200
+    # 2880 = 2 days. Short on purpose, unlike the hourly signal's 14-day
+    # cooldown: escalation_factor already lets a genuinely worsening trend
+    # through regardless of cooldown, so this only needs to be long enough to
+    # avoid re-notifying about the same-magnitude continuation of a move
+    # that's already been reported - a couple of days is plenty for that on a
+    # signal whose own unit is already a full day. Deliberately per-asset,
+    # not shared/pooled across assets - see README, "Дневной сигнал": every
+    # asset that crosses its own threshold always sends its own alert,
+    # regardless of what other assets are doing at the same time.
+    daily_cooldown_minutes: int = 2880
     daily_escalation_factor: float = 1.5
 
 
@@ -113,7 +117,7 @@ class Config:
     daily_price_zscore_threshold: float = 4.0
     daily_price_zscore_override: float = 8.0
     daily_min_history: int = 30
-    daily_cooldown_minutes: int = 43200
+    daily_cooldown_minutes: int = 2880
     daily_escalation_factor: float = 1.5
     health_alert_after_failures: int = 3
     health_reminder_every_failures: int = 24
@@ -243,7 +247,7 @@ def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
             "DAILY_PRICE_ZSCORE_OVERRIDE", raw.get("daily_price_zscore_override", 8.0)),
         daily_min_history=env_int("DAILY_MIN_HISTORY", raw.get("daily_min_history", 30)),
         daily_cooldown_minutes=env_int(
-            "DAILY_COOLDOWN_MINUTES", raw.get("daily_cooldown_minutes", 43200)),
+            "DAILY_COOLDOWN_MINUTES", raw.get("daily_cooldown_minutes", 2880)),
         daily_escalation_factor=env_float(
             "DAILY_ESCALATION_FACTOR", raw.get("daily_escalation_factor", 1.5)),
         health_alert_after_failures=env_int(
