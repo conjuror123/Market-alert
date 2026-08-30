@@ -174,6 +174,11 @@ def fetch_fmp_range(
         resp = get(
             FMP_CALENDAR_URL, params={"from": from_date, "to": to_date, "apikey": api_key}, timeout=timeout)
         resp.raise_for_status()
+        # Logged so a live backfill run's own log tells us how much of FMP's
+        # free-tier bandwidth allowance (512 MB/30 days, shown on their
+        # dashboard) a run actually cost - cheaper to check this from a small
+        # test window than to guess before running the full historical range.
+        log.info("  response size: %.1f KB", len(resp.content) / 1024)
         raw = resp.json()
     except (requests.RequestException, ValueError) as exc:
         raise CalendarError(f"FMP fetch failed for [{from_date}, {to_date}]: {exc}") from exc

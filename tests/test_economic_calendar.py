@@ -21,6 +21,10 @@ class FakeResponse:
         self.status_code = status_code
         self._payload = payload
 
+    @property
+    def content(self):
+        return json.dumps(self._payload).encode("utf-8")
+
     def raise_for_status(self):
         if self.status_code != 200:
             raise requests.HTTPError(f"status {self.status_code}")
