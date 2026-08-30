@@ -1,10 +1,19 @@
 import json
+import time
+from datetime import datetime, timezone
 
 import pytest
 import requests
 
 from price_monitor import economic_calendar
-from price_monitor.economic_calendar import CalendarError, fetch_calendar, merge_events, parse_event_time
+from price_monitor.economic_calendar import (
+    CalendarError,
+    fetch_calendar,
+    fetch_fmp_history,
+    fetch_fmp_range,
+    merge_events,
+    parse_event_time,
+)
 
 
 class FakeResponse:
@@ -133,3 +142,132 @@ def test_merge_events_persists_valid_json_lines(tmp_path):
     with open(path, "r", encoding="utf-8") as f:
         lines = [json.loads(line) for line in f if line.strip()]
     assert len(lines) == 2
+
+
+FMP_RAW_EVENT = {
+    "event": "Non-Farm Payrolls",
+    "date": "2023-06-02 12:30:00",
+    "country": "US",
+    "impact": "High",
+    "estimate": "190K",
+    "previous": "253K",
+}
+
+
+def test_fmp_date_to_iso_utc_parses_datetime_and_date_only():
+    assert economic_calendar._fmp_date_to_iso_utc("2023-06-02 12:30:00") == \
+        datetime(2023, 6, 2, 12, 30, tzinfo=timezone.utc).isoformat()
+    assert economic_calendar._fmp_date_to_iso_utc("2023-06-02") == \
+        datetime(2023, 6, 2, tzinfo=timezone.utc).isoformat()
+
+
+def test_fmp_date_to_iso_utc_returns_none_for_unparseable_date():
+    assert economic_calendar._fmp_date_to_iso_utc("not a date") is None
+
+
+def test_normalize_fmp_event_maps_known_fields():
+    normalized = economic_calendar._normalize_fmp_event(FMP_RAW_EVENT)
+    assert normalized == {
+        "title": "Non-Farm Payrolls", "country": "US",
+        "date": datetime(2023, 6, 2, 12, 30, tzinfo=timezone.utc).isoformat(),
+        "impact": "High", "forecast": "190K", "previous": "253K",
+    }
+
+
+def test_normalize_fmp_event_accepts_alternate_field_names():
+    # In case the "stable" endpoint ever renames "event"/"estimate" to
+    # "title"/"forecast" - tolerate either without erroring.
+    item = {"title": "CPI m/m", "date": "2023-06-02 08:30:00", "country": "US",
+            "impact": "Medium", "forecast": "0.3%", "previous": "0.4%"}
+    normalized = economic_calendar._normalize_fmp_event(item)
+    assert normalized["title"] == "CPI m/m"
+    assert normalized["forecast"] == "0.3%"
+
+
+def test_normalize_fmp_event_returns_none_when_title_or_date_missing():
+    assert economic_calendar._normalize_fmp_event({"date": "2023-06-02 08:30:00"}) is None
+    assert economic_calendar._normalize_fmp_event({"event": "CPI m/m"}) is None
+    assert economic_calendar._normalize_fmp_event({"event": "CPI m/m", "date": "garbage"}) is None
+
+
+def test_fetch_fmp_range_normalizes_events(monkeypatch):
+    calls = []
+
+    def fake_get(url, params, timeout):
+        calls.append((url, params))
+        return FakeResponse(200, [FMP_RAW_EVENT])
+
+    monkeypatch.setattr(economic_calendar.requests, "get", fake_get)
+    events = fetch_fmp_range("key123", "2023-06-01", "2023-06-30")
+
+    assert len(events) == 1
+    assert events[0]["title"] == "Non-Farm Payrolls"
+    assert calls == [(economic_calendar.FMP_CALENDAR_URL,
+                       {"from": "2023-06-01", "to": "2023-06-30", "apikey": "key123"})]
+
+
+def test_fetch_fmp_range_raises_on_error_object_response(monkeypatch):
+    def fake_get(url, params, timeout):
+        return FakeResponse(200, {"Error Message": "Invalid API KEY."})
+
+    monkeypatch.setattr(economic_calendar.requests, "get", fake_get)
+    with pytest.raises(CalendarError):
+        fetch_fmp_range("bad-key", "2023-06-01", "2023-06-30")
+
+
+def test_fetch_fmp_range_raises_on_http_error(monkeypatch):
+    def fake_get(url, params, timeout):
+        return FakeResponse(429, [])
+
+    monkeypatch.setattr(economic_calendar.requests, "get", fake_get)
+    with pytest.raises(CalendarError):
+        fetch_fmp_range("key123", "2023-06-01", "2023-06-30")
+
+
+def test_fetch_fmp_history_chunks_into_90_day_windows(monkeypatch):
+    windows = []
+
+    def fake_fetch_fmp_range(api_key, from_date, to_date, session=None):
+        windows.append((from_date, to_date))
+        return []
+
+    monkeypatch.setattr(economic_calendar, "fetch_fmp_range", fake_fetch_fmp_range)
+    monkeypatch.setattr(time, "sleep", lambda s: None)
+
+    since = datetime(2023, 1, 1, tzinfo=timezone.utc)
+    until = datetime(2023, 5, 1, tzinfo=timezone.utc)  # 120 days -> 2 windows
+    fetch_fmp_history("key123", since, until, delay=0.0)
+
+    assert windows == [("2023-01-01", "2023-04-01"), ("2023-04-02", "2023-05-01")]
+
+
+def test_fetch_fmp_history_continues_after_a_failed_window(monkeypatch):
+    calls = []
+
+    def flaky_fetch(api_key, from_date, to_date, session=None):
+        calls.append(from_date)
+        if len(calls) == 1:
+            raise CalendarError("boom")
+        return [dict(FMP_RAW_EVENT)]
+
+    monkeypatch.setattr(economic_calendar, "fetch_fmp_range", flaky_fetch)
+    monkeypatch.setattr(time, "sleep", lambda s: None)
+
+    since = datetime(2023, 1, 1, tzinfo=timezone.utc)
+    until = datetime(2023, 5, 1, tzinfo=timezone.utc)
+    events = fetch_fmp_history("key123", since, until, delay=0.0)
+
+    assert len(calls) == 2
+    assert len(events) == 1
+
+
+def test_fetch_fmp_history_sleeps_between_windows_but_not_after_the_last(monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(economic_calendar, "fetch_fmp_range", lambda *a, **k: [])
+    monkeypatch.setattr(time, "sleep", lambda s: sleeps.append(s))
+
+    since = datetime(2023, 1, 1, tzinfo=timezone.utc)
+    until = datetime(2023, 5, 1, tzinfo=timezone.utc)  # 2 windows
+    fetch_fmp_history("key123", since, until, delay=2.5)
+
+    assert sleeps == [2.5]

@@ -342,15 +342,32 @@ Data это реально докачает историю с 2021 года (с 
 Medium/High) в `data/economic_calendar/calendar.ndjson` — тем же способом, что и
 `candle_history` (NDJSON, без дублей) — на будущее, для обогащения
 `calibration_review.py` контекстом «что происходило в календаре в день скачка и
-днём раньше». Прямо сейчас это обогащение **не реализовано**: он бы требовал
-календарь за все прошлые годы, а у ForexFactory это не выдаёт готовый фид — прямой
-скрейпинг архивных страниц календаря (`forexfactory.com/calendar?week=...`)
-заблокирован Cloudflare (проверено вживую: HTTP 403, JS-челлендж "Just a
-moment...", даже с реалистичным браузерным User-Agent). Локальный архив в
-`data/economic_calendar/` будет расти только вперёд, начиная с текущей недели —
-без готового источника истории обогащение исторических событий в
-`calibration_review.py` откладывается до тех пор, пока не накопится собственная
-история или не найдётся другой источник.
+днём раньше» (само обогащение пока не реализовано в `calibration_review.py`, но
+архив уже накапливается).
+
+**Историческая часть архива.** У самого ForexFactory нет готового фида для
+прошлых дат — только «эта неделя», а прямой скрейпинг архивных страниц
+(`forexfactory.com/calendar?week=...`) заблокирован Cloudflare (проверено
+вживую: HTTP 403, JS-челлендж "Just a moment...", даже с реалистичным
+браузерным User-Agent). Поэтому глубокий бэкфилл истории календаря сделан не
+из ForexFactory, а через Financial Modeling Prep — `fetch_fmp_range` /
+`fetch_fmp_history` в `economic_calendar.py`. Разовый запуск:
+
+```bash
+python -m price_monitor.economic_calendar --backfill-fmp --since 2023-04-01
+```
+
+Как и `TWELVEDATA_API_KEY`, ключ (`FMP_API_KEY`) не вставляется в чат или
+локальное окружение — для него отдельный workflow: **Actions → Backfill
+Economic Calendar → Run workflow** (поля `since`/`until`). У эндпоинта
+`https://financialmodelingprep.com/stable/economic-calendar` лимит — не больше
+90 дней между `from` и `to` за один запрос (проверено по их же документации),
+поэтому `fetch_fmp_history` сама режет диапазон на окна по 90 дней с паузой
+между запросами. Собственный код бота честно предполагает, что поле `date` от
+FMP — уже UTC без явного смещения (так утверждает FAQ FMP), но эта деталь ещё
+не сверена с полученными данными вживую — стоит перепроверить по первому же
+реальному прогону бэкфилла, прежде чем полагаться на точность времени вплоть
+до часа.
 
 </details>
 
@@ -660,6 +677,9 @@ data/economic_calendar/    — локальный архив событий ка
   backfill-history.yml  — ручной глубокий докач data/candle_history/ (нужен для
                           валютных пар — работает с секретом TWELVEDATA_API_KEY,
                           не раскрывая его)
+  backfill-calendar.yml — ручной глубокий докач data/economic_calendar/ через
+                          Financial Modeling Prep — работает с секретом
+                          FMP_API_KEY, не раскрывая его
   tests.yml             — юнит-тесты на push/PR
 
 tests/ — pytest-тесты на все модули выше

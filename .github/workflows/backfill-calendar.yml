@@ -1,0 +1,67 @@
+name: Backfill Economic Calendar
+
+# Ручной, разовый докач локального архива календаря (data/economic_calendar/,
+# см. README) на глубину, которую задаёт `since` - в отличие от
+# price-monitor.yml, который раз в неделю (см. weekly_digest.py) добавляет
+# только текущую неделю с фида ForexFactory. ForexFactory отдаёт только "эту
+# неделю" и блокирует скрейпинг архива Cloudflare'ом (см. README), поэтому
+# историю тянем из Financial Modeling Prep - платный по кредитам, но с
+# бесплатным ключом отдаёт прошлые даты. Ключ используется только внутри
+# этого workflow (секрет никогда не виден ни в логах, ни за его пределами).
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: 'Докачать календарь с этой даты (YYYY-MM-DD)'
+        required: true
+        type: string
+      until:
+        description: 'По эту дату (YYYY-MM-DD), по умолчанию - сегодня'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run calendar backfill
+        env:
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+        run: |
+          python -m price_monitor.economic_calendar --backfill-fmp \
+            --since "${{ github.event.inputs.since }}" \
+            ${{ github.event.inputs.until != '' && format('--until {0}', github.event.inputs.until) || '' }}
+
+      - name: Commit updated calendar history
+        # Same reasoning as backfill-history.yml's commit step: keep whatever
+        # was fetched and merged for earlier chunks in this run even if a
+        # later chunk fails partway through.
+        if: always()
+        run: |
+          if [ -n "$(git status --porcelain data/economic_calendar)" ]; then
+            git config user.name "price-monitor-bot"
+            git config user.email "actions@github.com"
+            git add data/economic_calendar
+            git commit -m "chore: backfill economic calendar since ${{ github.event.inputs.since }} [skip ci]"
+            git push
+          else
+            echo "No calendar changes to commit."
+          fi
