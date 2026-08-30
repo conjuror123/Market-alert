@@ -188,17 +188,6 @@ def test_merge_events_persists_valid_json_lines(tmp_path):
     assert len(lines) == 2
 
 
-def test_filter_high_impact_only_keeps_only_high():
-    events = [
-        {"title": "a", "impact": "High"},
-        {"title": "b", "impact": "Medium"},
-        {"title": "c", "impact": "Low"},
-        {"title": "d", "impact": "Holiday"},
-        {"title": "e", "impact": "Non-economic"},
-    ]
-    assert [e["title"] for e in economic_calendar.filter_high_impact_only(events)] == ["a"]
-
-
 # --- Historical import from the spoluan/forex-factory-scraper GitHub CSVs ---
 
 SPOLUAN_CSV = (
@@ -358,3 +347,65 @@ def test_fetch_ehsan_high_impact_raises_calendar_error_on_http_failure(monkeypat
     monkeypatch.setattr(economic_calendar.requests, "get", fake_get)
     with pytest.raises(CalendarError):
         economic_calendar.fetch_ehsan_high_impact()
+
+
+# --- Historical import from the Ehsanrs2/Forex_Factory_Calendar Hugging Face dataset ---
+
+EHSAN_FULL_CSV = (
+    "DateTime,Currency,Impact,Event,Actual,Forecast,Previous,Detail\n"
+    "2024-05-01T19:00:00+01:00,USD,High Impact Expected,FOMC Statement,,,,\n"
+    "2024-05-02T12:30:00+01:00,USD,Medium Impact Expected,Initial Jobless Claims,,,,\n"
+    "2024-05-03T09:00:00+01:00,EUR,Low Impact Expected,German Trade Balance,,,,\n"
+    "2024-05-04T00:00:00+01:00,All,Non-Economic,Bank Holiday,,,,\n"
+    ",,,,,,,\n"  # a fully blank row
+)
+
+
+def test_normalize_ehsan_full_row_maps_all_four_impact_levels():
+    high = economic_calendar._normalize_ehsan_full_row(
+        {"DateTime": "2024-05-01T19:00:00+01:00", "Currency": "USD", "Impact": "High Impact Expected",
+         "Event": "FOMC Statement", "Actual": "", "Forecast": "", "Previous": ""})
+    medium = economic_calendar._normalize_ehsan_full_row(
+        {"DateTime": "2024-05-02T12:30:00+01:00", "Currency": "USD", "Impact": "Medium Impact Expected",
+         "Event": "Initial Jobless Claims", "Actual": "", "Forecast": "", "Previous": ""})
+    low = economic_calendar._normalize_ehsan_full_row(
+        {"DateTime": "2024-05-03T09:00:00+01:00", "Currency": "EUR", "Impact": "Low Impact Expected",
+         "Event": "German Trade Balance", "Actual": "", "Forecast": "", "Previous": ""})
+    non_economic = economic_calendar._normalize_ehsan_full_row(
+        {"DateTime": "2024-05-04T00:00:00+01:00", "Currency": "All", "Impact": "Non-Economic",
+         "Event": "Bank Holiday", "Actual": "", "Forecast": "", "Previous": ""})
+
+    assert high["impact"] == "High"
+    assert medium["impact"] == "Medium"
+    assert low["impact"] == "Low"
+    assert non_economic["impact"] == "Low"
+    assert high["date"] == "2024-05-01T18:00:00+00:00"
+
+
+def test_normalize_ehsan_full_row_returns_none_for_blank_or_malformed_rows():
+    assert economic_calendar._normalize_ehsan_full_row({"Event": "", "DateTime": ""}) is None
+    assert economic_calendar._normalize_ehsan_full_row({"Event": "CPI m/m", "DateTime": "not a datetime"}) is None
+
+
+def test_fetch_ehsan_full_calendar_parses_csv_and_skips_blank_rows(monkeypatch):
+    calls = []
+
+    def fake_get(url, timeout):
+        calls.append(url)
+        return FakeResponse(200, text=EHSAN_FULL_CSV)
+
+    monkeypatch.setattr(economic_calendar.requests, "get", fake_get)
+    events = economic_calendar.fetch_ehsan_full_calendar()
+
+    assert calls == [economic_calendar._EHSAN_FULL_CALENDAR_URL]
+    assert len(events) == 4
+    assert [e["impact"] for e in events] == ["High", "Medium", "Low", "Low"]
+
+
+def test_fetch_ehsan_full_calendar_raises_calendar_error_on_http_failure(monkeypatch):
+    def fake_get(url, timeout):
+        return FakeResponse(404, text="Not Found")
+
+    monkeypatch.setattr(economic_calendar.requests, "get", fake_get)
+    with pytest.raises(CalendarError):
+        economic_calendar.fetch_ehsan_full_calendar()

@@ -84,26 +84,21 @@ def format_digest(events: list[dict]) -> str:
 
 
 def _fetch_and_send_digest(cfg: Config, session: requests.Session) -> bool:
-    """Fetches the live ForexFactory feed, persists its High-impact events to
-    the archive, and sends the formatted Medium+High digest to Telegram.
-    Shared by the scheduled Saturday path (maybe_send_weekly_digest) and the
-    manual one-off CLI (main(), --force) - see module docstring. Returns True
-    if a digest was actually sent (fetch/send failures are logged and
-    swallowed, same as the rest of __main__.py's per-asset error handling, so
-    a digest failure never fails the whole hourly run)."""
+    """Fetches the live ForexFactory feed, persists all of it (every impact
+    level - see economic_calendar's module docstring) to the archive, and
+    sends the formatted Medium+High digest to Telegram. Shared by the
+    scheduled Saturday path (maybe_send_weekly_digest) and the manual one-off
+    CLI (main(), --force) - see module docstring. Returns True if a digest
+    was actually sent (fetch/send failures are logged and swallowed, same as
+    the rest of __main__.py's per-asset error handling, so a digest failure
+    never fails the whole hourly run)."""
     try:
         raw_events = economic_calendar.fetch_calendar(session=session)
     except economic_calendar.CalendarError as exc:
         log.error("Failed to fetch economic calendar for weekly digest: %s", exc)
         return False
 
-    # The archive only keeps High-impact events (see economic_calendar's
-    # module docstring for why) - the Telegram digest below still shows
-    # Medium+High regardless, since that's about what's coming up this week,
-    # not about the archive's cross-period consistency.
-    economic_calendar.merge_events(
-        economic_calendar.store_path(cfg.calendar_dir),
-        economic_calendar.filter_high_impact_only(raw_events))
+    economic_calendar.merge_events(economic_calendar.store_path(cfg.calendar_dir), raw_events)
 
     digest_events = [e for e in raw_events if e["impact"] in _DIGEST_IMPACTS]
     digest_text = format_digest(digest_events)

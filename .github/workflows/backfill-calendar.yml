@@ -6,10 +6,9 @@ name: Backfill Economic Calendar
 # ForexFactory сам отдаёт только "эту неделю" и блокирует скрейпинг архива
 # Cloudflare'ом, а Financial Modeling Prep (пробовали как платную
 # альтернативу) оказался платным даже на "stable" тарифе (см. README) -
-# поэтому историю берём из готовых CSV-дампов ForexFactory, лежащих на
-# GitHub (raw.githubusercontent.com, не за Cloudflare, без ключа). Архив
-# хранит только High Impact события (см. README) - импортёр сам отфильтрует
-# всё остальное, даже если spoluan's CSV содержит и Medium/Low.
+# поэтому историю берём из готовых дампов ForexFactory, лежащих на GitHub и
+# Hugging Face (не за Cloudflare, без ключа). Архив хранит все уровни
+# важности - Low/Medium/High (см. README и economic_calendar.py).
 
 on:
   workflow_dispatch:
@@ -24,8 +23,13 @@ on:
         required: false
         default: ''
         type: string
+      ehsan_full:
+        description: 'Импортировать полный календарь 2007-01-01..2025-04-07 (все уровни важности) из ehsanrs2 на Hugging Face'
+        required: false
+        default: true
+        type: boolean
       ehsan_high_impact:
-        description: 'Также импортировать High Impact ~2020-2026 из ehsanrs2 (см. README)'
+        description: 'Также импортировать High Impact ~2020-2026 из ehsanrs2 на GitHub (см. README)'
         required: false
         default: true
         type: boolean
@@ -36,7 +40,7 @@ permissions:
 jobs:
   backfill:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -55,6 +59,7 @@ jobs:
           python -m price_monitor.economic_calendar \
             ${{ github.event.inputs.since_year != '' && format('--import-spoluan --since-year {0}', github.event.inputs.since_year) || '' }} \
             ${{ github.event.inputs.until_year != '' && format('--until-year {0}', github.event.inputs.until_year) || '' }} \
+            ${{ github.event.inputs.ehsan_full == 'true' && '--import-ehsan-full' || '' }} \
             ${{ github.event.inputs.ehsan_high_impact == 'true' && '--import-ehsan-high-impact' || '' }}
 
       - name: Commit updated calendar history

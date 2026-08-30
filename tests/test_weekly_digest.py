@@ -81,10 +81,10 @@ def test_maybe_send_weekly_digest_sends_and_records_state(tmp_path, monkeypatch)
     assert weekly_digest._STATE_KEY in state
 
 
-def test_maybe_send_weekly_digest_persists_only_high_impact_events_to_local_store(tmp_path, monkeypatch):
-    # The archive only ever keeps High-impact events (see economic_calendar's
-    # module docstring) - Medium/Low/Holiday events reach the Telegram
-    # digest text but are never written to the store.
+def test_maybe_send_weekly_digest_persists_every_impact_level_to_local_store(tmp_path, monkeypatch):
+    # The archive keeps every impact level now (see economic_calendar's
+    # module docstring) - Low/Holiday events still don't reach the Telegram
+    # digest text (see _DIGEST_IMPACTS), but they are written to the store.
     cfg = make_config(tmp_path)
     monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", lambda session=None: RAW_EVENTS)
     monkeypatch.setattr(weekly_digest, "send_telegram_message", lambda *a, **k: 1)
@@ -93,7 +93,8 @@ def test_maybe_send_weekly_digest_persists_only_high_impact_events_to_local_stor
 
     stored = weekly_digest.economic_calendar.load_events(
         weekly_digest.economic_calendar.store_path(cfg.calendar_dir))
-    assert [e["title"] for e in stored] == ["Non-Farm Payrolls"]
+    assert {e["title"] for e in stored} == {
+        "Non-Farm Payrolls", "Retail Sales", "Minor Data Point", "Bank Holiday"}
 
 
 def test_maybe_send_weekly_digest_does_not_resend_the_same_week(tmp_path, monkeypatch):
