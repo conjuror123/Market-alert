@@ -192,7 +192,99 @@ def test_calibrate_recall_threshold_finds_threshold_for_target_recall():
     assert top_n == 4
     assert recall == 0.5
     assert 6.0 < tuned.price_zscore_threshold <= 7.0
-    assert tuned.price_zscore_override == round(tuned.price_zscore_threshold * 3, 1)
+    # Every spike here has ewma_z == robust_z, so the override ratio never
+    # changes which spikes get caught (dual confirmation alone already
+    # decides it) - every ratio ties, and 1.0 (tried first for each
+    # threshold) wins those ties, landing override == threshold rather than
+    # the old fixed 3x.
+    assert tuned.price_zscore_override == tuned.price_zscore_threshold
+
+
+def test_calibrate_recall_threshold_searches_override_to_rescue_capped_ewma_events():
+    """Events at rank 3-4 have ewma_z capped at 2.0 (below any threshold that
+    would still exclude the always-missed rank 5-6 events) but a high
+    robust_z - only price_zscore_override can catch them, dual confirmation
+    never will. A fixed 3x ratio (the old behavior) would set override to
+    18.0 at threshold=6.0, missing both capped events entirely (2/6 recall,
+    off target); searching the ratio finds override=6.0 (ratio 1.0) instead,
+    which rescues rank 3 (robust_z=6.0 >= 6.0) but not rank 4
+    (robust_z=5.5 < 6.0) - landing exactly on the 50% target via a
+    real quality difference, not just a coincidental threshold split."""
+    params = replace(
+        BASE_PARAMS, interval="1d", cooldown_minutes=1, escalation_factor=1.0,
+        volume_zscore_threshold=1e9, volume_zscore_override=1e9,
+    )
+    day = 86400
+    series = [step(open_time=i * day) for i in range(180)]  # top_n = round(180/30) = 6
+    events = [
+        (10, 10.0, 10.0, 10.0),  # rank1 - always caught via dual
+        (30, 9.0, 9.0, 9.0),     # rank2 - always caught via dual
+        (50, 2.0, 6.0, 6.0),     # rank3 - capped ewma, only override can catch (needs override <= 6.0)
+        (70, 2.0, 5.5, 5.5),     # rank4 - capped ewma, only override can catch (needs override <= 5.5)
+        (90, 1.0, 1.0, 1.0),     # rank5 - always missed
+        (110, 0.5, 0.5, 0.5),    # rank6 - always missed
+    ]
+    for idx, ewma_z, robust_z, ret in events:
+        series[idx] = step(open_time=idx * day, ewma_z=ewma_z, robust_z=robust_z, return_pct=ret)
+
+    tuned, top_n, recall = calibrate_recall_threshold(series, params, target_fraction=0.5)
+
+    assert top_n == 6
+    assert recall == 0.5
+    assert tuned.price_zscore_threshold == 6.0
+    assert tuned.price_zscore_override == 6.0
+
+
+def test_calibrate_recall_threshold_grows_top_n_when_recall_is_stuck_at_a_ceiling():
+    """The two biggest moves both have z-scores of 20 - past even the search's
+    highest threshold candidate (hi=15.0 by default) - so with the initial
+    top_n=2 (round(60/30)), recall is stuck at 100% for every single
+    (threshold, override) combination the search tries; nothing can push it
+    toward the 50% target. Real per-asset case this guards against: a
+    calibration landing at 59/60 recall isn't "almost calibrated" - it means
+    the top-N pool itself undercounted how many of this asset's moves are
+    genuinely significant (see _RECALL_CEILING). Growing top_n to 4 adds two
+    more, deliberately never-caught moves, settling recall exactly on 50%."""
+    params = replace(
+        BASE_PARAMS, interval="1d", cooldown_minutes=1, escalation_factor=1.0,
+        volume_zscore_threshold=1e9, volume_zscore_override=1e9,
+    )
+    day = 86400
+    series = [step(open_time=i * day) for i in range(60)]  # initial top_n = round(60/30) = 2
+    events = [
+        (10, 20.0, 20.0, 20.0),  # rank1 - z clears even the highest threshold candidate
+        (20, 20.0, 20.0, 19.0),  # rank2 - same
+        (30, 0.1, 0.1, 0.5),     # rank3 (only exists once top_n grows) - never caught
+        (40, 0.1, 0.1, 0.4),     # rank4 (only exists once top_n grows) - never caught
+    ]
+    for idx, ewma_z, robust_z, ret in events:
+        series[idx] = step(open_time=idx * day, ewma_z=ewma_z, robust_z=robust_z, return_pct=ret)
+
+    tuned, top_n, recall = calibrate_recall_threshold(series, params, target_fraction=0.5)
+
+    assert top_n == 4
+    assert recall == 0.5
+
+
+def test_calibrate_recall_threshold_never_grows_top_n_past_the_available_series_length():
+    """Guards the growth loop's stopping condition: if even the full series
+    isn't enough to bring recall down from its ceiling, top_n must stop at
+    the series length rather than looping forever or requesting an N bigger
+    than what actually exists."""
+    params = replace(
+        BASE_PARAMS, interval="1d", cooldown_minutes=1, escalation_factor=1.0,
+        volume_zscore_threshold=1e9, volume_zscore_override=1e9,
+    )
+    day = 86400
+    # Every single period is an unmissable spike - recall can never drop
+    # below 100% no matter how large top_n grows, since there's nothing else
+    # in the series to dilute it with.
+    series = [step(open_time=i * day, ewma_z=20.0, robust_z=20.0, return_pct=20.0) for i in range(10)]
+
+    tuned, top_n, recall = calibrate_recall_threshold(series, params, target_fraction=0.5)
+
+    assert top_n == 10
+    assert recall == 1.0
 
 
 def test_cluster_events_splits_when_gap_exceeds_window():

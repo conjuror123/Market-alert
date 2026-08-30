@@ -334,46 +334,85 @@ def months_covered_top_n(days_covered: float) -> int:
     return max(1, round(days_covered / 30))
 
 
+# If the search's best achievable recall is still at or above this even after
+# trying every (threshold, override) combination, the top-N candidate pool
+# itself is too small to be a meaningful selection: almost every one of the
+# asset's "biggest" moves clears even a demanding threshold, so there are
+# evidently more genuinely significant moves for this asset than
+# months_covered_top_n assumed (one per month was just a starting guess, not
+# a measured fact about this asset) - see calibrate_recall_threshold's growth
+# loop. A real case: an asset landing at 59/60 recall (98%) instead of the
+# 50% target isn't "almost calibrated", it means the 60 "biggest" moves this
+# asset had were nearly ALL big enough to catch - the meaningful cutoff for
+# "big enough to matter" sits well past the 60th-largest move, so the pool
+# needs to grow before 50% recall against it means anything.
+_RECALL_CEILING = 0.9
+
+# price_zscore_override is searched as a multiple of the found threshold,
+# alongside the threshold itself, rather than fixed at 3x (the hourly
+# signal's own threshold:override ratio, ~7:22, blindly inherited before this
+# was added) - a backtest found real top-N moves missed specifically because
+# ewma_z fell just under threshold while robust_z was well above it but still
+# short of a 3x override (see README, "Дневной сигнал"). 1.0 means override
+# and threshold coincide (a single signal above threshold always bypasses
+# confirmation - the loosest useful value, since override below threshold
+# would make the dual-confirmation requirement pointless); 5.0 is already a
+# very extreme reading relative to a typical daily threshold of 2-3.
+_OVERRIDE_RATIOS = [round(1.0 + i * 0.1, 1) for i in range(41)]  # 1.0, 1.1, ..., 5.0
+
+
 def calibrate_recall_threshold(
     series: list[dict], params: EffectiveParams, target_fraction: float = 0.5,
     lo: float = 0.5, hi: float = 15.0, step: float = 0.1,
 ) -> tuple[EffectiveParams, int, float]:
-    """Searches price_zscore_threshold for the value whose recall on this
-    asset's own top-N historical moves (N = one per month of history, see
-    months_covered_top_n) lands closest to `target_fraction`. This is the
-    daily signal's calibration target - see README, "Дневной сигнал": catch
-    roughly half of each asset's biggest moves, not a target notification
-    frequency (that's how the hourly signal is calibrated instead).
+    """Searches (price_zscore_threshold, price_zscore_override) jointly for
+    the combination whose recall on this asset's own top-N historical moves
+    lands closest to `target_fraction`. This is the daily signal's
+    calibration target - see README, "Дневной сигнал": catch roughly half of
+    each asset's biggest moves, not a target notification frequency (that's
+    how the hourly signal is calibrated instead).
 
-    price_zscore_override is derived as 3x the found threshold (matching the
-    hourly signal's own threshold:override ratio, ~7:22) rather than searched
-    independently - it exists to let a single overwhelming reading bypass
-    dual confirmation and cooldown, not to be finely tuned itself.
+    N starts at one per month of history (months_covered_top_n) and doubles
+    whenever the best achievable recall is still stuck at or above
+    _RECALL_CEILING, re-checking against the larger pool - see
+    _RECALL_CEILING for why a stuck-high recall means N was too small, not
+    that calibration succeeded. Every (threshold, override) trial's
+    simulate_notifications result is computed once and reused across however
+    many times N grows, since it doesn't depend on N - only the growth loop's
+    own recall recount does, and that's cheap.
 
-    Returns (tuned_params, top_n, achieved_recall_fraction).
+    Returns (tuned_params, final_top_n, achieved_recall_fraction).
     """
     periods = len(series)
     days_covered = periods / _periods_per_day(params.interval) if periods else 0.0
-    top_n = months_covered_top_n(days_covered)
-    top_open_times = {
-        s["open_time"] for s in sorted(series, key=lambda s: abs(s["return_pct"]), reverse=True)[:top_n]
-    }
+    ranked = sorted(series, key=lambda s: abs(s["return_pct"]), reverse=True)
+    max_top_n = len(ranked)
+    top_n = min(months_covered_top_n(days_covered), max_top_n) if max_top_n else 0
 
-    candidates = [round(lo + i * step, 2) for i in range(int(round((hi - lo) / step)) + 1)]
-    best_threshold = candidates[0]
-    best_recall = 0.0
-    best_diff = None
-    for t in candidates:
-        trial_params = replace(params, price_zscore_threshold=t, price_zscore_override=round(t * 3, 1))
-        notified = simulate_notifications(series, trial_params)
-        caught = sum(1 for ot in top_open_times if ot in notified)
-        recall = caught / top_n if top_n else 0.0
-        diff = abs(recall - target_fraction)
-        # Ties broken toward the higher (more conservative, less noisy) threshold.
-        if best_diff is None or diff < best_diff - 1e-9 or (abs(diff - best_diff) <= 1e-9 and t > best_threshold):
-            best_diff, best_threshold, best_recall = diff, t, recall
+    threshold_candidates = [round(lo + i * step, 2) for i in range(int(round((hi - lo) / step)) + 1)]
+    trials = []
+    for t in threshold_candidates:
+        for ratio in _OVERRIDE_RATIOS:
+            override = round(t * ratio, 1)
+            trial_params = replace(params, price_zscore_threshold=t, price_zscore_override=override)
+            trials.append((t, override, simulate_notifications(series, trial_params)))
 
-    tuned = replace(params, price_zscore_threshold=best_threshold, price_zscore_override=round(best_threshold * 3, 1))
+    while True:
+        top_open_times = {s["open_time"] for s in ranked[:top_n]}
+        best_threshold, best_override, best_recall, best_diff = threshold_candidates[0], None, 0.0, None
+        for t, override, notified in trials:
+            caught = sum(1 for ot in top_open_times if ot in notified)
+            recall = (caught / top_n) if top_n else 0.0
+            diff = abs(recall - target_fraction)
+            # Ties broken toward the higher (more conservative, less noisy) threshold.
+            if best_diff is None or diff < best_diff - 1e-9 or (abs(diff - best_diff) <= 1e-9 and t > best_threshold):
+                best_diff, best_threshold, best_override, best_recall = diff, t, override, recall
+
+        if best_recall < _RECALL_CEILING or top_n >= max_top_n:
+            break
+        top_n = min(top_n * 2, max_top_n)
+
+    tuned = replace(params, price_zscore_threshold=best_threshold, price_zscore_override=best_override)
     return tuned, top_n, best_recall
 
 
@@ -451,10 +490,12 @@ def main() -> int:
     )
     parser.add_argument(
         "--calibrate-daily-recall", action="store_true",
-        help="For the daily signal, search each asset's own price_zscore_threshold for the "
-             "value whose recall on that asset's top-N historical moves (N = one per month of "
-             "history) is closest to 50%%, instead of using daily_price_zscore_threshold from "
-             "config.yaml as-is. See README, \"Дневной сигнал\".",
+        help="For the daily signal, search each asset's own (price_zscore_threshold, "
+             "price_zscore_override) pair, and N itself if needed (see _RECALL_CEILING), for "
+             "the combination whose recall on that asset's top-N historical moves (N starting "
+             "at one per month of history) is closest to 50%%, instead of using "
+             "daily_price_zscore_threshold/override from config.yaml as-is. See README, "
+             "\"Дневной сигнал\".",
     )
     args = parser.parse_args()
 
@@ -527,12 +568,15 @@ def main() -> int:
             top_n = months_covered_top_n(len(daily_series) / _periods_per_day(daily_params.interval))
             if args.calibrate_daily_recall:
                 old_threshold = daily_params.price_zscore_threshold
+                old_override = daily_params.price_zscore_override
+                old_top_n = top_n
                 daily_params, top_n, achieved_recall = calibrate_recall_threshold(daily_series, daily_params)
                 log.info(
-                    "  %s (daily): calibrated threshold %.1f -> %.1f (override -> %.1f), "
-                    "recall %.0f%% on top-%d",
+                    "  %s (daily): calibrated threshold %.1f -> %.1f, override %.1f -> %.1f, "
+                    "recall %.0f%% on top-%d%s",
                     asset.label, old_threshold, daily_params.price_zscore_threshold,
-                    daily_params.price_zscore_override, achieved_recall * 100, top_n,
+                    old_override, daily_params.price_zscore_override, achieved_recall * 100, top_n,
+                    f" (grown from top-{old_top_n})" if top_n != old_top_n else "",
                 )
 
             daily_report = build_report(asset, daily_series, daily_params, top_n=top_n)
