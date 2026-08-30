@@ -32,6 +32,11 @@ key at all:
   below by default.
 Run as a one-off (see backfill-calendar.yml): `python -m
 price_monitor.economic_calendar --import-ehsan-full --import-ehsan-high-impact`.
+main() trims every import to _ARCHIVE_SINCE (2021-01-01) before merging -
+the fetch_* functions themselves return their source's full range, but
+nothing before the earliest candle history (data/candle_history/, also
+2021-01-01) can ever be matched against a price move, so keeping it in the
+archive would just be dead weight.
 
 The archive keeps every impact level (Low/Medium/High - see
 _normalize_impact for how each source's own extra categories collapse into
@@ -63,6 +68,13 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("price_monitor.economic_calendar")
 
 CALENDAR_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
+
+# The whole point of the archive is giving backtests calendar context around
+# price moves (see daily_signal_review.py) - the earliest candle history
+# (data/candle_history/) starts 2021-01-01, so nothing before that date can
+# ever be matched against a price move and is dropped from historical
+# imports rather than kept as dead weight.
+_ARCHIVE_SINCE = "2021-01-01T00:00:00+00:00"
 
 # Every source is normalized down to this 3-value scale - a source's own
 # extra categories (ForexFactory's "Holiday", spoluan's "Non-economic") don't
@@ -438,8 +450,12 @@ def main() -> int:
         except CalendarError as exc:
             log.error("  %s", exc)
 
-    added = merge_events(store_path(calendar_dir), events)
-    log.info("Fetched %d events, %d new after dedup", len(events), added)
+    since = datetime.fromisoformat(_ARCHIVE_SINCE)
+    kept = [e for e in events if parse_event_time(e["date"]) >= since]
+    added = merge_events(store_path(calendar_dir), kept)
+    log.info(
+        "Fetched %d events, %d from %s onward, %d new after dedup",
+        len(events), len(kept), _ARCHIVE_SINCE, added)
     return 0
 
 

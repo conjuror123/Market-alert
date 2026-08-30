@@ -409,3 +409,21 @@ def test_fetch_ehsan_full_calendar_raises_calendar_error_on_http_failure(monkeyp
     monkeypatch.setattr(economic_calendar.requests, "get", fake_get)
     with pytest.raises(CalendarError):
         economic_calendar.fetch_ehsan_full_calendar()
+
+
+# --- CLI: historical imports are trimmed to _ARCHIVE_SINCE before merging ---
+
+def test_main_drops_events_older_than_archive_since(tmp_path, monkeypatch, capsys):
+    old_event = {"title": "old", "country": "USD", "date": "2019-01-01T00:00:00+00:00",
+                 "impact": "High", "forecast": "", "previous": "", "actual": ""}
+    new_event = {"title": "new", "country": "USD", "date": "2022-01-01T00:00:00+00:00",
+                 "impact": "High", "forecast": "", "previous": "", "actual": ""}
+    monkeypatch.setattr(economic_calendar, "fetch_ehsan_full_calendar", lambda session=None: [old_event, new_event])
+    monkeypatch.setattr(economic_calendar, "fetch_ehsan_high_impact", lambda session=None: [])
+    monkeypatch.setenv("CALENDAR_DIR", str(tmp_path))
+    monkeypatch.setattr("sys.argv", ["economic_calendar.py", "--import-ehsan-full"])
+
+    assert economic_calendar.main() == 0
+
+    stored = economic_calendar.load_events(economic_calendar.store_path(str(tmp_path)))
+    assert [e["title"] for e in stored] == ["new"]
