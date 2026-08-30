@@ -27,7 +27,27 @@ def test_fetch_event_headlines_scopes_to_the_6_to_12h_window(monkeypatch):
     headlines = calibration_review.fetch_event_headlines("euro dollar rate", event_time, limit=5)
 
     assert [h["title"] for h in headlines] == ["in window"]
-    assert calls[0][1] == 5
+    # Pulls a generous candidate pool *before* the exact-window filter, not
+    # just the final desired headline count - see _CANDIDATE_POOL_SIZE.
+    assert calls[0][1] == calibration_review._CANDIDATE_POOL_SIZE
+
+
+def test_fetch_event_headlines_trims_to_limit_after_filtering(monkeypatch):
+    """The real bug this guards against: passing the final headline count as
+    the fetch_news limit meant a whole day's worth of Google results got cut
+    to a handful *before* the precise [event+6h, event+12h] filter ran, so a
+    genuinely newsy event could show only 1-2 headlines instead of up to
+    `limit` - starved by under-fetching, not by the window being too narrow."""
+    event_time = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+    in_window = [
+        {"title": f"story {i}", "source": "", "link": "", "published": event_time + timedelta(hours=7)}
+        for i in range(8)
+    ]
+
+    monkeypatch.setattr(calibration_review, "fetch_news", lambda query, limit=6, session=None: in_window)
+    headlines = calibration_review.fetch_event_headlines("euro dollar rate", event_time, limit=5)
+
+    assert len(headlines) == 5
 
 
 def test_fetch_event_headlines_returns_empty_on_news_error(monkeypatch):

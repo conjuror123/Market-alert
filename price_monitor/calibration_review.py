@@ -45,6 +45,18 @@ def _news_query_by_asset_key(cfg) -> dict[tuple[str, str], str]:
     return {(asset.source, asset.symbol): asset.news_query for asset in cfg.assets}
 
 
+
+# How many raw candidates to pull from Google News before filtering down to
+# the exact [event+6h, event+12h] window - matches explain.py's own limit=100.
+# Google's after:/before: operators are day-granularity (see _scope_query),
+# coarser than our hour-level window, so under-fetching here silently starves
+# the exact filter of candidates it would otherwise have kept - this bit us
+# once already (see README, "Дневной сигнал"): passing the *final* desired
+# headline count as this candidate pool meant a whole day's worth of Google
+# results got cut down to a handful before the precise filter even ran.
+_CANDIDATE_POOL_SIZE = 100
+
+
 def fetch_event_headlines(
     query: str, event_time: datetime, limit: int, session: requests.Session | None = None,
 ) -> list[dict]:
@@ -55,7 +67,8 @@ def fetch_event_headlines(
     lower_cutoff = event_time + timedelta(hours=NEWS_WINDOW_START_HOURS)
     upper_cutoff = event_time + timedelta(hours=NEWS_WINDOW_END_HOURS)
     try:
-        articles = fetch_news(_scope_query(query, lower_cutoff, upper_cutoff), limit=limit, session=session)
+        articles = fetch_news(
+            _scope_query(query, lower_cutoff, upper_cutoff), limit=_CANDIDATE_POOL_SIZE, session=session)
     except NewsError as exc:
         log.warning("  news fetch failed for %r at %s: %s", query, event_time, exc)
         return []
