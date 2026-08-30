@@ -35,6 +35,7 @@ import requests
 from price_monitor import candle_store, coinbase, twelvedata, yahoo
 from price_monitor.analysis import ewma_volatility, log_returns, robust_z_score
 from price_monitor.config import AssetConfig, Config, EffectiveParams, load_config
+from price_monitor.models import ExchangeError
 from price_monitor.state import record_alert, should_notify
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -365,7 +366,14 @@ def main() -> int:
             f" [overrides: {', '.join(overridden)}]" if overridden else "",
         )
         t0 = time.monotonic()
-        candles = fetch_backtest_history(asset, params, cfg, args.days, session)
+        try:
+            candles = fetch_backtest_history(asset, params, cfg, args.days, session)
+        except ExchangeError as exc:
+            # One asset failing (rate limit, transient error) must not lose
+            # everything already fetched and merged for the assets before it
+            # in this same run - see README, this cost real API credits.
+            log.error("  Failed to fetch history for %s (%s): %s", asset.label, asset.symbol, exc)
+            continue
         log.info("  %d candles fetched in %.1fs", len(candles), time.monotonic() - t0)
 
         # Piggyback on this fetch to seed/extend the permanent local candle

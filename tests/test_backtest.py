@@ -1,3 +1,7 @@
+import json
+import os
+
+from price_monitor import backtest as backtest_module
 from price_monitor import yahoo
 from price_monitor.backtest import (
     YAHOO_MAX_HOURLY_DAYS,
@@ -8,6 +12,7 @@ from price_monitor.backtest import (
     simulate_notifications,
 )
 from price_monitor.config import AssetConfig, Config, EffectiveParams
+from price_monitor.models import Candle, ExchangeError
 
 BASE_PARAMS = EffectiveParams(
     interval="1h", lookback=300, mad_window=288, ewma_lambda=0.94,
@@ -120,3 +125,41 @@ def test_fetch_backtest_history_does_not_cap_yahoo_days_under_the_limit(monkeypa
     cfg = Config(assets=[asset])
     fetch_backtest_history(asset, cfg.params_for(asset), cfg, days=365, session=None)
     assert captured["range_"] == "370d"
+
+
+def test_main_skips_an_asset_that_fails_and_still_processes_the_rest(tmp_path, monkeypatch, caplog):
+    """The real incident this guards against: a backfill run hit a Twelve
+    Data 429 on the 6th of 8 forex pairs and, before this fix, that crashed
+    the whole script - losing the report for (and, in the actual workflow,
+    the commit of) every asset already successfully fetched before it."""
+    cfg = Config(
+        assets=[
+            AssetConfig(symbol="BTC-USD", source="coinbase", label="Bitcoin"),
+            AssetConfig(symbol="EUR/USD", source="twelvedata", label="EUR/USD"),
+            AssetConfig(symbol="ETH-USD", source="coinbase", label="Ethereum"),
+        ],
+        candle_history_dir=os.path.join(tmp_path, "candle_history"),
+        min_history=1, daily_min_history=1,
+    )
+    monkeypatch.setattr(backtest_module, "load_config", lambda path=None: cfg)
+
+    def fake_fetch(asset, params, cfg, days, session):
+        if asset.symbol == "EUR/USD":
+            raise ExchangeError("rate limited")
+        return [
+            Candle(open_time=i * 3600, open=1.0, high=1.0, low=1.0, close=1.0, volume=0.0,
+                   close_time=i * 3600 + 3600)
+            for i in range(5)
+        ]
+
+    monkeypatch.setattr(backtest_module, "fetch_backtest_history", fake_fetch)
+    monkeypatch.setattr(
+        "sys.argv", ["backtest", "--out", os.path.join(tmp_path, "out.json"), "--days", "30"])
+
+    assert backtest_module.main() == 0
+    assert "EUR/USD" in caplog.text  # logged, not silently dropped
+
+    with open(os.path.join(tmp_path, "out.json")) as f:
+        out = json.load(f)
+    labels = {a["label"] for a in out["assets"]}
+    assert labels == {"Bitcoin", "Ethereum"}  # EUR/USD skipped, the rest still made it in
