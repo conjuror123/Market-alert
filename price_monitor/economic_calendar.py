@@ -54,6 +54,21 @@ log = logging.getLogger("price_monitor.economic_calendar")
 
 CALENDAR_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 
+# Every source is normalized down to this 3-value scale - a source's own
+# extra categories (ForexFactory's "Holiday", spoluan's "Non-economic") don't
+# carry the kind of significance Medium/High do, so they're folded into "Low"
+# right at the point each source gets parsed, rather than leaking each
+# source's own quirky taxonomy into the rest of the app (filtering,
+# storage, display all only ever need to know about Low/Medium/High).
+_IMPACT_ALIASES = {
+    "Holiday": "Low",
+    "Non-economic": "Low",
+}
+
+
+def _normalize_impact(raw: str) -> str:
+    return _IMPACT_ALIASES.get(raw, raw)
+
 
 class CalendarError(RuntimeError):
     pass
@@ -63,7 +78,8 @@ def fetch_calendar(session: requests.Session | None = None, timeout: int = 15) -
     """Fetches this week's calendar events. Each returned dict has:
     title, country (currency code, or "All" for events affecting everyone),
     date (ISO8601 string, fixed -04:00 offset from the source - see
-    parse_event_time), impact ("Low"/"Medium"/"High"/"Holiday"), forecast,
+    parse_event_time), impact ("Low"/"Medium"/"High" - the source's own
+    "Holiday" is folded into "Low", see _normalize_impact), forecast,
     previous, actual (empty for events that haven't happened yet)."""
     get = session.get if session is not None else requests.get
     try:
@@ -80,7 +96,7 @@ def fetch_calendar(session: requests.Session | None = None, timeout: int = 15) -
                 "title": item["title"],
                 "country": item["country"],
                 "date": item["date"],
-                "impact": item["impact"],
+                "impact": _normalize_impact(item["impact"]),
                 "forecast": item.get("forecast", ""),
                 "previous": item.get("previous", ""),
                 "actual": item.get("actual", ""),
@@ -204,10 +220,11 @@ def _normalize_spoluan_row(row: dict) -> dict | None:
         "title": title,
         "country": row.get("Currency") or "",
         "date": date_iso,
-        # This scraper's own impact taxonomy is Low/Medium/High/Non-economic -
-        # it has no separate "Holiday" tier the way ForexFactory's live feed
-        # does (bank holidays come through here tagged "Low").
-        "impact": row.get("Impact") or "",
+        # This scraper's own impact taxonomy is Low/Medium/High/Non-economic
+        # (it has no separate "Holiday" tier - bank holidays come through
+        # here tagged "Low" already) - _normalize_impact folds "Non-economic"
+        # into "Low" too, same as "Holiday" from the live feed above.
+        "impact": _normalize_impact(row.get("Impact") or ""),
         "forecast": row.get("Forecast") or "",
         "previous": row.get("Previous") or "",
         "actual": row.get("Actual") or "",

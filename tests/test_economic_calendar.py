@@ -66,6 +66,25 @@ def test_fetch_calendar_parses_known_fields(monkeypatch):
     }
 
 
+def test_fetch_calendar_normalizes_holiday_impact_to_low(monkeypatch):
+    def fake_get(url, timeout, headers):
+        return FakeResponse(200, SAMPLE_RAW)
+
+    monkeypatch.setattr(economic_calendar.requests, "get", fake_get)
+    events = fetch_calendar()
+
+    holiday_event = next(e for e in events if e["title"] == "Bank Holiday")
+    assert holiday_event["impact"] == "Low"
+
+
+def test_normalize_impact_folds_holiday_and_non_economic_into_low():
+    assert economic_calendar._normalize_impact("Holiday") == "Low"
+    assert economic_calendar._normalize_impact("Non-economic") == "Low"
+    assert economic_calendar._normalize_impact("Low") == "Low"
+    assert economic_calendar._normalize_impact("Medium") == "Medium"
+    assert economic_calendar._normalize_impact("High") == "High"
+
+
 def test_fetch_calendar_skips_malformed_entries(monkeypatch):
     def fake_get(url, timeout, headers):
         return FakeResponse(200, [{"title": "missing fields"}])
@@ -226,6 +245,15 @@ def test_normalize_spoluan_row_maps_known_fields():
     assert normalized["actual"] == "199K"
     assert normalized["forecast"] == "426K"
     assert normalized["previous"] == "249K"
+
+
+def test_normalize_spoluan_row_normalizes_non_economic_impact_to_low():
+    row = {"Date": "2022-01-11", "Time": "10:12pm", "Currency": "USD",
+           "Event": "FOMC Member Mester Speaks", "Impact": "Non-economic",
+           "Actual": "", "Forecast": "", "Previous": "",
+           "Combined DateTime": "2022-01-11 22:12:00"}
+    normalized = economic_calendar._normalize_spoluan_row(row)
+    assert normalized["impact"] == "Low"
 
 
 def test_normalize_spoluan_row_returns_none_for_blank_or_malformed_rows():
