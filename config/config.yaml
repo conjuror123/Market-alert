@@ -39,6 +39,13 @@
 # вручную запускаете "Explain Alerts" (объяснение алерта через LLM, см. README).
 # Нужен, только если label не годится как поисковый запрос (смешивает русский и
 # английский, содержит скобки и т.п.) — если не задать, используется label как есть.
+#
+# ВАЖНО: чем короче запрос, тем больше результатов отдаёт Google News — проверено
+# вживую на всех валютных парах: "EUR USD euro dollar exchange rate" (6 слов) дало
+# 3 результата за два тестовых дня, а просто "EUR/USD" — 17; "US dollar index DXY"
+# дало 0, а "dollar index" — 18. Похоже, чем больше слов, тем ближе поиск к "все
+# слова обязаны встретиться", и длинные, "точные" формулировки почти всегда хуже
+# короткого естественного запроса. Держите news_query коротким (1-3 слова).
 assets:
   - symbol: BTC-USD
     source: coinbase
@@ -91,55 +98,55 @@ assets:
   - symbol: "EUR/USD"
     source: twelvedata
     label: "EUR/USD"
-    news_query: "EUR USD euro dollar exchange rate"
+    news_query: "EUR/USD"
     daily_price_zscore_threshold: 2.6
     daily_price_zscore_override: 7.8
   - symbol: "GBP/USD"
     source: twelvedata
     label: "GBP/USD"
-    news_query: "GBP USD pound dollar exchange rate"
+    news_query: "GBP/USD"
     daily_price_zscore_threshold: 2.5
     daily_price_zscore_override: 7.5
   - symbol: "USD/JPY"
     source: twelvedata
     label: "USD/JPY"
-    news_query: "USD JPY dollar yen exchange rate"
+    news_query: "USD/JPY"
     daily_price_zscore_threshold: 2.6
     daily_price_zscore_override: 7.8
   - symbol: "USD/CHF"
     source: twelvedata
     label: "USD/CHF"
-    news_query: "USD CHF dollar franc exchange rate"
+    news_query: "USD/CHF"
     daily_price_zscore_threshold: 2.9
     daily_price_zscore_override: 8.7
   - symbol: "USD/CAD"
     source: twelvedata
     label: "USD/CAD"
-    news_query: "USD CAD dollar Canadian dollar exchange rate"
+    news_query: "USD/CAD"
     daily_price_zscore_threshold: 2.5
     daily_price_zscore_override: 7.5
   - symbol: "AUD/USD"
     source: twelvedata
     label: "AUD/USD"
-    news_query: "AUD USD Australian dollar exchange rate"
+    news_query: "AUD/USD"
     daily_price_zscore_threshold: 2.4
     daily_price_zscore_override: 7.2
   - symbol: "NZD/USD"
     source: twelvedata
     label: "NZD/USD"
-    news_query: "NZD USD New Zealand dollar exchange rate"
+    news_query: "NZD/USD"
     daily_price_zscore_threshold: 2.6
     daily_price_zscore_override: 7.8
   - symbol: "USD/CNY"
     source: twelvedata
     label: "USD/CNY"
-    news_query: "USD CNY yuan exchange rate"
+    news_query: "yuan"
     daily_price_zscore_threshold: 2.2
     daily_price_zscore_override: 6.6
   - symbol: "DX-Y.NYB"
     source: yahoo
     label: "Индекс доллара (DXY)"
-    news_query: "US dollar index DXY"
+    news_query: "dollar index"
     daily_price_zscore_threshold: 2.5
     daily_price_zscore_override: 7.5
 
