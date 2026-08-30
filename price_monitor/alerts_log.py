@@ -47,6 +47,7 @@ def record_sent_alert(
     ewma_z: float,
     robust_z: float,
     volume_z: float,
+    signal_type: str = "hourly",
     now: datetime | None = None,
 ) -> None:
     now = now or datetime.now(timezone.utc)
@@ -61,6 +62,7 @@ def record_sent_alert(
         "ewma_z": ewma_z,
         "robust_z": robust_z,
         "volume_z": volume_z,
+        "signal_type": signal_type,
         "explained": False,
     })
 

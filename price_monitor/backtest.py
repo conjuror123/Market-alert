@@ -32,7 +32,7 @@ from datetime import datetime, timezone
 
 import requests
 
-from price_monitor import coinbase, twelvedata, yahoo
+from price_monitor import candle_store, coinbase, twelvedata, yahoo
 from price_monitor.analysis import ewma_volatility, log_returns, robust_z_score
 from price_monitor.config import AssetConfig, Config, EffectiveParams, load_config
 from price_monitor.state import record_alert, should_notify
@@ -47,6 +47,39 @@ NAIVE_PCT_THRESHOLDS = [1.0, 2.0, 3.0]
 
 # price_zscore_threshold values to sweep for the sensitivity report.
 THRESHOLD_SWEEP = [2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
+
+# Disables the volume channel for the daily report the same way config.yaml
+# disables it for ES=F - the daily signal is price-only (see __main__.py).
+_DAILY_VOLUME_DISABLED = 1e9
+
+# Seconds per candle, by interval - used only to convert a series' raw period
+# count into "days covered" for the report (build_report reuses the exact
+# same code for both the hourly series and the daily-resampled one, which
+# have very different periods-per-day).
+_INTERVAL_SECONDS = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "6h": 21600, "1d": 86400}
+
+
+def _periods_per_day(interval: str) -> float:
+    return 86400 / _INTERVAL_SECONDS[interval]
+
+
+def daily_params_view(params: EffectiveParams) -> EffectiveParams:
+    """Maps this asset's daily_* fields onto the plain fields build_report()
+    and simulate_notifications() already read, so the entire report-building
+    pipeline can be reused unchanged for the daily signal - see README."""
+    return replace(
+        params,
+        interval="1d",
+        price_zscore_threshold=params.daily_price_zscore_threshold,
+        price_zscore_override=params.daily_price_zscore_override,
+        ewma_lambda=params.daily_ewma_lambda,
+        mad_window=params.daily_mad_window,
+        min_history=params.daily_min_history,
+        cooldown_minutes=params.daily_cooldown_minutes,
+        escalation_factor=params.daily_escalation_factor,
+        volume_zscore_threshold=_DAILY_VOLUME_DISABLED,
+        volume_zscore_override=_DAILY_VOLUME_DISABLED,
+    )
 
 
 def fetch_backtest_history(
@@ -168,7 +201,7 @@ class AssetReport:
     label: str
     symbol: str
     source: str
-    hours: int
+    periods: int
     days_covered: float
     params: dict
     price_alerts_dual: int
@@ -183,8 +216,8 @@ class AssetReport:
 
 
 def build_report(asset: AssetConfig, series: list[dict], params: EffectiveParams) -> AssetReport:
-    hours = len(series)
-    days_covered = hours / 24 if hours else 0.0
+    periods = len(series)
+    days_covered = periods / _periods_per_day(params.interval) if periods else 0.0
     weeks = days_covered / 7 if days_covered else 1e-9
 
     # Diagnostic-only counts: raw signal crossings, no override, no cooldown - these
@@ -233,7 +266,7 @@ def build_report(asset: AssetConfig, series: list[dict], params: EffectiveParams
         label=asset.label,
         symbol=asset.symbol,
         source=asset.source,
-        hours=hours,
+        periods=periods,
         days_covered=round(days_covered, 1),
         params={
             "interval": params.interval,
@@ -293,6 +326,7 @@ def main() -> int:
     session = requests.Session()
 
     reports = []
+    daily_reports = []
     for asset in cfg.assets:
         params = cfg.params_for(asset)
         overridden = sorted(asset.overrides)
@@ -305,6 +339,16 @@ def main() -> int:
         candles = fetch_backtest_history(asset, params, cfg, args.days, session)
         log.info("  %d candles fetched in %.1fs", len(candles), time.monotonic() - t0)
 
+        # Piggyback on this fetch to seed/extend the permanent local candle
+        # history (see candle_store.py) - the daily signal in __main__.py
+        # depends on this store having real day-scale history, and this is
+        # the cheapest way to get there (already-fetched data, no extra
+        # requests). Safe to call every time the backtest is re-run.
+        history_path = candle_store.store_path(cfg.candle_history_dir, asset.source, asset.symbol)
+        added = candle_store.merge_history(history_path, candles)
+        if added:
+            log.info("  %d new candles merged into local history (%s)", added, history_path)
+
         series = compute_zscore_series(candles, params.ewma_lambda, params.mad_window, params.min_history)
         report = build_report(asset, series, params)
         reports.append(report)
@@ -315,8 +359,32 @@ def main() -> int:
             report.notifications_per_week, caught, len(report.biggest_moves),
         )
 
+        daily_params = daily_params_view(params)
+        daily_candles = candle_store.daily_closes(candles)
+        daily_report = None
+        if len(daily_candles) >= daily_params.min_history + 1:
+            daily_series = compute_zscore_series(
+                daily_candles, daily_params.ewma_lambda, daily_params.mad_window, daily_params.min_history)
+            daily_report = build_report(asset, daily_series, daily_params)
+            daily_reports.append(daily_report)
+            d_caught = sum(1 for m in daily_report.biggest_moves if m["notified"])
+            log.info(
+                "  %s (daily): %d notifications over %.0f days (%.2f/week), recall %d/%d",
+                asset.label, daily_report.notifications_sent, daily_report.days_covered,
+                daily_report.notifications_per_week, d_caught, len(daily_report.biggest_moves),
+            )
+        else:
+            log.info(
+                "  %s (daily): only %d daily candles so far, need %d - skipping daily report",
+                asset.label, len(daily_candles), daily_params.min_history + 1,
+            )
+
     print()
     print_summary(reports)
+    if daily_reports:
+        print()
+        print("Дневной сигнал (см. README):")
+        print_summary(daily_reports)
 
     out = {
         "global_defaults": {
@@ -331,8 +399,16 @@ def main() -> int:
             "interval": cfg.interval,
             "cooldown_minutes": cfg.cooldown_minutes,
             "escalation_factor": cfg.escalation_factor,
+            "daily_price_zscore_threshold": cfg.daily_price_zscore_threshold,
+            "daily_price_zscore_override": cfg.daily_price_zscore_override,
+            "daily_ewma_lambda": cfg.daily_ewma_lambda,
+            "daily_mad_window": cfg.daily_mad_window,
+            "daily_min_history": cfg.daily_min_history,
+            "daily_cooldown_minutes": cfg.daily_cooldown_minutes,
+            "daily_escalation_factor": cfg.daily_escalation_factor,
         },
         "assets": [asdict(r) for r in reports],
+        "daily_assets": [asdict(r) for r in daily_reports],
     }
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(out, f, indent=2, ensure_ascii=False)

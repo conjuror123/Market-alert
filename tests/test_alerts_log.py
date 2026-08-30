@@ -60,6 +60,41 @@ def test_record_sent_alert_defaults_to_unexplained():
     assert entries[0]["explained"] is False
 
 
+def test_record_sent_alert_defaults_signal_type_to_hourly():
+    entries = []
+    record_sent_alert(
+        entries,
+        chat_id="@chan",
+        message_id=1,
+        symbol="Gold",
+        message_text="Gold - необычное движение рынка",
+        last_close=2000.0,
+        last_return_pct=1.2,
+        ewma_z=3.1,
+        robust_z=3.2,
+        volume_z=0.5,
+    )
+    assert entries[0]["signal_type"] == "hourly"
+
+
+def test_record_sent_alert_records_daily_signal_type():
+    entries = []
+    record_sent_alert(
+        entries,
+        chat_id="@chan",
+        message_id=1,
+        symbol="EUR/USD",
+        message_text="EUR/USD - необычное дневное движение",
+        last_close=1.05,
+        last_return_pct=0.8,
+        ewma_z=4.5,
+        robust_z=4.2,
+        volume_z=0.0,
+        signal_type="daily",
+    )
+    assert entries[0]["signal_type"] == "daily"
+
+
 def test_pending_entries_filters_out_explained():
     entries = [
         {"symbol": "Gold", "explained": True},

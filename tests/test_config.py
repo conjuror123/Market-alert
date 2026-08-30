@@ -30,6 +30,16 @@ def test_parse_assets_accepts_twelvedata_source():
     assert assets[0].source == "twelvedata"
 
 
+def test_parse_assets_collects_daily_overrides():
+    assets = _parse_assets([{
+        "symbol": "EUR/USD", "source": "twelvedata",
+        "daily_price_zscore_threshold": 5.0, "daily_cooldown_minutes": 50000,
+    }])
+    assert assets[0].overrides == {
+        "daily_price_zscore_threshold": 5.0, "daily_cooldown_minutes": 50000,
+    }
+
+
 def test_parse_assets_rejects_unknown_source():
     with pytest.raises(ValueError):
         _parse_assets([{"symbol": "BTC-USD", "source": "binance"}])
@@ -84,3 +94,21 @@ def test_params_for_applies_asset_override_without_affecting_others():
     assert cny_params.price_zscore_threshold == 4.0
     # overriding one field leaves the asset's other resolved params at the globals
     assert cny_params.volume_zscore_threshold == cfg.volume_zscore_threshold
+
+
+def test_params_for_falls_back_to_daily_global_defaults():
+    cfg = Config(assets=_parse_assets([{"symbol": "EUR/USD", "source": "twelvedata"}]),
+                 daily_price_zscore_threshold=4.0, daily_cooldown_minutes=43200)
+    params = cfg.params_for(cfg.assets[0])
+    assert params.daily_price_zscore_threshold == 4.0
+    assert params.daily_cooldown_minutes == 43200
+
+
+def test_params_for_applies_daily_override_without_affecting_hourly():
+    assets = _parse_assets([
+        {"symbol": "EUR/USD", "source": "twelvedata", "daily_price_zscore_threshold": 6.0},
+    ])
+    cfg = Config(assets=assets, price_zscore_threshold=7.0, daily_price_zscore_threshold=4.0)
+    params = cfg.params_for(assets[0])
+    assert params.daily_price_zscore_threshold == 6.0
+    assert params.price_zscore_threshold == 7.0
