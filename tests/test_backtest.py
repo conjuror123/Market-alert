@@ -1,5 +1,13 @@
-from price_monitor.backtest import _price_alert, _severity, _volume_alert, simulate_notifications
-from price_monitor.config import EffectiveParams
+from price_monitor import yahoo
+from price_monitor.backtest import (
+    YAHOO_MAX_HOURLY_DAYS,
+    _price_alert,
+    _severity,
+    _volume_alert,
+    fetch_backtest_history,
+    simulate_notifications,
+)
+from price_monitor.config import AssetConfig, Config, EffectiveParams
 
 BASE_PARAMS = EffectiveParams(
     interval="1h", lookback=300, mad_window=288, ewma_lambda=0.94,
@@ -85,3 +93,30 @@ def test_simulate_notifications_allows_repeat_after_cooldown_expires():
 def test_simulate_notifications_ignores_non_alerting_steps():
     series = [step(open_time=0, ewma_z=0.5, robust_z=0.5, volume_z=0.5)]
     assert simulate_notifications(series, BASE_PARAMS) == set()
+
+
+def test_fetch_backtest_history_caps_yahoo_days_at_the_hard_limit(monkeypatch):
+    """Yahoo hard-rejects (HTTP 422) any 60m-interval request spanning more
+    than 730 days - a deep --since backfill must not pass that straight
+    through and crash the whole run."""
+    captured = {}
+    monkeypatch.setattr(
+        yahoo, "fetch_klines",
+        lambda symbol, interval, limit, base_url, session, range_: captured.setdefault("range_", range_) or [],
+    )
+    asset = AssetConfig(symbol="GC=F", source="yahoo", label="Золото")
+    cfg = Config(assets=[asset])
+    fetch_backtest_history(asset, cfg.params_for(asset), cfg, days=2000, session=None)
+    assert captured["range_"] == f"{YAHOO_MAX_HOURLY_DAYS}d"
+
+
+def test_fetch_backtest_history_does_not_cap_yahoo_days_under_the_limit(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(
+        yahoo, "fetch_klines",
+        lambda symbol, interval, limit, base_url, session, range_: captured.setdefault("range_", range_) or [],
+    )
+    asset = AssetConfig(symbol="GC=F", source="yahoo", label="Золото")
+    cfg = Config(assets=[asset])
+    fetch_backtest_history(asset, cfg.params_for(asset), cfg, days=365, session=None)
+    assert captured["range_"] == "370d"

@@ -82,6 +82,15 @@ def daily_params_view(params: EffectiveParams) -> EffectiveParams:
     )
 
 
+# Yahoo's chart API hard-rejects (HTTP 422) any 60m-interval request spanning
+# more than 730 days - verified live, it's not a soft clamp: "The requested
+# range must be within the last 730 days". So a deep --since backfill (e.g.
+# 2021) is only reachable for coinbase/twelvedata; yahoo-sourced assets are
+# capped here regardless of what's requested, with a one-day safety margin,
+# rather than letting a too-large request 422 and take down the whole run.
+YAHOO_MAX_HOURLY_DAYS = 729
+
+
 def fetch_backtest_history(
     asset: AssetConfig, params: EffectiveParams, cfg: Config, days: float, session: requests.Session
 ):
@@ -89,9 +98,17 @@ def fetch_backtest_history(
         return coinbase.fetch_full_history(
             asset.symbol, params.interval, days, cfg.coinbase_base_url, session=session)
     if asset.source == "yahoo":
+        if days > YAHOO_MAX_HOURLY_DAYS:
+            log.info(
+                "  %s: requested %.0f days, but Yahoo only serves %d days of hourly "
+                "history - using %d instead", asset.label, days, YAHOO_MAX_HOURLY_DAYS, YAHOO_MAX_HOURLY_DAYS,
+            )
+            range_days = YAHOO_MAX_HOURLY_DAYS  # already at Yahoo's hard limit - no extra margin
+        else:
+            range_days = int(days) + 5  # small buffer, safe since well under the limit
         return yahoo.fetch_klines(
             asset.symbol, params.interval, limit=1_000_000, base_url=cfg.yahoo_base_url,
-            session=session, range_=f"{int(days) + 5}d")
+            session=session, range_=f"{range_days}d")
     if asset.source == "twelvedata":
         return twelvedata.fetch_full_history(
             asset.symbol, params.interval, days, cfg.twelvedata_base_url,
@@ -318,9 +335,21 @@ def print_summary(reports: list[AssetReport]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--days", type=float, default=365, help="History window in days (default: 365)")
+    parser.add_argument(
+        "--since", default=None, metavar="YYYY-MM-DD",
+        help="Fetch from this calendar date instead of --days - the anchor stays fixed "
+             "however far in the future this is next run, unlike a day count. Meant for a "
+             "deep one-off backfill of data/candle_history/ (e.g. --since 2021-01-01), not "
+             "routine threshold-tuning runs (keep using --days for those - re-fetching years "
+             "of history every time is wasteful once the local store already has it).",
+    )
     parser.add_argument("--out", default="data/backtest_results.json", help="Where to write the JSON report")
     parser.add_argument("--config", default=None, help="Path to config.yaml (default: config/config.yaml)")
     args = parser.parse_args()
+
+    if args.since:
+        since_date = datetime.strptime(args.since, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        args.days = (datetime.now(timezone.utc) - since_date).total_seconds() / 86400
 
     cfg = load_config(args.config) if args.config else load_config()
     session = requests.Session()
