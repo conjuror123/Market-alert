@@ -1,4 +1,7 @@
+import sys
 from datetime import datetime, timezone
+
+import pytest
 
 from price_monitor import weekly_digest
 from price_monitor.config import AssetConfig, Config
@@ -129,3 +132,40 @@ def test_maybe_send_weekly_digest_returns_false_on_send_failure(tmp_path, monkey
 
     assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=SUNDAY_NOON_ISRAEL_UTC) is False
     assert weekly_digest._STATE_KEY not in state
+
+
+def test_main_requires_the_force_flag(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["weekly_digest.py"])
+    with pytest.raises(SystemExit):
+        weekly_digest.main()
+
+
+def test_main_force_sends_immediately_regardless_of_day(tmp_path, monkeypatch):
+    """--force is meant for manual testing outside the Sunday window - it
+    should send right away, with no day/time gating and no state.json
+    involvement at all (main() never even receives a state dict)."""
+    cfg = make_config(tmp_path)
+    sent_texts = []
+    monkeypatch.setattr(weekly_digest, "load_config", lambda: cfg)
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", lambda session=None: RAW_EVENTS)
+    monkeypatch.setattr(weekly_digest, "send_telegram_message", lambda *a, **k: sent_texts.append(a[2]) or 1)
+    monkeypatch.setattr(sys, "argv", ["weekly_digest.py", "--force"])
+
+    exit_code = weekly_digest.main()
+
+    assert exit_code == 0
+    assert len(sent_texts) == 1
+    assert "Non-Farm Payrolls" in sent_texts[0]
+
+
+def test_main_force_returns_nonzero_on_failure(tmp_path, monkeypatch):
+    cfg = make_config(tmp_path)
+
+    def failing_fetch(session=None):
+        raise weekly_digest.economic_calendar.CalendarError("boom")
+
+    monkeypatch.setattr(weekly_digest, "load_config", lambda: cfg)
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", failing_fetch)
+    monkeypatch.setattr(sys, "argv", ["weekly_digest.py", "--force"])
+
+    assert weekly_digest.main() == 1

@@ -1,0 +1,53 @@
+name: Test Weekly Digest
+
+# Ручной, разовый способ увидеть дайджест экономического календаря прямо
+# сейчас, не дожидаясь настоящего воскресенья 12:00 по Израилю (см. README,
+# «Еженедельный дайджест экономического календаря») - полезно и просто
+# посмотреть на предстоящую неделю, и проверить сам механизм отправки.
+# `--force` обходит проверку дня/времени и не трогает "уже отправлено на
+# этой неделе" в state.json - это не часть регулярного расписания.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  test-digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Send weekly digest now
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -m price_monitor.weekly_digest --force
+
+      - name: Commit updated calendar history
+        # Same as price-monitor.yml's own commit step: the digest still
+        # merges fetched events into data/economic_calendar/ even on a
+        # manual/forced run.
+        if: always()
+        run: |
+          if [ -n "$(git status --porcelain data/economic_calendar)" ]; then
+            git config user.name "price-monitor-bot"
+            git config user.email "actions@github.com"
+            git add data/economic_calendar
+            git commit -m "chore: update economic calendar archive [skip ci]"
+            git push
+          else
+            echo "No calendar changes to commit."
+          fi
