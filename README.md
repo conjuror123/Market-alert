@@ -230,6 +230,15 @@ Telegram. Она не часть обычного часового цикла �
 python -m price_monitor.backtest --since 2021-01-01
 ```
 
+Локально это удобно для активов без ключа (Coinbase, Yahoo). Для валютных пар
+нужен `TWELVEDATA_API_KEY` — вместо того чтобы вставлять ключ в чат или
+локальное окружение, для этого есть отдельный workflow: **Actions → Backfill
+Candle History → Run workflow** (поле `since`, по умолчанию `2021-01-01`).
+Ключ используется только внутри workflow — секрет GitHub Actions в принципе
+нельзя прочитать обратно ни через API, ни как-то ещё, только сослаться на
+него в workflow, что этот шаг и делает. Результат он сам закоммитит в
+`data/candle_history/`, как это уже делает `price-monitor.yml` для `state.json`.
+
 В отличие от `--days N` (скользящее окно «N дней назад от текущего момента прогона»),
 `--since` — фиксированная календарная дата: при повторном запуске через год она не
 «съедет», а просто попросит на год больше истории. Для активов на Coinbase и Twelve
@@ -539,11 +548,14 @@ data/candle_history/       — постоянная локальная исто�
 data/decision_log/         — лог каждого решения обоих сигналов, по файлу на актив
 
 .github/workflows/
-  price-monitor.yml  — workflow_dispatch (запуск раз в час обеспечивает внешний
-                       сервис, см. «Надёжный запуск раз в час» выше)
-  test-notify.yml     — ручной запуск test_notify.py из вкладки Actions
-  explain-alerts.yml  — ручной запуск explain.py из вкладки Actions
-  tests.yml           — юнит-тесты на push/PR
+  price-monitor.yml     — workflow_dispatch (запуск раз в час обеспечивает внешний
+                          сервис, см. «Надёжный запуск раз в час» выше)
+  test-notify.yml       — ручной запуск test_notify.py из вкладки Actions
+  explain-alerts.yml    — ручной запуск explain.py из вкладки Actions
+  backfill-history.yml  — ручной глубокий докач data/candle_history/ (нужен для
+                          валютных пар — работает с секретом TWELVEDATA_API_KEY,
+                          не раскрывая его)
+  tests.yml             — юнит-тесты на push/PR
 
 tests/ — pytest-тесты на все модули выше
 ```
