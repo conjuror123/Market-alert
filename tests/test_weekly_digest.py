@@ -7,9 +7,9 @@ from price_monitor import weekly_digest
 from price_monitor.config import AssetConfig, Config
 from price_monitor.notifier import TelegramError
 
-SUNDAY_NOON_ISRAEL_UTC = datetime(2026, 8, 30, 9, 30, tzinfo=timezone.utc)  # Sunday 12:30 Asia/Jerusalem
-SATURDAY_NOON_ISRAEL_UTC = datetime(2026, 8, 29, 9, 30, tzinfo=timezone.utc)
-SUNDAY_EVENING_ISRAEL_UTC = datetime(2026, 8, 30, 18, 0, tzinfo=timezone.utc)
+SATURDAY_NOON_ISRAEL_UTC = datetime(2026, 8, 29, 9, 30, tzinfo=timezone.utc)  # Saturday 12:30 Asia/Jerusalem
+SUNDAY_NOON_ISRAEL_UTC = datetime(2026, 8, 30, 9, 30, tzinfo=timezone.utc)
+SATURDAY_EVENING_ISRAEL_UTC = datetime(2026, 8, 29, 18, 0, tzinfo=timezone.utc)
 
 RAW_EVENTS = [
     {"title": "Non-Farm Payrolls", "country": "USD", "date": "2026-09-04T08:30:00-04:00",
@@ -31,10 +31,10 @@ def make_config(tmp_path):
     )
 
 
-def test_is_digest_window_true_only_on_sunday_noon_israel():
-    assert weekly_digest._is_digest_window(SUNDAY_NOON_ISRAEL_UTC) is True
-    assert weekly_digest._is_digest_window(SATURDAY_NOON_ISRAEL_UTC) is False
-    assert weekly_digest._is_digest_window(SUNDAY_EVENING_ISRAEL_UTC) is False
+def test_is_digest_window_true_only_on_saturday_noon_israel():
+    assert weekly_digest._is_digest_window(SATURDAY_NOON_ISRAEL_UTC) is True
+    assert weekly_digest._is_digest_window(SUNDAY_NOON_ISRAEL_UTC) is False
+    assert weekly_digest._is_digest_window(SATURDAY_EVENING_ISRAEL_UTC) is False
 
 
 def test_format_digest_excludes_low_and_holiday_and_sorts_by_time():
@@ -60,7 +60,7 @@ def test_maybe_send_weekly_digest_noops_outside_window(tmp_path, monkeypatch):
     monkeypatch.setattr(weekly_digest, "send_telegram_message", lambda *a, **k: (_ for _ in ()).throw(
         AssertionError("should not send outside the digest window")))
 
-    sent = weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=SATURDAY_NOON_ISRAEL_UTC)
+    sent = weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=SUNDAY_NOON_ISRAEL_UTC)
 
     assert sent is False
     assert weekly_digest._STATE_KEY not in state
@@ -73,7 +73,7 @@ def test_maybe_send_weekly_digest_sends_and_records_state(tmp_path, monkeypatch)
     monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", lambda session=None: RAW_EVENTS)
     monkeypatch.setattr(weekly_digest, "send_telegram_message", lambda *a, **k: sent_texts.append(a[2]) or 1)
 
-    sent = weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=SUNDAY_NOON_ISRAEL_UTC)
+    sent = weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=SATURDAY_NOON_ISRAEL_UTC)
 
     assert sent is True
     assert len(sent_texts) == 1
@@ -89,7 +89,7 @@ def test_maybe_send_weekly_digest_persists_only_high_impact_events_to_local_stor
     monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", lambda session=None: RAW_EVENTS)
     monkeypatch.setattr(weekly_digest, "send_telegram_message", lambda *a, **k: 1)
 
-    weekly_digest.maybe_send_weekly_digest(cfg, {}, session=None, now=SUNDAY_NOON_ISRAEL_UTC)
+    weekly_digest.maybe_send_weekly_digest(cfg, {}, session=None, now=SATURDAY_NOON_ISRAEL_UTC)
 
     stored = weekly_digest.economic_calendar.load_events(
         weekly_digest.economic_calendar.store_path(cfg.calendar_dir))
@@ -103,8 +103,8 @@ def test_maybe_send_weekly_digest_does_not_resend_the_same_week(tmp_path, monkey
     monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", lambda session=None: RAW_EVENTS)
     monkeypatch.setattr(weekly_digest, "send_telegram_message", lambda *a, **k: calls.append(1) or 1)
 
-    weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=SUNDAY_NOON_ISRAEL_UTC)
-    second = weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=SUNDAY_NOON_ISRAEL_UTC)
+    weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=SATURDAY_NOON_ISRAEL_UTC)
+    second = weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=SATURDAY_NOON_ISRAEL_UTC)
 
     assert second is False
     assert len(calls) == 1
@@ -117,7 +117,7 @@ def test_maybe_send_weekly_digest_returns_false_on_fetch_failure(tmp_path, monke
         raise weekly_digest.economic_calendar.CalendarError("boom")
 
     monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", failing_fetch)
-    assert weekly_digest.maybe_send_weekly_digest(cfg, {}, session=None, now=SUNDAY_NOON_ISRAEL_UTC) is False
+    assert weekly_digest.maybe_send_weekly_digest(cfg, {}, session=None, now=SATURDAY_NOON_ISRAEL_UTC) is False
 
 
 def test_maybe_send_weekly_digest_returns_false_on_send_failure(tmp_path, monkeypatch):
@@ -130,7 +130,7 @@ def test_maybe_send_weekly_digest_returns_false_on_send_failure(tmp_path, monkey
 
     monkeypatch.setattr(weekly_digest, "send_telegram_message", failing_send)
 
-    assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=SUNDAY_NOON_ISRAEL_UTC) is False
+    assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=SATURDAY_NOON_ISRAEL_UTC) is False
     assert weekly_digest._STATE_KEY not in state
 
 

@@ -1,14 +1,22 @@
-"""Posts a Sunday digest of the coming week's Medium/High-impact economic
+"""Posts a Saturday digest of the coming week's Medium/High-impact economic
 calendar events to Telegram.
 
 Piggybacks on the existing hourly trigger (see .github/workflows/price-monitor.yml
 and README - external cron-job.org calls workflow_dispatch roughly once an hour)
 instead of provisioning a second schedule: __main__.py calls
 maybe_send_weekly_digest on every run, and it's a no-op except during the one
-hourly run that happens to land on Sunday, ~12:00 Israel time. "Already sent
+hourly run that happens to land on Saturday, ~12:00 Israel time. "Already sent
 this week" is tracked in state.json (already loaded/saved every run) so a
 second run landing in the same hour - or the external trigger firing a little
 early or late - never posts the digest twice.
+
+Moved here from Sunday on the assumption that ForexFactory's live feed
+(CALENDAR_URL) already rolls over to the coming week's data by Saturday -
+NOT independently confirmed live at the time of this change (it was only
+possible to confirm the feed's content while today itself was a Sunday, see
+economic_calendar.py's module docstring); flagged for a real check on an
+actual Saturday, and _DIGEST_WEEKDAY should move back to Sunday if that
+turns out to be wrong.
 
 Low-impact events and holidays are both excluded (see _DIGEST_IMPACTS) - only
 Medium/High. No LLM involved on purpose (see README, "Дневной сигнал" and the
@@ -16,9 +24,9 @@ weekly digest section): just a plain, programmatically formatted list sorted
 by time - the source data already carries the impact tag, so there's nothing
 here for an LLM to add.
 
-Also runnable directly as a one-off, bypassing the Sunday/dedup checks - see
+Also runnable directly as a one-off, bypassing the Saturday/dedup checks - see
 main() and .github/workflows/weekly-digest-test.yml - for manually checking
-what the digest actually looks like without waiting for Sunday:
+what the digest actually looks like without waiting for Saturday:
     python -m price_monitor.weekly_digest --force
 """
 from __future__ import annotations
@@ -39,8 +47,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("price_monitor.weekly_digest")
 
 _DIGEST_IMPACTS = {"Medium", "High"}
-# datetime.weekday(): Monday=0 ... Sunday=6.
-_DIGEST_WEEKDAY = 6
+# datetime.weekday(): Monday=0 ... Saturday=5.
+_DIGEST_WEEKDAY = 5
 _DIGEST_HOUR_ISRAEL = 12
 _STATE_KEY = "weekly_digest:last_sent_week"
 
@@ -54,9 +62,9 @@ def _is_digest_window(now: datetime) -> bool:
 
 
 def _week_identifier(now: datetime) -> str:
-    """One value per Sunday, used to dedupe in state.json - the Israel-time
+    """One value per Saturday, used to dedupe in state.json - the Israel-time
     calendar date is already unique per week since this only ever runs in the
-    Sunday window."""
+    Saturday window."""
     return now.astimezone(_ISRAEL_TZ).date().isoformat()
 
 
@@ -78,7 +86,7 @@ def format_digest(events: list[dict]) -> str:
 def _fetch_and_send_digest(cfg: Config, session: requests.Session) -> bool:
     """Fetches the live ForexFactory feed, persists its High-impact events to
     the archive, and sends the formatted Medium+High digest to Telegram.
-    Shared by the scheduled Sunday path (maybe_send_weekly_digest) and the
+    Shared by the scheduled Saturday path (maybe_send_weekly_digest) and the
     manual one-off CLI (main(), --force) - see module docstring. Returns True
     if a digest was actually sent (fetch/send failures are logged and
     swallowed, same as the rest of __main__.py's per-asset error handling, so
@@ -112,7 +120,7 @@ def _fetch_and_send_digest(cfg: Config, session: requests.Session) -> bool:
 def maybe_send_weekly_digest(
     cfg: Config, state: dict, session: requests.Session, now: datetime | None = None,
 ) -> bool:
-    """No-ops outside the Sunday ~12:00 Israel-time window, and no-ops if
+    """No-ops outside the Saturday ~12:00 Israel-time window, and no-ops if
     this week's digest has already been sent. Returns True if a digest was
     actually sent."""
     now = now or datetime.now(timezone.utc)
@@ -132,13 +140,13 @@ def maybe_send_weekly_digest(
 def main() -> int:
     """Manual one-off: sends the digest right now, regardless of day/time,
     without touching state.json's "already sent this week" tracking - this
-    isn't part of the regular Sunday schedule (see
+    isn't part of the regular Saturday schedule (see
     .github/workflows/weekly-digest-test.yml), just a way to see what the
-    digest actually looks like without waiting for Sunday."""
+    digest actually looks like without waiting for Saturday."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "--force", action="store_true",
-        help="Send immediately, bypassing the Sunday-window and already-sent-this-week checks")
+        help="Send immediately, bypassing the Saturday-window and already-sent-this-week checks")
     args = parser.parse_args()
     if not args.force:
         parser.error("nothing to do - pass --force (see module docstring)")
