@@ -81,9 +81,16 @@ def audit_instrument(asset: Asset, frame: pd.DataFrame) -> dict:
     volume = frame["volume"].astype("float64")
     zero_pct = float((volume == 0).mean() * 100)
 
+    # Согласованность OHLC (п.2.6) - с допуском в полтика. Источник округляет
+    # поля бара независимо и по-разному: у TLT встречается close 92.42 при high
+    # 92.415, у EUR/USD - open 1.0886 при low 1.08862. Это разница меньше
+    # одного тика, то есть артефакт округления, а не сломанный бар. Буквальная
+    # проверка без допуска пометила бы такие бары is_invalid и выбросила бы из
+    # расчётов совершенно нормальные часы.
+    tol = asset.tick_size / 2
     ohlc_bad = int((
-        (frame["low"] > frame[["open", "close"]].min(axis=1))
-        | (frame[["open", "close"]].max(axis=1) > frame["high"])
+        (frame["low"] > frame[["open", "close"]].min(axis=1) + tol)
+        | (frame[["open", "close"]].max(axis=1) > frame["high"] + tol)
     ).sum())
 
     return row | {

@@ -140,3 +140,15 @@ def test_report_includes_both_sections_and_the_vix_line():
     assert "## Корзина" in report
     assert "## Вне корзины (только SAED)" in report
     assert "VIXCLS" in report
+
+
+def test_ohlc_check_tolerates_vendor_rounding_below_one_tick():
+    # Реальный случай из данных: close 92.42 при high 92.415 - источник
+    # округлил поля бара независимо. Разница меньше тика, бар исправен.
+    almost = frame([(HOUR, 92.15, 92.415, 92.14, 92.42, 1.0, 2)])
+    assert audit_instrument(asset(), almost)["ohlc_violations"] == 0
+
+
+def test_ohlc_check_still_catches_a_genuinely_broken_bar():
+    broken = frame([(HOUR, 92.15, 92.415, 92.14, 95.0, 1.0, 2)])
+    assert audit_instrument(asset(), broken)["ohlc_violations"] == 1
