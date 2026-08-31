@@ -791,6 +791,8 @@ meals/zscore.py      — out-of-sample EWMA Z-score и адаптивные по
 meals/volume.py      — робастный профиль объёма по локальному биржевому часу
 meals/pipeline.py    — метрики по каждому активу, вся цепочка Ф1-Ф2 разом
 meals/cross_section.py — кворум часа, M_t, разброс корзины, PCA, однофакторность
+meals/residuals.py   — регрессия на фактор корзины и ряд остатков
+meals/saed.py        — одиночные события по остаткам и блочные алерты
 meals/corporate_actions.py — даты дивидендных отсечек, выведенные из котировок
 meals/fred.py        — дневной ряд VIX с FRED и момент его доступности
 meals/backfill.py    — разовая загрузка истории с 2021 года
@@ -802,6 +804,8 @@ data/meals/sessions/ — расписание NYSE: торговые дни и �
 data/meals/corporate_actions.csv — даты отсечек по фондам
 data/meals/metrics/  — метрики по активам (metrics_asset_hour)
 data/meals/metrics_basket_hour.parquet — метрики корзины по часам
+data/meals/saed_events.parquet — одиночные события
+data/meals/saed_block_alerts.parquet — блочные алерты
 data/meals/coverage.md — таблица покрытия
 docs/meals-otstupleniya.md — отступления от ТЗ, каждое с причиной
 ```
@@ -817,6 +821,7 @@ python -m meals.sessions        # перегенерировать распис�
 python -m meals.corporate_actions  # перестроить таблицу дивидендных отсечек
 python -m meals.pipeline        # пересчитать метрики по активам
 python -m meals.cross_section   # пересчитать метрики корзины
+python -m meals.saed            # пересчитать одиночные события
 ```
 
 Расписание NYSE строится библиотекой `exchange_calendars`, но не на каждом

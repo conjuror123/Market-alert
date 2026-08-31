@@ -82,15 +82,25 @@ def adaptive_thresholds(abs_z: pd.Series, window: int,
     именно значения вошли и вышли из окна, и одно и то же движение может
     оказаться то значимым, то нет - только из-за того, что произошло 840 баров
     назад.
+
+    Окно отсчитывается по ОПРЕДЕЛЁННЫМ значениям Z, а не по строкам. Формально
+    п.3.1 говорит "скользящее окно W_asset абсолютных значений Z", и разница
+    видна там, где ряд Z рвётся не только на разогреве. У ряда остатков это
+    происходит каждую неделю: крипта торгует по выходным, а фактор корзины в
+    эти часы не существует, потому что эталонный календарь их не включает.
+    Окно из 2880 подряд идущих строк не наберёт 2880 значений никогда - у
+    биткойна пороги остатка не посчитались бы ни разу, и модуль SAED молчал бы
+    по всей крипте.
     """
-    raw = abs_z.shift(1).rolling(window, min_periods=window)
-    q95_raw = raw.quantile(0.95)
-    q99_raw = raw.quantile(0.99)
+    defined = abs_z.dropna()
+    raw = defined.shift(1).rolling(window, min_periods=window)
     # ewm с adjust=False - это ровно рекуррентная формула ТЗ
-    # Q_t = lambda_q * Q_raw_t + (1 - lambda_q) * Q_{t-1}.
-    q95 = q95_raw.ewm(alpha=lam_q, adjust=False).mean()
-    q99 = q99_raw.ewm(alpha=lam_q, adjust=False).mean()
-    return q95, q99
+    # Q_t = lambda_q * Q_raw_t + (1 - lambda_q) * Q_{t-1}, и считается она по
+    # подряд идущим определённым барам.
+    q95 = raw.quantile(0.95).ewm(alpha=lam_q, adjust=False).mean()
+    q99 = raw.quantile(0.99).ewm(alpha=lam_q, adjust=False).mean()
+    # Там, где Z не определён, порог не нужен: пробой всё равно не оценивается.
+    return q95.reindex(abs_z.index), q99.reindex(abs_z.index)
 
 
 def breaches(abs_z: pd.Series, abs_r: pd.Series, sigma_lt: pd.Series,
