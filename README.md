@@ -784,6 +784,10 @@ config/basket.yaml   — состав корзины: 21 актив, пять б
 meals/basket.py      — загрузка корзины, веса по правилу равновесности
 meals/bars.py        — хранилище часовых баров (Parquet) и сборка часовой сетки
 meals/sessions.py    — календарь сессий NYSE и эталонный календарь корзины
+meals/windows.py     — реестр окон и констант, три несовместимые единицы времени
+meals/quality.py     — гейт качества бара и принадлежность часа сессии
+meals/returns.py     — доходности, гэп-канал первого бара сессии, винзоризация
+meals/corporate_actions.py — даты дивидендных отсечек, выведенные из котировок
 meals/fred.py        — дневной ряд VIX с FRED и момент его доступности
 meals/backfill.py    — разовая загрузка истории с 2021 года
 meals/audit.py       — таблица покрытия данных, требование п.2.1 ТЗ
@@ -791,6 +795,7 @@ meals/audit.py       — таблица покрытия данных, треб�
 data/meals/bars/     — часовые бары по инструменту
 data/meals/vix/      — дневной ряд VIX
 data/meals/sessions/ — расписание NYSE: торговые дни и полусессии
+data/meals/corporate_actions.csv — даты отсечек по фондам
 data/meals/coverage.md — таблица покрытия
 docs/meals-otstupleniya.md — отступления от ТЗ, каждое с причиной
 ```
@@ -803,6 +808,7 @@ export FRED_API_KEY=...         # новый, только для ряда VIX
 python -m meals.backfill        # разовая загрузка истории
 python -m meals.audit           # таблица покрытия
 python -m meals.sessions        # перегенерировать расписание NYSE
+python -m meals.corporate_actions  # перестроить таблицу дивидендных отсечек
 ```
 
 Расписание NYSE строится библиотекой `exchange_calendars`, но не на каждом
