@@ -1,0 +1,303 @@
+# Конфигурация корзины MEALS (ТЗ 5.1, п.2.3).
+#
+# Веса здесь СОЗНАТЕЛЬНО не задаются: по п.2.3 они производные и считаются
+# системой по правилу равновесности
+#     weight_i = 1 / (N_blocks * N_assets_block)
+# из состава на дату. Если бы вес лежал в файле, его можно было бы руками
+# разойтись с правилом - а по ТЗ в таком случае конфигурация считается
+# невалидной, поэтому единственный способ не разойтись - не хранить его.
+#
+# Блоков пять, а не четыре как в исходном п.2.3. Пятый - crypto - добавлен
+# осознанно: без него вне американской сессии в корзине остаются только
+# валютные пары, то есть один блок, а кворум часа требует минимум двух блоков
+# по два актива. Шесть пар плюс три криптоактива дают ночью девять активов при
+# минимуме восемь - с запасом ровно на один невалидный бар. Без этого блока
+# система была бы слепа примерно 17 часов в сутки.
+#
+# Источников три. Yahoo Finance в MEALS не используется вовсе: все его
+# инструменты дублировали то, что уже есть через ETF (GC=F и GLD - одно золото,
+# CL=F и USO - одна нефть, ES=F и SPY - один S&P, ZB=F и TLT/IEF - те же
+# длинные трежерис, DX-Y.NYB - те же валютные пары в другой упаковке), но с
+# историей только с апреля 2024 и через неофициальный эндпоинт.
+
+# Якорная биржа эталонного календаря корзины (п.2.2): вс 17:00 .. пт 17:00
+# местного времени. Границы хранятся в этой таймзоне и переводятся в UTC на
+# лету - хранить их сразу в UTC запрещено п.2.2.
+anchor_exchange_tz: America/New_York
+
+# Начало истории (п.2.1). Совпадает с train-периодом из п.7.
+history_since: "2021-01-01"
+
+# Шаблоны сессий заполняются на Ф1 (календари праздников и полусессий), здесь
+# только имена, на которые ссылаются активы.
+session_templates:
+  us_equity:
+    exchange: NYSE
+    tz: America/New_York
+    description: "09:30-16:00 по рабочим дням, с праздниками и полусессиями NYSE"
+  fx_continuous:
+    exchange: FX
+    tz: America/New_York
+    description: "непрерывно с вс 17:00 до пт 17:00"
+  crypto_24_7:
+    exchange: COINBASE
+    tz: UTC
+    description: "круглосуточно, без выходных"
+
+# tick_size - биржевой шаг цены, нужен винзоризации п.2.5 (нижняя отсечка
+# eps_MAD включает доходность в половину тика). Задан явно, а не измерен по
+# данным: источник отдаёт цены фондов с плавающим хвостом - 769.53992 там, где
+# на бирже стоит 769.54, - так что измеренная точность 1e-7 говорит о формате
+# хранения у вендора, а не о шаге торгов. У валютных пар точность источника и
+# шаг совпадают: пять знаков, включая иену (проверено на реальных данных).
+# Аудит сверяет одно с другим и ругается, если шаг мельче точности.
+#
+# fetch_interval - интервал, которым инструмент ЗАПРАШИВАЕТСЯ у источника, он
+# не равен рабочему интервалу системы. У биржевых фондов бары идут по :30
+# (09:30, 10:30, ...), поэтому они тянутся получасовыми и складываются в
+# часовые по границе круглого часа UTC - иначе кросс-секция считала бы
+# синхронность на рядах, смещённых друг относительно друга на полчаса.
+# Кредитов это не стоит: тариф считает запросы, а не строки.
+assets:
+  # --- equity -------------------------------------------------------------
+  - ticker: SPY
+    source: twelvedata
+    tier: 1
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "S&P 500"
+  - ticker: QQQ
+    source: twelvedata
+    tier: 1
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Nasdaq 100"
+  - ticker: IWM
+    source: twelvedata
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Russell 2000 (малая капитализация)"
+  - ticker: XLF
+    source: twelvedata
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Финансовый сектор США"
+
+  # --- rates --------------------------------------------------------------
+  - ticker: TLT
+    source: twelvedata
+    tier: 1
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Трежерис 20+ лет"
+  - ticker: IEF
+    source: twelvedata
+    tier: 1
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Трежерис 7-10 лет"
+  - ticker: SHY
+    source: twelvedata
+    tier: 2
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Трежерис 1-3 года"
+  - ticker: HYG
+    source: twelvedata
+    tier: 2
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Высокодоходные облигации (кредитный риск)"
+
+  # --- commodities --------------------------------------------------------
+  - ticker: GLD
+    source: twelvedata
+    tier: 1
+    block: commodities
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Золото"
+  - ticker: USO
+    source: twelvedata
+    tier: 1
+    block: commodities
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Нефть WTI"
+  - ticker: SLV
+    source: twelvedata
+    tier: 2
+    block: commodities
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Серебро"
+  - ticker: DBC
+    source: twelvedata
+    tier: 2
+    block: commodities
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Широкая корзина сырья"
+
+  # --- FX -----------------------------------------------------------------
+  # У спот-форекса нет единого биржевого объёма ни у одного провайдера, поэтому
+  # has_volume: false - по п.3.5 подтверждение объёмом для них не оценивается
+  # вовсе (V_R = NULL), а не считается несработавшим.
+  - ticker: EUR/USD
+    source: twelvedata
+    tier: 1
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Евро / доллар"
+  - ticker: USD/JPY
+    source: twelvedata
+    tier: 1
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Доллар / иена"
+  - ticker: GBP/USD
+    source: twelvedata
+    tier: 2
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Фунт / доллар"
+  - ticker: AUD/USD
+    source: twelvedata
+    tier: 2
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Австралийский доллар / доллар"
+  - ticker: USD/CHF
+    source: twelvedata
+    tier: 2
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Доллар / франк"
+  - ticker: USD/CAD
+    source: twelvedata
+    tier: 2
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Доллар / канадский доллар"
+
+  # --- crypto -------------------------------------------------------------
+  - ticker: BTC-USD
+    source: coinbase
+    tier: 1
+    block: crypto
+    has_volume: true
+    tick_size: 0.01
+    session_template: crypto_24_7
+    fetch_interval: 1h
+    label: "Bitcoin"
+  - ticker: ETH-USD
+    source: coinbase
+    tier: 2
+    block: crypto
+    has_volume: true
+    tick_size: 0.01
+    session_template: crypto_24_7
+    fetch_interval: 1h
+    label: "Ethereum"
+  - ticker: SOL-USD
+    source: coinbase
+    tier: 2
+    block: crypto
+    has_volume: true
+    tick_size: 0.01
+    session_template: crypto_24_7
+    fetch_interval: 1h
+    label: "Solana"
+
+# Инструменты вне корзины (п.8.1): в кворуме, весах, широте и кластерных
+# триггерах не участвуют, но SAED считает по ним остатки на общем факторе
+# корзины. block обязателен - он нужен только для агрегации блочных алертов
+# по п.8.4. Эти две пары вынесены из корзины, чтобы не перекашивать блок FX по
+# числу активов, но алерты по ним сохраняются.
+outside_basket:
+  - ticker: NZD/USD
+    source: twelvedata
+    tier: 2
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Новозеландский доллар / доллар"
+  - ticker: USD/CNY
+    source: twelvedata
+    tier: 2
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Доллар / юань"
+
+# Внешний односторонний индикатор стресса (п.4.4). В корзину не входит и в
+# кворуме не участвует. Источник - FRED, серия VIXCLS: настоящий индекс с
+# 1990 года, без контанго-дрейфа биржевых фондов на фьючерсы VIX.
+#
+# Две особенности, обе зафиксированы как отступление от буквы п.4.4:
+#   1. Ряд ДНЕВНОЙ - внутридневного VIX на FRED нет ни в одной серии, так что
+#      скачок определяется аппаратом п.3.1 на дневных барах, а не на часовых.
+#   2. Публикуется с задержкой в один-два рабочих дня, поэтому окно множителя
+#      отсчитывается от момента, когда значение стало известно системе, а не
+#      от даты наблюдения. Иначе бэктест заглядывал бы в будущее.
+volatility_index:
+  series_id: VIXCLS
+  source: fred
+  interval: 1d
+  label: "Индекс волатильности VIX"

@@ -115,3 +115,64 @@ def test_fetch_full_history_paginates_by_date_range_and_merges(monkeypatch):
     assert len(sess.calls) == 2
     assert all("start_date" in c and "end_date" in c and c["timezone"] == "UTC" for c in sess.calls)
     assert [c.close for c in candles] == [2, 1]
+
+
+def test_supports_the_half_hour_interval_used_by_etfs():
+    # Биржевые фонды тянутся получасовыми барами, чтобы их сетка совпала с
+    # круглым часом валютных пар и крипты (см. meals/bars.to_hourly).
+    from price_monitor.twelvedata import _granularity_seconds, _interval_code
+
+    assert _interval_code("30min") == "30min"
+    assert _granularity_seconds("30min") == 1800
+
+
+def test_rejects_an_unknown_interval():
+    from price_monitor.twelvedata import _granularity_seconds
+
+    with pytest.raises(ExchangeError, match="Unsupported interval"):
+        _granularity_seconds("5min")
+
+
+def test_half_hour_candles_get_a_half_hour_close_time():
+    payload = ok_payload([("2026-08-17 15:30:00", 1.0, 2.0, 0.5, 1.5)])
+    session = FakeSession([(200, payload)])
+
+    candles = fetch_klines("SPY", "30min", limit=1, base_url="https://x",
+                           api_key="k", session=session)
+
+    assert candles[0].close_time - candles[0].open_time == 1800
+
+
+def test_chunk_days_controls_the_request_window():
+    # У фонда ~13 получасовых баров в торговый день, так что в один ответ на
+    # 5000 строк влезает больше года - крупное окно экономит кредиты.
+    session = FakeSession([(200, ok_payload([("2026-08-17 15:30:00", 1.0, 2.0, 0.5, 1.5)]))] * 4)
+
+    fetch_full_history("SPY", "30min", days=300, base_url="https://x", api_key="k",
+                       session=session, request_delay_seconds=0, chunk_days=300)
+
+    assert len(session.calls) == 1
+
+
+def test_parses_volume_when_the_source_provides_it():
+    # Биржевые фонды отдают настоящий часовой объём - по п.3.5 на нём строится
+    # профиль объёма, и терять его нельзя.
+    payload = {"status": "ok", "values": [{
+        "datetime": "2026-08-17 15:30:00", "open": "1", "high": "2",
+        "low": "0.5", "close": "1.5", "volume": "10553040"}]}
+    session = FakeSession([(200, payload)])
+
+    candles = fetch_klines("SPY", "30min", limit=1, base_url="https://x",
+                           api_key="k", session=session)
+
+    assert candles[0].volume == 10553040.0
+
+
+def test_missing_volume_stays_zero_for_forex():
+    # У спот-форекса объёма нет ни у одного провайдера, и это не дефект.
+    session = FakeSession([(200, ok_payload([("2026-08-17 15:00:00", 1.0, 2.0, 0.5, 1.5)]))])
+
+    candles = fetch_klines("EUR/USD", "1h", limit=1, base_url="https://x",
+                           api_key="k", session=session)
+
+    assert candles[0].volume == 0.0

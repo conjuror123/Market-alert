@@ -10,7 +10,9 @@ forex at exactly 8 pairs, to use the whole per-minute budget in one run
 without tripping the limit.
 
 As with spot FX on Yahoo, there is no centralized trade volume for currency
-pairs - `volume` is always 0.0 here too, and that's expected, not a bug.
+pairs - `volume` is always 0.0 for them here too, and that's expected, not a
+bug. Exchange-traded funds served by the same API do carry real hourly volume,
+and it is parsed when present.
 """
 from __future__ import annotations
 
@@ -25,8 +27,18 @@ TIME_SERIES_ENDPOINT = "/time_series"
 
 # Twelve Data's interval codes, keyed by this app's own interval names.
 INTERVAL_CODES = {
+    "30min": "30min",
     "1h": "1h",
     "1d": "1day",
+}
+
+# Длительность бара в секундах - нужна, чтобы проставить close_time. Держится
+# рядом с INTERVAL_CODES намеренно: интервал, добавленный только в один из
+# словарей, тихо разъехался бы с другим.
+INTERVAL_SECONDS = {
+    "30min": 1800,
+    "1h": 3600,
+    "1d": 86400,
 }
 
 # The API accepts at most 5000 candles per request.
@@ -39,6 +51,15 @@ def _interval_code(interval: str) -> str:
     except KeyError as exc:
         raise ExchangeError(
             f"Unsupported interval '{interval}'. Supported: {sorted(INTERVAL_CODES)}"
+        ) from exc
+
+
+def _granularity_seconds(interval: str) -> int:
+    try:
+        return INTERVAL_SECONDS[interval]
+    except KeyError as exc:
+        raise ExchangeError(
+            f"Unsupported interval '{interval}'. Supported: {sorted(INTERVAL_SECONDS)}"
         ) from exc
 
 
@@ -71,7 +92,13 @@ def _request(
                     high=float(v["high"]),
                     low=float(v["low"]),
                     close=float(v["close"]),
-                    volume=0.0,
+                    # Спот-форекс приходит без объёма (у него нет единого
+                    # биржевого объёма ни у одного провайдера), а биржевые
+                    # фонды - с настоящим. Раньше здесь стоял жёсткий ноль:
+                    # для валютных пар это было верно, но у фондов молча
+                    # выбрасывало реальные данные, на которых по п.3.5 строится
+                    # профиль объёма.
+                    volume=float(v.get("volume") or 0.0),
                     close_time=int(_parse_datetime(v["datetime"]).timestamp()) + granularity_seconds,
                 )
                 for v in values
@@ -104,7 +131,7 @@ def fetch_klines(
     if not api_key:
         raise ExchangeError("No Twelve Data API key configured (TWELVEDATA_API_KEY)")
 
-    granularity_seconds = 3600 if interval == "1h" else 86400
+    granularity_seconds = _granularity_seconds(interval)
     url = f"{base_url}{TIME_SERIES_ENDPOINT}"
     params = {
         "symbol": symbol,
@@ -126,6 +153,7 @@ def fetch_full_history(
     api_key: str,
     session: requests.Session | None = None,
     request_delay_seconds: float = 8.0,
+    chunk_days: int = 150,
 ) -> list[Candle]:
     """Page through date ranges to build up to `days` of history - only meant
     for offline backtesting, which wants a full year even though a single
@@ -136,16 +164,18 @@ def fetch_full_history(
     if not api_key:
         raise ExchangeError("No Twelve Data API key configured (TWELVEDATA_API_KEY)")
 
-    granularity_seconds = 3600 if interval == "1h" else 86400
+    granularity_seconds = _granularity_seconds(interval)
     interval_code = _interval_code(interval)
     url = f"{base_url}{TIME_SERIES_ENDPOINT}"
     sess = session or requests
     end = datetime.now(timezone.utc)
     start_bound = end - timedelta(days=days)
-    # MAX_OUTPUTSIZE hourly candles is ~208 days if every hour had one - use a
-    # safely smaller chunk so weekends/holidays inside a chunk never risk
-    # brushing up against the per-request cap.
-    chunk_span = timedelta(days=150)
+    # MAX_OUTPUTSIZE hourly candles is ~208 days if every hour had one - the
+    # 150-day default leaves room so weekends/holidays inside a chunk never risk
+    # brushing up against the per-request cap. Callers fetching a sparser series
+    # (a US equity ETF trades ~13 half-hour bars a day, not 24 hourly ones) can
+    # raise chunk_days and cover the same span in far fewer credits.
+    chunk_span = timedelta(days=chunk_days)
 
     by_time: dict[int, Candle] = {}
     chunk_end = end
