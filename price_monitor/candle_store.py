@@ -101,6 +101,34 @@ def merge_history(path: str, candles: list[Candle]) -> int:
     return added
 
 
+def deduplicate(path: str) -> int:
+    """Убирает из файла повторы по open_time и переписывает его по возрастанию
+    времени. Возвращает число выброшенных строк.
+
+    Файл дописывается построчно, и это делает его уязвимым к слиянию веток:
+    если две ветки записали один и тот же диапазон часов, git склеит оба блока
+    подряд, не заметив повтора. Именно так в историю однажды попал
+    продублированный блок из 299 часов - во всех шестнадцати файлах сразу.
+
+    При расхождении версий одного часа побеждает последняя в файле. Ранняя
+    копия могла застать час ещё незакрытым - у неё меньше объём и уже
+    диапазон, - а более поздняя загрузка видит его целиком. На реальных данных
+    последняя копия ни разу не оказалась беднее ранней.
+    """
+    if not os.path.exists(path):
+        return 0
+    candles = load_candles(path)
+    by_time: dict[int, Candle] = {c.open_time: c for c in candles}
+    removed = len(candles) - len(by_time)
+    if removed == 0:
+        return 0
+    with open(path, "w", encoding="utf-8") as f:
+        for c in sorted(by_time.values(), key=lambda c: c.open_time):
+            f.write(json.dumps(_candle_to_row(c), sort_keys=True))
+            f.write("\n")
+    return removed
+
+
 def daily_closes(candles: list[Candle], now: datetime | None = None) -> list[Candle]:
     """Resamples candles (any granularity) into one synthetic daily candle per
     UTC calendar day: close = that day's last close, volume = that day's
@@ -135,3 +163,38 @@ def daily_closes(candles: list[Candle], now: datetime | None = None) -> list[Can
             close_time=day_candles[-1].close_time,
         ))
     return result
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Разовая чистка хранилища от повторов - см. deduplicate.
+
+    Держится как команда, а не как одноразовый скрипт: причина повторов
+    (слияние веток) может сработать снова, пока история лежит в NDJSON.
+    """
+    import argparse
+    import glob
+
+    parser = argparse.ArgumentParser(description="Убрать повторы из локальной истории свечей")
+    parser.add_argument("--dir", default=os.path.join("data", "candle_history"))
+    parser.add_argument("--dry-run", action="store_true",
+                        help="только показать, сколько строк лишние, ничего не переписывая")
+    args = parser.parse_args(argv)
+
+    total = 0
+    for path in sorted(glob.glob(os.path.join(args.dir, "*.ndjson"))):
+        if args.dry_run:
+            candles = load_candles(path)
+            removed = len(candles) - len({c.open_time for c in candles})
+        else:
+            removed = deduplicate(path)
+        total += removed
+        if removed:
+            print(f"{os.path.basename(path)}: повторов {removed}")
+    print(f"Итого повторов: {total}" + (" (ничего не переписано)" if args.dry_run else ""))
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(main())

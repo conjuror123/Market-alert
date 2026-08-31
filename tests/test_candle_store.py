@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from price_monitor.candle_store import (
     append_candles,
+    deduplicate,
     daily_closes,
     load_candles,
     merge_history,
@@ -98,3 +99,54 @@ def test_daily_closes_keeps_a_day_once_now_moves_past_it():
     result = daily_closes(candles, now=now)
     assert len(result) == 1
     assert result[0].close == 5.0
+
+
+def test_deduplicate_removes_a_repeated_block(tmp_path):
+    # Как выглядит след неудачного слияния: два одинаковых блока подряд.
+    path = os.path.join(str(tmp_path), "x.ndjson")
+    block = [candle(1000 + i * 3600) for i in range(5)]
+    append_candles(path, block)
+    append_candles(path, block)
+
+    assert deduplicate(path) == 5
+    stored = load_candles(path)
+    assert [c.open_time for c in stored] == [1000 + i * 3600 for i in range(5)]
+
+
+def test_deduplicate_keeps_the_later_version_of_a_conflicting_hour(tmp_path):
+    # Ранняя копия застала час незакрытым: меньше объём, уже диапазон.
+    path = os.path.join(str(tmp_path), "x.ndjson")
+    partial = Candle(open_time=1000, open=10.0, high=11.0, low=9.9,
+                     close=10.5, volume=36.7, close_time=4600)
+    complete = Candle(open_time=1000, open=10.0, high=11.0, low=9.0,
+                      close=10.1, volume=174.2, close_time=4600)
+    append_candles(path, [partial])
+    append_candles(path, [complete])
+
+    assert deduplicate(path) == 1
+    stored = load_candles(path)
+    assert len(stored) == 1
+    assert stored[0].volume == 174.2
+    assert stored[0].low == 9.0
+
+
+def test_deduplicate_leaves_a_clean_file_untouched(tmp_path):
+    path = os.path.join(str(tmp_path), "x.ndjson")
+    append_candles(path, [candle(1000), candle(4600)])
+    before = open(path, encoding="utf-8").read()
+
+    assert deduplicate(path) == 0
+    assert open(path, encoding="utf-8").read() == before
+
+
+def test_deduplicate_sorts_by_time(tmp_path):
+    path = os.path.join(str(tmp_path), "x.ndjson")
+    append_candles(path, [candle(8200)])
+    append_candles(path, [candle(1000), candle(8200)])
+
+    deduplicate(path)
+    assert [c.open_time for c in load_candles(path)] == [1000, 8200]
+
+
+def test_deduplicate_on_a_missing_file(tmp_path):
+    assert deduplicate(os.path.join(str(tmp_path), "нет.ndjson")) == 0

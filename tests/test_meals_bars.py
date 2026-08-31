@@ -110,3 +110,28 @@ def test_candles_to_frame_preserves_the_open_time_convention():
 
 def test_candles_to_frame_on_empty_list():
     assert bars.candles_to_frame([]).empty
+
+
+def test_to_hourly_does_not_double_volume_on_a_repeated_bar():
+    # Тот же час, пришедший дважды - это один бар, а не два. Без отбрасывания
+    # дублей до агрегации объём сложился бы суммой и удвоился: ровно это
+    # произошло бы на истории, где слияние веток продублировало блок часов.
+    src = frame([(HOUR, 1.0, 2.0, 0.5, 1.5, 453.89, 1),
+                 (HOUR, 1.0, 2.0, 0.5, 1.5, 453.89, 1)])
+    out = bars.to_hourly(src)
+
+    assert len(out) == 1
+    assert out.iloc[0]["volume"] == 453.89
+
+
+def test_to_hourly_prefers_the_later_copy_of_a_repeated_bar():
+    # Ранняя копия могла застать час незакрытым - у неё уже и объём, и
+    # диапазон. Поздняя либо равнозначна, либо полнее.
+    src = frame([(HOUR, 78175.92, 78179.52, 78091.18, 78118.19, 36.77, 1),
+                 (HOUR, 78175.92, 78179.52, 77969.24, 78076.91, 174.29, 1)])
+    out = bars.to_hourly(src)
+
+    assert len(out) == 1
+    assert out.iloc[0]["close"] == 78076.91
+    assert out.iloc[0]["volume"] == 174.29
+    assert out.iloc[0]["low"] == 77969.24

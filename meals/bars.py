@@ -102,7 +102,15 @@ def to_hourly(frame: pd.DataFrame) -> pd.DataFrame:
     """
     if frame.empty:
         return empty_frame()
-    df = frame.astype(SCHEMA).sort_values("hour_utc")
+    # Два бара с ОДИНАКОВЫМ hour_utc - это один и тот же бар, попавший на вход
+    # дважды, а не два разных. Отбросить их надо ДО агрегации: объём
+    # складывается суммой, и на дубле он бы удвоился. Ровно это и случилось бы
+    # на накопленной истории, где неудачное слияние веток продублировало блок
+    # из 299 часов. Побеждает последняя копия: она либо равнозначна, либо
+    # полнее - более поздняя загрузка застаёт час уже закрытым.
+    df = (frame.astype(SCHEMA)
+          .drop_duplicates(subset="hour_utc", keep="last")
+          .sort_values("hour_utc"))
     grouped = df.groupby(df["hour_utc"] // HOUR * HOUR, sort=True).agg(
         open=("open", "first"),
         high=("high", "max"),
