@@ -129,14 +129,14 @@ def test_compression_needs_both_a_narrow_spread_and_a_real_move():
     csv_norm = pd.Series(list(rng.normal(1.0, 0.1, 50)) + [0.1, 0.1])
     m = pd.Series(list(rng.normal(0.0, 0.001, 50)) + [0.0001, 0.5])
 
-    out = cs.csv_compression(csv_norm, m, window=50)
+    out, _ = cs.csv_compression(csv_norm, m, window=50)
 
     assert not bool(out.iloc[50])   # разброс узок, корзина стоит
     assert bool(out.iloc[51])       # разброс узок И корзина сдвинулась
 
 
 def test_compression_is_null_before_the_window_fills():
-    out = cs.csv_compression(pd.Series([1.0] * 10), pd.Series([0.01] * 10), window=50)
+    out, _ = cs.csv_compression(pd.Series([1.0] * 10), pd.Series([0.01] * 10), window=50)
     assert out.isna().all()
 
 
@@ -148,7 +148,7 @@ def test_pc1_ratio_is_one_when_assets_move_together():
     panel = panel_from(rows, [a.asset_id for a in basket.assets])
     ok = pd.Series(True, index=panel.index)
 
-    ratio = cs.pc1_ratio(panel, ok, basket, window=100)
+    ratio, _ = cs.pc1_ratio(panel, ok, basket, window=100)
     assert ratio.dropna().iloc[-1] == pytest.approx(1.0, abs=1e-9)
 
 
@@ -159,7 +159,8 @@ def test_pc1_ratio_is_low_when_assets_are_independent():
     panel = panel_from(rows, [a.asset_id for a in basket.assets])
     ok = pd.Series(True, index=panel.index)
 
-    ratio = cs.pc1_ratio(panel, ok, basket, window=200).dropna()
+    ratio, _ = cs.pc1_ratio(panel, ok, basket, window=200)
+    ratio = ratio.dropna()
     # Три независимых ряда: каждая компонента объясняет около трети.
     assert 0.25 < ratio.iloc[-1] < 0.55
 
@@ -172,7 +173,7 @@ def test_pc1_ratio_needs_enough_rows_and_assets():
     ok = pd.Series(True, index=panel.index)
 
     # Меньше трёх активов - обусловленность не выполнена, значение NULL.
-    assert cs.pc1_ratio(panel, ok, basket, window=80).isna().all()
+    assert cs.pc1_ratio(panel, ok, basket, window=80)[0].isna().all()
 
 
 def test_pc1_ratio_skips_incomplete_columns():
@@ -184,7 +185,7 @@ def test_pc1_ratio_skips_incomplete_columns():
     ok = pd.Series(True, index=panel.index)
 
     # Три оставшихся актива дают валидное значение, четвёртый просто выпадает.
-    assert cs.pc1_ratio(panel, ok, basket, window=100).dropna().size > 0
+    assert cs.pc1_ratio(panel, ok, basket, window=100)[0].dropna().size > 0
 
 
 def test_single_factor_falls_back_to_compression_when_pca_is_null():

@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/conjuror123/market-alert/schema/event_export.schema.json",
+  "title": "MEALS cluster event export",
+  "description": "Машиночитаемый срез кластерного события по ТЗ MEALS 5.1, п.6.5. Один файл - одно событие. Все ряды выровнены по window.hours_utc: длина любого массива в basket.* и assets.*.series равна длине window.hours_utc, час без значения даёт null. Часы - unix-секунды начала часа UTC; окно набрано в часах эталонного календаря (п.2.2), поэтому соседние элементы hours_utc не обязаны отстоять ровно на 3600 секунд - на границе выходных разрыв больше.",
+  "type": "object",
+  "required": ["schema_version", "config_version", "run_version", "event_id",
+               "t0_utc", "status", "window", "basket", "assets", "saed_events",
+               "escalations"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Версия самой схемы. Меняется только при несовместимой правке формата."
+    },
+    "config_version": {
+      "type": "string",
+      "description": "Версия конфигурации по п.6.3: хеш содержимого всего, что влияет на расчёт. События с разными config_version сравнивать напрямую нельзя."
+    },
+    "run_version": {
+      "type": "string",
+      "description": "Версия прогона по п.6.2: хеш от config_version и отпечатка входных данных. Повторный прогон по тем же данным даёт ту же версию."
+    },
+    "event_id": {"type": "string", "description": "Идентификатор кластерного события вида cluster:<t0_utc>."},
+    "t0_utc": {"type": "integer", "description": "Час T0 события, unix-секунды."},
+    "status": {"enum": ["open", "finished"], "description": "open - кулдаун события ещё не истёк на момент прогона."},
+    "parent_event_id": {
+      "type": ["string", "null"],
+      "description": "Заполнен только у события, открытого ветвью векторного разворота (п.5.2): ссылка на событие, которое разворот прервал."
+    },
+    "si_total_t0": {"type": ["number", "null"], "description": "SI-Index в час T0 после множителей календаря и VIX (п.4)."},
+    "base_points_t0": {"type": ["integer", "null"], "description": "Базовые баллы в час T0 до множителей (п.4.2)."},
+    "window": {
+      "type": "object",
+      "required": ["arm_reference_hours", "hours_utc", "truncated_left", "truncated_right"],
+      "additionalProperties": false,
+      "properties": {
+        "arm_reference_hours": {"type": "integer", "description": "Плечо окна в часах эталонного календаря, по п.6.5 равно 12."},
+        "hours_utc": {
+          "type": "array",
+          "items": {"type": "integer"},
+          "description": "Часы окна по возрастанию, включая T0. При полном окне длина 2*arm+1."
+        },
+        "truncated_left": {"type": "boolean", "description": "true, если истории слева от T0 не хватило на полное плечо."},
+        "truncated_right": {
+          "type": "boolean",
+          "description": "true, если правое плечо ещё не наступило на момент экспорта. Такое событие нельзя размечать по накопленному движению: часть окна отсутствует, а не спокойна."
+        }
+      }
+    },
+    "escalations": {
+      "type": "array",
+      "description": "Досрочные пробои кулдауна внутри события (п.5.2, ветвь А). Пустой массив - событие прожило кулдаун без эскалаций.",
+      "items": {
+        "type": "object",
+        "required": ["seq", "hour_utc", "kind", "si_total", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "seq": {"type": "integer", "description": "Порядковый номер эскалации внутри события, с единицы."},
+          "hour_utc": {"type": "integer"},
+          "kind": {"enum": ["higher_order_shock"]},
+          "si_total": {"type": ["number", "null"]},
+          "reason": {
+            "enum": ["si>=escalation_threshold", "breadth_q99"],
+            "description": "Какое из двух условий ветви А сработало."
+          }
+        }
+      }
+    },
+    "basket": {
+      "type": "object",
+      "description": "Агрегатные метрики корзины по часам окна (п.3.4, п.6.5).",
+      "additionalProperties": false,
+      "properties": {
+        "csv_norm": {"$ref": "#/$defs/numeric_series", "description": "Нормированная кросс-секционная волатильность."},
+        "pc1_ratio": {"$ref": "#/$defs/numeric_series", "description": "Доля дисперсии первой главной компоненты."},
+        "mean_pairwise_corr": {"$ref": "#/$defs/numeric_series", "description": "Средняя парная корреляция активов корзины вне главной диагонали."},
+        "m_weighted_median": {"$ref": "#/$defs/numeric_series", "description": "Взвешенная медиана доходностей корзины M_t (п.3.3)."},
+        "si_total": {"$ref": "#/$defs/numeric_series"},
+        "base_points": {"$ref": "#/$defs/numeric_series"},
+        "n_assets": {"$ref": "#/$defs/numeric_series", "description": "Число валидных активов в часе."},
+        "quorum_ok": {"$ref": "#/$defs/boolean_series", "description": "Прошёл ли час кворум (п.2.3). null - час не оценивался."}
+      }
+    },
+    "assets": {
+      "type": "object",
+      "description": "Ключ - asset_id вида <source>:<ticker>. Инструменты, у которых во всём окне нет ни одного значения (закрытая биржа), в экспорт не включаются.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["block", "series"],
+        "additionalProperties": false,
+        "properties": {
+          "block": {"type": ["string", "null"], "description": "equity, rates, commodities, FX или crypto."},
+          "tier": {"type": "integer", "description": "1 или 2 (п.2.3)."},
+          "in_basket": {"type": "boolean", "description": "false - инструмент вне корзины (п.8.1): в кворуме и весах не участвует, остатки по нему считаются."},
+          "series": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "r": {"$ref": "#/$defs/numeric_series", "description": "Логарифмическая доходность часа."},
+              "z": {"$ref": "#/$defs/numeric_series", "description": "Out-of-sample Z-оценка доходности (п.3.1). null на разогреве."},
+              "z_resid": {"$ref": "#/$defs/numeric_series", "description": "Z-оценка остатка на факторах корзины и блока (п.3.6)."},
+              "v_r": {"$ref": "#/$defs/numeric_series", "description": "Подтверждение объёмом (п.3.5). null у инструментов без биржевого объёма - это не 'не подтвердилось', а 'не оценивалось'."}
+            }
+          }
+        }
+      }
+    },
+    "saed_events": {
+      "type": "array",
+      "description": "Одиночные события по активам (п.3.6, п.8.2), попавшие в окно. Список независим от кластерного события: он не означает причинности, а показывает, что происходило рядом.",
+      "items": {
+        "type": "object",
+        "required": ["event_id", "asset_id", "block", "hour_utc"],
+        "additionalProperties": false,
+        "properties": {
+          "event_id": {"type": "string"},
+          "asset_id": {"type": "string"},
+          "block": {"type": "string"},
+          "hour_utc": {"type": "integer"},
+          "z_resid": {"type": ["number", "null"]},
+          "e_resid": {"type": ["number", "null"]},
+          "r": {"type": ["number", "null"]},
+          "repeat_count": {"type": ["integer", "null"], "description": "Сколько повторных срабатываний поглотил кулдаун события (п.8.3)."}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "numeric_series": {
+      "type": "array",
+      "items": {"type": ["number", "null"]},
+      "description": "Длина совпадает с window.hours_utc."
+    },
+    "boolean_series": {
+      "type": "array",
+      "items": {"type": ["boolean", "null"]},
+      "description": "Длина совпадает с window.hours_utc."
+    }
+  }
+}

@@ -210,7 +210,7 @@ def csv_compression(csv_norm: pd.Series, m: pd.Series,
     q10 = rolling.quantile(0.10)
     m_std = m.shift(1).rolling(window, min_periods=window).std(ddof=1)
     result = (csv_norm < q10) & (m.abs() > 2 * m_std)
-    return result.where(q10.notna() & m_std.notna(), pd.NA).astype("boolean")
+    return (result.where(q10.notna() & m_std.notna(), pd.NA).astype("boolean"), q10)
 
 
 def full_basket_regime(quorum_frame: pd.DataFrame, basket: Basket) -> pd.Series:
@@ -264,6 +264,10 @@ def pc1_ratio(panel: pd.DataFrame, quorum_ok: pd.Series, basket: Basket,
     eligible = values[mask]
 
     out = pd.Series(np.nan, index=panel.index)
+    # Средняя парная корреляция (п.6.5) считается здесь же: корреляционная
+    # матрица для неё уже построена, и отдельный проход по тем же окнам стоил
+    # бы столько же, сколько весь PCA.
+    mean_corr = pd.Series(np.nan, index=panel.index)
     positions = {h: i for i, h in enumerate(eligible.index)}
     matrix = eligible.to_numpy(dtype="float64")
 
@@ -290,7 +294,14 @@ def pc1_ratio(panel: pd.DataFrame, quorum_ok: pd.Series, basket: Basket,
         total = eigenvalues.sum()
         if total > 0:
             out[hour] = float(eigenvalues[-1] / total)
-    return out
+        # Среднее арифметическое элементов ВНЕ главной диагонали. Диагональ -
+        # это корреляция актива с самим собой, единица по построению, и её
+        # включение просто подтягивало бы среднее вверх тем сильнее, чем меньше
+        # активов в окне.
+        off_diagonal = correlation[~np.eye(n_assets, dtype=bool)]
+        if off_diagonal.size:
+            mean_corr[hour] = float(np.nanmean(off_diagonal))
+    return out, mean_corr
 
 
 def pca_sync(ratio: pd.Series, window: int = windows.W_CS) -> pd.Series:
@@ -300,7 +311,8 @@ def pca_sync(ratio: pd.Series, window: int = windows.W_CS) -> pd.Series:
     rolling = ratio.shift(1).rolling(window, min_periods=PCA_STAT_MIN_OBS)
     threshold = np.maximum(rolling.quantile(0.95), rolling.median() + PCA_SYNC_MARGIN)
     result = ratio > threshold
-    return result.where(threshold.notna() & ratio.notna(), pd.NA).astype("boolean")
+    return (result.where(threshold.notna() & ratio.notna(), pd.NA).astype("boolean"),
+            threshold)
 
 
 def single_factor(compression: pd.Series, sync: pd.Series) -> pd.Series:
@@ -333,17 +345,22 @@ def build_basket_metrics(metrics: dict[str, pd.DataFrame], basket: Basket,
     csv_frame = cross_sectional_volatility(panel, sigma_panel, basket)
 
     regime = full_basket_regime(quorum_frame, basket)
-    ratio = pc1_ratio(panel, ok, basket, regime=regime)
+    ratio, mean_corr = pc1_ratio(panel, ok, basket, regime=regime)
 
     # Час без кворума не оценивается вовсе: по п.2.3 все кластерные триггеры
     # получают NULL, а не False.
-    compression = csv_compression(csv_frame["csv_norm"], m).where(ok, pd.NA)
-    sync = pca_sync(ratio).where(ok, pd.NA)
+    compression, compression_threshold = csv_compression(csv_frame["csv_norm"], m)
+    compression = compression.where(ok, pd.NA)
+    sync, sync_threshold = pca_sync(ratio)
+    sync = sync.where(ok, pd.NA)
 
     out = pd.concat([quorum_frame, csv_frame], axis=1)
     out["m_weighted_median"] = m
     out["pc1_ratio"] = ratio
+    out["pc1_threshold"] = sync_threshold
+    out["mean_pairwise_corr"] = mean_corr
     out["in_full_regime"] = regime
+    out["csv_norm_q10"] = compression_threshold
     out["csv_compression"] = compression.astype("boolean")
     out["pca_sync"] = sync.astype("boolean")
     out["single_factor"] = single_factor(compression, sync).where(ok, pd.NA).astype("boolean")

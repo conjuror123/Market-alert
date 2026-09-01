@@ -183,6 +183,26 @@ def escalations_frame(events: list[ClusterEvent]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+# Колонки, которые дописывает в metrics_basket_hour сам этот прогон. При
+# повторном запуске они уже в файле, и join уронил бы его на пересечении имён.
+DERIVED_COLUMNS = ("m_calendar", "m_vix", "si_total", "sigma_m", "k", "decision",
+                   "base_points", "breadth_q99", "n_active_blocks",
+                   "n_active_blocks_q99")
+
+
+def reset_derived(basket_frame: pd.DataFrame) -> pd.DataFrame:
+    """Сбрасывает собственный результат прошлого прогона (п.6.2).
+
+    Файл метрик корзины здесь одновременно вход и выход. Требование п.6.2 -
+    повторный прогон того же часа не должен ни падать, ни двоить результат, -
+    выполняется тем, что производные колонки удаляются и считаются заново, а не
+    тем, что кто-то помнит запустить cross_section перед cluster.
+    """
+    derived = [c for c in DERIVED_COLUMNS if c in basket_frame.columns]
+    derived += [c for c in basket_frame.columns if c.startswith("trigger_")]
+    return basket_frame.drop(columns=derived)
+
+
 DEFAULT_EVENTS_PATH = "data/meals/cluster_events.parquet"
 DEFAULT_ESCALATIONS_PATH = "data/meals/cluster_event_escalations.parquet"
 
@@ -192,7 +212,8 @@ def main(argv: list[str] | None = None) -> int:
     import logging
     import os
 
-    from meals import bars, calendar_multiplier, cross_section, pipeline, vix
+    from meals import (bars, calendar_multiplier, cross_section, journal, pipeline,
+                       saed, versioning, vix)
     from meals.basket import load_basket
 
     parser = argparse.ArgumentParser(description="SI-Index и кластерные события (п.4, п.5)")
@@ -200,6 +221,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--basket-metrics", default=cross_section.DEFAULT_BASKET_METRICS_PATH)
     parser.add_argument("--events-out", default=DEFAULT_EVENTS_PATH)
     parser.add_argument("--escalations-out", default=DEFAULT_ESCALATIONS_PATH)
+    parser.add_argument("--journal-out", default=journal.DEFAULT_JOURNAL_PATH)
+    parser.add_argument("--warmup-out", default=journal.DEFAULT_WARMUP_PATH)
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -208,16 +231,7 @@ def main(argv: list[str] | None = None) -> int:
     basket = load_basket()
     metrics = pipeline.load_all(basket, args.metrics_dir)
     basket_frame = pd.read_parquet(args.basket_metrics).set_index("hour_utc").sort_index()
-    # Прогон дописывает свои колонки в тот же файл, поэтому при повторном
-    # запуске они уже там. Требование п.6.2 - повторный прогон того же часа не
-    # должен ни падать, ни двоить результат, - так что производные колонки
-    # сбрасываются и считаются заново.
-    derived = [c for c in ("m_calendar", "m_vix", "si_total", "sigma_m", "k",
-                           "decision", "base_points", "breadth_q99",
-                           "n_active_blocks", "n_active_blocks_q99")
-               if c in basket_frame.columns]
-    derived += [c for c in basket_frame.columns if c.startswith("trigger_")]
-    basket_frame = basket_frame.drop(columns=derived)
+    basket_frame = reset_derived(basket_frame)
     hours = basket_frame.index
 
     calendar = calendar_multiplier.multiplier_series(hours)
@@ -235,8 +249,13 @@ def main(argv: list[str] | None = None) -> int:
                                           frame["m_vix"])
     frame = frame.join(reversal_scale(frame["m_weighted_median"]))
 
-    events, journal = run(frame)
-    frame = frame.join(journal)
+    events, decisions = run(frame)
+    frame = frame.join(decisions)
+
+    # Отпечаток берётся по СЫРЫМ входам (versioning.RAW_INPUTS), а не по файлу
+    # метрик корзины: он этому прогону и вход, и выход, и включение его в
+    # отпечаток означало бы новую run_version на каждом повторе.
+    config, run_id = versioning.versions_for()
 
     for path, data in ((args.events_out, events_frame(events)),
                        (args.escalations_out, escalations_frame(events))):
@@ -244,6 +263,23 @@ def main(argv: list[str] | None = None) -> int:
         data.to_parquet(path, index=False, compression="zstd")
     frame.reset_index(names="hour_utc").to_parquet(args.basket_metrics, index=False,
                                                    compression="zstd")
+
+    # Журнал решений (п.6.1).
+    # Остатки берутся с диска, если прогон SAED уже был: пересчитывать регрессии
+    # ради журнала не нужно, а без них строки saed просто не появятся.
+    residual_frames = saed.load_residuals(basket)
+    if not residual_frames:
+        log.warning("рядов остатков нет - журнал соберётся без строк SAED; "
+                    "сначала python -m meals.saed")
+    rows = pd.concat([
+        journal.stamp(journal.asset_decisions(metrics, residual_frames), config, run_id),
+        journal.stamp(journal.basket_decisions(frame), config, run_id),
+    ], ignore_index=True)
+    os.makedirs(os.path.dirname(args.journal_out) or ".", exist_ok=True)
+    rows.to_parquet(args.journal_out, index=False, compression="zstd")
+    journal.first_valid_hour(metrics, frame).to_parquet(args.warmup_out, index=False,
+                                                        compression="zstd")
+    log.info("журнал решений: %d строк, config %s, run %s", len(rows), config, run_id)
 
     reversals = sum(1 for e in events if e.parent_event_id)
     log.info("кластерных событий %d (из них разворотов %d), эскалаций %d",

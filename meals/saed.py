@@ -146,6 +146,44 @@ def link_alerts(events: pd.DataFrame, alerts: pd.DataFrame) -> pd.DataFrame:
 
 DEFAULT_EVENTS_PATH = "data/meals/saed_events.parquet"
 DEFAULT_ALERTS_PATH = "data/meals/saed_block_alerts.parquet"
+DEFAULT_RESIDUALS_DIR = "data/meals/residuals"
+
+# Ряды остатков, которые сохраняются на диск. Пересчитать их из метрик можно,
+# но это полный прогон регрессий по всей истории - минуты вместо секунд, и
+# журналу решений (п.6.1) с экспортом событий (п.6.5) они нужны оба раза.
+#
+# Промежуточные состояния сюда не идут: винзоризованный остаток и sigma_eff
+# однозначно восстанавливаются из e_resid и sigma_LT тем же аппаратом п.2.5,
+# а вот места занимают столько же, сколько всё остальное вместе - это ряды
+# из случайных чисел, которые не сжимаются ничем.
+RESIDUAL_COLUMNS = ("hour_utc", "asset_id", "beta", "beta_block", "e_resid",
+                    "sigma_lt_resid", "z_resid", "q95_resid", "q99_resid")
+
+
+def save_residuals(scored: dict[str, pd.DataFrame],
+                   out_dir: str = DEFAULT_RESIDUALS_DIR) -> None:
+    import os
+
+    from meals.basket import load_basket
+
+    os.makedirs(out_dir, exist_ok=True)
+    stems = {a.asset_id: a.file_stem for a in load_basket().instruments}
+    for asset_id, frame in scored.items():
+        columns = [c for c in RESIDUAL_COLUMNS if c in frame.columns]
+        frame[columns].to_parquet(os.path.join(out_dir, f"{stems[asset_id]}.parquet"),
+                                  index=False, compression="zstd")
+
+
+def load_residuals(basket: Basket,
+                   out_dir: str = DEFAULT_RESIDUALS_DIR) -> dict[str, pd.DataFrame]:
+    import os
+
+    out = {}
+    for asset in basket.instruments:
+        path = os.path.join(out_dir, f"{asset.file_stem}.parquet")
+        if os.path.exists(path):
+            out[asset.asset_id] = pd.read_parquet(path)
+    return out
 
 
 def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
@@ -192,6 +230,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--basket-metrics", default=cross_section.DEFAULT_BASKET_METRICS_PATH)
     parser.add_argument("--events-out", default=DEFAULT_EVENTS_PATH)
     parser.add_argument("--alerts-out", default=DEFAULT_ALERTS_PATH)
+    parser.add_argument("--residuals-out", default=DEFAULT_RESIDUALS_DIR)
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -214,10 +253,11 @@ def main(argv: list[str] | None = None) -> int:
                  if sessions.is_reference_hour(int(h), basket.anchor_exchange_tz)]
     block_factors = cross_section.block_factors(panel.loc[reference], basket)
 
-    events, alerts, _ = build_for_basket(basket, metrics, factor, block_factors)
+    events, alerts, scored = build_for_basket(basket, metrics, factor, block_factors)
     for path, frame in ((args.events_out, events), (args.alerts_out, alerts)):
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         frame.to_parquet(path, index=False, compression="zstd")
+    save_residuals(scored, args.residuals_out)
 
     log.info("событий %d, блочных алертов %d, повторов внутри пауз %d",
              len(events), len(alerts),
