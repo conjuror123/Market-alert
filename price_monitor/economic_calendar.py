@@ -33,8 +33,6 @@ Medium оказались дубликатами того же события в
 from __future__ import annotations
 
 import argparse
-import csv
-import io
 import json
 import logging
 import os
@@ -43,7 +41,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 
 import requests
 
@@ -100,10 +98,17 @@ def fetch_calendar(session: requests.Session | None = None, timeout: int = 15) -
             events.append({
                 "title": item["title"],
                 "country": item["country"],
-                "date": item["date"],
+                # Приводится к UTC, как и обе исторические ветки: фид отдаёт
+                # фиксированное смещение -04:00, и хранить рядом две записи
+                # одного момента в разной упаковке значило бы завести ту самую
+                # сдвинутую копию, из-за которой выброшен прежний архив.
+                "date": parse_event_time(item["date"]).isoformat(),
                 "impact": _normalize_impact(item["impact"]),
                 "forecast": item.get("forecast", ""),
                 "previous": item.get("previous", ""),
+                # Ключа "actual" в этом фиде НЕТ - проверено на живой выдаче.
+                # Поле остаётся пустым до дозаполнения с помесячной страницы
+                # (weekly_digest.backfill_actuals).
                 "actual": item.get("actual", ""),
             })
         except KeyError:
@@ -141,29 +146,72 @@ def load_events(path: str) -> list[dict]:
 
 
 def _event_key(event: dict) -> tuple:
-    return (event["country"], event["title"], event["date"])
+    """Ключ дедупликации - страна, название и МГНОВЕНИЕ публикации.
+
+    Именно мгновение, а не строка даты. Источники записывают один и тот же
+    момент по-разному: недельный фид отдаёт "2026-09-03T08:30:00-04:00",
+    помесячные страницы и датасет - "2026-09-03T12:30:00+00:00". По строке это
+    два разных события, и архив копил бы каждую публикацию дважды - ровно та
+    поломка, из-за которой пришлось выбросить прежний архив целиком (см.
+    строку модуля).
+    """
+    return (event["country"], event["title"],
+            parse_event_time(event["date"]).timestamp())
+
+
+def _merge_one(stored: dict | None, incoming: dict) -> dict:
+    """Сливает две версии одного события. Пустое поле не затирает заполненное.
+
+    Без этого правила недельный фид стирал бы вышедшие значения. Он приносит
+    событие заранее и вообще не знает поля actual - у него в выдаче такого
+    ключа нет, - так что после дозаполнения факта следующий же прогон вернул бы
+    в архив пустую строку. Проверено на живых данных: из 93 событий, которые
+    видят и фид, и помесячная страница, расходятся ровно 20, и расходятся они
+    ровно по actual, который у фида пуст, а на странице заполнен.
+
+    Источник, который промолчал, не сообщает "значения нет" - он сообщает
+    "я не знаю", и стирать по такому молчанию нечего.
+    """
+    if stored is None:
+        return dict(incoming)
+    merged = dict(stored)
+    for key, value in incoming.items():
+        if str(value or "").strip() or not str(stored.get(key) or "").strip():
+            merged[key] = value
+    return merged
 
 
 def merge_events(path: str, events: list[dict]) -> int:
     """Idempotently merges `events` into the local store, deduplicated by
-    (country, title, date) and rewritten in order - same pattern as
-    candle_store.merge_history, for the same reason: this is called every
+    (country, title, момент публикации) and rewritten in order - same pattern
+    as candle_store.merge_history, for the same reason: this is called every
     week with a feed that mostly repeats recurring events, so it must be
     safe to call repeatedly with overlapping data without accumulating
-    duplicate rows. Returns how many new rows were added."""
+    duplicate rows. Returns how many rows were added ИЛИ ИЗМЕНЕНЫ.
+
+    Изменённые считаются наравне с новыми, и это не мелочь. Недельный фид
+    приносит событие заранее, без вышедшего значения, а факт появляется
+    позже - при дозаполнении с помесячной страницы (weekly_digest.
+    backfill_actuals). Такой повтор не добавляет ни одной строки, он только
+    заполняет поле actual, и прежняя версия, сравнивавшая ЧИСЛО строк до и
+    после, молча выбрасывала бы его вместе со всей записью на диск.
+    """
     by_key: dict[tuple, dict] = {_event_key(e): e for e in load_events(path)}
-    before = len(by_key)
+    changed = 0
     for e in events:
-        by_key[_event_key(e)] = e
-    added = len(by_key) - before
-    if added == 0:
+        key = _event_key(e)
+        merged = _merge_one(by_key.get(key), e)
+        if merged != by_key.get(key):
+            by_key[key] = merged
+            changed += 1
+    if changed == 0:
         return 0
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         for e in sorted(by_key.values(), key=lambda e: e["date"]):
             f.write(json.dumps(e, sort_keys=True))
             f.write("\n")
-    return added
+    return changed
 
 
 # --- Исторический импорт -------------------------------------------------
@@ -241,7 +289,7 @@ def _normalize_kaggle_row(row: dict) -> dict | None:
 def fetch_kaggle_calendar(session: requests.Session | None = None,
                           timeout: int = 180) -> list[dict]:
     """Исторический архив 2020-2025 одним zip-архивом."""
-    import csv as _csv
+    import csv
     import io
     import zipfile
 
@@ -250,7 +298,7 @@ def fetch_kaggle_calendar(session: requests.Session | None = None,
     name = next(n for n in archive.namelist() if n.lower().endswith(".csv"))
     with archive.open(name) as raw:
         text = io.TextIOWrapper(raw, encoding="utf-8", errors="ignore")
-        events = [normalized for row in _csv.DictReader(text)
+        events = [normalized for row in csv.DictReader(text)
                   if (normalized := _normalize_kaggle_row(row)) is not None]
     if not events:
         raise CalendarError("Датасет Kaggle не дал ни одного пригодного события")

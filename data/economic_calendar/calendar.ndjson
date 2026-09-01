@@ -100485,19 +100485,19 @@
 {"actual": "2.3%", "country": "CHF", "date": "2026-09-01T06:33:00+00:00", "forecast": "1.6%", "impact": "Low", "previous": "1.5%", "title": "Retail Sales y/y"}
 {"actual": "49.5", "country": "EUR", "date": "2026-09-01T07:15:00+00:00", "forecast": "50.3", "impact": "Low", "previous": "50.2", "title": "Spanish Manufacturing PMI"}
 {"actual": "57.1", "country": "CHF", "date": "2026-09-01T07:30:00+00:00", "forecast": "54.1", "impact": "Low", "previous": "53.2", "title": "Manufacturing PMI"}
-{"actual": "", "country": "EUR", "date": "2026-09-01T07:45:00+00:00", "forecast": "51.4", "impact": "Low", "previous": "51.3", "title": "Italian Manufacturing PMI"}
-{"actual": "", "country": "EUR", "date": "2026-09-01T07:50:00+00:00", "forecast": "51.5", "impact": "Low", "previous": "51.5", "title": "French Final Manufacturing PMI"}
-{"actual": "", "country": "EUR", "date": "2026-09-01T07:55:00+00:00", "forecast": "54.1", "impact": "Low", "previous": "54.1", "title": "German Final Manufacturing PMI"}
-{"actual": "", "country": "EUR", "date": "2026-09-01T08:00:00+00:00", "forecast": "52.8", "impact": "Low", "previous": "52.8", "title": "Final Manufacturing PMI"}
-{"actual": "", "country": "EUR", "date": "2026-09-01T08:30:00+00:00", "forecast": "5.6%", "impact": "Low", "previous": "5.7%", "title": "Italian Monthly Unemployment Rate"}
-{"actual": "", "country": "GBP", "date": "2026-09-01T08:30:00+00:00", "forecast": "51.5", "impact": "Low", "previous": "51.5", "title": "Final Manufacturing PMI"}
-{"actual": "", "country": "GBP", "date": "2026-09-01T08:30:00+00:00", "forecast": "0.9%", "impact": "Low", "previous": "0.8%", "title": "M4 Money Supply m/m"}
-{"actual": "", "country": "GBP", "date": "2026-09-01T08:30:00+00:00", "forecast": "59K", "impact": "Low", "previous": "58K", "title": "Mortgage Approvals"}
-{"actual": "", "country": "GBP", "date": "2026-09-01T08:30:00+00:00", "forecast": "7.2B", "impact": "Low", "previous": "9.5B", "title": "Net Lending to Individuals m/m"}
-{"actual": "", "country": "EUR", "date": "2026-09-01T09:00:00+00:00", "forecast": "2.5%", "impact": "Medium", "previous": "2.5%", "title": "Core CPI Flash Estimate y/y"}
-{"actual": "", "country": "EUR", "date": "2026-09-01T09:00:00+00:00", "forecast": "3.3%", "impact": "Medium", "previous": "2.9%", "title": "CPI Flash Estimate y/y"}
-{"actual": "", "country": "EUR", "date": "2026-09-01T09:00:00+00:00", "forecast": "0.5%", "impact": "Low", "previous": "0.2%", "title": "Italian Prelim CPI m/m"}
-{"actual": "", "country": "EUR", "date": "2026-09-01T09:00:00+00:00", "forecast": "6.3%", "impact": "Low", "previous": "6.3%", "title": "Unemployment Rate"}
+{"actual": "49.6", "country": "EUR", "date": "2026-09-01T07:45:00+00:00", "forecast": "51.4", "impact": "Low", "previous": "51.3", "title": "Italian Manufacturing PMI"}
+{"actual": "51.1", "country": "EUR", "date": "2026-09-01T07:50:00+00:00", "forecast": "51.5", "impact": "Low", "previous": "51.5", "title": "French Final Manufacturing PMI"}
+{"actual": "54.3", "country": "EUR", "date": "2026-09-01T07:55:00+00:00", "forecast": "54.1", "impact": "Low", "previous": "54.1", "title": "German Final Manufacturing PMI"}
+{"actual": "52.7", "country": "EUR", "date": "2026-09-01T08:00:00+00:00", "forecast": "52.8", "impact": "Low", "previous": "52.8", "title": "Final Manufacturing PMI"}
+{"actual": "5.8%", "country": "EUR", "date": "2026-09-01T08:30:00+00:00", "forecast": "5.6%", "impact": "Low", "previous": "5.7%", "title": "Italian Monthly Unemployment Rate"}
+{"actual": "51.7", "country": "GBP", "date": "2026-09-01T08:30:00+00:00", "forecast": "51.5", "impact": "Low", "previous": "51.5", "title": "Final Manufacturing PMI"}
+{"actual": "-0.3%", "country": "GBP", "date": "2026-09-01T08:30:00+00:00", "forecast": "0.9%", "impact": "Low", "previous": "0.8%", "title": "M4 Money Supply m/m"}
+{"actual": "56K", "country": "GBP", "date": "2026-09-01T08:30:00+00:00", "forecast": "59K", "impact": "Low", "previous": "58K", "title": "Mortgage Approvals"}
+{"actual": "6.3B", "country": "GBP", "date": "2026-09-01T08:30:00+00:00", "forecast": "7.2B", "impact": "Low", "previous": "9.5B", "title": "Net Lending to Individuals m/m"}
+{"actual": "2.4%", "country": "EUR", "date": "2026-09-01T09:00:00+00:00", "forecast": "2.5%", "impact": "Medium", "previous": "2.5%", "title": "Core CPI Flash Estimate y/y"}
+{"actual": "3.3%", "country": "EUR", "date": "2026-09-01T09:00:00+00:00", "forecast": "3.3%", "impact": "Medium", "previous": "2.9%", "title": "CPI Flash Estimate y/y"}
+{"actual": "0.5%", "country": "EUR", "date": "2026-09-01T09:00:00+00:00", "forecast": "0.5%", "impact": "Low", "previous": "0.2%", "title": "Italian Prelim CPI m/m"}
+{"actual": "6.4%", "country": "EUR", "date": "2026-09-01T09:00:00+00:00", "forecast": "6.3%", "impact": "Low", "previous": "6.3%", "title": "Unemployment Rate"}
 {"actual": "", "country": "USD", "date": "2026-09-01T13:05:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Barr Speaks"}
 {"actual": "", "country": "CAD", "date": "2026-09-01T13:30:00+00:00", "forecast": "", "impact": "Low", "previous": "53.5", "title": "Manufacturing PMI"}
 {"actual": "", "country": "USD", "date": "2026-09-01T13:45:00+00:00", "forecast": "53.3", "impact": "Low", "previous": "53.2", "title": "Final Manufacturing PMI"}

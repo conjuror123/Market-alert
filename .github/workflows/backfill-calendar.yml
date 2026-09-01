@@ -1,38 +1,39 @@
 name: Backfill Economic Calendar
 
-# Ручной, разовый импорт локального архива календаря (data/economic_calendar/,
-# см. README) - в отличие от price-monitor.yml, который раз в неделю (см.
-# weekly_digest.py) добавляет только текущую неделю с фида ForexFactory.
-# ForexFactory сам отдаёт только "эту неделю" и блокирует скрейпинг архива
-# Cloudflare'ом, а Financial Modeling Prep (пробовали как платную
-# альтернативу) оказался платным даже на "stable" тарифе (см. README) -
-# поэтому историю берём из готовых дампов ForexFactory, лежащих на GitHub и
-# Hugging Face (не за Cloudflare, без ключа). Архив хранит все уровни
-# важности - Low/Medium/High (см. README и economic_calendar.py).
+# Ручная пересборка локального архива календаря (data/economic_calendar/,
+# см. README). Штатное пополнение идёт иначе: weekly_digest раз в неделю
+# добавляет текущую неделю с живого фида ForexFactory и дочитывает факт за
+# текущий и прошлый месяц с помесячных страниц. Этот workflow нужен, когда
+# архив надо собрать заново целиком или закрыть большой пробел.
+#
+# Источников два, оба без ключа: датасет "Global Economic Calendar" на Kaggle
+# (2020-01-01 .. 2025-10-01, CC BY-NC-SA 4.0) и помесячные страницы самой
+# ForexFactory дальше. Прежние три дампа (spoluan, ehsan) сняты вместе с их
+# данными - у них четверть событий High и Medium оказалась сдвинутыми копиями
+# (см. economic_calendar.py и docs/meals-otstupleniya.md, п.11).
 
 on:
   workflow_dispatch:
     inputs:
-      since_year:
-        description: 'Первый год для импорта из spoluan (включительно), 2010-2023 - можно оставить пустым'
+      mode:
+        description: 'Что делать'
+        required: true
+        default: 'rebuild'
+        type: choice
+        options:
+          - rebuild            # выбросить архив и собрать заново: Kaggle + ForexFactory
+          - import-kaggle      # только исторический датасет
+          - import-forexfactory  # только помесячный добор
+      from_month:
+        description: 'Первый месяц добора с ForexFactory, YYYY-MM (по умолчанию 2025-10)'
         required: false
         default: ''
         type: string
-      until_year:
-        description: 'Последний год для spoluan (включительно), по умолчанию - since_year'
+      to_month:
+        description: 'Последний месяц добора, YYYY-MM (по умолчанию текущий)'
         required: false
         default: ''
         type: string
-      ehsan_full:
-        description: 'Импортировать полный календарь 2007-01-01..2025-04-07 (все уровни важности) из ehsanrs2 на Hugging Face'
-        required: false
-        default: true
-        type: boolean
-      ehsan_high_impact:
-        description: 'Также импортировать High Impact ~2020-2026 из ehsanrs2 на GitHub (см. README)'
-        required: false
-        default: true
-        type: boolean
 
 permissions:
   contents: write
@@ -40,7 +41,7 @@ permissions:
 jobs:
   backfill:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -57,10 +58,9 @@ jobs:
       - name: Run calendar backfill
         run: |
           python -m price_monitor.economic_calendar \
-            ${{ github.event.inputs.since_year != '' && format('--import-spoluan --since-year {0}', github.event.inputs.since_year) || '' }} \
-            ${{ github.event.inputs.until_year != '' && format('--until-year {0}', github.event.inputs.until_year) || '' }} \
-            ${{ github.event.inputs.ehsan_full == 'true' && '--import-ehsan-full' || '' }} \
-            ${{ github.event.inputs.ehsan_high_impact == 'true' && '--import-ehsan-high-impact' || '' }}
+            --${{ github.event.inputs.mode }} \
+            ${{ github.event.inputs.from_month != '' && format('--from-month {0}', github.event.inputs.from_month) || '' }} \
+            ${{ github.event.inputs.to_month != '' && format('--to-month {0}', github.event.inputs.to_month) || '' }}
 
       - name: Commit updated calendar history
         # Same reasoning as backfill-history.yml's commit step: keep whatever

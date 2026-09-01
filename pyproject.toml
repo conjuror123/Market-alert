@@ -1,3 +1,8 @@
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = [
+    # Тесты самого дозаполнения факта: автофикстура в test_weekly_digest.py
+    # глушит backfill_actuals везде, кроме них, чтобы дайджест не ходил в сеть.
+    "real_backfill: тест проверяет backfill_actuals, а не заглушку",
+]

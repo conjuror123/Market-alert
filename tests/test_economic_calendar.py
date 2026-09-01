@@ -61,8 +61,11 @@ def test_fetch_calendar_parses_known_fields(monkeypatch):
     events = fetch_calendar()
 
     assert len(events) == 2
+    # Дата приводится к UTC: фид отдаёт фиксированное смещение -04:00, а
+    # обе исторические ветки пишут в UTC, и хранить один момент в двух
+    # упаковках значило бы завести сдвинутую копию.
     assert events[0] == {
-        "title": "Non-Farm Payrolls", "country": "USD", "date": "2026-09-04T08:30:00-04:00",
+        "title": "Non-Farm Payrolls", "country": "USD", "date": "2026-09-04T12:30:00+00:00",
         "impact": "High", "forecast": "180K", "previous": "150K", "actual": "190K",
     }
 
