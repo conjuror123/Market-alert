@@ -184,54 +184,6 @@ def test_load_events_returns_empty_list_when_file_missing(tmp_path):
     assert economic_calendar.load_events(str(tmp_path / "nope.ndjson")) == []
 
 
-
-def test_kaggle_row_becomes_an_archive_event():
-    from price_monitor.economic_calendar import _normalize_kaggle_row
-
-    event = _normalize_kaggle_row({
-        "date": "14/01/2020", "time": "13:30", "zone": "united states",
-        "currency": "USD", "importance": "high", "event": "CPI (MoM)",
-        "actual": "0.2%", "forecast": "0.3%", "previous": "0.1%",
-    })
-
-    assert event["date"] == "2020-01-14T13:30:00+00:00"
-    assert event["country"] == "USD"
-    assert event["impact"] == "High"
-    assert event["forecast"] == "0.3%"
-
-
-def test_kaggle_all_day_rows_are_dropped():
-    # Выходные и праздники: ни момента публикации, ни влияния на рынок. В
-    # исходном датасете таких строк 85%.
-    from price_monitor.economic_calendar import _normalize_kaggle_row
-
-    assert _normalize_kaggle_row({
-        "date": "01/01/2020", "time": "All Day", "zone": "united states",
-        "importance": "", "event": "New Year's Day",
-    }) is None
-
-
-def test_kaggle_rows_without_importance_are_dropped():
-    from price_monitor.economic_calendar import _normalize_kaggle_row
-
-    assert _normalize_kaggle_row({
-        "date": "14/01/2020", "time": "13:30", "importance": None,
-        "event": "x", "zone": "y",
-    }) is None
-
-
-def test_kaggle_time_is_read_as_utc():
-    # Проверено на данных: у CPI США ровно два времени, 12:30 и 13:30 UTC, что
-    # соответствует 08:30 по Нью-Йорку летом и зимой. Толковать это как местное
-    # время значило бы повторить ошибку прежнего архива.
-    from price_monitor.economic_calendar import _normalize_kaggle_row
-
-    summer = _normalize_kaggle_row({"date": "11/06/2025", "time": "12:30",
-                                    "importance": "high", "event": "CPI",
-                                    "currency": "USD", "zone": "us"})
-    assert summer["date"].endswith("+00:00")
-
-
 def test_forexfactory_state_is_parsed_by_brace_matching():
     from price_monitor.economic_calendar import _extract_calendar_state
 

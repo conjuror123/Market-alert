@@ -9,26 +9,29 @@ spans Sunday through Friday, so fetching it specifically on Sunday - which is
 exactly when weekly_digest.py runs - already returns the coming week's
 events, with no separate "next week" request needed.
 
-Исторический архив (не "эта неделя") собирается из двух источников, и оба
-доступны без ключа:
+Исторический архив (не "эта неделя") берётся ОТТУДА ЖЕ, с самого ForexFactory,
+помесячными страницами (fetch_forexfactory_month). Один источник на всю
+историю - и это главное его свойство, важнее полноты.
 
-- fetch_kaggle_calendar: датасет "Global Economic Calendar" (EL Younes,
-  CC BY-NC-SA 4.0), 2020-01-01 .. 2025-10-01, скачивается публичным API Kaggle
-  без авторизации;
-- fetch_forexfactory_month: помесячные страницы самой ForexFactory, начиная с
-  того месяца, где кончается датасет.
+Сторонние источники перепробованы и сняты все. Сначала три готовых дампа
+ForexFactory с GitHub и Hugging Face: в собранном из них архиве четверть событий
+High и Medium оказались дубликатами того же события в пределах суток, с
+доминирующим сдвигом ровно в семь часов - дампы собирались с разными
+соглашениями о часовом поясе. Потом датасет "Global Economic Calendar" на
+Kaggle: у него с временем всё было в порядке, но с ТАКСОНОМИЕЙ - нет. Он
+раздавал метку Medium вдевятеро щедрее, чем сама ForexFactory: 96.9 события в
+неделю против 11.3 на том же периоде, при том что High у обоих совпадал (13.0 и
+13.4). Архив из двух источников получал шов ровно там, где один сменял другого:
+календарный множитель MEALS (п.4.3) был включён в 90.7% часов на половине
+Kaggle и в 53.2% на половине ForexFactory.
 
-Прежние три источника (spoluan, ehsan high-impact, ehsan full) сняты вместе с
-их данными. Причина измерена: в собранном из них архиве четверть событий High и
-Medium оказались дубликатами того же события в пределах суток, с доминирующим
-сдвигом ровно в семь часов - дампы собирались с разными соглашениями о часовом
-поясе, а ключ слияния включает дату, поэтому сдвинутая копия выглядела отдельным
-событием. Для календарного множителя (MEALS, п.4.3) это хуже пропусков: пропуск
-занижает вес часа, а фантомное событие поднимает его там, где публикации не было.
+Для калибровки это хуже, чем пропуски. Train-период п.7 целиком лежал бы в
+щедрой половине, а работа шла бы по скупой - пороги настроились бы на один
+режим, а применялись бы в другом, и заметить это по метрикам было бы нечем.
 
-Что дала замена, на измеренных числах: событий 100 865 вместо 23 133, период
-2021-01-01 .. 2026-10-01 без единого пробела, дубликатов 2.4% вместо 25%, у CPI
-США ровно одно время публикации - 08:30 по Нью-Йорку - вместо двух кластеров.
+Цена одного источника - потеря событий Low: их у ForexFactory на порядок
+меньше, чем было у Kaggle. Она нулевая по существу: множитель п.4.3 использует
+только High и Medium, Low в нём не участвует вовсе.
 """
 from __future__ import annotations
 
@@ -57,12 +60,10 @@ CALENDAR_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 # imports rather than kept as dead weight.
 _ARCHIVE_SINCE = "2021-01-01T00:00:00+00:00"
 
-# Every source is normalized down to this 3-value scale - a source's own
-# extra categories (ForexFactory's "Holiday", spoluan's "Non-economic") don't
-# carry the kind of significance Medium/High do, so they're folded into "Low"
-# right at the point each source gets parsed, rather than leaking each
-# source's own quirky taxonomy into the rest of the app (filtering,
-# storage, display all only ever need to know about Low/Medium/High).
+# Шкала важности ровно трёхзначная. Собственные лишние категории источника
+# ("Holiday" у живого фида) значимости Medium/High не несут и сворачиваются в
+# "Low" прямо в момент разбора, чтобы таксономия источника не растекалась по
+# остальному коду: фильтрации, хранению и выводу достаточно Low/Medium/High.
 _IMPACT_ALIASES = {
     "Holiday": "Low",
     "Non-economic": "Low",
@@ -215,39 +216,6 @@ def merge_events(path: str, events: list[dict]) -> int:
 
 
 # --- Исторический импорт -------------------------------------------------
-#
-# Прежние три источника (spoluan, ehsan high-impact, ehsan full) выброшены
-# вместе с их данными. Причина измерена: в собранном из них архиве 25% событий
-# High и Medium оказались дубликатами того же события в пределах суток, а
-# доминирующий сдвиг составлял ровно семь часов. У каждой американской
-# публикации было два кластера времени - настоящий, совпадающий с известным
-# расписанием (08:30 у BLS, 10:00 у ISM, 14:00 у ФРС), и смещённый. Причина в
-# том, что дампы собирались с разными соглашениями о часовом поясе, а ключ
-# слияния включает дату, поэтому сдвинутая копия выглядела отдельным событием.
-#
-# Для календарного множителя (MEALS, п.4.3) это хуже, чем пропуски: пропуск
-# занижает вес часа, а фантомное событие поднимает его там, где публикации не
-# было вовсе.
-
-# Датасет Kaggle "Global Economic Calendar" (EL Younes), лицензия
-# CC BY-NC-SA 4.0. Скачивается публичным API без авторизации, поэтому работает
-# и в CI без секретов.
-#
-# Проверено на данных: время у него в UTC, переход на летнее время обработан
-# верно - у CPI США ровно два значения, 12:30 и 13:30 UTC, в пропорции 135:72,
-# что в точности соответствует 08:30 по Нью-Йорку летом и зимой и доле летних
-# и зимних месяцев в году. Дубликатов 2.2% против 25% у прежнего архива.
-_KAGGLE_URL = (
-    "https://www.kaggle.com/api/v1/datasets/download/"
-    "youneseloiarm/global-economic-calendar"
-)
-
-# Покрытие датасета кончается здесь; дальше добирается помесячно с
-# ForexFactory (fetch_forexfactory_month).
-KAGGLE_COVERAGE_END = "2025-10-01"
-
-_KAGGLE_IMPACT = {"high": "High", "medium": "Medium", "low": "Low"}
-
 
 def _request(url: str, timeout: int, session: requests.Session | None = None,
              headers: dict | None = None) -> requests.Response:
@@ -260,49 +228,6 @@ def _request(url: str, timeout: int, session: requests.Session | None = None,
         return resp
     except requests.RequestException as exc:
         raise CalendarError(f"не удалось получить {url}: {exc}") from exc
-
-
-def _normalize_kaggle_row(row: dict) -> dict | None:
-    """Строка датасета -> запись архива. Строки без уровня важности или с
-    временем "All Day" отбрасываются: это выходные и праздники, у которых нет
-    ни момента публикации, ни влияния на рынок."""
-    impact = _KAGGLE_IMPACT.get(str(row.get("importance") or "").strip().lower())
-    time_str = str(row.get("time") or "").strip()
-    if impact is None or not time_str or time_str == "All Day":
-        return None
-    try:
-        moment = datetime.strptime(f"{row['date']} {time_str}", "%d/%m/%Y %H:%M")
-    except (ValueError, KeyError):
-        return None
-    return {
-        "date": moment.replace(tzinfo=timezone.utc).isoformat(),
-        "country": (str(row.get("currency") or "").strip().upper()
-                    or str(row.get("zone") or "").strip()),
-        "title": str(row.get("event") or "").strip(),
-        "impact": impact,
-        "actual": str(row.get("actual") or ""),
-        "forecast": str(row.get("forecast") or ""),
-        "previous": str(row.get("previous") or ""),
-    }
-
-
-def fetch_kaggle_calendar(session: requests.Session | None = None,
-                          timeout: int = 180) -> list[dict]:
-    """Исторический архив 2020-2025 одним zip-архивом."""
-    import csv
-    import io
-    import zipfile
-
-    resp = _request(_KAGGLE_URL, timeout=timeout, session=session)
-    archive = zipfile.ZipFile(io.BytesIO(resp.content))
-    name = next(n for n in archive.namelist() if n.lower().endswith(".csv"))
-    with archive.open(name) as raw:
-        text = io.TextIOWrapper(raw, encoding="utf-8", errors="ignore")
-        events = [normalized for row in csv.DictReader(text)
-                  if (normalized := _normalize_kaggle_row(row)) is not None]
-    if not events:
-        raise CalendarError("Датасет Kaggle не дал ни одного пригодного события")
-    return events
 
 
 # ForexFactory отдаёт месяц целиком по адресу вида ?month=mar.2026, и данные
@@ -419,44 +344,36 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--rebuild", action="store_true",
-                        help="Собрать архив заново: Kaggle плюс добор с ForexFactory")
-    parser.add_argument("--import-kaggle", action="store_true",
-                        help="Только исторический датасет Kaggle")
+                        help="Выбросить архив и собрать заново, всю историю с ForexFactory")
     parser.add_argument("--import-forexfactory", action="store_true",
-                        help="Только помесячный добор с ForexFactory")
-    parser.add_argument("--from-month", default=KAGGLE_COVERAGE_END[:7],
-                        help="Первый месяц добора, YYYY-MM")
-    parser.add_argument("--to-month", default=None, help="Последний месяц, YYYY-MM")
+                        help="Дописать помесячный диапазон, не трогая остальное")
+    parser.add_argument("--from-month", default=_ARCHIVE_SINCE[:7],
+                        help="Первый месяц, YYYY-MM (по умолчанию начало архива)")
+    parser.add_argument("--to-month", default=None,
+                        help="Последний месяц, YYYY-MM (по умолчанию текущий)")
     args = parser.parse_args()
 
-    if not (args.rebuild or args.import_kaggle or args.import_forexfactory):
-        parser.error("нечего делать - укажите --rebuild, --import-kaggle "
-                     "или --import-forexfactory")
+    if not (args.rebuild or args.import_forexfactory):
+        parser.error("нечего делать - укажите --rebuild или --import-forexfactory")
 
     calendar_dir = os.environ.get(
         "CALENDAR_DIR",
         os.path.join(os.path.dirname(__file__), "..", "data", "economic_calendar"))
     path = store_path(calendar_dir)
     session = requests.Session()
-    events: list[dict] = []
 
     if args.rebuild:
-        # Прежний архив выбрасывается целиком, а не дополняется: смешивать его
-        # с новым значило бы сохранить те самые сдвинутые копии.
+        # Прежний архив выбрасывается целиком, а не дополняется: смешивать
+        # таксономии двух источников - ровно то, ради ухода от чего эта
+        # пересборка и делается.
         if os.path.exists(path):
             os.remove(path)
             log.info("Прежний архив удалён")
 
-    if args.rebuild or args.import_kaggle:
-        got = fetch_kaggle_calendar(session=session)
-        log.info("Kaggle: %d событий", len(got))
-        events.extend(got)
-
-    if args.rebuild or args.import_forexfactory:
-        first = datetime.strptime(args.from_month, "%Y-%m").date()
-        last = (datetime.strptime(args.to_month, "%Y-%m").date() if args.to_month
-                else datetime.now(timezone.utc).date())
-        events.extend(import_forexfactory_months(first, last, session=session))
+    first = datetime.strptime(args.from_month, "%Y-%m").date()
+    last = (datetime.strptime(args.to_month, "%Y-%m").date() if args.to_month
+            else datetime.now(timezone.utc).date())
+    events = import_forexfactory_months(first, last, session=session)
 
     since = datetime.fromisoformat(_ARCHIVE_SINCE)
     kept = [e for e in events if parse_event_time(e["date"]) >= since]

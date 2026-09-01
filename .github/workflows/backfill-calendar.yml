@@ -6,11 +6,13 @@ name: Backfill Economic Calendar
 # текущий и прошлый месяц с помесячных страниц. Этот workflow нужен, когда
 # архив надо собрать заново целиком или закрыть большой пробел.
 #
-# Источников два, оба без ключа: датасет "Global Economic Calendar" на Kaggle
-# (2020-01-01 .. 2025-10-01, CC BY-NC-SA 4.0) и помесячные страницы самой
-# ForexFactory дальше. Прежние три дампа (spoluan, ehsan) сняты вместе с их
-# данными - у них четверть событий High и Medium оказалась сдвинутыми копиями
-# (см. economic_calendar.py и docs/meals-otstupleniya.md, п.11).
+# Источник один - помесячные страницы самой ForexFactory, без ключа. Сторонние
+# перепробованы и сняты все: три готовых дампа (spoluan, ehsan) давали четверть
+# сдвинутых копий, а датасет Kaggle расходился с ForexFactory по таксономии -
+# вдевятеро больше событий Medium, отчего архив из двух источников получал шов
+# посередине. См. economic_calendar.py и docs/meals-otstupleniya.md, п.11.
+#
+# Полная пересборка - это ~69 запросов с паузой в две секунды, минуты четыре.
 
 on:
   workflow_dispatch:
@@ -21,16 +23,15 @@ on:
         default: 'rebuild'
         type: choice
         options:
-          - rebuild            # выбросить архив и собрать заново: Kaggle + ForexFactory
-          - import-kaggle      # только исторический датасет
-          - import-forexfactory  # только помесячный добор
+          - rebuild              # выбросить архив и собрать всю историю заново
+          - import-forexfactory  # дописать диапазон, не трогая остальное
       from_month:
-        description: 'Первый месяц добора с ForexFactory, YYYY-MM (по умолчанию 2025-10)'
+        description: 'Первый месяц, YYYY-MM (по умолчанию начало архива, 2021-01)'
         required: false
         default: ''
         type: string
       to_month:
-        description: 'Последний месяц добора, YYYY-MM (по умолчанию текущий)'
+        description: 'Последний месяц, YYYY-MM (по умолчанию текущий)'
         required: false
         default: ''
         type: string
