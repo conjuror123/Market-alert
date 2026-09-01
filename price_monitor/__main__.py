@@ -146,7 +146,15 @@ def _handle_signal(
         escalation_factor = params.escalation_factor
 
     notified = False
-    if signal.is_alert:
+    if signal.is_alert and cfg.alerts_muted:
+        # Заглушено намеренно (cfg.alerts_muted). Кулдаун при этом НЕ трогается:
+        # состояние должно остаться таким, будто сигнала не было, чтобы после
+        # снятия заглушки первое же настоящее движение прошло, а не упёрлось в
+        # паузу, накопленную за время молчания. В decision_log строка всё равно
+        # пишется, так что период молчания потом видно целиком.
+        log.info("%s (%s): сигнал есть, но алерты заглушены - сообщение не отправлено",
+                 asset.label, signal_type)
+    elif signal.is_alert:
         if should_notify(
             state, state_key, signal.severity, cooldown_minutes, escalation_factor,
             override_severity=price_override,

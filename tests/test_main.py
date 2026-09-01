@@ -213,3 +213,57 @@ def test_main_runs_daily_signal_from_seeded_history(tmp_path, monkeypatch):
     rows = [json.loads(l) for l in open(log_path(cfg.decision_log_dir, "twelvedata", "EUR/USD"))]
     signal_types = {r["signal_type"] for r in rows}
     assert "daily" in signal_types
+
+
+def test_muted_alerts_are_not_sent_but_still_logged(tmp_path, monkeypatch):
+    # Заглушка на время перехода на MEALS: прогон идёт как обычно, решения
+    # пишутся, но сообщение по активу в Telegram не уходит.
+    cfg = make_config(tmp_path)
+    cfg.alerts_muted = True
+    asset = cfg.assets[0]
+
+    def boom(*a, **k):
+        raise AssertionError("заглушённый алерт не должен уходить в Telegram")
+
+    monkeypatch.setattr(main_module, "send_telegram_message", boom)
+
+    state, alerts_log = {}, []
+    notified = main_module._handle_signal(
+        cfg, asset, cfg.params_for(asset), make_signal(), "hourly",
+        "twelvedata:EUR/USD", state, alerts_log)
+
+    assert notified is False
+    assert alerts_log == []
+    rows = [json.loads(l) for l in open(log_path(cfg.decision_log_dir, "twelvedata", "EUR/USD"))]
+    assert rows[0]["price_alert"] is True, "сигнал был - это видно в журнале"
+    assert rows[0]["notified"] is False
+
+
+def test_muting_does_not_burn_the_cooldown(tmp_path, monkeypatch):
+    # Состояние обязано остаться таким, будто сигнала не было: иначе после
+    # снятия заглушки первое настоящее движение упёрлось бы в паузу,
+    # накопленную за время молчания.
+    cfg = make_config(tmp_path)
+    cfg.alerts_muted = True
+    asset = cfg.assets[0]
+    monkeypatch.setattr(main_module, "send_telegram_message",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("no send")))
+
+    state, alerts_log = {}, []
+    main_module._handle_signal(cfg, asset, cfg.params_for(asset), make_signal(),
+                               "hourly", "twelvedata:EUR/USD", state, alerts_log)
+    assert state == {}
+
+    cfg.alerts_muted = False
+    sent = []
+    monkeypatch.setattr(main_module, "send_telegram_message",
+                        lambda *a, **k: sent.append(a) or 123)
+    monkeypatch.setattr(main_module, "edit_telegram_message", lambda *a, **k: None)
+    assert main_module._handle_signal(
+        cfg, asset, cfg.params_for(asset), make_signal(), "hourly",
+        "twelvedata:EUR/USD", state, alerts_log) is True
+    assert len(sent) == 1
+
+
+def test_muting_is_off_by_default():
+    assert make_config("/tmp").alerts_muted is False

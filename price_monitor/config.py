@@ -119,6 +119,18 @@ class Config:
     daily_min_history: int = 30
     daily_cooldown_minutes: int = 2880
     daily_escalation_factor: float = 1.5
+    # Заглушение алертов на время перехода на MEALS (см. README). Прогон идёт
+    # как обычно - котировки качаются, история пополняется, решения пишутся в
+    # decision_log, - но сообщения по активам в Telegram не уходят. Это НЕ
+    # выключение мониторинга: дайджест календаря и уведомления о поломке самого
+    # бота продолжают работать, потому что они не про "тупенькие" сигналы, а
+    # про то, жив ли бот и что будет на неделе.
+    #
+    # Флаг живёт в config.yaml, а не на стороне внешнего планировщика, ровно
+    # потому, что состояние "мы намеренно молчим" должно быть видно в
+    # репозитории. Выключенный на чужом сайте cron через месяц выглядит как
+    # поломка, и разбираться с ним будет некому.
+    alerts_muted: bool = False
     health_alert_after_failures: int = 3
     health_reminder_every_failures: int = 24
     telegram_bot_token: str = ""
@@ -222,6 +234,12 @@ def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
         v = os.environ.get(name)
         return int(v) if v not in (None, "") else default
 
+    def env_bool(name: str, default: bool) -> bool:
+        v = os.environ.get(name)
+        if v in (None, ""):
+            return bool(default)
+        return v.strip().lower() in ("1", "true", "yes", "on")
+
     cfg = Config(
         assets=assets,
         interval=os.environ.get("INTERVAL", raw.get("interval", "1h")),
@@ -253,6 +271,7 @@ def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
             "DAILY_COOLDOWN_MINUTES", raw.get("daily_cooldown_minutes", 2880)),
         daily_escalation_factor=env_float(
             "DAILY_ESCALATION_FACTOR", raw.get("daily_escalation_factor", 1.5)),
+        alerts_muted=env_bool("ALERTS_MUTED", raw.get("alerts_muted", False)),
         health_alert_after_failures=env_int(
             "HEALTH_ALERT_AFTER_FAILURES", raw.get("health_alert_after_failures", 3)),
         health_reminder_every_failures=env_int(
