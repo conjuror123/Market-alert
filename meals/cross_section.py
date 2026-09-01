@@ -136,6 +136,52 @@ def basket_median(panel: pd.DataFrame, basket: Basket) -> pd.Series:
     return pd.Series(out, index=panel.index)
 
 
+def block_factors(panel: pd.DataFrame, basket: Basket) -> pd.DataFrame:
+    """Фактор собственного блока для каждого инструмента, БЕЗ него самого.
+
+    Отступление от п.3.6, где регрессор один - фактор корзины. Причина
+    измерена, а не предположена: в часы, когда срабатывают четыре и более
+    валютные пары, в 97% случаев все они согласны по направлению доллара, а у
+    крипты согласие по знаку остатка стопроцентное по медиане. Это не
+    независимые идиосинкратические движения, а одно движение блока, которое
+    фактор корзины не поглотил и которое целиком утекло в остатки всех его
+    участников. Взвешенная медиана по пяти блокам почти не сдвигается, когда
+    ходит один блок весом в одну пятую - и модуль, задуманный ловить
+    ОДИНОЧНЫЕ движения, систематически срабатывал блоками.
+
+    Величина M_block,t в ТЗ определена (п.2.3), но зарезервирована под разметку
+    истины в п.7. Здесь она становится вторым регрессором.
+
+    Исключение самого актива обязательно. Иначе в блоке из трёх криптоактивов
+    инструмент на треть вычитал бы сам себя, и собственное движение частично
+    исчезало бы из остатка - ровно та ошибка, от которой в п.3.6 защищает
+    оценка беты на данных до текущего бара.
+
+    Медиана здесь обычная, а не взвешенная, и это не упрощение: по правилу
+    равновесности п.2.3 веса всех активов внутри блока равны между собой, так
+    что взвешенная медиана блока совпадает с обычной.
+    """
+    members: dict[str, list[str]] = {}
+    for asset in basket.assets:
+        if asset.asset_id in panel.columns:
+            members.setdefault(asset.block, []).append(asset.asset_id)
+
+    out = pd.DataFrame(index=panel.index, dtype="float64")
+    for block, columns in members.items():
+        values = panel[columns].to_numpy(dtype="float64")
+        for position, asset_id in enumerate(columns):
+            others = np.delete(values, position, axis=1)
+            with np.errstate(invalid="ignore"):
+                out[asset_id] = np.nanmedian(others, axis=1) if others.size else np.nan
+
+        # Инструменты вне корзины в фактор не входят (п.8.1), поэтому для них
+        # исключать нечего - берётся медиана блока целиком.
+        for asset in basket.outside:
+            if asset.block == block:
+                out[asset.asset_id] = np.nanmedian(values, axis=1)
+    return out
+
+
 def cross_sectional_volatility(panel: pd.DataFrame, sigma_panel: pd.DataFrame,
                                basket: Basket) -> pd.DataFrame:
     """CSV и CSV_norm по п.3.2.

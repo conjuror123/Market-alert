@@ -120,3 +120,77 @@ def test_empty_input_keeps_columns():
     out = residuals.residuals(asset(), empty, pd.Series(dtype="float64"))
     assert out.empty
     assert {"e_resid", "beta", "sigma_lt_resid"} <= set(out.columns)
+
+
+def test_two_factor_absorbs_a_block_wide_move():
+    # Ровно тот случай, ради которого второй фактор и добавлен: движение,
+    # общее для всего блока. С одним фактором корзины оно целиком осталось бы
+    # в остатке и дало бы срабатывание у каждого участника блока сразу.
+    rng = np.random.default_rng(10)
+    basket_factor = rng.normal(0, 0.005, 900)
+    block_move = rng.normal(0, 0.02, 900)          # блок ходит сам по себе
+    frame = frame_with(list(0.5 * basket_factor + 1.0 * block_move))
+    factor = pd.Series(basket_factor, index=frame["hour_utc"])
+    block = pd.Series(block_move, index=frame["hour_utc"])
+
+    one = residuals.residuals(asset(), frame, factor)
+    two = residuals.residuals(asset(), frame, factor, block)
+
+    assert two["e_resid"].dropna().abs().max() < 1e-6
+    assert one["e_resid"].dropna().abs().max() > 0.01
+
+
+def test_two_factor_keeps_a_genuinely_single_move():
+    rng = np.random.default_rng(11)
+    basket_factor = rng.normal(0, 0.005, 900)
+    block_move = rng.normal(0, 0.02, 900)
+    own = np.zeros(900)
+    own[800] = 0.08
+    frame = frame_with(list(0.5 * basket_factor + block_move + own))
+    factor = pd.Series(basket_factor, index=frame["hour_utc"])
+    block = pd.Series(block_move, index=frame["hour_utc"])
+
+    out = residuals.residuals(asset(), frame, factor, block)
+    assert out["e_resid"].iloc[800] == pytest.approx(0.08, abs=1e-3)
+
+
+def test_block_beta_is_recovered():
+    rng = np.random.default_rng(12)
+    basket_factor = rng.normal(0, 0.005, 900)
+    block_move = rng.normal(0, 0.02, 900)
+    frame = frame_with(list(0.3 * basket_factor + 2.5 * block_move))
+    factor = pd.Series(basket_factor, index=frame["hour_utc"])
+    block = pd.Series(block_move, index=frame["hour_utc"])
+
+    out = residuals.residuals(asset(), frame, factor, block)
+    assert out["beta"].dropna().iloc[-1] == pytest.approx(0.3, abs=0.01)
+    assert out["beta_block"].dropna().iloc[-1] == pytest.approx(2.5, abs=0.01)
+
+
+def test_collinear_factors_fall_back_to_one():
+    # Если факторы почти совпадают, определитель стремится к нулю и
+    # коэффициенты разлетаются на произвольные величины с противоположными
+    # знаками. Формально решение есть, по смыслу это шум - откатываемся к п.3.6.
+    rng = np.random.default_rng(13)
+    basket_factor = rng.normal(0, 0.01, 900)
+    frame = frame_with(list(1.5 * basket_factor))
+    factor = pd.Series(basket_factor, index=frame["hour_utc"])
+    same = pd.Series(basket_factor, index=frame["hour_utc"])   # тот же ряд
+
+    out = residuals.residuals(asset(), frame, factor, same)
+    settled = out.dropna(subset=["beta"])
+
+    assert (settled["beta_block"] == 0.0).all()
+    assert settled["beta"].iloc[-1] == pytest.approx(1.5, abs=0.01)
+
+
+def test_single_factor_stays_available():
+    # Поведение п.3.6 без второго фактора должно сохраняться дословно.
+    rng = np.random.default_rng(14)
+    factor_values = rng.normal(0, 0.01, 600)
+    frame = frame_with(list(2.0 * factor_values))
+    factor = pd.Series(factor_values, index=frame["hour_utc"])
+
+    out = residuals.residuals(asset(), frame, factor)
+    assert (out["beta_block"] == 0.0).all()
+    assert out["beta"].dropna().iloc[-1] == pytest.approx(2.0, abs=0.01)

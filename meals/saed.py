@@ -149,8 +149,9 @@ DEFAULT_ALERTS_PATH = "data/meals/saed_block_alerts.parquet"
 
 
 def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
-                     factor: pd.Series) -> tuple[pd.DataFrame, pd.DataFrame,
-                                                 dict[str, pd.DataFrame]]:
+                     factor: pd.Series,
+                     block_factors: pd.DataFrame | None = None
+                     ) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, pd.DataFrame]]:
     """Считает остатки и события по всем инструментам, включая внекорзинные.
 
     Внекорзинные используют тот же фактор корзины и ту же схему оценки беты
@@ -164,7 +165,10 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
         frame = metrics.get(asset.asset_id)
         if frame is None or frame.empty:
             continue
-        with_residuals = residuals.residuals(asset, frame, factor)
+        own_block = (block_factors[asset.asset_id]
+                     if block_factors is not None and asset.asset_id in block_factors
+                     else None)
+        with_residuals = residuals.residuals(asset, frame, factor, own_block)
         b_asset = pipeline.bars_per_session(asset, frame, basket.anchor_exchange_tz)
         result = residuals.score_residuals(with_residuals, w.w_asset(b_asset))
         scored[asset.asset_id] = result
@@ -180,7 +184,7 @@ def main(argv: list[str] | None = None) -> int:
     import logging
     import os
 
-    from meals import cross_section, pipeline
+    from meals import cross_section, pipeline, sessions
     from meals.basket import load_basket
 
     parser = argparse.ArgumentParser(description="События SAED (п.3.6, п.8)")
@@ -205,7 +209,12 @@ def main(argv: list[str] | None = None) -> int:
     basket_frame = pd.read_parquet(args.basket_metrics).set_index("hour_utc")
     factor = basket_frame["m_weighted_median"]
 
-    events, alerts, _ = build_for_basket(basket, metrics, factor)
+    panel = cross_section.build_panel(metrics, "r")
+    reference = [h for h in panel.index
+                 if sessions.is_reference_hour(int(h), basket.anchor_exchange_tz)]
+    block_factors = cross_section.block_factors(panel.loc[reference], basket)
+
+    events, alerts, _ = build_for_basket(basket, metrics, factor, block_factors)
     for path, frame in ((args.events_out, events), (args.alerts_out, alerts)):
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         frame.to_parquet(path, index=False, compression="zstd")

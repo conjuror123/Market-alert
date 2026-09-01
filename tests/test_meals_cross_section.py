@@ -225,3 +225,45 @@ def test_subcondition_correlation_is_computed_when_both_vary():
         "pca_sync": pd.Series([True, False, True, False], dtype="boolean"),
     })
     assert cs.subcondition_correlation(frame) == pytest.approx(0.0)
+
+
+def test_block_factor_excludes_the_asset_itself():
+    # Без исключения инструмент в блоке из трёх на треть вычитал бы сам себя,
+    # и собственное движение частично исчезало бы из остатка.
+    basket = make_basket([make_asset("A", "crypto"), make_asset("B", "crypto", 2),
+                          make_asset("C", "crypto", 2),
+                          make_asset("D", "FX"), make_asset("E", "FX", 2)])
+    columns = [a.asset_id for a in basket.assets]
+    panel = panel_from([[0.10, 0.01, 0.02, 0.0, 0.0]], columns)
+
+    factors = cs.block_factors(panel, basket)
+
+    # Для A фактор - медиана B и C, без самого A.
+    assert factors["twelvedata:A"].iloc[0] == pytest.approx(0.015)
+    # Для B - медиана A и C.
+    assert factors["twelvedata:B"].iloc[0] == pytest.approx(0.06)
+
+
+def test_block_factor_is_a_plain_median_because_weights_are_equal():
+    # По правилу равновесности п.2.3 веса внутри блока равны, поэтому
+    # взвешенная медиана блока совпадает с обычной.
+    basket = four_by_two()
+    weights = basket.weights()
+    fx = [a.asset_id for a in basket.assets if a.block == "FX"]
+    assert len({round(weights[a], 12) for a in fx}) == 1
+
+
+def test_outside_basket_instrument_uses_the_whole_block():
+    # Внекорзинный инструмент в фактор не входит (п.8.1), исключать нечего.
+    basket = Basket(
+        assets=(make_asset("A", "FX"), make_asset("B", "FX", 2),
+                make_asset("C", "crypto"), make_asset("D", "crypto", 2)),
+        outside=(make_asset("Z", "FX", 2),),
+        volatility_index=cs.Basket.__annotations__ and make_basket([]).volatility_index,
+        anchor_exchange_tz="America/New_York", history_since=date(2021, 1, 1),
+        session_templates={})
+    columns = [a.asset_id for a in basket.assets]
+    panel = panel_from([[0.02, 0.04, 0.0, 0.0]], columns)
+
+    factors = cs.block_factors(panel, basket)
+    assert factors["twelvedata:Z"].iloc[0] == pytest.approx(0.03)
