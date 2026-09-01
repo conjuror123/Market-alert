@@ -17,7 +17,7 @@ def make_asset(ticker, block, tier=1):
 
 def make_basket(assets):
     return Basket(assets=tuple(assets), outside=(),
-                  volatility_index=VolatilityIndex("VIXCLS", "fred", "1d", "VIX"),
+                  volatility_index=VolatilityIndex("VIXCLS", "fred", "1d", "VIX", date(1990, 1, 1)),
                   anchor_exchange_tz="America/New_York",
                   history_since=date(2021, 1, 1), session_templates={})
 

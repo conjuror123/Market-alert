@@ -72,6 +72,10 @@ class VolatilityIndex:
     source: str
     interval: str
     label: str
+    # Своя глубина истории: дневному ряду нужно 720 наблюдений на разогрев,
+    # это почти три года, и общий с корзиной старт 2021 года оставил бы
+    # множитель равным единице на всём train-периоде. См. basket.yaml.
+    history_since: date
 
     @property
     def file_stem(self) -> str:
@@ -113,6 +117,10 @@ class Basket:
             for members in blocks.values()
             for a in members
         }
+
+
+def _as_date(value) -> date:
+    return value if isinstance(value, date) else datetime.strptime(str(value), "%Y-%m-%d").date()
 
 
 def _asset(raw: dict, *, in_basket: bool) -> Asset:
@@ -173,7 +181,8 @@ def load_basket(path: str = DEFAULT_BASKET_PATH) -> Basket:
     # это недостижимо ни при каком часе, бессмысленна: кластерные триггеры в ней
     # не сработают никогда, а не "редко".
     populated = [b for b, members in Basket(
-        assets, outside, VolatilityIndex("", "", "", ""), "", date.today(), templates
+        assets, outside, VolatilityIndex("", "", "", "", date.today()), "",
+        date.today(), templates
     ).by_block().items() if len(members) >= 2]
     if len(populated) < 2:
         raise BasketConfigError(
@@ -185,10 +194,7 @@ def load_basket(path: str = DEFAULT_BASKET_PATH) -> Basket:
         raise BasketConfigError("Не задан volatility_index.series_id (п.4.4)")
 
     since = raw.get("history_since")
-    history_since = (
-        since if isinstance(since, date)
-        else datetime.strptime(str(since), "%Y-%m-%d").date()
-    )
+    history_since = _as_date(since)
 
     return Basket(
         assets=assets,
@@ -196,6 +202,7 @@ def load_basket(path: str = DEFAULT_BASKET_PATH) -> Basket:
         volatility_index=VolatilityIndex(
             series_id=vix_raw["series_id"], source=vix_raw.get("source", "fred"),
             interval=vix_raw.get("interval", "1d"),
+            history_since=_as_date(vix_raw.get("history_since", since)),
             label=vix_raw.get("label", vix_raw["series_id"]),
         ),
         anchor_exchange_tz=raw.get("anchor_exchange_tz", "America/New_York"),

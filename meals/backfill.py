@@ -120,7 +120,7 @@ def backfill_instrument(asset: Asset, basket: Basket, bars_dir: str, api_key: st
 def backfill_vix(basket: Basket, vix_dir: str, api_key: str,
                  session: requests.Session) -> dict:
     vix = basket.volatility_index
-    frame = fred.fetch_series(vix.series_id, api_key, basket.history_since, session=session)
+    frame = fred.fetch_series(vix.series_id, api_key, vix.history_since, session=session)
     path = os.path.join(vix_dir, f"{vix.file_stem}.parquet")
     os.makedirs(vix_dir, exist_ok=True)
     frame.sort_values("day").reset_index(drop=True).to_parquet(

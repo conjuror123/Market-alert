@@ -793,6 +793,10 @@ meals/pipeline.py    — метрики по каждому активу, вся
 meals/cross_section.py — кворум часа, M_t, разброс корзины, PCA, однофакторность
 meals/residuals.py   — регрессия на фактор корзины и фактор блока, ряд остатков
 meals/saed.py        — одиночные события по остаткам и блочные алерты
+meals/calendar_multiplier.py — множитель важности часа по экономическому календарю
+meals/vix.py         — множитель стресса по дневному ряду VIX
+meals/si_index.py    — базовые баллы и Сводный Индекс Сенсации
+meals/cluster.py     — кластерные события: гейт, кулдаун, эскалации
 meals/corporate_actions.py — даты дивидендных отсечек, выведенные из котировок
 meals/fred.py        — дневной ряд VIX с FRED и момент его доступности
 meals/backfill.py    — разовая загрузка истории с 2021 года
@@ -806,6 +810,8 @@ data/meals/metrics/  — метрики по активам (metrics_asset_hour)
 data/meals/metrics_basket_hour.parquet — метрики корзины по часам
 data/meals/saed_events.parquet — одиночные события
 data/meals/saed_block_alerts.parquet — блочные алерты
+data/meals/cluster_events.parquet — кластерные события
+data/meals/cluster_event_escalations.parquet — эскалации внутри событий
 data/meals/coverage.md — таблица покрытия
 docs/meals-otstupleniya.md — отступления от ТЗ, каждое с причиной
 ```
@@ -822,6 +828,7 @@ python -m meals.corporate_actions  # перестроить таблицу ди�
 python -m meals.pipeline        # пересчитать метрики по активам
 python -m meals.cross_section   # пересчитать метрики корзины
 python -m meals.saed            # пересчитать одиночные события
+python -m meals.cluster         # пересчитать SI-Index и кластерные события
 ```
 
 Расписание NYSE строится библиотекой `exchange_calendars`, но не на каждом
