@@ -3,55 +3,55 @@
     "consecutive_failures": 0
   },
   "coinbase:BTC-USD:last_candle": {
-    "open_time": 1788256800
+    "open_time": 1788260400
   },
   "coinbase:ETH-USD": {
     "last_alert_at": "2026-08-28T14:16:56.219584+00:00",
     "last_severity": 3.6110305025449905
   },
   "coinbase:ETH-USD:last_candle": {
-    "open_time": 1788256800
+    "open_time": 1788260400
   },
   "coinbase:SOL-USD:last_candle": {
-    "open_time": 1788256800
+    "open_time": 1788260400
   },
   "twelvedata:AUD/USD:last_candle": {
-    "open_time": 1788256800
+    "open_time": 1788260400
   },
   "twelvedata:EUR/USD:last_candle": {
-    "open_time": 1788256800
+    "open_time": 1788260400
   },
   "twelvedata:GBP/USD:last_candle": {
-    "open_time": 1788256800
+    "open_time": 1788260400
   },
   "twelvedata:NZD/USD:last_candle": {
-    "open_time": 1788256800
+    "open_time": 1788260400
   },
   "twelvedata:USD/CAD:last_candle": {
-    "open_time": 1788256800
+    "open_time": 1788260400
   },
   "twelvedata:USD/CHF:last_candle": {
-    "open_time": 1788256800
+    "open_time": 1788260400
   },
   "twelvedata:USD/CNY:last_candle": {
-    "open_time": 1788256800
+    "open_time": 1788260400
   },
   "twelvedata:USD/JPY:last_candle": {
-    "open_time": 1788256800
+    "open_time": 1788260400
   },
   "yahoo:CL=F:last_candle": {
-    "open_time": 1788256530
+    "open_time": 1788260119
   },
   "yahoo:DX-Y.NYB:last_candle": {
-    "open_time": 1788256539
+    "open_time": 1788260139
   },
   "yahoo:ES=F:last_candle": {
-    "open_time": 1788256531
+    "open_time": 1788260129
   },
   "yahoo:GC=F:last_candle": {
-    "open_time": 1788256529
+    "open_time": 1788260122
   },
   "yahoo:ZB=F:last_candle": {
-    "open_time": 1788256530
+    "open_time": 1788260107
   }
 }
