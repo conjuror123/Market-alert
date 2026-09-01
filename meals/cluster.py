@@ -208,6 +208,16 @@ def main(argv: list[str] | None = None) -> int:
     basket = load_basket()
     metrics = pipeline.load_all(basket, args.metrics_dir)
     basket_frame = pd.read_parquet(args.basket_metrics).set_index("hour_utc").sort_index()
+    # Прогон дописывает свои колонки в тот же файл, поэтому при повторном
+    # запуске они уже там. Требование п.6.2 - повторный прогон того же часа не
+    # должен ни падать, ни двоить результат, - так что производные колонки
+    # сбрасываются и считаются заново.
+    derived = [c for c in ("m_calendar", "m_vix", "si_total", "sigma_m", "k",
+                           "decision", "base_points", "breadth_q99",
+                           "n_active_blocks", "n_active_blocks_q99")
+               if c in basket_frame.columns]
+    derived += [c for c in basket_frame.columns if c.startswith("trigger_")]
+    basket_frame = basket_frame.drop(columns=derived)
     hours = basket_frame.index
 
     calendar = calendar_multiplier.multiplier_series(hours)

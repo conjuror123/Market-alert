@@ -9,47 +9,26 @@ spans Sunday through Friday, so fetching it specifically on Sunday - which is
 exactly when weekly_digest.py runs - already returns the coming week's
 events, with no separate "next week" request needed.
 
-Historical backfill (past years, not "this week") can't come from
-ForexFactory itself: scraping its historical calendar pages is blocked by a
-Cloudflare bot challenge (confirmed live, HTTP 403 with a "Just a moment..."
-JS challenge even with a realistic browser User-Agent), and Financial
-Modeling Prep's Economic Calendar API - initially tried as a paid-key
-alternative - turned out to need a paid plan even for the "stable" tier
-(confirmed live, HTTP 402 Payment Required on a real free-tier key).
-Historical backfill instead imports third-party dumps of ForexFactory data
-hosted elsewhere - none of them behind Cloudflare, so all reachable with no
-key at all:
-- fetch_ehsan_full_calendar: 2007-01-01 to 2025-04-07, every impact level -
-  the main historical source (a public Hugging Face dataset, MIT license,
-  by the same author as the GitHub dump below).
-- fetch_ehsan_high_impact: ~2020 to whenever the maintainer last ran it
-  (2026-01-30, confirmed live), High-impact events only - extends High
-  coverage past the full dataset's 2025-04-07 cutoff.
-- fetch_spoluan_year / import_spoluan_years: 2010-2023, every impact level -
-  an older, independently-sourced dump kept around mainly for
-  cross-checking; fetch_ehsan_full_calendar covers the same span more
-  reliably (see its own docstring) so this isn't part of the routine import
-  below by default.
-Run as a one-off (see backfill-calendar.yml): `python -m
-price_monitor.economic_calendar --import-ehsan-full --import-ehsan-high-impact`.
-main() trims every import to _ARCHIVE_SINCE (2021-01-01) before merging -
-the fetch_* functions themselves return their source's full range, but
-nothing before the earliest candle history (data/candle_history/, also
-2021-01-01) can ever be matched against a price move, so keeping it in the
-archive would just be dead weight.
+Исторический архив (не "эта неделя") собирается из двух источников, и оба
+доступны без ключа:
 
-The archive keeps every impact level (Low/Medium/High - see
-_normalize_impact for how each source's own extra categories collapse into
-this 3-value scale). This does leave a real, accepted gap: none of the
-sources above have Medium/Low coverage between 2025-04-07 and whenever the
-live feed (fetch_calendar) started accumulating forward on its own - High
-alone reaches to 2026-01-30 via ehsan's GitHub dump, but Medium/Low has no
-coverage at all in that window. Searched for a source that closes it and
-found none (checked Hugging Face, Kaggle, and several GitHub scrapers with
-no committed data or stale/broken output) - worth checking again in a
-couple of months in case a newer archive shows up. Anything asking for
-calendar context in that window should keep in mind that an empty result
-there can mean "no data", not "no events".
+- fetch_kaggle_calendar: датасет "Global Economic Calendar" (EL Younes,
+  CC BY-NC-SA 4.0), 2020-01-01 .. 2025-10-01, скачивается публичным API Kaggle
+  без авторизации;
+- fetch_forexfactory_month: помесячные страницы самой ForexFactory, начиная с
+  того месяца, где кончается датасет.
+
+Прежние три источника (spoluan, ehsan high-impact, ehsan full) сняты вместе с
+их данными. Причина измерена: в собранном из них архиве четверть событий High и
+Medium оказались дубликатами того же события в пределах суток, с доминирующим
+сдвигом ровно в семь часов - дампы собирались с разными соглашениями о часовом
+поясе, а ключ слияния включает дату, поэтому сдвинутая копия выглядела отдельным
+событием. Для календарного множителя (MEALS, п.4.3) это хуже пропусков: пропуск
+занижает вес часа, а фантомное событие поднимает его там, где публикации не было.
+
+Что дала замена, на измеренных числах: событий 100 865 вместо 23 133, период
+2021-01-01 .. 2026-10-01 без единого пробела, дубликатов 2.4% вместо 25%, у CPI
+США ровно одно время публикации - 08:30 по Нью-Йорку - вместо двух кластеров.
 """
 from __future__ import annotations
 
@@ -59,8 +38,12 @@ import io
 import json
 import logging
 import os
+import re
 import sys
-from datetime import datetime, timedelta, timezone
+import time
+import urllib.error
+import urllib.request
+from datetime import date, datetime, timedelta, timezone
 
 import requests
 
@@ -183,173 +166,113 @@ def merge_events(path: str, events: list[dict]) -> int:
     return added
 
 
-# https://github.com/spoluan/forex-factory-scraper (MIT) - one CSV per year of
-# scraped ForexFactory calendar data, checked into the repo itself and served
-# straight off raw.githubusercontent.com (no Cloudflare, no key). Only
-# 2010-2023 exist - 2024+ requests confirmed live as HTTP 404, so anything
-# from 2024 onward has to come from ForexFactory's own live feed above
-# (fetch_calendar), accumulated forward week by week.
-_SPOLUAN_CSV_URL = (
-    "https://raw.githubusercontent.com/spoluan/forex-factory-scraper/master/"
-    "datasets/forex_factory_calendar_{year}.csv"
+# --- Исторический импорт -------------------------------------------------
+#
+# Прежние три источника (spoluan, ehsan high-impact, ehsan full) выброшены
+# вместе с их данными. Причина измерена: в собранном из них архиве 25% событий
+# High и Medium оказались дубликатами того же события в пределах суток, а
+# доминирующий сдвиг составлял ровно семь часов. У каждой американской
+# публикации было два кластера времени - настоящий, совпадающий с известным
+# расписанием (08:30 у BLS, 10:00 у ISM, 14:00 у ФРС), и смещённый. Причина в
+# том, что дампы собирались с разными соглашениями о часовом поясе, а ключ
+# слияния включает дату, поэтому сдвинутая копия выглядела отдельным событием.
+#
+# Для календарного множителя (MEALS, п.4.3) это хуже, чем пропуски: пропуск
+# занижает вес часа, а фантомное событие поднимает его там, где публикации не
+# было вовсе.
+
+# Датасет Kaggle "Global Economic Calendar" (EL Younes), лицензия
+# CC BY-NC-SA 4.0. Скачивается публичным API без авторизации, поэтому работает
+# и в CI без секретов.
+#
+# Проверено на данных: время у него в UTC, переход на летнее время обработан
+# верно - у CPI США ровно два значения, 12:30 и 13:30 UTC, в пропорции 135:72,
+# что в точности соответствует 08:30 по Нью-Йорку летом и зимой и доле летних
+# и зимних месяцев в году. Дубликатов 2.2% против 25% у прежнего архива.
+_KAGGLE_URL = (
+    "https://www.kaggle.com/api/v1/datasets/download/"
+    "youneseloiarm/global-economic-calendar"
 )
 
-# The scraper's own "Combined DateTime" column isn't UTC - verified live by
-# cross-checking known-time events across 2021-2023: every FOMC Statement
-# (always released 2:00pm US Eastern) and every Non-Farm Employment Change
-# (always released 8:30am US Eastern) lines up exactly with
-# real_UTC_time + 8h, year-round including across the US's own DST switches -
-# i.e. a fixed UTC+8 offset (no DST of its own), not US Eastern time as one
-# might otherwise assume from the source. This is presumably whatever
-# timezone ForexFactory's website happened to be displaying in when this was
-# scraped, not a documented property of the site.
-_SPOLUAN_DISPLAY_UTC_OFFSET_HOURS = 8
+# Покрытие датасета кончается здесь; дальше добирается помесячно с
+# ForexFactory (fetch_forexfactory_month).
+KAGGLE_COVERAGE_END = "2025-10-01"
+
+_KAGGLE_IMPACT = {"high": "High", "medium": "Medium", "low": "Low"}
 
 
-def _spoluan_event_time_to_iso_utc(date_str: str, time_str: str, combined_str: str) -> str | None:
-    """"All Day" rows (holidays, etc.) carry no real time-of-day - Combined
-    DateTime is always midnight in the scraper's own display offset for
-    those, which would misleadingly shift them to the previous UTC day if
-    corrected the same way as timed events, so they're anchored to UTC
-    midnight of the given date instead."""
-    if time_str == "All Day":
-        try:
-            return datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc).isoformat()
-        except ValueError:
-            return None
+def _request(url: str, timeout: int, session: requests.Session | None = None,
+             headers: dict | None = None) -> requests.Response:
+    """Один HTTP-запрос с внятной ошибкой вместо голого исключения requests."""
+    get = session.get if session is not None else requests.get
     try:
-        naive = datetime.strptime(combined_str, "%Y-%m-%d %H:%M:%S")
-    except ValueError:
+        resp = get(url, timeout=timeout,
+                   headers=headers or {"User-Agent": "market-alert-bot"})
+        resp.raise_for_status()
+        return resp
+    except requests.RequestException as exc:
+        raise CalendarError(f"не удалось получить {url}: {exc}") from exc
+
+
+def _normalize_kaggle_row(row: dict) -> dict | None:
+    """Строка датасета -> запись архива. Строки без уровня важности или с
+    временем "All Day" отбрасываются: это выходные и праздники, у которых нет
+    ни момента публикации, ни влияния на рынок."""
+    impact = _KAGGLE_IMPACT.get(str(row.get("importance") or "").strip().lower())
+    time_str = str(row.get("time") or "").strip()
+    if impact is None or not time_str or time_str == "All Day":
         return None
-    return (naive - timedelta(hours=_SPOLUAN_DISPLAY_UTC_OFFSET_HOURS)).replace(tzinfo=timezone.utc).isoformat()
-
-
-def _normalize_spoluan_row(row: dict) -> dict | None:
-    title = row.get("Event")
-    date_iso = _spoluan_event_time_to_iso_utc(
-        row.get("Date", ""), row.get("Time", ""), row.get("Combined DateTime", ""))
-    if not title or not date_iso:
-        log.warning("Skipping malformed spoluan calendar row: %r", row)
+    try:
+        moment = datetime.strptime(f"{row['date']} {time_str}", "%d/%m/%Y %H:%M")
+    except (ValueError, KeyError):
         return None
     return {
-        "title": title,
-        "country": row.get("Currency") or "",
-        "date": date_iso,
-        # This scraper's own impact taxonomy is Low/Medium/High/Non-economic
-        # (it has no separate "Holiday" tier - bank holidays come through
-        # here tagged "Low" already) - _normalize_impact folds "Non-economic"
-        # into "Low" too, same as "Holiday" from the live feed above.
-        "impact": _normalize_impact(row.get("Impact") or ""),
-        "forecast": row.get("Forecast") or "",
-        "previous": row.get("Previous") or "",
-        "actual": row.get("Actual") or "",
+        "date": moment.replace(tzinfo=timezone.utc).isoformat(),
+        "country": (str(row.get("currency") or "").strip().upper()
+                    or str(row.get("zone") or "").strip()),
+        "title": str(row.get("event") or "").strip(),
+        "impact": impact,
+        "actual": str(row.get("actual") or ""),
+        "forecast": str(row.get("forecast") or ""),
+        "previous": str(row.get("previous") or ""),
     }
 
 
-def fetch_spoluan_year(year: int, session: requests.Session | None = None, timeout: int = 30) -> list[dict]:
-    """One calendar year (2010-2023 only, see _SPOLUAN_CSV_URL) of historical
-    events, normalized to the same shape as fetch_calendar's events."""
-    get = session.get if session is not None else requests.get
-    try:
-        resp = get(_SPOLUAN_CSV_URL.format(year=year), timeout=timeout)
-        resp.raise_for_status()
-    except requests.RequestException as exc:
-        raise CalendarError(f"failed to fetch spoluan calendar CSV for {year}: {exc}") from exc
+def fetch_kaggle_calendar(session: requests.Session | None = None,
+                          timeout: int = 180) -> list[dict]:
+    """Исторический архив 2020-2025 одним zip-архивом."""
+    import csv as _csv
+    import io
+    import zipfile
 
-    rows = csv.DictReader(io.StringIO(resp.text))
-    events = []
-    for row in rows:
-        normalized = _normalize_spoluan_row(row)
-        if normalized is not None:
-            events.append(normalized)
+    resp = _request(_KAGGLE_URL, timeout=timeout, session=session)
+    archive = zipfile.ZipFile(io.BytesIO(resp.content))
+    name = next(n for n in archive.namelist() if n.lower().endswith(".csv"))
+    with archive.open(name) as raw:
+        text = io.TextIOWrapper(raw, encoding="utf-8", errors="ignore")
+        events = [normalized for row in _csv.DictReader(text)
+                  if (normalized := _normalize_kaggle_row(row)) is not None]
+    if not events:
+        raise CalendarError("Датасет Kaggle не дал ни одного пригодного события")
     return events
 
 
-def import_spoluan_years(years: list[int], session: requests.Session | None = None) -> list[dict]:
-    """Fetches each year in turn; a year that fails (e.g. one outside
-    2010-2023) is logged and skipped rather than aborting the whole import."""
-    events = []
-    for year in years:
-        log.info("Fetching spoluan calendar CSV for %d...", year)
-        try:
-            chunk = fetch_spoluan_year(year, session=session)
-            log.info("  got %d events", len(chunk))
-            events.extend(chunk)
-        except CalendarError as exc:
-            log.error("  %s", exc)
-    return events
-
-
-# https://github.com/ehsanrs2/forexfactory-scraper (GPLv3) - a single static
-# CSV snapshot checked into the repo, High-impact events only, covering
-# ~2020 to whenever the maintainer last ran it (2026-01-30 as of this
-# writing, confirmed live) - there's no per-year split or way to request a
-# narrower range, unlike spoluan's dump, so this is always fetched whole.
-_EHSAN_HIGH_IMPACT_CSV_URL = (
-    "https://raw.githubusercontent.com/ehsanrs2/forexfactory-scraper/main/high_impact_events_calendar.csv"
-)
-
-
-def _normalize_ehsan_row(row: dict) -> dict | None:
-    title = row.get("Event")
-    date_str = row.get("DateTime")
-    if not title or not date_str:
-        log.warning("Skipping malformed ehsan calendar row: %r", row)
-        return None
-    try:
-        # Unlike spoluan's dump, this one's own DateTime already carries an
-        # explicit, correct UTC offset (verified live against known release
-        # times - e.g. FOMC Statement - across seasons, so it tracks real
-        # DST rather than being a fixed display offset) - no manual
-        # correction needed, just the standard ISO8601 parse.
-        date_iso = datetime.fromisoformat(date_str).astimezone(timezone.utc).isoformat()
-    except ValueError:
-        log.warning("Skipping ehsan calendar row with unparseable date: %r", row)
-        return None
-    return {
-        "title": title,
-        "country": row.get("Currency") or "",
-        "date": date_iso,
-        # This file is High-impact only by construction (see
-        # _EHSAN_HIGH_IMPACT_CSV_URL) - "High Impact Expected" is its only
-        # actual value, normalized here to match the other sources' "High".
-        "impact": "High",
-        "forecast": row.get("Forecast") or "",
-        "previous": row.get("Previous") or "",
-        "actual": row.get("Actual") or "",
-    }
-
-
-def fetch_ehsan_high_impact(session: requests.Session | None = None, timeout: int = 30) -> list[dict]:
-    get = session.get if session is not None else requests.get
-    try:
-        resp = get(_EHSAN_HIGH_IMPACT_CSV_URL, timeout=timeout)
-        resp.raise_for_status()
-    except requests.RequestException as exc:
-        raise CalendarError(f"failed to fetch ehsan high-impact calendar CSV: {exc}") from exc
-
-    rows = csv.DictReader(io.StringIO(resp.text))
-    events = []
-    for row in rows:
-        normalized = _normalize_ehsan_row(row)
-        if normalized is not None:
-            events.append(normalized)
-    return events
-
-
-# https://huggingface.co/datasets/Ehsanrs2/Forex_Factory_Calendar (MIT) - a
-# single ~68MB CSV, same author as the GitHub High-impact-only dump above but
-# covering every impact level, 2007-01-01 through 2025-04-07 (confirmed live,
-# both the full row count and the cutoff date). This is the main historical
-# source - see the module docstring for why nothing newer/narrower exists.
-_EHSAN_FULL_CALENDAR_URL = (
-    "https://huggingface.co/datasets/Ehsanrs2/Forex_Factory_Calendar/resolve/main/forex_factory_cache.csv"
-)
-
-# This dump's own impact taxonomy has four values instead of the GitHub
-# dump's "always High" - normalized here to the shared Low/Medium/High scale,
-# same as _IMPACT_ALIASES does for the live feed and spoluan's dump.
-_EHSAN_FULL_IMPACT_MAP = {
+# ForexFactory отдаёт месяц целиком по адресу вида ?month=mar.2026, и данные
+# лежат прямо в странице готовым JSON. Время в них - unix-таймстамп, то есть
+# однозначное: именно та неоднозначность, что испортила прежний архив, здесь
+# отсутствует по построению.
+#
+# Библиотека market-calendar-tool для этого не годится: она сначала дёргает
+# служебный /calendar/apply-settings, чтобы выставить таймзону отображения, а
+# он отвечает 403. Сама помесячная страница при этом доступна.
+_FF_MONTH_URL = "https://www.forexfactory.com/calendar?month={month}.{year}"
+_FF_HEADERS = {
+    "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                   "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"),
+}
+_FF_MONTHS = ("jan", "feb", "mar", "apr", "may", "jun",
+              "jul", "aug", "sep", "oct", "nov", "dec")
+_FF_IMPACT = {
     "High Impact Expected": "High",
     "Medium Impact Expected": "Medium",
     "Low Impact Expected": "Low",
@@ -357,105 +280,141 @@ _EHSAN_FULL_IMPACT_MAP = {
 }
 
 
-def _normalize_ehsan_full_row(row: dict) -> dict | None:
-    title = row.get("Event")
-    date_str = row.get("DateTime")
-    if not title or not date_str:
-        log.warning("Skipping malformed ehsan full-calendar row: %r", row)
-        return None
+def _extract_calendar_state(html: str) -> list[dict]:
+    """Достаёт список дней из встроенного в страницу состояния компонента.
+
+    Разбор идёт по балансу скобок, а не регулярным выражением на всю структуру:
+    внутри лежит вложенный JSON с экранированными кавычками, и жадное или
+    ленивое выражение одинаково легко обрезает его не в том месте.
+    """
+    marker = re.search(r"calendarComponentStates\[\d+\]\s*=\s*\{", html)
+    if marker is None:
+        raise CalendarError("В странице ForexFactory нет состояния календаря")
+    start = marker.end() - 1
+    depth = 0
+    for index in range(start, len(html)):
+        if html[index] == "{":
+            depth += 1
+        elif html[index] == "}":
+            depth -= 1
+            if depth == 0:
+                block = html[start:index + 1]
+                break
+    else:
+        raise CalendarError("Состояние календаря оборвано")
+
+    days = re.search(r"days:\s*(\[.*?\])\s*,\s*[a-zA-Z_]+:", block, re.S)
+    if days is None:
+        raise CalendarError("В состоянии календаря нет списка дней")
+    return json.loads(days.group(1))
+
+
+def fetch_forexfactory_month(year: int, month: int,
+                             session: requests.Session | None = None,
+                             timeout: int = 40) -> list[dict]:
+    """Один календарный месяц с ForexFactory."""
+    url = _FF_MONTH_URL.format(month=_FF_MONTHS[month - 1], year=year)
+    # Здесь намеренно urllib, а не requests, хотя весь остальной модуль на
+    # requests. Проверено: на requests ForexFactory отвечает 403 при любых
+    # заголовках, включая полный браузерный набор, а на urllib с тем же
+    # User-Agent - 200. Различие не в заголовках, а в TLS-отпечатке клиента,
+    # и переспорить его набором headers нельзя.
+    request = urllib.request.Request(url, headers=_FF_HEADERS)
     try:
-        # Same reliable per-row UTC offset as the High-impact-only dump
-        # (_normalize_ehsan_row) - verified live against known release times
-        # (NFP, ISM Services PMI, CAD CPI) across several year/season
-        # combinations.
-        date_iso = datetime.fromisoformat(date_str).astimezone(timezone.utc).isoformat()
-    except ValueError:
-        log.warning("Skipping ehsan full-calendar row with unparseable date: %r", row)
-        return None
-    raw_impact = row.get("Impact") or ""
-    return {
-        "title": title,
-        "country": row.get("Currency") or "",
-        "date": date_iso,
-        "impact": _EHSAN_FULL_IMPACT_MAP.get(raw_impact, raw_impact),
-        "forecast": row.get("Forecast") or "",
-        "previous": row.get("Previous") or "",
-        "actual": row.get("Actual") or "",
-    }
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            html = response.read().decode("utf-8", "ignore")
+    except (urllib.error.URLError, OSError) as exc:
+        raise CalendarError(f"не удалось получить {url}: {exc}") from exc
 
-
-def fetch_ehsan_full_calendar(session: requests.Session | None = None, timeout: int = 120) -> list[dict]:
-    """The full 2007-01-01 to 2025-04-07 dataset, every impact level. A much
-    bigger download than the other fetchers (~68MB) so it gets a longer
-    default timeout."""
-    get = session.get if session is not None else requests.get
-    try:
-        resp = get(_EHSAN_FULL_CALENDAR_URL, timeout=timeout)
-        resp.raise_for_status()
-    except requests.RequestException as exc:
-        raise CalendarError(f"failed to fetch ehsan full calendar CSV: {exc}") from exc
-
-    rows = csv.DictReader(io.StringIO(resp.text))
     events = []
-    for row in rows:
-        normalized = _normalize_ehsan_full_row(row)
-        if normalized is not None:
-            events.append(normalized)
+    for day in _extract_calendar_state(html):
+        for item in day.get("events", []):
+            impact = _FF_IMPACT.get(item.get("impactTitle") or "")
+            if impact is None or not item.get("dateline"):
+                continue
+            moment = datetime.fromtimestamp(int(item["dateline"]), tz=timezone.utc)
+            events.append({
+                "date": moment.isoformat(),
+                "country": str(item.get("currency") or "").strip(),
+                "title": str(item.get("name") or "").strip(),
+                "impact": impact,
+                "actual": str(item.get("actual") or ""),
+                "forecast": str(item.get("forecast") or ""),
+                "previous": str(item.get("previous") or ""),
+            })
+    return events
+
+
+def import_forexfactory_months(start: date, end: date,
+                               session: requests.Session | None = None,
+                               request_delay_seconds: float = 2.0) -> list[dict]:
+    """Помесячный добор за период. Пауза между запросами намеренная: это
+    обычная страница сайта, а не API с оплаченным лимитом."""
+    events: list[dict] = []
+    year, month = start.year, start.month
+    while (year, month) <= (end.year, end.month):
+        try:
+            got = fetch_forexfactory_month(year, month, session=session)
+            log.info("ForexFactory %04d-%02d: %d событий", year, month, len(got))
+            events.extend(got)
+        except Exception as exc:
+            log.error("ForexFactory %04d-%02d: не удалось - %s", year, month, exc)
+        month += 1
+        if month > 12:
+            year, month = year + 1, 1
+        if (year, month) <= (end.year, end.month):
+            time.sleep(request_delay_seconds)
     return events
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--import-spoluan", action="store_true", help="Historical import from GitHub (2010-2023)")
-    parser.add_argument("--since-year", type=int, help="First year to import (inclusive) - with --import-spoluan")
-    parser.add_argument("--until-year", type=int, help="Last year (inclusive), default: --since-year")
-    parser.add_argument(
-        "--import-ehsan-high-impact", action="store_true",
-        help="Historical High-impact-only import from GitHub (~2020 onward)")
-    parser.add_argument(
-        "--import-ehsan-full", action="store_true",
-        help="Historical full-impact-range import from Hugging Face (2007-01-01 to 2025-04-07)")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--rebuild", action="store_true",
+                        help="Собрать архив заново: Kaggle плюс добор с ForexFactory")
+    parser.add_argument("--import-kaggle", action="store_true",
+                        help="Только исторический датасет Kaggle")
+    parser.add_argument("--import-forexfactory", action="store_true",
+                        help="Только помесячный добор с ForexFactory")
+    parser.add_argument("--from-month", default=KAGGLE_COVERAGE_END[:7],
+                        help="Первый месяц добора, YYYY-MM")
+    parser.add_argument("--to-month", default=None, help="Последний месяц, YYYY-MM")
     args = parser.parse_args()
 
-    if not args.import_spoluan and not args.import_ehsan_high_impact and not args.import_ehsan_full:
-        parser.error(
-            "nothing to do - pass --import-spoluan and/or --import-ehsan-high-impact and/or --import-ehsan-full")
-    if args.import_spoluan and not args.since_year:
-        parser.error("--since-year is required with --import-spoluan")
+    if not (args.rebuild or args.import_kaggle or args.import_forexfactory):
+        parser.error("нечего делать - укажите --rebuild, --import-kaggle "
+                     "или --import-forexfactory")
 
     calendar_dir = os.environ.get(
-        "CALENDAR_DIR", os.path.join(os.path.dirname(__file__), "..", "data", "economic_calendar"))
+        "CALENDAR_DIR",
+        os.path.join(os.path.dirname(__file__), "..", "data", "economic_calendar"))
+    path = store_path(calendar_dir)
     session = requests.Session()
-    events = []
+    events: list[dict] = []
 
-    if args.import_spoluan:
-        until_year = args.until_year or args.since_year
-        spoluan_events = import_spoluan_years(range(args.since_year, until_year + 1), session=session)
-        log.info("spoluan: %d events fetched", len(spoluan_events))
-        events.extend(spoluan_events)
+    if args.rebuild:
+        # Прежний архив выбрасывается целиком, а не дополняется: смешивать его
+        # с новым значило бы сохранить те самые сдвинутые копии.
+        if os.path.exists(path):
+            os.remove(path)
+            log.info("Прежний архив удалён")
 
-    if args.import_ehsan_full:
-        try:
-            ehsan_full_events = fetch_ehsan_full_calendar(session=session)
-            log.info("ehsan full calendar: %d events fetched", len(ehsan_full_events))
-            events.extend(ehsan_full_events)
-        except CalendarError as exc:
-            log.error("  %s", exc)
+    if args.rebuild or args.import_kaggle:
+        got = fetch_kaggle_calendar(session=session)
+        log.info("Kaggle: %d событий", len(got))
+        events.extend(got)
 
-    if args.import_ehsan_high_impact:
-        try:
-            ehsan_events = fetch_ehsan_high_impact(session=session)
-            log.info("ehsan high-impact: %d events fetched", len(ehsan_events))
-            events.extend(ehsan_events)
-        except CalendarError as exc:
-            log.error("  %s", exc)
+    if args.rebuild or args.import_forexfactory:
+        first = datetime.strptime(args.from_month, "%Y-%m").date()
+        last = (datetime.strptime(args.to_month, "%Y-%m").date() if args.to_month
+                else datetime.now(timezone.utc).date())
+        events.extend(import_forexfactory_months(first, last, session=session))
 
     since = datetime.fromisoformat(_ARCHIVE_SINCE)
     kept = [e for e in events if parse_event_time(e["date"]) >= since]
-    added = merge_events(store_path(calendar_dir), kept)
-    log.info(
-        "Fetched %d events, %d from %s onward, %d new after dedup",
-        len(events), len(kept), _ARCHIVE_SINCE, added)
+    added = merge_events(path, kept)
+    log.info("Получено %d событий, с %s осталось %d, записано новых %d",
+             len(events), _ARCHIVE_SINCE, len(kept), added)
     return 0
 
 
