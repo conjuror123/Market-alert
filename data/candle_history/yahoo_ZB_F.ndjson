@@ -14007,3 +14007,5 @@
 {"close": 108.53125, "close_time": 1788220484, "high": 108.53125, "low": 108.53125, "open": 108.53125, "open_time": 1788216884, "volume": 0.0}
 {"close": 108.5, "close_time": 1788220800, "high": 108.5625, "low": 108.5, "open": 108.53125, "open_time": 1788217200, "volume": 2383.0}
 {"close": 108.5, "close_time": 1788224029, "high": 108.5, "low": 108.5, "open": 108.5, "open_time": 1788220429, "volume": 0.0}
+{"close": 108.375, "close_time": 1788224400, "high": 108.5, "low": 108.3125, "open": 108.5, "open_time": 1788220800, "volume": 6280.0}
+{"close": 108.375, "close_time": 1788227731, "high": 108.375, "low": 108.375, "open": 108.375, "open_time": 1788224131, "volume": 0.0}
