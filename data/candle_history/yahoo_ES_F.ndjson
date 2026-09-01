@@ -14059,3 +14059,6 @@
 {"close": 7696.75, "close_time": 1788231600, "high": 7703.75, "low": 7693.75, "open": 7703.0, "open_time": 1788228000, "volume": 6894.0}
 {"close": 7696.25, "close_time": 1788234930, "high": 7696.25, "low": 7696.25, "open": 7696.25, "open_time": 1788231330, "volume": 0.0}
 {"close": 7696.5, "close_time": 1788238526, "high": 7696.5, "low": 7696.5, "open": 7696.5, "open_time": 1788234926, "volume": 0.0}
+{"close": 7692.75, "close_time": 1788238800, "high": 7698.0, "low": 7692.0, "open": 7696.5, "open_time": 1788235200, "volume": 3687.0}
+{"close": 7705.0, "close_time": 1788242400, "high": 7705.25, "low": 7690.0, "open": 7692.75, "open_time": 1788238800, "volume": 7698.0}
+{"close": 7704.5, "close_time": 1788245731, "high": 7704.5, "low": 7704.5, "open": 7704.5, "open_time": 1788242131, "volume": 0.0}
