@@ -1,534 +1,565 @@
-ТЕХНИЧЕСКОЕ ЗАДАНИЕ
-Macro-Event Alert & Logic System (MEALS) — Сводный Индекс Сенсации (СИС)
+TECHNICAL SPECIFICATION
+Macro-Event Alert & Logic System (MEALS) — Composite Sensation Index (SI-Index)
 
-Версия 5.1
-
-==================================================================
-1. ОБЩЕЕ ОПИСАНИЕ
-==================================================================
-
-1.1 Контур системы
-
-- Детектируются два независимых класса событий:
-    - кластерные — синхронные аномалии множества активов (SI-Index, п.4);
-    - одиночные идиосинкратические движения активов (модуль SAED, п.8).
-- Таймфрейм 1 час; хранение и расчёты в UTC.
-- Ядро: адаптивный out-of-sample EWMA Z-score, кросс-секционная волатильность
-  (CSV), PCA, робастный профиль объёма.
-- Каждый актив корзины имеет тир (1 — макро-бенчмарки, 2 — сектора/сырьё) и
-  блок (equity, rates, FX, commodities). Широта считается по блокам, не по
-  тикерам.
-- VIX в корзину не входит: внешний односторонний индикатор стресса (п.4.4).
-- Кластерное событие создаётся только при выполнении кластерного гейта (п.4.1)
-  и превышении порога SI_total; кулдаун 72 ч.э.к.
-- SAED работает по очищенному от фактора корзины движению отдельных активов и
-  имеет собственный кулдаун.
-
-1.2 Соглашения по символам и единицам
-
-- ч.э.к. — час эталонного календаря корзины (п.2.2).
-- t — момент ЗАКРЫТИЯ часового бара, UTC. Индекс t (r_t, Z_t, M_t, CSV_t,
-  V_R_t, SI_total, M_calendar) относит величину к бару, закрывающемуся в момент
-  t; t-1 — предыдущий бар того же ряда. В п.4.3 t используется также как
-  ВЕЛИЧИНА ВРЕМЕНИ (timestamp) в арифметике разностей времени.
-- close_t — ЦЕНА закрытия бара t; МОМЕНТ его закрытия обозначается t и только t.
-- Связь с БД: поле hour_utc (bars, metrics_asset_hour, metrics_basket_hour,
-  cluster_event_escalations, saed_block_alerts, decision_log) хранит момент
-  ОТКРЫТИЯ бара, поэтому t = hour_utc + 1 час — единая конвенция для всех
-  таблиц и рядов.
-- M_t — взвешенная медианная доходность корзины, M_block,t — то же по блоку
-  (обе — п.2.3), M_calendar — календарный мультипликатор (п.4.3). Не смешивать.
-- T0 (старт кластерного события), T_spike (скачок VIX), T0_single (старт
-  события SAED) фиксируются в шкале t — как момент закрытия бара, на котором
-  выполнено условие. T_event (п.4.3) — фактический момент публикации из
-  календаря, к сетке баров не привязан, может приходиться на середину часа.
-- «Пробой Q95 / Q99» — всегда составное (относительное + абсолютное) условие
-  п.3.1. MAD_eff — только в значении формулы п.2.5.
-- std везде в документе — с ddof = 1 (pandas-совместимо).
-- NULL ≠ False: неоценённый триггер получает NULL (п.2.3, 3.3, 3.4, 3.5, 6.6).
-- Константы, помеченные (*), — стартовые значения, калибруются на train (п.7).
+Version 5.1
 
 ==================================================================
-2. ДАННЫЕ И ПРЕДОБРАБОТКА
+1. GENERAL DESCRIPTION
 ==================================================================
 
-2.1 Источники данных и покрытие
+1.1 System outline
 
-- История с 2021-01-01, часовые бары OHLCV.
-- До старта разработки: зафиксировать вендора и провести data-availability
-  аудит по каждому тикеру и полю (open, high, low, close, volume) — глубина
-  истории, наличие и сопоставимость часового объёма, политика пересмотров.
-  Таблица покрытия обязательна; без неё состав корзины не утверждается.
-- IF часовой объём отсутствует или несопоставим (индексы, спот-FX)
-  THEN has_volume = false (п.3.5).
-- Акции и ETF — adjusted-серии; фьючерсы — continuous-серии.
+- Two independent classes of event are detected:
+    - cluster events — synchronous anomalies across many assets (SI-Index, §4);
+    - single idiosyncratic asset moves (the SAED module, §8).
+- Timeframe 1 hour; storage and computation in UTC.
+- Core: an adaptive out-of-sample EWMA Z-score, cross-sectional volatility
+  (CSV), PCA, a robust volume profile.
+- Every basket asset has a tier (1 — macro benchmarks, 2 — sectors/commodities)
+  and a block (equity, rates, FX, commodities). Breadth is counted by blocks,
+  not by tickers.
+- VIX is not part of the basket: it is an external one-sided stress indicator
+  (§4.4).
+- A cluster event is created only when the cluster gate (§4.1) is satisfied and
+  the SI_total threshold is exceeded; cooldown 72 RCH.
+- SAED works on the moves of individual assets cleaned of the basket factor and
+  has a cooldown of its own.
 
-2.2 Календарь сессий и таймзоны
+1.2 Conventions for symbols and units
 
-- Для каждого актива задаются: session_template (рабочие дни и часы) в
-  ЛОКАЛЬНОЙ таймзоне биржи, календарь праздников, календарь сокращённых сессий
-  (полусессий).
-- Сессии хранятся в локальной биржевой таймзоне и конвертируются в UTC на лету.
-  Хранение сессий сразу в UTC запрещено.
-- Почасовой профиль объёма строится по ЛОКАЛЬНОМУ биржевому часу (п.3.5).
-- Часы вне торговой сессии актива исключаются из расчётов EWMA, объёма, CSV,
-  PCA и кластерного сдвига.
-- Эталонный календарь корзины — непрерывная торговая неделя ЯКОРНОЙ БИРЖИ: вс
-  17:00 .. пт 17:00 ЛОКАЛЬНОГО времени якорной биржи;
-  anchor_exchange_tz = America/New_York (конфигурируется). Границы хранятся в
-  локальной таймзоне якорной биржи и конвертируются в UTC на лету (зима: 22:00
-  UTC вс — 22:00 UTC пт; лето: 21:00 UTC вс — 21:00 UTC пт); хранение границ
-  сразу в UTC запрещено.
-- Длительность недели эталонного календаря — ровно 120 часов; праздники из неё
-  НЕ вычитаются.
-- Все кросс-секционные окна измеряются в ч.э.к. (п.2.7).
+- RCH — an hour of the basket's reference calendar (§2.2).
+- t — the moment a bar CLOSES, UTC. The index t (r_t, Z_t, M_t, CSV_t,
+  V_R_t, SI_total, M_calendar) attaches a quantity to the bar closing at moment
+  t; t-1 is the previous bar of the same series. In §4.3, t is also used as a
+  TIME VALUE (a timestamp) in time-difference arithmetic.
+- close_t is the closing PRICE of bar t; the MOMENT of its close is denoted t
+  and only t.
+- Relation to the database: the field hour_utc (bars, metrics_asset_hour,
+  metrics_basket_hour, cluster_event_escalations, saed_block_alerts,
+  decision_log) stores the moment a bar OPENS, so t = hour_utc + 1 hour — one
+  convention for every table and every series.
+- M_t is the weighted median return of the basket, M_block,t the same for a
+  block (both §2.3), M_calendar the calendar multiplier (§4.3). Do not mix them.
+- T0 (the start of a cluster event), T_spike (a VIX spike), T0_single (the start
+  of a SAED event) are recorded on the t scale — as the closing moment of the
+  bar on which the condition held. T_event (§4.3) is the actual publication
+  moment from the calendar, is not tied to the bar grid, and may fall in the
+  middle of an hour.
+- "A Q95 / Q99 breach" is always the composite (relative + absolute) condition
+  of §3.1. MAD_eff is used only in the sense of the formula in §2.5.
+- std throughout this document uses ddof = 1 (pandas-compatible).
+- NULL != False: a trigger that was not evaluated gets NULL (§2.3, 3.3, 3.4,
+  3.5, 6.6).
+- Constants marked (*) are starting values, calibrated on train (§7).
 
-2.3 Состав корзины, блоки, веса, кворум
+==================================================================
+2. DATA AND PREPROCESSING
+==================================================================
 
-Конфигурация корзины (поля): ticker, tier (1/2), block, has_volume,
+2.1 Data sources and coverage
+
+- History from 2021-01-01, hourly OHLCV bars.
+- Before development starts: fix the vendor and carry out a data-availability
+  audit for every ticker and every field (open, high, low, close, volume) —
+  depth of history, presence and comparability of hourly volume, revision
+  policy. The coverage table is mandatory; without it the basket composition is
+  not approved.
+- IF hourly volume is absent or not comparable (indices, spot FX)
+  THEN has_volume = false (§3.5).
+- Stocks and ETFs — adjusted series; futures — continuous series.
+
+2.2 Session calendar and time zones
+
+- For each asset the following are specified: session_template (working days and
+  hours) in the exchange's LOCAL time zone, a holiday calendar, a calendar of
+  shortened sessions (half sessions).
+- Sessions are stored in the exchange's local time zone and converted to UTC on
+  the fly. Storing sessions in UTC directly is forbidden.
+- The hourly volume profile is built by LOCAL exchange hour (§3.5).
+- Hours outside an asset's trading session are excluded from the EWMA, volume,
+  CSV, PCA and cluster-shift computations.
+- The basket's reference calendar is the continuous trading week of the ANCHOR
+  EXCHANGE: Sun 17:00 .. Fri 17:00 LOCAL time of the anchor exchange;
+  anchor_exchange_tz = America/New_York (configurable). The bounds are stored in
+  the anchor exchange's local time zone and converted to UTC on the fly (winter:
+  22:00 UTC Sun — 22:00 UTC Fri; summer: 21:00 UTC Sun — 21:00 UTC Fri); storing
+  the bounds in UTC directly is forbidden.
+- The length of a reference-calendar week is exactly 120 hours; holidays are NOT
+  subtracted from it.
+- All cross-sectional windows are measured in RCH (§2.7).
+
+2.3 Basket composition, blocks, weights, quorum
+
+Basket configuration (fields): ticker, tier (1/2), block, has_volume,
 session_template, exchange_tz, weight.
 
-Блоки: equity, rates, FX, commodities. Каждый актив корзины принадлежит ровно
-одному блоку. Блок инструмента вне корзины задаётся по п.8.1 и используется
-только модулем SAED.
+Blocks: equity, rates, FX, commodities. Every basket asset belongs to exactly
+one block. The block of an instrument outside the basket is set per §8.1 and is
+used only by the SAED module.
 
-Веса (ПРОИЗВОДНЫЕ, не свободный параметр):
+Weights (DERIVED, not a free parameter):
     weight_i = 1 / (N_blocks × N_assets_block)
-    N_blocks       — число блоков, представленных в корзине на дату;
-    N_assets_block — число активных активов в блоке этого актива на ту же дату.
-- Блоки равновесны между собой, активы внутри блока равновесны.
-- weight рассчитывается системой при изменении состава корзины; ручное
-  редактирование запрещено.
-- IF значение weight расходится с правилом равновесности THEN верным считается
-  правило, конфигурация признаётся невалидной.
+    N_blocks       — the number of blocks represented in the basket on the date;
+    N_assets_block — the number of active assets in this asset's block on the
+                     same date.
+- Blocks carry equal weight relative to each other, and assets within a block
+  carry equal weight.
+- weight is computed by the system whenever the basket composition changes;
+  editing it by hand is forbidden.
+- IF a weight value diverges from the equal-weight rule THEN the rule is taken
+  as correct and the configuration is deemed invalid.
 
-Агрегаты корзины:
-- M_t — взвешенная медианная доходность корзины по этим весам (п.3.2, 3.6, 5.2).
-- M_block,t — взвешенная медиана доходностей активов ЭТОГО блока, находящихся в
-  сессии и имеющих валидный бар, по их весам внутри блока (только п.7).
+Basket aggregates:
+- M_t — the weighted median return of the basket under these weights (§3.2, 3.6,
+  5.2).
+- M_block,t — the weighted median of the returns of the assets of THIS block
+  that are in session and have a valid bar, under their weights within the block
+  (§7 only).
 
-Кворум часа (условие оценки кластерных триггеров: кластерный сдвиг, CSV, PCA):
-    IF (активов корзины в сессии >= 8)
-       AND (среди них Tier-1 >= 2)
-       AND (представлено блоков >= 2, в каждом >= 2 актива)
-    THEN час валиден
-    ELSE час = no_quorum; все кластерные триггеры = NULL (не False);
-         SI-Index за этот час не рассчитывается.
+Quorum of an hour (the condition for evaluating cluster triggers: cluster shift,
+CSV, PCA):
+    IF (basket assets in session >= 8)
+       AND (among them Tier-1 >= 2)
+       AND (blocks represented >= 2, each with >= 2 assets)
+    THEN the hour is valid
+    ELSE hour = no_quorum; all cluster triggers = NULL (not False);
+         the SI-Index is not computed for this hour.
 
-2.4 Пропуски, гэпы и корпоративные действия
+2.4 Missing bars, gaps and corporate actions
 
-- Forward-fill к доходностям НЕ применяется; FF допускается только к цене для
-  отчётности и визуализации и никогда не участвует в расчёте r_t.
-- IF бар внутри сессии отсутствует THEN is_missing: бар исключается из расчёта
-  доходностей, обновления состояния EWMA, CSV, PCA и профиля объёма.
-- Первый бар сессии раскладывается на два канала:
-    гэп-канал:     r_gap = ln(open_первого_бара
-                            / close_последнего_бара предыдущей сессии)
-    внутричасовой: r_t   = ln(close_первого_бара / open_первого_бара)
-  В Z-score, CSV, PCA, кластерные триггеры и SAED подаётся ТОЛЬКО r_t.
-- Гэп-канал ведётся отдельно: собственное EWMA-состояние, собственные пороги
-  Q95_gap / Q99_gap (схема п.3.1); логируется и экспортируется; баллов в
-  SI-Index НЕ даёт.
-- Ведутся таблицы corporate_actions (сплиты, дивиденды, смена тикера) и
-  roll_schedule (фьючерсы).
-- IF бар относится к роллу или к дате корпоративного действия THEN is_masked:
-  бар исключается из расчёта доходностей и обновления состояний.
+- Forward-fill is NOT applied to returns; FF is permitted only on the price for
+  reporting and visualisation and never takes part in computing r_t.
+- IF a bar inside a session is absent THEN is_missing: the bar is excluded from
+  the computation of returns, from the EWMA state update, from CSV, PCA and the
+  volume profile.
+- The first bar of a session is split into two channels:
+    gap channel:  r_gap = ln(open_of_first_bar
+                           / close_of_last_bar of the previous session)
+    intra-hour:   r_t   = ln(close_of_first_bar / open_of_first_bar)
+  ONLY r_t is fed into the Z-score, CSV, PCA, the cluster triggers and SAED.
+- The gap channel is kept separately: its own EWMA state, its own thresholds
+  Q95_gap / Q99_gap (the scheme of §3.1); it is logged and exported; it awards
+  NO points in the SI-Index.
+- The tables corporate_actions (splits, dividends, ticker changes) and
+  roll_schedule (futures) are maintained.
+- IF a bar belongs to a roll or to a corporate-action date THEN is_masked: the
+  bar is excluded from the computation of returns and from state updates.
 
-2.5 Винзоризация аномальных доходностей
+2.5 Winsorization of anomalous returns
 
-    MAD_24           = медианное абсолютное отклонение доходностей за
-                       последние 24 валидных бара актива, без текущего бара
-    sigma_LT         = std доходностей за окно п.2.7
-    half_tick_return = доходность, равная половине тик-сайза при текущей цене
+    MAD_24           = the median absolute deviation of returns over the last
+                       24 valid bars of the asset, excluding the current bar
+    sigma_LT         = std of returns over the window of §2.7
+    half_tick_return = the return equal to half the tick size at the current
+                       price
     eps_MAD          = max(0.2 × sigma_LT, half_tick_return)
     MAD_eff          = max(MAD_24, eps_MAD)
 
     IF |r_t| > 5 × MAD_eff THEN r_w_t = sign(r_t) × min(|r_t|, 5 × MAD_eff)
                            ELSE r_w_t = r_t
 
-- В обновление состояния EWMA (mean, var) подаётся r_w_t.
-- В расчёт Z_t, всех триггеров, SAED и экспорта подаётся ИСХОДНОЕ r_t.
-- Аномальные бары из истории не исключаются.
+- r_w_t is what is fed into the EWMA state update (mean, var).
+- The ORIGINAL r_t is what is fed into Z_t, all triggers, SAED and the export.
+- Anomalous bars are not removed from the history.
 
 2.6 Data-quality gate
 
-До любых расчётов бар проходит проверки: монотонность и уникальность временных
-меток (дедупликация); строгая положительность цен (защита от ln(0));
-согласованность OHLC (low <= min(open, close) AND max(open, close) <= high);
-неотрицательность объёма; допустимый лаг поступления.
+Before any computation a bar passes the checks: monotonicity and uniqueness of
+timestamps (deduplication); strict positivity of prices (protection against
+ln(0)); OHLC consistency (low <= min(open, close) AND max(open, close) <= high);
+non-negativity of volume; an acceptable arrival lag.
 
-- IF бар не прошёл проверки THEN is_invalid: бар не участвует в расчётах и не
-  обновляет состояния.
-- IF число валидных активов ниже кворума (п.2.3) THEN час = no_quorum и
-  пропускается.
-- IF данные поступили поздно или пересмотрены вендором THEN отложенный пересчёт
-  часа с новым run_version (п.6.2); уведомления задним числом не отправляются;
-  затронутые записи помечаются recalculated.
+- IF a bar fails the checks THEN is_invalid: the bar takes no part in the
+  computations and updates no state.
+- IF the number of valid assets is below the quorum (§2.3) THEN hour =
+  no_quorum and the hour is skipped.
+- IF data arrived late or was revised by the vendor THEN the hour is recomputed
+  later with a new run_version (§6.2); no notifications are sent after the fact;
+  the affected records are marked recalculated.
 
-2.7 Реестр окон и констант
+2.7 Registry of windows and constants
 
-Смешивание торговых и календарных единиц не допускается.
+Mixing trading and calendar units is not permitted.
 
-Окна по активу — в ВАЛИДНЫХ ТОРГОВЫХ БАРАХ этого актива:
-    lambda    = 2 / (24 + 1)     EWMA доходности (п.3.1)
-    MAD_24    = 24 бара          винзоризация (п.2.5)
-    W_asset   = max(120 × B_asset, 720) баров — окно порогов Q95 / Q99, где
-                B_asset = медианное число валидных баров в сессии актива
-    lambda_q  = 2 / (120 + 1)    сглаживание порогов, период 120 баров (п.3.1)
-    sigma_LT  = 5000 баров (или вся история, но не менее 720 баров)
-    профиль объёма  = 20 полных торговых дней (п.3.5)
-    окно регрессии  = 500 СОВМЕСТНЫХ валидных баров инструмента и фактора,
-                      минимум 200 (п.3.6)
-    кулдаун SAED    = 12 баров актива (п.8.3)
+Per-asset windows — in that asset's VALID TRADING BARS:
+    lambda    = 2 / (24 + 1)     EWMA of returns (§3.1)
+    MAD_24    = 24 bars          winsorization (§2.5)
+    W_asset   = max(120 × B_asset, 720) bars — the window of the Q95 / Q99
+                thresholds, where B_asset = the median number of valid bars in
+                the asset's session
+    lambda_q  = 2 / (120 + 1)    threshold smoothing, a period of 120 bars (§3.1)
+    sigma_LT  = 5000 bars (or the whole history, but not fewer than 720 bars)
+    volume profile   = 20 full trading days (§3.5)
+    regression window = 500 JOINT valid bars of the instrument and the factor,
+                      minimum 200 (§3.6)
+    SAED cooldown    = 12 bars of the asset (§8.3)
 
-Кросс-секционные окна — в ЧАСАХ ЭТАЛОННОГО КАЛЕНДАРЯ (ч.э.к.):
-    W_pca  = 120 ч.э.к.   окно PCA (одна торговая неделя, п.3.3)
-    W_cs   = 1200 ч.э.к.  окно статистик CSV_norm, PC1_ratio, sigma_M, k_t
-                          (10 торговых недель; п.3.2, 3.3, 5.2)
-    72 ч.э.к.   кулдаун кластерного события (п.5.1)
-    24 ч.э.к.   окно мультипликатора VIX (п.4.4); окно антидребезга эскалаций
-                (п.5.2); горизонт разметки истины и baseline (п.7)
-    3 ч.э.к.    задержка ветви векторного разворота (п.5.2)
-    ±12 ч.э.к.  окно экспорта события вокруг T0 (п.6.5)
+Cross-sectional windows — in REFERENCE-CALENDAR HOURS (RCH):
+    W_pca  = 120 RCH    the PCA window (one trading week, §3.3)
+    W_cs   = 1200 RCH   the window of the CSV_norm, PC1_ratio, sigma_M, k_t
+                        statistics (10 trading weeks; §3.2, 3.3, 5.2)
+    72 RCH    the cluster-event cooldown (§5.1)
+    24 RCH    the VIX multiplier window (§4.4); the escalation debounce window
+              (§5.2); the horizon of truth labelling and of the baseline (§7)
+    3 RCH     the delay of the vector-reversal branch (§5.2)
+    ±12 RCH   the event export window around T0 (§6.5)
 
-Календарные часы — ЕДИНСТВЕННОЕ исключение: окна календарного мультипликатора
-(п.4.3; High: T_event-6h .. T_event+3h, Medium: T_event-4h .. T_event+2h).
-Аргумент функции — t, границы отсчитываются от T_event, разности времени
-вычисляются как total_seconds() / 3600 (float). Окна привязаны к моменту
-публикации макроданных, не зависят от торговых сессий и эталонного календаря;
-окно, пересекающее закрытие рынка или выходные, НЕ сокращается.
+Calendar hours are the ONLY exception: the windows of the calendar multiplier
+(§4.3; High: T_event-6h .. T_event+3h, Medium: T_event-4h .. T_event+2h). The
+argument of the function is t, the bounds are measured from T_event, and time
+differences are computed as total_seconds() / 3600 (float). The windows are tied
+to the moment macro data is published, do not depend on trading sessions or on
+the reference calendar; a window that crosses the market close or a weekend is
+NOT shortened.
 
 ==================================================================
-3. МАТЕМАТИЧЕСКИЕ МОДУЛИ
+3. MATHEMATICAL MODULES
 ==================================================================
 
-3.1 Адаптивный EWMA Z-score (out-of-sample)
+3.1 Adaptive EWMA Z-score (out-of-sample)
 
-Доходность: r_t = ln(close_t / close_{t-1}) на валидных барах; для первого бара
-сессии — по п.2.4.
+Return: r_t = ln(close_t / close_{t-1}) on valid bars; for the first bar of a
+session, per §2.4.
 
-Порядок расчёта на баре — строго:
-  Шаг 1. Z ДО обновления состояния, против параметров предыдущего бара:
+The order of computation on a bar is strict:
+  Step 1. Z BEFORE the state update, against the previous bar's parameters:
       sigma_eff_{t-1} = max( sqrt(ewma_var_{t-1}), 0.2 × sigma_LT )
       Z_t = (r_t - ewma_mean_{t-1}) / sigma_eff_{t-1}
-  Шаг 2. Обновление состояния ПОСЛЕ расчёта Z_t, на винзоризованной r_w_t
-         (п.2.5):
+  Step 2. The state update AFTER Z_t is computed, on the winsorized r_w_t
+         (§2.5):
       ewma_mean_t = lambda × r_w_t + (1 - lambda) × ewma_mean_{t-1}
       ewma_var_t  = lambda × (r_w_t - ewma_mean_{t-1})^2
                     + (1 - lambda) × ewma_var_{t-1}
-      (в ewma_var_t подставляется ewma_mean_{t-1}, НЕ ewma_mean_t)
+      (ewma_mean_{t-1} is what goes into ewma_var_t, NOT ewma_mean_t)
 
-Пороги (адаптивные, сглаженные):
-- Для каждого актива поддерживается скользящее окно W_asset абсолютных значений
-  Z, исключая текущий бар; Q95_raw_t, Q99_raw_t = 95-й и 99-й перцентили |Z|.
-- Сглаживание обязательно: Q_t = lambda_q × Q_raw_t + (1 - lambda_q) × Q_{t-1}.
-- Пересчёт каждый час после закрытия бара, на данных строго до текущего бара.
+Thresholds (adaptive, smoothed):
+- For each asset a rolling window W_asset of absolute Z values is maintained,
+  excluding the current bar; Q95_raw_t, Q99_raw_t = the 95th and 99th
+  percentiles of |Z|.
+- Smoothing is mandatory: Q_t = lambda_q × Q_raw_t + (1 - lambda_q) × Q_{t-1}.
+- Recomputed every hour after the bar closes, on data strictly before the
+  current bar.
 
-Гибридное условие значимости (относительная И абсолютная нога одновременно):
-    пробой Q99 := |Z_t| > Q99_t  AND  |r_t| >= 3.0 (*) × sigma_LT
-    пробой Q95 := |Z_t| > Q95_t  AND  |r_t| >= 1.5 (*) × sigma_LT
-- Далее «пробой Q95 / Q99» означает именно это составное условие.
-- Правило распространяется на все ряды, обрабатываемые этим аппаратом, включая
-  ряд остатков SAED (п.3.6, 8.2) и ряд VIX (п.4.4).
+The hybrid significance condition (the relative AND the absolute leg at once):
+    a Q99 breach := |Z_t| > Q99_t  AND  |r_t| >= 3.0 (*) × sigma_LT
+    a Q95 breach := |Z_t| > Q95_t  AND  |r_t| >= 1.5 (*) × sigma_LT
+- Below, "a Q95 / Q99 breach" means exactly this composite condition.
+- The rule applies to every series processed by this machinery, the SAED
+  residual series (§3.6, 8.2) and the VIX series (§4.4) included.
 
-3.2 Кросс-секционная волатильность (CSV)
+3.2 Cross-sectional volatility (CSV)
 
-- Час оценивается только при выполнении кворума (п.2.3).
-- Выборка: все активы корзины, находящиеся в сессии и имеющие валидный бар.
+- An hour is evaluated only when the quorum (§2.3) is satisfied.
+- Sample: all basket assets that are in session and have a valid bar.
       CSV_t             = std(r_i,t)
-      EWMA_volatility_t = mean(sigma_eff_{i,t-1}) по тем же активам (п.3.1)
+      EWMA_volatility_t = mean(sigma_eff_{i,t-1}) over the same assets (§3.1)
       CSV_norm_t        = CSV_t / EWMA_volatility_t
-- Подусловие csv_compression:
-      CSV_norm_t < Q10(CSV_norm за W_cs, без текущего часа)
-      AND |M_t| > 2 × std(M за то же окно)
+- The csv_compression sub-condition:
+      CSV_norm_t < Q10(CSV_norm over W_cs, excluding the current hour)
+      AND |M_t| > 2 × std(M over the same window)
 
-3.3 PCA (метод главных компонент)
+3.3 PCA (principal component analysis)
 
-- Скользящее окно W_pca, пересчёт на каждом часовом баре.
-- Матрица доходностей: строки — часы эталонного календаря, столбцы — активы
-  корзины. Заполнение пропусков нулями (fillna(0)) ЗАПРЕЩЕНО.
-- Включаются только часы, прошедшие кворум (п.2.3), и только активы с валидным
-  баром во ВСЕХ включённых часах окна.
-- Расчёт по КОРРЕЛЯЦИОННОЙ матрице: центрирование по среднему столбца и деление
-  на std столбца. Константные столбцы (std < 1e-12) исключаются и логируются.
-- Требование обусловленности (оба условия одновременно), N_assets — число
-  столбцов после исключений:
-      N_assets >= 3   AND   число строк матрицы >= max(3 × N_assets, 60)
-  IF хотя бы одно не выполнено THEN PC1_ratio = NULL и триггер синхронности за
-  этот час не оценивается (обработка NULL — п.3.4).
-- PC1_ratio = доля дисперсии, объяснённая первой компонентой.
-- Подусловие pca_sync:
-      PC1_threshold_t = max( Q95(PC1_ratio за W_cs, без текущего часа),
-                             median(PC1_ratio за W_cs) + 0.05 )
+- A rolling window W_pca, recomputed on every hourly bar.
+- The matrix of returns: rows are reference-calendar hours, columns are basket
+  assets. Filling missing values with zeros (fillna(0)) is FORBIDDEN.
+- Only hours that passed the quorum (§2.3) are included, and only assets with a
+  valid bar in ALL the hours included in the window.
+- Computation on the CORRELATION matrix: centring by the column mean and
+  division by the column std. Constant columns (std < 1e-12) are excluded and
+  logged.
+- The conditioning requirement (both conditions at once), where N_assets is the
+  number of columns after exclusions:
+      N_assets >= 3   AND   the number of matrix rows >= max(3 × N_assets, 60)
+  IF at least one does not hold THEN PC1_ratio = NULL and the synchrony trigger
+  is not evaluated for this hour (NULL handling — §3.4).
+- PC1_ratio = the share of variance explained by the first component.
+- The pca_sync sub-condition:
+      PC1_threshold_t = max( Q95(PC1_ratio over W_cs, excluding the current
+                             hour),
+                             median(PC1_ratio over W_cs) + 0.05 )
       pca_sync := PC1_ratio_t > PC1_threshold_t
 
-3.4 Единый триггер однофакторности
+3.4 The single-factor trigger
 
-- «Однофакторность корзины» := csv_compression (п.3.2) OR pca_sync (п.3.3).
-- Оба подусловия логируются раздельно.
-- IF PC1_ratio = NULL THEN pca_sync логируется как NULL, а значение триггера
-  «Однофакторность корзины» := значение условия п.3.2.
-- Час, прошедший кворум, всегда получает определённое значение этого триггера и
-  определённое слагаемое в SI-Index (п.4.1, 4.2).
-- На бэктесте обязательно измеряется корреляция срабатываний подусловий.
-  IF корреляция > 0.7 THEN одно из подусловий исключается из продуктивной
-  конфигурации.
+- "Single-factorness of the basket" := csv_compression (§3.2) OR pca_sync
+  (§3.3).
+- Both sub-conditions are logged separately.
+- IF PC1_ratio = NULL THEN pca_sync is logged as NULL and the value of the
+  "single-factorness of the basket" trigger := the value of the condition of
+  §3.2.
+- An hour that passed the quorum always gets a definite value for this trigger
+  and a definite term in the SI-Index (§4.1, 4.2).
+- The correlation between the firings of the sub-conditions must be measured in
+  the backtest. IF the correlation > 0.7 THEN one of the sub-conditions is
+  removed from the production configuration.
 
-3.5 Профиль объёма (робастный)
+3.5 Volume profile (robust)
 
-- IF has_volume = false THEN V_R_t = NULL и триггер подтверждения объёмом для
-  актива не оценивается.
-- Окно профиля: для каждого актива и каждого ЛОКАЛЬНОГО биржевого часа — объёмы
-  за последние 20 полных торговых дней; сокращённые сессии и праздничные дни из
-  профиля исключаются.
-- median_h, MAD_h — медиана и медианное абсолютное отклонение ln(1 + V) для
-  этого локального часа за окно профиля.
+- IF has_volume = false THEN V_R_t = NULL and the volume-confirmation trigger is
+  not evaluated for the asset.
+- The profile window: for each asset and each LOCAL exchange hour — the volumes
+  over the last 20 full trading days; shortened sessions and holidays are
+  excluded from the profile.
+- median_h, MAD_h are the median and the median absolute deviation of ln(1 + V)
+  for that local hour over the profile window.
       V_R_t = ( ln(1 + V_t) - median_h ) / ( 1.4826 × MAD_h )
 - IF 1.4826 × MAD_h < 1e-6 THEN V_R_t = 0.
-- Порог подтверждения объёмом: V_R_t > 2.5 (*).
-- Объём первого бара сессии учитывается в профиле, и подтверждение объёмом для
-  него ОЦЕНИВАЕТСЯ на общих основаниях; отсутствие баллов относится только к
-  каналу r_gap (п.2.4).
+- The volume-confirmation threshold: V_R_t > 2.5 (*).
+- The volume of the first bar of a session counts towards the profile, and
+  volume confirmation for it IS evaluated on the same basis as for any other
+  bar; the absence of points applies only to the r_gap channel (§2.4).
 
-3.6 Идиосинкратический остаток (вход модуля SAED)
+3.6 The idiosyncratic residual (the input of the SAED module)
 
-- Фактор корзины: F_t = M_t (п.2.3).
-- Для каждого инструмента (включая инструменты вне корзины) оценивается
-  регрессия на скользящем окне п.2.7:
+- The basket factor: F_t = M_t (§2.3).
+- For every instrument (instruments outside the basket included) a regression is
+  estimated on the rolling window of §2.7:
       r_i,t = alpha_i + beta_i × F_t + e_i,t
-  Коэффициенты оцениваются строго на данных до текущего бара (out-of-sample).
-- Остаток e_i,t обрабатывается аппаратом п.3.1 с собственными состояниями:
-  собственное EWMA-состояние (out-of-sample, винзоризация и отсечки по п.2.5 и
-  3.1), собственные сглаженные пороги Q95_resid / Q99_resid, собственная
+  The coefficients are estimated strictly on data before the current bar
+  (out-of-sample).
+- The residual e_i,t is processed by the machinery of §3.1 with its own states:
+  its own EWMA state (out-of-sample, winsorization and floors per §2.5 and
+  §3.1), its own smoothed thresholds Q95_resid / Q99_resid, its own
   sigma_LT_resid.
       Z_resid_i,t = (e_i,t - ewma_mean_resid_{t-1})
                     / max( sqrt(ewma_var_resid_{t-1}), 0.2 × sigma_LT_resid )
-- Q99_resid используется в условии генерации событий SAED (п.8.2).
-- Q95_resid рассчитывается, хранится (п.6.4) и экспортируется ИСКЛЮЧИТЕЛЬНО для
-  логирования и диагностики; ни в одном условии документа не участвует.
+- Q99_resid is used in the SAED event-generation condition (§8.2).
+- Q95_resid is computed, stored (§6.4) and exported SOLELY for logging and
+  diagnostics; it takes part in no condition in this document.
 
 ==================================================================
-4. СВОДНЫЙ ИНДЕКС СЕНСАЦИИ (SI-INDEX)
+4. THE COMPOSITE SENSATION INDEX (SI-INDEX)
 ==================================================================
 
-    SI_total = (сумма базовых баллов) × M_calendar × M_VIX
+    SI_total = (the sum of base points) × M_calendar × M_VIX
 
-4.1 Кластерный гейт
+4.1 The cluster gate
 
-- SI-Index рассчитывается и логируется для КАЖДОГО часа, прошедшего кворум.
-- Создание кластерного события и первичное уведомление:
-      IF (триггер «Кластерный сдвиг» (п.4.2) = True)
-         AND (SI_total >= THRESHOLD (п.4.5))
-      THEN создать событие и отправить уведомление
-      ELSE событие не создаётся, уведомление не отправляется.
-- Требование относится к СОЗДАНИЮ кластерного события (в том числе нового
-  события в ветви векторного разворота, п.5.2) и к первичному уведомлению.
-- Эскалации внутри уже созданного события новых событий не создают и
-  регулируются п.5.2 и шкалой широты по Q99 (п.4.5).
+- The SI-Index is computed and logged for EVERY hour that passed the quorum.
+- Creating a cluster event and the primary notification:
+      IF (the "Cluster shift" trigger (§4.2) = True)
+         AND (SI_total >= THRESHOLD (§4.5))
+      THEN create an event and send a notification
+      ELSE no event is created and no notification is sent.
+- The requirement applies to the CREATION of a cluster event (including a new
+  event on the vector-reversal branch, §5.2) and to the primary notification.
+- Escalations inside an event that already exists create no new events and are
+  governed by §5.2 and the Q99 breadth scale (§4.5).
 
-4.2 Базовые триггеры и начисление баллов
+4.2 Base triggers and the award of points
 
-Баллы начисляются один раз за час за каждый ТИП триггера, даже если условию
-удовлетворяют несколько активов.
+Points are awarded once an hour for each TYPE of trigger, even if several assets
+satisfy the condition.
 
-Триггер 1. Ценовой шок — +3 (*)
-    Хотя бы один актив корзины даёт пробой Q99 (п.3.1).
+Trigger 1. Price shock — +3 (*)
+    At least one basket asset gives a Q99 breach (§3.1).
 
-Триггер 2. Подтверждение объёмом — +2 (*)
-    Хотя бы у одного актива с ценовым шоком: has_volume = true AND V_R_t > 2.5.
+Trigger 2. Volume confirmation — +2 (*)
+    For at least one asset with a price shock: has_volume = true AND V_R_t > 2.5.
 
-Триггер 3. Кластерный сдвиг — +4 (*)
-    Все условия одновременно:
-    - блок активен := (число активов блока с пробоем Q95
-                       >= 33% числа активов блока, находящихся в сессии)
-                      AND (число активов блока с пробоем Q95 >= 2);
-    - активны не менее 2 блоков из представленных в этот час;
-    - среди активов, давших пробой, есть хотя бы один Tier-1.
+Trigger 3. Cluster shift — +4 (*)
+    All conditions at once:
+    - a block is active := (the number of assets of the block with a Q95 breach
+                            >= 33% of the number of assets of the block that are
+                            in session)
+                           AND (the number of assets of the block with a Q95
+                            breach >= 2);
+    - at least 2 of the blocks represented in this hour are active;
+    - among the assets that gave a breach there is at least one Tier-1.
 
-Триггер 4. Однофакторность корзины (п.3.4) — +3 (*)
+Trigger 4. Single-factorness of the basket (§3.4) — +3 (*)
 
-Агрегация:
-- Кластерный сдвиг и однофакторность уже агрегируют информацию по корзине и на
-  число активов дополнительно не умножаются.
-- Широта считается по блокам, не по тикерам.
-- Максимальная сумма базовых баллов = 3 + 2 + 4 + 3 = 12; минимальная сумма у
-  валидного события (с учётом гейта п.4.1) = 4.
+Aggregation:
+- The cluster shift and single-factorness already aggregate information across
+  the basket and are not additionally multiplied by the number of assets.
+- Breadth is counted by blocks, not by tickers.
+- The maximum sum of base points = 3 + 2 + 4 + 3 = 12; the minimum sum for a
+  valid event (given the gate of §4.1) = 4.
 
-4.3 Асимметричный мультипликатор календаря
+4.3 The asymmetric calendar multiplier
 
-Учитываются события важности High и Medium экономического календаря. Функция
-кусочно-линейная; аргумент — t (п.1.2), результат относится к тому же бару.
-Разницы времени — календарные часы (float) через total_seconds() / 3600.
+Economic-calendar events of High and Medium importance are taken into account.
+The function is piecewise linear; its argument is t (§1.2), and the result
+belongs to the same bar. Time differences are calendar hours (float) through
+total_seconds() / 3600.
 
 - High:
     (T_event - 6h) <= t <= T_event:
         M_calendar = 1 + (1.8 - 1) × (t - (T_event - 6h)) / 6
     T_event < t <= (T_event + 3h):
         M_calendar = 1.8 - (1.8 - 1) × (t - T_event) / 3
-    вне интервалов: M_calendar = 1.0
+    outside the intervals: M_calendar = 1.0
 
 - Medium:
     (T_event - 4h) <= t <= T_event:
         M_calendar = 1 + (1.5 - 1) × (t - (T_event - 4h)) / 4
     T_event < t <= (T_event + 2h):
         M_calendar = 1.5 - (1.5 - 1) × (t - T_event) / 2
-    вне интервалов: M_calendar = 1.0
+    outside the intervals: M_calendar = 1.0
 
-- Пик (1.8 / 1.5) достигается в точке t = T_event, где обе ветви совпадают;
-  отдельной ветви «в T_event» не требуется. Если публикация приходится на
-  середину часа, ближайший бар получает значение ветви, а не пиковое.
-- Функция непрерывна: на обеих границах окон она равна 1.0, поэтому включение
-  или исключение самой границы на результат не влияет.
-- IF окна нескольких событий накрывают момент t THEN M_calendar = максимум по
-  ВСЕМ таким событиям (и High, и Medium); иначе M_calendar = 1.0.
-- Множители 1.8, 1.5 и размеры окон — (*).
+- The peak (1.8 / 1.5) is reached at the point t = T_event, where both branches
+  coincide; a separate "at T_event" branch is not required. If publication falls
+  in the middle of an hour, the nearest bar gets the value of the branch, not
+  the peak.
+- The function is continuous: at both window boundaries it equals 1.0, so
+  including or excluding the boundary itself does not affect the result.
+- IF the windows of several events cover the moment t THEN M_calendar = the
+  maximum over ALL such events (both High and Medium); otherwise
+  M_calendar = 1.0.
+- The multipliers 1.8, 1.5 and the window sizes are (*).
 
-Пример (High, T_event = 12:30 UTC, округление до 4 знаков):
+Example (High, T_event = 12:30 UTC, rounded to 4 decimal places):
     t = 12:00 → 1 + 0.8 × 5.5 / 6   = 1.7333
     t = 13:00 → 1.8 - 0.8 × 0.5 / 3 = 1.6667
     t = 15:00 → 1.8 - 0.8 × 2.5 / 3 = 1.1333
-    t = 16:00 → вне окна (3.5 > 3)    = 1.0
+    t = 16:00 → outside the window (3.5 > 3) = 1.0
 
-Привязка ко времени и point-in-time календарь:
-- Событие относится к бару, для которого (t - 1 час) < T_event <= t, то есть к
-  первому бару, закрывающемуся не раньше публикации. Эта привязка задаёт
-  event-бар для логирования, экспорта и отчётности; M_calendar от неё не зависит
-  и рассчитывается только по формулам выше как функция t.
-- Календарь хранится как point-in-time (as-of) снапшот: для расчёта часа берётся
-  версия календаря, известная на этот час, с учётом переносов и пересмотров.
-  Бэктест обязан использовать as-of версию.
+Attachment to time and a point-in-time calendar:
+- An event belongs to the bar for which (t - 1 hour) < T_event <= t, that is, to
+  the first bar closing no earlier than the publication. This attachment defines
+  the event bar for logging, export and reporting; M_calendar does not depend on
+  it and is computed only by the formulas above as a function of t.
+- The calendar is stored as a point-in-time (as-of) snapshot: to compute an hour,
+  the version of the calendar known as of that hour is taken, reschedulings and
+  revisions included. The backtest is obliged to use the as-of version.
 
-4.4 Мультипликатор VIX
+4.4 The VIX multiplier
 
-- VIX не входит в корзину; анализируется отдельно аппаратом п.3.1.
-- Скачок VIX (условие ОДНОСТОРОННЕЕ и гибридное) — все три условия одновременно:
-      Z_VIX_t > Q95_VIX_t                    (без модуля)
+- VIX is not part of the basket; it is analysed separately by the machinery of
+  §3.1.
+- A VIX spike (a ONE-SIDED and hybrid condition) — all three conditions at once:
+      Z_VIX_t > Q95_VIX_t                    (without the absolute value)
       r_VIX_t > 0
       |r_VIX_t| >= 1.5 (*) × sigma_LT_VIX
-  sigma_LT_VIX — долгосрочная сигма ряда VIX (п.2.5).
-- Падение VIX стрессом не считается и множителя не даёт.
-- Окно действия ФИКСИРОВАННОЕ: M_VIX = 1.3 (*) на интервале
-  [T_spike, T_spike + 24 ч.э.к.], где T_spike — первый скачок.
-- Повторные скачки внутри действующего окна логируются (vix_spike_count), но
-  окно НЕ продлевают и множитель НЕ увеличивают.
-- Новое окно открывается только скачком ПОСЛЕ закрытия предыдущего окна.
-- Вне окна M_VIX = 1.0.
+  sigma_LT_VIX is the long-term sigma of the VIX series (§2.5).
+- A fall in VIX does not count as stress and gives no multiplier.
+- The window of effect is FIXED: M_VIX = 1.3 (*) over the interval
+  [T_spike, T_spike + 24 RCH], where T_spike is the first spike.
+- Repeat spikes inside an active window are logged (vix_spike_count) but do NOT
+  extend the window and do NOT increase the multiplier.
+- A new window is opened only by a spike AFTER the previous window has closed.
+- Outside a window M_VIX = 1.0.
 
-4.5 Пороги срабатывания и шкалы решений
+4.5 Firing thresholds and decision scales
 
-Основная шкала — ИТОГОВЫЙ балл SI_total (после мультипликаторов); все пороговые
-решения по величине сигнала принимаются на ней.
+The main scale is the FINAL SI_total score (after the multipliers); every
+threshold decision on the size of a signal is taken on it.
     THRESHOLD            = 7  (*)
-    ESCALATION_THRESHOLD = 12 (*)   порог «шока высшего порядка» (п.5.2)
+    ESCALATION_THRESHOLD = 12 (*)   the "higher-order shock" threshold (§5.2)
 
-Вторая шкала — ШКАЛА ШИРОТЫ ПО Q99: доля представленных в этот час блоков,
-активных по Q99 (определение активности блока по Q99 — п.5.2). Область
-применения строго ограничена:
-- используется ТОЛЬКО как альтернативное условие ветви «шок высшего порядка»
-  п.5.2 — внутри УЖЕ созданного кластерного события и только для эскалации
-  (экстренный алерт, инкремент escalation_seq, перезапуск отсчёта кулдауна);
-- по ней НЕ создаётся новое событие и НЕ отправляется первичное уведомление;
-- требование п.4.1 на эскалации по этой шкале НЕ распространяется, поэтому
-  экстренный алерт по этой ветви возможен при SI_total < THRESHOLD, если широта
-  по Q99 достигает уровня п.5.2.
+The second scale is the Q99 BREADTH SCALE: the share of the blocks represented
+in this hour that are active by Q99 (the definition of a block being active by
+Q99 — §5.2). Its area of application is strictly limited:
+- it is used ONLY as an alternative condition on the "higher-order shock" branch
+  of §5.2 — inside an ALREADY created cluster event and only for escalation (an
+  emergency alert, an increment of escalation_seq, a restart of the cooldown
+  countdown);
+- no new event is created and no primary notification is sent on it;
+- the requirement of §4.1 does NOT extend to escalations on this scale, so an
+  emergency alert on this branch is possible with SI_total < THRESHOLD if the
+  Q99 breadth reaches the level of §5.2.
 
 ==================================================================
-5. КУЛДАУН КЛАСТЕРНЫХ СОБЫТИЙ
+5. THE COOLDOWN OF CLUSTER EVENTS
 ==================================================================
 
-5.1 Базовый кулдаун
+5.1 The base cooldown
 
-- IF выполнены гейт (п.4.1) и порог (п.4.5) THEN создать Event_ID и
-  зафиксировать T0.
-- Кулдаун = 72 ТОРГОВЫХ часа эталонного календаря корзины (72 ч.э.к.).
-- В течение кулдауна повторные пробития порога логируются, уведомления не
-  отправляются.
-- По истечении 72 ч.э.к. событие помечается завершённым.
+- IF the gate (§4.1) and the threshold (§4.5) are satisfied THEN create an
+  Event_ID and record T0.
+- Cooldown = 72 TRADING hours of the basket's reference calendar (72 RCH).
+- During the cooldown, repeated crossings of the threshold are logged and no
+  notifications are sent.
+- Once 72 RCH have passed, the event is marked finished.
 
-5.2 Досрочный пробой кулдауна
+5.2 Breaking the cooldown early
 
-Приоритет ветвей: IF в один час выполнены обе ветви THEN применяется «шок
-высшего порядка», ветвь векторного разворота в этот час не рассматривается.
+Branch priority: IF both branches hold in the same hour THEN "higher-order
+shock" applies and the vector-reversal branch is not considered in that hour.
 
-Антидребезг: не более 2 досрочных пробоев на скользящее окно 24 ч.э.к. в рамках
-одного Event_ID. IF лимит исчерпан THEN условия логируются, новые уведомления и
-сбросы кулдауна не производятся.
+Debounce: no more than 2 early breaks per rolling window of 24 RCH within one
+Event_ID. IF the limit is exhausted THEN the conditions are logged and no new
+notifications or cooldown resets are made.
 
-Ветвь А. Шок высшего порядка
-- Запрещена в первый торговый час эталонного календаря после T0.
-- Блок активен по Q99 := (не менее 33% активов блока)
-                         AND (не менее 2 активов блока) дают пробой Q99.
-- Условие:
+Branch A. Higher-order shock
+- Forbidden in the first reference-calendar trading hour after T0.
+- A block is active by Q99 := (at least 33% of the block's assets)
+                              AND (at least 2 of the block's assets)
+                              give a Q99 breach.
+- Condition:
       SI_total >= ESCALATION_THRESHOLD
-      OR ( доля активных по Q99 блоков среди представленных в этот час >= 50%
-           AND число активных по Q99 блоков >= 2 )
-  Требование «не менее 2 блоков» обязательно.
-- Действия: новый Event_ID НЕ создаётся; эскалация накапливается в текущем
-  событии (инкремент escalation_seq, запись в cluster_event_escalations);
-  отправляется экстренный алерт; кулдаун отсчитывается заново от времени
-  эскалации.
+      OR ( the share of blocks active by Q99 among those represented in this
+           hour >= 50%
+           AND the number of blocks active by Q99 >= 2 )
+  The "at least 2 blocks" requirement is mandatory.
+- Actions: no new Event_ID is created; the escalation accumulates inside the
+  current event (an increment of escalation_seq, a record in
+  cluster_event_escalations); an emergency alert is sent; the cooldown is
+  counted anew from the time of the escalation.
 
-Ветвь Б. Векторный разворот
-- Разрешена только после T0 + 3 ч.э.к.
-- Предусловие: в этом часе выполнены оба условия п.4.1 («Кластерный сдвиг» =
-  True AND SI_total >= THRESHOLD). IF предусловие не выполнено THEN смена знака
-  логируется, новое событие не создаётся, уведомление не отправляется.
-- Расчёт по M_t, нормированной на её собственную сигму:
-      sigma_M = std(M за W_cs, без текущего часа)
-      k_t     = max( Q97.5( |M| / sigma_M за W_cs ), 1.5 (*) )
-      условие:  ( M_{T0} <= -k_t × sigma_M  AND  M_t >= +k_t × sigma_M )
-                OR
-                ( M_{T0} >= +k_t × sigma_M  AND  M_t <= -k_t × sigma_M )
-- Действия: создаётся новый Event_ID со ссылкой parent_event_id на предыдущее
-  событие; кулдаун сбрасывается.
+Branch B. Vector reversal
+- Permitted only after T0 + 3 RCH.
+- Precondition: in this hour both conditions of §4.1 hold ("Cluster shift" =
+  True AND SI_total >= THRESHOLD). IF the precondition does not hold THEN the
+  change of sign is logged, no new event is created and no notification is sent.
+- Computed on M_t normalised by its own sigma:
+      sigma_M = std(M over W_cs, excluding the current hour)
+      k_t     = max( Q97.5( |M| / sigma_M over W_cs ), 1.5 (*) )
+      condition:  ( M_{T0} <= -k_t × sigma_M  AND  M_t >= +k_t × sigma_M )
+                  OR
+                  ( M_{T0} >= +k_t × sigma_M  AND  M_t <= -k_t × sigma_M )
+- Actions: a new Event_ID is created with a parent_event_id reference to the
+  previous event; the cooldown is reset.
 
 ==================================================================
-6. ТЕХНИЧЕСКИЕ ТРЕБОВАНИЯ
+6. TECHNICAL REQUIREMENTS
 ==================================================================
 
-6.1 Архитектура расчётов
+6.1 Computation architecture
 
 - Python 3.10+; pandas, numpy, scikit-learn.
-- PostgreSQL (SQLite допустим только для локальной разработки): бары, метрики,
-  события, состояние кулдаунов.
-- Слой A — векторный расчёт метрик (pandas.ewm, rolling, numpy, scikit-learn):
-  доходности, EWMA-состояния, пороги, CSV, PCA, профиль объёма. Векторизация
-  ОБЯЗАТЕЛЬНА.
-- Слой B — последовательный событийный автомат: путезависимые решения
-  (винзоризация по MAD предыдущих валидных баров, состояние кулдаунов,
-  эскалации, дедупликация SAED). Допускается явный последовательный проход по
-  часам.
-- decision_log: логируются все решения системы со значениями всех триггеров,
-  порогов, входов и config_version.
+- PostgreSQL (SQLite is admissible only for local development): bars, metrics,
+  events, cooldown state.
+- Layer A — the vectorised computation of metrics (pandas.ewm, rolling, numpy,
+  scikit-learn): returns, EWMA states, thresholds, CSV, PCA, the volume profile.
+  Vectorisation is MANDATORY.
+- Layer B — a sequential event automaton: path-dependent decisions
+  (winsorization by the MAD of previous valid bars, cooldown state, escalations,
+  SAED deduplication). An explicit sequential pass over the hours is permitted.
+- decision_log: every decision of the system is logged with the values of all
+  triggers, thresholds, inputs and config_version.
 
-6.2 Регламент запуска, SLA и идемпотентность
+6.2 Run schedule, SLA and idempotency
 
-- Часовой джоб стартует в T+5 минут после закрытия бара; предельное ожидание
-  данных вендора — 10 минут; до 3 ретраев с экспоненциальной задержкой.
-- Ключи идемпотентности:
-    - расчёты по активу (бары, метрики актива, события SAED):
+- The hourly job starts at T+5 minutes after the bar closes; the maximum wait
+  for vendor data is 10 minutes; up to 3 retries with exponential backoff.
+- Idempotency keys:
+    - per-asset computations (bars, asset metrics, SAED events):
       (asset, hour, run_version);
-    - корзинные расчёты, кластерные события, эскалации и уведомления по ним:
+    - basket computations, cluster events, escalations and their notifications:
       (hour, run_version).
-- Повторный прогон того же часа с той же версией не создаёт дублирующих событий
-  и уведомлений.
-- При поздних или пересмотренных данных час пересчитывается с новым run_version;
-  метрики перезаписываются версионно; затронутые события помечаются
-  recalculated; уведомления задним числом не отправляются.
-- Час без кворума помечается no_quorum и может быть пересчитан позже по той же
-  политике.
+- Rerunning the same hour with the same version creates no duplicate events and
+  no duplicate notifications.
+- With late or revised data the hour is recomputed with a new run_version;
+  metrics are overwritten by version; the affected events are marked
+  recalculated; no notifications are sent after the fact.
+- An hour without a quorum is marked no_quorum and may be recomputed later under
+  the same policy.
 
-6.3 Версионирование конфигурации
+6.3 Configuration versioning
 
-- Все параметры (пороги, веса триггеров, окна, множители, состав корзины и
-  блоков, коэффициенты абсолютных отсечек) хранятся в конфигурации с
-  config_version.
-- config_version записывается в каждое событие (кластерное и SAED), в метрики и
-  в decision_log.
-- Ретро-изменение параметров без пересчёта истории с новой версией запрещено.
-- Сравнение событий разных версий допускается только с явным указанием версий.
+- All parameters (thresholds, trigger weights, windows, multipliers, the
+  composition of the basket and the blocks, the coefficients of the absolute
+  floors) are stored in the configuration with a config_version.
+- config_version is written into every event (cluster and SAED), into the
+  metrics and into decision_log.
+- Changing parameters retroactively without recomputing the history under a new
+  version is forbidden.
+- Comparing events of different versions is admissible only with the versions
+  stated explicitly.
 
-6.4 Схема базы данных (минимальный состав)
+6.4 Database schema (the minimum composition)
 
 - assets(asset_id, ticker, tier, block, has_volume, exchange_tz,
   session_template_id, weight, active_from, active_to)
@@ -552,7 +583,7 @@ session_template, exchange_tz, weight.
 - cluster_event_escalations(event_id, seq, hour_utc, kind, si_total, reason)
 - cooldown_state(event_id, cooldown_until_ref_hour, last_escalation_hour,
   escalations_24h)
-- saed_events (состав полей — п.8.5)
+- saed_events (the field composition — §8.5)
 - saed_block_alerts(alert_id, block, hour_utc, assets, max_abs_z_resid,
   n_assets)
 - calendar_events(event_key, published_at_utc, importance, as_of_version,
@@ -560,171 +591,179 @@ session_template, exchange_tz, weight.
 - decision_log(hour_utc, scope, trigger, value, threshold, result,
   config_version, run_version)
 
-Поле weight в assets — производное от правила равновесности (п.2.3),
-рассчитывается системой и вручную не редактируется.
+The weight field in assets is derived from the equal-weight rule (§2.3), is
+computed by the system and is not edited by hand.
 
-6.5 Экспорт данных для LLM-анализа
+6.5 Data export for LLM analysis
 
-Экспорт по Event_ID в JSON с фиксированной схемой
-(schema/event_export.schema.json). Поля:
-- event_id, T0, статус, config_version, escalation_seq, parent_event_id;
-- по каждому активу: числовые ряды Z, Z_resid, V_R и доходностей за окно
-  [T0 - 12 ч.э.к., T0 + 12 ч.э.к.];
-- агрегированные метрики: CSV_norm, PC1_ratio, mean_pairwise_corr;
-- события SAED за окно события — отдельным списком (п.8.5).
+Export by Event_ID into JSON with a fixed schema
+(schema/event_export.schema.json). Fields:
+- event_id, T0, status, config_version, escalation_seq, parent_event_id;
+- per asset: the numeric series Z, Z_resid, V_R and returns over the window
+  [T0 - 12 RCH, T0 + 12 RCH];
+- aggregated metrics: CSV_norm, PC1_ratio, mean_pairwise_corr;
+- SAED events over the event window — as a separate list (§8.5).
 
-mean_pairwise_corr = среднее арифметическое элементов вне главной диагонали
-корреляционной матрицы Пирсона доходностей активов корзины за окно W_pca.
-Учитываются только пары с не менее чем 60 совместными валидными наблюдениями;
-при недостатке пар значение = NULL.
+mean_pairwise_corr = the arithmetic mean of the off-diagonal elements of the
+Pearson correlation matrix of the basket assets' returns over the window W_pca.
+Only pairs with at least 60 joint valid observations are taken into account;
+with too few pairs the value = NULL.
 
-Изображения не экспортируются: экспортируется числовой ряд с фиксированным
-окном, визуализация — задача потребителя.
+Images are not exported: what is exported is a numeric series over a fixed
+window, and visualisation is the consumer's job.
 
-6.6 Период инициализации (warm-up)
+6.6 The initialization period (warm-up)
 
-Warm-up = МАКСИМУМ по цепочкам зависимостей:
-- EWMA-состояние актива: 500 валидных баров (burn-in);
-- sigma_LT: не менее 720 баров;
-- Q95 / Q99 актива: burn-in + W_asset + 120 баров на сглаживание;
-- профиль объёма: 20 полных торговых дней по каждому локальному часу;
-- статистики CSV_norm: разогрев EWMA всех активов корзины + W_cs = 1200 ч.э.к.;
-- статистики PC1_ratio: разогрев + W_pca + W_cs = 1320 ч.э.к.;
-- SAED: разогрев беты (500 совместных валидных баров) + burn-in EWMA остатков +
-  окно порогов остатков.
+Warm-up = the MAXIMUM over the dependency chains:
+- the asset's EWMA state: 500 valid bars (burn-in);
+- sigma_LT: at least 720 bars;
+- the asset's Q95 / Q99: burn-in + W_asset + 120 bars of smoothing;
+- the volume profile: 20 full trading days for each local hour;
+- the CSV_norm statistics: the EWMA warm-up of every basket asset +
+  W_cs = 1200 RCH;
+- the PC1_ratio statistics: the warm-up + W_pca + W_cs = 1320 RCH;
+- SAED: the beta warm-up (500 joint valid bars) + the EWMA burn-in of the
+  residuals + the window of the residual thresholds.
 
-Система обязана хранить и публиковать таблицу first_valid_hour по каждому
-триггеру и каждому активу. До first_valid_hour значение триггера = NULL (не
-False), события не генерируются, час не участвует в статистике бэктеста.
+The system is obliged to store and publish a first_valid_hour table for every
+trigger and every asset. Before first_valid_hour a trigger's value = NULL (not
+False), no events are generated, and the hour takes no part in backtest
+statistics.
 
-6.7 Тестирование
+6.7 Testing
 
-Unit-тесты с эталонными значениями обязательны как минимум для:
-- out-of-sample EWMA Z-score;
-- винзоризации и нижних отсечек;
-- расчёта Q95 / Q99 со сглаживанием;
-- CSV с ddof = 1;
-- PCA на корреляционной матрице (ddof = 1, константные столбцы, условия
-  N_assets >= 3 и числа строк);
-- обработки PC1_ratio = NULL в триггере однофакторности (п.3.4);
-- робастного V_R;
-- календарного мультипликатора (п.4.3): значения при t = T_event, на обеих
-  границах окон, внутри и вне окон, правило максимума при пересечении событий;
-- автомата кулдауна;
-- приоритета ветвей и лимита эскалаций.
+Unit tests with reference values are mandatory at least for:
+- the out-of-sample EWMA Z-score;
+- winsorization and the lower floors;
+- the computation of Q95 / Q99 with smoothing;
+- CSV with ddof = 1;
+- PCA on the correlation matrix (ddof = 1, constant columns, the
+  N_assets >= 3 and row-count conditions);
+- the handling of PC1_ratio = NULL in the single-factor trigger (§3.4);
+- the robust V_R;
+- the calendar multiplier (§4.3): the values at t = T_event, at both window
+  boundaries, inside and outside the windows, and the maximum rule when events
+  overlap;
+- the cooldown automaton;
+- branch priority and the escalation limit.
 
-Тест воспроизводимости: повторный прогон того же периода с той же
-config_version даёт идентичный набор событий.
-
-==================================================================
-7. БЭКТЕСТИНГ
-==================================================================
-
-- Данные с 2021-01-01 по настоящее время. Разделение выборки:
-  train — 2021-01-01 .. 2023-12-31; test — 2024-01-01 .. настоящее время.
-- ТОЛЬКО на train калибруются: THRESHOLD, ESCALATION_THRESHOLD, веса триггеров,
-  порог V_R, коэффициенты абсолютных отсечек, k_t и параметры мультипликаторов.
-  Параметры фиксируются (config_version) до прогона на test.
-- Повторная калибровка по результатам test запрещена без объявления новой версии
-  и нового test-периода.
-- Протокол разметки истины (мультиактивный), фиксируется документально до оценки:
-      час значим := в течение следующих 24 ч.э.к. хотя бы один блок корзины даёт
-      накопленную за 24 ч.э.к. взвешенную медианную доходность блока M_block,t
-      (п.2.3) сверх Q99 собственного исторического распределения таких
-      24-часовых движений этого блока, рассчитанного на train.
-- Baseline для сравнения (не определение истины): детектор по SPY —
-  |накопленное движение за следующие 24 ч.э.к.| > 2%. Горизонт baseline
-  измеряется в тех же единицах (ч.э.к.), что и протокол разметки истины.
-- Метрики качества: precision, recall, F1, lead time — в целом и отдельно по
-  блокам (equity, rates, FX, commodities).
-- Дополнительно измеряются: число событий по месяцам; доля событий, порождённых
-  каждым триггером; корреляция срабатываний csv_compression и pca_sync (п.3.4);
-  частота эскалаций и частота срабатывания лимита антидребезга (п.5.2); доля
-  часов no_quorum; частота срабатываний в окрестности важных публикаций; вклад
-  календарного мультипликатора в эскалации; частота эскалаций по шкале широты.
+Reproducibility test: rerunning the same period with the same config_version
+gives an identical set of events.
 
 ==================================================================
-8. МОДУЛЬ ОДИНОЧНЫХ СОБЫТИЙ (SAED)
+7. BACKTESTING
 ==================================================================
 
-Конвейер, работающий параллельно с SI-Index. Выявляет экстремальные
-ИДИОСИНКРАТИЧЕСКИЕ движения отдельных активов, не объяснимые общим рыночным
-фактором. Генерирует алерты типа single_asset.
+- Data from 2021-01-01 to the present. The split of the sample:
+  train — 2021-01-01 .. 2023-12-31; test — 2024-01-01 .. the present.
+- Calibrated on train ONLY: THRESHOLD, ESCALATION_THRESHOLD, the trigger
+  weights, the V_R threshold, the coefficients of the absolute floors, k_t and
+  the parameters of the multipliers. The parameters are frozen (config_version)
+  before the run on test.
+- Recalibrating on the results of test is forbidden without declaring a new
+  version and a new test period.
+- The truth-labelling protocol (multi-asset), documented before the evaluation:
+      an hour is significant := over the following 24 RCH at least one basket
+      block gives a weighted median block return M_block,t (§2.3) accumulated
+      over 24 RCH in excess of the Q99 of that block's own historical
+      distribution of such 24-hour moves, computed on train.
+- The baseline for comparison (not a definition of truth): a detector on SPY —
+  |the move accumulated over the following 24 RCH| > 2%. The baseline horizon is
+  measured in the same units (RCH) as the truth-labelling protocol.
+- Quality metrics: precision, recall, F1, lead time — overall and separately by
+  block (equity, rates, FX, commodities).
+- Additionally measured: the number of events by month; the share of events
+  generated by each trigger; the correlation between the firings of
+  csv_compression and pca_sync (§3.4); the frequency of escalations and the
+  frequency with which the debounce limit is reached (§5.2); the share of
+  no_quorum hours; the frequency of firings in the neighbourhood of important
+  publications; the contribution of the calendar multiplier to escalations; the
+  frequency of escalations on the breadth scale.
 
-8.1 Входные данные
+==================================================================
+8. THE SINGLE-ASSET EVENT MODULE (SAED)
+==================================================================
 
-- Для каждого актива (Tier-1, Tier-2, а также инструментов вне кластерной
-  корзины) используются: остаток e_i,t и Z_resid_i,t (п.3.6); сглаженные пороги
-  Q95_resid и Q99_resid (п.3.6); sigma_LT_resid.
-- Инструменты вне корзины используют тот же фактор F_t; бета оценивается по
-  п.3.6 на окне совместных валидных баров (п.2.7). Часы эталонного календаря как
-  единица этого окна не используются.
-- Каждому инструменту вне корзины в конфигурации задаётся block из того же
-  перечня (equity, rates, FX, commodities). Этот блок используется ТОЛЬКО
-  модулем SAED — в правиле агрегации п.8.4 и в поле block п.8.5 — и не участвует
-  в расчёте широты, весов корзины, кворума и кластерных триггеров.
-- IF блок инструменту вне корзины не назначен THEN инструмент к обработке в SAED
-  не допускается.
+A pipeline running in parallel with the SI-Index. It identifies extreme
+IDIOSYNCRATIC moves of individual assets that the common market factor does not
+explain. It generates alerts of type single_asset.
 
-8.2 Условие генерации события
+8.1 Input data
 
-- Триггер (гибридное условие по схеме п.3.1):
+- For every asset (Tier-1, Tier-2, and instruments outside the cluster basket as
+  well) the following are used: the residual e_i,t and Z_resid_i,t (§3.6); the
+  smoothed thresholds Q95_resid and Q99_resid (§3.6); sigma_LT_resid.
+- Instruments outside the basket use the same factor F_t; beta is estimated per
+  §3.6 on a window of joint valid bars (§2.7). Reference-calendar hours are not
+  used as the unit of that window.
+- Every instrument outside the basket is assigned a block in the configuration
+  from the same list (equity, rates, FX, commodities). This block is used ONLY
+  by the SAED module — in the aggregation rule of §8.4 and in the block field of
+  §8.5 — and takes no part in computing breadth, basket weights, the quorum or
+  the cluster triggers.
+- IF an instrument outside the basket has no block assigned THEN the instrument
+  is not admitted to processing in SAED.
+
+8.2 The event-generation condition
+
+- The trigger (a hybrid condition following the scheme of §3.1):
       |Z_resid_i,t| > Q99_resid_i,t
       AND |e_i,t| >= 3.0 (*) × sigma_LT_resid_i
-- Событие создаётся независимо от подтверждения объёмом и других факторов.
-- IF одновременно существует активное кластерное событие THEN одиночные события
-  для активов корзины не подавляются, но помечаются тегом overlap_with_cluster.
-- События не генерируются для баров с is_missing, is_masked или is_invalid, а
-  также по гэп-каналу (п.2.4).
+- An event is created regardless of volume confirmation and any other factor.
+- IF an active cluster event exists at the same time THEN single events for
+  basket assets are not suppressed but are tagged overlap_with_cluster.
+- Events are not generated for bars with is_missing, is_masked or is_invalid,
+  nor on the gap channel (§2.4).
 
-8.3 Кулдаун одиночных событий
+8.3 The cooldown of single events
 
-- Персональный кулдаун актива = 12 ТОРГОВЫХ БАРОВ этого актива (календарные часы
-  не используются).
-- При первом срабатывании создаётся SAED_Event_ID, фиксируется T0_single.
-- В течение кулдауна повторные срабатывания по этому же активу уведомлений не
-  отправляют, но логируются как продолжение текущего события (инкремент
+- An asset's personal cooldown = 12 TRADING BARS of that asset (calendar hours
+  are not used).
+- On the first firing a SAED_Event_ID is created and T0_single is recorded.
+- During the cooldown, repeat firings on the same asset send no notifications
+  but are logged as a continuation of the current event (an increment of
   repeat_count).
-- IF по истечении кулдауна условие снова выполнено THEN создаётся новый
-  SAED_Event_ID.
+- IF the condition holds again once the cooldown has passed THEN a new
+  SAED_Event_ID is created.
 
-8.4 Дедупликация и агрегация алертов
+8.4 Deduplication and aggregation of alerts
 
-- Одновременные (в один час) SAED-события активов одного блока агрегируются в
-  один блочный алерт (saed_block_alerts): block, hour_utc, список активов,
-  максимальный |Z_resid|, число активов.
-- Блок инструмента вне корзины определяется по п.8.1; инструменты корзины и
-  внекорзинные инструменты одного блока агрегируются вместе.
-- Уведомление отправляется по блочному алерту; отдельные события сохраняются в
-  БД со ссылкой aggregate_alert_id.
+- Simultaneous (same-hour) SAED events of assets of one block are aggregated
+  into a single block alert (saed_block_alerts): block, hour_utc, the list of
+  assets, the maximum |Z_resid|, the number of assets.
+- The block of an instrument outside the basket is determined per §8.1; basket
+  instruments and non-basket instruments of the same block are aggregated
+  together.
+- The notification is sent per block alert; the individual events are stored in
+  the database with an aggregate_alert_id reference.
 
-8.5 Хранение и экспорт
+8.5 Storage and export
 
-Поля события SAED: event_id, asset, block, timestamp (час срабатывания),
-z_resid, e_resid, return, beta, repeat_count, overlap_with_cluster (булево),
-aggregate_alert_id, config_version, run_version.
-При экспорте для LLM-анализа (п.6.5) события SAED включаются отдельным списком.
+The fields of a SAED event: event_id, asset, block, timestamp (the hour of the
+firing), z_resid, e_resid, return, beta, repeat_count, overlap_with_cluster
+(boolean), aggregate_alert_id, config_version, run_version.
+On export for LLM analysis (§6.5) SAED events are included as a separate list.
 
-8.6 Взаимодействие с кластерной системой
+8.6 Interaction with the cluster system
 
-- Зависимость односторонняя: SAED использует фактор корзины F_t (п.3.6) как
-  вход, но не влияет на SI-Index, кластерный гейт и кластерный кулдаун;
-  кластерная система не использует результаты SAED.
-- Оба типа событий могут сосуществовать в один и тот же час.
+- The dependency is one-way: SAED uses the basket factor F_t (§3.6) as an input
+  but does not affect the SI-Index, the cluster gate or the cluster cooldown;
+  the cluster system does not use SAED results.
+- Both types of event may coexist in the same hour.
 
 ==================================================================
-9. ПОРЯДОК ВНЕДРЕНИЯ
+9. ROLLOUT ORDER
 ==================================================================
 
-1) Данные и время: загрузка истории, data-quality gate (п.2.1, 2.6); таймзоны,
-   календари сессий, эталонный календарь (п.2.2); реестр окон (п.2.7); состав
-   корзины, блоки, веса, кворум (п.2.3).
-2) Обнаружение: Z-score и адаптивные пороги (п.3.1); винзоризация и нижние
-   отсечки (п.2.5); гэп-канал (п.2.4); CSV и PCA (п.3.2–3.4); профиль объёма
-   (п.3.5); остатки и SAED (п.3.6, 8).
-3) Индекс и события: базовые баллы, мультипликаторы, гейт (п.4); кулдаун и
-   эскалации (п.5); хранение, логирование, экспорт (п.6).
-4) Калибровка порогов и весов на train-периоде (п.4.5, 7) — только после
-   шагов 1–3.
+1) Data and time: loading the history, the data-quality gate (§2.1, 2.6); time
+   zones, session calendars, the reference calendar (§2.2); the registry of
+   windows (§2.7); the basket composition, blocks, weights, quorum (§2.3).
+2) Detection: the Z-score and the adaptive thresholds (§3.1); winsorization and
+   the lower floors (§2.5); the gap channel (§2.4); CSV and PCA (§3.2-3.4); the
+   volume profile (§3.5); the residuals and SAED (§3.6, 8).
+3) The index and the events: base points, the multipliers, the gate (§4); the
+   cooldown and escalations (§5); storage, logging, export (§6).
+4) Calibration of the thresholds and weights on the train period (§4.5, 7) —
+   only after steps 1-3.
 
-Конец спецификации.
+End of specification.

@@ -850,12 +850,18 @@ docs/TZ_MEALS_v5.1.txt — the specification itself: what every "§4.3" in the c
 docs/meals-deviations.md — departures from the spec, each with its reason
 ```
 
-The specification lies in the repository as `docs/TZ_MEALS_v5.1.txt`, exactly as
-written, unedited. This is not decoration: the code refers to it hundreds of times
-("§2.7", "§4.3", "§8.2"), and all sixty tunable numbers are explained only there. The
-file is DELIBERATELY kept out of `versioning.CONFIG_INPUTS` — otherwise a typo in the
-text of the specification would change `config_version` and devalue a frozen
-calibration just as a change to a formula would.
+The specification lies in the repository as `docs/TZ_MEALS_v5.1.txt`. This is not
+decoration: the code refers to it hundreds of times ("§2.7", "§4.3", "§8.2"), and all
+sixty tunable numbers are explained only there. It was written in Russian and is kept
+here in translation, with the section numbering, the formulas, the field names and
+every constant untouched — so every "§4.3" in the code still lands where it did. The
+Russian original is not lost: it is commit `8b2fb5a`, blob `2efe49c`, SHA-256
+`95382c260963375919bff2d28e02bab72958d3e490e4fef6320a993d8b3d6ba6`
+(`git show 8b2fb5a:docs/TZ_MEALS_v5.1.txt`), and it stays the authority if a
+translated sentence ever reads two ways. The file is DELIBERATELY kept out of
+`versioning.CONFIG_INPUTS` — otherwise a typo in the text of the specification would
+change `config_version` and devalue a frozen calibration just as a change to a formula
+would.
 
 Running it by hand:
 
