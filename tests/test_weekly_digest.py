@@ -26,10 +26,9 @@ RAW_EVENTS = [
 
 @pytest.fixture(autouse=True)
 def no_network_backfill(request, monkeypatch):
-    """Дозаполнение факта ходит на помесячную страницу ForexFactory. В тестах
-    оно заглушено везде, кроме помеченных real_backfill - собственных тестов
-    backfill_actuals: иначе каждый тест дайджеста делал бы два сетевых
-    запроса."""
+    """The actual backfill hits ForexFactory's monthly page. In the tests it is
+    stubbed everywhere except the ones marked real_backfill - backfill_actuals'
+    own tests: otherwise every digest test would make two network requests."""
     if request.node.get_closest_marker("real_backfill"):
         return
     monkeypatch.setattr(weekly_digest, "backfill_actuals",
@@ -45,8 +44,8 @@ def make_config(tmp_path):
 
 
 def test_digest_window_is_saturday_or_sunday_noon_israel():
-    # Окон два: где у ForexFactory граница недели, вживую подтверждено только
-    # для воскресенья, поэтому суббота пробует, а воскресенье страхует.
+    # Two windows: where ForexFactory's week boundary falls has been confirmed
+    # live only for Sunday, so Saturday tries and Sunday is the safety net.
     assert weekly_digest._is_digest_window(SATURDAY_NOON_ISRAEL_UTC) is True
     assert weekly_digest._is_digest_window(SUNDAY_NOON_ISRAEL_UTC) is True
     assert weekly_digest._is_digest_window(MONDAY_NOON_ISRAEL_UTC) is False
@@ -54,16 +53,16 @@ def test_digest_window_is_saturday_or_sunday_noon_israel():
 
 
 def test_a_feed_of_the_ending_week_is_not_sent():
-    # Рассылать список того, что уже произошло, под заголовком "на неделю"
-    # нельзя - окно следующего дня отправит настоящую предстоящую неделю.
+    # Sending out a list of what has already happened under the heading "for the
+    # week" is not on - the next day's window sends the real coming week.
     past = datetime(2026, 9, 12, 9, 30, tzinfo=timezone.utc)
     assert weekly_digest._looks_forward(RAW_EVENTS, past) is False
     assert weekly_digest._looks_forward(RAW_EVENTS, SATURDAY_NOON_ISRAEL_UTC) is True
 
 
 def test_the_week_key_comes_from_the_feed_not_from_today():
-    # Ключ дедупликации берётся из фида, поэтому суббота и воскресенье,
-    # отдавшие одну и ту же неделю, дают один ключ и дайджест уходит однажды.
+    # The dedup key comes from the feed, so Saturday and Sunday, having served
+    # the same week, give one key and the digest goes out once.
     assert weekly_digest._week_identifier(RAW_EVENTS) == "2026-08-31"
     assert weekly_digest._week_identifier([]) == ""
 
@@ -85,8 +84,8 @@ def test_sunday_does_not_repeat_what_saturday_already_sent(tmp_path, monkeypatch
 
 
 def test_sunday_sends_what_saturday_held_back(tmp_path, monkeypatch):
-    # Суббота отдала заканчивающуюся неделю - дайджест не ушёл и состояние не
-    # тронуто, значит воскресное окно обязано отправить его.
+    # Saturday served the ending week - the digest did not go out and the state
+    # was untouched, so the Sunday window must send it.
     cfg = make_config(tmp_path)
     state = {}
     sent = []
@@ -121,33 +120,33 @@ def test_format_digest_excludes_low_and_holiday_and_sorts_by_time():
 def test_format_digest_handles_no_events():
     messages = weekly_digest.format_digest([])
     assert len(messages) == 1
-    assert "не найдено" in messages[0]
+    assert "No Medium/High impact events" in messages[0]
 
 
 def test_format_digest_shows_every_field_of_an_event():
-    # Ради этого дайджест и переписан: метка важности говорит, что публикация
-    # значимая, а прогноз и предыдущее значение - чего от неё ждут.
+    # This is what the digest was rewritten for: the impact tag says the release
+    # matters, while the forecast and previous value say what is expected of it.
     event = {"title": "CPI m/m", "country": "USD", "impact": "High",
              "date": "2026-09-04T08:30:00+00:00",
              "actual": "0.4%", "forecast": "0.3%", "previous": "0.2%"}
     text = "\n".join(weekly_digest.format_digest([event]))
-    assert "факт 0.4%" in text and "прогноз 0.3%" in text and "пред. 0.2%" in text
+    assert "actual 0.4%" in text and "forecast 0.3%" in text and "prev. 0.2%" in text
 
 
 def test_empty_fields_are_skipped_not_printed_as_dashes():
-    # У фида прогноз заполнен примерно у 70% событий: строка из прочерков
-    # сообщала бы только то, что источник промолчал.
+    # The feed has a forecast for roughly 70% of events: a line of dashes would
+    # say only that the source stayed silent.
     event = {"title": "Bank Holiday Speech", "country": "GBP", "impact": "Medium",
              "date": "2026-09-04T08:30:00+00:00",
              "actual": "", "forecast": "", "previous": "1.0%"}
     text = "\n".join(weekly_digest.format_digest([event]))
-    assert "пред. 1.0%" in text
-    assert "прогноз" not in text and "факт" not in text
+    assert "prev. 1.0%" in text
+    assert "forecast" not in text and "actual" not in text
 
 
 def test_event_titles_are_escaped_for_html():
-    # Сообщение уходит с parse_mode=HTML. Одного "S&P" без экранирования
-    # хватило бы, чтобы Telegram отверг весь дайджест.
+    # The message goes out with parse_mode=HTML. One unescaped "S&P" would be
+    # enough for Telegram to reject the whole digest.
     event = {"title": "S&P Global PMI", "country": "USD", "impact": "High",
              "date": "2026-09-04T08:30:00+00:00",
              "actual": "", "forecast": "<50", "previous": ""}
@@ -157,9 +156,9 @@ def test_event_titles_are_escaped_for_html():
 
 
 def test_a_long_week_is_split_at_day_boundaries():
-    # Telegram отклоняет сообщение длиннее 4096 символов целиком, а не
-    # обрезает его - значит, длинная неделя без разбиения не пришла бы вовсе.
-    events = [{"title": f"Очень длинное название показателя номер {i:03d}",
+    # Telegram rejects a message longer than 4096 characters outright rather
+    # than truncating it - so without splitting, a long week would never arrive.
+    events = [{"title": f"A very long name for indicator number {i:03d}",
                "country": "USD", "impact": "Medium",
                "date": f"2026-09-{1 + i % 4:02d}T{i % 24:02d}:{i % 60:02d}:00+00:00",
                "actual": "", "forecast": "1.0%", "previous": "0.9%"}
@@ -167,7 +166,7 @@ def test_a_long_week_is_split_at_day_boundaries():
     messages = weekly_digest.format_digest(events)
     assert len(messages) > 1
     assert all(len(m) <= weekly_digest._MESSAGE_LIMIT for m in messages)
-    # Заголовок дня и его события не должны расходиться по разным сообщениям.
+    # A day's header and its events must not end up in different messages.
     for message in messages[1:]:
         assert message.splitlines()[0].startswith("📅")
 
@@ -293,9 +292,9 @@ def test_main_force_returns_nonzero_on_failure(tmp_path, monkeypatch):
 
 @pytest.mark.real_backfill
 def test_backfill_actuals_reads_the_current_and_previous_month(tmp_path, monkeypatch):
-    # Живой недельный фид поля actual не отдаёт вовсе, поэтому факт
-    # дочитывается с помесячных страниц. Прошлый месяц нужен для событий
-    # последних чисел, чей факт выходит уже в новом месяце.
+    # The live weekly feed has no actual field at all, so the actual is read back
+    # from the monthly pages. The previous month is needed for events at the end
+    # of it whose actual is released in the new month.
     asked = []
 
     def fake_month(year, month, session=None):
@@ -325,14 +324,14 @@ def test_backfill_actuals_fills_the_actual_of_an_event_already_stored(tmp_path, 
 
     stored = weekly_digest.economic_calendar.load_events(path)
     assert changed > 0
-    assert len(stored) == 1, "дозаполнение обязано обновить запись, а не завести вторую"
+    assert len(stored) == 1, "the backfill must update the record, not create a second one"
     assert stored[0]["actual"] == "0.4%"
 
 
 @pytest.mark.real_backfill
 def test_backfill_failure_does_not_stop_the_digest(tmp_path, monkeypatch):
-    # Дозаполнение - не то, ради чего запускается дайджест: страница может не
-    # открыться, и это не повод не отправить сообщение.
+    # The backfill is not what the digest is run for: a page may fail to open,
+    # and that is no reason to withhold the message.
     def boom(year, month, session=None):
         raise weekly_digest.economic_calendar.CalendarError("503")
 
@@ -341,9 +340,9 @@ def test_backfill_failure_does_not_stop_the_digest(tmp_path, monkeypatch):
 
 
 def test_the_same_moment_in_two_notations_is_one_event(tmp_path):
-    # Недельный фид пишет "-04:00", помесячная страница - "+00:00". По строке
-    # это разные события, и архив копил бы каждую публикацию дважды - ровно та
-    # поломка, из-за которой пришлось выбросить прежний архив.
+    # The weekly feed writes "-04:00", the monthly page "+00:00". By string those
+    # are different events, and the archive would collect every release twice -
+    # exactly the breakage that forced the old archive to be thrown away.
     path = str(tmp_path / "calendar.ndjson")
     calendar = weekly_digest.economic_calendar
     calendar.merge_events(path, [{"title": "CPI m/m", "country": "USD", "impact": "High",

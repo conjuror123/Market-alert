@@ -10,28 +10,29 @@ this week" is tracked in state.json (already loaded/saved every run) so a
 second run landing in the same hour - or the external trigger firing a little
 early or late - never posts the digest twice.
 
-Днём отправки была суббота - на предположении, что фид ForexFactory
-(CALENDAR_URL) к субботе уже переключается на предстоящую неделю. Проверить
-это вживую нельзя иначе как запросом в реальную субботу, а обе возможные
-границы недели у источника (воскресенье-суббота и суббота-пятница) одинаково
-согласуются с тем, что фид отдаёт в будний день.
+The send day used to be Saturday, on the assumption that the ForexFactory feed
+(CALENDAR_URL) has already rolled over to the coming week by then. That cannot be
+verified except by a request on an actual Saturday, and both possible week
+boundaries at the source (Sunday-Saturday and Saturday-Friday) fit equally well
+what the feed serves on a weekday.
 
-Поэтому день больше не выбирается, а проверяется. Окон два, суббота и
-воскресенье, и дайджест уходит в первом, где фид действительно смотрит вперёд
-(_looks_forward: последнее событие фида ещё впереди). Если суббота отдаёт
-заканчивающуюся неделю, сообщение просто подождёт сутки. Дважды оно не уйдёт:
-ключ дедупликации берётся из самого фида - из даты его первого события, - и у
-субботы с воскресеньем, отдавших одну неделю, он один и тот же.
+So the day is no longer chosen, it is tested. There are two windows, Saturday and
+Sunday, and the digest goes out in the first one where the feed genuinely looks
+forward (_looks_forward: the feed's last event is still ahead). If Saturday
+serves the week that is ending, the message simply waits a day. It will not go
+out twice: the dedup key is taken from the feed itself - from the date of its
+first event - and Saturday and Sunday, having served the same week, give the same
+key.
 
 Low-impact events and holidays are both excluded (see _DIGEST_IMPACTS) - only
-Medium/High. No LLM involved on purpose (see README, "Дневной сигнал" and the
+Medium/High. No LLM involved on purpose (see README, "Daily signal" and the
 weekly digest section): just a plain, programmatically formatted list grouped
 by day - the source data already carries the impact tag and the numbers, so
 there's nothing here for an LLM to add.
 
-Под каждым событием печатаются все значения, какие дал источник: факт, прогноз,
-предыдущее. Факт при этом требует отдельной работы - живой недельный фид его не
-отдаёт вовсе, см. backfill_actuals.
+Every value the source gave is printed under each event: actual, forecast,
+previous. The actual takes separate work - the live weekly feed does not serve it
+at all, see backfill_actuals.
 
 Also runnable directly as a one-off, bypassing the Saturday/dedup checks - see
 main() and .github/workflows/weekly-digest-test.yml - for manually checking
@@ -58,19 +59,19 @@ log = logging.getLogger("price_monitor.weekly_digest")
 _DIGEST_IMPACTS = {"Medium", "High"}
 # datetime.weekday(): Monday=0 ... Saturday=5, Sunday=6.
 #
-# Окон два, и это не перестраховка. Фид отдаёт только "эту неделю", а где у
-# ForexFactory граница недели - вживую подтверждено лишь для воскресенья: в
-# воскресенье запрос возвращает ровно предстоящую неделю. Для субботы это
-# осталось догадкой, и обе возможные границы (нед-сб и сб-пт) одинаково
-# согласуются с наблюдаемой выдачей в будний день - различить их можно только
-# запросом в реальную субботу.
+# There are two windows, and that is not belt-and-braces. The feed serves only
+# "this week", and where ForexFactory's week boundary falls has been confirmed
+# live only for Sunday: on Sunday the request returns exactly the coming week. For
+# Saturday it stayed a guess, and both possible boundaries (Sun-Sat and Sat-Fri)
+# fit equally well what is served on a weekday - they can only be told apart by a
+# request on an actual Saturday.
 #
-# Поэтому день не выбирается, а проверяется. Дайджест пробует отправиться в
-# субботу, но уходит лишь если фид действительно смотрит вперёд
-# (_looks_forward); если суббота ещё отдаёт заканчивающуюся неделю, окно
-# воскресенья отправит его через сутки. Отправляется он ровно один раз: ключ
-# дедупликации берётся из САМОГО ФИДА - из даты его первого события, - поэтому
-# суббота и воскресенье, отдавшие одну и ту же неделю, дают один и тот же ключ.
+# So the day is not chosen, it is tested. The digest tries to go out on Saturday
+# but leaves only if the feed genuinely looks forward (_looks_forward); if
+# Saturday still serves the week that is ending, the Sunday window sends it a day
+# later. It goes out exactly once: the dedup key is taken from THE FEED ITSELF -
+# from the date of its first event - so Saturday and Sunday, having served the
+# same week, give the same key.
 _DIGEST_WEEKDAYS = (5, 6)
 _DIGEST_HOUR_ISRAEL = 12
 _STATE_KEY = "weekly_digest:last_sent_week"
@@ -78,13 +79,13 @@ _STATE_KEY = "weekly_digest:last_sent_week"
 _ISRAEL_TZ = ZoneInfo("Asia/Jerusalem")
 _IMPACT_EMOJI = {"High": "🔴", "Medium": "🟠"}
 
-_WEEKDAYS = ("Понедельник", "Вторник", "Среда", "Четверг",
-             "Пятница", "Суббота", "Воскресенье")
+_WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday",
+             "Friday", "Saturday", "Sunday")
 
-# Telegram отклоняет сообщение длиннее 4096 символов целиком, а не обрезает
-# его, поэтому дайджест режется на части по границе дня. Запас в 96 символов -
-# на служебную строку "часть N из M", которую иначе пришлось бы считать
-# рекурсивно.
+# Telegram rejects a message longer than 4096 characters outright rather than
+# truncating it, so the digest is cut into parts on day boundaries. The 96
+# characters of headroom cover the "part N of M" line, which would otherwise have
+# to be counted recursively.
 _MESSAGE_LIMIT = 4000
 
 
@@ -95,11 +96,11 @@ def _is_digest_window(now: datetime) -> bool:
 
 
 def _week_identifier(events: list[dict]) -> str:
-    """Ключ дедупликации - дата первого события ФИДА, а не сегодняшняя дата.
+    """Dedup key - the date of the FEED's first event, not today's date.
 
-    Дайджест рассказывает про неделю, а не про день отправки, и ключом должна
-    быть неделя. Взяв дату запуска, суббота и воскресенье получили бы разные
-    ключи, и одна и та же неделя ушла бы в чат дважды.
+    The digest is about a week, not about the day it is sent, and the key must be
+    the week. Taking the run date, Saturday and Sunday would get different keys
+    and the same week would go out to the chat twice.
     """
     if not events:
         return ""
@@ -108,13 +109,13 @@ def _week_identifier(events: list[dict]) -> str:
 
 
 def _looks_forward(events: list[dict], now: datetime) -> bool:
-    """Смотрит ли фид вперёд, то есть про предстоящую неделю он или про
-    заканчивающуюся.
+    """Whether the feed looks forward, that is, whether it is about the coming week
+    or the one that is ending.
 
-    Проверяется по последнему событию: у предстоящей недели оно ещё впереди, у
-    заканчивающейся - уже позади. Последнее, а не первое: неделя фида
-    начинается с воскресенья, и в воскресный полдень часть событий уже прошла,
-    хотя неделя именно предстоящая.
+    Judged by the last event: for the coming week it is still ahead, for the
+    ending one it is already behind. The last rather than the first: the feed's
+    week starts on Sunday, and at Sunday noon some events have already passed even
+    though the week is indeed the coming one.
     """
     if not events:
         return False
@@ -123,27 +124,29 @@ def _looks_forward(events: list[dict], now: datetime) -> bool:
 
 
 def _escape(text: str) -> str:
-    """Сообщение уходит с parse_mode=HTML, а названия событий приходят из
-    внешнего фида. Достаточно одного "M&A" или "S&P" без экранирования, чтобы
-    Telegram отверг сообщение целиком - и недельный дайджест не пришёл вовсе."""
+    """The message goes out with parse_mode=HTML, and event names come from an
+    external feed. One unescaped "M&A" or "S&P" is enough for Telegram to reject
+    the whole message - and the weekly digest then never arrives at all.
+    """
     return (str(text).replace("&", "&amp;").replace("<", "&lt;")
             .replace(">", "&gt;"))
 
 
 def format_event_values(event: dict) -> str:
-    """Строка значений события: факт, прогноз, предыдущее.
+    """An event's value line: actual, forecast, previous.
 
-    Пустые поля пропускаются, а не печатаются как прочерк. У фида заполненность
-    разная - прогноз есть примерно у 70% событий, предыдущее у 80%, - и строка
-    из трёх прочерков не сообщала бы ничего, кроме того, что источник промолчал.
+    Empty fields are skipped rather than printed as dashes. The feed's coverage
+    varies - a forecast exists for roughly 70% of events, a previous value for
+    80% - and a line of three dashes would say nothing except that the source
+    stayed silent.
 
-    Факт в дайджесте недели обычно пуст по существу: события ещё не наступили.
-    Он выводится, когда есть, потому что тот же формат используется при ручном
-    прогоне на прошедшей неделе.
+    The actual is essentially always empty in a week-ahead digest: the events have
+    not happened yet. It is printed when present because the same format is used
+    for a manual run over a past week.
     """
     parts = []
-    for label, key in (("факт", "actual"), ("прогноз", "forecast"),
-                       ("пред.", "previous")):
+    for label, key in (("actual", "actual"), ("forecast", "forecast"),
+                       ("prev.", "previous")):
         value = str(event.get(key) or "").strip()
         if value:
             parts.append(f"{label} {_escape(value)}")
@@ -161,16 +164,16 @@ def _event_lines(event: dict) -> list[str]:
 
 
 def format_digest(events: list[dict]) -> list[str]:
-    """Дайджест недели, разбитый по дням и при необходимости на несколько
-    сообщений. Возвращает список - отправитель шлёт их по порядку.
+    """The week's digest, split by day and, when needed, across several messages.
+    Returns a list - the sender posts them in order.
 
-    Время у всех событий в UTC и подписано один раз в шапке, а не у каждой
-    строки: при двух-трёх десятках событий повторение "UTC" в каждой строке
-    занимает больше места, чем несёт смысла.
+    Every event's time is UTC and that is stated once in the header rather than on
+    every line: with two or three dozen events, repeating "UTC" on each line takes
+    more space than it carries meaning.
     """
-    header = "📅 <b>Экономический календарь на неделю</b>"
+    header = "📅 <b>Economic calendar for the week</b>"
     if not events:
-        return [f"{header}\n\nНа этой неделе не найдено событий Medium/High impact."]
+        return [f"{header}\n\nNo Medium/High impact events found for this week."]
 
     ordered = sorted(events, key=lambda e: e["date"])
     high = sum(1 for e in ordered if e["impact"] == "High")
@@ -178,11 +181,11 @@ def format_digest(events: list[dict]) -> list[str]:
     last = economic_calendar.parse_event_time(ordered[-1]["date"])
     intro = (f"{header}\n"
              f"<i>{first.strftime('%d.%m')} — {last.strftime('%d.%m')}, "
-             f"время UTC · {len(ordered)} событий, из них 🔴 {high}</i>")
+             f"times UTC · {len(ordered)} events, of them 🔴 {high}</i>")
 
-    # Дни собираются целиком, а потом раскладываются по сообщениям: разрыв
-    # внутри дня оставил бы заголовок в одном сообщении, а его события в
-    # другом.
+    # Days are assembled whole and only then laid out across messages: a break
+    # inside a day would leave its header in one message and its events in
+    # another.
     days: list[list[str]] = []
     current_day = None
     for event in ordered:
@@ -199,7 +202,7 @@ def format_digest(events: list[dict]) -> list[str]:
         candidate = block + day
         if len("\n".join(candidate)) > _MESSAGE_LIMIT and len(block) > 1:
             messages.append("\n".join(block))
-            block = [f"{header} <i>(продолжение)</i>"] + day
+            block = [f"{header} <i>(continued)</i>"] + day
         else:
             block = candidate
     messages.append("\n".join(block))
@@ -208,22 +211,24 @@ def format_digest(events: list[dict]) -> list[str]:
 
 def backfill_actuals(path: str, session: requests.Session | None = None,
                      now: datetime | None = None) -> int:
-    """Дозаполняет вышедшие значения (`actual`) за текущий и прошлый месяц.
+    """Fills in released values (`actual`) for the current and previous month.
 
-    Без этого архив рос бы вперёд с вечно пустым фактом. Живой недельный фид -
-    единственный источник, который приходит сюда регулярно, и в нём поля
-    `actual` НЕТ ВОВСЕ: проверено на выдаче, ключи фида - country, date,
-    forecast, impact, previous, title. Событие попадает в архив за неделю до
-    публикации, с прогнозом и предыдущим значением, а вышедшая цифра не
-    появляется никогда, потому что фид к этому событию больше не возвращается.
+    Without this the archive would grow forward with a permanently empty actual.
+    The live weekly feed is the only source that arrives here regularly, and it
+    has NO actual FIELD AT ALL: verified against the output, the feed's keys are
+    country, date, forecast, impact, previous, title. An event enters the archive
+    a week before publication, with a forecast and a previous value, and the
+    released figure would never appear, because the feed never returns to that
+    event.
 
-    Помесячные страницы ForexFactory факт отдают - 85% событий за август 2026,
-    77% за март 2021, - поэтому раз в неделю дочитываются два месяца: текущий и
-    предыдущий. Предыдущий нужен для событий последних чисел, чей факт выходит
-    уже в новом месяце, а также потому, что источник иногда уточняет цифру
-    задним числом. Два запроса в неделю - цена, которую этот пробел стоит.
+    ForexFactory's monthly pages do serve the actual - 85% of events for August
+    2026, 77% for March 2021 - so once a week two months are read back: the
+    current one and the previous one. The previous month is needed for events at
+    the end of it whose actual is released in the new month, and because the
+    source sometimes revises a figure after the fact. Two requests a week is the
+    price this gap is worth.
 
-    Возвращает число записей, добавленных или обновлённых в архиве.
+    Returns the number of records added or updated in the archive.
     """
     now = now or datetime.now(timezone.utc)
     months = {(now.year, now.month)}
@@ -236,28 +241,28 @@ def backfill_actuals(path: str, session: requests.Session | None = None,
             fetched.extend(economic_calendar.fetch_forexfactory_month(
                 year, month, session=session))
         except economic_calendar.CalendarError as exc:
-            # Дозаполнение - не то, ради чего запускается дайджест. Страница
-            # может не открыться, и это не повод не отправить сообщение.
-            log.warning("Не удалось дочитать %04d-%02d: %s", year, month, exc)
+            # The backfill is not what the digest is run for. A page may fail to
+            # open, and that is no reason to withhold the message.
+            log.warning("Could not read back %04d-%02d: %s", year, month, exc)
 
     if not fetched:
         return 0
     updated = economic_calendar.merge_events(path, fetched)
-    log.info("Дозаполнение факта: %d событий за %d мес., изменено записей %d",
+    log.info("Actual backfill: %d events over %d month(s), records changed %d",
              len(fetched), len(months), updated)
     return updated
 
 
 def _send_digest(cfg: Config, session: requests.Session | None,
                  raw_events: list[dict]) -> bool:
-    """Кладёт полученный фид в архив (все уровни важности - см. строку модуля
-    economic_calendar), дочитывает вышедшие значения и отправляет в Telegram
-    дайджест Medium+High.
+    """Puts the fetched feed into the archive (every impact level - see the
+    economic_calendar module docstring), reads back released values and sends the
+    Medium+High digest to Telegram.
 
-    Сбои гасятся, а не поднимаются: дайджест живёт внутри часового прогона
-    мониторинга, и упавшая отправка не должна валить весь прогон - тот же
-    подход, что и у поактивной обработки ошибок в __main__.py. Возвращает
-    True, если дайджест действительно ушёл.
+    Failures are swallowed rather than raised: the digest lives inside the hourly
+    monitoring run, and a failed send must not bring the whole run down - the same
+    approach as the per-asset error handling in __main__.py. Returns True if the
+    digest actually went out.
     """
     path = economic_calendar.store_path(cfg.calendar_dir)
     economic_calendar.merge_events(path, raw_events)
@@ -278,10 +283,11 @@ def _send_digest(cfg: Config, session: requests.Session | None,
 
 
 def _fetch_and_send_digest(cfg: Config, session: requests.Session) -> bool:
-    """Ручной одноразовый прогон (main, --force): тянет фид и шлёт дайджест
-    без проверок дня и "уже отправлено". Проверки "смотрит ли фид вперёд" здесь
-    тоже нет намеренно - смысл --force в том, чтобы посмотреть на сообщение
-    таким, какое оно есть, в любой день недели."""
+    """Manual one-off run (main, --force): fetches the feed and sends the digest
+    without the day or already-sent checks. There is deliberately no
+    looks-forward check here either - the point of --force is to see the message
+    as it is, on any day of the week.
+    """
     try:
         raw_events = economic_calendar.fetch_calendar(session=session)
     except economic_calendar.CalendarError as exc:
@@ -310,10 +316,10 @@ def maybe_send_weekly_digest(
     if state.get(_STATE_KEY) == week_id:
         return False
     if not _looks_forward(raw_events, now):
-        # Фид ещё отдаёт заканчивающуюся неделю. Рассылать список того, что уже
-        # произошло, под заголовком "на неделю" нельзя, а окно следующего дня
-        # отправит настоящую предстоящую неделю.
-        log.info("Фид отдаёт заканчивающуюся неделю (%s) - дайджест отложен", week_id)
+        # The feed still serves the week that is ending. Sending out a list of
+        # what has already happened under the heading "for the week" is not on,
+        # and the next day's window will send the real coming week.
+        log.info("The feed serves the ending week (%s) - digest deferred", week_id)
         return False
 
     if not _send_digest(cfg, session, raw_events):

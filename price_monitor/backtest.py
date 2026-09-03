@@ -447,7 +447,7 @@ def cluster_events(
 
 
 def print_summary(reports: list[AssetReport]) -> None:
-    header = f"{'Актив':<32}{'Дней':>7}{'Увед.':>7}{'/неделю':>9}{'Recall':>8}"
+    header = f"{'Asset':<32}{'Days':>7}{'Alerts':>7}{'/week':>9}{'Recall':>8}"
     print(header)
     print("-" * len(header))
     total_caught = total_moves = 0
@@ -460,13 +460,13 @@ def print_summary(reports: list[AssetReport]) -> None:
             f"{caught:>5}/{len(r.biggest_moves)}"
         )
     print()
-    print(f"Итоговый recall на топ-N крупнейших движений по каждому активу (N ≈ месяцев истории): "
+    print(f"Overall recall on the top-N largest moves per asset (N ≈ months of history): "
           f"{total_caught}/{total_moves}")
     print()
-    print("Наивный % порог (одинаковый для всех активов) vs адаптивный z-score (сырые срабатывания, без cooldown):")
+    print("Naive % threshold (same for every asset) vs adaptive z-score (raw firings, no cooldown):")
     for r in reports:
         naive_str = ", ".join(f"{k}: {v}" for k, v in r.naive_pct_alert_counts.items())
-        print(f"  {r.label:<32} наивный[{naive_str}]  z-score(dual): {r.price_alerts_dual}")
+        print(f"  {r.label:<32} naive[{naive_str}]  z-score(dual): {r.price_alerts_dual}")
 
 
 def main() -> int:
@@ -597,7 +597,7 @@ def main() -> int:
     print_summary(reports)
     if daily_reports:
         print()
-        print("Дневной сигнал (см. README):")
+        print("Daily signal (see README):")
         print_summary(daily_reports)
 
         # Cross-asset "distinct events" diagnostic - reporting only, never
@@ -612,10 +612,10 @@ def main() -> int:
             weeks = max(span_days / 7, 1e-9)
             print()
             print(
-                f"Дедуплицированная частота дневного сигнала по всему портфелю "
-                f"(окно склейки {GLOBAL_EVENT_GAP_DAYS:g} дня, только диагностика - "
-                f"доставку в Telegram не затрагивает, см. README): "
-                f"{len(clusters)} событий за {span_days:.0f} дней ({len(clusters) / weeks:.2f}/неделю)"
+                f"Deduplicated daily-signal rate across the whole portfolio "
+                f"(merge window {GLOBAL_EVENT_GAP_DAYS:g} days, diagnostics only - "
+                f"does not affect Telegram delivery, see README): "
+                f"{len(clusters)} events over {span_days:.0f} days ({len(clusters) / weeks:.2f}/week)"
             )
 
     out = {
