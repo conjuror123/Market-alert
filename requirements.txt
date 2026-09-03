@@ -1,8 +1,8 @@
 requests>=2.31,<3
 PyYAML>=6.0,<7
-# MEALS: векторный слой расчёта метрик и колоночное хранилище баров
-# (ТЗ 5.1 п.6.1). Отдельной библиотеки под PCA не понадобилось: корреляционная
-# матрица корзины - это 21 на 21, и numpy.linalg.eigh считает её быстрее, чем
-# scikit-learn успел бы проверить входные данные.
+# MEALS: the vectorised layer for computing metrics and the columnar bar store
+# (spec 5.1 §6.1). No separate PCA library was needed: the basket's correlation
+# matrix is 21 by 21, and numpy.linalg.eigh solves it faster than scikit-learn
+# would take to validate the input.
 pandas>=2.2,<3
 pyarrow>=16

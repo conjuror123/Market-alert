@@ -1,37 +1,38 @@
 name: Backfill Economic Calendar
 
-# Ручная пересборка локального архива календаря (data/economic_calendar/,
-# см. README). Штатное пополнение идёт иначе: weekly_digest раз в неделю
-# добавляет текущую неделю с живого фида ForexFactory и дочитывает факт за
-# текущий и прошлый месяц с помесячных страниц. Этот workflow нужен, когда
-# архив надо собрать заново целиком или закрыть большой пробел.
+# Manual rebuild of the local calendar archive (data/economic_calendar/, see
+# README). Routine topping-up works differently: weekly_digest adds the current
+# week from the live ForexFactory feed once a week and reads back the actual for
+# the current and previous month from the monthly pages. This workflow is for when
+# the archive has to be rebuilt whole or a large gap closed.
 #
-# Источник один - помесячные страницы самой ForexFactory, без ключа. Сторонние
-# перепробованы и сняты все: три готовых дампа (spoluan, ehsan) давали четверть
-# сдвинутых копий, а датасет Kaggle расходился с ForexFactory по таксономии -
-# вдевятеро больше событий Medium, отчего архив из двух источников получал шов
-# посередине. См. economic_calendar.py и docs/meals-deviations.md, п.11.
+# There is one source - ForexFactory's own monthly pages, no key. Third-party ones
+# were all tried and dropped: three ready-made dumps (spoluan, ehsan) gave a
+# quarter of shifted copies, and the Kaggle dataset diverged from ForexFactory on
+# taxonomy - nine times more Medium events, which gave an archive built from two
+# sources a seam down the middle. See economic_calendar.py and
+# docs/meals-deviations.md, §11.
 #
-# Полная пересборка - это ~69 запросов с паузой в две секунды, минуты четыре.
+# A full rebuild is ~69 requests with a two-second pause, about four minutes.
 
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'Что делать'
+        description: 'What to do'
         required: true
         default: 'rebuild'
         type: choice
         options:
-          - rebuild              # выбросить архив и собрать всю историю заново
-          - import-forexfactory  # дописать диапазон, не трогая остальное
+          - rebuild              # throw the archive away and rebuild the whole history
+          - import-forexfactory  # append a range, leaving the rest untouched
       from_month:
-        description: 'Первый месяц, YYYY-MM (по умолчанию начало архива, 2021-01)'
+        description: 'First month, YYYY-MM (defaults to the start of the archive, 2021-01)'
         required: false
         default: ''
         type: string
       to_month:
-        description: 'Последний месяц, YYYY-MM (по умолчанию текущий)'
+        description: 'Last month, YYYY-MM (defaults to the current one)'
         required: false
         default: ''
         type: string

@@ -1,13 +1,13 @@
 -r requirements.txt
 pytest>=8.0,<9
-# Календарь сессий NYSE. Нужен ТОЛЬКО для генерации таблицы
-# data/meals/sessions/nyse.csv (python -m meals.sessions), а не в часовом
-# прогоне: он читает готовый CSV. Держать его здесь, а не в requirements.txt,
-# значит не тащить календарную библиотеку и её зависимости в продакшен и не
-# рисковать тем, что её обновление молча изменит историческое расписание.
+# NYSE session calendar. Needed ONLY to generate the table
+# data/meals/sessions/nyse.csv (python -m meals.sessions), not in the hourly run,
+# which reads the finished CSV. Keeping it here rather than in requirements.txt
+# means not dragging a calendar library and its dependencies into production, and
+# not risking an update to it silently changing the historical schedule.
 exchange-calendars>=4.13,<5
 
-# Проверка экспорта событий (п.6.5) против опубликованной схемы
-# schema/event_export.schema.json. В продакшене не нужен: схема - контракт для
-# потребителя экспорта, и валидирует её тест, а не часовой прогон.
+# Validating the event export (§6.5) against the published schema
+# schema/event_export.schema.json. Not needed in production: the schema is a
+# contract for the export's consumer, and a test validates it, not the hourly run.
 jsonschema>=4.21,<5

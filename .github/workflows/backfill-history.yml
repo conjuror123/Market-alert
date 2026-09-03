@@ -1,18 +1,18 @@
 name: Backfill Candle History
 
-# Ручной, разовый (или изредка повторяемый) докач постоянной локальной истории
-# цен (data/candle_history/, см. README) на глубину, которую задаёт --since -
-# в отличие от price-monitor.yml, который каждый час только дописывает
-# последнюю свечу. Нужен ключ Twelve Data для валютных пар - он используется
-# только внутри этого workflow (секрет никогда не виден ни в логах, ни за его
-# пределами), поэтому это безопасный способ докачать историю, не вставляя ключ
-# в чат заново.
+# A manual, one-off (or occasionally repeated) backfill of the permanent local
+# price history (data/candle_history/, see README) to whatever depth --since sets
+# - unlike price-monitor.yml, which every hour merely appends the latest candle.
+# A Twelve Data key is needed for the currency pairs; it is used only inside this
+# workflow (the secret is never visible in the logs or anywhere outside), which
+# makes this a safe way to backfill history without pasting the key into a chat
+# again.
 
 on:
   workflow_dispatch:
     inputs:
       since:
-        description: 'Докачать историю с этой даты (YYYY-MM-DD)'
+        description: 'Backfill history from this date (YYYY-MM-DD)'
         required: false
         default: '2021-01-01'
         type: string

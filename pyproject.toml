@@ -2,7 +2,8 @@
 pythonpath = ["."]
 testpaths = ["tests"]
 markers = [
-    # Тесты самого дозаполнения факта: автофикстура в test_weekly_digest.py
-    # глушит backfill_actuals везде, кроме них, чтобы дайджест не ходил в сеть.
-    "real_backfill: тест проверяет backfill_actuals, а не заглушку",
+    # Tests of the actual backfill itself: an autouse fixture in
+    # test_weekly_digest.py stubs backfill_actuals everywhere except these, so the
+    # digest tests never touch the network.
+    "real_backfill: the test exercises backfill_actuals rather than the stub",
 ]

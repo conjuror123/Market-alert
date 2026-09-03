@@ -1,12 +1,12 @@
 name: Price Spike Monitor
 
 on:
-  # Раньше здесь было ещё и собственное расписание GitHub Actions (schedule: cron
-  # "5 * * * *"), но GitHub исполняет его крайне нестабильно на малоактивных
-  # репозиториях (см. README) — по факту раз в ~10 часов вместо раза в час. Вместо
-  # этого запуск раз в час теперь делает внешний сервис (cron-job.org), дёргая
-  # workflow_dispatch через GitHub API — см. README, раздел про надёжность
-  # расписания.
+  # This used to carry a GitHub Actions schedule of its own (schedule: cron
+  # "5 * * * *"), but GitHub runs those very unreliably on low-activity
+  # repositories (see README) - in practice once every ~10 hours instead of once
+  # an hour. Instead an external service (cron-job.org) now triggers the hourly
+  # run by calling workflow_dispatch through the GitHub API - see README, the
+  # section on schedule reliability.
   workflow_dispatch: {}
 
 permissions:

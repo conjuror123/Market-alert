@@ -5,14 +5,14 @@ on:
     inputs:
       message_id:
         description: >-
-          ID алерта, который объяснить (число из строки "ID: ..." в самом
-          сообщении в Telegram). Обязательно — так за один запуск тратятся
-          токены ровно на один алерт, а не сразу на всю невыполненную очередь.
-          Пиковые часы DeepSeek (будни 01:00-04:00 и 06:00-10:00 UTC =
-          04:00-07:00 и 09:00-13:00 по летнему времени Израиля (IDT, UTC+3) /
-          03:00-06:00 и 08:00-12:00 по зимнему (IST, UTC+2)) — в это время
-          используется упрощённая deepseek-v4-flash, в остальное время —
-          deepseek-v4-pro (см. price_monitor/llm.py).
+          ID of the alert to explain (the number from the "ID: ..." line in the
+          Telegram message itself). Required - that way one run spends tokens on
+          exactly one alert rather than on the whole outstanding queue at once.
+          DeepSeek peak hours (weekdays 01:00-04:00 and 06:00-10:00 UTC =
+          04:00-07:00 and 09:00-13:00 Israel summer time (IDT, UTC+3) /
+          03:00-06:00 and 08:00-12:00 winter (IST, UTC+2)) - during those the
+          lighter deepseek-v4-flash is used, otherwise deepseek-v4-pro (see
+          price_monitor/llm.py).
         required: true
         type: string
 
@@ -40,9 +40,9 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          # Меняете провайдера LLM - меняете только эту строку (какой секрет сюда
-          # подставлен) и llm_base_url/llm_model в config/config.yaml. Код трогать
-          # не нужно, см. price_monitor/llm.py.
+          # Changing the LLM provider means changing only this line (which secret
+          # is substituted here) and llm_base_url/llm_model in config/config.yaml.
+          # The code does not need touching, see price_monitor/llm.py.
           LLM_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           EXPLAIN_MESSAGE_ID: ${{ github.event.inputs.message_id }}
         run: python -m price_monitor.explain

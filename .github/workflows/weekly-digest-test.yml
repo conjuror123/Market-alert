@@ -1,11 +1,11 @@
 name: Test Weekly Digest
 
-# Ручной, разовый способ увидеть дайджест экономического календаря прямо
-# сейчас, не дожидаясь настоящей субботы 12:00 по Израилю (см. README,
-# «Еженедельный дайджест экономического календаря») - полезно и просто
-# посмотреть на предстоящую неделю, и проверить сам механизм отправки.
-# `--force` обходит проверку дня/времени и не трогает "уже отправлено на
-# этой неделе" в state.json - это не часть регулярного расписания.
+# A manual, one-off way to see the economic calendar digest right now, without
+# waiting for a real Saturday at 12:00 Israel time (see README, "Weekly economic
+# calendar digest") - useful both for looking at the coming week and for checking
+# the sending mechanism itself. `--force` bypasses the day/time check and does not
+# touch "already sent this week" in state.json - this is not part of the regular
+# schedule.
 
 on:
   workflow_dispatch: {}
