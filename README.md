@@ -1,483 +1,480 @@
 # Market Alert
 
-Бот раз в час проверяет курсы выбранных активов — крипта, золото, нефть, индексы,
-валюты — и пишет в Telegram, если движение цены выглядит по-настоящему необычно.
+Once an hour the bot checks the prices of a chosen set of assets — crypto, gold,
+oil, indices, currencies — and writes to Telegram if a price move looks genuinely
+unusual.
 
-Что считать «необычным», алгоритм решает не по жёсткому проценту за день. Он
-смотрит, как этот конкретный актив обычно ведёт себя в последнее время, и сравнивает
-текущее движение именно с этим.
+What counts as "unusual" is not decided by a fixed daily percentage. The algorithm
+looks at how this particular asset has been behaving lately, and compares the
+current move against exactly that.
 
-Работает целиком на GitHub Actions. Ничего дополнительно хостить не нужно.
+It runs entirely on GitHub Actions. Nothing extra needs hosting.
 
-## Быстрый старт
+## Quick start
 
-1. Создайте Telegram-бота через [@BotFather](https://t.me/BotFather) и получите токен.
-2. Решите, куда бот будет слать уведомления. Есть два варианта:
-   - **Себе лично.** Напишите боту `/start`, затем узнайте свой `chat_id` — например,
-     открыв `https://api.telegram.org/bot<TOKEN>/getUpdates` после того как написали
-     сообщение.
-   - **В канал**, если хотите, чтобы могли подписаться и другие люди. Создайте
-     публичный канал и добавьте бота администратором с правом постить сообщения.
-     В этом случае `chat_id` — это просто `@username` канала, искать числовой ID
-     не нужно.
-3. Откройте настройки репозитория: **Settings → Secrets and variables → Actions →
-   Secrets**. Добавьте туда `TELEGRAM_BOT_TOKEN` и `TELEGRAM_CHAT_ID`.
-4. Валютные пары идут через отдельного провайдера, [Twelve Data](https://twelvedata.com/) —
-   зарегистрируйтесь там (только email, без карты) и добавьте туда же ключ под именем
-   `TWELVEDATA_API_KEY`. Без него часовой мониторинг продолжит работать по остальным
-   активам, но по всем восьми валютным парам будет молчать.
-5. Настройте автозапуск раз в час — обязательно, иначе бот не запустится сам
-   вообще, только вручную через Run workflow. Родное расписание GitHub Actions на
-   таких репозиториях ненадёжно (реально может срабатывать раз в 5-10 часов), так
-   что вместо него — внешний бесплатный будильник, см. «Надёжный запуск раз в час»
-   ниже (~10 минут настройки).
+1. Create a Telegram bot through [@BotFather](https://t.me/BotFather) and get a token.
+2. Decide where the bot should send its notifications. There are two options:
+   - **To yourself.** Send the bot `/start`, then find your `chat_id` — for example
+     by opening `https://api.telegram.org/bot<TOKEN>/getUpdates` after you have
+     written to it.
+   - **To a channel**, if you want other people to be able to subscribe. Create a
+     public channel and add the bot as an administrator with the right to post.
+     In that case `chat_id` is simply the channel's `@username`, with no numeric ID
+     to hunt for.
+3. Open the repository settings: **Settings → Secrets and variables → Actions →
+   Secrets**. Add `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` there.
+4. Currency pairs go through a separate provider, [Twelve Data](https://twelvedata.com/) —
+   register there (email only, no card) and add the key alongside the others under the
+   name `TWELVEDATA_API_KEY`. Without it the hourly monitoring keeps working on the
+   remaining assets, but stays silent on all eight currency pairs.
+5. Set up the hourly trigger — this is mandatory, otherwise the bot will never start
+   on its own at all, only manually through Run workflow. GitHub Actions' native
+   schedule is unreliable on repositories like this one (it can genuinely fire once
+   every 5-10 hours), so instead use an external free alarm clock, see "A reliable
+   hourly trigger" below (~10 minutes of setup).
 
-Проверить настройку без ожидания реального сигнала: **Actions → Test Telegram
-Notification → Run workflow** — шлёт тестовое сообщение и всё.
+To check the setup without waiting for a real signal: **Actions → Test Telegram
+Notification → Run workflow** — it sends a test message and nothing else.
 
-## Какие активы отслеживаются
+## Which assets are tracked
 
-По умолчанию — шестнадцать: Bitcoin, Ethereum, Solana, золото, нефть WTI, S&P 500,
-30-летние облигации США, индекс доллара (DXY) и восемь валютных пар — EUR/USD,
+Sixteen by default: Bitcoin, Ethereum, Solana, gold, WTI crude, the S&P 500,
+30-year US Treasuries, the dollar index (DXY) and eight currency pairs — EUR/USD,
 GBP/USD, USD/JPY, USD/CHF, USD/CAD, AUD/USD, NZD/USD, USD/CNY.
 
-Список активов — в файле `config/config.yaml`. Чтобы добавить или убрать актив,
-достаточно отредактировать этот файл — код менять не нужно.
+The asset list lives in `config/config.yaml`. To add or remove an asset it is enough
+to edit that file — no code changes needed.
 
 <details>
-<summary><b>Как добавить новый актив</b></summary>
+<summary><b>How to add a new asset</b></summary>
 
-1. Найдите тикер и проверьте его вживую, а не по памяти — не все тикеры, которые
-   кажутся логичными, реально существуют. Например, для индекса доллара `DX=F`
-   не сработал (404, такого тикера нет), а `DX-Y.NYB` — сработал. Быстрая проверка:
+1. Find the ticker and check it for real rather than from memory — not every ticker
+   that looks plausible actually exists. For the dollar index, for instance, `DX=F`
+   did not work (404, no such ticker) while `DX-Y.NYB` did. A quick check:
    ```bash
    python3 -c "
-   from price_monitor import yahoo   # или price_monitor.coinbase / twelvedata
+   from price_monitor import yahoo   # or price_monitor.coinbase / twelvedata
    import requests
-   candles = yahoo.fetch_klines('ТИКЕР', '1h', limit=20,
+   candles = yahoo.fetch_klines('TICKER', '1h', limit=20,
        base_url='https://query1.finance.yahoo.com', session=requests.Session())
    print(len(candles), candles[-1].close, candles[-1].volume)
    "
    ```
-2. Добавьте запись в `assets:` в `config/config.yaml` — `symbol`, `source`,
-   `label`, и `news_query`, если `label` не годится как поисковый запрос.
-3. Прогоните бэктест и посмотрите на новый актив в отчёте:
+2. Add an entry under `assets:` in `config/config.yaml` — `symbol`, `source`,
+   `label`, and `news_query` if `label` does not work as a search query.
+3. Run the backtest and look at the new asset in the report:
    ```bash
    python -m price_monitor.backtest --days 365 --out data/backtest_results.json
    ```
-   Смотрите на три вещи: частоту уведомлений в неделю, recall на топ-5 крупнейших
-   движений, и не выглядят ли числа структурно сломанными (как было у S&P 500 с
-   объёмом или у USD/CNY с залипшими котировками — см. блок про бэктест выше).
-4. Если что-то структурно не так с этим конкретным активом — добавьте точечный
-   override прямо в его запись в `config.yaml` (см. «Индивидуальные пороги по
-   активу» ниже), а не подкручивайте общие пороги под один актив.
-5. Учтите: у общих порогов есть целевая суммарная частота по всем активам вместе
-   (см. блок про бэктест выше) — новый актив её слегка поднимет. Разово не страшно;
-   если активов накопится много, есть смысл пересчитать общие пороги — на ваше
-   усмотрение.
+   Look at three things: notifications per week, recall on the top-5 largest moves,
+   and whether the numbers look structurally broken (as they did for the S&P 500 with
+   volume, or for USD/CNY with stuck quotes — see the backtest section above).
+4. If something is structurally wrong with that particular asset, add a targeted
+   override right in its entry in `config.yaml` (see "Per-asset thresholds" below)
+   rather than bending the shared thresholds around a single asset.
+5. Bear in mind that the shared thresholds have a target total frequency across all
+   assets together (see the backtest section above) — a new asset lifts it slightly.
+   Once is harmless; if the asset count grows a lot, it may be worth recomputing the
+   shared thresholds — your call.
 
-**Отдельно про валютные пары:** `source: twelvedata` упирается в лимит бесплатного
-тарифа — 8 запросов в минуту (по одному на пару), см. «Особенности источников
-данных» выше. Добавить девятую пару, не убрав одну из текущих восьми, нельзя без
-перехода на платный тариф Twelve Data. Символ у Twelve Data — `BASE/QUOTE` через
-слеш (`EUR/USD`, не `EURUSD=X`, как было у Yahoo).
+**A note on currency pairs specifically:** `source: twelvedata` runs into the free
+tier's limit of 8 requests per minute (one per pair), see "Data-source quirks" above.
+Adding a ninth pair without removing one of the current eight is impossible without
+moving to a paid Twelve Data plan. The Twelve Data symbol is `BASE/QUOTE` with a
+slash (`EUR/USD`, not `EURUSD=X` as it was on Yahoo).
 
 </details>
 
-## Как бот решает, что писать
+## How the bot decides what to write
 
-У каждого актива своя обычная волатильность: то, что для облигаций — землетрясение,
-для криптовалюты — рядовой день. Поэтому вместо фиксированного процента алгоритм
-сравнивает последнее движение цены с тем, насколько сильно этот актив обычно
-колеблется прямо сейчас. Если спокойный актив вдруг резко дёрнулся — это тревога.
-Если актив и так постоянно скачет на такую величину — это не тревога, а рутина.
+Every asset has its own normal volatility: what is an earthquake for bonds is an
+ordinary day for a cryptocurrency. So instead of a fixed percentage the algorithm
+compares the latest price move against how much this asset usually swings right now.
+If a quiet asset suddenly jerks, that is an alarm. If the asset jumps by that much
+all the time, that is routine, not an alarm.
 
-Между уведомлениями по одному активу выдерживается пауза (по умолчанию 14 дней),
-чтобы не заваливать чат повторами по одному и тому же событию. Но если за это время
-случится что-то по-настоящему крупное и новое, уведомление всё равно придёт — пауза
-не заставит вас пропустить действительно важное.
+Between notifications on one asset there is a pause (14 days by default), so the chat
+does not fill up with repeats about the same event. But if something genuinely large
+and new happens during that time, the notification still arrives — the pause will not
+make you miss something that really matters.
 
-На каждый актив на самом деле работают два независимых сигнала — часовой (описан
-выше) и дневной, который ловит медленный многочасовой «наплыв» в одну сторону, где
-ни один час сам по себе не выглядит аномальным, а суммарное движение за сутки — уже
-да. У него своя, короткая (2 дня) пауза между уведомлениями по одному активу — детали
-в блоке «Дневной сигнал» ниже. В самом сообщении в Telegram всегда написано, какой
-из двух сработал.
+Each asset is in fact covered by two independent signals — the hourly one (described
+above) and a daily one, which catches a slow multi-hour drift in one direction where
+no single hour looks anomalous but the total move over a day does. It has its own
+short (2-day) pause between notifications on one asset — details in the "Daily signal"
+section below. The Telegram message itself always says which of the two fired.
 
-Если хочется получать уведомления чаще или реже, в `config/config.yaml` за это
-отвечают два параметра: `price_zscore_threshold` (порог по цене) и
-`volume_zscore_threshold` (порог по объёму). У части активов заметная доля
-уведомлений приходит именно по объёму, а не по цене, поэтому менять стоит оба, а
-не только первый. Чем меньше значения — тем чаще будут срабатывать алерты; чем
-больше — тем реже.
+If you want notifications more or less often, two parameters in `config/config.yaml`
+control that: `price_zscore_threshold` (the price threshold) and
+`volume_zscore_threshold` (the volume threshold). For some assets a noticeable share
+of notifications comes from volume rather than price, so it is worth changing both
+rather than only the first. The smaller the values, the more often alerts fire; the
+larger, the rarer.
 
-Есть ещё одна, необязательная возможность: по запросу попросить LLM объяснить уже
-отправленный алерт по свежим новостям и дописать причину прямо в то же сообщение в
-Telegram. Она не часть обычного часового цикла — запускается вручную и требует
-отдельной настройки, подробности в блоке «Объяснение алерта через LLM и новости»
-ниже.
+There is one more, optional capability: on request, ask an LLM to explain an alert
+that has already been sent using fresh news and append the reason to that same
+Telegram message. It is not part of the ordinary hourly cycle — it is run manually and
+needs separate setup, details in the "Explaining an alert with an LLM and news"
+section below.
 
-Как всё это устроено внутри — в блоках ниже. Читать их для повседневного
-использования не обязательно: они для тех, кому интересны детали или кто хочет
-тонко всё настроить.
+How all of this works inside is in the sections below. Reading them is not required
+for everyday use: they are for anyone curious about the details or wanting to tune
+things finely.
 
 <details>
-<summary><b>Как именно считается «аномалия»</b></summary>
+<summary><b>How an "anomaly" is actually computed</b></summary>
 
-Вместо простого процента за день используются два независимых сигнала:
+Instead of a simple daily percentage, two independent signals are used:
 
-1. **EWMA-волатильность** — адаптивная оценка того, насколько сильно актив
-   колеблется прямо сейчас. Быстро подстраивается под смену режима: если рынок
-   несколько дней штормит, «нормальным» временно считается более широкий размах.
-2. **Робастный z-score по медиане/MAD** на скользящем окне — более консервативная,
-   долгоиграющая оценка нормы. В отличие от обычного стандартного отклонения, её
-   не «раздувает» один прошлый скачок. Свечи без изменения цены (залипшая
-   котировка — типичная ситуация в тихие часы на форексе) в это окно намеренно не
-   попадают: иначе рядовое движение начинает выглядеть как экстремальный выброс.
+1. **EWMA volatility** — an adaptive estimate of how much the asset is swinging right
+   now. It adjusts quickly to a change of regime: if the market has been stormy for
+   several days, a wider range temporarily counts as "normal".
+2. **A robust z-score on median/MAD** over a rolling window — a more conservative,
+   longer-lived estimate of normal. Unlike an ordinary standard deviation, one past
+   jump does not inflate it. Candles with no price change (a stuck quote — the typical
+   situation in quiet FX hours) are deliberately kept out of that window: otherwise an
+   ordinary move starts to look like an extreme outlier.
 
-По умолчанию алерт по цене срабатывает, только если **оба** сигнала одновременно
-превышают порог `price_zscore_threshold` — это отсекает случайные срабатывания
-одного метода. Слабое место такого подтверждения: если один сигнал экстремален сам
-по себе, второй может по инерции остаться чуть ниже порога, и событие пропадёт
-впустую. Поэтому есть более высокий порог `price_zscore_override`: если его
-пересекает хотя бы один сигнал, подтверждение второго уже не требуется. Объём
-проверяется так же — обычно нужно подтверждение движением цены
-(`volume_zscore_threshold`), а при экстремальном объёме
-(`volume_zscore_override`) — не нужно.
+By default a price alert fires only if **both** signals exceed the
+`price_zscore_threshold` at the same time — this cuts off chance firings of one
+method. The weak spot of such a confirmation: if one signal is extreme by itself, the
+other may lag just below the threshold and the event is lost for nothing. Hence a
+higher threshold, `price_zscore_override`: if at least one signal crosses it, the
+other's confirmation is no longer required. Volume works the same way — normally it
+needs confirmation from a price move (`volume_zscore_threshold`), and with extreme
+volume (`volume_zscore_override`) it does not.
 
-Пауза между уведомлениями тоже устроена не как жёсткий таймер. Повторный алерт во
-время паузы всё равно отправится в двух случаях: если он в `escalation_factor` раз
-крупнее того, что вызвало предыдущий алерт, или если он экстремален сам по себе
-(пересекает `price_zscore_override`/`volume_zscore_override`) — тогда пауза
-игнорируется полностью. Логика этой части — в `price_monitor/state.py`. Состояние
-по каждому активу хранится в `data/state.json` и коммитится обратно в репозиторий
-после каждого запуска.
+The pause between notifications is not a rigid timer either. A repeat alert during
+the pause will still be sent in two cases: if it is `escalation_factor` times larger
+than the one that caused the previous alert, or if it is extreme in itself (crossing
+`price_zscore_override`/`volume_zscore_override`) — then the pause is ignored
+entirely. The logic for this part is in `price_monitor/state.py`. Per-asset state is
+kept in `data/state.json` and committed back to the repository after every run.
 
 </details>
 
 <details>
-<summary><b>Дневной сигнал</b></summary>
+<summary><b>Daily signal</b></summary>
 
-Часовой сигнал выше сравнивает движение за один час с тем, насколько сильно актив
-обычно меняется за час. У этого есть слепая зона: медленный тренд, растянутый на
-много часов подряд, где каждый отдельный час выглядит совершенно рядовым, а
-суммарное движение за сутки — уже нет. Ни один часовой z-score в такой ситуации не
-превысит порог, потому что каждый час сам по себе действительно ничем не примечателен.
+The hourly signal above compares one hour's move against how much the asset usually
+changes in an hour. That has a blind spot: a slow trend stretched over many
+consecutive hours, where each individual hour looks entirely ordinary while the total
+move over a day does not. No hourly z-score will cross the threshold in that
+situation, because each hour genuinely is unremarkable on its own.
 
-Дневной сигнал — независимый второй детектор той же конструкции (EWMA +
-робастный z-score, `analyze()` — один и тот же код), только на дневных свечах вместо
-часовых. Дневные свечи не запрашиваются у источника отдельно — это стоило бы лишних
-запросов к Twelve Data сверх и без того тесного лимита (см. «Особенности источников
-данных»). Вместо этого они строятся сами, каждый час, из уже накопленной локальной
-истории (`data/candle_history/`, см. ниже) — берётся цена закрытия последнего часа
-суток по UTC. Граница дня — всегда 00:00 UTC, одна и та же для всех активов и
-источников, независимо от того, как каждая биржа определяет «свои» дневные сутки.
+The daily signal is an independent second detector of the same construction (EWMA +
+robust z-score, `analyze()` — the very same code), only on daily candles instead of
+hourly ones. Daily candles are not requested from the source separately — that would
+cost extra requests against Twelve Data's already tight limit (see "Data-source
+quirks"). Instead they are built locally, every hour, from the price history already
+accumulated (`data/candle_history/`, see below) — taking the close of the last hour of
+the UTC day. The day boundary is always 00:00 UTC, the same for every asset and every
+source, regardless of how each exchange defines "its" trading day.
 
-Сигнал пересчитывается при каждом часовом запуске, а не раз в сутки по расписанию —
-но это не проблема: значение последних закрытых суток не меняется, пока не наступят
-следующие, так что повторный пересчёт в течение того же дня просто получает тот же
-результат, а пауза между уведомлениями (см. ниже) не даёт этому превратиться в спам.
+The signal is recomputed on every hourly run rather than once a day on a schedule —
+but that is not a problem: the value of the last closed day does not change until the
+next one arrives, so recomputing within the same day simply produces the same result,
+and the pause between notifications (see below) keeps that from turning into spam.
 
-**Калибруется иначе, чем часовой — не под целевую частоту, а под recall.** Часовой
-сигнал настроен на конкретную частоту (0-1/2-3 в неделю по группе). Для дневного
-эта логика не подошла бы: цель — не "сколько уведомлений в неделю", а "поймали ли мы
-самые крупные движения этого конкретного актива". Порог для каждого актива подбирается
-отдельно (`python -m price_monitor.backtest --local-history --calibrate-daily-recall`)
-так, чтобы поймать примерно половину из топ-N крупнейших исторических движений этого
-актива, где N ≈ число месяцев доступной истории (не фиксированная пятёрка — при 4-5
-годах локальной истории это давало N от 23 до 68 в зависимости от актива). Реальный
-результат на всех 16 активах: пороги легли в диапазон 2.2–2.9 (заметно ниже
-изначального плейсхолдера 4.0), recall — 46-52% почти у каждого актива, суммарно
-383/780 по портфелю. Пороги — per-asset override в записи каждого актива в
-`config.yaml`, глобальные значения — только запасной вариант для нового актива без
-своей калибровки.
+**It is calibrated differently from the hourly signal — against recall, not against a
+target frequency.** The hourly signal is tuned to a specific frequency (0-1/2-3 a week
+per group). That logic would not fit the daily one: the goal is not "how many
+notifications a week" but "did we catch the largest moves of this particular asset".
+The threshold for each asset is picked separately
+(`python -m price_monitor.backtest --local-history --calibrate-daily-recall`) so as to
+catch roughly half of the top-N largest historical moves of that asset, where
+N ≈ the number of months of available history (not a fixed five — with 4-5 years of
+local history this gave N between 23 and 68 depending on the asset). The actual result
+across all 16 assets: thresholds landed in the 2.2–2.9 range (noticeably below the
+original 4.0 placeholder), recall 46-52% for nearly every asset, 383/780 across the
+portfolio in total. The thresholds are per-asset overrides in each asset's entry in
+`config.yaml`; the global values are only a fallback for a new asset with no
+calibration of its own.
 
-Пауза между дневными уведомлениями одного актива (`daily_cooldown_minutes`, 2 дня)
-короче часовой (14 дней) намеренно: `escalation_factor` и так пропускает
-по-настоящему усиливающееся движение сквозь паузу, так что длинная пауза здесь не
-нужна — хватает пары дней, чтобы не дублировать уведомление про продолжение того же
-по силе движения. Важно: пауза строго **per-asset**, не общая на несколько активов —
-если в один день сработали сразу 5 разных активов (например, все они отреагировали на
-одну и ту же макроновость), каждый всё равно пришлёт своё отдельное уведомление в
-Telegram. Это сознательный выбор: пробовали вариант с общей паузой на портфель, но
-отказались — общая пауза могла бы подавить второе, независимое и более важное
-событие только потому что первое (пусть и локальное, менее значимое) уже "заняло"
-паузу. Раз доставка всегда идёт по каждому активу отдельно, можно всегда запросить
-объяснение по любому сработавшему активу, даже если он оказался не первым в серии
-похожих срабатываний в один день.
+The pause between daily notifications for one asset (`daily_cooldown_minutes`, 2 days)
+is deliberately shorter than the hourly one (14 days): `escalation_factor` already
+lets a genuinely intensifying move through the pause, so a long pause is not needed
+here — a couple of days is enough to avoid duplicating a notification about the
+continuation of a move of the same size. Importantly, the pause is strictly
+**per-asset**, not shared across several assets — if 5 different assets fire on the
+same day (say they all reacted to the same macro news), each still sends its own
+separate notification to Telegram. This is a deliberate choice: a portfolio-wide pause
+was tried and rejected — a shared pause could suppress a second, independent and more
+important event only because the first (however local and less significant) had
+already "taken" the pause. Since delivery is always per-asset, you can always request
+an explanation for any asset that fired, even if it was not the first of a series of
+similar firings on the same day.
 
-Раз каждый актив доставляется независимо, при коррелированном движении (скажем, вся
-валютная группа разом) уведомлений в моменте может прийти несколько подряд — это
-принятый компромисс, а не недосмотр: для статистики (не для доставки) есть отдельная
-диагностика в `backtest.py` — срабатывания разных активов в пределах 2 дней друг от
-друга считаются одним "событием" при подсчёте частоты, чтобы коррелированный всплеск
-не раздувал эту цифру искусственно. На реальных данных по всему портфелю это дало
-217 задедуплицированных событий за ~5.5 лет (~0.75/неделю) — она печатается бэктестом
-только для справки и никак не влияет на то, что реально отправляется в Telegram.
+Because each asset is delivered independently, a correlated move (the whole FX group
+at once, say) can produce several notifications in a row in the moment — that is an
+accepted trade-off, not an oversight: for statistics (not for delivery) there is a
+separate diagnostic in `backtest.py` — firings of different assets within 2 days of
+each other are counted as a single "event" when computing frequency, so that a
+correlated burst does not inflate that figure artificially. On real data across the
+whole portfolio this gave 217 deduplicated events over ~5.5 years (~0.75/week) — the
+backtest prints it for reference only, and it has no effect on what is actually sent
+to Telegram.
 
-Дневной сигнал — не замена часовому, а дополнение: оба работают параллельно на всех
-активах, не только на валютных парах (слепая зона структурная и не зависит от
-класса актива).
+The daily signal is not a replacement for the hourly one but a complement: both run in
+parallel on all assets, not only on currency pairs (the blind spot is structural and
+does not depend on the asset class).
 
-Чтобы решить, действительно ли эти пороги ловят то, что нужно (а не просто нужный
-процент от истории), есть отдельный ручной инструмент —
-`python -m price_monitor.calibration_review --signal daily`: берёт каждое событие из
-топ-N по каждому активу (и пойманное, и пропущенное) и подтягивает по 5 реальных
-заголовков новостей из окна [событие+6ч, событие+12ч] — та же логика, что уже
-используется для объяснения живых алертов (см. «Объяснение алерта через LLM и
-новости» ниже), только применённая к историческим датам. Если в этом окне нашлось
-меньше 3 заголовков, инструмент дополнительно пробует более позднее, не
-пересекающееся окно [+12ч, +24ч] и добавляет найденное там — реальная новость иногда
-выходит только после первого новостного цикла, а само основное окно [+6ч, +12ч]
-при этом не трогается и не расширяется (оно и так работает хорошо, когда покрытие
-уже есть). Результат — читаемый markdown-отчёт
-(`data/calibration_review/daily_signal_review.md`) для ручного просмотра: по нему
-уже можно судить, стоит ли двигать порог вверх или вниз, глядя на то, какие реальные
-новости попали в пойманные и какие — в пропущенные. Инструмент сигнал-агностичный
-(работает и с `--signal hourly`), но пока запускался только для дневного сигнала.
+To decide whether these thresholds really catch what is needed (rather than simply the
+right percentage of history), there is a separate manual tool —
+`python -m price_monitor.calibration_review --signal daily`: it takes every event from
+each asset's top-N (both caught and missed) and pulls 5 real news headlines from the
+window [event+6h, event+12h] — the same logic already used to explain live alerts (see
+"Explaining an alert with an LLM and news" below), only applied to historical dates. If
+fewer than 3 headlines are found in that window, the tool additionally tries a later,
+non-overlapping window [+12h, +24h] and adds whatever it finds there — the real news
+sometimes only comes out after the first news cycle, while the main window [+6h, +12h]
+itself is left alone and not widened (it works well as it is when the coverage is
+there). The result is a readable markdown report
+(`data/calibration_review/daily_signal_review.md`) for manual review: from it you can
+judge whether the threshold should move up or down, by looking at which real news
+landed among the caught events and which among the missed. The tool is signal-agnostic
+(it works with `--signal hourly` too), but so far has only been run for the daily
+signal.
 
 </details>
 
 <details>
-<summary><b>Локальная история цен и решений мониторинга</b></summary>
+<summary><b>Local history of prices and monitoring decisions</b></summary>
 
-Помимо `data/state.json` и `data/alerts_log.json`, бот ведёт ещё два постоянных,
-никогда не обрезаемых журнала — по одному файлу на актив в каждом, в формате NDJSON
-(один JSON-объект на строку), чтобы каждый часовой запуск только дописывал новую
-строку в конец, а не переписывал файл целиком — так изменения в git остаются
-маленькими и понятными даже спустя годы:
+Besides `data/state.json` and `data/alerts_log.json`, the bot keeps two more
+permanent, never-truncated journals — one file per asset in each, in NDJSON format
+(one JSON object per line), so that every hourly run only appends a new line at the
+end rather than rewriting the whole file — that way git diffs stay small and readable
+even years later:
 
-- **`data/candle_history/`** — вся история цен, которую бот когда-либо получал от
-  источников, по одному файлу на актив (`source_symbol.ndjson`). Отсюда строится
-  дневной сигнал (см. выше), но пригождается и просто как собственный длинный архив
-  котировок — историю значимо длиннее нескольких лет по многим активам не всегда
-  просто найти бесплатно. Заполняется двумя путями: постепенно, по одной свече в
-  час, и разом — любой прогон `price_monitor/backtest.py` заодно домешивает в
-  локальную историю всё, что успел скачать для бэктеста (без дублей, по времени
-  свечи), так что реальный запуск бэктеста — самый быстрый способ наполнить архив
-  сразу на месяцы вперёд, а не ждать, пока он накопится по часу за раз.
-- **`data/decision_log/`** — не только отправленные алерты (это `alerts_log.json`),
-  а вообще каждое вычисленное значение обоих сигналов на каждом запуске для каждого
-  актива: z-score, сработал ли алерт, использованные пороги, и отправилось ли
-  уведомление в итоге (после паузы/эскалации) или нет. Нужен для того, чтобы про
-  любой момент времени можно было потом восстановить, что именно детектор видел и
-  почему решил именно так — не только когда алерт пришёл, но и когда не пришёл,
-  хотя, казалось бы, должен был.
+- **`data/candle_history/`** — the entire price history the bot has ever received from
+  the sources, one file per asset (`source_symbol.ndjson`). The daily signal is built
+  from it (see above), but it is also useful simply as a long private archive of
+  quotes — history significantly longer than a few years is not always easy to find
+  for free on many assets. It is filled in two ways: gradually, one candle an hour, and
+  in bulk — any run of `price_monitor/backtest.py` also merges into the local history
+  everything it managed to download for the backtest (no duplicates, keyed by candle
+  time), so actually running a backtest is the fastest way to fill the archive months
+  ahead instead of waiting for it to accumulate an hour at a time.
+- **`data/decision_log/`** — not only the alerts that were sent (that is
+  `alerts_log.json`) but every computed value of both signals, on every run, for every
+  asset: the z-scores, whether an alert fired, the thresholds used, and whether a
+  notification ended up being sent (after the pause/escalation) or not. It exists so
+  that for any moment in time you can afterwards reconstruct what exactly the detector
+  saw and why it decided the way it did — not only when an alert arrived, but also when
+  it did not, although one might have thought it should.
 
-Рост объёма этих двух журналов со временем осознанно не решается сейчас — если
-когда-нибудь это станет реальной проблемой (а не гипотетической), тогда и стоит
-заняться ротацией/архивацией, не раньше.
+The growth of these two journals over time is deliberately not addressed now — if it
+ever becomes a real problem (rather than a hypothetical one), that is when rotation or
+archiving is worth doing, not earlier.
 
-Разовый глубокий бэкфилл делается через `--since` вместо `--days`:
+A one-off deep backfill is done with `--since` instead of `--days`:
 
 ```bash
 python -m price_monitor.backtest --since 2021-01-01
 ```
 
-Локально это удобно для активов без ключа (Coinbase, Yahoo). Для валютных пар
-нужен `TWELVEDATA_API_KEY` — вместо того чтобы вставлять ключ в чат или
-локальное окружение, для этого есть отдельный workflow: **Actions → Backfill
-Candle History → Run workflow** (поле `since`, по умолчанию `2021-01-01`).
-Ключ используется только внутри workflow — секрет GitHub Actions в принципе
-нельзя прочитать обратно ни через API, ни как-то ещё, только сослаться на
-него в workflow, что этот шаг и делает. Результат он сам закоммитит в
-`data/candle_history/`, как это уже делает `price-monitor.yml` для `state.json`.
+Locally this is convenient for assets that need no key (Coinbase, Yahoo). Currency
+pairs need `TWELVEDATA_API_KEY` — rather than pasting the key into a chat or into a
+local environment, there is a separate workflow for that: **Actions → Backfill
+Candle History → Run workflow** (the `since` field, `2021-01-01` by default). The key
+is used only inside the workflow — a GitHub Actions secret fundamentally cannot be read
+back, neither through the API nor any other way, only referenced from a workflow, which
+is exactly what this step does. It commits the result itself into
+`data/candle_history/`, just as `price-monitor.yml` already does for `state.json`.
 
-У этого workflow та же `concurrency: group: price-monitor`, что и у
-`price-monitor.yml`, — намеренно: оба используют один и тот же ключ Twelve
-Data и общий лимит 8 кредитов/минуту на весь аккаунт, а не на процесс. Без
-общей группы внешний часовой триггер мог совпасть по времени с бэкфиллом и
-оба запроса вместе превысили бы лимит — ровно так один раз и случилось на
-практике (оба прогона упали с 429 одновременно). А шаг коммита в этом
-workflow — с `if: always()`: если бэкфилл упадёт на середине (например,
-исчерпав дневной лимит в 800 запросов), то, что уже успело смержиться в
-локальную историю для более ранних активов в том же прогоне, всё равно
-закоммитится, а не потеряется вместе с раннером.
+This workflow carries the same `concurrency: group: price-monitor` as
+`price-monitor.yml` — deliberately: both use the same Twelve Data key and a shared
+limit of 8 credits per minute across the whole account, not per process. Without a
+shared group the external hourly trigger could coincide with a backfill and the two
+sets of requests together would exceed the limit — which is exactly what happened once
+in practice (both runs failed with 429 at the same time). And the commit step in this
+workflow carries `if: always()`: if the backfill dies halfway through (having
+exhausted the daily limit of 800 requests, for example), whatever already merged into
+the local history for earlier assets in that same run is still committed rather than
+lost along with the runner.
 
-В отличие от `--days N` (скользящее окно «N дней назад от текущего момента прогона»),
-`--since` — фиксированная календарная дата: при повторном запуске через год она не
-«съедет», а просто попросит на год больше истории. Для активов на Coinbase и Twelve
-Data это реально докачает историю с 2021 года (с уважением к их же rate limit —
-восемь валютных пар при этом могут занять около 10-15 минут). Для активов на Yahoo
-запрос автоматически подрежется до максимума, который отдаёт источник (~2 года, см.
-«Особенности источников данных» — это ограничение самого Yahoo, не наше). Тот же
-принцип действует и для новых активов, добавленных позже: разово докачать `--since
-2021-01-01`, а источник сам отдаст либо всё до этой даты, либо всё, что у него вообще
-есть, если актив моложе или источник не может настолько глубоко (как Yahoo).
-Рутинные же прогоны бэктеста ради подбора порогов остаются на `--days` (по умолчанию
-365) — не имеет смысла перекачивать годы истории заново каждый раз, когда локальный
-архив её уже накопил.
+Unlike `--days N` (a sliding window "N days back from the moment of the run"),
+`--since` is a fixed calendar date: rerun a year later it will not "drift", it will
+simply ask for a year more history. For assets on Coinbase and Twelve Data this really
+does fetch history back to 2021 (respecting their rate limits — the eight currency
+pairs can take about 10-15 minutes). For assets on Yahoo the request is automatically
+trimmed to the maximum the source will serve (~2 years, see "Data-source quirks" —
+that is Yahoo's own limit, not ours). The same principle applies to new assets added
+later: do a one-off `--since 2021-01-01`, and the source will return either everything
+back to that date or everything it has at all, if the asset is younger or the source
+cannot go that deep (as with Yahoo). Routine backtest runs for threshold tuning stay on
+`--days` (365 by default) — there is no point re-downloading years of history every
+time when the local archive has already accumulated it.
 
 </details>
 
 <details>
-<summary><b>Еженедельный дайджест экономического календаря</b></summary>
+<summary><b>Weekly economic calendar digest</b></summary>
 
-Каждую субботу около 12:00 по Израилю бот присылает в тот же чат отдельным
-сообщением список главных экономических событий на предстоящую неделю (NFP,
-заседания центробанков, инфляция и т.п.) — просто чтобы заранее знать, каких дней
-стоит ожидать повышенной волатильности, до того как она уже случилась.
+Every Saturday around 12:00 Israel time the bot sends into the same chat, as a
+separate message, a list of the main economic events of the coming week (NFP, central
+bank meetings, inflation and so on) — simply so that you know in advance which days to
+expect heightened volatility, before it has already happened.
 
-Данные — с публичного JSON-фида ForexFactory
-(`https://nfs.faireconomy.media/ff_calendar_thisweek.json`), без ключа. У фида
-есть только вариант «эта неделя» (`nextweek`/`lastweek` проверены вживую и не
-существуют — оба 404), а сам он покрывает воскресенье-пятницу.
+The data comes from ForexFactory's public JSON feed
+(`https://nfs.faireconomy.media/ff_calendar_thisweek.json`), no key needed. The feed
+only has a "this week" variant (`nextweek`/`lastweek` were checked live and do not
+exist — both 404), and it covers Sunday through Friday.
 
-**День отправки не выбран, а проверяется.** Живьём подтверждено только одно:
-в воскресенье запрос возвращает ровно предстоящую неделю. Для субботы это
-осталось догадкой — обе возможные границы недели у источника
-(воскресенье-суббота и суббота-пятница) одинаково согласуются с тем, что фид
-отдаёт в будний день, и различить их можно лишь запросом в реальную субботу.
-Поэтому окон два, суббота и воскресенье около 12:00 по Израилю, и дайджест
-уходит в первом, где фид действительно смотрит вперёд (последнее событие фида
-ещё впереди). Если суббота отдаёт заканчивающуюся неделю, сообщение подождёт
-сутки. Дважды оно не уйдёт: ключ дедупликации берётся из самого фида — из даты
-его первого события, — и у субботы с воскресеньем, отдавших одну неделю, он
-один и тот же.
-В дайджест попадают только события с `impact: Medium` и `impact: High` —
-`Low` и `Holiday` отфильтровываются целиком. Никакого LLM здесь нет и не
-планируется: у каждого события уже есть готовая метка важности от источника,
-добавить тут нечего — просто читаемый список.
+**The sending day is not chosen but checked.** Only one thing has been confirmed
+live: on Sunday the request returns exactly the coming week. For Saturday this
+remained a guess — both possible week boundaries at the source (Sunday-to-Saturday and
+Saturday-to-Friday) are equally consistent with what the feed returns on a weekday, and
+they can only be told apart by a request on a real Saturday. So there are two windows,
+Saturday and Sunday around 12:00 Israel time, and the digest goes out in the first of
+them where the feed really does look forward (the feed's last event is still ahead). If
+Saturday returns the week that is ending, the message waits a day. It will not go out
+twice: the deduplication key is taken from the feed itself — from the date of its first
+event — and for a Saturday and a Sunday that returned the same week it is identical.
+Only events with `impact: Medium` and `impact: High` make it into the digest — `Low`
+and `Holiday` are filtered out entirely. There is no LLM here and none is planned:
+every event already carries an importance label from the source, there is nothing to
+add — just a readable list.
 
-Сообщение сгруппировано по дням, а под каждым событием идут все значения,
-которые отдал источник: **факт · прогноз · предыдущее**. Пустые поля
-пропускаются, а не печатаются прочерками — прогноз есть примерно у 70% событий,
-предыдущее у 80%, и строка из трёх прочерков сообщала бы только то, что источник
-промолчал. Факт в дайджесте на неделю вперёд пуст по существу: события ещё не
-наступили, — он появляется при ручном прогоне на прошедшей неделе.
+The message is grouped by day, and under each event come all the values the source
+returned: **actual · forecast · previous**. Empty fields are skipped rather than
+printed as dashes — a forecast exists for roughly 70% of events, a previous value for
+80%, and a line of three dashes would only tell you that the source said nothing.
+The actual in a week-ahead digest is empty by construction: the events have not
+happened yet — it shows up on a manual run over a week that has passed.
 
-Длинная неделя режется на несколько сообщений по границе дня: Telegram
-отклоняет сообщение длиннее 4096 символов целиком, а не обрезает его, и без
-разбиения дайджест просто не пришёл бы. Названия событий экранируются —
-одного `S&P Global PMI` без экранирования хватило бы, чтобы Telegram отверг
-сообщение с `parse_mode=HTML`.
+A long week is split across several messages on a day boundary: Telegram rejects a
+message longer than 4096 characters outright rather than truncating it, and without
+splitting the digest simply would not arrive. Event titles are escaped — a single
+`S&P Global PMI` without escaping would be enough for Telegram to reject a message
+with `parse_mode=HTML`.
 
-Отдельного расписания под это не заводилось: `weekly_digest.py` вызывается из
-`__main__.py` при **каждом** часовом запуске (тот же внешний триггер cron-job.org,
-что и всегда — см. «Особенности источников данных» ниже про то, почему у него нет
-своего расписания GitHub Actions), но реально ничего не делает ни в один час,
-кроме тех двух, что попадают на субботу и воскресенье ~12:00 по Израилю. Что
-дайджест на эту неделю уже отправлен, отмечается в `data/state.json` — если
-внешний триггер случайно сработает в этот час дважды (или несколько минут
-раньше/позже границы часа), повторной отправки не будет.
+No separate schedule was set up for this: `weekly_digest.py` is called from
+`__main__.py` on **every** hourly run (the same external cron-job.org trigger as
+always — see "Data-source quirks" below for why it has no GitHub Actions schedule of
+its own), but it does nothing at all in any hour except the two that fall on Saturday
+and Sunday ~12:00 Israel time. That the digest for this week has already been sent is
+recorded in `data/state.json` — if the external trigger happens to fire twice in that
+hour (or a few minutes either side of the hour boundary), it will not be sent again.
 
-Чтобы увидеть дайджест не дожидаясь субботы (например, проверить сам
-механизм или просто посмотреть на предстоящую неделю прямо сейчас) — **Actions
-→ Test Weekly Digest → Run workflow**, или локально
-`python -m price_monitor.weekly_digest --force`. `--force` обходит и проверку
-дня/времени, и "уже отправлено на этой неделе" — состояние в `state.json` при
-этом не трогается вообще, так что на реальную воскресную отправку это никак
-не влияет.
+To see the digest without waiting for Saturday (to check the mechanism itself, or
+simply to look at the coming week right now) — **Actions → Test Weekly Digest → Run
+workflow**, or locally `python -m price_monitor.weekly_digest --force`. `--force`
+bypasses both the day/time check and the "already sent this week" flag — the state in
+`state.json` is not touched at all, so this has no effect on the real Sunday send.
 
-Каждый такой запуск заодно сохраняет полученные с фида события в
-`data/economic_calendar/calendar.ndjson` — тем же способом, что и
-`candle_history` (NDJSON, без дублей). Архив нужен и `calibration_review.py`
-(контекст «что происходило в календаре в день скачка»), и календарному
-множителю MEALS (п.4.3).
+Every such run also saves the events it received from the feed into
+`data/economic_calendar/calendar.ndjson` — the same way as `candle_history` (NDJSON, no
+duplicates). The archive is needed both by `calibration_review.py` (context for "what
+was on the calendar on the day of the jump") and by the MEALS calendar multiplier
+(§4.3).
 
-**Дозаполнение факта.** Живой недельный фид поля `actual` не отдаёт вовсе —
-проверено на выдаче, его ключи: `country`, `date`, `forecast`, `impact`,
-`previous`, `title`. Событие попадает в архив за неделю до публикации, с
-прогнозом и предыдущим значением, а вышедшая цифра не появилась бы никогда:
-фид к этому событию больше не возвращается. Поэтому тот же субботний прогон
-дочитывает **текущий и прошлый месяц** с помесячных страниц ForexFactory, где
-факт есть (85% событий за август 2026, 77% за март 2021). Прошлый месяц нужен
-для событий последних чисел, чей факт выходит уже в новом месяце, и на случай,
-когда источник уточняет цифру задним числом. Два запроса в неделю.
+**Backfilling the actual.** The live weekly feed does not return the `actual` field at
+all — verified against its output, its keys are: `country`, `date`, `forecast`,
+`impact`, `previous`, `title`. An event enters the archive a week before publication,
+with a forecast and a previous value, and the released figure would never appear: the
+feed never comes back to that event. So the same Saturday run reads back **the current
+and the previous month** from ForexFactory's monthly pages, where the actual is present
+(85% of events for August 2026, 77% for March 2021). The previous month is needed for
+events at the very end of a month whose actual is released in the new one, and for the
+case where the source revises a figure after the fact. Two requests a week.
 
-Дедупликация идёт по **моменту** публикации, а не по строке даты: недельный фид
-пишет `2026-09-04T08:30:00-04:00`, помесячная страница — `2026-09-04T12:30:00+00:00`,
-и по строке это два разных события. Слияние обновляет запись, если у неё
-изменилось хоть одно поле, а не только когда прибавилась новая строка — иначе
-дозаполненный факт молча выбрасывался бы вместе со всей записью на диск.
+Deduplication goes by the **moment** of publication, not by the date string: the weekly
+feed writes `2026-09-04T08:30:00-04:00`, the monthly page
+`2026-09-04T12:30:00+00:00`, and as strings those are two different events. The merge
+updates a record if even one of its fields changed, not only when a new row was added —
+otherwise a backfilled actual would be silently thrown away along with the whole record
+on its way to disk.
 
-**Архив хранит все уровни `impact` — Low/Medium/High**, хотя сам дайджест в
-Telegram по-прежнему показывает только Medium+High (это про то, что ожидать
-на неделе вперёд, а не про то, что стоит хранить для бэктестов задним числом).
+**The archive keeps every `impact` level — Low/Medium/High**, even though the Telegram
+digest still shows only Medium+High (that is about what to expect in the week ahead,
+not about what is worth keeping for backtests after the fact).
 
-**Историческая часть архива.** У самого ForexFactory нет готового фида для
-прошлых дат — только «эта неделя». Зато читаются **помесячные страницы**
-(`forexfactory.com/calendar?month=sep.2026`), и на них теперь держится вся
-история. Тонкость в клиенте, а не в заголовках: `requests` получает от этих
-страниц 403 при любом наборе headers, включая полный браузерный, а `urllib` с
-тем же User-Agent — 200. Различие в TLS-отпечатке, и переспорить его заголовками
-нельзя. Понедельный скрейпинг (`calendar?week=...`) при этом по-прежнему закрыт
-Cloudflare (проверено вживую: HTTP 403, JS-челлендж «Just a moment...») — именно
-он и создал многолетнее впечатление, что истории у ForexFactory не достать.
+**The historical part of the archive.** ForexFactory itself has no ready-made feed for
+past dates — only "this week". But the **monthly pages** are readable
+(`forexfactory.com/calendar?month=sep.2026`), and the whole history now rests on them.
+The subtlety is in the client, not in the headers: `requests` gets a 403 from those
+pages with any set of headers, a full browser set included, while `urllib` with the
+same User-Agent gets a 200. The difference is in the TLS fingerprint, and no headers
+will argue it down. Weekly scraping (`calendar?week=...`) is still closed off by
+Cloudflare (verified live: HTTP 403, a "Just a moment..." JS challenge) — it is exactly
+what created the long-standing impression that ForexFactory history is unobtainable.
 
-Данные в помесячной странице лежат готовым JSON прямо в разметке, а время в них —
-unix-таймстамп, то есть однозначное. Ровно та неоднозначность, что испортила все
-прежние попытки, здесь отсутствует по построению.
+The data on a monthly page sits in the markup as ready-made JSON, and the time in it is
+a unix timestamp, that is, unambiguous. The very ambiguity that spoiled all previous
+attempts is absent here by construction.
 
-Полная пересборка — `--rebuild`, около 69 запросов с паузой в две секунды,
-минуты четыре:
+A full rebuild is `--rebuild`, about 69 requests with a two-second pause, some four
+minutes:
 
 ```bash
 python -m price_monitor.economic_calendar --rebuild
 ```
 
-(или **Actions → Backfill Economic Calendar → Run workflow**, режим `rebuild`.)
-Можно дописать отдельный диапазон, не трогая остального:
-`--import-forexfactory --from-month 2024-01 --to-month 2024-06`. Всё, что старше
-`2021-01-01` (`_ARCHIVE_SINCE`), отбрасывается перед записью: раньше этой даты
-нет никакой истории свечей, и сопоставить такое событие не с чем.
+(or **Actions → Backfill Economic Calendar → Run workflow**, mode `rebuild`.)
+A separate range can be appended without touching the rest:
+`--import-forexfactory --from-month 2024-01 --to-month 2024-06`. Everything older than
+`2021-01-01` (`_ARCHIVE_SINCE`) is dropped before writing: there is no candle history
+before that date, so there is nothing to match such an event against.
 
-**Почему один источник, а не несколько.** Сторонние источники перепробованы и
-сняты все — по очереди и каждый по измеренной причине.
+**Why one source and not several.** Third-party sources were all tried and all
+dropped — one at a time and each for a measured reason.
 
-- **Три готовых дампа** — `Ehsanrs2/Forex_Factory_Calendar` на Hugging Face
-  (2007–2025, все уровни), `ehsanrs2/forexfactory-scraper` на GitHub (только
-  High), `spoluan/forex-factory-scraper` (2010–2023). Собранный из них архив
-  содержал 25% дубликатов среди High и Medium: одно и то же событие дважды в
-  пределах суток, с доминирующим сдвигом ровно в семь часов. Дампы делались с
-  разными соглашениями о часовом поясе, а ключ слияния включал дату. У каждой
-  американской публикации оказалось по два кластера времени вместо одного.
-- **Financial Modeling Prep** — Economic Calendar платный даже на тарифе
-  «stable» (проверено реальным ключом: HTTP 402).
-- **QuantGist** — бесплатно только 30 дней истории.
-- **MetaTrader 5 Python API** — календарь беднее и требует установленного
-  терминала.
-- **FRED** — макроэкономические ряды есть, календаря публикаций нет.
-- **Kaggle, «Global Economic Calendar»** (EL Younes, CC BY-NC-SA 4.0,
-  2020–2025) — с временем у него всё было в порядке, а вот с **таксономией**
-  нет. Он раздавал метку `Medium` вдевятеро щедрее, чем сама ForexFactory:
-  96,9 события в неделю против 11,3 на том же периоде, при том что `High` у
-  обоих совпадал (13,0 и 13,4). Архив, склеенный из Kaggle и ForexFactory,
-  получал шов ровно там, где один сменял другого: календарный множитель MEALS
-  (п.4.3) был включён в **90,7%** часов на половине Kaggle и в **53,2%** на
-  половине ForexFactory. Для калибровки это хуже пропусков — train-период
-  целиком лежал бы в щедрой половине, а работа шла бы по скупой.
+- **Three ready-made dumps** — `Ehsanrs2/Forex_Factory_Calendar` on Hugging Face
+  (2007–2025, all levels), `ehsanrs2/forexfactory-scraper` on GitHub (High only),
+  `spoluan/forex-factory-scraper` (2010–2023). The archive assembled from them
+  contained 25% duplicates among High and Medium: the same event twice within a day,
+  with a dominant shift of exactly seven hours. The dumps were made under different
+  timezone conventions, and the merge key included the date. Every US release turned
+  out to have two clusters of times instead of one.
+- **Financial Modeling Prep** — the Economic Calendar is paid even on the "stable"
+  plan (verified with a real key: HTTP 402).
+- **QuantGist** — only 30 days of history for free.
+- **MetaTrader 5 Python API** — the calendar is poorer and requires an installed
+  terminal.
+- **FRED** — it has macroeconomic series but no calendar of releases.
+- **Kaggle, "Global Economic Calendar"** (EL Younes, CC BY-NC-SA 4.0, 2020–2025) — its
+  timestamps were fine, but its **taxonomy** was not. It handed out the `Medium` label
+  nine times more generously than ForexFactory itself: 96.9 events a week against 11.3
+  over the same period, while `High` matched for both (13.0 and 13.4). An archive glued
+  together from Kaggle and ForexFactory got a seam exactly where one gave way to the
+  other: the MEALS calendar multiplier (§4.3) was switched on in **90.7%** of hours on
+  the Kaggle half and in **53.2%** on the ForexFactory half. For calibration that is
+  worse than missing data — the train period would lie entirely in the generous half
+  while live work ran on the stingy one.
 
-Цена единственного источника — меньше событий `Low`: у ForexFactory их на
-порядок меньше, чем было у Kaggle. По существу она нулевая: множитель п.4.3
-использует только `High` и `Medium`, `Low` в нём не участвует вовсе.
+The price of a single source is fewer `Low` events: ForexFactory has an order of
+magnitude fewer of them than Kaggle did. In substance that price is zero: the §4.3
+multiplier uses only `High` and `Medium`, and `Low` plays no part in it at all.
 
 </details>
 
 <details>
-<summary><b>Проверено бэктестом на реальных исторических данных</b></summary>
+<summary><b>Verified by a backtest on real historical data</b></summary>
 
-Скрипт `price_monitor/backtest.py` прогоняет ровно ту же логику, что используется в
-проде, по каждому часу реальной истории за выбранный период. Он не просто проверяет,
-сработал бы сигнал — он симулирует, дошло бы уведомление на самом деле, с учётом
-паузы между алертами. Заодно он прогоняет ту же симуляцию и для дневного сигнала
-(строя дневные свечи из той же скачанной истории) и печатает вторую сводную таблицу,
-и по пути сам пополняет `data/candle_history/` — см. «Локальная история цен и решений
-мониторинга» выше.
+The script `price_monitor/backtest.py` runs exactly the logic used in production over
+every hour of real history for a chosen period. It does not merely check whether the
+signal would have fired — it simulates whether a notification would actually have been
+delivered, taking the pause between alerts into account. Along the way it runs the same
+simulation for the daily signal (building daily candles from the same downloaded
+history) and prints a second summary table, and it tops up `data/candle_history/` as it
+goes — see "Local history of prices and monitoring decisions" above.
 
 ```bash
 python -m price_monitor.backtest --days 365 --out data/backtest_results.json
 ```
 
-Вот что получилось при прогоне на 16 активах за примерно год с текущими порогами:
+Here is what came out of a run on 16 assets over roughly a year with the current
+thresholds:
 
-| Актив | Уведомлений в неделю | Recall |
+| Asset | Notifications per week | Recall |
 |---|---|---|
 | Bitcoin | 0.19 | 2/5 |
 | Ethereum | 0.29 | 4/5 |
 | Solana | 0.25 | 3/5 |
-| Золото | 0.27 | 3/5 |
-| Нефть WTI | 0.34 | 4/5 |
+| Gold | 0.27 | 3/5 |
+| WTI crude | 0.34 | 4/5 |
 | S&P 500 | 0.22 | 2/5 |
 | 30Y Treasury | 0.25 | 3/5 |
 | EUR/USD | 0.17 | 1/5 |
@@ -488,454 +485,460 @@ python -m price_monitor.backtest --days 365 --out data/backtest_results.json
 | AUD/USD | 0.09 | 1/5 |
 | NZD/USD | 0.17 | 3/5 |
 | USD/CNY | 0.36 | 3/5 |
-| Индекс доллара (DXY) | 0.21 | 4/5 |
+| Dollar index (DXY) | 0.21 | 4/5 |
 
-Суммарно — около **3.7 уведомления в неделю**. Цель по частоте (0-1 в неделю в
-спокойное время, 2-3 в турбулентное) теперь считается не на все 16 активов сразу, а
-отдельно по двум группам: валютная (8 пар + DXY — все по сути про силу/слабость
-доллара, одно макрособытие двигает всю группу разом) и всё остальное (крипта,
-сырьё, индексы, облигации). При текущем пороге каждая группа по отдельности
-укладывается в эту цель (~1.9/нед и ~1.8/нед) — единая цифра на всё сразу была
-написана ещё при девяти активах и с ростом их числа просто перестала быть
-осмысленной, порог тут ни при чём.
+In total, about **3.7 notifications a week**. The frequency target (0-1 a week in quiet
+times, 2-3 in turbulent ones) is now measured not across all 16 assets at once but
+separately for two groups: the currency group (8 pairs + DXY — all of them essentially
+about dollar strength or weakness, one macro event moves the whole group at once) and
+everything else (crypto, commodities, indices, bonds). At the current threshold each
+group on its own fits that target (~1.9/week and ~1.8/week) — the single figure for
+everything at once was written back when there were nine assets, and as their number
+grew it simply stopped being meaningful; the threshold has nothing to do with it.
 
-Recall (**42 из 80**) — доля топ-5 крупнейших движений каждого актива за год,
-которые бот реально поймал бы; ниже он и должен быть при настройке на редкость, а
-не на максимальный охват. Часть «пропусков» — не потерянный сигнал, а несколько
-скачков одного турбулентного эпизода, схлопнутых паузой в одно уведомление.
+Recall (**42 out of 80**) is the share of each asset's top-5 largest moves over the
+year that the bot would actually have caught; it is supposed to be lower when tuned for
+rarity rather than for maximum coverage. Some of the "misses" are not a lost signal but
+several jumps of one turbulent episode collapsed by the pause into a single
+notification.
 
-У части валютных пар (особенно GBP/USD и USD/CAD) recall низкий — 0/5-1/5 — и
-это, в отличие от прошлых находок, **не чинится порогом**: проверено отдельным
-sweep'ом от 3.0 до 7.0 — у GBP/USD recall остаётся 1/5 даже при пороге 3.0, где
-сама пара уже шумит на 0.7 алерта в неделю. Значит дело не в калибровке: крупнейшие
-движения этих конкретных пар в процентах статистически не выглядят необычными
-относительно их же недавней волатильности — видимо, происходят на фоне уже
-повышенного разброса, а не на спокойном фоне. Понижать порог не поможет, только
-добавит шума остальным парам группы, поэтому пороги оставлены как есть.
+For some currency pairs (GBP/USD and USD/CAD especially) recall is low — 0/5-1/5 — and
+that, unlike previous findings, **is not fixed by the threshold**: checked with a
+separate sweep from 3.0 to 7.0 — GBP/USD stays at 1/5 recall even at a threshold of
+3.0, where the pair itself is already noisy at 0.7 alerts a week. So it is not a
+calibration matter: the largest moves of these particular pairs, in percentage terms,
+statistically do not look unusual relative to their own recent volatility — apparently
+they happen against an already elevated spread rather than a quiet background. Lowering
+the threshold will not help, it will only add noise for the other pairs in the group, so
+the thresholds are left as they are.
 
-По пути бэктест нашёл и помог починить пару реальных проблем с данными — залипшие
-котировки у USD/CNY (когда он ещё шёл через Yahoo) и структурно сломанный объём у
-S&P 500 (детали — в `analysis.py` и `config.yaml`).
+Along the way the backtest found and helped fix a couple of real data problems — stuck
+quotes on USD/CNY (back when it went through Yahoo) and structurally broken volume on
+the S&P 500 (details in `analysis.py` and `config.yaml`).
 
-Полная версия отчёта с графиками — на
-[дашборде бэктеста](https://claude.ai/code/artifact/272f70f2-5d26-4a94-b8a4-75a8c7ff69db)
-(приватная ссылка, поделиться можно через меню Share на странице).
+The full version of the report with charts is on the
+[backtest dashboard](https://claude.ai/code/artifact/272f70f2-5d26-4a94-b8a4-75a8c7ff69db)
+(a private link; it can be shared through the Share menu on the page).
 
 </details>
 
 <details>
-<summary><b>Особенности источников данных</b></summary>
+<summary><b>Data-source quirks</b></summary>
 
-| source       | что покрывает                              | формат symbol                  | пример              |
+| source       | what it covers                              | symbol format                   | example             |
 |--------------|---------------------------------------------|---------------------------------|---------------------|
-| `coinbase`   | крипто-споты (Coinbase Exchange)             | `BASE-QUOTE`                    | `BTC-USD`           |
-| `yahoo`      | фьючерсы, индексы (Yahoo Finance)            | тикер как на finance.yahoo.com  | `GC=F`, `DX-Y.NYB`  |
-| `twelvedata` | валютные пары (Twelve Data)                  | `BASE/QUOTE`                    | `EUR/USD`           |
+| `coinbase`   | crypto spot (Coinbase Exchange)              | `BASE-QUOTE`                    | `BTC-USD`           |
+| `yahoo`      | futures, indices (Yahoo Finance)             | ticker as on finance.yahoo.com  | `GC=F`, `DX-Y.NYB`  |
+| `twelvedata` | currency pairs (Twelve Data)                 | `BASE/QUOTE`                    | `EUR/USD`           |
 
-- **У форекс-пар нет объёма.** Для спот-валютных пар единого биржевого объёма не
-  существует ни у одного провайдера — Twelve Data всегда присылает `volume=0`. Для
-  таких активов работает только ценовой сигнал — это ожидаемое поведение, а не баг.
-- **Фьючерсы иногда «прыгают» на смене контракта.** Тикеры вида
-  `GC=F`/`CL=F`/`ES=F`/`ZB=F` — это «непрерывный» контракт ближайшего месяца. При
-  экспирации Yahoo сам переключает его на следующий, и в этот момент возможен
-  ценовой гэп, никак не связанный с реальным движением рынка. Такое случается пару
-  раз в год на актив.
-- **У Yahoo часовые свечи жёстко ограничены 730 днями назад.** Проверено вживую:
-  запрос часовых баров за пределами последних 730 дней возвращает явную ошибку
-  (HTTP 422, "The requested range must be within the last 730 days") — это не
-  мягкое ограничение, обойти его нельзя. Поэтому активы на Yahoo (золото, нефть,
-  S&P 500 e-mini, 30Y Treasury, DXY) физически не могут накопить часовую историю
-  глубже ~2 лет назад, в отличие от Coinbase и Twelve Data — `backtest.py`
-  (`fetch_backtest_history`) сам подрезает слишком большой запрос до 729 дней,
-  вместо того чтобы упасть с 422 и уронить весь прогон.
-- **API Yahoo Finance неофициальный.** Используется недокументированный
-  chart-эндпоинт — официального бесплатного API для фьючерсов и индексов не
-  существует. Он стабильно работает уже много лет, но Yahoo может ограничить его
-  без предупреждения. Если активы с `source: yahoo` вдруг начнут постоянно падать,
-  проверять стоит в первую очередь это. Форекс от этого риска не зависит — он идёт
-  через отдельного провайдера, так что падение одного не останавливает другой.
-- **У Twelve Data лимит — 8 запросов в минуту, 800 в сутки на бесплатном тарифе.**
-  Ровно поэтому валютных пар восемь, не больше: это использует весь минутный лимит
-  за один прогон. Добавить девятую пару, не убрав одну из текущих, на бесплатном
-  тарифе нельзя — см. чек-лист ниже. По умолчанию Twelve Data отдаёт время не в UTC
-  (местное время «биржи», для форекса это не UTC), поэтому в коде явно указан
-  параметр `timezone=UTC` — без него все свечи оказались бы сдвинуты на несколько
-  часов относительно всех остальных источников.
-- **Binance не используется.** Изначально рассматривался как источник крипто-данных,
-  но его публичный API отдаёт HTTP 451 (гео-блокировку) с IP-адресов США — а именно
-  там обычно находятся стандартные раннеры GitHub Actions.
+- **FX pairs have no volume.** For spot currency pairs no single exchange volume exists
+  at any provider — Twelve Data always sends `volume=0`. For such assets only the price
+  signal works; that is expected behaviour, not a bug.
+- **Futures sometimes "jump" on a contract roll.** Tickers of the form
+  `GC=F`/`CL=F`/`ES=F`/`ZB=F` are the "continuous" front-month contract. On expiry
+  Yahoo switches it to the next one itself, and at that moment a price gap unrelated to
+  any real market move is possible. This happens a couple of times a year per asset.
+- **Yahoo's hourly candles are hard-limited to 730 days back.** Verified live: a request
+  for hourly bars beyond the last 730 days returns an explicit error (HTTP 422, "The
+  requested range must be within the last 730 days") — that is not a soft limit and
+  cannot be worked around. So assets on Yahoo (gold, oil, the S&P 500 e-mini, the 30Y
+  Treasury, DXY) physically cannot accumulate hourly history deeper than ~2 years back,
+  unlike Coinbase and Twelve Data — `backtest.py` (`fetch_backtest_history`) trims an
+  over-long request to 729 days itself, rather than failing with a 422 and bringing the
+  whole run down.
+- **The Yahoo Finance API is unofficial.** An undocumented chart endpoint is used —
+  no official free API for futures and indices exists. It has worked steadily for many
+  years, but Yahoo could restrict it without warning. If assets with `source: yahoo`
+  suddenly start failing constantly, that is the first thing to check. FX does not
+  depend on this risk — it goes through a separate provider, so one failing does not
+  stop the other.
+- **Twelve Data's limit is 8 requests a minute, 800 a day on the free tier.** That is
+  exactly why there are eight currency pairs and no more: that uses the entire
+  per-minute limit in one run. Adding a ninth pair without removing one of the current
+  ones is impossible on the free tier — see the checklist below. By default Twelve Data
+  returns times not in UTC (the local time of the "exchange", which for FX is not UTC),
+  so the code passes `timezone=UTC` explicitly — without it every candle would be
+  shifted by several hours relative to all the other sources.
+- **Binance is not used.** It was originally considered as a crypto data source, but its
+  public API returns HTTP 451 (a geo-block) from US IP addresses — which is exactly
+  where standard GitHub Actions runners usually are.
 
 </details>
 
 <details>
-<summary><b>Индивидуальные пороги по активу</b></summary>
+<summary><b>Per-asset thresholds</b></summary>
 
-Любой параметр можно переопределить для конкретного актива прямо в
-`config/config.yaml` — достаточно добавить нужный ключ в его запись. Например, так
-для S&P 500 отключён канал по объёму:
+Any parameter can be overridden for a specific asset right in `config/config.yaml` —
+it is enough to add the key to its entry. This is how the volume channel is switched
+off for the S&P 500, for example:
 
 ```yaml
 assets:
   - symbol: "ES=F"
     source: yahoo
     label: "S&P 500 (E-mini futures)"
-    volume_zscore_threshold: 200.0   # фактически отключает канал объёма
+    volume_zscore_threshold: 200.0   # effectively disables the volume channel
     volume_zscore_override: 200.0
 ```
 
-Переопределить можно любой из этих ключей: `interval`, `lookback`, `mad_window`,
+Any of these keys can be overridden: `interval`, `lookback`, `mad_window`,
 `ewma_lambda`, `price_zscore_threshold`, `price_zscore_override`,
 `volume_zscore_threshold`, `volume_zscore_override`, `volume_min_price_move_z`,
-`cooldown_minutes`, `escalation_factor`, `min_history`, а для дневного сигнала (см.
-«Дневной сигнал» выше) — `daily_mad_window`, `daily_ewma_lambda`,
+`cooldown_minutes`, `escalation_factor`, `min_history`, and for the daily signal (see
+"Daily signal" above) — `daily_mad_window`, `daily_ewma_lambda`,
 `daily_price_zscore_threshold`, `daily_price_zscore_override`, `daily_min_history`,
-`daily_cooldown_minutes`, `daily_escalation_factor`. Всё, что не переопределено
-для конкретного актива, берётся из общих настроек в том же файле.
+`daily_cooldown_minutes`, `daily_escalation_factor`. Anything not overridden for a
+specific asset is taken from the shared settings in the same file.
 
-Пороги настраиваются на трёх уровнях, от общего к частному:
+Thresholds are configured on three levels, from general to specific:
 
-1. Значение по умолчанию в коде.
-2. Значение из `config.yaml`, если оно там задано.
-3. Переменная окружения (те же имена, но в верхнем регистре, плюс
-   `HEALTH_ALERT_AFTER_FAILURES` и `HEALTH_REMINDER_EVERY_FAILURES`).
-4. Override у конкретного актива в `config.yaml`.
+1. The default value in the code.
+2. The value from `config.yaml`, if set there.
+3. An environment variable (the same names in upper case, plus
+   `HEALTH_ALERT_AFTER_FAILURES` and `HEALTH_REMINDER_EVERY_FAILURES`).
+4. An override on a specific asset in `config.yaml`.
 
-Каждый следующий уровень перекрывает предыдущий.
-
-</details>
-
-<details>
-<summary><b>Алерт на отказ самого мониторинга</b></summary>
-
-Если получение данных или отправка в Telegram не удаются несколько запусков подряд
-(по умолчанию три, настраивается параметром `health_alert_after_failures`),
-приходит отдельное сообщение «мониторинг не работает» со списком причин. Пока
-проблема не устранена, время от времени приходит напоминание — по умолчанию раз в
-сутки (`health_reminder_every_failures`), а не при каждом запуске. Когда всё снова
-заработает, придёт сообщение «мониторинг восстановился».
-
-Есть один случай, который это не покроет: если сам `TELEGRAM_BOT_TOKEN` или
-`TELEGRAM_CHAT_ID` неверны, или бот заблокирован, сообщить об этом через тот же
-Telegram, разумеется, не получится. Тогда единственным сигналом будет красный ❌
-у workflow во вкладке Actions.
+Each level overrides the previous one.
 
 </details>
 
 <details>
-<summary><b>Объяснение алерта через LLM и новости</b></summary>
+<summary><b>An alert when the monitoring itself fails</b></summary>
 
-Каждый отправленный алерт всегда сохраняется в `data/alerts_log.json` — вместе с
-номером сообщения в Telegram, чтобы его потом можно было отредактировать. Это
-происходит само по себе и ни от чего не зависит. А вот дописать в алерт вероятную
-причину («почему актив упал/вырос») можно только по запросу, отдельным шагом:
+If fetching data or sending to Telegram fails several runs in a row (three by default,
+configurable through `health_alert_after_failures`), a separate "monitoring is down"
+message arrives with a list of reasons. Until the problem is fixed, a reminder arrives
+from time to time — once a day by default (`health_reminder_every_failures`) rather
+than on every run. When everything works again, a "monitoring has recovered" message
+arrives.
 
-1. Заведите API-ключ у любого провайдера с OpenAI-совместимым API (по умолчанию
-   настроен [DeepSeek](https://platform.deepseek.com/) — недорого и без лишних
-   формальностей). Пополните там баланс — оплата по токенам, без ключа шаг работать
-   не будет.
-2. Добавьте ключ в **Settings → Secrets and variables → Actions → Secrets**, под
-   любым именем — например, `DEEPSEEK_API_KEY`.
-3. В файле `.github/workflows/explain-alerts.yml` укажите, какой секрет
-   использовать, в строке `LLM_API_KEY: ${{ secrets.ВАШЕ_ИМЯ_СЕКРЕТА }}`.
-4. Чтобы объяснить конкретный алерт: **Actions → Explain Alerts → Run workflow**,
-   в поле **Message ID** — номер из строки `ID: 12345` в конце сообщения в
-   Telegram. Поле обязательно намеренно: иначе один запуск мог бы случайно
-   потратить токены на всю накопившуюся очередь, а не на один алерт.
-
-Бот берёт указанный алерт, ищет заголовки через Google News (ключ не нужен) и
-просит LLM связать новость с движением цены в 2-3 предложениях на русском — без
-подходящей новости модель обязана честно сказать, что причина не нашлась, а не
-придумывать. Объяснение дописывается в то же сообщение через редактирование, новое
-не создаётся. Вместе с самим ответом в `data/alerts_log.json` сохраняются модель
-(`llm_model`) и точный запрос к ней (`llm_messages`, включая все статьи, которые
-модель реально видела) — если придёт странный ответ, можно проверить, что именно
-ушло в LLM, не дожидаясь, пока лог запуска в Actions истечёт.
-
-Новости ищутся строго в окне **с 6 по 12 час после алерта** — фиксированный
-отрезок относительно самого алерта, а не «от алерта до сейчас» (так результат не
-зависит от момента запуска). Такое окно почти всегда захватывает относящиеся к
-делу новости, не размываясь ни слишком свежими догадками (в первые часы обычно
-есть только факт, без анализа причин), ни случайными более поздними событиями не
-по теме. Шаг не возьмётся за алерт, пока не пройдёт `explain_min_age_hours` часов
-(по умолчанию 12 — конец окна); более младшие алерты ждут следующего запуска.
-
-Границы окна передаются Google через операторы `after:`/`before:`. Проверено
-вживую: Google считает эти даты не по UTC, а по времени Тихоокеанского побережья
-США (America/Los Angeles, видимо из-за `hl=en-US`/`gl=US`) — даты пересчитываются
-в этот пояс через `zoneinfo` перед запросом, без запаса на глаз.
-
-Это не автоматика, а инструмент по запросу — стоит небольшие деньги по токенам,
-поэтому не встроен в часовой цикл мониторинга.
-
-Смена LLM-провайдера не требует правки кода: `price_monitor/llm.py` работает с
-любым сервисом с эндпоинтом `/chat/completions` в формате OpenAI (DeepSeek,
-OpenAI, OpenRouter и большинство остальных). Меняются только `llm_base_url`/
-`llm_model_peak`/`llm_model_offpeak` в `config.yaml` и секрет в `LLM_API_KEY`
-(шаг 3 выше).
-
-По умолчанию используются две модели DeepSeek по времени суток — так дешевле. В
-«пиковые» часы (01:00–04:00 и 06:00–10:00 UTC по будням = 04:00–07:00/09:00–13:00
-по летнему времени Израиля, 03:00–06:00/08:00–12:00 по зимнему) цена полная —
-берётся дешёвая `deepseek-v4-flash`; в остальное время цена вдвое ниже — берётся
-более сильная `deepseek-v4-pro`, которая за счёт скидки обходится сопоставимо. То
-же расписание продублировано в описании поля Message ID в форме Run workflow. Если
-у провайдера нет деления на пиковые часы — укажите одну модель в обеих настройках.
-
-Для каждого актива, у которого удобное для поиска название не совпадает с `label`
-(например, «Золото (Gold futures)»), в `config/config.yaml` есть необязательное
-поле `news_query` — обычный текстовый запрос для поиска новостей.
+There is one case this will not cover: if `TELEGRAM_BOT_TOKEN` or `TELEGRAM_CHAT_ID`
+themselves are wrong, or the bot is blocked, then reporting that through the same
+Telegram is of course impossible. The only signal then is a red ❌ on the workflow in
+the Actions tab.
 
 </details>
 
 <details>
-<summary><b>Надёжный запуск раз в час</b></summary>
+<summary><b>Explaining an alert with an LLM and news</b></summary>
 
-Собственное расписание GitHub Actions (`schedule:`) ненадёжно на малоактивных
-репозиториях: вместо заявленного часа job может реально запускаться раз в 5-10
-часов — задокументированное поведение GitHub («best effort», не гарантия), а не
-баг проекта. Поэтому в `price-monitor.yml` расписания больше нет, только
-`workflow_dispatch`, а раз в час его дёргает внешний бесплатный сервис.
+Every alert that is sent is always saved into `data/alerts_log.json` — together with
+its Telegram message id, so that it can be edited later. That happens by itself and
+depends on nothing. Appending a probable reason to the alert ("why the asset fell or
+rose"), on the other hand, happens only on request, as a separate step:
 
-1. Заведите **fine-grained personal access token** на github.com →
+1. Get an API key from any provider with an OpenAI-compatible API
+   ([DeepSeek](https://platform.deepseek.com/) is configured by default — cheap and
+   without unnecessary formalities). Top up the balance there — billing is by tokens,
+   and without a key the step will not work.
+2. Add the key under **Settings → Secrets and variables → Actions → Secrets**, under
+   any name — `DEEPSEEK_API_KEY`, for example.
+3. In `.github/workflows/explain-alerts.yml` say which secret to use, in the line
+   `LLM_API_KEY: ${{ secrets.YOUR_SECRET_NAME }}`.
+4. To explain a particular alert: **Actions → Explain Alerts → Run workflow**, and in
+   the **Message ID** field the number from the `ID: 12345` line at the end of the
+   Telegram message. The field is deliberately mandatory: otherwise one run could
+   accidentally spend tokens on the whole accumulated queue rather than on a single
+   alert.
+
+The bot takes the specified alert, searches for headlines through Google News (no key
+needed) and asks the LLM to connect the news to the price move in 2-3 sentences in
+Russian — with no suitable news the model is required to say honestly that no reason
+was found, rather than inventing one. The explanation is appended to the same message
+by editing it; no new message is created. Along with the answer itself,
+`data/alerts_log.json` stores the model (`llm_model`) and the exact request sent to it
+(`llm_messages`, including every article the model actually saw) — if a strange answer
+comes back, you can check what was actually sent to the LLM without waiting for the
+Actions run log to expire.
+
+News is searched strictly in the window **from 6 to 12 hours after the alert** — a
+fixed stretch relative to the alert itself, not "from the alert until now" (that way
+the result does not depend on when the step is run). Such a window almost always
+captures the relevant news without being diluted either by too-fresh guesswork (in the
+first hours there is usually only the fact, without any analysis of causes) or by
+random later events off the topic. The step will not touch an alert until
+`explain_min_age_hours` hours have passed (12 by default — the end of the window);
+younger alerts wait for the next run.
+
+The window boundaries are passed to Google through the `after:`/`before:` operators.
+Verified live: Google reads those dates not in UTC but in US Pacific time
+(America/Los Angeles, apparently because of `hl=en-US`/`gl=US`) — the dates are
+converted into that zone through `zoneinfo` before the request, with no eyeballed
+safety margin.
+
+This is a tool on demand, not automation — it costs a little money in tokens, which is
+why it is not built into the hourly monitoring cycle.
+
+Changing the LLM provider requires no code edits: `price_monitor/llm.py` works with any
+service that has a `/chat/completions` endpoint in the OpenAI format (DeepSeek, OpenAI,
+OpenRouter and most others). Only `llm_base_url`/`llm_model_peak`/`llm_model_offpeak`
+in `config.yaml` and the secret in `LLM_API_KEY` change (step 3 above).
+
+By default two DeepSeek models are used depending on the time of day — it works out
+cheaper. During "peak" hours (01:00–04:00 and 06:00–10:00 UTC on weekdays =
+04:00–07:00/09:00–13:00 Israeli summer time, 03:00–06:00/08:00–12:00 winter time) the
+price is full, so the cheap `deepseek-v4-flash` is used; the rest of the time the price
+is half, so the stronger `deepseek-v4-pro` is used, which with the discount costs about
+the same. The same schedule is repeated in the description of the Message ID field in
+the Run workflow form. If your provider has no peak-hour split, put the same model in
+both settings.
+
+For every asset whose search-friendly name does not match its `label` (for example
+"Gold (Gold futures)"), `config/config.yaml` has an optional `news_query` field — an
+ordinary text query for the news search.
+
+</details>
+
+<details>
+<summary><b>A reliable hourly trigger</b></summary>
+
+GitHub Actions' own schedule (`schedule:`) is unreliable on low-activity repositories:
+instead of the declared hour, a job may genuinely run once every 5-10 hours —
+documented GitHub behaviour ("best effort", not a guarantee), not a bug in this
+project. So `price-monitor.yml` no longer has a schedule at all, only
+`workflow_dispatch`, and an external free service pokes it once an hour.
+
+1. Create a **fine-grained personal access token** at github.com →
    Settings → Developer settings → Personal access tokens → Fine-grained tokens.
-   Repository access → только этот репозиторий. Permissions → **Actions: Read and
-   write** — больше ничего отмечать не нужно. Поставьте срок действия (fine-grained
-   токены не бывают бессрочными — раз в год придётся перевыпустить).
-2. Зарегистрируйтесь на [cron-job.org](https://cron-job.org/) (бесплатно, без
-   карты) и создайте задание:
-   - URL: `https://api.github.com/repos/ВАШ_АККАУНТ/ВАШ_РЕПОЗИТОРИЙ/actions/workflows/price-monitor.yml/dispatches`
-   - Метод: **POST**
-   - Заголовки: `Authorization: Bearer ВАШ_ТОКЕН` и `Accept: application/vnd.github+json`
-   - Тело запроса: `{"ref": "ИМЯ_ВЕТКИ"}` (ветка, на которой лежит workflow)
-   - Расписание: каждый час.
+   Repository access → this repository only. Permissions → **Actions: Read and
+   write** — nothing else needs ticking. Set an expiry (fine-grained tokens cannot be
+   perpetual — it will need reissuing once a year).
+2. Register at [cron-job.org](https://cron-job.org/) (free, no card) and create a job:
+   - URL: `https://api.github.com/repos/YOUR_ACCOUNT/YOUR_REPOSITORY/actions/workflows/price-monitor.yml/dispatches`
+   - Method: **POST**
+   - Headers: `Authorization: Bearer YOUR_TOKEN` and `Accept: application/vnd.github+json`
+   - Request body: `{"ref": "BRANCH_NAME"}` (the branch the workflow lives on)
+   - Schedule: hourly.
 
-Токен даёт право только запускать workflow в этом одном репозитории — прочитать
-код, секреты или что-либо ещё им нельзя.
+The token only grants the right to run workflows in this one repository — it cannot
+read the code, the secrets or anything else.
 
 </details>
 
 <details>
-<summary><b>Структура проекта</b></summary>
+<summary><b>Project structure</b></summary>
 
 ```
 price_monitor/
-  config.py      — загрузка config/config.yaml + переопределение через env/secrets
-  coinbase.py    — публичный REST-клиент Coinbase Exchange (крипто), ключ не нужен
-  yahoo.py       — публичный chart-клиент Yahoo Finance (фьючерсы/индексы), ключ не нужен
-  twelvedata.py  — клиент Twelve Data (валютные пары), нужен бесплатный ключ
-  market_data.py — выбирает нужный клиент по полю source у актива
-  models.py      — общие типы (Candle, ExchangeError)
-  analysis.py    — EWMA-волатильность, робастный z-score, override, логика алертов
-  candle_store.py  — постоянная локальная история цен + сборка дневных свечей
-  decision_log.py  — лог каждого вычисленного решения обоих сигналов (не только алертов)
-  notifier.py    — отправка и редактирование сообщений в Telegram
-  state.py       — пауза между ценовыми алертами с учётом эскалации
-  health.py      — алерт на отказ самого мониторинга
-  alerts_log.py  — лог отправленных алертов, ожидающих объяснения от LLM
-  news.py        — поиск свежих новостей по активу (Google News, ключ не нужен)
-  llm.py         — клиент для любого OpenAI-совместимого провайдера LLM
-  explain.py     — точка входа шага «объяснить алерты через LLM и новости»
-  backtest.py    — walk-forward бэктест порогов (часовой и дневной сигнал) и
-                   симуляция реальной доставки алертов; заодно пополняет candle_history
-  calibration_review.py — ручной инструмент: тянет реальные новости по событиям из
-                   бэктеста (пойманным и пропущенным), для ручной проверки калибровки
-  economic_calendar.py — клиент фида ForexFactory + локальный NDJSON-архив событий
-  weekly_digest.py — дайджест Medium/High событий календаря в Telegram (сб/вс)
-  test_notify.py — ручная проверка доставки в Telegram, без реального алерта
-  __main__.py    — точка входа одного прогона мониторинга (оба сигнала + дайджест)
+  config.py      — loads config/config.yaml + overrides from env/secrets
+  coinbase.py    — public REST client for Coinbase Exchange (crypto), no key needed
+  yahoo.py       — public chart client for Yahoo Finance (futures/indices), no key needed
+  twelvedata.py  — Twelve Data client (currency pairs), needs a free key
+  market_data.py — picks the right client from an asset's source field
+  models.py      — shared types (Candle, ExchangeError)
+  analysis.py    — EWMA volatility, robust z-score, override, alert logic
+  candle_store.py  — permanent local price history + assembling daily candles
+  decision_log.py  — a log of every computed decision of both signals (not only alerts)
+  notifier.py    — sending and editing Telegram messages
+  state.py       — the pause between price alerts, escalation included
+  health.py      — an alert when the monitoring itself fails
+  alerts_log.py  — a log of sent alerts awaiting an LLM explanation
+  news.py        — searching fresh news for an asset (Google News, no key needed)
+  llm.py         — a client for any OpenAI-compatible LLM provider
+  explain.py     — entry point of the "explain alerts with an LLM and news" step
+  backtest.py    — walk-forward backtest of the thresholds (hourly and daily signal) and
+                   a simulation of real alert delivery; also tops up candle_history
+  calibration_review.py — a manual tool: pulls real news for events from the backtest
+                   (both caught and missed), for reviewing the calibration by hand
+  economic_calendar.py — ForexFactory feed client + local NDJSON archive of events
+  weekly_digest.py — a digest of Medium/High calendar events in Telegram (Sat/Sun)
+  test_notify.py — a manual check of Telegram delivery, without a real alert
+  __main__.py    — entry point of a single monitoring run (both signals + the digest)
 
-config/config.yaml         — список активов и пороги
-data/state.json            — персистентное состояние (коммитится обратно в репо)
-data/alerts_log.json       — лог алертов для шага объяснения (коммитится обратно в репо)
-data/candle_history/       — постоянная локальная история цен, по файлу на актив
-data/decision_log/         — лог каждого решения обоих сигналов, по файлу на актив
-data/calibration_review/   — markdown-отчёты ручного ревью калибровки (не коммитится)
-data/economic_calendar/    — локальный архив событий календаря (коммитится обратно в репо)
+config/config.yaml         — the asset list and the thresholds
+data/state.json            — persistent state (committed back to the repo)
+data/alerts_log.json       — the alert log for the explanation step (committed back to the repo)
+data/candle_history/       — permanent local price history, one file per asset
+data/decision_log/         — a log of every decision of both signals, one file per asset
+data/calibration_review/   — markdown reports of the manual calibration review (not committed)
+data/economic_calendar/    — local archive of calendar events (committed back to the repo)
 
 .github/workflows/
-  price-monitor.yml     — workflow_dispatch (запуск раз в час обеспечивает внешний
-                          сервис, см. «Надёжный запуск раз в час» выше)
-  test-notify.yml       — ручной запуск test_notify.py из вкладки Actions
-  explain-alerts.yml    — ручной запуск explain.py из вкладки Actions
-  weekly-digest-test.yml — ручная отправка дайджеста календаря прямо сейчас
-                          (`weekly_digest.py --force`), не дожидаясь
-                          субботы — не трогает "уже отправлено на этой
-                          неделе" в state.json
-  backfill-history.yml  — ручной глубокий докач data/candle_history/ (нужен для
-                          валютных пар — работает с секретом TWELVEDATA_API_KEY,
-                          не раскрывая его)
-  backfill-calendar.yml — ручная пересборка data/economic_calendar/ с
-                          помесячных страниц ForexFactory (~69 запросов,
-                          вся история с 2021-01) — ключ не нужен
-  tests.yml             — юнит-тесты на push/PR
+  price-monitor.yml     — workflow_dispatch (the hourly trigger is provided by an
+                          external service, see "A reliable hourly trigger" above)
+  test-notify.yml       — a manual run of test_notify.py from the Actions tab
+  explain-alerts.yml    — a manual run of explain.py from the Actions tab
+  weekly-digest-test.yml — sends the calendar digest right now
+                          (`weekly_digest.py --force`), without waiting for
+                          Saturday — does not touch "already sent this
+                          week" in state.json
+  backfill-history.yml  — a manual deep top-up of data/candle_history/ (needed for
+                          the currency pairs — it works with the TWELVEDATA_API_KEY
+                          secret without revealing it)
+  backfill-calendar.yml — a manual rebuild of data/economic_calendar/ from
+                          ForexFactory's monthly pages (~69 requests,
+                          all history from 2021-01) — no key needed
+  tests.yml             — unit tests on push/PR
 
-tests/ — pytest-тесты на все модули выше
+tests/ — pytest tests for every module above
 ```
 
 </details>
 
-## MEALS — новая логика алертов (в разработке)
+## MEALS — the new alert logic (in development)
 
-Рядом с текущим мониторингом строится MEALS (Macro-Event Alert & Logic System)
-по отдельному техническому заданию версии 5.1. Это не доработка существующих
-сигналов, а другая конструкция: вместо шестнадцати независимых детекторов —
-кросс-секционный анализ корзины целиком (Сводный Индекс Сенсации) плюс
-отдельный модуль одиночных движений, очищенных от общего рыночного фактора.
+Alongside the current monitoring, MEALS (Macro-Event Alert & Logic System) is being
+built to a separate technical specification, version 5.1. This is not a refinement of
+the existing signals but a different construction: instead of sixteen independent
+detectors, a cross-sectional analysis of the whole basket (the Composite Sensation
+Index) plus a separate module for single-asset moves cleaned of the common market
+factor.
 
-**Алерты текущего мониторинга сейчас заглушены** — `alerts_muted: true` в
-`config/config.yaml`. Часовой прогон при этом идёт как обычно: котировки
-качаются, `data/candle_history/` и `data/decision_log/` пополняются, субботний
-дайджест календаря уходит, уведомление о поломке самого бота уходит. Молчат
-только сообщения по активам — те самые сигналы, которые MEALS и заменяет.
+**The current monitoring's alerts are muted right now** — `alerts_muted: true` in
+`config/config.yaml`. The hourly run proceeds as usual: quotes are downloaded,
+`data/candle_history/` and `data/decision_log/` keep filling, the Saturday calendar
+digest goes out, a notification about the bot itself breaking goes out. The only thing
+silenced is the per-asset messages — the very signals MEALS is replacing.
 
-Заглушка не тратит кулдаун: состояние остаётся таким, будто сигнала не было, и
-после снятия первое же настоящее движение пройдёт, а не упрётся в паузу,
-накопленную за время молчания. Снять — поставить `false` (или задать
-`ALERTS_MUTED=false` в окружении прогона).
+Muting does not spend the cooldown: the state stays as if there had been no signal, so
+once it is lifted the first genuine move gets through rather than running into a pause
+accumulated during the silence. To lift it, set `false` (or set `ALERTS_MUTED=false` in
+the run's environment).
 
-Почему флаг в репозитории, а не выключенный планировщик на стороне
-cron-job.org: «мы намеренно молчим» — это состояние проекта, и оно должно быть
-видно там же, где код. Выключенный на чужом сайте cron через месяц неотличим от
-поломки, и данные за это время не накопились бы вовсе. MEALS собирается в
-пакете `meals/` и на замену выйдет только после бэктеста — см. план внедрения.
+Why a flag in the repository rather than a disabled scheduler on the cron-job.org side:
+"we are deliberately silent" is a state of the project, and it should be visible in the
+same place as the code. A cron switched off on someone else's site is indistinguishable
+from a breakage a month later, and the data for that period would not have accumulated
+at all. MEALS is being assembled in the `meals/` package and will only take over after
+a backtest — see the rollout plan.
 
-Что уже есть (этапы Ф0–Ф6: данные, расчёт, события, журнал и экспорт):
+What exists so far (phases 0–6: data, computation, events, journal and export):
 
 ```
-config/basket.yaml   — состав корзины: 21 актив, пять блоков, тиры, шаги цены
-meals/basket.py      — загрузка корзины, веса по правилу равновесности
-meals/bars.py        — хранилище часовых баров (Parquet) и сборка часовой сетки
-meals/sessions.py    — календарь сессий NYSE и эталонный календарь корзины
-meals/windows.py     — реестр окон и констант, три несовместимые единицы времени
-meals/quality.py     — гейт качества бара и принадлежность часа сессии
-meals/returns.py     — доходности, гэп-канал первого бара сессии, винзоризация
-meals/zscore.py      — out-of-sample EWMA Z-score и адаптивные пороги Q95/Q99
-meals/volume.py      — робастный профиль объёма по локальному биржевому часу
-meals/pipeline.py    — метрики по каждому активу, вся цепочка Ф1-Ф2 разом
-meals/cross_section.py — кворум часа, M_t, разброс корзины, PCA, однофакторность
-meals/residuals.py   — регрессия на фактор корзины и фактор блока, ряд остатков
-meals/saed.py        — одиночные события по остаткам и блочные алерты
-meals/calendar_multiplier.py — множитель важности часа по экономическому календарю
-meals/vix.py         — множитель стресса по дневному ряду VIX
-meals/si_index.py    — базовые баллы и Сводный Индекс Сенсации
-meals/cluster.py     — кластерные события: гейт, кулдаун, эскалации
-meals/versioning.py  — config_version и run_version, идемпотентность прогона
-meals/journal.py     — журнал решений и таблица готовности триггеров
-meals/export.py      — экспорт кластерного события в JSON по фиксированной схеме
-meals/corporate_actions.py — даты дивидендных отсечек, выведенные из котировок
-meals/fred.py        — дневной ряд VIX с FRED и момент его доступности
-meals/backfill.py    — разовая загрузка истории с 2021 года
-meals/audit.py       — таблица покрытия данных, требование п.2.1 ТЗ
+config/basket.yaml   — basket composition: 21 assets, five blocks, tiers, price steps
+meals/basket.py      — loading the basket, weights by the equal-weight rule
+meals/bars.py        — the hourly bar store (Parquet) and assembling the hourly grid
+meals/sessions.py    — the NYSE session calendar and the basket's reference calendar
+meals/windows.py     — the registry of windows and constants, three incompatible time units
+meals/quality.py     — the bar quality gate and whether an hour belongs to a session
+meals/returns.py     — returns, the gap channel of the first bar of a session, winsorization
+meals/zscore.py      — the out-of-sample EWMA Z-score and adaptive Q95/Q99 thresholds
+meals/volume.py      — a robust volume profile by local exchange hour
+meals/pipeline.py    — per-asset metrics, the whole phase 1-2 chain in one pass
+meals/cross_section.py — the hour's quorum, M_t, basket dispersion, PCA, single-factorness
+meals/residuals.py   — regression on the basket factor and the block factor, the residual series
+meals/saed.py        — single-asset events from the residuals and block alerts
+meals/calendar_multiplier.py — an hour's importance multiplier from the economic calendar
+meals/vix.py         — the stress multiplier from the daily VIX series
+meals/si_index.py    — base points and the Composite Sensation Index
+meals/cluster.py     — cluster events: the gate, the cooldown, escalations
+meals/versioning.py  — config_version and run_version, run idempotency
+meals/journal.py     — the decision journal and the trigger readiness table
+meals/export.py      — exporting a cluster event to JSON under a fixed schema
+meals/corporate_actions.py — ex-dividend dates derived from the quotes
+meals/fred.py        — the daily VIX series from FRED and the moment it becomes available
+meals/backfill.py    — the one-off load of history from 2021
+meals/audit.py       — the data coverage table, required by §2.1 of the spec
 
-data/meals/bars/     — часовые бары по инструменту
-data/meals/vix/      — дневной ряд VIX
-data/meals/sessions/ — расписание NYSE: торговые дни и полусессии
-data/meals/corporate_actions.csv — даты отсечек по фондам
-data/meals/metrics/  — метрики по активам (metrics_asset_hour)
-data/meals/metrics_basket_hour.parquet — метрики корзины по часам
-data/meals/saed_events.parquet — одиночные события
-data/meals/saed_block_alerts.parquet — блочные алерты
-data/meals/cluster_events.parquet — кластерные события
-data/meals/cluster_event_escalations.parquet — эскалации внутри событий
-data/meals/residuals/ — ряды остатков по инструменту (не в репозитории, см. ниже)
-data/meals/decision_log.parquet — журнал решений: величина, порог, итог, версии
-data/meals/first_valid_hour.parquet — с какого часа триггеру можно верить
-data/meals/events/   — экспорт событий в JSON (не в репозитории, см. ниже)
-data/meals/coverage.md — таблица покрытия
-schema/event_export.schema.json — схема экспорта события, контракт для потребителя
-docs/TZ_MEALS_v5.1.txt — само ТЗ: то, на что ссылаются все «п.4.3» в коде
-docs/meals-deviations.md — отступления от ТЗ, каждое с причиной
+data/meals/bars/     — hourly bars per instrument
+data/meals/vix/      — the daily VIX series
+data/meals/sessions/ — the NYSE schedule: trading days and half sessions
+data/meals/corporate_actions.csv — ex-dates for the funds
+data/meals/metrics/  — per-asset metrics (metrics_asset_hour)
+data/meals/metrics_basket_hour.parquet — basket metrics by hour
+data/meals/saed_events.parquet — single-asset events
+data/meals/saed_block_alerts.parquet — block alerts
+data/meals/cluster_events.parquet — cluster events
+data/meals/cluster_event_escalations.parquet — escalations inside events
+data/meals/residuals/ — residual series per instrument (not in the repository, see below)
+data/meals/decision_log.parquet — the decision journal: magnitude, threshold, outcome, versions
+data/meals/first_valid_hour.parquet — from which hour a trigger can be trusted
+data/meals/events/   — event export in JSON (not in the repository, see below)
+data/meals/coverage.md — the coverage table
+schema/event_export.schema.json — the event export schema, the contract for a consumer
+docs/TZ_MEALS_v5.1.txt — the specification itself: what every "§4.3" in the code points at
+docs/meals-deviations.md — departures from the spec, each with its reason
 ```
 
-Техническое задание лежит в репозитории как `docs/TZ_MEALS_v5.1.txt`, ровно в
-том виде, в каком написано, без правок. Это не украшение: код ссылается на него
-сотнями раз («п.2.7», «п.4.3», «п.8.2»), и все шестьдесят настраиваемых чисел
-объясняются только там. В `versioning.CONFIG_INPUTS` файл СОЗНАТЕЛЬНО не входит
-— иначе опечатка в тексте спецификации меняла бы `config_version` и обесценивала
-зафиксированную калибровку наравне с правкой формулы.
+The specification lies in the repository as `docs/TZ_MEALS_v5.1.txt`, exactly as
+written, unedited. This is not decoration: the code refers to it hundreds of times
+("§2.7", "§4.3", "§8.2"), and all sixty tunable numbers are explained only there. The
+file is DELIBERATELY kept out of `versioning.CONFIG_INPUTS` — otherwise a typo in the
+text of the specification would change `config_version` and devalue a frozen
+calibration just as a change to a formula would.
 
-Запуск вручную:
+Running it by hand:
 
 ```bash
-export TWELVEDATA_API_KEY=...   # тот же ключ, что у текущего мониторинга
-export FRED_API_KEY=...         # новый, только для ряда VIX
-python -m meals.backfill        # разовая загрузка истории
-python -m meals.audit           # таблица покрытия
-python -m meals.sessions        # перегенерировать расписание NYSE
-python -m meals.corporate_actions  # перестроить таблицу дивидендных отсечек
-python -m meals.pipeline        # пересчитать метрики по активам
-python -m meals.cross_section   # пересчитать метрики корзины
-python -m meals.saed            # пересчитать одиночные события
-python -m meals.cluster         # SI-Index, кластерные события, журнал решений
-python -m meals.export          # экспорт событий в JSON по схеме
-python -m price_monitor.economic_calendar --rebuild   # пересобрать архив календаря
+export TWELVEDATA_API_KEY=...   # the same key as the current monitoring uses
+export FRED_API_KEY=...         # new, for the VIX series only
+python -m meals.backfill        # the one-off load of history
+python -m meals.audit           # the coverage table
+python -m meals.sessions        # regenerate the NYSE schedule
+python -m meals.corporate_actions  # rebuild the ex-dividend table
+python -m meals.pipeline        # recompute per-asset metrics
+python -m meals.cross_section   # recompute basket metrics
+python -m meals.saed            # recompute single-asset events
+python -m meals.cluster         # SI-Index, cluster events, the decision journal
+python -m meals.export          # export events to JSON under the schema
+python -m price_monitor.economic_calendar --rebuild   # rebuild the calendar archive
 ```
 
-Порядок важен: `cross_section` считает по метрикам активов, `saed` — по фактору
-корзины, `cluster` — по метрикам корзины и остаткам SAED, `export` — по всему
-сразу.
+The order matters: `cross_section` works off the per-asset metrics, `saed` off the
+basket factor, `cluster` off the basket metrics and the SAED residuals, and `export`
+off all of it at once.
 
-### Версии и воспроизводимость
+### Versions and reproducibility
 
-Каждое решение помечено двумя версиями. `config_version` — хеш содержимого
-всего, что влияет на расчёт: конфигурации корзины и тринадцати модулей с
-формулами и порогами. Правка порога меняет версию сама, без ручного счётчика,
-который забывают увеличить ровно тогда, когда это важнее всего. `run_version` —
-хеш от `config_version` и отпечатка сырых данных (бары, VIX, расписание, отсечки,
-архив календаря). Производные файлы в отпечаток не входят: метрики корзины
-прогону `cluster` одновременно вход и выход, и включение их означало бы новую
-версию на каждом повторе.
+Every decision is stamped with two versions. `config_version` is a hash of the content
+of everything that affects the computation: the basket configuration and the thirteen
+modules with the formulas and thresholds. Editing a threshold changes the version by
+itself, with no manual counter that gets forgotten exactly when it matters most.
+`run_version` is a hash of `config_version` and a fingerprint of the raw data (bars,
+VIX, the schedule, ex-dates, the calendar archive). Derived files are not part of the
+fingerprint: the basket metrics are both an input and an output of the `cluster` run,
+and including them would mean a new version on every repeat.
 
-Отсюда два свойства. Повторный прогон по неизменившимся данным даёт ту же
-`run_version` и побайтово тот же результат — проверено на всей истории: 188
-кластерных событий, 324 950 строк журнала и 188 файлов экспорта совпадают между
-двумя запусками. А досланный или исправленный вендором бар меняет отпечаток, и
-пересчёт получает новую версию автоматически.
+Two properties follow. A repeat run over unchanged data gives the same `run_version` and
+a byte-identical result — verified over the whole history: 188 cluster events, 324,950
+journal rows and 188 export files match between two runs. And a bar sent late or
+corrected by the vendor changes the fingerprint, so the recomputation gets a new version
+automatically.
 
-Два каталога в репозитории не хранятся: экспорт событий `data/meals/events/`
-(9,7 МБ JSON, переписывается целиком при каждом прогоне — `run_version` стоит в
-каждом файле) и ряды остатков `data/meals/residuals/` (32 МБ). Оба полностью
-выводятся из метрик и кода и восстанавливаются секундами: `python -m meals.saed`
-и `python -m meals.export`. Метрики активов остаются в репозитории — они зависят
-только от баров и стоят полного прогона `pipeline`. Формат экспорта зафиксирован
-схемой `schema/event_export.schema.json`, и тест проверяет против неё как
-синтетическое событие, так и все 188 реальных.
+Two directories are not kept in the repository: the event export `data/meals/events/`
+(9.7 MB of JSON, rewritten in full on every run — `run_version` is in every file) and
+the residual series `data/meals/residuals/` (32 MB). Both are fully derived from the
+metrics and the code and are restored in seconds: `python -m meals.saed` and
+`python -m meals.export`. The per-asset metrics stay in the repository — they depend
+only on the bars and cost a full `pipeline` run. The export format is fixed by the
+schema `schema/event_export.schema.json`, and a test validates against it both a
+synthetic event and all 188 real ones.
 
-Архив экономических событий собран целиком с помесячных страниц ForexFactory,
-одним источником и без ключа. Живой недельный фид пополняет его вперёд при
-каждом субботнем дайджесте, а факт по вышедшим событиям дочитывается оттуда же
-помесячно. Почему источник один и что перепробовано до него — выше, в разделе
-про календарь, и в `docs/meals-deviations.md`.
+The archive of economic events is assembled entirely from ForexFactory's monthly pages,
+from a single source and with no key. The live weekly feed extends it forward on every
+Saturday digest, and the actual for released events is read back from the same place
+month by month. Why there is one source and what was tried before it is above, in the
+calendar section, and in `docs/meals-deviations.md`.
 
-Расписание NYSE строится библиотекой `exchange_calendars`, но не на каждом
-прогоне: библиотека работает генератором, а её результат лежит в репозитории
-таблицей. Так повторный прогон того же периода даёт тот же ответ, даже если
-библиотека успела обновиться, а часовому мониторингу календарная библиотека
-вообще не нужна — он читает готовый CSV. Таблица заполнена до конца 2028 года;
-когда она подойдёт к концу, команду нужно прогнать заново.
+The NYSE schedule is built by the `exchange_calendars` library, but not on every run:
+the library works as a generator, and its result lies in the repository as a table. That
+way a repeat run over the same period gives the same answer even if the library has been
+updated in the meantime, and the hourly monitoring does not need the calendar library at
+all — it reads a ready-made CSV. The table is filled to the end of 2028; when it nears
+its end, the command has to be run again.
 
 
-## Локальный запуск
+## Running locally
 
 ```bash
 pip install -r requirements-dev.txt
 export TELEGRAM_BOT_TOKEN=...
 export TELEGRAM_CHAT_ID=...
-export TWELVEDATA_API_KEY=...  # нужен для валютных пар, см. «Быстрый старт»
+export TWELVEDATA_API_KEY=...  # needed for the currency pairs, see "Quick start"
 python -m price_monitor
 ```
 
-Тесты запускаются командой `pytest -q`.
+The tests are run with `pytest -q`.
 
-## Ограничения
+## Limitations
 
-- `lookback`/`mad_window` (сейчас 300/288 свечей) — не ограничение API (Yahoo
-  отдаёт 60+ дней за запрос, `coinbase.py` умеет пагинацию мимо лимита в 300), а
-  осознанный выбор: бэктест с базой до 700 свечей не дал прироста ни в частоте, ни
-  в recall.
-- У `price-monitor.yml` нет собственного расписания — без внешнего будильника (см.
-  «Надёжный запуск раз в час» выше) мониторинг не запустится сам, только вручную
-  через Run workflow.
-- Валютных пар ровно 8 — упирается в бесплатный лимит Twelve Data (8 запросов в
-  минуту). Добавить девятую без удаления одной из текущих нельзя без платного
-  тарифа.
+- `lookback`/`mad_window` (300/288 candles at present) is not an API limit (Yahoo
+  serves 60+ days per request, and `coinbase.py` can paginate past the limit of 300)
+  but a deliberate choice: a backtest with a base of up to 700 candles gave no gain
+  either in frequency or in recall.
+- `price-monitor.yml` has no schedule of its own — without an external alarm clock (see
+  "A reliable hourly trigger" above) the monitoring will not start by itself, only
+  manually through Run workflow.
+- There are exactly 8 currency pairs — that is Twelve Data's free limit (8 requests a
+  minute). Adding a ninth without removing one of the current ones is impossible without
+  a paid plan.
