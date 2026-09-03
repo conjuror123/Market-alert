@@ -70,7 +70,7 @@ def build(t0, frame=None, metrics=None, residuals=None,
         saed, escalations, "cfg", "run")
 
 
-# --- окно ------------------------------------------------------------------
+# --- the window -------------------------------------------------------------
 
 def test_window_is_symmetric_and_includes_t0():
     window, left, right = export.window_hours(hours(60), 30 * HOUR)
@@ -80,10 +80,10 @@ def test_window_is_symmetric_and_includes_t0():
 
 
 def test_window_is_counted_in_positions_not_in_seconds():
-    # Часы эталонного календаря идут с разрывом на выходных: между пятничным
-    # вечером и вечером воскресенья дыра в двое суток. Окно обязано отсчитать
-    # двенадцать ЧАСОВ КАЛЕНДАРЯ, а не двенадцать раз по 3600 секунд, иначе
-    # правое плечо пятничного события уходит в пустоту.
+    # Reference-calendar hours have a break at the weekend: between Friday evening
+    # and Sunday evening lies a two-day hole. The window must count twelve CALENDAR
+    # HOURS, not twelve times 3600 seconds, or the right arm of a Friday event goes
+    # into the void.
     gapped = np.concatenate([hours(20), hours(20) + 100 * HOUR])
     window, _, _ = export.window_hours(gapped, gapped[19], arm=3)
     assert list(window) == list(gapped[16:23])
@@ -102,7 +102,7 @@ def test_an_unknown_t0_yields_an_empty_window():
     assert len(window) == 0 and left and right
 
 
-# --- содержимое ------------------------------------------------------------
+# --- contents ---------------------------------------------------------------
 
 def test_every_series_has_the_length_of_the_window():
     payload = build(30 * HOUR)
@@ -124,8 +124,8 @@ def test_hours_without_data_become_null_rather_than_disappearing():
 
 
 def test_an_asset_silent_through_the_whole_window_is_dropped():
-    # Ночное событие иначе тянуло бы за собой двенадцать закрытых фондов
-    # с рядами из одних null.
+    # A night-time event would otherwise drag along twelve closed ETFs with series
+    # of nothing but null.
     closed = asset_metrics(asset_id="twelvedata:GLD", block="commodities")
     closed[["r", "z", "v_r"]] = np.nan
     payload = build(30 * HOUR,
@@ -171,11 +171,11 @@ def test_versions_are_carried_into_the_payload():
     assert payload["config_version"] == "cfg" and payload["run_version"] == "run"
 
 
-# --- сериализация ----------------------------------------------------------
+# --- serialisation ----------------------------------------------------------
 
 def test_payload_is_strict_json_without_nan_literals():
-    # json.dumps выдаёт NaN как литерал NaN - не JSON, и строгий парсер на той
-    # стороне на нём падает. Пропуск обязан стать null.
+    # json.dumps emits NaN as the literal NaN - not JSON, and a strict parser on
+    # the other side chokes on it. A gap must become null.
     metrics = asset_metrics()
     metrics.loc[metrics.index[10], "z"] = np.nan
     payload = build(30 * HOUR, metrics={"twelvedata:SPY": metrics})
@@ -194,8 +194,8 @@ def test_boolean_series_survives_the_round_trip():
 
 
 def test_file_name_has_no_colon(tmp_path):
-    # Windows не принимает двоеточие в имени файла, а экспорт должен читаться
-    # и там тоже.
+    # Windows does not accept a colon in a file name, and the export has to be
+    # readable there too.
     path = export.write_event(build(30 * HOUR), str(tmp_path))
     assert ":" not in path.rsplit("/", 1)[-1]
     assert json.loads(open(path, encoding="utf-8").read())["event_id"] \

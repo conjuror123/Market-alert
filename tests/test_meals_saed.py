@@ -16,7 +16,7 @@ def asset(**over):
 
 
 def scored(hits, n=40, sigma=0.01):
-    """Ряд, где на позициях `hits` условие п.8.2 выполнено, а остальные тихие."""
+    """A series where the §8.2 condition holds at positions `hits`, quiet elsewhere."""
     z = [0.5] * n
     e = [0.001] * n
     for i in hits:
@@ -34,12 +34,12 @@ def scored(hits, n=40, sigma=0.01):
 
 def test_trigger_needs_both_legs():
     frame = scored([])
-    frame.loc[0, "z_resid"] = 10.0      # относительная нога прошла
-    frame.loc[0, "e_resid"] = 0.001     # абсолютная - нет
+    frame.loc[0, "z_resid"] = 10.0      # the relative leg passed
+    frame.loc[0, "e_resid"] = 0.001     # the absolute one did not
     frame.loc[1, "z_resid"] = 1.0
-    frame.loc[1, "e_resid"] = 0.05      # только абсолютная
+    frame.loc[1, "e_resid"] = 0.05      # absolute only
     frame.loc[2, "z_resid"] = 10.0
-    frame.loc[2, "e_resid"] = 0.05      # обе
+    frame.loc[2, "e_resid"] = 0.05      # both
 
     out = saed.triggers(frame)
     assert not bool(out.iloc[0])
@@ -54,8 +54,8 @@ def test_trigger_is_null_when_thresholds_are_unknown():
 
 
 def test_cooldown_folds_repeats_into_one_event():
-    # П.8.3: повторные срабатывания внутри паузы не создают событий, но
-    # логируются как продолжение текущего.
+    # §8.3: repeat firings inside the pause create no events but are logged as a
+    # continuation of the current one.
     events = saed.build_events(asset(), scored([5, 8, 10]), cooldown_bars=12)
 
     assert len(events) == 1
@@ -71,11 +71,11 @@ def test_a_new_event_opens_after_the_cooldown():
 
 
 def test_cooldown_is_counted_in_asset_bars_not_calendar_hours():
-    # Двенадцать баров у фонда - полторы сессии, у крипты - полсуток. Если бы
-    # пауза считалась в календарных часах, фонд молчал бы почти двое суток
-    # там, где круглосуточный инструмент отходит за двенадцать.
+    # Twelve bars are one and a half sessions for an ETF and half a day for
+    # crypto. Were the pause counted in calendar hours, an ETF would stay silent
+    # for nearly two days where a round-the-clock instrument recovers in twelve.
     sparse = scored([0, 13])
-    # Бары идут через сутки, но между ними всего 13 баров актива.
+    # The bars are a day apart, but only 13 of the asset's own bars separate them.
     sparse["hour_utc"] = [(i + 1) * HOUR * 24 for i in range(len(sparse))]
 
     events = saed.build_events(asset(), sparse, cooldown_bars=12)
@@ -87,8 +87,8 @@ def test_no_events_without_triggers():
 
 
 def test_block_alert_aggregates_the_same_hour():
-    # П.8.4: одновременные события активов одного блока - это одно наблюдение
-    # о блоке, а не три одинаковых сообщения.
+    # §8.4: simultaneous events of assets in one block are one observation about
+    # the block, not three identical messages.
     events = pd.DataFrame({
         "event_id": ["a", "b", "c"],
         "asset_id": ["twelvedata:SPY", "twelvedata:QQQ", "twelvedata:TLT"],
@@ -104,7 +104,7 @@ def test_block_alert_aggregates_the_same_hour():
     assert equity["n_assets"] == 2
     assert equity["max_abs_z_resid"] == 8.0
     assert "twelvedata:QQQ" in equity["assets"]
-    assert len(alerts) == 2   # equity и rates - разные алерты
+    assert len(alerts) == 2   # equity and rates are different alerts
 
 
 def test_different_hours_are_different_alerts():

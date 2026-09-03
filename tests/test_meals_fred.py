@@ -34,14 +34,14 @@ def at(epoch):
 
 
 def test_available_at_is_the_next_morning():
-    # Значение за среду публикуется утром четверга.
+    # Wednesday's value is published on Thursday morning.
     assert at(fred.available_at(date(2026, 8, 26))) == datetime(
         2026, 8, 27, fred.PUBLICATION_HOUR_UTC, tzinfo=timezone.utc)
 
 
 def test_available_at_skips_the_weekend():
-    # Пятничное значение становится известно только в понедельник - без этого
-    # бэктест применял бы множитель VIX в выходные, когда его ещё не было.
+    # Friday's value becomes known only on Monday - without that the backtest
+    # would apply the VIX multiplier at the weekend, when it did not yet exist.
     assert at(fred.available_at(date(2026, 8, 28))).date() == date(2026, 8, 31)
 
 
@@ -52,7 +52,7 @@ def test_available_at_is_always_after_the_observation():
 
 
 def test_fetch_series_skips_missing_values():
-    # Точкой FRED кодирует выходные и праздники, когда индекс не считался.
+    # FRED encodes weekends and holidays, when the index was not computed, with a dot.
     session = FakeSession(FakeResponse(200, payload([
         ("2026-08-26", "15.21"), ("2026-08-27", "."), ("2026-08-28", "14.51"),
     ])))
@@ -71,11 +71,11 @@ def test_fetch_series_maps_the_day_to_utc_midnight():
 
 def test_fetch_series_passes_the_observation_start():
     session = FakeSession(FakeResponse(200, payload([("2021-01-04", "26.97")])))
-    fred.fetch_series("VIXCLS", "ключ", date(2021, 1, 1), session=session)
+    fred.fetch_series("VIXCLS", "key", date(2021, 1, 1), session=session)
     params = session.calls[0]["params"]
     assert params["observation_start"] == "2021-01-01"
     assert params["series_id"] == "VIXCLS"
-    assert params["api_key"] == "ключ"
+    assert params["api_key"] == "key"
 
 
 def test_fetch_series_requires_a_key():

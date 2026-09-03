@@ -118,8 +118,8 @@ def test_fetch_full_history_paginates_by_date_range_and_merges(monkeypatch):
 
 
 def test_supports_the_half_hour_interval_used_by_etfs():
-    # Биржевые фонды тянутся получасовыми барами, чтобы их сетка совпала с
-    # круглым часом валютных пар и крипты (см. meals/bars.to_hourly).
+    # ETFs are pulled as half-hourly bars so their grid lines up with the round
+    # hour of the currency pairs and crypto (see meals/bars.to_hourly).
     from price_monitor.twelvedata import _granularity_seconds, _interval_code
 
     assert _interval_code("30min") == "30min"
@@ -144,8 +144,8 @@ def test_half_hour_candles_get_a_half_hour_close_time():
 
 
 def test_chunk_days_controls_the_request_window():
-    # У фонда ~13 получасовых баров в торговый день, так что в один ответ на
-    # 5000 строк влезает больше года - крупное окно экономит кредиты.
+    # An ETF has ~13 half-hourly bars per trading day, so a single 5000-row
+    # answer holds more than a year - a large window saves credits.
     session = FakeSession([(200, ok_payload([("2026-08-17 15:30:00", 1.0, 2.0, 0.5, 1.5)]))] * 4)
 
     fetch_full_history("SPY", "30min", days=300, base_url="https://x", api_key="k",
@@ -155,8 +155,8 @@ def test_chunk_days_controls_the_request_window():
 
 
 def test_parses_volume_when_the_source_provides_it():
-    # Биржевые фонды отдают настоящий часовой объём - по п.3.5 на нём строится
-    # профиль объёма, и терять его нельзя.
+    # ETFs serve real hourly volume - §3.5 builds the volume profile on it, and
+    # losing it is not an option.
     payload = {"status": "ok", "values": [{
         "datetime": "2026-08-17 15:30:00", "open": "1", "high": "2",
         "low": "0.5", "close": "1.5", "volume": "10553040"}]}
@@ -169,7 +169,7 @@ def test_parses_volume_when_the_source_provides_it():
 
 
 def test_missing_volume_stays_zero_for_forex():
-    # У спот-форекса объёма нет ни у одного провайдера, и это не дефект.
+    # No provider has volume for spot FX, and that is not a defect.
     session = FakeSession([(200, ok_payload([("2026-08-17 15:00:00", 1.0, 2.0, 0.5, 1.5)]))])
 
     candles = fetch_klines("EUR/USD", "1h", limit=1, base_url="https://x",

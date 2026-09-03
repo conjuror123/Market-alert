@@ -32,8 +32,8 @@ def two_block_config(**extra):
 
 
 def test_weights_follow_the_equal_weight_rule(tmp_path):
-    # Три актива в equity против одного в FX: блоки всё равно весят поровну,
-    # а внутри блока активы делят вес блока между собой (п.2.3).
+    # Three assets in equity against one in FX: the blocks still weigh the same,
+    # and within a block the assets split the block's weight between them (§2.3).
     raw = MINIMAL | {"assets": [
         asset("A", "equity"), asset("B", "equity", tier=2), asset("C", "equity", tier=2),
         asset("D", "FX"), asset("E", "FX", tier=2),
@@ -45,13 +45,14 @@ def test_weights_follow_the_equal_weight_rule(tmp_path):
     assert equity == pytest.approx([1 / 6] * 3)
     assert w["twelvedata:D"] == pytest.approx(1 / 4)
     assert sum(w.values()) == pytest.approx(1.0)
-    # Блоки равновесны между собой - главное свойство правила.
+    # Blocks are equal to one another - the rule's main property.
     assert sum(equity) == pytest.approx(w["twelvedata:D"] + w["twelvedata:E"])
 
 
 def test_weight_is_not_readable_from_the_file(tmp_path):
-    # По п.2.3 вес производный. Даже если его дописать в конфигурацию, система
-    # обязана считать по правилу, а не доверять записанному числу.
+    # Per §2.3 the weight is derived. Even if it is written into the
+    # configuration, the system must compute by the rule rather than trust the
+    # stored number.
     raw = two_block_config()
     raw["assets"][0]["weight"] = 0.99
     basket = load_basket(write(tmp_path, raw))
@@ -74,14 +75,14 @@ def test_rejects_duplicate_instrument(tmp_path):
 
 def test_rejects_unknown_session_template(tmp_path):
     raw = two_block_config()
-    raw["assets"][0]["session_template"] = "нет-такого"
+    raw["assets"][0]["session_template"] = "no-such-thing"
     with pytest.raises(BasketConfigError, match="session template"):
         load_basket(write(tmp_path, raw))
 
 
 def test_rejects_basket_where_quorum_is_unreachable(tmp_path):
-    # Один блок с двумя активами и три блока по одному: кворум часа требует
-    # два блока по два актива, значит кластерные триггеры не сработают никогда.
+    # One block with two assets and three blocks with one each: the hourly quorum
+    # requires two blocks of two, so the cluster triggers will never fire.
     raw = MINIMAL | {"assets": [
         asset("A", "equity"), asset("B", "equity", tier=2),
         asset("C", "FX"), asset("D", "rates"), asset("E", "commodities"),
@@ -112,16 +113,16 @@ def test_real_basket_config_is_valid():
     assert len(basket.assets) == 21
     assert set(basket.by_block()) == {"equity", "rates", "FX", "commodities", "crypto"}
     assert sum(basket.weights().values()) == pytest.approx(1.0)
-    # Ночью в сессии остаются только FX и crypto - вместе они обязаны набирать
-    # кворум п.2.3, иначе система слепа вне американской сессии.
+    # At night only FX and crypto remain in session - together they must make the
+    # §2.3 quorum, or the system is blind outside the US session.
     night = [a for a in basket.assets if a.block in ("FX", "crypto")]
     assert len(night) >= 8
     assert sum(1 for a in night if a.tier == 1) >= 2
 
 
 def test_rejects_a_nonpositive_tick_size(tmp_path):
-    # Шаг цены участвует в нижней отсечке п.2.5; ноль или отрицательное
-    # значение сделали бы отсечку бессмысленной, а не строгой.
+    # The price step feeds the §2.5 floor; zero or a negative value would make the
+    # floor meaningless rather than strict.
     raw = two_block_config()
     raw["assets"][0]["tick_size"] = 0
     with pytest.raises(BasketConfigError, match="tick_size"):
@@ -129,8 +130,8 @@ def test_rejects_a_nonpositive_tick_size(tmp_path):
 
 
 def test_rejects_a_tick_size_that_yaml_parsed_as_text(tmp_path):
-    # YAML 1.1 читает 1e-05 как СТРОКУ - нужна форма 0.00001. Молча пропустить
-    # такое значит уронить винзоризацию на ровном месте.
+    # YAML 1.1 reads 1e-05 as a STRING - the form 0.00001 is required. Letting
+    # that through silently means breaking winsorization for no reason at all.
     raw = two_block_config()
     raw["assets"][0]["tick_size"] = "1e-05"
     with pytest.raises(BasketConfigError, match="tick_size"):

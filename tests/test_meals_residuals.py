@@ -34,9 +34,9 @@ def test_beta_recovers_a_known_exposure():
 
 
 def test_beta_is_estimated_out_of_sample():
-    # Оценка на баре t построена по данным ДО него: иначе движение, которое мы
-    # хотим задетектировать, само подправило бы коэффициент и частично
-    # вычлось бы из себя.
+    # The estimate at bar t is built on data BEFORE it: otherwise the very move
+    # we want to detect would adjust the coefficient and partly subtract itself
+    # from itself.
     rng = np.random.default_rng(1)
     factor = pd.Series(rng.normal(0, 0.01, 400))
     returns = pd.Series(1.0 * factor)
@@ -45,15 +45,15 @@ def test_beta_is_estimated_out_of_sample():
     without_shift = returns.rolling(200, min_periods=200).cov(factor) / \
         factor.rolling(200, min_periods=200).var(ddof=1)
 
-    # Сдвиг ровно на один бар.
+    # A shift of exactly one bar.
     pd.testing.assert_series_equal(estimates["beta"].dropna().reset_index(drop=True),
                                    without_shift.shift(1).dropna().reset_index(drop=True),
                                    check_names=False)
 
 
 def test_residual_removes_the_common_move():
-    # Актив, который целиком объясняется фактором, не должен давать остатка -
-    # иначе в день, когда падает всё, каждый актив выглядел бы аномалией.
+    # An asset fully explained by the factor must leave no residual - otherwise
+    # on a day when everything falls, every asset would look like an anomaly.
     rng = np.random.default_rng(2)
     factor_values = rng.normal(0, 0.01, 900)
     frame = frame_with(list(2.0 * factor_values))
@@ -69,7 +69,7 @@ def test_residual_keeps_an_idiosyncratic_move():
     rng = np.random.default_rng(3)
     factor_values = rng.normal(0, 0.01, 900)
     own = np.zeros(900)
-    own[800] = 0.10                      # собственное движение актива
+    own[800] = 0.10                      # the asset's own move
     frame = frame_with(list(2.0 * factor_values + own))
     factor = pd.Series(factor_values, index=frame["hour_utc"])
 
@@ -84,7 +84,7 @@ def test_residual_has_its_own_long_run_sigma():
     factor = pd.Series(factor_values, index=frame["hour_utc"])
 
     out = residuals.residuals(asset(), frame, factor)
-    # До 720 баров сигма остатка не определена, как и у цены.
+    # Below 720 bars the residual's sigma is undefined, just as for the price.
     assert out["sigma_lt_resid"].iloc[:719].isna().all()
     assert out["sigma_lt_resid"].dropna().size > 0
 
@@ -103,8 +103,8 @@ def test_residual_winsorisation_clips_only_the_state_input():
 
 
 def test_q95_resid_is_computed_but_unused():
-    # П.3.6: Q95_resid рассчитывается и хранится ИСКЛЮЧИТЕЛЬНО для диагностики,
-    # ни в одном условии документа он не участвует - в п.8.2 работает Q99.
+    # §3.6: Q95_resid is computed and stored PURELY for diagnostics; it takes
+    # part in no condition in the document - §8.2 works on Q99.
     rng = np.random.default_rng(6)
     factor_values = rng.normal(0, 0.01, 1200)
     frame = frame_with(list(rng.normal(0, 0.02, 1200)))
@@ -123,12 +123,12 @@ def test_empty_input_keeps_columns():
 
 
 def test_two_factor_absorbs_a_block_wide_move():
-    # Ровно тот случай, ради которого второй фактор и добавлен: движение,
-    # общее для всего блока. С одним фактором корзины оно целиком осталось бы
-    # в остатке и дало бы срабатывание у каждого участника блока сразу.
+    # Exactly the case the second factor was added for: a move common to a whole
+    # block. With the basket factor alone it would stay entirely in the residual
+    # and fire for every member of the block at once.
     rng = np.random.default_rng(10)
     basket_factor = rng.normal(0, 0.005, 900)
-    block_move = rng.normal(0, 0.02, 900)          # блок ходит сам по себе
+    block_move = rng.normal(0, 0.02, 900)          # the block moves on its own
     frame = frame_with(list(0.5 * basket_factor + 1.0 * block_move))
     factor = pd.Series(basket_factor, index=frame["hour_utc"])
     block = pd.Series(block_move, index=frame["hour_utc"])
@@ -168,14 +168,14 @@ def test_block_beta_is_recovered():
 
 
 def test_collinear_factors_fall_back_to_one():
-    # Если факторы почти совпадают, определитель стремится к нулю и
-    # коэффициенты разлетаются на произвольные величины с противоположными
-    # знаками. Формально решение есть, по смыслу это шум - откатываемся к п.3.6.
+    # If the factors nearly coincide, the determinant tends to zero and the
+    # coefficients fly off to arbitrary values with opposite signs. Formally there
+    # is a solution, in substance it is noise - so we fall back to §3.6.
     rng = np.random.default_rng(13)
     basket_factor = rng.normal(0, 0.01, 900)
     frame = frame_with(list(1.5 * basket_factor))
     factor = pd.Series(basket_factor, index=frame["hour_utc"])
-    same = pd.Series(basket_factor, index=frame["hour_utc"])   # тот же ряд
+    same = pd.Series(basket_factor, index=frame["hour_utc"])   # the same series
 
     out = residuals.residuals(asset(), frame, factor, same)
     settled = out.dropna(subset=["beta"])
@@ -185,7 +185,7 @@ def test_collinear_factors_fall_back_to_one():
 
 
 def test_single_factor_stays_available():
-    # Поведение п.3.6 без второго фактора должно сохраняться дословно.
+    # The §3.6 behaviour without a second factor must be preserved verbatim.
     rng = np.random.default_rng(14)
     factor_values = rng.normal(0, 0.01, 600)
     frame = frame_with(list(2.0 * factor_values))

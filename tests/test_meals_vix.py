@@ -15,17 +15,17 @@ def series(closes, start=0):
 
 
 def calm_then(final, n=1000, level=20.0):
-    """Ряд нужен длинный: Z появляется только после 720 баров разогрева
-    sigma_LT, а порогам нужны ещё наблюдения сверх того. На настоящем ряду из
-    9262 дневных значений это давно позади."""
+    """The series has to be long: Z appears only after the 720-bar sigma_LT
+    burn-in, and the thresholds need further observations on top of that. On the
+    real series of 9262 daily values that is long past."""
     rng = np.random.default_rng(0)
     closes = list(level * np.exp(np.cumsum(rng.normal(0, 0.01, n))))
     return series(closes + [closes[-1] * final])
 
 
 def test_a_fall_is_never_a_spike():
-    # Страх и облегчение не симметричны: резкий рост VIX означает, что рынок
-    # платит за защиту, а такой же спад - лишь возврат к норме.
+    # Fear and relief are not symmetric: a sharp rise in VIX means the market is
+    # paying for protection, while an equal fall is merely a return to normal.
     scored = vix.score(calm_then(0.70), window=200)
     assert not bool(scored["is_spike"].iloc[-1])
 
@@ -36,8 +36,8 @@ def test_a_large_rise_is_a_spike():
 
 
 def test_spike_needs_the_absolute_leg_too():
-    # Крошечный рост может пробить перцентиль в очень спокойный период, но
-    # стрессом от этого не становится.
+    # A tiny rise can clear the percentile in a very quiet period, but that does
+    # not make it stress.
     scored = vix.score(calm_then(1.001), window=200)
     assert not bool(scored["is_spike"].iloc[-1])
 
@@ -53,8 +53,9 @@ def test_window_lasts_the_specified_reference_hours():
 
 
 def test_repeat_spike_inside_a_window_does_not_extend_it():
-    # Иначе затяжной период высокой волатильности держал бы множитель
-    # включённым неделями, и он перестал бы отличать острый момент от фона.
+    # Otherwise a prolonged period of high volatility would keep the multiplier on
+    # for weeks, and it would stop distinguishing an acute moment from the
+    # background.
     reference = np.arange(0, 200 * HOUR, HOUR)
     scored = pd.DataFrame({"available_at": [10 * HOUR, 20 * HOUR], "is_spike": [True, True]})
     built = vix.windows_from_spikes(scored, reference, window_hours=24)
@@ -81,7 +82,7 @@ def test_multiplier_is_one_outside_and_raised_inside():
     assert values[5 * HOUR] == 1.0
     assert values[10 * HOUR] == vix.M_VIX
     assert values[33 * HOUR] == vix.M_VIX
-    assert values[34 * HOUR] == 1.0     # граница исключительная
+    assert values[34 * HOUR] == 1.0     # the edge is exclusive
     assert values[50 * HOUR] == 1.0
 
 
@@ -91,4 +92,4 @@ def test_no_windows_means_no_multiplier():
 
 def test_missing_series_says_how_to_get_it(tmp_path):
     with pytest.raises(FileNotFoundError, match="meals.backfill"):
-        vix.load_series(str(tmp_path / "нет.parquet"))
+        vix.load_series(str(tmp_path / "missing.parquet"))

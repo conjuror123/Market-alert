@@ -28,7 +28,7 @@ def et(y, m, d, h):
 
 
 def two_days():
-    # Два торговых дня по два часа: закрытие первого 101, открытие второго 105.
+    # Two trading days of two hours: the first closes at 101, the second opens at 105.
     return frame([
         (et(2021, 3, 1, 10), 100.0, 101.0, 99.0, 100.5, 1.0, 2),
         (et(2021, 3, 1, 11), 100.5, 102.0, 100.0, 101.0, 1.0, 2),
@@ -38,8 +38,8 @@ def two_days():
 
 
 def test_overnight_move_goes_to_the_gap_channel_not_to_the_return():
-    # Между сессиями цена ушла с 101 до 105. Если бы этот скачок попал в r,
-    # каждое утро выглядело бы аномалией.
+    # Between sessions the price moved from 101 to 105. Had that jump landed in
+    # r, every morning would look like an anomaly.
     out = returns.split_channels(asset(), two_days())
     opening = out.iloc[2]
 
@@ -58,15 +58,15 @@ def test_ordinary_bar_is_close_to_close_and_has_no_gap():
 
 
 def test_the_very_first_bar_has_neither_channel():
-    # Предыдущего закрытия не существует - обе величины неопределены, а не нули.
+    # There is no previous close - both quantities are undefined, not zero.
     out = returns.split_channels(asset(), two_days())
     assert np.isnan(out.iloc[0]["r"])
     assert np.isnan(out.iloc[0]["r_gap"])
 
 
 def test_ex_dividend_gap_is_masked_but_the_intraday_return_survives():
-    # Падение цены в день отсечки механическое. Маскируется только гэп:
-    # внутричасовая доходность к выплате отношения не имеет.
+    # The price drop on the ex-date is mechanical. Only the gap is masked: the
+    # intra-hour return has nothing to do with the payout.
     out = returns.split_channels(asset(), two_days(), action_days={date(2021, 3, 2)})
     opening = out.iloc[2]
 
@@ -80,7 +80,7 @@ def test_crypto_has_no_session_boundaries():
                    session_template="crypto_24_7", fetch_interval="1h")
     out = returns.split_channels(crypto, two_days())
 
-    # Открытие только у самого первого бара истории, дальше сплошной ряд.
+    # Only the very first bar of history opens a session; after that the series is continuous.
     assert int(out["is_session_open"].sum()) == 1
     assert out["r_gap"].isna().all()
 
@@ -88,7 +88,7 @@ def test_crypto_has_no_session_boundaries():
 def test_forex_week_is_one_session():
     fx = asset(ticker="EUR/USD", block="FX", has_volume=False, tick_size=0.00001,
                session_template="fx_continuous", fetch_interval="1h")
-    # Четверг и пятница одной недели, затем понедельник следующей.
+    # Thursday and Friday of one week, then Monday of the next.
     data = frame([
         (int(datetime(2026, 8, 27, 12, tzinfo=timezone.utc).timestamp()),
          1.0, 1.1, 0.9, 1.05, 0.0, 1),
@@ -99,14 +99,14 @@ def test_forex_week_is_one_session():
     ])
     out = returns.split_channels(fx, data)
 
-    # Внутри недели разрыва нет, а понедельник открывает новую неделю.
+    # There is no break inside the week, and Monday opens a new one.
     assert list(out["is_session_open"]) == [True, False, True]
     assert out.iloc[2]["r_gap"] == pytest.approx(math.log(1.08 / 1.06))
 
 
 def test_winsorization_clips_only_the_state_input():
-    # r_w уходит в обновление EWMA, r остаётся нетронутой: подрезать то, что мы
-    # хотим задетектировать, бессмысленно (п.2.5).
+    # r_w goes into the EWMA update, r stays untouched: clipping the very thing
+    # we want to detect is pointless (§2.5).
     calm = [(i * HOUR, 100.0, 100.1, 99.9, 100.0 + (i % 2) * 0.01, 1.0, 2)
             for i in range(1, 40)]
     spike = [(40 * HOUR, 100.0, 130.0, 99.9, 130.0, 1.0, 2)]
@@ -116,13 +116,13 @@ def test_winsorization_clips_only_the_state_input():
         frame(calm + spike)))
 
     last = out.iloc[-1]
-    assert last["r"] > last["r_w"]           # исходная доходность больше подрезанной
+    assert last["r"] > last["r_w"]           # the raw return exceeds the clipped one
     assert last["r_w"] == pytest.approx(5 * last["mad_eff"])
 
 
 def test_winsorization_floor_saves_a_stuck_quote():
-    # Котировка стоит: MAD_24 равен нулю, и без нижней отсечки любое движение
-    # оказалось бы "больше пяти MAD".
+    # The quote stands still: MAD_24 is zero, and without the floor any move at
+    # all would come out "larger than five MADs".
     flat = [(i * HOUR, 100.0, 100.0, 100.0, 100.0, 1.0, 2) for i in range(1, 40)]
     move = [(40 * HOUR, 100.0, 100.2, 100.0, 100.2, 1.0, 2)]
     crypto = asset(ticker="BTC-USD", source="coinbase", block="crypto",

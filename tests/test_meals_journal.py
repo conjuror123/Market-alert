@@ -45,8 +45,9 @@ def asset_metrics(n=30, asset_id="twelvedata:SPY"):
 
 
 def test_a_row_carries_the_value_the_threshold_and_the_outcome():
-    # Смысл журнала по п.6.1 - не значение и не итог по отдельности, а связка
-    # "с чем сравнивали". Из метрик и событий её потом не восстановить.
+    # The point of the §6.1 journal is neither the value nor the outcome on its
+    # own but the pairing "what was it compared against". That cannot be
+    # reconstructed afterwards from the metrics and the events.
     rows = journal.basket_decisions(basket_frame())
     quorum = rows[rows["trigger"] == "quorum"]
     assert len(quorum) == 30
@@ -56,9 +57,9 @@ def test_a_row_carries_the_value_the_threshold_and_the_outcome():
 
 
 def test_an_hour_without_quorum_is_absent_rather_than_false():
-    # П.2.3: без кворума кластерные триггеры получают NULL, а не False.
-    # В журнале это означает отсутствие строки: "не оценивалось" и
-    # "оценили и не сработало" - разные вещи, и путать их в бэктесте дорого.
+    # §2.3: without quorum the cluster triggers get NULL, not False. In the
+    # journal that means no row at all: "not assessed" and "assessed and did not
+    # fire" are different things, and confusing them in a backtest is expensive.
     frame = basket_frame()
     frame.loc[5 * HOUR, ["quorum_ok", "csv_compression", "pca_sync",
                          "single_factor"]] = pd.NA
@@ -79,8 +80,8 @@ def test_the_gate_is_journalled_against_the_si_threshold():
 
 
 def test_asset_rows_are_written_only_where_a_trigger_fired():
-    # Двадцать три инструмента на тридцать пять тысяч часов дали бы миллионы
-    # строк "ничего не произошло" - а сами значения и так лежат в
+    # Twenty-three instruments over thirty-five thousand hours would give millions
+    # of "nothing happened" rows - while the values themselves already sit in
     # metrics_asset_hour.
     metrics = asset_metrics()
     metrics.loc[metrics.index[20], ["breach_q95", "breach_q99"]] = True
@@ -100,8 +101,8 @@ def test_volume_confirmation_is_journalled_where_it_holds():
 
 
 def test_an_asset_without_volume_produces_no_volume_rows():
-    # П.3.5: у инструмента без биржевого объёма V_R = NULL, и это "не
-    # оценивалось", а не "не подтвердилось".
+    # §3.5: for an instrument without exchange volume V_R = NULL, and that is
+    # "not assessed", not "did not confirm".
     metrics = asset_metrics(asset_id="twelvedata:EUR/USD")
     metrics["v_r"] = np.nan
     rows = journal.asset_decisions({"twelvedata:EUR/USD": metrics})
@@ -126,8 +127,9 @@ def test_saed_rows_come_from_the_residual_frames():
 
 
 def test_stamp_puts_the_versions_on_every_row():
-    # П.6.3: сравнивать решения разных версий можно только с явным указанием
-    # версий - значит, версия обязана лежать в строке, а не в имени файла.
+    # §6.3: decisions from different versions may be compared only with the
+    # versions stated explicitly - so the version must live in the row, not in a
+    # file name.
     rows = journal.stamp(journal.basket_decisions(basket_frame()), "cfg", "run")
     assert list(rows.columns) == journal.COLUMNS
     assert (rows["config_version"] == "cfg").all()

@@ -34,7 +34,7 @@ def two_blocks():
 
 
 def metrics_for(basket, rows):
-    """rows: dict asset_id -> (r, breach_q95, breach_q99, v_r) для одного часа."""
+    """rows: dict asset_id -> (r, breach_q95, breach_q99, v_r) for one hour."""
     out = {}
     for asset in basket.assets:
         r, q95, q99, v_r = rows.get(asset.asset_id, (np.nan, None, None, np.nan))
@@ -58,13 +58,13 @@ def test_price_shock_scores_once_regardless_of_how_many_assets():
     many = points_for(basket, {a.asset_id: (0.05, True, True, 0.0) for a in basket.assets})
 
     assert one["trigger_price_shock"] and many["trigger_price_shock"]
-    # Балл за ТИП триггера начисляется один раз за час.
+    # Points for a trigger TYPE are awarded once per hour.
     assert one["base_points"] >= si_index.POINTS_PRICE_SHOCK
     assert many["base_points"] <= si_index.MAX_POINTS
 
 
 def test_volume_confirms_only_on_an_asset_that_also_shocked():
-    # Всплеск объёма без движения цены - другое событие.
+    # A volume spike without a price move is a different event.
     basket = two_blocks()
     row = points_for(basket, {"twelvedata:A": (0.05, True, True, 0.1),
                               "twelvedata:B": (0.001, False, False, 9.0)})
@@ -82,7 +82,7 @@ def test_volume_is_never_claimed_for_an_asset_without_volume():
 
 def test_cluster_shift_needs_two_active_blocks():
     basket = two_blocks()
-    # Активен только equity: два актива из трёх пробили Q95.
+    # Only equity is active: two of its three assets breached Q95.
     one_block = points_for(basket, {"twelvedata:A": (0.05, True, False, 0.0),
                                     "twelvedata:B": (0.05, True, False, 0.0),
                                     "twelvedata:C": (0.001, False, False, 0.0),
@@ -111,8 +111,8 @@ def test_cluster_shift_needs_a_tier1_among_the_breaches():
 
 
 def test_block_needs_at_least_two_assets_not_just_the_share():
-    # Треть от трёх - это один актив, но одного мало: блок из одного
-    # сработавшего это не широта, а одиночное движение.
+    # A third of three is one asset, but one is not enough: a block with a single
+    # firing is not breadth, it is a single-asset move.
     basket = two_blocks()
     row = points_for(basket, {"twelvedata:A": (0.05, True, False, 0.0),
                               "twelvedata:B": (0.001, False, False, 0.0),
@@ -121,12 +121,12 @@ def test_block_needs_at_least_two_assets_not_just_the_share():
 
 
 def test_share_is_taken_from_assets_in_session():
-    # Ночью фонды закрыты, и требовать трети от списочного состава блока было
-    # бы требованием невыполнимым, а не строгим.
+    # At night the ETFs are closed, and demanding a third of a block's roster
+    # would be an impossible requirement rather than a strict one.
     basket = two_blocks()
     row = points_for(basket, {"twelvedata:A": (0.05, True, False, 0.0),
                               "twelvedata:B": (0.05, True, False, 0.0)})
-    # В сессии только два актива блока, оба пробили - блок активен.
+    # Only two of the block's assets are in session and both breached - the block is active.
     assert row["n_active_blocks"] >= 1
 
 

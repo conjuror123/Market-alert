@@ -9,7 +9,7 @@ HOUR = 3600
 
 
 def test_matches_the_worked_example_from_the_spec():
-    # П.4.3, High, T_event = 12:30 UTC, округление до четвёртого знака.
+    # §4.3, High, T_event = 12:30 UTC, rounded to four decimals.
     assert cm.multiplier_at(-0.5, "High") == pytest.approx(1.7333, abs=5e-5)
     assert cm.multiplier_at(0.5, "High") == pytest.approx(1.6667, abs=5e-5)
     assert cm.multiplier_at(2.5, "High") == pytest.approx(1.1333, abs=5e-5)
@@ -17,16 +17,16 @@ def test_matches_the_worked_example_from_the_spec():
 
 
 def test_peak_is_at_the_publication_moment():
-    # approx, а не точное равенство: 1 + 0.8 * 6 / 6 в double даёт
-    # 1.8000000000000003. Округлять внутри функции было бы неверно - пример в
-    # п.4.3 округляет только для печати.
+    # approx rather than exact equality: 1 + 0.8 * 6 / 6 in double gives
+    # 1.8000000000000003. Rounding inside the function would be wrong - the §4.3
+    # example rounds only for printing.
     assert cm.multiplier_at(0.0, "High") == pytest.approx(1.8)
     assert cm.multiplier_at(0.0, "Medium") == pytest.approx(1.5)
 
 
 def test_function_is_continuous_at_the_window_edges():
-    # На обеих границах функция равна единице, поэтому включать границу или нет
-    # на результат не влияет.
+    # At both edges the function equals one, so including or excluding the edge
+    # makes no difference to the result.
     for importance in ("High", "Medium"):
         before, after = cm.BEFORE[importance], cm.AFTER[importance]
         assert cm.multiplier_at(-before, importance) == pytest.approx(1.0)
@@ -36,8 +36,8 @@ def test_function_is_continuous_at_the_window_edges():
 
 
 def test_window_before_is_wider_than_after():
-    # Асимметрия намеренная: рынок готовится к публикации заранее, а реакция
-    # после неё укладывается быстрее.
+    # The asymmetry is deliberate: the market prepares for a release in advance,
+    # while the reaction afterwards settles faster.
     assert cm.BEFORE["High"] > cm.AFTER["High"]
     assert cm.multiplier_at(-3, "High") > cm.multiplier_at(3, "High")
 
@@ -47,8 +47,8 @@ def test_low_importance_is_ignored():
 
 
 def test_series_takes_the_maximum_over_overlapping_events(tmp_path):
-    # Два события подряд не делают час вдвое значимее - перемножение раздувало
-    # бы индекс в дни, когда публикаций много, а таких дней большинство.
+    # Two events in a row do not make an hour twice as significant - multiplying
+    # would inflate the index on days with many releases, and most days have many.
     path = tmp_path / "calendar.ndjson"
     moment = datetime(2026, 3, 4, 12, 30, tzinfo=timezone.utc)
     with open(path, "w", encoding="utf-8") as f:
@@ -56,7 +56,7 @@ def test_series_takes_the_maximum_over_overlapping_events(tmp_path):
             f.write(json.dumps({"date": moment.isoformat(), "impact": importance,
                                 "country": "USD", "title": "x"}) + "\n")
 
-    close = int(moment.timestamp()) - 1800   # бар, закрывающийся в 12:00
+    close = int(moment.timestamp()) - 1800   # the bar that closes at 12:00
     hour = close - HOUR
     values = cm.multiplier_series([hour], str(path))
 
@@ -74,8 +74,8 @@ def test_series_is_one_far_from_any_event(tmp_path):
 
 
 def test_window_is_not_shortened_by_a_weekend(tmp_path):
-    # Единственное в ТЗ исключение из правила единиц: окна календарного
-    # множителя измеряются в КАЛЕНДАРНЫХ часах и через выходные не сокращаются.
+    # The spec's only exception to the units rule: the calendar-multiplier windows
+    # are measured in CALENDAR hours and are not shortened across a weekend.
     path = tmp_path / "calendar.ndjson"
     friday_evening = datetime(2026, 3, 6, 21, 30, tzinfo=timezone.utc)
     path.write_text(json.dumps({"date": friday_evening.isoformat(), "impact": "High",
@@ -87,4 +87,4 @@ def test_window_is_not_shortened_by_a_weekend(tmp_path):
 
 
 def test_missing_calendar_file_gives_no_multiplier(tmp_path):
-    assert cm.multiplier_series([HOUR], str(tmp_path / "нет.ndjson")) == {HOUR: 1.0}
+    assert cm.multiplier_series([HOUR], str(tmp_path / "missing.ndjson")) == {HOUR: 1.0}

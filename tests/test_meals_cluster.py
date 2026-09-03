@@ -7,7 +7,7 @@ HOUR = 3600
 
 
 def frame(n=400, **overrides):
-    """Ровный ряд часов, где по умолчанию не происходит ничего."""
+    """An even run of hours where by default nothing happens."""
     data = {
         "quorum_ok": [True] * n,
         "trigger_cluster_shift": [False] * n,
@@ -79,18 +79,18 @@ def test_higher_order_shock_escalates_without_a_new_event():
 def test_escalation_restarts_the_cooldown():
     data = frame(n=200, **fire(5))
     data.loc[data.index[20], "si_total"] = si_index.ESCALATION_THRESHOLD + 1
-    # Час сразу после того, когда исходный кулдаун истёк бы.
+    # The hour right after the original cooldown would have expired.
     data.loc[data.index[5 + windows.CLUSTER_COOLDOWN + 1],
              ["trigger_cluster_shift", "si_total"]] = [True, 10.0]
     events, journal = cluster.run(data)
 
-    # Кулдаун отсчитан заново от эскалации, поэтому нового события нет.
+    # The cooldown restarted from the escalation, so there is no new event.
     assert len(events) == 1
     assert journal["decision"].iloc[5 + windows.CLUSTER_COOLDOWN + 1] == "suppressed_by_cooldown"
 
 
 def test_breadth_alone_can_escalate_below_the_threshold():
-    # П.4.5: по шкале широты экстренный алерт возможен и при SI ниже порога.
+    # §4.5: on the breadth scale an emergency alert is possible even below the SI threshold.
     data = frame(**fire(5))
     data.loc[data.index[20], "breadth_q99"] = True
     data.loc[data.index[20], "si_total"] = 2.0
@@ -109,9 +109,9 @@ def test_higher_order_shock_is_forbidden_in_the_first_hour():
 
 def test_vector_reversal_opens_a_child_event():
     data = frame(**fire(5))
-    data.loc[data.index[5], "m_weighted_median"] = -0.05    # M в T0 глубоко вниз
+    data.loc[data.index[5], "m_weighted_median"] = -0.05    # M at T0 deep down
     data.loc[data.index[20], ["trigger_cluster_shift", "si_total"]] = [True, 10.0]
-    data.loc[data.index[20], "m_weighted_median"] = 0.05    # и развернулось вверх
+    data.loc[data.index[20], "m_weighted_median"] = 0.05    # and it flipped upward
     events, journal = cluster.run(data)
 
     assert len(events) == 2
@@ -120,7 +120,7 @@ def test_vector_reversal_opens_a_child_event():
 
 
 def test_reversal_needs_the_gate_too():
-    # Смена знака без гейта только логируется.
+    # A sign change without the gate is only logged.
     data = frame(**fire(5))
     data.loc[data.index[5], "m_weighted_median"] = -0.05
     data.loc[data.index[20], "m_weighted_median"] = 0.05
@@ -139,8 +139,8 @@ def test_reversal_is_not_allowed_before_the_delay():
 
 
 def test_higher_order_shock_wins_when_both_branches_fire():
-    # Приоритет задан прямо: разворот в этот час не рассматривается. Разница
-    # существенная - шок наращивает событие, разворот открывает новое.
+    # The priority is stated outright: the reversal is not considered that hour.
+    # The difference matters - a shock extends the event, a reversal opens a new one.
     data = frame(**fire(5))
     data.loc[data.index[5], "m_weighted_median"] = -0.05
     data.loc[data.index[20], ["trigger_cluster_shift", "si_total"]] = [

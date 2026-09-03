@@ -32,8 +32,9 @@ TABLE = {
 
 
 def test_post_close_hours_of_a_half_session_are_not_in_session():
-    # 26 ноября 2021 биржа закрылась в 13:00, но источник прислал бары за 13:00,
-    # 14:00 и 15:00. Без фильтра они попали бы в EWMA и в профиль объёма.
+    # On 26 November 2021 the exchange closed at 13:00, yet the source served bars
+    # for 13:00, 14:00 and 15:00. Without the filter they would enter the EWMA and
+    # the volume profile.
     hours = pd.Series([hour_at(2021, 11, 26, h, "America/New_York")
                        for h in (11, 12, 13, 14, 15)])
     flags = list(quality.in_session(asset(), hours, TABLE))
@@ -41,8 +42,8 @@ def test_post_close_hours_of_a_half_session_are_not_in_session():
 
 
 def test_the_hour_containing_the_close_is_kept():
-    # Час 12:00-13:00 заканчивается ровно в момент закрытия: закрывающий
-    # аукцион печатается внутри него, терять его нельзя.
+    # The 12:00-13:00 hour ends exactly at the close: the closing auction prints
+    # inside it, and losing that is not an option.
     hours = pd.Series([hour_at(2021, 11, 26, 12, "America/New_York")])
     assert bool(quality.in_session(asset(), hours, TABLE).iloc[0])
 
@@ -58,7 +59,7 @@ def test_a_holiday_has_no_session_hours():
 
 
 def test_crypto_is_always_in_session():
-    hours = pd.Series([hour_at(2026, 8, 30, h) for h in range(0, 24, 6)])  # воскресенье
+    hours = pd.Series([hour_at(2026, 8, 30, h) for h in range(0, 24, 6)])  # Sunday
     crypto = asset(ticker="BTC-USD", source="coinbase", block="crypto",
                    session_template="crypto_24_7", fetch_interval="1h")
     assert quality.in_session(crypto, hours).all()
@@ -94,8 +95,8 @@ def test_invalid_reasons_name_the_defect():
 
 
 def test_ohlc_tolerance_matches_the_audit():
-    # Тот же допуск в полтика, что и в таблице покрытия: расхождение меньше
-    # тика - округление вендора, а не сломанный бар.
+    # The same half-tick tolerance as in the coverage table: a discrepancy under a
+    # tick is vendor rounding, not a broken bar.
     almost = frame([(HOUR, 92.15, 92.415, 92.14, 92.42, 1.0, 2)])
     assert quality.invalid_reasons(asset(), almost).iloc[0] == ""
 
