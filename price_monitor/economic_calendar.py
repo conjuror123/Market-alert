@@ -9,29 +9,32 @@ spans Sunday through Friday, so fetching it specifically on Sunday - which is
 exactly when weekly_digest.py runs - already returns the coming week's
 events, with no separate "next week" request needed.
 
-Исторический архив (не "эта неделя") берётся ОТТУДА ЖЕ, с самого ForexFactory,
-помесячными страницами (fetch_forexfactory_month). Один источник на всю
-историю - и это главное его свойство, важнее полноты.
+The historical archive (not "this week") is taken from THE SAME PLACE, from
+ForexFactory itself, through its monthly pages (fetch_forexfactory_month). One
+source for the whole history - and that is its main property, more important than
+completeness.
 
-Сторонние источники перепробованы и сняты все. Сначала три готовых дампа
-ForexFactory с GitHub и Hugging Face: в собранном из них архиве четверть событий
-High и Medium оказались дубликатами того же события в пределах суток, с
-доминирующим сдвигом ровно в семь часов - дампы собирались с разными
-соглашениями о часовом поясе. Потом датасет "Global Economic Calendar" на
-Kaggle: у него с временем всё было в порядке, но с ТАКСОНОМИЕЙ - нет. Он
-раздавал метку Medium вдевятеро щедрее, чем сама ForexFactory: 96.9 события в
-неделю против 11.3 на том же периоде, при том что High у обоих совпадал (13.0 и
-13.4). Архив из двух источников получал шов ровно там, где один сменял другого:
-календарный множитель MEALS (п.4.3) был включён в 90.7% часов на половине
-Kaggle и в 53.2% на половине ForexFactory.
+Third-party sources were all tried and all dropped. First three ready-made
+ForexFactory dumps from GitHub and Hugging Face: in the archive assembled from
+them a quarter of the High and Medium events turned out to be duplicates of the
+same event within a day, with a dominant shift of exactly seven hours - the dumps
+had been collected under different timezone conventions. Then the "Global
+Economic Calendar" dataset on Kaggle: its times were fine, but its TAXONOMY was
+not. It handed out the Medium label nine times more freely than ForexFactory
+itself: 96.9 events a week against 11.3 over the same period, while High matched
+for both (13.0 and 13.4). An archive built from two sources acquired a seam
+exactly where one gave way to the other: the MEALS calendar multiplier (§4.3) was
+on in 90.7% of hours across the Kaggle half and 53.2% across the ForexFactory
+half.
 
-Для калибровки это хуже, чем пропуски. Train-период п.7 целиком лежал бы в
-щедрой половине, а работа шла бы по скупой - пороги настроились бы на один
-режим, а применялись бы в другом, и заметить это по метрикам было бы нечем.
+For calibration that is worse than gaps. The §7 train period would lie entirely
+in the generous half while the work would run on the frugal one - the thresholds
+would settle on one regime and be applied in another, with nothing in the metrics
+to reveal it.
 
-Цена одного источника - потеря событий Low: их у ForexFactory на порядок
-меньше, чем было у Kaggle. Она нулевая по существу: множитель п.4.3 использует
-только High и Medium, Low в нём не участвует вовсе.
+The price of a single source is losing Low events: ForexFactory has an order of
+magnitude fewer of them than Kaggle had. In substance that price is zero: the
+§4.3 multiplier uses only High and Medium, and Low takes no part in it at all.
 """
 from __future__ import annotations
 
@@ -60,10 +63,11 @@ CALENDAR_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 # imports rather than kept as dead weight.
 _ARCHIVE_SINCE = "2021-01-01T00:00:00+00:00"
 
-# Шкала важности ровно трёхзначная. Собственные лишние категории источника
-# ("Holiday" у живого фида) значимости Medium/High не несут и сворачиваются в
-# "Low" прямо в момент разбора, чтобы таксономия источника не растекалась по
-# остальному коду: фильтрации, хранению и выводу достаточно Low/Medium/High.
+# The impact scale is exactly three-valued. A source's own extra categories
+# ("Holiday" in the live feed) carry none of the significance Medium/High do and
+# are folded into "Low" right at parse time, so that the source's taxonomy does
+# not leak into the rest of the code: filtering, storage and display need only
+# Low/Medium/High.
 _IMPACT_ALIASES = {
     "Holiday": "Low",
     "Non-economic": "Low",
@@ -99,16 +103,16 @@ def fetch_calendar(session: requests.Session | None = None, timeout: int = 15) -
             events.append({
                 "title": item["title"],
                 "country": item["country"],
-                # Приводится к UTC, как и обе исторические ветки: фид отдаёт
-                # фиксированное смещение -04:00, и хранить рядом две записи
-                # одного момента в разной упаковке значило бы завести ту самую
-                # сдвинутую копию, из-за которой выброшен прежний архив.
+                # Normalised to UTC, like both historical branches: the feed
+                # serves a fixed -04:00 offset, and keeping two records of the
+                # same moment in different packaging would create exactly the
+                # shifted copy that got the old archive thrown away.
                 "date": parse_event_time(item["date"]).isoformat(),
                 "impact": _normalize_impact(item["impact"]),
                 "forecast": item.get("forecast", ""),
                 "previous": item.get("previous", ""),
-                # Ключа "actual" в этом фиде НЕТ - проверено на живой выдаче.
-                # Поле остаётся пустым до дозаполнения с помесячной страницы
+                # This feed has NO "actual" key - verified against live output.
+                # The field stays empty until the backfill from the monthly page
                 # (weekly_digest.backfill_actuals).
                 "actual": item.get("actual", ""),
             })
@@ -147,31 +151,32 @@ def load_events(path: str) -> list[dict]:
 
 
 def _event_key(event: dict) -> tuple:
-    """Ключ дедупликации - страна, название и МГНОВЕНИЕ публикации.
+    """Dedup key - country, title and the MOMENT of publication.
 
-    Именно мгновение, а не строка даты. Источники записывают один и тот же
-    момент по-разному: недельный фид отдаёт "2026-09-03T08:30:00-04:00",
-    помесячные страницы и датасет - "2026-09-03T12:30:00+00:00". По строке это
-    два разных события, и архив копил бы каждую публикацию дважды - ровно та
-    поломка, из-за которой пришлось выбросить прежний архив целиком (см.
-    строку модуля).
+    The moment, not the date string. Sources record one and the same moment
+    differently: the weekly feed serves "2026-09-03T08:30:00-04:00", the monthly
+    pages and the dataset "2026-09-03T12:30:00+00:00". By string those are two
+    different events, and the archive would collect every release twice - exactly
+    the breakage that forced the old archive to be thrown away entirely (see the
+    module docstring).
     """
     return (event["country"], event["title"],
             parse_event_time(event["date"]).timestamp())
 
 
 def _merge_one(stored: dict | None, incoming: dict) -> dict:
-    """Сливает две версии одного события. Пустое поле не затирает заполненное.
+    """Merges two versions of one event. An empty field never overwrites a filled one.
 
-    Без этого правила недельный фид стирал бы вышедшие значения. Он приносит
-    событие заранее и вообще не знает поля actual - у него в выдаче такого
-    ключа нет, - так что после дозаполнения факта следующий же прогон вернул бы
-    в архив пустую строку. Проверено на живых данных: из 93 событий, которые
-    видят и фид, и помесячная страница, расходятся ровно 20, и расходятся они
-    ровно по actual, который у фида пуст, а на странице заполнен.
+    Without this rule the weekly feed would erase released values. It brings an
+    event in advance and does not know the actual field at all - its output has no
+    such key - so after the actual had been filled in, the very next run would put
+    an empty string back into the archive. Verified on live data: of the 93 events
+    both the feed and the monthly page can see, exactly 20 disagree, and they
+    disagree precisely on actual, which is empty in the feed and filled on the
+    page.
 
-    Источник, который промолчал, не сообщает "значения нет" - он сообщает
-    "я не знаю", и стирать по такому молчанию нечего.
+    A source that stayed silent is not saying "there is no value" - it is saying
+    "I do not know", and there is nothing to erase on the strength of that.
     """
     if stored is None:
         return dict(incoming)
@@ -184,18 +189,19 @@ def _merge_one(stored: dict | None, incoming: dict) -> dict:
 
 def merge_events(path: str, events: list[dict]) -> int:
     """Idempotently merges `events` into the local store, deduplicated by
-    (country, title, момент публикации) and rewritten in order - same pattern
+    (country, title, moment of publication) and rewritten in order - same pattern
     as candle_store.merge_history, for the same reason: this is called every
     week with a feed that mostly repeats recurring events, so it must be
     safe to call repeatedly with overlapping data without accumulating
-    duplicate rows. Returns how many rows were added ИЛИ ИЗМЕНЕНЫ.
+    duplicate rows. Returns how many rows were added OR CHANGED.
 
-    Изменённые считаются наравне с новыми, и это не мелочь. Недельный фид
-    приносит событие заранее, без вышедшего значения, а факт появляется
-    позже - при дозаполнении с помесячной страницы (weekly_digest.
-    backfill_actuals). Такой повтор не добавляет ни одной строки, он только
-    заполняет поле actual, и прежняя версия, сравнивавшая ЧИСЛО строк до и
-    после, молча выбрасывала бы его вместе со всей записью на диск.
+    Changed rows count alongside new ones, and that is not a detail. The weekly
+    feed brings an event in advance, without its released value, and the actual
+    arrives later - during the backfill from the monthly page
+    (weekly_digest.backfill_actuals). Such a repeat adds not a single row, it only
+    fills the actual field, and the earlier version, which compared the NUMBER of
+    rows before and after, would silently discard it along with the whole write to
+    disk.
     """
     by_key: dict[tuple, dict] = {_event_key(e): e for e in load_events(path)}
     changed = 0
@@ -215,11 +221,11 @@ def merge_events(path: str, events: list[dict]) -> int:
     return changed
 
 
-# --- Исторический импорт -------------------------------------------------
+# --- Historical import ---------------------------------------------------
 
 def _request(url: str, timeout: int, session: requests.Session | None = None,
              headers: dict | None = None) -> requests.Response:
-    """Один HTTP-запрос с внятной ошибкой вместо голого исключения requests."""
+    """A single HTTP request with a clear error instead of a bare requests exception."""
     get = session.get if session is not None else requests.get
     try:
         resp = get(url, timeout=timeout,
@@ -227,17 +233,17 @@ def _request(url: str, timeout: int, session: requests.Session | None = None,
         resp.raise_for_status()
         return resp
     except requests.RequestException as exc:
-        raise CalendarError(f"не удалось получить {url}: {exc}") from exc
+        raise CalendarError(f"could not fetch {url}: {exc}") from exc
 
 
-# ForexFactory отдаёт месяц целиком по адресу вида ?month=mar.2026, и данные
-# лежат прямо в странице готовым JSON. Время в них - unix-таймстамп, то есть
-# однозначное: именно та неоднозначность, что испортила прежний архив, здесь
-# отсутствует по построению.
+# ForexFactory serves a whole month at an address of the form ?month=mar.2026,
+# and the data sits right inside the page as ready JSON. The times in it are unix
+# timestamps, that is, unambiguous: the very ambiguity that ruined the old archive
+# is absent here by construction.
 #
-# Библиотека market-calendar-tool для этого не годится: она сначала дёргает
-# служебный /calendar/apply-settings, чтобы выставить таймзону отображения, а
-# он отвечает 403. Сама помесячная страница при этом доступна.
+# The market-calendar-tool library is no good for this: it first hits the internal
+# /calendar/apply-settings to set the display timezone, and that answers 403. The
+# monthly page itself is reachable.
 _FF_MONTH_URL = "https://www.forexfactory.com/calendar?month={month}.{year}"
 _FF_HEADERS = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -254,15 +260,15 @@ _FF_IMPACT = {
 
 
 def _extract_calendar_state(html: str) -> list[dict]:
-    """Достаёт список дней из встроенного в страницу состояния компонента.
+    """Extracts the list of days from the component state embedded in the page.
 
-    Разбор идёт по балансу скобок, а не регулярным выражением на всю структуру:
-    внутри лежит вложенный JSON с экранированными кавычками, и жадное или
-    ленивое выражение одинаково легко обрезает его не в том месте.
+    Parsed by brace balance rather than a regex over the whole structure: inside
+    sits nested JSON with escaped quotes, and a greedy or a lazy expression is
+    equally liable to cut it in the wrong place.
     """
     marker = re.search(r"calendarComponentStates\[\d+\]\s*=\s*\{", html)
     if marker is None:
-        raise CalendarError("В странице ForexFactory нет состояния календаря")
+        raise CalendarError("the ForexFactory page has no calendar state")
     start = marker.end() - 1
     depth = 0
     for index in range(start, len(html)):
@@ -274,30 +280,30 @@ def _extract_calendar_state(html: str) -> list[dict]:
                 block = html[start:index + 1]
                 break
     else:
-        raise CalendarError("Состояние календаря оборвано")
+        raise CalendarError("the calendar state is truncated")
 
     days = re.search(r"days:\s*(\[.*?\])\s*,\s*[a-zA-Z_]+:", block, re.S)
     if days is None:
-        raise CalendarError("В состоянии календаря нет списка дней")
+        raise CalendarError("the calendar state has no list of days")
     return json.loads(days.group(1))
 
 
 def fetch_forexfactory_month(year: int, month: int,
                              session: requests.Session | None = None,
                              timeout: int = 40) -> list[dict]:
-    """Один календарный месяц с ForexFactory."""
+    """One calendar month from ForexFactory."""
     url = _FF_MONTH_URL.format(month=_FF_MONTHS[month - 1], year=year)
-    # Здесь намеренно urllib, а не requests, хотя весь остальной модуль на
-    # requests. Проверено: на requests ForexFactory отвечает 403 при любых
-    # заголовках, включая полный браузерный набор, а на urllib с тем же
-    # User-Agent - 200. Различие не в заголовках, а в TLS-отпечатке клиента,
-    # и переспорить его набором headers нельзя.
+    # urllib here on purpose, although the rest of the module uses requests.
+    # Verified: with requests ForexFactory answers 403 under any headers,
+    # including a full browser set, while urllib with the same User-Agent gets
+    # 200. The difference is not in the headers but in the client's TLS
+    # fingerprint, and no set of headers can argue with that.
     request = urllib.request.Request(url, headers=_FF_HEADERS)
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             html = response.read().decode("utf-8", "ignore")
     except (urllib.error.URLError, OSError) as exc:
-        raise CalendarError(f"не удалось получить {url}: {exc}") from exc
+        raise CalendarError(f"could not fetch {url}: {exc}") from exc
 
     events = []
     for day in _extract_calendar_state(html):
@@ -321,17 +327,18 @@ def fetch_forexfactory_month(year: int, month: int,
 def import_forexfactory_months(start: date, end: date,
                                session: requests.Session | None = None,
                                request_delay_seconds: float = 2.0) -> list[dict]:
-    """Помесячный добор за период. Пауза между запросами намеренная: это
-    обычная страница сайта, а не API с оплаченным лимитом."""
+    """Monthly backfill over a period. The pause between requests is deliberate:
+    this is an ordinary web page, not an API with a paid quota.
+    """
     events: list[dict] = []
     year, month = start.year, start.month
     while (year, month) <= (end.year, end.month):
         try:
             got = fetch_forexfactory_month(year, month, session=session)
-            log.info("ForexFactory %04d-%02d: %d событий", year, month, len(got))
+            log.info("ForexFactory %04d-%02d: %d events", year, month, len(got))
             events.extend(got)
         except Exception as exc:
-            log.error("ForexFactory %04d-%02d: не удалось - %s", year, month, exc)
+            log.error("ForexFactory %04d-%02d: failed - %s", year, month, exc)
         month += 1
         if month > 12:
             year, month = year + 1, 1
@@ -344,17 +351,17 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--rebuild", action="store_true",
-                        help="Выбросить архив и собрать заново, всю историю с ForexFactory")
+                        help="Throw the archive away and rebuild the whole history from ForexFactory")
     parser.add_argument("--import-forexfactory", action="store_true",
-                        help="Дописать помесячный диапазон, не трогая остальное")
+                        help="Append a monthly range, leaving the rest untouched")
     parser.add_argument("--from-month", default=_ARCHIVE_SINCE[:7],
-                        help="Первый месяц, YYYY-MM (по умолчанию начало архива)")
+                        help="First month, YYYY-MM (defaults to the start of the archive)")
     parser.add_argument("--to-month", default=None,
-                        help="Последний месяц, YYYY-MM (по умолчанию текущий)")
+                        help="Last month, YYYY-MM (defaults to the current one)")
     args = parser.parse_args()
 
     if not (args.rebuild or args.import_forexfactory):
-        parser.error("нечего делать - укажите --rebuild или --import-forexfactory")
+        parser.error("nothing to do - pass --rebuild or --import-forexfactory")
 
     calendar_dir = os.environ.get(
         "CALENDAR_DIR",
@@ -363,12 +370,11 @@ def main() -> int:
     session = requests.Session()
 
     if args.rebuild:
-        # Прежний архив выбрасывается целиком, а не дополняется: смешивать
-        # таксономии двух источников - ровно то, ради ухода от чего эта
-        # пересборка и делается.
+        # The old archive is thrown away whole rather than added to: mixing the
+        # taxonomies of two sources is exactly what this rebuild exists to escape.
         if os.path.exists(path):
             os.remove(path)
-            log.info("Прежний архив удалён")
+            log.info("Old archive removed")
 
     first = datetime.strptime(args.from_month, "%Y-%m").date()
     last = (datetime.strptime(args.to_month, "%Y-%m").date() if args.to_month
@@ -378,7 +384,7 @@ def main() -> int:
     since = datetime.fromisoformat(_ARCHIVE_SINCE)
     kept = [e for e in events if parse_event_time(e["date"]) >= since]
     added = merge_events(path, kept)
-    log.info("Получено %d событий, с %s осталось %d, записано новых %d",
+    log.info("Fetched %d events, since %s %d remain, %d newly written",
              len(events), _ARCHIVE_SINCE, len(kept), added)
     return 0
 

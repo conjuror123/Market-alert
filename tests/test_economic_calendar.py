@@ -61,9 +61,9 @@ def test_fetch_calendar_parses_known_fields(monkeypatch):
     events = fetch_calendar()
 
     assert len(events) == 2
-    # Дата приводится к UTC: фид отдаёт фиксированное смещение -04:00, а
-    # обе исторические ветки пишут в UTC, и хранить один момент в двух
-    # упаковках значило бы завести сдвинутую копию.
+    # The date is normalised to UTC: the feed serves a fixed -04:00 offset while
+    # both historical branches write UTC, and keeping one moment in two packagings
+    # would create a shifted copy.
     assert events[0] == {
         "title": "Non-Farm Payrolls", "country": "USD", "date": "2026-09-04T12:30:00+00:00",
         "impact": "High", "forecast": "180K", "previous": "150K", "actual": "190K",
@@ -200,14 +200,14 @@ def test_forexfactory_state_is_parsed_by_brace_matching():
 def test_forexfactory_state_missing_is_an_error():
     from price_monitor.economic_calendar import CalendarError, _extract_calendar_state
 
-    with pytest.raises(CalendarError, match="нет состояния"):
-        _extract_calendar_state("<html>ничего похожего</html>")
+    with pytest.raises(CalendarError, match="no calendar state"):
+        _extract_calendar_state("<html>nothing of the sort</html>")
 
 
 def test_merge_key_still_separates_genuinely_different_events(tmp_path):
-    # Ключ слияния включает дату, и именно поэтому сдвинутые копии в прежнем
-    # архиве выглядели отдельными событиями. Сама по себе эта чувствительность
-    # нужна: одна и та же публикация в разные месяцы - разные события.
+    # The merge key includes the date, and that is exactly why shifted copies in
+    # the old archive looked like separate events. The sensitivity itself is
+    # wanted: the same release in different months is a different event.
     path = store_path(str(tmp_path))
     january = {"date": "2021-01-13T13:30:00+00:00", "country": "USD",
                "title": "CPI m/m", "impact": "High", "actual": "", "forecast": "",
