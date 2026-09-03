@@ -145,3 +145,81 @@ def run_version(config: str, fingerprint: str) -> str:
 def versions_for(data_paths=RAW_INPUTS, root: str = ".") -> tuple[str, str]:
     config = config_version(root)
     return config, run_version(config, data_fingerprint(data_paths))
+
+
+# --- stamping the versions onto what the run writes -----------------------
+
+VERSION_COLUMNS = ("config_version", "run_version")
+
+# Provenance of a row per §6.2 and §6.4: when it first appeared, and whether it
+# has since been recomputed.
+PROVENANCE_COLUMNS = ("recalculated", "created_at")
+
+
+def stamp(frame, config: str, run: str):
+    """Writes both versions into every row.
+
+    Per §6.3 the versions belong in each event, in the metrics and in the
+    decision journal - not in a file name. Events of different versions may be
+    compared only with the versions stated explicitly, and a reader who has one
+    table in front of them cannot state what is not in it.
+    """
+    return frame.assign(config_version=config, run_version=run)
+
+
+def provenance(frame, previous, run: str, key: str = "event_id", now: int | None = None):
+    """created_at and recalculated (§6.2, §6.4), carried across runs.
+
+    created_at is the moment a row FIRST appeared, not the moment of the latest
+    write. Taking the clock on every run would be easier and would be wrong twice
+    over: it destroys the idempotency of §6.2 - a rerun over unchanged data would
+    produce a different table byte for byte - and it answers a question
+    run_version already answers better, since run_version says WHICH inputs
+    produced the row while created_at is meant to say WHEN it first existed.
+
+    So a row that was already there keeps its created_at, and only genuinely new
+    rows get the clock. recalculated then means what §6.2 says it means: this row
+    existed under an earlier run_version and has been recomputed under a new one -
+    late or revised data reached it. A row seen for the first time is not
+    recalculated, and neither is one whose run_version has not moved.
+
+    `previous` is the table as the last run left it, or None when there is none -
+    on the very first run nothing can be claimed about recomputation, and
+    everything is simply new.
+    """
+    import time
+
+    import pandas as pd
+
+    stamp_now = int(time.time()) if now is None else int(now)
+    if frame.empty:
+        return frame.assign(recalculated=pd.Series(dtype="boolean"),
+                            created_at=pd.Series(dtype="int64"))
+
+    born, redone = {}, set()
+    if previous is not None and not previous.empty and key in previous.columns:
+        if "created_at" in previous.columns:
+            born = dict(zip(previous[key], previous["created_at"]))
+        if "run_version" in previous.columns:
+            redone = {row_key for row_key, was in
+                      zip(previous[key], previous["run_version"]) if was != run}
+
+    keys = frame[key]
+    return frame.assign(
+        recalculated=[bool(k in redone) for k in keys],
+        created_at=pd.array([born.get(k, stamp_now) for k in keys], dtype="int64"),
+    )
+
+
+def previous_table(path: str):
+    """The table as the last run left it, or None if there is not one yet."""
+    import pandas as pd
+
+    if not os.path.exists(path):
+        return None
+    try:
+        return pd.read_parquet(path)
+    except Exception:
+        # An unreadable leftover must not stop the run: the worst case is that
+        # the rows count as new, which is exactly what an absent table means.
+        return None

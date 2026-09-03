@@ -20,9 +20,10 @@ The notification goes out per BLOCK alert, not per asset. If three instruments o
 one block jerked in the same hour, that is one observation about the block, not
 three identical messages.
 
-Versioning (config_version, run_version) and the overlap_with_cluster flag come
-with phases 6 and 5 - before those there are neither configuration versions nor
-cluster events to overlap with.
+Versioning (config_version, run_version) is stamped here, on the table this
+module writes. The overlap_with_cluster flag is not: it is a fact about the
+cluster system, and this module runs before it, so the field leaves here as NULL
+- not evaluated, per §1.2 - and cluster.tag_overlap fills it in straight after.
 """
 from __future__ import annotations
 
@@ -111,6 +112,18 @@ def events_frame(events: list[SaedEvent]) -> pd.DataFrame:
                                           ("event_id", "asset_id", "block")
                                           else "float64") for c in columns})
     return pd.DataFrame([e.__dict__ for e in events])[columns]
+
+
+def unevaluated_overlap(events: pd.DataFrame) -> pd.DataFrame:
+    """overlap_with_cluster as NULL, not False (§8.5, §1.2).
+
+    The field is a fact about the cluster system, and this module runs before it:
+    the cluster events of this run do not exist yet. NULL says exactly that -
+    not evaluated - where False would claim there was no active cluster event.
+    cluster.tag_overlap fills it in immediately afterwards.
+    """
+    return events.assign(overlap_with_cluster=pd.array([pd.NA] * len(events),
+                                                       dtype="boolean"))
 
 
 def aggregate_block_alerts(events: pd.DataFrame) -> pd.DataFrame:
@@ -258,7 +271,13 @@ def main(argv: list[str] | None = None) -> int:
     block_factors = cross_section.block_factors(panel.loc[reference], basket)
 
     events, alerts, scored = build_for_basket(basket, metrics, factor, block_factors)
-    for path, frame in ((args.events_out, events), (args.alerts_out, alerts)):
+
+    from meals import versioning
+
+    config, run_id = versioning.versions_for()
+    events = versioning.stamp(unevaluated_overlap(events), config, run_id)
+    for path, frame in ((args.events_out, events),
+                        (args.alerts_out, versioning.stamp(alerts, config, run_id))):
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         frame.to_parquet(path, index=False, compression="zstd")
     save_residuals(scored, args.residuals_out)

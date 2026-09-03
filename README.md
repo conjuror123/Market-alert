@@ -895,6 +895,28 @@ VIX, the schedule, ex-dates, the calendar archive). Derived files are not part o
 fingerprint: the basket metrics are both an input and an output of the `cluster` run,
 and including them would mean a new version on every repeat.
 
+Per §6.3 the stamp goes on everything the run writes, not only on the journal: the
+per-asset metrics, the basket metrics, the cluster events and their escalations, the
+SAED events and the block alerts. A reader holding one table can then state which
+version produced it, which is what §6.3 requires before events of different versions
+may be compared at all.
+
+Cluster events carry two more fields (§6.4). `created_at` is the moment the row FIRST
+appeared, carried across runs rather than re-taken from the clock — otherwise a rerun
+over unchanged data would differ byte for byte and the idempotency of §6.2 would not
+exist. `recalculated` then means what §6.2 says it means: this row existed under an
+earlier `run_version` and has been rebuilt under a new one, which is how late or
+revised data shows up.
+
+SAED events carry `overlap_with_cluster` (§8.2). It is filled by the `cluster` run, not
+the `saed` one: SAED runs first, so when its events are built the cluster events of this
+run do not exist yet. Until then the field is NULL rather than False — under §1.2 that
+is the difference between "no overlap" and "not evaluated". The span compared against is
+in wall-clock hours even though the cooldown is counted in reference-calendar ones: a
+crypto event can land on a Saturday, when the reference calendar has no hours at all,
+and a cluster event opened on Friday is still active then. On the current history 1,494
+of 2,478 single-asset events fall inside an active cluster event.
+
 Two properties follow. A repeat run over unchanged data gives the same `run_version` and
 a byte-identical result — verified over the whole history: 188 cluster events, 324,950
 journal rows and 188 export files match between two runs. And a bar sent late or

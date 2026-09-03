@@ -178,3 +178,68 @@ def test_hours_without_quorum_are_skipped():
 
     assert events == []
     assert journal["decision"].iloc[5] == "no_quorum"
+
+
+def saed_rows(*hours):
+    return pd.DataFrame({"event_id": [f"e{h}" for h in hours],
+                         "asset_id": ["twelvedata:SPY"] * len(hours),
+                         "block": ["equity"] * len(hours),
+                         "hour_utc": list(hours)})
+
+
+def test_overlap_is_true_inside_the_cooldown_and_false_outside():
+    events, _ = cluster.run(frame(**fire(5)))
+    t0 = events[0].t0_utc
+    end = events[0].cooldown_until_utc
+
+    tagged = cluster.tag_overlap(saed_rows(t0 - HOUR, t0, t0 + HOUR, end), events)
+
+    assert list(tagged["overlap_with_cluster"]) == [False, True, True, False]
+
+
+def test_overlap_covers_hours_the_reference_calendar_does_not_have():
+    # The automaton only ever walks reference-calendar hours, so a weekend is a
+    # gap in its index. A crypto asset trades through that gap, and a cluster
+    # event opened before it is still active inside it - the span is compared in
+    # wall clock precisely so that such an hour is not silently missed.
+    weekend = frame(**fire(5))
+    gap_start = weekend.index[10]
+    weekend = weekend.drop(index=weekend.index[10:58])   # 48 hours with no bar
+
+    events, _ = cluster.run(weekend)
+
+    assert gap_start not in weekend.index
+    tagged = cluster.tag_overlap(saed_rows(gap_start), events)
+    assert bool(tagged["overlap_with_cluster"].iloc[0]) is True
+
+
+def test_an_event_still_open_at_the_end_of_history_has_no_end():
+    events, _ = cluster.run(frame(n=20, **fire(15)))
+    assert events[0].cooldown_until_utc is None
+
+    far = cluster.tag_overlap(saed_rows(events[0].t0_utc + 10_000 * HOUR), events)
+
+    assert bool(far["overlap_with_cluster"].iloc[0]) is True
+
+
+def test_a_reversal_closes_the_parents_span_early():
+    n = 400
+    reversal = frame(n=n, **fire(5))
+    for i in range(n):
+        reversal.iloc[i, reversal.columns.get_loc("m_weighted_median")] = -0.05
+    reversal.iloc[20, reversal.columns.get_loc("m_weighted_median")] = 0.05
+    reversal.iloc[20, reversal.columns.get_loc("trigger_cluster_shift")] = True
+    reversal.iloc[20, reversal.columns.get_loc("si_total")] = 10.0
+    reversal.iloc[20, reversal.columns.get_loc("base_points")] = 7
+
+    events, _ = cluster.run(reversal)
+
+    assert len(events) == 2 and events[1].parent_event_id == events[0].event_id
+    # The parent stops being active where the child begins, not 72 hours later.
+    assert events[0].cooldown_until_utc == events[1].t0_utc
+
+
+def test_tagging_an_empty_table_yields_a_boolean_column():
+    events, _ = cluster.run(frame(**fire(5)))
+    tagged = cluster.tag_overlap(saed_rows(), events)
+    assert tagged["overlap_with_cluster"].dtype.name == "boolean"

@@ -136,3 +136,16 @@ def test_empty_inputs_keep_the_schema():
     assert empty.empty and alerts.empty
     assert "repeat_count" in empty.columns
     assert "max_abs_z_resid" in alerts.columns
+
+
+def test_overlap_starts_out_null_rather_than_false():
+    # §1.2: NULL is not False. SAED runs before the cluster automaton, so at this
+    # point "was there an active cluster event" is unanswered, not answered "no".
+    events = saed.events_frame([
+        saed.SaedEvent(event_id="x", asset_id="a", block="FX", hour_utc=3600,
+                       z_resid=4.0, e_resid=0.01, r=0.01, beta=1.0, repeat_count=0)])
+
+    tagged = saed.unevaluated_overlap(events)
+
+    assert tagged["overlap_with_cluster"].dtype.name == "boolean"
+    assert tagged["overlap_with_cluster"].isna().all()

@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from meals import si_index, windows
+from meals import si_index, versioning, windows
 
 
 @dataclass
@@ -36,6 +36,11 @@ class ClusterEvent:
     escalation_seq: int = 0
     escalations: list[dict] = field(default_factory=list)
     status: str = "open"
+    # The hour at which this event stops being active - its cooldown expiring, or
+    # a vector reversal closing it early. None means it was still open when the
+    # history ran out. Not part of cluster_events (§6.4 does not list it there);
+    # it exists because §8.2 needs to know which hours an event was active over.
+    cooldown_until_utc: int | None = None
 
 
 # Branch A is forbidden in the first trading hour after T0 (§5.2).
@@ -83,6 +88,11 @@ def run(frame: pd.DataFrame) -> tuple[list[ClusterEvent], pd.DataFrame]:
     current: ClusterEvent | None = None
     opened_at = -1              # index of the current event's T0 hour
     cooldown_until = -1         # index up to which the pause applies
+
+    def close_at(event: ClusterEvent, index: int) -> None:
+        """Records the hour the event stops being active (§8.2 needs the span)."""
+        event.cooldown_until_utc = int(hours[index]) if index < len(hours) else None
+
     early_breaks: list[int] = []
     m_at_t0 = np.nan
 
@@ -104,6 +114,7 @@ def run(frame: pd.DataFrame) -> tuple[list[ClusterEvent], pd.DataFrame]:
                 events.append(current)
                 opened_at, m_at_t0 = i, m[i]
                 cooldown_until = i + windows.CLUSTER_COOLDOWN
+                close_at(current, cooldown_until)
                 early_breaks = []
                 journal[i] = "event_created"
             elif shift[i]:
@@ -137,6 +148,7 @@ def run(frame: pd.DataFrame) -> tuple[list[ClusterEvent], pd.DataFrame]:
             })
             # The cooldown restarts from the moment of the escalation.
             cooldown_until = i + windows.CLUSTER_COOLDOWN
+            close_at(current, cooldown_until)
             early_breaks.append(i)
             journal[i] = "escalation"
             continue
@@ -147,12 +159,14 @@ def run(frame: pd.DataFrame) -> tuple[list[ClusterEvent], pd.DataFrame]:
                 continue
             parent = current.event_id
             current.status = "finished"
+            close_at(current, i)
             current = ClusterEvent(event_id=f"cluster:{int(hours[i])}",
                                    t0_utc=int(hours[i]), si_total_t0=float(si[i]),
                                    base_points_t0=int(points[i]), parent_event_id=parent)
             events.append(current)
             opened_at, m_at_t0 = i, m[i]
             cooldown_until = i + windows.CLUSTER_COOLDOWN
+            close_at(current, cooldown_until)
             early_breaks = [i]
             journal[i] = "reversal_event"
             continue
@@ -200,7 +214,40 @@ def reset_derived(basket_frame: pd.DataFrame) -> pd.DataFrame:
     """
     derived = [c for c in DERIVED_COLUMNS if c in basket_frame.columns]
     derived += [c for c in basket_frame.columns if c.startswith("trigger_")]
+    # cross_section stamped the file when it wrote it; this run re-stamps it.
+    derived += [c for c in versioning.VERSION_COLUMNS if c in basket_frame.columns]
     return basket_frame.drop(columns=derived)
+
+
+def tag_overlap(saed_events: pd.DataFrame, events: list[ClusterEvent]) -> pd.DataFrame:
+    """overlap_with_cluster for every SAED event (§8.2, §8.5).
+
+    Per §8.2 a single-asset event that coincides with an active cluster event is
+    not suppressed - it is only tagged. The tag can be set no earlier than here:
+    SAED runs before the cluster automaton, so at the moment its events are built
+    the cluster events of this run do not exist yet. Until then the field is NULL
+    rather than False, which under §1.2 is the difference between "no overlap" and
+    "not evaluated".
+
+    An event is active from T0 until its cooldown expires or a reversal closes it.
+    The comparison is in WALL-CLOCK hours on purpose, although the cooldown itself
+    is counted in reference-calendar ones: a SAED event on a crypto asset can fall
+    on a Saturday, when the reference calendar has no hours at all, and a cluster
+    event opened on Friday is still active then. Its span is converted to wall
+    clock once, here, and the weekend inside it is part of the span.
+    """
+    if saed_events.empty:
+        return saed_events.assign(overlap_with_cluster=pd.Series(dtype="boolean"))
+
+    hours = saed_events["hour_utc"].to_numpy()
+    overlap = np.zeros(len(saed_events), dtype=bool)
+    for event in events:
+        end = event.cooldown_until_utc
+        covered = hours >= event.t0_utc
+        if end is not None:
+            covered &= hours < end
+        overlap |= covered
+    return saed_events.assign(overlap_with_cluster=pd.array(overlap, dtype="boolean"))
 
 
 DEFAULT_EVENTS_PATH = "data/meals/cluster_events.parquet"
@@ -213,7 +260,7 @@ def main(argv: list[str] | None = None) -> int:
     import os
 
     from meals import (bars, calendar_multiplier, cross_section, journal, pipeline,
-                       saed, versioning, vix)
+                       saed, vix)
     from meals.basket import load_basket
 
     parser = argparse.ArgumentParser(description="SI-Index and cluster events (§4, §5)")
@@ -221,6 +268,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--basket-metrics", default=cross_section.DEFAULT_BASKET_METRICS_PATH)
     parser.add_argument("--events-out", default=DEFAULT_EVENTS_PATH)
     parser.add_argument("--escalations-out", default=DEFAULT_ESCALATIONS_PATH)
+    parser.add_argument("--saed-events", default=saed.DEFAULT_EVENTS_PATH)
     parser.add_argument("--journal-out", default=journal.DEFAULT_JOURNAL_PATH)
     parser.add_argument("--warmup-out", default=journal.DEFAULT_WARMUP_PATH)
     args = parser.parse_args(argv)
@@ -257,12 +305,34 @@ def main(argv: list[str] | None = None) -> int:
     # run, and including it would mean a new run_version on every repeat.
     config, run_id = versioning.versions_for()
 
-    for path, data in ((args.events_out, events_frame(events)),
-                       (args.escalations_out, escalations_frame(events))):
+    # Cluster events carry the versions plus their provenance (§6.3, §6.4):
+    # created_at survives a rerun, and recalculated says the row was rebuilt under
+    # a run_version different from the one that first produced it.
+    stamped = versioning.provenance(
+        versioning.stamp(events_frame(events), config, run_id),
+        versioning.previous_table(args.events_out), run_id)
+
+    for path, data in ((args.events_out, stamped),
+                       (args.escalations_out,
+                        versioning.stamp(escalations_frame(events), config, run_id))):
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         data.to_parquet(path, index=False, compression="zstd")
-    frame.reset_index(names="hour_utc").to_parquet(args.basket_metrics, index=False,
-                                                   compression="zstd")
+    versioning.stamp(frame.reset_index(names="hour_utc"), config, run_id).to_parquet(
+        args.basket_metrics, index=False, compression="zstd")
+
+    # The overlap tag (§8.2) can only be set once the cluster events exist, so
+    # this run finishes the table SAED left with the field still NULL.
+    if os.path.exists(args.saed_events):
+        tagged = versioning.stamp(
+            tag_overlap(pd.read_parquet(args.saed_events).drop(
+                columns=["overlap_with_cluster"], errors="ignore"), events),
+            config, run_id)
+        tagged.to_parquet(args.saed_events, index=False, compression="zstd")
+        log.info("SAED events tagged overlap_with_cluster: %d of %d",
+                 int(tagged["overlap_with_cluster"].fillna(False).sum()), len(tagged))
+    else:
+        log.warning("no SAED events table - overlap_with_cluster left unset; "
+                    "run python -m meals.saed first")
 
     # Decision journal (§6.1).
     # Residuals are read from disk if a SAED run has already happened: there is no

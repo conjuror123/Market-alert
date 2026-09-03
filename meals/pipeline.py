@@ -102,10 +102,18 @@ def metrics_path(base_dir: str, file_stem: str) -> str:
 
 
 def build_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
-              metrics_dir: str = DEFAULT_METRICS_DIR) -> dict[str, pd.DataFrame]:
+              metrics_dir: str = DEFAULT_METRICS_DIR,
+              versions: tuple[str, str] | None = None) -> dict[str, pd.DataFrame]:
+    from meals import versioning
+
     session_table = sessions.load_sessions()
     actions = corporate_actions.load_actions()
     os.makedirs(metrics_dir, exist_ok=True)
+
+    # §6.3 requires the versions in the metrics too, not only in the events. The
+    # stamp goes on what is WRITTEN, not on what is returned: downstream modules
+    # get the frame in memory and take their own stamp at their own write.
+    config, run = versioning.versions_for() if versions is None else versions
 
     result = {}
     for asset in basket.instruments:
@@ -116,8 +124,8 @@ def build_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
             log.warning("%s: no usable bars", asset.asset_id)
             continue
         stored = metrics[[c for c in METRIC_COLUMNS if c in metrics]]
-        stored.to_parquet(metrics_path(metrics_dir, asset.file_stem), index=False,
-                          compression="zstd")
+        versioning.stamp(stored, config, run).to_parquet(
+            metrics_path(metrics_dir, asset.file_stem), index=False, compression="zstd")
         result[asset.asset_id] = metrics
         log.info("%s: bars %d, Q95 breaches %s, Q99 %s", asset.asset_id, len(metrics),
                  int(metrics["breach_q95"].sum()), int(metrics["breach_q99"].sum()))

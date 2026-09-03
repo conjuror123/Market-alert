@@ -394,7 +394,7 @@ def main(argv: list[str] | None = None) -> int:
     import argparse
     import logging
 
-    from meals import pipeline, sessions
+    from meals import pipeline, sessions, versioning
     from meals.basket import load_basket
 
     parser = argparse.ArgumentParser(description="Hourly basket metrics (§3.2-3.4)")
@@ -416,9 +416,13 @@ def main(argv: list[str] | None = None) -> int:
                           if sessions.is_reference_hour(int(h), basket.anchor_exchange_tz)])
     frame = build_basket_metrics(metrics, basket, reference)
 
+    # §6.3: the versions go into the metrics as well. cluster then rewrites this
+    # same file with its own derived columns and re-stamps it - whoever wrote the
+    # file last is who the stamp has to describe.
+    config, run_id = versioning.versions_for()
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
-    frame.reset_index(names="hour_utc").to_parquet(args.out, index=False,
-                                                   compression="zstd")
+    versioning.stamp(frame.reset_index(names="hour_utc"), config, run_id).to_parquet(
+        args.out, index=False, compression="zstd")
 
     correlation = subcondition_correlation(frame)
     log.info("hours %d, quorum %d, compression %d, synchrony %d, single-factor %d",
