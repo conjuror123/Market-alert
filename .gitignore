@@ -8,17 +8,17 @@ venv/
 data/backtest_results.json
 data/calibration_review/
 
-# Полностью производные и дешёвые в пересчёте выходы MEALS. Оба переписываются
-# целиком при каждом прогоне, и держать их в истории git значит добавлять
-# десятки мегабайт за запуск без единого нового факта. Метрики активов остаются
-# в репозитории: они зависят только от баров и стоят полного прогона pipeline,
-# а эти два - секунды поверх них.
+# Fully derived MEALS outputs that are cheap to recompute. Both are rewritten in
+# full on every run, and keeping them in git history means adding tens of
+# megabytes per run without a single new fact. The per-asset metrics do stay in
+# the repository: they depend only on the bars and cost a full pipeline run,
+# whereas these two are seconds on top of them.
 #
-#   events/    - экспорт событий по п.6.5. Схема лежит в
-#                schema/event_export.schema.json и версионируется; сам экспорт
-#                делается командой python -m meals.export.
-#   residuals/ - ряды остатков SAED. Восстанавливаются командой
-#                python -m meals.saed, которая в порядке запуска всё равно идёт
-#                перед cluster и export.
+#   events/    - the event export of §6.5. The schema lives in
+#                schema/event_export.schema.json and is versioned; the export
+#                itself is produced by python -m meals.export.
+#   residuals/ - the SAED residual series. Restored by python -m meals.saed,
+#                which in the run order comes before cluster and export
+#                anyway.
 data/meals/events/
 data/meals/residuals/
