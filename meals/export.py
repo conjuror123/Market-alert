@@ -186,6 +186,28 @@ def write_event(payload: dict, out_dir: str = DEFAULT_EXPORT_DIR) -> str:
     return path
 
 
+def prune_stale(out_dir: str, written: set[str]) -> list[str]:
+    """Removes exports that this run did not write.
+
+    write_event only ever adds files, so an event that stops existing - the
+    calendar archive was rebuilt, a threshold moved - leaves its file behind
+    looking exactly like current output, with only run_version inside telling
+    the two apart. A consumer reading the directory would take that ghost for a
+    live event. The directory is the whole export, so what the run did not
+    produce does not belong in it.
+
+    Only valid for a full export: with --since the run deliberately touches part
+    of the history, and everything outside that part is not stale.
+    """
+    removed = []
+    for name in sorted(os.listdir(out_dir)):
+        path = os.path.join(out_dir, name)
+        if name.endswith(".json") and path not in written:
+            os.remove(path)
+            removed.append(path)
+    return removed
+
+
 def build_all(events: pd.DataFrame, basket_frame: pd.DataFrame,
               metrics: dict[str, pd.DataFrame], residuals: dict[str, pd.DataFrame],
               saed_events: pd.DataFrame, escalations: pd.DataFrame,
@@ -228,13 +250,18 @@ def main(argv: list[str] | None = None) -> int:
 
     config, run = versioning.versions_for()
 
-    written = 0
+    written = set()
     for payload in build_all(events, basket_frame, metrics, residuals, saed_events,
                              escalations, config, run, basket):
-        write_event(payload, args.out_dir)
-        written += 1
+        written.add(write_event(payload, args.out_dir))
     log.info("exported %d events to %s (config %s, run %s)",
-             written, args.out_dir, config, run)
+             len(written), args.out_dir, config, run)
+
+    if args.since is None:
+        removed = prune_stale(args.out_dir, written)
+        if removed:
+            log.info("removed %d stale exports left by an earlier run: %s",
+                     len(removed), ", ".join(os.path.basename(p) for p in removed))
     return 0
 
 

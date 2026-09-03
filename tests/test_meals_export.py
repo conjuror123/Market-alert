@@ -1,4 +1,5 @@
 import json
+import os
 
 import numpy as np
 import pandas as pd
@@ -206,3 +207,27 @@ def test_export_matches_its_published_schema():
     jsonschema = pytest.importorskip("jsonschema")
     schema = json.load(open(export.SCHEMA_PATH, encoding="utf-8"))
     jsonschema.validate(build(30 * HOUR), schema)
+
+
+def test_stale_exports_are_removed(tmp_path):
+    # An event that stops existing - the calendar archive was rebuilt, a
+    # threshold moved - would otherwise leave its file behind looking exactly
+    # like current output.
+    kept = export.write_event(build(30 * HOUR), str(tmp_path))
+    ghost = tmp_path / "cluster_1643223600.json"
+    ghost.write_text('{"event_id": "cluster:1643223600"}\n', encoding="utf-8")
+
+    removed = export.prune_stale(str(tmp_path), {kept})
+
+    assert removed == [str(ghost)]
+    assert sorted(p.name for p in tmp_path.iterdir()) == [os.path.basename(kept)]
+
+
+def test_pruning_leaves_alone_what_is_not_json(tmp_path):
+    # The directory may hold a note or an index next to the exports; only the
+    # export files themselves are this run's to replace.
+    note = tmp_path / "README.txt"
+    note.write_text("hand-written\n", encoding="utf-8")
+
+    assert export.prune_stale(str(tmp_path), set()) == []
+    assert note.exists()
