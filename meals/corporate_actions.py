@@ -52,7 +52,7 @@ class CorporateAction:
     ticker: str
     day: date          # ex-date: the first day the price trades without the payout
     kind: str          # "dividend" or "split"
-    factor_step: float # fraction of price by which the coefficient moved
+    factor_step: float  # fraction of price by which the coefficient moved
 
 
 class CorporateActionsError(RuntimeError):

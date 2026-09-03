@@ -164,8 +164,8 @@ def render(rows: list[dict], vix: dict | None) -> str:
             head = (f"| `{r['ticker']}` | {r['block']} | {r['tier']} | {r['interval']} | "
                     f"{r['rows']:,} |")
             if not r["rows"]:
-                # An instrument without a single bar is a result in itself, not a
-            # reason to crash the report on formatting empty numbers.
+                # An instrument without a single bar is a result in itself, not
+                # a reason to crash the report on formatting empty numbers.
                 out.append(head + " — | — | — | — | "
                            f"{r['tick_size']:g} | — | — | — | {_flag(r)} |")
                 continue
