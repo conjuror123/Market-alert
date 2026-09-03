@@ -112,7 +112,7 @@ def test_fetch_backtest_history_caps_yahoo_days_at_the_hard_limit(monkeypatch):
         yahoo, "fetch_klines",
         lambda symbol, interval, limit, base_url, session, range_: captured.setdefault("range_", range_) or [],
     )
-    asset = AssetConfig(symbol="GC=F", source="yahoo", label="Золото")
+    asset = AssetConfig(symbol="GC=F", source="yahoo", label="Gold")
     cfg = Config(assets=[asset])
     fetch_backtest_history(asset, cfg.params_for(asset), cfg, days=2000, session=None)
     assert captured["range_"] == f"{YAHOO_MAX_HOURLY_DAYS}d"
@@ -124,7 +124,7 @@ def test_fetch_backtest_history_does_not_cap_yahoo_days_under_the_limit(monkeypa
         yahoo, "fetch_klines",
         lambda symbol, interval, limit, base_url, session, range_: captured.setdefault("range_", range_) or [],
     )
-    asset = AssetConfig(symbol="GC=F", source="yahoo", label="Золото")
+    asset = AssetConfig(symbol="GC=F", source="yahoo", label="Gold")
     cfg = Config(assets=[asset])
     fetch_backtest_history(asset, cfg.params_for(asset), cfg, days=365, session=None)
     assert captured["range_"] == "370d"

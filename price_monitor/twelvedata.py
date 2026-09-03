@@ -32,9 +32,9 @@ INTERVAL_CODES = {
     "1d": "1day",
 }
 
-# Длительность бара в секундах - нужна, чтобы проставить close_time. Держится
-# рядом с INTERVAL_CODES намеренно: интервал, добавленный только в один из
-# словарей, тихо разъехался бы с другим.
+# Bar duration in seconds - needed to set close_time. Kept next to INTERVAL_CODES
+# on purpose: an interval added to only one of the two dictionaries would quietly
+# drift out of step with the other.
 INTERVAL_SECONDS = {
     "30min": 1800,
     "1h": 3600,
@@ -92,12 +92,11 @@ def _request(
                     high=float(v["high"]),
                     low=float(v["low"]),
                     close=float(v["close"]),
-                    # Спот-форекс приходит без объёма (у него нет единого
-                    # биржевого объёма ни у одного провайдера), а биржевые
-                    # фонды - с настоящим. Раньше здесь стоял жёсткий ноль:
-                    # для валютных пар это было верно, но у фондов молча
-                    # выбрасывало реальные данные, на которых по п.3.5 строится
-                    # профиль объёма.
+                    # Spot FX arrives without volume (no provider has a
+                    # consolidated exchange volume for it), while ETFs arrive with
+                    # the real thing. This used to be a hard-coded zero: correct
+                    # for currency pairs, but for ETFs it silently discarded real
+                    # data on which the §3.5 volume profile is built.
                     volume=float(v.get("volume") or 0.0),
                     close_time=int(_parse_datetime(v["datetime"]).timestamp()) + granularity_seconds,
                 )

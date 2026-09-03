@@ -137,7 +137,7 @@ def test_analyze_override_bypasses_dual_confirmation():
     assert abs(signal.robust_z) >= 6.0
     assert abs(signal.ewma_z) < 3.0  # would have been missed under dual-only logic
     assert signal.price_alert is True
-    assert "экстремальное" in signal.reasons[0]
+    assert "extreme" in signal.reasons[0]
 
 
 def test_analyze_excludes_stale_candles_from_baseline():

@@ -9,7 +9,7 @@ def test_main_fails_fast_without_credentials(monkeypatch, capsys):
     monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
 
     assert test_notify.main() == 1
-    assert "не заданы" in capsys.readouterr().err
+    assert "are not set" in capsys.readouterr().err
 
 
 def test_main_sends_and_reports_success(monkeypatch, capsys):

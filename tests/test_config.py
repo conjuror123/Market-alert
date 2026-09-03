@@ -14,13 +14,13 @@ def test_parse_assets_keeps_explicit_label():
 
 
 def test_parse_assets_news_query_defaults_to_label():
-    assets = _parse_assets([{"symbol": "GC=F", "source": "yahoo", "label": "Золото (Gold futures)"}])
-    assert assets[0].news_query == "Золото (Gold futures)"
+    assets = _parse_assets([{"symbol": "GC=F", "source": "yahoo", "label": "Gold futures"}])
+    assert assets[0].news_query == "Gold futures"
 
 
 def test_parse_assets_keeps_explicit_news_query():
     assets = _parse_assets([{
-        "symbol": "GC=F", "source": "yahoo", "label": "Золото (Gold futures)", "news_query": "gold price",
+        "symbol": "GC=F", "source": "yahoo", "label": "Gold futures", "news_query": "gold price",
     }])
     assert assets[0].news_query == "gold price"
 

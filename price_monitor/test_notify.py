@@ -14,9 +14,9 @@ from price_monitor.config import load_config
 from price_monitor.notifier import TelegramError, send_telegram_message
 
 MESSAGE = (
-    "✅ <b>Market Alert: тест доставки</b>\n"
-    "Если вы видите это сообщение — TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID "
-    "настроены верно, и бот может сюда писать."
+    "✅ <b>Market Alert: delivery test</b>\n"
+    "If you can see this message, TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID "
+    "are configured correctly and the bot can write here."
 )
 
 
@@ -24,7 +24,7 @@ def main() -> int:
     cfg = load_config()
     if not cfg.telegram_bot_token or not cfg.telegram_chat_id:
         print(
-            "TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID не заданы в окружении.",
+            "TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID are not set in the environment.",
             file=sys.stderr,
         )
         return 1
@@ -32,10 +32,10 @@ def main() -> int:
     try:
         send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id, MESSAGE)
     except TelegramError as exc:
-        print(f"Не удалось отправить тестовое сообщение: {exc}", file=sys.stderr)
+        print(f"Failed to send the test message: {exc}", file=sys.stderr)
         return 1
 
-    print(f"Тестовое сообщение отправлено в chat_id={cfg.telegram_chat_id}.")
+    print(f"Test message sent to chat_id={cfg.telegram_chat_id}.")
     return 0
 
 

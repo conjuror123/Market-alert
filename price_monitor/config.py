@@ -69,7 +69,7 @@ class EffectiveParams:
     cooldown_minutes: int
     escalation_factor: float
     min_history: int
-    # Daily signal (see __main__.py / README "Дневной сигнал") - independent
+    # Daily signal (see __main__.py / README "Daily signal") - independent
     # detector on top of daily-resampled candles from the local candle store,
     # meant to catch a slow multi-hour grind that no single hourly return is
     # extreme enough to flag. Defaults below are placeholders pending backtest
@@ -85,7 +85,7 @@ class EffectiveParams:
     # avoid re-notifying about the same-magnitude continuation of a move
     # that's already been reported - a couple of days is plenty for that on a
     # signal whose own unit is already a full day. Deliberately per-asset,
-    # not shared/pooled across assets - see README, "Дневной сигнал": every
+    # not shared/pooled across assets - see README, "Daily signal": every
     # asset that crosses its own threshold always sends its own alert,
     # regardless of what other assets are doing at the same time.
     daily_cooldown_minutes: int = 2880

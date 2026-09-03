@@ -28,9 +28,9 @@ def test_format_calendar_line_includes_only_present_details():
     bare_line = daily_signal_review._format_calendar_line(bare)
 
     assert "Non-Farm Payrolls" in with_details_line
-    assert "факт: 199K" in with_details_line
-    assert "прогноз: 426K" in with_details_line
-    assert "предыдущее: 249K" in with_details_line
+    assert "actual: 199K" in with_details_line
+    assert "forecast: 426K" in with_details_line
+    assert "previous: 249K" in with_details_line
     assert "FOMC Member Speaks" in bare_line
     assert "(" not in bare_line
 
@@ -42,14 +42,14 @@ def test_format_event_lists_calendar_events_when_present():
     text = daily_signal_review._format_event(event, [], calendar_events)
 
     assert "Non-Farm Payrolls" in text
-    assert "High-impact событий в этом окне не найдено" not in text
+    assert "no High-impact events found in this window" not in text
 
 
 def test_format_event_reports_empty_calendar_window():
     event = {"date": "2026-01-01", "return_pct": -2.5, "ewma_z": 4.1, "robust_z": 3.9, "notified": False}
     text = daily_signal_review._format_event(event, [], [])
-    assert "High-impact событий в этом окне не найдено" in text
-    assert "пропущено" in text
+    assert "no High-impact events found in this window" in text
+    assert "missed" in text
 
 
 def test_build_review_only_includes_calendar_events_within_the_per_event_window(monkeypatch):

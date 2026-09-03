@@ -330,7 +330,7 @@ def months_covered_top_n(days_covered: float) -> int:
     """How many "biggest moves" to evaluate recall against - one per month of
     available history, so a deeper history (more months) gets a bigger,
     statistically sturdier sample instead of a fixed top-5 regardless of how
-    much data is actually available. See README, "Дневной сигнал"."""
+    much data is actually available. See README, "Daily signal"."""
     return max(1, round(days_covered / 30))
 
 
@@ -353,7 +353,7 @@ _RECALL_CEILING = 0.9
 # signal's own threshold:override ratio, ~7:22, blindly inherited before this
 # was added) - a backtest found real top-N moves missed specifically because
 # ewma_z fell just under threshold while robust_z was well above it but still
-# short of a 3x override (see README, "Дневной сигнал"). 1.0 means override
+# short of a 3x override (see README, "Daily signal"). 1.0 means override
 # and threshold coincide (a single signal above threshold always bypasses
 # confirmation - the loosest useful value, since override below threshold
 # would make the dual-confirmation requirement pointless); 5.0 is already a
@@ -368,7 +368,7 @@ def calibrate_recall_threshold(
     """Searches (price_zscore_threshold, price_zscore_override) jointly for
     the combination whose recall on this asset's own top-N historical moves
     lands closest to `target_fraction`. This is the daily signal's
-    calibration target - see README, "Дневной сигнал": catch roughly half of
+    calibration target - see README, "Daily signal": catch roughly half of
     each asset's biggest moves, not a target notification frequency (that's
     how the hourly signal is calibrated instead).
 
@@ -495,7 +495,7 @@ def main() -> int:
              "the combination whose recall on that asset's top-N historical moves (N starting "
              "at one per month of history) is closest to 50%%, instead of using "
              "daily_price_zscore_threshold/override from config.yaml as-is. See README, "
-             "\"Дневной сигнал\".",
+             "\"Daily signal\".",
     )
     args = parser.parse_args()
 

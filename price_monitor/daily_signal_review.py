@@ -57,7 +57,7 @@ def _format_calendar_line(event: dict) -> str:
     when = economic_calendar.parse_event_time(event["date"]).strftime("%Y-%m-%d %H:%M UTC")
     details = [
         f"{label}: {event[key]}"
-        for label, key in (("факт", "actual"), ("прогноз", "forecast"), ("предыдущее", "previous"))
+        for label, key in (("actual", "actual"), ("forecast", "forecast"), ("previous", "previous"))
         if event.get(key)
     ]
     suffix = f" ({', '.join(details)})" if details else ""
@@ -65,30 +65,30 @@ def _format_calendar_line(event: dict) -> str:
 
 
 def _format_event(event: dict, headlines: list[dict], calendar_events: list[dict]) -> str:
-    status = "ПОЙМАНО" if event["notified"] else "пропущено"
+    status = "CAUGHT" if event["notified"] else "missed"
     lines = [
         f"### {event['date']} — {event['return_pct']:+.2f}% "
-        f"(EWMA z={event['ewma_z']:.2f}, робастный z={event['robust_z']:.2f}) — {status}",
+        f"(EWMA z={event['ewma_z']:.2f}, robust z={event['robust_z']:.2f}) — {status}",
         "",
-        "**Новости:**",
+        "**News:**",
     ]
     if headlines:
         for h in headlines:
-            when = h["published"].strftime("%Y-%m-%d %H:%M UTC") if h["published"] else "дата неизвестна"
+            when = h["published"].strftime("%Y-%m-%d %H:%M UTC") if h["published"] else "date unknown"
             source = f" ({h['source']})" if h["source"] else ""
             lines.append(f"- [{when}] {h['title']}{source}")
     else:
-        lines.append("- новостей не найдено ни в [событие+6ч, +12ч], ни в резервном [+12ч, +24ч]")
+        lines.append("- no news found in [event+6h, +12h] or in the fallback [+12h, +24h]")
 
     lines += [
         "",
-        f"**Экономический календарь (High impact, [событие-{CALENDAR_WINDOW_BEFORE_HOURS}ч, "
-        f"событие+{CALENDAR_WINDOW_AFTER_HOURS}ч]):**",
+        f"**Economic calendar (High impact, [event-{CALENDAR_WINDOW_BEFORE_HOURS}h, "
+        f"event+{CALENDAR_WINDOW_AFTER_HOURS}h]):**",
     ]
     if calendar_events:
         lines.extend(_format_calendar_line(e) for e in calendar_events)
     else:
-        lines.append("- High-impact событий в этом окне не найдено")
+        lines.append("- no High-impact events found in this window")
     lines.append("")
     return "\n".join(lines)
 
@@ -148,7 +148,7 @@ def main() -> int:
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
-        f.write("# Ревью дневного сигнала — новости + экономический календарь\n\n")
+        f.write("# Daily signal review — news + economic calendar\n\n")
         f.write(review)
         f.write("\n")
     log.info("Wrote review to %s", args.out)

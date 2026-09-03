@@ -153,24 +153,24 @@ def analyze(
 
     reasons = []
     if price_alert:
-        direction = "рост" if last_return > 0 else "падение"
+        direction = "rise" if last_return > 0 else "fall"
         if price_override and not price_dual:
             reasons.append(
-                f"экстремальное {direction} цены: EWMA z={ewma_z:.2f}, робастный z={robust_z:.2f} "
-                f"— один из сигналов сам по себе выше порога {price_zscore_override}, подтверждение не требуется"
+                f"extreme price {direction}: EWMA z={ewma_z:.2f}, robust z={robust_z:.2f} "
+                f"— one signal alone clears the {price_zscore_override} threshold, no confirmation needed"
             )
         else:
             reasons.append(
-                f"аномальное {direction} цены: EWMA z={ewma_z:.2f}, робастный z={robust_z:.2f} "
-                f"(порог {price_zscore_threshold})"
+                f"unusual price {direction}: EWMA z={ewma_z:.2f}, robust z={robust_z:.2f} "
+                f"(threshold {price_zscore_threshold})"
             )
     if volume_alert:
         if volume_override and not volume_confirmed:
-            reasons.append(f"экстремальный всплеск объёма: z={volume_z:.2f} (порог {volume_zscore_override})")
+            reasons.append(f"extreme volume spike: z={volume_z:.2f} (threshold {volume_zscore_override})")
         else:
             reasons.append(
-                f"всплеск объёма: z={volume_z:.2f} (порог {volume_zscore_threshold}) "
-                f"на фоне движения цены z={max(abs(ewma_z), abs(robust_z)):.2f}"
+                f"volume spike: z={volume_z:.2f} (threshold {volume_zscore_threshold}) "
+                f"alongside a price move of z={max(abs(ewma_z), abs(robust_z)):.2f}"
             )
 
     return Signal(

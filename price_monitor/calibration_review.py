@@ -16,7 +16,7 @@ News hundreds of times, and is meant to be run occasionally by hand while
 tuning thresholds, not on every calibration run. Signal-agnostic (works for
 either --signal hourly or --signal daily) even though only the daily signal
 has been calibrated against real recall targets so far - see README,
-"Дневной сигнал".
+"Daily signal".
 
 Usage:
     python -m price_monitor.calibration_review --signal daily
@@ -57,7 +57,7 @@ def _news_query_by_asset_key(cfg) -> dict[tuple[str, str], str]:
 # after:/before: operators are day-granularity (see _scope_query), coarser
 # than our hour-level windows, so under-fetching here silently starves the
 # exact filter of candidates it would otherwise have kept - this bit us once
-# already (see README, "Дневной сигнал"): passing the *final* desired
+# already (see README, "Daily signal"): passing the *final* desired
 # headline count as this candidate pool meant a whole day's worth of Google
 # results got cut down to a handful before the precise filter even ran.
 _CANDIDATE_POOL_SIZE = 100
@@ -67,7 +67,7 @@ _CANDIDATE_POOL_SIZE = 100
 # before giving up - a real move sometimes only gets covered by outlets after
 # the first news cycle has already passed. Left alone (not widening the
 # primary window itself) when the primary window already found enough on its
-# own - see README, "Дневной сигнал".
+# own - see README, "Daily signal".
 _SPARSE_HEADLINE_THRESHOLD = 3
 _FALLBACK_WINDOW_START_HOURS = 12
 _FALLBACK_WINDOW_END_HOURS = 24
@@ -116,19 +116,19 @@ def fetch_event_headlines(
 
 
 def _format_event(event: dict, headlines: list[dict]) -> str:
-    status = "ПОЙМАНО" if event["notified"] else "пропущено"
+    status = "CAUGHT" if event["notified"] else "missed"
     lines = [
         f"### {event['date']} — {event['return_pct']:+.2f}% "
-        f"(EWMA z={event['ewma_z']:.2f}, робастный z={event['robust_z']:.2f}) — {status}",
+        f"(EWMA z={event['ewma_z']:.2f}, robust z={event['robust_z']:.2f}) — {status}",
         "",
     ]
     if headlines:
         for h in headlines:
-            when = h["published"].strftime("%Y-%m-%d %H:%M UTC") if h["published"] else "дата неизвестна"
+            when = h["published"].strftime("%Y-%m-%d %H:%M UTC") if h["published"] else "date unknown"
             source = f" ({h['source']})" if h["source"] else ""
             lines.append(f"- [{when}] {h['title']}{source}")
     else:
-        lines.append("- новостей не найдено ни в [событие+6ч, +12ч], ни в резервном [+12ч, +24ч]")
+        lines.append("- no news found in [event+6h, +12h] or in the fallback [+12h, +24h]")
     lines.append("")
     return "\n".join(lines)
 
@@ -179,7 +179,7 @@ def main() -> int:
 
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
-        f.write(f"# Ревью калибровки — {args.signal} сигнал\n\n")
+        f.write(f"# Calibration review — {args.signal} signal\n\n")
         f.write(review)
         f.write("\n")
     log.info("Wrote review to %s", out_path)

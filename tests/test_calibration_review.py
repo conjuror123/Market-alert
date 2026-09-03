@@ -110,10 +110,10 @@ def test_format_event_marks_caught_and_missed():
     caught_text = calibration_review._format_event(caught, [])
     missed_text = calibration_review._format_event(missed, [{"title": "x", "source": "", "published": None}])
 
-    assert "ПОЙМАНО" in caught_text
-    assert "новостей не найдено" in caught_text
-    assert "+24ч" in caught_text
-    assert "пропущено" in missed_text
+    assert "CAUGHT" in caught_text
+    assert "no news found" in caught_text
+    assert "+24h" in caught_text
+    assert "missed" in missed_text
     assert "x" in missed_text
 
 

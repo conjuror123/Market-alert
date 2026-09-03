@@ -102,7 +102,7 @@ def test_daily_closes_keeps_a_day_once_now_moves_past_it():
 
 
 def test_deduplicate_removes_a_repeated_block(tmp_path):
-    # Как выглядит след неудачного слияния: два одинаковых блока подряд.
+    # What the trace of a bad merge looks like: two identical blocks in a row.
     path = os.path.join(str(tmp_path), "x.ndjson")
     block = [candle(1000 + i * 3600) for i in range(5)]
     append_candles(path, block)
@@ -114,7 +114,7 @@ def test_deduplicate_removes_a_repeated_block(tmp_path):
 
 
 def test_deduplicate_keeps_the_later_version_of_a_conflicting_hour(tmp_path):
-    # Ранняя копия застала час незакрытым: меньше объём, уже диапазон.
+    # The earlier copy caught the hour still open: less volume, a narrower range.
     path = os.path.join(str(tmp_path), "x.ndjson")
     partial = Candle(open_time=1000, open=10.0, high=11.0, low=9.9,
                      close=10.5, volume=36.7, close_time=4600)
@@ -149,4 +149,4 @@ def test_deduplicate_sorts_by_time(tmp_path):
 
 
 def test_deduplicate_on_a_missing_file(tmp_path):
-    assert deduplicate(os.path.join(str(tmp_path), "нет.ndjson")) == 0
+    assert deduplicate(os.path.join(str(tmp_path), "missing.ndjson")) == 0
