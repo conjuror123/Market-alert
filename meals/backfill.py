@@ -1,18 +1,19 @@
-"""Ф0: заполнение хранилища часовыми барами с 2021 года (ТЗ п.2.1).
+"""Phase 0: filling the store with hourly bars from 2021 (spec §2.1).
 
-Разовый инструмент, не часть часового прогона.
+A one-off tool, not part of the hourly run.
 
-Две трети корзины качать заново не нужно: валютные пары и крипта уже лежат в
-data/candle_history/ - существующий мониторинг накопил их с 2021-01-01. Они
-импортируются из NDJSON и докачиваются только на недостающий хвост. Из сети
-целиком тянутся лишь биржевые фонды, которых в прежней корзине не было.
+Two thirds of the basket need not be downloaded again: the currency pairs and
+crypto already sit in data/candle_history/ - the existing monitor accumulated
+them from 2021-01-01. They are imported from NDJSON and only the missing tail is
+fetched; the only instruments pulled from the network in full are the ETFs, which
+the old basket did not contain.
 
-Биржевые фонды запрашиваются ПОЛУЧАСОВЫМИ барами и складываются в часовые по
-границе круглого часа UTC (см. bars.to_hourly): их собственная часовая сетка
-идёт по :30 и не совпала бы с валютными парами и криптой. Кредитов это не
-стоит - тариф Twelve Data считает запросы, а не строки, - но требует более
-крупного окна на запрос: у фонда около 13 получасовых баров в торговый день,
-так что в один ответ на 5000 строк влезает больше года.
+The ETFs are requested as HALF-HOURLY bars and folded into hourly ones on the
+round UTC hour boundary (see bars.to_hourly): their own hourly grid runs on the
+:30 and would not line up with the currency pairs and crypto. This costs no
+credits - the Twelve Data plan counts requests, not rows - but it does require a
+larger window per request: an ETF has about 13 half-hourly bars per trading day,
+so a single 5000-row answer holds more than a year.
 """
 from __future__ import annotations
 
@@ -37,16 +38,16 @@ LEGACY_HISTORY_DIR = os.path.join("data", "candle_history")
 COINBASE_BASE_URL = "https://api.exchange.coinbase.com"
 TWELVEDATA_BASE_URL = "https://api.twelvedata.com"
 
-# Пауза между запросами к Twelve Data. Бесплатный тариф - 8 запросов в минуту,
-# 8 секунд держат ровно эту границу с небольшим запасом. Пауза выдерживается и
-# между инструментами, не только внутри одного: лимит общий на ключ, а его же
-# в это время расходует работающий часовой мониторинг.
+# Pause between Twelve Data requests. The free plan allows 8 requests a minute,
+# and 8 seconds hold exactly that boundary with a small margin. The pause is held
+# between instruments too, not only within one: the limit is per key, and the
+# running hourly monitor is spending it at the same time.
 TWELVEDATA_DELAY_SECONDS = 8.0
 
-# Сколько календарных дней просить в одном запросе. У получасовых баров фонда
-# около 13 строк в торговый день, так что 300 дней - это ~3900 строк при
-# потолке в 5000. У часовых валютных пар 24 строки в сутки, и там работает
-# более осторожное значение по умолчанию самого клиента.
+# How many calendar days to request at once. Half-hourly bars give about 13 rows
+# per trading day, so 300 days is ~3900 rows against a ceiling of 5000. Hourly
+# currency pairs give 24 rows a day, and there the client's own, more cautious
+# default applies.
 CHUNK_DAYS = {"30min": 300, "1h": 150}
 
 
@@ -56,8 +57,9 @@ def _days_since(start: date) -> float:
 
 
 def import_legacy(asset: Asset, path: str, legacy_dir: str = LEGACY_HISTORY_DIR) -> int:
-    """Переносит уже накопленную NDJSON-историю в Parquet. Схема имён файлов у
-    candle_store и у MEALS одна и та же, так что сопоставление прямое."""
+    """Moves the already accumulated NDJSON history into Parquet. The file-naming
+    scheme is the same in candle_store and in MEALS, so the mapping is direct.
+    """
     legacy_path = candle_store.store_path(legacy_dir, asset.source, asset.ticker)
     if not os.path.exists(legacy_path):
         return 0
@@ -69,12 +71,12 @@ def import_legacy(asset: Asset, path: str, legacy_dir: str = LEGACY_HISTORY_DIR)
 
 def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
                   session: requests.Session) -> int:
-    """Докачивает то, чего в хранилище ещё нет: от последнего сохранённого бара
-    до сейчас, а при пустом хранилище - от `since`.
+    """Fetches whatever the store does not have yet: from the last saved bar up
+    to now, or from `since` when the store is empty.
 
-    Просит на сутки больше, чем формально нужно: последний сохранённый бар мог
-    быть неполным на момент сохранения, и перекрытие даёт источнику шанс отдать
-    его исправленную версию (merge оставит новую).
+    It asks for a day more than strictly needed: the last saved bar may have been
+    incomplete when it was stored, and the overlap gives the source a chance to
+    serve its corrected version (merge keeps the new one).
     """
     stored = bars.load(path)
     if stored.empty:
@@ -96,7 +98,7 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
             base_url=COINBASE_BASE_URL, session=session,
         )
     else:
-        raise ExchangeError(f"{asset.asset_id}: неизвестный источник '{asset.source}'")
+        raise ExchangeError(f"{asset.asset_id}: unknown source '{asset.source}'")
 
     return bars.merge(path, bars.to_hourly(bars.candles_to_frame(candles)))
 
@@ -134,9 +136,9 @@ def _fmt(epoch: int | None) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Ф0: бэкфилл часовой истории MEALS")
+    parser = argparse.ArgumentParser(description="Phase 0: backfill of MEALS hourly history")
     parser.add_argument("--instruments", default="",
-                        help="Тикеры через запятую; по умолчанию - вся корзина")
+                        help="Comma-separated tickers; the whole basket by default")
     parser.add_argument("--bars-dir", default=bars.DEFAULT_BARS_DIR)
     parser.add_argument("--vix-dir", default=bars.DEFAULT_VIX_DIR)
     parser.add_argument("--legacy-dir", default=LEGACY_HISTORY_DIR)
@@ -148,12 +150,12 @@ def main(argv: list[str] | None = None) -> int:
     wanted = {t.strip() for t in args.instruments.split(",") if t.strip()}
     instruments = [a for a in basket.instruments if not wanted or a.ticker in wanted]
     if wanted and not instruments:
-        log.error("Ни один инструмент не совпал с --instruments %s", args.instruments)
+        log.error("No instrument matched --instruments %s", args.instruments)
         return 2
 
     api_key = os.environ.get("TWELVEDATA_API_KEY", "")
     if not api_key and any(a.source == "twelvedata" for a in instruments):
-        log.error("Не задан TWELVEDATA_API_KEY, а в списке есть инструменты Twelve Data")
+        log.error("TWELVEDATA_API_KEY is not set, and the list contains Twelve Data instruments")
         return 2
 
     session = requests.Session()
@@ -161,30 +163,30 @@ def main(argv: list[str] | None = None) -> int:
     for i, asset in enumerate(instruments):
         try:
             r = backfill_instrument(asset, basket, args.bars_dir, api_key, session, args.legacy_dir)
-            log.info("%s: %d баров (%s .. %s), из локальной истории %d, из сети %d",
+            log.info("%s: %d bars (%s .. %s), from local history %d, from network %d",
                      r["asset_id"], r["rows"], _fmt(r["first"]), _fmt(r["last"]),
                      r["from_legacy"], r["from_api"])
         except Exception as exc:
             failures += 1
-            log.error("%s: не удалось - %s", asset.asset_id, exc)
-        # Лимит в 8 запросов в минуту общий на ключ, и его же расходует
-        # работающий часовой мониторинг - пауза нужна и между инструментами.
+            log.error("%s: failed - %s", asset.asset_id, exc)
+        # The 8-requests-per-minute limit is per key, and the running hourly
+        # monitor spends it too - the pause is needed between instruments as well.
         if asset.source == "twelvedata" and i < len(instruments) - 1:
             time.sleep(TWELVEDATA_DELAY_SECONDS)
 
     if not args.skip_vix:
         fred_key = os.environ.get("FRED_API_KEY", "")
         if not fred_key:
-            log.error("Не задан FRED_API_KEY - ряд VIX пропущен")
+            log.error("FRED_API_KEY is not set - the VIX series was skipped")
             failures += 1
         else:
             try:
                 r = backfill_vix(basket, args.vix_dir, fred_key, session)
-                log.info("%s: %d дневных значений (%s .. %s)",
+                log.info("%s: %d daily values (%s .. %s)",
                          r["asset_id"], r["rows"], _fmt(r["first"]), _fmt(r["last"]))
             except Exception as exc:
                 failures += 1
-                log.error("VIX: не удалось - %s", exc)
+                log.error("VIX: failed - %s", exc)
 
     return 1 if failures else 0
 

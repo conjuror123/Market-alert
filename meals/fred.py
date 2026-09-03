@@ -1,20 +1,20 @@
-"""Клиент FRED для дневного ряда VIX (ТЗ п.4.4).
+"""FRED client for the daily VIX series (spec §4.4).
 
-Почему FRED, а не биржевой фонд на фьючерсы VIX: это настоящий индекс с 1990
-года из официального источника, без контанго-дрейфа, которым страдает любой
-фьючерсный ETF. Цена этого выбора - две особенности, обе зафиксированы как
-отступление от буквы п.4.4:
+Why FRED rather than an ETF on VIX futures: this is the real index going back to
+1990 from the official source, without the contango drift that afflicts any
+futures ETF. The price of that choice is two peculiarities, both recorded as
+departures from the letter of §4.4:
 
-1. Ряд ДНЕВНОЙ. Внутридневного VIX на FRED нет ни в одной серии - проверено
-   поиском по всем сериям волатильности CBOE, все они "Daily, Close". Значит
-   скачок VIX определяется аппаратом п.3.1 на дневных барах, а не на часовых.
+1. The series is DAILY. FRED has no intraday VIX in any series - verified by
+   searching every CBOE volatility series, all of them "Daily, Close". So a VIX
+   spike is identified by the §3.1 machinery on daily bars, not hourly ones.
 
-2. Значение публикуется на следующий рабочий день, утром по Чикаго. Поле
-   realtime_start у FRED для этой серии проставлено задним числом (равно дате
-   самого наблюдения), поэтому доверять ему как дате публикации нельзя -
-   момент доступности вычисляется явно, функцией available_at ниже. Иначе
-   бэктест применял бы множитель в час, когда значения ещё не существовало,
-   то есть заглядывал бы в будущее.
+2. The value is published on the next business day, in the morning Chicago time.
+   FRED's realtime_start field for this series is backdated (it equals the
+   observation date itself), so it cannot be trusted as a publication date - the
+   moment of availability is computed explicitly by available_at below. Otherwise
+   the backtest would apply the multiplier in an hour when the value did not yet
+   exist, that is, it would look ahead.
 """
 from __future__ import annotations
 
@@ -25,10 +25,10 @@ import requests
 
 API_ROOT = "https://api.stlouisfed.org/fred"
 
-# Публикация - утром следующего рабочего дня по Чикаго. 14:00 UTC - это 08:00
-# или 09:00 по Чикаго в зависимости от сезона; берём с запасом на час позже
-# наблюдавшегося времени обновления, чтобы никогда не считать значение
-# доступным раньше, чем оно реально появилось.
+# Publication is on the morning of the next business day, Chicago time. 14:00 UTC
+# is 08:00 or 09:00 in Chicago depending on the season; we take an hour's margin
+# beyond the observed update time so as never to treat a value as available
+# earlier than it actually appeared.
 PUBLICATION_HOUR_UTC = 15
 
 
@@ -37,10 +37,10 @@ class FredError(RuntimeError):
 
 
 def available_at(observation_day: date) -> int:
-    """Момент (epoch, UTC), начиная с которого значение за `observation_day`
-    известно системе. Следующий рабочий день, PUBLICATION_HOUR_UTC.
+    """The moment (epoch, UTC) from which the value for `observation_day` is known
+    to the system. The next business day, PUBLICATION_HOUR_UTC.
 
-    Выходные пропускаются: значение за пятницу публикуется в понедельник.
+    Weekends are skipped: Friday's value is published on Monday.
     """
     day = observation_day + timedelta(days=1)
     while day.weekday() >= 5:
@@ -55,14 +55,14 @@ def fetch_series(
     session: requests.Session | None = None,
     timeout: int = 40,
 ) -> pd.DataFrame:
-    """Забирает наблюдения серии начиная с `start`.
+    """Fetches the series' observations starting from `start`.
 
-    Возвращает колонки: day (epoch полуночи UTC того дня, к которому относится
-    значение), close, available_at (epoch момента, с которого значение можно
-    использовать, см. модульную строку).
+    Returns the columns: day (epoch of the UTC midnight of the day the value
+    belongs to), close, available_at (epoch of the moment from which the value may
+    be used, see the module docstring).
     """
     if not api_key:
-        raise FredError("Не задан ключ FRED (FRED_API_KEY)")
+        raise FredError("FRED key is not set (FRED_API_KEY)")
 
     sess = session or requests
     resp = sess.get(
@@ -77,12 +77,12 @@ def fetch_series(
         headers={"User-Agent": "market-alert-bot"},
     )
     if resp.status_code != 200:
-        raise FredError(f"{series_id}: неожиданный статус {resp.status_code}: {resp.text[:200]}")
+        raise FredError(f"{series_id}: unexpected status {resp.status_code}: {resp.text[:200]}")
 
     rows = []
     for obs in resp.json().get("observations", []):
-        # Пропуски FRED кодирует точкой - это выходные и праздники, когда
-        # индекс не рассчитывался, а не потеря данных.
+        # FRED encodes gaps with a dot - those are weekends and holidays when the
+        # index was not computed, not lost data.
         if obs.get("value") in (None, "", "."):
             continue
         day = datetime.strptime(obs["date"], "%Y-%m-%d").date()
@@ -92,5 +92,5 @@ def fetch_series(
             "available_at": available_at(day),
         })
     if not rows:
-        raise FredError(f"{series_id}: FRED не вернул ни одного наблюдения с {start}")
+        raise FredError(f"{series_id}: FRED returned no observations since {start}")
     return pd.DataFrame(rows).astype({"day": "int64", "close": "float64", "available_at": "int64"})

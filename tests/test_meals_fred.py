@@ -91,5 +91,5 @@ def test_fetch_series_reports_a_bad_status():
 
 def test_fetch_series_reports_an_empty_answer():
     session = FakeSession(FakeResponse(200, payload([("2026-08-26", ".")])))
-    with pytest.raises(fred.FredError, match="ни одного наблюдения"):
+    with pytest.raises(fred.FredError, match="no observations"):
         fred.fetch_series("VIXCLS", "k", date(2026, 8, 1), session=session)

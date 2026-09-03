@@ -1,15 +1,15 @@
-"""Ф0: таблица покрытия данных (ТЗ п.2.1).
+"""Phase 0: the data-coverage table (spec §2.1).
 
-По п.2.1 состав корзины не утверждается без этой таблицы, и это не
-формальность: почти все параметры окон в п.2.7 заданы в ВАЛИДНЫХ ТОРГОВЫХ
-БАРАХ актива, а не в календарном времени. Сколько баров в дне у конкретного
-инструмента - то самое B_asset, из которого считается W_asset = max(120 *
-B_asset, 720), окно адаптивных порогов Q95/Q99. Не измерив его на реальных
-данных, размер окна пришлось бы угадывать.
+Per §2.1 the basket composition is not approved without this table, and that is
+no formality: almost every window parameter in §2.7 is expressed in an asset's
+VALID TRADING BARS rather than in calendar time. How many bars an instrument has
+in a day is exactly the B_asset from which W_asset = max(120 * B_asset, 720) is
+computed - the window of the adaptive Q95/Q99 thresholds. Without measuring it on
+real data, the window size would have to be guessed.
 
-Отчёт отвечает на три вопроса из п.2.1 - глубина истории, наличие и
-сопоставимость часового объёма, целостность рядов - и печатается в Markdown,
-чтобы его можно было приложить к решению о составе корзины.
+The report answers the three questions of §2.1 - depth of history, presence and
+comparability of hourly volume, integrity of the series - and prints them as
+Markdown so it can be attached to the decision about the basket composition.
 """
 from __future__ import annotations
 
@@ -31,18 +31,19 @@ def _day(epoch: int) -> str:
 
 
 def measure_precision(closes: pd.Series, sample: int = 5000) -> float | None:
-    """Измеряет ТОЧНОСТЬ КОТИРОВКИ источника - наименьший разряд, в котором он
-    вообще выдаёт значения.
+    """Measures the SOURCE'S QUOTE PRECISION - the smallest decimal place at which
+    it emits values at all.
 
-    Это не биржевой шаг цены. У валютных пар они совпадают: Twelve Data отдаёт
-    пять знаков, и шаг там действительно 1e-5. У биржевых фондов - нет:
-    источник возвращает 769.53992 там, где на бирже стоит 769.54, так что
-    измеренная точность 1e-7 говорит о формате хранения у вендора, а не о
-    шаге торгов, который равен одному центу.
+    This is not the exchange price step. For currency pairs the two coincide:
+    Twelve Data gives five decimals and the step really is 1e-5. For ETFs they do
+    not - the source returns 769.53992 where the exchange shows 769.54, so a
+    measured precision of 1e-7 describes the vendor's storage format, not the
+    trading step, which is one cent.
 
-    Поэтому tick_size в конфигурации задан явно, а эта величина нужна для
-    проверки: если заявленный шаг ОКАЖЕТСЯ МЕЛЬЧЕ измеренной точности, значит
-    конфигурация обещает разрешение, которого в данных нет.
+    That is why tick_size is stated explicitly in the configuration, and this
+    quantity is needed for a check: if the declared step turns out to be FINER
+    than the measured precision, the configuration promises a resolution the data
+    does not have.
     """
     if closes.empty:
         return None
@@ -72,21 +73,21 @@ def audit_instrument(asset: Asset, frame: pd.DataFrame) -> dict:
     days = pd.to_datetime(hours, unit="s", utc=True).dt.date
     bars_per_day = float(days.value_counts().median())
 
-    # Самый большой разрыв между соседними барами. Выходные и праздники дают
-    # законные разрывы, поэтому число само по себе не является дефектом - оно
-    # нужно, чтобы отличить обычный уик-энд от настоящей дыры в истории.
+    # The largest gap between adjacent bars. Weekends and holidays produce
+    # legitimate gaps, so the number is not a defect in itself - it is there to
+    # tell an ordinary weekend from a real hole in the history.
     diffs = hours.diff().dropna()
     max_gap = int(diffs.max() // HOUR) if len(diffs) else 0
 
     volume = frame["volume"].astype("float64")
     zero_pct = float((volume == 0).mean() * 100)
 
-    # Согласованность OHLC (п.2.6) - с допуском в полтика. Источник округляет
-    # поля бара независимо и по-разному: у TLT встречается close 92.42 при high
-    # 92.415, у EUR/USD - open 1.0886 при low 1.08862. Это разница меньше
-    # одного тика, то есть артефакт округления, а не сломанный бар. Буквальная
-    # проверка без допуска пометила бы такие бары is_invalid и выбросила бы из
-    # расчётов совершенно нормальные часы.
+    # OHLC consistency (§2.6) - with a half-tick tolerance. The source rounds a
+    # bar's fields independently and inconsistently: TLT shows close 92.42 against
+    # high 92.415, EUR/USD open 1.0886 against low 1.08862. That is a difference
+    # smaller than one tick, a rounding artefact rather than a broken bar, and a
+    # check without tolerance would mark such bars is_invalid and throw perfectly
+    # normal hours out of the calculations.
     tol = asset.tick_size / 2
     ohlc_bad = int((
         (frame["low"] > frame[["open", "close"]].min(axis=1) + tol)
@@ -102,8 +103,8 @@ def audit_instrument(asset: Asset, frame: pd.DataFrame) -> dict:
         "zero_volume_pct": zero_pct,
         "has_volume_actual": bool(zero_pct < 99.0),
         "max_gap_hours": max_gap,
-        # Часы, собранные не из полного набора баров источника: у биржевых
-        # фондов это первые полчаса сессии, то есть "первый бар сессии" п.2.4.
+        # Hours assembled from an incomplete set of source bars: for ETFs that
+        # is the first half hour of a session, the "first bar of the session".
         "partial_hours": int((frame["n_src"] < frame["n_src"].median()).sum()),
         "ohlc_violations": ohlc_bad,
         "nonpositive_prices": int((frame[["open", "high", "low", "close"]] <= 0).any(axis=1).sum()),
@@ -126,50 +127,50 @@ def audit_vix(basket, vix_dir: str) -> dict | None:
 
 
 def _flag(row: dict) -> str:
-    """Что в этой строке требует внимания. Пусто - значит инструмент готов."""
+    """What in this row needs attention. Empty means the instrument is sound."""
     notes = []
     if row["rows"] == 0:
-        return "нет данных"
+        return "no data"
     if row["has_volume_declared"] and not row["has_volume_actual"]:
-        notes.append("объём заявлен, но пуст")
+        notes.append("volume declared but empty")
     if not row["has_volume_declared"] and row["has_volume_actual"]:
-        notes.append("объём есть, хотя не заявлен")
-    for field, label in (("ohlc_violations", "OHLC"), ("nonpositive_prices", "цены<=0"),
-                         ("negative_volume", "объём<0"), ("duplicate_hours", "дубли")):
+        notes.append("volume present though not declared")
+    for field, label in (("ohlc_violations", "OHLC"), ("nonpositive_prices", "prices<=0"),
+                         ("negative_volume", "volume<0"), ("duplicate_hours", "duplicates")):
         if row[field]:
             notes.append(f"{label}: {row[field]}")
-    # Шаг цены мельче того, что источник вообще способен выдать - значит
-    # half_tick_return в п.2.5 посчитается по разрешению, которого нет.
+    # A price step finer than anything the source can emit: half_tick_return in
+    # §2.5 would then be computed against a resolution that does not exist.
     if row["precision"] and row["tick_size"] < row["precision"]:
-        notes.append(f"шаг {row['tick_size']:g} мельче точности источника {row['precision']:g}")
+        notes.append(f"step {row['tick_size']:g} finer than source precision {row['precision']:g}")
     return ", ".join(notes)
 
 
 def render(rows: list[dict], vix: dict | None) -> str:
-    out = ["# Таблица покрытия данных MEALS", "",
-           f"Составлена {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC. "
-           "Требование п.2.1 ТЗ: без неё состав корзины не утверждается.", ""]
+    out = ["# MEALS data coverage table", "",
+           f"Compiled {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC. "
+           "Required by spec §2.1: without it the basket composition is not approved.", ""]
 
-    for in_basket, title in ((True, "Корзина"), (False, "Вне корзины (только SAED)")):
+    for in_basket, title in ((True, "Basket"), (False, "Outside the basket (SAED only)")):
         subset = [r for r in rows if r["in_basket"] == in_basket]
         if not subset:
             continue
         out += [f"## {title}", "",
-                "| Инструмент | Блок | Тир | Интервал | Баров | Период | Дней | "
-                "Баров в день | W_asset | Шаг цены | Точность источника | "
-                "Объём=0 | Макс. разрыв, ч | Замечания |",
+                "| Instrument | Block | Tier | Interval | Bars | Period | Days | "
+                "Bars per day | W_asset | Price step | Source precision | "
+                "Volume=0 | Max gap, h | Notes |",
                 "|---|---|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---|"]
         for r in sorted(subset, key=lambda x: (x["block"], -x["tier"], x["ticker"])):
             head = (f"| `{r['ticker']}` | {r['block']} | {r['tier']} | {r['interval']} | "
                     f"{r['rows']:,} |")
             if not r["rows"]:
-                # Инструмент без единого бара - сам по себе результат аудита, а
-                # не повод уронить отчёт на форматировании пустых чисел.
+                # An instrument without a single bar is a result in itself, not a
+            # reason to crash the report on formatting empty numbers.
                 out.append(head + " — | — | — | — | "
                            f"{r['tick_size']:g} | — | — | — | {_flag(r)} |")
                 continue
-            # W_asset из п.2.7 - окно адаптивных порогов, прямое следствие
-            # измеренного здесь числа баров в торговом дне.
+            # W_asset from §2.7 - the adaptive-threshold window, a direct
+            # consequence of the bars-per-trading-day figure measured here.
             w_asset = max(int(120 * r["bars_per_day"]), 720)
             out.append(
                 head +
@@ -181,21 +182,21 @@ def render(rows: list[dict], vix: dict | None) -> str:
         out.append("")
 
     if vix:
-        out += ["## Внешний индикатор стресса", "",
-                f"`{vix['series_id']}`: {vix['rows']:,} дневных значений, "
-                f"{vix['first']} .. {vix['last']}. Медианная задержка публикации — "
-                f"{vix['median_lag_hours']:.0f} ч от полуночи дня наблюдения "
-                "(п.4.4, отступление зафиксировано в basket.yaml).", ""]
+        out += ["## External stress indicator", "",
+                f"`{vix['series_id']}`: {vix['rows']:,} daily values, "
+                f"{vix['first']} .. {vix['last']}. Median publication lag — "
+                f"{vix['median_lag_hours']:.0f} h from midnight of the observation day "
+                "(§4.4, the departure is recorded in basket.yaml).", ""]
 
     total = sum(r["rows"] for r in rows)
-    out += ["## Итого", "",
-            f"Инструментов: {len(rows)}. Баров: {total:,}. "
-            f"Проблемных строк: {sum(1 for r in rows if _flag(r))}.", ""]
+    out += ["## Totals", "",
+            f"Instruments: {len(rows)}. Bars: {total:,}. "
+            f"Rows with issues: {sum(1 for r in rows if _flag(r))}.", ""]
     return "\n".join(out)
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Ф0: таблица покрытия данных MEALS")
+    parser = argparse.ArgumentParser(description="Phase 0: MEALS data coverage table")
     parser.add_argument("--bars-dir", default=bars.DEFAULT_BARS_DIR)
     parser.add_argument("--vix-dir", default=bars.DEFAULT_VIX_DIR)
     parser.add_argument("--out", default=os.path.join("data", "meals", "coverage.md"))

@@ -1,13 +1,14 @@
-"""Сборка метрик по каждому активу (ТЗ п.6.1, слой A + слой B).
+"""Assembly of per-asset metrics (spec §6.1, layer A + layer B).
 
-Прогоняет один инструмент через всю цепочку Ф1-Ф2: гейт качества -> каналы
-доходности -> винзоризация -> EWMA Z-score и адаптивные пороги -> профиль
-объёма. Результат складывается в metrics_asset_hour (п.6.4).
+Runs one instrument through the whole phase 1-2 chain: quality gate -> return
+channels -> winsorization -> EWMA Z-score and adaptive thresholds -> volume
+profile. The result goes into metrics_asset_hour (§6.4).
 
-Считается пакетно, по всей истории сразу. Часовому прогону такой пересчёт не
-нужен - ему хватит дописать один бар, - но это забота Ф6 об идемпотентности и
-версиях. Здесь важно другое: кросс-секции нужна панель из всех активов на общей
-часовой сетке, а собрать её не из чего, пока метрики каждого не посчитаны.
+Computed in batch, over the whole history at once. The hourly run does not need
+such a recomputation - appending one bar is enough for it - but that is phase 6's
+concern with idempotency and versions. What matters here is different: the
+cross-section needs a panel of every asset on a shared hourly grid, and there is
+nothing to assemble it from until each one's metrics have been computed.
 """
 from __future__ import annotations
 
@@ -24,8 +25,8 @@ log = logging.getLogger("meals.pipeline")
 
 DEFAULT_METRICS_DIR = os.path.join("data", "meals", "metrics")
 
-# Таймзона биржи по шаблону сессии - нужна профилю объёма, у которого норма
-# берётся по локальному биржевому часу.
+# Exchange timezone by session template - needed by the volume profile, whose
+# norm is taken per local exchange hour.
 TEMPLATE_TZ = {
     "us_equity": "America/New_York",
     "fx_continuous": "America/New_York",
@@ -35,23 +36,24 @@ TEMPLATE_TZ = {
 
 def bars_per_session(asset: Asset, usable: pd.DataFrame,
                      anchor_tz: str = "America/New_York") -> float:
-    """B_asset из п.2.7: медианное число валидных баров в ТОРГОВОМ ДНЕ актива.
+    """B_asset from §2.7: the median number of valid bars in the asset's TRADING DAY.
 
-    Измеряется, а не задаётся: из него считается W_asset, окно адаптивных
-    порогов, и ошибка здесь означала бы окно неверной длины у всех порогов
-    сразу.
+    It is measured, not declared: W_asset, the adaptive-threshold window, is
+    computed from it, and an error here would mean a window of the wrong length
+    for every threshold at once.
 
-    Считается по календарным дням биржи, а НЕ по непрерывным сессиям из
-    returns.session_ids. Это два разных понятия, и путать их дорого. Для
-    гэп-канала сессия - это отрезок непрерывной торговли: у валютной пары целая
-    неделя, у круглосуточной крипты вся история одним куском. Подставив такую
-    длину сюда, для крипты получаем B_asset под пятьдесят тысяч и окно порогов
-    в шесть миллионов баров - оно не набирается никогда, пороги остаются
-    неопределёнными, и пробоев не возникает вовсе. Ровно это и случилось:
-    ноль пробоев на 49632 барах биткойна.
+    Counted over the exchange's calendar days, NOT over the continuous sessions of
+    returns.session_ids. These are two different notions, and confusing them is
+    expensive. For the gap channel a session is a stretch of uninterrupted
+    trading: for a currency pair a whole week, for round-the-clock crypto the
+    entire history in one piece. Substitute that length here and crypto gets a
+    B_asset near fifty thousand and a threshold window of six million bars - it
+    never fills, the thresholds stay undefined, and no breaches occur at all.
+    Exactly that happened: zero breaches across 49632 Bitcoin bars.
 
-    Здесь нужен день: 120 * B_asset означает "сто двадцать торговых дней", и
-    для фонда это 7 баров в дне, для валютной пары и крипты - 24.
+    What is needed here is a day: 120 * B_asset means "one hundred and twenty
+    trading days", which is 7 bars a day for an ETF and 24 for a currency pair or
+    crypto.
     """
     if usable.empty:
         return 0.0
@@ -64,7 +66,7 @@ def bars_per_session(asset: Asset, usable: pd.DataFrame,
 def build_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
                         session_table: dict[date, sessions.Session],
                         action_days: set[date] | None) -> pd.DataFrame:
-    """Полная цепочка метрик для одного инструмента."""
+    """The full metric chain for one instrument."""
     gated = quality.apply_gate(asset, frame, session_table, basket.anchor_exchange_tz)
     usable = gated[gated["is_usable"]].reset_index(drop=True)
     if usable.empty:
@@ -111,13 +113,13 @@ def build_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
         metrics = build_asset_metrics(asset, basket, frame, session_table,
                                       actions.get(asset.ticker))
         if metrics.empty:
-            log.warning("%s: нет пригодных баров", asset.asset_id)
+            log.warning("%s: no usable bars", asset.asset_id)
             continue
         stored = metrics[[c for c in METRIC_COLUMNS if c in metrics]]
         stored.to_parquet(metrics_path(metrics_dir, asset.file_stem), index=False,
                           compression="zstd")
         result[asset.asset_id] = metrics
-        log.info("%s: баров %d, пробоев Q95 %s, Q99 %s", asset.asset_id, len(metrics),
+        log.info("%s: bars %d, Q95 breaches %s, Q99 %s", asset.asset_id, len(metrics),
                  int(metrics["breach_q95"].sum()), int(metrics["breach_q99"].sum()))
     return result
 
@@ -134,14 +136,14 @@ def load_all(basket: Basket, metrics_dir: str = DEFAULT_METRICS_DIR) -> dict[str
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(description="Пересчёт метрик по активам (п.6.1)")
+    parser = argparse.ArgumentParser(description="Recompute per-asset metrics (§6.1)")
     parser.add_argument("--bars-dir", default=bars.DEFAULT_BARS_DIR)
     parser.add_argument("--metrics-dir", default=DEFAULT_METRICS_DIR)
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     built = build_all(load_basket(), args.bars_dir, args.metrics_dir)
-    print(f"метрики посчитаны по {len(built)} инструментам")
+    print(f"metrics computed for {len(built)} instruments")
     return 0
 
 

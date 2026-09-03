@@ -1,23 +1,23 @@
-"""Таблица корпоративных действий (ТЗ п.2.4, п.6.4).
+"""Corporate-actions table (spec §2.4, §6.4).
 
-Дивидендного эндпоинта на тарифе нет - и /dividends, и /splits отвечают 403.
-Но даты отсечек можно вывести из самих котировок: вендор умеет отдавать один и
-тот же ряд скорректированным и нескорректированным, а отношение между ними -
-ступенчатая функция, которая меняется ровно в даты корпоративных действий.
-Размер ступени и есть размер выплаты в долях цены.
+The plan has no dividend endpoint - both /dividends and /splits answer 403. But
+ex-dates can be derived from the quotes themselves: the vendor can serve the same
+series adjusted and unadjusted, and their ratio is a step function that changes
+on exactly the corporate-action dates. The size of the step is the size of the
+payout as a fraction of price.
 
-Проверено: на конце ряда фактор равен ровно 1.0 (будущих выплат нет), а шум
-между ступенями держится на уровне 1e-8 - это округление в строках самого
-вендора. Порог отсечки взят на два порядка выше шума и на порядок ниже самой
-мелкой реальной выплаты.
+Verified: at the end of the series the factor is exactly 1.0 (there are no future
+payouts), and between steps it holds at the 1e-8 level - that is rounding in the
+vendor's string. The detection threshold is set two orders of magnitude above
+that noise and an order of magnitude below the smallest real payout.
 
-Зачем это нужно, если ряды у нас нескорректированные. Скорректированные брать
-нельзя: они пересчитываются задним числом при каждой новой выплате, поэтому в
-дописываемом по часу хранилище старые бары несли бы один коэффициент, а свежие
-другой - и на стыке возникал бы искусственный скачок в размере дивиденда, уже
-не на границе сессии, а в произвольном часе. Это хуже той проблемы, которую
-корректировка решает. Вместо этого ряд остаётся нескорректированным, а падение
-цены в день отсечки помечается здесь и исключается из гэп-канала.
+Why this is needed when our series are unadjusted. Adjusted series cannot be
+used: they are recomputed retroactively on every new payout, so in a store
+appended hour by hour the old bars would carry one coefficient and the new ones
+another - and at the seam an artificial jump the size of the dividend would
+appear, not at a session boundary but in an arbitrary hour. That is worse than
+the problem the adjustment solves. Instead the series stays unadjusted, and the
+price drop on the ex-date is flagged here and excluded from the gap channel.
 """
 from __future__ import annotations
 
@@ -33,15 +33,15 @@ import requests
 DEFAULT_ACTIONS_PATH = os.path.join("data", "meals", "corporate_actions.csv")
 TIME_SERIES_URL = "https://api.twelvedata.com/time_series"
 
-# Порог, ниже которого ступень считается шумом округления. Наблюдаемый шум -
-# порядка 1e-8, самая мелкая реальная выплата у коротких трежерис в 2021 году -
-# около 1.5e-4 от цены. Порог посередине, ближе к шуму.
+# Threshold below which a step counts as rounding noise. The observed noise is
+# around 1e-8; the smallest real payout, on short Treasuries in 2021, was about
+# 1.5e-4 of price. The threshold sits between them, closer to the noise.
 STEP_THRESHOLD = 1e-5
 
-# Ступень крупнее этого - уже не выплата, а дробление акций. Порог высокий
-# намеренно: настоящее дробление сдвигает коэффициент в разы (2:1 это 50%), а
-# годовая выплата сырьевого фонда доходит до 5% от цены - у DBC в декабре 2024
-# было 5.07%, и при пороге в 5% она попала бы в дробления.
+# A step larger than this is no longer a payout but a share split. The threshold
+# is deliberately high: a real split moves the coefficient several-fold (2:1 is
+# 50%), whereas a commodity fund's annual payout reaches 5% of price - DBC paid
+# 5.07% in December 2024, and at a 5% threshold it would have counted as a split.
 SPLIT_THRESHOLD = 0.20
 
 REQUEST_DELAY_SECONDS = 8.0
@@ -50,9 +50,9 @@ REQUEST_DELAY_SECONDS = 8.0
 @dataclass(frozen=True)
 class CorporateAction:
     ticker: str
-    day: date          # дата отсечки: первый день, когда цена идёт уже без выплаты
-    kind: str          # "dividend" или "split"
-    factor_step: float # доля цены, на которую сдвинулся коэффициент
+    day: date          # ex-date: the first day the price trades without the payout
+    kind: str          # "dividend" or "split"
+    factor_step: float # fraction of price by which the coefficient moved
 
 
 class CorporateActionsError(RuntimeError):
@@ -68,7 +68,7 @@ def _daily_closes(symbol: str, api_key: str, since: date, session: requests.Sess
     resp = session.get(f"{TIME_SERIES_URL}?{urllib.parse.urlencode(params)}", timeout=40,
                        headers={"User-Agent": "market-alert-bot"})
     if resp.status_code != 200:
-        raise CorporateActionsError(f"{symbol}: статус {resp.status_code}: {resp.text[:200]}")
+        raise CorporateActionsError(f"{symbol}: status {resp.status_code}: {resp.text[:200]}")
     data = resp.json()
     if data.get("status") == "error":
         raise CorporateActionsError(f"{symbol}: {data.get('message')}")
@@ -78,7 +78,7 @@ def _daily_closes(symbol: str, api_key: str, since: date, session: requests.Sess
 
 def derive_actions(symbol: str, api_key: str, since: date,
                    session: requests.Session | None = None) -> list[CorporateAction]:
-    """Находит даты корпоративных действий по ступеням коэффициента коррекции."""
+    """Finds corporate-action dates from the steps in the adjustment coefficient."""
     sess = session or requests.Session()
     raw = _daily_closes(symbol, api_key, since, sess, adjusted=False)
     time.sleep(REQUEST_DELAY_SECONDS)
@@ -86,7 +86,7 @@ def derive_actions(symbol: str, api_key: str, since: date,
 
     days = sorted(set(raw) & set(adjusted))
     if not days:
-        raise CorporateActionsError(f"{symbol}: ряды не пересекаются")
+        raise CorporateActionsError(f"{symbol}: the series do not overlap")
 
     actions = []
     previous = None
@@ -116,9 +116,9 @@ def write_actions(path: str, actions: list[CorporateAction]) -> None:
 
 
 def load_actions(path: str = DEFAULT_ACTIONS_PATH) -> dict[str, set[date]]:
-    """Даты корпоративных действий по тикеру. Пустой словарь, если таблицы нет:
-    её отсутствие не должно ронять часовой прогон - оно означает лишь, что
-    гэпы отсечек пока не помечаются."""
+    """Corporate-action dates by ticker. An empty dict if there is no table: its
+    absence must not break the hourly run - it merely means ex-date gaps are not
+    being flagged yet."""
     if not os.path.exists(path):
         return {}
     by_ticker: dict[str, set[date]] = {}
@@ -134,7 +134,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from meals.basket import load_basket
 
-    parser = argparse.ArgumentParser(description="Таблица корпоративных действий (п.2.4)")
+    parser = argparse.ArgumentParser(description="Corporate-actions table (§2.4)")
     parser.add_argument("--out", default=DEFAULT_ACTIONS_PATH)
     args = parser.parse_args(argv)
 
@@ -143,12 +143,12 @@ def main(argv: list[str] | None = None) -> int:
 
     api_key = os.environ.get("TWELVEDATA_API_KEY", "")
     if not api_key:
-        log.error("Не задан TWELVEDATA_API_KEY")
+        log.error("TWELVEDATA_API_KEY is not set")
         return 2
 
     basket = load_basket()
-    # Выплаты и дробления бывают у биржевых фондов. У валютных пар и крипты
-    # корпоративных действий не существует по природе инструмента.
+    # Payouts and splits happen to ETFs. Currency pairs and crypto have no
+    # corporate actions by the nature of the instrument.
     funds = [a for a in basket.instruments if a.source == "twelvedata" and a.block != "FX"]
 
     session = requests.Session()
@@ -158,15 +158,15 @@ def main(argv: list[str] | None = None) -> int:
             found = derive_actions(asset.ticker, api_key, basket.history_since, session)
             all_actions.extend(found)
             splits = sum(1 for a in found if a.kind == "split")
-            log.info("%s: выплат %d, дроблений %d", asset.ticker,
+            log.info("%s: payouts %d, splits %d", asset.ticker,
                      len(found) - splits, splits)
         except Exception as exc:
-            log.error("%s: не удалось - %s", asset.ticker, exc)
+            log.error("%s: failed - %s", asset.ticker, exc)
         if i < len(funds) - 1:
             time.sleep(REQUEST_DELAY_SECONDS)
 
     write_actions(args.out, all_actions)
-    log.info("%s: записей %d", args.out, len(all_actions))
+    log.info("%s: records %d", args.out, len(all_actions))
     return 0
 
 

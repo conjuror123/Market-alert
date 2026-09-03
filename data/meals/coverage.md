@@ -1,10 +1,10 @@
-# Таблица покрытия данных MEALS
+# MEALS data coverage table
 
-Составлена 2026-09-01 13:00 UTC. Требование п.2.1 ТЗ: без неё состав корзины не утверждается.
+Compiled 2026-09-03 22:03 UTC. Required by spec §2.1: without it the basket composition is not approved.
 
-## Корзина
+## Basket
 
-| Инструмент | Блок | Тир | Интервал | Баров | Период | Дней | Баров в день | W_asset | Шаг цены | Точность источника | Объём=0 | Макс. разрыв, ч | Замечания |
+| Instrument | Block | Tier | Interval | Bars | Period | Days | Bars per day | W_asset | Price step | Source precision | Volume=0 | Max gap, h | Notes |
 |---|---|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---|
 | `AUD/USD` | FX | 2 | 1h | 36,857 | 2021-01-01 .. 2026-08-31 | 1,801 | 24 | 2,880 | 1e-05 | 1e-08 | 100% | 69 | — |
 | `GBP/USD` | FX | 2 | 1h | 36,818 | 2021-01-01 .. 2026-08-31 | 1,805 | 24 | 2,880 | 1e-05 | 1e-05 | 100% | 71 | — |
@@ -28,17 +28,17 @@
 | `IEF` | rates | 1 | 30min | 9,892 | 2021-01-04 .. 2026-08-28 | 1,420 | 7 | 840 | 0.01 | 1e-08 | 1% | 93 | — |
 | `TLT` | rates | 1 | 30min | 9,909 | 2021-01-04 .. 2026-08-28 | 1,420 | 7 | 840 | 0.01 | 1e-08 | 1% | 93 | — |
 
-## Вне корзины (только SAED)
+## Outside the basket (SAED only)
 
-| Инструмент | Блок | Тир | Интервал | Баров | Период | Дней | Баров в день | W_asset | Шаг цены | Точность источника | Объём=0 | Макс. разрыв, ч | Замечания |
+| Instrument | Block | Tier | Interval | Bars | Period | Days | Bars per day | W_asset | Price step | Source precision | Volume=0 | Max gap, h | Notes |
 |---|---|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---|
 | `NZD/USD` | FX | 2 | 1h | 36,860 | 2021-01-01 .. 2026-08-31 | 1,804 | 24 | 2,880 | 1e-05 | 1e-08 | 100% | 69 | — |
 | `USD/CNY` | FX | 2 | 1h | 30,021 | 2021-01-01 .. 2026-08-31 | 1,615 | 19 | 2,280 | 1e-05 | 1e-05 | 100% | 252 | — |
 
-## Внешний индикатор стресса
+## External stress indicator
 
-`VIXCLS`: 9,262 дневных значений, 1990-01-02 .. 2026-08-28. Медианная задержка публикации — 39 ч от полуночи дня наблюдения (п.4.4, отступление зафиксировано в basket.yaml).
+`VIXCLS`: 9,262 daily values, 1990-01-02 .. 2026-08-28. Median publication lag — 39 h from midnight of the observation day (§4.4, the departure is recorded in basket.yaml).
 
-## Итого
+## Totals
 
-Инструментов: 23. Баров: 551,338. Проблемных строк: 2.
+Instruments: 23. Bars: 551,338. Rows with issues: 2.
