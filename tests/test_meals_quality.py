@@ -75,22 +75,22 @@ def test_forex_stops_for_the_weekend():
 
 
 def test_unknown_session_template_is_rejected():
-    with pytest.raises(ValueError, match="шаблон сессии"):
-        quality.in_session(asset(session_template="выдуманный"), pd.Series([0]))
+    with pytest.raises(ValueError, match="session template"):
+        quality.in_session(asset(session_template="made-up"), pd.Series([0]))
 
 
 def test_invalid_reasons_name_the_defect():
     bad = frame([
-        (HOUR, 1.0, 2.0, 0.5, 1.5, 10.0, 2),      # исправный
-        (2 * HOUR, 0.0, 2.0, 0.5, 1.5, 10.0, 2),  # цена не положительна
-        (3 * HOUR, 1.0, 2.0, 0.5, 9.9, 10.0, 2),  # close выше high
-        (4 * HOUR, 1.0, 2.0, 0.5, 1.5, -1.0, 2),  # объём отрицателен
+        (HOUR, 1.0, 2.0, 0.5, 1.5, 10.0, 2),      # sound
+        (2 * HOUR, 0.0, 2.0, 0.5, 1.5, 10.0, 2),  # price not positive
+        (3 * HOUR, 1.0, 2.0, 0.5, 9.9, 10.0, 2),  # close above high
+        (4 * HOUR, 1.0, 2.0, 0.5, 1.5, -1.0, 2),  # volume negative
     ])
     reasons = list(quality.invalid_reasons(asset(), bad))
     assert reasons[0] == ""
-    assert "положительна" in reasons[1]
+    assert "positive" in reasons[1]
     assert "OHLC" in reasons[2]
-    assert "объём" in reasons[3]
+    assert "volume" in reasons[3]
 
 
 def test_ohlc_tolerance_matches_the_audit():

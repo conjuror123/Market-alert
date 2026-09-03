@@ -1,22 +1,23 @@
-"""Адаптивный EWMA Z-score и адаптивные пороги (ТЗ п.3.1).
+"""Adaptive EWMA Z-score and adaptive thresholds (spec §3.1).
 
-Порядок вычислений здесь не деталь реализации, а само содержание метода.
+The order of operations here is not an implementation detail - it is the method.
 
-Z считается ДО обновления состояния, против параметров предыдущего бара. Если
-сделать наоборот, текущее движение сначала попадёт в оценку нормы, а потом
-будет сравниваться с ней же - и чем крупнее событие, тем сильнее оно поднимет
-собственный знаменатель. Детектор, устроенный так, тем хуже видит движение, чем
-оно больше; это называется look-ahead bias и это ровно то, от чего защищает
-формулировка "out-of-sample" в заголовке п.3.1.
+Z is computed BEFORE the state is updated, against the previous bar's
+parameters. Do it the other way round and the current move first enters the
+estimate of "normal" and is then compared against that same estimate - and the
+larger the event, the more it raises its own denominator. A detector built that
+way sees a move less well the bigger it is; this is called look-ahead bias, and
+it is exactly what the phrase "out-of-sample" in the heading of §3.1 guards
+against.
 
-В обновление состояния идёт винзоризованная r_w (п.2.5), а в расчёт Z -
-исходная r. Одна и та же величина в двух ролях: как наблюдение, которое надо
-оценить, и как вклад в оценку нормы. Ограничивается только вторая роль.
+The state update is fed the winsorized r_w (§2.5), while Z is computed from the
+raw r. The same quantity in two roles: as the observation to be judged, and as a
+contribution to the estimate of normal. Only the second role is capped.
 
-И ещё одна тонкость, которую легко потерять: в обновление дисперсии
-подставляется ewma_mean ПРЕДЫДУЩЕГО бара, не только что пересчитанное. ТЗ
-оговаривает это отдельной строкой, потому что обе формы выглядят одинаково
-естественно, а результаты у них разные.
+And one more subtlety that is easy to lose: the variance update is fed the
+ewma_mean of the PREVIOUS bar, not the one just recomputed. The spec spells this
+out in its own line, because both forms look equally natural and give different
+results.
 """
 from __future__ import annotations
 
@@ -25,22 +26,23 @@ import pandas as pd
 
 from meals import windows
 
-# Доля долгосрочной сигмы, ниже которой знаменатель Z не опускается (п.3.1).
-# Без этой отсечки в затишье EWMA-дисперсия схлопывается, и Z взлетает не
-# потому, что движение большое, а потому, что знаменатель стал крошечным.
+# Fraction of the long-term sigma below which Z's denominator never falls (§3.1).
+# Without this floor the EWMA variance collapses in a lull, and Z shoots up not
+# because the move is large but because the denominator became tiny.
 SIGMA_EFF_FLOOR = 0.2
 
 
 def ewma_state(returns: np.ndarray, winsorized: np.ndarray, sigma_lt: np.ndarray,
                lam: float = windows.LAMBDA) -> tuple[np.ndarray, np.ndarray]:
-    """Прогоняет автомат п.3.1 по ряду и возвращает (Z, sigma_eff).
+    """Runs the §3.1 automaton over a series and returns (Z, sigma_eff).
 
-    Последовательный проход - это слой B из п.6.1: состояние на баре зависит от
-    состояния на предыдущем, и векторизовать это без потери смысла нельзя.
+    The sequential pass is layer B from §6.1: a bar's state depends on the
+    previous bar's, and vectorising that without losing the meaning is not
+    possible.
 
-    Начальное состояние не имеет значения: при lambda = 2/25 период
-    полураспада около восьми баров, так что к концу разогрева в 500 баров
-    (п.6.6) вес начального значения порядка 1e-18.
+    The initial state does not matter: at lambda = 2/25 the half-life is about
+    eight bars, so by the end of the 500-bar burn-in (§6.6) the weight of the
+    starting value is around 1e-18.
     """
     n = len(returns)
     z = np.full(n, np.nan)
@@ -53,15 +55,15 @@ def ewma_state(returns: np.ndarray, winsorized: np.ndarray, sigma_lt: np.ndarray
         if not np.isfinite(r):
             continue
 
-        # Шаг 1: Z против параметров ПРЕДЫДУЩЕГО бара.
+        # Step 1: Z against the PREVIOUS bar's parameters.
         floor = SIGMA_EFF_FLOOR * sigma_lt[i] if np.isfinite(sigma_lt[i]) else 0.0
         sigma_eff = max(np.sqrt(var), floor)
         if sigma_eff > 0:
             z[i] = (r - mean) / sigma_eff
             sigma_eff_out[i] = sigma_eff
 
-        # Шаг 2: обновление состояния, на винзоризованной доходности и со
-        # СТАРЫМ средним в формуле дисперсии.
+        # Step 2: update the state, on the winsorized return and with the OLD
+        # mean in the variance formula.
         r_w = winsorized[i] if np.isfinite(winsorized[i]) else r
         previous_mean = mean
         mean = lam * r_w + (1 - lam) * mean
@@ -72,45 +74,46 @@ def ewma_state(returns: np.ndarray, winsorized: np.ndarray, sigma_lt: np.ndarray
 
 def adaptive_thresholds(abs_z: pd.Series, window: int,
                         lam_q: float = windows.LAMBDA_Q) -> tuple[pd.Series, pd.Series]:
-    """Сглаженные пороги Q95 и Q99 (п.3.1).
+    """Smoothed Q95 and Q99 thresholds (§3.1).
 
-    Перцентили считаются на скользящем окне |Z|, ИСКЛЮЧАЯ текущий бар: порог,
-    в который включено оцениваемое наблюдение, подстраивается под него и тем
-    самым занижает собственное срабатывание.
+    The percentiles are computed on a rolling window of |Z| EXCLUDING the current
+    bar: a threshold that contains the observation being judged adjusts towards
+    it and thereby understates its own breach.
 
-    Сглаживание по ТЗ обязательно. Без него порог дёргается вслед за тем, какие
-    именно значения вошли и вышли из окна, и одно и то же движение может
-    оказаться то значимым, то нет - только из-за того, что произошло 840 баров
-    назад.
+    The spec makes smoothing mandatory. Without it the threshold jerks around
+    depending on which values happened to enter and leave the window, and the
+    same move can be significant or not purely because of something that happened
+    840 bars ago.
 
-    Окно отсчитывается по ОПРЕДЕЛЁННЫМ значениям Z, а не по строкам. Формально
-    п.3.1 говорит "скользящее окно W_asset абсолютных значений Z", и разница
-    видна там, где ряд Z рвётся не только на разогреве. У ряда остатков это
-    происходит каждую неделю: крипта торгует по выходным, а фактор корзины в
-    эти часы не существует, потому что эталонный календарь их не включает.
-    Окно из 2880 подряд идущих строк не наберёт 2880 значений никогда - у
-    биткойна пороги остатка не посчитались бы ни разу, и модуль SAED молчал бы
-    по всей крипте.
+    The window is counted over DEFINED values of Z, not over rows. §3.1 literally
+    says "a rolling window W_asset of absolute values of Z", and the difference
+    shows wherever the Z series has holes beyond the burn-in. For the residual
+    series that happens every week: crypto trades at weekends, but the basket
+    factor does not exist in those hours because the reference calendar excludes
+    them. A window of 2880 consecutive rows would never accumulate 2880 values -
+    Bitcoin's residual thresholds would never be computed at all, and the SAED
+    module would stay silent across the whole crypto block.
     """
     defined = abs_z.dropna()
     raw = defined.shift(1).rolling(window, min_periods=window)
-    # ewm с adjust=False - это ровно рекуррентная формула ТЗ
-    # Q_t = lambda_q * Q_raw_t + (1 - lambda_q) * Q_{t-1}, и считается она по
-    # подряд идущим определённым барам.
+    # ewm with adjust=False is exactly the spec's recurrence
+    # Q_t = lambda_q * Q_raw_t + (1 - lambda_q) * Q_{t-1}, computed over
+    # consecutive defined bars.
     q95 = raw.quantile(0.95).ewm(alpha=lam_q, adjust=False).mean()
     q99 = raw.quantile(0.99).ewm(alpha=lam_q, adjust=False).mean()
-    # Там, где Z не определён, порог не нужен: пробой всё равно не оценивается.
+    # Where Z is undefined no threshold is needed: the breach is not assessed anyway.
     return q95.reindex(abs_z.index), q99.reindex(abs_z.index)
 
 
 def breaches(abs_z: pd.Series, abs_r: pd.Series, sigma_lt: pd.Series,
              q95: pd.Series, q99: pd.Series) -> pd.DataFrame:
-    """Гибридное условие значимости п.3.1: относительная И абсолютная нога
-    одновременно.
+    """The hybrid significance condition of §3.1: the relative AND the absolute
+    leg at once.
 
-    Возвращает NULL (pd.NA), а не False, там где условие не оценено - пороги
-    ещё не набрались или нет долгосрочной сигмы. По п.1.2 это разные вещи:
-    "не превысило порог" и "порога пока не существует".
+    Returns NULL (pd.NA) rather than False wherever the condition was not
+    assessed - the thresholds have not filled yet, or there is no long-term
+    sigma. Per §1.2 these are different things: "did not clear the threshold" and
+    "the threshold does not exist yet".
     """
     known = q95.notna() & q99.notna() & sigma_lt.notna() & abs_z.notna()
     q99_hit = (abs_z > q99) & (abs_r >= windows.ABS_LEG_Q99 * sigma_lt)
@@ -122,12 +125,13 @@ def breaches(abs_z: pd.Series, abs_r: pd.Series, sigma_lt: pd.Series,
 
 
 def compute(frame: pd.DataFrame, w_asset: int) -> pd.DataFrame:
-    """Собирает Z, пороги и признаки пробоя для одного ряда.
+    """Assembles Z, the thresholds and the breach flags for one series.
 
-    На вход идёт кадр после winsorize: с колонками r, r_w и sigma_lt. Тот же
-    аппарат применяется к ряду остатков SAED (п.3.6) и к ряду VIX (п.4.4) - у
-    них свои состояния и свои пороги, но формулы те же, поэтому функция не
-    знает, чей ряд обрабатывает.
+    The input is a frame after winsorize: with columns r, r_w and sigma_lt. The
+    same machinery is applied to the SAED residual series (§3.6) and to the VIX
+    series (§4.4) - they have their own states and their own thresholds, but the
+    formulas are identical, so this function does not know whose series it is
+    processing.
     """
     out = frame.copy()
     if out.empty:
@@ -142,14 +146,14 @@ def compute(frame: pd.DataFrame, w_asset: int) -> pd.DataFrame:
     out["z"] = z
     out["sigma_eff"] = sigma_eff
 
-    # Пока sigma_LT не набралась, у знаменателя нет нижней отсечки - той самой,
-    # что не даёт EWMA-дисперсии схлопнуться. На замерших котировках это даёт
-    # бессмысленные значения: у EUR/USD 1 января 2021 после четырёх часов
-    # стоящей цены один обычный полупроцентный сдвиг дал Z в 224. Само по себе
-    # это безвредно - пробои там всё равно NULL, - но такие Z попадали в окно
-    # перцентилей и сдвигали пороги на тысячи баров вперёд. По п.6.6 час до
-    # first_valid_hour вообще не участвует в статистике, поэтому Z на разогреве
-    # не просто не используется, а не существует.
+    # Until sigma_LT has filled, the denominator has no floor - the very floor
+    # that keeps the EWMA variance from collapsing. On frozen quotes this yields
+    # nonsense: on EUR/USD, 1 January 2021, after four hours of a standing price,
+    # one ordinary half-percent move produced a Z of 224. That is harmless in
+    # itself - breaches there are NULL anyway - but such Z values entered the
+    # percentile window and shifted the thresholds thousands of bars forward.
+    # Per §6.6 an hour before first_valid_hour takes no part in the statistics at
+    # all, so Z during the burn-in is not merely unused, it does not exist.
     out.loc[out["sigma_lt"].isna(), ["z", "sigma_eff"]] = np.nan
 
     abs_z = out["z"].abs()

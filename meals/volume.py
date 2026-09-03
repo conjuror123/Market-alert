@@ -1,21 +1,21 @@
-"""Робастный профиль объёма (ТЗ п.3.5).
+"""Robust volume profile (spec §3.5).
 
-Объём торгов подчиняется резкой внутридневной сезонности: первый и последний
-час американской сессии кратно активнее середины дня, и сравнивать текущий час
-с "обычным объёмом" вообще - значит каждый день объявлять открытие и закрытие
-аномалией, а тихий полдень никогда не замечать. Поэтому норма берётся не общая,
-а по КАЖДОМУ ЛОКАЛЬНОМУ БИРЖЕВОМУ ЧАСУ отдельно: полдень сравнивается с
-полднями, открытие - с открытиями.
+Trading volume follows a sharp intraday seasonality: the first and last hour of
+the US session are several times busier than midday, and comparing the current
+hour against "usual volume" in general means declaring the open and the close an
+anomaly every single day while never noticing a quiet noon. So the norm is taken
+not globally but PER LOCAL EXCHANGE HOUR: noon is compared with noons, the open
+with opens.
 
-Час именно локальный биржевой, а не UTC: сезонность привязана к расписанию
-торгов, а оно живёт в местном времени и переезжает относительно UTC дважды в
-год при переходе на летнее время.
+The hour is specifically the local exchange hour, not UTC: the seasonality is
+tied to the trading schedule, and that lives in local time and shifts relative to
+UTC twice a year with daylight saving.
 
-Оценка робастная - медиана и MAD вместо среднего и стандартного отклонения. По
-объёму это принципиальнее, чем по цене: один день с новостью даёт всплеск в
-десятки раз, и обычное среднее после него надолго перестаёт быть нормой.
-Логарифм ln(1 + V) берётся до всего остального, потому что распределение объёма
-скошено вправо на порядки величины.
+The estimate is robust - median and MAD instead of mean and standard deviation.
+For volume this matters more than for price: one day with news produces a spike
+tens of times over, and after it an ordinary mean stops being a norm for a long
+while. The logarithm ln(1 + V) is taken before everything else, because the
+volume distribution is right-skewed by orders of magnitude.
 """
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ import pandas as pd
 from meals import windows
 from meals.basket import Asset
 
-MAD_TO_SIGMA = 1.4826  # приводит MAD к масштабу стандартного отклонения
+MAD_TO_SIGMA = 1.4826  # brings MAD onto the scale of a standard deviation
 
 
 def _mad(values: np.ndarray) -> float:
@@ -38,20 +38,20 @@ def _mad(values: np.ndarray) -> float:
 def robust_volume_z(asset: Asset, frame: pd.DataFrame, exchange_tz: str,
                     full_days: set[date] | None = None,
                     profile_days: int = windows.VOLUME_PROFILE_DAYS) -> pd.Series:
-    """V_R по п.3.5: насколько объём часа выделяется среди объёмов этого же
-    локального часа за последние 20 ПОЛНЫХ торговых дней.
+    """V_R per §3.5: how far an hour's volume stands out among volumes of the same
+    local hour over the last 20 FULL trading days.
 
-    Полных - значит без полусессий и праздников: в сокращённый день объём
-    заведомо меньше, и держать такие дни в норме означало бы занижать её для
-    всех остальных. Сами бары полусессии при этом оцениваются на общих
-    основаниях, просто по профилю, собранному из полных дней.
+    Full means excluding half sessions and holidays: on a shortened day volume is
+    lower by construction, and keeping such days in the norm would depress it for
+    everyone else. The half-session bars themselves are still assessed normally,
+    just against a profile built from full days.
 
-    Текущий день в профиль не входит: норма, в которую включено оцениваемое
-    наблюдение, подстраивается под него.
+    The current day is not in the profile: a norm that includes the observation
+    being judged adjusts itself towards that observation.
 
-    У инструментов без объёма (спот-форекс) возвращается NULL по всему ряду -
-    по п.3.5 подтверждение объёмом для них не оценивается вовсе, а не считается
-    несработавшим.
+    Instruments without volume (spot FX) get NULL across the whole series - per
+    §3.5 volume confirmation is not assessed for them at all, rather than counted
+    as having failed.
     """
     if frame.empty:
         return pd.Series(dtype="float64", index=frame.index)
@@ -61,8 +61,8 @@ def robust_volume_z(asset: Asset, frame: pd.DataFrame, exchange_tz: str,
     local = pd.to_datetime(frame["hour_utc"], unit="s", utc=True).dt.tz_convert(
         ZoneInfo(exchange_tz))
     work = pd.DataFrame({
-        # Ключ дня - datetime64, а не date: merge_asof ниже требует числовой
-        # или временной ключ и на объектном типе отказывается работать.
+        # The day key is datetime64, not date: merge_asof below needs a numeric
+        # or temporal key and refuses to work on an object dtype.
         "day": local.dt.tz_localize(None).dt.normalize(),
         "local_hour": local.dt.hour,
         "ln_volume": np.log1p(frame["volume"].astype("float64")),
@@ -86,8 +86,8 @@ def robust_volume_z(asset: Asset, frame: pd.DataFrame, exchange_tz: str,
         if profile.empty:
             continue
 
-        # merge_asof без точного совпадения: профиль берётся по дням СТРОГО
-        # раньше текущего.
+        # merge_asof without exact matches: the profile is taken from days
+        # STRICTLY earlier than the current one.
         matched = pd.merge_asof(
             group.reset_index().sort_values("day"),
             profile.sort_values("day"),
@@ -95,9 +95,9 @@ def robust_volume_z(asset: Asset, frame: pd.DataFrame, exchange_tz: str,
         ).set_index("index")
 
         scaled_mad = MAD_TO_SIGMA * matched["mad_h"]
-        # Вырожденный профиль: объём этого часа не менялся 20 дней подряд.
-        # Делить на такое нельзя, а объявлять любое отклонение бесконечным - тем
-        # более, поэтому по п.3.5 V_R = 0.
+        # Degenerate profile: this hour's volume has not moved for 20 days
+        # running. Dividing by that is impossible, and declaring any deviation
+        # infinite is worse, so §3.5 sets V_R = 0.
         degenerate = scaled_mad < windows.VOLUME_MAD_FLOOR
         values = (matched["ln_volume"] - matched["median_h"]) / scaled_mad
         values[degenerate] = 0.0
@@ -107,5 +107,5 @@ def robust_volume_z(asset: Asset, frame: pd.DataFrame, exchange_tz: str,
 
 
 def full_session_days(session_table: dict[date, object]) -> set[date]:
-    """Дни полных сессий: и не праздник (день есть в таблице), и не полусессия."""
+    """Full-session days: neither a holiday (the day is in the table) nor a half session."""
     return {day for day, session in session_table.items() if not session.is_early_close}

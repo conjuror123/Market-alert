@@ -1,113 +1,114 @@
-"""Реестр окон и констант (ТЗ п.2.7).
+"""Registry of windows and constants (spec §2.7).
 
-Всё в одном месте, потому что главная опасность здесь - смешать единицы.
-Спецификация делит окна на три несовместимых вида, и путаница между ними не
-даёт ошибки, а тихо меняет смысл расчёта:
+All in one place, because the main hazard here is mixing units. The
+specification divides windows into three incompatible kinds, and confusing them
+does not raise an error - it silently changes what the calculation means:
 
-- окна по активу считаются в ВАЛИДНЫХ ТОРГОВЫХ БАРАХ этого актива. Для фонда
-  США это 7 баров в дне, для валютной пары - 24, поэтому "120 баров" означает
-  17 торговых дней у одного и 5 суток у другого;
-- кросс-секционные окна считаются в ЧАСАХ ЭТАЛОННОГО КАЛЕНДАРЯ корзины, то
-  есть в общей для всех шкале;
-- и ровно одно исключение - окна календарного мультипликатора, которые
-  измеряются в КАЛЕНДАРНЫХ часах и не сокращаются, даже если пересекают
-  закрытие рынка или выходные.
+- per-asset windows are counted in VALID TRADING BARS of that asset. For a US
+  ETF that is 7 bars a day, for a currency pair 24, so "120 bars" means 17
+  trading days for one and 5 calendar days for the other;
+- cross-sectional windows are counted in REFERENCE-CALENDAR HOURS of the
+  basket, that is, on a scale shared by everything;
+- and exactly one exception - the calendar-multiplier windows, which are
+  measured in CALENDAR hours and are not shortened even when they cross a
+  market close or a weekend.
 
-Имена констант повторяют обозначения ТЗ намеренно: так их можно сверять со
-спецификацией глазами, не держа в голове таблицу переименований.
+Constant names deliberately mirror the notation of the spec: that way they can
+be checked against it by eye, without holding a rename table in your head.
 """
 from __future__ import annotations
 
-# --- окна по активу, в валидных торговых барах ---------------------------
+# --- per-asset windows, in valid trading bars -----------------------------
 
-# EWMA доходности (п.3.1). Период 24 бара.
+# EWMA of returns (§3.1). Period 24 bars.
 LAMBDA = 2 / (24 + 1)
 
-# Окно винзоризации (п.2.5): медианное абсолютное отклонение за последние 24
-# валидных бара, БЕЗ текущего.
+# Winsorization window (§2.5): median absolute deviation over the last 24 valid
+# bars, EXCLUDING the current one.
 MAD_WINDOW = 24
 
-# Сглаживание порогов Q95/Q99 (п.3.1). Период 120 баров.
+# Smoothing of the Q95/Q99 thresholds (§3.1). Period 120 bars.
 LAMBDA_Q = 2 / (120 + 1)
 
-# Долгосрочная сигма (п.2.5, 3.1): 5000 баров или вся история, но не меньше 720.
+# Long-term sigma (§2.5, §3.1): 5000 bars or the whole history, but no fewer
+# than 720.
 SIGMA_LT_BARS = 5000
 SIGMA_LT_MIN_BARS = 720
 
-# Профиль объёма (п.3.5) - 20 ПОЛНЫХ торговых дней по каждому локальному часу;
-# сокращённые сессии и праздники из профиля исключаются.
+# Volume profile (§3.5) - 20 FULL trading days per local exchange hour; half
+# sessions and holidays are excluded from the profile.
 VOLUME_PROFILE_DAYS = 20
 
-# Окно регрессии на фактор корзины (п.3.6) - в СОВМЕСТНЫХ валидных барах
-# инструмента и фактора.
+# Regression window on the basket factor (§3.6) - in bars where the instrument
+# and the factor are BOTH valid.
 REGRESSION_WINDOW = 500
 REGRESSION_MIN = 200
 
-# Персональный кулдаун одиночного события (п.8.3) - в барах самого актива,
-# календарные часы здесь не используются.
+# Per-asset cooldown of a single-asset event (§8.3) - in that asset's own bars;
+# calendar hours are not used here.
 SAED_COOLDOWN_BARS = 12
 
-# Разогрев EWMA-состояния актива (п.6.6).
+# Burn-in of an asset's EWMA state (§6.6).
 EWMA_BURN_IN_BARS = 500
 
-# --- кросс-секционные окна, в часах эталонного календаря ------------------
+# --- cross-sectional windows, in reference-calendar hours -----------------
 
-W_PCA = 120           # окно PCA, одна торговая неделя (п.3.3)
-W_CS = 1200           # окно статистик CSV_norm, PC1_ratio, sigma_M, k_t (п.3.2, 3.3, 5.2)
-CLUSTER_COOLDOWN = 72  # кулдаун кластерного события (п.5.1)
-VIX_WINDOW = 24        # окно множителя VIX (п.4.4)
-ESCALATION_DEBOUNCE = 24  # окно антидребезга эскалаций (п.5.2)
-TRUTH_HORIZON = 24     # горизонт разметки истины и baseline (п.7)
-REVERSAL_DELAY = 3     # задержка ветви векторного разворота (п.5.2)
-EXPORT_HALF_WINDOW = 12  # окно экспорта события вокруг T0 (п.6.5)
+W_PCA = 120           # PCA window, one trading week (§3.3)
+W_CS = 1200           # window for CSV_norm, PC1_ratio, sigma_M, k_t (§3.2, 3.3, 5.2)
+CLUSTER_COOLDOWN = 72  # cluster-event cooldown (§5.1)
+VIX_WINDOW = 24        # VIX multiplier window (§4.4)
+ESCALATION_DEBOUNCE = 24  # escalation debounce window (§5.2)
+TRUTH_HORIZON = 24     # horizon for truth labelling and baseline (§7)
+REVERSAL_DELAY = 3     # delay before the vector-reversal branch (§5.2)
+EXPORT_HALF_WINDOW = 12  # event export window around T0 (§6.5)
 
-# --- календарные часы: единственное исключение (п.2.7, 4.3) ---------------
+# --- calendar hours: the single exception (§2.7, §4.3) --------------------
 
 CALENDAR_HIGH_BEFORE, CALENDAR_HIGH_AFTER = 6.0, 3.0
 CALENDAR_MEDIUM_BEFORE, CALENDAR_MEDIUM_AFTER = 4.0, 2.0
 
 
 def w_asset(bars_per_session: float) -> int:
-    """Окно порогов Q95/Q99 актива: max(120 * B_asset, 720) баров (п.2.7).
+    """Window for an asset's Q95/Q99 thresholds: max(120 * B_asset, 720) bars (§2.7).
 
-    B_asset - медианное число валидных баров в сессии этого актива. Его нельзя
-    задать константой: у фонда США сессия даёт 7 часовых баров, у валютной пары
-    24, и одно и то же окно в барах означало бы у них разный отрезок истории.
-    Нижняя граница в 720 баров не даёт окну схлопнуться на инструменте с
-    короткой сессией.
+    B_asset is the median number of valid bars in that asset's session. It
+    cannot be a constant: a US ETF session yields 7 hourly bars, a currency pair
+    24, and the same window expressed in bars would cover a different stretch of
+    history for each. The floor of 720 bars keeps the window from collapsing on
+    an instrument with a short session.
     """
     if bars_per_session <= 0:
-        raise ValueError("B_asset должен быть положительным")
+        raise ValueError("B_asset must be positive")
     return max(int(120 * bars_per_session), 720)
 
 
 def sigma_lt_bars(available_bars: int) -> int:
-    """Сколько баров брать для долгосрочной сигмы (п.2.7).
+    """How many bars to take for the long-term sigma (§2.7).
 
-    Формулировка ТЗ - "5000 баров или вся история, но не менее 720" - означает,
-    что на молодом ряду берётся вся доступная история, а расчёт вообще не
-    определён, пока баров меньше 720.
+    The spec's wording - "5000 bars or the whole history, but no fewer than
+    720" - means that on a young series the whole available history is used, and
+    that the value is undefined at all while there are fewer than 720 bars.
     """
     if available_bars < SIGMA_LT_MIN_BARS:
         raise ValueError(
-            f"Недостаточно истории для sigma_LT: {available_bars} баров "
-            f"при минимуме {SIGMA_LT_MIN_BARS}")
+            f"Not enough history for sigma_LT: {available_bars} bars "
+            f"against a minimum of {SIGMA_LT_MIN_BARS}")
     return min(SIGMA_LT_BARS, available_bars)
 
 
-# --- абсолютные отсечки гибридного условия значимости (п.3.1) -------------
+# --- absolute legs of the hybrid significance condition (§3.1) -----------
 #
-# Помечены в ТЗ звёздочкой: стартовые значения, калибруются на train (п.7).
-# Смысл второй, абсолютной ноги в том, что относительная сама по себе
-# обманчива. В очень спокойный период собственная волатильность актива
-# схлопывается, и движение, ничтожное по абсолютной величине, честно
-# пробивает свой перцентиль. Абсолютная нога требует, чтобы движение было
-# крупным ещё и по меркам всей доступной истории.
+# Starred in the spec: starting values, calibrated on train (§7).
+# The point of the second, absolute leg is that the relative one is misleading
+# on its own. In a very quiet stretch an asset's own volatility collapses, and a
+# move that is negligible in absolute terms honestly clears its percentile. The
+# absolute leg demands that the move also be large by the standards of the whole
+# available history.
 ABS_LEG_Q99 = 3.0   # |r_t| >= 3.0 * sigma_LT
 ABS_LEG_Q95 = 1.5   # |r_t| >= 1.5 * sigma_LT
 
-# Порог подтверждения объёмом (п.3.5), тоже стартовое значение.
+# Volume confirmation threshold (§3.5), also a starting value.
 VOLUME_CONFIRM = 2.5
 
-# Ниже этого масштабированный MAD объёма считается вырожденным (п.3.5).
+# Below this the scaled volume MAD counts as degenerate (§3.5).
 VOLUME_MAD_FLOOR = 1e-6

@@ -1,21 +1,21 @@
-"""Сводный Индекс Сенсации (ТЗ п.4).
+"""Sensation Index (spec §4).
 
-    SI_total = (сумма базовых баллов) * M_calendar * M_VIX
+    SI_total = (sum of base points) * M_calendar * M_VIX
 
-Четыре триггера отвечают на четыре разных вопроса, и складываются баллы именно
-потому, что вопросы разные: было ли движение экстремальным (ценовой шок),
-подтверждено ли оно потоком заявок (объём), затронуло ли оно РАЗНЫЕ части рынка
-(кластерный сдвиг) и объясняется ли всё происходящее одной причиной
-(однофакторность). Событие, набравшее баллы по нескольким осям сразу,
-качественно отличается от того, что набрало столько же по одной.
+Four triggers answer four different questions, and the points add up precisely
+because the questions differ: was the move extreme (price shock), is it backed
+by order flow (volume), did it touch DIFFERENT parts of the market (cluster
+shift), and is everything happening explained by a single cause (single-factor).
+An event that scores on several axes at once is qualitatively different from one
+that scores the same total on a single axis.
 
-Балл за тип триггера начисляется ОДИН раз за час, сколько бы активов условию ни
-удовлетворяло. Кластерный сдвиг и однофакторность уже агрегируют информацию по
-корзине, и умножать их ещё и на число активов значило бы считать одно и то же
-дважды.
+Points for a trigger type are awarded ONCE per hour, however many assets satisfy
+the condition. Cluster shift and single-factor already aggregate information
+across the basket, and multiplying them by the number of assets on top of that
+would count the same thing twice.
 
-Широта считается по БЛОКАМ, а не по тикерам. Шесть валютных пар, дёрнувшихся на
-одном движении доллара, - это один блок, а не шесть свидетельств.
+Breadth is counted by BLOCKS, not by tickers. Six currency pairs jerked by one
+move in the dollar are one block, not six pieces of evidence.
 """
 from __future__ import annotations
 
@@ -24,23 +24,23 @@ import pandas as pd
 
 from meals.basket import Basket
 
-# Веса триггеров (п.4.2), все помечены в ТЗ звёздочкой.
+# Trigger weights (§4.2), all starred in the spec.
 POINTS_PRICE_SHOCK = 3
 POINTS_VOLUME = 2
 POINTS_CLUSTER_SHIFT = 4
 POINTS_SINGLE_FACTOR = 3
 MAX_POINTS = POINTS_PRICE_SHOCK + POINTS_VOLUME + POINTS_CLUSTER_SHIFT + POINTS_SINGLE_FACTOR
 
-# Доля активов блока, при которой блок считается активным (п.4.2).
+# Share of a block's assets at which the block counts as active (§4.2).
 BLOCK_ACTIVE_SHARE = 0.33
 BLOCK_ACTIVE_MIN = 2
 MIN_ACTIVE_BLOCKS = 2
 
-# Пороги решений (п.4.5), тоже стартовые значения.
+# Decision thresholds (§4.5), also starting values.
 THRESHOLD = 7
 ESCALATION_THRESHOLD = 12
 
-# Шкала широты по Q99 (п.4.5, п.5.2).
+# Breadth scale on Q99 (§4.5, §5.2).
 BREADTH_SHARE = 0.50
 BREADTH_MIN_BLOCKS = 2
 
@@ -52,11 +52,11 @@ def _panel(metrics: dict[str, pd.DataFrame], column: str, hours: pd.Index) -> pd
 
 def active_blocks(breaches: pd.DataFrame, present: pd.DataFrame,
                   blocks: dict[str, str]) -> pd.DataFrame:
-    """Сколько активов блока пробило порог и сколько их вообще в сессии.
+    """How many of a block's assets breached, and how many are in session at all.
 
-    Доля берётся от активов В СЕССИИ, а не от списочного состава блока: ночью
-    фонды закрыты, и требовать от блока equity трети участников было бы
-    требованием невыполнимым, а не строгим.
+    The share is taken over assets IN SESSION, not over the block's roster: at
+    night the ETFs are closed, and demanding a third of the equity block's
+    members would be an impossible requirement rather than a strict one.
     """
     counts = {}
     for block in sorted(set(blocks.values())):
@@ -73,7 +73,7 @@ def active_blocks(breaches: pd.DataFrame, present: pd.DataFrame,
 def base_points(basket: Basket, metrics: dict[str, pd.DataFrame],
                 single_factor: pd.Series, hours: pd.Index,
                 volume_threshold: float) -> pd.DataFrame:
-    """Базовые баллы по п.4.2, по каждому триггеру отдельно."""
+    """Base points per §4.2, one column per trigger."""
     ids = {a.asset_id for a in basket.assets}
     blocks = {a.asset_id: a.block for a in basket.assets}
     tier1 = {a.asset_id for a in basket.assets if a.tier == 1}
@@ -87,8 +87,8 @@ def base_points(basket: Basket, metrics: dict[str, pd.DataFrame],
 
     price_shock = q99.fillna(False).any(axis=1)
 
-    # Объём подтверждает не сам по себе, а у актива, который УЖЕ дал ценовой
-    # шок: всплеск объёма без движения цены - это другое событие.
+    # Volume confirms not on its own but on an asset that ALREADY produced a
+    # price shock: a volume spike without a price move is a different event.
     volume_columns = [c for c in q99.columns if c in with_volume]
     volume_confirms = (q99[volume_columns].fillna(False)
                        & (v_r[volume_columns] > volume_threshold)).any(axis=1)
@@ -124,6 +124,6 @@ def base_points(basket: Basket, metrics: dict[str, pd.DataFrame],
 
 
 def si_total(points: pd.Series, m_calendar: pd.Series, m_vix: pd.Series) -> pd.Series:
-    """Итоговый балл после мультипликаторов - основная шкала всех пороговых
-    решений (п.4.5)."""
+    """The final score after the multipliers - the primary scale on which every
+    threshold decision is taken (§4.5)."""
     return points * m_calendar * m_vix

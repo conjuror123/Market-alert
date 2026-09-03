@@ -1,21 +1,21 @@
-"""Идиосинкратический остаток: вход модуля SAED (ТЗ п.3.6).
+"""Idiosyncratic residual: the input of the SAED module (spec §3.6).
 
-Смысл всей конструкции в одном вопросе: движение этого актива - его
-собственное, или он просто плывёт вместе со всем рынком? Сырая доходность на
-такой вопрос не отвечает. В день, когда падает всё, каждый актив покажет
-крупное движение и крупный Z, и детектор по сырой доходности выдаст двадцать
-одинаковых алертов об одном и том же событии - ровно так и ведёт себя часовой
-сигнал нынешнего бота.
+The whole construction answers one question: is this asset's move its own, or is
+it simply drifting along with the market? A raw return cannot answer that. On a
+day when everything falls, every asset shows a large move and a large Z, and a
+detector built on raw returns fires twenty identical alerts about one and the
+same event - which is exactly how the current bot's hourly signal behaves.
 
-Поэтому из доходности вычитается общий фактор корзины: r = alpha + beta * F + e,
-и дальше в дело идёт только остаток e. Бета оценивается скользящим окном и
-строго на данных ДО текущего бара - иначе движение, которое мы хотим
-задетектировать, само подправило бы коэффициент и частично вычлось бы из себя.
+So the common basket factor is subtracted from the return:
+r = alpha + beta * F + e, and only the residual e goes forward. Beta is estimated
+on a rolling window and strictly on data BEFORE the current bar - otherwise the
+very move we are trying to detect would adjust the coefficient and partly
+subtract itself from itself.
 
-Остаток обрабатывается тем же аппаратом п.3.1, что и цена, но с полностью
-СВОИМИ состояниями: своя EWMA, своя долгосрочная сигма, свои сглаженные пороги.
-Смешивать их с ценовыми нельзя - у остатка другой масштаб и другое
-распределение.
+The residual is processed by the same §3.1 machinery as the price, but with
+entirely ITS OWN states: its own EWMA, its own long-term sigma, its own smoothed
+thresholds. Mixing them with the price ones is not allowed - the residual has a
+different scale and a different distribution.
 """
 from __future__ import annotations
 
@@ -29,15 +29,15 @@ from meals.basket import Asset
 def rolling_beta(returns: pd.Series, factor: pd.Series,
                  window: int = windows.REGRESSION_WINDOW,
                  minimum: int = windows.REGRESSION_MIN) -> pd.DataFrame:
-    """Скользящая регрессия r на F по СОВМЕСТНЫМ валидным барам (п.2.7).
+    """Rolling regression of r on F over bars where BOTH are valid (§2.7).
 
-    Окно измеряется в барах, где определены обе величины, а не в календарных
-    часах: у фонда фактор корзины существует только в американскую сессию, и
-    окно из пятисот календарных часов дало бы ему вчетверо меньше наблюдений,
-    чем валютной паре.
+    The window is measured in bars where both quantities are defined, not in
+    calendar hours: for an ETF the basket factor exists only during the US
+    session, and a window of five hundred calendar hours would give it four times
+    fewer observations than a currency pair.
 
-    Коэффициенты сдвинуты на бар вперёд - оценка, доступная НА момент t,
-    построена по данным до t включительно предыдущего бара.
+    The coefficients are shifted forward by one bar - the estimate available AT
+    moment t is built on data up to and including the previous bar.
     """
     joint = pd.DataFrame({"r": returns, "f": factor}).dropna()
     if len(joint) < minimum:
@@ -51,7 +51,7 @@ def rolling_beta(returns: pd.Series, factor: pd.Series,
 
     beta = (cov / var_f).where(var_f > 0)
     alpha = mean_r - beta * mean_f
-    # Сдвиг на бар: на баре t используется оценка, посчитанная по данным до t.
+    # Shift by one bar: at bar t the estimate computed on data before t is used.
     estimates = pd.DataFrame({"alpha": alpha.shift(1), "beta": beta.shift(1)})
     return estimates.reindex(returns.index)
 
@@ -59,17 +59,18 @@ def rolling_beta(returns: pd.Series, factor: pd.Series,
 def rolling_two_factor(returns: pd.Series, factor: pd.Series, block_factor: pd.Series,
                        window: int = windows.REGRESSION_WINDOW,
                        minimum: int = windows.REGRESSION_MIN) -> pd.DataFrame:
-    """Регрессия на два фактора: корзину и собственный блок актива.
+    """Regression on two factors: the basket and the asset's own block.
 
-    Решается через нормальные уравнения, а не подгонкой в цикле: для двух
-    регрессоров система 2x2 выписывается явно через скользящие дисперсии и
-    ковариации, и весь расчёт остаётся векторным (слой A из п.6.1).
+    Solved through the normal equations rather than by fitting in a loop: for two
+    regressors the 2x2 system can be written out explicitly in terms of rolling
+    variances and covariances, and the whole calculation stays vectorised
+    (layer A of §6.1).
 
-    Вырожденный случай оговорён отдельно. Если два фактора в окне почти
-    коллинеарны, определитель стремится к нулю, и коэффициенты разлетаются на
-    произвольные величины с противоположными знаками - формально решение есть,
-    по смыслу это шум. В таком окне регрессия откатывается к одному фактору
-    корзины, то есть к поведению п.3.6.
+    The degenerate case is handled explicitly. If the two factors are nearly
+    collinear within the window, the determinant tends to zero and the
+    coefficients fly off to arbitrary values with opposite signs - formally there
+    is a solution, in substance it is noise. In such a window the regression falls
+    back to the basket factor alone, that is, to the behaviour of §3.6.
     """
     joint = pd.DataFrame({"y": returns, "x1": factor, "x2": block_factor}).dropna()
     if len(joint) < minimum:
@@ -85,9 +86,9 @@ def rolling_two_factor(returns: pd.Series, factor: pd.Series, block_factor: pd.S
     cov_2y = covariances[("x2", "y")]
 
     determinant = var_1 * var_2 - cov_12 ** 2
-    # Определитель сравнивается не с нулём, а с произведением дисперсий: сам по
-    # себе он мал просто потому, что доходности малы, и абсолютный порог
-    # объявил бы вырожденным любое окно.
+    # The determinant is compared not against zero but against the product of the
+    # variances: on its own it is small simply because returns are small, and an
+    # absolute threshold would declare every window degenerate.
     degenerate = (determinant / (var_1 * var_2)).abs() < 1e-8
 
     beta = ((var_2 * cov_1y - cov_12 * cov_2y) / determinant).mask(degenerate)
@@ -105,7 +106,7 @@ def rolling_two_factor(returns: pd.Series, factor: pd.Series, block_factor: pd.S
 
 def residuals(asset: Asset, frame: pd.DataFrame, factor: pd.Series,
               block_factor: pd.Series | None = None) -> pd.DataFrame:
-    """Остаток e и всё, что нужно аппарату п.3.1 для его обработки."""
+    """The residual e and everything the §3.1 machinery needs to process it."""
     out = frame.copy()
     if out.empty:
         return out.assign(alpha=pd.Series(dtype="float64"),
@@ -132,15 +133,15 @@ def residuals(asset: Asset, frame: pd.DataFrame, factor: pd.Series,
     out["e_resid"] = out["r"] - (out["alpha"] + out["beta"] * factor_series
                                  + out["beta_block"] * block_series)
 
-    # Собственная долгосрочная сигма остатка, по данным строго до текущего бара.
+    # The residual's own long-term sigma, on data strictly before the current bar.
     out["sigma_lt_resid"] = (out["e_resid"].shift(1)
                              .rolling(windows.SIGMA_LT_BARS,
                                       min_periods=windows.SIGMA_LT_MIN_BARS)
                              .std(ddof=1))
 
-    # Винзоризация остатка по п.2.5 - со своим MAD и своей нижней отсечкой.
-    # Нижняя граница берёт ту же доходность в половину тика: мельче шага цены
-    # остаток всё равно не бывает.
+    # Winsorization of the residual per §2.5 - with its own MAD and its own floor.
+    # The floor takes the same half-tick return: a residual is never finer than
+    # the price step anyway.
     from meals.returns import _rolling_mad
 
     mad_24 = _rolling_mad(out["e_resid"], windows.MAD_WINDOW)
@@ -155,11 +156,11 @@ def residuals(asset: Asset, frame: pd.DataFrame, factor: pd.Series,
 
 
 def score_residuals(frame: pd.DataFrame, w_asset: int) -> pd.DataFrame:
-    """Прогоняет ряд остатков через аппарат п.3.1 с собственными состояниями.
+    """Runs the residual series through the §3.1 machinery with its own states.
 
-    Q95_resid по п.3.6 считается, хранится и экспортируется ИСКЛЮЧИТЕЛЬНО для
-    диагностики: ни в одном условии документа он не участвует. В условии
-    генерации событий (п.8.2) работает только Q99_resid.
+    Per §3.6, Q95_resid is computed, stored and exported PURELY for diagnostics:
+    it takes part in no condition anywhere in the document. Only Q99_resid works
+    in the event-generation condition (§8.2).
     """
     from meals import zscore
 
@@ -175,8 +176,9 @@ def score_residuals(frame: pd.DataFrame, w_asset: int) -> pd.DataFrame:
         out["sigma_lt_resid"].to_numpy(dtype="float64"))
     out["z_resid"] = z
     out["sigma_eff_resid"] = sigma_eff
-    # Та же причина, что и у ценового ряда: без нижней отсечки, которой нет до
-    # появления sigma_LT, Z на разогреве бессмысленен и портит перцентили.
+    # Same reason as for the price series: without the floor, which does not
+    # exist until sigma_LT appears, Z during the burn-in is meaningless and
+    # spoils the percentiles.
     out.loc[out["sigma_lt_resid"].isna(), ["z_resid", "sigma_eff_resid"]] = np.nan
 
     q95, q99 = zscore.adaptive_thresholds(out["z_resid"].abs(), w_asset)

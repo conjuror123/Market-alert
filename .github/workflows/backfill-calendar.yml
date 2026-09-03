@@ -10,7 +10,7 @@ name: Backfill Economic Calendar
 # перепробованы и сняты все: три готовых дампа (spoluan, ehsan) давали четверть
 # сдвинутых копий, а датасет Kaggle расходился с ForexFactory по таксономии -
 # вдевятеро больше событий Medium, отчего архив из двух источников получал шов
-# посередине. См. economic_calendar.py и docs/meals-otstupleniya.md, п.11.
+# посередине. См. economic_calendar.py и docs/meals-deviations.md, п.11.
 #
 # Полная пересборка - это ~69 запросов с паузой в две секунды, минуты четыре.
 

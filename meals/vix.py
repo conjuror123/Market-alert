@@ -1,22 +1,23 @@
-"""Множитель стресса по VIX (ТЗ п.4.4).
+"""VIX stress multiplier (spec §4.4).
 
-Условие одностороннее, и это принципиально: страх и облегчение - не
-симметричные состояния рынка. Резкий рост VIX означает, что участники платят за
-защиту, то есть считают ближайшее будущее опасным; такой же по величине спад
-означает лишь возвращение к норме. Поэтому падение VIX стрессом не считается и
-множителя не даёт.
+The condition is one-sided, and that is the point: fear and relief are not
+symmetric states of the market. A sharp rise in VIX means participants are
+paying for protection, that is, they consider the near future dangerous; a fall
+of the same size merely means a return to normal. So a falling VIX does not
+count as stress and gives no multiplier.
 
-Окно фиксированное и НЕ продлевается повторными скачками. Иначе затяжной период
-высокой волатильности - когда VIX дёргается вверх каждый день - держал бы
-множитель включённым неделями, и он перестал бы отличать острый момент от
-общего фона. Повторы внутри окна считаются и логируются, но окно не двигают.
+The window is fixed and is NOT extended by repeat spikes. Otherwise a drawn-out
+period of high volatility - when VIX jerks upward every day - would keep the
+multiplier on for weeks, and it would stop distinguishing an acute moment from
+the general background. Repeats inside a window are counted and logged, but they
+do not move the window.
 
-Отступление от буквы п.4.4, зафиксированное в docs/meals-otstupleniya.md: ряд
-дневной, потому что внутридневного VIX нет ни у одного доступного источника, а
-момент начала окна - это момент, когда значение стало ИЗВЕСТНО системе, а не
-дата наблюдения. FRED публикует значение на следующий рабочий день, и отсчёт от
-даты наблюдения означал бы, что бэктест пользуется тем, чего в тот час ещё не
-существовало.
+A departure from the letter of §4.4, recorded in docs/meals-deviations.md: the
+series is daily, because no available source offers intraday VIX, and the window
+starts at the moment the value became KNOWN to the system, not at the
+observation date. FRED publishes the value on the next business day, and
+counting from the observation date would mean the backtest using something that
+did not yet exist in that hour.
 """
 from __future__ import annotations
 
@@ -28,34 +29,34 @@ import pandas as pd
 
 from meals import windows, zscore
 
-# Величина множителя и длина окна. Обе помечены в ТЗ звёздочкой.
+# Multiplier size and window length. Both starred in the spec.
 M_VIX = 1.3
 WINDOW_HOURS = windows.VIX_WINDOW
 
-# Порог абсолютной ноги для ряда VIX (п.4.4): 1.5 * sigma_LT.
+# Absolute-leg threshold for the VIX series (§4.4): 1.5 * sigma_LT.
 ABS_LEG = windows.ABS_LEG_Q95
 
 
 @dataclass(frozen=True)
 class VixWindow:
-    opened_at: int      # момент, с которого множитель действует (epoch UTC)
-    closes_at: int      # момент, после которого он снова равен 1.0
-    spike_count: int    # сколько скачков пришлось на это окно, включая первый
+    opened_at: int      # moment from which the multiplier applies (epoch UTC)
+    closes_at: int      # moment after which it is back to 1.0
+    spike_count: int    # how many spikes fell into this window, the first included
 
 
 def load_series(path: str) -> pd.DataFrame:
     if not os.path.exists(path):
         raise FileNotFoundError(
-            f"Нет ряда VIX {path}. Загрузить: python -m meals.backfill")
+            f"No VIX series at {path}. Fetch it with: python -m meals.backfill")
     return pd.read_parquet(path).sort_values("day").reset_index(drop=True)
 
 
 def score(series: pd.DataFrame, window: int = windows.SIGMA_LT_MIN_BARS) -> pd.DataFrame:
-    """Прогоняет ряд VIX через аппарат п.3.1 с собственными состояниями.
+    """Runs the VIX series through the §3.1 machinery with its own states.
 
-    Окно порогов для дневного ряда - 720 баров: по п.2.7 это
-    max(120 * B_asset, 720), а у дневного ряда в сутках один бар, так что
-    работает нижняя граница.
+    The threshold window for a daily series is 720 bars: §2.7 gives
+    max(120 * B_asset, 720), and a daily series has one bar per day, so the
+    floor is what applies.
     """
     out = series.copy()
     out["r"] = np.log(out["close"] / out["close"].shift(1))
@@ -79,7 +80,7 @@ def score(series: pd.DataFrame, window: int = windows.SIGMA_LT_MIN_BARS) -> pd.D
     q95, _ = zscore.adaptive_thresholds(out["z"].abs(), window)
     out["q95"] = q95
 
-    # Все три условия одновременно, и Z берётся СО ЗНАКОМ.
+    # All three conditions at once, and Z is taken WITH its sign.
     out["is_spike"] = ((out["z"] > out["q95"])
                        & (out["r"] > 0)
                        & (out["r"].abs() >= ABS_LEG * out["sigma_lt"]))
@@ -88,10 +89,10 @@ def score(series: pd.DataFrame, window: int = windows.SIGMA_LT_MIN_BARS) -> pd.D
 
 def windows_from_spikes(scored: pd.DataFrame, reference_hours: np.ndarray,
                         window_hours: int = WINDOW_HOURS) -> list[VixWindow]:
-    """Строит окна действия множителя.
+    """Builds the windows during which the multiplier applies.
 
-    Новое окно открывается только скачком ПОСЛЕ закрытия предыдущего; скачки
-    внутри действующего окна лишь увеличивают счётчик.
+    A new window opens only on a spike AFTER the previous one has closed; spikes
+    inside an active window merely increment the counter.
     """
     reference = np.asarray(sorted(reference_hours))
     result: list[VixWindow] = []
@@ -101,8 +102,8 @@ def windows_from_spikes(scored: pd.DataFrame, reference_hours: np.ndarray,
             last = result[-1]
             result[-1] = VixWindow(last.opened_at, last.closes_at, last.spike_count + 1)
             continue
-        # Конец окна - через 24 часа ЭТАЛОННОГО КАЛЕНДАРЯ, а не 24 календарных:
-        # выходные в счёт не идут.
+        # The window ends 24 REFERENCE-CALENDAR hours later, not 24 calendar
+        # hours: weekends do not count.
         start = int(np.searchsorted(reference, opened, side="left"))
         end_index = start + window_hours
         closes = (int(reference[end_index]) if end_index < len(reference)
@@ -112,7 +113,7 @@ def windows_from_spikes(scored: pd.DataFrame, reference_hours: np.ndarray,
 
 
 def multiplier_series(hours_utc, vix_windows: list[VixWindow]) -> dict[int, float]:
-    """Множитель по часам: 1.3 внутри окна, 1.0 вне его."""
+    """Multiplier per hour: 1.3 inside a window, 1.0 outside."""
     result = {int(h): 1.0 for h in hours_utc}
     if not vix_windows:
         return result
