@@ -8,7 +8,7 @@ Two independent signals run per asset every hour:
   UTC-midnight daily candles and compares the same way against day-scale
   history - catches a slow multi-hour grind that no single hourly return is
   extreme enough to flag on its own, but that adds up to an unusual day (see
-  README, "Дневной сигнал"). It's evaluated every run, not once a day: the
+  README, "Daily signal"). It's evaluated every run, not once a day: the
   most recent *closed* day's value doesn't change until the next day rolls
   over, so re-evaluating it hourly is harmless - should_notify's cooldown
   naturally keeps this from producing repeat noise, and no separate
@@ -50,45 +50,45 @@ def format_alert(signal: Signal, params: EffectiveParams, signal_type: str) -> s
     is_daily = signal_type == "daily"
     price_threshold = params.daily_price_zscore_threshold if is_daily else params.price_zscore_threshold
     direction_emoji = "🚀" if signal.last_return_pct >= 0 else "🔻"
-    direction_word = "выросла" if signal.last_return_pct >= 0 else "упала"
-    scope = "последние сутки" if is_daily else "последний час"
-    title = "необычное дневное движение" if is_daily else "необычное движение рынка"
+    direction_word = "rose" if signal.last_return_pct >= 0 else "fell"
+    scope = "the last day" if is_daily else "the last hour"
+    title = "unusual daily move" if is_daily else "unusual market move"
     signal_label = (
-        "дневной (накопленное движение за закрытые сутки)" if is_daily
-        else "часовой (резкое движение за один час)"
+        "daily (accumulated move over the closed day)" if is_daily
+        else "hourly (a sharp move within one hour)"
     )
     lines = [
         f"{direction_emoji} <b>{signal.symbol}</b> — {title}",
-        f"Цена: {signal.last_close:g} ({signal.last_return_pct:+.2f}% за {scope})",
-        f"Сигнал: {signal_label}",
+        f"Price: {signal.last_close:g} ({signal.last_return_pct:+.2f}% over {scope})",
+        f"Signal: {signal_label}",
         "",
     ]
 
     if signal.price_alert:
         price_severity = max(abs(signal.ewma_z), abs(signal.robust_z))
         lines.append(
-            f"Цена {direction_word} сильнее, чем обычно бывает у этого актива: "
-            f"отклонение от привычного разброса движений в {price_severity:.1f} раза "
-            f"(обычный порог для тревоги — {price_threshold:.1f})."
+            f"The price {direction_word} more sharply than this asset usually does: "
+            f"a deviation {price_severity:.1f} times its usual range of moves "
+            f"(the usual alert threshold is {price_threshold:.1f})."
         )
     if signal.volume_alert:
         lines.append(
-            f"Объём торгов необычно высокий: отклонение в {signal.volume_z:.1f} раза "
-            f"больше привычного (обычный порог для тревоги — {params.volume_zscore_threshold:.1f})."
+            f"Trading volume is unusually high: a deviation {signal.volume_z:.1f} times "
+            f"the usual level (the usual alert threshold is {params.volume_zscore_threshold:.1f})."
         )
 
     lines += [
         "",
-        "ℹ️ <b>Технические детали</b>",
-        f"EWMA z-score (отклонение по недавней волатильности): {signal.ewma_z:.2f} "
-        f"— обычно от -2 до 2, тревога начинается от ±{price_threshold:.1f}",
-        f"Робастный z-score (отклонение от долгосрочного ориентира): {signal.robust_z:.2f} "
-        f"— обычно от -2 до 2, тревога начинается от ±{price_threshold:.1f}",
+        "ℹ️ <b>Technical detail</b>",
+        f"EWMA z-score (deviation against recent volatility): {signal.ewma_z:.2f} "
+        f"— usually between -2 and 2, an alert starts at ±{price_threshold:.1f}",
+        f"Robust z-score (deviation from the long-term reference): {signal.robust_z:.2f} "
+        f"— usually between -2 and 2, an alert starts at ±{price_threshold:.1f}",
     ]
     if not is_daily:
         lines.append(
-            f"Объём z-score (отклонение объёма торгов от привычного): {signal.volume_z:.2f} "
-            f"— обычно от 0 до 2, тревога начинается от {params.volume_zscore_threshold:.1f}"
+            f"Volume z-score (deviation of trading volume from usual): {signal.volume_z:.2f} "
+            f"— usually between 0 and 2, an alert starts at {params.volume_zscore_threshold:.1f}"
         )
     return "\n".join(lines)
 
@@ -103,9 +103,9 @@ def append_id_footer(alert_text: str, message_id: int) -> str:
 
 def format_health_down(streak: int, error_details: list[str]) -> str:
     lines = [
-        f"⚠️ <b>Мониторинг не работает уже {streak} запуск(ов) подряд</b>",
-        "Проверьте вкладку Actions в репозитории — возможно, сломался источник",
-        "данных или недействителен токен Telegram.",
+        f"⚠️ <b>Monitoring has been failing for {streak} run(s) in a row</b>",
+        "Check the Actions tab in the repository — the data source may have broken",
+        "or the Telegram token may be invalid.",
         "",
     ]
     lines.extend(f"• {d}" for d in error_details[:10])
@@ -113,7 +113,7 @@ def format_health_down(streak: int, error_details: list[str]) -> str:
 
 
 def format_health_recovered(streak: int) -> str:
-    return f"✅ Мониторинг восстановился после {streak} неудачных запуск(ов) подряд."
+    return f"✅ Monitoring recovered after {streak} failed run(s) in a row."
 
 
 def _handle_signal(
@@ -147,12 +147,12 @@ def _handle_signal(
 
     notified = False
     if signal.is_alert and cfg.alerts_muted:
-        # Заглушено намеренно (cfg.alerts_muted). Кулдаун при этом НЕ трогается:
-        # состояние должно остаться таким, будто сигнала не было, чтобы после
-        # снятия заглушки первое же настоящее движение прошло, а не упёрлось в
-        # паузу, накопленную за время молчания. В decision_log строка всё равно
-        # пишется, так что период молчания потом видно целиком.
-        log.info("%s (%s): сигнал есть, но алерты заглушены - сообщение не отправлено",
+        # Muted deliberately (cfg.alerts_muted). The cooldown is NOT touched:
+        # the state must stay as though there had been no signal, so that once the
+        # mute is lifted the first genuine move goes through instead of running
+        # into a pause accumulated during the silence. The decision_log row is
+        # still written, so the whole silent period stays visible afterwards.
+        log.info("%s (%s): signal present but alerts are muted - no message sent",
                  asset.label, signal_type)
     elif signal.is_alert:
         if should_notify(
@@ -218,7 +218,7 @@ def main() -> int:
         except ExchangeError as exc:
             log.error("Failed to fetch data for %s (%s): %s", asset.label, asset.symbol, exc)
             had_error = True
-            error_details.append(f"{asset.label}: не удалось получить данные ({exc})")
+            error_details.append(f"{asset.label}: failed to fetch data ({exc})")
             continue
 
         # Keep the permanent local candle history up to date - only append
@@ -259,7 +259,7 @@ def main() -> int:
             except TelegramError as exc:
                 log.error("%s: failed to send Telegram alert: %s", asset.label, exc)
                 had_error = True
-                error_details.append(f"{asset.label}: не удалось отправить алерт в Telegram ({exc})")
+                error_details.append(f"{asset.label}: failed to send the alert to Telegram ({exc})")
 
         # Daily signal - reused from the local history, no extra network call
         # (see module docstring and candle_store.daily_closes). Works even
@@ -293,7 +293,7 @@ def main() -> int:
             except TelegramError as exc:
                 log.error("%s: failed to send Telegram daily alert: %s", asset.label, exc)
                 had_error = True
-                error_details.append(f"{asset.label}: не удалось отправить дневной алерт в Telegram ({exc})")
+                error_details.append(f"{asset.label}: failed to send the daily alert to Telegram ({exc})")
 
     # No-ops except during the one hourly run that lands on Sunday ~12:00
     # Israel time - see weekly_digest.py's module docstring for why this

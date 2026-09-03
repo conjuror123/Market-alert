@@ -28,7 +28,7 @@ from price_monitor.notifier import TelegramError, edit_telegram_message
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("price_monitor.explain")
 
-EXPLANATION_HEADER = "🧠 <b>Возможная причина (по новостям, определено автоматически)</b>"
+EXPLANATION_HEADER = "🧠 <b>Possible cause (from the news, determined automatically)</b>"
 
 # News is only searched for in [alert + START, alert + END] - a fixed window
 # relative to the alert, not to whenever the workflow happens to run. Waiting
@@ -46,19 +46,18 @@ NEWS_WINDOW_END_HOURS = 12
 _GOOGLE_NEWS_TZ = ZoneInfo("America/Los_Angeles")
 
 SYSTEM_PROMPT = (
-    "Ты помогаешь трейдеру понять, почему актив резко изменился в цене. Тебе дают "
-    "название актива, цифры движения и заголовки недавних новостей о нём. Если "
-    "заголовки правдоподобно объясняют движение, в 2-4 коротких предложениях на "
-    "русском языке объясни, что произошло и через какой экономический механизм это "
-    "привело именно к такому движению цены - не ограничивайся пересказом заголовка, "
-    "а раскрывай причинно-следственную связь (например: рост ставок ФРС повышает "
-    "привлекательность облигаций и снижает спрос на активы без процентного дохода, "
-    "к которым рынок относит и крипту, и золото). Такие общие экономические "
-    "закономерности упоминать можно, но не утверждай ничего конкретного о движении "
-    "других активов - данных об этом у тебя нет, и это будет уже не логика, а "
-    "выдумка. Если ни один заголовок не объясняет движение явно, честно напиши, что "
-    "очевидной причины в новостях не нашлось - не выдумывай её. Пиши простым "
-    "текстом, без markdown-разметки."
+    "You help a trader understand why an asset moved sharply in price. You are given "
+    "the asset name, the numbers of the move, and headlines of recent news about it. "
+    "If the headlines plausibly explain the move, explain in 2-4 short sentences in "
+    "English what happened and through which economic mechanism it led to that "
+    "particular price move - do not stop at restating the headline, but spell out the "
+    "causal link (for example: rising Fed rates make bonds more attractive and reduce "
+    "demand for assets that pay no interest, a group the market takes to include both "
+    "crypto and gold). Such general economic regularities may be mentioned, but do not "
+    "assert anything specific about the movement of other assets - you have no data on "
+    "that, and it would be invention rather than reasoning. If no headline explains the "
+    "move clearly, say honestly that no obvious cause was found in the news - do not "
+    "invent one. Write in plain text, without markdown."
 )
 
 
@@ -79,20 +78,20 @@ def _news_query_by_symbol(cfg: Config) -> dict[str, str]:
 
 def _build_user_prompt(entry: dict, articles: list[dict]) -> str:
     lines = [
-        f"Актив: {entry['symbol']}",
-        f"Изменение цены: {entry['last_return_pct']:+.2f}% за последний интервал, "
-        f"текущая цена {entry['last_close']:g}",
-        f"Время алерта (UTC): {entry['sent_at']}",
+        f"Asset: {entry['symbol']}",
+        f"Price change: {entry['last_return_pct']:+.2f}% over the last interval, "
+        f"current price {entry['last_close']:g}",
+        f"Alert time (UTC): {entry['sent_at']}",
         "",
     ]
     if articles:
-        lines.append("Недавние заголовки новостей:")
+        lines.append("Recent news headlines:")
         for a in articles:
-            when = a["published"].strftime("%Y-%m-%d %H:%M UTC") if a["published"] else "дата неизвестна"
+            when = a["published"].strftime("%Y-%m-%d %H:%M UTC") if a["published"] else "date unknown"
             source = f" ({a['source']})" if a["source"] else ""
             lines.append(f"- [{when}] {a['title']}{source}")
     else:
-        lines.append("Заголовков новостей не найдено.")
+        lines.append("No news headlines found.")
     return "\n".join(lines)
 
 
@@ -210,23 +209,23 @@ def _select_todo(entries: list[dict], message_id: int) -> list[dict]:
 def main() -> int:
     cfg = load_config()
     if not cfg.llm_api_key:
-        print("LLM_API_KEY не задан в окружении.", file=sys.stderr)
+        print("LLM_API_KEY is not set in the environment.", file=sys.stderr)
         return 1
 
     raw_message_id = os.environ.get("EXPLAIN_MESSAGE_ID", "").strip()
     if not raw_message_id:
-        print("Укажите Message ID — какой конкретно алерт объяснить (см. README).", file=sys.stderr)
+        print("Give a Message ID — which alert to explain (see README).", file=sys.stderr)
         return 1
     try:
         message_id = int(raw_message_id)
     except ValueError:
-        print(f"Message ID должен быть числом, получено: {raw_message_id!r}", file=sys.stderr)
+        print(f"Message ID must be a number, got: {raw_message_id!r}", file=sys.stderr)
         return 1
 
     entries = load_alerts_log(cfg.alerts_log_path)
     todo = _select_todo(entries, message_id)
     if not todo:
-        print(f"Алерт с ID {message_id} не найден среди необъяснённых.", file=sys.stderr)
+        print(f"No unexplained alert with ID {message_id} was found.", file=sys.stderr)
         return 1
 
     query_by_symbol = _news_query_by_symbol(cfg)

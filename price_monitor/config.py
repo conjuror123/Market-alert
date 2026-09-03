@@ -119,17 +119,18 @@ class Config:
     daily_min_history: int = 30
     daily_cooldown_minutes: int = 2880
     daily_escalation_factor: float = 1.5
-    # Заглушение алертов на время перехода на MEALS (см. README). Прогон идёт
-    # как обычно - котировки качаются, история пополняется, решения пишутся в
-    # decision_log, - но сообщения по активам в Telegram не уходят. Это НЕ
-    # выключение мониторинга: дайджест календаря и уведомления о поломке самого
-    # бота продолжают работать, потому что они не про "тупенькие" сигналы, а
-    # про то, жив ли бот и что будет на неделе.
+    # Muting the alerts while MEALS takes over (see README). The run proceeds as
+    # usual - quotes are fetched, history accumulates, decisions are written to
+    # decision_log - but the per-asset Telegram messages do not go out. This is
+    # NOT switching monitoring off: the calendar digest and the bot's own
+    # health alerts keep working, because they are not about the crude signals but
+    # about whether the bot is alive and what the week holds.
     #
-    # Флаг живёт в config.yaml, а не на стороне внешнего планировщика, ровно
-    # потому, что состояние "мы намеренно молчим" должно быть видно в
-    # репозитории. Выключенный на чужом сайте cron через месяц выглядит как
-    # поломка, и разбираться с ним будет некому.
+    # The flag lives in config.yaml rather than on the external scheduler's side,
+    # for exactly this reason: "we are deliberately silent" is a state of the
+    # project and must be visible where the code is. A cron job disabled on
+    # someone else's website looks like a breakage a month later, and there is
+    # nobody to work out which it was.
     alerts_muted: bool = False
     health_alert_after_failures: int = 3
     health_reminder_every_failures: int = 24

@@ -36,20 +36,20 @@ def test_format_alert_hourly_mentions_the_hour_and_signal_label():
     cfg = make_config("/tmp")
     params = cfg.params_for(cfg.assets[0])
     text = main_module.format_alert(make_signal(), params, "hourly")
-    assert "последний час" in text
-    assert "часовой" in text
-    assert "необычное движение рынка" in text
-    assert "Объём z-score" in text  # hourly still shows the volume line
+    assert "the last hour" in text
+    assert "hourly" in text
+    assert "unusual market move" in text
+    assert "Volume z-score" in text  # hourly still shows the volume line
 
 
 def test_format_alert_daily_mentions_the_day_and_signal_label():
     cfg = make_config("/tmp")
     params = cfg.params_for(cfg.assets[0])
     text = main_module.format_alert(make_signal(), params, "daily")
-    assert "последние сутки" in text
-    assert "дневной" in text
-    assert "необычное дневное движение" in text
-    assert "Объём z-score" not in text  # daily signal is price-only
+    assert "the last day" in text
+    assert "daily" in text
+    assert "unusual daily move" in text
+    assert "Volume z-score" not in text  # daily signal is price-only
     assert "4.0" in text  # uses the daily threshold, not the hourly one
 
 
@@ -216,14 +216,14 @@ def test_main_runs_daily_signal_from_seeded_history(tmp_path, monkeypatch):
 
 
 def test_muted_alerts_are_not_sent_but_still_logged(tmp_path, monkeypatch):
-    # Заглушка на время перехода на MEALS: прогон идёт как обычно, решения
-    # пишутся, но сообщение по активу в Telegram не уходит.
+    # Muted while MEALS takes over: the run proceeds as usual, decisions are
+    # written, but the per-asset Telegram message does not go out.
     cfg = make_config(tmp_path)
     cfg.alerts_muted = True
     asset = cfg.assets[0]
 
     def boom(*a, **k):
-        raise AssertionError("заглушённый алерт не должен уходить в Telegram")
+        raise AssertionError("a muted alert must not go out to Telegram")
 
     monkeypatch.setattr(main_module, "send_telegram_message", boom)
 
@@ -235,14 +235,14 @@ def test_muted_alerts_are_not_sent_but_still_logged(tmp_path, monkeypatch):
     assert notified is False
     assert alerts_log == []
     rows = [json.loads(l) for l in open(log_path(cfg.decision_log_dir, "twelvedata", "EUR/USD"))]
-    assert rows[0]["price_alert"] is True, "сигнал был - это видно в журнале"
+    assert rows[0]["price_alert"] is True, "the signal happened - the journal shows it"
     assert rows[0]["notified"] is False
 
 
 def test_muting_does_not_burn_the_cooldown(tmp_path, monkeypatch):
-    # Состояние обязано остаться таким, будто сигнала не было: иначе после
-    # снятия заглушки первое настоящее движение упёрлось бы в паузу,
-    # накопленную за время молчания.
+    # The state must stay as though there had been no signal: otherwise, once
+    # the mute is lifted, the first genuine move would run into a pause
+    # accumulated during the silence.
     cfg = make_config(tmp_path)
     cfg.alerts_muted = True
     asset = cfg.assets[0]

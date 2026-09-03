@@ -102,18 +102,19 @@ def merge_history(path: str, candles: list[Candle]) -> int:
 
 
 def deduplicate(path: str) -> int:
-    """Убирает из файла повторы по open_time и переписывает его по возрастанию
-    времени. Возвращает число выброшенных строк.
+    """Removes duplicate open_time rows from the file and rewrites it in ascending
+    time order. Returns the number of rows dropped.
 
-    Файл дописывается построчно, и это делает его уязвимым к слиянию веток:
-    если две ветки записали один и тот же диапазон часов, git склеит оба блока
-    подряд, не заметив повтора. Именно так в историю однажды попал
-    продублированный блок из 299 часов - во всех шестнадцати файлах сразу.
+    The file is appended line by line, which makes it vulnerable to branch
+    merges: if two branches wrote the same range of hours, git will splice both
+    blocks in one after the other without noticing the repeat. That is exactly how
+    a duplicated block of 299 hours once got into the history - in all sixteen
+    files at once.
 
-    При расхождении версий одного часа побеждает последняя в файле. Ранняя
-    копия могла застать час ещё незакрытым - у неё меньше объём и уже
-    диапазон, - а более поздняя загрузка видит его целиком. На реальных данных
-    последняя копия ни разу не оказалась беднее ранней.
+    When two versions of one hour disagree, the last in the file wins. The earlier
+    copy may have caught the hour still open - lower volume and a narrower range -
+    while a later download sees it whole. On real data the last copy was never
+    once poorer than the earlier one.
     """
     if not os.path.exists(path):
         return 0
@@ -166,18 +167,18 @@ def daily_closes(candles: list[Candle], now: datetime | None = None) -> list[Can
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Разовая чистка хранилища от повторов - см. deduplicate.
+    """One-off cleanup of the store from duplicates - see deduplicate.
 
-    Держится как команда, а не как одноразовый скрипт: причина повторов
-    (слияние веток) может сработать снова, пока история лежит в NDJSON.
+    Kept as a command rather than a throwaway script: the cause of duplicates
+    (a branch merge) can strike again while the history lives in NDJSON.
     """
     import argparse
     import glob
 
-    parser = argparse.ArgumentParser(description="Убрать повторы из локальной истории свечей")
+    parser = argparse.ArgumentParser(description="Remove duplicates from the local candle history")
     parser.add_argument("--dir", default=os.path.join("data", "candle_history"))
     parser.add_argument("--dry-run", action="store_true",
-                        help="только показать, сколько строк лишние, ничего не переписывая")
+                        help="only report how many rows are redundant, rewriting nothing")
     args = parser.parse_args(argv)
 
     total = 0
@@ -189,8 +190,8 @@ def main(argv: list[str] | None = None) -> int:
             removed = deduplicate(path)
         total += removed
         if removed:
-            print(f"{os.path.basename(path)}: повторов {removed}")
-    print(f"Итого повторов: {total}" + (" (ничего не переписано)" if args.dry_run else ""))
+            print(f"{os.path.basename(path)}: duplicates {removed}")
+    print(f"Duplicates in total: {total}" + (" (nothing rewritten)" if args.dry_run else ""))
     return 0
 
 

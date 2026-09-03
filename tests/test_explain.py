@@ -36,7 +36,7 @@ def seed_pending_entry(path, sent_at=None, message_id=42):
         chat_id="@chan",
         message_id=message_id,
         symbol="Ethereum",
-        message_text="Ethereum - необычное движение рынка",
+        message_text="Ethereum - unusual market move",
         last_close=2473.66,
         last_return_pct=-1.45,
         ewma_z=-3.60,
@@ -90,7 +90,7 @@ def test_full_flow_explains_and_edits_message(tmp_path, monkeypatch):
         {"title": "Ethereum falls on macro selloff", "source": "Example",
          "published": datetime.now(timezone.utc), "link": ""}
     ])
-    monkeypatch.setattr(explain, "chat_completion", lambda **kwargs: "Падение связано с общей распродажей на рынке.")
+    monkeypatch.setattr(explain, "chat_completion", lambda **kwargs: "The fall is tied to a broad sell-off across the market.")
 
     edits = []
     monkeypatch.setattr(
@@ -102,12 +102,12 @@ def test_full_flow_explains_and_edits_message(tmp_path, monkeypatch):
     assert len(edits) == 1
     token, chat_id, message_id, text = edits[0]
     assert (chat_id, message_id) == ("@chan", 42)
-    assert "Ethereum - необычное движение рынка" in text
-    assert "Падение связано с общей распродажей на рынке." in text
+    assert "Ethereum - unusual market move" in text
+    assert "The fall is tied to a broad sell-off across the market." in text
 
     saved = load_alerts_log(cfg.alerts_log_path)
     assert saved[0]["explained"] is True
-    assert saved[0]["explanation"] == "Падение связано с общей распродажей на рынке."
+    assert saved[0]["explanation"] == "The fall is tied to a broad sell-off across the market."
 
 
 def test_full_flow_saves_model_and_request_messages_for_later_debugging(tmp_path, monkeypatch):
@@ -125,7 +125,7 @@ def test_full_flow_saves_model_and_request_messages_for_later_debugging(tmp_path
         {"title": "Ethereum falls on macro selloff", "source": "Example",
          "published": alert_time + timedelta(hours=8), "link": ""}
     ])
-    monkeypatch.setattr(explain, "chat_completion", lambda **kwargs: "Падение связано с общей распродажей.")
+    monkeypatch.setattr(explain, "chat_completion", lambda **kwargs: "The fall is tied to a broad sell-off.")
     monkeypatch.setattr(explain, "edit_telegram_message", lambda *a, **k: None)
 
     assert explain.main() == 0
@@ -150,7 +150,7 @@ def test_news_fetch_failure_still_asks_llm(tmp_path, monkeypatch):
         raise NewsError("boom")
 
     monkeypatch.setattr(explain, "fetch_news", failing_fetch)
-    monkeypatch.setattr(explain, "chat_completion", lambda **kwargs: "Явной причины в новостях не нашлось.")
+    monkeypatch.setattr(explain, "chat_completion", lambda **kwargs: "No clear cause was found in the news.")
     monkeypatch.setattr(explain, "edit_telegram_message", lambda *a, **k: None)
 
     assert explain.main() == 0
@@ -233,7 +233,7 @@ def test_html_special_characters_in_explanation_are_escaped(tmp_path, monkeypatc
     monkeypatch.setattr(explain, "fetch_news", lambda query, limit=6: [
         {"title": "some headline", "source": "", "link": "", "published": datetime.now(timezone.utc)}
     ])
-    monkeypatch.setattr(explain, "chat_completion", lambda **kwargs: "Цена упала <5% при объёме > нормы & без явной причины")
+    monkeypatch.setattr(explain, "chat_completion", lambda **kwargs: "Price fell <5% on volume > normal & with no clear cause")
 
     edits = []
     monkeypatch.setattr(
@@ -406,7 +406,7 @@ def test_explain_entry_asks_llm_with_no_headlines_when_nothing_survives_filter(t
     assert explain.explain_entry(cfg, entry, "Ethereum").text == "ok"
     user_message = captured["messages"][1]["content"]
     assert "too old" not in user_message
-    assert "Заголовков новостей не найдено" in user_message
+    assert "No news headlines found" in user_message
 
 
 def test_is_old_enough_true_once_min_age_reached():
@@ -477,7 +477,7 @@ def seed_two_pending_entries(path, ages_hours=(14, 14)):
             chat_id="@chan",
             message_id=message_id,
             symbol=symbol,
-            message_text=f"{symbol} - необычное движение рынка",
+            message_text=f"{symbol} - unusual market move",
             last_close=100.0,
             last_return_pct=-1.0,
             ewma_z=-3.5,
