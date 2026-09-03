@@ -14,7 +14,7 @@ HOUR = 3600
 def asset(**over):
     base = dict(ticker="EUR/USD", source="twelvedata", tier=1, block="FX",
                 has_volume=False, tick_size=0.00001, session_template="fx_continuous",
-                fetch_interval="1h", label="Евро / доллар", in_basket=True)
+                fetch_interval="1h", label="Euro / dollar", in_basket=True)
     return Asset(**(base | over))
 
 
@@ -37,8 +37,8 @@ def test_imports_the_accumulated_ndjson_history(tmp_path):
 
 
 def test_import_deduplicates_the_repeated_block(tmp_path):
-    # Накопленная история содержит блок из 299 часов, продублированный
-    # неудачным слиянием веток. Хранилище обязано принять её один раз.
+    # The accumulated history contains a block of 299 hours duplicated by a bad
+    # branch merge. The store must accept it exactly once.
     legacy_dir = tmp_path / "legacy"
     legacy_dir.mkdir()
     a = asset()
@@ -65,5 +65,5 @@ def test_import_is_idempotent(tmp_path):
 
 def test_import_without_legacy_file_is_a_no_op(tmp_path):
     path = bars.store_path(str(tmp_path / "bars"), "x")
-    assert import_legacy(asset(), path, str(tmp_path / "нет")) == 0
+    assert import_legacy(asset(), path, str(tmp_path / "missing")) == 0
     assert not os.path.exists(path)

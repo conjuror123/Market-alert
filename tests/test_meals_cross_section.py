@@ -23,8 +23,9 @@ def make_basket(assets):
 
 
 def four_by_two():
-    """Корзина в миниатюре, повторяющая настоящую: дневной блок, который ночью
-    выпадает, и два круглосуточных, которых вдвоём хватает на кворум."""
+    """A basket in miniature mirroring the real one: a daytime block that drops out
+    at night, and two round-the-clock blocks that between them make quorum.
+    """
     return make_basket([
         make_asset("A", "equity", 1), make_asset("B", "equity", 2),
         make_asset("C", "FX", 1), make_asset("D", "FX", 2),
@@ -41,14 +42,14 @@ def panel_from(rows, columns):
 
 
 def test_weighted_median_respects_weights():
-    # Шесть валютных пар против трёх криптоактивов: без весов медиана
-    # определялась бы числом участников, а не равновесностью блоков.
+    # Six currency pairs against three crypto assets: without weights the median
+    # would be decided by headcount rather than by equality between blocks.
     values = np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, -5.0, -5.0, -5.0])
-    fx_weight, crypto_weight = 1 / 12, 1 / 6   # блок FX и блок crypto весят поровну
+    fx_weight, crypto_weight = 1 / 12, 1 / 6   # the FX block and the crypto block weigh the same
     weights = np.array([fx_weight] * 6 + [crypto_weight] * 3)
 
     assert cs.weighted_median(values, weights) == pytest.approx(-2.0)
-    # Без весов победило бы простое большинство.
+    # Without weights a simple majority would win.
     assert np.median(values) == 1.0
 
 
@@ -62,21 +63,21 @@ def test_quorum_needs_assets_tier1_and_two_populated_blocks():
     columns = [a.asset_id for a in basket.assets]
     full = [0.01] * 11
     thin = [0.01, 0.01] + [np.nan] * 9
-    night = [np.nan, np.nan] + [0.01] * 9   # дневной блок закрыт
+    night = [np.nan, np.nan] + [0.01] * 9   # the daytime block is closed
 
     frame = cs.quorum(panel_from([full, thin, night], columns), basket)
 
     assert bool(frame["quorum_ok"].iloc[0])
-    assert not bool(frame["quorum_ok"].iloc[1])   # мало активов
-    # Ночью хватает двух круглосуточных блоков - ровно ради этого случая в
-    # корзину и добавлен пятый блок.
+    assert not bool(frame["quorum_ok"].iloc[1])   # too few assets
+    # At night two round-the-clock blocks suffice - the fifth block was added to
+    # the basket for exactly this case.
     assert bool(frame["quorum_ok"].iloc[2])
 
 
 def test_quorum_rejects_a_single_populated_block():
     basket = four_by_two()
     columns = [a.asset_id for a in basket.assets]
-    # Только блок FX: активов хватает, блоков - нет.
+    # Only the FX block: enough assets, not enough blocks.
     row = [np.nan, np.nan] + [0.01] * 6 + [np.nan] * 3
     frame = cs.quorum(panel_from([row], columns), basket)
 
@@ -100,8 +101,8 @@ def test_quorum_needs_two_tier1_assets():
 
 
 def test_panel_keeps_gaps_as_gaps():
-    # Заполнять пропуски нулями по п.3.3 запрещено: ноль это утверждение
-    # "актив не двигался", а пропуск означает "мы не знаем".
+    # §3.3 forbids filling gaps with zeros: a zero asserts "the asset did not
+    # move", while a gap means "we do not know".
     metrics = {
         "a": pd.DataFrame({"hour_utc": [HOUR, 2 * HOUR], "r": [0.01, 0.02]}),
         "b": pd.DataFrame({"hour_utc": [HOUR], "r": [0.03]}),
@@ -124,15 +125,15 @@ def test_csv_uses_ddof_one():
 
 
 def test_compression_needs_both_a_narrow_spread_and_a_real_move():
-    # Узкий разброс сам по себе - это просто тихий час.
+    # A narrow spread on its own is just a quiet hour.
     rng = np.random.default_rng(7)
     csv_norm = pd.Series(list(rng.normal(1.0, 0.1, 50)) + [0.1, 0.1])
     m = pd.Series(list(rng.normal(0.0, 0.001, 50)) + [0.0001, 0.5])
 
     out, _ = cs.csv_compression(csv_norm, m, window=50)
 
-    assert not bool(out.iloc[50])   # разброс узок, корзина стоит
-    assert bool(out.iloc[51])       # разброс узок И корзина сдвинулась
+    assert not bool(out.iloc[50])   # spread narrow, basket standing still
+    assert bool(out.iloc[51])       # spread narrow AND the basket moved
 
 
 def test_compression_is_null_before_the_window_fills():
@@ -144,7 +145,7 @@ def test_pc1_ratio_is_one_when_assets_move_together():
     basket = make_basket([make_asset(t, "equity") for t in "ABC"])
     rng = np.random.default_rng(0)
     common = rng.normal(size=200)
-    rows = [[c, c * 2, c * 3] for c in common]   # идеальная согласованность
+    rows = [[c, c * 2, c * 3] for c in common]   # perfect coherence
     panel = panel_from(rows, [a.asset_id for a in basket.assets])
     ok = pd.Series(True, index=panel.index)
 
@@ -161,7 +162,7 @@ def test_pc1_ratio_is_low_when_assets_are_independent():
 
     ratio, _ = cs.pc1_ratio(panel, ok, basket, window=200)
     ratio = ratio.dropna()
-    # Три независимых ряда: каждая компонента объясняет около трети.
+    # Three independent series: each component explains about a third.
     assert 0.25 < ratio.iloc[-1] < 0.55
 
 
@@ -172,7 +173,7 @@ def test_pc1_ratio_needs_enough_rows_and_assets():
                        [a.asset_id for a in basket.assets])
     ok = pd.Series(True, index=panel.index)
 
-    # Меньше трёх активов - обусловленность не выполнена, значение NULL.
+    # Fewer than three assets - the conditioning fails, the value is NULL.
     assert cs.pc1_ratio(panel, ok, basket, window=80)[0].isna().all()
 
 
@@ -180,17 +181,17 @@ def test_pc1_ratio_skips_incomplete_columns():
     basket = make_basket([make_asset(t, "equity") for t in "ABCD"])
     rng = np.random.default_rng(3)
     rows = rng.normal(size=(200, 4))
-    rows[:, 3] = np.nan          # четвёртый актив не торговал ни разу
+    rows[:, 3] = np.nan          # the fourth asset never traded
     panel = panel_from(rows.tolist(), [a.asset_id for a in basket.assets])
     ok = pd.Series(True, index=panel.index)
 
-    # Три оставшихся актива дают валидное значение, четвёртый просто выпадает.
+    # The three remaining assets give a valid value; the fourth simply drops out.
     assert cs.pc1_ratio(panel, ok, basket, window=100)[0].dropna().size > 0
 
 
 def test_single_factor_falls_back_to_compression_when_pca_is_null():
-    # П.3.4: час, прошедший кворум, обязан получить определённое значение
-    # триггера, иначе он не даст слагаемого в SI-Index.
+    # §3.4: an hour that passed quorum must receive a definite trigger value, or
+    # it contributes no term to the SI-Index.
     compression = pd.Series([True, False, pd.NA], dtype="boolean")
     sync = pd.Series([pd.NA, pd.NA, pd.NA], dtype="boolean")
 
@@ -198,7 +199,7 @@ def test_single_factor_falls_back_to_compression_when_pca_is_null():
 
     assert bool(out.iloc[0])
     assert out.iloc[1] is np.False_ or not bool(out.iloc[1])
-    assert pd.isna(out.iloc[2])   # не оценено ни одно подусловие
+    assert pd.isna(out.iloc[2])   # neither sub-condition was assessed
 
 
 def test_single_factor_is_an_or():
@@ -209,10 +210,10 @@ def test_single_factor_is_an_or():
 
 
 def test_subcondition_correlation_is_undefined_when_one_never_fires():
-    # Ровно то, что получилось на реальных данных: сжатие сработало один раз за
-    # пять лет, и внутри пересечения с синхронностью - ни разу. Корреляцию из
-    # п.3.4 в таком случае считать не из чего, и притворяться, что она нулевая,
-    # нельзя.
+    # Exactly what happened on real data: compression fired once in five years,
+    # and never inside the overlap with synchrony. In that case the §3.4
+    # correlation cannot be computed from anything, and pretending it is zero is
+    # not on.
     frame = pd.DataFrame({
         "csv_compression": pd.Series([False] * 10, dtype="boolean"),
         "pca_sync": pd.Series([True, False] * 5, dtype="boolean"),
@@ -229,8 +230,8 @@ def test_subcondition_correlation_is_computed_when_both_vary():
 
 
 def test_block_factor_excludes_the_asset_itself():
-    # Без исключения инструмент в блоке из трёх на треть вычитал бы сам себя,
-    # и собственное движение частично исчезало бы из остатка.
+    # Without the exclusion, an instrument in a block of three would subtract a
+    # third of itself, and its own move would partly vanish from the residual.
     basket = make_basket([make_asset("A", "crypto"), make_asset("B", "crypto", 2),
                           make_asset("C", "crypto", 2),
                           make_asset("D", "FX"), make_asset("E", "FX", 2)])
@@ -239,15 +240,15 @@ def test_block_factor_excludes_the_asset_itself():
 
     factors = cs.block_factors(panel, basket)
 
-    # Для A фактор - медиана B и C, без самого A.
+    # For A the factor is the median of B and C, excluding A itself.
     assert factors["twelvedata:A"].iloc[0] == pytest.approx(0.015)
-    # Для B - медиана A и C.
+    # For B, the median of A and C.
     assert factors["twelvedata:B"].iloc[0] == pytest.approx(0.06)
 
 
 def test_block_factor_is_a_plain_median_because_weights_are_equal():
-    # По правилу равновесности п.2.3 веса внутри блока равны, поэтому
-    # взвешенная медиана блока совпадает с обычной.
+    # Under the equality rule of §2.3 weights within a block are equal, so a
+    # block's weighted median coincides with the plain one.
     basket = four_by_two()
     weights = basket.weights()
     fx = [a.asset_id for a in basket.assets if a.block == "FX"]
@@ -255,7 +256,7 @@ def test_block_factor_is_a_plain_median_because_weights_are_equal():
 
 
 def test_outside_basket_instrument_uses_the_whole_block():
-    # Внекорзинный инструмент в фактор не входит (п.8.1), исключать нечего.
+    # A non-basket instrument does not enter the factor (§8.1); nothing to exclude.
     basket = Basket(
         assets=(make_asset("A", "FX"), make_asset("B", "FX", 2),
                 make_asset("C", "crypto"), make_asset("D", "crypto", 2)),

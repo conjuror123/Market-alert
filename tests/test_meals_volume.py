@@ -33,8 +33,9 @@ def days(n, start=date(2021, 3, 1)):
 
 
 def test_forex_gets_null_not_zero():
-    # П.3.5: у инструмента без объёма подтверждение объёмом НЕ ОЦЕНИВАЕТСЯ.
-    # Ноль означал бы "объём обычный", а это утверждение о данных, которых нет.
+    # §3.5: for an instrument without volume, volume confirmation is NOT
+    # ASSESSED. A zero would mean "volume is ordinary", an assertion about data
+    # that does not exist.
     fx = asset(ticker="EUR/USD", block="FX", has_volume=False, tick_size=0.00001,
                session_template="fx_continuous", fetch_interval="1h")
     data = frame([bar(d, 10, 0.0) for d in days(30)])
@@ -43,19 +44,19 @@ def test_forex_gets_null_not_zero():
 
 
 def test_seasonal_hour_is_not_an_anomaly_by_itself():
-    # Открытие рынка кратно активнее полудня. Если сравнивать с общей нормой,
-    # каждое утро было бы всплеском. Норма берётся по своему часу.
+    # The open is several times busier than midday. Compared against one global
+    # norm, every morning would be a spike. The norm is taken per hour.
     rows = []
     for d in days(40):
-        rows.append(bar(d, 10, 10_000_000.0))  # шумный час открытия
-        rows.append(bar(d, 13, 1_000_000.0))   # тихий полдень
+        rows.append(bar(d, 10, 10_000_000.0))  # the noisy opening hour
+        rows.append(bar(d, 13, 1_000_000.0))   # quiet midday
     data = frame(rows)
 
     result = volume.robust_volume_z(asset(), data, ET)
     measured = result.dropna()
 
     assert len(measured) > 0
-    # Оба часа обычны для самих себя, поэтому оба около нуля.
+    # Both hours are ordinary for themselves, so both come out near zero.
     assert measured.abs().max() < 1.0
 
 
@@ -69,19 +70,20 @@ def test_a_genuine_surge_is_flagged():
 
 
 def test_profile_excludes_the_current_day():
-    # Норма, в которую включено оцениваемое наблюдение, подстраивается под него
-    # и занижает собственное срабатывание.
+    # A norm that includes the observation being judged adjusts towards it and
+    # understates its own firing.
     rows = [bar(d, 10, 1_000_000.0) for d in days(25)]
     rows.append(bar(date(2021, 4, 15), 10, 50_000_000.0))
     result = volume.robust_volume_z(asset(), frame(rows), ET)
 
-    # Профиль вырожден (объём не менялся), поэтому по п.3.5 V_R = 0, а не
-    # бесконечность - но важно, что всплеск в свой же профиль не попал.
+    # The profile is degenerate (volume never moved), so §3.5 gives V_R = 0
+    # rather than infinity - but the point is that the spike did not enter its own
+    # profile.
     assert result.iloc[-1] == 0.0
 
 
 def test_degenerate_profile_gives_zero():
-    # Объём этого часа не менялся 20 дней: MAD равен нулю, делить нельзя.
+    # This hour's volume has not moved for 20 days: MAD is zero, division is impossible.
     rows = [bar(d, 10, 1_000_000.0) for d in days(30)]
     result = volume.robust_volume_z(asset(), frame(rows), ET).dropna()
 
@@ -89,13 +91,13 @@ def test_degenerate_profile_gives_zero():
 
 
 def test_half_sessions_are_kept_out_of_the_profile():
-    # В сокращённый день объём заведомо меньше, и держать такие дни в норме
-    # значит занижать её для всех полных.
+    # On a shortened day volume is lower by construction, and keeping such days
+    # in the norm depresses it for every full one.
     #
-    # Эффект приходится строить намеренно крупным, и это само по себе говорит
-    # о свойстве оценки: медиана и MAD настолько устойчивы, что один короткий
-    # день из двадцати не сдвигает их вовсе. Чтобы разница проявилась, полоса
-    # сокращённых дней должна занять половину окна.
+    # The effect has to be built deliberately large, and that says something
+    # about the estimator itself: the median and MAD are so robust that one short
+    # day in twenty does not move them at all. For a difference to show, the band
+    # of shortened days must occupy half the window.
     all_days = days(40)
     short_days = set(all_days[20:30])
     rows = [bar(d, 10, 200_000.0 if d in short_days else 1_000_000.0 + 10_000 * i)
@@ -105,11 +107,12 @@ def test_half_sessions_are_kept_out_of_the_profile():
     with_filter = volume.robust_volume_z(asset(), data, ET, set(all_days) - short_days)
     without_filter = volume.robust_volume_z(asset(), data, ET, None)
 
-    # Сокращённые дни в профиле портят норму не смещением центра, а раздутым
-    # разбросом: распределение становится двугорбым - около 200 тысяч и около
-    # миллиона, - и MAD растягивается на весь разрыв между горбами. Знаменатель
-    # раздувается, и настоящий всплеск перестаёт выделяться. То есть фильтр
-    # защищает не от ложных срабатываний, а от слепоты.
+    # Shortened days in the profile spoil the norm not by shifting its centre but
+    # by inflating its spread: the distribution becomes bimodal - around 200
+    # thousand and around a million - and MAD stretches across the whole gap
+    # between the humps. The denominator inflates, and a genuine spike stops
+    # standing out. So the filter guards not against false firings but against
+    # blindness.
     assert with_filter.iloc[-1] > 1.5 * without_filter.iloc[-1]
 
 
@@ -119,9 +122,9 @@ def test_short_history_leaves_the_value_undefined():
 
 
 def test_local_hour_not_utc_hour():
-    # Сезонность привязана к расписанию торгов, а оно живёт в местном времени и
-    # переезжает относительно UTC при переходе на летнее время. Один и тот же
-    # биржевой час зимой и летом - это разные часы UTC.
+    # The seasonality is tied to the trading schedule, and that lives in local
+    # time and shifts relative to UTC with daylight saving. The same exchange hour
+    # in winter and in summer is a different UTC hour.
     winter = datetime(2021, 1, 15, 10, tzinfo=ZoneInfo(ET))
     summer = datetime(2021, 7, 15, 10, tzinfo=ZoneInfo(ET))
     assert winter.astimezone(ZoneInfo("UTC")).hour != summer.astimezone(ZoneInfo("UTC")).hour
@@ -130,7 +133,7 @@ def test_local_hour_not_utc_hour():
             + [bar(d, 10, 1_000_000.0 + 1000 * i) for i, d in enumerate(days(25, date(2021, 7, 5)))])
     result = volume.robust_volume_z(asset(), frame(rows), ET).dropna()
 
-    # Все бары попали в один профиль десятого часа, несмотря на смену UTC-часа.
+    # Every bar landed in the same hour-10 profile despite the UTC hour changing.
     assert len(result) >= 25
 
 

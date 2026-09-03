@@ -1,17 +1,17 @@
-"""Тест воспроизводимости прогона (ТЗ п.6.7).
+"""Run reproducibility test (spec §6.7).
 
-Требование звучит просто: повторный прогон того же периода с той же
-config_version обязан дать ИДЕНТИЧНЫЙ набор событий. Проверять его нужно
-именно на повторе, а не на одном запуске, потому что все три способа сломать
-воспроизводимость проявляются только со второго раза.
+The requirement sounds simple: a repeat run of the same period under the same
+config_version must give an IDENTICAL set of events. It has to be checked on the
+repeat rather than on a single run, because all three ways of breaking
+reproducibility only show up the second time round.
 
-Первый - состояние в файле: прогон дописывает свои колонки в тот же файл
-метрик корзины, из которого читает, и второй запуск либо падает на пересечении
-имён, либо считает по собственному прошлому результату. Второй - версия,
-зависящая от своего же выхода: если отпечаток брать после записи, run_version
-меняется на каждом прогоне и идемпотентность теряется вместе с ней. Третий -
-недетерминированный порядок обхода словарей и множеств, из-за которого события
-те же, а их последовательность каждый раз другая.
+The first is state in a file: the run appends its own columns to the same basket
+metrics file it reads from, and the second run either fails on the overlapping
+names or computes against its own previous result. The second is a version that
+depends on its own output: take the fingerprint after the write and run_version
+changes on every run, taking idempotency with it. The third is non-deterministic
+iteration order over dicts and sets, which leaves the events the same but their
+sequence different each time.
 """
 import json
 import os
@@ -26,7 +26,7 @@ HOUR = 3600
 
 
 def basket_frame(n=400):
-    """Кадр, который отдаёт cross_section: без производных колонок cluster."""
+    """The frame cross_section produces: without cluster's derived columns."""
     index = pd.Index([(i + 1) * HOUR for i in range(n)], name="hour_utc")
     rng = np.random.default_rng(20260901)
     return pd.DataFrame({
@@ -40,7 +40,7 @@ def basket_frame(n=400):
 
 
 def with_derived(frame):
-    """То, что дописывает в тот же файл сам прогон cluster."""
+    """What the cluster run itself appends to that same file."""
     return frame.assign(
         m_calendar=1.0, m_vix=1.0, si_total=0.0, sigma_m=0.01, k=2.0,
         decision="", base_points=0, breadth_q99=False,
@@ -61,7 +61,7 @@ def run_frame(n=400, fire_at=(50, 200, 300)):
     return frame
 
 
-# --- набор событий ---------------------------------------------------------
+# --- the set of events ------------------------------------------------------
 
 def test_repeating_the_run_gives_the_identical_event_set():
     frame = run_frame()
@@ -74,9 +74,9 @@ def test_repeating_the_run_gives_the_identical_event_set():
 
 
 def test_the_event_order_is_stable_not_merely_the_set():
-    # Множество совпало, а порядок разошёлся - это уже не воспроизводимость:
-    # события нумеруются и связываются по parent_event_id, и перестановка
-    # ломает ссылки.
+    # The set matched but the order diverged - that is no longer
+    # reproducibility: events are numbered and linked by parent_event_id, and a
+    # permutation breaks the references.
     frame = run_frame()
     first = [(e.event_id, e.t0_utc) for e in cluster.run(frame)[0]]
     second = [(e.event_id, e.t0_utc) for e in cluster.run(frame)[0]]
@@ -85,8 +85,8 @@ def test_the_event_order_is_stable_not_merely_the_set():
 
 
 def test_the_runner_does_not_trip_over_its_own_output():
-    # Главный источник расхождения: файл метрик корзины - и вход, и выход.
-    # Второй запуск читает кадр, в котором производные колонки уже есть.
+    # The main source of divergence: the basket metrics file is both input and
+    # output. The second run reads a frame that already has the derived columns.
     frame = basket_frame()
     reused = cluster.reset_derived(with_derived(frame))
     assert list(reused.columns) == list(frame.columns)
@@ -99,7 +99,7 @@ def test_resetting_derived_columns_is_idempotent():
     assert cluster.reset_derived(once).equals(once)
 
 
-# --- версии ----------------------------------------------------------------
+# --- versions ---------------------------------------------------------------
 
 def test_the_same_data_yields_the_same_run_version(tmp_path):
     (tmp_path / "bars").mkdir()
@@ -112,9 +112,8 @@ def test_the_same_data_yields_the_same_run_version(tmp_path):
 
 
 def test_a_revised_bar_yields_a_new_run_version(tmp_path):
-    # П.6.2: поздние или пересмотренные данные обязаны попасть в пересчёт с
-    # НОВОЙ версией - иначе исправленный бар молча смешивается со старыми
-    # решениями.
+    # §6.2: late or revised data must enter the recomputation under a NEW
+    # version - otherwise a corrected bar quietly mixes with the old decisions.
     directory = tmp_path / "bars"
     directory.mkdir()
     bar = directory / "spy.parquet"
@@ -125,10 +124,10 @@ def test_a_revised_bar_yields_a_new_run_version(tmp_path):
 
 
 def test_rewriting_a_file_with_the_same_bytes_keeps_the_version(tmp_path):
-    # Бэкфилл переписывает файл теми же барами. Отпечаток по времени правки
-    # объявил бы это новыми данными, и пересчёт по неизменившейся истории
-    # получал бы новую run_version каждый раз - то есть идемпотентности п.6.2
-    # не было бы вовсе.
+    # A backfill rewrites the file with the same bars. A fingerprint based on
+    # modification time would declare that new data, and a recomputation over an
+    # unchanged history would get a new run_version every time - meaning the
+    # idempotency of §6.2 would not exist at all.
     directory = tmp_path / "bars"
     directory.mkdir()
     bar = directory / "spy.parquet"
@@ -140,9 +139,9 @@ def test_rewriting_a_file_with_the_same_bytes_keeps_the_version(tmp_path):
 
 
 def test_derived_files_are_not_part_of_the_fingerprint():
-    # Метрики корзины прогону cluster - и вход, и выход. Попади они в
-    # отпечаток, повторный запуск по тем же данным получил бы новую версию
-    # просто потому, что предыдущий переписал файл.
+    # The basket metrics are both input and output for the cluster run. Were they
+    # in the fingerprint, a repeat run over the same data would get a new version
+    # simply because the previous one rewrote the file.
     raw = set(versioning.RAW_INPUTS)
     for derived in ("data/meals/metrics_basket_hour.parquet", "data/meals/metrics",
                     "data/meals/residuals", "data/meals/decision_log.parquet"):
@@ -150,8 +149,8 @@ def test_derived_files_are_not_part_of_the_fingerprint():
 
 
 def test_a_file_added_inside_a_directory_changes_the_fingerprint(tmp_path):
-    # Каталог сам по себе отпечатком быть не может: у него меняется только
-    # время правки, и дописанный внутрь файл его не всегда трогает.
+    # A directory cannot serve as a fingerprint on its own: only its modification
+    # time changes, and a file appended inside does not always touch it.
     directory = tmp_path / "bars"
     directory.mkdir()
     (directory / "spy.parquet").write_bytes(b"a")
@@ -161,15 +160,15 @@ def test_a_file_added_inside_a_directory_changes_the_fingerprint(tmp_path):
 
 
 def test_the_config_version_does_not_depend_on_the_run(tmp_path):
-    # config_version читает только конфигурацию и код: два прогона подряд по
-    # разным данным обязаны дать одну и ту же версию конфигурации.
+    # config_version reads only the configuration and the code: two consecutive
+    # runs over different data must give one and the same configuration version.
     (tmp_path / "windows.py").write_text("W = 1", encoding="utf-8")
     inputs = ("windows.py",)
     assert versioning.config_version(str(tmp_path), inputs) \
         == versioning.config_version(str(tmp_path), inputs)
 
 
-# --- журнал и экспорт ------------------------------------------------------
+# --- journal and export -----------------------------------------------------
 
 def test_the_journal_is_identical_between_runs():
     frame = with_derived(basket_frame()).assign(

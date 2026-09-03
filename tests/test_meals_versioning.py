@@ -21,9 +21,9 @@ def test_config_version_is_stable_for_identical_input(tmp_path):
 
 
 def test_changing_a_threshold_changes_the_version(tmp_path):
-    # П.6.3: ретро-изменение параметров без пересчёта запрещено. Версия обязана
-    # заметить правку сама - на ручной счётчик, который забывают увеличить,
-    # полагаться нельзя.
+    # §6.3: changing parameters retroactively without a recomputation is
+    # forbidden. The version must notice the edit by itself - a manual counter,
+    # which people forget to increment, cannot be relied on.
     inputs = ("windows.py",)
     write(tmp_path, "windows.py", "THRESHOLD = 7")
     before = versioning.config_version(str(tmp_path), inputs)
@@ -32,9 +32,9 @@ def test_changing_a_threshold_changes_the_version(tmp_path):
 
 
 def test_a_missing_file_is_part_of_the_state(tmp_path):
-    inputs = ("нет.yaml",)
+    inputs = ("missing.yaml",)
     absent = versioning.config_version(str(tmp_path), inputs)
-    write(tmp_path, "нет.yaml", "x")
+    write(tmp_path, "missing.yaml", "x")
     assert versioning.config_version(str(tmp_path), inputs) != absent
 
 
@@ -46,7 +46,7 @@ def test_file_order_does_not_matter(tmp_path):
 
 
 def test_run_version_is_idempotent_for_unchanged_data(tmp_path):
-    # П.6.2: повторный прогон того же часа с той же версией не создаёт дублей.
+    # §6.2: a repeat run of the same hour under the same version creates no duplicates.
     data = write(tmp_path, "bars.parquet", "x" * 100)
     first = versioning.run_version("cfg", versioning.data_fingerprint([str(data)]))
     second = versioning.run_version("cfg", versioning.data_fingerprint([str(data)]))
