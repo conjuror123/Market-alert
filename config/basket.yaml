@@ -1,63 +1,65 @@
-# Конфигурация корзины MEALS (ТЗ 5.1, п.2.3).
+# MEALS basket configuration (spec 5.1, §2.3).
 #
-# Веса здесь СОЗНАТЕЛЬНО не задаются: по п.2.3 они производные и считаются
-# системой по правилу равновесности
+# Weights are DELIBERATELY absent here: per §2.3 they are derived, computed by
+# the system from the composition on a date under the equality rule
 #     weight_i = 1 / (N_blocks * N_assets_block)
-# из состава на дату. Если бы вес лежал в файле, его можно было бы руками
-# разойтись с правилом - а по ТЗ в таком случае конфигурация считается
-# невалидной, поэтому единственный способ не разойтись - не хранить его.
+# If a weight lived in this file, someone could hand-edit it out of line with the
+# rule - and the spec then declares the configuration invalid, so the only way
+# never to diverge is not to store it.
 #
-# Блоков пять, а не четыре как в исходном п.2.3. Пятый - crypto - добавлен
-# осознанно: без него вне американской сессии в корзине остаются только
-# валютные пары, то есть один блок, а кворум часа требует минимум двух блоков
-# по два актива. Шесть пар плюс три криптоактива дают ночью девять активов при
-# минимуме восемь - с запасом ровно на один невалидный бар. Без этого блока
-# система была бы слепа примерно 17 часов в сутки.
+# There are five blocks, not the four of the original §2.3. The fifth, crypto,
+# was added on purpose: without it, outside the US session the basket holds only
+# currency pairs, that is, one block, while the hourly quorum requires at least
+# two blocks of two assets each. Six pairs plus three crypto assets give nine
+# assets at night against a minimum of eight - a margin of exactly one invalid
+# bar. Without this block the system would be blind for roughly 17 hours a day.
 #
-# Источников три. Yahoo Finance в MEALS не используется вовсе: все его
-# инструменты дублировали то, что уже есть через ETF (GC=F и GLD - одно золото,
-# CL=F и USO - одна нефть, ES=F и SPY - один S&P, ZB=F и TLT/IEF - те же
-# длинные трежерис, DX-Y.NYB - те же валютные пары в другой упаковке), но с
-# историей только с апреля 2024 и через неофициальный эндпоинт.
+# There are three sources. Yahoo Finance is not used in MEALS at all: every one
+# of its instruments duplicated something already covered by an ETF (GC=F and GLD
+# are the same gold, CL=F and USO the same oil, ES=F and SPY the same S&P, ZB=F
+# and TLT/IEF the same long Treasuries, DX-Y.NYB the same currency pairs in
+# different packaging), and with history only from April 2024 and through an
+# unofficial endpoint.
 
-# Якорная биржа эталонного календаря корзины (п.2.2): вс 17:00 .. пт 17:00
-# местного времени. Границы хранятся в этой таймзоне и переводятся в UTC на
-# лету - хранить их сразу в UTC запрещено п.2.2.
+# Anchor exchange of the basket's reference calendar (§2.2): Sun 17:00 .. Fri
+# 17:00 local time. The bounds are stored in this timezone and converted to UTC
+# on the fly - §2.2 forbids storing them as UTC.
 anchor_exchange_tz: America/New_York
 
-# Начало истории (п.2.1). Совпадает с train-периодом из п.7.
+# Start of history (§2.1). Matches the train period of §7.
 history_since: "2021-01-01"
 
-# Шаблоны сессий заполняются на Ф1 (календари праздников и полусессий), здесь
-# только имена, на которые ссылаются активы.
+# Session templates are filled in during phase 1 (holiday and half-session
+# calendars); here only the names the assets refer to.
 session_templates:
   us_equity:
     exchange: NYSE
     tz: America/New_York
-    description: "09:30-16:00 по рабочим дням, с праздниками и полусессиями NYSE"
+    description: "09:30-16:00 on business days, with NYSE holidays and half sessions"
   fx_continuous:
     exchange: FX
     tz: America/New_York
-    description: "непрерывно с вс 17:00 до пт 17:00"
+    description: "continuous from Sun 17:00 to Fri 17:00"
   crypto_24_7:
     exchange: COINBASE
     tz: UTC
-    description: "круглосуточно, без выходных"
+    description: "around the clock, no weekends"
 
-# tick_size - биржевой шаг цены, нужен винзоризации п.2.5 (нижняя отсечка
-# eps_MAD включает доходность в половину тика). Задан явно, а не измерен по
-# данным: источник отдаёт цены фондов с плавающим хвостом - 769.53992 там, где
-# на бирже стоит 769.54, - так что измеренная точность 1e-7 говорит о формате
-# хранения у вендора, а не о шаге торгов. У валютных пар точность источника и
-# шаг совпадают: пять знаков, включая иену (проверено на реальных данных).
-# Аудит сверяет одно с другим и ругается, если шаг мельче точности.
+# tick_size is the exchange price step, needed by the §2.5 winsorization (the
+# eps_MAD floor includes the return on half a tick). It is stated explicitly
+# rather than measured from the data: the source serves ETF prices with a
+# floating tail - 769.53992 where the exchange shows 769.54 - so a measured
+# precision of 1e-7 describes the vendor's storage format, not the trading step.
+# For currency pairs the source precision and the step coincide: five decimals,
+# the yen included (verified on real data). The audit cross-checks the two and
+# complains if the step is finer than the precision.
 #
-# fetch_interval - интервал, которым инструмент ЗАПРАШИВАЕТСЯ у источника, он
-# не равен рабочему интервалу системы. У биржевых фондов бары идут по :30
-# (09:30, 10:30, ...), поэтому они тянутся получасовыми и складываются в
-# часовые по границе круглого часа UTC - иначе кросс-секция считала бы
-# синхронность на рядах, смещённых друг относительно друга на полчаса.
-# Кредитов это не стоит: тариф считает запросы, а не строки.
+# fetch_interval is the interval at which the instrument is REQUESTED from the
+# source; it is not the system's working interval. ETF bars run on the :30
+# (09:30, 10:30, ...), so they are pulled as half-hourly and folded into hourly
+# bars on the round UTC hour - otherwise the cross-section would measure synchrony
+# on series offset from one another by half an hour. This costs no credits: the
+# plan counts requests, not rows.
 assets:
   # --- equity -------------------------------------------------------------
   - ticker: SPY
@@ -86,7 +88,7 @@ assets:
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "Russell 2000 (малая капитализация)"
+    label: "Russell 2000 (small caps)"
   - ticker: XLF
     source: twelvedata
     tier: 2
@@ -95,7 +97,7 @@ assets:
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "Финансовый сектор США"
+    label: "US financial sector"
 
   # --- rates --------------------------------------------------------------
   - ticker: TLT
@@ -106,7 +108,7 @@ assets:
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "Трежерис 20+ лет"
+    label: "Treasuries 20+ years"
   - ticker: IEF
     source: twelvedata
     tier: 1
@@ -115,7 +117,7 @@ assets:
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "Трежерис 7-10 лет"
+    label: "Treasuries 7-10 years"
   - ticker: SHY
     source: twelvedata
     tier: 2
@@ -124,7 +126,7 @@ assets:
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "Трежерис 1-3 года"
+    label: "Treasuries 1-3 years"
   - ticker: HYG
     source: twelvedata
     tier: 2
@@ -133,7 +135,7 @@ assets:
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "Высокодоходные облигации (кредитный риск)"
+    label: "High-yield bonds (credit risk)"
 
   # --- commodities --------------------------------------------------------
   - ticker: GLD
@@ -144,7 +146,7 @@ assets:
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "Золото"
+    label: "Gold"
   - ticker: USO
     source: twelvedata
     tier: 1
@@ -153,7 +155,7 @@ assets:
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "Нефть WTI"
+    label: "WTI crude oil"
   - ticker: SLV
     source: twelvedata
     tier: 2
@@ -162,7 +164,7 @@ assets:
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "Серебро"
+    label: "Silver"
   - ticker: DBC
     source: twelvedata
     tier: 2
@@ -171,12 +173,12 @@ assets:
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "Широкая корзина сырья"
+    label: "Broad commodity basket"
 
   # --- FX -----------------------------------------------------------------
-  # У спот-форекса нет единого биржевого объёма ни у одного провайдера, поэтому
-  # has_volume: false - по п.3.5 подтверждение объёмом для них не оценивается
-  # вовсе (V_R = NULL), а не считается несработавшим.
+  # Spot FX has no consolidated exchange volume at any provider, hence
+  # has_volume: false - per §3.5 volume confirmation for them is not assessed at
+  # all (V_R = NULL), rather than counted as having failed.
   - ticker: EUR/USD
     source: twelvedata
     tier: 1
@@ -185,7 +187,7 @@ assets:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Евро / доллар"
+    label: "Euro / dollar"
   - ticker: USD/JPY
     source: twelvedata
     tier: 1
@@ -194,7 +196,7 @@ assets:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Доллар / иена"
+    label: "Dollar / yen"
   - ticker: GBP/USD
     source: twelvedata
     tier: 2
@@ -203,7 +205,7 @@ assets:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Фунт / доллар"
+    label: "Pound / dollar"
   - ticker: AUD/USD
     source: twelvedata
     tier: 2
@@ -212,7 +214,7 @@ assets:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Австралийский доллар / доллар"
+    label: "Australian dollar / dollar"
   - ticker: USD/CHF
     source: twelvedata
     tier: 2
@@ -221,7 +223,7 @@ assets:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Доллар / франк"
+    label: "Dollar / franc"
   - ticker: USD/CAD
     source: twelvedata
     tier: 2
@@ -230,7 +232,7 @@ assets:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Доллар / канадский доллар"
+    label: "Dollar / Canadian dollar"
 
   # --- crypto -------------------------------------------------------------
   - ticker: BTC-USD
@@ -261,11 +263,11 @@ assets:
     fetch_interval: 1h
     label: "Solana"
 
-# Инструменты вне корзины (п.8.1): в кворуме, весах, широте и кластерных
-# триггерах не участвуют, но SAED считает по ним остатки на общем факторе
-# корзины. block обязателен - он нужен только для агрегации блочных алертов
-# по п.8.4. Эти две пары вынесены из корзины, чтобы не перекашивать блок FX по
-# числу активов, но алерты по ним сохраняются.
+# Instruments outside the basket (§8.1): they take no part in the quorum, the
+# weights, breadth or the cluster triggers, but SAED computes their residuals on
+# the common basket factor. block is mandatory - it is needed only for block-alert
+# aggregation per §8.4. These two pairs were moved out of the basket so as not to
+# skew the FX block by headcount, while their alerts are preserved.
 outside_basket:
   - ticker: NZD/USD
     source: twelvedata
@@ -275,7 +277,7 @@ outside_basket:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Новозеландский доллар / доллар"
+    label: "New Zealand dollar / dollar"
   - ticker: USD/CNY
     source: twelvedata
     tier: 2
@@ -284,29 +286,29 @@ outside_basket:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Доллар / юань"
+    label: "Dollar / yuan"
 
-# Внешний односторонний индикатор стресса (п.4.4). В корзину не входит и в
-# кворуме не участвует. Источник - FRED, серия VIXCLS: настоящий индекс с
-# 1990 года, без контанго-дрейфа биржевых фондов на фьючерсы VIX.
+# External one-sided stress indicator (§4.4). Not part of the basket and takes no
+# part in the quorum. Source: FRED, series VIXCLS - the real index going back to
+# 1990, without the contango drift of ETFs on VIX futures.
 #
-# Две особенности, обе зафиксированы как отступление от буквы п.4.4:
-#   1. Ряд ДНЕВНОЙ - внутридневного VIX на FRED нет ни в одной серии, так что
-#      скачок определяется аппаратом п.3.1 на дневных барах, а не на часовых.
-#   2. Публикуется с задержкой в один-два рабочих дня, поэтому окно множителя
-#      отсчитывается от момента, когда значение стало известно системе, а не
-#      от даты наблюдения. Иначе бэктест заглядывал бы в будущее.
-# history_since здесь СВОЙ, отличный от корзины, и это не небрежность.
-# Разогрев по п.2.7 требует 720 наблюдений до появления sigma_LT, а у дневного
-# ряда это почти три года. Начав с 2021-го, мы получили бы работающий множитель
-# только с октября 2023 - то есть на всём train-периоде п.7 он молча равнялся
-# бы единице, и калибровка порогов прошла бы по ряду, в котором стрессовых
-# режимов как будто не существует. VIX не входит в корзину, поэтому ограничение
-# п.2.1 на глубину истории корзины к нему не относится, а FRED отдаёт серию с
-# 1990 года бесплатно.
+# Two peculiarities, both recorded as departures from the letter of §4.4:
+#   1. The series is DAILY - FRED has no intraday VIX in any series, so a spike is
+#      identified by the §3.1 machinery on daily bars, not hourly ones.
+#   2. It is published with a one- to two-business-day delay, so the multiplier
+#      window is counted from the moment the value became known to the system, not
+#      from the observation date. Otherwise the backtest would look ahead.
+# history_since here is ITS OWN, different from the basket's, and that is not
+# sloppiness. The §2.7 burn-in needs 720 observations before sigma_LT appears, and
+# for a daily series that is almost three years. Starting from 2021 we would get a
+# working multiplier only from October 2023 - that is, across the entire §7 train
+# period it would silently equal one, and threshold calibration would run on a
+# series in which stress regimes appear not to exist. VIX is not in the basket, so
+# the §2.1 limit on the basket's history depth does not apply to it, and FRED
+# serves the series from 1990 for free.
 volatility_index:
   series_id: VIXCLS
   source: fred
   interval: 1d
   history_since: "1990-01-01"
-  label: "Индекс волатильности VIX"
+  label: "VIX volatility index"

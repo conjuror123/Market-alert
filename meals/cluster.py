@@ -1,20 +1,20 @@
-"""Кластерные события: гейт, кулдаун, эскалации (ТЗ п.4.1, п.5).
+"""Cluster events: gate, cooldown, escalations (spec §4.1, §5).
 
-Кулдаун здесь не таймер молчания, а способ отличить НОВОЕ событие от
-продолжения старого. Рынок после сильного движения ещё несколько дней шумит, и
-без паузы система рассказывала бы об одном и том же шторме каждый час. Но
-жёсткая пауза плоха обратным: если внутри неё случится нечто действительно
-большее, промолчать нельзя. Отсюда две ветви досрочного пробоя - и антидребезг,
-который не даёт им превратиться в обычный поток.
+The cooldown here is not a mute timer but a way of telling a NEW event from the
+continuation of an old one. After a strong move the market keeps rumbling for
+several days, and without a pause the system would report the same storm every
+hour. But a rigid pause fails the opposite way: if something genuinely larger
+happens inside it, staying silent is not an option. Hence the two early-break
+branches - and the debounce that keeps them from turning into an ordinary stream.
 
-Приоритет ветвей задан прямо: если в один час выполнены обе, применяется шок
-высшего порядка, а векторный разворот в этот час не рассматривается. Разница
-существенная - шок наращивает текущее событие, разворот открывает новое со
-ссылкой на родителя.
+The priority of the branches is stated outright: if both hold in the same hour,
+the higher-order shock applies and the vector reversal is not considered that
+hour. The difference matters - a shock extends the current event, a reversal
+opens a new one with a link to its parent.
 
-Всё измеряется в часах эталонного календаря, поэтому автомат идёт по их
-упорядоченному списку, а не по календарному времени: 72 ч.э.к. - это трое
-торговых суток, а не трое календарных.
+Everything is measured in reference-calendar hours, so the automaton walks their
+ordered list rather than calendar time: 72 reference hours are three trading
+days, not three calendar days.
 """
 from __future__ import annotations
 
@@ -38,18 +38,18 @@ class ClusterEvent:
     status: str = "open"
 
 
-# Ветвь А запрещена в первый торговый час после T0 (п.5.2).
+# Branch A is forbidden in the first trading hour after T0 (§5.2).
 BRANCH_A_MIN_AGE = 1
 BRANCH_B_MIN_AGE = windows.REVERSAL_DELAY
 MAX_EARLY_BREAKS = 2
 
 
 def reversal_scale(m: pd.Series, window: int = windows.W_CS) -> pd.DataFrame:
-    """sigma_M и k_t для ветви векторного разворота (п.5.2).
+    """sigma_M and k_t for the vector-reversal branch (§5.2).
 
-    k_t берётся как максимум из эмпирического перцентиля и 1.5: перцентиль
-    подстраивается под период, и в затяжное затишье он опустился бы так низко,
-    что разворотом считалось бы любое колебание.
+    k_t is taken as the maximum of the empirical percentile and 1.5: the
+    percentile adapts to the period, and in a prolonged lull it would sink so low
+    that any wobble would count as a reversal.
     """
     sigma = m.shift(1).rolling(window, min_periods=window).std(ddof=1)
     normalised = (m / sigma).abs()
@@ -58,14 +58,14 @@ def reversal_scale(m: pd.Series, window: int = windows.W_CS) -> pd.DataFrame:
 
 
 def run(frame: pd.DataFrame) -> tuple[list[ClusterEvent], pd.DataFrame]:
-    """Последовательный автомат по часам эталонного календаря.
+    """Sequential automaton over reference-calendar hours.
 
-    На вход - кадр, проиндексированный часами по возрастанию, с колонками:
+    The input is a frame indexed by ascending hours with the columns:
     quorum_ok, trigger_cluster_shift, si_total, base_points, breadth_q99,
     m_weighted_median, sigma_m, k.
 
-    Возвращает события и покасовой журнал решений: что именно сработало в
-    каждый час и почему уведомление ушло или не ушло.
+    Returns the events and an hour-by-hour decision journal: what exactly fired
+    in each hour and why a notification went out or did not.
     """
     hours = frame.index.to_numpy()
     quorum = frame["quorum_ok"].fillna(False).to_numpy(dtype=bool)
@@ -81,8 +81,8 @@ def run(frame: pd.DataFrame) -> tuple[list[ClusterEvent], pd.DataFrame]:
     journal = np.full(len(frame), "", dtype=object)
 
     current: ClusterEvent | None = None
-    opened_at = -1              # индекс часа T0 текущего события
-    cooldown_until = -1         # индекс, до которого действует пауза
+    opened_at = -1              # index of the current event's T0 hour
+    cooldown_until = -1         # index up to which the pause applies
     early_breaks: list[int] = []
     m_at_t0 = np.nan
 
@@ -110,9 +110,9 @@ def run(frame: pd.DataFrame) -> tuple[list[ClusterEvent], pd.DataFrame]:
                 journal[i] = "gate_below_threshold"
             continue
 
-        # --- внутри кулдауна ---
+        # --- inside the cooldown ---
         age = i - opened_at
-        # Антидребезг: не более двух пробоев на скользящее окно 24 ч.э.к.
+        # Debounce: at most two breaks per rolling window of 24 reference hours.
         recent = [b for b in early_breaks if i - b < windows.ESCALATION_DEBOUNCE]
         exhausted = len(recent) >= MAX_EARLY_BREAKS
 
@@ -135,7 +135,7 @@ def run(frame: pd.DataFrame) -> tuple[list[ClusterEvent], pd.DataFrame]:
                 "reason": ("si>=escalation_threshold"
                            if si[i] >= si_index.ESCALATION_THRESHOLD else "breadth_q99"),
             })
-            # Кулдаун отсчитывается заново от момента эскалации.
+            # The cooldown restarts from the moment of the escalation.
             cooldown_until = i + windows.CLUSTER_COOLDOWN
             early_breaks.append(i)
             journal[i] = "escalation"
@@ -183,20 +183,20 @@ def escalations_frame(events: list[ClusterEvent]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-# Колонки, которые дописывает в metrics_basket_hour сам этот прогон. При
-# повторном запуске они уже в файле, и join уронил бы его на пересечении имён.
+# Columns this run itself appends to metrics_basket_hour. On a repeat run they
+# are already in the file, and join would fail on the overlapping names.
 DERIVED_COLUMNS = ("m_calendar", "m_vix", "si_total", "sigma_m", "k", "decision",
                    "base_points", "breadth_q99", "n_active_blocks",
                    "n_active_blocks_q99")
 
 
 def reset_derived(basket_frame: pd.DataFrame) -> pd.DataFrame:
-    """Сбрасывает собственный результат прошлого прогона (п.6.2).
+    """Clears this run's own output from the previous run (§6.2).
 
-    Файл метрик корзины здесь одновременно вход и выход. Требование п.6.2 -
-    повторный прогон того же часа не должен ни падать, ни двоить результат, -
-    выполняется тем, что производные колонки удаляются и считаются заново, а не
-    тем, что кто-то помнит запустить cross_section перед cluster.
+    The basket-metrics file is both input and output here. The §6.2 requirement -
+    a repeat run of the same hour must neither fail nor duplicate the result - is
+    met by dropping the derived columns and recomputing them, not by someone
+    remembering to run cross_section before cluster.
     """
     derived = [c for c in DERIVED_COLUMNS if c in basket_frame.columns]
     derived += [c for c in basket_frame.columns if c.startswith("trigger_")]
@@ -216,7 +216,7 @@ def main(argv: list[str] | None = None) -> int:
                        saed, versioning, vix)
     from meals.basket import load_basket
 
-    parser = argparse.ArgumentParser(description="SI-Index и кластерные события (п.4, п.5)")
+    parser = argparse.ArgumentParser(description="SI-Index and cluster events (§4, §5)")
     parser.add_argument("--metrics-dir", default=pipeline.DEFAULT_METRICS_DIR)
     parser.add_argument("--basket-metrics", default=cross_section.DEFAULT_BASKET_METRICS_PATH)
     parser.add_argument("--events-out", default=DEFAULT_EVENTS_PATH)
@@ -252,9 +252,9 @@ def main(argv: list[str] | None = None) -> int:
     events, decisions = run(frame)
     frame = frame.join(decisions)
 
-    # Отпечаток берётся по СЫРЫМ входам (versioning.RAW_INPUTS), а не по файлу
-    # метрик корзины: он этому прогону и вход, и выход, и включение его в
-    # отпечаток означало бы новую run_version на каждом повторе.
+    # The fingerprint is taken over the RAW inputs (versioning.RAW_INPUTS), not
+    # over the basket-metrics file: that file is both input and output for this
+    # run, and including it would mean a new run_version on every repeat.
     config, run_id = versioning.versions_for()
 
     for path, data in ((args.events_out, events_frame(events)),
@@ -264,13 +264,14 @@ def main(argv: list[str] | None = None) -> int:
     frame.reset_index(names="hour_utc").to_parquet(args.basket_metrics, index=False,
                                                    compression="zstd")
 
-    # Журнал решений (п.6.1).
-    # Остатки берутся с диска, если прогон SAED уже был: пересчитывать регрессии
-    # ради журнала не нужно, а без них строки saed просто не появятся.
+    # Decision journal (§6.1).
+    # Residuals are read from disk if a SAED run has already happened: there is no
+    # need to recompute the regressions just for the journal, and without them the
+    # saed rows simply do not appear.
     residual_frames = saed.load_residuals(basket)
     if not residual_frames:
-        log.warning("рядов остатков нет - журнал соберётся без строк SAED; "
-                    "сначала python -m meals.saed")
+        log.warning("no residual series - the journal will have no SAED rows; "
+                    "run python -m meals.saed first")
     rows = pd.concat([
         journal.stamp(journal.asset_decisions(metrics, residual_frames), config, run_id),
         journal.stamp(journal.basket_decisions(frame), config, run_id),
@@ -279,15 +280,15 @@ def main(argv: list[str] | None = None) -> int:
     rows.to_parquet(args.journal_out, index=False, compression="zstd")
     journal.first_valid_hour(metrics, frame).to_parquet(args.warmup_out, index=False,
                                                         compression="zstd")
-    log.info("журнал решений: %d строк, config %s, run %s", len(rows), config, run_id)
+    log.info("decision journal: %d rows, config %s, run %s", len(rows), config, run_id)
 
     reversals = sum(1 for e in events if e.parent_event_id)
-    log.info("кластерных событий %d (из них разворотов %d), эскалаций %d",
+    log.info("cluster events %d (of them reversals %d), escalations %d",
              len(events), reversals, sum(e.escalation_seq for e in events))
-    log.info("баллы: медиана %.0f, максимум %d | SI_total: максимум %.1f",
+    log.info("base points: median %.0f, max %d | SI_total: max %.1f",
              frame["base_points"].median(), int(frame["base_points"].max()),
              frame["si_total"].max())
-    log.info("решения по часам: %s",
+    log.info("decisions by hour: %s",
              frame["decision"].value_counts().head(6).to_dict())
     return 0
 

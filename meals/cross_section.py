@@ -1,25 +1,25 @@
-"""Кросс-секция корзины: кворум, M_t, CSV, PCA (ТЗ п.2.3, 3.2-3.4).
+"""Cross-section of the basket: quorum, M_t, CSV, PCA (spec §2.3, §3.2-3.4).
 
-Здесь система впервые перестаёт смотреть на активы по отдельности и начинает
-измерять то, ради чего она вообще строится: НАСКОЛЬКО СОГЛАСОВАННО движется
-рынок целиком. Одиночный всплеск отдельного актива - это Ф2 и модуль SAED;
-кластерное событие - это когда несколько блоков дёргаются разом, и увидеть это
-можно только глядя на все ряды одновременно.
+This is where the system stops looking at assets one by one and starts measuring
+the thing it exists for: HOW COHERENTLY the market as a whole is moving. A single
+spike in one asset belongs to phase 2 and the SAED module; a cluster event is
+several blocks jerking at once, and that can only be seen by looking at every
+series simultaneously.
 
-Два независимых способа поймать одну и ту же согласованность:
+Two independent ways of catching the same coherence:
 
-- СЖАТИЕ разброса (п.3.2). Обычно активы расходятся: у каждого своя новость,
-  свой поток заявок. Когда приходит общий макрофактор, разброс между ними
-  схлопывается - все идут в одну сторону примерно одинаково, - и при этом сама
-  корзина заметно смещается. Узкий разброс при крупном общем сдвиге и есть
-  подпись общего фактора.
-- СИНХРОННОСТЬ по PCA (п.3.3). То же самое с другой стороны: если первая
-  главная компонента объясняет непривычно большую долю дисперсии, значит
-  движением всех активов заправляет одна общая причина.
+- COMPRESSION of dispersion (§3.2). Normally assets disagree: each has its own
+  news, its own order flow. When a common macro factor arrives, the dispersion
+  between them collapses - everyone moves the same way by about the same amount -
+  and the basket itself shifts noticeably. A narrow spread together with a large
+  common move is the signature of a common factor.
+- SYNCHRONY via PCA (§3.3). The same thing from the other side: if the first
+  principal component explains an unusually large share of the variance, then one
+  common cause is driving every asset.
 
-По п.3.4 они объединяются через ИЛИ и логируются раздельно - а на бэктесте
-корреляция их срабатываний обязана быть проверена: если она выше 0.7, одно из
-подусловий исключается из продуктивной конфигурации как дублирующее.
+Per §3.4 they are combined with OR and logged separately - and the backtest must
+check the correlation of their firings: above 0.7, one of the sub-conditions is
+dropped from the production configuration as redundant.
 """
 from __future__ import annotations
 
@@ -31,43 +31,43 @@ import pandas as pd
 from meals import windows
 from meals.basket import Basket
 
-# Кворум часа (п.2.3).
+# Quorum of an hour (§2.3).
 QUORUM_MIN_ASSETS = 8
 QUORUM_MIN_TIER1 = 2
 QUORUM_MIN_BLOCKS = 2
 QUORUM_MIN_PER_BLOCK = 2
 
-# Обусловленность PCA (п.3.3).
+# PCA conditioning requirements (§3.3).
 PCA_MIN_ASSETS = 3
 PCA_MIN_ROWS = 60
 PCA_ROWS_PER_ASSET = 3
 CONSTANT_COLUMN_STD = 1e-12
 
-# Надбавка к медиане в пороге синхронности (п.3.3).
+# Margin added to the median in the synchrony threshold (§3.3).
 PCA_SYNC_MARGIN = 0.05
 
-# Сколько определённых значений PC1_ratio должно попасть в окно W_cs, чтобы
-# перцентильный порог имел смысл.
+# How many defined values of PC1_ratio must fall inside the W_cs window for the
+# percentile threshold to mean anything.
 #
-# Окно по ТЗ - 1200 ч.э.к., и менять его нельзя: это календарный охват
-# статистики, десять торговых недель. Но PC1_ratio существует только в часы
-# полного режима, а их около 28% - в окне из 1200 часов оказывается порядка 335
-# значений. Требовать 1200 НАБЛЮДЕНИЙ внутри 1200 ЧАСОВ значит требовать
-# невозможного: при таком условии порог не считается ни разу за всю историю.
-# Поэтому охват остаётся прежним, а требование предъявляется к числу значений,
-# и оно взято таким, чтобы 95-й перцентиль опирался хотя бы на пять точек в
-# хвосте.
+# The spec's window is 1200 reference-calendar hours, and it must not change:
+# that is the calendar span of the statistic, ten trading weeks. But PC1_ratio
+# exists only in full-regime hours, and those are about 28% - a 1200-hour window
+# contains roughly 335 values. Demanding 1200 OBSERVATIONS inside 1200 HOURS is
+# demanding the impossible: under that condition the threshold is never computed
+# in the whole history. So the span stays as specified while the requirement is
+# placed on the number of values, chosen so that the 95th percentile rests on at
+# least five points in the tail.
 PCA_STAT_MIN_OBS = 100
 
 
 def weighted_median(values: np.ndarray, weights: np.ndarray) -> float:
-    """Взвешенная медиана: значение, слева от которого лежит половина веса.
+    """Weighted median: the value with half the weight lying to its left.
 
-    Медиана, а не среднее, потому что M_t обязана описывать корзину ЦЕЛИКОМ, а
-    не поддаваться одному активу, который сегодня улетел. Взвешенная - потому
-    что вес актива задан правилом равновесности блоков (п.2.3), и без весов
-    блок из шести валютных пар перевешивал бы блок из трёх криптоактивов
-    просто числом участников.
+    A median, not a mean, because M_t must describe the basket AS A WHOLE and not
+    yield to one asset that took off today. Weighted, because an asset's weight
+    is set by the block-equality rule (§2.3), and without weights a block of six
+    currency pairs would outvote a block of three crypto assets purely by
+    headcount.
     """
     order = np.argsort(values)
     v, w = values[order], weights[order]
@@ -75,27 +75,27 @@ def weighted_median(values: np.ndarray, weights: np.ndarray) -> float:
     half = cumulative[-1] / 2
     index = int(np.searchsorted(cumulative, half))
     if index > 0 and np.isclose(cumulative[index - 1], half):
-        # Вес делится ровно пополам - берём середину между соседями, чтобы
-        # результат не зависел от порядка сортировки равных весов.
+        # The weight splits exactly in half - take the midpoint between
+        # neighbours so the result does not depend on how equal weights sorted.
         return float((v[index - 1] + v[index]) / 2)
     return float(v[min(index, len(v) - 1)])
 
 
 def build_panel(metrics: dict[str, pd.DataFrame], column: str = "r") -> pd.DataFrame:
-    """Широкая панель: строки - часы, столбцы - активы, значения - `column`.
+    """Wide panel: rows are hours, columns are assets, values are `column`.
 
-    Пропуски остаются пропусками. Заполнять их нулями по п.3.3 ЗАПРЕЩЕНО: ноль
-    это утверждение "актив не двигался", а его отсутствие означает "мы не
-    знаем", и подмена одного другим завышает согласованность корзины ровно там,
-    где данных нет.
+    Gaps stay gaps. §3.3 FORBIDS filling them with zeros: a zero asserts "the
+    asset did not move", while its absence means "we do not know", and swapping
+    one for the other inflates the basket's coherence exactly where there is no
+    data.
     """
     series = {aid: df.set_index("hour_utc")[column] for aid, df in metrics.items()}
     return pd.DataFrame(series).sort_index()
 
 
 def quorum(panel: pd.DataFrame, basket: Basket) -> pd.DataFrame:
-    """Кворум часа по п.2.3: достаточно ли активов, тиров и блоков, чтобы час
-    вообще имел смысл оценивать."""
+    """Quorum of an hour per §2.3: whether there are enough assets, tiers and
+    blocks for the hour to be worth assessing at all."""
     present = panel.notna()
     blocks = {a.asset_id: a.block for a in basket.assets}
     tier1 = [a.asset_id for a in basket.assets if a.tier == 1]
@@ -122,7 +122,7 @@ def quorum(panel: pd.DataFrame, basket: Basket) -> pd.DataFrame:
 
 
 def basket_median(panel: pd.DataFrame, basket: Basket) -> pd.Series:
-    """M_t - взвешенная медианная доходность корзины (п.2.3)."""
+    """M_t - the weighted median return of the basket (§2.3)."""
     weights = basket.weights()
     columns = [c for c in panel.columns if c in weights]
     w = np.array([weights[c] for c in columns])
@@ -137,29 +137,29 @@ def basket_median(panel: pd.DataFrame, basket: Basket) -> pd.Series:
 
 
 def block_factors(panel: pd.DataFrame, basket: Basket) -> pd.DataFrame:
-    """Фактор собственного блока для каждого инструмента, БЕЗ него самого.
+    """The own-block factor for each instrument, EXCLUDING the instrument itself.
 
-    Отступление от п.3.6, где регрессор один - фактор корзины. Причина
-    измерена, а не предположена: в часы, когда срабатывают четыре и более
-    валютные пары, в 97% случаев все они согласны по направлению доллара, а у
-    крипты согласие по знаку остатка стопроцентное по медиане. Это не
-    независимые идиосинкратические движения, а одно движение блока, которое
-    фактор корзины не поглотил и которое целиком утекло в остатки всех его
-    участников. Взвешенная медиана по пяти блокам почти не сдвигается, когда
-    ходит один блок весом в одну пятую - и модуль, задуманный ловить
-    ОДИНОЧНЫЕ движения, систематически срабатывал блоками.
+    A departure from §3.6, where there is a single regressor - the basket factor.
+    The reason is measured, not assumed: in hours when four or more currency pairs
+    fire, 97% of the time they all agree on the direction of the dollar, and for
+    crypto the agreement on residual sign is 100% at the median. Those are not
+    independent idiosyncratic moves but one block move that the basket factor
+    failed to absorb and that leaked wholesale into the residuals of every member.
+    A weighted median across five blocks barely shifts when one block weighing a
+    fifth moves - and a module meant to catch SINGLE-ASSET moves was firing in
+    blocks, systematically.
 
-    Величина M_block,t в ТЗ определена (п.2.3), но зарезервирована под разметку
-    истины в п.7. Здесь она становится вторым регрессором.
+    The quantity M_block,t is defined in the spec (§2.3) but reserved there for
+    truth labelling in §7. Here it becomes the second regressor.
 
-    Исключение самого актива обязательно. Иначе в блоке из трёх криптоактивов
-    инструмент на треть вычитал бы сам себя, и собственное движение частично
-    исчезало бы из остатка - ровно та ошибка, от которой в п.3.6 защищает
-    оценка беты на данных до текущего бара.
+    Excluding the asset itself is mandatory. Otherwise, in a block of three crypto
+    assets, an instrument would subtract a third of itself, and its own move would
+    partly vanish from the residual - exactly the error that §3.6 guards against
+    by estimating beta on data before the current bar.
 
-    Медиана здесь обычная, а не взвешенная, и это не упрощение: по правилу
-    равновесности п.2.3 веса всех активов внутри блока равны между собой, так
-    что взвешенная медиана блока совпадает с обычной.
+    The median here is plain rather than weighted, and that is not a
+    simplification: under the equality rule of §2.3 all weights within a block are
+    equal, so a block's weighted median coincides with the plain one.
     """
     members: dict[str, list[str]] = {}
     for asset in basket.assets:
@@ -174,8 +174,8 @@ def block_factors(panel: pd.DataFrame, basket: Basket) -> pd.DataFrame:
             with np.errstate(invalid="ignore"):
                 out[asset_id] = np.nanmedian(others, axis=1) if others.size else np.nan
 
-        # Инструменты вне корзины в фактор не входят (п.8.1), поэтому для них
-        # исключать нечего - берётся медиана блока целиком.
+        # Instruments outside the basket do not enter the factor (§8.1), so
+        # there is nothing to exclude for them - the whole block median is used.
         for asset in basket.outside:
             if asset.block == block:
                 out[asset.asset_id] = np.nanmedian(values, axis=1)
@@ -184,15 +184,16 @@ def block_factors(panel: pd.DataFrame, basket: Basket) -> pd.DataFrame:
 
 def cross_sectional_volatility(panel: pd.DataFrame, sigma_panel: pd.DataFrame,
                                basket: Basket) -> pd.DataFrame:
-    """CSV и CSV_norm по п.3.2.
+    """CSV and CSV_norm per §3.2.
 
-    CSV - разброс доходностей активов ВНУТРИ часа. Нормируется на среднюю
-    собственную волатильность тех же активов, иначе величина мерила бы не
-    согласованность, а просто бурность рынка: в шторм разброс велик у всех.
+    CSV is the dispersion of asset returns WITHIN an hour. It is normalised by
+    the mean own volatility of those same assets, otherwise the quantity would
+    measure not coherence but simply how turbulent the market is: in a storm the
+    dispersion is large for everyone.
     """
     columns = [c for c in panel.columns if c in {a.asset_id for a in basket.assets}]
     values = panel[columns]
-    csv = values.std(axis=1, ddof=1)  # ddof=1 по п.1.2
+    csv = values.std(axis=1, ddof=1)  # ddof=1 per §1.2
     ewma_volatility = sigma_panel[columns].where(values.notna()).mean(axis=1)
     return pd.DataFrame({
         "csv": csv,
@@ -203,9 +204,9 @@ def cross_sectional_volatility(panel: pd.DataFrame, sigma_panel: pd.DataFrame,
 
 def csv_compression(csv_norm: pd.Series, m: pd.Series,
                     window: int = windows.W_CS) -> pd.Series:
-    """Подусловие сжатия (п.3.2): разброс необычно узок И корзина заметно
-    сдвинулась. Одного узкого разброса мало - тихий час тоже узок, но в нём
-    ничего не происходит."""
+    """The compression sub-condition (§3.2): the dispersion is unusually narrow
+    AND the basket has shifted noticeably. A narrow spread alone is not enough - a
+    quiet hour is narrow too, and nothing is happening in it."""
     rolling = csv_norm.shift(1).rolling(window, min_periods=window)
     q10 = rolling.quantile(0.10)
     m_std = m.shift(1).rolling(window, min_periods=window).std(ddof=1)
@@ -214,12 +215,12 @@ def csv_compression(csv_norm: pd.Series, m: pd.Series,
 
 
 def full_basket_regime(quorum_frame: pd.DataFrame, basket: Basket) -> pd.Series:
-    """Часы, в которых торгует ВСЯ корзина - все блоки представлены.
+    """Hours in which the WHOLE basket trades - every block is represented.
 
-    У корзины два режима, и это следствие состава: биржевые фонды торгуют 6.5
-    часа, валютные пары 24/5, крипта круглосуточно. В американскую сессию
-    работают все пять блоков, остальные семнадцать часов суток - только
-    валютные пары и крипта.
+    The basket has two regimes, a consequence of its composition: ETFs trade for
+    6.5 hours, currency pairs 24/5, crypto around the clock. During the US session
+    all five blocks are working; the other seventeen hours of the day only the
+    currency pairs and crypto are.
     """
     return quorum_frame["n_blocks_populated"] >= len(basket.by_block())
 
@@ -227,34 +228,34 @@ def full_basket_regime(quorum_frame: pd.DataFrame, basket: Basket) -> pd.Series:
 def pc1_ratio(panel: pd.DataFrame, quorum_ok: pd.Series, basket: Basket,
               window: int = windows.W_PCA,
               regime: pd.Series | None = None) -> pd.Series:
-    """Доля дисперсии, объяснённая первой главной компонентой (п.3.3).
+    """Share of variance explained by the first principal component (§3.3).
 
-    Считается по КОРРЕЛЯЦИОННОЙ матрице, а не по ковариационной: иначе самый
-    волатильный актив в одиночку определял бы первую компоненту, и величина
-    измеряла бы его размах, а не общность движения.
+    Computed on the CORRELATION matrix, not the covariance matrix: otherwise the
+    most volatile asset alone would define the first component, and the quantity
+    would measure its amplitude rather than how common the movement is.
 
-    В окно берутся только активы с валидным баром во ВСЕХ включённых часах:
-    неполный столбец сделал бы корреляции между парами несопоставимыми,
-    посчитанными на разных подмножествах времени.
+    Only assets with a valid bar in ALL included hours enter the window: an
+    incomplete column would make pairwise correlations incomparable, each computed
+    on a different subset of time.
 
-    Отсюда следует ограничение, которого п.3.3 не предвидит, потому что
-    предполагает у всех активов одну сессию. У нас их две. Любое окно из 120
-    часов задевает ночь, когда фонды закрыты, поэтому требование полноты
-    выбрасывает из матрицы ВСЕ фонды - проверено на реальных данных: в окне
-    остаются ровно шесть валютных пар и три криптоактива, и так в каждом окне.
-    Синхронность блоков equity, rates и commodities не измерялась бы никогда,
-    хотя ради неё кластерный детектор и строится.
+    From this follows a limitation §3.3 does not anticipate, because it assumes
+    every asset shares one session. We have two. Any 120-hour window touches the
+    night, when the ETFs are closed, so the completeness requirement throws ALL
+    the ETFs out of the matrix - verified on real data: what remains is exactly
+    six currency pairs and three crypto assets, in every single window. The
+    synchrony of the equity, rates and commodities blocks would never be measured,
+    although the cluster detector exists for precisely that.
 
-    Поэтому окно набирается из часов ОДНОГО режима - тех, где торгует вся
-    корзина. Тогда все активы полны, корреляции сопоставимы, а PC1_ratio
-    измеряет то, что должен: общность движения по всем блокам. Ночью величина
-    остаётся NULL, и по п.3.4 триггер однофакторности опирается на одно лишь
-    сжатие - этот случай спецификация оговаривает прямо.
+    So the window is assembled from hours of ONE regime - those in which the whole
+    basket trades. Then every asset is complete, the correlations are comparable,
+    and PC1_ratio measures what it should: how common the movement is across all
+    blocks. At night the value stays NULL, and per §3.4 the single-factor trigger
+    rests on compression alone - a case the specification addresses directly.
 
-    Смешивать режимы в одном ряду было бы хуже, чем не считать вовсе: порог
-    синхронности - скользящий перцентиль самого PC1_ratio, и на ряду, где
-    чередуются два разных типичных уровня, он описывал бы пропорцию режимов, а
-    не аномалию.
+    Mixing regimes in one series would be worse than not computing it at all: the
+    synchrony threshold is a rolling percentile of PC1_ratio itself, and on a
+    series alternating between two different typical levels it would describe the
+    proportion of regimes rather than an anomaly.
     """
     columns = [c for c in panel.columns if c in {a.asset_id for a in basket.assets}]
     values = panel[columns]
@@ -264,9 +265,9 @@ def pc1_ratio(panel: pd.DataFrame, quorum_ok: pd.Series, basket: Basket,
     eligible = values[mask]
 
     out = pd.Series(np.nan, index=panel.index)
-    # Средняя парная корреляция (п.6.5) считается здесь же: корреляционная
-    # матрица для неё уже построена, и отдельный проход по тем же окнам стоил
-    # бы столько же, сколько весь PCA.
+    # The mean pairwise correlation (§6.5) is computed right here: the
+    # correlation matrix for it has already been built, and a separate pass over
+    # the same windows would cost as much as the whole PCA.
     mean_corr = pd.Series(np.nan, index=panel.index)
     positions = {h: i for i, h in enumerate(eligible.index)}
     matrix = eligible.to_numpy(dtype="float64")
@@ -294,10 +295,10 @@ def pc1_ratio(panel: pd.DataFrame, quorum_ok: pd.Series, basket: Basket,
         total = eigenvalues.sum()
         if total > 0:
             out[hour] = float(eigenvalues[-1] / total)
-        # Среднее арифметическое элементов ВНЕ главной диагонали. Диагональ -
-        # это корреляция актива с самим собой, единица по построению, и её
-        # включение просто подтягивало бы среднее вверх тем сильнее, чем меньше
-        # активов в окне.
+        # Arithmetic mean of the elements OFF the main diagonal. The diagonal is
+        # an asset's correlation with itself, one by construction, and including
+        # it would simply pull the mean upward, the more so the fewer assets are
+        # in the window.
         off_diagonal = correlation[~np.eye(n_assets, dtype=bool)]
         if off_diagonal.size:
             mean_corr[hour] = float(np.nanmean(off_diagonal))
@@ -305,9 +306,10 @@ def pc1_ratio(panel: pd.DataFrame, quorum_ok: pd.Series, basket: Basket,
 
 
 def pca_sync(ratio: pd.Series, window: int = windows.W_CS) -> pd.Series:
-    """Подусловие синхронности (п.3.3). Порог - максимум из перцентиля и
-    медианы с надбавкой: одного перцентиля мало, потому что в затяжной период
-    высокой связности он подтягивается вверх и перестаёт что-либо отсекать."""
+    """The synchrony sub-condition (§3.3). The threshold is the maximum of the
+    percentile and the median plus a margin: the percentile alone is not enough,
+    because in a prolonged period of high connectedness it drifts upward and stops
+    cutting anything off."""
     rolling = ratio.shift(1).rolling(window, min_periods=PCA_STAT_MIN_OBS)
     threshold = np.maximum(rolling.quantile(0.95), rolling.median() + PCA_SYNC_MARGIN)
     result = ratio > threshold
@@ -316,23 +318,23 @@ def pca_sync(ratio: pd.Series, window: int = windows.W_CS) -> pd.Series:
 
 
 def single_factor(compression: pd.Series, sync: pd.Series) -> pd.Series:
-    """Единый триггер однофакторности (п.3.4): сжатие ИЛИ синхронность.
+    """The single-factor trigger (§3.4): compression OR synchrony.
 
-    Если PC1_ratio не оценён, синхронность логируется как NULL, а значение
-    триггера равно одному лишь сжатию - по п.3.4 час, прошедший кворум, обязан
-    получить определённое значение, иначе он не даст слагаемого в SI-Index.
+    If PC1_ratio was not assessed, synchrony is logged as NULL and the trigger's
+    value equals compression alone - per §3.4 an hour that passed quorum must
+    receive a definite value, or it contributes no term to the SI-Index.
     """
     filled_sync = sync.fillna(False).astype(bool)
     result = compression.fillna(False).astype(bool) | filled_sync
-    # NULL остаётся только там, где НИ ОДНО подусловие не оценено.
+    # NULL remains only where NEITHER sub-condition was assessed.
     unknown = compression.isna() & sync.isna()
     return result.where(~unknown, pd.NA).astype("boolean")
 
 
 def build_basket_metrics(metrics: dict[str, pd.DataFrame], basket: Basket,
                          reference_hours: pd.Index | None = None) -> pd.DataFrame:
-    """Собирает metrics_basket_hour (п.6.4): кворум, M_t, CSV, PCA и триггер
-    однофакторности на общей часовой сетке."""
+    """Assembles metrics_basket_hour (§6.4): quorum, M_t, CSV, PCA and the
+    single-factor trigger on a shared hourly grid."""
     panel = build_panel(metrics, "r")
     sigma_panel = build_panel(metrics, "sigma_eff")
     if reference_hours is not None:
@@ -347,8 +349,8 @@ def build_basket_metrics(metrics: dict[str, pd.DataFrame], basket: Basket,
     regime = full_basket_regime(quorum_frame, basket)
     ratio, mean_corr = pc1_ratio(panel, ok, basket, regime=regime)
 
-    # Час без кворума не оценивается вовсе: по п.2.3 все кластерные триггеры
-    # получают NULL, а не False.
+    # An hour without quorum is not assessed at all: per §2.3 every cluster
+    # trigger gets NULL, not False.
     compression, compression_threshold = csv_compression(csv_frame["csv_norm"], m)
     compression = compression.where(ok, pd.NA)
     sync, sync_threshold = pca_sync(ratio)
@@ -368,15 +370,15 @@ def build_basket_metrics(metrics: dict[str, pd.DataFrame], basket: Basket,
 
 
 def subcondition_correlation(frame: pd.DataFrame) -> float:
-    """Корреляция срабатываний сжатия и синхронности (п.3.4).
+    """Correlation between the firings of compression and synchrony (§3.4).
 
-    Проверка обязательна на бэктесте: если подусловия срабатывают почти всегда
-    вместе, второе не добавляет информации, а лишь удваивает вес одного и того
-    же наблюдения в SI-Index. По ТЗ при корреляции выше 0.7 одно из них
-    исключается из продуктивной конфигурации.
+    The check is mandatory in the backtest: if the sub-conditions almost always
+    fire together, the second adds no information and merely doubles the weight of
+    one and the same observation in the SI-Index. Per the spec, above 0.7 one of
+    them is dropped from the production configuration.
 
-    Считается только по часам, где оценены ОБА - там, где PC1_ratio не
-    определён, сравнивать не с чем.
+    Computed only over hours where BOTH were assessed - where PC1_ratio is
+    undefined there is nothing to compare against.
     """
     both = frame[["csv_compression", "pca_sync"]].dropna()
     if both.empty or both.nunique().min() < 2:
@@ -395,7 +397,7 @@ def main(argv: list[str] | None = None) -> int:
     from meals import pipeline, sessions
     from meals.basket import load_basket
 
-    parser = argparse.ArgumentParser(description="Метрики корзины по часам (п.3.2-3.4)")
+    parser = argparse.ArgumentParser(description="Hourly basket metrics (§3.2-3.4)")
     parser.add_argument("--metrics-dir", default=pipeline.DEFAULT_METRICS_DIR)
     parser.add_argument("--out", default=DEFAULT_BASKET_METRICS_PATH)
     args = parser.parse_args(argv)
@@ -406,7 +408,7 @@ def main(argv: list[str] | None = None) -> int:
     basket = load_basket()
     metrics = pipeline.load_all(basket, args.metrics_dir)
     if not metrics:
-        log.error("Нет метрик по активам - сначала запустите python -m meals.pipeline")
+        log.error("No per-asset metrics - run python -m meals.pipeline first")
         return 2
 
     panel_hours = build_panel(metrics, "r").index
@@ -419,13 +421,13 @@ def main(argv: list[str] | None = None) -> int:
                                                    compression="zstd")
 
     correlation = subcondition_correlation(frame)
-    log.info("часов %d, кворум %d, сжатие %d, синхронность %d, однофакторность %d",
+    log.info("hours %d, quorum %d, compression %d, synchrony %d, single-factor %d",
              len(frame), int(frame["quorum_ok"].sum()),
              int(frame["csv_compression"].sum()), int(frame["pca_sync"].sum()),
              int(frame["single_factor"].sum()))
-    log.info("корреляция подусловий (п.3.4): %s",
+    log.info("sub-condition correlation (§3.4): %s",
              f"{correlation:.4f}" if correlation == correlation
-             else "не определена - одно из подусловий не сработало ни разу")
+             else "undefined - one of the sub-conditions never fired")
     return 0
 
 

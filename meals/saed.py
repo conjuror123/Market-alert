@@ -1,27 +1,28 @@
-"""Модуль одиночных событий SAED (ТЗ п.8).
+"""Single-asset event module, SAED (spec §8).
 
-Ловит движения, которые не объясняются общим рынком. Работает параллельно с
-кластерным детектором и зависимость между ними односторонняя: SAED берёт фактор
-корзины как вход, но на SI-Index, кластерный гейт и кулдаун не влияет никак.
+Catches moves that the common market does not explain. It runs alongside the
+cluster detector, and the dependency between them is one-way: SAED takes the
+basket factor as input but has no effect on the SI-Index, the cluster gate or the
+cluster cooldown.
 
-Три вещи, которые легко упустить и которые ТЗ оговаривает отдельно.
+Three things that are easy to miss and that the spec addresses separately.
 
-Кулдаун считается в БАРАХ САМОГО АКТИВА, а не в календарных часах. Двенадцать
-баров - это полторы торговых сессии для биржевого фонда и полсуток для крипты.
-Иначе фонд, у которого в дне семь баров, молчал бы почти двое суток там, где
-круглосуточный инструмент отходит за двенадцать часов.
+The cooldown is counted in THE ASSET'S OWN BARS, not in calendar hours. Twelve
+bars are one and a half trading sessions for an ETF and half a day for crypto.
+Otherwise an ETF with seven bars a day would stay silent for nearly two days
+where a round-the-clock instrument recovers in twelve hours.
 
-Пауза не отменяет событие, а объединяет его с текущим: повторные срабатывания
-внутри кулдауна увеличивают repeat_count. Это разные вещи - "движение
-прекратилось" и "движение продолжается, но мы о нём уже сообщили".
+The pause does not cancel an event, it merges it into the current one: repeat
+firings inside the cooldown increment repeat_count. These are different things -
+"the move stopped" and "the move continues, but we have already reported it".
 
-Уведомление уходит по БЛОЧНОМУ алерту, а не по каждому активу. Если в один час
-дёрнулись три бумаги одного блока, это одно наблюдение о блоке, а не три
-одинаковых сообщения.
+The notification goes out per BLOCK alert, not per asset. If three instruments of
+one block jerked in the same hour, that is one observation about the block, not
+three identical messages.
 
-Версионирование (config_version, run_version) и метка overlap_with_cluster
-появятся на Ф6 и Ф5 - до них нет ни версий конфигурации, ни кластерных событий,
-с которыми можно было бы пересечься.
+Versioning (config_version, run_version) and the overlap_with_cluster flag come
+with phases 6 and 5 - before those there are neither configuration versions nor
+cluster events to overlap with.
 """
 from __future__ import annotations
 
@@ -39,7 +40,7 @@ class SaedEvent:
     event_id: str
     asset_id: str
     block: str
-    hour_utc: int          # T0_single - час первого срабатывания
+    hour_utc: int          # T0_single - the hour of the first firing
     z_resid: float
     e_resid: float
     r: float
@@ -48,11 +49,11 @@ class SaedEvent:
 
 
 def triggers(frame: pd.DataFrame) -> pd.Series:
-    """Условие генерации события по п.8.2: гибридное, как и всё в п.3.1.
+    """The event-generation condition of §8.2: hybrid, like everything in §3.1.
 
-    Событие создаётся независимо от подтверждения объёмом и любых других
-    факторов - в этом и смысл модуля: одиночное движение само по себе является
-    поводом, даже если объём обычный.
+    An event is created regardless of volume confirmation or any other factor -
+    that is the point of the module: a single-asset move is grounds in itself,
+    even when volume is ordinary.
     """
     known = (frame["z_resid"].notna() & frame["q99_resid"].notna()
              & frame["sigma_lt_resid"].notna())
@@ -64,11 +65,11 @@ def triggers(frame: pd.DataFrame) -> pd.Series:
 
 def build_events(asset: Asset, frame: pd.DataFrame,
                  cooldown_bars: int = windows.SAED_COOLDOWN_BARS) -> list[SaedEvent]:
-    """Прогоняет автомат кулдауна по барам актива (п.8.3).
+    """Runs the cooldown automaton over the asset's bars (§8.3).
 
-    Последовательный проход - слой B из п.6.1: попадёт срабатывание в текущее
-    событие или откроет новое, зависит от того, сколько баров прошло с начала
-    предыдущего, а это путезависимое решение.
+    The sequential pass is layer B of §6.1: whether a firing joins the current
+    event or opens a new one depends on how many bars have passed since the
+    previous one began, and that is a path-dependent decision.
     """
     fired = triggers(frame).fillna(False).to_numpy(dtype=bool)
     if not fired.any():
@@ -82,11 +83,11 @@ def build_events(asset: Asset, frame: pd.DataFrame,
 
     events: list[SaedEvent] = []
     counts: list[int] = []
-    open_at: int | None = None   # индекс бара, на котором открыто текущее событие
+    open_at: int | None = None   # index of the bar on which the current event opened
 
     for i in np.flatnonzero(fired):
         if open_at is not None and i - open_at < cooldown_bars:
-            # Внутри паузы: то же событие продолжается, уведомления нет.
+            # Inside the pause: the same event continues, no notification.
             counts[-1] += 1
             continue
         open_at = i
@@ -113,12 +114,13 @@ def events_frame(events: list[SaedEvent]) -> pd.DataFrame:
 
 
 def aggregate_block_alerts(events: pd.DataFrame) -> pd.DataFrame:
-    """Блочная агрегация по п.8.4: одновременные события активов одного блока
-    складываются в один алерт.
+    """Block aggregation per §8.4: simultaneous events of assets in one block
+    combine into a single alert.
 
-    Инструменты корзины и внекорзинные одного блока агрегируются вместе - для
-    получателя это одно наблюдение о блоке, и делить его по признаку "входит ли
-    инструмент в расчёт кворума" было бы делением по чужому основанию.
+    Basket and non-basket instruments of the same block aggregate together - for
+    the recipient this is one observation about the block, and splitting it by
+    "does the instrument count towards quorum" would be splitting on an unrelated
+    criterion.
     """
     if events.empty:
         return pd.DataFrame({"alert_id": [], "block": [], "hour_utc": [],
@@ -136,7 +138,7 @@ def aggregate_block_alerts(events: pd.DataFrame) -> pd.DataFrame:
 
 
 def link_alerts(events: pd.DataFrame, alerts: pd.DataFrame) -> pd.DataFrame:
-    """Проставляет событиям ссылку на блочный алерт (aggregate_alert_id, п.8.5)."""
+    """Attaches the block-alert reference to each event (aggregate_alert_id, §8.5)."""
     if events.empty:
         return events.assign(aggregate_alert_id=pd.Series(dtype="object"))
     keys = alerts.set_index(["block", "hour_utc"])["alert_id"]
@@ -148,14 +150,15 @@ DEFAULT_EVENTS_PATH = "data/meals/saed_events.parquet"
 DEFAULT_ALERTS_PATH = "data/meals/saed_block_alerts.parquet"
 DEFAULT_RESIDUALS_DIR = "data/meals/residuals"
 
-# Ряды остатков, которые сохраняются на диск. Пересчитать их из метрик можно,
-# но это полный прогон регрессий по всей истории - минуты вместо секунд, и
-# журналу решений (п.6.1) с экспортом событий (п.6.5) они нужны оба раза.
+# Residual series that are written to disk. They can be recomputed from the
+# metrics, but that means a full run of the regressions over the whole history -
+# minutes instead of seconds - and both the decision journal (§6.1) and the event
+# export (§6.5) need them.
 #
-# Промежуточные состояния сюда не идут: винзоризованный остаток и sigma_eff
-# однозначно восстанавливаются из e_resid и sigma_LT тем же аппаратом п.2.5,
-# а вот места занимают столько же, сколько всё остальное вместе - это ряды
-# из случайных чисел, которые не сжимаются ничем.
+# Intermediate states are not stored: the winsorized residual and sigma_eff are
+# recovered unambiguously from e_resid and sigma_LT by the same §2.5 machinery,
+# yet they take as much space as everything else put together - they are series
+# of random numbers, and nothing compresses them.
 RESIDUAL_COLUMNS = ("hour_utc", "asset_id", "beta", "beta_block", "e_resid",
                     "sigma_lt_resid", "z_resid", "q95_resid", "q99_resid")
 
@@ -190,10 +193,11 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
                      factor: pd.Series,
                      block_factors: pd.DataFrame | None = None
                      ) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, pd.DataFrame]]:
-    """Считает остатки и события по всем инструментам, включая внекорзинные.
+    """Computes residuals and events for every instrument, non-basket ones included.
 
-    Внекорзинные используют тот же фактор корзины и ту же схему оценки беты
-    (п.8.1): они не влияют на фактор, но объясняются им так же, как и остальные.
+    Non-basket instruments use the same basket factor and the same beta-estimation
+    scheme (§8.1): they do not affect the factor, but they are explained by it just
+    like the rest.
     """
     from meals import pipeline, residuals, windows as w
 
@@ -225,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
     from meals import cross_section, pipeline, sessions
     from meals.basket import load_basket
 
-    parser = argparse.ArgumentParser(description="События SAED (п.3.6, п.8)")
+    parser = argparse.ArgumentParser(description="SAED events (§3.6, §8)")
     parser.add_argument("--metrics-dir", default=pipeline.DEFAULT_METRICS_DIR)
     parser.add_argument("--basket-metrics", default=cross_section.DEFAULT_BASKET_METRICS_PATH)
     parser.add_argument("--events-out", default=DEFAULT_EVENTS_PATH)
@@ -239,10 +243,10 @@ def main(argv: list[str] | None = None) -> int:
     basket = load_basket()
     metrics = pipeline.load_all(basket, args.metrics_dir)
     if not metrics:
-        log.error("Нет метрик по активам - сначала python -m meals.pipeline")
+        log.error("No per-asset metrics - run python -m meals.pipeline first")
         return 2
     if not os.path.exists(args.basket_metrics):
-        log.error("Нет метрик корзины - сначала python -m meals.cross_section")
+        log.error("No basket metrics - run python -m meals.cross_section first")
         return 2
 
     basket_frame = pd.read_parquet(args.basket_metrics).set_index("hour_utc")
@@ -259,11 +263,11 @@ def main(argv: list[str] | None = None) -> int:
         frame.to_parquet(path, index=False, compression="zstd")
     save_residuals(scored, args.residuals_out)
 
-    log.info("событий %d, блочных алертов %d, повторов внутри пауз %d",
+    log.info("events %d, block alerts %d, repeats inside pauses %d",
              len(events), len(alerts),
              int(events["repeat_count"].sum()) if not events.empty else 0)
     if not alerts.empty:
-        log.info("алертов по блокам: %s",
+        log.info("alerts by block: %s",
                  alerts["block"].value_counts().to_dict())
     return 0
 
