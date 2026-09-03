@@ -61,21 +61,21 @@ def test_weight_is_not_readable_from_the_file(tmp_path):
 def test_rejects_block_outside_the_taxonomy(tmp_path):
     raw = two_block_config()
     raw["assets"].append(asset("E", "energy"))
-    with pytest.raises(BasketConfigError, match="не из перечня"):
+    with pytest.raises(BasketConfigError, match="is not one of"):
         load_basket(write(tmp_path, raw))
 
 
 def test_rejects_duplicate_instrument(tmp_path):
     raw = two_block_config()
     raw["assets"].append(asset("A", "FX", tier=2))
-    with pytest.raises(BasketConfigError, match="дважды"):
+    with pytest.raises(BasketConfigError, match="listed twice"):
         load_basket(write(tmp_path, raw))
 
 
 def test_rejects_unknown_session_template(tmp_path):
     raw = two_block_config()
     raw["assets"][0]["session_template"] = "нет-такого"
-    with pytest.raises(BasketConfigError, match="шаблон сессии"):
+    with pytest.raises(BasketConfigError, match="session template"):
         load_basket(write(tmp_path, raw))
 
 
@@ -86,7 +86,7 @@ def test_rejects_basket_where_quorum_is_unreachable(tmp_path):
         asset("A", "equity"), asset("B", "equity", tier=2),
         asset("C", "FX"), asset("D", "rates"), asset("E", "commodities"),
     ]}
-    with pytest.raises(BasketConfigError, match="Кворум недостижим"):
+    with pytest.raises(BasketConfigError, match="Quorum unreachable"):
         load_basket(write(tmp_path, raw))
 
 

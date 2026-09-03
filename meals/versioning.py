@@ -1,28 +1,29 @@
-"""Версии конфигурации и прогона (ТЗ п.6.2, п.6.3).
+"""Configuration and run versions (spec §6.2, §6.3).
 
-П.6.3 запрещает ретро-изменение параметров без пересчёта истории с новой
-версией. Запрет соблюдается не дисциплиной, а устройством: config_version - это
-хеш содержимого всего, что влияет на результат. Поменяли порог, окно, состав
-корзины или формулу - версия изменилась сама, и старые события уже помечены
-другой. Ручной счётчик здесь бесполезен: его забывают увеличить ровно тогда,
-когда это важнее всего.
+§6.3 forbids changing parameters retroactively without recomputing the history
+under a new version. The prohibition is enforced not by discipline but by
+construction: config_version is a hash of the content of everything that affects
+the result. Change a threshold, a window, the basket composition or a formula and
+the version changes by itself, while the old events already carry a different
+one. A manual counter is useless here: it gets forgotten precisely when it
+matters most.
 
-run_version устроен иначе. По п.6.2 повторный прогон того же часа с той же
-версией не должен создавать дублей, а поздние или пересмотренные данные -
-обязаны попасть в пересчёт с НОВОЙ версией. Обоим требованиям отвечает одна и
-та же конструкция: run_version - хеш от config_version и отпечатка входных
-данных. Прогон по неизменившимся данным даёт ту же версию и потому идемпотентен;
-стоит источнику дослать или исправить бар - отпечаток меняется, и пересчёт
-получает новую версию автоматически.
+run_version works differently. Per §6.2 a repeat run of the same hour under the
+same version must not create duplicates, while late or revised data MUST enter
+the recomputation under a NEW version. One and the same construction satisfies
+both: run_version is a hash of config_version and a fingerprint of the input
+data. A run over unchanged data yields the same version and is therefore
+idempotent; the moment the source back-fills or corrects a bar, the fingerprint
+changes and the recomputation gets a new version automatically.
 """
 from __future__ import annotations
 
 import hashlib
 import os
 
-# Всё, что влияет на результат расчёта. Список намеренно явный: молчаливое
-# "хешируем весь пакет" ломало бы версию от правки комментария, а хешировать
-# только конфигурацию значило бы не заметить изменения формулы.
+# Everything that affects the result of the calculation. The list is deliberately
+# explicit: a silent "hash the whole package" would break the version on a comment
+# edit, while hashing only the configuration would miss a change of formula.
 CONFIG_INPUTS = (
     os.path.join("config", "basket.yaml"),
     os.path.join("meals", "windows.py"),
@@ -39,13 +40,14 @@ CONFIG_INPUTS = (
     os.path.join("meals", "vix.py"),
 )
 
-# Сырые входы расчёта: всё, что приходит извне и не является результатом самой
-# системы. Производные файлы - метрики активов, метрики корзины, остатки -
-# сюда НЕ входят, и это принципиально. Метрики корзины прогону cluster
-# одновременно вход и выход: включи их в отпечаток, и повторный запуск по тем
-# же данным получил бы новую run_version просто потому, что предыдущий запуск
-# переписал файл. Идемпотентность п.6.2 держится ровно на том, что версия
-# зависит только от сырых данных и конфигурации, а всё остальное - их функция.
+# Raw inputs of the calculation: everything that arrives from outside and is not
+# a product of the system itself. Derived files - asset metrics, basket metrics,
+# residuals - are NOT included here, and that is essential. The basket metrics are
+# both input and output for the cluster run: include them in the fingerprint and a
+# repeat run over the same data would get a new run_version simply because the
+# previous run rewrote the file. The idempotency of §6.2 rests on exactly this:
+# the version depends only on the raw data and the configuration, and everything
+# else is a function of those.
 RAW_INPUTS = (
     os.path.join("data", "meals", "bars"),
     os.path.join("data", "meals", "vix"),
@@ -56,8 +58,8 @@ RAW_INPUTS = (
 
 VERSION_LENGTH = 12
 
-# Размер куска при чтении данных. Файлы штучные и небольшие, но читать
-# семнадцатимегабайтный календарь одним bytes-объектом незачем.
+# Chunk size when reading the data. The files are few and small, but there is no
+# reason to read a seventeen-megabyte calendar as a single bytes object.
 CHUNK = 1 << 20
 
 
@@ -70,10 +72,11 @@ def _digest(chunks) -> str:
 
 
 def config_version(root: str = ".", inputs=CONFIG_INPUTS) -> str:
-    """Версия конфигурации: хеш содержимого файлов, влияющих на расчёт.
+    """Configuration version: a hash of the content of the files that affect the
+    calculation.
 
-    Отсутствующий файл - не повод для исключения, а часть состояния: его
-    отсутствие тоже меняет версию, и это правильнее, чем упасть.
+    A missing file is not grounds for an exception but part of the state: its
+    absence changes the version too, and that is more correct than failing.
     """
     chunks = []
     for relative in sorted(inputs):
@@ -88,12 +91,12 @@ def config_version(root: str = ".", inputs=CONFIG_INPUTS) -> str:
 
 
 def _expand(paths):
-    """Каталоги раскрываются в список файлов, файлы остаются собой.
+    """Directories expand into a list of files; files stay themselves.
 
-    Каталог как таковой отпечатком быть не может: его собственное время правки
-    меняется только при добавлении или удалении записи, а дописанный бар внутри
-    уже существующего файла его не трогает - и пересчёт по обновлённым данным
-    получил бы ту же run_version, что и прогон до обновления.
+    A directory as such cannot serve as a fingerprint: its own modification time
+    changes only when an entry is added or removed, and a bar appended inside an
+    already existing file does not touch it - so a recomputation over updated data
+    would get the same run_version as the run before the update.
     """
     for path in paths:
         if os.path.isdir(path):
@@ -105,17 +108,18 @@ def _expand(paths):
 
 
 def data_fingerprint(paths=RAW_INPUTS) -> str:
-    """Отпечаток входных данных: хеш их СОДЕРЖИМОГО.
+    """Fingerprint of the input data: a hash of its CONTENT.
 
-    Размер и время правки были бы дешевле, но неверны в обе стороны. Прогон
-    бэкфилла переписывает файл теми же барами - размер тот же, время новое, и
-    пересчёт по неизменившимся данным получил бы новую версию, то есть
-    идемпотентности п.6.2 не было бы вовсе. Наоборот, исправленный вендором бар
-    той же длины оставил бы размер прежним, и правка могла бы проскочить
-    незамеченной, если файл переписан в ту же секунду.
+    Size and modification time would be cheaper but are wrong in both directions.
+    A backfill run rewrites a file with the same bars - same size, new time - and a
+    recomputation over unchanged data would get a new version, meaning the
+    idempotency of §6.2 would not exist at all. Conversely, a bar corrected by the
+    vendor to the same length would leave the size unchanged, and the edit could
+    slip through unnoticed if the file was rewritten within the same second.
 
-    Платим за это сотней миллисекунд: сырых данных здесь около тридцати
-    мегабайт, а производные файлы в отпечаток не входят (см. RAW_INPUTS).
+    The price is about a hundred milliseconds: there are roughly thirty megabytes
+    of raw data here, and derived files are not in the fingerprint (see
+    RAW_INPUTS).
     """
     chunks = []
     for path in sorted(set(_expand(paths))):
@@ -133,8 +137,8 @@ def data_fingerprint(paths=RAW_INPUTS) -> str:
 
 
 def run_version(config: str, fingerprint: str) -> str:
-    """Версия прогона. Одинаковые вход и конфигурация дают одинаковую версию -
-    отсюда идемпотентность по п.6.2."""
+    """Run version. Identical input and configuration give an identical version -
+    hence the idempotency of §6.2."""
     return _digest([config.encode("utf-8"), fingerprint.encode("utf-8")])
 
 

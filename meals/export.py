@@ -1,22 +1,23 @@
-"""Экспорт кластерного события в JSON по фиксированной схеме (ТЗ п.6.5).
+"""Export of a cluster event to JSON under a fixed schema (spec §6.5).
 
-Событие в базе - это одна строка: идентификатор, час, баллы. Разобрать по ней
-через полгода, что именно произошло, невозможно: сама строка не хранит ни
-поведения активов вокруг T0, ни того, была ли синхронность, ни какие одиночные
-всплески случились рядом. Экспорт восстанавливает эту картину целиком, и потому
-он не отчёт для человека, а машиночитаемый срез с фиксированной схемой: по нему
-считается разметка на Ф7 и сверяются прогоны разных версий.
+An event in the database is one row: an identifier, an hour, some points. Working
+out from that row six months later what actually happened is impossible: the row
+holds neither the behaviour of the assets around T0, nor whether there was
+synchrony, nor which single-asset spikes happened nearby. The export reconstructs
+that whole picture, and so it is not a report for a human but a machine-readable
+slice under a fixed schema: truth labelling in phase 7 is computed from it, and
+runs of different versions are compared against it.
 
-Окно - [T0 - 12, T0 + 12] в часах ЭТАЛОННОГО КАЛЕНДАРЯ, а не в календарных.
-Разница не косметическая: событие в пятницу вечером календарными часами утянуло
-бы в правое плечо выходные, где нет ни баров фондов, ни валютных пар, и половина
-окна оказалась бы пустой. Часы эталонного календаря переносят плечо на вечер
-воскресенья, где торговля есть.
+The window is [T0 - 12, T0 + 12] in REFERENCE-CALENDAR hours, not calendar ones.
+The difference is not cosmetic: a Friday-evening event measured in calendar hours
+would pull the weekend into its right arm, where there are neither ETF bars nor
+currency pairs, and half the window would be empty. Reference-calendar hours move
+that arm to Sunday evening, where trading exists.
 
-Правая половина окна в реальном времени ещё не наступила. Это не ошибка: экспорт
-пишется постфактум, для разбора и разметки, и событие с усечённым правым плечом
-помечено truncated_right - чтобы бэктест не принял неполное окно за спокойный
-рынок.
+In real time the right half of the window has not happened yet. That is not an
+error: the export is written after the fact, for analysis and labelling, and an
+event with a truncated right arm is flagged truncated_right - so that the backtest
+does not mistake an incomplete window for a calm market.
 """
 from __future__ import annotations
 
@@ -36,27 +37,27 @@ DEFAULT_EXPORT_DIR = os.path.join("data", "meals", "events")
 SCHEMA_PATH = os.path.join("schema", "event_export.schema.json")
 SCHEMA_VERSION = "1.0"
 
-# Плечо окна в часах эталонного календаря (п.6.5).
+# Arm of the window in reference-calendar hours (§6.5).
 WINDOW_HOURS = 12
 
-# Ряды по активу, попадающие в экспорт. r - фактическая доходность часа,
-# z - её Z-оценка, z_resid - оценка остатка на факторах, v_r - подтверждение
-# объёмом. Больше в схему не берётся сознательно: винзоризованные ряды и
-# состояния EWMA восстанавливаются из metrics_asset_hour по часу и активу, а
-# дублировать их в каждом событии значило бы раздуть экспорт вчетверо ради
-# величин, которые никто не читает глазами.
+# Per-asset series that go into the export. r is the actual return of the hour,
+# z its Z-score, z_resid the score of the residual on the factors, v_r the volume
+# confirmation. Nothing more is taken into the schema on purpose: the winsorized
+# series and the EWMA states are recoverable from metrics_asset_hour by hour and
+# asset, and duplicating them in every event would quadruple the export for the
+# sake of quantities nobody reads by eye.
 ASSET_SERIES = ("r", "z", "z_resid", "v_r")
 
-# Агрегатные метрики корзины по каждому часу окна (п.6.5).
+# Aggregate basket metrics for every hour of the window (§6.5).
 BASKET_SERIES = ("csv_norm", "pc1_ratio", "mean_pairwise_corr", "m_weighted_median",
                  "si_total", "base_points", "n_assets", "quorum_ok")
 
 
 def _clean(value):
-    """NaN, NA и numpy-скаляры -> то, что json умеет записать.
+    """NaN, NA and numpy scalars -> something json can actually write.
 
-    json.dumps выдаёт NaN как литерал NaN, который не является валидным JSON и
-    роняет любой строгий парсер на той стороне. Пропуск здесь - это null.
+    json.dumps emits NaN as the literal NaN, which is not valid JSON and breaks
+    any strict parser on the other side. A gap here is null.
     """
     if value is None or value is pd.NA:
         return None
@@ -71,12 +72,12 @@ def _clean(value):
 
 def window_hours(hours: np.ndarray, t0_utc: int,
                  arm: int = WINDOW_HOURS) -> tuple[np.ndarray, bool, bool]:
-    """Часы окна вокруг T0 и признаки усечения по обоим краям.
+    """Hours of the window around T0 and truncation flags for both edges.
 
-    hours - упорядоченный массив часов эталонного календаря (все часы, по
-    которым система вообще считала). Окно берётся по ПОЗИЦИИ в этом массиве,
-    а не по арифметике времени: именно так "12 часов эталонного календаря"
-    и определены в п.2.2.
+    hours is an ordered array of reference-calendar hours (every hour the system
+    computed anything for). The window is taken by POSITION in that array, not by
+    time arithmetic: that is exactly how "12 reference-calendar hours" is defined
+    in §2.2.
     """
     position = int(np.searchsorted(hours, t0_utc))
     if position >= len(hours) or hours[position] != t0_utc:
@@ -88,9 +89,9 @@ def window_hours(hours: np.ndarray, t0_utc: int,
 
 def _series_for(frame: pd.DataFrame, hours: np.ndarray,
                 columns: tuple[str, ...]) -> dict[str, list]:
-    """Ряды по часам окна. Час без данных даёт null, а не выпадает из ряда:
-    длина всех рядов события совпадает с длиной окна, и потребителю не нужно
-    сопоставлять их по индексу."""
+    """Series over the hours of the window. An hour without data yields null
+    rather than dropping out of the series: every series of an event has the
+    length of the window, and the consumer never has to align them by index."""
     aligned = frame.reindex(hours)
     return {name: [_clean(v) for v in aligned[name]]
             for name in columns if name in aligned.columns}
@@ -114,7 +115,7 @@ def build_event(event: pd.Series, basket_frame: pd.DataFrame,
                 escalations: pd.DataFrame,
                 config_version: str, run_version: str,
                 basket: Basket | None = None) -> dict:
-    """Полный срез одного кластерного события."""
+    """The complete slice of one cluster event."""
     hours = basket_frame.index.to_numpy()
     window, truncated_left, truncated_right = window_hours(hours, int(event["t0_utc"]))
 
@@ -123,9 +124,9 @@ def build_event(event: pd.Series, basket_frame: pd.DataFrame,
         frame = _asset_frame(metrics[asset_id], residuals.get(asset_id))
         series = _series_for(frame, window, ASSET_SERIES)
         if not any(v is not None for values in series.values() for v in values):
-            # Инструмент, у которого во всём окне нет ни одного значения, в
-            # экспорт не идёт: ночное событие иначе тащило бы за собой
-            # двенадцать фондов с рядами из одних null.
+            # An instrument with no value anywhere in the window does not enter
+            # the export: otherwise a night-time event would drag along twelve
+            # ETFs with series of nothing but null.
             continue
         entry = {"block": frame["block"].dropna().iloc[0] if "block" in frame else None,
                  "series": series}
@@ -174,9 +175,9 @@ def build_event(event: pd.Series, basket_frame: pd.DataFrame,
 
 
 def write_event(payload: dict, out_dir: str = DEFAULT_EXPORT_DIR) -> str:
-    """Одно событие - один файл. Имя строится из event_id, в котором двоеточие
-    заменено подчёркиванием: Windows такого имени не принимает, а экспорт
-    должен читаться и там."""
+    """One event, one file. The name is built from event_id with the colon
+    replaced by an underscore: Windows does not accept such a name, and the export
+    has to be readable there too."""
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, f"{payload['event_id'].replace(':', '_')}.json")
     with open(path, "w", encoding="utf-8") as f:
@@ -201,7 +202,7 @@ def main(argv: list[str] | None = None) -> int:
     from meals import cluster, cross_section, pipeline, saed
     from meals.basket import load_basket
 
-    parser = argparse.ArgumentParser(description="Экспорт кластерных событий (п.6.5)")
+    parser = argparse.ArgumentParser(description="Export of cluster events (§6.5)")
     parser.add_argument("--basket-metrics", default=cross_section.DEFAULT_BASKET_METRICS_PATH)
     parser.add_argument("--events", default=cluster.DEFAULT_EVENTS_PATH)
     parser.add_argument("--escalations", default=cluster.DEFAULT_ESCALATIONS_PATH)
@@ -210,7 +211,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--residuals-dir", default=saed.DEFAULT_RESIDUALS_DIR)
     parser.add_argument("--out-dir", default=DEFAULT_EXPORT_DIR)
     parser.add_argument("--since", type=int, default=None,
-                        help="экспортировать только события с t0_utc не раньше")
+                        help="export only events with t0_utc no earlier than this")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -232,7 +233,7 @@ def main(argv: list[str] | None = None) -> int:
                              escalations, config, run, basket):
         write_event(payload, args.out_dir)
         written += 1
-    log.info("экспортировано событий %d в %s (config %s, run %s)",
+    log.info("exported %d events to %s (config %s, run %s)",
              written, args.out_dir, config, run)
     return 0
 

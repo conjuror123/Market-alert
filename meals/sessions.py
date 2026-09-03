@@ -1,28 +1,27 @@
-"""Календарь сессий и эталонный календарь корзины (ТЗ п.2.2).
+"""Session calendar and the basket's reference calendar (spec §2.2).
 
-Расписание NYSE берётся из библиотеки exchange_calendars, но НЕ на каждом
-прогоне: библиотека работает генератором, а результат её работы лежит в
-репозитории таблицей и коммитится вместе с кодом. Причин три.
+The NYSE schedule comes from the exchange_calendars library, but NOT on every
+run: the library acts as a generator, and the result of its work lives in the
+repository as a table committed alongside the code. There are three reasons.
 
-1. Воспроизводимость (п.6.2). Тест обязан давать идентичный набор событий при
-   повторном прогоне того же периода с той же config_version. Если расписание
-   вычисляется библиотекой в момент запуска, её обновление молча меняет
-   исторические сессии - и прошлый бэктест перестаёт воспроизводиться, хотя
-   ни один параметр конфигурации не тронут.
-2. Схема п.6.4 прямо требует таблиц holidays и half_sessions - то есть данных,
-   а не вызова функции.
-3. Часовому прогону тогда вообще не нужна календарная библиотека: он читает
-   готовый CSV. Меньше зависимостей в проде, быстрее установка в GitHub
-   Actions.
+1. Reproducibility (§6.2). A test must yield an identical set of events on a
+   repeat run of the same period under the same config_version. If the schedule
+   is computed by the library at launch time, an update to it can move historical
+   sessions - and a past backtest stops reproducing, although not a single
+   configuration parameter was touched.
+2. The §6.4 schema explicitly requires holidays and half_sessions tables - that
+   is, data, not a function call.
+3. The hourly run then needs no calendar library at all, only a ready CSV. Fewer
+   dependencies in production, faster installs.
 
-Отдельных таблиц holidays и half_sessions в хранилище нет намеренно: обе
-выводятся из таблицы сессий без потерь - будний день, которого в ней нет, это
-праздник, а строка с is_early_close это полусессия. Хранить один и тот же факт
-дважды значит однажды получить два расходящихся ответа.
+There are deliberately no separate holidays and half_sessions tables in the
+store: both are derived from the session table without loss - a business day that
+is absent is a holiday, and a row with is_early_close is a half session. Storing
+one and the same fact twice means getting two diverging answers sooner or later.
 
-Проверено на данных: на отрезке 2021-01-04 .. 2026-08-28 расписание совпало с
-фактическими барами SPY день в день - 1420 торговых дней и там, и там, ноль
-расхождений в обе стороны.
+Verified against data: over 2021-01-04 .. 2026-08-28 the schedule matches SPY's
+actual bars day for day - 1420 trading days on both sides, no discrepancies in
+either direction.
 """
 from __future__ import annotations
 
@@ -34,30 +33,31 @@ from datetime import date, datetime, time, timedelta, timezone
 HOUR = 3600
 DEFAULT_SESSIONS_PATH = os.path.join("data", "meals", "sessions", "nyse.csv")
 
-# Эталонный календарь корзины (п.2.2): непрерывная торговая неделя якорной
-# биржи, с вс 17:00 до пт 17:00 её ЛОКАЛЬНОГО времени. Ровно 120 часов;
-# праздники из недели не вычитаются - так сказано в п.2.2 прямым текстом.
+# The basket's reference calendar (§2.2): the continuous trading week of the
+# anchor exchange, from Sun 17:00 to Fri 17:00 of its LOCAL time. Exactly 120
+# hours; holidays are not subtracted from the week - §2.2 says so in as many
+# words.
 REFERENCE_WEEK_HOURS = 120
-REFERENCE_OPEN_HOUR = 17   # воскресенье, местное время якорной биржи
-REFERENCE_CLOSE_HOUR = 17  # пятница
+REFERENCE_OPEN_HOUR = 17   # Sunday, anchor exchange local time
+REFERENCE_CLOSE_HOUR = 17  # Friday
 
 
 @dataclass(frozen=True)
 class Session:
     day: date
-    local_open: str    # "HH:MM" в таймзоне биржи
+    local_open: str    # "HH:MM" in the exchange's timezone
     local_close: str
     is_early_close: bool
 
 
 def generate_nyse_sessions(start: date, end: date) -> list[Session]:
-    """Строит расписание NYSE библиотекой exchange_calendars.
+    """Builds the NYSE schedule with the exchange_calendars library.
 
-    Вызывается только вручную, при обновлении таблицы (см. main). В часовом
-    прогоне не используется, поэтому exchange_calendars остаётся зависимостью
-    разработки, а не продакшена.
+    Called by hand only, when the table is refreshed (see main). It is not used in
+    the hourly run, so exchange_calendars stays a development dependency rather
+    than a production one.
     """
-    import exchange_calendars as xcals  # локальный импорт: только для генерации
+    import exchange_calendars as xcals  # local import: generation only
 
     calendar = xcals.get_calendar("XNYS", start=str(start), end=str(end))
     schedule = calendar.schedule
@@ -78,8 +78,8 @@ def generate_nyse_sessions(start: date, end: date) -> list[Session]:
 def write_sessions(path: str, sessions: list[Session]) -> None:
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="") as f:
-        # \n вместо \r\n по умолчанию: файл лежит в репозитории, и caret-return
-        # в каждой строке засорял бы диффы при каждой перегенерации.
+        # \n rather than the default \r\n: the file lives in the repository, and
+        # a carriage return on every line would clutter diffs on each regeneration.
         writer = csv.writer(f, lineterminator="\n")
         writer.writerow(["date", "local_open", "local_close", "is_early_close"])
         for s in sorted(sessions, key=lambda s: s.day):
@@ -88,10 +88,10 @@ def write_sessions(path: str, sessions: list[Session]) -> None:
 
 
 def load_sessions(path: str = DEFAULT_SESSIONS_PATH) -> dict[date, Session]:
-    """Читает таблицу сессий. Библиотека календарей для этого не нужна."""
+    """Reads the session table. The calendar library is not needed for this."""
     if not os.path.exists(path):
         raise FileNotFoundError(
-            f"Нет таблицы сессий {path}. Сгенерировать: python -m meals.sessions")
+            f"No session table at {path}. Generate it: python -m meals.sessions")
     sessions = {}
     with open(path, "r", encoding="utf-8", newline="") as f:
         for row in csv.DictReader(f):
@@ -104,8 +104,8 @@ def load_sessions(path: str = DEFAULT_SESSIONS_PATH) -> dict[date, Session]:
 
 
 def is_holiday(day: date, sessions: dict[date, Session]) -> bool:
-    """Будний день, которого нет в таблице сессий. Выходные праздниками не
-    считаются - это обычное закрытие недели."""
+    """A business day absent from the session table. Weekends do not count as
+    holidays - that is the ordinary close of the week."""
     return day.weekday() < 5 and day not in sessions
 
 
@@ -114,19 +114,19 @@ def half_sessions(sessions: dict[date, Session]) -> list[Session]:
 
 
 def reference_week_bounds(any_moment: datetime, anchor_tz: str) -> tuple[int, int]:
-    """Границы недели эталонного календаря, в которую попадает `any_moment`:
-    (открытие, закрытие) в epoch UTC.
+    """Bounds of the reference-calendar week containing `any_moment`:
+    (open, close) in epoch UTC.
 
-    Границы задаются в локальном времени якорной биржи и переводятся в UTC на
-    лету - хранить их сразу в UTC запрещено п.2.2, потому что переход на летнее
-    время сдвинул бы их относительно рынка.
+    The bounds are given in the anchor exchange's local time and converted to UTC
+    on the fly - §2.2 forbids storing them as UTC, because the switch to daylight
+    saving would shift them relative to the market.
     """
     from zoneinfo import ZoneInfo
 
     tz = ZoneInfo(anchor_tz)
     local = any_moment.astimezone(tz)
-    # Воскресенье 17:00 той недели, к которой относится момент. weekday(): пн=0,
-    # вс=6. Момент до воскресного открытия принадлежит предыдущей неделе.
+    # Sunday 17:00 of the week the moment belongs to. weekday(): Mon=0, Sun=6.
+    # A moment before the Sunday open belongs to the previous week.
     days_since_sunday = (local.weekday() + 1) % 7
     sunday = (local - timedelta(days=days_since_sunday)).date()
     opened = datetime.combine(sunday, time(REFERENCE_OPEN_HOUR), tzinfo=tz)
@@ -139,11 +139,12 @@ def reference_week_bounds(any_moment: datetime, anchor_tz: str) -> tuple[int, in
 
 
 def is_reference_hour(hour_utc: int, anchor_tz: str) -> bool:
-    """Попадает ли час (по моменту ОТКРЫТИЯ бара, п.1.2) в эталонный календарь.
+    """Whether an hour (by the bar's OPENING moment, §1.2) falls in the reference
+    calendar.
 
-    Праздники не исключаются: по п.2.2 длительность недели ровно 120 часов, и
-    праздники из неё не вычитаются. Эталонный календарь - это часы корзины, а
-    не расписание конкретной биржи.
+    Holidays are not excluded: per §2.2 the week is exactly 120 hours long and
+    holidays are not subtracted from it. The reference calendar is the basket's
+    hours, not the schedule of any particular exchange.
     """
     moment = datetime.fromtimestamp(hour_utc, tz=timezone.utc)
     opened, closed = reference_week_bounds(moment, anchor_tz)
@@ -154,7 +155,7 @@ def main(argv: list[str] | None = None) -> int:
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Сгенерировать таблицу сессий NYSE (ТЗ п.2.2)")
+        description="Generate the NYSE session table (spec §2.2)")
     parser.add_argument("--start", default="2021-01-01")
     parser.add_argument("--end", default="2028-12-31")
     parser.add_argument("--out", default=DEFAULT_SESSIONS_PATH)
@@ -164,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
                                       date.fromisoformat(args.end))
     write_sessions(args.out, sessions)
     early = sum(1 for s in sessions if s.is_early_close)
-    print(f"{args.out}: торговых дней {len(sessions)}, полусессий {early}, "
+    print(f"{args.out}: trading days {len(sessions)}, half sessions {early}, "
           f"{sessions[0].day} .. {sessions[-1].day}")
     return 0
 

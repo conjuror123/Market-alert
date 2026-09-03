@@ -1,15 +1,15 @@
-"""Хранилище часовых баров MEALS: Parquet, по файлу на инструмент.
+"""MEALS hourly bar store: Parquet, one file per instrument.
 
-Почему Parquet, а не NDJSON как в существующем мониторинге: там файл только
-дописывается по строке в час и растёт медленно, а здесь на корзину из 23
-инструментов с 2021 года приходится порядка полумиллиона баров, и читать их
-целиком нужно на каждом прогоне PCA и регрессий. Колоночный формат с типами
-читается на порядок быстрее и занимает в несколько раз меньше места.
+Why Parquet rather than the NDJSON of the existing monitor: there a file is only
+appended one row per hour and grows slowly, whereas here a basket of 23
+instruments since 2021 amounts to roughly half a million bars, and they must be
+read in full on every run of the PCA and the regressions. A typed columnar format
+reads an order of magnitude faster and takes several times less space.
 
-Конвенция времени - из п.1.2 ТЗ: hour_utc хранит момент ОТКРЫТИЯ бара, а
-момент закрытия t = hour_utc + 1 час. Это та же конвенция, что уже
-используется в candle_store существующего мониторинга (open_time), так что
-накопленная история импортируется без сдвига.
+The time convention comes from §1.2 of the spec: hour_utc stores the bar's
+OPENING moment, and the closing moment is t = hour_utc + 1 hour. This is the same
+convention already used by the existing monitor's candle_store (open_time), so
+the accumulated history imports without a shift.
 """
 from __future__ import annotations
 
@@ -21,11 +21,11 @@ from price_monitor.models import Candle
 
 HOUR = 3600
 
-# n_src - сколько исходных баров источника сложилось в этот часовой бар.
-# Нужен на Ф1: у биржевых фондов первые полчаса сессии дают часовой бар из
-# одного получасового, и это ровно тот "первый бар сессии", который по п.2.4
-# раскладывается на гэп-канал и внутричасовую доходность. Без этого поля
-# отличить его от полноценного часа было бы нельзя.
+# n_src - how many source bars folded into this hourly bar.
+# Needed from phase 1 onward: for ETFs the first half hour of a session produces
+# an hourly bar out of a single half-hourly one, and that is precisely the "first
+# bar of the session" that §2.4 splits into the gap channel and the intra-hour
+# return. Without this field it could not be told apart from a full hour.
 SCHEMA = {
     "hour_utc": "int64",
     "open": "float64",
@@ -58,10 +58,10 @@ def write(path: str, frame: pd.DataFrame) -> None:
 
 
 def merge(path: str, frame: pd.DataFrame) -> int:
-    """Идемпотентно доводит хранилище до объединения того, что уже есть, и
-    `frame`. При совпадении hour_utc побеждает новая строка: источник мог
-    пересмотреть бар, и свежая версия достовернее. Возвращает число
-    добавленных строк (пересмотры существующих в счёт не идут).
+    """Idempotently brings the store to the union of what is already there and
+    `frame`. On a matching hour_utc the new row wins: the source may have revised
+    the bar, and the fresher version is more trustworthy. Returns the number of
+    added rows (revisions of existing ones do not count).
     """
     if frame.empty:
         return 0
@@ -88,26 +88,26 @@ def candles_to_frame(candles: list[Candle]) -> pd.DataFrame:
 
 
 def to_hourly(frame: pd.DataFrame) -> pd.DataFrame:
-    """Складывает бары произвольной внутричасовой сетки в часовые по границе
-    круглого часа UTC.
+    """Folds bars of an arbitrary intra-hour grid into hourly ones on the
+    boundary of the round UTC hour.
 
-    Нужно из-за того, что сетки источников не совпадают: у биржевых фондов бары
-    идут по :30 (09:30, 10:30, ...), у валютных пар и крипты - по круглому часу.
-    Кросс-секция - взвешенная медиана, CSV, PCA, корреляционная матрица -
-    требует, чтобы "один и тот же час" означал одно и то же для всех активов,
-    иначе синхронность измеряется на рядах, смещённых друг относительно друга.
-    Поэтому фонды запрашиваются получасовыми барами и складываются здесь.
+    Needed because the sources' grids do not coincide: ETF bars run on the :30
+    (09:30, 10:30, ...), currency pairs and crypto on the round hour. The
+    cross-section - weighted median, CSV, PCA, correlation matrix - requires "the
+    same hour" to mean the same thing for every series, otherwise synchrony is
+    measured on series offset from one another. So the ETFs are requested as
+    half-hourly bars and folded here.
 
-    Для рядов, уже стоящих на круглом часе, операция тождественна.
+    For series already sitting on the round hour the operation is the identity.
     """
     if frame.empty:
         return empty_frame()
-    # Два бара с ОДИНАКОВЫМ hour_utc - это один и тот же бар, попавший на вход
-    # дважды, а не два разных. Отбросить их надо ДО агрегации: объём
-    # складывается суммой, и на дубле он бы удвоился. Ровно это и случилось бы
-    # на накопленной истории, где неудачное слияние веток продублировало блок
-    # из 299 часов. Побеждает последняя копия: она либо равнозначна, либо
-    # полнее - более поздняя загрузка застаёт час уже закрытым.
+    # Two bars with the SAME hour_utc are one and the same bar that landed in
+    # the file twice, not two different ones. They must be dropped BEFORE
+    # aggregation: volume is summed, and on a duplicate it would double. Exactly
+    # that happened on the accumulated history, where a bad branch merge
+    # duplicated a block of 299 hours. The last copy wins: it is either
+    # equivalent or more complete - a later download finds the hour closed.
     df = (frame.astype(SCHEMA)
           .drop_duplicates(subset="hour_utc", keep="last")
           .sort_values("hour_utc"))
@@ -122,7 +122,7 @@ def to_hourly(frame: pd.DataFrame) -> pd.DataFrame:
     return grouped.reset_index(names="hour_utc").astype(SCHEMA)
 
 
-# Каталоги хранилища. Держатся здесь, а не в каждом вызывающем модуле, чтобы
-# бэкфилл и аудит не могли разойтись в том, где лежат данные.
+# Store directories. Kept here rather than in each calling module so that the
+# backfill and the audit cannot disagree about where the data lives.
 DEFAULT_BARS_DIR = os.path.join("data", "meals", "bars")
 DEFAULT_VIX_DIR = os.path.join("data", "meals", "vix")

@@ -1,23 +1,24 @@
-"""Журнал решений и таблица готовности триггеров (ТЗ п.6.1, п.6.4, п.6.6).
+"""Decision journal and the trigger-readiness table (spec §6.1, §6.4, §6.6).
 
-Журнал отвечает на вопрос, который возникает через месяц после срабатывания:
-почему в тот час система решила так, а не иначе. В метриках лежат ЗНАЧЕНИЯ, в
-событиях - ИТОГ, а между ними теряется самое нужное: с каким порогом сравнивали
-и что из этого вышло. Каждая строка журнала - одно сравнение: величина, порог,
-результат, и версии конфигурации и прогона, при которых оно было сделано.
+The journal answers the question that arises a month after a firing: why did the
+system decide that way in that hour. The metrics hold VALUES, the events hold the
+OUTCOME, and the most useful thing falls between them: what was compared against
+what, and what came of it. Each journal row is one comparison: the value, the
+threshold, the result, and the configuration and run versions under which it was
+made.
 
-Объём приходится делить осознанно. Корзинные решения пишутся за каждый час,
-прошедший кворум: их порядка десятка на час, и это единицы миллионов строк за
-пять лет - терпимо. Решения по активам пишутся только там, где триггер
-СРАБОТАЛ: двадцать три инструмента на тридцать пять тысяч часов дали бы
-миллионы строк ради записи "ничего не произошло", а сами значения и так лежат в
-metrics_asset_hour, откуда их можно поднять по часу и активу.
+The volume has to be split deliberately. Basket decisions are written for every
+hour that passed quorum: about a dozen per hour, a few million rows over five
+years - tolerable. Per-asset decisions are written only where a trigger FIRED:
+twenty-three instruments over thirty-five thousand hours would produce millions
+of rows recording "nothing happened", while the values themselves already sit in
+metrics_asset_hour, from which they can be pulled by hour and asset.
 
-Таблица first_valid_hour (п.6.6) отвечает на другой вопрос: с какого момента
-триггеру вообще можно верить. Пока окна не набрались, значение триггера - NULL,
-а не False, и час не участвует в статистике бэктеста. Без такой таблицы разогрев
-незаметно смешивается с рабочим периодом, и качество на нём выглядит хуже, чем
-оно есть.
+The first_valid_hour table (§6.6) answers a different question: from when a
+trigger can be trusted at all. Until the windows have filled, a trigger's value
+is NULL rather than False, and the hour takes no part in backtest statistics.
+Without such a table the burn-in blends imperceptibly into the working period,
+and quality over it looks worse than it is.
 """
 from __future__ import annotations
 
@@ -38,8 +39,8 @@ COLUMNS = ["hour_utc", "scope", "trigger", "value", "threshold", "result",
 
 def _rows(frame: pd.DataFrame, scope: str, trigger: str,
           value: pd.Series, threshold, result: pd.Series) -> pd.DataFrame:
-    """Одно сравнение по всем часам сразу. Строки, где решение не принималось
-    (NULL), в журнал не идут: их отсутствие и означает "не оценивалось"."""
+    """One comparison across all hours at once. Rows where no decision was taken
+    (NULL) do not enter the journal: their absence is what means "not assessed"."""
     evaluated = result.notna()
     if not evaluated.any():
         return pd.DataFrame(columns=COLUMNS[:6])
@@ -56,7 +57,7 @@ def _rows(frame: pd.DataFrame, scope: str, trigger: str,
 
 
 def basket_decisions(frame: pd.DataFrame) -> pd.DataFrame:
-    """Корзинные решения за каждый час (п.6.1)."""
+    """Basket decisions for every hour (§6.1)."""
     quorum = frame["quorum_ok"].astype("boolean")
     parts = [
         _rows(frame, "basket", "quorum", frame["n_assets"], QUORUM_MIN_ASSETS, quorum),
@@ -87,7 +88,7 @@ def basket_decisions(frame: pd.DataFrame) -> pd.DataFrame:
 
 def asset_decisions(metrics: dict[str, pd.DataFrame],
                     residuals: dict[str, pd.DataFrame] | None = None) -> pd.DataFrame:
-    """Решения по активам - только сработавшие (см. модульную строку)."""
+    """Per-asset decisions - only the ones that fired (see the module docstring)."""
     parts = []
     for asset_id, frame in metrics.items():
         indexed = frame.set_index("hour_utc")
@@ -126,15 +127,16 @@ def asset_decisions(metrics: dict[str, pd.DataFrame],
 
 
 def stamp(rows: pd.DataFrame, config_version: str, run_version: str) -> pd.DataFrame:
-    """Проставляет версии. По п.6.3 они записываются в КАЖДУЮ строку: сравнивать
-    решения разных версий допустимо только с явным указанием версий, а для этого
-    версия должна быть в самой строке, а не в имени файла."""
+    """Stamps the versions. Per §6.3 they are written into EVERY row: comparing
+    decisions from different versions is permitted only with the versions stated
+    explicitly, and for that the version must live in the row itself, not in a
+    file name."""
     return rows.assign(config_version=config_version, run_version=run_version)[COLUMNS]
 
 
 def first_valid_hour(metrics: dict[str, pd.DataFrame],
                      basket_frame: pd.DataFrame | None = None) -> pd.DataFrame:
-    """Первый час, начиная с которого триггер вообще оценивается (п.6.6)."""
+    """The first hour from which a trigger is assessed at all (§6.6)."""
     rows = []
     for asset_id, frame in metrics.items():
         indexed = frame.set_index("hour_utc")

@@ -1,12 +1,12 @@
-"""MEALS - Macro-Event Alert & Logic System (ТЗ 5.1).
+"""MEALS - Macro-Event Alert & Logic System (spec 5.1).
 
-Кластерный детектор синхронных аномалий корзины (SI-Index) и модуль одиночных
-идиосинкратических движений (SAED). Строится рядом с price_monitor/ и заменит
-его детектирующий слой целиком на Ф8; до тех пор существующий часовой
-мониторинг продолжает работать и слать алерты, а MEALS накапливает данные и
-метрики, ничего не отправляя.
+A cluster detector for synchronous basket anomalies (SI-Index) and a module for
+single idiosyncratic moves (SAED). Built alongside price_monitor/ and will
+replace its detection layer entirely in phase 8; until then the existing hourly
+monitoring keeps running and sending alerts, while MEALS accumulates data and
+metrics without sending anything.
 
-Переиспользуется из price_monitor: клиенты источников (coinbase, twelvedata),
-Telegram, экономический календарь, новости и LLM. Собственная математика,
-хранилище и событийная модель - здесь.
+Reused from price_monitor: the source clients (coinbase, twelvedata), Telegram,
+the economic calendar, news and the LLM. The mathematics, the storage and the
+event model are here.
 """
