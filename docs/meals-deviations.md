@@ -1,321 +1,321 @@
-# Отступления от ТЗ MEALS 5.1
+# Departures from the MEALS 5.1 specification
 
-Список расхождений между спецификацией и реализацией, каждое — с причиной.
-Спецификация в нескольких местах требует фиксировать отступления явно (п.6.3:
-ретро-изменение параметров без пересчёта истории запрещено), поэтому файл
-ведётся вместе с кодом, а не в переписке.
+A list of divergences between the specification and the implementation, each with
+its reason. The spec requires departures to be recorded explicitly in several
+places (§6.3: changing parameters retroactively without recomputing the history is
+forbidden), so this file is kept alongside the code rather than in correspondence.
 
-Все они возникли на Ф0, при проверке того, какие данные реально доступны, а не
-из соображений удобства реализации.
+All of them arose in phase 0, while checking what data is actually available,
+rather than out of implementation convenience.
 
-## 1. Пятый блок `crypto`
+## 1. A fifth block, `crypto`
 
-**ТЗ:** п.2.3 и 8.1 задают закрытый перечень блоков — equity, rates, FX,
+**Spec:** §2.3 and §8.1 define a closed list of blocks — equity, rates, FX,
 commodities.
 
-**Реализация:** добавлен пятый блок `crypto` (BTC, ETH, SOL).
+**Implementation:** a fifth block `crypto` was added (BTC, ETH, SOL).
 
-**Причина.** Корзина строится на биржевых фондах: фьючерсов нет ни у Twelve
-Data на текущем тарифе, ни у Yahoo с историей глубже апреля 2024. У фондов
-торговая сессия 6,5 часа, поэтому вне американской сессии в корзине остаются
-только валютные пары — один блок. Кворум часа по п.2.3 требует минимум восемь
-активов и минимум два блока по два актива, значит без пятого блока каждый час
-вне сессии NYSE получал бы `no_quorum`: ни SI-Index, ни фактора корзины `F_t`,
-а без фактора не считаются и остатки, то есть молчал бы и SAED. Система была бы
-слепа около 17 часов в сутки.
+**Reason.** The basket is built on ETFs: futures are available neither from Twelve
+Data on the current plan nor from Yahoo with history deeper than April 2024. An
+ETF's trading session is 6.5 hours, so outside the US session the basket holds
+only currency pairs — one block. The hourly quorum of §2.3 requires at least eight
+assets and at least two blocks of two assets each, so without a fifth block every
+hour outside the NYSE session would come out `no_quorum`: no SI-Index, no basket
+factor `F_t`, and without the factor no residuals either, so SAED would fall silent
+too. The system would be blind for about 17 hours a day.
 
-С блоком `crypto` ночью в сессии остаются шесть валютных пар и три
-криптоактива — девять активов при минимуме восемь, два блока, три актива
-Tier-1. Кворум держится, с запасом ровно на один невалидный бар.
+With the `crypto` block, six currency pairs and three crypto assets remain in
+session at night — nine assets against a minimum of eight, two blocks, three Tier-1
+assets. The quorum holds, with a margin of exactly one invalid bar.
 
-**Что это меняет в расчётах:** `N_blocks` в правиле весов п.2.3 равно пяти, а
-не четырём; широта по блокам (п.4.2, п.5.2) считается от пяти представленных
-блоков днём и от двух ночью.
+**What this changes in the calculations:** `N_blocks` in the §2.3 weight rule is
+five rather than four; block breadth (§4.2, §5.2) is counted against five
+represented blocks by day and two at night.
 
-## 2. VIX — дневной ряд с задержкой публикации
+## 2. VIX — a daily series with a publication lag
 
-**ТЗ:** п.4.4 предполагает, что ряд VIX обрабатывается аппаратом п.3.1 наравне
-с часовыми рядами активов, а окно множителя отсчитывается от `T_spike` —
-момента закрытия часового бара, на котором зафиксирован скачок.
+**Spec:** §4.4 assumes the VIX series is processed by the §3.1 machinery on the
+same footing as the hourly asset series, and that the multiplier window is counted
+from `T_spike` — the closing moment of the hourly bar on which the spike was
+recorded.
 
-**Реализация:** источник — FRED, серия `VIXCLS`. Скачок определяется на
-ДНЕВНЫХ барах. Окно множителя отсчитывается от момента, когда значение стало
-известно системе, а не от даты наблюдения.
+**Implementation:** the source is FRED, series `VIXCLS`. The spike is identified on
+DAILY bars. The multiplier window is counted from the moment the value became known
+to the system, not from the observation date.
 
-**Причина.** Часового VIX нет ни у одного доступного источника нужной глубины:
-у Twelve Data индексы не входят в тариф, у Yahoo `^VIX` живой, но часовая
-история обрывается на ~730 днях и train-период 2021–2023 не покрывает. На FRED
-внутридневных серий волатильности нет вообще — проверены все серии CBOE, все
-`Daily, Close`. Взамен FRED даёт настоящий индекс с 1990 года из официального
-источника, без контанго-дрейфа, которым страдает любой биржевой фонд на
-фьючерсы VIX.
+**Reason.** No available source has hourly VIX at the depth needed: Twelve Data's
+plan does not include indices, and Yahoo's `^VIX` is live but its hourly history
+stops at ~730 days and does not cover the 2021–2023 train period. FRED has no
+intraday volatility series at all — every CBOE series was checked, all of them
+`Daily, Close`. In exchange FRED gives the real index from 1990 from the official
+source, without the contango drift that afflicts any ETF on VIX futures.
 
-Значение публикуется утром следующего рабочего дня. Поле `realtime_start` у
-FRED для этой серии проставлено задним числом — оно равно дате самого
-наблюдения, — поэтому как дата публикации оно непригодно, и момент доступности
-вычисляется явно (`meals.fred.available_at`). Без этого бэктест применял бы
-множитель в час, когда значения ещё не существовало.
+The value is published on the morning of the next business day. FRED's
+`realtime_start` field for this series is backdated — it equals the observation date
+itself — so it is unusable as a publication date, and the moment of availability is
+computed explicitly (`meals.fred.available_at`). Without that the backtest would
+apply the multiplier in an hour when the value did not yet exist.
 
-**Что это меняет:** окно `M_VIX` в 24 ч.э.к. фактически накрывает не сутки
-после скачка, а сутки после того, как о скачке стало известно. Потеря
-умеренная: режим повышенного стресса живёт днями, так что сдвинутое на сутки
-окно всё ещё попадает в напряжённые часы.
+**What this changes:** the 24-reference-hour `M_VIX` window in effect covers not the
+day after the spike but the day after the spike became known. The loss is moderate:
+a heightened-stress regime lives for days, so a window shifted by one day still
+lands in the tense hours.
 
-## 3. Общая часовая сетка вместо сетки источника
+## 3. A shared hourly grid instead of the source's grid
 
-**ТЗ:** п.1.2 задаёт единую конвенцию времени, но молча предполагает, что бары
-всех инструментов стоят на одной сетке.
+**Spec:** §1.2 sets a single time convention but tacitly assumes that every
+instrument's bars sit on the same grid.
 
-**Реализация:** биржевые фонды запрашиваются ПОЛУЧАСОВЫМИ барами и
-складываются в часовые по границе круглого часа UTC
-(`meals.bars.to_hourly`).
+**Implementation:** ETFs are requested as HALF-HOURLY bars and folded into hourly
+ones on the round UTC hour boundary (`meals.bars.to_hourly`).
 
-**Причина.** Сетки источников не совпадают: у фондов бары идут по :30 (09:30,
-10:30, …), у валютных пар и крипты — по круглому часу. Кросс-секция —
-взвешенная медиана `M_t`, CSV, PCA, корреляционная матрица — измеряет
-синхронность, и на рядах, смещённых друг относительно друга на полчаса, она
-измеряла бы её неверно. Запрос получасовыми барами не стоит дополнительных
-кредитов: тариф считает запросы, а не строки.
+**Reason.** The sources' grids do not coincide: ETF bars run on the :30 (09:30,
+10:30, …), currency pairs and crypto on the round hour. The cross-section — the
+weighted median `M_t`, CSV, PCA, the correlation matrix — measures synchrony, and
+on series offset from one another by half an hour it would measure it wrongly.
+Requesting half-hourly bars costs no extra credits: the plan counts requests, not
+rows.
 
-**Побочное следствие, полезное для п.2.4:** первые полчаса сессии дают часовой
-бар, собранный из одного получасового. Это ровно «первый бар сессии», который
-по п.2.4 раскладывается на гэп-канал и внутричасовую доходность, и отличить его
-можно по полю `n_src` в хранилище.
+**A side effect useful for §2.4:** the first half hour of a session produces an
+hourly bar assembled from a single half-hourly one. That is exactly the "first bar
+of the session" which §2.4 splits into the gap channel and the intra-hour return,
+and it can be recognised by the `n_src` field in the store.
 
-## 4. Yahoo Finance исключён из состава
+## 4. Yahoo Finance excluded from the composition
 
-**ТЗ:** п.2.1 требует зафиксировать вендора и провести аудит покрытия, но
-конкретных источников не называет.
+**Spec:** §2.1 requires the vendor to be fixed and a coverage audit performed, but
+names no specific sources.
 
-**Реализация:** три источника — Twelve Data (фонды и валютные пары), Coinbase
-(крипта), FRED (VIX). Yahoo не используется.
+**Implementation:** three sources — Twelve Data (ETFs and currency pairs), Coinbase
+(crypto), FRED (VIX). Yahoo is not used.
 
-**Причина.** Все инструменты, которые брались у Yahoo, дублируют то, что уже
-есть в корзине через фонды: `GC=F` и `GLD` — одно золото, `CL=F` и `USO` — одна
-нефть, `ES=F` и `SPY` — один S&P, `ZB=F` и `TLT`/`IEF` — те же длинные
-трежерис, `DX-Y.NYB` — те же валютные пары в другой упаковке. При этом у Yahoo
-неофициальный эндпоинт и часовая история не глубже 730 дней, то есть на
-train-период 2021–2023 эти ряды всё равно не годятся.
+**Reason.** Every instrument taken from Yahoo duplicates something already in the
+basket through an ETF: `GC=F` and `GLD` are the same gold, `CL=F` and `USO` the same
+oil, `ES=F` and `SPY` the same S&P, `ZB=F` and `TLT`/`IEF` the same long Treasuries,
+`DX-Y.NYB` the same currency pairs in different packaging. On top of that Yahoo's
+endpoint is unofficial and its hourly history goes no deeper than 730 days, so these
+series are unusable for the 2021–2023 train period anyway.
 
-Индекс доллара не включён и в виде фонда: он почти линейная комбинация уже
-включённых пар, и его присутствие завышало бы `PC1_ratio` — система объявляла
-бы синхронность там, где одно и то же измерено дважды.
+The dollar index is not included as an ETF either: it is almost a linear combination
+of pairs already included, and its presence would inflate `PC1_ratio` — the system
+would declare synchrony where one and the same thing is measured twice.
 
-## 5. Хранилище — Parquet и SQLite вместо PostgreSQL
+## 5. Storage — Parquet and SQLite instead of PostgreSQL
 
-**ТЗ:** п.6.1 требует PostgreSQL, допуская SQLite только для локальной
-разработки.
+**Spec:** §6.1 requires PostgreSQL, permitting SQLite only for local development.
 
-**Реализация:** бары и метрики — Parquet по файлу на инструмент, состояние
-событий и кулдаунов — SQLite. Всё внутри репозитория.
+**Implementation:** bars and metrics are Parquet, one file per instrument; event
+and cooldown state is SQLite. Everything inside the repository.
 
-**Причина.** Проект целиком живёт на GitHub Actions и не имеет ни одного
-внешнего сервиса; внешняя база добавила бы зависимость и секрет ради данных,
-которые прекрасно лежат рядом с кодом. Требования п.6.2 и 6.3 —
-идемпотентность, версионирование, пересчёт с новым `run_version` — от выбора
-хранилища не зависят и выполняются в полном объёме.
+**Reason.** The whole project lives on GitHub Actions and has no external service
+at all; an external database would add a dependency and a secret for the sake of
+data that sits perfectly well next to the code. The requirements of §6.2 and §6.3 —
+idempotency, versioning, recomputation under a new `run_version` — do not depend on
+the choice of storage and are met in full.
 
-**Побочная выгода.** Прежнее хранилище NDJSON дописывалось построчно, и
-неудачное слияние веток однажды молча продублировало в нём непрерывный блок из
-299 часов — во всех шестнадцати файлах истории сразу. Обнаружено на Ф0 и
-вычищено (`python -m price_monitor.candle_store`, 4789 строк). Parquet
-переписывается целиком, поэтому такое слияние даёт явный конфликт, а не тихую
-порчу данных, — а `bars.to_hourly` дополнительно отбрасывает повторы по часу
-до агрегации, потому что объём складывается суммой и на дубле удвоился бы.
+**A side benefit.** The previous NDJSON store was appended line by line, and a bad
+branch merge once silently duplicated a continuous block of 299 hours in it — in all
+sixteen history files at once. Found in phase 0 and cleaned out
+(`python -m price_monitor.candle_store`, 4789 rows). Parquet is rewritten whole, so
+such a merge produces an explicit conflict rather than quiet data corruption — and
+`bars.to_hourly` additionally drops per-hour duplicates before aggregation, because
+volume is summed and would double on a duplicate.
 
-## 6. Допуск в полтика при проверке согласованности OHLC
+## 6. A half-tick tolerance in the OHLC consistency check
 
-**ТЗ:** п.2.6 требует проверять `low <= min(open, close)` и
-`max(open, close) <= high`, а бар, не прошедший проверку, помечать `is_invalid`
-и исключать из всех расчётов.
+**Spec:** §2.6 requires checking `low <= min(open, close)` and
+`max(open, close) <= high`, and marking a bar that fails `is_invalid`, excluding it
+from every calculation.
 
-**Реализация:** сравнение идёт с допуском в половину шага цены инструмента.
+**Implementation:** the comparison allows a tolerance of half the instrument's price
+step.
 
-**Причина.** Источник округляет поля бара независимо и не всегда до одного и
-того же разряда. В реальных данных встречается `close` 92.42 при `high` 92.415
-у TLT и `open` 1.0886 при `low` 1.08862 у EUR/USD — расхождение меньше одного
-тика, то есть артефакт округления, а не сломанный бар. Буквальная проверка
-пометила бы такие часы невалидными и выбросила бы совершенно нормальные данные.
+**Reason.** The source rounds a bar's fields independently and not always to the
+same decimal place. Real data contains `close` 92.42 against `high` 92.415 on TLT
+and `open` 1.0886 against `low` 1.08862 on EUR/USD — a discrepancy smaller than one
+tick, that is, a rounding artefact rather than a broken bar. A literal check would
+mark such hours invalid and throw away perfectly sound data.
 
-Допуск намеренно узкий и не подгонялся под то, чтобы обнулить счётчик: после
-его введения на 551 тысяче баров остаётся 14 действительно несогласованных
-(12 у EUR/USD, 2 у SLV). Они и должны отбраковываться — это ровно то, ради
-чего проверка существует.
+The tolerance is deliberately narrow and was not tuned to zero the counter: after it
+was introduced, 14 genuinely inconsistent bars remain out of 551 thousand (12 on
+EUR/USD, 2 on SLV). Those should be rejected — that is exactly what the check exists
+for.
 
-## 7. Ряды фондов нескорректированные, отсечки помечаются вместо коррекции
+## 7. ETF series left unadjusted, ex-dates flagged instead of corrected
 
-**ТЗ:** п.2.1 требует, чтобы акции и ETF использовались в adjusted-сериях.
+**Spec:** §2.1 requires stocks and ETFs to be used as adjusted series.
 
-**Реализация:** ряды хранятся нескорректированными, а даты дивидендных отсечек
-лежат в таблице корпоративных действий, и гэп такого дня исключается.
+**Implementation:** the series are stored unadjusted, while dividend ex-dates sit in
+the corporate-actions table and the gap of such a day is excluded.
 
-**Причина.** Скорректированный ряд у вендора доступен (`adjust=all` работает и
-на внутридневных барах, объём не трогает), но он пересчитывается ЗАДНИМ ЧИСЛОМ
-при каждой новой выплате. В хранилище, которое дописывается по бару в час, это
-даёт худший из возможных эффектов: старые бары несут коэффициент, посчитанный
-когда-то, свежие — сегодняшний, и на стыке возникает искусственный скачок
-размером в накопленные с тех пор дивиденды. Причём не на границе сессии, где
-его ловит гэп-канал, а в произвольном часе, то есть прямо в `r_t`. У HYG это
-дало бы фальшивое движение около 0.4% в случайный час каждый месяц.
+**Reason.** An adjusted series is available from the vendor (`adjust=all` works on
+intraday bars too and leaves volume alone), but it is recomputed RETROACTIVELY on
+every new payout. In a store appended one bar per hour that produces the worst
+possible effect: old bars carry a coefficient computed at some point in the past,
+fresh ones today's, and at the seam an artificial jump appears the size of the
+dividends accumulated since. And not at a session boundary, where the gap channel
+would catch it, but in an arbitrary hour, that is, straight into `r_t`. On HYG that
+would give a false move of about 0.4% in a random hour every month.
 
-Нескорректированный ряд ведёт себя честнее: падение в день отсечки происходит
-между сессиями и потому попадает в гэп-канал (п.2.4), который по построению не
-даёт баллов в SI-Index. Дополнительно такие даты помечаются, и их гэп
-исключается — иначе распределение самого гэп-канала перекосили бы регулярные
-дивидендные ступеньки.
+An unadjusted series behaves more honestly: the drop on the ex-date happens between
+sessions and therefore lands in the gap channel (§2.4), which by construction awards
+no SI-Index points. In addition such dates are flagged and their gap excluded —
+otherwise the distribution of the gap channel itself would be skewed by regular
+dividend steps.
 
-Эндпоинтов `/dividends` и `/splits` на тарифе нет (403), поэтому даты выводятся
-из данных: отношение скорректированного ряда к нескорректированному —
-ступенчатая функция, и её ступени и есть отсечки. Проверка сходится: у
-акционных фондов получилось 22–23 выплаты за 5,7 лет (квартальные), у
-облигационных 67 (ежемесячные), у трастов на золото и серебро — ноль, как и
-должно быть.
+The `/dividends` and `/splits` endpoints are not on the plan (403), so the dates are
+derived from the data: the ratio of the adjusted series to the unadjusted one is a
+step function, and its steps are the ex-dates. The check adds up: equity ETFs came
+out with 22–23 payouts over 5.7 years (quarterly), bond ETFs 67 (monthly), and the
+gold and silver trusts zero, as they should.
 
-**Уточнение к п.2.4.** Спецификация велит исключать бар целиком. Здесь
-маскируется только гэп-канал: внутричасовая доходность первого бара к выплате
-отношения не имеет, и выбрасывать её вместе с гэпом значило бы терять исправные
-данные без причины.
+**A refinement to §2.4.** The specification says to exclude the bar entirely. Here
+only the gap channel is masked: the first bar's intra-hour return has nothing to do
+with the payout, and discarding it along with the gap would throw away sound data
+for no reason.
 
-## 8. Окно PCA набирается из часов одного режима
+## 8. The PCA window is assembled from hours of one regime
 
-**ТЗ:** п.3.3 требует брать в окно только часы, прошедшие кворум, и только
-активы с валидным баром во ВСЕХ включённых часах.
+**Spec:** §3.3 requires taking into the window only hours that passed quorum, and
+only assets with a valid bar in ALL included hours.
 
-**Реализация:** окно набирается из часов, когда торгует вся корзина, а не из
-последних 120 часов кворума подряд. Ночью PC1_ratio остаётся NULL.
+**Implementation:** the window is assembled from hours when the whole basket trades,
+not from the last 120 consecutive quorum hours. At night PC1_ratio stays NULL.
 
-**Причина.** Требование полноты столбцов правильное: неполный столбец делает
-корреляции между парами несопоставимыми, посчитанными на разных подмножествах
-времени. Но п.3.3 предполагает, что у всех активов корзины одна сессия, а у нас
-их две — биржевые фонды торгуют 6.5 часа, валютные пары 24/5, крипта
-круглосуточно. Любое окно из 120 подряд идущих часов задевает ночь, когда фонды
-закрыты, поэтому требование полноты выбрасывает из матрицы ВСЕ фонды.
+**Reason.** The column-completeness requirement is right: an incomplete column makes
+pairwise correlations incomparable, each computed on a different subset of time. But
+§3.3 assumes every basket asset shares one session, and we have two — ETFs trade 6.5
+hours, currency pairs 24/5, crypto around the clock. Any window of 120 consecutive
+hours touches the night, when the ETFs are closed, so the completeness requirement
+throws ALL the ETFs out of the matrix.
 
-Проверено на реальных данных: в окне остаются ровно шесть валютных пар и три
-криптоактива, и так в каждом окне без исключения. То есть синхронность блоков
-equity, rates и commodities не измерялась бы никогда — при том что ради неё
-кластерный детектор и строится.
+Verified on real data: what remains in the window is exactly six currency pairs and
+three crypto assets, in every single window without exception. That is, the synchrony
+of the equity, rates and commodities blocks would never be measured — although the
+cluster detector exists precisely for it.
 
-Набирая окно из часов полного режима, получаем все двадцать один актив,
-сопоставимые корреляции и PC1_ratio, который измеряет то, что должен. Ночью
-величина не определена, и по п.3.4 триггер однофакторности опирается на одно
-лишь сжатие — этот случай спецификация оговаривает прямо.
+Assembling the window from full-regime hours gives all twenty-one assets, comparable
+correlations and a PC1_ratio that measures what it should. At night the value is
+undefined, and per §3.4 the single-factor trigger rests on compression alone — a case
+the specification addresses directly.
 
-Смешивать режимы в одном ряду было бы хуже, чем не считать вовсе: порог
-синхронности — скользящий перцентиль самого PC1_ratio, и на ряду, где чередуются
-два разных типичных уровня, он описывал бы пропорцию режимов, а не аномалию.
+Mixing regimes in one series would be worse than not computing it at all: the
+synchrony threshold is a rolling percentile of PC1_ratio itself, and on a series
+alternating between two different typical levels it would describe the proportion of
+regimes rather than an anomaly.
 
-**Следствие для окна статистик.** Охват W_cs остаётся прежним, 1200 ч.э.к., но
-требование предъявляется к числу ЗНАЧЕНИЙ внутри него, а не строк: PC1_ratio
-существует лишь в часы полного режима, и в окне из 1200 часов их около 335.
-Требовать 1200 наблюдений внутри 1200 часов значит требовать невозможного — при
-таком условии порог синхронности не считается ни разу за всю историю.
+**A consequence for the statistics window.** The span of W_cs stays as specified,
+1200 reference-calendar hours, but the requirement is placed on the number of VALUES
+inside it rather than rows: PC1_ratio exists only in full-regime hours, and a
+1200-hour window holds about 335 of them. Demanding 1200 observations inside 1200
+hours is demanding the impossible — under that condition the synchrony threshold is
+never computed in the whole history.
 
-## 9. Второй регрессор: фактор собственного блока
+## 9. A second regressor: the asset's own block factor
 
-**ТЗ:** п.3.6 задаёт одну объясняющую переменную — фактор корзины `F_t = M_t`.
-Величина `M_block,t` определена в п.2.3, но зарезервирована под разметку истины
-в п.7.
+**Spec:** §3.6 defines one explanatory variable — the basket factor `F_t = M_t`. The
+quantity `M_block,t` is defined in §2.3 but reserved for truth labelling in §7.
 
-**Реализация:** `r = alpha + beta₁·F + beta₂·F_block + e`, где `F_block` —
-медиана доходностей блока БЕЗ самого актива.
+**Implementation:** `r = alpha + beta₁·F + beta₂·F_block + e`, where `F_block` is the
+median of the block's returns EXCLUDING the asset itself.
 
-**Причина — измерена, а не предположена.** На построенном по п.3.6 ряду
-остатков оказалось, что в часы, когда срабатывают четыре и более валютные пары
-(101 час, 556 событий), в 97% случаев все пары согласны по направлению доллара.
-У крипты согласие по знаку остатка стопроцентное по медиане. Это не независимые
-идиосинкратические движения — это одно движение блока, целиком утёкшее в
-остатки всех его участников.
+**The reason was measured, not assumed.** On the residual series built per §3.6 it
+turned out that in hours when four or more currency pairs fire (101 hours, 556
+events), 97% of the time every pair agrees on the direction of the dollar. For crypto
+the agreement on residual sign is 100% at the median. These are not independent
+idiosyncratic moves — they are one block move that leaked wholesale into the
+residuals of all its members.
 
-Механизм понятен: `M_t` — взвешенная медиана по пяти блокам, и когда ходит один
-блок весом в одну пятую, медиана всей корзины почти не сдвигается. Модуль,
-задуманный ловить ОДИНОЧНЫЕ движения, систематически срабатывал целыми блоками.
-Калибровкой порогов это не лечится: подняв порог, теряешь и настоящие одиночные
-события, а пачки остаются пачками, просто более редкими.
+The mechanism is clear: `M_t` is a weighted median over five blocks, and when one
+block weighing a fifth moves, the median of the whole basket barely shifts. A module
+meant to catch SINGLE-ASSET moves was firing in whole blocks, systematically.
+Threshold calibration does not cure this: raise the threshold and you lose the
+genuine single-asset events too, while the bunches stay bunches, merely rarer.
 
-**Исключение самого актива обязательно.** Иначе в блоке из трёх криптоактивов
-инструмент на треть вычитал бы сам себя, и его собственное движение частично
-исчезало бы из остатка — та же ошибка, от которой в п.3.6 защищает оценка беты
-на данных до текущего бара.
+**Excluding the asset itself is mandatory.** Otherwise, in a block of three crypto
+assets, an instrument would subtract a third of itself and its own move would partly
+vanish from the residual — the same error that §3.6 guards against by estimating beta
+on data before the current bar.
 
-**Медиана обычная, а не взвешенная**, и это не упрощение: по правилу
-равновесности п.2.3 веса всех активов внутри блока равны между собой.
+**The median is plain rather than weighted**, and that is not a simplification: under
+the equality rule of §2.3 all weights within a block are equal.
 
-**Вырожденный случай.** Если два фактора в окне почти коллинеарны,
-определитель системы стремится к нулю и коэффициенты разлетаются на
-произвольные величины с противоположными знаками. В таком окне регрессия
-откатывается к одному фактору, то есть ровно к поведению п.3.6.
+**The degenerate case.** If the two factors are nearly collinear within the window,
+the system's determinant tends to zero and the coefficients fly off to arbitrary
+values with opposite signs. In such a window the regression falls back to a single
+factor, that is, to exactly the behaviour of §3.6.
 
-**Результат на реальных данных:**
+**The result on real data:**
 
-| | было (один фактор) | стало (два фактора) |
+| | before (one factor) | after (two factors) |
 |---|---|---|
-| часов с 4+ валютными парами | 101 | 42 |
-| из них со 100% согласием по доллару | 97% | 50% |
-| часов с пятью и более сообщениями | 97 | 31 |
-| максимум сообщений в час | 13 | 10 |
-| событий всего | 2669 | 2478 |
+| hours with 4+ currency pairs | 101 | 42 |
+| of those with 100% dollar agreement | 97% | 50% |
+| hours with five or more messages | 97 | 31 |
+| maximum messages per hour | 13 | 10 |
+| events in total | 2669 | 2478 |
 
-Согласие упало до уровня случайного — то есть систематическая утечка блочного
-фактора устранена, а оставшиеся совпадения выглядят настоящими.
+Agreement fell to chance level — that is, the systematic leakage of the block factor
+is gone, and the remaining coincidences look genuine.
 
-**Что осталось несовершенным.** Медиана как блочный фактор работает не везде
-одинаково. У блока FX шесть пар делятся ровно пополам — три с долларом в
-знаменателе и три в числителе, — поэтому на чистом движении доллара медиана
-блока близка к нулю и поглощает его лишь косвенно. У золота бета блока всего
-0.12 и дисперсия остатка снизилась только до 96%: медиана из нефти, серебра и
-широкой корзины сырья плохой прокси для золота. Естественное продолжение —
-блочно-специфичный фактор там, где медиана заведомо плоха (для FX это индекс
-доллара, то есть среднее доходностей, приведённых к направлению доллара). Пока
-не сделано: измеренный выигрыш от медианы уже существенный, а дальнейшее
-усложнение стоит делать после Ф7, на измеренной precision, а не до неё.
+**What is still imperfect.** The median as a block factor does not work equally well
+everywhere. The FX block's six pairs split exactly in half — three with the dollar in
+the denominator and three in the numerator — so on a pure dollar move the block median
+is near zero and absorbs it only indirectly. For gold the block beta is only 0.12 and
+the residual variance fell only to 96%: a median of oil, silver and a broad commodity
+basket is a poor proxy for gold. The natural continuation is a block-specific factor
+where the median is known to be poor (for FX that means a dollar index, that is, the
+mean of returns oriented to the dollar's direction). Not done yet: the measured gain
+from the median is already substantial, and further complication is worth doing after
+phase 7, on measured precision, rather than before it.
 
-## 10. Календарь берётся одним источником, а не лучшим из нескольких
+## 10. The calendar is taken from one source, not the best of several
 
-**ТЗ:** п.4.3 предполагает полный календарь на всём интервале, п.7 — калибровку
-на train (2021-2023) с последующим прогоном на test (2024 и далее). Откуда брать
-календарь, ТЗ не говорит.
+**Spec:** §4.3 assumes a complete calendar across the whole interval, §7 assumes
+calibration on train (2021-2023) followed by a run on test (2024 onwards). Where to
+get the calendar, the spec does not say.
 
-**Как сделано:** вся история — помесячными страницами самой ForexFactory,
-одним источником, без ключа. Сторонние перепробованы и сняты все, и последним
-снят самый полный из них.
+**How it is done:** the whole history comes from ForexFactory's own monthly pages,
+one source, no key. Third-party sources were all tried and dropped, and the fullest
+of them was dropped last.
 
-Соблазн был обратный: склеить самый глубокий источник с самым свежим и получить
-больше событий. Ровно так архив и был устроен — Kaggle до октября 2025, дальше
-ForexFactory, — и это оказалось хуже, чем меньше данных. Источники согласны по
-`High` и резко расходятся по `Medium`:
+The temptation ran the other way: splice the deepest source with the freshest and
+get more events. That is exactly how the archive was built — Kaggle up to October
+2025, ForexFactory after — and it turned out worse than having less data. The
+sources agree on `High` and diverge sharply on `Medium`:
 
 | | High | Medium |
 |---|---:|---:|
-| Kaggle, событий в неделю | 13,0 | **96,9** |
-| ForexFactory, событий в неделю | 13,4 | **11,3** |
+| Kaggle, events per week | 13.0 | **96.9** |
+| ForexFactory, events per week | 13.4 | **11.3** |
 
-Вдевятеро — это не разница в полноте, это разная граница между «важно» и «так
-себе». Архив получал шов ровно там, где один источник сменял другого, а
-`M_calendar` — вместе с ним: множитель был включён в **90,7%** часов на половине
-Kaggle и в **53,2%** на половине ForexFactory.
+Ninefold is not a difference in completeness, it is a different boundary between
+"important" and "so-so". The archive acquired a seam exactly where one source gave
+way to the other, and `M_calendar` acquired one with it: the multiplier was on in
+**90.7%** of hours across the Kaggle half and **53.2%** across the ForexFactory half.
 
-Для калибровки это хуже пропусков. Train-период п.7 целиком лежал бы в щедрой
-половине, а работа шла бы по скупой: пороги настроились бы на один режим, а
-применялись бы в другом, и разница ушла бы в отчёт как «ухудшение качества на
-test», хотя причина чисто в данных. Пропуск такого не делает — он занижает вес
-часа там, где данных нет, и это видно.
+For calibration that is worse than gaps. The §7 train period would lie entirely in
+the generous half while the work ran on the frugal one: the thresholds would settle
+on one regime and be applied in another, and the difference would go into the report
+as "degraded quality on test", although the cause is purely in the data. A gap does
+no such thing — it understates an hour's weight where there is no data, and that is
+visible.
 
-**Что стало после пересборки:**
+**What changed after the rebuild:**
 
-| | было (Kaggle + FF) | стало (только FF) |
+| | before (Kaggle + FF) | after (FF only) |
 |---|---|---|
-| событий | 100 865 | 28 109 |
-| множитель включён, до 2025-10 | 90,7% часов | 59,3% |
-| множитель включён, с 2025-10 | 53,2% | 53,1% |
-| множитель включён, train 2021-2023 | — | 57,7% |
+| events | 100,865 | 28,109 |
+| multiplier on, before 2025-10 | 90.7% of hours | 59.3% |
+| multiplier on, from 2025-10 | 53.2% | 53.1% |
+| multiplier on, train 2021-2023 | — | 57.7% |
 
-Шва больше нет: 59,3% против 53,1% — обычный разброс между периодами, а не
-разрыв между источниками.
+The seam is gone: 59.3% against 53.1% is ordinary variation between periods, not a
+break between sources.
 
-Состав по годам ровный, чего у прежнего архива не было:
+The yearly composition is even, which the old archive's was not:
 
-| год | High | Medium | Low |
+| year | High | Medium | Low |
 |---|---:|---:|---:|
 | 2021 | 552 | 760 | 3484 |
 | 2022 | 686 | 663 | 3429 |
@@ -324,185 +324,188 @@ test», хотя причина чисто в данных. Пропуск та�
 | 2025 | 873 | 628 | 3543 |
 | 2026 | 522 | 425 | 2830 |
 
-**Чего это стоит:** событий `Low` стало на порядок меньше — у ForexFactory их
-просто меньше, чем размечал Kaggle. По существу ноль: множитель п.4.3
-использует только `High` и `Medium`, `Low` в нём не участвует вовсе, а больше
-календарь нигде не читается.
+**What it costs:** an order of magnitude fewer `Low` events — ForexFactory simply has
+fewer of them than Kaggle labelled. In substance zero: the §4.3 multiplier uses only
+`High` and `Medium`, `Low` takes no part in it at all, and the calendar is read
+nowhere else.
 
-**Ошибка в прежнем измерении, из-за которой шов не был замечен сразу.** При
-первой сборке разница по `Medium` была видна и признана несущественной со
-ссылкой на измерение: «на покрытии часов это не сказывается — 84,8% до стыка и
-83,9% после». Мерилось не то. Считалась доля часов, попадающих хоть в чьё-то
-окно события, а она насыщается почти до единицы при любой плотности выше
-некоторой и потому нечувствительна. Значение самого множителя не измерялось —
-а оно и разошлось вдвое.
+**The error in the earlier measurement that kept the seam from being noticed.** At
+the first assembly the `Medium` difference was visible and judged immaterial, citing
+a measurement: "it does not affect hour coverage — 84.8% before the seam and 83.9%
+after". The wrong thing was being measured. What was counted was the share of hours
+falling inside anyone's event window, and that saturates to nearly one at any density
+above a certain point and is therefore insensitive. The value of the multiplier
+itself was not measured — and that is what diverged twofold.
 
-**Что осталось для Ф7.** Множитель включён в 58,3% часов при максимуме 1,80.
-Это лучше прежних 84,6%, но всё ещё много: «рядом с важной публикацией» —
-обычное состояние, а не исключение, и различающая способность у множителя
-низкая. Только по `High` было бы 41,1%. Менять сейчас не стал: п.4.3 прямо
-требует оба уровня, а размеры окон и пики помечены в ТЗ звёздочкой и
-калибруются на train.
-
-
-## 11. Как именно читается ForexFactory
-
-**ТЗ** источника не задаёт вовсе — это заметка о реализации, чтобы следующий
-раз не начинать с нуля.
-
-Живой фид `ff_calendar_thisweek.json` отдаёт только текущую неделю; вариантов
-`nextweek` и `lastweek` не существует, оба 404. Понедельные страницы
-`forexfactory.com/calendar?week=...` закрыты Cloudflare — 403 и JS-челлендж.
-Именно это и создало впечатление, что истории у ForexFactory не достать, из-за
-которого пришлось перебрать полдюжины сторонних источников.
-
-**Помесячные страницы `?month=mar.2026` при этом открыты.** Данные лежат в
-разметке готовым JSON, а время в них — unix-таймстамп, то есть однозначное:
-неоднозначности часового пояса, испортившей все прежние попытки, здесь нет по
-построению. Полная история 2021-01 … 2026-09 — 69 запросов, ни одного сбоя.
-
-Три тонкости, каждая стоила времени:
-
-- **Страница отдаётся `urllib`, но не `requests`.** На `requests` ForexFactory
-  отвечает 403 при любых заголовках, включая полный браузерный набор. Различие
-  в TLS-отпечатке клиента, и переспорить его заголовками нельзя.
-- **Библиотека `market-calendar-tool` не годится:** она сначала дёргает
-  служебный `/calendar/apply-settings`, чтобы выставить таймзону отображения, а
-  он отвечает 403.
-- **Живой фид не отдаёт `actual` вовсе** — у него в выдаче такого ключа нет.
-  Факт дочитывается с тех же помесячных страниц, где он есть у 76% событий.
-
-**Чем это подтверждено на данных:** 28 109 событий за 2021-01-01 … 2026-10-01,
-ни одного пустого месяца, ноль дубликатов по мгновению публикации, а у `CPI m/m`
-США ровно два времени — 12:30 и 13:30 UTC в пропорции 45:22, то есть 08:30 по
-Нью-Йорку летом и зимой. Переход на летнее время обработан верно.
-
-**Что снято и почему** — полный перечень в README, раздел про календарь.
-Коротко: три готовых дампа дали 25% сдвинутых копий, Financial Modeling Prep
-платный даже на «stable», QuantGist бесплатен только на 30 дней, MetaTrader 5
-беднее и требует терминала, у FRED календаря публикаций нет, Kaggle разошёлся
-по таксономии (см. п.10).
+**What is left for phase 7.** The multiplier is on in 58.3% of hours with a maximum
+of 1.80. Better than the previous 84.6%, but still a lot: "near an important release"
+is the ordinary state rather than the exception, and the multiplier's discriminating
+power is low. `High` alone would give 41.1%. Not changed for now: §4.3 explicitly
+requires both levels, and the window sizes and peaks are starred in the spec and are
+calibrated on train.
 
 
-## 12. На будущее: сюрприз вместо метки важности
+## 11. How ForexFactory is actually read
 
-Архив несёт данные, которых раньше не было в пригодном виде: `actual`,
-`forecast` и `previous` заполнены у 70%, 68% и 71% событий High и Medium
-соответственно. Причём заполнены они теперь и ВПЕРЁД: живой фид `actual` не
-отдаёт вовсе, и без еженедельного дозаполнения с помесячных страниц весь архив
-дальше сегодняшнего дня был бы для этой идеи бесполезен.
+**The spec** does not specify a source at all — this is an implementation note, so
+that next time nobody starts from scratch.
 
-Это открывает то, чего метка важности дать не может. Сейчас вес часа определяется
-редакционной градацией из трёх значений, и вышедший ровно по прогнозу CPI весит
-столько же, сколько промах на два стандартных отклонения — хотя рынок реагирует
-на них совершенно по-разному. Содержательная величина — сюрприз:
+The live feed `ff_calendar_thisweek.json` serves only the current week; there are no
+`nextweek` or `lastweek` variants, both 404. The weekly pages
+`forexfactory.com/calendar?week=...` are closed off by Cloudflare — 403 and a JS
+challenge. That is precisely what created the impression that ForexFactory history
+was unobtainable, on the strength of which half a dozen third-party sources were
+tried.
+
+**The monthly pages `?month=mar.2026` are nevertheless open.** The data sits in the
+markup as ready JSON, and the times in it are unix timestamps, that is, unambiguous:
+the timezone ambiguity that ruined every earlier attempt is absent here by
+construction. The full history 2021-01 … 2026-09 is 69 requests, not one failure.
+
+Three subtleties, each of which cost time:
+
+- **The page is served to `urllib` but not to `requests`.** ForexFactory answers
+  `requests` with 403 under any headers, including a full browser set. The difference
+  is in the client's TLS fingerprint, and no headers can argue with it.
+- **The `market-calendar-tool` library is no good:** it first hits the internal
+  `/calendar/apply-settings` to set the display timezone, and that answers 403.
+- **The live feed does not serve `actual` at all** — its output has no such key. The
+  actual is read back from those same monthly pages, where 76% of events have it.
+
+**What the data confirms:** 28,109 events over 2021-01-01 … 2026-10-01, not one empty
+month, zero duplicates by moment of publication, and US `CPI m/m` has exactly two
+times — 12:30 and 13:30 UTC in a 45:22 ratio, that is, 08:30 New York in summer and
+in winter. Daylight saving is handled correctly.
+
+**What was dropped and why** — the full list is in the README's calendar section.
+Briefly: three ready-made dumps gave 25% shifted copies, Financial Modeling Prep is
+paid even on "stable", QuantGist is free for only 30 days, MetaTrader 5 is poorer and
+needs a terminal, FRED has no publication calendar, and Kaggle diverged on taxonomy
+(see §10).
+
+
+## 12. For the future: surprise instead of the impact label
+
+The archive carries data that was previously unavailable in usable form: `actual`,
+`forecast` and `previous` are filled for 70%, 68% and 71% of High and Medium events
+respectively. And they are now filled GOING FORWARD too: the live feed does not serve
+`actual` at all, and without the weekly backfill from the monthly pages the whole
+archive beyond today would be useless for this idea.
+
+This opens up what an impact label cannot give. At present an hour's weight is decided
+by an editorial three-valued grading, and a CPI that comes in exactly on forecast
+weighs the same as a miss by two standard deviations — although the market reacts to
+them completely differently. The meaningful quantity is the surprise:
 
     surprise = |actual - forecast| / historical_std(actual - forecast)
 
-нормированный по каждому конкретному показателю отдельно, потому что разброс у
-занятости и у индекса цен несопоставим.
+normalised per individual indicator, because the spread for employment and for a
+price index are not comparable.
 
-Тогда `M_calendar` перестаёт быть функцией «насколько важна эта публикация
-вообще» и становится функцией «насколько неожиданной она оказалась». Это же
-снимает и проблему из п.10: множитель, включённый в 58% часов, различает мало,
-а множитель по сюрпризу включается редко и по делу.
+`M_calendar` then stops being a function of "how important is this release in
+general" and becomes a function of "how unexpected did it turn out to be". That also
+removes the problem from §10: a multiplier that is on in 58% of hours discriminates
+little, whereas a surprise-based multiplier switches on rarely and to the point.
 
-Делать это следует после Ф7, на измеренной precision: нужно сперва увидеть,
-вносит ли календарный множитель вклад в качество вообще, и только потом
-улучшать его форму.
-
-
-## 13. Отпечаток данных — по содержимому, а не по времени правки
-
-**ТЗ п.6.2:** повторный прогон того же часа с той же версией не должен создавать
-дублей, а поздние или пересмотренные данные обязаны попасть в пересчёт с новой
-версией. Способ вычислять версию прогона ТЗ не задаёт.
-
-**Как сделано:** `run_version` — хеш от `config_version` и хеша *содержимого*
-сырых входов. Первая, более дешёвая, реализация брала размер и время правки
-файла; она была неверна в обе стороны сразу.
-
-В одну сторону: бэкфилл переписывает файл теми же самыми барами. Размер тот же,
-время новое — и пересчёт по неизменившимся данным получал бы новую версию каждый
-раз, то есть идемпотентности, ради которой версия и заведена, не было бы вовсе.
-В другую: вендор исправил бар, не изменив длины строки. Размер прежний, и если
-файл переписан в ту же секунду, правка проскочила бы незамеченной — ровно тот
-случай, ради которого п.6.2 требует новую версию.
-
-Платой стали сотня миллисекунд на прогон: сырых данных около тридцати мегабайт.
-Это укладывается в час между запусками с большим запасом.
-
-**Чего это стоит:** отпечаток чувствителен к порядку байтов в файле, а не только
-к данным. Перезапись Parquet другой версией библиотеки или с другим уровнем
-сжатия даст новую `run_version` при тех же барах. Это ложное срабатывание, но
-безопасное: лишний пересчёт, а не пропущенный.
+This should be done after phase 7, on measured precision: first we need to see
+whether the calendar multiplier contributes to quality at all, and only then improve
+its shape.
 
 
-## 14. Производные файлы исключены из отпечатка
+## 13. The data fingerprint is over content, not modification time
 
-**ТЗ п.6.2** говорит про «те же данные», не уточняя, что ими считать.
+**Spec §6.2:** a repeat run of the same hour under the same version must not create
+duplicates, while late or revised data must enter the recomputation under a new
+version. How to compute the run version, the spec does not say.
 
-**Как сделано:** в отпечаток входят только сырые входы — бары, ряд VIX,
-расписание NYSE, таблица дивидендных отсечек и архив экономического календаря.
-Метрики активов, метрики корзины, ряды остатков и журнал решений — не входят.
+**How it is done:** `run_version` is a hash of `config_version` and a hash of the
+*content* of the raw inputs. The first, cheaper implementation took the file's size
+and modification time; it was wrong in both directions at once.
 
-Иначе воспроизводимости не бывает по построению. Файл `metrics_basket_hour`
-прогону `cluster` одновременно вход и выход: он читает из него кворум и M_t, а
-дописывает туда же баллы, множители и решения по часам. Включи его в отпечаток —
-и второй запуск по тем же барам получил бы другую `run_version` просто потому,
-что первый запуск переписал файл.
+In one direction: a backfill rewrites the file with the very same bars. Same size,
+new time — and a recomputation over unchanged data would get a new version every
+time, meaning the idempotency the version exists for would not exist at all. In the
+other: the vendor corrects a bar without changing the length of the line. The size
+is unchanged, and if the file was rewritten within the same second the edit would
+slip through unnoticed — exactly the case §6.2 demands a new version for.
 
-По той же причине сам прогон сбрасывает свои производные колонки перед расчётом
-(`cluster.reset_derived`), а версии считает до записи, а не после.
+The price is a hundred milliseconds per run: there are about thirty megabytes of raw
+data. That fits into the hour between runs with a large margin.
 
-**Чего это стоит:** если производный файл испортить руками, отпечаток этого не
-заметит. Защита здесь другая — производные файлы целиком пересобираются командой,
-а не правятся.
-
-
-## 15. Экспорт событий и ряды остатков не хранятся в репозитории
-
-**ТЗ п.6.5** требует экспорт события в JSON по фиксированной схеме. Где его
-держать, ТЗ не говорит.
-
-**Как сделано:** схема лежит в `schema/event_export.schema.json` и версионируется,
-а сам экспорт — в `data/meals/events/`; этот каталог и `data/meals/residuals/`
-в `.gitignore`.
-
-188 событий дают 9,7 МБ JSON, ряды остатков — ещё 32 МБ, и оба переписываются
-целиком при каждом прогоне: `run_version` стоит в каждом файле экспорта, а
-остатки пересчитываются при любом изменении фактора. Полностью выводимые из кода
-и метрик сорок мегабайт за прогон в истории git — это рост репозитория без
-единого нового факта.
-
-Метрики активов при этом в репозитории остаются, и граница проведена сознательно:
-они зависят только от баров и стоят полного прогона `pipeline`, а эти два выхода —
-секунды поверх них, причём `saed` в порядке запуска всё равно идёт перед
-`cluster`.
-
-**Чего это стоит:** после клона нужно прогнать `python -m meals.saed` и
-`python -m meals.export`, иначе журнал решений соберётся без строк SAED, а
-экспорта не будет вовсе. Контракт при этом сохранён: схема в репозитории есть, и
-тест проверяет против неё как синтетическое событие, так и все 188 реальных.
+**What it costs:** the fingerprint is sensitive to the byte order in a file, not only
+to the data. Rewriting Parquet with a different library version or a different
+compression level gives a new `run_version` for the same bars. That is a false
+positive, but a safe one: an extra recomputation rather than a missed one.
 
 
-## 16. Решения по активам журналируются только там, где триггер сработал
+## 14. Derived files are excluded from the fingerprint
 
-**ТЗ п.6.1** требует журнал решений по всем триггерам.
+**Spec §6.2** speaks of "the same data" without saying what counts as data.
 
-**Как сделано:** корзинные решения пишутся за каждый час, прошедший кворум, —
-это 287 тысяч строк за пять лет, терпимо. Решения по активам пишутся только
-там, где триггер сработал.
+**How it is done:** the fingerprint covers only raw inputs — bars, the VIX series,
+the NYSE schedule, the dividend ex-date table and the economic-calendar archive.
+Asset metrics, basket metrics, residual series and the decision journal are excluded.
 
-Двадцать три инструмента на тридцать пять тысяч часов дали бы порядка двух
-миллионов строк, почти все со значением «ничего не произошло», — при том что
-сами величины и пороги за каждый час и так лежат в `metrics_asset_hour`, откуда
-поднимаются по ключу (час, актив). Журнал добавляет к ним ровно одно: связку
-«с каким порогом сравнивали и что вышло», и она интересна там, где сравнение
-дало результат.
+Otherwise reproducibility is impossible by construction. The file
+`metrics_basket_hour` is both input and output for the `cluster` run: it reads the
+quorum and M_t from it and appends points, multipliers and per-hour decisions to the
+same file. Include it in the fingerprint and a second run over the same bars would
+get a different `run_version` simply because the first run rewrote the file.
 
-**Чего это стоит:** отсутствие строки в журнале означает либо «не сработало»,
-либо «не оценивалось», и различить их по одному журналу нельзя. Для корзинных
-решений различие сохранено (час без кворума строки не даёт вовсе, и это
-задокументировано), а для активов ответ даёт таблица `first_valid_hour`: она
-хранит первый час, с которого триггер вообще оценивается, и долю оценённых часов.
+For the same reason the run clears its own derived columns before computing
+(`cluster.reset_derived`), and computes the versions before writing rather than
+after.
+
+**What it costs:** if a derived file is corrupted by hand, the fingerprint will not
+notice. The protection here is different — derived files are rebuilt wholesale by a
+command rather than edited.
+
+
+## 15. The event export and the residual series are not kept in the repository
+
+**Spec §6.5** requires an event export to JSON under a fixed schema. Where to keep
+it, the spec does not say.
+
+**How it is done:** the schema lives in `schema/event_export.schema.json` and is
+versioned, while the export itself goes to `data/meals/events/`; that directory and
+`data/meals/residuals/` are in `.gitignore`.
+
+188 events amount to 9.7 MB of JSON, the residual series to another 32 MB, and both
+are rewritten whole on every run: `run_version` stands in every export file, and the
+residuals are recomputed on any change of the factor. Forty megabytes per run in git
+history, fully derivable from the code and the metrics, is repository growth without
+a single new fact.
+
+The asset metrics do stay in the repository, and the boundary is drawn deliberately:
+they depend only on the bars and cost a full `pipeline` run, whereas these two
+outputs are seconds on top of them — and `saed` comes before `cluster` in the run
+order anyway.
+
+**What it costs:** after a clone you have to run `python -m meals.saed` and
+`python -m meals.export`, or the decision journal will be assembled without SAED rows
+and there will be no export at all. The contract is preserved regardless: the schema
+is in the repository, and a test validates against it both a synthetic event and all
+188 real ones.
+
+
+## 16. Per-asset decisions are journalled only where a trigger fired
+
+**Spec §6.1** requires a decision journal covering all triggers.
+
+**How it is done:** basket decisions are written for every hour that passed quorum —
+287 thousand rows over five years, tolerable. Per-asset decisions are written only
+where a trigger fired.
+
+Twenty-three instruments over thirty-five thousand hours would give some two million
+rows, almost all of them saying "nothing happened" — while the values and thresholds
+for every hour already sit in `metrics_asset_hour`, from which they are retrieved by
+the key (hour, asset). The journal adds exactly one thing to them: the pairing "what
+was compared against what, and what came of it", and that is interesting where the
+comparison produced a result.
+
+**What it costs:** the absence of a row in the journal means either "did not fire" or
+"was not assessed", and the journal alone cannot tell them apart. For basket
+decisions the distinction is preserved (an hour without quorum yields no row at all,
+and that is documented), and for assets the answer comes from the `first_valid_hour`
+table: it holds the first hour from which a trigger is assessed at all, and the share
+of assessed hours.
