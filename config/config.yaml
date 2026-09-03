@@ -1,51 +1,52 @@
-# Список отслеживаемых активов. У каждого — свой источник данных:
-#   coinbase   — крипто-пары Coinbase Exchange, формат BASE-QUOTE (например BTC-USD),
-#                ключ не нужен.
-#   yahoo      — фьючерсы/индексы через Yahoo Finance, тикер как на finance.yahoo.com,
-#                ключ не нужен (неофициальный эндпоинт, см. README).
-#   twelvedata — валютные пары через Twelve Data, формат BASE/QUOTE (например EUR/USD),
-#                нужен бесплатный ключ (секрет TWELVEDATA_API_KEY, см. README). Отдельный
-#                провайдер именно для форекса — если Yahoo ляжет, валютные пары всё равно
-#                продолжат работать, и наоборот.
+# List of monitored assets. Each has its own data source:
+#   coinbase   — Coinbase Exchange crypto pairs, format BASE-QUOTE (e.g. BTC-USD),
+#                no key needed.
+#   yahoo      — futures/indices through Yahoo Finance, ticker as on finance.yahoo.com,
+#                no key needed (unofficial endpoint, see README).
+#   twelvedata — currency pairs through Twelve Data, format BASE/QUOTE (e.g. EUR/USD),
+#                needs a free key (secret TWELVEDATA_API_KEY, see README). A separate
+#                provider specifically for FX — if Yahoo goes down the currency pairs
+#                keep working, and vice versa.
 #
-# ВАЖНО про Twelve Data: бесплатный тариф — 8 запросов в минуту и 800 в сутки, по одному
-# запросу на актив. Именно поэтому валютных пар ровно 8 — это использует весь минутный
-# лимит за один прогон, но не больше: добавлять девятую пару на этом тарифе нельзя, не
-# убрав одну из текущих (или не перейдя на платный план).
+# IMPORTANT about Twelve Data: the free plan allows 8 requests a minute and 800 a day,
+# one request per asset. That is exactly why there are precisely 8 currency pairs — that
+# uses the entire per-minute limit in one run but no more: a ninth pair cannot be added
+# on this plan without removing one of the current ones (or moving to a paid plan).
 #
-# У любого актива можно переопределить любой из общих параметров ниже по файлу —
-# просто добавьте тот же ключ прямо в запись актива (interval, lookback, mad_window,
+# Any asset can override any of the shared parameters further down this file — just add
+# the same key directly to the asset's entry (interval, lookback, mad_window,
 # ewma_lambda, price_zscore_threshold, price_zscore_override,
 # volume_zscore_threshold, volume_zscore_override, volume_min_price_move_z,
-# cooldown_minutes, escalation_factor, min_history, а также daily_mad_window,
+# cooldown_minutes, escalation_factor, min_history, and also daily_mad_window,
 # daily_ewma_lambda, daily_price_zscore_threshold, daily_price_zscore_override,
-# daily_min_history, daily_cooldown_minutes, daily_escalation_factor — те же ручки
-# для дневного сигнала, см. ниже). Значение по умолчанию берётся
-# из глобальной настройки внизу файла, если для актива ничего не задано. При ~сотне
-# активов максимум это дёшево и оправданно: разным классам активов реально нужна
-# разная чувствительность (см. находки бэктеста в README), а не один компромиссный
-# порог на всех.
+# daily_min_history, daily_cooldown_minutes, daily_escalation_factor — the same knobs
+# for the daily signal, see below). The default is taken from the global setting at the
+# bottom of the file when nothing is set for the asset. At ~a hundred assets at most
+# this is cheap and justified: different asset classes genuinely need different
+# sensitivity (see the backtest findings in README), not one compromise threshold for
+# everything.
 #
-# ВАЖНО про валютные пары (EUR/USD, USD/CNY и т.п.): у спот-форекса нет единого
-# биржевого объёма ни у одного провайдера — Twelve Data всегда отдаёт по ним volume=0,
-# для таких активов работает только ценовой сигнал (EWMA + робастный z-score), сигнал
-# по объёму для них никогда не сработает, и это ожидаемо, а не недостаток источника.
-# ВАЖНО про фьючерсы (GC=F, CL=F, ES=F, ZB=F): Yahoo отдаёт "непрерывный" контракт
-# ближайшего месяца, который сам переезжает на следующий контракт при экспирации —
-# в момент такого ролловера возможен ценовой гэп, не связанный с реальным движением
-# рынка, и он может изредка (несколько раз в год) вызвать ложный алерт.
+# IMPORTANT about currency pairs (EUR/USD, USD/CNY and so on): spot FX has no
+# consolidated exchange volume at any provider — Twelve Data always serves volume=0 for
+# them, so only the price signal works for such assets (EWMA + robust z-score), the
+# volume signal will never fire for them, and that is expected rather than a defect of
+# the source.
+# IMPORTANT about futures (GC=F, CL=F, ES=F, ZB=F): Yahoo serves a "continuous" contract
+# of the nearest month, which rolls to the next contract at expiry on its own — at such
+# a rollover a price gap unrelated to any real market move is possible, and it can
+# occasionally (a few times a year) cause a false alert.
 #
-# news_query — необязательное поле, поисковый запрос для Google News, когда вы
-# вручную запускаете "Explain Alerts" (объяснение алерта через LLM, см. README).
-# Нужен, только если label не годится как поисковый запрос (смешивает русский и
-# английский, содержит скобки и т.п.) — если не задать, используется label как есть.
+# news_query is an optional field, the search query for Google News when you manually
+# run "Explain Alerts" (an LLM explanation of an alert, see README). It is needed only
+# when the label does not work as a search query (mixes languages, contains brackets and
+# so on) — if unset, the label is used as it is.
 #
-# ВАЖНО: чем короче запрос, тем больше результатов отдаёт Google News — проверено
-# вживую на всех валютных парах: "EUR USD euro dollar exchange rate" (6 слов) дало
-# 3 результата за два тестовых дня, а просто "EUR/USD" — 17; "US dollar index DXY"
-# дало 0, а "dollar index" — 18. Похоже, чем больше слов, тем ближе поиск к "все
-# слова обязаны встретиться", и длинные, "точные" формулировки почти всегда хуже
-# короткого естественного запроса. Держите news_query коротким (1-3 слова).
+# IMPORTANT: the shorter the query, the more results Google News returns — verified live
+# across all currency pairs: "EUR USD euro dollar exchange rate" (6 words) gave 3 results
+# over two test days, while plain "EUR/USD" gave 17; "US dollar index DXY" gave 0, while
+# "dollar index" gave 18. It seems that the more words there are, the closer the search
+# gets to "every word must appear", and long, "precise" formulations are almost always
+# worse than a short natural query. Keep news_query short (1-3 words).
 assets:
   - symbol: BTC-USD
     source: coinbase
@@ -64,13 +65,13 @@ assets:
     daily_price_zscore_override: 6.6
   - symbol: "GC=F"
     source: yahoo
-    label: "Золото (Gold futures)"
+    label: "Gold futures"
     news_query: "gold price"
     daily_price_zscore_threshold: 2.6
     daily_price_zscore_override: 7.8
   - symbol: "CL=F"
     source: yahoo
-    label: "Нефть WTI (Crude Oil futures)"
+    label: "WTI crude oil futures"
     news_query: "WTI crude oil price"
     daily_price_zscore_threshold: 2.3
     daily_price_zscore_override: 6.9
@@ -78,13 +79,13 @@ assets:
     source: yahoo
     label: "S&P 500 (E-mini futures)"
     news_query: "S&P 500"
-    # Бэктест нашёл: объём E-mini фьючерса имеет резкую внутридневную сезонность
-    # (тихая ночная сессия против насыщенной сессии NYSE), и робастный z-score
-    # относительно скользящего окна из обеих смешанных вместе даёт абсурдные
-    # значения — z до 105 наблюдался в реальных данных, это не выброс, а
-    # структурная поломка модели "медиана/MAD" для этого конкретного распределения.
-    # Порогом это не лечится ни при каком разумном значении, поэтому объёмный канал
-    # для этого актива отключён — работает только ценовой сигнал.
+    # The backtest found that E-mini futures volume has a sharp intraday
+    # seasonality (a quiet overnight session against a busy NYSE one), and a robust
+    # z-score against a rolling window mixing both together gives absurd values —
+    # a z of 105 was observed in real data, which is not an outlier but a
+    # structural failure of the "median/MAD" model for this particular
+    # distribution. No sensible threshold cures it, so the volume channel is
+    # disabled for this asset — only the price signal works.
     volume_zscore_threshold: 200.0
     volume_zscore_override: 200.0
     daily_price_zscore_threshold: 2.9
@@ -145,181 +146,182 @@ assets:
     daily_price_zscore_override: 6.6
   - symbol: "DX-Y.NYB"
     source: yahoo
-    label: "Индекс доллара (DXY)"
+    label: "US dollar index (DXY)"
     news_query: "dollar index"
     daily_price_zscore_threshold: 2.5
     daily_price_zscore_override: 7.5
 
-# Таймфрейм свечей — общий для всех активов (обоих источников) и должен
-# соответствовать частоте запуска workflow (по умолчанию раз в час, см.
-# .github/workflows/price-monitor.yml). Поддерживаются: 1m, 5m, 15m, 1h, 1d
-# (значение "6h" у Coinbase есть нативно, а у Yahoo нет — не используйте его, если
-# среди активов есть источник yahoo). 1h выбран вместо 15m, чтобы уместить в лимит
-# Coinbase (максимум 300 свечей за запрос) намного больше истории: 300 часовых
-# свечей ≈ 12.5 дней вместо ≈3.1 дня на 15-минутках — статистическая база для
-# z-score получается заметно надёжнее.
+# The candle timeframe is shared by every asset (both sources) and must match the
+# workflow's run frequency (once an hour by default, see
+# .github/workflows/price-monitor.yml). Supported: 1m, 5m, 15m, 1h, 1d
+# (Coinbase has "6h" natively while Yahoo does not — do not use it if any asset
+# uses the yahoo source). 1h was chosen over 15m to fit far more history into
+# Coinbase's limit (at most 300 candles per request): 300 hourly candles ≈ 12.5
+# days against ≈3.1 days on 15-minute ones — a noticeably sounder statistical base
+# for the z-score.
 interval: "1h"
 
-# --- Заглушение алертов -----------------------------------------------------
+# --- Muting the alerts ------------------------------------------------------
 #
-# true — часовой прогон идёт как обычно: котировки качаются, история
-# пополняется, решения пишутся в data/decision_log/, дайджест календаря по
-# субботам уходит, уведомление о поломке самого бота уходит. Не уходят только
-# сообщения по активам — те самые сигналы, которые сейчас заменяются на MEALS.
+# true — the hourly run proceeds as usual: quotes are fetched, history
+# accumulates, decisions are written to data/decision_log/, the Saturday calendar
+# digest goes out, and so does the bot's own health alert. The only things that do
+# not go out are the per-asset messages — the very signals MEALS is replacing.
 #
-# Заглушка не тратит кулдаун: состояние остаётся таким, будто сигнала не было,
-# и после снятия первое же настоящее движение пройдёт, а не упрётся в паузу,
-# накопленную за время молчания.
+# Muting does not spend the cooldown: the state stays as though there had been no
+# signal, so once it is lifted the first genuine move goes through instead of
+# running into a pause accumulated during the silence.
 #
-# Флаг лежит здесь, а не выключается на стороне внешнего планировщика,
-# намеренно: "мы намеренно молчим" — это состояние проекта, и оно должно быть
-# видно в репозитории. Выключенный на чужом сайте cron через месяц неотличим от
-# поломки.
+# The flag lives here rather than being switched off on the external scheduler's
+# side, deliberately: "we are deliberately silent" is a state of the project and
+# must be visible in the repository. A cron job disabled on someone else's website
+# is indistinguishable from a breakage a month later.
 alerts_muted: true
 
-# Сколько последних свечей запрашивать за один раз. Ограничено самым строгим
-# источником — Coinbase отдаёт максимум 300 свечей за запрос (300 * 1ч ≈ 12.5 дня
-# истории); Yahoo отдаёт заметно больше, но урезается до того же значения.
+# How many recent candles to request at once. Bounded by the strictest source —
+# Coinbase serves at most 300 candles per request (300 * 1h ≈ 12.5 days of
+# history); Yahoo serves noticeably more but is trimmed to the same value.
 lookback: 300
 
-# Скользящее окно для робастной (медиана/MAD) базовой линии, в свечах (288ч ≈ 12 дней).
+# Rolling window for the robust (median/MAD) baseline, in candles (288h ≈ 12 days).
 mad_window: 288
 
-# Коэффициент затухания EWMA-волатильности (RiskMetrics по умолчанию — 0.94).
+# Decay factor of the EWMA volatility (the RiskMetrics default is 0.94).
 ewma_lambda: 0.94
 
-# Порог z-score для аномального движения цены (оба сигнала — EWMA и робастный — должны его превысить).
+# z-score threshold for an unusual price move (both signals — EWMA and robust — must clear it).
 #
-# Эти четыре порога (price/volume × threshold/override) намеренно подобраны бэктестом
-# (см. README) под конкретную цель по частоте — 0-1 алерт в неделю в спокойное время,
-# 2-3 в самые волатильные периоды, — а не под то, чтобы поймать максимум крупных
-# исторических движений любой ценой. Цель считается не суммарно по всем активам сразу,
-# а отдельно по группам (валютная группа — форекс + DXY — и всё остальное): при
-# добавлении DXY и восьми валютных пар это разделение стало нужно, иначе одна общая
-# цифра на 16 разных активов перестаёт быть осмысленной. Раньше (price_zscore_threshold:
-# 3.0, price_zscore_override: 8.0) система была настроена на противоположную цель —
-# ничего крупного не пропустить — и в реальности выдавала около 22 алертов в неделю
-# на куда меньшем наборе активов, что оказалось чрезмерно. При текущих значениях
-# бэктест на реальной годовой истории даёт ~1.8/нед на группу "крипта+сырьё" и ~1.9/нед
-# на валютную группу (recall на 80 крупнейших исторических движениях — 42/80: часть
-# пропусков — намеренная работа cooldown/escalation, схлопывающая несколько соседних
-# всплесков одного и того же эпизода в одно уведомление; у части валютных пар recall
-# ниже даже при более низком пороге — не калибровочная проблема, см. README).
+# These four thresholds (price/volume × threshold/override) were deliberately
+# fitted by the backtest (see README) to a specific frequency target — 0-1 alerts a
+# week in calm periods, 2-3 in the most volatile ones — rather than to catching the
+# maximum of large historical moves at any cost. The target is measured not across
+# all assets at once but per group (the currency group — FX + DXY — and everything
+# else): with DXY and eight currency pairs added, that split became necessary, or
+# one aggregate figure across 16 different assets stops meaning anything. Earlier
+# (price_zscore_threshold: 3.0, price_zscore_override: 8.0) the system was tuned to
+# the opposite goal — miss nothing large — and in practice produced around 22 alerts
+# a week on a far smaller set of assets, which turned out to be excessive. At the
+# current values the backtest over a real year of history gives ~1.8/week for the
+# "crypto+commodities" group and ~1.9/week for the currency group (recall on the 80
+# largest historical moves is 42/80: some of the misses are the deliberate work of
+# cooldown/escalation collapsing several neighbouring spikes of one episode into a
+# single notification; for some currency pairs recall is lower even at a lower
+# threshold — not a calibration problem, see README).
 price_zscore_threshold: 7.0
 
-# Экстремальное значение ЛЮБОГО ОДНОГО из двух сигналов (EWMA или робастный),
-# достаточное само по себе, без подтверждения вторым, и — важно — обходящее даже
-# cooldown ниже (см. escalation_factor): по-настоящему экстремальное событие всегда
-# долетает, а не ждёт своей очереди. Подтверждение остальным механизмам нужно, чтобы
-# отсекать пограничные случаи — не чтобы прятать события, которые экстремальны по
-# любому измерению.
+# An extreme value of EITHER ONE of the two signals (EWMA or robust), sufficient on
+# its own without confirmation from the other and — importantly — bypassing even the
+# cooldown below (see escalation_factor): a genuinely extreme event always gets
+# through instead of waiting its turn. Confirmation by the other mechanisms exists to
+# cut off borderline cases, not to hide events that are extreme on any measure.
 price_zscore_override: 22.0
 
-# Порог z-score для аномального объёма — теперь того же порядка, что и ценовой,
-# см. комментарий выше про целевую частоту. На практике при такой планке объёмный
-# канал в основном работает как ещё один способ поймать по-настоящему крупное
-# событие, а не как независимый частый источник алертов на умеренные всплески
-# объёма — так и было задумано при пересчёте под новую, гораздо более редкую цель.
+# z-score threshold for unusual volume — now of the same order as the price one, see
+# the comment above about the frequency target. In practice, at this level the volume
+# channel mostly works as one more way of catching a genuinely large event rather
+# than as an independent frequent source of alerts on moderate volume spikes — which
+# is what was intended when it was recalibrated to the new, far rarer target.
 volume_zscore_threshold: 22.0
 
-# Экстремальный всплеск объёма сам по себе, без подтверждения движением цены и в
-# обход cooldown — как price_zscore_override, но для объёма.
+# An extreme volume spike on its own, without confirmation from a price move and
+# bypassing the cooldown — like price_zscore_override, but for volume.
 volume_zscore_override: 22.0
 
-# Минимальный z-score движения цены, чтобы всплеск объёма тоже считался тревогой.
+# Minimum price-move z-score for a volume spike to count as an alert as well.
 volume_min_price_move_z: 1.5
 
-# Не слать повторный алерт по активу раньше, чем через N минут после предыдущего —
-# если только новое событие не экстремально само по себе (price/volume_zscore_override
-# выше, тогда cooldown обходится полностью) или не эскалация (см. escalation_factor).
-# 20160 = 14 дней. Раз между price_zscore_threshold и price_zscore_override теперь
-# большой разрыв (7 и 22), у cooldown стало больше работы: он гасит повторные
-# «подтверждённые, но не экстремальные» события по одному и тому же активу в течение
-# этого окна, схлопывая один турбулентный эпизод в одно уведомление вместо нескольких.
+# Do not send a repeat alert for an asset sooner than N minutes after the previous
+# one — unless the new event is extreme in itself (price/volume_zscore_override
+# above, in which case the cooldown is bypassed entirely) or is an escalation (see
+# escalation_factor). 20160 = 14 days. Now that there is a large gap between
+# price_zscore_threshold and price_zscore_override (7 and 22), the cooldown has more
+# work to do: it suppresses repeat "confirmed but not extreme" events on the same
+# asset within this window, collapsing one turbulent episode into a single
+# notification instead of several.
 cooldown_minutes: 20160
 
-# Во время cooldown повторный алерт (недостаточно экстремальный для override выше)
-# всё равно уходит, если его severity (max(|EWMA z|, |робастный z|, volume z))
-# минимум во столько раз больше severity предыдущего алерта — так рутинный шум на
-# том же уровне схлопывается в одно уведомление, а по-настоящему усиливающаяся
-# ситуация — нет.
+# During a cooldown a repeat alert (not extreme enough for the override above) still
+# goes out if its severity (max(|EWMA z|, |robust z|, volume z)) is at least this many
+# times the severity of the previous alert — so routine noise at the same level
+# collapses into one notification while a genuinely escalating situation does not.
 escalation_factor: 1.5
 
-# Минимальное число свечей истории, необходимое перед тем как начать анализ актива
-# (60ч ≈ 2.5 дня разгона, пока не накопится статистика).
+# Minimum number of history candles needed before an asset starts being analysed
+# (60h ≈ 2.5 days of warm-up while the statistics accumulate).
 min_history: 60
 
-# Дневной сигнал (см. README, "Дневной сигнал") — второй, независимый от часового,
-# детектор поверх дневных свечей, которые строятся сами (из уже накопленной локальной
-# истории в data/candle_history/, см. price_monitor/candle_store.py), без отдельного
-# запроса к источнику. Ловит то, что часовой сигнал структурно не видит: медленный
-# многочасовой "наплыв" в одну сторону, где ни один час сам по себе не аномален, а
-# суммарное движение за сутки — уже да. Применяется ко всем активам одинаково, не
-# только к валютам (дыра структурная, не зависит от класса актива).
+# The daily signal (see README, "Daily signal") — a second detector, independent of
+# the hourly one, on top of daily candles built by the app itself (from the local
+# history already accumulated in data/candle_history/, see
+# price_monitor/candle_store.py), with no separate request to the source. It catches
+# what the hourly signal structurally cannot see: a slow multi-hour drift in one
+# direction where no single hour is anomalous but the total move over a day is.
+# Applied uniformly to every asset, not only to currencies (the blind spot is
+# structural and does not depend on the asset class).
 #
-# Калибруется иначе, чем часовой: не под целевую частоту, а под recall — порог для
-# каждого актива подбирается отдельно (`python -m price_monitor.backtest
-# --local-history --calibrate-daily-recall`) так, чтобы поймать примерно половину
-# самых крупных исторических движений этого актива, где "самых крупных" — топ-N,
-# N ≈ число месяцев доступной истории (не фиксированная пятёрка). Реальный порог —
-# per-asset override в записи каждого актива выше по файлу; значения ниже — только
-# запасной вариант на случай нового актива без своей калибровки.
+# Calibrated differently from the hourly one: not to a frequency target but to
+# recall — the threshold for each asset is fitted separately (`python -m
+# price_monitor.backtest --local-history --calibrate-daily-recall`) so as to catch
+# roughly half of that asset's largest historical moves, where "largest" means the
+# top N, N ≈ the number of months of available history (not a fixed five). The real
+# threshold is the per-asset override in each asset's entry above; the values below
+# are only a fallback for a new asset with no calibration of its own.
 daily_price_zscore_threshold: 4.0
 daily_price_zscore_override: 8.0
 
-# Затухание EWMA и окно робастной базовой линии для дневного сигнала — та же логика,
-# что ewma_lambda/mad_window выше, только в днях, а не в часах. 300 дней — то самое
-# окно, на которое опирается гипотеза "у валютных пар выше инерция": чтобы её
-# оценить, нужна дневная, а не часовая, статистика.
+# EWMA decay and the robust baseline window for the daily signal — the same logic
+# as ewma_lambda/mad_window above, only in days rather than hours. 300 days is the
+# window the "currency pairs have more inertia" hypothesis rests on: assessing it
+# needs daily, not hourly, statistics.
 daily_ewma_lambda: 0.94
 daily_mad_window: 300
 
-# Минимум дней истории, прежде чем дневной сигнал начнёт работать по активу.
+# Minimum days of history before the daily signal starts working on an asset.
 daily_min_history: 30
 
-# 2880 = 2 дня — короче часового cooldown (14 дней) намеренно: escalation_factor
-# и так пропускает по-настоящему усиливающееся движение сквозь cooldown, так что
-# длинная пауза здесь не нужна — хватает и пары дней, чтобы не дублировать
-# уведомление про продолжение того же по силе движения. Строго per-asset — общего
-# cooldown на несколько активов сразу нет и не будет: каждый актив, пересекший свой
-# порог, всегда шлёт своё уведомление независимо от остальных (см. README) — это
-# сознательный выбор в пользу простоты и надёжной доставки, а не пропущенная
-# оптимизация.
+# 2880 = 2 days — deliberately shorter than the hourly cooldown (14 days):
+# escalation_factor already lets a genuinely escalating move through the cooldown, so
+# a long pause is not needed here — a couple of days is enough to avoid duplicating a
+# notification about a continuation of the same-sized move. Strictly per asset —
+# there is no shared cooldown across several assets and there will not be: every
+# asset that crosses its own threshold always sends its own notification independently
+# of the others (see README) — a deliberate choice in favour of simplicity and
+# reliable delivery, not a missed optimisation.
 daily_cooldown_minutes: 2880
 daily_escalation_factor: 1.5
 
-# Через сколько подряд неудачных запусков (получение данных или отправка в Telegram
-# упали хотя бы по одному активу) слать отдельное сообщение "мониторинг не работает".
-# При 1 запуске в час 3 = ждём 3 часа, прежде чем поднимать тревогу.
+# After how many consecutive failed runs (fetching data or sending to Telegram
+# failed for at least one asset) to send a separate "monitoring is down" message.
+# At one run an hour, 3 means waiting 3 hours before raising the alarm.
 health_alert_after_failures: 3
 
-# Пока мониторинг не работает — слать напоминание каждые N неудачных запусков
-# (24 ≈ раз в сутки при часовом опросе), чтобы не забыть о долгой проблеме, но и не
-# спамить каждый час. 0 — напомнить один раз и больше не повторять.
+# While monitoring is down, send a reminder every N failed runs (24 ≈ once a day at
+# hourly polling), so a long-running problem is not forgotten but does not spam every
+# hour either. 0 means remind once and never repeat.
 health_reminder_every_failures: 24
 
-# LLM для отдельного, запускаемого вручную шага "Explain Alerts" (объяснение алерта
-# по новостям, см. README). base_url должен принимать запросы в формате OpenAI
-# /chat/completions — так устроены DeepSeek, OpenAI и большинство других
-# провайдеров, так что смена провайдера — это только эти значения плюс то, какой
-# секрет подставлен в LLM_API_KEY в .github/workflows/explain-alerts.yml. Сам ключ
-# сюда не пишется — он берётся из секрета репозитория.
+# The LLM for the separate, manually triggered "Explain Alerts" step (explaining an
+# alert from the news, see README). base_url must accept requests in the OpenAI
+# /chat/completions format — DeepSeek, OpenAI and most other providers are built that
+# way, so switching providers means only these values plus which secret is substituted
+# into LLM_API_KEY in .github/workflows/explain-alerts.yml. The key itself is not
+# written here — it comes from a repository secret.
 llm_base_url: "https://api.deepseek.com"
 
-# У DeepSeek цена зависит от времени суток: в "пиковые" часы — 01:00–04:00 и
-# 06:00–10:00 UTC по будням — цена полная, всё остальное время (вечера, ночи,
-# выходные) — вдвое дешевле (https://api-docs.deepseek.com/quick_start/pricing/).
-# Поэтому в пик используется модель попроще и подешевле, а в остальное время —
-# более сильная: за счёт скидки она обходится примерно как обычная цена попроще.
-# Логика выбора — price_monitor/llm.py, функция select_model. Если решите сменить
-# провайдера на такого, у которого нет деления на пик/не пик, просто укажите здесь
-# одну и ту же модель в обеих строчках — выбор по времени станет не важен.
+# DeepSeek's price depends on the time of day: during "peak" hours — 01:00-04:00 and
+# 06:00-10:00 UTC on weekdays — the price is full, and the rest of the time (evenings,
+# nights, weekends) it is half (https://api-docs.deepseek.com/quick_start/pricing/).
+# So at peak a simpler and cheaper model is used, and otherwise a stronger one: thanks
+# to the discount it costs about what the simpler one costs at full price. The
+# selection logic is in price_monitor/llm.py, function select_model. If you switch to a
+# provider with no peak/off-peak split, just put the same model on both lines — the
+# time-based choice then stops mattering.
 llm_model_peak: "deepseek-v4-flash"
 llm_model_offpeak: "deepseek-v4-pro"
 
-# "Explain Alerts" ищет новости строго в окне [алерт+6ч, алерт+12ч] — это
-# фиксированный отрезок времени относительно самого алерта, а не "от алерта до
-# сейчас" (см. README). explain_min_age_hours не даёт запустить обработку раньше,
-# чем это окно целиком наступит — иначе поиск захватил бы только его часть.
-# Должно совпадать с NEWS_WINDOW_END_HOURS в price_monitor/explain.py.
+# "Explain Alerts" searches for news strictly in the window [alert+6h, alert+12h] —
+# a fixed stretch of time relative to the alert itself, not "from the alert until now"
+# (see README). explain_min_age_hours prevents processing from starting before that
+# window has fully arrived — otherwise the search would cover only part of it.
+# Must match NEWS_WINDOW_END_HOURS in price_monitor/explain.py.
 explain_min_age_hours: 12.0
