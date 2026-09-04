@@ -831,6 +831,7 @@ meals/backfill.py    — the one-off load of history from 2021
 meals/audit.py       — the data coverage table, required by §2.1 of the spec
 meals/truth.py       — the §7 yardstick: truth labels by block and the SPY baseline
 meals/evaluate.py    — precision, recall, F1, lead time and the §7 diagnostics
+meals/calibrate.py   — the §7 fit on train, folded and frozen before test is read
 
 data/meals/bars/     — hourly bars per instrument
 data/meals/vix/      — the daily VIX series
@@ -848,6 +849,8 @@ data/meals/first_valid_hour.parquet — from which hour a trigger can be trusted
 data/meals/truth_labels.parquet — §7 labels: was the next 24h significant, and the baseline
 data/meals/truth_thresholds.parquet — the per-block Q99 those labels rest on, taken on train
 data/meals/evaluation.md — the backtest report: the detector against the §7 baselines
+data/meals/calibration.json — the search: what was tried, what was chosen, how it held up
+data/meals/frozen.json — the frozen config_version and the train result behind it
 data/meals/events/   — event export in JSON (not in the repository, see below)
 data/meals/coverage.md — the coverage table
 schema/event_export.schema.json — the event export schema, the contract for a consumer
@@ -884,6 +887,7 @@ python -m meals.cluster         # SI-Index, cluster events, the decision journal
 python -m meals.export          # export events to JSON under the schema
 python -m meals.truth           # §7 truth labels and the baseline
 python -m meals.evaluate        # score the detector against them
+python -m meals.calibrate       # §7 fit on train (writes calibration.json; never reads test)
 python -m price_monitor.economic_calendar --rebuild   # rebuild the calendar archive
 ```
 

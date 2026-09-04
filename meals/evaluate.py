@@ -151,14 +151,18 @@ def diagnostics(basket: pd.DataFrame, events: pd.DataFrame,
         t[len("trigger_"):]: _rate(at_events[t].fillna(False).astype(bool))
         for t in triggers}
 
-    for name in ("csv_compression", "pca_sync"):
-        out[f"{name}_rate"] = _rate(basket[name].fillna(False).astype(bool))
-    # §3.4 wants this correlation measured, but it is undefined while one of the
-    # two never varies - and csv_compression currently fires once in five years.
-    pair = basket[["csv_compression", "pca_sync"]].dropna().astype(float)
-    varies = len(pair) > 1 and pair["csv_compression"].nunique() > 1 \
-        and pair["pca_sync"].nunique() > 1
-    out["subcondition_corr"] = (float(pair["csv_compression"].corr(pair["pca_sync"]))
+    # The live sub-condition is basket_coherence; csv_compression is still
+    # computed and reported because its emptiness is the evidence for §21.
+    live = "basket_coherence" if "basket_coherence" in basket else "csv_compression"
+    for name in ("csv_compression", "basket_coherence", "pca_sync"):
+        out[f"{name}_rate"] = (_rate(basket[name].fillna(False).astype(bool))
+                               if name in basket else np.nan)
+    # §3.4 wants this correlation measured, and with a sub-condition that never
+    # fired it was undefined. It is computable now that coherence replaced it.
+    pair = basket[[live, "pca_sync"]].dropna().astype(float)
+    varies = (len(pair) > 1 and pair[live].nunique() > 1
+              and pair["pca_sync"].nunique() > 1)
+    out["subcondition_corr"] = (float(pair[live].corr(pair["pca_sync"]))
                                 if varies else np.nan)
 
     decisions = basket["decision"] if "decision" in basket else pd.Series(dtype=object)
@@ -248,10 +252,12 @@ def render(scores: dict, per_block: dict, diag: dict, start: int, end: int,
             f"| Escalations | {diag['escalations']} |",
             f"| Hours suppressed by the cooldown | {diag['suppressed']} |",
             f"| Early breaks refused by the debounce | {diag['debounced']} |",
-            f"| csv_compression fires | {_pct(diag['csv_compression_rate'])} |",
+            f"| basket_coherence fires | {_pct(diag['basket_coherence_rate'])} |",
             f"| pca_sync fires | {_pct(diag['pca_sync_rate'])} |",
             f"| Correlation of the two (§3.4, drop one above 0.7) | "
             f"{_num(diag['subcondition_corr'], 3)} |",
+            f"| csv_compression fires (retired, §21) | "
+            f"{_pct(diag['csv_compression_rate'])} |",
             f"| Calendar multiplier above 1, all hours | "
             f"{_pct(diag['calendar_base_rate'])} |",
             f"| Calendar multiplier above 1, at events | "

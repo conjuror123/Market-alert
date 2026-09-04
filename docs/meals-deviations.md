@@ -753,3 +753,52 @@ metrics on their own — precision moved 15.2% to 14.8%, recall 28.8% to 26.1% �
 `THRESHOLD` and `ESCALATION_THRESHOLD` are unchanged and the detector is simply sitting
 at a different arbitrary point on its own curve. The point of the change is that there
 is now a curve to calibrate along.
+
+---
+
+## 23. The calibration fits four parameters, not thirteen
+
+**Spec §7** lists what is calibrated on train: `THRESHOLD`, `ESCALATION_THRESHOLD`, the
+trigger weights, the `V_R` threshold, the coefficients of the absolute legs, `k_t` and
+the parameters of the multipliers. Thirteen numbers in this implementation.
+
+**Why not all thirteen.** They are not identifiable from 111 training episodes. Running
+the same coordinate-descent search from three different random seeds on the same data
+gave three different answers of the same quality:
+
+| seed | objective | `points_breadth` | `points_volume` | `vix_strength` | `threshold` |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 0.3022 | 0 | 8 | 1.0 | 6 |
+| 2 | 0.2761 | 3 | 2 | 1.0 | 7 |
+| 3 | 0.3000 | 4 | 2 | 3.0 | 10 |
+
+Two further runs under wider grids landed on `points_breadth` 8 and 10, `vix_strength`
+0.0 and 3.0, `threshold` 10 and 16 — again at the same objective. The multiplier that
+one run switches off entirely, another triples. What the search reliably finds is that
+calibration is worth about ten F1 points over the spec's starting values; which
+particular parameter vector delivers them, the data cannot say.
+
+**How it is done:** four parameters are fitted and the rest keep their configured
+values — `THRESHOLD` (7 → 13), `ESCALATION_THRESHOLD` (12 → 22), `ABS_LEG_Q99`
+(3.0 → 4.0) and `POINTS_BREADTH` (4.0 → 6.0). They are the four §7 names first and the
+four with a plain operational meaning: when to open an event, when to escalate, how
+extreme a single-asset shock must be, and how much breadth counts.
+
+**The objective is not plain train F1.** Train is cut into three folds of equal episode
+count and the objective is their mean F1 less their standard deviation, inside a
+declared band of 0.2 to 3.0 alerts a week. Optimising plain F1 instead pushed five
+parameters onto their grid edges and *widened* the gap between the halves of train,
+0.383 against 0.2243 — the signature of fitting noise. Folds are cut by episode count
+because train is front-loaded: halved by time, one side holds 92 episodes and the other
+19.
+
+**`ESCALATION_THRESHOLD` was not fitted on the objective**, which scores event creation
+and barely sees escalations — they change events only by restarting a cooldown. The
+objective is flat from 22 upward. 22 is the smallest value on that plateau, it keeps
+escalations alive (7 on train against 1 at 32), and it is within rounding of the spec's
+own 12/7 ratio applied to the new threshold.
+
+**What it costs:** nine of the thirteen parameters keep values that were never fitted,
+so a claim that this configuration is optimal would be false. It is a configuration
+that is defensible and reproducible — fixed seed, published grids, the search recorded
+in `data/meals/calibration.json` and the freeze in `data/meals/frozen.json`.
