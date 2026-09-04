@@ -120,3 +120,51 @@ needs no labels, and it can be run before anything else is touched.
 - [Avellaneda & Lee, Statistical Arbitrage in the U.S. Equities Market](https://math.nyu.edu/inmemoriam/avellaneda//StatArb13030.pdf)
 - [arbitragelab: the PCA approach to statistical arbitrage](https://hudson-and-thames-arbitragelab.readthedocs-hosted.com/en/latest/other_approaches/pca_approach.html)
 - [sipemu/eventstudy — 11 test statistics including Patell and BMP](https://github.com/sipemu/eventstudy)
+
+---
+
+# Step 1 done — result
+
+`residuals.cross_sectional_scale` and `standardise_cross_section` add `z_resid_bmp`:
+each asset's residual Z divided by the leave-one-out standard deviation of its peers'
+Z in that same hour. `saed.triggers` takes its relative leg from it, and the adaptive
+Q95/Q99 are recomputed on the new series — a standardised score compared against an
+unstandardised yardstick would have been worse than doing nothing.
+
+Leave-one-out is a deliberate departure from the classic formulation, where all firms
+share one event date and self-inclusion is harmless. Here each asset is tested against
+its peers, so including it in its own denominator would let a real single-asset move
+inflate the very spread it is judged by — raising its own bar and hiding itself. The
+arithmetic is verified cell by cell against a direct computation.
+
+**The leg it was applied to is fixed.** Pass rate of each leg by how wide the
+cross-section is:
+
+| cross-section | relative leg | absolute leg |
+|---|---:|---:|
+| calmest fifth | 0.75% | 0.04% |
+| second | 0.78% | 0.17% |
+| third | 0.88% | 0.45% |
+| fourth | 1.01% | 1.23% |
+| widest fifth | 1.74% | 5.99% |
+| **widest / calmest** | **2.3x** | **139.9x** |
+
+The relative leg is now nearly flat across regimes. Every bit of the remaining
+concentration sits in the absolute leg, `|e_resid| >= 3.0 * sigma_LT_resid`, which was
+not part of this step and is a raw-magnitude test against a slow-moving long-term sigma:
+when the market is loud, every asset's residual is large against its own long-run
+average, so the leg passes for everyone at once.
+
+Event totals moved from 2,478 to 1,210, and the share of events in the widest fifth
+from 97.1% to 80.0% — but that pair is not a clean before-and-after. The earlier figure
+was measured on price Z over the shallower store, and the crypto history has since been
+deepened to 2015-2016, so the hour population differs. The leg table above is the honest
+evidence: both legs measured on the same data at the same time.
+
+**What this makes the next step.** Not Corrado ranks, as originally ordered — the
+absolute leg. Its purpose is a floor, stopping a tiny move from counting merely because
+an asset is usually quiet, and that purpose is sound. Its implementation is not: a
+long-term sigma makes the floor far too low in a volatile regime. The obvious repair is
+to scale it the same way the relative leg is now scaled, which would make the whole
+condition regime-relative and consistent. That is a change to what the leg MEANS, so it
+is worth deciding deliberately rather than slipping in behind this one.

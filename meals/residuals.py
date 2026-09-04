@@ -184,3 +184,98 @@ def score_residuals(frame: pd.DataFrame, w_asset: int) -> pd.DataFrame:
     q95, q99 = zscore.adaptive_thresholds(out["z_resid"].abs(), w_asset)
     out["q95_resid"], out["q99_resid"] = q95, q99
     return out
+
+
+# Minimum number of assets in session before a cross-sectional spread means
+# anything. Below this the standardisation is not attempted and the hour's value
+# is NULL - per §1.2 that is "not assessed", not "not an event".
+BMP_MIN_ASSETS = 5
+
+
+def cross_sectional_scale(panel: pd.DataFrame,
+                          minimum: int = BMP_MIN_ASSETS) -> pd.DataFrame:
+    """Per hour, the spread of the OTHER assets' Z-scores, one column per asset.
+
+    The denominator of the BMP test (Boehmer, Musumeci and Poulsen), which exists
+    to solve exactly the failure this detector has. Measured before the change:
+    bucketing hours by how wide the cross-section is, 97.1% of all single-asset
+    breaches fell in the widest fifth and the calmest 40% of hours produced none
+    at all. A detector firing only when everything moves is not finding
+    idiosyncratic moves - it is finding market-wide volatility and naming
+    whichever asset moved most.
+
+    Dividing by this spread makes the question the right one: not "did this asset
+    move a lot" but "did it move a lot compared with what every other asset is
+    doing this very hour".
+
+    LEAVE-ONE-OUT, which the classic formulation does not do. In an ordinary
+    event study every firm shares one event date and the statistic is about their
+    average, so including a firm in its own denominator is harmless. Here each
+    asset is tested individually against its peers, and a genuine single-asset
+    move would otherwise inflate the very spread it is measured against - the
+    asset would raise its own bar and hide itself. Excluding it costs one line
+    and removes that.
+    """
+    values = panel.to_numpy(dtype="float64")
+    present = np.isfinite(values)
+    filled = np.where(present, values, 0.0)
+
+    count = present.sum(axis=1, keepdims=True)
+    total = filled.sum(axis=1, keepdims=True)
+    total_sq = (filled ** 2).sum(axis=1, keepdims=True)
+
+    # Leave-one-out moments: subtract this asset's own contribution.
+    n = count - present
+    mean = np.divide(total - filled, n, out=np.full_like(filled, np.nan), where=n > 1)
+    sum_sq = total_sq - filled ** 2
+    variance = np.divide(sum_sq - n * mean ** 2, n - 1,
+                         out=np.full_like(filled, np.nan), where=n > 1)
+
+    scale = np.sqrt(np.maximum(variance, 0.0))
+    enough = (count >= minimum) & present & (n > 1)
+    scale = np.where(enough & (scale > 0), scale, np.nan)
+    return pd.DataFrame(scale, index=panel.index, columns=panel.columns)
+
+
+def standardise_cross_section(scored: dict[str, pd.DataFrame],
+                              minimum: int = BMP_MIN_ASSETS) -> dict[str, pd.DataFrame]:
+    """Adds z_resid_bmp to every asset's frame: its Z divided by its peers' spread.
+
+    Returns new frames rather than mutating, and leaves z_resid untouched beside
+    it - the raw score stays exported and logged, because a change of this size
+    should be arguable against what it replaced.
+    """
+    series = {aid: frame.set_index("hour_utc")["z_resid"]
+              for aid, frame in scored.items() if "z_resid" in frame}
+    if not series:
+        return scored
+
+    panel = pd.DataFrame(series).sort_index()
+    scale = cross_sectional_scale(panel, minimum)
+
+    out = {}
+    for aid, frame in scored.items():
+        if aid not in panel:
+            out[aid] = frame.assign(bmp_scale=np.nan, z_resid_bmp=np.nan)
+            continue
+        own = scale[aid].reindex(frame["hour_utc"]).to_numpy()
+        out[aid] = frame.assign(
+            bmp_scale=own,
+            z_resid_bmp=frame["z_resid"].to_numpy() / own)
+    return out
+
+
+def rescore_thresholds(frame: pd.DataFrame, w_asset: int,
+                       column: str = "z_resid_bmp") -> pd.DataFrame:
+    """Recomputes the adaptive Q95/Q99 on whichever score the trigger will use.
+
+    The thresholds of §3.1 are percentiles of the series' own recent history, so
+    changing the series means the thresholds have to follow it. Keeping the old
+    ones would compare a standardised score against an unstandardised yardstick.
+    """
+    from meals import zscore
+
+    if frame.empty or column not in frame:
+        return frame
+    q95, q99 = zscore.adaptive_thresholds(frame[column].abs(), w_asset)
+    return frame.assign(q95_resid=q95, q99_resid=q99)

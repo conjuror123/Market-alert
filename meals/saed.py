@@ -55,10 +55,23 @@ def triggers(frame: pd.DataFrame) -> pd.Series:
     An event is created regardless of volume confirmation or any other factor -
     that is the point of the module: a single-asset move is grounds in itself,
     even when volume is ordinary.
+
+    The relative leg is taken on z_resid_bmp where it exists - the residual
+    divided by the spread of its PEERS in the same hour (BMP, see
+    residuals.cross_sectional_scale). Without it the question is "did this asset
+    move a lot", which on measurement turned out to be answered yes almost only
+    when everything moved: 97.1% of breaches fell in the widest fifth of hours by
+    cross-sectional spread. With it the question is the one the module's name
+    claims - did it move a lot compared with its peers, right now.
+
+    The absolute leg is unchanged and still on the raw residual: a move has to be
+    large in its own right as well as unusual against its peers, and dividing by
+    a peer spread cannot substitute for that.
     """
-    known = (frame["z_resid"].notna() & frame["q99_resid"].notna()
+    score = frame["z_resid_bmp"] if "z_resid_bmp" in frame else frame["z_resid"]
+    known = (score.notna() & frame["q99_resid"].notna()
              & frame["sigma_lt_resid"].notna())
-    hit = ((frame["z_resid"].abs() > frame["q99_resid"])
+    hit = ((score.abs() > frame["q99_resid"])
            & (frame["e_resid"].abs()
               >= windows.ABS_LEG_RESID * frame["sigma_lt_resid"]))
     return hit.where(known, pd.NA).astype("boolean")
@@ -173,7 +186,8 @@ DEFAULT_RESIDUALS_DIR = "data/meals/residuals"
 # yet they take as much space as everything else put together - they are series
 # of random numbers, and nothing compresses them.
 RESIDUAL_COLUMNS = ("hour_utc", "asset_id", "beta", "beta_block", "e_resid",
-                    "sigma_lt_resid", "z_resid", "q95_resid", "q99_resid")
+                    "sigma_lt_resid", "z_resid", "bmp_scale", "z_resid_bmp",
+                    "q95_resid", "q99_resid")
 
 
 def save_residuals(scored: dict[str, pd.DataFrame],
@@ -214,8 +228,8 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
     """
     from meals import pipeline, residuals, windows as w
 
-    all_events: list[SaedEvent] = []
     scored: dict[str, pd.DataFrame] = {}
+    windows_by_asset: dict[str, int] = {}
     for asset in basket.instruments:
         frame = metrics.get(asset.asset_id)
         if frame is None or frame.empty:
@@ -225,9 +239,22 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
                      else None)
         with_residuals = residuals.residuals(asset, frame, factor, own_block)
         b_asset = pipeline.bars_per_session(asset, frame, basket.anchor_exchange_tz)
-        result = residuals.score_residuals(with_residuals, w.w_asset(b_asset))
-        scored[asset.asset_id] = result
-        all_events.extend(build_events(asset, result))
+        windows_by_asset[asset.asset_id] = w.w_asset(b_asset)
+        scored[asset.asset_id] = residuals.score_residuals(
+            with_residuals, windows_by_asset[asset.asset_id])
+
+    # The cross-sectional pass needs every asset's Z at once, so it can only run
+    # after the loop - and the thresholds have to be recomputed on the score the
+    # trigger will actually read, or a standardised score would be compared
+    # against an unstandardised yardstick.
+    scored = residuals.standardise_cross_section(scored)
+    scored = {aid: residuals.rescore_thresholds(frame, windows_by_asset[aid])
+              for aid, frame in scored.items()}
+
+    all_events: list[SaedEvent] = []
+    for asset in basket.instruments:
+        if asset.asset_id in scored:
+            all_events.extend(build_events(asset, scored[asset.asset_id]))
 
     events = events_frame(all_events)
     alerts = aggregate_block_alerts(events)
