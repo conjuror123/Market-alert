@@ -115,7 +115,7 @@ def asset_decisions(metrics: dict[str, pd.DataFrame],
             continue
         fired = ((indexed["z_resid"].abs() > indexed["q99_resid"])
                  & (indexed["e_resid"].abs()
-                    >= windows.ABS_LEG_Q99 * indexed["sigma_lt_resid"]))
+                    >= windows.ABS_LEG_RESID * indexed["sigma_lt_resid"]))
         if fired.any():
             parts.append(_rows(indexed[fired], asset_id, "saed",
                                indexed["z_resid"].abs()[fired],

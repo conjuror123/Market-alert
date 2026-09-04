@@ -138,7 +138,15 @@ def sigma_lt_bars(available_bars: int) -> int:
 # move that is negligible in absolute terms honestly clears its percentile. The
 # absolute leg demands that the move also be large by the standards of the whole
 # available history.
-ABS_LEG_Q99 = 4.0   # |r_t| >= 4.0 * sigma_LT  (*) calibrated on train, was 3.0
+ABS_LEG_Q99 = 6.0   # |r_t| >= 6.0 * sigma_LT  (*) calibrated on train, spec 3.0
+
+# §8.2's absolute leg for the RESIDUAL series. The spec states it separately from
+# §3.1's and both start at 3.0; this implementation shared one constant for both,
+# which meant calibrating the price leg silently moved SAED's sensitivity too -
+# and now that the SAED count feeds the cluster score, the search would have been
+# optimising against a channel it was also disturbing without modelling it.
+# Separate constants, as §3.1 and §8.2 have them. Starred.
+ABS_LEG_RESID = 3.0
 ABS_LEG_Q95 = 1.5   # |r_t| >= 1.5 * sigma_LT
 
 # Volume confirmation threshold (§3.5), also a starting value.

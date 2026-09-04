@@ -60,7 +60,7 @@ def triggers(frame: pd.DataFrame) -> pd.Series:
              & frame["sigma_lt_resid"].notna())
     hit = ((frame["z_resid"].abs() > frame["q99_resid"])
            & (frame["e_resid"].abs()
-              >= windows.ABS_LEG_Q99 * frame["sigma_lt_resid"]))
+              >= windows.ABS_LEG_RESID * frame["sigma_lt_resid"]))
     return hit.where(known, pd.NA).astype("boolean")
 
 
