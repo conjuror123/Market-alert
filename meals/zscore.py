@@ -106,7 +106,9 @@ def adaptive_thresholds(abs_z: pd.Series, window: int,
 
 
 def breaches(abs_z: pd.Series, abs_r: pd.Series, sigma_lt: pd.Series,
-             q95: pd.Series, q99: pd.Series) -> pd.DataFrame:
+             q95: pd.Series, q99: pd.Series,
+             abs_leg_q95: float | None = None,
+             abs_leg_q99: float | None = None) -> pd.DataFrame:
     """The hybrid significance condition of §3.1: the relative AND the absolute
     leg at once.
 
@@ -115,9 +117,14 @@ def breaches(abs_z: pd.Series, abs_r: pd.Series, sigma_lt: pd.Series,
     sigma. Per §1.2 these are different things: "did not clear the threshold" and
     "the threshold does not exist yet".
     """
+    # The legs are arguments so that §7 can search them without recomputing the
+    # Z-scores: only the comparison moves, and the whole series above it stays.
+    leg95 = windows.ABS_LEG_Q95 if abs_leg_q95 is None else abs_leg_q95
+    leg99 = windows.ABS_LEG_Q99 if abs_leg_q99 is None else abs_leg_q99
+
     known = q95.notna() & q99.notna() & sigma_lt.notna() & abs_z.notna()
-    q99_hit = (abs_z > q99) & (abs_r >= windows.ABS_LEG_Q99 * sigma_lt)
-    q95_hit = (abs_z > q95) & (abs_r >= windows.ABS_LEG_Q95 * sigma_lt)
+    q99_hit = (abs_z > q99) & (abs_r >= leg99 * sigma_lt)
+    q95_hit = (abs_z > q95) & (abs_r >= leg95 * sigma_lt)
     return pd.DataFrame({
         "breach_q99": q99_hit.where(known, pd.NA).astype("boolean"),
         "breach_q95": q95_hit.where(known, pd.NA).astype("boolean"),

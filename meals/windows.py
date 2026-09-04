@@ -65,6 +65,11 @@ TRUTH_HORIZON = 24     # horizon for truth labelling and baseline (§7)
 # leg - the basket must actually have shifted - is applied.
 COHERENCE_QUANTILE = 0.90
 REVERSAL_DELAY = 3     # delay before the vector-reversal branch (§5.2)
+
+# Floor under k_t in §5.2: the empirical percentile alone would sink so low in a
+# prolonged lull that any wobble would read as a reversal. Starred - §7 lists k_t
+# among the parameters calibrated on train.
+REVERSAL_K_MIN = 1.5
 EXPORT_HALF_WINDOW = 12  # event export window around T0 (§6.5)
 
 # --- calendar hours: the single exception (§2.7, §4.3) --------------------
@@ -123,7 +128,7 @@ def sigma_lt_bars(available_bars: int) -> int:
 # move that is negligible in absolute terms honestly clears its percentile. The
 # absolute leg demands that the move also be large by the standards of the whole
 # available history.
-ABS_LEG_Q99 = 3.0   # |r_t| >= 3.0 * sigma_LT
+ABS_LEG_Q99 = 4.0   # |r_t| >= 4.0 * sigma_LT  (*) calibrated on train, was 3.0
 ABS_LEG_Q95 = 1.5   # |r_t| >= 1.5 * sigma_LT
 
 # Volume confirmation threshold (§3.5), also a starting value.

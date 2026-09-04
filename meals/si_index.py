@@ -46,7 +46,7 @@ POINTS_SINGLE_FACTOR = 3
 # score identically today. Adding it continuously gives §7 a threshold it can
 # actually slide. It takes the maximum sum past the 12 of §4.2 - see
 # docs/meals-deviations.md §22.
-POINTS_BREADTH = 4.0
+POINTS_BREADTH = 6.0   # (*) calibrated on train, was 4.0
 # The 12 of §4.2 - the four flat trigger awards - plus the graded breadth term,
 # which the spec does not have. Kept as two names because the first is what §4.2
 # states and what the trigger weights must still add up to.
@@ -60,8 +60,8 @@ BLOCK_ACTIVE_MIN = 2
 MIN_ACTIVE_BLOCKS = 2
 
 # Decision thresholds (§4.5), also starting values.
-THRESHOLD = 7
-ESCALATION_THRESHOLD = 12
+THRESHOLD = 13
+ESCALATION_THRESHOLD = 22
 
 # Breadth scale on Q99 (§4.5, §5.2).
 BREADTH_SHARE = 0.50

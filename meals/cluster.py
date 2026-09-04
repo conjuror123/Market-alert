@@ -49,7 +49,8 @@ BRANCH_B_MIN_AGE = windows.REVERSAL_DELAY
 MAX_EARLY_BREAKS = 2
 
 
-def reversal_scale(m: pd.Series, window: int = windows.W_CS) -> pd.DataFrame:
+def reversal_scale(m: pd.Series, window: int = windows.W_CS,
+                   k_min: float | None = None) -> pd.DataFrame:
     """sigma_M and k_t for the vector-reversal branch (§5.2).
 
     k_t is taken as the maximum of the empirical percentile and 1.5: the
@@ -59,10 +60,12 @@ def reversal_scale(m: pd.Series, window: int = windows.W_CS) -> pd.DataFrame:
     sigma = m.shift(1).rolling(window, min_periods=window).std(ddof=1)
     normalised = (m / sigma).abs()
     k = normalised.shift(1).rolling(window, min_periods=window).quantile(0.975)
-    return pd.DataFrame({"sigma_m": sigma, "k": np.maximum(k, 1.5)})
+    floor = windows.REVERSAL_K_MIN if k_min is None else k_min
+    return pd.DataFrame({"sigma_m": sigma, "k": np.maximum(k, floor)})
 
 
-def run(frame: pd.DataFrame) -> tuple[list[ClusterEvent], pd.DataFrame]:
+def run(frame: pd.DataFrame, threshold: float | None = None,
+        escalation_threshold: float | None = None) -> tuple[list[ClusterEvent], pd.DataFrame]:
     """Sequential automaton over reference-calendar hours.
 
     The input is a frame indexed by ascending hours with the columns:
@@ -72,6 +75,12 @@ def run(frame: pd.DataFrame) -> tuple[list[ClusterEvent], pd.DataFrame]:
     Returns the events and an hour-by-hour decision journal: what exactly fired
     in each hour and why a notification went out or did not.
     """
+    # Arguments rather than constants only so that §7 can sweep them; the
+    # defaults are the configuration and are what every real run uses.
+    gate_at = si_index.THRESHOLD if threshold is None else threshold
+    escalate_at = (si_index.ESCALATION_THRESHOLD if escalation_threshold is None
+                   else escalation_threshold)
+
     hours = frame.index.to_numpy()
     quorum = frame["quorum_ok"].fillna(False).to_numpy(dtype=bool)
     shift = frame["trigger_cluster_shift"].fillna(False).to_numpy(dtype=bool)
@@ -101,7 +110,7 @@ def run(frame: pd.DataFrame) -> tuple[list[ClusterEvent], pd.DataFrame]:
             journal[i] = "no_quorum"
             continue
 
-        gate = shift[i] and si[i] >= si_index.THRESHOLD
+        gate = shift[i] and si[i] >= gate_at
 
         if current is None or i >= cooldown_until:
             if current is not None and i >= cooldown_until:
@@ -128,7 +137,7 @@ def run(frame: pd.DataFrame) -> tuple[list[ClusterEvent], pd.DataFrame]:
         exhausted = len(recent) >= MAX_EARLY_BREAKS
 
         higher_order = (age >= BRANCH_A_MIN_AGE
-                        and (si[i] >= si_index.ESCALATION_THRESHOLD or breadth[i]))
+                        and (si[i] >= escalate_at or breadth[i]))
         reversal = False
         if age >= BRANCH_B_MIN_AGE and gate and np.isfinite(sigma_m[i]) and np.isfinite(k[i]):
             limit = k[i] * sigma_m[i]
@@ -144,7 +153,7 @@ def run(frame: pd.DataFrame) -> tuple[list[ClusterEvent], pd.DataFrame]:
                 "seq": current.escalation_seq, "hour_utc": int(hours[i]),
                 "kind": "higher_order_shock", "si_total": float(si[i]),
                 "reason": ("si>=escalation_threshold"
-                           if si[i] >= si_index.ESCALATION_THRESHOLD else "breadth_q99"),
+                           if si[i] >= escalate_at else "breadth_q99"),
             })
             # The cooldown restarts from the moment of the escalation.
             cooldown_until = i + windows.CLUSTER_COOLDOWN
