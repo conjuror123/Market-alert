@@ -269,3 +269,61 @@ def test_outside_basket_instrument_uses_the_whole_block():
 
     factors = cs.block_factors(panel, basket)
     assert factors["twelvedata:Z"].iloc[0] == pytest.approx(0.03)
+
+
+def test_coherence_is_high_when_every_asset_moves_the_same_way():
+    # All assets at the same Z: a large cross-sectional mean over a spread of
+    # nearly nothing.
+    hours = pd.Index([HOUR, 2 * HOUR])
+    together = pd.DataFrame({"a": [2.0, 0.1], "b": [2.1, -0.9], "c": [1.9, 0.8]},
+                            index=hours)
+    ok = pd.Series([True, True], index=hours)
+
+    values = cs.coherence(together, ok)
+
+    assert values.iloc[0] > values.iloc[1]
+
+
+def test_coherence_ignores_an_hour_without_quorum():
+    hours = pd.Index([HOUR, 2 * HOUR])
+    panel = pd.DataFrame({"a": [2.0, 2.0], "b": [2.0, 2.0], "c": [2.1, 2.1]}, index=hours)
+    ok = pd.Series([True, False], index=hours)
+
+    values = cs.coherence(panel, ok)
+
+    assert np.isfinite(values.iloc[0]) and np.isnan(values.iloc[1])
+
+
+def test_coherence_is_undefined_when_the_assets_do_not_vary_at_all():
+    # A zero spread would divide by zero; the answer is "not measurable", not
+    # "infinitely coherent".
+    hours = pd.Index([HOUR])
+    panel = pd.DataFrame({"a": [1.0], "b": [1.0], "c": [1.0]}, index=hours)
+    values = cs.coherence(panel, pd.Series([True], index=hours))
+    assert np.isnan(values.iloc[0])
+
+
+def test_compression_needs_the_basket_to_have_moved_as_well():
+    # The second leg is unchanged from §3.2: agreement about nothing much is not
+    # an event.
+    n = 2500
+    hours = pd.Index([(i + 1) * HOUR for i in range(n)])
+    coherent = pd.Series(np.linspace(0.1, 5.0, n), index=hours)
+    still = pd.Series(np.zeros(n), index=hours)
+
+    fired, _ = cs.coherence_compression(coherent, still)
+
+    assert not fired.fillna(False).any()
+
+
+def test_the_specs_own_compression_is_kept_and_still_computed():
+    # It fires nowhere on this basket, and the empty column is the evidence -
+    # §3.4 wants both sub-conditions logged separately.
+    n = 2500
+    hours = pd.Index([(i + 1) * HOUR for i in range(n)])
+    csv_norm = pd.Series(np.linspace(1.0, 2.0, n), index=hours)
+    m = pd.Series(np.zeros(n), index=hours)
+
+    fired, threshold = cs.csv_compression(csv_norm, m)
+
+    assert fired.notna().any() and threshold.notna().any()

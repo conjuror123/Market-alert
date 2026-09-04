@@ -59,13 +59,32 @@ CLUSTER_COOLDOWN = 72  # cluster-event cooldown (§5.1)
 VIX_WINDOW = 24        # VIX multiplier window (§4.4)
 ESCALATION_DEBOUNCE = 24  # escalation debounce window (§5.2)
 TRUTH_HORIZON = 24     # horizon for truth labelling and baseline (§7)
+
+# The percentile the basket's coherence must clear for the single-factor trigger
+# (§3.4). Starred: §7 calibrates it. 0.90 fires in 1.12% of hours once the second
+# leg - the basket must actually have shifted - is applied.
+COHERENCE_QUANTILE = 0.90
 REVERSAL_DELAY = 3     # delay before the vector-reversal branch (§5.2)
 EXPORT_HALF_WINDOW = 12  # event export window around T0 (§6.5)
 
 # --- calendar hours: the single exception (§2.7, §4.3) --------------------
 
-CALENDAR_HIGH_BEFORE, CALENDAR_HIGH_AFTER = 6.0, 3.0
-CALENDAR_MEDIUM_BEFORE, CALENDAR_MEDIUM_AFTER = 4.0, 2.0
+# Hours before and after a release, by (tier, importance). All starred: §7
+# calibrates the multiplier's parameters on train.
+#
+# The spec's own numbers were 6/3 for High and 4/2 for Medium with no tiering,
+# and on this calendar they do not discriminate. ForexFactory labels impact PER
+# COUNTRY, which yields 823 High-impact releases a year; at a nine-hour window
+# each that is 84.5% of the clock before Medium is counted at all, and the
+# multiplier measured little beyond "a weekday, business hours, somewhere".
+# Splitting by tier and shortening the windows takes the multiplier from covering
+# 59.5% of hours to 17.4%. See docs/meals-deviations.md §20.
+CALENDAR_WINDOWS = {
+    ("core", "High"): (2.0, 1.0),
+    ("core", "Medium"): (1.0, 0.5),
+    ("other", "High"): (1.0, 0.5),
+    ("other", "Medium"): (0.5, 0.5),
+}
 
 
 def w_asset(bars_per_session: float) -> int:

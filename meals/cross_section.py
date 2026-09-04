@@ -204,14 +204,64 @@ def cross_sectional_volatility(panel: pd.DataFrame, sigma_panel: pd.DataFrame,
 
 def csv_compression(csv_norm: pd.Series, m: pd.Series,
                     window: int = windows.W_CS) -> pd.Series:
-    """The compression sub-condition (§3.2): the dispersion is unusually narrow
-    AND the basket has shifted noticeably. A narrow spread alone is not enough - a
-    quiet hour is narrow too, and nothing is happening in it."""
+    """The compression sub-condition exactly as §3.2 writes it.
+
+    Kept, computed and logged, but no longer part of the single-factor trigger:
+    on this basket it fires in ZERO hours out of 29,532, and that is structural
+    rather than unlucky. Its two halves are opposites. "CSV below its own 10th
+    percentile" means the assets barely moved, because that percentile is set by
+    quiet hours; "|M_t| above two sigma" means they moved a great deal. The
+    condition asks for an hour that is simultaneously violent and becalmed.
+
+    It is left in place because §3.4 requires both sub-conditions to be logged
+    separately, and because an empty column is itself the evidence. What replaced
+    it is `coherence` below. See docs/meals-deviations.md §21.
+    """
     rolling = csv_norm.shift(1).rolling(window, min_periods=window)
     q10 = rolling.quantile(0.10)
     m_std = m.shift(1).rolling(window, min_periods=window).std(ddof=1)
     result = (csv_norm < q10) & (m.abs() > 2 * m_std)
     return (result.where(q10.notna() & m_std.notna(), pd.NA).astype("boolean"), q10)
+
+
+def coherence(panel: pd.DataFrame, quorum_ok: pd.Series) -> pd.Series:
+    """How far the basket moved AS ONE THING in this hour.
+
+    The cross-sectional mean of the Z-scores divided by their cross-sectional
+    spread - a signal-to-noise ratio across assets. Every asset at +2 sigma gives
+    a large mean over a small spread and a high value; unrelated wobble gives a
+    mean near zero and a low one.
+
+    On Z-scores rather than returns, and that is the point. The basket's assets
+    differ in scale by a factor of forty - Solana moves 49 basis points in a
+    typical hour where SHY moves one - so a spread taken on raw returns is
+    dominated by whichever crypto asset is loudest: measured, the CSV of §3.2
+    correlates 0.904 with Solana's own |r|. It is a Solana volatility gauge
+    wearing the name of a cross-sectional statistic. On Z-scores that correlation
+    falls to 0.365, because each asset is first expressed in units of its own
+    normal.
+    """
+    values = panel.where(quorum_ok.reindex(panel.index, fill_value=False), np.nan)
+    spread = values.std(axis=1, ddof=1)
+    return (values.mean(axis=1).abs() / spread).where(spread > 0)
+
+
+def coherence_compression(coherence_series: pd.Series, m: pd.Series,
+                          window: int = windows.W_CS) -> tuple[pd.Series, pd.Series]:
+    """The single-factor sub-condition that replaces §3.2's compression.
+
+    Same second leg as the spec - the basket must actually have shifted, since
+    assets agreeing on nothing much is not an event - and the same shape: an
+    adaptive percentile of the quantity's own recent history, so it tracks the
+    regime rather than a fixed number. Only the first leg changes, from "the
+    dispersion is unusually narrow" to "the agreement is unusually strong".
+    """
+    threshold = (coherence_series.shift(1).rolling(window, min_periods=window)
+                 .quantile(windows.COHERENCE_QUANTILE))
+    m_std = m.shift(1).rolling(window, min_periods=window).std(ddof=1)
+    result = (coherence_series > threshold) & (m.abs() > 2 * m_std)
+    return (result.where(threshold.notna() & m_std.notna(), pd.NA).astype("boolean"),
+            threshold)
 
 
 def full_basket_regime(quorum_frame: pd.DataFrame, basket: Basket) -> pd.Series:
@@ -353,6 +403,14 @@ def build_basket_metrics(metrics: dict[str, pd.DataFrame], basket: Basket,
     # trigger gets NULL, not False.
     compression, compression_threshold = csv_compression(csv_frame["csv_norm"], m)
     compression = compression.where(ok, pd.NA)
+    # Basket assets only: an instrument outside the basket has a block (§8.1) but
+    # takes no part in any basket aggregate.
+    in_basket = {a.asset_id for a in basket.assets}
+    z_panel = build_panel({aid: frame for aid, frame in metrics.items()
+                           if aid in in_basket}, "z").reindex(panel.index)
+    coherence_series = coherence(z_panel, ok)
+    agreement, agreement_threshold = coherence_compression(coherence_series, m)
+    agreement = agreement.where(ok, pd.NA)
     sync, sync_threshold = pca_sync(ratio)
     sync = sync.where(ok, pd.NA)
 
@@ -364,8 +422,11 @@ def build_basket_metrics(metrics: dict[str, pd.DataFrame], basket: Basket,
     out["in_full_regime"] = regime
     out["csv_norm_q10"] = compression_threshold
     out["csv_compression"] = compression.astype("boolean")
+    out["coherence"] = coherence_series
+    out["coherence_threshold"] = agreement_threshold
+    out["basket_coherence"] = agreement.astype("boolean")
     out["pca_sync"] = sync.astype("boolean")
-    out["single_factor"] = single_factor(compression, sync).where(ok, pd.NA).astype("boolean")
+    out["single_factor"] = single_factor(agreement, sync).where(ok, pd.NA).astype("boolean")
     return out
 
 
@@ -380,11 +441,11 @@ def subcondition_correlation(frame: pd.DataFrame) -> float:
     Computed only over hours where BOTH were assessed - where PC1_ratio is
     undefined there is nothing to compare against.
     """
-    both = frame[["csv_compression", "pca_sync"]].dropna()
+    first = "basket_coherence" if "basket_coherence" in frame else "csv_compression"
+    both = frame[[first, "pca_sync"]].dropna()
     if both.empty or both.nunique().min() < 2:
         return float("nan")
-    return float(both["csv_compression"].astype(float).corr(
-        both["pca_sync"].astype(float)))
+    return float(both[first].astype(float).corr(both["pca_sync"].astype(float)))
 
 
 DEFAULT_BASKET_METRICS_PATH = os.path.join("data", "meals", "metrics_basket_hour.parquet")

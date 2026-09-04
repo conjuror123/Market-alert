@@ -337,12 +337,12 @@ falling inside anyone's event window, and that saturates to nearly one at any de
 above a certain point and is therefore insensitive. The value of the multiplier
 itself was not measured — and that is what diverged twofold.
 
-**What is left for phase 7.** The multiplier is on in 58.3% of hours with a maximum
-of 1.80. Better than the previous 84.6%, but still a lot: "near an important release"
-is the ordinary state rather than the exception, and the multiplier's discriminating
-power is low. `High` alone would give 41.1%. Not changed for now: §4.3 explicitly
-requires both levels, and the window sizes and peaks are starred in the spec and are
-calibrated on train.
+**Resolved in phase 7, see §20.** The multiplier was on in 58.3% of hours with a
+maximum of 1.80 — better than the previous 84.6%, but "near an important release" was
+still the ordinary state rather than the exception. Measuring it against the §7
+yardstick showed how little it discriminated: above one in 59.5% of scored hours but
+84.9% of event hours, and it alone decided 75% of escalations. §20 records what was
+done about it.
 
 
 ## 11. How ForexFactory is actually read
@@ -616,3 +616,140 @@ recall against the detector's 28.8%; cooled to a comparable 65 alerts it reaches
 **What it costs:** none of these numbers is comparable with one computed per hour, and
 an earlier per-hour reading of the same data made the detector look worse than chance
 on test. The unit has to be stated whenever a figure from this report is quoted.
+
+---
+
+## 20. The calendar multiplier is tiered by country and its windows are shortened
+
+**Spec §4.3** gives every High-impact release a window of six hours before and three
+after with a peak of 1.8, and every Medium one four and two with a peak of 1.5. It
+makes no distinction between countries.
+
+**Why that does not work on this calendar.** ForexFactory labels impact PER COUNTRY,
+so `High` means high *for that currency*: a New Zealand rate decision carries the same
+label as an FOMC decision. That yields **823 High-impact releases a year**. At a
+nine-hour window each, that is
+
+> 823 × 9 = 7,407 hours against the 8,760 in a year = **84.5% of the clock**,
+
+before Medium's 631 a year at six hours is counted at all. Overlap is the only reason
+the multiplier landed at 59.5% of hours rather than higher. A multiplier that is on
+for most hours raises most scores and therefore ranks almost nothing — measured
+against the §7 yardstick it was above one in 59.5% of scored hours but 84.9% of event
+hours, and it alone decided 75% of all escalations.
+
+**How it is done:** releases are split into two tiers. `USD`, `EUR` and `All` —
+ForexFactory's marker for a release with no single country — keep the full peak and
+the wider window; every other country keeps a narrower one and a smaller peak. Both
+tiers keep the asymmetry of §4.3, more before the release than after, and both keep
+its piecewise-linear shape.
+
+| tier | importance | before | after | peak |
+|---|---|---:|---:|---:|
+| core (USD, EUR, All) | High | 2h | 1h | 1.8 |
+| core | Medium | 1h | 0.5h | 1.4 |
+| other | High | 1h | 0.5h | 1.3 |
+| other | Medium | 0.5h | 0.5h | 1.15 |
+
+Coverage falls from **59.5% to 17.4%** of hours, and from 24.3% to 3.9% at 1.5 or
+above. Core-only would have given 12.6%, so the other currencies contribute about five
+percentage points — present, no longer dominant.
+
+**What it costs:** the tiering itself is not in the spec; the peaks and windows are
+starred there and so are calibration parameters, but the country split is structural.
+The choice of which countries are core is a judgement about this basket — it holds
+SPY, QQQ, IWM, XLF, TLT, IEF, SHY, HYG, GLD, USO, SLV and DBC, all US-listed and
+US-priced, plus six dollar pairs — and would need revisiting for a differently
+composed basket.
+
+**Deliberately not done:** replacing the impact label with the *surprise* (how far the
+actual came in from the forecast). It is the better measure — a release that lands on
+forecast moves nothing — but the archive has a forecast on only 63% of events and an
+actual on 75%, so a surprise-based multiplier would be undefined for a third of the
+calendar. The intended shape is a supporting factor that switches off where the data
+is missing rather than a replacement for the label; that is future work, and §12
+records it.
+
+---
+
+## 21. The single-factor trigger is built on coherence, not on CSV compression
+
+**Spec §3.2** defines the compression sub-condition as `CSV_norm` below the 10th
+percentile of its own recent history AND `|M_t|` above twice its own sigma. **§3.4**
+makes the single-factor trigger the OR of that and `pca_sync`.
+
+**Why that does not work.** Compression fires in **zero** hours out of 29,532. Its two
+halves are opposites as written: "CSV below its own 10th percentile" means the assets
+barely moved, because that percentile is set by quiet hours, while "|M_t| above two
+sigma" means they moved a great deal. Measured separately, the first holds in 9.65% of
+hours and the second in 4.68%; independence would predict about 134 hours of overlap
+and the actual number is nought.
+
+There is a second fault underneath. CSV is the standard deviation of RAW returns
+across a basket whose assets differ in scale by a factor of forty — Solana moves 49
+basis points in a typical hour where SHY moves one. So it is dominated by whichever
+crypto asset is loudest: **CSV on raw returns correlates 0.904 with Solana's own
+|r|**. It is a Solana volatility gauge wearing the name of a cross-sectional
+statistic. On Z-scores that correlation falls to 0.365.
+
+**How it is done:** a new quantity, `coherence`, measures what §3.4 is actually after —
+the basket moving as one thing. It is the cross-sectional mean of the Z-scores divided
+by their cross-sectional spread, a signal-to-noise ratio across assets: every asset at
++2 sigma gives a large mean over a small spread, unrelated wobble gives a mean near
+zero. The sub-condition is `coherence` above the 90th percentile of its own recent
+history AND the same second leg as §3.2, unchanged. `single_factor` is now
+`coherence_compression OR pca_sync`.
+
+It fires in **1.12%** of hours where the spec's version fires in 0.00%, and it is
+measurable in essentially every hour where `pca_sync` is measurable in only 28% — PCA
+needs every asset to have a valid bar in every hour of a 120-hour window, and the ETFs
+are shut for most of them.
+
+**§3.4's correlation check is now computable for the first time.** It requires
+dropping one sub-condition if the two correlate above 0.7; with a sub-condition that
+never fired the correlation was undefined. It now measures **0.067**, so both survive.
+Note the overlap in absolute terms is real — 275 of the 332 coherence hours also carry
+`pca_sync`, so coherence contributes 57 hours the trigger would not otherwise have —
+and the low coefficient reflects how differently often the two fire, not that they are
+unrelated.
+
+**What it costs:** `csv_compression` is still computed, still logged and still exported
+as `csv_norm` requires (§6.5), but no longer feeds the trigger. Its empty column is
+kept deliberately: §3.4 wants both sub-conditions logged separately, and the emptiness
+is the evidence for this departure.
+
+---
+
+## 22. The score carries a graded breadth term
+
+**Spec §4.2** awards fixed points for four yes/no triggers — price shock +3, volume +2,
+cluster shift +4, single-factorness +3 — and states that the maximum sum is 12.
+
+**Why that is not enough.** The gate of §4.1 requires the cluster shift, so its +4 is
+always present in an event, and volume cannot fire without a price shock. That leaves
+exactly five reachable totals — 4, 7, 9, 10, 12 — with `THRESHOLD` sitting between the
+first two. So the gate reduces to "cluster shift AND price shock", and 67.8% of
+cluster-shift hours already reach 7 on base points alone. "Calibrating THRESHOLD on
+train" is then not tuning but choosing one of five operating points: raising it from 7
+to 8 jumps straight to requiring 9, that is, volume confirmation as well.
+
+**How it is done:** on top of the flat award for the cluster shift, points are added in
+proportion to how broad the shift was — the share of the blocks present in that hour
+that are active by Q95, times `POINTS_BREADTH` (4.0, starred). The information was
+already computed; §4.2 simply discards it, and a shift across two blocks scores
+identically to one across five. The term applies only where the cluster shift fired:
+breadth without a shift is a handful of assets moving, which the price-shock trigger
+already speaks for.
+
+Reachable `base_points` values go from 5 to **24**, and `si_total` from a handful to
+**149** distinct values. A threshold sweep on train now traces a smooth curve — at
+THRESHOLD 5 the detector fires 97 times at 23.7% precision and 30.6% recall, at 16 it
+fires 22 times at 40.9% and 9.9% — where before there was nothing between the rungs.
+
+**What it costs:** the maximum sum is 16, not the 12 §4.2 states. `MAX_FLAT_POINTS`
+keeps the spec's 12 as its own name, since that is what the four trigger weights must
+still add up to. Note also that these three changes together did NOT improve the
+metrics on their own — precision moved 15.2% to 14.8%, recall 28.8% to 26.1% — because
+`THRESHOLD` and `ESCALATION_THRESHOLD` are unchanged and the detector is simply sitting
+at a different arbitrary point on its own curve. The point of the change is that there
+is now a curve to calibrate along.

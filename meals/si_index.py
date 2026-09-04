@@ -29,7 +29,30 @@ POINTS_PRICE_SHOCK = 3
 POINTS_VOLUME = 2
 POINTS_CLUSTER_SHIFT = 4
 POINTS_SINGLE_FACTOR = 3
-MAX_POINTS = POINTS_PRICE_SHOCK + POINTS_VOLUME + POINTS_CLUSTER_SHIFT + POINTS_SINGLE_FACTOR
+
+# Points awarded in proportion to HOW BROAD the shift was, on top of the flat
+# award for the cluster-shift trigger itself. Starred: §7 calibrates it.
+#
+# §4.2 gives four yes/no triggers, and because the gate of §4.1 requires the
+# cluster shift, its +4 is always present and volume cannot fire without a price
+# shock. That leaves exactly five reachable totals - 4, 7, 9, 10, 12 - with
+# THRESHOLD sitting between the first two, so the gate reduces to "cluster shift
+# AND price shock" and moving the threshold jumps whole triggers at a time
+# instead of tuning. Measured: 67.8% of cluster-shift hours already reach 7 on
+# base points alone.
+#
+# The breadth of a shift is the information already at hand that separates the
+# hours the flat award cannot: a shift across two blocks and one across five
+# score identically today. Adding it continuously gives §7 a threshold it can
+# actually slide. It takes the maximum sum past the 12 of §4.2 - see
+# docs/meals-deviations.md §22.
+POINTS_BREADTH = 4.0
+# The 12 of §4.2 - the four flat trigger awards - plus the graded breadth term,
+# which the spec does not have. Kept as two names because the first is what §4.2
+# states and what the trigger weights must still add up to.
+MAX_FLAT_POINTS = (POINTS_PRICE_SHOCK + POINTS_VOLUME + POINTS_CLUSTER_SHIFT
+                   + POINTS_SINGLE_FACTOR)
+MAX_POINTS = MAX_FLAT_POINTS + POINTS_BREADTH
 
 # Share of a block's assets at which the block counts as active (§4.2).
 BLOCK_ACTIVE_SHARE = 0.33
@@ -108,6 +131,12 @@ def base_points(basket: Basket, metrics: dict[str, pd.DataFrame],
 
     single = single_factor.reindex(hours).fillna(False).astype(bool)
 
+    # The share of the blocks present this hour that are active by Q95. Graded
+    # rather than counted, so a two-block shift out of two scores like a
+    # five-block shift out of five: what matters is how much of the market that
+    # was open moved, not how much of it happened to be open.
+    breadth_share = (active.sum(axis=1) / represented.replace(0, np.nan)).fillna(0.0)
+
     return pd.DataFrame({
         "trigger_price_shock": price_shock,
         "trigger_volume": volume_confirms,
@@ -116,10 +145,15 @@ def base_points(basket: Basket, metrics: dict[str, pd.DataFrame],
         "n_active_blocks": active.sum(axis=1),
         "n_active_blocks_q99": active_q99.sum(axis=1),
         "breadth_q99": breadth,
+        "breadth_share": breadth_share,
         "base_points": (price_shock * POINTS_PRICE_SHOCK
                         + volume_confirms * POINTS_VOLUME
                         + cluster_shift * POINTS_CLUSTER_SHIFT
-                        + single * POINTS_SINGLE_FACTOR),
+                        + single * POINTS_SINGLE_FACTOR
+                        # Only where the shift actually fired: breadth without a
+                        # cluster shift is a handful of assets moving, which the
+                        # price-shock trigger already speaks for.
+                        + cluster_shift * breadth_share * POINTS_BREADTH),
     }, index=hours)
 
 

@@ -33,6 +33,17 @@ def two_blocks():
     ])
 
 
+def three_blocks():
+    """Three blocks of two. A block can drop out here without killing the cluster
+    shift, which needs two active blocks - two_blocks() cannot show that."""
+    return make_basket([
+        make_asset("A", "equity", 1), make_asset("B", "equity", 2),
+        make_asset("C", "FX", 1, has_volume=False),
+        make_asset("D", "FX", 2, has_volume=False),
+        make_asset("E", "rates", 1), make_asset("F", "rates", 2),
+    ])
+
+
 def metrics_for(basket, rows):
     """rows: dict asset_id -> (r, breach_q95, breach_q99, v_r) for one hour."""
     out = {}
@@ -130,14 +141,49 @@ def test_share_is_taken_from_assets_in_session():
     assert row["n_active_blocks"] >= 1
 
 
-def test_maximum_is_twelve_points():
+def test_every_trigger_firing_across_every_block_reaches_the_maximum():
     basket = two_blocks()
     row = points_for(basket, {
         "twelvedata:A": (0.05, True, True, 9.0), "twelvedata:B": (0.05, True, True, 9.0),
         "twelvedata:C": (0.05, True, True, 9.0), "twelvedata:D": (0.05, True, True, np.nan),
         "twelvedata:E": (0.05, True, True, np.nan), "twelvedata:F": (0.05, True, True, np.nan),
     }, single=True)
-    assert row["base_points"] == si_index.MAX_POINTS == 12
+    # §4.2's four flat awards sum to 12; the graded breadth term adds its full
+    # value here because every block present is active.
+    assert si_index.MAX_FLAT_POINTS == 12
+    assert row["breadth_share"] == pytest.approx(1.0)
+    assert row["base_points"] == pytest.approx(si_index.MAX_POINTS)
+
+
+def test_a_narrow_shift_scores_below_a_broad_one():
+    # The point of the graded term: a shift across two blocks and one across
+    # three are different events that §4.2's flat award cannot tell apart.
+    basket = three_blocks()
+    hit, quiet = (0.05, True, True, 0.0), (0.001, False, False, 0.0)
+    broad = points_for(basket, dict.fromkeys(
+        [f"twelvedata:{t}" for t in "ABCDEF"], hit))
+    narrow = points_for(basket, {
+        "twelvedata:A": hit, "twelvedata:B": hit,       # equity active
+        "twelvedata:C": hit, "twelvedata:D": hit,       # FX active
+        "twelvedata:E": quiet, "twelvedata:F": quiet,   # rates is not
+    })
+    assert broad["trigger_cluster_shift"] and narrow["trigger_cluster_shift"]
+    assert broad["breadth_share"] == pytest.approx(1.0)
+    assert narrow["breadth_share"] == pytest.approx(2 / 3)
+    assert broad["base_points"] > narrow["base_points"]
+
+
+def test_breadth_scores_nothing_without_a_cluster_shift():
+    # A couple of assets moving is what the price-shock trigger already speaks
+    # for; breadth is only meaningful once the shift itself fired.
+    basket = three_blocks()
+    quiet = (0.001, False, False, 0.0)
+    rows = dict.fromkeys([f"twelvedata:{t}" for t in "ABCDEF"], quiet)
+    rows["twelvedata:A"] = (0.05, True, True, 0.0)
+    row = points_for(basket, rows)
+
+    assert not row["trigger_cluster_shift"]
+    assert row["base_points"] == si_index.POINTS_PRICE_SHOCK
 
 
 def test_si_total_applies_both_multipliers():

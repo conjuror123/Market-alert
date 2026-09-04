@@ -9,41 +9,63 @@ HOUR = 3600
 
 
 def test_matches_the_worked_example_from_the_spec():
-    # §4.3, High, T_event = 12:30 UTC, rounded to four decimals.
-    assert cm.multiplier_at(-0.5, "High") == pytest.approx(1.7333, abs=5e-5)
-    assert cm.multiplier_at(0.5, "High") == pytest.approx(1.6667, abs=5e-5)
-    assert cm.multiplier_at(2.5, "High") == pytest.approx(1.1333, abs=5e-5)
-    assert cm.multiplier_at(3.5, "High") == 1.0
+    # §4.3's worked example, on its own 6h/3h High shape: T_event = 12:30 UTC.
+    # The shape the system now runs is narrower, but the arithmetic is the same
+    # function and this pins it.
+    assert cm.multiplier_at(-0.5, 1.8, 6.0, 3.0) == pytest.approx(1.7333, abs=5e-5)
+    assert cm.multiplier_at(0.5, 1.8, 6.0, 3.0) == pytest.approx(1.6667, abs=5e-5)
+    assert cm.multiplier_at(2.5, 1.8, 6.0, 3.0) == pytest.approx(1.1333, abs=5e-5)
+    assert cm.multiplier_at(3.5, 1.8, 6.0, 3.0) == 1.0
 
 
 def test_peak_is_at_the_publication_moment():
     # approx rather than exact equality: 1 + 0.8 * 6 / 6 in double gives
     # 1.8000000000000003. Rounding inside the function would be wrong - the §4.3
     # example rounds only for printing.
-    assert cm.multiplier_at(0.0, "High") == pytest.approx(1.8)
-    assert cm.multiplier_at(0.0, "Medium") == pytest.approx(1.5)
+    for importance in ("High", "Medium"):
+        peak, before, after = cm.profile(importance, "USD")
+        assert cm.multiplier_at(0.0, peak, before, after) == pytest.approx(peak)
 
 
 def test_function_is_continuous_at_the_window_edges():
     # At both edges the function equals one, so including or excluding the edge
     # makes no difference to the result.
-    for importance in ("High", "Medium"):
-        before, after = cm.BEFORE[importance], cm.AFTER[importance]
-        assert cm.multiplier_at(-before, importance) == pytest.approx(1.0)
-        assert cm.multiplier_at(after, importance) == pytest.approx(1.0)
-        assert cm.multiplier_at(-before - 0.01, importance) == 1.0
-        assert cm.multiplier_at(after + 0.01, importance) == 1.0
+    for country in ("USD", "NZD"):
+        for importance in ("High", "Medium"):
+            peak, before, after = cm.profile(importance, country)
+            assert cm.multiplier_at(-before, peak, before, after) == pytest.approx(1.0)
+            assert cm.multiplier_at(after, peak, before, after) == pytest.approx(1.0)
+            assert cm.multiplier_at(-before - 0.01, peak, before, after) == 1.0
+            assert cm.multiplier_at(after + 0.01, peak, before, after) == 1.0
 
 
 def test_window_before_is_wider_than_after():
     # The asymmetry is deliberate: the market prepares for a release in advance,
     # while the reaction afterwards settles faster.
-    assert cm.BEFORE["High"] > cm.AFTER["High"]
-    assert cm.multiplier_at(-3, "High") > cm.multiplier_at(3, "High")
+    peak, before, after = cm.profile("High", "USD")
+    assert before > after
+    assert (cm.multiplier_at(-after, peak, before, after)
+            > cm.multiplier_at(after, peak, before, after))
 
 
-def test_low_importance_is_ignored():
-    assert cm.multiplier_at(0.0, "Low") == 1.0
+def test_low_importance_has_no_profile():
+    assert cm.profile("Low", "USD") is None
+
+
+def test_core_countries_outrank_the_rest():
+    # ForexFactory labels impact per country, so "High" means high for THAT
+    # currency. A New Zealand rate decision and an FOMC decision carry the same
+    # label; they should not carry the same weight in a global macro basket.
+    core_peak, core_before, _ = cm.profile("High", "USD")
+    other_peak, other_before, _ = cm.profile("High", "NZD")
+    assert core_peak > other_peak
+    assert core_before > other_before
+
+
+def test_a_country_outside_the_core_still_counts_for_something():
+    # Reduced, not deleted: the release still marks its hours.
+    peak, before, after = cm.profile("High", "CAD")
+    assert cm.multiplier_at(0.0, peak, before, after) > 1.0
 
 
 def test_series_takes_the_maximum_over_overlapping_events(tmp_path):
@@ -60,7 +82,9 @@ def test_series_takes_the_maximum_over_overlapping_events(tmp_path):
     hour = close - HOUR
     values = cm.multiplier_series([hour], str(path))
 
-    assert values[hour] == pytest.approx(cm.multiplier_at(-0.5, "High"), abs=5e-5)
+    peak, before, after = cm.profile("High", "USD")
+    assert values[hour] == pytest.approx(
+        cm.multiplier_at(-0.5, peak, before, after), abs=5e-5)
 
 
 def test_series_is_one_far_from_any_event(tmp_path):
@@ -81,8 +105,10 @@ def test_window_is_not_shortened_by_a_weekend(tmp_path):
     path.write_text(json.dumps({"date": friday_evening.isoformat(), "impact": "High",
                                 "country": "USD", "title": "x"}) + "\n", encoding="utf-8")
 
-    two_hours_after = int(friday_evening.timestamp()) + 2 * HOUR - 1800
-    hour = two_hours_after - HOUR
+    # The bar closing half an hour after the release, i.e. on the Friday night
+    # with the weekend immediately ahead.
+    close = int(friday_evening.timestamp()) + 1800
+    hour = close - HOUR
     assert cm.multiplier_series([hour], str(path))[hour] > 1.0
 
 
