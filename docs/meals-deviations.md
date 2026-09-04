@@ -802,3 +802,68 @@ own 12/7 ratio applied to the new threshold.
 so a claim that this configuration is optimal would be false. It is a configuration
 that is defensible and reproducible — fixed seed, published grids, the search recorded
 in `data/meals/calibration.json` and the freeze in `data/meals/frozen.json`.
+
+---
+
+## 24. Two matched-horizon channels, a graded label — and what they did not fix
+
+**Spec §4.2** builds the score from four one-hour triggers. **§7** asks whether the
+next twenty-four hours are significant. **§8.6** makes the SAED dependency one-way.
+All three were changed at once, because §7 leaves one clean test and iterating spends
+it.
+
+**The diagnosis, all measured on train so the test stayed clean.**
+
+*The truth label is a cliff.* Of 37 alerts scored as failures, **not one** landed on a
+quiet market: the median reached 0.69 of its block's Q99 threshold and 14 came within
+25% of it. An alert before a move reaching 0.99 of the line scores as a total failure.
+
+*The triggers answer the wrong horizon.* The same basket move read over 24 reference
+hours reached **80%** precision on train where its one-hour form reached **25%**.
+
+*The discarded module predicts better than the detector.* The SAED count over 24 hours
+reached **53%** precision at its 98th percentile and **83%** at its 99th, against the
+cluster detector's own 37%.
+
+**Two hypotheses tested and rejected.** Precision inside the full-basket regime is
+34.3% against 41.7% outside it, so the 28% PCA coverage is not the bottleneck. And the
+`si_total` distribution barely moves between periods (q99.5 of 13.80 against 13.00), so
+a regime-adaptive threshold would hold the firing rate constant — which is the problem,
+not the cure.
+
+**What was built:** `significant_near` at 0.75 of the threshold beside the strict §7
+label, which stays what is optimised and reported; `trigger_sustained`, the basket move
+accumulated over 24 reference hours scaled by sigma·sqrt(24); `trigger_saed_breadth`,
+the single-asset event count over the same window. §3.1's and §8.2's absolute legs were
+also separated — the spec states them apart and this implementation had shared one
+constant, so calibrating the price leg silently moved SAED's sensitivity, which mattered
+once SAED fed the score.
+
+**The calibration liked them.** Both channels were raised above their starting values
+rather than driven to zero — `sustained` 3.0 → 6.0, `saed_breadth` 3.0 → 4.0 — and for
+the first time no parameter landed on a grid edge.
+
+**They did not fix it.** Second test, frozen at `429462f6b28d`, train ending 2025-01-01:
+
+| | precision | recall | F1 |
+|---|---:|---:|---:|
+| train | 27.5% | 29.1% | 28.2% |
+| test | 6.0% | 18.8% | **9.1%** |
+| *first test, for comparison* | 6.8% | 16.7% | *9.6%* |
+
+The softened label confirms the cliff is real — precision 19.9% → **42.6%** against a
+threshold at 0.75 — but the generalisation failure is untouched. The mechanism check,
+which uses no labels at all, says why:
+
+> episode rate, test/train = **0.41**  ·  firing rate, test/train = **0.98**
+
+The market produced 41% as many significant episodes per hour, and the detector fired at
+98% of its former rate. A score that does not thin when the thing it predicts becomes
+rarer is not tracking that thing, and adding better-aimed channels to the sum did not
+change that. Two independent test periods now agree at ~9% F1.
+
+**What it costs:** the honest reading is that the SI-Index, as specified and as
+extended here, does not generalise across volatility regimes on this basket. The
+remaining ideas are structural rather than parametric — scoring relative to a rolling
+distribution of the score itself, or conditioning on a regime state — and each needs a
+test period this one has not spent. The untouched data begins 2026-09.
