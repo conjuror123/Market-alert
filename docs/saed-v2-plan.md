@@ -1,0 +1,122 @@
+# SAED v2 — what the event-study literature already solved
+
+The single-asset detector is the product: per-asset alerts, extensible to any new
+instrument. This is what fifty years of event-study methodology says we should change,
+and one measurement showing the biggest problem is real and present in our data.
+
+## The thing SAED already gets right
+
+`r_i,t = alpha_i + beta_i * F_t + e_i,t`, estimated out-of-sample on a rolling window,
+is the **market model** — the benchmark used in the large majority of published
+short-horizon event studies. The abnormal return is the residual. We are on the
+standard path, not off it. What is missing is everything the field added afterwards to
+stop that residual lying to you.
+
+## The measurement that matters
+
+Bucketing every hour by the cross-sectional spread of Z across the basket:
+
+| cross-section | hours | breaches per hour | share of all breaches |
+|---|---:|---:|---:|
+| calmest fifth | 6,872 | 0.000 | 0.0% |
+| second | 6,871 | 0.000 | 0.0% |
+| third | 6,871 | 0.001 | 0.1% |
+| fourth | 6,871 | 0.020 | 2.8% |
+| **widest fifth** | 6,872 | **0.674** | **97.1%** |
+
+**97.1% of single-asset breaches occur when the entire cross-section is wide.** The
+calmest 40% of hours produce none at all. The detector is not finding idiosyncratic
+moves; it is finding market-wide volatility and naming whichever asset moved most. The
+60% overlap between SAED events and active cluster events says the same thing from the
+other side.
+
+This is textbook **event-induced variance**, and the fix has a name.
+
+## Step 1 — BMP standardisation (the big one)
+
+Boehmer, Musumeci and Poulsen: standardise the abnormal return as usual, then **divide
+again by the cross-sectional standard deviation of those standardised returns in the
+same event window**. The denominator widens automatically when the event makes
+everything volatile, so a move only counts as unusual if it is unusual *relative to what
+every other asset is doing right now* — which is what "idiosyncratic" was supposed to
+mean all along.
+
+It is the modern default short-window parametric test precisely because it stays valid
+when events raise volatility, without giving up much power. Concretely: divide
+`z_resid_i,t` by `std_j(z_resid_j,t)` over the assets in session that hour, then apply
+the threshold to that.
+
+## Step 2 — Patell's prediction-error inflation
+
+Our residual is an **out-of-sample forecast error** from the rolling regression, so its
+variance is strictly larger than the in-sample residual variance we divide by. Patell
+inflates it by three terms: the base residual variance, the estimation error in the
+fitted mean, and a **forecast-extrapolation penalty** growing with how far the current
+factor value sits from its estimation-window average.
+
+That third term matters here more than anywhere: on a big market day `F_t` is far from
+its mean, the beta estimate extrapolates, the residual is genuinely noisier — and we
+currently treat it as if it were not. It is the same bias Step 1 attacks, from the
+model side rather than the cross-section side.
+
+## Step 3 — A real estimation gap
+
+Standard practice leaves the estimation window **disjoint** from the event window, with
+a gap, so that a move leaking in before the event does not contaminate the estimate of
+normal. We shift the coefficients by exactly one bar. A gap of a few bars costs almost
+nothing and closes a leak the field considers basic hygiene.
+
+## Step 4 — Model the residual as Ornstein-Uhlenbeck, not as noise
+
+Avellaneda and Lee model residual returns as **mean-reverting OU processes** and trade
+the **s-score**: the distance from the residual's equilibrium in units of its
+equilibrium standard deviation. Two things follow that we do not have:
+
+- the equilibrium mean and variance come from a fitted OU process, not an EWMA that the
+  event itself contaminates;
+- the fit yields a **mean-reversion speed**, and they only trust a signal when
+  reversion is fast enough. A residual that drifts instead of reverting is not
+  idiosyncratic noise — it is an unmodelled factor, and firing on it is a mistake our
+  system currently cannot detect.
+
+## Step 5 — A non-parametric second opinion
+
+Returns are fat-tailed; a parametric threshold on them is optimistic. The Corrado rank
+test converts abnormal returns to ranks within the pooled estimation and event window,
+assumes no normality, and is immune to outliers — excellent for exactly our case, a
+single-hour window.
+
+The field's own house rule is to run **one parametric test and one non-parametric test
+and treat agreement as the evidence**. That maps onto machinery we already have: §3.1's
+hybrid condition is already an AND of two legs. Replace them with BMP and rank.
+
+## Step 6 — More factors, if the basket can carry them
+
+Avellaneda and Lee use roughly fifteen PCA components. We use one basket factor plus one
+block factor. With twenty instruments we cannot fit fifteen, but it argues for keeping
+the block factor rather than treating it as the deviation it is currently recorded as,
+and for testing a second principal component before adding anything else.
+
+## Order of work
+
+1. **BMP cross-sectional standardisation** — the measured problem, the standard fix.
+2. **Corrado rank leg** — cheap, and it gives the parametric/non-parametric pair.
+3. **Patell inflation** — more involved; needs the estimation-window moments carried
+   forward from the regression.
+4. **Estimation gap** — a one-line change, do it alongside 3.
+5. **OU residual and the reversion-speed filter** — the largest change, worth doing only
+   once 1-4 are measured.
+6. **Second factor** — last, and only if the residuals still show common structure.
+
+Steps 1 and 2 alone should be checkable against the table above: after them, breaches
+should stop concentrating 97% in the widest quintile. That is the acceptance test, it
+needs no labels, and it can be run before anything else is touched.
+
+## Sources
+
+- [Event Study Significance Tests: Patell Z & BMP](https://www.eventstudytools.com/significance-tests)
+- [Expected Return Models for Event Studies](https://www.eventstudytools.com/expected-return-models)
+- [Event Study Methodology: A Step-by-Step Guide](https://www.eventstudytools.com/introduction-event-study-methodology)
+- [Avellaneda & Lee, Statistical Arbitrage in the U.S. Equities Market](https://math.nyu.edu/inmemoriam/avellaneda//StatArb13030.pdf)
+- [arbitragelab: the PCA approach to statistical arbitrage](https://hudson-and-thames-arbitragelab.readthedocs-hosted.com/en/latest/other_approaches/pca_approach.html)
+- [sipemu/eventstudy — 11 test statistics including Patell and BMP](https://github.com/sipemu/eventstudy)
