@@ -540,3 +540,43 @@ between these two runs?" is worth asking. What the code changed is already what
 **What it costs:** one string column on `cluster_events`, about 2 KB over the whole
 table, and a departure from the literal column list of §6.4 — an addition to it, not
 an omission from it.
+
+---
+
+## 18. Three readings §7 leaves open
+
+**Spec §7** defines the truth-labelling protocol and the baseline in one paragraph
+each. Three things in them admit more than one reading, and since the labels are the
+yardstick every later number is measured against, the choices are written down here
+rather than left in the code.
+
+**The accumulated move is compared in absolute value.** §7 asks whether a block's
+accumulated 24-hour return runs "in excess of the Q99 of its own historical
+distribution of such 24-hour moves". Taken on the signed return, the Q99 of a roughly
+symmetric distribution is its upper tail alone, and only rallies would ever be
+significant — a market falling apart would be labelled calm. A "move" is a magnitude,
+so the comparison is `|accumulated| > Q99(|accumulated|)`.
+
+**The 2% of the baseline is read on the log scale.** Everything in this system
+accumulates log returns, because they add and simple returns do not. A 2% move is
+therefore `ln(1.02) = 0.019803`, not `0.02`. The difference is a fifth of a percent of
+the threshold and changes nothing measurable; it is stated because a reader otherwise
+has to guess which of the two was meant.
+
+**The baseline is computed both ways, and the runnable one is the one worth beating.**
+§7 puts the baseline detector on "the move accumulated over the FOLLOWING 24 RCH" —
+the very window the truth label is built from. Read literally that is not a detector:
+at hour `t` it reads hours after `t`, which nothing running live can do, and it scores
+near the label by construction, since SPY sits inside the equity block the label
+measures. Measured: 44.8% precision against a 3.3% base rate, a 13.6x lift, for a rule
+that is close to a second look at the answer.
+
+So `truth_labels.parquet` carries both. `baseline_spy` is §7 exactly as written.
+`baseline_spy_trailing` fires on the 24 RCH BEFORE `t` — "SPY has just moved 2%,
+expect more" — which is a detector that could actually run, and it reaches 16.4%
+precision, a 5.0x lift. That second one is the honest thing to compare the SI-Index
+against, and it is the harder target: on test it reaches a 13.8x lift where the
+cluster detector at the spec's uncalibrated starting values reaches 0.5x.
+
+**What it costs:** one extra column, and a note that any comparison quoting "the §7
+baseline" has to say which of the two it means.

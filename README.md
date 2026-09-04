@@ -829,6 +829,7 @@ meals/corporate_actions.py — ex-dividend dates derived from the quotes
 meals/fred.py        — the daily VIX series from FRED and the moment it becomes available
 meals/backfill.py    — the one-off load of history from 2021
 meals/audit.py       — the data coverage table, required by §2.1 of the spec
+meals/truth.py       — the §7 yardstick: truth labels by block and the SPY baseline
 
 data/meals/bars/     — hourly bars per instrument
 data/meals/vix/      — the daily VIX series
@@ -843,6 +844,8 @@ data/meals/cluster_event_escalations.parquet — escalations inside events
 data/meals/residuals/ — residual series per instrument (not in the repository, see below)
 data/meals/decision_log.parquet — the decision journal: magnitude, threshold, outcome, versions
 data/meals/first_valid_hour.parquet — from which hour a trigger can be trusted
+data/meals/truth_labels.parquet — §7 labels: was the next 24h significant, and the baseline
+data/meals/truth_thresholds.parquet — the per-block Q99 those labels rest on, taken on train
 data/meals/events/   — event export in JSON (not in the repository, see below)
 data/meals/coverage.md — the coverage table
 schema/event_export.schema.json — the event export schema, the contract for a consumer
@@ -877,6 +880,7 @@ python -m meals.cross_section   # recompute basket metrics
 python -m meals.saed            # recompute single-asset events
 python -m meals.cluster         # SI-Index, cluster events, the decision journal
 python -m meals.export          # export events to JSON under the schema
+python -m meals.truth           # §7 truth labels and the baseline
 python -m price_monitor.economic_calendar --rebuild   # rebuild the calendar archive
 ```
 
