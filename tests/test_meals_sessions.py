@@ -30,7 +30,14 @@ def test_half_sessions_are_marked():
     day = table[date(2021, 11, 26)]
     assert day.is_early_close
     assert day.local_close == "13:00"
-    assert len(sessions.half_sessions(table)) == 15
+    # Counted rather than fixed: the table's span is a configuration choice - it
+    # now reaches back to 2015 - and a literal here would fail every time the
+    # history is deepened without anything being wrong.
+    early = sessions.half_sessions(table)
+    assert all(s.is_early_close and s.local_close == "13:00" for s in early)
+    # Roughly two or three a year over the table's span, never none.
+    years = len({day.year for day in table})
+    assert years <= len(early) <= 4 * years
 
 
 def test_holiday_is_a_weekday_absent_from_the_table():

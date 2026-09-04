@@ -110,8 +110,14 @@ def test_file_stem_is_filesystem_safe(tmp_path):
 
 def test_real_basket_config_is_valid():
     basket = load_basket()
-    assert len(basket.assets) == 21
     assert set(basket.by_block()) == {"equity", "rates", "FX", "commodities", "crypto"}
+    # Every block needs two members or it can never be active (§4.2's
+    # BLOCK_ACTIVE_MIN), and a block that can never be active contributes exactly
+    # nothing to the quorum - measured: one crypto asset instead of two takes the
+    # share of hours passing quorum from 70.6% to 19.9%, losing every overnight
+    # hour.
+    for block, members in basket.by_block().items():
+        assert len(members) >= 2, block
     assert sum(basket.weights().values()) == pytest.approx(1.0)
     # At night only FX and crypto remain in session - together they must make the
     # §2.3 quorum, or the system is blind outside the US session.

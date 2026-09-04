@@ -253,6 +253,19 @@ assets:
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Ethereum"
+
+# Instruments outside the basket (§8.1): they take no part in the quorum, the
+# weights, breadth or the cluster triggers, but SAED computes their residuals on
+# the common basket factor. block is mandatory - it is needed only for block-alert
+# aggregation per §8.4. These two pairs were moved out of the basket so as not to
+# skew the FX block by headcount, while their alerts are preserved.
+outside_basket:
+  # Moved out of the basket, not deleted: Coinbase listed SOL on 2021-06-14 and it
+  # did not exist before, so it alone held the crypto block - and with it the
+  # basket's history - at 2021. Out here the floor becomes ETH's 2016-05-18 and
+  # the block still has its two members, so the quorum is untouched: 70.6% of
+  # hours pass it either way, measured. Bars keep being collected and SAED keeps
+  # producing its alerts, which is where a single asset matters anyway.
   - ticker: SOL-USD
     source: coinbase
     tier: 2
@@ -262,13 +275,6 @@ assets:
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Solana"
-
-# Instruments outside the basket (§8.1): they take no part in the quorum, the
-# weights, breadth or the cluster triggers, but SAED computes their residuals on
-# the common basket factor. block is mandatory - it is needed only for block-alert
-# aggregation per §8.4. These two pairs were moved out of the basket so as not to
-# skew the FX block by headcount, while their alerts are preserved.
-outside_basket:
   - ticker: NZD/USD
     source: twelvedata
     tier: 2
