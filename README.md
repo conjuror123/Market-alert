@@ -901,12 +901,15 @@ SAED events and the block alerts. A reader holding one table can then state whic
 version produced it, which is what §6.3 requires before events of different versions
 may be compared at all.
 
-Cluster events carry two more fields (§6.4). `created_at` is the moment the row FIRST
+Cluster events carry three more fields. `created_at` is the moment the row FIRST
 appeared, carried across runs rather than re-taken from the clock — otherwise a rerun
 over unchanged data would differ byte for byte and the idempotency of §6.2 would not
-exist. `recalculated` then means what §6.2 says it means: this row existed under an
-earlier `run_version` and has been rebuilt under a new one, which is how late or
-revised data shows up.
+exist. `recalculated` says that late or revised data reached this row, and it is judged
+on `data_fingerprint` — the third field, the hash of the raw inputs — rather than on
+`run_version`. `run_version` hashes the configuration together with the data, so it
+moves on a code edit too, and a flag judged on it would stand at True on every row
+throughout calibration, when thresholds move on every iteration. What the code changed
+is already what `config_version` is for; see `docs/meals-deviations.md` §17.
 
 SAED events carry `overlap_with_cluster` (§8.2). It is filled by the `cluster` run, not
 the `saed` one: SAED runs first, so when its events are built the cluster events of this

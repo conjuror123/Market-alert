@@ -142,18 +142,32 @@ def run_version(config: str, fingerprint: str) -> str:
     return _digest([config.encode("utf-8"), fingerprint.encode("utf-8")])
 
 
-def versions_for(data_paths=RAW_INPUTS, root: str = ".") -> tuple[str, str]:
+def stamps(data_paths=RAW_INPUTS, root: str = ".") -> tuple[str, str, str]:
+    """config_version, run_version and the raw-data fingerprint, hashed once.
+
+    The fingerprint is returned rather than thrown away because run_version
+    cannot be taken apart again: it is a hash of the configuration AND the data,
+    so a row carrying only run_version cannot say WHICH of the two moved. §6.2
+    attaches recalculated to revised data specifically, and telling that from an
+    edited threshold needs the two kept separately.
+    """
     config = config_version(root)
-    return config, run_version(config, data_fingerprint(data_paths))
+    fingerprint = data_fingerprint(data_paths)
+    return config, run_version(config, fingerprint), fingerprint
+
+
+def versions_for(data_paths=RAW_INPUTS, root: str = ".") -> tuple[str, str]:
+    config, run, _ = stamps(data_paths, root)
+    return config, run
 
 
 # --- stamping the versions onto what the run writes -----------------------
 
 VERSION_COLUMNS = ("config_version", "run_version")
 
-# Provenance of a row per §6.2 and §6.4: when it first appeared, and whether it
-# has since been recomputed.
-PROVENANCE_COLUMNS = ("recalculated", "created_at")
+# Provenance of a row per §6.2 and §6.4: which raw data produced it, whether it
+# has since been recomputed, and when it first appeared.
+PROVENANCE_COLUMNS = ("data_fingerprint", "recalculated", "created_at")
 
 
 def stamp(frame, config: str, run: str):
@@ -167,8 +181,9 @@ def stamp(frame, config: str, run: str):
     return frame.assign(config_version=config, run_version=run)
 
 
-def provenance(frame, previous, run: str, key: str = "event_id", now: int | None = None):
-    """created_at and recalculated (§6.2, §6.4), carried across runs.
+def provenance(frame, previous, fingerprint: str, key: str = "event_id",
+               now: int | None = None):
+    """data_fingerprint, recalculated and created_at (§6.2, §6.4).
 
     created_at is the moment a row FIRST appeared, not the moment of the latest
     write. Taking the clock on every run would be easier and would be wrong twice
@@ -177,11 +192,13 @@ def provenance(frame, previous, run: str, key: str = "event_id", now: int | None
     run_version already answers better, since run_version says WHICH inputs
     produced the row while created_at is meant to say WHEN it first existed.
 
-    So a row that was already there keeps its created_at, and only genuinely new
-    rows get the clock. recalculated then means what §6.2 says it means: this row
-    existed under an earlier run_version and has been recomputed under a new one -
-    late or revised data reached it. A row seen for the first time is not
-    recalculated, and neither is one whose run_version has not moved.
+    recalculated is judged on the RAW-DATA fingerprint, not on run_version. §6.2
+    raises the flag for one situation - a bar arriving late or revised by the
+    vendor - and run_version also moves when a threshold or a comment in the code
+    changes, which is not that situation. Judging on run_version would raise the
+    flag on every edit, and during calibration, when the thresholds move on every
+    iteration, it would stand at True on every row and mean nothing. What the code
+    changed is already what config_version is for.
 
     `previous` is the table as the last run left it, or None when there is none -
     on the very first run nothing can be claimed about recomputation, and
@@ -193,19 +210,22 @@ def provenance(frame, previous, run: str, key: str = "event_id", now: int | None
 
     stamp_now = int(time.time()) if now is None else int(now)
     if frame.empty:
-        return frame.assign(recalculated=pd.Series(dtype="boolean"),
+        return frame.assign(data_fingerprint=pd.Series(dtype="object"),
+                            recalculated=pd.Series(dtype="boolean"),
                             created_at=pd.Series(dtype="int64"))
 
     born, redone = {}, set()
     if previous is not None and not previous.empty and key in previous.columns:
         if "created_at" in previous.columns:
             born = dict(zip(previous[key], previous["created_at"]))
-        if "run_version" in previous.columns:
+        if "data_fingerprint" in previous.columns:
             redone = {row_key for row_key, was in
-                      zip(previous[key], previous["run_version"]) if was != run}
+                      zip(previous[key], previous["data_fingerprint"])
+                      if was != fingerprint}
 
     keys = frame[key]
     return frame.assign(
+        data_fingerprint=fingerprint,
         recalculated=[bool(k in redone) for k in keys],
         created_at=pd.array([born.get(k, stamp_now) for k in keys], dtype="int64"),
     )

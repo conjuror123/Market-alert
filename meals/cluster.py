@@ -303,14 +303,14 @@ def main(argv: list[str] | None = None) -> int:
     # The fingerprint is taken over the RAW inputs (versioning.RAW_INPUTS), not
     # over the basket-metrics file: that file is both input and output for this
     # run, and including it would mean a new run_version on every repeat.
-    config, run_id = versioning.versions_for()
+    config, run_id, fingerprint = versioning.stamps()
 
     # Cluster events carry the versions plus their provenance (§6.3, §6.4):
     # created_at survives a rerun, and recalculated says the row was rebuilt under
     # a run_version different from the one that first produced it.
     stamped = versioning.provenance(
         versioning.stamp(events_frame(events), config, run_id),
-        versioning.previous_table(args.events_out), run_id)
+        versioning.previous_table(args.events_out), fingerprint)
 
     for path, data in ((args.events_out, stamped),
                        (args.escalations_out,

@@ -509,3 +509,34 @@ decisions the distinction is preserved (an hour without quorum yields no row at 
 and that is documented), and for assets the answer comes from the `first_valid_hour`
 table: it holds the first hour from which a trigger is assessed at all, and the share
 of assessed hours.
+
+---
+
+## 17. `recalculated` is judged on the data, not on `run_version`
+
+**Spec §6.2** says that when data arrives late or the vendor revises it, the hour is
+recomputed under a new `run_version` and the affected records are marked
+`recalculated`. **§6.4** lists `recalculated` among the columns of `cluster_events`,
+and does not list a data fingerprint there.
+
+**How it is done:** `cluster_events` carries one column beyond the §6.4 list —
+`data_fingerprint`, the hash of the raw inputs — and `recalculated` compares that
+against the fingerprint stored on the previous run rather than comparing
+`run_version`.
+
+The reason is that `run_version` is a hash of `config_version` AND the data
+fingerprint, so a row carrying only `run_version` cannot say which of the two moved.
+Judging the flag on it raises `recalculated` on every code edit — a moved threshold,
+a reworded comment. Measured on the real history: editing a docstring in `saed.py`
+moved `config_version` from `c4948ebff206` to `6df97bd2867f` and flipped all 188
+cluster events to `recalculated = True` without a single price bar having changed.
+
+That matters most in phase 7. Calibration moves the thresholds on every iteration, so
+a flag judged on `run_version` would stand at True on every row for the whole phase
+and carry no information exactly when the question "did the data shift under me
+between these two runs?" is worth asking. What the code changed is already what
+`config_version` is for.
+
+**What it costs:** one string column on `cluster_events`, about 2 KB over the whole
+table, and a departure from the literal column list of §6.4 — an addition to it, not
+an omission from it.

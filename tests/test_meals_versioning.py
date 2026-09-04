@@ -85,40 +85,67 @@ def test_stamp_writes_both_versions_into_every_row():
     assert list(stamped["run_version"]) == ["run1", "run1"]
 
 
-def written(events, run, previous=None, now=1000):
+def written(events, config="cfg", data="data1", previous=None, now=1000):
     """A table as a run would leave it on disk: stamped, then given provenance."""
-    return versioning.provenance(versioning.stamp(frame(*events), "cfg", run),
-                                 previous, run, now=now)
+    run = versioning.run_version(config, data)
+    return versioning.provenance(versioning.stamp(frame(*events), config, run),
+                                 previous, data, now=now)
 
 
 def test_created_at_survives_a_rerun_over_unchanged_data():
     # §6.2: a rerun with the same version must be idempotent. Taking the clock
     # again would make the table differ byte for byte between two identical runs.
-    first = written(["a"], "run1", now=1000)
-    again = written(["a"], "run1", previous=first, now=2000)
+    first = written(["a"], now=1000)
+    again = written(["a"], previous=first, now=2000)
     assert list(again["created_at"]) == [1000]
     assert list(again["recalculated"]) == [False]
 
 
-def test_a_new_run_version_marks_the_row_recalculated():
-    first = written(["a"], "run1", now=1000)
-    revised = written(["a"], "run2", previous=first, now=2000)
-    # The row was rebuilt under different inputs, but it is the same event and
-    # keeps the moment it first appeared.
+def test_revised_data_marks_the_row_recalculated():
+    first = written(["a"], data="data1", now=1000)
+    revised = written(["a"], data="data2", previous=first, now=2000)
+    # The row was rebuilt on different data, but it is the same event and keeps
+    # the moment it first appeared.
     assert list(revised["recalculated"]) == [True]
     assert list(revised["created_at"]) == [1000]
 
 
+def test_an_edit_to_the_code_alone_does_not_mark_the_row_recalculated():
+    # §6.2 raises the flag for late or revised DATA. A moved threshold or a
+    # reworded comment moves config_version and with it run_version, and during
+    # calibration that happens on every iteration - a flag that stood at True on
+    # every row would say nothing at all.
+    first = written(["a"], config="cfg1", data="same", now=1000)
+    recoded = written(["a"], config="cfg2", data="same", previous=first, now=2000)
+
+    assert first["run_version"].iloc[0] != recoded["run_version"].iloc[0]
+    assert list(recoded["recalculated"]) == [False]
+    assert list(recoded["created_at"]) == [1000]
+
+
 def test_a_row_seen_for_the_first_time_is_not_recalculated():
-    first = written(["a"], "run1", now=1000)
-    grown = written(["a", "b"], "run2", previous=first, now=2000)
+    first = written(["a"], data="data1", now=1000)
+    grown = written(["a", "b"], data="data2", previous=first, now=2000)
     assert list(grown["recalculated"]) == [True, False]
     assert list(grown["created_at"]) == [1000, 2000]
 
 
 def test_provenance_without_a_previous_table_claims_nothing():
-    fresh = written(["a", "b"], "run1", now=1000)
+    fresh = written(["a", "b"], now=1000)
     assert list(fresh["recalculated"]) == [False, False]
+
+
+def test_the_fingerprint_is_stored_so_the_next_run_can_compare():
+    stored = written(["a"], data="data1")
+    assert list(stored["data_fingerprint"]) == ["data1"]
+
+
+def test_stamps_returns_a_run_version_built_from_the_other_two(tmp_path):
+    write(tmp_path, "config/basket.yaml", "assets: []")
+    write(tmp_path, "raw.csv", "a,b\n1,2\n")
+    config, run, fingerprint = versioning.stamps(
+        (str(tmp_path / "raw.csv"),), str(tmp_path))
+    assert run == versioning.run_version(config, fingerprint)
 
 
 def test_previous_table_returns_none_when_there_is_no_file(tmp_path):
