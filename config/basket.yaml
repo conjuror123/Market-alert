@@ -27,7 +27,7 @@
 anchor_exchange_tz: America/New_York
 
 # Start of history (§2.1). Matches the train period of §7.
-history_since: "2021-01-01"
+history_since: "2015-01-01"
 
 # Session templates are filled in during phase 1 (holiday and half-session
 # calendars); here only the names the assets refer to.

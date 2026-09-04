@@ -61,7 +61,7 @@ CALENDAR_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 # (data/candle_history/) starts 2021-01-01, so nothing before that date can
 # ever be matched against a price move and is dropped from historical
 # imports rather than kept as dead weight.
-_ARCHIVE_SINCE = "2021-01-01T00:00:00+00:00"
+_ARCHIVE_SINCE = "2015-01-01T00:00:00+00:00"
 
 # The impact scale is exactly three-valued. A source's own extra categories
 # ("Holiday" in the live feed) carry none of the significance Medium/High do and

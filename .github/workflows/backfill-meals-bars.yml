@@ -1,0 +1,78 @@
+name: Backfill MEALS Bars
+
+# A manual, one-off deepening of the MEALS hourly store (data/meals/bars/) to
+# whatever depth config/basket.yaml's history_since sets. The ordinary backfill
+# only ever reaches FORWARD from the newest stored bar, so lowering
+# history_since changes nothing on its own - --extend-history is what asks the
+# source for the older end.
+#
+# A Twelve Data key is needed for the eighteen ETFs and currency pairs, and it
+# is used only inside this workflow: an Actions secret cannot be read back out,
+# which makes this the way to deepen the archive without the key passing through
+# a chat.
+#
+# The crypto instruments need no key and can be pulled locally instead.
+
+on:
+  workflow_dispatch:
+    inputs:
+      instruments:
+        description: 'Comma-separated tickers; empty means the whole basket'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: write
+
+# The same group as price-monitor.yml and backfill-history.yml: all three spend
+# the one Twelve Data account's 8 credits a minute, and a collision makes both
+# sides fail with 429.
+concurrency:
+  group: price-monitor
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    # Deepening eighteen Twelve Data instruments from 2015 is many sequential
+    # windows at eight requests a minute; the daily cap of 800 is the real
+    # ceiling, and a partial run is fine because the commit step keeps whatever
+    # arrived.
+    timeout-minutes: 330
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Deepen the bar store
+        env:
+          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: |
+          python -m meals.backfill --extend-history \
+            ${{ github.event.inputs.instruments && format('--instruments "{0}"', github.event.inputs.instruments) || '' }}
+
+      - name: Commit the deepened store
+        # Runs even on failure: whatever was fetched before a rate limit or a
+        # timeout already cost real credits and must not be discarded because a
+        # later instrument in the same run failed.
+        if: always()
+        run: |
+          if [ -n "$(git status --porcelain data/meals)" ]; then
+            git config user.name "price-monitor-bot"
+            git config user.email "actions@github.com"
+            git add data/meals
+            git commit -m "chore: deepen MEALS bar store [skip ci]"
+            git push
+          else
+            echo "No new bars to commit."
+          fi

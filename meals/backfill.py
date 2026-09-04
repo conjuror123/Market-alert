@@ -70,16 +70,24 @@ def import_legacy(asset: Asset, path: str, legacy_dir: str = LEGACY_HISTORY_DIR)
 
 
 def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
-                  session: requests.Session) -> int:
+                  session: requests.Session, extend_history: bool = False) -> int:
     """Fetches whatever the store does not have yet: from the last saved bar up
     to now, or from `since` when the store is empty.
 
     It asks for a day more than strictly needed: the last saved bar may have been
     incomplete when it was stored, and the overlap gives the source a chance to
     serve its corrected version (merge keeps the new one).
+
+    `extend_history` asks from `since` even when the store already has data. The
+    ordinary path only ever reaches FORWARD from the last saved bar, which is
+    right for a daily top-up and useless for deepening the archive: moving
+    history_since earlier changes nothing without it, because the store is not
+    empty and the window is measured from its newest bar rather than its oldest.
+    bars.merge takes the union, so the old rows survive and only genuinely new
+    ones are added.
     """
     stored = bars.load(path)
-    if stored.empty:
+    if stored.empty or extend_history:
         days = _days_since(since)
     else:
         last = datetime.fromtimestamp(int(stored["hour_utc"].max()), tz=timezone.utc)
@@ -104,10 +112,12 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
 
 
 def backfill_instrument(asset: Asset, basket: Basket, bars_dir: str, api_key: str,
-                        session: requests.Session, legacy_dir: str = LEGACY_HISTORY_DIR) -> dict:
+                        session: requests.Session, legacy_dir: str = LEGACY_HISTORY_DIR,
+                        extend_history: bool = False) -> dict:
     path = bars.store_path(bars_dir, asset.file_stem)
     from_legacy = import_legacy(asset, path, legacy_dir)
-    from_api = fetch_missing(asset, path, basket.history_since, api_key, session)
+    from_api = fetch_missing(asset, path, basket.history_since, api_key, session,
+                             extend_history)
     stored = bars.load(path)
     return {
         "asset_id": asset.asset_id,
@@ -143,6 +153,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--vix-dir", default=bars.DEFAULT_VIX_DIR)
     parser.add_argument("--legacy-dir", default=LEGACY_HISTORY_DIR)
     parser.add_argument("--skip-vix", action="store_true")
+    parser.add_argument("--extend-history", action="store_true",
+                        help="ask from basket.history_since even where the store "
+                             "already has bars, to deepen the archive backwards")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -162,7 +175,8 @@ def main(argv: list[str] | None = None) -> int:
     failures = 0
     for i, asset in enumerate(instruments):
         try:
-            r = backfill_instrument(asset, basket, args.bars_dir, api_key, session, args.legacy_dir)
+            r = backfill_instrument(asset, basket, args.bars_dir, api_key, session,
+                                    args.legacy_dir, args.extend_history)
             log.info("%s: %d bars (%s .. %s), from local history %d, from network %d",
                      r["asset_id"], r["rows"], _fmt(r["first"]), _fmt(r["last"]),
                      r["from_legacy"], r["from_api"])
