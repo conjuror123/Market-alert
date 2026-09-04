@@ -88,6 +88,8 @@ class Parameters:
     points_volume: float = si_index.POINTS_VOLUME
     points_single_factor: float = si_index.POINTS_SINGLE_FACTOR
     points_breadth: float = si_index.POINTS_BREADTH
+    points_sustained: float = si_index.POINTS_SUSTAINED
+    points_saed_breadth: float = si_index.POINTS_SAED_BREADTH
     calendar_strength: float = 1.0
     vix_strength: float = 1.0
     threshold: float = si_index.THRESHOLD
@@ -111,6 +113,8 @@ GRIDS = {
     "points_volume": [0, 1, 2, 3, 4, 5, 6, 8],
     "points_single_factor": [0, 1, 2, 3, 4, 5, 6],
     "points_breadth": [0, 1, 2, 3, 4, 6, 8, 10, 14, 20],
+    "points_sustained": [0, 1, 2, 3, 4, 6, 8, 10],
+    "points_saed_breadth": [0, 1, 2, 3, 4, 6, 8, 10],
     "calendar_strength": [0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0],
     "vix_strength": [0.0, 0.5, 1.0, 1.5, 2.0, 3.0],
     "reversal_k_min": [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5],
@@ -122,7 +126,8 @@ GRIDS = {
 # scale the thresholds live on, so they are re-fitted after every change to it.
 ORDER = ["abs_leg_q99", "abs_leg_q95", "volume_confirm", "coherence_quantile",
          "points_price_shock", "points_volume", "points_single_factor",
-         "points_breadth", "calendar_strength", "vix_strength",
+         "points_breadth", "points_sustained", "points_saed_breadth",
+         "calendar_strength", "vix_strength",
          "reversal_k_min", "threshold", "escalation_threshold"]
 
 
@@ -149,6 +154,8 @@ class Harness:
 
         # Both multipliers are linear in their peak, so the excess over one is
         # all that needs storing.
+        self.sustained = basket_frame.get("trigger_sustained")
+        self.saed_breadth = basket_frame.get("trigger_saed_breadth")
         self.calendar_excess = basket_frame["m_calendar"].fillna(1.0) - 1.0
         self.vix_excess = basket_frame["m_vix"].fillna(1.0) - 1.0
         self._triggers: dict[tuple, pd.DataFrame] = {}
@@ -213,7 +220,9 @@ class Harness:
             agreement, self.frame["pca_sync"]).where(self.frame["quorum_ok"], pd.NA)
 
         out = si_index.base_points(self.basket, rebreached, single, self.hours,
-                                   params.volume_confirm)
+                                   params.volume_confirm,
+                                   sustained=self.sustained,
+                                   saed_breadth=self.saed_breadth)
         self._triggers[key] = out
         return out
 
@@ -224,7 +233,9 @@ class Harness:
                   + triggers["trigger_cluster_shift"] * si_index.POINTS_CLUSTER_SHIFT
                   + triggers["trigger_single_factor"] * params.points_single_factor
                   + triggers["trigger_cluster_shift"] * triggers["breadth_share"]
-                  * params.points_breadth)
+                  * params.points_breadth
+                  + triggers["trigger_sustained"] * params.points_sustained
+                  + triggers["trigger_saed_breadth"] * params.points_saed_breadth)
 
         frame = self.frame.assign(
             base_points=points,

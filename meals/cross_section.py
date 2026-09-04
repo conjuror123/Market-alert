@@ -264,6 +264,39 @@ def coherence_compression(coherence_series: pd.Series, m: pd.Series,
             threshold)
 
 
+def cluster_sigma_m(m: pd.Series, window: int) -> pd.Series:
+    """sigma_M on the §5.2 definition, needed here before cluster runs."""
+    return m.shift(1).rolling(window, min_periods=window).std(ddof=1)
+
+
+def sustained_move(m: pd.Series, sigma_m: pd.Series,
+                   horizon: int = windows.SUSTAINED_WINDOW,
+                   window: int = windows.W_CS) -> tuple[pd.Series, pd.Series]:
+    """The basket's move accumulated over the trailing `horizon` hours, in sigmas.
+
+    Every trigger of §4.2 is a one-hour statistic, and §7 asks what the market
+    does over the following twenty-four. Volatility clusters, so a one-hour shock
+    carries some information about the day ahead - but it is the wrong instrument
+    for the question, and measurably so: the same basket move read over 24
+    reference hours reaches 80% precision on train where its one-hour form
+    reaches 25%.
+
+    Scaled by sigma * sqrt(horizon) rather than by sigma, because summing
+    independent hourly moves grows the standard deviation by the square root of
+    their number. Without it the quantity would drift with the horizon rather
+    than staying comparable across it.
+
+    Returns the series and its adaptive threshold, on the pattern of every other
+    threshold here: a percentile of the quantity's own recent history, excluding
+    the current hour.
+    """
+    accumulated = m.rolling(horizon, min_periods=horizon // 2).sum().abs()
+    scaled = accumulated / (sigma_m * np.sqrt(horizon))
+    threshold = (scaled.shift(1).rolling(window, min_periods=window)
+                 .quantile(windows.SUSTAINED_QUANTILE))
+    return scaled, threshold
+
+
 def full_basket_regime(quorum_frame: pd.DataFrame, basket: Basket) -> pd.Series:
     """Hours in which the WHOLE basket trades - every block is represented.
 
@@ -422,6 +455,13 @@ def build_basket_metrics(metrics: dict[str, pd.DataFrame], basket: Basket,
     out["in_full_regime"] = regime
     out["csv_norm_q10"] = compression_threshold
     out["csv_compression"] = compression.astype("boolean")
+    sustained, sustained_threshold = sustained_move(
+        m, cluster_sigma_m(m, windows.W_CS))
+    out["sustained"] = sustained
+    out["sustained_threshold"] = sustained_threshold
+    out["trigger_sustained"] = ((sustained > sustained_threshold)
+                                .where(ok & sustained_threshold.notna(), pd.NA)
+                                .astype("boolean"))
     out["coherence"] = coherence_series
     out["coherence_threshold"] = agreement_threshold
     out["basket_coherence"] = agreement.astype("boolean")

@@ -210,7 +210,8 @@ def escalations_frame(events: list[ClusterEvent]) -> pd.DataFrame:
 # are already in the file, and join would fail on the overlapping names.
 DERIVED_COLUMNS = ("m_calendar", "m_vix", "si_total", "sigma_m", "k", "decision",
                    "base_points", "breadth_q99", "n_active_blocks",
-                   "n_active_blocks_q99")
+                   "n_active_blocks_q99", "breadth_share", "saed_count_24h",
+                   "saed_breadth_threshold")
 
 
 def reset_derived(basket_frame: pd.DataFrame) -> pd.DataFrame:
@@ -259,6 +260,32 @@ def tag_overlap(saed_events: pd.DataFrame, events: list[ClusterEvent]) -> pd.Dat
     return saed_events.assign(overlap_with_cluster=pd.array(overlap, dtype="boolean"))
 
 
+def saed_breadth(saed_events: pd.DataFrame, hours: pd.Index,
+                 horizon: int = windows.SUSTAINED_WINDOW,
+                 window: int = windows.W_CS) -> tuple[pd.Series, pd.Series]:
+    """How many single-asset events fired in the trailing `horizon` hours.
+
+    §8.6 makes the dependency between the two modules one-way: SAED takes the
+    basket factor as input and feeds nothing back. That kept them independent,
+    and it was throwing away the better predictor - on train the SAED count alone
+    reaches 53% precision at its 98th percentile and 83% at its 99th, where the
+    cluster detector reaches 37%. The count is already computed; only the wiring
+    was missing.
+
+    No cycle is created. SAED depends on the basket factor from cross_section,
+    not on anything cluster produces, so the run order pipeline -> cross_section
+    -> saed -> cluster stands as it was.
+    """
+    if saed_events.empty:
+        empty = pd.Series(np.nan, index=hours)
+        return empty, empty
+    per_hour = saed_events.groupby("hour_utc").size().reindex(hours).fillna(0)
+    accumulated = per_hour.rolling(horizon, min_periods=horizon // 2).sum()
+    threshold = (accumulated.shift(1).rolling(window, min_periods=window)
+                 .quantile(windows.SAED_BREADTH_QUANTILE))
+    return accumulated, threshold
+
+
 DEFAULT_EVENTS_PATH = "data/meals/cluster_events.parquet"
 DEFAULT_ESCALATIONS_PATH = "data/meals/cluster_event_escalations.parquet"
 
@@ -297,9 +324,22 @@ def main(argv: list[str] | None = None) -> int:
     vix_windows = vix.windows_from_spikes(scored, hours.to_numpy())
     vix_multiplier = vix.multiplier_series(hours, vix_windows)
 
+    # The single-asset channel (§8.6 departure, deviation §24). Read before the
+    # points are assembled, because it is one of the triggers now.
+    saed_events = (pd.read_parquet(args.saed_events)
+                   if os.path.exists(args.saed_events) else pd.DataFrame())
+    saed_count, saed_threshold = saed_breadth(saed_events, hours)
+    saed_hit = (saed_count > saed_threshold).where(saed_threshold.notna(), False)
+
     points = si_index.base_points(basket, metrics, basket_frame["single_factor"],
-                                  hours, windows.VOLUME_CONFIRM)
-    frame = basket_frame.join(points)
+                                  hours, windows.VOLUME_CONFIRM,
+                                  sustained=basket_frame.get("trigger_sustained"),
+                                  saed_breadth=saed_hit)
+    frame = basket_frame.drop(columns=["trigger_sustained"], errors="ignore").join(points)
+    frame["saed_count_24h"] = saed_count
+    frame["saed_breadth_threshold"] = saed_threshold
+    frame["trigger_sustained"] = points["trigger_sustained"]
+    frame["trigger_saed_breadth"] = points["trigger_saed_breadth"]
     frame["m_calendar"] = pd.Series(calendar).reindex(hours).fillna(1.0)
     frame["m_vix"] = pd.Series(vix_multiplier).reindex(hours).fillna(1.0)
     frame["si_total"] = si_index.si_total(frame["base_points"], frame["m_calendar"],

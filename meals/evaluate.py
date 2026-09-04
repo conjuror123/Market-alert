@@ -207,7 +207,8 @@ def _num(value, digits=1) -> str:
 
 
 def render(scores: dict, per_block: dict, diag: dict, start: int, end: int,
-           thresholds: pd.DataFrame, periods: dict | None = None) -> str:
+           thresholds: pd.DataFrame, periods: dict | None = None,
+           near: dict | None = None) -> str:
     span = (f"{datetime.fromtimestamp(start, tz=timezone.utc):%Y-%m-%d} .. "
             f"{datetime.fromtimestamp(end, tz=timezone.utc):%Y-%m-%d}")
     out = ["# MEALS backtest against the §7 yardstick", "",
@@ -223,6 +224,21 @@ def render(scores: dict, per_block: dict, diag: dict, start: int, end: int,
                    f"{_pct(s['precision'])} | {_pct(s['recall'])} | {_pct(s['f1'])} | "
                    f"{_num(s['median_lead'], 0)} |")
     out.append("")
+
+    if near:
+        strict = scores["SI-Index cluster events"]
+        out += ["## Against a softened label", "",
+                "§7 cuts truth at a block's 99th percentile, and an alert before a "
+                "move reaching 0.99 of that line scores as a total failure. The same "
+                "detector, same alerts, against a label at 0.75 of the threshold:", "",
+                "| Label | Episodes | Caught | Precision | Recall | F1 |",
+                "|---|---:|---:|---:|---:|---:|",
+                f"| §7 as written | {strict['episodes']} | {strict['caught']} | "
+                f"{_pct(strict['precision'])} | {_pct(strict['recall'])} | "
+                f"{_pct(strict['f1'])} |",
+                f"| at 0.75 of the threshold | {near['episodes']} | {near['caught']} | "
+                f"{_pct(near['precision'])} | {_pct(near['recall'])} | "
+                f"{_pct(near['f1'])} |", ""]
 
     if periods:
         out += ["## Train and test (§7)", "",
@@ -319,6 +335,14 @@ def main(argv: list[str] | None = None) -> int:
     detections = np.array([position[h] for h in events["t0_utc"] if h in position])
 
     scores = {"SI-Index cluster events": score(detections, runs)}
+
+    # The same detector against the softened label (§7's threshold at
+    # truth.NEAR_FRACTION). Reported next to the strict number so the size of the
+    # cliff is visible: a move reaching 0.99 of a block's Q99 is a total failure
+    # under the strict label and a hit under this one.
+    near_runs = episodes(scored["significant_near"].fillna(False).to_numpy(dtype=bool)) \
+        if "significant_near" in scored else []
+    near = score(detections, near_runs) if near_runs else None
     for column, name in (("baseline_spy_trailing", "SPY trailing 24h (runnable)"),
                          ("baseline_spy", "SPY forward 24h (§7 as written)")):
         fires = np.array([position[h] for h in
@@ -352,7 +376,7 @@ def main(argv: list[str] | None = None) -> int:
                        escalations[escalations["hour_utc"] >= start], scored)
 
     report = render(scores, per_block, diag, int(scored.index.min()),
-                    int(scored.index.max()), thresholds, periods)
+                    int(scored.index.max()), thresholds, periods, near)
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(report)

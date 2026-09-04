@@ -56,11 +56,13 @@ def metrics_for(basket, rows):
     return out
 
 
-def points_for(basket, rows, single=False):
+def points_for(basket, rows, single=False, sustained=False, saed=False):
     hours = pd.Index([HOUR], name="hour_utc")
+    flag = lambda on: pd.Series([on], index=hours)          # noqa: E731
     return si_index.base_points(basket, metrics_for(basket, rows),
-                                pd.Series([single], index=hours), hours,
-                                volume_threshold=2.5).iloc[0]
+                                flag(single), hours, volume_threshold=2.5,
+                                sustained=flag(sustained),
+                                saed_breadth=flag(saed)).iloc[0]
 
 
 def test_price_shock_scores_once_regardless_of_how_many_assets():
@@ -147,9 +149,10 @@ def test_every_trigger_firing_across_every_block_reaches_the_maximum():
         "twelvedata:A": (0.05, True, True, 9.0), "twelvedata:B": (0.05, True, True, 9.0),
         "twelvedata:C": (0.05, True, True, 9.0), "twelvedata:D": (0.05, True, True, np.nan),
         "twelvedata:E": (0.05, True, True, np.nan), "twelvedata:F": (0.05, True, True, np.nan),
-    }, single=True)
+    }, single=True, sustained=True, saed=True)
     # §4.2's four flat awards sum to 12; the graded breadth term adds its full
-    # value here because every block present is active.
+    # value here because every block present is active, and the two
+    # matched-horizon channels add theirs.
     assert si_index.MAX_FLAT_POINTS == 12
     assert row["breadth_share"] == pytest.approx(1.0)
     assert row["base_points"] == pytest.approx(si_index.MAX_POINTS)
@@ -195,3 +198,30 @@ def test_si_total_applies_both_multipliers():
 def test_si_total_is_unchanged_without_multipliers():
     points = pd.Series([7.0])
     assert si_index.si_total(points, pd.Series([1.0]), pd.Series([1.0])).iloc[0] == 7.0
+
+
+def test_the_matched_horizon_channels_score_on_their_own():
+    # Unlike breadth they do not depend on the cluster shift: each is its own
+    # observation about the 24 hours behind this one.
+    basket = three_blocks()
+    quiet = dict.fromkeys([f"twelvedata:{t}" for t in "ABCDEF"],
+                          (0.001, False, False, 0.0))
+    assert points_for(basket, quiet)["base_points"] == 0
+    assert points_for(basket, quiet, sustained=True)["base_points"] == \
+        si_index.POINTS_SUSTAINED
+    assert points_for(basket, quiet, saed=True)["base_points"] == \
+        si_index.POINTS_SAED_BREADTH
+
+
+def test_a_weight_override_replaces_the_configured_one():
+    # The §7 search sweeps the weights; every real run passes None.
+    basket = three_blocks()
+    quiet = dict.fromkeys([f"twelvedata:{t}" for t in "ABCDEF"],
+                          (0.001, False, False, 0.0))
+    hours = pd.Index([HOUR], name="hour_utc")
+    row = si_index.base_points(basket, metrics_for(basket, quiet),
+                               pd.Series([False], index=hours), hours,
+                               volume_threshold=2.5,
+                               sustained=pd.Series([True], index=hours),
+                               weights={"sustained": 99.0}).iloc[0]
+    assert row["base_points"] == 99.0

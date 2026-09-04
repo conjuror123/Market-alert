@@ -64,6 +64,16 @@ TRUTH_HORIZON = 24     # horizon for truth labelling and baseline (§7)
 # (§3.4). Starred: §7 calibrates it. 0.90 fires in 1.12% of hours once the second
 # leg - the basket must actually have shifted - is applied.
 COHERENCE_QUANTILE = 0.90
+
+# The matched-horizon channel (deviation §24). §4.2's triggers are all one-hour
+# statistics, while §7 asks what happens over the following 24 hours; the same
+# basket move accumulated over 24 reference hours is three times more precise
+# than its one-hour form (80% against 25% on train). These two say how far past
+# its own recent history that accumulation and the single-asset event count must
+# reach. Both starred.
+SUSTAINED_WINDOW = 24
+SUSTAINED_QUANTILE = 0.99
+SAED_BREADTH_QUANTILE = 0.98
 REVERSAL_DELAY = 3     # delay before the vector-reversal branch (§5.2)
 
 # Floor under k_t in §5.2: the empirical percentile alone would sink so low in a

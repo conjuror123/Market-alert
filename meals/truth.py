@@ -34,9 +34,19 @@ from meals.basket import Basket
 
 log = logging.getLogger("meals.truth")
 
-# §7: train is 2021-01-01 .. 2023-12-31, test is 2024-01-01 onwards. The boundary
-# is stored as the first hour of test, so the comparison is a plain "<".
-TRAIN_END = datetime(2024, 1, 1, tzinfo=timezone.utc)
+# §7 sets train at 2021-01-01 .. 2023-12-31 and test at 2024-01-01 onwards, and
+# says in the same breath that recalibrating after a test run requires "a new
+# version and a NEW TEST PERIOD". The first test has been run and reported, so
+# this is that new period: train now ends 2025-01-01 and test is 2025 onwards.
+#
+# It is the largest clean split still available, and it is not a comfortable one -
+# 33 episodes against the first test's 42. Holding out 2026 alone would have left
+# 16, at which point recall moves in steps of six percentage points and any F1 is
+# barely distinguishable from noise. Read the second test as weaker evidence than
+# the first: its window lay inside the range whose aggregate result has already
+# been seen once, even though nothing was tuned against it. The genuinely
+# untouched period is the data that accumulates from 2026-09 onwards.
+TRAIN_END = datetime(2025, 1, 1, tzinfo=timezone.utc)
 
 # §7: the horizon of both the labelling protocol and the baseline, in
 # reference-calendar hours.
@@ -50,6 +60,16 @@ BASELINE_ASSET = "twelvedata:SPY"
 # fifth of a percent of the threshold - immaterial to the result, but stating it
 # is cheaper than leaving a reader to guess which of the two was meant.
 BASELINE_MOVE = math.log(1.02)
+
+# A move that reaches this fraction of its block's Q99 counts as a NEAR miss.
+# §7 labels an hour by a hard cut at the 99th percentile, and against that cut a
+# detector firing before a move that reaches 0.99 of it is recorded as entirely
+# wrong. Measured on train: of 37 alerts scored as failures, not one landed on a
+# quiet market, the median reached 0.69 of the threshold and 14 came within 25%
+# of it. The strict label stays exactly as §7 defines it and remains what is
+# optimised and reported; this second one exists so the size of that cliff is
+# visible next to it.
+NEAR_FRACTION = 0.75
 
 DEFAULT_LABELS_PATH = os.path.join("data", "meals", "truth_labels.parquet")
 DEFAULT_THRESHOLDS_PATH = os.path.join("data", "meals", "truth_thresholds.parquet")
@@ -198,6 +218,9 @@ def label(metrics: dict[str, pd.DataFrame], basket: Basket, hours: pd.Index,
     leader = ratio.fillna(-1.0).idxmax(axis=1)
     frame["driving_block"] = leader.where(complete & significant)
     frame["max_ratio"] = ratio.max(axis=1).where(complete)
+    near = (ratio > NEAR_FRACTION).any(axis=1)
+    frame["significant_near"] = pd.array(np.where(complete, near, pd.NA),
+                                         dtype="boolean")
 
     baseline = metrics.get(BASELINE_ASSET)
     if baseline is None:
@@ -274,12 +297,12 @@ def main(argv: list[str] | None = None) -> int:
         part = frame[mask]
         if part.empty:
             continue
-        log.info("  %-5s hours %6d | significant %5d (%.1f%%) | baseline fwd %5d "
-                 "(%.1f%%) | baseline trailing %5d (%.1f%%)",
+        log.info("  %-5s hours %6d | significant %5d (%.1f%%) | near %5d (%.1f%%) "
+                 "| baseline trailing %5d (%.1f%%)",
                  name, len(part), int(part["significant"].sum()),
                  100 * part["significant"].mean(),
-                 int(part["baseline_spy"].fillna(False).sum()),
-                 100 * part["baseline_spy"].fillna(False).mean(),
+                 int(part["significant_near"].sum()),
+                 100 * part["significant_near"].mean(),
                  int(part["baseline_spy_trailing"].fillna(False).sum()),
                  100 * part["baseline_spy_trailing"].fillna(False).mean())
     log.info("thresholds (Q99 of |24h move| on train): %s",
