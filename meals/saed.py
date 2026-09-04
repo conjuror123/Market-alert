@@ -50,31 +50,24 @@ class SaedEvent:
 
 
 def triggers(frame: pd.DataFrame) -> pd.Series:
-    """The event-generation condition of §8.2: hybrid, like everything in §3.1.
+    """The event-generation condition: one standardised statistic, one critical
+    value.
 
-    An event is created regardless of volume confirmation or any other factor -
-    that is the point of the module: a single-asset move is grounds in itself,
-    even when volume is ordinary.
+    This is how an event study decides, and it is deliberately simpler than what
+    it replaces. The score is the residual divided by the spread of its peers in
+    the same hour (BMP); the test is whether that exceeds the two-sided 1%
+    critical value. Weighting by precision is where the power comes from, and the
+    standardisation is the test - the literature adds no second raw-magnitude
+    filter, and ours was doing real damage: it passed 139.9x more often in the
+    widest fifth of hours than in the calmest, against 2.3x for the standardised
+    leg, so it put back exactly the market-wide bias the standardisation removes.
 
-    The relative leg is taken on z_resid_bmp where it exists - the residual
-    divided by the spread of its PEERS in the same hour (BMP, see
-    residuals.cross_sectional_scale). Without it the question is "did this asset
-    move a lot", which on measurement turned out to be answered yes almost only
-    when everything moved: 97.1% of breaches fell in the widest fifth of hours by
-    cross-sectional spread. With it the question is the one the module's name
-    claims - did it move a lot compared with its peers, right now.
-
-    The absolute leg is unchanged and still on the raw residual: a move has to be
-    large in its own right as well as unusual against its peers, and dividing by
-    a peer spread cannot substitute for that.
+    An event is still created regardless of volume or anything else. A
+    single-asset move is grounds in itself.
     """
     score = frame["z_resid_bmp"] if "z_resid_bmp" in frame else frame["z_resid"]
-    known = (score.notna() & frame["q99_resid"].notna()
-             & frame["sigma_lt_resid"].notna())
-    hit = ((score.abs() > frame["q99_resid"])
-           & (frame["e_resid"].abs()
-              >= windows.ABS_LEG_RESID * frame["sigma_lt_resid"]))
-    return hit.where(known, pd.NA).astype("boolean")
+    known = score.notna()
+    return (score.abs() > windows.SAED_CRITICAL).where(known, pd.NA).astype("boolean")
 
 
 def build_events(asset: Asset, frame: pd.DataFrame,

@@ -858,6 +858,11 @@ docs/TZ_MEALS_v5.1.txt — the specification itself: what every "§4.3" in the c
 docs/meals-deviations.md — departures from the spec, each with its reason
 ```
 
+**The specification is superseded.** It is kept because the code cites its section
+numbers in hundreds of comments, but where it and the measurements disagree, the
+measurements win — `docs/meals-deviations.md`, `docs/saed-v2-plan.md` and
+`docs/meals-v2-findings.md` are what describe the system now.
+
 The specification lies in the repository as `docs/TZ_MEALS_v5.1.txt`. This is not
 decoration: the code refers to it hundreds of times ("§2.7", "§4.3", "§8.2"), and all
 sixty tunable numbers are explained only there. It was written in Russian and is kept

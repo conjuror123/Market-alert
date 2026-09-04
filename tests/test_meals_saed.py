@@ -16,7 +16,11 @@ def asset(**over):
 
 
 def scored(hits, n=40, sigma=0.01):
-    """A series where the §8.2 condition holds at positions `hits`, quiet elsewhere."""
+    """A series where the trigger condition holds at positions `hits`, quiet elsewhere.
+
+    The score the trigger reads is z_resid_bmp - the residual standardised against
+    its peers in the same hour - so that is what the hits are placed in.
+    """
     z = [0.5] * n
     e = [0.001] * n
     for i in hits:
@@ -24,7 +28,7 @@ def scored(hits, n=40, sigma=0.01):
         e[i] = 0.05
     return pd.DataFrame({
         "hour_utc": [(i + 1) * HOUR for i in range(n)],
-        "z_resid": z, "e_resid": e,
+        "z_resid": z, "z_resid_bmp": z, "e_resid": e,
         "q99_resid": [3.0] * n,
         "sigma_lt_resid": [sigma] * n,
         "r": [0.01] * n,
@@ -32,25 +36,37 @@ def scored(hits, n=40, sigma=0.01):
     })
 
 
-def test_trigger_needs_both_legs():
+def test_trigger_is_the_standardised_score_against_one_critical_value():
+    # How an event study decides: the standardisation is the test, and the raw
+    # size of the move is not a second hurdle. It used to be, and that leg passed
+    # 139.9x more often in the loudest hours than the quietest - putting back the
+    # market-wide bias the standardisation exists to remove.
     frame = scored([])
-    frame.loc[0, "z_resid"] = 10.0      # the relative leg passed
-    frame.loc[0, "e_resid"] = 0.001     # the absolute one did not
-    frame.loc[1, "z_resid"] = 1.0
-    frame.loc[1, "e_resid"] = 0.05      # absolute only
-    frame.loc[2, "z_resid"] = 10.0
-    frame.loc[2, "e_resid"] = 0.05      # both
+    frame.loc[0, "z_resid_bmp"] = windows.SAED_CRITICAL + 1
+    frame.loc[0, "e_resid"] = 0.000001        # a tiny raw move, and it still counts
+    frame.loc[1, "z_resid_bmp"] = windows.SAED_CRITICAL - 1
+    frame.loc[1, "e_resid"] = 10.0            # a huge raw move, and it does not
+    frame.loc[2, "z_resid_bmp"] = -(windows.SAED_CRITICAL + 1)   # both directions
 
     out = saed.triggers(frame)
-    assert not bool(out.iloc[0])
+    assert bool(out.iloc[0])
     assert not bool(out.iloc[1])
     assert bool(out.iloc[2])
 
 
-def test_trigger_is_null_when_thresholds_are_unknown():
+def test_trigger_is_null_where_the_score_is_unknown():
+    # §1.2: an unassessed hour is NULL, not False. Without enough assets in
+    # session there is no peer spread to standardise against.
     frame = scored([0])
-    frame.loc[0, "q99_resid"] = np.nan
+    frame.loc[0, "z_resid_bmp"] = np.nan
     assert pd.isna(saed.triggers(frame).iloc[0])
+
+
+def test_trigger_falls_back_to_the_raw_score_without_a_peer_spread():
+    # An asset with no cross-section to compare against - a lone instrument in a
+    # backtest - is still assessed rather than silently dropped.
+    frame = scored([0]).drop(columns=["z_resid_bmp"])
+    assert bool(saed.triggers(frame).iloc[0])
 
 
 def test_cooldown_folds_repeats_into_one_event():

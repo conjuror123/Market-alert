@@ -1,3 +1,21 @@
+SUPERSEDED - kept for reference, no longer the governing design.
+================================================================
+
+This specification described the system as first conceived. Measurement has since
+overtaken it in several places, and where the two disagree the measurement wins.
+What the code actually does now, and why, is in:
+
+    docs/meals-deviations.md   - every departure, each with the number behind it
+    docs/saed-v2-plan.md       - the single-asset detector on event-study practice
+    docs/meals-v2-findings.md  - why the cluster detector was rebuilt, and its limit
+    docs/meals-v2-plan.md      - what the literature says the design should be
+
+The section numbers below are still the ones the code cites in its comments, so the
+file stays where it is. Read it as the origin of those references, not as a
+statement of current behaviour.
+
+================================================================
+
 TECHNICAL SPECIFICATION
 Macro-Event Alert & Logic System (MEALS) — Composite Sensation Index (SI-Index)
 
