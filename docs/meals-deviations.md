@@ -580,3 +580,39 @@ cluster detector at the spec's uncalibrated starting values reaches 0.5x.
 
 **What it costs:** one extra column, and a note that any comparison quoting "the §7
 baseline" has to say which of the two it means.
+
+---
+
+## 19. How the §7 metrics are counted
+
+**Spec §7** asks for precision, recall, F1 and lead time, overall and per block, and
+names a baseline to compare against. It does not say what a unit of measurement is,
+and three choices there move the numbers more than any threshold does.
+
+**Scoring starts when the whole basket is warm, 2021-11-22.** §6.6 keeps an hour out
+of backtest statistics while its triggers are still warming up. The last ETF's Q95
+window fills on 2021-11-22; before that only crypto and FX are warm, and three cluster
+events were in fact created from those two blocks alone. Scoring them would measure a
+handicapped detector against a full yardstick. The truth thresholds are unaffected and
+still use the whole train period — they are built from returns, which are valid from
+the first bar.
+
+**Recall is per episode, not per hour.** A cluster event holds a 72-hour cooldown, and
+a 24-hour forward label turns one shock into roughly two dozen consecutive significant
+hours. Per-hour recall would therefore mostly measure the cooldown: the detector is
+forbidden from firing on hours it has already reported. Contiguous significant hours
+are collapsed into one episode, and the question is whether the episode was caught at
+all — which is also the question a person receiving the alerts would ask. A detection
+is credited to an episode if it lands within 24 reference hours before its start, or
+anywhere inside it, and lead time is measured from the earliest such alert.
+
+**The baseline is given the same cooldown.** The trailing SPY rule fires on 940 hours
+against the SI-Index's 184 events. Comparing recall as they stand would reward the
+baseline for being allowed to shout, so it is also run through the 72-hour cooldown
+and both versions are reported. It matters: uncooled, the baseline reaches 39.2%
+recall against the detector's 28.8%; cooled to a comparable 65 alerts it reaches
+18.3%, below the detector — while keeping more than double the precision.
+
+**What it costs:** none of these numbers is comparable with one computed per hour, and
+an earlier per-hour reading of the same data made the detector look worse than chance
+on test. The unit has to be stated whenever a figure from this report is quoted.
