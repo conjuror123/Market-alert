@@ -68,9 +68,9 @@ Most of it. The failure is in the score, not the plumbing.
 
 ## 3. Phases
 
-### Ф8 — Replace the score with a volatility forecast
+### Phase 8 — Replace the score with a volatility forecast
 
-**Ф8.1 `meals/features.py`.** A feature matrix on the reference-hour grid:
+**Phase 8.1 `meals/features.py`.** A feature matrix on the reference-hour grid:
 - HAR components: realized volatility of the basket over 1h, 24h, 120h (a trading
   week) and 480h (a month), all strictly trailing;
 - the strong signals as levels, not conditions: `csv_norm`, VIX, downside
@@ -81,26 +81,26 @@ Most of it. The failure is in the score, not the plumbing.
 - everything scaled by its own trailing distribution so a feature means the same thing
   in 2022 as in 2025.
 
-**Ф8.2 `meals/forecast.py`.** Predict realized basket volatility over the next 24
+**Phase 8.2 `meals/forecast.py`.** Predict realized basket volatility over the next 24
 reference hours. Start with a linear HAR regression — interpretable, few parameters,
 the field's own baseline — and only add complexity if the linear model is beaten by
 something we can still explain. Estimated strictly on data through t-1.
 
-**Ф8.3 `meals/threshold.py`.** Turn the forecast into alerts with a time-varying
+**Phase 8.3 `meals/threshold.py`.** Turn the forecast into alerts with a time-varying
 threshold: a rolling quantile of the forecast's own recent distribution, with a
 peaks-over-threshold tail fit where the quantile is unstable. Success here is
 mechanical and checkable without labels: **the firing rate must track the episode
 rate**. Today that ratio is 0.98 against 0.41.
 
-**Ф8.4 A volatility-aware label**, beside §7's strict one and the 0.75 near label. An
+**Phase 8.4 A volatility-aware label**, beside §7's strict one and the 0.75 near label. An
 hour is significant if a large move follows *or* realized volatility enters its upper
 tail. All three reported; the strict one stays the headline for continuity with v1.
 
-**Ф8.5 PR-AUC as the primary metric.** Threshold-free, so it stops conflating "is the
+**Phase 8.5 PR-AUC as the primary metric.** Threshold-free, so it stops conflating "is the
 score informative" with "is the threshold well chosen" — the two questions v1 kept
 mixing. Precision and recall still reported at the operating point.
 
-### Ф9 — Validate on a fresh cross-section (available now)
+### Phase 9 — Validate on a fresh cross-section (available now)
 
 Calibrate on the current 21 instruments; test on a disjoint universe — European and
 Asian indices, other sectors, other crypto. This tests generalisation across
@@ -108,12 +108,12 @@ cross-sections rather than across time, and it is the only genuinely unlooked-at
 evidence we can get without waiting. Needs a second basket configuration and its bars;
 the rest of the pipeline is basket-agnostic already.
 
-### Ф10 — Validate out of time (needs waiting)
+### Phase 10 — Validate out of time (needs waiting)
 
 The data from 2026-09 onward is untouched by any decision made so far. First read at
 roughly four months, a solid read at a year.
 
-### Ф11 — Ship, or stop
+### Phase 11 — Ship, or stop
 
 If it passes, wire to Telegram alongside the existing per-asset alerts. If it does not,
 that is a result too, and the honest move is the simpler detector.
@@ -143,9 +143,9 @@ evidence of generalisation. One test per frozen `config_version`, as §7 require
 freeze record goes in `data/meals/frozen.json` before the test is read, as it did for
 both v1 tests.
 
-And the honest caveat that applies to all of it: the redesign in Ф8.3 is motivated by an
+And the honest caveat that applies to all of it: the redesign in Phase 8.3 is motivated by an
 observation made on a test period. That makes the old data unusable for judging it and
-makes Ф9 and Ф10 the only real evidence.
+makes Phase 9 and Phase 10 the only real evidence.
 
 ---
 
