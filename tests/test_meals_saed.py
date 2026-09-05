@@ -164,6 +164,7 @@ def test_block_alert_aggregates_the_same_hour():
         "e_resid": [0.05, -0.06, 0.04],
         "r": [0.01, 0.02, 0.03], "beta": [1.0, 1.0, 1.0], "repeat_count": [0, 0, 0],
         "tier": ["routine", "major", "notable"],
+        "channel": ["digest", "push", "dropped"],
     })
     alerts = saed.aggregate_block_alerts(events)
 
@@ -171,8 +172,10 @@ def test_block_alert_aggregates_the_same_hour():
     assert equity["n_assets"] == 2
     assert equity["max_abs_z_resid"] == 8.0
     assert "twelvedata:QQQ" in equity["assets"]
-    # The block is delivered at the severity of its worst member, not its first.
+    # The block is delivered at the severity of its worst member, not its
+    # first, and on its most urgent member's channel.
     assert equity["tier"] == "major"
+    assert equity["channel"] == "push"
     assert len(alerts) == 2   # equity and rates are different alerts
 
 

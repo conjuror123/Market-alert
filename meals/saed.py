@@ -32,7 +32,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from meals import severity, windows
+from meals import persistence, routing, severity, windows
 from meals.basket import Asset, Basket
 
 
@@ -157,7 +157,7 @@ def aggregate_block_alerts(events: pd.DataFrame) -> pd.DataFrame:
     if events.empty:
         return pd.DataFrame({"alert_id": [], "block": [], "hour_utc": [],
                              "assets": [], "max_abs_z_resid": [], "n_assets": [],
-                             "tier": []})
+                             "tier": [], "channel": []})
 
     grouped = events.groupby(["block", "hour_utc"], sort=True)
     order = {name: i for i, name in enumerate(severity.TIERS)}
@@ -171,9 +171,19 @@ def aggregate_block_alerts(events: pd.DataFrame) -> pd.DataFrame:
         # being sent at all.
         tier=("tier", lambda s: max(s, key=lambda t: order.get(t, -1))),
     ).reset_index()
+    if "channel" in events:
+        # The block is delivered on its most urgent member's channel, for the
+        # same reason it carries its worst member's tier: one instrument's
+        # once-in-three-years move does not become a digest line because the
+        # two that moved with it were ordinary.
+        urgency = {routing.PUSH: 2, routing.DIGEST: 1, routing.DROPPED: 0}
+        alerts = alerts.merge(
+            grouped["channel"].agg(lambda s: max(s, key=lambda c: urgency.get(c, -1)))
+            .reset_index(), on=["block", "hour_utc"], how="left")
     alerts["alert_id"] = alerts["block"] + ":" + alerts["hour_utc"].astype(str)
-    return alerts[["alert_id", "block", "hour_utc", "assets", "max_abs_z_resid",
-                   "n_assets", "tier"]]
+    columns = ["alert_id", "block", "hour_utc", "assets", "max_abs_z_resid",
+               "n_assets", "tier"]
+    return alerts[columns + [c for c in ("channel",) if c in alerts]]
 
 
 def link_alerts(events: pd.DataFrame, alerts: pd.DataFrame) -> pd.DataFrame:
@@ -200,7 +210,8 @@ DEFAULT_RESIDUALS_DIR = "data/meals/residuals"
 # of random numbers, and nothing compresses them.
 RESIDUAL_COLUMNS = ("hour_utc", "asset_id", "beta", "beta_block", "e_resid",
                     "sigma_lt_resid", "z_resid", "bmp_scale", "z_resid_bmp",
-                    "q95_resid", "q99_resid", "tier") + severity.LEVEL_COLUMNS
+                    "q95_resid", "q99_resid", "tier") + severity.LEVEL_COLUMNS \
+                  + persistence.RETENTION_COLUMNS
 
 
 def save_residuals(scored: dict[str, pd.DataFrame],
@@ -270,13 +281,14 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
     # period is that it is the instrument's own history that says what is rare
     # for it, and pooling would put SHY and SOL back on one yardstick.
     scored = {aid: severity.annotate(frame) for aid, frame in scored.items()}
+    scored = {aid: persistence.annotate(frame) for aid, frame in scored.items()}
 
     all_events: list[SaedEvent] = []
     for asset in basket.instruments:
         if asset.asset_id in scored:
             all_events.extend(build_events(asset, scored[asset.asset_id]))
 
-    events = events_frame(all_events)
+    events = routing.route(persistence.attach(events_frame(all_events), scored))
     alerts = aggregate_block_alerts(events)
     return link_alerts(events, alerts), alerts, scored
 
@@ -343,6 +355,13 @@ def main(argv: list[str] | None = None) -> int:
         if span > 0:
             log.info("per year: %s", {t: round(int(counts.get(t, 0)) / span, 2)
                                       for t in severity.TIERS})
+        by_channel = events["channel"].value_counts()
+        log.info("by channel: %s", {c: int(by_channel.get(c, 0)) for c in
+                                    (routing.PUSH, routing.DIGEST, routing.DROPPED)})
+        if span > 0 and by_channel.get(routing.PUSH, 0):
+            log.info("a push every %.0f days, %.1f items per digest",
+                     365.25 / (by_channel[routing.PUSH] / span),
+                     by_channel.get(routing.DIGEST, 0) / (span * 104))
     return 0
 
 
