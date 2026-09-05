@@ -20,6 +20,12 @@ name: Backfill MEALS Bars
 #                   provider's rather than something our fetching skipped
 #   deepen-fx       fill the currency pairs below what Twelve Data's plan
 #                   serves, from FXCM's public archive (needs no key at all)
+#   deepen-etfs     the same for the US-equity instruments, from HF Data's
+#                   consolidated-tape minute bars (needs HFDATA_API_KEY)
+#   probe-hfdata    print one HF Data ticker's schema and first timestamps and
+#                   stop. Their columns and timezone are undocumented, and
+#                   deepen-etfs refuses to run until the zone has been read off
+#                   this rather than assumed. Put the ticker in `instruments`.
 
 on:
   workflow_dispatch:
@@ -38,6 +44,8 @@ on:
           - extend-history
           - fill-gaps
           - deepen-fx
+          - deepen-etfs
+          - probe-hfdata
 
 permissions:
   contents: write
@@ -74,9 +82,16 @@ jobs:
         env:
           TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          HFDATA_API_KEY: ${{ secrets.HFDATA_API_KEY }}
         run: |
-          python -m meals.backfill --${{ github.event.inputs.mode || 'extend-history' }} \
-            ${{ github.event.inputs.instruments && format('--instruments "{0}"', github.event.inputs.instruments) || '' }}
+          # probe-hfdata takes its ticker as the flag's value rather than as a
+          # separate --instruments, so it is spelled out on its own.
+          if [ "${{ github.event.inputs.mode }}" = "probe-hfdata" ]; then
+            python -m meals.backfill --probe-hfdata "${{ github.event.inputs.instruments || 'SPY' }}"
+          else
+            python -m meals.backfill --${{ github.event.inputs.mode || 'extend-history' }} \
+              ${{ github.event.inputs.instruments && format('--instruments "{0}"', github.event.inputs.instruments) || '' }}
+          fi
 
       - name: Commit the deepened store
         # Runs even on failure: whatever was fetched before a rate limit or a

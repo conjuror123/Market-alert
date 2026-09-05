@@ -92,6 +92,21 @@ class Basket:
     anchor_exchange_tz: str
     history_since: date
     session_templates: dict
+    # How far back to ACQUIRE, which is not the same question as how far back
+    # to ANALYSE. history_since is tied to the §7 train period and moving it
+    # moves the evaluation window; this only says "take whatever the sources
+    # will still give". Free archives are not permanent - FXCM's stopped
+    # updating in April 2026 - so bars not taken now may not be takeable later,
+    # and there is no cost to holding history the analysis does not yet use.
+    #
+    # Last and optional so that every hand-built Basket keeps working and falls
+    # back to the analysis floor, which is what it meant before this existed.
+    fetch_since: date | None = None
+
+    @property
+    def acquire_since(self) -> date:
+        """The acquisition floor, or the analysis one where none is configured."""
+        return self.fetch_since or self.history_since
 
     @property
     def instruments(self) -> tuple[Asset, ...]:
@@ -197,6 +212,9 @@ def load_basket(path: str = DEFAULT_BASKET_PATH) -> Basket:
 
     since = raw.get("history_since")
     history_since = _as_date(since)
+    # Defaults to history_since, so a config that never heard of it behaves
+    # exactly as before.
+    fetch_since = _as_date(raw.get("fetch_since", since))
 
     return Basket(
         assets=assets,
@@ -209,5 +227,6 @@ def load_basket(path: str = DEFAULT_BASKET_PATH) -> Basket:
         ),
         anchor_exchange_tz=raw.get("anchor_exchange_tz", "America/New_York"),
         history_since=history_since,
+        fetch_since=fetch_since,
         session_templates=templates,
     )

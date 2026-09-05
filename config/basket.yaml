@@ -26,8 +26,18 @@
 # on the fly - §2.2 forbids storing them as UTC.
 anchor_exchange_tz: America/New_York
 
-# Start of history (§2.1). Matches the train period of §7.
+# Start of history (§2.1). Matches the train period of §7 - this is the
+# ANALYSIS floor, and moving it moves the evaluation window.
 history_since: "2015-01-01"
+
+# The ACQUISITION floor, which is a different question: take whatever the
+# sources will still give, whether or not the analysis reaches it yet. Free
+# archives are not permanent - FXCM's stopped updating in April 2026 - so bars
+# not taken now may not be takeable later, and storing history the analysis
+# does not use costs nothing but disk. Each source stops at its own limit on
+# its own (see meals.backfill and price_monitor.fxcm), so a floor deeper than
+# anything available is simply the instruction "as deep as you can".
+fetch_since: "2002-01-01"
 
 # Session templates are filled in during phase 1 (holiday and half-session
 # calendars); here only the names the assets refer to.

@@ -29,7 +29,7 @@ import requests
 
 from meals import bars, fred
 from meals.basket import Asset, Basket, load_basket
-from price_monitor import candle_store, coinbase, fxcm, twelvedata
+from price_monitor import candle_store, coinbase, fxcm, hfdata, twelvedata
 from price_monitor.models import ExchangeError
 
 log = logging.getLogger("meals.backfill")
@@ -127,7 +127,7 @@ def backfill_instrument(asset: Asset, basket: Basket, bars_dir: str, api_key: st
                         extend_history: bool = False) -> dict:
     path = bars.store_path(bars_dir, asset.file_stem)
     from_legacy = import_legacy(asset, path, legacy_dir)
-    from_api = fetch_missing(asset, path, basket.history_since, api_key, session,
+    from_api = fetch_missing(asset, path, basket.acquire_since, api_key, session,
                              extend_history)
     stored = bars.load(path)
     return {
@@ -237,6 +237,56 @@ def fill_gaps(asset: Asset, path: str, table: dict, api_key: str,
             "still_missing": missing_sessions(path, table)}
 
 
+# What HF Data's minute timestamps mean. Left unset on purpose: their pages
+# describe the session as 09:30-15:59 ET, which is a statement about the market
+# rather than about the encoding, and the difference between "already UTC" and
+# "Eastern with daylight saving" is four months of every year shifted by an
+# hour. --probe-hfdata prints the file's own first timestamps so this can be
+# read off rather than assumed; until it is set, the import refuses to run.
+HFDATA_TIMEZONE: str | None = None
+
+
+def deepen_from_hfdata(asset: Asset, path: str, since: date, api_key: str,
+                       session: requests.Session,
+                       timezone_name: str | None = HFDATA_TIMEZONE) -> dict:
+    """Fills a US-equity instrument's history below what is already stored.
+
+    Same shape as the FX deepening: Twelve Data stays the live source and this
+    reaches under it, so the two never compete for an hour. The minute bars are
+    folded to the store's hourly grid by bars.to_hourly, which sums volume - so
+    the consolidated-tape filter in hfdata.to_minute_frame has to have run
+    first, or an hour would mix full-tape and IEX volume in one figure.
+    """
+    if asset.session_template != CALENDAR_TEMPLATE:
+        return {"skipped": "not a US-equity instrument", "added": 0}
+    if timezone_name is None:
+        return {"skipped": "HFDATA_TIMEZONE is unset - run --probe-hfdata first",
+                "added": 0}
+
+    stored = bars.load(path)
+    if stored.empty:
+        return {"skipped": "nothing stored yet", "added": 0}
+    oldest = datetime.fromtimestamp(int(stored["hour_utc"].min()), tz=timezone.utc)
+    if oldest.date() <= since:
+        return {"skipped": "already reaches back far enough", "added": 0}
+
+    payload = hfdata.fetch_parquet(asset.ticker, api_key, session)
+    minutes = hfdata.to_minute_frame(payload, timezone_name)
+    if minutes.empty:
+        return {"skipped": "no consolidated-tape bars returned", "added": 0}
+
+    lo = int(datetime.combine(since, datetime.min.time(),
+                              tzinfo=timezone.utc).timestamp())
+    hi = int(oldest.timestamp())
+    window = minutes[(minutes["hour_utc"] >= lo) & (minutes["hour_utc"] < hi)]
+    if window.empty:
+        return {"skipped": "nothing in the window below the store", "added": 0}
+
+    added = bars.merge(path, bars.to_hourly(window))
+    return {"skipped": None, "added": added, "minutes": len(window),
+            "from": since, "to": oldest.date()}
+
+
 def deepen_from_fxcm(asset: Asset, path: str, since: date,
                      session: requests.Session) -> dict:
     """Fills an FX pair's history BELOW what is already stored, from FXCM.
@@ -284,6 +334,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--extend-history", action="store_true",
                         help="ask from basket.history_since even where the store "
                              "already has bars, to deepen the archive backwards")
+    parser.add_argument("--probe-hfdata", default="",
+                        help="print the schema, source values and first "
+                             "timestamps of one HF Data ticker, then stop. "
+                             "Their column names and timezone are undocumented "
+                             "and must be read rather than assumed.")
+    parser.add_argument("--deepen-etfs", action="store_true",
+                        help="fill the US-equity instruments' history below "
+                             "what Twelve Data's plan serves, from HF Data's "
+                             "consolidated-tape minute bars.")
     parser.add_argument("--fill-gaps", action="store_true",
                         help="re-ask Twelve Data for trading days the NYSE "
                              "calendar has and the store does not. Whether a "
@@ -303,6 +362,43 @@ def main(argv: list[str] | None = None) -> int:
     if wanted and not instruments:
         log.error("No instrument matched --instruments %s", args.instruments)
         return 2
+
+    if args.probe_hfdata:
+        import json
+
+        key = os.environ.get("HFDATA_API_KEY", "")
+        if not key:
+            log.error("HFDATA_API_KEY is not set")
+            return 2
+        payload = hfdata.fetch_parquet(args.probe_hfdata, key, requests.Session())
+        log.info("%s: %d bytes", args.probe_hfdata, len(payload))
+        print(json.dumps(hfdata.describe(payload), indent=2, default=str))
+        return 0
+
+    if args.deepen_etfs:
+        key = os.environ.get("HFDATA_API_KEY", "")
+        if not key:
+            log.error("HFDATA_API_KEY is not set")
+            return 2
+        session = requests.Session()
+        total = 0
+        for asset in instruments:
+            path = bars.store_path(args.bars_dir, asset.file_stem)
+            try:
+                out = deepen_from_hfdata(asset, path, basket.acquire_since,
+                                         key, session)
+            except Exception as exc:
+                log.error("%s: HF Data deepening failed - %s", asset.asset_id, exc)
+                continue
+            if out["skipped"]:
+                log.info("%s: skipped (%s)", asset.asset_id, out["skipped"])
+                continue
+            total += out["added"]
+            log.info("%s: +%d bars from HF Data (%s .. %s, %d minute bars used)",
+                     asset.asset_id, out["added"], out["from"], out["to"],
+                     out["minutes"])
+        log.info("HF Data deepening added %d bars", total)
+        return 0
 
     if args.fill_gaps:
         from meals import sessions as _sessions
@@ -346,7 +442,7 @@ def main(argv: list[str] | None = None) -> int:
         for asset in instruments:
             path = bars.store_path(args.bars_dir, asset.file_stem)
             try:
-                result = deepen_from_fxcm(asset, path, basket.history_since, session)
+                result = deepen_from_fxcm(asset, path, basket.acquire_since, session)
             except Exception as exc:
                 log.error("%s: FXCM deepening failed - %s", asset.asset_id, exc)
                 continue
