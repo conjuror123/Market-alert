@@ -12,6 +12,14 @@ name: Backfill MEALS Bars
 # a chat.
 #
 # The crypto instruments need no key and can be pulled locally instead.
+#
+# Three modes, chosen at dispatch:
+#   extend-history  deepen the archive backwards to basket.history_since
+#   fill-gaps       re-ask for trading days the NYSE calendar has and the store
+#                   does not; an empty answer confirms the hole is the
+#                   provider's rather than something our fetching skipped
+#   deepen-fx       fill the currency pairs below what Twelve Data's plan
+#                   serves, from FXCM's public archive (needs no key at all)
 
 on:
   workflow_dispatch:
@@ -21,6 +29,15 @@ on:
         required: false
         default: ''
         type: string
+      mode:
+        description: 'What to run'
+        required: false
+        default: extend-history
+        type: choice
+        options:
+          - extend-history
+          - fill-gaps
+          - deepen-fx
 
 permissions:
   contents: write
@@ -58,7 +75,7 @@ jobs:
           TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
         run: |
-          python -m meals.backfill --extend-history \
+          python -m meals.backfill --${{ github.event.inputs.mode || 'extend-history' }} \
             ${{ github.event.inputs.instruments && format('--instruments "{0}"', github.event.inputs.instruments) || '' }}
 
       - name: Commit the deepened store

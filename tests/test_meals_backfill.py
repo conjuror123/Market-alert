@@ -212,3 +212,138 @@ def test_deepening_merges_the_archived_bars_into_the_store(tmp_path, monkeypatch
     frame = bars.load(str(path))
     assert int(frame["hour_utc"].min()) == older
     assert len(frame) == 7          # 4 already there plus 3 reached under them
+
+
+# --- filling sessions the calendar has and the store does not ---------------
+
+def backfill_runs(days):
+    from meals import backfill
+    return backfill._runs(days)
+
+
+def _etf(**over):
+    base = dict(ticker="SPY", source="twelvedata", tier=1, block="equity",
+                has_volume=True, tick_size=0.01, session_template="us_equity",
+                fetch_interval="30min", label="S&P 500", in_basket=True)
+    return Asset(**(base | over))
+
+
+def _day(y, m, d):
+    return int(datetime(y, m, d, 15, tzinfo=timezone.utc).timestamp())
+
+
+def _store_days(path, days):
+    bars.merge(str(path), bars.to_hourly(bars.candles_to_frame([
+        Candle(open_time=t, open=1.0, high=1.0, low=1.0, close=1.0,
+               volume=1.0, close_time=t + HOUR) for t in days])))
+
+
+def test_only_the_days_between_the_first_and_last_bar_count_as_gaps(tmp_path):
+    # A day before the archive starts is not a hole, it is simply outside it.
+    # Counting those would bury the real gaps under thousands.
+    from meals import backfill
+
+    path = tmp_path / "twelvedata_SPY.parquet"
+    _store_days(path, [_day(2024, 3, 4), _day(2024, 3, 6)])
+    table = {date(2024, 3, i): object() for i in (1, 4, 5, 6, 7)}
+
+    assert backfill.missing_sessions(str(path), table) == [date(2024, 3, 5)]
+
+
+def test_no_gaps_when_the_store_matches_the_calendar(tmp_path):
+    from meals import backfill
+
+    path = tmp_path / "twelvedata_SPY.parquet"
+    _store_days(path, [_day(2024, 3, 4), _day(2024, 3, 5)])
+    table = {date(2024, 3, i): object() for i in (4, 5)}
+    assert backfill.missing_sessions(str(path), table) == []
+
+
+def test_consecutive_missing_days_become_one_request():
+    runs = backfill_runs([date(2020, 7, 1), date(2020, 7, 2),
+                          date(2020, 12, 22)])
+    assert runs == [(date(2020, 7, 1), date(2020, 7, 2)),
+                    (date(2020, 12, 22), date(2020, 12, 22))]
+
+
+def test_days_split_by_a_weekend_still_share_one_window():
+    # Friday and the following Tuesday are three days apart; asking twice for a
+    # span one request already covers is a wasted credit.
+    runs = backfill_runs([date(2024, 3, 1), date(2024, 3, 4)])
+    assert runs == [(date(2024, 3, 1), date(2024, 3, 4))]
+
+
+def test_distant_gaps_stay_separate():
+    runs = backfill_runs([date(2024, 3, 1), date(2024, 9, 19)])
+    assert len(runs) == 2
+
+
+def test_gap_filling_is_offered_only_where_the_calendar_applies(tmp_path):
+    # A currency pair trading around the clock has no "missing Tuesday" to find
+    # against the NYSE table.
+    from meals import backfill
+
+    path = tmp_path / "x.parquet"
+    out = backfill.fill_gaps(_etf(session_template="fx_continuous"), str(path),
+                             {}, "key", None)
+    assert out["added"] == 0 and "calendar" in out["skipped"]
+
+
+def test_a_recovered_day_is_merged_and_no_longer_missing(tmp_path, monkeypatch):
+    from meals import backfill
+
+    path = tmp_path / "twelvedata_SPY.parquet"
+    _store_days(path, [_day(2024, 3, 4), _day(2024, 3, 6)])
+    table = {date(2024, 3, i): object() for i in (4, 5, 6)}
+    missing = _day(2024, 3, 5)
+
+    monkeypatch.setattr(backfill.twelvedata, "fetch_full_history",
+                        lambda **k: [Candle(open_time=missing, open=1.0, high=1.0,
+                                            low=1.0, close=1.0, volume=1.0,
+                                            close_time=missing + HOUR)])
+    monkeypatch.setattr(backfill.time, "sleep", lambda *_: None)
+    out = backfill.fill_gaps(_etf(), str(path), table, "key", None)
+
+    assert out["gaps"] == 1 and out["added"] == 1
+    assert out["still_missing"] == []
+
+
+def test_a_day_the_provider_does_not_hold_is_reported_not_hidden(tmp_path, monkeypatch):
+    # An empty answer is the useful one: it confirms the hole is the
+    # provider's, not something our own fetching skipped.
+    from meals import backfill
+
+    path = tmp_path / "twelvedata_SPY.parquet"
+    _store_days(path, [_day(2024, 3, 4), _day(2024, 3, 6)])
+    table = {date(2024, 3, i): object() for i in (4, 5, 6)}
+
+    monkeypatch.setattr(backfill.twelvedata, "fetch_full_history", lambda **k: [])
+    monkeypatch.setattr(backfill.time, "sleep", lambda *_: None)
+    out = backfill.fill_gaps(_etf(), str(path), table, "key", None)
+
+    assert out["gaps"] == 1 and out["added"] == 0
+    assert out["still_missing"] == [date(2024, 3, 5)]
+
+
+def test_a_failed_request_does_not_abandon_the_other_gaps(tmp_path, monkeypatch):
+    from meals import backfill
+    from price_monitor.models import ExchangeError
+
+    path = tmp_path / "twelvedata_SPY.parquet"
+    # Far apart on purpose: days within three of each other fold into one
+    # window by design, and this needs two separate requests to test.
+    _store_days(path, [_day(2024, 3, 4), _day(2024, 9, 20)])
+    table = {date(2024, 3, 4): object(), date(2024, 3, 5): object(),
+             date(2024, 9, 19): object(), date(2024, 9, 20): object()}
+    calls = []
+
+    def flaky(**k):
+        calls.append(k["end"])
+        if len(calls) == 1:
+            raise ExchangeError("nope")
+        return []
+
+    monkeypatch.setattr(backfill.twelvedata, "fetch_full_history", flaky)
+    monkeypatch.setattr(backfill.time, "sleep", lambda *_: None)
+    backfill.fill_gaps(_etf(), str(path), table, "key", None)
+    assert len(calls) == 2

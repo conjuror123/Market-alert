@@ -22,8 +22,9 @@ import logging
 import os
 import sys
 import time
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
+import pandas as pd
 import requests
 
 from meals import bars, fred
@@ -155,6 +156,87 @@ def _fmt(epoch: int | None) -> str:
     return datetime.fromtimestamp(epoch, tz=timezone.utc).strftime("%Y-%m-%d") if epoch else "-"
 
 
+# The NYSE table describes the US equity session and nothing else. A currency
+# pair trading around the clock has no "missing Tuesday" to find against it, so
+# gap filling is offered only where the calendar is authoritative.
+CALENDAR_TEMPLATE = "us_equity"
+
+# How many days either side of a run of missing sessions to ask for. A window
+# rather than the exact day because a request for a single date can land on the
+# wrong side of the provider's own boundary handling, and the extra rows merge
+# away for free.
+GAP_PADDING_DAYS = 1
+
+
+def missing_sessions(path: str, table: dict) -> list[date]:
+    """Trading days the calendar has and the store does not.
+
+    Bounded by what is stored: a day before the first bar or after the last is
+    not a gap, it is simply outside the archive, and reporting those would bury
+    the real holes under thousands of them.
+    """
+    stored = bars.load(path)
+    if stored.empty:
+        return []
+    days = set(pd.to_datetime(stored["hour_utc"], unit="s", utc=True).dt.date)
+    lo, hi = min(days), max(days)
+    return sorted({d for d in table if lo <= d <= hi} - days)
+
+
+def _runs(days: list[date]) -> list[tuple[date, date]]:
+    """Consecutive missing days folded into single spans, to save requests."""
+    spans: list[tuple[date, date]] = []
+    for day in days:
+        if spans and (day - spans[-1][1]).days <= 3:
+            spans[-1] = (spans[-1][0], day)
+        else:
+            spans.append((day, day))
+    return spans
+
+
+def fill_gaps(asset: Asset, path: str, table: dict, api_key: str,
+              session: requests.Session) -> dict:
+    """Re-asks the provider for the sessions the store is missing.
+
+    Whether the day is recoverable at all is the point of running this: the
+    provider may simply not hold it, in which case the request comes back empty
+    and the gap is confirmed as theirs rather than ours. Either answer is worth
+    having, and only one of them costs a credit.
+    """
+    if asset.session_template != CALENDAR_TEMPLATE:
+        return {"skipped": "no authoritative calendar", "added": 0, "gaps": 0}
+    if asset.source != "twelvedata":
+        return {"skipped": f"source {asset.source} not supported here",
+                "added": 0, "gaps": 0}
+
+    gaps = missing_sessions(path, table)
+    if not gaps:
+        return {"skipped": None, "added": 0, "gaps": 0, "still_missing": []}
+
+    added = 0
+    for start, end in _runs(gaps):
+        window_end = datetime.combine(end, datetime.min.time(),
+                                      tzinfo=timezone.utc) + timedelta(
+            days=GAP_PADDING_DAYS + 1)
+        span = (end - start).days + 2 * GAP_PADDING_DAYS + 1
+        try:
+            candles = twelvedata.fetch_full_history(
+                symbol=asset.ticker, interval=asset.fetch_interval, days=span,
+                base_url=TWELVEDATA_BASE_URL, api_key=api_key, session=session,
+                request_delay_seconds=TWELVEDATA_DELAY_SECONDS,
+                chunk_days=CHUNK_DAYS[asset.fetch_interval], end=window_end)
+        except ExchangeError as exc:
+            log.warning("%s: %s..%s could not be re-fetched: %s",
+                        asset.asset_id, start, end, exc)
+            continue
+        if candles:
+            added += bars.merge(path, bars.to_hourly(bars.candles_to_frame(candles)))
+        time.sleep(TWELVEDATA_DELAY_SECONDS)
+
+    return {"skipped": None, "added": added, "gaps": len(gaps),
+            "still_missing": missing_sessions(path, table)}
+
+
 def deepen_from_fxcm(asset: Asset, path: str, since: date,
                      session: requests.Session) -> dict:
     """Fills an FX pair's history BELOW what is already stored, from FXCM.
@@ -202,6 +284,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--extend-history", action="store_true",
                         help="ask from basket.history_since even where the store "
                              "already has bars, to deepen the archive backwards")
+    parser.add_argument("--fill-gaps", action="store_true",
+                        help="re-ask Twelve Data for trading days the NYSE "
+                             "calendar has and the store does not. Whether a "
+                             "day is recoverable is the point: an empty answer "
+                             "confirms the hole is the provider's.")
     parser.add_argument("--deepen-fx", action="store_true",
                         help="fill the FX pairs' history below what is stored "
                              "from FXCM's public archive, which reaches 2012 "
@@ -216,6 +303,38 @@ def main(argv: list[str] | None = None) -> int:
     if wanted and not instruments:
         log.error("No instrument matched --instruments %s", args.instruments)
         return 2
+
+    if args.fill_gaps:
+        from meals import sessions as _sessions
+
+        api_key = os.environ.get("TWELVEDATA_API_KEY", "")
+        if not api_key:
+            log.error("TWELVEDATA_API_KEY is not set")
+            return 2
+        table = _sessions.load_sessions()
+        session = requests.Session()
+        filled = unfilled = 0
+        for asset in instruments:
+            path = bars.store_path(args.bars_dir, asset.file_stem)
+            try:
+                out = fill_gaps(asset, path, table, api_key, session)
+            except Exception as exc:
+                log.error("%s: gap fill failed - %s", asset.asset_id, exc)
+                continue
+            if out["skipped"]:
+                continue
+            if not out["gaps"]:
+                log.info("%s: no gaps", asset.asset_id)
+                continue
+            left = out["still_missing"]
+            filled += out["gaps"] - len(left)
+            unfilled += len(left)
+            log.info("%s: %d gap(s), +%d bars, %d still missing%s",
+                     asset.asset_id, out["gaps"], out["added"], len(left),
+                     f" {[str(d) for d in left]}" if left else "")
+        log.info("gap fill: %d recovered, %d confirmed missing at the source",
+                 filled, unfilled)
+        return 0
 
     if args.deepen_fx:
         # Its own mode rather than a step inside the usual pass: it needs no
