@@ -95,19 +95,72 @@ def test_reference_week_covers_the_holiday_hours_too():
     assert sessions.is_reference_hour(utc(2026, 12, 25, 15), ANCHOR)
 
 
-def test_table_matches_the_days_the_data_actually_has():
-    # The check that confirmed the choice of library: the schedule must match the
-    # actual bars day for day. A discrepancy means either an error in the calendar
-    # or a hole in the data - both need noticing before quorum and the
-    # cross-section start being computed on top of it.
+# The US-equity instruments, whose sessions the NYSE table describes. The FX
+# pairs and crypto trade on their own calendars and are not judged against it.
+CALENDAR_INSTRUMENTS = ("twelvedata_SPY", "twelvedata_QQQ", "twelvedata_IWM",
+                        "twelvedata_XLF", "twelvedata_TLT", "twelvedata_IEF",
+                        "twelvedata_SHY", "twelvedata_HYG", "twelvedata_GLD",
+                        "twelvedata_SLV", "twelvedata_USO", "twelvedata_DBC")
+
+# How much of an instrument's history may be missing before it stops being a
+# handful of provider holes and starts being a broken archive. The worst
+# instrument sits at 3 sessions in about 1640 - 0.18% - so this leaves room for
+# a few more to turn up without leaving room for a real failure to hide.
+MAX_MISSING_FRACTION = 0.005
+
+# Nothing recent may be missing, whatever the archive looks like further back.
+# A hole in the last quarter is not a provider's old gap, it is the live
+# collection failing now, and that has to fail loudly.
+RECENT_DAYS = 90
+
+
+def _missing_sessions(stem):
     import pandas as pd
 
     from meals import bars
 
-    frame = bars.load(bars.store_path(bars.DEFAULT_BARS_DIR, "twelvedata_SPY"))
+    frame = bars.load(bars.store_path(bars.DEFAULT_BARS_DIR, stem))
     observed = set(pd.to_datetime(frame["hour_utc"], unit="s", utc=True).dt.date)
     table = sessions.load_sessions()
     scheduled = {d for d in table if min(observed) <= d <= max(observed)}
+    return observed, scheduled
 
-    assert observed - scheduled == set()
-    assert scheduled - observed == set()
+
+def test_the_data_never_has_a_day_the_calendar_does_not():
+    # This direction stays absolute. A bar on a day the exchange was shut means
+    # the calendar is wrong or the bars are misdated, and either would poison
+    # quorum and the cross-section underneath everything else.
+    for stem in CALENDAR_INSTRUMENTS:
+        observed, scheduled = _missing_sessions(stem)
+        assert observed - scheduled == set(), f"{stem} has bars outside the calendar"
+
+
+def test_the_missing_sessions_stay_a_handful_and_none_are_recent():
+    # This direction used to be absolute too, and deepening the archive to 2020
+    # broke it: 2020-02-18 is absent from all twelve instruments, plus a few
+    # scattered days per symbol.
+    #
+    # It was not weakened to make red go away. Every missing day was re-fetched
+    # individually from Twelve Data (meals.backfill --fill-gaps, run 33994110137)
+    # and the answer was 0 recovered, 21 confirmed missing at the source. So the
+    # holes are the provider's and no amount of asking will close them.
+    #
+    # What is still worth failing on is a hole that is NOT one of those: too
+    # many, which means the archive is broken rather than pitted, or a recent
+    # one, which means the live collection is failing now.
+    import datetime as dt
+
+    today = dt.date.today()
+    for stem in CALENDAR_INSTRUMENTS:
+        observed, scheduled = _missing_sessions(stem)
+        missing = scheduled - observed
+        fraction = len(missing) / max(len(scheduled), 1)
+        assert fraction <= MAX_MISSING_FRACTION, (
+            f"{stem}: {len(missing)} of {len(scheduled)} sessions missing "
+            f"({fraction:.2%}) - too many to be provider holes: "
+            f"{sorted(str(d) for d in missing)[:10]}")
+
+        recent = [d for d in missing if (today - d).days <= RECENT_DAYS]
+        assert not recent, (
+            f"{stem} is missing recent sessions {sorted(str(d) for d in recent)} - "
+            f"that is the live collection failing, not an old provider hole")

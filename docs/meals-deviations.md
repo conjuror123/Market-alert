@@ -1012,3 +1012,46 @@ many instruments fired thresholds a series that is already rate-controlled per
 instrument, so it discards the magnitude and failed to flag the yen unwind even with
 the warm-up shortened to cover it. The continuous cross-sectional measure is the right
 statistic and the detector already computes it.
+
+## 27. The 2020 session holes are the provider's, and were proved so
+
+Deepening the ETF archive from 2021 to 2020 (§26) surfaced trading days the NYSE
+calendar has and the bar store does not — `2020-02-18` in **all twelve** US-equity
+instruments, plus a scattering of one to three more per symbol.
+
+A day missing from twelve instruments at once looks systematic, and it sits eight days
+after the archive's new start date — exactly where a fetch-boundary artefact would
+live. So the question was whether the hole was Twelve Data's or ours, and that is not a
+question worth reasoning about when one request settles it.
+
+`meals.backfill --fill-gaps` re-asks the provider for each missing session individually.
+Run 33994110137, all twelve instruments:
+
+> **gap fill: 0 recovered, 21 confirmed missing at the source**
+
+Every day, asked for directly in its own window, came back empty. The holes are Twelve
+Data's. Nothing our fetching does will close them, and no other free source carries
+US-equity **intraday** history back that far (§25's search covered this: Dukascopy's ETF
+CFDs are patchy and volume-incompatible, FXCM has no equities).
+
+**What this cost the session test.** `test_table_matches_the_days_the_data_actually_has`
+asserted both directions exactly, and the deepening broke one of them. It was replaced
+by two tests rather than relaxed into uselessness:
+
+* *The data never has a day the calendar does not* — still absolute, and now checked
+  across all twelve instruments rather than SPY alone. A bar on a closed day means the
+  calendar is wrong or the bars are misdated, and either poisons quorum and the
+  cross-section underneath everything else.
+* *The missing sessions stay a handful and none are recent* — bounded at 0.5% of
+  sessions (the worst instrument sits at 0.18%), and **zero tolerance inside 90 days**.
+  A recent hole is not an old provider gap, it is the live collection failing now.
+
+The second is weaker than what it replaces in one way and stronger in two: it covers
+twelve instruments instead of one, and it distinguishes an old archival pit from a
+live-collection failure, which the original could not do at all. The evidence for the
+tolerance is a run id, not a judgement call.
+
+**The rule this is an instance of.** A test that fails on new data is asking a question,
+not making a complaint. Answer it — here, by spending twenty-one API credits — and only
+then decide what the assertion should say. Editing the assertion first would have
+produced the same green tick and destroyed the finding.
