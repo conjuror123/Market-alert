@@ -16,12 +16,15 @@ and it is parsed when present.
 """
 from __future__ import annotations
 
+import logging
 import time
 from datetime import datetime, timedelta, timezone
 
 import requests
 
 from price_monitor.models import Candle, ExchangeError
+
+log = logging.getLogger("price_monitor.twelvedata")
 
 TIME_SERIES_ENDPOINT = "/time_series"
 
@@ -43,6 +46,28 @@ INTERVAL_SECONDS = {
 
 # The API accepts at most 5000 candles per request.
 MAX_OUTPUTSIZE = 5000
+
+# Twelve Data says this when the requested window lies entirely before the data
+# it holds for that symbol and interval. It is not a failure - it is the answer
+# "that is as far back as this goes", and the only way to find the edge, since
+# the API does not publish per-symbol history depth. Intraday depth on the free
+# tier is a few years, so any walk back to 2015 reaches it.
+_NO_DATA_MESSAGE = "no data is available"
+
+
+class PermanentExchangeError(ExchangeError):
+    """A request that will fail identically however many times it is repeated.
+
+    Retrying one costs credits and wall-clock time and cannot succeed: a walk
+    back through history hits the same 400 on every chunk past the edge, and at
+    three attempts with 8-second backoff that is 3 credits and 24 seconds burnt
+    per dead chunk. Rate limiting (429) and server faults are NOT this - those
+    are exactly the ones worth retrying.
+    """
+
+
+class NoDataInRange(PermanentExchangeError):
+    """The requested window is before the start of this symbol's history."""
 
 
 def _interval_code(interval: str) -> str:
@@ -72,6 +97,24 @@ def _parse_datetime(value: str) -> datetime:
     return datetime.strptime(value, fmt).replace(tzinfo=timezone.utc)
 
 
+def _classify(symbol: str, status_code: int, body: str) -> ExchangeError:
+    """Turns a failed response into the exception that says what to do with it."""
+    # Matched on the status as well as the message. Reading the message alone
+    # would let a 429 whose body happened to carry that phrase be classified
+    # permanent and never retried - and a rate limit dropped as if it were the
+    # end of history ends the walk early and silently, which is the one failure
+    # here that looks exactly like success.
+    if status_code == 400 and _NO_DATA_MESSAGE in body.lower():
+        return NoDataInRange(f"{symbol}: no data before the requested window")
+    # 429 is the rate limit and 5xx are the server's problem; both are worth
+    # another attempt. Everything else in the 4xx range is a statement about the
+    # request itself and will not become true by being asked again.
+    if 400 <= status_code < 500 and status_code != 429:
+        return PermanentExchangeError(
+            f"{symbol}: unexpected status {status_code}: {body[:200]}")
+    return ExchangeError(f"{symbol}: unexpected status {status_code}: {body[:200]}")
+
+
 def _request(
     sess, url: str, params: dict, granularity_seconds: int, retries: int, backoff_seconds: float, symbol: str,
 ) -> list[Candle]:
@@ -80,10 +123,11 @@ def _request(
         try:
             resp = sess.get(url, params=params, timeout=15, headers={"User-Agent": "market-alert-bot"})
             if resp.status_code != 200:
-                raise ExchangeError(f"{symbol}: unexpected status {resp.status_code}: {resp.text[:200]}")
+                raise _classify(symbol, resp.status_code, resp.text)
             data = resp.json()
             if data.get("status") == "error":
-                raise ExchangeError(f"{symbol}: Twelve Data error: {data.get('message', data)}")
+                message = str(data.get("message", data))
+                raise _classify(symbol, int(data.get("code") or 0), message)
             values = data.get("values") or []
             candles = [
                 Candle(
@@ -104,6 +148,8 @@ def _request(
             ]
             candles.sort(key=lambda c: c.open_time)
             return candles
+        except PermanentExchangeError:
+            raise
         except (requests.RequestException, ExchangeError, ValueError, KeyError, IndexError) as exc:
             last_error = exc
             if attempt < retries:
@@ -153,6 +199,7 @@ def fetch_full_history(
     session: requests.Session | None = None,
     request_delay_seconds: float = 8.0,
     chunk_days: int = 150,
+    end: datetime | None = None,
 ) -> list[Candle]:
     """Page through date ranges to build up to `days` of history - only meant
     for offline backtesting, which wants a full year even though a single
@@ -167,7 +214,12 @@ def fetch_full_history(
     interval_code = _interval_code(interval)
     url = f"{base_url}{TIME_SERIES_ENDPOINT}"
     sess = session or requests
-    end = datetime.now(timezone.utc)
+    # `end` lets a caller that already holds the recent bars start the walk at
+    # its own oldest one instead of at today, so deepening an archive does not
+    # spend a credit per chunk re-fetching what is already stored. On the free
+    # tier that is the difference between reaching 2015 and running out of
+    # daily credits somewhere in 2019.
+    end = end or datetime.now(timezone.utc)
     start_bound = end - timedelta(days=days)
     # MAX_OUTPUTSIZE hourly candles is ~208 days if every hour had one - the
     # 150-day default leaves room so weekends/holidays inside a chunk never risk
@@ -188,7 +240,25 @@ def fetch_full_history(
             "start_date": chunk_start.strftime("%Y-%m-%d %H:%M:%S"),
             "end_date": chunk_end.strftime("%Y-%m-%d %H:%M:%S"),
         }
-        for c in _request(sess, url, params, granularity_seconds, retries=3, backoff_seconds=8.0, symbol=symbol):
+        try:
+            fetched = _request(sess, url, params, granularity_seconds,
+                               retries=3, backoff_seconds=8.0, symbol=symbol)
+        except NoDataInRange:
+            # The edge of this symbol's history, which is the normal way a walk
+            # back to a date older than the provider holds ends. Not an error,
+            # and nothing further back can exist either - so stop asking.
+            break
+        except ExchangeError as exc:
+            # Anything else: keep what the earlier chunks already cost. This
+            # used to propagate, and the whole dict went with it - a walk from
+            # 2026 back to 2015 that succeeded for five years and then hit one
+            # bad chunk returned NOTHING, discarding every candle fetched and
+            # every credit spent on them. A short history is recoverable on the
+            # next run; a spent daily quota is not.
+            log.warning("%s: stopping the history walk at %s: %s",
+                        symbol, chunk_start.date(), exc)
+            break
+        for c in fetched:
             by_time[c.open_time] = c
         chunk_end = chunk_start
         if chunk_end > start_bound:

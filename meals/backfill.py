@@ -87,8 +87,18 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
     ones are added.
     """
     stored = bars.load(path)
-    if stored.empty or extend_history:
+    end: datetime | None = None
+    if stored.empty:
         days = _days_since(since)
+    elif extend_history:
+        # Deepening: the walk goes backwards, so it starts at the oldest bar
+        # already held rather than at today. Starting at today would spend a
+        # credit per chunk re-fetching years that are already on disk before
+        # reaching any new ground, and the free tier's 800 a day is the real
+        # ceiling on how far back a run gets.
+        end = datetime.fromtimestamp(int(stored["hour_utc"].min()), tz=timezone.utc)
+        days = max(1.0, (end - datetime.combine(
+            since, datetime.min.time(), tzinfo=timezone.utc)).total_seconds() / 86400)
     else:
         last = datetime.fromtimestamp(int(stored["hour_utc"].max()), tz=timezone.utc)
         days = max(1.0, (datetime.now(timezone.utc) - last).total_seconds() / 86400 + 1)
@@ -98,7 +108,7 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
             symbol=asset.ticker, interval=asset.fetch_interval, days=days,
             base_url=TWELVEDATA_BASE_URL, api_key=api_key, session=session,
             request_delay_seconds=TWELVEDATA_DELAY_SECONDS,
-            chunk_days=CHUNK_DAYS[asset.fetch_interval],
+            chunk_days=CHUNK_DAYS[asset.fetch_interval], end=end,
         )
     elif asset.source == "coinbase":
         candles = coinbase.fetch_full_history(

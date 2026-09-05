@@ -1,4 +1,5 @@
 import os
+from datetime import date, datetime, timezone
 
 import pandas as pd
 
@@ -67,3 +68,57 @@ def test_import_without_legacy_file_is_a_no_op(tmp_path):
     path = bars.store_path(str(tmp_path / "bars"), "x")
     assert import_legacy(asset(), path, str(tmp_path / "missing")) == 0
     assert not os.path.exists(path)
+
+
+def test_deepening_starts_at_the_oldest_stored_bar_not_at_today(tmp_path, monkeypatch):
+    # The walk goes backwards, so starting at today spends a credit per chunk
+    # re-fetching years already on disk before reaching any new ground. On the
+    # free tier's 800 a day that is the difference between reaching 2015 and
+    # running out somewhere in 2019.
+    import pandas as pd
+
+    from meals import backfill
+
+    stored_oldest = int(datetime(2021, 6, 1, tzinfo=timezone.utc).timestamp())
+    path = tmp_path / "twelvedata_SPY.parquet"
+    bars.merge(str(path), bars.to_hourly(bars.candles_to_frame([
+        Candle(open_time=stored_oldest + i * HOUR, open=1.0, high=1.0, low=1.0,
+               close=1.0, volume=0.0, close_time=stored_oldest + (i + 1) * HOUR)
+        for i in range(2)])))
+
+    seen = {}
+
+    def fake_history(**kwargs):
+        seen.update(kwargs)
+        return []
+
+    monkeypatch.setattr(backfill.twelvedata, "fetch_full_history", fake_history)
+    asset = Asset(ticker="SPY", source="twelvedata", tier=1, block="equity",
+                  has_volume=True, tick_size=0.01, session_template="us_equity",
+                  fetch_interval="30min", label="S&P 500", in_basket=True)
+
+    backfill.fetch_missing(asset, str(path), date(2015, 1, 1), "key", None,
+                           extend_history=True)
+
+    assert seen["end"] == datetime.fromtimestamp(stored_oldest, tz=timezone.utc)
+    # and it asks for the span from `since` up to that bar, not up to today
+    assert 2340 < seen["days"] < 2360        # 2015-01-01 to 2021-06-01
+
+
+def test_a_first_ever_fetch_still_walks_back_from_today(tmp_path, monkeypatch):
+    from meals import backfill
+
+    seen = {}
+
+    def fake_history(**kwargs):
+        seen.update(kwargs)
+        return []
+
+    monkeypatch.setattr(backfill.twelvedata, "fetch_full_history", fake_history)
+    asset = Asset(ticker="SPY", source="twelvedata", tier=1, block="equity",
+                  has_volume=True, tick_size=0.01, session_template="us_equity",
+                  fetch_interval="30min", label="S&P 500", in_basket=True)
+
+    backfill.fetch_missing(asset, str(tmp_path / "nope.parquet"), date(2015, 1, 1),
+                           "key", None, extend_history=True)
+    assert seen["end"] is None
