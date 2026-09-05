@@ -193,3 +193,52 @@ def test_annotate_fires_at_roughly_the_advertised_rate():
     nominal = sum(365.25 / days for days in sv.TIER_DAYS.values())
     assert nominal / 2.5 < per_year < nominal * 2.5
     assert set(out.columns) >= set(sv.LEVEL_COLUMNS) | {"tier"}
+
+
+def test_the_same_ladder_can_be_asked_of_a_different_quantity():
+    # The column is a parameter because "the market did not explain this" and
+    # "this was a big move" are different events and both are wanted. Asked of
+    # the raw return, the ladder is what makes the detector able to see a day
+    # when everything moves together - which is what a macro event is, and
+    # which the residual channel is blind to by construction.
+    rng = np.random.default_rng(31)
+    n = 8766 * 4
+    frame = pd.DataFrame({"hour_utc": np.arange(n) * HOUR,
+                          "z_resid_bmp": rng.standard_t(4, n),
+                          "raw": rng.standard_t(3, n)})
+    out = sv.annotate(frame, column="raw", prefix="abs_level",
+                      tier_column="tier_absolute", fallback=None)
+    assert set(sv.level_columns("abs_level")) <= set(out.columns)
+    assert out["tier_absolute"].notna().any()
+    assert "tier" not in out          # the original ladder is untouched
+
+
+def test_a_missing_column_with_no_fallback_is_an_error_not_a_silent_default():
+    frame = pd.DataFrame({"hour_utc": [0, HOUR], "z_resid": [1.0, 2.0]})
+    try:
+        sv.annotate(frame, column="raw", fallback=None)
+    except KeyError:
+        return
+    raise AssertionError("expected a KeyError")
+
+
+def test_combine_keeps_the_rarest_tier_and_records_where_it_came_from():
+    frame = pd.DataFrame({
+        "a": pd.array(["routine", "major", None, "notable"], dtype="string"),
+        "b": pd.array(["extreme", None, None, "notable"], dtype="string"),
+    })
+    out = sv.combine(frame, {"abnormal": "a", "absolute": "b"})
+    assert list(out["tier"][:2]) == ["extreme", "major"]
+    assert pd.isna(out["tier"].iloc[2])
+    # One event, delivered once: a move that was both enormous and unexplained
+    # does not become two messages.
+    assert list(out["basis"][:2]) == ["both", "abnormal"]
+    assert out["basis"].iloc[3] == "both"
+
+
+def test_combine_needs_at_least_one_of_its_sources():
+    try:
+        sv.combine(pd.DataFrame({"x": [1]}), {"abnormal": "a", "absolute": "b"})
+    except KeyError:
+        return
+    raise AssertionError("expected a KeyError")

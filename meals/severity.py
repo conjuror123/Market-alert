@@ -283,11 +283,24 @@ def rank(tier: pd.Series) -> pd.Series:
     return tier.map(order).astype("Int64")
 
 
-LEVEL_COLUMNS: tuple[str, ...] = tuple(f"level_{name}" for name in TIERS)
+LEVEL_PREFIX = "level"
+LEVEL_COLUMNS: tuple[str, ...] = tuple(f"{LEVEL_PREFIX}_{name}" for name in TIERS)
 
 
-def annotate(frame: pd.DataFrame, column: str = "z_resid_bmp") -> pd.DataFrame:
+def level_columns(prefix: str = LEVEL_PREFIX) -> tuple[str, ...]:
+    return tuple(f"{prefix}_{name}" for name in TIERS)
+
+
+def annotate(frame: pd.DataFrame, column: str = "z_resid_bmp",
+             prefix: str = LEVEL_PREFIX, tier_column: str = "tier",
+             fallback: str | None = "z_resid") -> pd.DataFrame:
     """Adds the four fitted levels and the resulting tier to one asset's frame.
+
+    The column is a parameter because the same question - how rare is this for
+    this instrument - is worth asking of more than one quantity. Asked of the
+    residual it means "the market did not explain this"; asked of the raw
+    return it means "this was a big move". Those are different events and both
+    are wanted, which is why nothing here is specific to either.
 
     The bar rate is measured from the frame's own hours, so an instrument that
     changed session length part-way through history - a venue extending its
@@ -296,11 +309,56 @@ def annotate(frame: pd.DataFrame, column: str = "z_resid_bmp") -> pd.DataFrame:
     the ladder is in calendar time, and the average is what actually maps a
     fortnight onto a bar count over the stretch being fitted.
     """
-    score = frame[column] if column in frame else frame["z_resid"]
+    if column in frame:
+        score = frame[column]
+    elif fallback is not None and fallback in frame:
+        score = frame[fallback]
+    else:
+        raise KeyError(f"{column!r} not in frame and no usable fallback")
+
     rate = bar_rate(frame["hour_utc"]) if "hour_utc" in frame else 1.0
     levels = rolling_levels(score, rate)
     out = frame.copy()
     for name in TIERS:
-        out[f"level_{name}"] = levels[name].to_numpy()
-    out["tier"] = assign(score, levels).to_numpy()
+        out[f"{prefix}_{name}"] = levels[name].to_numpy()
+    out[tier_column] = assign(score, levels).to_numpy()
+    return out
+
+
+def combine(frame: pd.DataFrame, sources: dict[str, str],
+            tier_column: str = "tier", basis_column: str = "basis"
+            ) -> pd.DataFrame:
+    """Merges several tier columns into one, keeping the rarest and its origin.
+
+    `sources` maps a basis name to the tier column that carries it. An hour that
+    clears more than one is reported at its rarest tier and marked "both",
+    because it is one event and it is delivered once - a move that was both
+    enormous and unexplained does not become two messages.
+
+    Which basis a tier came from is not cosmetic. It decides which retention
+    series answers "did it hold" for that event (see meals.persistence), and it
+    is the difference between "gold moved and nothing else did" and "everything
+    moved, gold included", which read as entirely different news.
+    """
+    order = {name: i for i, name in enumerate(TIERS)}
+    present = {basis: column for basis, column in sources.items() if column in frame}
+    if not present:
+        raise KeyError("none of the tier columns are present")
+
+    ranks = pd.DataFrame({basis: frame[column].map(order)
+                          for basis, column in present.items()}, index=frame.index)
+    best = ranks.max(axis=1)
+    fired = best.notna()
+
+    out = frame.copy()
+    out[tier_column] = pd.Series(
+        [TIERS[int(v)] if pd.notna(v) else pd.NA for v in best],
+        index=frame.index, dtype="string")
+    hits = ranks.notna()
+    names = pd.Series(
+        ["+".join(sorted(b for b in present if hits.at[i, b])) if fired.at[i] else pd.NA
+         for i in frame.index],
+        index=frame.index, dtype="string")
+    out[basis_column] = names.replace(
+        {"+".join(sorted(present)): "both"} if len(present) > 1 else {})
     return out

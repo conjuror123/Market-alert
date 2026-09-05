@@ -120,15 +120,27 @@ def held(events: pd.DataFrame, horizon: int = HORIZONS[-1],
          minimum: float = HELD_MIN) -> pd.Series:
     """Whether each event's move was still standing, as a nullable boolean.
 
+    Read off the series that matches what the event claimed. An event found
+    because the market did not explain the move is tested on whether the
+    ABNORMAL move survived; one found because the move was simply large is
+    tested on the price itself. Using the abnormal series for both would
+    reject a genuine market-wide move the instant the market came back with
+    it - which, on a macro day, is most of them, and they are the events this
+    channel exists to catch.
+
     NA is a third answer and not a quiet False. An event whose horizon has not
     elapsed yet - every event the live system just produced - has not failed
     the test, it has not taken it, and a caller that treats the two alike would
     drop exactly the newest events.
     """
-    column = f"retention_{horizon}"
-    if column not in events:
+    abnormal, raw = f"retention_{horizon}", f"retention_raw_{horizon}"
+    if abnormal not in events and raw not in events:
         return pd.Series(pd.NA, index=events.index, dtype="boolean")
-    value = events[column]
+
+    value = events[abnormal] if abnormal in events \
+        else pd.Series(np.nan, index=events.index)
+    if "basis" in events and raw in events:
+        value = value.where(events["basis"].ne("absolute"), events[raw])
     return (value >= minimum).where(value.notna(), pd.NA).astype("boolean")
 
 

@@ -106,3 +106,32 @@ def test_attach_joins_on_the_asset_and_hour_not_on_row_order():
 def test_attach_keeps_the_schema_on_an_empty_table():
     out = ps.attach(pd.DataFrame({"asset_id": [], "hour_utc": []}), {})
     assert out.empty and set(ps.RETENTION_COLUMNS) <= set(out.columns)
+
+
+def test_held_reads_the_series_that_matches_what_the_event_claimed():
+    # An event found because the market did not explain the move is tested on
+    # the abnormal move; one found because the move was simply large is tested
+    # on the price. Using the abnormal series for both would reject a genuine
+    # market-wide move the instant the market came back with it - which, on a
+    # macro day, is most of them.
+    events = pd.DataFrame({
+        "basis": pd.array(["abnormal", "absolute"], dtype="string"),
+        "retention_24": [0.9, 0.1],       # the residual gave it back
+        "retention_raw_24": [0.1, 0.9],   # the price did not
+    })
+    assert list(ps.held(events)) == [True, True]
+
+
+def test_an_event_on_both_bases_is_tested_on_the_abnormal_one():
+    # "both" means the move was large AND unexplained; the stricter reading of
+    # whether it held is the one the detector's own claim rests on.
+    events = pd.DataFrame({
+        "basis": pd.array(["both"], dtype="string"),
+        "retention_24": [0.1], "retention_raw_24": [0.9],
+    })
+    assert list(ps.held(events)) == [False]
+
+
+def test_held_without_a_basis_column_uses_the_abnormal_series():
+    events = pd.DataFrame({"retention_24": [0.9, 0.1]})
+    assert list(ps.held(events)) == [True, False]

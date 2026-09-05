@@ -122,7 +122,8 @@
           "e_resid": {"type": ["number", "null"]},
           "r": {"type": ["number", "null"]},
           "repeat_count": {"type": ["integer", "null"], "description": "How many repeat firings the event's cooldown absorbed (§8.3)."},
-          "tier": {"type": ["string", "null"], "enum": ["routine", "notable", "major", "extreme", null], "description": "Severity as a return period: how long you would ordinarily wait to see a move this large in this instrument. Fitted per instrument on its own history, see meals.severity."}
+          "tier": {"type": ["string", "null"], "enum": ["routine", "notable", "major", "extreme", null], "description": "Severity as a return period: how long you would ordinarily wait to see a move this large in this instrument. Fitted per instrument on its own history, see meals.severity."},
+          "basis": {"type": ["string", "null"], "enum": ["abnormal", "absolute", "both", null], "description": "Which question the event answered: abnormal = the market did not explain the move, absolute = the move was large in itself, both = it was both."}
         }
       }
     }

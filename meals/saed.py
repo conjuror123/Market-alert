@@ -36,6 +36,27 @@ from meals import persistence, routing, severity, windows
 from meals.basket import Asset, Basket
 
 
+# The two questions worth asking of one instrument's hour, and the column each
+# is asked of. "Was this explained by the market" and "was this a big move" are
+# different events, and a detector that asks only the first is blind to exactly
+# the days when everything moves together - which is what a macro event is.
+#
+# Measured on this basket, that blindness was total: on the SVB collapse, the
+# August 2024 yen unwind and the 2024 US election, the abnormal channel pushed
+# nothing at all. The absolute channel finds 11, 17 and 9 events on those days.
+# It is also the only one of the two that breathes with the market: month to
+# month the abnormal channel varies 1.8x and the absolute one 33x, because the
+# abnormal score has the market's volatility divided out of it twice - once by
+# the instrument's own rolling sigma and once by the peer spread (BMP).
+#
+# The raw return is used rather than the winsorized one on purpose: winsorizing
+# caps the series at 0.096 where the raw reaches 0.199, which is precisely the
+# population this channel exists to find.
+TIER_SOURCES = {"abnormal": "tier_abnormal", "absolute": "tier_absolute"}
+ABSOLUTE_COLUMN = "r"
+ABSOLUTE_LEVEL_PREFIX = "abs_level"
+
+
 @dataclass(frozen=True)
 class SaedEvent:
     event_id: str
@@ -48,6 +69,7 @@ class SaedEvent:
     beta: float
     repeat_count: int
     tier: str
+    basis: str
 
 
 def triggers(frame: pd.DataFrame) -> pd.Series:
@@ -69,9 +91,18 @@ def triggers(frame: pd.DataFrame) -> pd.Series:
     """
     if "tier" not in frame:
         raise KeyError("severity.annotate must run before triggers")
-    score = frame["z_resid_bmp"] if "z_resid_bmp" in frame else frame["z_resid"]
-    known = score.notna() & frame[severity.LEVEL_COLUMNS[0]].notna()
-    return frame["tier"].notna().where(known, pd.NA).astype("boolean")
+
+    # Assessed if EITHER ladder was fitted and had something to read. One
+    # channel still warming up does not make the hour unassessed - the other
+    # one answered - and only an hour where neither could speak is NULL.
+    assessed = pd.Series(False, index=frame.index)
+    for column, prefix in ((("z_resid_bmp" if "z_resid_bmp" in frame else "z_resid"),
+                            severity.LEVEL_PREFIX),
+                           (ABSOLUTE_COLUMN, ABSOLUTE_LEVEL_PREFIX)):
+        first = severity.level_columns(prefix)[0]
+        if column in frame and first in frame:
+            assessed |= frame[column].notna() & frame[first].notna()
+    return frame["tier"].notna().where(assessed, pd.NA).astype("boolean")
 
 
 def build_events(asset: Asset, frame: pd.DataFrame,
@@ -92,6 +123,8 @@ def build_events(asset: Asset, frame: pd.DataFrame,
     r = frame["r"].to_numpy()
     beta = frame["beta"].to_numpy() if "beta" in frame else np.full(len(frame), np.nan)
     tier = frame["tier"].to_numpy(dtype=object)
+    basis = frame["basis"].to_numpy(dtype=object) if "basis" in frame \
+        else np.full(len(frame), "abnormal", dtype=object)
     rank = {name: i for i, name in enumerate(severity.TIERS)}
 
     events: list[SaedEvent] = []
@@ -108,7 +141,8 @@ def build_events(asset: Asset, frame: pd.DataFrame,
             # highest tier it reached, and only the notification is suppressed.
             counts[-1] += 1
             if rank.get(tier[i], -1) > rank.get(events[-1].tier, -1):
-                events[-1] = SaedEvent(**{**events[-1].__dict__, "tier": tier[i]})
+                events[-1] = SaedEvent(**{**events[-1].__dict__, "tier": tier[i],
+                                          "basis": str(basis[i])})
             continue
         open_at = i
         events.append(SaedEvent(
@@ -116,6 +150,7 @@ def build_events(asset: Asset, frame: pd.DataFrame,
             asset_id=asset.asset_id, block=asset.block, hour_utc=int(hours[i]),
             z_resid=float(z[i]), e_resid=float(e[i]), r=float(r[i]),
             beta=float(beta[i]), repeat_count=0, tier=str(tier[i]),
+            basis=str(basis[i]),
         ))
         counts.append(0)
 
@@ -125,10 +160,11 @@ def build_events(asset: Asset, frame: pd.DataFrame,
 
 def events_frame(events: list[SaedEvent]) -> pd.DataFrame:
     columns = ["event_id", "asset_id", "block", "hour_utc", "z_resid", "e_resid",
-               "r", "beta", "repeat_count", "tier"]
+               "r", "beta", "repeat_count", "tier", "basis"]
     if not events:
         return pd.DataFrame({c: pd.Series(dtype="object" if c in
-                                          ("event_id", "asset_id", "block", "tier")
+                                          ("event_id", "asset_id", "block",
+                                           "tier", "basis")
                                           else "float64") for c in columns})
     return pd.DataFrame([e.__dict__ for e in events])[columns]
 
@@ -210,7 +246,9 @@ DEFAULT_RESIDUALS_DIR = "data/meals/residuals"
 # of random numbers, and nothing compresses them.
 RESIDUAL_COLUMNS = ("hour_utc", "asset_id", "beta", "beta_block", "e_resid",
                     "sigma_lt_resid", "z_resid", "bmp_scale", "z_resid_bmp",
-                    "q95_resid", "q99_resid", "tier") + severity.LEVEL_COLUMNS \
+                    "q95_resid", "q99_resid", "tier", "basis", "tier_abnormal",
+                    "tier_absolute") + severity.LEVEL_COLUMNS \
+                  + severity.level_columns(ABSOLUTE_LEVEL_PREFIX) \
                   + persistence.RETENTION_COLUMNS
 
 
@@ -280,7 +318,15 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
     # deliberately NOT pooled across the basket: the whole point of a return
     # period is that it is the instrument's own history that says what is rare
     # for it, and pooling would put SHY and SOL back on one yardstick.
-    scored = {aid: severity.annotate(frame) for aid, frame in scored.items()}
+    scored = {aid: severity.annotate(frame, tier_column=TIER_SOURCES["abnormal"])
+              for aid, frame in scored.items()}
+    scored = {aid: severity.annotate(frame, column=ABSOLUTE_COLUMN,
+                                     prefix=ABSOLUTE_LEVEL_PREFIX,
+                                     tier_column=TIER_SOURCES["absolute"],
+                                     fallback=None)
+              for aid, frame in scored.items()}
+    scored = {aid: severity.combine(frame, TIER_SOURCES)
+              for aid, frame in scored.items()}
     scored = {aid: persistence.annotate(frame) for aid, frame in scored.items()}
 
     all_events: list[SaedEvent] = []
@@ -356,6 +402,7 @@ def main(argv: list[str] | None = None) -> int:
             log.info("per year: %s", {t: round(int(counts.get(t, 0)) / span, 2)
                                       for t in severity.TIERS})
         by_channel = events["channel"].value_counts()
+        log.info("by basis: %s", events["basis"].value_counts().to_dict())
         log.info("by channel: %s", {c: int(by_channel.get(c, 0)) for c in
                                     (routing.PUSH, routing.DIGEST, routing.DROPPED)})
         if span > 0 and by_channel.get(routing.PUSH, 0):

@@ -58,7 +58,7 @@ def event(t0, **overrides):
 
 EMPTY_SAED = pd.DataFrame(columns=["event_id", "asset_id", "block", "hour_utc",
                                    "z_resid", "e_resid", "r", "repeat_count",
-                                   "tier"])
+                                   "tier", "basis"])
 EMPTY_ESCALATIONS = pd.DataFrame(columns=["event_id", "seq", "hour_utc", "kind",
                                           "si_total", "reason"])
 
@@ -165,17 +165,24 @@ def test_the_exported_event_carries_its_severity_tier():
         "event_id": ["a"], "asset_id": ["twelvedata:SPY"], "block": ["equity"],
         "hour_utc": [30 * HOUR], "z_resid": [9.0], "e_resid": [0.05],
         "r": [0.06], "repeat_count": [0], "tier": ["extreme"],
+        "basis": ["absolute"],
     })
-    assert build(30 * HOUR, saed=saed)["saed_events"][0]["tier"] == "extreme"
+    exported = build(30 * HOUR, saed=saed)["saed_events"][0]
+    assert exported["tier"] == "extreme"
+    # "Gold moved and nothing else did" and "everything moved, gold included"
+    # read as entirely different news, so which question was answered travels
+    # with the event rather than being inferred from the numbers.
+    assert exported["basis"] == "absolute"
 
 
 def test_a_saed_event_without_a_tier_exports_null_rather_than_a_guess():
     saed = pd.DataFrame({
         "event_id": ["a"], "asset_id": ["twelvedata:SPY"], "block": ["equity"],
         "hour_utc": [30 * HOUR], "z_resid": [9.0], "e_resid": [0.05],
-        "r": [0.06], "repeat_count": [0], "tier": [pd.NA],
+        "r": [0.06], "repeat_count": [0], "tier": [pd.NA], "basis": [pd.NA],
     })
-    assert build(30 * HOUR, saed=saed)["saed_events"][0]["tier"] is None
+    exported = build(30 * HOUR, saed=saed)["saed_events"][0]
+    assert exported["tier"] is None and exported["basis"] is None
 
 
 def test_only_the_events_own_escalations_are_listed():
@@ -235,6 +242,7 @@ def test_export_matches_its_published_schema():
         "event_id": ["a"], "asset_id": ["twelvedata:SPY"], "block": ["equity"],
         "hour_utc": [30 * HOUR], "z_resid": [9.0], "e_resid": [0.05],
         "r": [0.06], "repeat_count": [0], "tier": ["extreme"],
+        "basis": ["both"],
     })
     jsonschema.validate(build(30 * HOUR, saed=saed), schema)
     jsonschema.validate(build(30 * HOUR), schema)

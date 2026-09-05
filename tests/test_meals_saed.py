@@ -97,6 +97,30 @@ def test_trigger_falls_back_to_the_raw_score_without_a_peer_spread():
     assert bool(saed.triggers(frame).iloc[0])
 
 
+def test_an_hour_is_assessed_if_either_ladder_could_speak():
+    # One channel still warming up does not make the hour unassessed - the
+    # other one answered. Only an hour where neither could speak is NULL.
+    frame = scored([0])
+    frame[f"level_{severity.TIERS[0]}"] = np.nan     # the abnormal ladder is blank
+    frame["abs_level_routine"] = 0.01                # the absolute one is not
+    assert bool(saed.triggers(frame).iloc[0])
+
+
+def test_an_hour_is_null_only_when_neither_ladder_could_speak():
+    frame = scored([0])
+    frame[f"level_{severity.TIERS[0]}"] = np.nan
+    assert saed.triggers(frame).isna().all()
+
+
+def test_the_event_records_which_question_it_answered():
+    # "Gold moved and nothing else did" and "everything moved, gold included"
+    # read as entirely different news, so the basis travels with the event.
+    frame = scored({5: "major"})
+    frame["basis"] = pd.array([pd.NA] * len(frame), dtype="string")
+    frame.loc[5, "basis"] = "absolute"
+    assert saed.build_events(asset(), frame)[0].basis == "absolute"
+
+
 def test_trigger_needs_severity_to_have_run():
     with pytest.raises(KeyError):
         saed.triggers(scored([0]).drop(columns=["tier"]))
@@ -217,7 +241,7 @@ def test_overlap_starts_out_null_rather_than_false():
     events = saed.events_frame([
         saed.SaedEvent(event_id="x", asset_id="a", block="FX", hour_utc=3600,
                        z_resid=4.0, e_resid=0.01, r=0.01, beta=1.0, repeat_count=0,
-                       tier="routine")])
+                       tier="routine", basis="abnormal")])
 
     tagged = saed.unevaluated_overlap(events)
 
