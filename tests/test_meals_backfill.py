@@ -122,3 +122,93 @@ def test_a_first_ever_fetch_still_walks_back_from_today(tmp_path, monkeypatch):
     backfill.fetch_missing(asset, str(tmp_path / "nope.parquet"), date(2015, 1, 1),
                            "key", None, extend_history=True)
     assert seen["end"] is None
+
+
+# --- deepening the FX history from FXCM ------------------------------------
+
+def _stored(path, first_hour, count=4):
+    return bars.merge(str(path), bars.to_hourly(bars.candles_to_frame([
+        Candle(open_time=first_hour + i * HOUR, open=1.0, high=1.0, low=1.0,
+               close=1.0, volume=0.0, close_time=first_hour + (i + 1) * HOUR)
+        for i in range(count)])))
+
+
+def _fx_asset(ticker="EUR/USD"):
+    return Asset(ticker=ticker, source="twelvedata", tier=1, block="FX",
+                 has_volume=False, tick_size=0.00001, session_template="fx",
+                 fetch_interval="1h", label=ticker, in_basket=True)
+
+
+def test_deepening_asks_only_for_the_stretch_below_what_is_stored(tmp_path, monkeypatch):
+    # Twelve Data stays the live source for these pairs. FXCM reaches UNDER
+    # what is stored and stops, so the two never compete for the same hour and
+    # a merge cannot overwrite a live bar with an archived one.
+    from meals import backfill
+
+    path = tmp_path / "twelvedata_EUR_USD.parquet"
+    oldest = int(datetime(2020, 1, 29, tzinfo=timezone.utc).timestamp())
+    _stored(path, oldest)
+
+    seen = {}
+
+    def fake_history(symbol, start, end, session=None, base_url=None):
+        seen.update(symbol=symbol, start=start, end=end)
+        return []
+
+    monkeypatch.setattr(backfill.fxcm, "fetch_history", fake_history)
+    backfill.deepen_from_fxcm(_fx_asset(), str(path), date(2015, 1, 1), None)
+
+    assert seen["symbol"] == "EURUSD"
+    assert seen["start"] == date(2015, 1, 1)
+    assert seen["end"] == date(2020, 1, 29)      # the oldest stored day, not today
+
+
+def test_deepening_skips_a_pair_the_archive_does_not_carry(tmp_path):
+    from meals import backfill
+
+    path = tmp_path / "twelvedata_USD_CNY.parquet"
+    _stored(path, int(datetime(2020, 1, 1, tzinfo=timezone.utc).timestamp()))
+    out = backfill.deepen_from_fxcm(_fx_asset("USD/CNY"), str(path),
+                                    date(2015, 1, 1), None)
+    assert out["added"] == 0 and "no FXCM symbol" in out["skipped"]
+
+
+def test_deepening_does_nothing_when_the_store_already_reaches_back(tmp_path):
+    from meals import backfill
+
+    path = tmp_path / "twelvedata_EUR_USD.parquet"
+    _stored(path, int(datetime(2014, 1, 1, tzinfo=timezone.utc).timestamp()))
+    out = backfill.deepen_from_fxcm(_fx_asset(), str(path), date(2015, 1, 1), None)
+    assert out["added"] == 0 and "far enough" in out["skipped"]
+
+
+def test_deepening_needs_something_to_deepen(tmp_path):
+    # With nothing stored there is no "below" to fill, and the ordinary Twelve
+    # Data backfill is what runs first.
+    from meals import backfill
+
+    out = backfill.deepen_from_fxcm(_fx_asset(), str(tmp_path / "none.parquet"),
+                                    date(2015, 1, 1), None)
+    assert out["added"] == 0 and "nothing stored" in out["skipped"]
+
+
+def test_deepening_merges_the_archived_bars_into_the_store(tmp_path, monkeypatch):
+    from meals import backfill
+
+    path = tmp_path / "twelvedata_EUR_USD.parquet"
+    oldest = int(datetime(2020, 1, 29, tzinfo=timezone.utc).timestamp())
+    _stored(path, oldest)
+    older = int(datetime(2019, 6, 1, tzinfo=timezone.utc).timestamp())
+
+    monkeypatch.setattr(backfill.fxcm, "fetch_history",
+                        lambda *a, **k: [Candle(open_time=older + i * HOUR,
+                                                open=1.1, high=1.2, low=1.0,
+                                                close=1.15, volume=0.0,
+                                                close_time=older + (i + 1) * HOUR)
+                                         for i in range(3)])
+    out = backfill.deepen_from_fxcm(_fx_asset(), str(path), date(2015, 1, 1), None)
+
+    assert out["added"] == 3
+    frame = bars.load(str(path))
+    assert int(frame["hour_utc"].min()) == older
+    assert len(frame) == 7          # 4 already there plus 3 reached under them

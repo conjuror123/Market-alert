@@ -28,7 +28,7 @@ import requests
 
 from meals import bars, fred
 from meals.basket import Asset, Basket, load_basket
-from price_monitor import candle_store, coinbase, twelvedata
+from price_monitor import candle_store, coinbase, fxcm, twelvedata
 from price_monitor.models import ExchangeError
 
 log = logging.getLogger("meals.backfill")
@@ -155,6 +155,42 @@ def _fmt(epoch: int | None) -> str:
     return datetime.fromtimestamp(epoch, tz=timezone.utc).strftime("%Y-%m-%d") if epoch else "-"
 
 
+def deepen_from_fxcm(asset: Asset, path: str, since: date,
+                     session: requests.Session) -> dict:
+    """Fills an FX pair's history BELOW what is already stored, from FXCM.
+
+    Only the stretch older than the oldest stored bar is asked for. Twelve Data
+    stays the live source for these pairs and keeps collecting the recent end;
+    this reaches under it and stops, so the two never compete for the same hour
+    and the merge cannot overwrite a live bar with an archived one.
+
+    Nothing happens for a pair the archive does not carry - USD/CNY - or where
+    the store already reaches back past `since`. Both are ordinary outcomes and
+    are reported as zero rather than raised.
+    """
+    symbol = fxcm.symbol_for(asset.ticker)
+    if symbol is None:
+        return {"skipped": "no FXCM symbol", "added": 0}
+
+    stored = bars.load(path)
+    if stored.empty:
+        # Deepening is defined against something. With nothing stored there is
+        # no "below" to fill, and the ordinary Twelve Data backfill runs first.
+        return {"skipped": "nothing stored yet", "added": 0}
+
+    oldest = datetime.fromtimestamp(int(stored["hour_utc"].min()), tz=timezone.utc)
+    if oldest.date() <= since:
+        return {"skipped": "already reaches back far enough", "added": 0}
+
+    candles = fxcm.fetch_history(symbol, since, oldest.date(), session)
+    if not candles:
+        return {"skipped": "archive returned nothing", "added": 0}
+
+    added = bars.merge(path, bars.to_hourly(bars.candles_to_frame(candles)))
+    return {"skipped": None, "added": added, "fetched": len(candles),
+            "from": since, "to": oldest.date()}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Phase 0: backfill of MEALS hourly history")
     parser.add_argument("--instruments", default="",
@@ -166,6 +202,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--extend-history", action="store_true",
                         help="ask from basket.history_since even where the store "
                              "already has bars, to deepen the archive backwards")
+    parser.add_argument("--deepen-fx", action="store_true",
+                        help="fill the FX pairs' history below what is stored "
+                             "from FXCM's public archive, which reaches 2012 "
+                             "where Twelve Data's plan stops at 2020. Needs no "
+                             "key and touches no other instrument.")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -175,6 +216,30 @@ def main(argv: list[str] | None = None) -> int:
     if wanted and not instruments:
         log.error("No instrument matched --instruments %s", args.instruments)
         return 2
+
+    if args.deepen_fx:
+        # Its own mode rather than a step inside the usual pass: it needs no
+        # API key, spends no Twelve Data credits, and touches only the pairs
+        # the archive carries. Mixing it in would make a run that fails for
+        # want of a key also fail to do the part that never needed one.
+        session = requests.Session()
+        total = 0
+        for asset in instruments:
+            path = bars.store_path(args.bars_dir, asset.file_stem)
+            try:
+                result = deepen_from_fxcm(asset, path, basket.history_since, session)
+            except Exception as exc:
+                log.error("%s: FXCM deepening failed - %s", asset.asset_id, exc)
+                continue
+            if result["skipped"]:
+                log.info("%s: skipped (%s)", asset.asset_id, result["skipped"])
+                continue
+            total += result["added"]
+            log.info("%s: +%d bars from FXCM (%s .. %s, %d fetched)",
+                     asset.asset_id, result["added"], result["from"],
+                     result["to"], result["fetched"])
+        log.info("FXCM deepening added %d bars", total)
+        return 0
 
     api_key = os.environ.get("TWELVEDATA_API_KEY", "")
     if not api_key and any(a.source == "twelvedata" for a in instruments):
