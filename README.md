@@ -957,6 +957,53 @@ Saturday digest, and the actual for released events is read back from the same p
 month by month. Why there is one source and what was tried before it is above, in the
 calendar section, and in `docs/meals-deviations.md`.
 
+### What actually reaches you, and the switch that stops it
+
+Three channels feed one delivery stream. They differ in what they measure, not in how
+important they are — severity is a separate axis, and it is the same ladder for all
+three.
+
+| channel | asks | example |
+|---|---|---|
+| abnormal | was this move unexplained by the market | *biggest unexplained move in about a year* |
+| absolute | was this simply a big move for this instrument | *biggest move in about three years* |
+| market | was the market as a whole disorderly | *most disorderly hour in about two months* |
+
+Severity is a **return period** — how long you would ordinarily wait to see something
+this large in this instrument — because "the biggest move in Bitcoin since March 2023"
+needs no calibration intuition where a 1-to-100 score would. Four rungs: a fortnight,
+two months, a year, three years. Fitted per instrument on its own history, so a
+once-a-year move in `SHY` and one in `SOL` mean the same thing to a reader while being
+wildly different percentages.
+
+Delivery splits by urgency, not by importance:
+
+* **Pushed at once** — the rarest tier. Roughly one every three to four weeks.
+* **Pushed after six bars** — a once-a-year move, and only if it is still standing.
+  Of the events still standing at six bars, 72% were still standing at twenty-four,
+  against 32% of those that had already given it back.
+* **Tuesday and Friday digest** — everything else that held, about two items a note.
+  Tuesday covers the weekend and Monday, when crypto trades straight through and
+  equities gap on the open; Friday closes the trading week. This is *separate from the
+  Saturday calendar digest on purpose*: that one is a forecast of what is scheduled,
+  this one is a report of what happened, and reading them as one message makes both
+  harder to skim.
+* **Dropped** — the move reverted. Not a failure of the detector: it correctly found an
+  unusual move, and then the move gave itself back. About two in five.
+
+`price_monitor/meals_delivery.py` renders and sends these; it decides nothing, because
+the channel and the digest slot are already stamped on each event by `meals.routing`.
+It rides the same hourly trigger as everything else rather than taking a schedule of
+its own, and nothing older than 48 hours is ever sent — without that rule the first
+run would deliver five years of history at once.
+
+**It is silent by default.** `meals_alerts_muted: true` in `config/config.yaml`, and
+that is where it lives rather than on the scheduler's side, for the same reason
+`alerts_muted` does: *"we are deliberately silent"* is a state of the project and has
+to be visible where the code is. A cron job switched off on someone else's website
+looks like a breakage a month later and there is nobody left to tell which it was. Set
+it to `false` to start receiving messages; nothing else needs changing.
+
 The NYSE schedule is built by the `exchange_calendars` library, but not on every run:
 the library works as a generator, and its result lies in the repository as a table. That
 way a repeat run over the same period gives the same answer even if the library has been

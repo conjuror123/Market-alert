@@ -178,6 +178,12 @@ interval: "1h"
 # is indistinguishable from a breakage a month later.
 alerts_muted: true
 
+# MEALS delivery: the pushes and the Tuesday/Friday digest (see
+# price_monitor/meals_delivery.py). Silent while the pipeline is being wired -
+# the detector runs, events are routed and written, and nothing goes out.
+# Set to false to start receiving them.
+meals_alerts_muted: true
+
 # How many recent candles to request at once. Bounded by the strictest source —
 # Coinbase serves at most 300 candles per request (300 * 1h ≈ 12.5 days of
 # history); Yahoo serves noticeably more but is trimmed to the same value.

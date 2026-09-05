@@ -132,6 +132,13 @@ class Config:
     # someone else's website looks like a breakage a month later, and there is
     # nobody to work out which it was.
     alerts_muted: bool = False
+    # The same switch for the MEALS side, and DEFAULT ON - that is, silent.
+    # The two are separate because they mute different systems: alerts_muted
+    # silences the crude per-asset signals that MEALS replaces, and this one
+    # silences MEALS itself. Wiring the delivery is not the same act as
+    # deciding to be interrupted by it, and running the pipeline with nothing
+    # going out is a state worth being able to hold on purpose.
+    meals_alerts_muted: bool = True
     health_alert_after_failures: int = 3
     health_reminder_every_failures: int = 24
     telegram_bot_token: str = ""
@@ -150,6 +157,14 @@ class Config:
     # Local store for economic_calendar.py / weekly_digest.py - see README.
     calendar_dir: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(__file__), "..", "data", "economic_calendar"))
+    # Routed MEALS events, written by python -m meals.saed and
+    # python -m meals.market and read by meals_delivery.py. Both carry the
+    # channel and digest slot the detector decided on; the delivery layer
+    # decides nothing except what it has already sent.
+    meals_events_path: str = field(default_factory=lambda: os.path.join(
+        os.path.dirname(__file__), "..", "data", "meals", "saed_events.parquet"))
+    meals_market_events_path: str = field(default_factory=lambda: os.path.join(
+        os.path.dirname(__file__), "..", "data", "meals", "market_events.parquet"))
     coinbase_base_url: str = "https://api.exchange.coinbase.com"
     yahoo_base_url: str = "https://query1.finance.yahoo.com"
     twelvedata_base_url: str = "https://api.twelvedata.com"
@@ -273,6 +288,8 @@ def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
         daily_escalation_factor=env_float(
             "DAILY_ESCALATION_FACTOR", raw.get("daily_escalation_factor", 1.5)),
         alerts_muted=env_bool("ALERTS_MUTED", raw.get("alerts_muted", False)),
+        meals_alerts_muted=env_bool("MEALS_ALERTS_MUTED",
+                                    raw.get("meals_alerts_muted", True)),
         health_alert_after_failures=env_int(
             "HEALTH_ALERT_AFTER_FAILURES", raw.get("health_alert_after_failures", 3)),
         health_reminder_every_failures=env_int(

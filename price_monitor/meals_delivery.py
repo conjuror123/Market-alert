@@ -1,0 +1,366 @@
+"""Delivers MEALS events to Telegram: the pushes, and the Tuesday/Friday digest.
+
+The detector decides everything about WHAT to say - severity as a return period,
+which channel an event belongs to, which digest slot it falls in (see
+meals.severity and meals.routing). This module decides nothing. It reads those
+decisions, renders them, and remembers what it has already sent.
+
+Like the calendar digest it piggybacks on the existing hourly trigger rather than
+taking a schedule of its own (see weekly_digest.py's module docstring). There is
+one deliberate difference. The calendar digest fires only in the exact hour that
+matches its window, because it is fetched live and there is nothing to send
+outside it. These events are already on disk with a slot stamped on them, so the
+rule here is "the slot has passed and this has not gone out yet". A missed hourly
+run therefore delays the digest to the next run instead of losing it, which
+matters because the trigger is an external service and the digest is the only
+thing that ever carries the routine tier.
+
+SEPARATE FROM THE SATURDAY CALENDAR DIGEST, on purpose, and not merely to keep
+files apart. The two are different tenses: the calendar digest is a forecast of
+what is scheduled next week, this one is a report of what actually happened.
+Reading them as one message makes both harder to skim.
+
+WHAT IS NOT SENT. Anything older than STALE_AFTER_HOURS, and this is the load-
+bearing rule rather than a nicety. The events table holds the entire history -
+2638 instrument events over five years - so without it, the first run after the
+mute comes off would deliver five years of alerts at once. It also does the right
+thing on an ordinary cold start, where there is no record of what was sent: old
+news is not news, whatever the state file does or does not remember.
+
+MUTED BY DEFAULT (Config.meals_alerts_muted). The flag lives in config.yaml for
+the same reason alerts_muted does: "we are deliberately silent" is a state of the
+project and has to be visible where the code is, not on some scheduler's website
+where a month later nobody can tell it from a breakage.
+"""
+from __future__ import annotations
+
+import logging
+import os
+from datetime import datetime, timezone
+
+from price_monitor.config import Config
+from price_monitor.notifier import TelegramError, send_telegram_message
+
+log = logging.getLogger("price_monitor.meals_delivery")
+
+# Telegram rejects a message over 4096 characters outright rather than
+# truncating it, so the digest is cut into parts. The headroom covers the
+# "part N of M" line, which would otherwise have to be counted recursively.
+_MESSAGE_LIMIT = 4000
+
+# How old an event may be and still be worth sending. Two days: long enough that
+# a scheduler outage over a weekend does not lose the Friday digest, short enough
+# that nothing arrives claiming to be news when it is not.
+STALE_AFTER_HOURS = 48
+
+# What the state file remembers. Event ids rather than a high-water mark on the
+# hour, because an event can legitimately change channel after the fact: a
+# once-a-year move is routed to the digest while its retention is unknown and
+# becomes a push six bars later, when the answer arrives. A watermark would have
+# stepped over it in between and it would never have been sent at all.
+STATE_KEY = "meals_delivery"
+_SENT = "sent"
+
+TIER_EMOJI = {"routine": "⚪", "notable": "🟠", "major": "🔴", "extreme": "🚨"}
+
+# The tier names are internal; these are what a person reads. Said as a return
+# period, because "the biggest move in about three years" needs no calibration
+# intuition where a 1-to-100 score would.
+TIER_PERIOD = {
+    "routine": "in a fortnight",
+    "notable": "in about two months",
+    "major": "in about a year",
+    "extreme": "in about three years",
+}
+
+# What was biggest, which is not the same claim for each channel. An abnormal
+# event is the biggest move the market did NOT explain, and calling that "the
+# biggest move" overstates it - the instrument may well have had larger hours
+# that the market accounted for perfectly.
+BASIS_NOUN = {
+    "abnormal": "unexplained move",
+    "absolute": "move",
+    "both": "move",
+}
+
+# Said only where it adds something the headline does not. For an abnormal
+# event the headline already carries it, and repeating it is noise.
+BASIS_NOTE = {
+    "absolute": "The market moved with it.",
+    "both": "And the market did not explain it.",
+}
+
+
+def _headline(tier: str, basis: str) -> str:
+    period = TIER_PERIOD.get(tier, tier)
+    if basis == "market":
+        return f"most disorderly hour {period}"
+    return f"biggest {BASIS_NOUN.get(basis, 'move')} {period}"
+
+
+def _retention_note(value: float) -> str:
+    """How the move stood a day later, in words rather than a bare ratio.
+
+    A ratio above one means the move CONTINUED, and rendering that as a
+    percentage still standing produces sentences like "360% of it still
+    standing", which reads as an error rather than as the strongest thing the
+    system can say about an event.
+    """
+    if value > 1.15:
+        return f"and it kept going - {value:.1f}x the original move a day later"
+    if value >= 0.85:
+        return "still there a day later"
+    if value > 0:
+        return f"{value * 100:.0f}% of it still there a day later"
+    return "fully reversed within the day"
+
+
+def _escape(text: str) -> str:
+    """The message goes out with parse_mode=HTML.
+
+    Instrument labels come from config rather than an external feed, so this is
+    belt and braces - but one unescaped "&" is enough for Telegram to reject a
+    whole message, and the digest would then simply never arrive.
+    """
+    return (str(text).replace("&", "&amp;").replace("<", "&lt;")
+            .replace(">", "&gt;"))
+
+
+def _labels() -> dict[str, str]:
+    """asset_id -> human label, from the basket definition.
+
+    Falls back to the ticker embedded in the id if the basket cannot be read: a
+    message naming BTC-USD instead of Bitcoin is worse than one that is never
+    sent, but only slightly, and this should not be the thing that stops an
+    alert going out.
+    """
+    try:
+        from meals.basket import load_basket
+
+        return {a.asset_id: a.label for a in load_basket().instruments}
+    except Exception as exc:                     # pragma: no cover - defensive
+        log.warning("Could not read basket labels: %s", exc)
+        return {}
+
+
+def load_events(cfg: Config) -> "list[dict]":
+    """Every routed event, instrument and market, as plain dicts.
+
+    Returns an empty list rather than raising when the parquet files are absent.
+    They are produced by python -m meals.saed and python -m meals.market, and the
+    hourly monitoring run must not fall over because a pipeline step has not been
+    run yet.
+    """
+    paths = [cfg.meals_events_path, cfg.meals_market_events_path]
+    if not any(os.path.exists(p) for p in paths):
+        return []
+
+    try:
+        import pandas as pd
+    except ImportError:                          # pragma: no cover - defensive
+        log.warning("pandas is not available; MEALS delivery skipped")
+        return []
+
+    rows: list[dict] = []
+    for path in paths:
+        if not os.path.exists(path):
+            continue
+        try:
+            frame = pd.read_parquet(path)
+        except Exception as exc:                 # pragma: no cover - defensive
+            log.warning("Could not read %s: %s", path, exc)
+            continue
+        if frame.empty or "channel" not in frame.columns:
+            continue
+        rows.extend(frame.to_dict("records"))
+    return rows
+
+
+def _is_market(event: dict) -> bool:
+    return str(event.get("basis") or "") == "market"
+
+
+def _clean(value) -> "float | None":
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return None if number != number else number   # NaN check without numpy
+
+
+def describe(event: dict, labels: dict[str, str]) -> str:
+    """One line for one event, as it appears in a push or a digest row."""
+    tier = str(event.get("tier") or "routine")
+    emoji = TIER_EMOJI.get(tier, "⚪")
+    when = datetime.fromtimestamp(int(event["hour_utc"]), tz=timezone.utc)
+
+    basis = str(event.get("basis") or "")
+    headline = _headline(tier, basis)
+    if _is_market(event):
+        return (f"{emoji} <b>Market-wide</b> - {headline}"
+                f"\n     hour to {when:%Y-%m-%d %H:%M} UTC")
+
+    asset_id = str(event.get("asset_id", ""))
+    label = labels.get(asset_id) or asset_id.split(":")[-1]
+    move = _clean(event.get("r"))
+    parts = [f"{emoji} <b>{_escape(label)}</b> - {headline}"]
+
+    detail = [f"hour to {when:%Y-%m-%d %H:%M} UTC"]
+    if move is not None:
+        detail.insert(0, f"{move * 100:+.2f}%")
+    parts.append("     " + ", ".join(detail))
+
+    held = _clean(event.get("retention_24"))
+    if held is not None:
+        parts.append(f"     {_retention_note(held)}")
+    return "\n".join(parts)
+
+
+def format_push(event: dict, labels: dict[str, str]) -> str:
+    """A single interrupting alert."""
+    lines = [describe(event, labels)]
+    note = BASIS_NOTE.get(str(event.get("basis") or ""))
+    if note:
+        lines.append("")
+        lines.append(_escape(note))
+    return "\n".join(lines)
+
+
+def format_digest(events: "list[dict]", labels: dict[str, str],
+                  slot: datetime) -> "list[str]":
+    """The Tuesday or Friday note, split into parts Telegram will accept.
+
+    Ordered by severity and then by time, so the part that matters is at the top
+    of the first message - a digest read only as far as its notification preview
+    should still deliver its most important line.
+    """
+    if not events:
+        return []
+
+    from meals.severity import TIERS
+
+    rank = {name: i for i, name in enumerate(TIERS)}
+    ordered = sorted(events, key=lambda e: (-rank.get(str(e.get("tier")), 0),
+                                            int(e["hour_utc"])))
+    header = (f"📋 <b>MEALS digest</b> - {slot:%A %-d %B}\n"
+              f"{len(ordered)} event{'s' if len(ordered) != 1 else ''} "
+              f"since the last one")
+
+    blocks = [describe(e, labels) for e in ordered]
+    messages, current = [], header
+    for block in blocks:
+        candidate = f"{current}\n\n{block}"
+        if len(candidate) > _MESSAGE_LIMIT and current != header:
+            messages.append(current)
+            current = block
+        else:
+            current = candidate
+    messages.append(current)
+
+    if len(messages) > 1:
+        total = len(messages)
+        messages = [f"{m}\n\n<i>part {i} of {total}</i>"
+                    for i, m in enumerate(messages, 1)]
+    return messages
+
+
+def _fresh(event: dict, now: datetime, key: str = "hour_utc") -> bool:
+    value = event.get(key)
+    if value is None or value != value:
+        return False
+    age = now.timestamp() - float(value)
+    return 0 <= age <= STALE_AFTER_HOURS * 3600
+
+
+def pending(events: "list[dict]", sent: dict, now: datetime
+            ) -> "tuple[list[dict], list[dict]]":
+    """Splits the events into (pushes, digest rows) that are due and unsent."""
+    pushes, digest = [], []
+    for event in events:
+        event_id = str(event.get("event_id", ""))
+        if not event_id or event_id in sent:
+            continue
+        channel = str(event.get("channel") or "")
+        if channel == "push" and _fresh(event, now):
+            pushes.append(event)
+        elif channel == "digest":
+            slot = event.get("digest_slot")
+            if slot is None or slot != slot:
+                continue
+            if float(slot) <= now.timestamp() and _fresh(event, now, "digest_slot"):
+                digest.append(event)
+    pushes.sort(key=lambda e: int(e["hour_utc"]))
+    return pushes, digest
+
+
+def _prune(sent: dict, now: datetime) -> dict:
+    """Forgets what is too old to matter, so the state file stays small.
+
+    Kept a little longer than an event can be delivered, so that an id is never
+    dropped while its event is still deliverable and re-sent as a result.
+    """
+    cutoff = now.timestamp() - 4 * STALE_AFTER_HOURS * 3600
+    return {k: v for k, v in sent.items() if float(v) >= cutoff}
+
+
+def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
+    """Sends whatever is due. Returns how many Telegram messages went out.
+
+    Failures are logged and swallowed: this runs inside the hourly monitoring
+    loop, and a Telegram outage must not bring the whole run down. An event is
+    marked sent only once its message has actually gone, so a failure means it
+    is retried on the next run rather than lost.
+    """
+    now = now or datetime.now(timezone.utc)
+    if cfg.meals_alerts_muted:
+        return 0
+
+    events = load_events(cfg)
+    if not events:
+        return 0
+
+    store = state.setdefault(STATE_KEY, {})
+    sent: dict = store.setdefault(_SENT, {})
+    pushes, digest = pending(events, sent, now)
+    if not pushes and not digest:
+        store[_SENT] = _prune(sent, now)
+        return 0
+
+    labels = _labels()
+    pushed = digested = 0
+
+    for event in pushes:
+        try:
+            send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
+                                  format_push(event, labels))
+        except TelegramError as exc:
+            log.error("Failed to send MEALS push %s: %s", event.get("event_id"), exc)
+            continue
+        sent[str(event["event_id"])] = int(event["hour_utc"])
+        pushed += 1
+
+    if digest:
+        slot = datetime.fromtimestamp(max(int(e["digest_slot"]) for e in digest),
+                                      tz=timezone.utc)
+        messages = format_digest(digest, labels, slot)
+        try:
+            for text in messages:
+                send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id, text)
+        except TelegramError as exc:
+            log.error("Failed to send MEALS digest: %s", exc)
+        else:
+            # Marked sent only as a whole. A digest that went out in three parts
+            # of which the third failed is retried entire on the next run: two
+            # duplicated parts are a smaller harm than a silently missing one,
+            # and the alternative - marking each event as its part lands - would
+            # split one note across two days.
+            for event in digest:
+                sent[str(event["event_id"])] = int(event["hour_utc"])
+            digested = len(messages)
+            log.info("MEALS digest sent (%d events, %d message(s))",
+                     len(digest), digested)
+
+    if pushes:
+        log.info("MEALS pushes sent: %d of %d due", pushed, len(pushes))
+    store[_SENT] = _prune(sent, now)
+    return pushed + digested

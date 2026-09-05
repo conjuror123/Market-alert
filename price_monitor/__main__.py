@@ -26,7 +26,7 @@ import sys
 
 import requests
 
-from price_monitor import candle_store, decision_log, health, weekly_digest
+from price_monitor import candle_store, decision_log, health, meals_delivery, weekly_digest
 from price_monitor.alerts_log import load_alerts_log, record_sent_alert, save_alerts_log
 from price_monitor.analysis import Signal, analyze
 from price_monitor.config import Config, EffectiveParams, load_config
@@ -299,6 +299,16 @@ def main() -> int:
     # Israel time - see weekly_digest.py's module docstring for why this
     # piggybacks on the existing hourly trigger instead of its own schedule.
     weekly_digest.maybe_send_weekly_digest(cfg, state, session)
+
+    # The MEALS side: pushes as they come, and the Tuesday/Friday digest. Also
+    # on the hourly trigger, and a no-op while cfg.meals_alerts_muted is set,
+    # which it is by default. Wrapped because a fault in a delivery layer must
+    # not cost the run its quotes, its history or its health reporting - those
+    # keep working whether or not anyone is being messaged.
+    try:
+        meals_delivery.maybe_deliver(cfg, state)
+    except Exception as exc:                     # pragma: no cover - defensive
+        log.error("MEALS delivery failed: %s", exc)
 
     if had_error:
         streak = health.record_failure(state)
