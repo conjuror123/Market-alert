@@ -142,7 +142,9 @@ def build_event(event: pd.Series, basket_frame: pd.DataFrame,
     saed = [{"event_id": row["event_id"], "asset_id": row["asset_id"],
              "block": row["block"], "hour_utc": int(row["hour_utc"]),
              "z_resid": _clean(row["z_resid"]), "e_resid": _clean(row["e_resid"]),
-             "r": _clean(row["r"]), "repeat_count": _clean(row["repeat_count"])}
+             "r": _clean(row["r"]), "repeat_count": _clean(row["repeat_count"]),
+             "tier": row["tier"] if "tier" in in_window and pd.notna(row["tier"])
+                     else None}
             for _, row in in_window.iterrows()]
 
     own = escalations[escalations["event_id"] == event["event_id"]] \

@@ -57,7 +57,8 @@ def event(t0, **overrides):
 
 
 EMPTY_SAED = pd.DataFrame(columns=["event_id", "asset_id", "block", "hour_utc",
-                                   "z_resid", "e_resid", "r", "repeat_count"])
+                                   "z_resid", "e_resid", "r", "repeat_count",
+                                   "tier"])
 EMPTY_ESCALATIONS = pd.DataFrame(columns=["event_id", "seq", "hour_utc", "kind",
                                           "si_total", "reason"])
 
@@ -150,10 +151,31 @@ def test_only_saed_events_inside_the_window_are_listed():
         "event_id": ["a", "b"], "asset_id": ["twelvedata:SPY"] * 2,
         "block": ["equity"] * 2, "hour_utc": [30 * HOUR, 55 * HOUR],
         "z_resid": [5.0, 6.0], "e_resid": [0.01, 0.02], "r": [0.02, 0.03],
-        "repeat_count": [0, 1],
+        "repeat_count": [0, 1], "tier": ["major", "routine"],
     })
     payload = build(30 * HOUR, saed=saed)
     assert [e["event_id"] for e in payload["saed_events"]] == ["a"]
+
+
+def test_the_exported_event_carries_its_severity_tier():
+    # The tier is the headline fact about a single-asset event - how rare the
+    # move was for that instrument - so it travels with the export rather than
+    # having to be recomputed from the residuals by whatever reads it.
+    saed = pd.DataFrame({
+        "event_id": ["a"], "asset_id": ["twelvedata:SPY"], "block": ["equity"],
+        "hour_utc": [30 * HOUR], "z_resid": [9.0], "e_resid": [0.05],
+        "r": [0.06], "repeat_count": [0], "tier": ["extreme"],
+    })
+    assert build(30 * HOUR, saed=saed)["saed_events"][0]["tier"] == "extreme"
+
+
+def test_a_saed_event_without_a_tier_exports_null_rather_than_a_guess():
+    saed = pd.DataFrame({
+        "event_id": ["a"], "asset_id": ["twelvedata:SPY"], "block": ["equity"],
+        "hour_utc": [30 * HOUR], "z_resid": [9.0], "e_resid": [0.05],
+        "r": [0.06], "repeat_count": [0], "tier": [pd.NA],
+    })
+    assert build(30 * HOUR, saed=saed)["saed_events"][0]["tier"] is None
 
 
 def test_only_the_events_own_escalations_are_listed():
@@ -206,6 +228,15 @@ def test_file_name_has_no_colon(tmp_path):
 def test_export_matches_its_published_schema():
     jsonschema = pytest.importorskip("jsonschema")
     schema = json.load(open(export.SCHEMA_PATH, encoding="utf-8"))
+    # Validated with the optional blocks populated, not just the skeleton: the
+    # schema declares additionalProperties false, so a field added to the export
+    # and not to the schema is a failure only if something actually fills it.
+    saed = pd.DataFrame({
+        "event_id": ["a"], "asset_id": ["twelvedata:SPY"], "block": ["equity"],
+        "hour_utc": [30 * HOUR], "z_resid": [9.0], "e_resid": [0.05],
+        "r": [0.06], "repeat_count": [0], "tier": ["extreme"],
+    })
+    jsonschema.validate(build(30 * HOUR, saed=saed), schema)
     jsonschema.validate(build(30 * HOUR), schema)
 
 

@@ -32,7 +32,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from meals import windows
+from meals import severity, windows
 from meals.basket import Asset, Basket
 
 
@@ -47,27 +47,31 @@ class SaedEvent:
     r: float
     beta: float
     repeat_count: int
+    tier: str
 
 
 def triggers(frame: pd.DataFrame) -> pd.Series:
-    """The event-generation condition: one standardised statistic, one critical
-    value.
+    """The event-generation condition: the move cleared its own routine return level.
 
-    This is how an event study decides, and it is deliberately simpler than what
-    it replaces. The score is the residual divided by the spread of its peers in
-    the same hour (BMP); the test is whether that exceeds the two-sided 1%
-    critical value. Weighting by precision is where the power comes from, and the
-    standardisation is the test - the literature adds no second raw-magnitude
-    filter, and ours was doing real damage: it passed 139.9x more often in the
-    widest fifth of hours than in the calmest, against 2.3x for the standardised
-    leg, so it put back exactly the market-wide bias the standardisation removes.
+    This replaces a single critical value shared by every instrument. The
+    critical value answered "is this distinguishable from noise", which is a
+    question about the null hypothesis and not about the recipient - it fired
+    2.1 times a week and every event it produced looked alike. The condition
+    now is that the move is at least a once-a-fortnight event FOR THIS
+    INSTRUMENT, and what comes out with it is how rare it actually was, which
+    is what decides whether the message interrupts anyone (see meals.severity).
 
-    An event is still created regardless of volume or anything else. A
-    single-asset move is grounds in itself.
+    There is still no second filter on raw magnitude, volume or anything else.
+    That was true of the critical-value test for the reason the event-study
+    literature gives - the standardisation is the test - and it stays true
+    here: a single-asset move is grounds in itself, and how much it matters is
+    now carried by the tier rather than decided at the door.
     """
+    if "tier" not in frame:
+        raise KeyError("severity.annotate must run before triggers")
     score = frame["z_resid_bmp"] if "z_resid_bmp" in frame else frame["z_resid"]
-    known = score.notna()
-    return (score.abs() > windows.SAED_CRITICAL).where(known, pd.NA).astype("boolean")
+    known = score.notna() & frame[severity.LEVEL_COLUMNS[0]].notna()
+    return frame["tier"].notna().where(known, pd.NA).astype("boolean")
 
 
 def build_events(asset: Asset, frame: pd.DataFrame,
@@ -87,6 +91,8 @@ def build_events(asset: Asset, frame: pd.DataFrame,
     e = frame["e_resid"].to_numpy()
     r = frame["r"].to_numpy()
     beta = frame["beta"].to_numpy() if "beta" in frame else np.full(len(frame), np.nan)
+    tier = frame["tier"].to_numpy(dtype=object)
+    rank = {name: i for i, name in enumerate(severity.TIERS)}
 
     events: list[SaedEvent] = []
     counts: list[int] = []
@@ -94,15 +100,22 @@ def build_events(asset: Asset, frame: pd.DataFrame,
 
     for i in np.flatnonzero(fired):
         if open_at is not None and i - open_at < cooldown_bars:
-            # Inside the pause: the same event continues, no notification.
+            # Inside the pause: the same event continues, no notification - but
+            # it can still get worse. A move that opens at the routine level and
+            # reaches the major one an hour later is a major event; reporting
+            # the tier it happened to start at would understate it purely
+            # because of when the automaton opened. So the event keeps the
+            # highest tier it reached, and only the notification is suppressed.
             counts[-1] += 1
+            if rank.get(tier[i], -1) > rank.get(events[-1].tier, -1):
+                events[-1] = SaedEvent(**{**events[-1].__dict__, "tier": tier[i]})
             continue
         open_at = i
         events.append(SaedEvent(
             event_id=f"{asset.file_stem}:{int(hours[i])}",
             asset_id=asset.asset_id, block=asset.block, hour_utc=int(hours[i]),
             z_resid=float(z[i]), e_resid=float(e[i]), r=float(r[i]),
-            beta=float(beta[i]), repeat_count=0,
+            beta=float(beta[i]), repeat_count=0, tier=str(tier[i]),
         ))
         counts.append(0)
 
@@ -112,10 +125,10 @@ def build_events(asset: Asset, frame: pd.DataFrame,
 
 def events_frame(events: list[SaedEvent]) -> pd.DataFrame:
     columns = ["event_id", "asset_id", "block", "hour_utc", "z_resid", "e_resid",
-               "r", "beta", "repeat_count"]
+               "r", "beta", "repeat_count", "tier"]
     if not events:
         return pd.DataFrame({c: pd.Series(dtype="object" if c in
-                                          ("event_id", "asset_id", "block")
+                                          ("event_id", "asset_id", "block", "tier")
                                           else "float64") for c in columns})
     return pd.DataFrame([e.__dict__ for e in events])[columns]
 
@@ -143,17 +156,24 @@ def aggregate_block_alerts(events: pd.DataFrame) -> pd.DataFrame:
     """
     if events.empty:
         return pd.DataFrame({"alert_id": [], "block": [], "hour_utc": [],
-                             "assets": [], "max_abs_z_resid": [], "n_assets": []})
+                             "assets": [], "max_abs_z_resid": [], "n_assets": [],
+                             "tier": []})
 
     grouped = events.groupby(["block", "hour_utc"], sort=True)
+    order = {name: i for i, name in enumerate(severity.TIERS)}
     alerts = grouped.agg(
         assets=("asset_id", lambda s: ",".join(sorted(s))),
         max_abs_z_resid=("z_resid", lambda s: float(s.abs().max())),
         n_assets=("asset_id", "nunique"),
+        # The block alert is delivered at the severity of its worst member. A
+        # block carrying one major move and three routine ones is a major
+        # alert; averaging or taking the first would bury the reason it is
+        # being sent at all.
+        tier=("tier", lambda s: max(s, key=lambda t: order.get(t, -1))),
     ).reset_index()
     alerts["alert_id"] = alerts["block"] + ":" + alerts["hour_utc"].astype(str)
     return alerts[["alert_id", "block", "hour_utc", "assets", "max_abs_z_resid",
-                   "n_assets"]]
+                   "n_assets", "tier"]]
 
 
 def link_alerts(events: pd.DataFrame, alerts: pd.DataFrame) -> pd.DataFrame:
@@ -180,7 +200,7 @@ DEFAULT_RESIDUALS_DIR = "data/meals/residuals"
 # of random numbers, and nothing compresses them.
 RESIDUAL_COLUMNS = ("hour_utc", "asset_id", "beta", "beta_block", "e_resid",
                     "sigma_lt_resid", "z_resid", "bmp_scale", "z_resid_bmp",
-                    "q95_resid", "q99_resid")
+                    "q95_resid", "q99_resid", "tier") + severity.LEVEL_COLUMNS
 
 
 def save_residuals(scored: dict[str, pd.DataFrame],
@@ -243,6 +263,13 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
     scored = residuals.standardise_cross_section(scored)
     scored = {aid: residuals.rescore_thresholds(frame, windows_by_asset[aid])
               for aid, frame in scored.items()}
+
+    # Severity is fitted per instrument on its own standardised score, after the
+    # cross-sectional pass because that is the score the trigger reads. It is
+    # deliberately NOT pooled across the basket: the whole point of a return
+    # period is that it is the instrument's own history that says what is rare
+    # for it, and pooling would put SHY and SOL back on one yardstick.
+    scored = {aid: severity.annotate(frame) for aid, frame in scored.items()}
 
     all_events: list[SaedEvent] = []
     for asset in basket.instruments:
@@ -308,6 +335,14 @@ def main(argv: list[str] | None = None) -> int:
     if not alerts.empty:
         log.info("alerts by block: %s",
                  alerts["block"].value_counts().to_dict())
+    if not events.empty:
+        span = (events["hour_utc"].max() - events["hour_utc"].min()) / (3600 * 24 * 365.25)
+        counts = events["tier"].value_counts()
+        log.info("events by tier: %s", {t: int(counts.get(t, 0))
+                                        for t in severity.TIERS})
+        if span > 0:
+            log.info("per year: %s", {t: round(int(counts.get(t, 0)) / span, 2)
+                                      for t in severity.TIERS})
     return 0
 
 

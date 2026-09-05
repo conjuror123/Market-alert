@@ -156,14 +156,13 @@ ABS_LEG_Q99 = 6.0   # |r_t| >= 6.0 * sigma_LT  (*) calibrated on train, spec 3.0
 # passed 2.3x more often in the widest fifth of hours than the calmest, the raw
 # absolute leg 139.9x. A floor against a slow long-term sigma is no floor at all
 # when the market is loud.
-# Taken from the residuals' own distribution, not from the normal table. The
-# two-sided 1% normal value of 2.58 is what an event study would use, and on
-# these residuals it catches 3.82% of asset-hours rather than 1%: standardised
-# financial residuals are fat-tailed, which is exactly why the field also keeps
-# non-parametric tests around. 8.0 is close to the observed 99.9th percentile
-# (8.08) and lands the alert rate where this project has always wanted it -
-# a few a week across the whole basket rather than dozens.
-SAED_CRITICAL = 8.0
+# The critical value itself has now gone the same way, and for a related reason.
+# One value shared by every instrument answers "is this distinguishable from
+# noise", which is a question about the null hypothesis rather than about the
+# recipient: it made a once-a-decade move in SHY and a Tuesday in SOL come out
+# looking identical. What replaced it is a return level fitted per instrument on
+# its own history - see meals.severity - so the threshold is no longer a
+# constant and does not live here.
 
 ABS_LEG_RESID = 3.0   # retired from the trigger; kept for the older reports
 ABS_LEG_Q95 = 1.5   # |r_t| >= 1.5 * sigma_LT

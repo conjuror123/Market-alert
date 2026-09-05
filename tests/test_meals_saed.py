@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from meals import saed, windows
+from meals import saed, severity
 from meals.basket import Asset
 
 HOUR = 3600
@@ -15,43 +15,61 @@ def asset(**over):
     return Asset(**(base | over))
 
 
-def scored(hits, n=40, sigma=0.01):
+def scored(hits, n=40, sigma=0.01, tier="routine"):
     """A series where the trigger condition holds at positions `hits`, quiet elsewhere.
 
     The score the trigger reads is z_resid_bmp - the residual standardised against
-    its peers in the same hour - so that is what the hits are placed in.
+    its peers in the same hour - so that is what the hits are placed in. The tier
+    column is set directly rather than fitted: severity.rolling_levels needs two
+    years of bars before it will say anything, and these fixtures are forty bars
+    long. The levels are still filled in, because triggers() reads them to tell
+    "quieter than routine" apart from "nothing fitted yet".
+
+    `hits` may be a list of positions, or a dict of position -> tier name when a
+    test needs the tiers to differ.
     """
+    placed = hits if isinstance(hits, dict) else {i: tier for i in hits}
     z = [0.5] * n
     e = [0.001] * n
-    for i in hits:
+    tiers = [pd.NA] * n
+    for i, name in placed.items():
         z[i] = 10.0
         e[i] = 0.05
-    return pd.DataFrame({
+        tiers[i] = name
+    frame = pd.DataFrame({
         "hour_utc": [(i + 1) * HOUR for i in range(n)],
         "z_resid": z, "z_resid_bmp": z, "e_resid": e,
         "q99_resid": [3.0] * n,
         "sigma_lt_resid": [sigma] * n,
         "r": [0.01] * n,
         "beta": [1.0] * n,
+        "tier": pd.array(tiers, dtype="string"),
     })
+    for rank, name in enumerate(severity.TIERS):
+        frame[f"level_{name}"] = 5.0 + rank
+    return frame
 
 
-def test_trigger_is_the_standardised_score_against_one_critical_value():
-    # How an event study decides: the standardisation is the test, and the raw
-    # size of the move is not a second hurdle. It used to be, and that leg passed
-    # 139.9x more often in the loudest hours than the quietest - putting back the
-    # market-wide bias the standardisation exists to remove.
-    frame = scored([])
-    frame.loc[0, "z_resid_bmp"] = windows.SAED_CRITICAL + 1
-    frame.loc[0, "e_resid"] = 0.000001        # a tiny raw move, and it still counts
-    frame.loc[1, "z_resid_bmp"] = windows.SAED_CRITICAL - 1
-    frame.loc[1, "e_resid"] = 10.0            # a huge raw move, and it does not
-    frame.loc[2, "z_resid_bmp"] = -(windows.SAED_CRITICAL + 1)   # both directions
+def test_trigger_fires_on_the_tier_not_on_the_size_of_the_move():
+    # The condition is "rarer than this instrument's once-a-fortnight level", and
+    # nothing else is a second hurdle. That was already true of the critical
+    # value it replaces, for the reason the event-study literature gives - the
+    # standardisation is the test - and the raw-magnitude leg removed before it
+    # passed 139.9x more often in the loudest hours than the quietest.
+    frame = scored({0: "routine"})
+    frame.loc[0, "e_resid"] = 0.000001    # a tiny raw move, and it still counts
+    frame.loc[1, "e_resid"] = 10.0        # a huge raw move with no tier, and it does not
 
     out = saed.triggers(frame)
     assert bool(out.iloc[0])
     assert not bool(out.iloc[1])
-    assert bool(out.iloc[2])
+
+
+def test_trigger_fires_in_both_directions():
+    frame = scored({0: "routine", 1: "major"})
+    frame.loc[0, "z_resid_bmp"] = -10.0
+    out = saed.triggers(frame)
+    assert bool(out.iloc[0]) and bool(out.iloc[1])
 
 
 def test_trigger_is_null_where_the_score_is_unknown():
@@ -62,11 +80,26 @@ def test_trigger_is_null_where_the_score_is_unknown():
     assert pd.isna(saed.triggers(frame).iloc[0])
 
 
+def test_trigger_is_null_before_the_levels_are_fitted():
+    # A quiet bar and a bar during severity's warm-up both carry no tier, and
+    # they are not the same claim: the first says the move was ordinary, the
+    # second says nothing was measured. The evaluation harness asks the
+    # difference when it wants to know why an instrument was silent in 2015.
+    frame = scored([])
+    frame[f"level_{severity.TIERS[0]}"] = np.nan
+    assert saed.triggers(frame).isna().all()
+
+
 def test_trigger_falls_back_to_the_raw_score_without_a_peer_spread():
     # An asset with no cross-section to compare against - a lone instrument in a
     # backtest - is still assessed rather than silently dropped.
     frame = scored([0]).drop(columns=["z_resid_bmp"])
     assert bool(saed.triggers(frame).iloc[0])
+
+
+def test_trigger_needs_severity_to_have_run():
+    with pytest.raises(KeyError):
+        saed.triggers(scored([0]).drop(columns=["tier"]))
 
 
 def test_cooldown_folds_repeats_into_one_event():
@@ -77,6 +110,23 @@ def test_cooldown_folds_repeats_into_one_event():
     assert len(events) == 1
     assert events[0].hour_utc == 6 * HOUR
     assert events[0].repeat_count == 2
+
+
+def test_the_event_keeps_the_worst_tier_it_reached_inside_the_pause():
+    # A move that opens routine and turns major an hour later is a major event.
+    # Reporting the tier it happened to open at would understate it purely
+    # because of when the automaton opened.
+    events = saed.build_events(asset(), scored({5: "routine", 7: "major"}),
+                               cooldown_bars=12)
+    assert len(events) == 1
+    assert events[0].tier == "major"
+    assert events[0].repeat_count == 1
+
+
+def test_the_event_is_not_downgraded_by_a_milder_repeat():
+    events = saed.build_events(asset(), scored({5: "major", 7: "routine"}),
+                               cooldown_bars=12)
+    assert len(events) == 1 and events[0].tier == "major"
 
 
 def test_a_new_event_opens_after_the_cooldown():
@@ -113,6 +163,7 @@ def test_block_alert_aggregates_the_same_hour():
         "z_resid": [5.0, -8.0, 4.0],
         "e_resid": [0.05, -0.06, 0.04],
         "r": [0.01, 0.02, 0.03], "beta": [1.0, 1.0, 1.0], "repeat_count": [0, 0, 0],
+        "tier": ["routine", "major", "notable"],
     })
     alerts = saed.aggregate_block_alerts(events)
 
@@ -120,6 +171,8 @@ def test_block_alert_aggregates_the_same_hour():
     assert equity["n_assets"] == 2
     assert equity["max_abs_z_resid"] == 8.0
     assert "twelvedata:QQQ" in equity["assets"]
+    # The block is delivered at the severity of its worst member, not its first.
+    assert equity["tier"] == "major"
     assert len(alerts) == 2   # equity and rates are different alerts
 
 
@@ -128,7 +181,7 @@ def test_different_hours_are_different_alerts():
         "event_id": ["a", "b"], "asset_id": ["x", "y"], "block": ["FX", "FX"],
         "hour_utc": [HOUR, 2 * HOUR], "z_resid": [5.0, 6.0],
         "e_resid": [0.05, 0.06], "r": [0.01, 0.01], "beta": [1.0, 1.0],
-        "repeat_count": [0, 0],
+        "repeat_count": [0, 0], "tier": ["routine", "routine"],
     })
     assert len(saed.aggregate_block_alerts(events)) == 2
 
@@ -138,6 +191,7 @@ def test_events_link_back_to_their_alert():
         "event_id": ["a", "b"], "asset_id": ["x", "y"], "block": ["FX", "FX"],
         "hour_utc": [HOUR, HOUR], "z_resid": [5.0, 6.0], "e_resid": [0.05, 0.06],
         "r": [0.01, 0.01], "beta": [1.0, 1.0], "repeat_count": [0, 0],
+        "tier": ["routine", "routine"],
     })
     alerts = saed.aggregate_block_alerts(events)
     linked = saed.link_alerts(events, alerts)
@@ -159,7 +213,8 @@ def test_overlap_starts_out_null_rather_than_false():
     # point "was there an active cluster event" is unanswered, not answered "no".
     events = saed.events_frame([
         saed.SaedEvent(event_id="x", asset_id="a", block="FX", hour_utc=3600,
-                       z_resid=4.0, e_resid=0.01, r=0.01, beta=1.0, repeat_count=0)])
+                       z_resid=4.0, e_resid=0.01, r=0.01, beta=1.0, repeat_count=0,
+                       tier="routine")])
 
     tagged = saed.unevaluated_overlap(events)
 

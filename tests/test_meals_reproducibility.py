@@ -19,7 +19,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from meals import cluster, export, journal, saed, versioning
+from meals import cluster, export, journal, saed, severity, versioning
 from meals.basket import Asset
 
 HOUR = 3600
@@ -210,9 +210,13 @@ def test_saed_events_keep_their_order_across_runs():
         "z_resid": np.zeros(n), "e_resid": np.zeros(n), "r": np.zeros(n),
         "beta": np.full(n, 0.9), "sigma_lt_resid": np.full(n, 0.01),
         "q99_resid": np.full(n, 3.0),
+        "tier": pd.array([pd.NA] * n, dtype="string"),
     })
+    for name in severity.TIERS:
+        frame[f"level_{name}"] = 5.0
     for position in (20, 21, 100):
         frame.loc[position, ["z_resid", "e_resid", "r"]] = [6.0, 0.05, 0.06]
+        frame.loc[position, "tier"] = "routine"
 
     first = saed.events_frame(saed.build_events(asset, frame))
     second = saed.events_frame(saed.build_events(asset, frame))
