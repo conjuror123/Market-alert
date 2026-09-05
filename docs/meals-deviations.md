@@ -867,3 +867,148 @@ extended here, does not generalise across volatility regimes on this basket. The
 remaining ideas are structural rather than parametric — scoring relative to a rolling
 distribution of the score itself, or conditioning on a regime state — and each needs a
 test period this one has not spent. The untouched data begins 2026-09.
+
+## 25. Adopt a method, then search for what it excludes
+
+A process note rather than a design decision, written down because the mistake it
+describes cost three sessions and was avoidable by one extra search.
+
+**What happened.** The single-asset detector was rebuilt on the event-study
+literature: a market model, abnormal returns, BMP standardisation against the
+cross-section. That literature was found by searching for how to detect *abnormal*
+returns, and it answered that question well. It was then adopted wholesale.
+
+Event studies ask "did this firm react to *this* announcement". In that question the
+market-wide move is a **nuisance to be removed** — it is the thing the market model
+exists to subtract. So a detector built on it is blind, *by construction*, to days
+when everything moves together, which is what a macro event is.
+
+**What it cost.** Measured on this basket, the blindness was total:
+
+| day | what the abnormal channel pushed |
+|---|---|
+| SVB collapse, Mar 2023 | one ETH alert |
+| Yen carry unwind, Aug 2024 (VIX ~65) | nothing |
+| US election, Nov 2024 | nothing |
+
+It is also a metronome. Once the full basket is live the monthly event rate per
+instrument varies **1.8×** (1.26 to 2.26), because the score has the market's
+volatility divided out of it twice — once by the instrument's own rolling sigma, once
+by the peer spread — before any threshold is applied. It cannot report that a month
+was unusual.
+
+Worse, §8.2's absolute leg was *removed* in `62ffad0` on the grounds that "the
+literature adds no second raw-magnitude filter". True of the event-study literature.
+The leg was badly built — a fixed multiple of a slow sigma, passing 139.9× more often
+in the loudest hours than the calmest — but it was pointing at a real gap. The symptom
+and the signal were deleted together, when the fix was to rebuild it properly (§26).
+
+**The rule.** *When adopting a method from a literature, run a second search for what
+that literature excludes by construction.* Concretely, after finding event studies,
+one search for market-wide stress or systemic-risk measures would have surfaced the
+gap immediately — the field keeps a separate literature for it precisely because the
+market model cannot answer it.
+
+The generalisable form: a method's assumptions are advertised, but its *exclusions*
+usually are not. Ask what question the method treats as noise, then ask whether that
+question is one this system needs answered. Here the answer was yes, and nobody
+asked for three sessions.
+
+**A second instance, same shape.** The severity ladder assumed a two-sided quantity
+centred at zero, because every quantity it had been asked of — a return, a
+standardised residual — was one. Pointed at the detector's forecast, a *log
+volatility* running from −8.26 to −4.98, it took the absolute value and ranked the
+**calmest hours on record as the rarest**. Same failure: a default that was correct
+for everything seen so far, silently wrong on the first quantity of a different kind.
+Now explicit as `severity.magnitudes(score, two_sided)`.
+
+## 26. Three channels, one ladder, one delivery stream
+
+§8 specified one question — was this move unexplained by the market — and one
+critical value shared by every instrument. Both are replaced. What is delivered now
+comes from three channels which differ in *what they measure*, all placed on one
+severity ladder and routed through one set of rules.
+
+**The ladder** (`meals.severity`). Severity is a **return period**: how long you would
+ordinarily wait to see something this large in this instrument. Four rungs — a
+fortnight, two months, a year, three years — estimated by peaks-over-threshold, a
+Generalised Pareto fitted to excesses above a high threshold and extrapolated (Coles
+2001), with probability-weighted moments (Hosking & Wallis 1987) rather than maximum
+likelihood: a closed form, so no optimiser, and the better estimator for small tail
+samples. Below the threshold the empirical quantile is used; the two agree where they
+meet. Fitted per instrument on an expanding window, applied only forward.
+
+This replaces the shared critical value because that value answered a question about
+the null hypothesis rather than about the recipient — it made a once-a-decade move in
+SHY and a Tuesday in SOL come out identical. It also settles the block imbalance
+without a rule for it: FX was 341 of 426 events and is now 847 of 2239 alerts, with
+every other block between 334 and 372.
+
+**The channels.**
+
+| channel | asks | of |
+|---|---|---|
+| abnormal | was this move unexplained by the market | `z_resid_bmp` |
+| absolute | was this simply a big move for this instrument | `r`, the raw return |
+| market | was the market as a whole disorderly | detector exceedance |
+
+`abnormal` and `absolute` are merged per hour by `severity.combine` into one tier and
+a `basis` recording which fired — one event, delivered once. The `market` channel is
+`meals.market`, and it re-scores nothing: `meals.detector` already forecasts basket
+volatility and marks its own alerts, and what it lacked was any severity, so its
+alerts could not be ranked against an instrument's and went nowhere.
+
+**Three things measurement forced, each against the obvious choice.**
+
+*The tail-sample cap went up, not down.* Fitting deeper into the tail seems right and
+is not: on Student-t(4) the three-year level came out 13% low at 200 tail points and
+within 2% at 600. Below a few hundred points the variance of the shape estimate
+dominates the bias it was meant to remove, and a level 13% low fires nearly twice as
+often as nominal.
+
+*A tier is withheld until the history can back it.* "The largest in three years"
+cannot be said on two years of data. Fitted at the warm-up mark the three-year level
+produced eight `extreme` events in the single month where that boundary fell and
+nowhere else in five years. Moves clearing a withheld level land one rung down.
+
+*The market channel reads the exceedance, not the level.* The forecast is not
+stationary — its level depends on basket composition, and this basket grew. On an
+expanding window a ladder on the level never fires again: the routine level settled at
+−5.21 during the crypto-heavy warm-up and the forecast topped out between −5.46 and
+−5.74 in every half-year since. Zero market events, silently, forever. The exceedance
+over the detector's own rolling threshold is stationary by construction. **An
+expanding-window return period belongs on a stationary quantity.**
+
+**Delivery** (`meals.routing`). Rarity and urgency are kept apart on purpose: rarity
+is a property of the instrument and means the same thing whether the system watches
+five instruments or fifty; how often someone will be interrupted is a property of the
+person and does not grow with the watchlist.
+
+- `extreme` pushes at once, without waiting to see whether it held.
+- `major` waits six bars and pushes only if still standing.
+- everything else that held goes to the next **Tuesday or Friday** digest — Tuesday
+  covers the weekend and Monday, when crypto trades through and equities gap; Friday
+  closes the week. Separate from the Saturday calendar digest, which is a *forecast*
+  where these are a *report*.
+- moves that reverted are dropped.
+
+Retention (`meals.persistence`) is the cumulative abnormal return over the next *h*
+bars divided by the move itself — the permanent-versus-transitory split: liquidity
+impact reverses, information impact continues. Measured, the median move retains 0.88
+at 24 bars and the tiers order correctly (once-a-year moves held 72% and fully
+reverted 14%, against 59% and 31% for once-a-fortnight ones). It is read on the series
+matching the event's basis, and is **not applied** to market events at all — a
+volatility regime is not a price move and a spike that subsided was still a spike.
+
+**Where it stands.** A push every 27 days; 1.7 items per digest; 2638 instrument
+events of which 899 are absolute-only; 3.6 market events a year. Month-to-month
+variation improves from 1.8× to 2.8×.
+
+**What is still open.** The August 2024 yen unwind is caught only at `routine`, and
+SVB and the 2024 election are not caught by the market channel at all — the detector
+itself never fired on them, which is §24's open problem and not a routing one.
+Breadth was prototyped as a fourth channel and deliberately not shipped: counting how
+many instruments fired thresholds a series that is already rate-controlled per
+instrument, so it discards the magnitude and failed to flag the yen unwind even with
+the warm-up shortened to cover it. The continuous cross-sectional measure is the right
+statistic and the detector already computes it.

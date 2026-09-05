@@ -242,3 +242,29 @@ def test_combine_needs_at_least_one_of_its_sources():
     except KeyError:
         return
     raise AssertionError("expected a KeyError")
+
+
+def test_a_one_sided_quantity_is_not_read_through_its_magnitude():
+    # A volatility LEVEL is only an event when high; low is the calmest market
+    # on record. The detector's forecast is a log volatility running from -8.26
+    # to -4.98, and a ladder built on its magnitude ranked the quietest hours
+    # as the rarest - an inversion, not a conservative default.
+    rng = np.random.default_rng(41)
+    n = 8766 * 4
+    level = pd.Series(-6.0 + rng.standard_t(4, n) * 0.3)
+    frame = pd.DataFrame({"hour_utc": np.arange(n) * HOUR, "level": level})
+
+    one = sv.annotate(frame, column="level", prefix="m", tier_column="tier",
+                      fallback=None, two_sided=False)
+    fired = one.loc[one["tier"].notna(), "level"]
+    assert (fired > level.median()).all()      # only the loud hours
+
+    two = sv.annotate(frame, column="level", prefix="m", tier_column="tier",
+                      fallback=None, two_sided=True)
+    assert (two.loc[two["tier"].notna(), "level"] < level.median()).all()
+
+
+def test_magnitudes_passes_a_one_sided_score_through_unchanged():
+    score = pd.Series([-3.0, 1.0, 2.0])
+    assert list(sv.magnitudes(score, two_sided=False)) == [-3.0, 1.0, 2.0]
+    assert list(sv.magnitudes(score, two_sided=True)) == [3.0, 1.0, 2.0]

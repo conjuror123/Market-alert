@@ -68,18 +68,31 @@ DIGEST_HOUR_LOCAL = 12
 DIGEST_TZ = ZoneInfo("Asia/Jerusalem")
 
 
-def channel(events: pd.DataFrame) -> pd.Series:
+def channel(events: pd.DataFrame, require_retention: bool = True) -> pd.Series:
     """The delivery channel for each event, before the rate limit.
 
     Retention that is not yet known is not treated as a reversal. An event
     whose horizon has not elapsed - every event the live system has just
     produced - has not failed the check, it has not taken it, and it waits for
     the next digest rather than being dropped.
+
+    `require_retention` is off for streams the test does not apply to. Price
+    impact splits into a permanent part and a transitory one, which is what the
+    check measures; a volatility regime is not a price move and does not split
+    that way - a spike that subsided within the day was still a real spike, and
+    the market really was disorderly while it lasted. Left on, the check would
+    have nothing to read, and every market event would silently fall to the
+    digest for failing a test it was never given.
     """
     if events.empty:
         return pd.Series(dtype="string")
 
     tier = events["tier"]
+    if not require_retention:
+        out = pd.Series(DIGEST, index=events.index, dtype="string")
+        pushes = tier.isin([PUSH_IMMEDIATE_TIER, PUSH_DELAYED_TIER])
+        return out.mask(pushes.fillna(False).to_numpy(dtype=bool), PUSH)
+
     # Every condition is reduced to a plain bool before it reaches mask().
     # Series.mask treats a pandas NA in the condition as True, so an unknown
     # retention - which is every event the live system has just produced, since
@@ -147,13 +160,14 @@ def digest_slot(hour_utc: int) -> int:
     raise RuntimeError("no digest slot within nine days")
 
 
-def route(events: pd.DataFrame, cap: int = MAX_PUSHES_PER_WEEK) -> pd.DataFrame:
+def route(events: pd.DataFrame, cap: int = MAX_PUSHES_PER_WEEK,
+          require_retention: bool = True) -> pd.DataFrame:
     """Adds `channel` and, for the digested ones, the slot they belong to."""
     if events.empty:
         return events.assign(channel=pd.Series(dtype="string"),
                              digest_slot=pd.Series(dtype="Int64"))
 
-    channels = rate_limit(events, channel(events), cap)
+    channels = rate_limit(events, channel(events, require_retention), cap)
     digested = channels.eq(DIGEST).fillna(False).to_numpy(dtype=bool)
     slots = pd.Series(pd.NA, index=events.index, dtype="Int64")
     if digested.any():

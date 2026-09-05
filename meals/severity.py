@@ -225,8 +225,23 @@ def tier_levels(values: np.ndarray, rate: float,
     return levels
 
 
+def magnitudes(score: pd.Series, two_sided: bool = True) -> pd.Series:
+    """The quantity the ladder is actually built on.
+
+    A return or a standardised residual is two-sided: a large fall is as much
+    an event as a large rise, so the ladder is built on the absolute value. A
+    volatility LEVEL is not - only high is an event, and low is the calmest
+    market on record. Taking the absolute value of one of those is not a
+    conservative default, it is an inversion: the detector's forecast is a log
+    volatility running from -8.26 to -4.98, and the ladder built on its
+    magnitude ranked the quietest hours as the rarest.
+    """
+    return score.abs() if two_sided else score
+
+
 def rolling_levels(score: pd.Series, rate: float | None = None,
-                   hour_utc: pd.Series | None = None) -> pd.DataFrame:
+                   hour_utc: pd.Series | None = None,
+                   two_sided: bool = True) -> pd.DataFrame:
     """Per-bar tier levels, each fitted only on bars strictly before it.
 
     Nothing is assigned during the warm-up: the levels stay NaN until there is
@@ -241,7 +256,7 @@ def rolling_levels(score: pd.Series, rate: float | None = None,
     "the largest in two months" long before it has earned the right to say "the
     largest in three years".
     """
-    magnitude = score.abs().to_numpy(dtype="float64")
+    magnitude = magnitudes(score, two_sided).to_numpy(dtype="float64")
     n = magnitude.size
     if rate is None:
         rate = bar_rate(hour_utc) if hour_utc is not None else 1.0
@@ -262,7 +277,8 @@ def rolling_levels(score: pd.Series, rate: float | None = None,
     return frame
 
 
-def assign(score: pd.Series, levels: pd.DataFrame) -> pd.Series:
+def assign(score: pd.Series, levels: pd.DataFrame,
+           two_sided: bool = True) -> pd.Series:
     """The tier of each bar: the rarest level it clears, or NA for none.
 
     NA covers both "quieter than the routine level" and "no level was fitted
@@ -270,7 +286,7 @@ def assign(score: pd.Series, levels: pd.DataFrame) -> pd.Series:
     nothing to say about this bar - and are told apart, when it matters, by
     whether the levels themselves are NaN.
     """
-    magnitude = score.abs()
+    magnitude = magnitudes(score, two_sided)
     tier = pd.Series(pd.NA, index=score.index, dtype="string")
     for name in TIERS:
         tier = tier.mask(magnitude > levels[name], name)
@@ -293,7 +309,8 @@ def level_columns(prefix: str = LEVEL_PREFIX) -> tuple[str, ...]:
 
 def annotate(frame: pd.DataFrame, column: str = "z_resid_bmp",
              prefix: str = LEVEL_PREFIX, tier_column: str = "tier",
-             fallback: str | None = "z_resid") -> pd.DataFrame:
+             fallback: str | None = "z_resid",
+             two_sided: bool = True) -> pd.DataFrame:
     """Adds the four fitted levels and the resulting tier to one asset's frame.
 
     The column is a parameter because the same question - how rare is this for
@@ -317,11 +334,11 @@ def annotate(frame: pd.DataFrame, column: str = "z_resid_bmp",
         raise KeyError(f"{column!r} not in frame and no usable fallback")
 
     rate = bar_rate(frame["hour_utc"]) if "hour_utc" in frame else 1.0
-    levels = rolling_levels(score, rate)
+    levels = rolling_levels(score, rate, two_sided=two_sided)
     out = frame.copy()
     for name in TIERS:
         out[f"{prefix}_{name}"] = levels[name].to_numpy()
-    out[tier_column] = assign(score, levels).to_numpy()
+    out[tier_column] = assign(score, levels, two_sided).to_numpy()
     return out
 
 
