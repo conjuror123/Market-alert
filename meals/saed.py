@@ -63,6 +63,7 @@ class SaedEvent:
     asset_id: str
     block: str
     hour_utc: int          # T0_single - the hour of the first firing
+    peak_hour_utc: int     # the hour the event reached the tier it is reported at
     z_resid: float
     e_resid: float
     r: float
@@ -141,13 +142,29 @@ def build_events(asset: Asset, frame: pd.DataFrame,
             # highest tier it reached, and only the notification is suppressed.
             counts[-1] += 1
             if rank.get(tier[i], -1) > rank.get(events[-1].tier, -1):
-                events[-1] = SaedEvent(**{**events[-1].__dict__, "tier": tier[i],
-                                          "basis": str(basis[i])})
+                # The whole bar moves with the tier, not the tier alone. The
+                # tier is earned by THIS hour's move, so reporting it beside the
+                # opening hour's magnitude describes two different bars as one
+                # event - and the delivery layer prints that magnitude next to
+                # the tier's own words. It produced pushes reading "biggest move
+                # in 3 years, +0.01%": a fifth of a basis point on SHY, opened
+                # at the routine level at 15:00, with the extreme belonging to
+                # the +0.13% at 17:00. Identity stays at the opening hour, so
+                # event_id and the cooldown are untouched; the description
+                # follows the bar that earned the label.
+                events[-1] = SaedEvent(**{**events[-1].__dict__,
+                                          "tier": tier[i], "basis": str(basis[i]),
+                                          "peak_hour_utc": int(hours[i]),
+                                          "z_resid": float(z[i]),
+                                          "e_resid": float(e[i]),
+                                          "r": float(r[i]),
+                                          "beta": float(beta[i])})
             continue
         open_at = i
         events.append(SaedEvent(
             event_id=f"{asset.file_stem}:{int(hours[i])}",
             asset_id=asset.asset_id, block=asset.block, hour_utc=int(hours[i]),
+            peak_hour_utc=int(hours[i]),
             z_resid=float(z[i]), e_resid=float(e[i]), r=float(r[i]),
             beta=float(beta[i]), repeat_count=0, tier=str(tier[i]),
             basis=str(basis[i]),
@@ -159,8 +176,8 @@ def build_events(asset: Asset, frame: pd.DataFrame,
 
 
 def events_frame(events: list[SaedEvent]) -> pd.DataFrame:
-    columns = ["event_id", "asset_id", "block", "hour_utc", "z_resid", "e_resid",
-               "r", "beta", "repeat_count", "tier", "basis"]
+    columns = ["event_id", "asset_id", "block", "hour_utc", "peak_hour_utc",
+               "z_resid", "e_resid", "r", "beta", "repeat_count", "tier", "basis"]
     if not events:
         return pd.DataFrame({c: pd.Series(dtype="object" if c in
                                           ("event_id", "asset_id", "block",

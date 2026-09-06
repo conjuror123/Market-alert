@@ -1301,3 +1301,55 @@ hour and commits once at the end, so a job killed at the timeout would lose ever
 not yet written. It also collided with an ordinary branch push and lost a completed
 USD/CNH pull outright, which is why the commit step now rebases and retries — it
 earned that on the very next run, pushing on attempt 2.
+
+## 31. The tier came from one bar and the magnitude from another
+
+Re-running the whole chain on the deepened store surfaced a defect that had nothing to
+do with the new data, and that had been in the events table since the tier ladder was
+built.
+
+**What it looked like.** SHY — the shortest-duration instrument in the basket — was top
+of the push stream, and one of its pushes read:
+
+```
+tier      extreme          (a 3-year return period)
+r         0.000056         (+0.0056%, a fifth of a basis point)
+z_resid   2.10
+retention_24  12.11        ("12x the original move a day later")
+```
+
+The delivery layer renders `r` beside the tier's own words, so that push would have gone
+out as **"Treasuries 1–3 years — biggest move in 3 years, +0.01%"**. An alert that
+discredits itself in its own first line.
+
+**It was not the tier that was wrong.** `build_events` deliberately keeps the highest
+tier an event reaches inside its cooldown, and the comment says why: a move that opens
+routine and turns major an hour later is a major event, and reporting the opening tier
+would understate it purely because of when the automaton opened. The hour-by-hour
+residuals bear that out:
+
+```
+15:00  z_resid  2.10   routine     <- the event opens
+17:00  z_resid 10.59   extreme     <- SHY +0.13%, a real rates move
+```
+
+The tier is correct. What was wrong is that only the tier moved. `z_resid`, `e_resid`,
+`r` and `beta` stayed on the opening bar, so the row described two different hours as
+one event — and `persistence.attach` then joined retention on the opening hour too,
+dividing a genuine forward move by a fifth of a basis point to get 12x.
+
+**How much of the output.** 763 of 12,551 events escalate inside their cooldown — 6.1%,
+which sounds tolerable until you look at where they land: **171 of 510 pushes, 34%**.
+A third of everything that would actually reach the phone stated a magnitude belonging
+to a different hour than its headline.
+
+**The fix.** The whole bar moves with the tier. Identity stays at the opening hour, so
+`event_id`, the cooldown and idempotency are untouched; the description follows the bar
+that earned the label, and a new `peak_hour_utc` records which bar that was. Retention
+joins on it. The same SHY push now reads +0.13%, z_resid 10.59, retention 2.0x.
+
+**The rule this is an instance of.** When one field of a record is updated conditionally,
+ask which other fields were describing the same thing. A partial update leaves a row
+that is internally inconsistent but individually plausible in every column, so nothing
+downstream can detect it — the delivery layer had no way to know that its `r` and its
+`tier` came from different hours.

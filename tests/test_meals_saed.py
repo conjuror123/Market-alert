@@ -240,6 +240,7 @@ def test_overlap_starts_out_null_rather_than_false():
     # point "was there an active cluster event" is unanswered, not answered "no".
     events = saed.events_frame([
         saed.SaedEvent(event_id="x", asset_id="a", block="FX", hour_utc=3600,
+                       peak_hour_utc=3600,
                        z_resid=4.0, e_resid=0.01, r=0.01, beta=1.0, repeat_count=0,
                        tier="routine", basis="abnormal")])
 
@@ -247,3 +248,51 @@ def test_overlap_starts_out_null_rather_than_false():
 
     assert tagged["overlap_with_cluster"].dtype.name == "boolean"
     assert tagged["overlap_with_cluster"].isna().all()
+
+
+def test_an_escalated_event_reports_the_move_that_earned_its_tier():
+    # The tier comes from the peak bar, so the magnitude beside it must too.
+    # Reporting the opening bar's move next to the peak bar's tier describes
+    # two different hours as one event, and the delivery layer prints them
+    # together - it produced pushes reading "biggest move in 3 years, +0.01%".
+    frame = scored({5: "routine", 7: "extreme"})
+    frame.loc[5, ["r", "z_resid", "z_resid_bmp", "e_resid"]] = [0.00005, 3.0, 3.0, 0.00002]
+    frame.loc[7, ["r", "z_resid", "z_resid_bmp", "e_resid"]] = [0.013, 30.0, 30.0, 0.02]
+
+    events = saed.build_events(asset(), frame, cooldown_bars=12)
+
+    assert len(events) == 1
+    event = events[0]
+    assert event.tier == "extreme"
+    assert event.hour_utc == 6 * HOUR            # identity stays at the opening
+    assert event.peak_hour_utc == 8 * HOUR       # description follows the peak
+    assert event.r == pytest.approx(0.013)
+    assert event.z_resid == pytest.approx(30.0)
+
+
+def test_an_event_that_never_escalates_peaks_where_it_opened():
+    events = saed.build_events(asset(), scored({5: "major", 7: "routine"}),
+                               cooldown_bars=12)
+    assert len(events) == 1
+    assert events[0].peak_hour_utc == events[0].hour_utc == 6 * HOUR
+
+
+def test_retention_is_measured_from_the_peak_not_the_opening():
+    # Retention divides the forward move by the move being retained. Taken off
+    # an opening bar of a fifth of a basis point while the event is reported at
+    # a later bar's tier, it returns ratios that describe the mismatch rather
+    # than the market.
+    from meals import persistence
+
+    frame = scored({5: "routine", 7: "extreme"})
+    events = saed.events_frame(saed.build_events(asset(), frame, cooldown_bars=12))
+    lookup = pd.DataFrame({
+        "hour_utc": frame["hour_utc"],
+        "retention_6": 0.0, "retention_24": 0.0,
+        "retention_raw_6": 0.0, "retention_raw_24": 0.0,
+    })
+    lookup.loc[5, ["retention_6", "retention_24"]] = 99.0    # the opening bar
+    lookup.loc[7, ["retention_6", "retention_24"]] = 0.5     # the peak bar
+    out = persistence.attach(events, {asset().asset_id: lookup})
+
+    assert out["retention_24"].iloc[0] == pytest.approx(0.5)

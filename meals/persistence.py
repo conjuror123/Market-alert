@@ -145,11 +145,18 @@ def held(events: pd.DataFrame, horizon: int = HORIZONS[-1],
 
 
 def attach(events: pd.DataFrame, scored: dict[str, pd.DataFrame]) -> pd.DataFrame:
-    """Copies each event's retention off the bar it fired on.
+    """Copies each event's retention off the bar that earned its tier.
 
-    Joined on (asset_id, hour_utc) rather than by position: the events table is
+    Joined on (asset_id, hour) rather than by position: the events table is
     built from several assets' frames and has been through a groupby since, so
     its row order is not any single asset's bar order.
+
+    The hour joined on is `peak_hour_utc`, not the opening hour, and the two
+    differ whenever an event escalated inside its cooldown. Retention divides
+    the forward move by the move it is retaining, so measuring it from an
+    opening bar whose move was a fifth of a basis point - while the event is
+    reported at the tier a later, far larger bar earned - yields ratios like
+    12x that describe the mismatch rather than the market.
     """
     if events.empty:
         return events.assign(**{c: pd.Series(dtype="float64")
@@ -167,7 +174,9 @@ def attach(events: pd.DataFrame, scored: dict[str, pd.DataFrame]) -> pd.DataFram
         return events.assign(**{c: np.nan for c in RETENTION_COLUMNS})
 
     lookup = pd.concat(pieces, ignore_index=True)
-    merged = events.merge(lookup, on=["asset_id", "hour_utc"], how="left",
+    on = "peak_hour_utc" if "peak_hour_utc" in events else "hour_utc"
+    merged = events.merge(lookup.rename(columns={"hour_utc": on}),
+                          on=["asset_id", on], how="left",
                           validate="many_to_one")
     merged.index = events.index
     return merged
