@@ -726,3 +726,109 @@ def test_the_gap_fill_recovers_hours_inside_a_day_that_is_already_present(
     merged = before.merge(after, on="hour_utc", suffixes=("_b", "_a"))
     assert len(merged) == len(before)
     assert (merged["close_b"] == merged["close_a"]).all()
+
+
+def _fx_bar(hour, close):
+    return Candle(open_time=hour, open=close, high=close, low=close,
+                  close=close, volume=0.0, close_time=hour + HOUR)
+
+
+def _fx_store(path, first_hour, closes):
+    bars.merge(str(path), bars.to_hourly(bars.candles_to_frame(
+        [_fx_bar(first_hour + i * HOUR, c) for i, c in enumerate(closes)])))
+
+
+def test_dukascopy_deepening_needs_something_to_check_itself_against(tmp_path):
+    # With nothing stored there is no overlap, and on this source a wrong point
+    # size is a factor of a thousand - so an unverifiable first write is refused
+    # rather than taken on trust.
+    from meals import backfill
+
+    path = tmp_path / "twelvedata_EUR_USD.parquet"
+    out = backfill.deepen_from_dukascopy(_fx_asset(), str(path), date(2003, 1, 1), None)
+    assert out["skipped"] == "nothing stored yet" and out["added"] == 0
+
+
+def test_dukascopy_deepening_skips_a_pair_the_archive_does_not_carry(tmp_path):
+    from meals import backfill
+
+    path = tmp_path / "twelvedata_USD_CNY.parquet"
+    out = backfill.deepen_from_dukascopy(_fx_asset("USD/CNY"), str(path),
+                                         date(2003, 1, 1), None)
+    assert out["skipped"] == "no Dukascopy symbol"
+
+
+def test_dukascopy_deepening_does_nothing_when_the_store_reaches_back(tmp_path):
+    from meals import backfill
+
+    path = tmp_path / "twelvedata_EUR_USD.parquet"
+    _fx_store(path, int(datetime(2003, 1, 2, tzinfo=timezone.utc).timestamp()),
+              [1.2] * 10)
+    out = backfill.deepen_from_dukascopy(_fx_asset(), str(path),
+                                         date(2004, 1, 1), None)
+    assert out["skipped"] == "already reaches back far enough"
+
+
+def _walk(n, seed, start=1.2):
+    import numpy as np
+    rng = np.random.default_rng(seed)
+    return start * np.exp(np.cumsum(rng.standard_normal(n) * 0.0004))
+
+
+def test_the_overlap_earns_the_right_to_write_the_years_below_it(tmp_path, monkeypatch):
+    from meals import backfill
+
+    first = int(datetime(2012, 1, 2, tzinfo=timezone.utc).timestamp())
+    prices = _walk(3000, 7)
+    # The store holds the last 2000 hours; the archive holds all 3000.
+    _fx_store(path := tmp_path / "twelvedata_EUR_USD.parquet",
+              first + 1000 * HOUR, prices[1000:])
+    archive = [_fx_bar(first + i * HOUR, p) for i, p in enumerate(prices)]
+    monkeypatch.setattr(backfill.dukascopy, "fetch_history",
+                        lambda *a, **k: archive)
+
+    before = bars.load(str(path))
+    out = backfill.deepen_from_dukascopy(_fx_asset(), str(path), date(2003, 1, 1), None)
+
+    assert out["skipped"] is None
+    assert out["added"] == 1000                     # only what was below
+    assert out["check"]["ok"] and out["check"]["correlation"] > 0.99
+    after = bars.load(str(path))
+    # nothing at or above the old floor was touched
+    merged = before.merge(after, on="hour_utc", suffixes=("_b", "_a"))
+    assert len(merged) == len(before)
+    assert (merged["close_b"] == merged["close_a"]).all()
+
+
+def test_a_thousandfold_scale_error_is_caught_by_the_level_gate(tmp_path, monkeypatch):
+    # What reading a yen pair with the five-decimal point actually looks like.
+    from meals import backfill
+
+    first = int(datetime(2012, 1, 2, tzinfo=timezone.utc).timestamp())
+    prices = _walk(3000, 8, start=100.0)
+    _fx_store(path := tmp_path / "twelvedata_USD_JPY.parquet",
+              first + 1000 * HOUR, prices[1000:])
+    wrong = [_fx_bar(first + i * HOUR, p / 1000.0) for i, p in enumerate(prices)]
+    monkeypatch.setattr(backfill.dukascopy, "fetch_history", lambda *a, **k: wrong)
+
+    before = len(bars.load(str(path)))
+    out = backfill.deepen_from_dukascopy(_fx_asset("USD/JPY"), str(path),
+                                         date(2003, 1, 1), None)
+    assert out["added"] == 0 and "alignment check failed" in out["skipped"]
+    assert len(bars.load(str(path))) == before
+
+
+def test_a_shifted_archive_fails_before_anything_is_written(tmp_path, monkeypatch):
+    from meals import backfill
+
+    first = int(datetime(2012, 1, 2, tzinfo=timezone.utc).timestamp())
+    prices = _walk(3000, 9)
+    _fx_store(path := tmp_path / "twelvedata_EUR_USD.parquet",
+              first + 1000 * HOUR, prices[1000:])
+    shifted = [_fx_bar(first + (i + 1) * HOUR, p) for i, p in enumerate(prices)]
+    monkeypatch.setattr(backfill.dukascopy, "fetch_history", lambda *a, **k: shifted)
+
+    before = len(bars.load(str(path)))
+    out = backfill.deepen_from_dukascopy(_fx_asset(), str(path), date(2003, 1, 1), None)
+    assert out["added"] == 0 and "alignment check failed" in out["skipped"]
+    assert len(bars.load(str(path))) == before

@@ -20,6 +20,12 @@ name: Backfill MEALS Bars
 #                   provider's rather than something our fetching skipped
 #   deepen-fx       fill the currency pairs below what Twelve Data's plan
 #                   serves, from FXCM's public archive (needs no key at all)
+#   deepen-dukascopy
+#                   the same but from Dukascopy, which reaches 2003 where FXCM
+#                   stops at 2012 and which also carries USD/CNH. Needs no key.
+#                   Run it ONE PAIR AT A TIME via `instruments`: a pair is a few
+#                   hundred requests, and a failure part way through then costs
+#                   one pair rather than all eight
 #   deepen-etfs     the same for the US-equity instruments, from HF Data's
 #                   consolidated-tape minute bars (needs HFDATA_API_KEY)
 #   corporate-actions
@@ -48,6 +54,7 @@ on:
           - extend-history
           - fill-gaps
           - deepen-fx
+          - deepen-dukascopy
           - deepen-etfs
           - probe-hfdata
           - corporate-actions

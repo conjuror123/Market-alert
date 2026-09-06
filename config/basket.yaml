@@ -303,6 +303,30 @@ outside_basket:
     session_template: fx_continuous
     fetch_interval: 1h
     label: "Dollar / yuan"
+  # The OFFSHORE yuan, collected alongside the onshore one rather than instead
+  # of it, because the two are not the same instrument and the measurement says
+  # so: over 32300 shared hours their intra-hour returns correlate at 0.59, not
+  # the 0.999 an identical chart would give, and the level basis runs from -176
+  # to +118 bp with the widest days landing on Chinese holidays when the
+  # onshore fix is stale and the offshore market is still trading. USD/CNY
+  # trades only the onshore session and so covers about 77% of the week;
+  # USD/CNH trades 24/5 like every other pair here, and Dukascopy carries it
+  # hourly from 2012 against Twelve Data's 2019 for CNY.
+  #
+  # Out here rather than in the basket for now: it takes no part in the quorum,
+  # the weights or breadth, so collecting it changes nothing that is already
+  # calibrated, while SAED still produces its alerts. Whether it should REPLACE
+  # USD/CNY in the FX block is a separate decision, and one that is easier to
+  # take with both series on disk than with neither.
+  - ticker: USD/CNH
+    source: twelvedata
+    tier: 2
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Dollar / offshore yuan"
 
 # External one-sided stress indicator (§4.4). Not part of the basket and takes no
 # part in the quorum. Source: FRED, series VIXCLS - the real index going back to

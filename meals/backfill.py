@@ -30,7 +30,8 @@ import requests
 from meals import bars, corporate_actions, fred
 from meals import sessions as _sessions
 from meals.basket import Asset, Basket, load_basket
-from price_monitor import candle_store, coinbase, fxcm, hfdata, twelvedata
+from price_monitor import (candle_store, coinbase, dukascopy, fxcm, hfdata,
+                           twelvedata)
 from price_monitor.models import ExchangeError
 
 log = logging.getLogger("meals.backfill")
@@ -546,6 +547,68 @@ def deepen_from_fxcm(asset: Asset, path: str, since: date,
             "from": since, "to": oldest.date()}
 
 
+# How far ABOVE the oldest stored bar to fetch before writing anything below it.
+# Unlike the FXCM archive, which starts where the store already had bars and had
+# to be spliced blind, Dukascopy covers the whole stored range - so an overlap
+# can be bought for six extra requests a pair and the splice can be gated on it
+# instead of trusted. Three months of a 24/5 pair is about 1500 hours against
+# the 200 the check needs.
+DUKASCOPY_OVERLAP_DAYS = 93
+
+
+def deepen_from_dukascopy(asset: Asset, path: str, since: date,
+                          session: requests.Session) -> dict:
+    """Fills an FX pair's history BELOW what is already stored, from Dukascopy.
+
+    The overlap is fetched but NOT written. Its whole purpose is to earn the
+    right to write the years underneath it: those years have no second opinion
+    anywhere, and the only evidence available that this archive can be trusted
+    to sit beside the stored bars is that where the two do meet, they agree.
+    The same two gates as everywhere else - returns must correlate and the
+    LEVELS must match, because a series that agrees on returns while disagreeing
+    on price is what a bad scale or a stale rate looks like, and on this source
+    a wrong point size is a factor of a thousand.
+
+    Nothing is written unless both pass, and nothing is written at or above the
+    oldest stored bar even then: Twelve Data stays the live source, and a merge
+    lets the incoming row win.
+    """
+    symbol = dukascopy.symbol_for(asset.ticker)
+    if symbol is None:
+        return {"skipped": "no Dukascopy symbol", "added": 0}
+
+    stored = bars.load(path)
+    if stored.empty:
+        # Deepening is defined against something, and with nothing stored there
+        # is also nothing to check the archive against - which for this source
+        # matters more than usual.
+        return {"skipped": "nothing stored yet", "added": 0}
+
+    floor = stored["hour_utc"].min()
+    oldest = datetime.fromtimestamp(int(floor), tz=timezone.utc)
+    if oldest.date() <= since:
+        return {"skipped": "already reaches back far enough", "added": 0}
+
+    end = oldest.date() + timedelta(days=DUKASCOPY_OVERLAP_DAYS)
+    candles = dukascopy.fetch_history(symbol, since, end, session)
+    if not candles:
+        return {"skipped": "archive returned nothing", "added": 0}
+
+    frame = bars.to_hourly(bars.candles_to_frame(candles))
+    check = verify_alignment(frame, stored)
+    if not check["ok"]:
+        return {"skipped": f"alignment check failed: {check['why']}",
+                "added": 0, "check": check}
+
+    below = frame[frame["hour_utc"] < int(floor)]
+    if below.empty:
+        return {"skipped": "nothing below the oldest stored bar", "added": 0,
+                "check": check}
+    added = bars.merge(path, below)
+    return {"skipped": None, "added": added, "fetched": len(candles),
+            "from": since, "to": oldest.date(), "check": check}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Phase 0: backfill of MEALS hourly history")
     parser.add_argument("--instruments", default="",
@@ -576,6 +639,13 @@ def main(argv: list[str] | None = None) -> int:
                              "from FXCM's public archive, which reaches 2012 "
                              "where Twelve Data's plan stops at 2020. Needs no "
                              "key and touches no other instrument.")
+    parser.add_argument("--deepen-dukascopy", action="store_true",
+                        help="fill the FX pairs' history below what is stored "
+                             "from Dukascopy's public archive, which reaches "
+                             "2003 where FXCM's stops at 2012, and which also "
+                             "carries USD/CNH. Needs no key. Unlike the FXCM "
+                             "pass this one overlaps the store and is gated on "
+                             "agreeing with it.")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -736,6 +806,35 @@ def main(argv: list[str] | None = None) -> int:
                      asset.asset_id, result["added"], result["from"],
                      result["to"], result["fetched"])
         log.info("FXCM deepening added %d bars", total)
+        return 0
+
+    if args.deepen_dukascopy:
+        # Same reasoning as the FXCM mode for being its own: no key, no credits,
+        # and only the pairs the archive carries. Run per pair from the workflow
+        # - each is a few hundred requests, and a failure part way through then
+        # costs one pair rather than all eight.
+        session = requests.Session()
+        total = 0
+        for asset in instruments:
+            path = bars.store_path(args.bars_dir, asset.file_stem)
+            try:
+                result = deepen_from_dukascopy(asset, path, basket.acquire_since,
+                                               session)
+            except Exception as exc:
+                log.error("%s: Dukascopy deepening failed - %s",
+                          asset.asset_id, exc)
+                continue
+            if result["skipped"]:
+                log.info("%s: skipped (%s)", asset.asset_id, result["skipped"])
+                continue
+            total += result["added"]
+            check = result["check"]
+            log.info("%s: +%d bars from Dukascopy (%s .. %s, %d fetched); "
+                     "overlap check %d hours, corr %.4f, median %.2fbp",
+                     asset.asset_id, result["added"], result["from"],
+                     result["to"], result["fetched"], check["hours"],
+                     check["correlation"], check["median_bp"])
+        log.info("Dukascopy deepening added %d bars", total)
         return 0
 
     api_key = os.environ.get("TWELVEDATA_API_KEY", "")
