@@ -230,3 +230,34 @@ def test_the_basis_note_is_not_repeated_when_the_headline_carries_it(sender, mon
     sender.texts.clear()
     deliver(monkeypatch, [event(event_id="x", basis="both")])
     assert "did not explain" in sender.texts[0]
+
+
+def test_the_push_names_the_instruments_that_moved_with_it():
+    labels = {"twelvedata:SPY": "S&P 500", "twelvedata:XLF": "US financial sector",
+              "twelvedata:USO": "WTI crude oil"}
+    line = md._also_moved({"also_moved": "twelvedata:SPY twelvedata:XLF"}, labels)
+    assert line == "S&P 500 and US financial sector within the day"
+
+
+def test_three_companions_read_as_a_list():
+    labels = {"a:1": "Gold", "a:2": "Silver", "a:3": "WTI crude oil"}
+    line = md._also_moved({"also_moved": "a:1 a:2 a:3"}, labels)
+    assert line == "Gold, Silver and WTI crude oil within the day"
+
+
+def test_an_unlabelled_instrument_falls_back_to_its_ticker():
+    assert md._also_moved({"also_moved": "twelvedata:EUR/USD"}, {}) == \
+        "EUR/USD within the day"
+
+
+def test_no_companions_produces_no_line():
+    for value in ("", None, float("nan")):
+        assert md._also_moved({"also_moved": value}, {}) == ""
+    assert md._also_moved({}, {}) == ""
+
+
+def test_a_very_long_list_is_cut_rather_than_running_off_the_screen():
+    ids = " ".join(f"a:{i}" for i in range(9))
+    line = md._also_moved({"also_moved": ids}, {})
+    assert line.endswith("and 3 more within the day")
+    assert line.count(",") == md.MAX_NAMED_COMPANIONS - 2

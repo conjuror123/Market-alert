@@ -172,19 +172,22 @@ def collapse(events: pd.DataFrame, channels: pd.Series,
     hold this morning's alert back on the chance that something bigger arrives
     this afternoon, so neither does this.
 
-    Returns the channels and, beside them, how many pushes each surviving one
-    now speaks for.
+    Returns the channels and, beside them, which instruments each surviving
+    push now speaks for.
     """
     order = events["hour_utc"].sort_values().index
     tier = events["tier"]
     rank = {name: i for i, name in enumerate(severity.TIERS)}
     out = channels.copy()
-    # How many other pushes each surviving one speaks for. Without it the
-    # collapse would understate a crisis rather than merely tidy it: on
-    # 2008-11-20 the reader would get one alert about SPY and never learn that
-    # five other instruments moved in the same window, which is the more
-    # important fact of the two.
-    folded = pd.Series(0, index=events.index, dtype="int64")
+    # WHICH other instruments each surviving push speaks for, not how many.
+    # Without this the collapse would understate a crisis rather than merely
+    # tidy it: on 2008-11-20 the reader would get one alert about the financial
+    # sector and never learn the other six, which is the more important fact of
+    # the two. Named rather than counted because "six others moved" tells you
+    # something happened and nothing about what - and the whole point of the
+    # basket is that WHICH instruments moved together is the diagnosis.
+    ids = events["asset_id"] if "asset_id" in events else None
+    folded: dict = {}
     open_at: int | None = None
     open_rank = -1
     anchor = None
@@ -196,11 +199,18 @@ def collapse(events: pd.DataFrame, channels: pd.Series,
         if (open_at is not None and hour - open_at < hours * 3600
                 and here <= open_rank):
             out.at[index] = DIGEST
-            if anchor is not None:
-                folded.at[anchor] += 1
+            if anchor is not None and ids is not None:
+                folded.setdefault(anchor, []).append(str(ids.get(index, "")))
             continue
         open_at, open_rank, anchor = hour, here, index
-    return out, folded
+
+    # A space-separated string rather than a list column: it has to survive a
+    # Parquet round trip and be read back by the delivery layer without either
+    # side agreeing on a nested type.
+    joined = pd.Series("", index=events.index, dtype="object")
+    for key, names in folded.items():
+        joined.at[key] = " ".join(dict.fromkeys(n for n in names if n))
+    return out, joined
 
 
 def digest_slot(hour_utc: int) -> int:
@@ -239,7 +249,7 @@ def route(events: pd.DataFrame, cap: int = MAX_PUSHES_PER_WEEK,
         slots.loc[digested] = pd.array(
             [digest_slot(h) for h in events.loc[digested, "hour_utc"]], dtype="Int64")
     return events.assign(channel=channels, digest_slot=slots,
-                         also_moved=folded.astype("Int64"))
+                         also_moved=folded.astype("string"))
 
 
 def summarise(routed: pd.DataFrame) -> pd.DataFrame:

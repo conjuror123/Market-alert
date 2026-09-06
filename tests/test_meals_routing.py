@@ -8,11 +8,18 @@ HOUR = 3600
 DAY = 24 * HOUR
 
 
-def events(rows):
-    """rows: (hour_utc, tier, retention_6, retention_24)."""
+def events(rows, assets=None):
+    """rows: (hour_utc, tier, retention_6, retention_24).
+
+    `assets` names the instruments; distinct ones by default, because that is
+    the case the collapse is about - one episode seen through several
+    instruments.
+    """
     frame = pd.DataFrame(rows, columns=["hour_utc", "tier", "retention_6",
                                         "retention_24"])
     frame["tier"] = frame["tier"].astype("string")
+    frame["asset_id"] = (assets if assets is not None
+                         else [f"src:A{i}" for i in range(len(frame))])
     return frame
 
 
@@ -190,7 +197,7 @@ def test_collapse_leaves_events_that_were_never_pushes_alone():
     given = pd.Series([routing.PUSH, routing.DROPPED])
     channels, folded = routing.collapse(frame, given)
     assert list(channels) == [routing.PUSH, routing.DROPPED]
-    assert list(folded) == [0, 0]
+    assert list(folded) == ["", ""]
 
 
 def test_the_weekly_cap_is_not_spent_on_one_episode():
@@ -203,25 +210,32 @@ def test_the_weekly_cap_is_not_spent_on_one_episode():
         routing.PUSH, routing.DIGEST, routing.DIGEST, routing.PUSH]
 
 
-def test_the_surviving_push_says_how_many_it_speaks_for():
-    # Collapsing six alerts into one must not understate the day: the fact that
-    # six instruments moved together is the more important half of the news.
+def test_the_surviving_push_names_the_instruments_it_speaks_for():
+    # Collapsing six alerts into one must not understate the day, and a bare
+    # count would: WHICH instruments moved together is the diagnosis.
     rows = [(DAY, "extreme", 0.9, 0.9), (DAY + HOUR, "extreme", 0.9, 0.9),
             (DAY + 2 * HOUR, "extreme", 0.9, 0.9)]
-    routed = routing.route(events(rows))
+    routed = routing.route(events(rows, ["s:SPY", "s:XLF", "s:USO"]))
     assert list(routed["channel"]) == [routing.PUSH, routing.DIGEST, routing.DIGEST]
-    assert int(routed["also_moved"].iloc[0]) == 2
+    assert routed["also_moved"].iloc[0] == "s:XLF s:USO"
 
 
 def test_a_lone_push_speaks_for_nobody():
     routed = routing.route(events([(DAY, "extreme", 0.9, 0.9)]))
-    assert int(routed["also_moved"].iloc[0]) == 0
+    assert routed["also_moved"].iloc[0] == ""
 
 
-def test_the_count_follows_the_new_anchor_after_an_escalation():
+def test_the_same_instrument_is_not_named_twice():
+    rows = [(DAY, "extreme", 0.9, 0.9), (DAY + HOUR, "extreme", 0.9, 0.9),
+            (DAY + 2 * HOUR, "extreme", 0.9, 0.9)]
+    routed = routing.route(events(rows, ["s:SPY", "s:XLF", "s:XLF"]))
+    assert routed["also_moved"].iloc[0] == "s:XLF"
+
+
+def test_the_names_follow_the_new_anchor_after_an_escalation():
     # major opens, extreme takes over, a later major folds into the EXTREME -
-    # so the count belongs to the extreme, not to the major that opened.
+    # so the names belong to the extreme, not to the major that opened.
     rows = [(DAY, "major", 0.9, 0.9), (DAY + 3 * HOUR, "extreme", 0.9, 0.9),
             (DAY + 6 * HOUR, "major", 0.9, 0.9)]
-    routed = routing.route(events(rows))
-    assert list(routed["also_moved"]) == [0, 1, 0]
+    routed = routing.route(events(rows, ["s:A", "s:B", "s:C"]))
+    assert list(routed["also_moved"]) == ["", "s:C", ""]

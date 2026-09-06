@@ -128,6 +128,36 @@ def _retention_note(value: float) -> str:
     return "fully reversed within the day"
 
 
+# How many companions to name before the line stops being readable. Six is the
+# most the record ever produced in one window, so this is a guard rather than a
+# limit anyone should meet.
+MAX_NAMED_COMPANIONS = 6
+
+
+def _also_moved(event: dict, labels: dict[str, str]) -> str:
+    """The other instruments this push speaks for, named.
+
+    "and six others moved" says something happened and nothing about what,
+    and WHICH instruments moved together is the whole diagnosis - equities and
+    credit is a different event from equities and the yen.
+    """
+    raw = event.get("also_moved")
+    if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+        return ""
+    ids = [a for a in str(raw).split(" ") if a]
+    if not ids:
+        return ""
+    named = [labels.get(a) or a.split(":")[-1] for a in ids]
+    shown, extra = named[:MAX_NAMED_COMPANIONS], len(named) - MAX_NAMED_COMPANIONS
+    if len(shown) == 1:
+        listed = shown[0]
+    else:
+        listed = ", ".join(shown[:-1]) + " and " + shown[-1]
+    if extra > 0:
+        listed += f" and {extra} more"
+    return f"{listed} within the day"
+
+
 def _escape(text: str) -> str:
     """The message goes out with parse_mode=HTML.
 
@@ -223,14 +253,9 @@ def describe(event: dict, labels: dict[str, str]) -> str:
         detail.insert(0, f"{move * 100:+.2f}%")
     parts.append("     " + ", ".join(detail))
 
-    also = event.get("also_moved")
-    try:
-        also = int(also) if also is not None and not pd.isna(also) else 0
-    except (TypeError, ValueError):
-        also = 0
-    if also:
-        parts.append(f"     and {also} other instrument"
-                     f"{'s' if also != 1 else ''} moved within the day")
+    companions = _also_moved(event, labels)
+    if companions:
+        parts.append(f"     with {_escape(companions)}")
 
     held = _clean(event.get("retention_24"))
     if held is not None:
