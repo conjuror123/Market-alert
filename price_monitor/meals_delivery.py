@@ -38,6 +38,8 @@ import logging
 import os
 from datetime import datetime, timezone
 
+import pandas as pd
+
 from price_monitor.config import Config
 from price_monitor.notifier import TelegramError, send_telegram_message
 
@@ -220,6 +222,15 @@ def describe(event: dict, labels: dict[str, str]) -> str:
     if move is not None:
         detail.insert(0, f"{move * 100:+.2f}%")
     parts.append("     " + ", ".join(detail))
+
+    also = event.get("also_moved")
+    try:
+        also = int(also) if also is not None and not pd.isna(also) else 0
+    except (TypeError, ValueError):
+        also = 0
+    if also:
+        parts.append(f"     and {also} other instrument"
+                     f"{'s' if also != 1 else ''} moved within the day")
 
     held = _clean(event.get("retention_24"))
     if held is not None:

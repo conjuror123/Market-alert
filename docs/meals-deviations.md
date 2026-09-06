@@ -1509,3 +1509,81 @@ instrument" are different properties, and a percentile cannot tell them apart: t
 produces a perfectly good distribution with perfectly good tails. Before accepting that a
 small number is rare, check what the smallest number the instrument can produce actually
 is.
+
+## 34. One event, one interruption
+
+The push stream averaged one every twelve days, which sounded calm and described
+almost no actual month. What it hid:
+
+```
+days with 3+ pushes:   25        worst: 6 in one day
+26% of all gaps between pushes were under 24 hours
+busiest month: October 2008, 53 pushes
+```
+
+And the crowded days were not spread out. Sixteen of the twenty-five fell in **2008** —
+so the true shape was years of near-silence, then sixteen six-alert days in twelve
+months, precisely when attention is scarcest.
+
+**They were one event each time.**
+
+```
+2008-11-20   19:00  SPY, XLF, USO       20:00  QQQ, IWM, TLT
+2020-03-12   BTC-USD, ETH-USD, QQQ, SPY
+```
+
+**What the per-asset cooldown does and does not cover.** §8.3's twelve-bar cooldown is
+counted in the asset's own bars, so it protects an ETF for about forty-one calendar
+hours and a currency pair for twelve. Measured, it works: only 12 of 652 pushes (1.8%)
+were one instrument firing twice inside a day, all FX or crypto, all sitting exactly on
+the twelve-hour boundary. The repetition was never within an instrument. It was across
+them, and nothing was watching for that.
+
+**The rule that was already written down did not fit.** `saed.py` says the notification
+"goes out per BLOCK alert, not per asset - if three instruments of one block jerked in
+the same hour, that is one observation about the block, not three identical messages",
+and `aggregate_alert_id` exists to carry it. But grouping by (block, hour) collapses 652
+pushes to 612 — barely anything — because the pile-ups spread across hours and blocks
+rather than within one of each. 2008-10-10 fired at 12:00, 13:00, 15:00, 16:00 and
+19:00. The intent was right and the key was wrong.
+
+**What was built instead.** A portfolio-level window, which is the per-asset cooldown's
+own judgement applied across instruments: the first push of an episode interrupts
+immediately, and later pushes inside twenty-four hours go to the digest. Twenty-four
+hours because that is the span over which a person reads a move as still the same thing
+— *"we are protected from firing each hour for 24 hours, and if it continues to the next
+day it is worth firing again"*.
+
+With one exception, and it matters: **a rarer push still interrupts** and becomes the
+episode's new anchor. A once-a-year move at ten must not silence a once-in-three-years
+move at one, which is the same inversion the weekly cap is careful to avoid, and the
+same rule `build_events` applies when an event escalates inside its own cooldown.
+Collapse runs *before* the weekly cap, so the budget rations episodes rather than
+repeated views of one.
+
+**And the surviving push says how many it speaks for.** Without that the collapse would
+understate a crisis rather than tidy it — one alert about SPY, with the fact that six
+instruments moved together left out, and that fact is the more important half.
+
+```
+🚨 US financial sector - biggest move in about three years
+     +10.50%, hour to 2008-11-20 19:00 UTC
+     and 6 other instruments moved within the day
+     and it kept going - 10.4x the original move a day later
+The rest of the market moved with it.
+```
+
+| | before | after |
+|---|---|---|
+| pushes a year | 30.3 | 24.9 |
+| worst day | 6 | **2** |
+| days with 3+ | 25 | **0** |
+| gaps under 24h | 26% | **4%** |
+| median gap | 7.0 days | 8.9 days |
+
+Nothing is lost: a collapsed push becomes a digest line.
+
+**The rule this is an instance of.** A mean rate is the wrong summary of anything
+bursty, and "one every twelve days" was arithmetic that described no month in the
+record. The distribution of gaps — a median of seven days with a quarter of them under
+one — is what a recipient actually experiences, and it is the number to quote.

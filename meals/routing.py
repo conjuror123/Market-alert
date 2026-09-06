@@ -141,6 +141,68 @@ def rate_limit(events: pd.DataFrame, channels: pd.Series,
     return out
 
 
+# How long one push speaks for. A second instrument moving inside this window is
+# almost always the same event seen again rather than news: measured over the
+# whole record, 2008-11-20 sent six pushes across two hours (SPY, XLF, USO, then
+# QQQ, IWM, TLT) and 2020-03-12 sent five, each of them one market event
+# delivered as five or six separate interruptions. Twenty-four hours because that
+# is the span over which a person reads a move as "still the same thing" - the
+# per-asset cooldown of §8.3 makes the same judgement one instrument at a time,
+# and this is that judgement across the portfolio.
+COLLAPSE_HOURS = 24
+
+
+def collapse(events: pd.DataFrame, channels: pd.Series,
+             hours: int = COLLAPSE_HOURS) -> pd.Series:
+    """Folds pushes that belong to one episode into the first of them.
+
+    The first push of an episode interrupts immediately - it is news, and
+    holding it back to see what else arrives would trade the only thing a push
+    is for. Later pushes inside the window go to the digest instead of buzzing
+    again.
+
+    UNLESS THE LATER ONE IS RARER. A once-a-year move at ten o'clock must not
+    silence a once-in-three-years move at one, or the window would invert the
+    ladder exactly the way the weekly cap is careful not to. A rarer push
+    interrupts and becomes the episode's new anchor, which is the same rule
+    build_events applies within a single instrument when an event escalates
+    inside its cooldown.
+
+    Chronological and greedy for the reason rate_limit is: a live system cannot
+    hold this morning's alert back on the chance that something bigger arrives
+    this afternoon, so neither does this.
+
+    Returns the channels and, beside them, how many pushes each surviving one
+    now speaks for.
+    """
+    order = events["hour_utc"].sort_values().index
+    tier = events["tier"]
+    rank = {name: i for i, name in enumerate(severity.TIERS)}
+    out = channels.copy()
+    # How many other pushes each surviving one speaks for. Without it the
+    # collapse would understate a crisis rather than merely tidy it: on
+    # 2008-11-20 the reader would get one alert about SPY and never learn that
+    # five other instruments moved in the same window, which is the more
+    # important fact of the two.
+    folded = pd.Series(0, index=events.index, dtype="int64")
+    open_at: int | None = None
+    open_rank = -1
+    anchor = None
+    for index in order:
+        if out.get(index) != PUSH:
+            continue
+        hour = int(events.at[index, "hour_utc"])
+        here = rank.get(tier.get(index), -1)
+        if (open_at is not None and hour - open_at < hours * 3600
+                and here <= open_rank):
+            out.at[index] = DIGEST
+            if anchor is not None:
+                folded.at[anchor] += 1
+            continue
+        open_at, open_rank, anchor = hour, here, index
+    return out, folded
+
+
 def digest_slot(hour_utc: int) -> int:
     """The send time of the first digest strictly after this hour.
 
@@ -167,13 +229,17 @@ def route(events: pd.DataFrame, cap: int = MAX_PUSHES_PER_WEEK,
         return events.assign(channel=pd.Series(dtype="string"),
                              digest_slot=pd.Series(dtype="Int64"))
 
-    channels = rate_limit(events, channel(events, require_retention), cap)
+    # Collapse BEFORE the weekly cap: the cap exists to ration attention, and
+    # spending it on six views of one event is exactly what it should not do.
+    channels, folded = collapse(events, channel(events, require_retention))
+    channels = rate_limit(events, channels, cap)
     digested = channels.eq(DIGEST).fillna(False).to_numpy(dtype=bool)
     slots = pd.Series(pd.NA, index=events.index, dtype="Int64")
     if digested.any():
         slots.loc[digested] = pd.array(
             [digest_slot(h) for h in events.loc[digested, "hour_utc"]], dtype="Int64")
-    return events.assign(channel=channels, digest_slot=slots)
+    return events.assign(channel=channels, digest_slot=slots,
+                         also_moved=folded.astype("Int64"))
 
 
 def summarise(routed: pd.DataFrame) -> pd.DataFrame:

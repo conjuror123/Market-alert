@@ -55,10 +55,27 @@ def test_retention_that_is_not_known_yet_is_not_a_reversal():
 
 
 def test_the_rate_limit_demotes_the_extra_pushes():
+    # rate_limit is exercised directly rather than through route(), which now
+    # collapses one episode into its first push before the cap ever sees it -
+    # five majors an hour apart are one episode, and that is a different rule
+    # from the weekly budget this test is about.
     rows = [(DAY + i * HOUR, "major", 0.9, 0.9) for i in range(5)]
+    frame = events(rows)
+    channels = routing.rate_limit(
+        frame, pd.Series([routing.PUSH] * len(rows)), cap=2)
+    assert list(channels).count(routing.PUSH) == 2
+    assert list(channels).count(routing.DIGEST) == 3
+
+
+def test_the_weekly_cap_still_bites_across_separate_episodes():
+    # Two days apart, so collapse leaves all five alone and the cap is what
+    # decides. It is a ROLLING week, so budget is released as events age out:
+    # the first two go, the next two are over the cap, and the fifth is sent
+    # because the first has by then fallen out of the window.
+    rows = [(DAY + i * 2 * DAY, "major", 0.9, 0.9) for i in range(5)]
     routed = routing.route(events(rows), cap=2)
-    assert list(routed["channel"]).count(routing.PUSH) == 2
-    assert list(routed["channel"]).count(routing.DIGEST) == 3
+    assert list(routed["channel"]) == [
+        routing.PUSH, routing.PUSH, routing.DIGEST, routing.DIGEST, routing.PUSH]
 
 
 def test_the_rate_limit_never_silences_the_rarest_tier():
@@ -68,7 +85,9 @@ def test_the_rate_limit_never_silences_the_rarest_tier():
     # five of thirty-nine extremes.
     rows = [(DAY, "major", 0.9, 0.9), (DAY + HOUR, "major", 0.9, 0.9),
             (DAY + 2 * HOUR, "extreme", 0.9, 0.9)]
-    channels = list(routing.route(events(rows), cap=2)["channel"])
+    frame = events(rows)
+    channels = list(routing.rate_limit(
+        frame, pd.Series([routing.PUSH] * len(rows)), cap=2))
     assert channels == [routing.PUSH, routing.PUSH, routing.PUSH]
 
 
@@ -127,3 +146,82 @@ def test_an_empty_table_keeps_the_columns():
     routed = routing.route(events([]))
     assert routed.empty
     assert "channel" in routed.columns and "digest_slot" in routed.columns
+
+
+def test_a_second_instrument_in_the_same_episode_does_not_buzz_again():
+    # 2008-11-20 sent six pushes over two hours for one market event.
+    rows = [(DAY, "extreme", 0.9, 0.9), (DAY + HOUR, "extreme", 0.9, 0.9),
+            (DAY + 2 * HOUR, "extreme", 0.9, 0.9)]
+    routed = routing.route(events(rows))
+    assert list(routed["channel"]) == [routing.PUSH, routing.DIGEST, routing.DIGEST]
+
+
+def test_the_window_reopens_the_next_day():
+    # "if it continues to the next day, it is worth firing again"
+    rows = [(DAY, "major", 0.9, 0.9), (DAY + 25 * HOUR, "major", 0.9, 0.9)]
+    routed = routing.route(events(rows))
+    assert list(routed["channel"]) == [routing.PUSH, routing.PUSH]
+
+
+def test_a_rarer_move_inside_the_window_still_interrupts():
+    # A once-a-year move at ten must not silence a once-in-three-years move at
+    # one, or the window would invert the ladder the cap is careful to protect.
+    rows = [(DAY, "major", 0.9, 0.9), (DAY + 3 * HOUR, "extreme", 0.9, 0.9)]
+    routed = routing.route(events(rows))
+    assert list(routed["channel"]) == [routing.PUSH, routing.PUSH]
+
+
+def test_a_milder_move_inside_the_window_does_not():
+    rows = [(DAY, "extreme", 0.9, 0.9), (DAY + 3 * HOUR, "major", 0.9, 0.9)]
+    routed = routing.route(events(rows))
+    assert list(routed["channel"]) == [routing.PUSH, routing.DIGEST]
+
+
+def test_a_rarer_move_becomes_the_new_anchor():
+    rows = [(DAY, "major", 0.9, 0.9), (DAY + 3 * HOUR, "extreme", 0.9, 0.9),
+            (DAY + 6 * HOUR, "major", 0.9, 0.9)]
+    routed = routing.route(events(rows))
+    assert list(routed["channel"]) == [routing.PUSH, routing.PUSH, routing.DIGEST]
+
+
+def test_collapse_leaves_events_that_were_never_pushes_alone():
+    rows = [(DAY, "extreme", 0.9, 0.9), (DAY + HOUR, "routine", -0.5, -0.5)]
+    frame = events(rows)
+    given = pd.Series([routing.PUSH, routing.DROPPED])
+    channels, folded = routing.collapse(frame, given)
+    assert list(channels) == [routing.PUSH, routing.DROPPED]
+    assert list(folded) == [0, 0]
+
+
+def test_the_weekly_cap_is_not_spent_on_one_episode():
+    # Collapse runs first precisely so the budget rations episodes rather than
+    # repeated views of one.
+    rows = [(DAY, "major", 0.9, 0.9), (DAY + HOUR, "major", 0.9, 0.9),
+            (DAY + 2 * HOUR, "major", 0.9, 0.9), (9 * DAY, "major", 0.9, 0.9)]
+    routed = routing.route(events(rows), cap=2)
+    assert list(routed["channel"]) == [
+        routing.PUSH, routing.DIGEST, routing.DIGEST, routing.PUSH]
+
+
+def test_the_surviving_push_says_how_many_it_speaks_for():
+    # Collapsing six alerts into one must not understate the day: the fact that
+    # six instruments moved together is the more important half of the news.
+    rows = [(DAY, "extreme", 0.9, 0.9), (DAY + HOUR, "extreme", 0.9, 0.9),
+            (DAY + 2 * HOUR, "extreme", 0.9, 0.9)]
+    routed = routing.route(events(rows))
+    assert list(routed["channel"]) == [routing.PUSH, routing.DIGEST, routing.DIGEST]
+    assert int(routed["also_moved"].iloc[0]) == 2
+
+
+def test_a_lone_push_speaks_for_nobody():
+    routed = routing.route(events([(DAY, "extreme", 0.9, 0.9)]))
+    assert int(routed["also_moved"].iloc[0]) == 0
+
+
+def test_the_count_follows_the_new_anchor_after_an_escalation():
+    # major opens, extreme takes over, a later major folds into the EXTREME -
+    # so the count belongs to the extreme, not to the major that opened.
+    rows = [(DAY, "major", 0.9, 0.9), (DAY + 3 * HOUR, "extreme", 0.9, 0.9),
+            (DAY + 6 * HOUR, "major", 0.9, 0.9)]
+    routed = routing.route(events(rows))
+    assert list(routed["also_moved"]) == [0, 1, 0]
