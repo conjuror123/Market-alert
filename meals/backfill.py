@@ -257,6 +257,22 @@ HFDATA_TIMEZONE = "US/Eastern"
 ALIGNMENT_MIN_CORRELATION = 0.90
 ALIGNMENT_MIN_HOURS = 200
 
+# And how far apart the LEVELS may be. This is a separate question from the one
+# above and the first version of this check did not ask it, which let 30024
+# dividend-adjusted SPY bars into the store.
+#
+# Adjustment is multiplicative, so it barely touches returns: that import
+# scored 0.9959 on correlation while sitting 99 basis points below the stored
+# prices, and the gap grew the further back it went - 0.972x of the true close
+# at the end of 2019, 0.885x in 2015, 0.733x in 2005, which is SPY's dividends
+# compounded. Spliced under an unadjusted store it put a 3.07% step across one
+# weekend at the seam.
+#
+# Two sources reporting the same consolidated tape should agree on the price of
+# SPY to a basis point or two, so 25 is loose enough for timing differences
+# inside a minute and nowhere near loose enough to admit a payout.
+ALIGNMENT_MAX_MEDIAN_BP = 25.0
+
 
 def verify_alignment(minutes: "pd.DataFrame", stored: "pd.DataFrame") -> dict:
     """Checks re-derived bars against the ones already held, over their overlap.
@@ -285,12 +301,18 @@ def verify_alignment(minutes: "pd.DataFrame", stored: "pd.DataFrame") -> dict:
     median_bp = float(np.median(
         np.abs(joined["close_new"] - joined["close_stored"])
         / joined["close_stored"]) * 1e4)
+    reasons = []
+    if not correlation >= ALIGNMENT_MIN_CORRELATION:
+        reasons.append(f"correlation {correlation:.4f} below "
+                       f"{ALIGNMENT_MIN_CORRELATION}")
+    if not median_bp <= ALIGNMENT_MAX_MEDIAN_BP:
+        reasons.append(f"median level gap {median_bp:.1f}bp above "
+                       f"{ALIGNMENT_MAX_MEDIAN_BP}bp - the series disagree on "
+                       f"PRICE while agreeing on returns, which is what a "
+                       f"dividend adjustment looks like")
     return {"hours": len(joined), "correlation": correlation,
-            "median_bp": median_bp,
-            "ok": correlation >= ALIGNMENT_MIN_CORRELATION,
-            "why": "" if correlation >= ALIGNMENT_MIN_CORRELATION
-                   else f"correlation {correlation:.3f} below "
-                        f"{ALIGNMENT_MIN_CORRELATION}"}
+            "median_bp": median_bp, "ok": not reasons,
+            "why": "; ".join(reasons)}
 
 
 def deepen_from_hfdata(asset: Asset, path: str, since: date, api_key: str,

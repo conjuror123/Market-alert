@@ -445,3 +445,40 @@ def test_a_failed_check_merges_nothing(tmp_path, monkeypatch):
 
     assert out["added"] == 0 and "alignment check failed" in out["skipped"]
     assert len(bars.load(str(path))) == before
+
+
+def test_a_dividend_adjusted_series_is_caught_even_though_returns_agree():
+    # The hole the first version of this check had. Adjustment is
+    # multiplicative, so it barely touches returns: the real import scored
+    # 0.9959 on correlation while sitting 99bp below the stored prices, and
+    # 30024 adjusted SPY bars went into the store because only the correlation
+    # was asserted on.
+    from meals import backfill
+
+    import numpy as np
+    base = int(datetime(2021, 1, 4, tzinfo=timezone.utc).timestamp())
+    rng = np.random.default_rng(17)
+    n = 60 * (backfill.ALIGNMENT_MIN_HOURS + 60)
+    walk = 100 * np.exp(np.cumsum(rng.standard_normal(n) * 0.001))
+
+    stored = bars.to_hourly(_hf_minutes(base, n, walk))
+    adjusted = _hf_minutes(base, n, walk * 0.99)      # one percent low, as SPY was
+
+    check = backfill.verify_alignment(adjusted, stored)
+    assert check["correlation"] > 0.99      # returns are untouched by the factor
+    assert not check["ok"]
+    assert "dividend adjustment" in check["why"]
+
+
+def test_a_series_that_agrees_on_both_price_and_returns_passes():
+    from meals import backfill
+
+    import numpy as np
+    base = int(datetime(2021, 1, 4, tzinfo=timezone.utc).timestamp())
+    rng = np.random.default_rng(18)
+    n = 60 * (backfill.ALIGNMENT_MIN_HOURS + 60)
+    walk = 100 * np.exp(np.cumsum(rng.standard_normal(n) * 0.001))
+
+    stored = bars.to_hourly(_hf_minutes(base, n, walk))
+    check = backfill.verify_alignment(_hf_minutes(base, n, walk), stored)
+    assert check["ok"] and check["median_bp"] < backfill.ALIGNMENT_MAX_MEDIAN_BP
