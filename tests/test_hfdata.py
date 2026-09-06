@@ -126,3 +126,33 @@ def test_describe_reports_what_the_file_actually_holds():
 
 def test_an_all_iex_file_yields_nothing_rather_than_bad_bars():
     assert hfdata.to_minute_frame(bars(5, "iex"), "UTC").empty
+
+
+def test_reference_closes_expose_a_cumulative_adjustment():
+    # The question a return correlation cannot answer: does the file agree with
+    # what the instrument actually cost. A ratio drifting below 1.0 as the date
+    # gets older is dividends compounding.
+    stamps = pd.to_datetime(["2005-01-03 15:59", "2019-12-31 15:59"])
+    payload = parquet({
+        "datetime": stamps, "Open": [1.0, 1.0], "High": [1.0, 1.0],
+        "Low": [1.0, 1.0], "Close": [86.78, 312.85], "Volume": [1, 1],
+        "source": ["pitrading"] * 2,
+    })
+    out = hfdata.reference_check(payload, {"2005-01-03": 118.38,
+                                           "2019-12-31": 321.86})
+    assert out["2005-01-03"]["ratio"] == pytest.approx(0.733, abs=0.001)
+    assert out["2019-12-31"]["ratio"] == pytest.approx(0.972, abs=0.001)
+
+
+def test_reference_closes_report_a_clean_series_as_one():
+    stamps = pd.to_datetime(["2019-12-31 15:59"])
+    payload = parquet({"datetime": stamps, "Open": [1.0], "High": [1.0],
+                       "Low": [1.0], "Close": [321.86], "Volume": [1],
+                       "source": ["pitrading"]})
+    out = hfdata.reference_check(payload, {"2019-12-31": 321.86})
+    assert out["2019-12-31"]["ratio"] == 1.0
+
+
+def test_a_missing_reference_day_reports_none_rather_than_failing():
+    out = hfdata.reference_check(bars(2), {"1999-01-04": 100.0})
+    assert out["1999-01-04"]["got"] is None

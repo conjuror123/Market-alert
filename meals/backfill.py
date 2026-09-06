@@ -445,9 +445,25 @@ def main(argv: list[str] | None = None) -> int:
         if not key:
             log.error("HFDATA_API_KEY is not set")
             return 2
-        payload = hfdata.fetch_parquet(args.probe_hfdata, key, requests.Session())
-        log.info("%s: %d bytes", args.probe_hfdata, len(payload))
-        print(json.dumps(hfdata.describe(payload), indent=2, default=str))
+        session = requests.Session()
+        # Both versions in one dispatch. "clean" turned out to carry a
+        # cumulative dividend factor - 0.733x of SPY's actual close in 2005 -
+        # and whether "raw" does too is the whole question, so asking one at a
+        # time would just cost a round trip to learn half the answer.
+        for version in ("clean", "raw"):
+            try:
+                payload = hfdata.fetch_parquet(args.probe_hfdata, key, session,
+                                               version=version)
+            except Exception as exc:
+                log.error("%s (%s): %s", args.probe_hfdata, version, exc)
+                continue
+            log.info("%s (%s): %d bytes", args.probe_hfdata, version, len(payload))
+            report = hfdata.describe(payload)
+            if args.probe_hfdata.upper() == "SPY":
+                report["reference_closes"] = hfdata.reference_check(
+                    payload, hfdata.SPY_REFERENCE_CLOSES)
+            print(f"--- {version} ---")
+            print(json.dumps(report, indent=2, default=str))
         return 0
 
     if args.deepen_etfs:

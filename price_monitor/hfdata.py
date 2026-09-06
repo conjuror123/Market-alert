@@ -101,6 +101,40 @@ def fetch_parquet(ticker: str, api_key: str,
     return response.content
 
 
+# Closes taken from the public record, used to ask the only question that
+# matters about a price series before it is trusted: does it agree with what
+# the instrument actually cost that day. An adjusted series does not, and the
+# disagreement grows the further back it goes as the payouts compound.
+SPY_REFERENCE_CLOSES = {
+    "2019-12-31": 321.86, "2016-12-30": 223.53,
+    "2010-01-04": 113.33, "2005-01-03": 118.38,
+}
+
+
+def reference_check(payload: bytes, expected: dict[str, float]) -> dict:
+    """The last close on each reference day, against what it should be.
+
+    A ratio near 1.0 says the file is unadjusted and usable here. A ratio that
+    drifts further below 1.0 the older the date is says the prices carry a
+    cumulative dividend factor - which is fatal for a store that is
+    deliberately unadjusted, and which a return correlation cannot see.
+    """
+    frame = pd.read_parquet(io.BytesIO(payload))
+    stamp = _column(frame, _TIMESTAMP_NAMES)
+    close = _column(frame, _FIELD_NAMES["close"])
+    if stamp is None or close is None:
+        return {}
+    days = pd.to_datetime(frame[stamp], errors="coerce").dt.date
+    out = {}
+    for day, truth in expected.items():
+        want = pd.Timestamp(day).date()
+        rows = frame.loc[days == want, close]
+        out[day] = {"expected": truth,
+                    "got": round(float(rows.iloc[-1]), 4) if len(rows) else None,
+                    "ratio": round(float(rows.iloc[-1]) / truth, 4) if len(rows) else None}
+    return out
+
+
 def describe(payload: bytes, rows: int = 3) -> dict:
     """What the file actually contains, for looking before parsing.
 
