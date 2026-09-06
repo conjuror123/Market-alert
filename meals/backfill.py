@@ -237,13 +237,60 @@ def fill_gaps(asset: Asset, path: str, table: dict, api_key: str,
             "still_missing": missing_sessions(path, table)}
 
 
-# What HF Data's minute timestamps mean. Left unset on purpose: their pages
-# describe the session as 09:30-15:59 ET, which is a statement about the market
-# rather than about the encoding, and the difference between "already UTC" and
-# "Eastern with daylight saving" is four months of every year shifted by an
-# hour. --probe-hfdata prints the file's own first timestamps so this can be
-# read off rather than assumed; until it is set, the import refuses to run.
-HFDATA_TIMEZONE: str | None = None
+# What HF Data's minute timestamps mean, read off the file rather than assumed.
+# The probe (run 34014690848) returned naive datetime64 values whose last row
+# is 2026-09-04 15:59 - a September date, in daylight-saving season, ending at
+# 15:59. Under a fixed EST encoding that day's last bar would read 14:59, so
+# the file is Eastern wall-clock and observes DST.
+#
+# That reasoning is sound and is still not trusted on its own: it is checked
+# against the two years of overlap the store already holds, and the import
+# refuses to merge anything if the check fails. See verify_alignment.
+HFDATA_TIMEZONE = "US/Eastern"
+
+# How closely the re-derived hourly bars must track what is already stored
+# before any of them are kept. A timezone read wrong shifts four months of
+# every year by an hour, which does not look like an error - it looks like
+# noise, and scores about 0.5 where the truth scores 0.99. HistData, tested
+# the same way, gave 0.94 correctly localised and 0.53 read as UTC, so the
+# gap between right and wrong is wide and the bar can sit well inside it.
+ALIGNMENT_MIN_CORRELATION = 0.90
+ALIGNMENT_MIN_HOURS = 200
+
+
+def verify_alignment(minutes: "pd.DataFrame", stored: "pd.DataFrame") -> dict:
+    """Checks re-derived bars against the ones already held, over their overlap.
+
+    The overlap exists because the archive runs to the present while the store
+    starts in 2020, so roughly two years of consolidated-tape bars cover hours
+    we can already price independently. Nothing else in this import has that
+    luxury; the years being imported have no second opinion at all, which is
+    exactly why the years that do have one are made to earn the rest.
+    """
+    import numpy as np
+
+    hourly = bars.to_hourly(minutes)
+    joined = hourly.merge(stored[["hour_utc", "close"]], on="hour_utc",
+                          how="inner", suffixes=("_new", "_stored"))
+    if len(joined) < ALIGNMENT_MIN_HOURS:
+        return {"hours": len(joined), "correlation": float("nan"),
+                "median_bp": float("nan"), "ok": False,
+                "why": f"only {len(joined)} overlapping hours"}
+
+    new = np.log(joined["close_new"].to_numpy())
+    old = np.log(joined["close_stored"].to_numpy())
+    returns_new, returns_old = np.diff(new), np.diff(old)
+    good = np.isfinite(returns_new) & np.isfinite(returns_old)
+    correlation = float(np.corrcoef(returns_new[good], returns_old[good])[0, 1])
+    median_bp = float(np.median(
+        np.abs(joined["close_new"] - joined["close_stored"])
+        / joined["close_stored"]) * 1e4)
+    return {"hours": len(joined), "correlation": correlation,
+            "median_bp": median_bp,
+            "ok": correlation >= ALIGNMENT_MIN_CORRELATION,
+            "why": "" if correlation >= ALIGNMENT_MIN_CORRELATION
+                   else f"correlation {correlation:.3f} below "
+                        f"{ALIGNMENT_MIN_CORRELATION}"}
 
 
 def deepen_from_hfdata(asset: Asset, path: str, since: date, api_key: str,
@@ -275,6 +322,12 @@ def deepen_from_hfdata(asset: Asset, path: str, since: date, api_key: str,
     if minutes.empty:
         return {"skipped": "no consolidated-tape bars returned", "added": 0}
 
+    # Earn the un-checkable years with the checkable ones before merging.
+    check = verify_alignment(minutes, stored)
+    if not check["ok"]:
+        return {"skipped": f"alignment check failed: {check['why']}",
+                "added": 0, "check": check}
+
     lo = int(datetime.combine(since, datetime.min.time(),
                               tzinfo=timezone.utc).timestamp())
     hi = int(oldest.timestamp())
@@ -284,7 +337,7 @@ def deepen_from_hfdata(asset: Asset, path: str, since: date, api_key: str,
 
     added = bars.merge(path, bars.to_hourly(window))
     return {"skipped": None, "added": added, "minutes": len(window),
-            "from": since, "to": oldest.date()}
+            "from": since, "to": oldest.date(), "check": check}
 
 
 def deepen_from_fxcm(asset: Asset, path: str, since: date,
@@ -394,9 +447,12 @@ def main(argv: list[str] | None = None) -> int:
                 log.info("%s: skipped (%s)", asset.asset_id, out["skipped"])
                 continue
             total += out["added"]
-            log.info("%s: +%d bars from HF Data (%s .. %s, %d minute bars used)",
+            check = out["check"]
+            log.info("%s: +%d bars from HF Data (%s .. %s, %d minute bars); "
+                     "overlap check %d hours, corr %.4f, median %.2fbp",
                      asset.asset_id, out["added"], out["from"], out["to"],
-                     out["minutes"])
+                     out["minutes"], check["hours"], check["correlation"],
+                     check["median_bp"])
         log.info("HF Data deepening added %d bars", total)
         return 0
 
