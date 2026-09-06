@@ -1115,6 +1115,45 @@ store actually carries, because the 13:00:00 closing print lands in a bar of its
 A bar that exists and was not demanded is not a hole; a bar demanded that cannot
 exist would mark every ordinary day incomplete.
 
+**What it recovered.** Run 34019217237, all twelve instruments:
+
+> **gap fill: 333 hour(s) recovered, 365 confirmed missing at the source**
+
+Counted against the calendar rather than against the store, the damage was 698 hours,
+not 495 — the 29 whole sessions contribute 203 hours that the earlier table could not
+count, because a day absent from the store has no row in it to be short. Twelve Data
+recovered none of them again. HF Data recovered 333, and **every hour of 2020 and
+2021 is now closed**: the years that held the COVID crash go from 320 missing bars to
+zero.
+
+**What is left is not missing.** The 162 hours that remain (the residue after the 203
+belonging to whole sessions) sit entirely in 2003–2008, and 95 of them are HYG:
+
+```
+HYG launched 2007-04-11.
+2007-04-11  13:00  100 shares    2007-04-12  11:00    700 shares
+            14:00 1500                       12:00   2000
+                                             14:00   1200
+                                             15:00   2200
+```
+
+Its holes run 7 in April 2007, 17 in May, then 10, 8, 6, 4, 1, 3, 5, 5, 1, 1, and stop
+at 2008-06-09 — the shape of liquidity arriving, not of a provider losing data. An
+hour in which nobody trades produces no bar in *any* source, and two independent
+vendors agreeing there is no bar, beside neighbouring hours carrying one or two
+trades, is the strongest evidence available that there was nothing to record. The
+same holds for the 2003–2006 singles in the bond and commodity funds. This residue is
+irreducible and `missing_hours` will keep reporting it; that is correct behaviour for
+a report and the reason it is not a gate.
+
+**Why the 2020 half mattered more than its size.** §2.4 already decided what to do
+with a hole: the return is taken from the last valid close, spanning two hours rather
+than inventing a close that never existed. Honest about the price, but the two-hour
+move is still ranked on the one-hour scale the ladder was fitted to. On 2020-02-19
+that was five hours gone from **all twelve instruments at once** — which the new
+market-wide channel (§26) reads as twelve instruments moving together, the exact
+signature it exists to detect, four trading days before the top.
+
 **The rule this is an instance of.** A completeness check inherits the resolution of
 the unit it counts in, and that unit is a choice nobody remembers making. "The day is
 present" was never the question — "the day is whole" was, and the two agree on every
