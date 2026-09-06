@@ -1159,3 +1159,103 @@ the unit it counts in, and that unit is a choice nobody remembers making. "The d
 present" was never the question — "the day is whole" was, and the two agree on every
 case except the one that mattered. When a check reports zero, ask what it is
 incapable of reporting.
+
+## 29. A synthetic instrument, and why the anchor was doing nothing
+
+The proposal was a standard one: take free hourly USD/CNH, anchor it to the free daily
+onshore USD/CNY fix from FRED, and get an intraday mainland yuan "99.9% statistically
+accurate" for nothing. It is a real technique. It does nothing here, and the reason is
+worth writing down because it is a property of *this* system rather than of the method.
+
+**The anchor cancels.** Anchoring multiplies every bar of a day by one constant,
+`k_d = CNY_fix_d / CNH_close_d`. §2.4 scores the intra-hour channel, `r_t =
+ln(close/open)`, and a constant inside a log ratio cancels exactly:
+
+```
+bars anchored: 39,955
+max |r_synthetic − r_CNH| over every bar: 2.2e-16
+identical to float precision: True
+```
+
+The anchor moves only the day boundary — which lands in the gap channel that §2.4
+deliberately excludes from the Z-score, the CSV, PCA and SAED. **To the detector the
+synthetic series is CNH, bit for bit, on every quantity it ranks.** What the FRED half
+buys is not accuracy but the impression of holding onshore data.
+
+**And the premise is false at this resolution.** Real CNY (our store) against real CNH
+(Dukascopy), 32,300 shared hours:
+
+| | CNY | CNH |
+|---|---|---|
+| intra-hour return correlation | **0.59** | |
+| stdev | 5.65 bp | 6.42 bp |
+| kurtosis | 54 | 14 |
+| \|r\| at p99.99 | 92 bp | 73 bp |
+
+Verified by the offset test — 0.59 at +0h and ≈0 at every offset from −3h to +3h — so
+it is the pairs disagreeing, not the clocks. The level basis has median +5 bp but sd
+21 bp and a range of −176 to +118 bp, and the widest days are 2020-01-31, 2022-11-04,
+2020-05-01, 2022-05-02, 2025-01-31: Chinese holidays and reopenings, when the onshore
+fix is stale and the offshore market is trading. On 5.3% of days the FRED fix does not
+move at all. Those are the days a macro-event system exists for, and they are exactly
+the days the anchor is a stale number.
+
+**What was done instead.** USD/CNH is collected as itself, in `outside_basket` beside
+USD/CNY. It takes no part in the quorum, the weights or breadth, so nothing already
+calibrated moves; SAED still produces its alerts. Whether it should *replace* USD/CNY
+in the FX block is a live question, and one that is easier to answer with both series
+on disk than with neither — CNH covers ~100% of open hours from 2013 (84,838 traded
+hours) against CNY's ~77% from 2019-11 (34,103).
+
+**The rule this is an instance of.** Before evaluating whether a construction is
+accurate, check whether the thing it constructs is read at all. Half of this one feeds
+a channel the spec throws away, and no amount of accuracy in that half changes a single
+score. "Is it right?" is the second question; "does anything downstream look at it?" is
+the first.
+
+## 30. Dukascopy, and four ways to build a wrong archive from a right file
+
+Reaching for USD/CNH turned up a better source than the one already in use. FXCM starts
+in 2012 and froze in April 2026; Dukascopy serves the same majors from **2003** — four
+from May, three from August, probed rather than assumed — and carries USD/CNH from
+2012-04. That closes a real hole: the ETFs reach 2002 and the pairs stopped at 2012, so
+2008 was a crisis the basket could only half see.
+
+There is no Node dependency and no key. The popular `dukascopy-node` package wraps the
+same plain HTTPS files; one file is one month of one side, LZMA-alone over 24-byte
+big-endian records. What follows is what the format does not tell you.
+
+1. **The month in the URL is zero-indexed.** January is `00`. Off by one reads January
+   as February and shifts an entire archive by a month while every file still parses.
+2. **The record is open, CLOSE, low, high** — not OHLC. Reading it as OHLC swaps close
+   and high and passes every sanity check that only asks whether high ≥ low.
+3. **The integers are in units of the instrument's point**, which is 1e-3 for the yen
+   pairs and 1e-5 for everything else. Measured: USD/JPY's June 2013 integers run
+   94085..100672, which is 94.085 — one scale for all pairs puts the yen a thousand
+   times low.
+4. **A record exists for every hour of the month, including the closed ones** — volume
+   0.0, and open, high, low and close all equal to the last traded price. EUR/USD's
+   2013 Q1 returns 2,160 records for 1,516 traded hours. This is the dangerous one. The
+   other 644 are not noise: they are exactly-zero returns, and writing them **deflates
+   the volatility estimate the severity ladder is fitted to**. A ladder fitted to
+   fabricated calm fires too easily. They are dropped on volume, and their volume is
+   then discarded rather than stored — it is a tick-count proxy, not a consolidated
+   exchange volume, which spot FX does not have anywhere.
+
+Bid and ask are separate files and both are fetched, because the stored bars are mids.
+Bid alone measures −0.19 bp against the store where the mid gives +0.00 — tiny, but
+systematic and at a seam, which is the one place a small bias is not small.
+
+**The splice is gated, unlike the last one.** FXCM began where the store already had
+bars and had to be trusted blind. Dukascopy covers the whole stored range, so three
+months of overlap can be bought for six extra requests a pair and the years underneath
+made to earn their place. Measured end to end on live bytes, EUR/USD 2012 Q1 against
+the store:
+
+> 1,555 overlapping hours, correlation **0.9984**, median level gap **0.0786 bp**
+
+Both §27 gates apply unchanged, nothing is written unless both pass, and nothing is
+written at or above the oldest stored bar even then — Twelve Data stays the live source
+and `bars.merge` lets the incoming row win. A test asserts that a thousandfold scale
+error, which is precisely what fault 3 produces, is caught by the level gate rather
+than merged.
