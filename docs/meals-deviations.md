@@ -1055,3 +1055,68 @@ tolerance is a run id, not a judgement call.
 not making a complaint. Answer it — here, by spending twenty-one API credits — and only
 then decide what the assertion should say. Editing the assertion first would have
 produced the same green tick and destroyed the finding.
+
+## 28. A day is not a unit of completeness
+
+§27 asked the provider for twenty-one missing sessions, proved they were its holes,
+and recovered them from HF Data. It reported itself finished. It was not, and the
+reason it could not tell is worth more than the twenty-one days it did fix.
+
+**What the check could not see.** `missing_sessions` compares the set of days the
+calendar has against the set of days the store has. A day with one bar in it is in
+the second set. So a session holding two of its seven bars is, to that check,
+present — indistinguishable from a complete one.
+
+The patched days made this visible by accident. Verifying the quality of the HF Data
+patch on SPY, the patched day looked anomalous — three to five times the neighbouring
+volume:
+
+```
+2020-02-14 (Twelve Data):  3 bars  — 14:00, 15:00, 16:00 only      7.9M
+2020-02-18 (patched, HF):  7 bars  — full session, n_src 29/60×5/54  38.5M
+2020-02-19 (Twelve Data):  2 bars  — 19:00, 20:00 only            13.3M
+```
+
+The patched day is not the anomaly. It is the only complete one. Its neighbours,
+which no check had ever flagged, are missing four and five of their seven hours.
+Monthly median hourly volumes agree on scale between the two sources (HF 3.7–5.0M
+per hour, Twelve Data 7.5M in Feb 2020 rising to 30.6M in the March crash), so this
+is coverage, not a volume convention.
+
+**How wide.** Measured against the NYSE calendar over all twelve ETFs, 2002–2026:
+
+| | |
+|---|---|
+| instrument-sessions | 67,424 |
+| with at least one missing hour | 227 (0.337%) |
+| bars expected | 470,258 |
+| bars missing | 495 (0.105%) |
+
+Not systemic. Concentrated where the whole-day damage already was — 2020 (39
+sessions, 143 bars), 2021 (57, 177), 2007 (74, 101) — and zero in fourteen of the
+twenty-five years. The largest single date is 2020-02-19: five hours gone from all
+twelve instruments at once, four trading days before the COVID top.
+
+**Why 0.1% is not small here.** An hourly return is taken between consecutive
+*stored* bars. A missing hour does not shorten the series; it silently turns a
+one-hour return into a two-hour one — a bigger move, still measured against the
+one-hour scale the ladder ranks it on. The holes are rare and land precisely on the
+quantity the severity tiers extrapolate from, at precisely the dates the system most
+needs to have learned from.
+
+**The fix.** `missing_hours` replaces the day with the hour as the unit: every
+hour_utc the calendar claims inside the stored range, minus what the store holds.
+Whole missing sessions fall out of it as the special case where every hour of a day
+is absent, so the day-level view is now a report rather than a gate. `session_hours`
+gives the calendar an hour-level reading, and it is deliberately conservative at both
+ends — a 09:30–16:00 session is seven bars (09:00–15:00, since the 15:30 half-hourly
+bar folds into 15:00), and an early close is asked for one bar *shorter* than the
+store actually carries, because the 13:00:00 closing print lands in a bar of its own.
+A bar that exists and was not demanded is not a hole; a bar demanded that cannot
+exist would mark every ordinary day incomplete.
+
+**The rule this is an instance of.** A completeness check inherits the resolution of
+the unit it counts in, and that unit is a choice nobody remembers making. "The day is
+present" was never the question — "the day is whole" was, and the two agree on every
+case except the one that mattered. When a check reports zero, ask what it is
+incapable of reporting.

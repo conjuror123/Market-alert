@@ -113,6 +113,44 @@ def half_sessions(sessions: dict[date, Session]) -> list[Session]:
     return [s for s in sessions.values() if s.is_early_close]
 
 
+EXCHANGE_TZ = "America/New_York"
+
+
+def session_hours(session: Session, tz_name: str = EXCHANGE_TZ) -> list[int]:
+    """The hour_utc stamps a COMPLETE session should occupy.
+
+    From the hour containing the open to the hour containing the last full
+    half-hour bar. A 09:30-16:00 session is seven bars (09:00 .. 15:00): the
+    15:30 bar covers 15:30-16:00 and folds into 15:00, so there is no 16:00 bar
+    and demanding one would mark every ordinary day incomplete.
+
+    An early close is one bar shorter than the arithmetic suggests for the same
+    reason, and the store in fact carries one MORE - the 13:00:00 closing print
+    lands in a bar of its own. Expecting the smaller set is the safe direction:
+    a bar that exists and was not demanded is not a hole.
+    """
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo(tz_name)
+    open_h, open_m = (int(x) for x in session.local_open.split(":"))
+    close_h, close_m = (int(x) for x in session.local_close.split(":"))
+    last = close_h if close_m else close_h - 1
+    stamps = []
+    for hour in range(open_h, last + 1):
+        moment = datetime.combine(session.day, time(hour), tzinfo=tz)
+        stamps.append(int(moment.timestamp()))
+    return stamps
+
+
+def expected_hours(sessions: dict[date, Session], first: date, last: date,
+                   tz_name: str = EXCHANGE_TZ) -> set[int]:
+    """Every hour_utc the calendar claims between two days, inclusive."""
+    return {stamp
+            for day, session in sessions.items()
+            if first <= day <= last
+            for stamp in session_hours(session, tz_name)}
+
+
 def reference_week_bounds(any_moment: datetime, anchor_tz: str) -> tuple[int, int]:
     """Bounds of the reference-calendar week containing `any_moment`:
     (open, close) in epoch UTC.

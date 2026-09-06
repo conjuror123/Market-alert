@@ -164,3 +164,57 @@ def test_the_missing_sessions_stay_a_handful_and_none_are_recent():
         assert not recent, (
             f"{stem} is missing recent sessions {sorted(str(d) for d in recent)} - "
             f"that is the live collection failing, not an old provider hole")
+
+
+def test_an_ordinary_session_is_seven_hourly_bars():
+    from meals.sessions import Session, session_hours
+    import pandas as pd
+
+    s = Session(day=date(2019, 6, 10), local_open="09:30",
+                local_close="16:00", is_early_close=False)
+    hours = session_hours(s)
+    local = pd.to_datetime(hours, unit="s", utc=True).tz_convert(
+        "America/New_York").strftime("%H:%M").tolist()
+    assert local == ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00",
+                     "15:00"]
+
+
+def test_the_close_hour_gets_no_bar_of_its_own():
+    # The 15:30 half-hourly bar covers 15:30-16:00 and folds into 15:00, so
+    # demanding a 16:00 bar would mark every ordinary day incomplete.
+    from meals.sessions import Session, session_hours
+    import pandas as pd
+
+    s = Session(day=date(2019, 6, 10), local_open="09:30",
+                local_close="16:00", is_early_close=False)
+    local = pd.to_datetime(session_hours(s), unit="s", utc=True).tz_convert(
+        "America/New_York").hour.tolist()
+    assert 16 not in local
+
+
+def test_a_half_session_is_four():
+    from meals.sessions import Session, session_hours
+
+    s = Session(day=date(2020, 11, 27), local_open="09:30",
+                local_close="13:00", is_early_close=True)
+    assert len(session_hours(s)) == 4
+
+
+def test_the_stamps_follow_daylight_saving_not_a_fixed_offset():
+    from meals.sessions import Session, session_hours
+
+    winter = session_hours(Session(day=date(2021, 1, 4), local_open="09:30",
+                                   local_close="16:00", is_early_close=False))
+    summer = session_hours(Session(day=date(2021, 7, 6), local_open="09:30",
+                                   local_close="16:00", is_early_close=False))
+    assert (winter[0] % 86400) // 3600 == 14   # 09:00 EST
+    assert (summer[0] % 86400) // 3600 == 13   # 09:00 EDT
+
+
+def test_expected_hours_is_bounded_by_the_days_asked_for():
+    from meals.sessions import Session, expected_hours
+
+    table = {d: Session(day=d, local_open="09:30", local_close="16:00",
+                        is_early_close=False)
+             for d in (date(2021, 1, 4), date(2021, 1, 5), date(2021, 1, 6))}
+    assert len(expected_hours(table, date(2021, 1, 5), date(2021, 1, 6))) == 14

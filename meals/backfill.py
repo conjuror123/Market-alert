@@ -28,6 +28,7 @@ import pandas as pd
 import requests
 
 from meals import bars, corporate_actions, fred
+from meals import sessions as _sessions
 from meals.basket import Asset, Basket, load_basket
 from price_monitor import candle_store, coinbase, fxcm, hfdata, twelvedata
 from price_monitor.models import ExchangeError
@@ -181,6 +182,30 @@ def missing_sessions(path: str, table: dict) -> list[date]:
     days = set(pd.to_datetime(stored["hour_utc"], unit="s", utc=True).dt.date)
     lo, hi = min(days), max(days)
     return sorted({d for d in table if lo <= d <= hi} - days)
+
+
+def missing_hours(path: str, table: dict) -> list[int]:
+    """Hours the calendar has and the store does not, inside the stored range.
+
+    The day-level view above cannot see these. A day that holds three of its
+    seven bars is present, so it is not a gap by that measure, and every hole
+    inside a day stayed invisible for as long as whole days were the unit of
+    counting - which is how a five-hour hole on 2020-02-19 survived a gap fill
+    that reported itself complete.
+
+    That matters more than the count suggests. An hourly return is taken
+    between consecutive STORED bars, so a missing hour does not shrink the
+    series, it silently turns a one-hour return into a two-hour one - a larger
+    move measured against a one-hour scale. The holes are rare, but they
+    inflate exactly the quantity the ladder ranks.
+    """
+    stored = bars.load(path)
+    if stored.empty:
+        return []
+    have = set(stored["hour_utc"].astype(int))
+    days = pd.to_datetime(stored["hour_utc"], unit="s", utc=True).dt.date
+    want = _sessions.expected_hours(table, min(days), max(days))
+    return sorted(want - have)
 
 
 def _runs(days: list[date]) -> list[tuple[date, date]]:
@@ -421,52 +446,67 @@ def deepen_from_hfdata(asset: Asset, path: str, since: date, api_key: str,
 def fill_gaps_from_hfdata(asset: Asset, path: str, table: dict, api_key: str,
                           session: requests.Session,
                           timezone_name: str | None = HFDATA_TIMEZONE) -> dict:
-    """Fills the sessions Twelve Data does not hold, from HF Data's archive.
+    """Fills the HOURS Twelve Data does not hold, from HF Data's archive.
 
-    Every one of the twenty-one confirmed holes falls in 2020 and 2021, which
-    is inside HF Data's consolidated-tape era - the same full CTA/UTP feed the
-    surrounding Twelve Data bars come from, not the IEX subset that starts in
-    March 2022. So these days are recoverable from a second source of the same
-    kind, which is exactly what a second source is for.
+    The unit here is the hour, not the day. Twelve Data's 2020-21 damage is not
+    only whole sessions: 2020-02-19 is present with two of its seven bars, and
+    a day-level fill declares it healthy because something is there. Asking for
+    every calendar hour the store lacks covers the whole sessions as a special
+    case and the partial ones as well.
+
+    These years are inside HF Data's consolidated-tape era - the same full
+    CTA/UTP feed the surrounding Twelve Data bars come from, not the IEX subset
+    that starts in March 2022 - so the hours are recoverable from a second
+    source of the same kind, which is exactly what a second source is for.
 
     This writes INTO the middle of the stored series rather than under it, so
     the adjustment has to be right to the basis point or the patch shows up as
     a step where the store was continuous. The same calibration and the same
-    two gates apply, and nothing is written unless both pass.
+    two gates apply, and nothing is written unless both pass. Hours the store
+    already holds are removed from the patch before the merge: bars.merge lets
+    the incoming row win on a collision, and the live source keeps its own bars.
     """
     if asset.session_template != CALENDAR_TEMPLATE:
         return {"skipped": "no authoritative calendar", "added": 0, "gaps": 0}
     if timezone_name is None:
         return {"skipped": "HFDATA_TIMEZONE is unset", "added": 0, "gaps": 0}
 
-    gaps = missing_sessions(path, table)
-    if not gaps:
-        return {"skipped": None, "added": 0, "gaps": 0, "still_missing": []}
+    wanted = set(missing_hours(path, table))
+    if not wanted:
+        return {"skipped": None, "added": 0, "gaps": 0, "hours": 0,
+                "still_missing": [], "still_missing_hours": 0}
 
+    gaps = missing_sessions(path, table)
     stored = bars.load(path)
     payload = hfdata.fetch_parquet(asset.ticker, api_key, session)
     minutes = hfdata.to_minute_frame(payload, timezone_name)
     if minutes.empty:
         return {"skipped": "no consolidated-tape bars returned", "added": 0,
-                "gaps": len(gaps)}
+                "gaps": len(gaps), "hours": len(wanted)}
 
     steps = corporate_actions.load_steps().get(asset.ticker, [])
     minutes, adjustment = unadjust_to_store(minutes, stored, steps)
     check = verify_alignment(minutes, stored)
     if not check["ok"]:
         return {"skipped": f"alignment check failed: {check['why']}",
-                "added": 0, "gaps": len(gaps), "check": check}
+                "added": 0, "gaps": len(gaps), "hours": len(wanted),
+                "check": check}
 
-    wanted = set(gaps)
-    days = pd.to_datetime(minutes["hour_utc"], unit="s", utc=True).dt.date
-    patch = minutes[days.isin(wanted).to_numpy()]
+    # Fold first, then select. The hole is an hour of the store's grid, and
+    # only after folding does a minute bar carry the stamp that can be compared
+    # against it.
+    hourly = bars.to_hourly(minutes)
+    patch = hourly[hourly["hour_utc"].isin(wanted).to_numpy()]
     if patch.empty:
-        return {"skipped": "the archive does not hold those days either",
-                "added": 0, "gaps": len(gaps), "still_missing": gaps}
+        return {"skipped": "the archive does not hold those hours either",
+                "added": 0, "gaps": len(gaps), "hours": len(wanted),
+                "still_missing": gaps, "still_missing_hours": len(wanted)}
 
-    added = bars.merge(path, bars.to_hourly(patch))
+    added = bars.merge(path, patch)
+    left = missing_hours(path, table)
     return {"skipped": None, "added": added, "gaps": len(gaps),
-            "still_missing": missing_sessions(path, table),
+            "hours": len(wanted), "still_missing": missing_sessions(path, table),
+            "still_missing_hours": len(left),
             "check": check, "adjustment": adjustment}
 
 
@@ -605,7 +645,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.fill_gaps:
-        from meals import sessions as _sessions
 
         api_key = os.environ.get("TWELVEDATA_API_KEY", "")
         hf_key = os.environ.get("HFDATA_API_KEY", "")
@@ -624,20 +663,31 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             if out["skipped"]:
                 continue
-            if not out["gaps"]:
+            left = out["still_missing"] if out["gaps"] else []
+            if out["gaps"]:
+                log.info("%s: %d gap(s), +%d bars from Twelve Data, %d still "
+                         "missing%s", asset.asset_id, out["gaps"], out["added"],
+                         len(left), f" {[str(d) for d in left]}" if left else "")
+
+            # A day is not a unit of completeness. The store can hold a session
+            # and still be missing five of its seven bars, and asking only "is
+            # the day there" walks past that. The second source is offered when
+            # EITHER measure finds something wrong.
+            hours_left = missing_hours(path, table)
+            hours_left_before = list(hours_left)
+            if not left and not hours_left:
                 log.info("%s: no gaps", asset.asset_id)
                 continue
-            left = out["still_missing"]
-            log.info("%s: %d gap(s), +%d bars from Twelve Data, %d still "
-                     "missing%s", asset.asset_id, out["gaps"], out["added"],
-                     len(left), f" {[str(d) for d in left]}" if left else "")
+            if hours_left and not left:
+                log.info("%s: whole sessions complete, %d hour(s) missing "
+                         "inside them", asset.asset_id, len(hours_left))
 
             # Twelve Data does not hold them - proven, 0 of 21 recovered in run
             # 33994110137 - so anything still missing goes to the second source
             # of the same kind. Tried in this order because a day recovered from
             # the vendor the surrounding bars already come from needs no
             # adjustment and no calibration to sit correctly beside them.
-            if left and hf_key:
+            if (left or hours_left) and hf_key:
                 try:
                     out = fill_gaps_from_hfdata(asset, path, table, hf_key,
                                                 session)
@@ -651,14 +701,17 @@ def main(argv: list[str] | None = None) -> int:
                              out["skipped"])
                 else:
                     left = out["still_missing"]
-                    log.info("%s: +%d bars from HF Data, %d still missing%s",
-                             asset.asset_id, out["added"], len(left),
+                    log.info("%s: +%d bars from HF Data, %d hour(s) and %d "
+                             "session(s) still missing%s", asset.asset_id,
+                             out["added"], out.get("still_missing_hours", 0),
+                             len(left),
                              f" {[str(d) for d in left]}" if left else "")
+                    hours_left = [None] * out.get("still_missing_hours", 0)
 
-            filled += out["gaps"] - len(left) if out.get("gaps") else 0
-            unfilled += len(left)
-        log.info("gap fill: %d recovered, %d confirmed missing at the source",
-                 filled, unfilled)
+            filled += len(hours_left_before) - len(hours_left)
+            unfilled += len(hours_left)
+        log.info("gap fill: %d hour(s) recovered, %d confirmed missing at "
+                 "the source", filled, unfilled)
         return 0
 
     if args.deepen_fx:

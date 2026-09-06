@@ -232,6 +232,14 @@ def _day(y, m, d):
     return int(datetime(y, m, d, 15, tzinfo=timezone.utc).timestamp())
 
 
+def _table(days):
+    """A calendar of ordinary 09:30-16:00 sessions for the given days."""
+    from meals.sessions import Session
+    return {d: Session(day=d, local_open="09:30", local_close="16:00",
+                       is_early_close=False)
+            for d in days}
+
+
 def _store_days(path, days):
     bars.merge(str(path), bars.to_hourly(bars.candles_to_frame([
         Candle(open_time=t, open=1.0, high=1.0, low=1.0, close=1.0,
@@ -593,7 +601,7 @@ def test_the_gap_fill_patches_only_the_missing_days(tmp_path, monkeypatch):
     bars.merge(str(path), bars.to_hourly(everything[(days != hole).to_numpy()]))
     before = bars.load(str(path))
 
-    table = {d: object() for d in set(days)}
+    table = _table(set(days))
     monkeypatch.setattr(backfill.hfdata, "fetch_parquet", lambda *a, **k: b"x")
     monkeypatch.setattr(backfill.hfdata, "to_minute_frame",
                         lambda *a, **k: everything)
@@ -625,7 +633,7 @@ def test_the_gap_fill_writes_nothing_when_the_alignment_check_fails(tmp_path, mo
     bars.merge(str(path), bars.to_hourly(everything[(days != hole).to_numpy()]))
     before = len(bars.load(str(path)))
 
-    table = {d: object() for d in set(days)}
+    table = _table(set(days))
     monkeypatch.setattr(backfill.hfdata, "fetch_parquet", lambda *a, **k: b"x")
     # An hour out, which is what a timezone read wrong looks like.
     monkeypatch.setattr(backfill.hfdata, "to_minute_frame",
@@ -635,3 +643,86 @@ def test_the_gap_fill_writes_nothing_when_the_alignment_check_fails(tmp_path, mo
     out = backfill.fill_gaps_from_hfdata(_etf(), str(path), table, "key", None)
     assert out["added"] == 0 and "alignment check failed" in out["skipped"]
     assert len(bars.load(str(path))) == before
+
+
+def _full_session_hours(day):
+    from meals.sessions import Session, session_hours
+    return session_hours(Session(day=day, local_open="09:30",
+                                 local_close="16:00", is_early_close=False))
+
+
+def test_a_day_missing_five_of_its_seven_bars_is_not_a_complete_day(tmp_path):
+    # The hole that survived the day-level fill: 2020-02-19 was present with
+    # two bars of seven, so nothing reported it as a gap.
+    from meals import backfill
+
+    path = tmp_path / "twelvedata_SPY.parquet"
+    days = [date(2024, 3, 4), date(2024, 3, 5)]
+    hours = _full_session_hours(days[0]) + _full_session_hours(days[1])[-2:]
+    _store_days(path, hours)
+    table = _table(days)
+
+    assert backfill.missing_sessions(str(path), table) == []
+    missing = backfill.missing_hours(str(path), table)
+    assert missing == _full_session_hours(days[1])[:-2]
+
+
+def test_a_complete_store_has_no_missing_hours(tmp_path):
+    from meals import backfill
+
+    path = tmp_path / "twelvedata_SPY.parquet"
+    days = [date(2024, 3, 4), date(2024, 3, 5)]
+    _store_days(path, _full_session_hours(days[0]) + _full_session_hours(days[1]))
+    assert backfill.missing_hours(str(path), _table(days)) == []
+
+
+def test_hours_outside_the_stored_range_are_not_holes(tmp_path):
+    # Same bound as the day-level view: the archive simply has not reached
+    # there yet, and counting those would bury the real holes.
+    from meals import backfill
+
+    path = tmp_path / "twelvedata_SPY.parquet"
+    days = [date(2024, 3, 4), date(2024, 3, 5), date(2024, 3, 6)]
+    _store_days(path, _full_session_hours(days[1]))
+    assert backfill.missing_hours(str(path), _table(days)) == []
+
+
+def test_the_gap_fill_recovers_hours_inside_a_day_that_is_already_present(
+        tmp_path, monkeypatch):
+    from meals import backfill
+
+    import numpy as np
+    path = tmp_path / "twelvedata_SPY.parquet"
+    base = int(datetime(2021, 1, 4, tzinfo=timezone.utc).timestamp())
+    n = 60 * 24 * 120
+    rng = np.random.default_rng(43)
+    walk = 300 * np.exp(np.cumsum(rng.standard_normal(n) * 0.0002))
+    everything = _hf_minutes(base, n, walk)
+
+    days = pd.to_datetime(everything["hour_utc"], unit="s", utc=True).dt.date
+    table = _table(set(days))
+    # Every day is present; one of them keeps only its last two session hours.
+    wounded = date(2021, 2, 1)
+    keep = set(_full_session_hours(wounded)[-2:])
+    hours = everything["hour_utc"] // 3600 * 3600
+    drop = (days == wounded).to_numpy() & ~hours.isin(keep).to_numpy()
+    bars.merge(str(path), bars.to_hourly(everything[~drop]))
+
+    before = bars.load(str(path))
+    assert backfill.missing_sessions(str(path), table) == []
+    assert len(backfill.missing_hours(str(path), table)) == 5
+
+    monkeypatch.setattr(backfill.hfdata, "fetch_parquet", lambda *a, **k: b"x")
+    monkeypatch.setattr(backfill.hfdata, "to_minute_frame",
+                        lambda *a, **k: everything)
+    monkeypatch.setattr(backfill.corporate_actions, "load_steps", lambda: {})
+
+    out = backfill.fill_gaps_from_hfdata(_etf(), str(path), table, "key", None)
+
+    assert out["gaps"] == 0 and out["hours"] == 5 and out["added"] == 5
+    assert out["still_missing_hours"] == 0
+    # and the hours that were already there still carry vendor A's bars
+    after = bars.load(str(path))
+    merged = before.merge(after, on="hour_utc", suffixes=("_b", "_a"))
+    assert len(merged) == len(before)
+    assert (merged["close_b"] == merged["close_a"]).all()
