@@ -87,7 +87,7 @@ def test_a_digest_waits_for_its_slot(monkeypatch, sender):
     due = event(event_id="d1", channel="digest", tier="routine",
                 digest_slot=int(NOW.timestamp()) - HOUR)
     sent, _ = deliver(monkeypatch, [due])
-    assert sent == 1 and "MEALS digest" in sender.texts[0]
+    assert sent == 1 and "Digest" in sender.texts[0]
 
 
 def test_the_digest_is_one_message_for_many_events(monkeypatch, sender):
@@ -196,18 +196,35 @@ def test_the_retention_wording_covers_the_whole_range():
     assert "reversed" in md._retention_note(0.0)
 
 
-def test_an_unexplained_move_is_not_called_the_biggest_move():
-    # The instrument may well have had larger hours that the market accounted
-    # for perfectly; "biggest move" would overstate what was detected.
-    assert md._headline("major", "abnormal") == "biggest unexplained move in about a year"
+def test_an_unexplained_move_is_not_called_simply_the_biggest_move():
+    # The instrument may well have had larger hours that the rest of the market
+    # accounted for perfectly; an unqualified "biggest move" would overstate
+    # what was detected. The qualifier carries it rather than a different noun.
+    assert md._headline("major", "abnormal") == (
+        "biggest move in about a year (not explained by the rest of the market)")
     assert md._headline("major", "absolute") == "biggest move in about a year"
     assert md._headline("major", "both") == "biggest move in about a year"
     assert md._headline("notable", "market") == "most disorderly hour in about two months"
 
 
+def test_the_routine_period_is_said_in_weeks():
+    assert md._headline("routine", "absolute") == "biggest move in two weeks"
+
+
+def test_no_alert_claims_the_economic_calendar_explained_anything():
+    # The residual is r minus what the basket and block factors predicted; the
+    # calendar enters only the SI-Index, never this basis. An alert naming it
+    # would be reporting a test the system never ran.
+    for tier in ("routine", "notable", "major", "extreme"):
+        for basis in ("abnormal", "absolute", "both", "market"):
+            assert "calendar" not in md._headline(tier, basis).lower()
+    for note in md.BASIS_NOTE.values():
+        assert "calendar" not in note.lower()
+
+
 def test_the_basis_note_is_not_repeated_when_the_headline_carries_it(sender, monkeypatch):
     deliver(monkeypatch, [event(basis="abnormal")])
-    assert "unexplained move" in sender.texts[0]
+    assert "not explained by the rest of the market" in sender.texts[0]
     assert sender.texts[0].count("explain") == 1
 
     sender.texts.clear()

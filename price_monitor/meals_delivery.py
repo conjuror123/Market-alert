@@ -67,27 +67,38 @@ TIER_EMOJI = {"routine": "⚪", "notable": "🟠", "major": "🔴", "extreme": "
 # period, because "the biggest move in about three years" needs no calibration
 # intuition where a 1-to-100 score would.
 TIER_PERIOD = {
-    "routine": "in a fortnight",
+    "routine": "in two weeks",
     "notable": "in about two months",
     "major": "in about a year",
     "extreme": "in about three years",
 }
 
 # What was biggest, which is not the same claim for each channel. An abnormal
-# event is the biggest move the market did NOT explain, and calling that "the
-# biggest move" overstates it - the instrument may well have had larger hours
-# that the market accounted for perfectly.
-BASIS_NOUN = {
-    "abnormal": "unexplained move",
-    "absolute": "move",
-    "both": "move",
+# event is the biggest move the rest of the market did NOT explain, and calling
+# that "the biggest move" overstates it - the instrument may well have had
+# larger hours that the market accounted for perfectly. The qualifier carries
+# that rather than a different noun: "biggest move in two weeks (not explained
+# by the rest of the market)" reads as one claim with a caveat, where "biggest
+# unexplained move in a fortnight" made the reader parse an adjective first.
+#
+# "the rest of the market" is meant literally and is the only accurate phrase
+# available: the residual is r minus what the basket factor and the block
+# factor predicted for this instrument this hour (see meals.residuals). The
+# economic calendar plays no part in it - it enters only the SI-Index in
+# meals.cluster - so an alert saying the calendar failed to explain a move
+# would be claiming a test the system never ran.
+BASIS_NOUN = "move"
+BASIS_QUALIFIER = {
+    "abnormal": " (not explained by the rest of the market)",
+    "absolute": "",
+    "both": "",
 }
 
 # Said only where it adds something the headline does not. For an abnormal
 # event the headline already carries it, and repeating it is noise.
 BASIS_NOTE = {
-    "absolute": "The market moved with it.",
-    "both": "And the market did not explain it.",
+    "absolute": "The rest of the market moved with it.",
+    "both": "And the rest of the market did not explain it.",
 }
 
 
@@ -95,7 +106,7 @@ def _headline(tier: str, basis: str) -> str:
     period = TIER_PERIOD.get(tier, tier)
     if basis == "market":
         return f"most disorderly hour {period}"
-    return f"biggest {BASIS_NOUN.get(basis, 'move')} {period}"
+    return f"biggest {BASIS_NOUN} {period}{BASIS_QUALIFIER.get(basis, '')}"
 
 
 def _retention_note(value: float) -> str:
@@ -242,7 +253,7 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
     rank = {name: i for i, name in enumerate(TIERS)}
     ordered = sorted(events, key=lambda e: (-rank.get(str(e.get("tier")), 0),
                                             int(e["hour_utc"])))
-    header = (f"📋 <b>MEALS digest</b> - {slot:%A %-d %B}\n"
+    header = (f"📋 <b>Digest</b> - {slot:%A %-d %B}\n"
               f"{len(ordered)} event{'s' if len(ordered) != 1 else ''} "
               f"since the last one")
 
