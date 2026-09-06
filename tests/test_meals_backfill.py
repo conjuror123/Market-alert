@@ -482,3 +482,91 @@ def test_a_series_that_agrees_on_both_price_and_returns_passes():
     stored = bars.to_hourly(_hf_minutes(base, n, walk))
     check = backfill.verify_alignment(_hf_minutes(base, n, walk), stored)
     assert check["ok"] and check["median_bp"] < backfill.ALIGNMENT_MAX_MEDIAN_BP
+
+
+# --- undoing a vendor's dividend adjustment --------------------------------
+
+def _adjusted(minutes, steps, reference, ratio):
+    """The inverse of unadjust_to_store, for building a fixture."""
+    from meals import corporate_actions
+    factor = corporate_actions.unadjust_factor(
+        steps, minutes["hour_utc"].to_numpy(), reference, ratio)
+    out = minutes.copy()
+    for c in ("open", "high", "low", "close"):
+        out[c] = out[c].to_numpy() * factor
+    return out
+
+
+def test_the_adjustment_is_undone_and_the_result_matches_the_store():
+    from datetime import date as _date
+
+    from meals import backfill
+
+    import numpy as np
+    base = int(datetime(2020, 2, 10, tzinfo=timezone.utc).timestamp())
+    rng = np.random.default_rng(23)
+    n = 60 * 24 * 400
+    walk = 300 * np.exp(np.cumsum(rng.standard_normal(n) * 0.0002))
+    truth = _hf_minutes(base, n, walk)
+    stored = bars.to_hourly(truth)
+
+    # A year of quarterly payouts, as a vendor would have applied them.
+    steps = [(_date(2020, 3, 20), 0.005), (_date(2020, 6, 19), 0.005),
+             (_date(2020, 9, 18), 0.005), (_date(2020, 12, 18), 0.005)]
+    vendor = _adjusted(truth, steps, _date(2020, 2, 20), 0.98)
+
+    fixed, info = backfill.unadjust_to_store(vendor, stored, steps)
+    assert info["calibrated"]
+    check = backfill.verify_alignment(fixed, stored)
+    assert check["ok"], check["why"]
+    assert check["median_bp"] < 5
+
+
+def test_the_uncorrected_series_would_have_failed_the_same_check():
+    # Which is what makes the correction worth doing rather than assumed.
+    from datetime import date as _date
+
+    from meals import backfill
+
+    import numpy as np
+    base = int(datetime(2020, 2, 10, tzinfo=timezone.utc).timestamp())
+    rng = np.random.default_rng(23)
+    n = 60 * 24 * 400
+    walk = 300 * np.exp(np.cumsum(rng.standard_normal(n) * 0.0002))
+    truth = _hf_minutes(base, n, walk)
+    stored = bars.to_hourly(truth)
+    steps = [(_date(2020, 3, 20), 0.005), (_date(2020, 6, 19), 0.005),
+             (_date(2020, 9, 18), 0.005), (_date(2020, 12, 18), 0.005)]
+
+    vendor = _adjusted(truth, steps, _date(2020, 2, 20), 0.98)
+    assert not backfill.verify_alignment(vendor, stored)["ok"]
+
+
+def test_an_instrument_with_no_payouts_is_only_rescaled():
+    # GLD, SLV and USO distribute nothing, so their factor is a flat number and
+    # the ex-date list is legitimately empty.
+    from meals import backfill
+
+    import numpy as np
+    base = int(datetime(2020, 2, 10, tzinfo=timezone.utc).timestamp())
+    rng = np.random.default_rng(31)
+    n = 60 * 24 * 60
+    # A real walk, not a flat line: a constant series has no variance and the
+    # return correlation comes back NaN rather than 1.
+    walk = 150 * np.exp(np.cumsum(rng.standard_normal(n) * 0.0002))
+    truth = _hf_minutes(base, n, walk)
+    stored = bars.to_hourly(truth)
+
+    fixed, info = backfill.unadjust_to_store(_hf_minutes(base, n, walk * 0.9),
+                                             stored, [])
+    assert info["calibrated"] and abs(info["ratio"] - 0.9) < 1e-6
+    assert backfill.verify_alignment(fixed, stored)["ok"]
+
+
+def test_calibration_needs_enough_overlap_to_be_meaningful():
+    from meals import backfill
+
+    base = int(datetime(2020, 2, 10, tzinfo=timezone.utc).timestamp())
+    tiny = _hf_minutes(base, 120)
+    _, info = backfill.unadjust_to_store(tiny, bars.to_hourly(tiny), [])
+    assert not info["calibrated"]

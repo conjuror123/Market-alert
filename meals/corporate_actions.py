@@ -128,6 +128,68 @@ def load_actions(path: str = DEFAULT_ACTIONS_PATH) -> dict[str, set[date]]:
     return by_ticker
 
 
+def load_steps(path: str = DEFAULT_ACTIONS_PATH) -> dict[str, list[tuple[date, float]]]:
+    """Ex-dates WITH their sizes, oldest first, for undoing a vendor's adjustment.
+
+    load_actions above returns only the dates, which is all the gap channel
+    needs. Reversing an adjusted price series needs the sizes too: the factor
+    between two moments is the product of (1 - step) over the ex-dates between
+    them.
+    """
+    if not os.path.exists(path):
+        return {}
+    by_ticker: dict[str, list[tuple[date, float]]] = {}
+    with open(path, "r", encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            try:
+                step = float(row["factor_step"])
+            except (TypeError, ValueError):
+                continue
+            by_ticker.setdefault(row["ticker"], []).append(
+                (date.fromisoformat(row["date"]), step))
+    for steps in by_ticker.values():
+        steps.sort()
+    return by_ticker
+
+
+def unadjust_factor(steps: list[tuple[date, float]], moments,
+                    reference: date, reference_factor: float = 1.0):
+    """The divisor turning a vendor's adjusted price into the real one.
+
+    An adjusted series is the true price scaled by the payouts that came AFTER
+    it, so its coefficient rises through time and the factor between any two
+    moments is the product of (1 + step) over the ex-dates in between. The sign
+    is not assumed: measured against SPY's actual closes, (1 + step) explains
+    the drift to 0.02% over three years and 0.15% over seven, where (1 - step)
+    is out by 11% and 24%.
+
+    `reference_factor` is measured rather than derived, which is the point. The
+    vendor's own anchor - end of their data, end of an era within it, something
+    else - never has to be guessed: pinning the factor at one moment where the
+    true price is independently known leaves the ex-dates responsible only for
+    the CHANGE from there. That is a far weaker claim than reproducing their
+    convention, and unlike it, it can be checked.
+    """
+    import numpy as np
+    import pandas as pd
+
+    days = pd.to_datetime(pd.Series(moments), unit="s", utc=True).dt.date
+    ordered = sorted(steps)
+    if not ordered:
+        return np.full(len(days), float(reference_factor))
+
+    # Cumulative product once, then two lookups per moment. The direct form is
+    # a product per row over every ex-date, which on a 2.3M-row minute series
+    # is a hundred and eighty million multiplications for one instrument.
+    dates = np.array([d.toordinal() for d, _ in ordered])
+    growth = np.concatenate([[1.0], np.cumprod([1.0 + s for _, s in ordered])])
+
+    taken = np.searchsorted(dates, np.array([d.toordinal() for d in days]),
+                            side="right")
+    at_reference = int(np.searchsorted(dates, reference.toordinal(), side="right"))
+    return reference_factor * growth[taken] / growth[at_reference]
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
     import logging

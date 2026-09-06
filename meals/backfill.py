@@ -27,7 +27,7 @@ from datetime import date, datetime, timedelta, timezone
 import pandas as pd
 import requests
 
-from meals import bars, fred
+from meals import bars, corporate_actions, fred
 from meals.basket import Asset, Basket, load_basket
 from price_monitor import candle_store, coinbase, fxcm, hfdata, twelvedata
 from price_monitor.models import ExchangeError
@@ -315,6 +315,53 @@ def verify_alignment(minutes: "pd.DataFrame", stored: "pd.DataFrame") -> dict:
             "why": "; ".join(reasons)}
 
 
+# How much of the overlap is spent pinning the vendor's adjustment factor. The
+# rest of it - about two years - is then an honest test of the reconstruction,
+# because nothing in those months was used to build it.
+CALIBRATION_DAYS = 30
+
+
+def unadjust_to_store(minutes: "pd.DataFrame", stored: "pd.DataFrame",
+                      steps: list) -> tuple["pd.DataFrame", dict]:
+    """Turns a vendor's adjusted prices into the store's unadjusted convention.
+
+    Two things make this checkable rather than hopeful. The anchor is measured,
+    not guessed: the factor is pinned where the store already knows the true
+    price, so the ex-dates only have to explain the change from there. And the
+    pinning uses the first month of the overlap while the check that follows
+    uses all of it, so roughly two years of the test never touched the fit.
+
+    Volume is left alone. Every action in the table is a dividend and none is a
+    split, and a dividend does not restate share counts.
+    """
+    import numpy as np
+
+    hourly = bars.to_hourly(minutes)
+    joined = hourly.merge(stored[["hour_utc", "close"]], on="hour_utc",
+                          how="inner", suffixes=("_hf", "_store"))
+    if joined.empty:
+        return minutes, {"calibrated": False, "why": "no overlap to calibrate on"}
+
+    joined = joined.sort_values("hour_utc")
+    cutoff = int(joined["hour_utc"].iloc[0]) + CALIBRATION_DAYS * 24 * 3600
+    window = joined[joined["hour_utc"] <= cutoff]
+    if len(window) < 50:
+        return minutes, {"calibrated": False,
+                         "why": f"only {len(window)} hours to calibrate on"}
+
+    ratio = float(np.median(window["close_hf"] / window["close_store"]))
+    reference = datetime.fromtimestamp(int(window["hour_utc"].median()),
+                                       tz=timezone.utc).date()
+    factor = corporate_actions.unadjust_factor(
+        steps, minutes["hour_utc"].to_numpy(), reference, ratio)
+
+    out = minutes.copy()
+    for column in ("open", "high", "low", "close"):
+        out[column] = out[column].to_numpy() / factor
+    return out, {"calibrated": True, "ratio": ratio, "reference": reference,
+                 "ex_dates": len(steps), "hours_used": len(window)}
+
+
 def deepen_from_hfdata(asset: Asset, path: str, since: date, api_key: str,
                        session: requests.Session,
                        timezone_name: str | None = HFDATA_TIMEZONE) -> dict:
@@ -344,11 +391,18 @@ def deepen_from_hfdata(asset: Asset, path: str, since: date, api_key: str,
     if minutes.empty:
         return {"skipped": "no consolidated-tape bars returned", "added": 0}
 
+    # Their prices are dividend-adjusted, measured: 0.972x of SPY's real close
+    # at the end of 2019 falling to 0.733x in 2005, in both the raw and the
+    # clean version. This store is deliberately unadjusted, so the factor is
+    # taken back out before anything is compared or merged.
+    steps = corporate_actions.load_steps().get(asset.ticker, [])
+    minutes, adjustment = unadjust_to_store(minutes, stored, steps)
+
     # Earn the un-checkable years with the checkable ones before merging.
     check = verify_alignment(minutes, stored)
     if not check["ok"]:
         return {"skipped": f"alignment check failed: {check['why']}",
-                "added": 0, "check": check}
+                "added": 0, "check": check, "adjustment": adjustment}
 
     lo = int(datetime.combine(since, datetime.min.time(),
                               tzinfo=timezone.utc).timestamp())
@@ -359,7 +413,8 @@ def deepen_from_hfdata(asset: Asset, path: str, since: date, api_key: str,
 
     added = bars.merge(path, bars.to_hourly(window))
     return {"skipped": None, "added": added, "minutes": len(window),
-            "from": since, "to": oldest.date(), "check": check}
+            "from": since, "to": oldest.date(), "check": check,
+            "adjustment": adjustment}
 
 
 def deepen_from_fxcm(asset: Asset, path: str, since: date,
@@ -485,12 +540,14 @@ def main(argv: list[str] | None = None) -> int:
                 log.info("%s: skipped (%s)", asset.asset_id, out["skipped"])
                 continue
             total += out["added"]
-            check = out["check"]
+            check, adj = out["check"], out.get("adjustment", {})
             log.info("%s: +%d bars from HF Data (%s .. %s, %d minute bars); "
+                     "un-adjusted by %.4f at %s over %d ex-dates; "
                      "overlap check %d hours, corr %.4f, median %.2fbp",
                      asset.asset_id, out["added"], out["from"], out["to"],
-                     out["minutes"], check["hours"], check["correlation"],
-                     check["median_bp"])
+                     out["minutes"], adj.get("ratio", float("nan")),
+                     adj.get("reference"), adj.get("ex_dates", 0),
+                     check["hours"], check["correlation"], check["median_bp"])
         log.info("HF Data deepening added %d bars", total)
         return 0
 
