@@ -127,3 +127,46 @@ def apply_gate(asset: Asset, frame: pd.DataFrame,
                          if not frame.empty else pd.Series(dtype=bool))
     out["is_usable"] = (out["invalid_reason"] == "") & out["in_session"]
     return out
+
+# A rounded price change of one tick can come from a true move of almost
+# nothing: if prices are recorded on a grid of `tick`, an observed change of
+# one tick means the true change was somewhere in (0, 2 ticks). Two ticks is
+# the smallest observed change that GUARANTEES the true move exceeded one tick,
+# which is why the threshold is two and not a number chosen for how it looked.
+MIN_RESOLVABLE_TICKS = 2.0
+
+
+def resolvable(close, r, tick_size: float,
+               minimum_ticks: float = MIN_RESOLVABLE_TICKS):
+    """Whether an hour's move is large enough to be a measurement of the market
+    rather than of the price grid.
+
+    This is NOT a second filter on magnitude, and the distinction is the whole
+    of its justification. §8.3's trigger deliberately has no such filter: a
+    single-asset move is grounds in itself and how much it matters is carried
+    by the tier. But that presumes the move was observed at all. Below two
+    ticks it was not - what varied was the rounding, and the instrument cannot
+    express anything smaller.
+
+    It matters for exactly one instrument here. Measured over the whole store,
+    hourly price changes in ticks:
+
+        SHY  median  1.1 ticks   29.8% of hours do not move at all
+        IEF  median  5.4 ticks    7.0%
+        SPY  median 29.9 ticks    1.4%
+
+    SHY is a large-tick asset in the microstructure sense - the price resists
+    moves of a single tick and the spread sits at one - so its return
+    distribution measures the grid, and a ladder fitted to it ranks the grid.
+    That is how a one-cent move on IEF came to be reported as the biggest in
+    three years.
+
+    The same reasoning already lives in §2.5's winsorization, whose eps_MAD
+    floor includes the return on half a tick so that MAD cannot collapse to
+    zero in quiet hours. This extends it from the scale to the event.
+    """
+    import numpy as np
+
+    step = np.abs(np.asarray(r, dtype="float64")) * np.abs(
+        np.asarray(close, dtype="float64"))
+    return step >= minimum_ticks * tick_size

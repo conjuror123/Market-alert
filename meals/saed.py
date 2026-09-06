@@ -32,7 +32,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from meals import persistence, routing, severity, windows
+from meals import persistence, quality, routing, severity, windows
 from meals.basket import Asset, Basket
 
 
@@ -115,6 +115,13 @@ def build_events(asset: Asset, frame: pd.DataFrame,
     previous one began, and that is a path-dependent decision.
     """
     fired = triggers(frame).fillna(False).to_numpy(dtype=bool)
+    # An hour whose price moved less than the instrument can resolve is not a
+    # small event, it is an unobserved one - see quality.resolvable. Applied
+    # here rather than inside triggers() because it needs the instrument's tick
+    # size, and triggers() deliberately reads nothing but the frame.
+    if "close" in frame and getattr(asset, "tick_size", 0):
+        fired &= quality.resolvable(frame["close"].to_numpy(),
+                                    frame["r"].to_numpy(), asset.tick_size)
     if not fired.any():
         return []
 

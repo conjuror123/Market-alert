@@ -296,3 +296,40 @@ def test_retention_is_measured_from_the_peak_not_the_opening():
     out = persistence.attach(events, {asset().asset_id: lookup})
 
     assert out["retention_24"].iloc[0] == pytest.approx(0.5)
+
+
+def test_a_move_smaller_than_the_instrument_can_resolve_is_not_an_event():
+    # A one-cent move on a hundred-dollar fund is the smallest change the
+    # price can express. It is not a small event; it is an unobserved one, and
+    # it is how a one-tick move came to be reported as the biggest in 3 years.
+    frame = scored([5])
+    frame["close"] = 100.0
+    frame.loc[5, "r"] = 0.0001            # one cent on 100 dollars = 1 tick
+    assert saed.build_events(asset(), frame, cooldown_bars=12) == []
+
+
+def test_two_ticks_is_enough_to_be_an_event():
+    # Two ticks is the smallest OBSERVED change that guarantees the true move
+    # exceeded one tick, which is why the threshold is two.
+    frame = scored([5])
+    frame["close"] = 100.0
+    frame.loc[5, "r"] = 0.0002
+    assert len(saed.build_events(asset(), frame, cooldown_bars=12)) == 1
+
+
+def test_the_gate_scales_with_the_price_not_with_a_fixed_percentage():
+    # A tick is a fixed number of cents, so the SAME percentage move is two
+    # basis points either way and yet is eight ticks on a $400 fund and four
+    # tenths of a tick on a $20 one. A percentage threshold could not express
+    # that; this is why the gate is stated in ticks.
+    dear = scored([5]);  dear["close"] = 400.0;  dear.loc[5, "r"] = 0.0002
+    cheap = scored([5]); cheap["close"] = 20.0;  cheap.loc[5, "r"] = 0.0002
+    assert len(saed.build_events(asset(), dear, cooldown_bars=12)) == 1
+    assert saed.build_events(asset(), cheap, cooldown_bars=12) == []
+
+
+def test_an_instrument_without_a_price_column_is_not_gated():
+    # FX and crypto frames reach here the same way; nothing should silently
+    # vanish because a column is absent.
+    frame = scored([5]).drop(columns=["close"], errors="ignore")
+    assert len(saed.build_events(asset(), frame, cooldown_bars=12)) == 1

@@ -1440,3 +1440,72 @@ the hours where it shows and leaves the calibration wrong everywhere else — an
 the fact that the quantity was never on the scale the code assumed. `cross_sectional_scale`
 and `standardise_cross_section` had no direct tests at all until this; the function at
 the centre of the detector's cross-sectional standardisation was the one nothing checked.
+
+## 33. A one-cent move is not a small event, it is an unobserved one
+
+§32 closed with IEF pushing on 0.010% and the claim that this was a question about the
+recipient rather than the estimator — that a small move can be genuinely rare for a
+quiet instrument, and nothing in the system says an event must also be large. That was
+half right and it stopped one question too early. The right question was not "is 0.010%
+big enough to matter" but **"is 0.010% a move at all"**.
+
+**It is one tick.** IEF trades near $98 with a one-cent tick, so a cent is 0.0102%. The
+pushed move was 0.0101% — **0.99 ticks**, the smallest non-zero change the instrument
+can express. Every other instrument's smallest pushed move ran from 10 to 60 ticks:
+
+```
+IEF   "extreme"  -0.0101%  =  0.99 ticks
+SHY   "extreme"  +0.0174%  =  1.45 ticks
+SPY   smallest pushed move =  12.9 ticks      GLD  59.9   USO  49.1
+```
+
+**SHY is a large-tick asset**, in the microstructure sense the literature gives the term:
+the price resists moves of a single tick and the spread sits at one. Hourly price changes
+in ticks, over the whole store:
+
+| ETF | median move | hours that do not move at all | within one tick |
+|---|---|---|---|
+| SHY | **1.1 ticks** | **29.8%** | 64.1% |
+| IEF | 5.4 | 7.0% | 18.2% |
+| SPY | 29.9 | 1.4% | 3.9% |
+
+Nearly a third of SHY's hours have no price change whatsoever. Its return distribution is
+a measurement of the price grid, so a ladder fitted to it ranks the grid — which is
+exactly how one cent came to be reported as the biggest move in three years.
+
+**Why this is not the floor rejected in §32.** That one would have clipped a statistic
+whose distribution had been misread, at a value chosen by taste. This one encodes a
+physical property of the exchange. And the threshold is derived rather than picked: if
+prices are recorded on a grid of one tick, an observed change of one tick is consistent
+with a true change of almost nothing, while **two ticks is the smallest observed change
+that guarantees the true move exceeded one tick**. Hence two, and not a number chosen for
+how it looked.
+
+The same reasoning is already in the code one layer down. §2.5's winsorization floors
+`eps_MAD` at the return on half a tick, precisely so that "in quiet hours when the price
+stands still, MAD collapses to zero and an ordinary move looks extreme". The scale knew
+about the tick; the event did not. This extends it.
+
+**It is not the second magnitude filter §8.3 refuses.** That refusal — "a single-asset
+move is grounds in itself, and how much it matters is carried by the tier" — presumes the
+move was observed. Below two ticks what varied was the rounding. This is a gate on
+observability, not on significance, and the two are worth keeping apart: the first is a
+fact about the instrument, the second would be a judgement about the recipient.
+
+**What it cost.** 1.2% of events and 3 of 653 pushes, landing where it should:
+
+```
+SHY  -15.9% of its events        IEF  -2.9%       everything else  <= 2%
+smallest pushed move, before:  0.99 ticks    after:  2.05 ticks
+```
+
+**What remains, and is genuinely the open question.** SHY still pushes at 2.05 ticks, or
+0.025%. That move is now certainly real — but whether a quarter of a basis point on a
+one-to-three-year Treasury fund should interrupt anyone is the question §32 wrongly
+claimed this one was. It is a choice about the recipient, and it is still open.
+
+**The rule this is an instance of.** "Rare for this instrument" and "observable on this
+instrument" are different properties, and a percentile cannot tell them apart: the grid
+produces a perfectly good distribution with perfectly good tails. Before accepting that a
+small number is rare, check what the smallest number the instrument can produce actually
+is.
