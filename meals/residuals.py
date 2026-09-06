@@ -234,12 +234,65 @@ def cross_sectional_scale(panel: pd.DataFrame,
     scale = np.sqrt(np.maximum(variance, 0.0))
     enough = (count >= minimum) & present & (n > 1)
     scale = np.where(enough & (scale > 0), scale, np.nan)
-    return pd.DataFrame(scale, index=panel.index, columns=panel.columns)
+    dof = np.where(enough, np.broadcast_to(n, scale.shape) - 1.0, np.nan)
+    return (pd.DataFrame(scale, index=panel.index, columns=panel.columns),
+            pd.DataFrame(dof, index=panel.index, columns=panel.columns))
+
+
+def normalise_t(ratio: np.ndarray, dof: np.ndarray) -> np.ndarray:
+    """Puts a t-statistic on the standard normal scale, given its own dof.
+
+    WHY THIS IS NEEDED AT ALL. `z_resid / bmp_scale` is not a Z-score. The
+    denominator is a sample standard deviation of n peers, and leave-one-out
+    makes it independent of the numerator, so the ratio is
+    N(0,1) / sqrt(chi2_{n-1}/(n-1)) - a t-statistic with n-1 degrees of freedom,
+    exactly. Its heavy tail is not a defect to be clipped away; it is the
+    correct sampling distribution of a ratio whose denominator was estimated.
+
+    THE DEFECT IS THAT n IS NOT CONSTANT. Between five instruments in session
+    overnight and twenty-three during the US day, the same number means
+    entirely different things:
+
+        a score of 11.5 with  6 peers - one hour in 11 thousand
+        a score of 11.5 with 23 peers - one hour in 11 billion
+
+    and both were handed to one severity ladder. Measured on the store, the
+    p99.9 of |score| runs 11.77 for hours with 5-8 peers against 5.80 for
+    13-17 - a factor of two purely from how many instruments happened to be
+    open. The ladder read that as the overnight hours being the violent ones.
+
+    THE TRANSFORM. Wallace's (1959) normalising approximation for Student's t,
+    which maps a t with `dof` degrees of freedom onto the standard normal
+    scale. Chosen over the exact probability integral transform after measuring
+    both: on this store the exact transform leaves the widest and narrowest
+    peer-count buckets differing by 1.09x and Wallace by 1.08x - no better,
+    because what remains is the residuals not being exactly normal rather than
+    any inaccuracy in the mapping. Wallace needs a logarithm and a square root
+    where the exact transform needs an incomplete beta function, a dependency
+    this project does not carry and would not earn its place here.
+
+    A FLOOR ON THE DENOMINATOR WOULD NOT HAVE FIXED THIS. It would have capped
+    the score in thin hours while leaving the calibration wrong in every other
+    hour, and the value of the floor would have been a number chosen by taste.
+    """
+    out = np.full_like(np.asarray(ratio, dtype="float64"), np.nan)
+    good = np.isfinite(ratio) & np.isfinite(dof) & (dof >= 1)
+    t = np.asarray(ratio, dtype="float64")[good]
+    v = np.asarray(dof, dtype="float64")[good]
+    out[good] = (np.sign(t) * np.sqrt(v * np.log1p(t * t / v))
+                 * (8.0 * v + 3.0) / (8.0 * v + 1.0))
+    return out
 
 
 def standardise_cross_section(scored: dict[str, pd.DataFrame],
                               minimum: int = BMP_MIN_ASSETS) -> dict[str, pd.DataFrame]:
-    """Adds z_resid_bmp to every asset's frame: its Z divided by its peers' spread.
+    """Adds z_resid_bmp to every asset's frame: its Z against its peers' spread,
+    put on the standard normal scale.
+
+    The division by the peers' spread produces a t-statistic, not a Z-score, and
+    its degrees of freedom change every hour with how many instruments are in
+    session - see normalise_t, which is what makes the result comparable between
+    a five-instrument night and a twenty-three-instrument afternoon.
 
     Returns new frames rather than mutating, and leaves z_resid untouched beside
     it - the raw score stays exported and logged, because a change of this size
@@ -251,17 +304,25 @@ def standardise_cross_section(scored: dict[str, pd.DataFrame],
         return scored
 
     panel = pd.DataFrame(series).sort_index()
-    scale = cross_sectional_scale(panel, minimum)
+    scale, dof = cross_sectional_scale(panel, minimum)
 
     out = {}
     for aid, frame in scored.items():
         if aid not in panel:
-            out[aid] = frame.assign(bmp_scale=np.nan, z_resid_bmp=np.nan)
+            out[aid] = frame.assign(bmp_scale=np.nan, bmp_dof=np.nan,
+                                    t_resid=np.nan, z_resid_bmp=np.nan)
             continue
         own = scale[aid].reindex(frame["hour_utc"]).to_numpy()
+        own_dof = dof[aid].reindex(frame["hour_utc"]).to_numpy()
+        ratio = frame["z_resid"].to_numpy() / own
         out[aid] = frame.assign(
             bmp_scale=own,
-            z_resid_bmp=frame["z_resid"].to_numpy() / own)
+            bmp_dof=own_dof,
+            # The raw ratio stays beside the transformed score for the same
+            # reason z_resid does: a change of this size should be arguable
+            # against what it replaced.
+            t_resid=ratio,
+            z_resid_bmp=normalise_t(ratio, own_dof))
     return out
 
 

@@ -262,7 +262,7 @@ DEFAULT_RESIDUALS_DIR = "data/meals/residuals"
 # yet they take as much space as everything else put together - they are series
 # of random numbers, and nothing compresses them.
 RESIDUAL_COLUMNS = ("hour_utc", "asset_id", "beta", "beta_block", "e_resid",
-                    "sigma_lt_resid", "z_resid", "bmp_scale", "z_resid_bmp",
+                    "sigma_lt_resid", "z_resid", "bmp_scale", "bmp_dof", "t_resid", "z_resid_bmp",
                     "q95_resid", "q99_resid", "tier", "basis", "tier_abnormal",
                     "tier_absolute") + severity.LEVEL_COLUMNS \
                   + severity.level_columns(ABSOLUTE_LEVEL_PREFIX) \

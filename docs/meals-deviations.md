@@ -1353,3 +1353,90 @@ ask which other fields were describing the same thing. A partial update leaves a
 that is internally inconsistent but individually plausible in every column, so nothing
 downstream can detect it — the delivery layer had no way to know that its `r` and its
 `tier` came from different hours.
+
+## 32. It was never a Z-score, and the fix was not a floor
+
+The first reading of this was wrong, and the wrong reading came with a proposed fix that
+would have entrenched it. Recording both, because the mistake is the instructive part.
+
+**What was seen.** Pushes firing on moves too small to be events: USD/CHF at **0.007%**,
+IEF at 0.010%. Their `bmp_scale` — the peers' spread that `z_resid` is divided by — was
+0.093 where the median is 0.94, turning a `z_resid` of 1.07 into a `z_resid_bmp` of
+11.47. Hours with `bmp_scale < 0.25` are 0.7% of observations and were **6.8× over-
+represented** in the push stream.
+
+**The fix proposed, and why it was wrong.** A floor on the denominator, by analogy with
+the `eps_MAD` floor the winsorization already applies. It would have worked in the sense
+of removing the symptom. It was wrong for two reasons: the floor's value would have been
+a number chosen by taste, and — the real objection — *the denominator was not the
+problem*.
+
+**What it actually is.** `z_resid / bmp_scale` is not a Z-score. The denominator is a
+sample standard deviation of n peers, and the leave-one-out (§ the scale's own
+docstring) makes it independent of the numerator, so
+
+```
+z / S  =  N(0,1) / sqrt(chi2_{n-1}/(n-1))  =  t_{n-1}, exactly
+```
+
+It is a **t-statistic**, and its heavy tail is not a defect but the correct sampling
+distribution of a ratio whose denominator was estimated. Boehmer, Musumeci and Poulsen
+(1991) use that cross-sectional spread as the denominator of a *portfolio* statistic,
+`t = sqrt(N)·mean(SAR)/S(SAR)`, explicitly distributed `t_{N-1}`. Using it to rescale a
+single instrument is an extension of the method, and the extension inherits the t.
+
+**The defect is that n is not constant.** Between five instruments in session overnight
+and twenty-three during the US afternoon, the degrees of freedom change every hour:
+
+| peers n | share of pushes' hours | observed p99.9 | t(n−1) p99.9 | normal p99.9 |
+|---|---|---|---|---|
+| 5–8 | 40.9% | 11.77 | 6.87 | 3.29 |
+| 9–12 | 31.1% | 8.26 | 4.78 | 3.29 |
+| 13–17 | 5.3% | 5.80 | 4.32 | 3.29 |
+| 18–24 | 22.7% | 5.84 | 3.85 | 3.29 |
+
+The observed tail widens as n falls, in the order the t-distribution requires. So the
+same number meant different things in different hours — a score of 11.5 is one hour in
+eleven thousand against six peers and one in eleven **billion** against twenty-three —
+and both were handed to one severity ladder, which read the thin overnight hours as the
+violent ones. Hours with a small scale are the same hours: median six peers against
+eleven overall, 96% of them with n ≤ 10.
+
+**The transform.** Wallace's (1959) normalising approximation for Student's t, which
+maps a t onto the standard normal scale given its own degrees of freedom:
+
+```
+z* = sign(t) · sqrt(v · ln(1 + t²/v)) · (8v + 3) / (8v + 1)
+```
+
+Chosen over the exact probability integral transform after measuring both on the store:
+the exact transform leaves the widest and narrowest peer-count buckets differing by
+1.09×, Wallace by **1.08×** — no better, because what remains is the residuals not being
+exactly normal rather than any inaccuracy in the mapping. Wallace needs a logarithm and
+a square root; the exact transform needs an incomplete beta function, and with it scipy,
+which this project does not carry and which would not earn its place for one transform.
+Cornish–Fisher was tried and rejected: it diverges in the tail, reaching an error of 652
+where Wallace's worst is 0.5.
+
+**What it bought, measured.**
+
+| | before | after |
+|---|---|---|
+| widest ÷ narrowest peer-bucket tail | 2.03× | **1.08×** |
+| noisy-denominator hours' share of pushes | 6.8× over-represented | **3.8×** |
+| the 0.007% USD/CHF push | present | gone |
+
+**What it did not fix, stated plainly.** IEF at 0.010% and SHY at 0.017% still push.
+That is a different question and not a statistical one: the two shortest-duration bond
+funds have genuinely tiny distributions, so a small move really is rare *for them*. The
+system is built to rank each instrument against itself, and nothing in it says a move
+must also be large in absolute terms to be worth a notification. Whether it should is a
+question about the recipient, not about the estimator, and it is left open rather than
+answered with another floor.
+
+**The rule this is an instance of.** When a statistic misbehaves, ask what its sampling
+distribution actually is before reaching for a guard. The guard treats the symptom in
+the hours where it shows and leaves the calibration wrong everywhere else — and it hides
+the fact that the quantity was never on the scale the code assumed. `cross_sectional_scale`
+and `standardise_cross_section` had no direct tests at all until this; the function at
+the centre of the detector's cross-sectional standardisation was the one nothing checked.
