@@ -113,12 +113,30 @@ jobs:
         # later instrument in the same run failed.
         if: always()
         run: |
-          if [ -n "$(git status --porcelain data/meals)" ]; then
-            git config user.name "price-monitor-bot"
-            git config user.email "actions@github.com"
-            git add data/meals
-            git commit -m "chore: deepen MEALS bar store [skip ci]"
-            git push
-          else
+          if [ -z "$(git status --porcelain data/meals)" ]; then
             echo "No new bars to commit."
+            exit 0
           fi
+          git config user.name "price-monitor-bot"
+          git config user.email "actions@github.com"
+          git add data/meals
+          git commit -m "chore: deepen MEALS bar store [skip ci]"
+
+          # A plain push loses the whole run to a race. These runs last tens of
+          # minutes and the branch is worked on meanwhile, so by the time this
+          # step arrives the ref has often moved - and a rejected push discards
+          # bars that cost real credits and real archive requests to fetch,
+          # with the container. Rebase onto whatever landed and try again.
+          # --rebase is safe here because this commit touches only data/meals,
+          # which nothing else writes.
+          for attempt in 1 2 3 4 5; do
+            if git push origin "HEAD:${{ github.ref_name }}"; then
+              echo "pushed on attempt $attempt"
+              exit 0
+            fi
+            echo "push rejected, rebasing onto origin/${{ github.ref_name }}"
+            git pull --rebase origin "${{ github.ref_name }}" || exit 1
+            sleep $((attempt * 3))
+          done
+          echo "::error::could not push the deepened store after 5 attempts"
+          exit 1
