@@ -155,7 +155,14 @@ def main(argv: list[str] | None = None) -> int:
     all_actions: list[CorporateAction] = []
     for i, asset in enumerate(funds):
         try:
-            found = derive_actions(asset.ticker, api_key, basket.history_since, session)
+            # The ACQUISITION floor, not the analysis one. This table has to
+            # reach at least as far back as the bars do or an ex-date older
+            # than it arrives as an unexplained price drop - and the detector,
+            # which now rates moves by how rare they are for the instrument,
+            # would promote a monthly bond-fund distribution to an alert.
+            # HYG, IEF and SHY pay monthly; the store already holds a year of
+            # ETF bars older than this table's first row.
+            found = derive_actions(asset.ticker, api_key, basket.acquire_since, session)
             all_actions.extend(found)
             splits = sum(1 for a in found if a.kind == "split")
             log.info("%s: payouts %d, splits %d", asset.ticker,

@@ -22,6 +22,10 @@ name: Backfill MEALS Bars
 #                   serves, from FXCM's public archive (needs no key at all)
 #   deepen-etfs     the same for the US-equity instruments, from HF Data's
 #                   consolidated-tape minute bars (needs HFDATA_API_KEY)
+#   corporate-actions
+#                   rebuild the ex-date table from the acquisition floor. It
+#                   must reach at least as far back as the bars, or an older
+#                   payout arrives as an unexplained price drop
 #   probe-hfdata    print one HF Data ticker's schema and first timestamps and
 #                   stop. Their columns and timezone are undocumented, and
 #                   deepen-etfs refuses to run until the zone has been read off
@@ -46,6 +50,7 @@ on:
           - deepen-fx
           - deepen-etfs
           - probe-hfdata
+          - corporate-actions
 
 permissions:
   contents: write
@@ -86,7 +91,9 @@ jobs:
         run: |
           # probe-hfdata takes its ticker as the flag's value rather than as a
           # separate --instruments, so it is spelled out on its own.
-          if [ "${{ github.event.inputs.mode }}" = "probe-hfdata" ]; then
+          if [ "${{ github.event.inputs.mode }}" = "corporate-actions" ]; then
+            python -m meals.corporate_actions
+          elif [ "${{ github.event.inputs.mode }}" = "probe-hfdata" ]; then
             python -m meals.backfill --probe-hfdata "${{ github.event.inputs.instruments || 'SPY' }}"
           else
             python -m meals.backfill --${{ github.event.inputs.mode || 'extend-history' }} \
