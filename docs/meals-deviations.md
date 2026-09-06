@@ -1246,6 +1246,31 @@ Bid and ask are separate files and both are fetched, because the stored bars are
 Bid alone measures −0.19 bp against the store where the mid gives +0.00 — tiny, but
 systematic and at a seam, which is the one place a small bias is not small.
 
+**What it fetched.** Runs 34029405709 and 34035890999, +405,000 bars:
+
+| pair | now reaches | pair | now reaches |
+|---|---|---|---|
+| EUR/USD, GBP/USD, USD/JPY, USD/CHF | 2003-05 | AUD/USD, NZD/USD, USD/CAD | 2003-08 |
+| USD/CNH | 2012-06 | | |
+
+USD/JPY's Dukascopy era spans 75.687..124.115 — 75.687 being the post-Fukushima record
+yen high, which is the point size having been read correctly rather than asserted. The
+FX store is now 1.85M bars against 1.43M, and the pairs sit in the same era as the ETFs.
+
+**Which is the point.** Annualised hourly volatility by year:
+
+```
+        EUR/USD  GBP/USD  USD/CAD  AUD/USD  NZD/USD  USD/JPY  USD/CHF
+2007        6.1      6.7      9.5     12.2     14.1      9.3      7.3
+2008       14.3     15.3     16.3     26.6     23.3     16.4     14.7
+2020        8.0     11.3      8.4     14.2     13.5      8.0      7.7
+```
+
+2008 is about twice the FX event 2020 was, and until this the basket had no FX data for
+it at all. The severity ladder fits a GPD to the tail of each instrument's own
+distribution; for the whole FX block that tail was being estimated from a sample that
+excluded the largest event in the record.
+
 **The splice is gated, unlike the last one.** FXCM began where the store already had
 bars and had to be trusted blind. Dukascopy covers the whole stored range, so three
 months of overlap can be bought for six extra requests a pair and the years underneath
@@ -1259,3 +1284,20 @@ written at or above the oldest stored bar even then — Twelve Data stays the li
 and `bars.merge` lets the incoming row win. A test asserts that a thousandfold scale
 error, which is precisely what fault 3 produces, is caught by the level gate rather
 than merged.
+
+**Operationally: a run may silently skip a pair, and that is by design.** The archive
+rate-limits by IP on a short window — a burst earns HTTP 429, and it clears in about
+twelve seconds, measured. The reader retries across a 45-second backoff, which covers
+it in the ordinary case; when it does not, `fetch_history` raises and the per-asset
+handler logs it and moves to the next pair rather than losing the ones already done.
+That is what happened on the first pass: USD/JPY and USD/CHF were skipped under
+throttling and a second run took them without incident. The right response to a pair
+short of its floor is therefore to re-run it, not to investigate it — but the only way
+to know is to check the floors afterwards rather than trust the run's exit status,
+because a skipped pair is a successful run.
+
+The other lesson is about where the commit sits. This job fetches for well over an
+hour and commits once at the end, so a job killed at the timeout would lose everything
+not yet written. It also collided with an ordinary branch push and lost a completed
+USD/CNH pull outright, which is why the commit step now rebases and retries — it
+earned that on the very next run, pushing on attempt 2.
