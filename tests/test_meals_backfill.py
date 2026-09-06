@@ -570,3 +570,68 @@ def test_calibration_needs_enough_overlap_to_be_meaningful():
     tiny = _hf_minutes(base, 120)
     _, info = backfill.unadjust_to_store(tiny, bars.to_hourly(tiny), [])
     assert not info["calibrated"]
+
+
+def test_the_gap_fill_patches_only_the_missing_days(tmp_path, monkeypatch):
+    # This writes INTO the middle of the stored series rather than under it,
+    # so it must touch the missing days and nothing else - a patch that also
+    # rewrote neighbouring hours would replace vendor A's bars with vendor B's
+    # in places the store was already complete.
+    from meals import backfill
+
+    import numpy as np
+    path = tmp_path / "twelvedata_SPY.parquet"
+    base = int(datetime(2021, 1, 4, tzinfo=timezone.utc).timestamp())
+    n = 60 * 24 * 120
+    rng = np.random.default_rng(41)
+    walk = 300 * np.exp(np.cumsum(rng.standard_normal(n) * 0.0002))
+    everything = _hf_minutes(base, n, walk)
+
+    # The store holds all of it except one day.
+    hole = date(2021, 2, 1)
+    days = pd.to_datetime(everything["hour_utc"], unit="s", utc=True).dt.date
+    bars.merge(str(path), bars.to_hourly(everything[(days != hole).to_numpy()]))
+    before = bars.load(str(path))
+
+    table = {d: object() for d in set(days)}
+    monkeypatch.setattr(backfill.hfdata, "fetch_parquet", lambda *a, **k: b"x")
+    monkeypatch.setattr(backfill.hfdata, "to_minute_frame",
+                        lambda *a, **k: everything)
+    monkeypatch.setattr(backfill.corporate_actions, "load_steps", lambda: {})
+
+    out = backfill.fill_gaps_from_hfdata(_etf(), str(path), table, "key", None)
+
+    assert out["gaps"] == 1 and out["added"] > 0
+    assert out["still_missing"] == []
+    after = bars.load(str(path))
+    # every hour that was already there is untouched
+    merged = before.merge(after, on="hour_utc", suffixes=("_before", "_after"))
+    assert len(merged) == len(before)
+    assert (merged["close_before"] == merged["close_after"]).all()
+
+
+def test_the_gap_fill_writes_nothing_when_the_alignment_check_fails(tmp_path, monkeypatch):
+    from meals import backfill
+
+    import numpy as np
+    path = tmp_path / "twelvedata_SPY.parquet"
+    base = int(datetime(2021, 1, 4, tzinfo=timezone.utc).timestamp())
+    n = 60 * 24 * 120
+    rng = np.random.default_rng(42)
+    walk = 300 * np.exp(np.cumsum(rng.standard_normal(n) * 0.0002))
+    everything = _hf_minutes(base, n, walk)
+    hole = date(2021, 2, 1)
+    days = pd.to_datetime(everything["hour_utc"], unit="s", utc=True).dt.date
+    bars.merge(str(path), bars.to_hourly(everything[(days != hole).to_numpy()]))
+    before = len(bars.load(str(path)))
+
+    table = {d: object() for d in set(days)}
+    monkeypatch.setattr(backfill.hfdata, "fetch_parquet", lambda *a, **k: b"x")
+    # An hour out, which is what a timezone read wrong looks like.
+    monkeypatch.setattr(backfill.hfdata, "to_minute_frame",
+                        lambda *a, **k: _hf_minutes(base + 3600, n, walk))
+    monkeypatch.setattr(backfill.corporate_actions, "load_steps", lambda: {})
+
+    out = backfill.fill_gaps_from_hfdata(_etf(), str(path), table, "key", None)
+    assert out["added"] == 0 and "alignment check failed" in out["skipped"]
+    assert len(bars.load(str(path))) == before

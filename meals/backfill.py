@@ -233,8 +233,9 @@ def fill_gaps(asset: Asset, path: str, table: dict, api_key: str,
             added += bars.merge(path, bars.to_hourly(bars.candles_to_frame(candles)))
         time.sleep(TWELVEDATA_DELAY_SECONDS)
 
+    left = missing_sessions(path, table)
     return {"skipped": None, "added": added, "gaps": len(gaps),
-            "still_missing": missing_sessions(path, table)}
+            "still_missing": left}
 
 
 # What HF Data's minute timestamps mean, read off the file rather than assumed.
@@ -417,6 +418,58 @@ def deepen_from_hfdata(asset: Asset, path: str, since: date, api_key: str,
             "adjustment": adjustment}
 
 
+def fill_gaps_from_hfdata(asset: Asset, path: str, table: dict, api_key: str,
+                          session: requests.Session,
+                          timezone_name: str | None = HFDATA_TIMEZONE) -> dict:
+    """Fills the sessions Twelve Data does not hold, from HF Data's archive.
+
+    Every one of the twenty-one confirmed holes falls in 2020 and 2021, which
+    is inside HF Data's consolidated-tape era - the same full CTA/UTP feed the
+    surrounding Twelve Data bars come from, not the IEX subset that starts in
+    March 2022. So these days are recoverable from a second source of the same
+    kind, which is exactly what a second source is for.
+
+    This writes INTO the middle of the stored series rather than under it, so
+    the adjustment has to be right to the basis point or the patch shows up as
+    a step where the store was continuous. The same calibration and the same
+    two gates apply, and nothing is written unless both pass.
+    """
+    if asset.session_template != CALENDAR_TEMPLATE:
+        return {"skipped": "no authoritative calendar", "added": 0, "gaps": 0}
+    if timezone_name is None:
+        return {"skipped": "HFDATA_TIMEZONE is unset", "added": 0, "gaps": 0}
+
+    gaps = missing_sessions(path, table)
+    if not gaps:
+        return {"skipped": None, "added": 0, "gaps": 0, "still_missing": []}
+
+    stored = bars.load(path)
+    payload = hfdata.fetch_parquet(asset.ticker, api_key, session)
+    minutes = hfdata.to_minute_frame(payload, timezone_name)
+    if minutes.empty:
+        return {"skipped": "no consolidated-tape bars returned", "added": 0,
+                "gaps": len(gaps)}
+
+    steps = corporate_actions.load_steps().get(asset.ticker, [])
+    minutes, adjustment = unadjust_to_store(minutes, stored, steps)
+    check = verify_alignment(minutes, stored)
+    if not check["ok"]:
+        return {"skipped": f"alignment check failed: {check['why']}",
+                "added": 0, "gaps": len(gaps), "check": check}
+
+    wanted = set(gaps)
+    days = pd.to_datetime(minutes["hour_utc"], unit="s", utc=True).dt.date
+    patch = minutes[days.isin(wanted).to_numpy()]
+    if patch.empty:
+        return {"skipped": "the archive does not hold those days either",
+                "added": 0, "gaps": len(gaps), "still_missing": gaps}
+
+    added = bars.merge(path, bars.to_hourly(patch))
+    return {"skipped": None, "added": added, "gaps": len(gaps),
+            "still_missing": missing_sessions(path, table),
+            "check": check, "adjustment": adjustment}
+
+
 def deepen_from_fxcm(asset: Asset, path: str, since: date,
                      session: requests.Session) -> dict:
     """Fills an FX pair's history BELOW what is already stored, from FXCM.
@@ -555,6 +608,7 @@ def main(argv: list[str] | None = None) -> int:
         from meals import sessions as _sessions
 
         api_key = os.environ.get("TWELVEDATA_API_KEY", "")
+        hf_key = os.environ.get("HFDATA_API_KEY", "")
         if not api_key:
             log.error("TWELVEDATA_API_KEY is not set")
             return 2
@@ -574,11 +628,35 @@ def main(argv: list[str] | None = None) -> int:
                 log.info("%s: no gaps", asset.asset_id)
                 continue
             left = out["still_missing"]
-            filled += out["gaps"] - len(left)
+            log.info("%s: %d gap(s), +%d bars from Twelve Data, %d still "
+                     "missing%s", asset.asset_id, out["gaps"], out["added"],
+                     len(left), f" {[str(d) for d in left]}" if left else "")
+
+            # Twelve Data does not hold them - proven, 0 of 21 recovered in run
+            # 33994110137 - so anything still missing goes to the second source
+            # of the same kind. Tried in this order because a day recovered from
+            # the vendor the surrounding bars already come from needs no
+            # adjustment and no calibration to sit correctly beside them.
+            if left and hf_key:
+                try:
+                    out = fill_gaps_from_hfdata(asset, path, table, hf_key,
+                                                session)
+                except Exception as exc:
+                    log.error("%s: HF Data gap fill failed - %s",
+                              asset.asset_id, exc)
+                    out = {"skipped": str(exc), "added": 0,
+                           "still_missing": left}
+                if out.get("skipped"):
+                    log.info("%s: HF Data skipped (%s)", asset.asset_id,
+                             out["skipped"])
+                else:
+                    left = out["still_missing"]
+                    log.info("%s: +%d bars from HF Data, %d still missing%s",
+                             asset.asset_id, out["added"], len(left),
+                             f" {[str(d) for d in left]}" if left else "")
+
+            filled += out["gaps"] - len(left) if out.get("gaps") else 0
             unfilled += len(left)
-            log.info("%s: %d gap(s), +%d bars, %d still missing%s",
-                     asset.asset_id, out["gaps"], out["added"], len(left),
-                     f" {[str(d) for d in left]}" if left else "")
         log.info("gap fill: %d recovered, %d confirmed missing at the source",
                  filled, unfilled)
         return 0
