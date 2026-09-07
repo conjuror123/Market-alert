@@ -1743,3 +1743,63 @@ completeness is a claim, not a measurement, and it took four commands to check. 
 a rejected option is cheap and occasionally right - the proposal here was not the one
 that had been rejected - but the re-test has to measure the same things the first one did,
 or it is just a second opinion with no evidence behind it.
+
+## 38. The first score: the system matches a one-line baseline
+
+§7's machinery had never been run to completion — `evaluation.md` did not exist and the
+truth labels stopped at 2021 while the store now reaches 2004. Both were regenerated over
+the full history. The result is not flattering and is worth stating plainly.
+
+**What the yardstick says.** Scored window 2021-11-14 .. 2026-09-03, recall per episode:
+
+| Detector | Alerts | Caught of 130 | Precision | Recall | F1 | Median lead |
+|---|---:|---:|---:|---:|---:|---:|
+| SI-Index cluster events | 139 | 32 | 18.0% | 24.6% | 20.8% | 4 h |
+| **SAED pushes** | 107 | 28 | 20.6% | 21.5% | **21.0%** | 10 h |
+| SAED pushes + digest | 2047 | 116 | 15.5% | 89.2% | 26.5% | 14 h |
+| SPY trailing 24h (runnable) | 65 | 23 | 27.7% | 17.7% | **21.6%** | 12 h |
+| SPY trailing 24h, no cooldown | 940 | 52 | 33.2% | 40.0% | **36.3%** | 23 h |
+
+**At comparable alert volume the whole system is level with "SPY moved a lot in the last
+24 hours".** 107 pushes score F1 21.0 against the throttled baseline's 21.6 on 65 alerts.
+The unthrottled baseline scores 36.3, but it fires 940 times — 188 a year against the
+push stream's 21 — so that row is not a competitor to a notification budget, it is a
+demonstration that F1 ignores burden.
+
+**Two things the score does say in the system's favour.**
+
+*It sees almost everything.* Pushes plus digest catch **89.2%** of episodes. The
+detection is not the weak part; the selection down to 21 alerts a year is where recall
+goes, and that is a deliberate choice about attention rather than a failure to notice.
+
+*The push stream generalises where the cluster channel does not.* Across the §7 split:
+
+```
+                   train F1   test F1
+SI-Index cluster      24.0       12.3      precision 23.1% -> 8.3%
+SAED pushes           19.4       26.3      precision 18.8% -> 25.9%
+```
+
+The cluster channel loses more than half its F1 out of sample and two thirds of its
+precision. The push stream does not — it is slightly better on test than on train, which
+is what a detector that has not been fitted to the period looks like.
+
+**And two weaknesses it names.**
+
+*Equity pushes arrive late.* Median lead is **−10 hours** for the equity block: by the
+time the push goes out the episode has been running most of a day. Every other block
+leads by 2 to 15 hours.
+
+*The label favours the baseline.* §7 defines a significant hour as a 24-hour move past
+the block's Q99 — which is close to a direct measurement of what "SPY moved a lot"
+reports. The yardstick is honest but not neutral, and the docstring says as much: it is
+"not a definition of truth, a yardstick to beat".
+
+**What was NOT done.** `meals.calibrate` was not run. It writes `frozen.json`, and
+freezing a configuration on the strength of a first score that ties a one-line baseline
+would be recording a decision nobody has made.
+
+**The rule this is an instance of.** A system that has never been scored has no claim on
+being good, however carefully each part was built — and the parts of this one were built
+carefully all day. The score is the first evidence about the whole, and the first thing
+it says is that the whole is worth less than the sum suggested.
