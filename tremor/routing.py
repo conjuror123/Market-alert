@@ -169,7 +169,14 @@ def collapse(events: pd.DataFrame, channels: pd.Series,
         if (open_at is not None and hour - open_at < hours * 3600
                 and here <= open_rank):
             out.at[index] = DIGEST
-            if anchor is not None and ids is not None:
+            # Not the anchor's own instrument. A second event on the SAME
+            # instrument inside the window is the same move continuing, and
+            # folding its id in made the message name itself: the SNB unpegging
+            # read "Dollar / franc - biggest move in about three years ... with
+            # Dollar / franc within the day". It is a companion list, and an
+            # instrument is not its own companion.
+            if (anchor is not None and ids is not None
+                    and ids.get(index) != ids.get(anchor)):
                 folded.setdefault(anchor, []).append(str(ids.get(index, "")))
             continue
         open_at, open_rank, anchor = hour, here, index

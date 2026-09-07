@@ -193,3 +193,18 @@ def test_the_names_follow_the_new_anchor_after_an_escalation():
             (DAY + 6 * HOUR, "major", 0.9, 0.9)]
     routed = routing.route(events(rows, ["s:A", "s:B", "s:C"]))
     assert list(routed["also_moved"]) == ["", "s:C", ""]
+
+
+def test_a_push_does_not_name_its_own_instrument_as_a_companion():
+    # A second event on the same instrument inside the window is the same move
+    # continuing. Folding its id into the companion list made the biggest
+    # messages read absurdly: "Dollar / franc - biggest move in about three
+    # years ... with Dollar / franc within the day".
+    rows = [(DAY, "extreme", 0.9, 0.9), (DAY + HOUR, "major", 0.9, 0.9),
+            (DAY + 2 * HOUR, "major", 0.9, 0.9)]
+    frame = events(rows)
+    frame["asset_id"] = ["twelvedata:USD/CHF", "twelvedata:USD/CHF", "twelvedata:EUR/USD"]
+    _, folded = routing.collapse(frame, pd.Series([routing.PUSH] * len(rows)))
+    named = folded.iloc[0].split(" ")
+    assert "twelvedata:USD/CHF" not in named
+    assert named == ["twelvedata:EUR/USD"]
