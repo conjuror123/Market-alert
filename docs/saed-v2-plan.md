@@ -168,3 +168,59 @@ long-term sigma makes the floor far too low in a volatile regime. The obvious re
 to scale it the same way the relative leg is now scaled, which would make the whole
 condition regime-relative and consistent. That is a change to what the leg MEANS, so it
 is worth deciding deliberately rather than slipping in behind this one.
+
+---
+
+# Steps 3 and 4 done — and step 3 does almost nothing, for a stateable reason
+
+`windows.REGRESSION_GAP_BARS = 3` and `residuals.patell_scale`. Both regressions carry
+their estimation-window moments forward with the coefficients, and `score_residuals`
+standardises Patell's way: the forecast error divided by the scale a forecast error
+actually has, not by the scale an in-sample residual would have had.
+
+**Step 4, the estimation gap, is now a real gap.** The old `shift(1)` was causality — the
+estimate at `t` may not have seen `t` — and nothing more. Three bars keeps a move that
+begins to leak in before the scored hour out of the estimate of normal. A test asserts
+the concrete leak is closed: a single enormous bar cannot move the coefficient used to
+judge it or the two bars before it, and does enter from the first bar past the gap.
+
+**Step 3, Patell's inflation, is correct and negligible here.** The plan said "that third
+term matters here more than anywhere". Measured, it does not, and the arithmetic says why
+in one line. The leverage term is
+
+```
+(F_t - Fbar)^2 / ((L-1) * var_F)   =   k^2 / (L - 1)
+```
+
+for a factor sitting `k` standard deviations from its estimation-window mean. With
+`L = 500`:
+
+| factor at | inflation | effect on the score |
+|---|---|---|
+| 3 sd | 1.010 | −1.0% |
+| 5 sd | 1.026 | −2.5% |
+| 12 sd | 1.136 | −12.0% |
+
+Measured over 1,832,114 bars: median 1.0015, p99 1.0257, and only **0.33%** of bars
+exceed 1.05. The acceptance table does not move — widest/calmest goes 3.7× → 3.7× on the
+abnormal channel, 81.4× → 81.3× on the absolute one, events in the widest fifth 54.1% →
+54.0%.
+
+This is not a failed implementation, it is a correct one meeting a window it was not
+designed for. Patell's correction is large in the setting the literature uses it in — an
+estimation window of about 120 daily observations and an event day whose factor value is
+extreme. `L − 1` in the denominator is doing all the work: at 500 bars the estimation
+error in the coefficients is small by construction, so the forecast error is barely wider
+than the in-sample residual. It is kept because it is right and costs nothing, and
+because it becomes the correct behaviour the moment the window is shortened.
+
+**What this makes the next step.** The acceptance table now says the same thing twice:
+after BMP the abnormal channel is nearly flat across regimes (3.7×) and **all of the
+remaining concentration is the absolute channel (81.3×)**. But the absolute channel is no
+longer what §"Step 1 done" described - it is not `|e_resid| >= 3.0 * sigma_LT` any more,
+it is the raw return ranked against its own return-period ladder, and its concentration
+may be the channel working rather than failing: a market-wide crash is exactly when
+residuals are small and raw returns are large, and finding those was why the channel was
+added. Deciding that requires asking whether its events duplicate the market-wide channel
+(`meals.market`), not whether its pass rate is flat - which the original plan could not
+have known, because neither the ladder nor the market channel existed when it was written.

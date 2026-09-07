@@ -33,10 +33,14 @@ def test_beta_recovers_a_known_exposure():
     assert estimates["beta"].dropna().iloc[-1] == pytest.approx(1.5, abs=0.01)
 
 
-def test_beta_is_estimated_out_of_sample():
+def test_beta_is_estimated_out_of_sample_with_a_gap():
     # The estimate at bar t is built on data BEFORE it: otherwise the very move
     # we want to detect would adjust the coefficient and partly subtract itself
-    # from itself.
+    # from itself. The gap is more than the one bar causality requires - a move
+    # that leaks in before the hour being judged would otherwise enter the
+    # estimate of normal, and normal would absorb the front of the event.
+    from meals import windows
+
     rng = np.random.default_rng(1)
     factor = pd.Series(rng.normal(0, 0.01, 400))
     returns = pd.Series(1.0 * factor)
@@ -45,10 +49,33 @@ def test_beta_is_estimated_out_of_sample():
     without_shift = returns.rolling(200, min_periods=200).cov(factor) / \
         factor.rolling(200, min_periods=200).var(ddof=1)
 
-    # A shift of exactly one bar.
-    pd.testing.assert_series_equal(estimates["beta"].dropna().reset_index(drop=True),
-                                   without_shift.shift(1).dropna().reset_index(drop=True),
-                                   check_names=False)
+    assert windows.REGRESSION_GAP_BARS >= 2      # a gap, not just causality
+    pd.testing.assert_series_equal(
+        estimates["beta"].dropna().reset_index(drop=True),
+        without_shift.shift(windows.REGRESSION_GAP_BARS).dropna().reset_index(drop=True),
+        check_names=False)
+
+
+def test_the_gap_keeps_the_scored_bar_out_of_its_own_estimate():
+    # The concrete leak: a single enormous bar must not be able to move the
+    # coefficient used to judge it, nor the two bars before it.
+    from meals import windows
+
+    rng = np.random.default_rng(7)
+    factor = pd.Series(rng.normal(0, 0.01, 400))
+    returns = pd.Series(1.0 * factor)
+    clean = residuals.rolling_beta(returns, factor, window=200, minimum=200)
+
+    spiked = returns.copy()
+    spiked.iloc[300] = 5.0
+    dirty = residuals.rolling_beta(spiked, factor, window=200, minimum=200)
+
+    gap = windows.REGRESSION_GAP_BARS
+    for offset in range(gap):
+        i = 300 + offset
+        assert clean["beta"].iloc[i] == pytest.approx(dirty["beta"].iloc[i]), offset
+    # and from the first bar past the gap it does enter, as it must
+    assert clean["beta"].iloc[300 + gap] != pytest.approx(dirty["beta"].iloc[300 + gap])
 
 
 def test_residual_removes_the_common_move():

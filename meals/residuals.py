@@ -51,8 +51,16 @@ def rolling_beta(returns: pd.Series, factor: pd.Series,
 
     beta = (cov / var_f).where(var_f > 0)
     alpha = mean_r - beta * mean_f
-    # Shift by one bar: at bar t the estimate computed on data before t is used.
-    estimates = pd.DataFrame({"alpha": alpha.shift(1), "beta": beta.shift(1)})
+    # The estimation-window moments travel with the coefficients: Patell's
+    # inflation needs the window's size and the factor's spread within it, and
+    # they must come from the SAME window the coefficients did.
+    count = rolling["f"].count()
+    gap = windows.REGRESSION_GAP_BARS
+    estimates = pd.DataFrame({
+        "alpha": alpha.shift(gap), "beta": beta.shift(gap),
+        "n_est": count.shift(gap),
+        "f_mean": mean_f.shift(gap), "f_var": var_f.shift(gap),
+    })
     return estimates.reindex(returns.index)
 
 
@@ -99,9 +107,70 @@ def rolling_two_factor(returns: pd.Series, factor: pd.Series, block_factor: pd.S
     beta_block = beta_block.fillna(0.0)
 
     alpha = mean_y - beta * mean_1 - beta_block * mean_2
-    estimates = pd.DataFrame({"alpha": alpha.shift(1), "beta": beta.shift(1),
-                              "beta_block": beta_block.shift(1)})
+    gap = windows.REGRESSION_GAP_BARS
+    estimates = pd.DataFrame({
+        "alpha": alpha.shift(gap), "beta": beta.shift(gap),
+        "beta_block": beta_block.shift(gap),
+        # Carried for Patell's inflation, from the same window and with the
+        # same gap as the coefficients themselves.
+        "n_est": rolling["x1"].count().shift(gap),
+        "f_mean": mean_1.shift(gap), "b_mean": mean_2.shift(gap),
+        "f_var": var_1.shift(gap), "b_var": var_2.shift(gap),
+        "fb_cov": cov_12.shift(gap),
+    })
     return estimates.reindex(returns.index)
+
+
+def patell_scale(estimates: pd.DataFrame, factor: pd.Series,
+                 block: pd.Series | None = None) -> pd.Series:
+    """How much wider a forecast error is than an in-sample residual.
+
+    The residual here is an OUT-OF-SAMPLE forecast error: the coefficients come
+    from a window that ends before the bar being judged, so the error carries
+    the estimation error of those coefficients on top of the noise. Dividing it
+    by an in-sample sigma therefore understates the scale and overstates the
+    score. Patell's correction is the ratio of the two:
+
+        Var(forecast error) = s^2 * [ 1 + 1/L + h_t ]
+
+    with L the estimation window's size and h_t the LEVERAGE of the current
+    factor values - how far they sit from the window's own centre, in units of
+    the window's spread. The leverage term is the one that matters here, and it
+    matters most exactly when the system is most likely to fire: on a violent
+    hour the factor is far from its average, the fitted beta is extrapolating,
+    and the residual is genuinely noisier than usual. Not correcting for it
+    inflates the score precisely on the days the detector is asked about.
+
+    For the two-factor model the leverage is the full quadratic form, cross term
+    included, rather than the sum of two one-factor terms: the basket factor and
+    a block factor are not orthogonal - a block is part of the basket - and
+    pretending they were would understate the leverage whenever they move
+    together, which is the case of interest.
+    """
+    n = estimates.get("n_est")
+    if n is None or "f_var" not in estimates:
+        return pd.Series(1.0, index=factor.index)
+
+    df = factor - estimates["f_mean"]
+    var_f = estimates["f_var"]
+    if block is None or "b_var" not in estimates:
+        leverage = df ** 2 / ((n - 1) * var_f)
+    else:
+        db = block - estimates["b_mean"]
+        var_b, cov = estimates["b_var"], estimates["fb_cov"]
+        det = var_f * var_b - cov ** 2
+        quad = df ** 2 * var_b - 2 * df * db * cov + db ** 2 * var_f
+        leverage = quad / ((n - 1) * det)
+        # A degenerate window - the two factors collinear inside it - falls back
+        # to the basket factor alone, exactly as the regression itself does.
+        single = df ** 2 / ((n - 1) * var_f)
+        leverage = leverage.where((det / (var_f * var_b)).abs() >= 1e-8, single)
+
+    inflation = 1.0 + 1.0 / n + leverage
+    # Never smaller than one: the forecast error cannot be tighter than the
+    # in-sample residual, and a negative leverage means the window was
+    # degenerate rather than that the bar was easy to predict.
+    return np.sqrt(inflation.clip(lower=1.0)).fillna(1.0)
 
 
 def residuals(asset: Asset, frame: pd.DataFrame, factor: pd.Series,
@@ -132,6 +201,14 @@ def residuals(asset: Asset, frame: pd.DataFrame, factor: pd.Series,
     out["beta_block"] = estimates["beta_block"].to_numpy()
     out["e_resid"] = out["r"] - (out["alpha"] + out["beta"] * factor_series
                                  + out["beta_block"] * block_series)
+
+    # Patell's inflation, carried as a column rather than folded into e_resid:
+    # the raw residual is what the absolute channel, the retention check and
+    # the event export all read, and it should stay the size the price actually
+    # moved. Only the STANDARDISATION divides by it.
+    est = estimates.set_axis(out.index)
+    out["patell_scale"] = patell_scale(
+        est, factor_series, None if block_factor is None else block_series).to_numpy()
 
     # The residual's own long-term sigma, on data strictly before the current bar.
     out["sigma_lt_resid"] = (out["e_resid"].shift(1)
@@ -170,9 +247,15 @@ def score_residuals(frame: pd.DataFrame, w_asset: int) -> pd.DataFrame:
                           q95_resid=pd.Series(dtype="float64"),
                           q99_resid=pd.Series(dtype="float64"))
 
+    # The score is Patell's standardised residual: the forecast error divided by
+    # the scale a forecast error actually has, not by the scale an in-sample one
+    # would have had. Both the value and the winsorized value are divided, so
+    # the winsorization still bites on the same relative sizes.
+    scale = (out["patell_scale"].to_numpy(dtype="float64")
+             if "patell_scale" in out else np.ones(len(out)))
     z, sigma_eff = zscore.ewma_state(
-        out["e_resid"].to_numpy(dtype="float64"),
-        out["e_resid_w"].to_numpy(dtype="float64"),
+        out["e_resid"].to_numpy(dtype="float64") / scale,
+        out["e_resid_w"].to_numpy(dtype="float64") / scale,
         out["sigma_lt_resid"].to_numpy(dtype="float64"))
     out["z_resid"] = z
     out["sigma_eff_resid"] = sigma_eff

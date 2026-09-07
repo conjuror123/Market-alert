@@ -110,3 +110,80 @@ def test_an_asset_with_no_peers_in_the_panel_is_null_not_zero():
     frames = {"a": pd.DataFrame({"hour_utc": [3600], "z_resid": [2.0]})}
     out = residuals.standardise_cross_section(frames, minimum=5)
     assert np.isnan(out["a"]["z_resid_bmp"].iloc[0])
+
+
+# --- Patell's prediction-error inflation -----------------------------------
+
+def _est(n=200, f_mean=0.0, f_var=1e-4, index=None):
+    index = range(3) if index is None else index
+    return pd.DataFrame({"n_est": float(n), "f_mean": f_mean, "f_var": f_var},
+                        index=index)
+
+
+def test_the_inflation_is_never_below_one():
+    # A forecast error cannot be tighter than the in-sample residual it is
+    # measured against.
+    factor = pd.Series([0.0, 0.0, 0.0])
+    out = residuals.patell_scale(_est(), factor)
+    assert (out >= 1.0).all()
+
+
+def test_a_factor_at_its_average_costs_only_the_estimation_term():
+    # At the window's centre the leverage vanishes and all that is left is
+    # 1 + 1/L, the cost of having estimated the mean at all.
+    factor = pd.Series([0.0, 0.0, 0.0])
+    out = residuals.patell_scale(_est(n=200), factor)
+    assert out.iloc[0] == pytest.approx(np.sqrt(1 + 1 / 200), rel=1e-9)
+
+
+def test_an_extreme_factor_value_inflates_the_scale():
+    # The term the plan says matters most: on a violent hour the factor is far
+    # from its estimation-window average, the beta extrapolates, and the
+    # residual is genuinely noisier than the in-sample sigma suggests.
+    quiet = residuals.patell_scale(_est(), pd.Series([0.0, 0.0, 0.0]))
+    wild = residuals.patell_scale(_est(), pd.Series([0.10, 0.10, 0.10]))
+    assert wild.iloc[0] > quiet.iloc[0]
+
+
+def test_the_inflation_matches_the_textbook_formula():
+    n, f_var, value = 250.0, 4e-4, 0.05
+    out = residuals.patell_scale(_est(n=n, f_var=f_var), pd.Series([value] * 3))
+    expected = np.sqrt(1 + 1 / n + value ** 2 / ((n - 1) * f_var))
+    assert out.iloc[0] == pytest.approx(expected, rel=1e-12)
+
+
+def test_two_factors_use_the_full_quadratic_form_not_a_sum():
+    # A block factor is part of the basket, so the two are correlated; adding
+    # two one-factor terms would understate the leverage exactly when they move
+    # together, which is the case of interest.
+    index = range(1)
+    est = pd.DataFrame({"n_est": 200.0, "f_mean": 0.0, "b_mean": 0.0,
+                        "f_var": 1e-4, "b_var": 1e-4, "fb_cov": 9e-5},
+                       index=index)
+    f = pd.Series([0.02], index=index)
+    b = pd.Series([0.02], index=index)
+    full = residuals.patell_scale(est, f, b).iloc[0]
+
+    naive = np.sqrt(1 + 1 / 200 + 0.02 ** 2 / (199 * 1e-4) * 2)
+    assert full != pytest.approx(naive)
+    assert full > 1.0
+
+
+def test_a_collinear_window_falls_back_to_the_basket_factor_alone():
+    # Same fallback the regression itself makes when the determinant collapses.
+    index = range(1)
+    est = pd.DataFrame({"n_est": 200.0, "f_mean": 0.0, "b_mean": 0.0,
+                        "f_var": 1e-4, "b_var": 1e-4, "fb_cov": 1e-4},
+                       index=index)
+    f = pd.Series([0.02], index=index)
+    out = residuals.patell_scale(est, f, pd.Series([0.02], index=index)).iloc[0]
+    expected = np.sqrt(1 + 1 / 200 + 0.02 ** 2 / (199 * 1e-4))
+    assert out == pytest.approx(expected, rel=1e-9)
+
+
+def test_a_frame_without_the_moments_is_left_alone():
+    # Older residual frames carry no n_est; they must not blow up, and an
+    # uncorrected scale of one is the honest fallback.
+    factor = pd.Series([0.01, 0.02])
+    out = residuals.patell_scale(pd.DataFrame(index=factor.index), factor)
+    assert list(out) == [1.0, 1.0]

@@ -45,8 +45,8 @@ Calibration happens on train alone; test is reported so the gap is visible, not 
 | Quantity | Value |
 |---|---|
 | Hours without quorum | 1.5% |
-| Escalations | 27 |
-| Hours suppressed by the cooldown | 64 |
+| Escalations | 28 |
+| Hours suppressed by the cooldown | 63 |
 | Early breaks refused by the debounce | 0 |
 | basket_coherence fires | 0.1% |
 | pca_sync fires | 3.8% |
@@ -54,10 +54,10 @@ Calibration happens on train alone; test is reported so the gap is visible, not 
 | csv_compression fires (retired, §21) | 0.0% |
 | Calendar multiplier above 1, all hours | 17.2% |
 | Calendar multiplier above 1, at events | 53.2% |
-| Escalations inside a calendar window | 70.4% |
-| Escalations the calendar multiplier decided | 63.0% |
+| Escalations inside a calendar window | 71.4% |
+| Escalations the calendar multiplier decided | 64.3% |
 
-Escalations by reason: `si>=escalation_threshold` 27
+Escalations by reason: `si>=escalation_threshold` 28
 
 Share of events on which each trigger was true: `cluster_shift` 100.0%, `price_shock` 41.0%, `saed_breadth` 8.6%, `single_factor` 20.1%, `sustained` 0.0%, `volume` 14.4%
 

@@ -44,6 +44,16 @@ VOLUME_PROFILE_DAYS = 20
 REGRESSION_WINDOW = 500
 REGRESSION_MIN = 200
 
+# Bars between the end of the estimation window and the bar being scored. One
+# bar is causality - the estimate at t may not have seen t - and that is all it
+# ever was here. This is the ESTIMATION GAP the event-study literature treats as
+# basic hygiene: a move that begins to leak in before the hour being judged
+# would otherwise enter the estimate of what normal looks like, and normal would
+# quietly absorb the front of the event. Three bars because the leak the field
+# worries about is short and the cost is three bars of a five-hundred-bar
+# window - the coefficients do not measurably move.
+REGRESSION_GAP_BARS = 3
+
 # Per-asset cooldown of a single-asset event (§8.3) - in that asset's own bars;
 # calendar hours are not used here.
 SAED_COOLDOWN_BARS = 12
