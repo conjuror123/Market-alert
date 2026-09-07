@@ -4,7 +4,7 @@ Rules for an agent changing this repository. Adapted from a general checklist fo
 financial applications; the parts that did not fit are marked and the reasons given,
 because a rule nobody believes is a rule nobody follows.
 
-The evidence for most of these is in `docs/meals-deviations.md`, where each numbered
+The evidence for most of these is in `docs/tremor-deviations.md`, where each numbered
 section is a mistake or a decision with the measurement that settled it.
 
 ---

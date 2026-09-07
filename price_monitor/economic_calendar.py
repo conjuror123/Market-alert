@@ -23,7 +23,7 @@ Economic Calendar" dataset on Kaggle: its times were fine, but its TAXONOMY was
 not. It handed out the Medium label nine times more freely than ForexFactory
 itself: 96.9 events a week against 11.3 over the same period, while High matched
 for both (13.0 and 13.4). An archive built from two sources acquired a seam
-exactly where one gave way to the other: the MEALS calendar multiplier (§4.3) was
+exactly where one gave way to the other: the Tremor calendar multiplier (§4.3) was
 on in 90.7% of hours across the Kaggle half and 53.2% across the ForexFactory
 half.
 
@@ -59,7 +59,7 @@ CALENDAR_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 # The whole point of the archive is giving backtests calendar context around
 # price moves, so the floor follows the price history rather than leading it:
 # an event with no bars to sit beside is dead weight. It has moved twice for
-# that reason, and this is the second - the MEALS bar store now reaches 2002
+# that reason, and this is the second - the Tremor bar store now reaches 2002
 # for the ETFs and 2003 for the currency pairs, where it used to start in 2015.
 #
 # It stops at 2007-01 rather than following the bars all the way down because

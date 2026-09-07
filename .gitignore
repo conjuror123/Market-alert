@@ -8,17 +8,22 @@ venv/
 data/backtest_results.json
 data/calibration_review/
 
-# Fully derived MEALS outputs that are cheap to recompute. Both are rewritten in
-# full on every run, and keeping them in git history means adding tens of
-# megabytes per run without a single new fact. The per-asset metrics do stay in
-# the repository: they depend only on the bars and cost a full pipeline run,
-# whereas these two are seconds on top of them.
+# Fully derived Tremor outputs. All three are rewritten in full on every run, so
+# keeping them in git means adding hundreds of megabytes per run without a single
+# new fact - 4.9 GB a day once the pipeline runs hourly, which is what made this
+# worth revisiting. Every one of them is restored by re-running the pipeline from
+# the bars, which is what the hourly job does anyway before it reads them.
 #
 #   events/    - the event export of §6.5. The schema lives in
 #                schema/event_export.schema.json and is versioned; the export
-#                itself is produced by python -m meals.export.
-#   residuals/ - the SAED residual series. Restored by python -m meals.saed,
-#                which in the run order comes before cluster and export
-#                anyway.
-data/meals/events/
-data/meals/residuals/
+#                itself is produced by python -m tremor.export.
+#   residuals/ - the SAED residual series, from python -m tremor.saed.
+#   metrics/   - the per-asset metrics, from python -m tremor.pipeline. These
+#                used to be tracked, on the reasoning that they cost a full
+#                pipeline run to rebuild where the other two are seconds on top.
+#                That was true of a pipeline run by hand a few times a month. It
+#                is 157 MB rewritten twenty-four times a day now, and the rebuild
+#                is 63 seconds.
+data/tremor/events/
+data/tremor/residuals/
+data/tremor/metrics/

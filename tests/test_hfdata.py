@@ -105,7 +105,7 @@ def test_the_frame_matches_the_store_schema():
 
 
 def test_minute_bars_fold_into_the_hourly_grid():
-    from meals import bars as store
+    from tremor import bars as store
 
     minutes = hfdata.to_minute_frame(bars(90, start="2015-03-02 14:00:00"), "UTC")
     hourly = store.to_hourly(minutes)

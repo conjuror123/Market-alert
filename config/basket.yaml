@@ -1,4 +1,4 @@
-# MEALS basket configuration (spec 5.1, §2.3).
+# Tremor basket configuration (spec 5.1, §2.3).
 #
 # Weights are DELIBERATELY absent here: per §2.3 they are derived, computed by
 # the system from the composition on a date under the equality rule
@@ -14,7 +14,7 @@
 # assets at night against a minimum of eight - a margin of exactly one invalid
 # bar. Without this block the system would be blind for roughly 17 hours a day.
 #
-# There are three sources. Yahoo Finance is not used in MEALS at all: every one
+# There are three sources. Yahoo Finance is not used in Tremor at all: every one
 # of its instruments duplicated something already covered by an ETF (GC=F and GLD
 # are the same gold, CL=F and USO the same oil, ES=F and SPY the same S&P, ZB=F
 # and TLT/IEF the same long Treasuries, DX-Y.NYB the same currency pairs in
@@ -35,7 +35,7 @@ history_since: "2015-01-01"
 # archives are not permanent - FXCM's stopped updating in April 2026 - so bars
 # not taken now may not be takeable later, and storing history the analysis
 # does not use costs nothing but disk. Each source stops at its own limit on
-# its own (see meals.backfill and price_monitor.fxcm), so a floor deeper than
+# its own (see tremor.backfill and price_monitor.fxcm), so a floor deeper than
 # anything available is simply the instruction "as deep as you can".
 fetch_since: "2002-01-01"
 

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/conjuror123/market-alert/schema/event_export.schema.json",
-  "title": "MEALS cluster event export",
-  "description": "A machine-readable slice of a cluster event per MEALS spec 5.1, §6.5. One file - one event. All series are aligned to window.hours_utc: the length of any array in basket.* and assets.*.series equals the length of window.hours_utc, and an hour with no value gives null. Hours are the unix seconds of the start of a UTC hour; the window is collected in reference-calendar hours (§2.2), so adjacent elements of hours_utc need not be exactly 3600 seconds apart - across a weekend boundary the gap is larger.",
+  "title": "Tremor cluster event export",
+  "description": "A machine-readable slice of a cluster event per Tremor spec 5.1, §6.5. One file - one event. All series are aligned to window.hours_utc: the length of any array in basket.* and assets.*.series equals the length of window.hours_utc, and an hour with no value gives null. Hours are the unix seconds of the start of a UTC hour; the window is collected in reference-calendar hours (§2.2), so adjacent elements of hours_utc need not be exactly 3600 seconds apart - across a weekend boundary the gap is larger.",
   "type": "object",
   "required": ["schema_version", "config_version", "run_version", "event_id",
                "t0_utc", "status", "window", "basket", "assets", "saed_events",
@@ -122,7 +122,7 @@
           "e_resid": {"type": ["number", "null"]},
           "r": {"type": ["number", "null"]},
           "repeat_count": {"type": ["integer", "null"], "description": "How many repeat firings the event's cooldown absorbed (§8.3)."},
-          "tier": {"type": ["string", "null"], "enum": ["routine", "notable", "major", "extreme", null], "description": "Severity as a return period: how long you would ordinarily wait to see a move this large in this instrument. Fitted per instrument on its own history, see meals.severity."},
+          "tier": {"type": ["string", "null"], "enum": ["routine", "notable", "major", "extreme", null], "description": "Severity as a return period: how long you would ordinarily wait to see a move this large in this instrument. Fitted per instrument on its own history, see tremor.severity."},
           "basis": {"type": ["string", "null"], "enum": ["abnormal", "absolute", "both", null], "description": "Which question the event answered: abnormal = the market did not explain the move, absolute = the move was large in itself, both = it was both."}
         }
       }

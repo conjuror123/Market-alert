@@ -216,7 +216,7 @@ def test_main_runs_daily_signal_from_seeded_history(tmp_path, monkeypatch):
 
 
 def test_muted_alerts_are_not_sent_but_still_logged(tmp_path, monkeypatch):
-    # Muted while MEALS takes over: the run proceeds as usual, decisions are
+    # Muted while Tremor takes over: the run proceeds as usual, decisions are
     # written, but the per-asset Telegram message does not go out.
     cfg = make_config(tmp_path)
     cfg.alerts_muted = True

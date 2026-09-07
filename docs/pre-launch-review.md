@@ -7,16 +7,16 @@ follows is everything found that is NOT the detector.
 
 ---
 
-## 1. FATAL — MEALS does not run in production
+## 1. FATAL — Tremor does not run in production
 
 The system is not wired to anything.
 
 * `.github/workflows/price-monitor.yml` runs `python -m price_monitor`, the older
-  per-asset detector. Nothing in CI runs `meals.bars`, `meals.pipeline`,
-  `meals.cross_section` or `meals.saed`.
+  per-asset detector. Nothing in CI runs `tremor.bars`, `tremor.pipeline`,
+  `tremor.cross_section` or `tremor.saed`.
 * Its commit step saves `state.json`, `alerts_log.json`, `candle_history/`,
-  `decision_log/` and `economic_calendar/`. **Not `data/meals/`.**
-* `price_monitor.meals_delivery.load_events` reads `data/meals/saed_events.parquet` off
+  `decision_log/` and `economic_calendar/`. **Not `data/tremor/`.**
+* `price_monitor.tremor_delivery.load_events` reads `data/tremor/saed_events.parquet` off
   disk — a file only ever written by a hand-run of the pipeline and committed by hand.
 * `STALE_AFTER_HOURS = 48` refuses to send anything older than two days.
 
@@ -24,7 +24,7 @@ The newest event in the committed table is 2026-08-30. **Unmuting sends nothing,
 and goes on sending nothing.** The failure is invisible: a system that is correctly quiet
 and a system that is broken look identical from the outside.
 
-`backfill-meals-bars.yml` is `workflow_dispatch` only and describes itself as a one-off.
+`backfill-tremor-bars.yml` is `workflow_dispatch` only and describes itself as a one-off.
 The README documents the pipeline under "Running it by hand". It was never built to run
 itself; that is not a regression, it is a missing half.
 
@@ -43,10 +43,10 @@ Measured on this machine, whole history, twenty-four instruments:
 
 | stage | time |
 |---|---:|
-| `meals.bars` | 1s |
-| `meals.pipeline` | 122s |
-| `meals.cross_section` | 15s |
-| `meals.saed` | 135s |
+| `tremor.bars` | 1s |
+| `tremor.pipeline` | 122s |
+| `tremor.cross_section` | 15s |
+| `tremor.saed` | 135s |
 | checkout + pip install | ~40s |
 | **per run** | **~5.2 min** |
 
@@ -65,16 +65,16 @@ cadences above are what is available without writing it.
 
 ### A second problem underneath
 
-`data/meals/` is 490 MB and `.git` is already 1.7 GB. Committing metrics and residuals
+`data/tremor/` is 490 MB and `.git` is already 1.7 GB. Committing metrics and residuals
 every hour would end the repository. Only `bars/` (the accumulating raw history) and the
 two event tables (1.4 MB) need to persist. Everything between them is derived and belongs
 in an Actions cache, not in git.
 
 ### And a trap in the stage order
 
-Running `meals.cross_section` on its own **truncates** `metrics_basket_hour.parquet` from
+Running `tremor.cross_section` on its own **truncates** `metrics_basket_hour.parquet` from
 44 columns to 26. The eighteen it drops — `si_total`, `m_calendar`, `m_vix`, `decision`,
-every `trigger_*` — are written by `meals.cluster`, which runs after it and enriches the
+every `trigger_*` — are written by `tremor.cluster`, which runs after it and enriches the
 same file. Found by re-running the stage while timing it, and restored from git.
 
 So an hourly workflow that runs `bars → pipeline → cross_section → saed` and stops there

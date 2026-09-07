@@ -123,7 +123,7 @@ def test_fetch_full_history_paginates_by_date_range_and_merges(monkeypatch):
 
 def test_supports_the_half_hour_interval_used_by_etfs():
     # ETFs are pulled as half-hourly bars so their grid lines up with the round
-    # hour of the currency pairs and crypto (see meals/bars.to_hourly).
+    # hour of the currency pairs and crypto (see tremor/bars.to_hourly).
     from price_monitor.twelvedata import _granularity_seconds, _interval_code
 
     assert _interval_code("30min") == "30min"

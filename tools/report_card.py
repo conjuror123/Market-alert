@@ -35,11 +35,11 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-from meals import routing, windows
+from tremor import routing, windows
 
-BARS_DIR = Path("data/meals/bars")
-RESIDUALS_DIR = Path("data/meals/residuals")
-EVENTS_PATH = Path("data/meals/saed_events.parquet")
+BARS_DIR = Path("data/tremor/bars")
+RESIDUALS_DIR = Path("data/tremor/residuals")
+EVENTS_PATH = Path("data/tremor/saed_events.parquet")
 
 # Rank of each channel, so an hour covered by several events is credited with
 # the loudest one that spoke for it.

@@ -222,7 +222,7 @@ it is the raw return ranked against its own return-period ladder, and its concen
 may be the channel working rather than failing: a market-wide crash is exactly when
 residuals are small and raw returns are large, and finding those was why the channel was
 added. Deciding that requires asking whether its events duplicate the market-wide channel
-(`meals.market`), not whether its pass rate is flat - which the original plan could not
+(`tremor.market`), not whether its pass rate is flat - which the original plan could not
 have known, because neither the ladder nor the market channel existed when it was written.
 
 ---

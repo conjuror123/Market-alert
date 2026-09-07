@@ -1,7 +1,7 @@
 -r requirements.txt
 pytest>=8.0,<9
 # NYSE session calendar. Needed ONLY to generate the table
-# data/meals/sessions/nyse.csv (python -m meals.sessions), not in the hourly run,
+# data/tremor/sessions/nyse.csv (python -m tremor.sessions), not in the hourly run,
 # which reads the finished CSV. Keeping it here rather than in requirements.txt
 # means not dragging a calendar library and its dependencies into production, and
 # not risking an update to it silently changing the historical schedule.

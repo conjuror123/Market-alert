@@ -166,7 +166,7 @@ interval: "1h"
 # true — the hourly run proceeds as usual: quotes are fetched, history
 # accumulates, decisions are written to data/decision_log/, the Saturday calendar
 # digest goes out, and so does the bot's own health alert. The only things that do
-# not go out are the per-asset messages — the very signals MEALS is replacing.
+# not go out are the per-asset messages — the very signals Tremor is replacing.
 #
 # Muting does not spend the cooldown: the state stays as though there had been no
 # signal, so once it is lifted the first genuine move goes through instead of
@@ -178,11 +178,11 @@ interval: "1h"
 # is indistinguishable from a breakage a month later.
 alerts_muted: true
 
-# MEALS delivery: the pushes and the Tuesday/Friday digest (see
-# price_monitor/meals_delivery.py). Silent while the pipeline is being wired -
+# Tremor delivery: the pushes and the Tuesday/Friday digest (see
+# price_monitor/tremor_delivery.py). Silent while the pipeline is being wired -
 # the detector runs, events are routed and written, and nothing goes out.
 # Set to false to start receiving them.
-meals_alerts_muted: true
+tremor_alerts_muted: true
 
 # How many recent candles to request at once. Bounded by the strictest source —
 # Coinbase serves at most 300 candles per request (300 * 1h ≈ 12.5 days of

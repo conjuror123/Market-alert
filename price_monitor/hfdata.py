@@ -29,7 +29,7 @@ Extended hours are not served in either version, which suits a basket whose
 ETFs are already defined on the regular session.
 
 Prices are unadjusted, which is what this project wants (see
-meals.corporate_actions on why an adjusted series cannot be appended to hour by
+tremor.corporate_actions on why an adjusted series cannot be appended to hour by
 hour). It does mean the corporate-actions table has to reach as far back as the
 bars do, or every pre-2021 ex-date arrives as an unexplained price drop.
 """

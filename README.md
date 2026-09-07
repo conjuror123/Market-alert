@@ -367,7 +367,7 @@ bypasses both the day/time check and the "already sent this week" flag — the s
 Every such run also saves the events it received from the feed into
 `data/economic_calendar/calendar.ndjson` — the same way as `candle_history` (NDJSON, no
 duplicates). The archive is needed both by `calibration_review.py` (context for "what
-was on the calendar on the day of the jump") and by the MEALS calendar multiplier
+was on the calendar on the day of the jump") and by the Tremor calendar multiplier
 (§4.3).
 
 **Backfilling the actual.** The live weekly feed does not return the `actual` field at
@@ -439,7 +439,7 @@ dropped — one at a time and each for a measured reason.
   nine times more generously than ForexFactory itself: 96.9 events a week against 11.3
   over the same period, while `High` matched for both (13.0 and 13.4). An archive glued
   together from Kaggle and ForexFactory got a seam exactly where one gave way to the
-  other: the MEALS calendar multiplier (§4.3) was switched on in **90.7%** of hours on
+  other: the Tremor calendar multiplier (§4.3) was switched on in **90.7%** of hours on
   the Kaggle half and in **53.2%** on the ForexFactory half. For calibration that is
   worse than missing data — the train period would lie entirely in the generous half
   while live work ran on the stingy one.
@@ -775,9 +775,9 @@ tests/ — pytest tests for every module above
 
 </details>
 
-## MEALS — the new alert logic (in development)
+## Tremor — the new alert logic (in development)
 
-Alongside the current monitoring, MEALS (Macro-Event Alert & Logic System) is being
+Alongside the current monitoring, Tremor is being
 built to a separate technical specification, version 5.1. This is not a refinement of
 the existing signals but a different construction: instead of sixteen independent
 detectors, a cross-sectional analysis of the whole basket (the Composite Sensation
@@ -788,7 +788,7 @@ factor.
 `config/config.yaml`. The hourly run proceeds as usual: quotes are downloaded,
 `data/candle_history/` and `data/decision_log/` keep filling, the Saturday calendar
 digest goes out, a notification about the bot itself breaking goes out. The only thing
-silenced is the per-asset messages — the very signals MEALS is replacing.
+silenced is the per-asset messages — the very signals Tremor is replacing.
 
 Muting does not spend the cooldown: the state stays as if there had been no signal, so
 once it is lifted the first genuine move gets through rather than running into a pause
@@ -799,71 +799,77 @@ Why a flag in the repository rather than a disabled scheduler on the cron-job.or
 "we are deliberately silent" is a state of the project, and it should be visible in the
 same place as the code. A cron switched off on someone else's site is indistinguishable
 from a breakage a month later, and the data for that period would not have accumulated
-at all. MEALS is being assembled in the `meals/` package and will only take over after
+at all. Tremor is being assembled in the `tremor/` package and will only take over after
 a backtest — see the rollout plan.
 
 What exists so far (phases 0–6: data, computation, events, journal and export):
 
 ```
 config/basket.yaml   — basket composition: 21 assets, five blocks, tiers, price steps
-meals/basket.py      — loading the basket, weights by the equal-weight rule
-meals/bars.py        — the hourly bar store (Parquet) and assembling the hourly grid
-meals/sessions.py    — the NYSE session calendar and the basket's reference calendar
-meals/windows.py     — the registry of windows and constants, three incompatible time units
-meals/quality.py     — the bar quality gate and whether an hour belongs to a session
-meals/returns.py     — returns, the gap channel of the first bar of a session, winsorization
-meals/zscore.py      — the out-of-sample EWMA Z-score and adaptive Q95/Q99 thresholds
-meals/volume.py      — a robust volume profile by local exchange hour
-meals/pipeline.py    — per-asset metrics, the whole phase 1-2 chain in one pass
-meals/cross_section.py — the hour's quorum, M_t, basket dispersion, PCA, single-factorness
-meals/residuals.py   — regression on the basket factor and the block factor, the residual series
-meals/saed.py        — single-asset events from the residuals and block alerts
-meals/calendar_multiplier.py — an hour's importance multiplier from the economic calendar
-meals/vix.py         — the stress multiplier from the daily VIX series
-meals/si_index.py    — base points and the Composite Sensation Index
-meals/cluster.py     — cluster events: the gate, the cooldown, escalations
-meals/versioning.py  — config_version and run_version, run idempotency
-meals/journal.py     — the decision journal and the trigger readiness table
-meals/export.py      — exporting a cluster event to JSON under a fixed schema
-meals/corporate_actions.py — ex-dividend dates derived from the quotes
-meals/fred.py        — the daily VIX series from FRED and the moment it becomes available
-meals/backfill.py    — the one-off load of history from 2021
-meals/audit.py       — the data coverage table, required by §2.1 of the spec
-meals/truth.py       — the §7 yardstick: truth labels by block and the SPY baseline
-meals/evaluate.py    — precision, recall, F1, lead time and the §7 diagnostics
-meals/calibrate.py   — the §7 fit on train, folded and frozen before test is read
+tremor/basket.py      — loading the basket, weights by the equal-weight rule
+tremor/bars.py        — the hourly bar store (Parquet) and assembling the hourly grid
+tremor/sessions.py    — the NYSE session calendar and the basket's reference calendar
+tremor/windows.py     — the registry of windows and constants, three incompatible time units
+tremor/quality.py     — the bar quality gate and whether an hour belongs to a session
+tremor/returns.py     — returns, the gap channel of the first bar of a session, winsorization
+tremor/zscore.py      — the out-of-sample EWMA Z-score and adaptive Q95/Q99 thresholds
+tremor/volume.py      — a robust volume profile by local exchange hour
+tremor/pipeline.py    — per-asset metrics, the whole phase 1-2 chain in one pass
+tremor/cross_section.py — the hour's quorum, M_t, basket dispersion, PCA, single-factorness
+tremor/residuals.py   — regression on the basket factor and the block factor, the residual series
+tremor/saed.py        — single-asset events from the residuals and block alerts
+tremor/calendar_multiplier.py — an hour's importance multiplier from the economic calendar
+tremor/vix.py         — the stress multiplier from the daily VIX series
+tremor/si_index.py    — base points and the Composite Sensation Index
+tremor/cluster.py     — cluster events: the gate, the cooldown, escalations
+tremor/versioning.py  — config_version and run_version, run idempotency
+tremor/journal.py     — the decision journal and the trigger readiness table
+tremor/export.py      — exporting a cluster event to JSON under a fixed schema
+tremor/corporate_actions.py — ex-dividend dates derived from the quotes
+tremor/fred.py        — the daily VIX series from FRED and the moment it becomes available
+tremor/backfill.py    — the one-off load of history from 2021
+tremor/audit.py       — the data coverage table, required by §2.1 of the spec
+tremor/truth.py       — the §7 yardstick: truth labels by block and the SPY baseline
+tremor/evaluate.py    — precision, recall, F1, lead time and the §7 diagnostics
+tremor/calibrate.py   — the §7 fit on train, folded and frozen before test is read
 
-data/meals/bars/     — hourly bars per instrument
-data/meals/vix/      — the daily VIX series
-data/meals/sessions/ — the NYSE schedule: trading days and half sessions
-data/meals/corporate_actions.csv — ex-dates for the funds
-data/meals/metrics/  — per-asset metrics (metrics_asset_hour)
-data/meals/metrics_basket_hour.parquet — basket metrics by hour
-data/meals/saed_events.parquet — single-asset events
-data/meals/saed_block_alerts.parquet — block alerts
-data/meals/cluster_events.parquet — cluster events
-data/meals/cluster_event_escalations.parquet — escalations inside events
-data/meals/residuals/ — residual series per instrument (not in the repository, see below)
-data/meals/decision_log.parquet — the decision journal: magnitude, threshold, outcome, versions
-data/meals/first_valid_hour.parquet — from which hour a trigger can be trusted
-data/meals/truth_labels.parquet — §7 labels: was the next 24h significant, and the baseline
-data/meals/truth_thresholds.parquet — the per-block Q99 those labels rest on, taken on train
-data/meals/evaluation.md — the backtest report: the detector against the §7 baselines
-data/meals/calibration.json — the search: what was tried, what was chosen, how it held up
-data/meals/frozen.json — the frozen config_version and the train result behind it
-data/meals/events/   — event export in JSON (not in the repository, see below)
-data/meals/coverage.md — the coverage table
+data/tremor/bars/     — hourly bars per instrument
+data/tremor/vix/      — the daily VIX series
+data/tremor/sessions/ — the NYSE schedule: trading days and half sessions
+data/tremor/corporate_actions.csv — ex-dates for the funds
+data/tremor/metrics/  — per-asset metrics (metrics_asset_hour)
+data/tremor/metrics_basket_hour.parquet — basket metrics by hour
+data/tremor/saed_events.parquet — single-asset events
+data/tremor/saed_block_alerts.parquet — block alerts
+data/tremor/cluster_events.parquet — cluster events
+data/tremor/cluster_event_escalations.parquet — escalations inside events
+data/tremor/residuals/ — residual series per instrument (not in the repository, see below)
+data/tremor/decision_log.parquet — the decision journal: magnitude, threshold, outcome, versions
+data/tremor/first_valid_hour.parquet — from which hour a trigger can be trusted
+data/tremor/truth_labels.parquet — §7 labels: was the next 24h significant, and the baseline
+data/tremor/truth_thresholds.parquet — the per-block Q99 those labels rest on, taken on train
+data/tremor/evaluation.md — the backtest report: the detector against the §7 baselines
+data/tremor/calibration.json — the search: what was tried, what was chosen, how it held up
+data/tremor/frozen.json — the frozen config_version and the train result behind it
+data/tremor/events/   — event export in JSON (not in the repository, see below)
+data/tremor/coverage.md — the coverage table
 schema/event_export.schema.json — the event export schema, the contract for a consumer
 docs/TZ_MEALS_v5.1.txt — the specification itself: what every "§4.3" in the code points at
-docs/meals-deviations.md — departures from the spec, each with its reason
+docs/tremor-deviations.md — departures from the spec, each with its reason
 ```
 
 **The specification is superseded.** It is kept because the code cites its section
 numbers in hundreds of comments, but where it and the measurements disagree, the
-measurements win — `docs/meals-deviations.md`, `docs/saed-v2-plan.md` and
-`docs/meals-v2-findings.md` are what describe the system now.
+measurements win — `docs/tremor-deviations.md`, `docs/saed-v2-plan.md` and
+`docs/tremor-v2-findings.md` are what describe the system now.
 `docs/working-agreement.md` is the shorter companion: the rules an agent changing this
 repository works under, each with the measurement that earned it.
+
+The system was called MEALS until September 2026, an acronym nobody could read as
+anything but food. It is Tremor now: the ladder it reports on is a magnitude scale
+measured against an instrument's own background, which is what a tremor is. The original
+specification keeps the old name in its filename and its text, because renaming a document
+somebody else wrote is a different thing from renaming a program.
 
 The specification lies in the repository as `docs/TZ_MEALS_v5.1.txt`. This is not
 decoration: the code refers to it hundreds of times ("§2.7", "§4.3", "§8.2"), and all
@@ -883,18 +889,18 @@ Running it by hand:
 ```bash
 export TWELVEDATA_API_KEY=...   # the same key as the current monitoring uses
 export FRED_API_KEY=...         # new, for the VIX series only
-python -m meals.backfill        # the one-off load of history
-python -m meals.audit           # the coverage table
-python -m meals.sessions        # regenerate the NYSE schedule
-python -m meals.corporate_actions  # rebuild the ex-dividend table
-python -m meals.pipeline        # recompute per-asset metrics
-python -m meals.cross_section   # recompute basket metrics
-python -m meals.saed            # recompute single-asset events
-python -m meals.cluster         # SI-Index, cluster events, the decision journal
-python -m meals.export          # export events to JSON under the schema
-python -m meals.truth           # §7 truth labels and the baseline
-python -m meals.evaluate        # score the detector against them
-python -m meals.calibrate       # §7 fit on train (writes calibration.json; never reads test)
+python -m tremor.backfill        # the one-off load of history
+python -m tremor.audit           # the coverage table
+python -m tremor.sessions        # regenerate the NYSE schedule
+python -m tremor.corporate_actions  # rebuild the ex-dividend table
+python -m tremor.pipeline        # recompute per-asset metrics
+python -m tremor.cross_section   # recompute basket metrics
+python -m tremor.saed            # recompute single-asset events
+python -m tremor.cluster         # SI-Index, cluster events, the decision journal
+python -m tremor.export          # export events to JSON under the schema
+python -m tremor.truth           # §7 truth labels and the baseline
+python -m tremor.evaluate        # score the detector against them
+python -m tremor.calibrate       # §7 fit on train (writes calibration.json; never reads test)
 python -m price_monitor.economic_calendar --rebuild   # rebuild the calendar archive
 ```
 
@@ -927,7 +933,7 @@ on `data_fingerprint` — the third field, the hash of the raw inputs — rather
 `run_version`. `run_version` hashes the configuration together with the data, so it
 moves on a code edit too, and a flag judged on it would stand at True on every row
 throughout calibration, when thresholds move on every iteration. What the code changed
-is already what `config_version` is for; see `docs/meals-deviations.md` §17.
+is already what `config_version` is for; see `docs/tremor-deviations.md` §17.
 
 SAED events carry `overlap_with_cluster` (§8.2). It is filled by the `cluster` run, not
 the `saed` one: SAED runs first, so when its events are built the cluster events of this
@@ -944,11 +950,11 @@ journal rows and 188 export files match between two runs. And a bar sent late or
 corrected by the vendor changes the fingerprint, so the recomputation gets a new version
 automatically.
 
-Two directories are not kept in the repository: the event export `data/meals/events/`
+Two directories are not kept in the repository: the event export `data/tremor/events/`
 (9.7 MB of JSON, rewritten in full on every run — `run_version` is in every file) and
-the residual series `data/meals/residuals/` (32 MB). Both are fully derived from the
-metrics and the code and are restored in seconds: `python -m meals.saed` and
-`python -m meals.export`. The per-asset metrics stay in the repository — they depend
+the residual series `data/tremor/residuals/` (32 MB). Both are fully derived from the
+metrics and the code and are restored in seconds: `python -m tremor.saed` and
+`python -m tremor.export`. The per-asset metrics stay in the repository — they depend
 only on the bars and cost a full `pipeline` run. The export format is fixed by the
 schema `schema/event_export.schema.json`, and a test validates against it both a
 synthetic event and all 188 real ones.
@@ -957,7 +963,7 @@ The archive of economic events is assembled entirely from ForexFactory's monthly
 from a single source and with no key. The live weekly feed extends it forward on every
 Saturday digest, and the actual for released events is read back from the same place
 month by month. Why there is one source and what was tried before it is above, in the
-calendar section, and in `docs/meals-deviations.md`.
+calendar section, and in `docs/tremor-deviations.md`.
 
 ### What actually reaches you, and the switch that stops it
 
@@ -993,13 +999,13 @@ Delivery splits by urgency, not by importance:
 * **Dropped** — the move reverted. Not a failure of the detector: it correctly found an
   unusual move, and then the move gave itself back. About two in five.
 
-`price_monitor/meals_delivery.py` renders and sends these; it decides nothing, because
-the channel and the digest slot are already stamped on each event by `meals.routing`.
+`price_monitor/tremor_delivery.py` renders and sends these; it decides nothing, because
+the channel and the digest slot are already stamped on each event by `tremor.routing`.
 It rides the same hourly trigger as everything else rather than taking a schedule of
 its own, and nothing older than 48 hours is ever sent — without that rule the first
 run would deliver five years of history at once.
 
-**It is silent by default.** `meals_alerts_muted: true` in `config/config.yaml`, and
+**It is silent by default.** `tremor_alerts_muted: true` in `config/config.yaml`, and
 that is where it lives rather than on the scheduler's side, for the same reason
 `alerts_muted` does: *"we are deliberately silent"* is a state of the project and has
 to be visible where the code is. A cron job switched off on someone else's website

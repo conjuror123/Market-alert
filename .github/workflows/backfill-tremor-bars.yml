@@ -1,0 +1,142 @@
+name: Backfill Tremor Bars
+
+# A manual, one-off deepening of the Tremor hourly store (data/tremor/bars/) to
+# whatever depth config/basket.yaml's history_since sets. The ordinary backfill
+# only ever reaches FORWARD from the newest stored bar, so lowering
+# history_since changes nothing on its own - --extend-history is what asks the
+# source for the older end.
+#
+# A Twelve Data key is needed for the eighteen ETFs and currency pairs, and it
+# is used only inside this workflow: an Actions secret cannot be read back out,
+# which makes this the way to deepen the archive without the key passing through
+# a chat.
+#
+# The crypto instruments need no key and can be pulled locally instead.
+#
+# Three modes, chosen at dispatch:
+#   extend-history  deepen the archive backwards to basket.history_since
+#   fill-gaps       re-ask for trading days the NYSE calendar has and the store
+#                   does not; an empty answer confirms the hole is the
+#                   provider's rather than something our fetching skipped
+#   deepen-fx       fill the currency pairs below what Twelve Data's plan
+#                   serves, from FXCM's public archive (needs no key at all)
+#   deepen-dukascopy
+#                   the same but from Dukascopy, which reaches 2003 where FXCM
+#                   stops at 2012 and which also carries USD/CNH. Needs no key.
+#                   Run it ONE PAIR AT A TIME via `instruments`: a pair is a few
+#                   hundred requests, and a failure part way through then costs
+#                   one pair rather than all eight
+#   deepen-etfs     the same for the US-equity instruments, from HF Data's
+#                   consolidated-tape minute bars (needs HFDATA_API_KEY)
+#   corporate-actions
+#                   rebuild the ex-date table from the acquisition floor. It
+#                   must reach at least as far back as the bars, or an older
+#                   payout arrives as an unexplained price drop
+#   probe-hfdata    print one HF Data ticker's schema and first timestamps and
+#                   stop. Their columns and timezone are undocumented, and
+#                   deepen-etfs refuses to run until the zone has been read off
+#                   this rather than assumed. Put the ticker in `instruments`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      instruments:
+        description: 'Comma-separated tickers; empty means the whole basket'
+        required: false
+        default: ''
+        type: string
+      mode:
+        description: 'What to run'
+        required: false
+        default: extend-history
+        type: choice
+        options:
+          - extend-history
+          - fill-gaps
+          - deepen-fx
+          - deepen-dukascopy
+          - deepen-etfs
+          - probe-hfdata
+          - corporate-actions
+
+permissions:
+  contents: write
+
+# The same group as price-monitor.yml and backfill-history.yml: all three spend
+# the one Twelve Data account's 8 credits a minute, and a collision makes both
+# sides fail with 429.
+concurrency:
+  group: price-monitor
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    # Deepening eighteen Twelve Data instruments from 2015 is many sequential
+    # windows at eight requests a minute; the daily cap of 800 is the real
+    # ceiling, and a partial run is fine because the commit step keeps whatever
+    # arrived.
+    timeout-minutes: 330
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Deepen the bar store
+        env:
+          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          HFDATA_API_KEY: ${{ secrets.HFDATA_API_KEY }}
+        run: |
+          # probe-hfdata takes its ticker as the flag's value rather than as a
+          # separate --instruments, so it is spelled out on its own.
+          if [ "${{ github.event.inputs.mode }}" = "corporate-actions" ]; then
+            python -m tremor.corporate_actions
+          elif [ "${{ github.event.inputs.mode }}" = "probe-hfdata" ]; then
+            python -m tremor.backfill --probe-hfdata "${{ github.event.inputs.instruments || 'SPY' }}"
+          else
+            python -m tremor.backfill --${{ github.event.inputs.mode || 'extend-history' }} \
+              ${{ github.event.inputs.instruments && format('--instruments "{0}"', github.event.inputs.instruments) || '' }}
+          fi
+
+      - name: Commit the deepened store
+        # Runs even on failure: whatever was fetched before a rate limit or a
+        # timeout already cost real credits and must not be discarded because a
+        # later instrument in the same run failed.
+        if: always()
+        run: |
+          if [ -z "$(git status --porcelain data/tremor)" ]; then
+            echo "No new bars to commit."
+            exit 0
+          fi
+          git config user.name "price-monitor-bot"
+          git config user.email "actions@github.com"
+          git add data/tremor
+          git commit -m "chore: deepen Tremor bar store [skip ci]"
+
+          # A plain push loses the whole run to a race. These runs last tens of
+          # minutes and the branch is worked on meanwhile, so by the time this
+          # step arrives the ref has often moved - and a rejected push discards
+          # bars that cost real credits and real archive requests to fetch,
+          # with the container. Rebase onto whatever landed and try again.
+          # --rebase is safe here because this commit touches only data/tremor,
+          # which nothing else writes.
+          for attempt in 1 2 3 4 5; do
+            if git push origin "HEAD:${{ github.ref_name }}"; then
+              echo "pushed on attempt $attempt"
+              exit 0
+            fi
+            echo "push rejected, rebasing onto origin/${{ github.ref_name }}"
+            git pull --rebase origin "${{ github.ref_name }}" || exit 1
+            sleep $((attempt * 3))
+          done
+          echo "::error::could not push the deepened store after 5 attempts"
+          exit 1

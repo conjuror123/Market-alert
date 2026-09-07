@@ -1,4 +1,4 @@
-"""Precision at a matched alert budget, for MEALS against the runnable baseline.
+"""Precision at a matched alert budget, for Tremor against the runnable baseline.
 
 WHAT PRECISION MEANS HERE, because it is easy to read as more than it is: the
 share of alerts landing within 24 hours BEFORE an episode starts, or DURING it.
@@ -25,7 +25,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from meals import routing
+from tremor import routing
 
 SCORED_FROM = "2021-11-14"
 COOLDOWN = 72 * 3600
@@ -58,9 +58,9 @@ def caught(alerts, spans) -> int:
 
 
 def main() -> int:
-    labels = pd.read_parquet("data/meals/truth_labels.parquet") \
+    labels = pd.read_parquet("data/tremor/truth_labels.parquet") \
         .set_index("hour_utc").sort_index()
-    events = pd.read_parquet("data/meals/saed_events.parquet")
+    events = pd.read_parquet("data/tremor/saed_events.parquet")
     start = int(pd.Timestamp(SCORED_FROM, tz="UTC").timestamp())
     spans = episodes(labels, start)
     years = (labels.index.max() - start) / (365.25 * 86400)
@@ -89,9 +89,9 @@ def main() -> int:
 
     print(f"{len(spans)} episodes, {years:.1f} years, both ranked most-confident "
           f"first with the same {COOLDOWN // 3600}h cooldown.")
-    print("MEALS alerts are timed at the moment they could actually have been "
+    print("Tremor alerts are timed at the moment they could actually have been "
           "sent.\n")
-    print(f"{'alerts/yr':>9s} {'budget':>7s} | {'MEALS':>18s} | {'SPY trailing 24h':>18s}")
+    print(f"{'alerts/yr':>9s} {'budget':>7s} | {'Tremor':>18s} | {'SPY trailing 24h':>18s}")
     for n in (25, 50, 75, 105, 150):
         a, b = ours[:n], theirs[:n]
         if not a or not b:
