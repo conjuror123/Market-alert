@@ -68,6 +68,9 @@ class SaedEvent:
     # separate axis from `basis`, which says which channel CLAIMED the event:
     # this says whether a test sharing none of their assumptions concurs.
     rank_confirms: "bool | None"
+    # Whether the residual mean-reverts fast enough for the move to be read as
+    # idiosyncratic rather than as a factor the model does not have.
+    ou_reverts: "bool | None"
     z_resid: float
     e_resid: float
     r: float
@@ -143,6 +146,8 @@ def build_events(asset: Asset, frame: pd.DataFrame,
     tier = frame["tier"].to_numpy(dtype=object)
     confirms = (frame["rank_confirms"].to_numpy(dtype=object)
                 if "rank_confirms" in frame else np.full(len(frame), None))
+    reverts = (frame["ou_reverts"].to_numpy(dtype=object)
+               if "ou_reverts" in frame else np.full(len(frame), None))
     basis = frame["basis"].to_numpy(dtype=object) if "basis" in frame \
         else np.full(len(frame), "abnormal", dtype=object)
     rank = {name: i for i, name in enumerate(severity.TIERS)}
@@ -175,6 +180,7 @@ def build_events(asset: Asset, frame: pd.DataFrame,
                                           "tier": tier[i], "basis": str(basis[i]),
                                           "peak_hour_utc": int(hours[i]),
                                           "rank_confirms": _flag(confirms[i]),
+                                          "ou_reverts": _flag(reverts[i]),
                                           "z_resid": float(z[i]),
                                           "e_resid": float(e[i]),
                                           "r": float(r[i]),
@@ -185,6 +191,7 @@ def build_events(asset: Asset, frame: pd.DataFrame,
             event_id=f"{asset.file_stem}:{int(hours[i])}",
             asset_id=asset.asset_id, block=asset.block, hour_utc=int(hours[i]),
             peak_hour_utc=int(hours[i]), rank_confirms=_flag(confirms[i]),
+            ou_reverts=_flag(reverts[i]),
             z_resid=float(z[i]), e_resid=float(e[i]), r=float(r[i]),
             beta=float(beta[i]), repeat_count=0, tier=str(tier[i]),
             basis=str(basis[i]),
@@ -198,7 +205,7 @@ def build_events(asset: Asset, frame: pd.DataFrame,
 def events_frame(events: list[SaedEvent]) -> pd.DataFrame:
     columns = ["event_id", "asset_id", "block", "hour_utc", "peak_hour_utc",
                "z_resid", "e_resid", "r", "beta", "repeat_count", "tier", "basis",
-               "rank_confirms"]
+               "rank_confirms", "ou_reverts"]
     if not events:
         return pd.DataFrame({c: pd.Series(dtype="object" if c in
                                           ("event_id", "asset_id", "block",
@@ -284,7 +291,8 @@ DEFAULT_RESIDUALS_DIR = "data/meals/residuals"
 # of random numbers, and nothing compresses them.
 RESIDUAL_COLUMNS = ("hour_utc", "asset_id", "beta", "beta_block", "e_resid",
                     "sigma_lt_resid", "patell_scale", "t_rank", "rank_pct",
-                    "rank_confirms", "z_resid", "bmp_scale", "bmp_dof",
+                    "rank_confirms", "ou_reversion_bars", "s_score", "ou_reverts",
+                    "z_resid", "bmp_scale", "bmp_dof",
                     "t_resid", "z_resid_bmp",
                     "q95_resid", "q99_resid", "tier", "basis", "tier_abnormal",
                     "tier_absolute") + severity.LEVEL_COLUMNS \

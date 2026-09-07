@@ -248,3 +248,69 @@ def test_a_window_that_has_not_filled_says_nothing_rather_than_no():
     e = pd.Series(np.random.default_rng(9).standard_normal(300) * 0.01)
     out = residuals.rank_statistic(e, window=500, minimum=200)
     assert out["rank_confirms"].iloc[:199].isna().all()
+
+
+# --- the Ornstein-Uhlenbeck residual and its reversion filter ---------------
+
+def test_a_noise_residual_reverts_and_a_drifting_one_does_not():
+    # The distinction the filter exists to make: noise returns to its
+    # equilibrium, an unmodelled factor walks away from it.
+    rng = np.random.default_rng(1)
+    noise = pd.Series(rng.standard_normal(2000) * 0.01)
+    drift = pd.Series(rng.standard_normal(2000) * 0.01 + 0.004)
+
+    a = residuals.ou_fit(noise, window=500, minimum=200).iloc[600:]
+    b = residuals.ou_fit(drift, window=500, minimum=200).iloc[600:]
+    assert a["ou_reverts"].mean() > 0.5
+    assert b["ou_reverts"].mean() < 0.05
+    assert b["ou_reversion_bars"].median() > a["ou_reversion_bars"].median()
+
+
+def test_a_drift_produces_a_huge_s_score_which_is_why_speed_is_checked():
+    # The trap: a residual walking away from equilibrium looks extraordinary on
+    # the s-score alone. Only the reversion speed says it is a missing factor
+    # rather than an idiosyncratic move.
+    rng = np.random.default_rng(2)
+    drift = pd.Series(rng.standard_normal(2000) * 0.01 + 0.004)
+    out = residuals.ou_fit(drift, window=500, minimum=200).iloc[600:]
+    assert out["s_score"].abs().median() > 5
+    assert not out["ou_reverts"].any()
+
+
+def test_the_fit_is_invariant_to_where_the_cumulative_sum_starts():
+    # Avellaneda and Lee restart the sum at each window; the slope, the
+    # reversion speed and the s-score do not depend on that, which is what
+    # lets the fit run vectorised on a global cumulative sum.
+    rng = np.random.default_rng(3)
+    e = pd.Series(rng.standard_normal(1200) * 0.01)
+    base = residuals.ou_fit(e, window=400, minimum=200)
+    shifted = residuals.ou_fit(e, window=400, minimum=200)
+    # shifting the residual's level by a constant is the same as restarting the
+    # sum somewhere else: the first residual absorbs the offset
+    e2 = e.copy(); e2.iloc[0] += 7.5
+    moved = residuals.ou_fit(e2, window=400, minimum=200)
+    late = slice(600, 1200)
+    pd.testing.assert_series_equal(base["ou_b"][late], moved["ou_b"][late])
+    pd.testing.assert_series_equal(base["s_score"][late], moved["s_score"][late],
+                                   rtol=1e-6)
+    pd.testing.assert_series_equal(base["ou_b"][late], shifted["ou_b"][late])
+
+
+def test_the_parameters_come_from_before_the_bar_they_judge():
+    from meals import windows
+    rng = np.random.default_rng(4)
+    e = pd.Series(rng.standard_normal(1500) * 0.01)
+    clean = residuals.ou_fit(e, window=500, minimum=200)
+    spiked = e.copy(); spiked.iloc[1000] = 3.0
+    dirty = residuals.ou_fit(spiked, window=500, minimum=200)
+    for offset in range(windows.REGRESSION_GAP_BARS):
+        i = 1000 + offset
+        assert clean["ou_b"].iloc[i] == pytest.approx(dirty["ou_b"].iloc[i]), offset
+
+
+def test_a_non_reverting_window_says_nothing_rather_than_no():
+    # b outside (0, 1) is not "does not revert", it is a fit that did not
+    # describe an OU process at all.
+    e = pd.Series(np.zeros(800))
+    out = residuals.ou_fit(e, window=400, minimum=200)
+    assert out["s_score"].isna().all()

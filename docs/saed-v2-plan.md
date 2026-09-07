@@ -354,3 +354,72 @@ visible in more than one measure.
 **The rule this is an instance of.** Two quality measures that disagree are more useful
 than one that agrees with you. The retention table alone would have justified this change
 comfortably.
+
+---
+
+# Step 5 done — the OU residual is computed, the reversion filter is not used
+
+`residuals.ou_fit` fits Avellaneda and Lee's construction: the cumulative residual as an
+Ornstein-Uhlenbeck process, giving a reversion speed, an equilibrium, and the s-score.
+Every event carries `ou_reverts`. The rolling fit runs on the global cumulative sum
+because the AR(1) slope — and with it the reversion speed and the s-score — is invariant
+to where each window's sum starts, which a test asserts.
+
+It works, in the sense that it makes the distinction it is supposed to make. On synthetic
+series, pure noise reverts in 86 bars and is accepted 74% of the time; a drift reverts in
+1,687 bars, is accepted 0% of the time, and produces a median |s| of 21 — the trap the
+speed check exists to catch, since on the s-score alone a drift looks extraordinary.
+
+**On our data it separates nothing.**
+
+| | events | held (≥0.5) | reversed (<0) |
+|---|---:|---:|---:|
+| reverts fast (A&L trust) | 10,662 | 60.6% | 28.7% |
+| drifts (A&L refuse) | 2,571 | 61.4% | 28.3% |
+
+And against the §7 yardstick it runs backwards: pushes whose residual drifts score 25.0%
+precision, those that revert 18.9%. The s-score adds nothing either — its correlation
+with retention is +0.017, against |z_resid|'s +0.023, and it is not monotonic across
+quartiles.
+
+**There is a reason, and it is not a defect in the fit.** Avellaneda and Lee are
+statistical-arbitrage traders. They need the residual to come back, because coming back
+is how the position closes at a profit; a residual that keeps going is the one that
+bankrupts them. **An alerting system wants the opposite.** A move that matters is
+frequently a move that persists — this system's own routing will not push a once-a-year
+event unless it held — so their filter rejects, by construction, a large part of what we
+are trying to send.
+
+The plan anticipated the question and refused to settle it by analogy: *"they want
+reversion because they trade it, and a move that matters may well be a move that keeps
+going. The flag is computed; what uses it is decided on measurement."* It was, and the
+measurement says do not use it.
+
+The fit is kept: it is cheap, it is recorded and exported, and `ou_reverts` is the honest
+answer to "is this an unmodelled factor" for anyone who wants it. Nothing routes on it.
+
+---
+
+# Where the six steps ended up
+
+| step | outcome |
+|---|---|
+| 1 BMP standardisation | **adopted.** Breaches in the widest fifth 97.1% → 54.1%; the abnormal channel went from concentrated to flat (widest/calmest 3.7×) |
+| 2 Corrado ranks | implemented, recorded, **not routed on** — predicts reversal, not the label |
+| 3 Patell inflation | implemented, **negligible at L=500** — the correction is k²/(L−1) |
+| 4 estimation gap | **adopted.** Three bars, and it caught an off-by-one in step 5 |
+| 5 OU + reversion filter | implemented, **not used** — built for traders who need reversion |
+| 6 second factor | not started |
+
+One of five borrowings transferred outright. That is not a criticism of the plan, which
+was written from the literature before any of it had been measured here and which said at
+the outset that steps 1 and 2 had an acceptance test needing no labels. It is the reason
+the acceptance test was worth insisting on: a method's standing in its own field is
+evidence about its own field, and the only evidence about this one is a measurement on
+this data.
+
+**What is actually left.** Step 6, and it now has a sharper question than "does the
+basket show common structure": the abnormal channel scores 5.4% precision against the
+yardstick while the absolute channel scores 44.4%, and the abnormal channel is the one a
+second factor would change. If a second component removes structure the first misses, it
+should show up there and nowhere else.

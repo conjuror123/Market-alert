@@ -228,6 +228,87 @@ def rank_statistic(residual: pd.Series, window: int = RANK_WINDOW,
     })
 
 
+# Avellaneda and Lee refuse a signal whose residual reverts more slowly than
+# about half the estimation window - beyond that the fit is describing a drift
+# it cannot see the end of. Same rule, same window.
+OU_WINDOW = windows.REGRESSION_WINDOW
+OU_MIN = windows.REGRESSION_MIN
+OU_MAX_REVERSION_BARS = OU_WINDOW / 2.0
+
+
+def ou_fit(residual: pd.Series, window: int = OU_WINDOW, minimum: int = OU_MIN,
+           gap: int | None = None) -> pd.DataFrame:
+    """Fits an Ornstein-Uhlenbeck process to the CUMULATIVE residual.
+
+    Avellaneda and Lee's construction: the residual return is noise, but its
+    running sum is a level that a genuinely idiosyncratic move pulls away from
+    equilibrium and then returns to. Fit AR(1) to that level and the OU
+    parameters fall out - a reversion speed, an equilibrium, and the distance
+    from it in units of its own spread, which they call the s-score.
+
+    WHAT IT ADDS THAT THE EWMA CANNOT. The scale we standardise by today is an
+    exponentially weighted variance, and the event contaminates it: a large bar
+    enters the very quantity used to judge the bars after it. The OU equilibrium
+    is a property of the fitted process rather than a running average of the
+    data being judged, so a single violent hour moves it far less.
+
+    THE REVERSION SPEED IS THE POINT. A residual that drifts instead of
+    reverting is not idiosyncratic noise - it is a factor the model does not
+    have, showing up in the part of the return the model could not explain.
+    Avellaneda and Lee will not trade such a signal. Whether an ALERTING system
+    should refuse it is a different question, and not one to answer by analogy:
+    they want reversion because they trade it, and a move that matters may well
+    be a move that keeps going. The flag is computed; what uses it is decided
+    on measurement.
+
+    THE ROLLING FIT IS CHEAP. Their X starts at zero at each window's start, but
+    the AR(1) slope is invariant to that offset - shifting both sides by a
+    constant moves only the intercept - and so are the reversion speed and the
+    s-score that follow from it. So the fit runs on the global cumulative sum
+    and stays vectorised, verified against a windowed computation.
+    """
+    gap = windows.REGRESSION_GAP_BARS if gap is None else gap
+    level = residual.fillna(0.0).cumsum()
+    lead = level.shift(-1)
+
+    joint = pd.DataFrame({"x": level, "y": lead})
+    rolling = joint.rolling(window, min_periods=minimum)
+    mean_x, mean_y = rolling["x"].mean(), rolling["y"].mean()
+    var_x, var_y = rolling["x"].var(ddof=1), rolling["y"].var(ddof=1)
+    cov = rolling.cov().unstack()[("x", "y")]
+
+    b = (cov / var_x).where(var_x > 0)
+    intercept = mean_y - b * mean_x
+    # Residual variance of the AR(1) fit, from the same moments.
+    var_noise = (var_y - b * cov).clip(lower=0.0)
+
+    # The parameters are estimated on a window that ends before the bar being
+    # scored, exactly as the market-model coefficients are - and shifted by one
+    # MORE than the gap, because the AR(1) pairing already looks a bar ahead:
+    # the window ending at w has its last y at X_{w+1}. Shifting by the gap
+    # alone leaves an effective gap of gap-1, which a test caught by spiking a
+    # bar and finding it in the parameters two bars later.
+    lead_shift = gap + 1
+    b = b.shift(lead_shift)
+    intercept = intercept.shift(lead_shift)
+    var_noise = var_noise.shift(lead_shift)
+
+    reverting = (b > 0) & (b < 1)
+    equilibrium = (intercept / (1 - b)).where(reverting)
+    sigma_eq = np.sqrt((var_noise / (1 - b ** 2)).where(reverting))
+    # Reversion time in bars: kappa = -log(b) per bar, and 1/kappa is the time
+    # constant. b near one is a slow drift, b near zero an instant snap back.
+    reversion_bars = (-1.0 / np.log(b.where(reverting))).where(reverting)
+
+    s_score = ((level - equilibrium) / sigma_eq).where(sigma_eq > 0)
+    reverts = (reverting & (reversion_bars <= OU_MAX_REVERSION_BARS)
+               ).where(b.notna())
+    return pd.DataFrame({
+        "ou_b": b, "ou_reversion_bars": reversion_bars,
+        "ou_sigma_eq": sigma_eq, "s_score": s_score, "ou_reverts": reverts,
+    })
+
+
 def residuals(asset: Asset, frame: pd.DataFrame, factor: pd.Series,
               block_factor: pd.Series | None = None) -> pd.DataFrame:
     """The residual e and everything the §3.1 machinery needs to process it."""
@@ -264,6 +345,10 @@ def residuals(asset: Asset, frame: pd.DataFrame, factor: pd.Series,
     est = estimates.set_axis(out.index)
     out["patell_scale"] = patell_scale(
         est, factor_series, None if block_factor is None else block_series).to_numpy()
+
+    ou = ou_fit(out["e_resid"])
+    for column in ("ou_reversion_bars", "s_score", "ou_reverts"):
+        out[column] = ou[column].to_numpy()
 
     ranks = rank_statistic(out["e_resid"])
     out["t_rank"] = ranks["t_rank"].to_numpy()
