@@ -270,6 +270,40 @@ def test_an_escalated_event_reports_the_move_that_earned_its_tier():
     assert event.z_resid == pytest.approx(30.0)
 
 
+def test_an_event_that_opens_at_the_top_tier_still_follows_its_biggest_bar():
+    # extreme is the top of the ladder, so an event that opens there can never
+    # escalate, and the "highest tier wins" rule alone leaves it describing
+    # whichever bar the automaton happened to open on. On 2015-01-15 the Swiss
+    # franc peg broke: USD/CHF was already extreme at -3.5% at 09:00 and moved
+    # -10.5% at 10:00, and the alert quoted the first of the two.
+    frame = scored({5: "extreme", 7: "extreme"})
+    frame.loc[5, ["r", "z_resid", "z_resid_bmp", "e_resid"]] = [-0.035, -62.0, -62.0, -0.036]
+    frame.loc[7, ["r", "z_resid", "z_resid_bmp", "e_resid"]] = [-0.105, -153.0, -153.0, -0.105]
+
+    events = saed.build_events(asset(), frame, cooldown_bars=12)
+
+    assert len(events) == 1
+    assert events[0].tier == "extreme"
+    assert events[0].hour_utc == 6 * HOUR            # identity stays at the opening
+    assert events[0].peak_hour_utc == 8 * HOUR       # description follows the peak
+    assert events[0].r == pytest.approx(-0.105)
+
+
+def test_a_smaller_bar_at_the_same_tier_does_not_move_the_peak():
+    # The tie-break is one-directional, like the tier rule it extends: an event
+    # keeps the worst bar it has seen, so a second extreme half the size of the
+    # first leaves the description alone.
+    frame = scored({5: "extreme", 7: "extreme"})
+    frame.loc[5, ["r", "z_resid", "z_resid_bmp", "e_resid"]] = [-0.105, -153.0, -153.0, -0.105]
+    frame.loc[7, ["r", "z_resid", "z_resid_bmp", "e_resid"]] = [-0.035, -62.0, -62.0, -0.036]
+
+    events = saed.build_events(asset(), frame, cooldown_bars=12)
+
+    assert len(events) == 1
+    assert events[0].peak_hour_utc == 6 * HOUR
+    assert events[0].r == pytest.approx(-0.105)
+
+
 def test_an_event_that_never_escalates_peaks_where_it_opened():
     events = saed.build_events(asset(), scored({5: "major", 7: "routine"}),
                                cooldown_bars=12)

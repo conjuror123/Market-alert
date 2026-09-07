@@ -61,49 +61,13 @@ def test_retention_that_is_not_known_yet_is_not_a_reversal():
     assert routed["channel"].iloc[0] == routing.DIGEST
 
 
-def test_the_rate_limit_demotes_the_extra_pushes():
-    # rate_limit is exercised directly rather than through route(), which now
-    # collapses one episode into its first push before the cap ever sees it -
-    # five majors an hour apart are one episode, and that is a different rule
-    # from the weekly budget this test is about.
-    rows = [(DAY + i * HOUR, "major", 0.9, 0.9) for i in range(5)]
-    frame = events(rows)
-    channels = routing.rate_limit(
-        frame, pd.Series([routing.PUSH] * len(rows)), cap=2)
-    assert list(channels).count(routing.PUSH) == 2
-    assert list(channels).count(routing.DIGEST) == 3
-
-
-def test_the_weekly_cap_still_bites_across_separate_episodes():
-    # Two days apart, so collapse leaves all five alone and the cap is what
-    # decides. It is a ROLLING week, so budget is released as events age out:
-    # the first two go, the next two are over the cap, and the fifth is sent
-    # because the first has by then fallen out of the window.
+def test_nothing_is_demoted_for_being_the_third_push_of_the_week():
+    # The system does not count its own alerts. Five separate episodes, days
+    # apart, all rare enough to push: all five push. A weekly budget used to
+    # silence the last three, which is the detector answering a question about
+    # the reader's patience with an instrument's price history.
     rows = [(DAY + i * 2 * DAY, "major", 0.9, 0.9) for i in range(5)]
-    routed = routing.route(events(rows), cap=2)
-    assert list(routed["channel"]) == [
-        routing.PUSH, routing.PUSH, routing.DIGEST, routing.DIGEST, routing.PUSH]
-
-
-def test_the_rate_limit_never_silences_the_rarest_tier():
-    # Greedy and chronological, a Monday once-a-year move would otherwise spend
-    # the budget a Wednesday once-in-three-years move needed - inverting the
-    # whole ladder to save a message. Measured on the real basket that silenced
-    # five of thirty-nine extremes.
-    rows = [(DAY, "major", 0.9, 0.9), (DAY + HOUR, "major", 0.9, 0.9),
-            (DAY + 2 * HOUR, "extreme", 0.9, 0.9)]
-    frame = events(rows)
-    channels = list(routing.rate_limit(
-        frame, pd.Series([routing.PUSH] * len(rows)), cap=2))
-    assert channels == [routing.PUSH, routing.PUSH, routing.PUSH]
-
-
-def test_the_rate_limit_window_rolls_rather_than_resets():
-    rows = [(DAY, "major", 0.9, 0.9),
-            (DAY + 3 * DAY, "major", 0.9, 0.9),     # inside the week - demoted
-            (DAY + 9 * DAY, "major", 0.9, 0.9)]     # clear of it - sent
-    channels = list(routing.route(events(rows), cap=1)["channel"])
-    assert channels == [routing.PUSH, routing.DIGEST, routing.PUSH]
+    assert list(routing.route(events(rows))["channel"]) == [routing.PUSH] * 5
 
 
 def test_the_digest_slot_is_the_next_tuesday_or_friday():
@@ -198,16 +162,6 @@ def test_collapse_leaves_events_that_were_never_pushes_alone():
     channels, folded = routing.collapse(frame, given)
     assert list(channels) == [routing.PUSH, routing.DROPPED]
     assert list(folded) == ["", ""]
-
-
-def test_the_weekly_cap_is_not_spent_on_one_episode():
-    # Collapse runs first precisely so the budget rations episodes rather than
-    # repeated views of one.
-    rows = [(DAY, "major", 0.9, 0.9), (DAY + HOUR, "major", 0.9, 0.9),
-            (DAY + 2 * HOUR, "major", 0.9, 0.9), (9 * DAY, "major", 0.9, 0.9)]
-    routed = routing.route(events(rows), cap=2)
-    assert list(routed["channel"]) == [
-        routing.PUSH, routing.DIGEST, routing.DIGEST, routing.PUSH]
 
 
 def test_the_surviving_push_names_the_instruments_it_speaks_for():

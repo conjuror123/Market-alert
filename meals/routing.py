@@ -29,11 +29,16 @@ the ones that are not urgent spend their delay earning the right to be sent:
   dropped   the move reverted. Not a failure of the detector - it correctly
             found an unusual move - but not something to spend a line on.
 
-The rate limit is a backstop, not the mechanism. It exists because the push
-rate is otherwise proportional to the number of instruments watched, and the
-recipient's attention is not. It runs chronologically and greedily, which is
-the only honest way: a live system deciding whether to send at noon on Tuesday
-cannot know whether something rarer is coming on Thursday.
+There is deliberately no cap on how many pushes a week may contain. A detector
+that counts its own alerts and goes quiet on the third one is answering a
+question about the reader's patience with an instrument's price history, and
+the two have nothing to do with each other: the week the franc is unpegged is
+exactly the week a budget would start silencing things. Volume is controlled
+where it is actually generated - by the rarity ladder, which asks how unusual
+this move is for THIS instrument, and by the collapse below, which asks whether
+this is a new event or the same one seen again. Both are statements about the
+market. Neither needs to know the running total, and the total is a thing to
+report afterwards, not a thing to steer by.
 """
 from __future__ import annotations
 
@@ -54,11 +59,6 @@ PUSH_IMMEDIATE_TIER = "extreme"
 PUSH_DELAYED_TIER = "major"
 DELAY_HORIZON = persistence.HORIZONS[0]      # 6 bars
 SETTLED_HORIZON = persistence.HORIZONS[-1]   # 24 bars
-
-# At most this many pushes in any rolling seven days. On the current basket the
-# rules above produce about one every three weeks, so this never binds - which
-# is the point of a backstop. It binds the day the watchlist doubles.
-MAX_PUSHES_PER_WEEK = 2
 
 # datetime.weekday(): Monday=0. Tuesday covers the weekend and Monday - which
 # matters, because crypto trades straight through it and equities gap on the
@@ -109,38 +109,6 @@ def channel(events: pd.DataFrame, require_retention: bool = True) -> pd.Series:
     return out
 
 
-def rate_limit(events: pd.DataFrame, channels: pd.Series,
-               cap: int = MAX_PUSHES_PER_WEEK) -> pd.Series:
-    """Demotes pushes beyond `cap` in any rolling week to the digest.
-
-    Chronological and greedy, because that is what a live system can do. It
-    cannot hold Tuesday's alert back on the chance that something rarer arrives
-    on Thursday, so neither does this - a backtest that reserved the budget for
-    the best event of the week would be measuring a system nobody can build.
-
-    The rarest tier is never demoted, only counted. Greedy and chronological
-    means a Monday once-a-year move would otherwise spend the budget that a
-    Wednesday once-in-three-years move needed, which inverts the whole ladder
-    to save a message: measured, that silenced five of thirty-nine extremes.
-    It still consumes budget, because it consumes attention.
-    """
-    order = events["hour_utc"].sort_values().index
-    tier = events["tier"]
-    out = channels.copy()
-    sent: list[int] = []
-    for index in order:
-        if out.get(index) != PUSH:
-            continue
-        hour = int(events.at[index, "hour_utc"])
-        window = hour - 7 * 24 * 3600
-        sent = [h for h in sent if h > window]
-        if len(sent) >= cap and tier.get(index) != PUSH_IMMEDIATE_TIER:
-            out.at[index] = DIGEST
-        else:
-            sent.append(hour)
-    return out
-
-
 # How long one push speaks for. A second instrument moving inside this window is
 # almost always the same event seen again rather than news: measured over the
 # whole record, 2008-11-20 sent six pushes across two hours (SPY, XLF, USO, then
@@ -163,12 +131,14 @@ def collapse(events: pd.DataFrame, channels: pd.Series,
 
     UNLESS THE LATER ONE IS RARER. A once-a-year move at ten o'clock must not
     silence a once-in-three-years move at one, or the window would invert the
-    ladder exactly the way the weekly cap is careful not to. A rarer push
+    ladder, which is the one thing the collapse must never do. A rarer push
     interrupts and becomes the episode's new anchor, which is the same rule
     build_events applies within a single instrument when an event escalates
-    inside its cooldown.
+    inside its cooldown. Note what this rule is NOT: it never asks how many
+    pushes have already gone out, only whether this one is the same event as
+    the last.
 
-    Chronological and greedy for the reason rate_limit is: a live system cannot
+    Chronological and greedy, which is the only honest way: a live system cannot
     hold this morning's alert back on the chance that something bigger arrives
     this afternoon, so neither does this.
 
@@ -232,17 +202,13 @@ def digest_slot(hour_utc: int) -> int:
     raise RuntimeError("no digest slot within nine days")
 
 
-def route(events: pd.DataFrame, cap: int = MAX_PUSHES_PER_WEEK,
-          require_retention: bool = True) -> pd.DataFrame:
+def route(events: pd.DataFrame, require_retention: bool = True) -> pd.DataFrame:
     """Adds `channel` and, for the digested ones, the slot they belong to."""
     if events.empty:
         return events.assign(channel=pd.Series(dtype="string"),
                              digest_slot=pd.Series(dtype="Int64"))
 
-    # Collapse BEFORE the weekly cap: the cap exists to ration attention, and
-    # spending it on six views of one event is exactly what it should not do.
     channels, folded = collapse(events, channel(events, require_retention))
-    channels = rate_limit(events, channels, cap)
     digested = channels.eq(DIGEST).fillna(False).to_numpy(dtype=bool)
     slots = pd.Series(pd.NA, index=events.index, dtype="Int64")
     if digested.any():

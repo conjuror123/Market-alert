@@ -119,6 +119,46 @@ def triggers(frame: pd.DataFrame) -> pd.Series:
     return frame["tier"].notna().where(assessed, pd.NA).astype("boolean")
 
 
+def _exceedance(frame: pd.DataFrame, tier: np.ndarray) -> np.ndarray:
+    """How far past its tier's threshold each bar cleared, on its own channel.
+
+    Two bars in the same tier are not equally big, and the ladder alone cannot
+    say which is bigger: one may have earned `extreme` on the abnormal channel
+    and the other on the absolute one, and z and r are not the same quantity.
+    Dividing each by the threshold IT had to clear makes them comparable - both
+    become "times the bar it cleared" - and taking the larger of the two channels
+    means a bar is credited with whichever way it was remarkable.
+
+    Bars with no tier, or with a threshold that is missing or zero, score zero:
+    they are never the more extreme of a pair, which is the safe direction, and
+    a zero threshold would otherwise make an unassessed bar infinitely large.
+    """
+    out = np.zeros(len(frame))
+    # tier is an object array that carries pandas NA, and `tier == name` on one
+    # of those returns NA rather than False, which .any() then refuses to read.
+    # Coercing to plain strings first keeps the comparison a boolean one.
+    names = np.array([t if isinstance(t, str) else "" for t in tier], dtype=object)
+    for column, prefix in ((("z_resid_bmp" if "z_resid_bmp" in frame else "z_resid"),
+                            severity.LEVEL_PREFIX),
+                           (ABSOLUTE_COLUMN, ABSOLUTE_LEVEL_PREFIX)):
+        if column not in frame:
+            continue
+        value = np.abs(frame[column].to_numpy(dtype=float))
+        for name in severity.TIERS:
+            level = f"{prefix}_{name}"
+            if level not in frame:
+                continue
+            here = names == name
+            if not here.any():
+                continue
+            threshold = np.abs(frame[level].to_numpy(dtype=float))
+            usable = here & np.isfinite(value) & np.isfinite(threshold) & (threshold > 0)
+            if usable.any():
+                out[usable] = np.maximum(out[usable],
+                                         value[usable] / threshold[usable])
+    return out
+
+
 def build_events(asset: Asset, frame: pd.DataFrame,
                  cooldown_bars: int = windows.SAED_COOLDOWN_BARS) -> list[SaedEvent]:
     """Runs the cooldown automaton over the asset's bars (§8.3).
@@ -151,9 +191,11 @@ def build_events(asset: Asset, frame: pd.DataFrame,
     basis = frame["basis"].to_numpy(dtype=object) if "basis" in frame \
         else np.full(len(frame), "abnormal", dtype=object)
     rank = {name: i for i, name in enumerate(severity.TIERS)}
+    exceedance = _exceedance(frame, tier)
 
     events: list[SaedEvent] = []
     counts: list[int] = []
+    _peak_at: list[int] = []     # index of the bar each event is REPORTED at
     open_at: int | None = None   # index of the bar on which the current event opened
 
     for i in np.flatnonzero(fired):
@@ -165,7 +207,22 @@ def build_events(asset: Asset, frame: pd.DataFrame,
             # because of when the automaton opened. So the event keeps the
             # highest tier it reached, and only the notification is suppressed.
             counts[-1] += 1
-            if rank.get(tier[i], -1) > rank.get(events[-1].tier, -1):
+            here = rank.get(tier[i], -1)
+            there = rank.get(events[-1].tier, -1)
+            # A higher tier always wins. So does a bigger move at the SAME
+            # tier, and that second half is not a nicety: extreme is the top of
+            # the ladder, so an event that opens there can never be escalated,
+            # and without this the reported bar would stay wherever the
+            # automaton happened to open. On 2015-01-15 the franc peg broke:
+            # 09:00 was already extreme at -3.5%, 10:00 was -10.5%, and the
+            # push described the first. Comparing exceedance rather than raw
+            # magnitude keeps the two channels commensurable - each bar is
+            # measured against its own tier's threshold on the channel that
+            # earned it, so an absolute-basis bar and an abnormal-basis one can
+            # be ranked without pretending z and r are the same quantity.
+            if here > there or (here == there
+                                and exceedance[i] > exceedance[_peak_at[-1]]):
+                _peak_at[-1] = i
                 # The whole bar moves with the tier, not the tier alone. The
                 # tier is earned by THIS hour's move, so reporting it beside the
                 # opening hour's magnitude describes two different bars as one
@@ -197,6 +254,7 @@ def build_events(asset: Asset, frame: pd.DataFrame,
             basis=str(basis[i]),
         ))
         counts.append(0)
+        _peak_at.append(i)
 
     return [SaedEvent(**{**event.__dict__, "repeat_count": count})
             for event, count in zip(events, counts)]

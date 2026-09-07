@@ -124,11 +124,9 @@ def events(scored: pd.DataFrame,
     return out
 
 
-def build(scores: pd.DataFrame, cap: int = routing.MAX_PUSHES_PER_WEEK
-          ) -> pd.DataFrame:
+def build(scores: pd.DataFrame) -> pd.DataFrame:
     """Market events, tiered and routed, ready to be delivered alongside the rest."""
-    routed = routing.route(events(tiers(scores)), cap=cap,
-                           require_retention=False)
+    routed = routing.route(events(tiers(scores)), require_retention=False)
     return routed.assign(basis=pd.Series("market", index=routed.index,
                                          dtype="string"))
 

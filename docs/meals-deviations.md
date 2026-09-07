@@ -1869,3 +1869,76 @@ questions and should be quoted together, never singly:
 F1 over an unbounded alert count should not be quoted for this system again. It was what
 made §38 read as "we tie", when the truth is "we win where it matters and lose where it
 does not".
+
+## 40. Recall on the obvious, and two things it found
+
+The question was the right one to ask and had not been asked: **how do we know a +5% GLD
+won't go unnoticed?** Precision says whether the alerts that arrive are about something.
+It says nothing about what never arrived, and a detector can score well on precision while
+being silent through the largest move of the decade.
+
+So: every hour in which an instrument moved 5% or more *inside the hour*, over the whole
+record, and whether that hour was inside an event at all.
+
+Two measurement traps had to be cleared first. Close-to-close returns span the overnight
+gap the detector deliberately excludes (§13), so the move being scored was partly a gap
+the system never claimed to see; `r = ln(close/open)` is the channel it actually reads.
+And an event had to be matched on its whole span, opening hour through `peak_hour_utc`,
+not on its opening hour — an escalating event's big move is at its peak by construction.
+
+| Move | Hours | Reached an event | Reached a push |
+|---|---:|---:|---:|
+| 2%+, all instruments | 11,481 | 14.8% | 1.8% |
+| 2%+, excluding crypto | 1,840 | 72.4% | 10.3% |
+| 5%+, all instruments | 879 | 29.7% | 3.5% |
+| 5%+, excluding crypto | 87 | 89.7% | 25.3% |
+
+Those are the numbers after the peak fix below. Before it, the same four rows read 12.7%,
+60.4%, 27.4% and 74.7% — and the improvement is partly circular, because widening an
+event's span is what the fix does and coverage is measured over spans. The fix stands on
+its own grounds (the alert quoted the wrong magnitude), not on this table.
+
+The crypto split is not a caveat, it is the finding restated: SOL alone contributes 2,223
+hours over 2%. A flat percentage across instruments is meaningless, which is exactly why
+the ladder is per-instrument. Read the second and fourth rows.
+
+**Where the misses are.** Nine non-crypto 5%+ hours have no event at all, and every one
+is in 2008 or 2020 — clusters where 5% had already become that instrument's normal hour
+(XLF through the crisis, USO through negative oil). 2009, 2011, 2015, 2016, 2021, 2025 and
+2026 contain none. A further ten fired an event that `routing` then dropped, which is the
+retention check doing its job rather than a gap: the move was given back inside the day. That is the ladder working as specified rather than failing: it
+answers "unusual for THIS instrument NOW", and during a crisis the answer changes.
+
+**One of them was not that, and it was a bug.** 2015-01-15 10:00, USD/CHF, −10.5%: the
+Swiss National Bank unpegging the franc, the largest single-hour FX move in the record.
+An event *did* fire — but it opened an hour earlier, at −3.5%, already at `extreme`, and
+`extreme` is the top of the ladder. The escalation rule adopted a later bar only on a
+strictly higher tier, so an event that opens at the top can never move again, and the
+alert quoted −3.5% while the instrument was doing −10.5%. Fixed: the peak now also moves
+on a bigger move at the *same* tier, compared as exceedance (magnitude over the threshold
+that bar had to clear, on the channel that earned it) so that an absolute-basis bar and an
+abnormal-basis one can be ranked without pretending `z` and `r` are the same quantity.
+
+**And it is the better yardstick for this system.** Precision asks "was that alert about
+something". Recall on the obvious asks "would I have found out", which is the actual
+promise. It needs no episode labels, no §7 threshold and no cooldown convention — only a
+number a reader can pick themselves.
+
+## 41. The system no longer counts its own alerts
+
+`routing.rate_limit` demoted any push beyond two in a rolling seven days. It is gone.
+
+The objection is a design one and it is correct: a detector that goes quiet on the third
+alert of the week is answering a question about the reader's patience with an instrument's
+price history, and the two have nothing to do with each other. Worse, the failure mode is
+adversarial — the week the franc is unpegged is precisely the week a budget starts
+silencing things, because that is the week the pushes cluster.
+
+Measured over the whole record it demoted 35 of 581 pushes, about two a year. Cheap to
+remove, and it never was the mechanism: volume is controlled by the rarity ladder (how
+unusual is this move for THIS instrument) and by `routing.collapse` (is this a new event
+or the same one seen again). Both are statements about the market. `collapse` stays for
+exactly that reason — it asks whether this push is the same event as the last one, never
+how many have already gone out.
+
+The alert count is a thing to report afterwards, not a thing to steer by.
