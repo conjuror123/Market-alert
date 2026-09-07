@@ -862,6 +862,8 @@ docs/meals-deviations.md — departures from the spec, each with its reason
 numbers in hundreds of comments, but where it and the measurements disagree, the
 measurements win — `docs/meals-deviations.md`, `docs/saed-v2-plan.md` and
 `docs/meals-v2-findings.md` are what describe the system now.
+`docs/working-agreement.md` is the shorter companion: the rules an agent changing this
+repository works under, each with the measurement that earned it.
 
 The specification lies in the repository as `docs/TZ_MEALS_v5.1.txt`. This is not
 decoration: the code refers to it hundreds of times ("§2.7", "§4.3", "§8.2"), and all
