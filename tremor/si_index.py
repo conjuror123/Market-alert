@@ -45,11 +45,11 @@ POINTS_SINGLE_FACTOR = 3
 # hours the flat award cannot: a shift across two blocks and one across five
 # score identically today. Adding it continuously gives §7 a threshold it can
 # actually slide. It takes the maximum sum past the 12 of §4.2 - see
-# docs/tremor-deviations.md §22.
+# docs/decisions.md.
 POINTS_BREADTH = 14.0   # (*) calibrated on train, spec has no such term
 
 # Two channels the spec does not have, both matched to §7's 24-hour horizon
-# rather than to a single bar. See docs/tremor-deviations.md §24.
+# rather than to a single bar. See docs/decisions.md.
 #
 # Trigger 5, the sustained move: the basket's own move accumulated over 24
 # reference hours. On train the one-hour form of this quantity reaches 25%

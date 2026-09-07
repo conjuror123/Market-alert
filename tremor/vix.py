@@ -12,7 +12,7 @@ multiplier on for weeks, and it would stop distinguishing an acute moment from
 the general background. Repeats inside a window are counted and logged, but they
 do not move the window.
 
-A departure from the letter of §4.4, recorded in docs/tremor-deviations.md: the
+A departure from the letter of §4.4, recorded in docs/decisions.md: the
 series is daily, because no available source offers intraday VIX, and the window
 starts at the moment the value became KNOWN to the system, not at the
 observation date. FRED publishes the value on the next business day, and

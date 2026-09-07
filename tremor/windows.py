@@ -103,7 +103,7 @@ EXPORT_HALF_WINDOW = 12  # event export window around T0 (§6.5)
 # each that is 84.5% of the clock before Medium is counted at all, and the
 # multiplier measured little beyond "a weekday, business hours, somewhere".
 # Splitting by tier and shortening the windows takes the multiplier from covering
-# 59.5% of hours to 17.4%. See docs/tremor-deviations.md §20.
+# 59.5% of hours to 17.4%. See docs/decisions.md.
 CALENDAR_WINDOWS = {
     ("core", "High"): (2.0, 1.0),
     ("core", "Medium"): (1.0, 0.5),

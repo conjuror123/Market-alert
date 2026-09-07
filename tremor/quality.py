@@ -93,7 +93,7 @@ def invalid_reasons(asset: Asset, frame: pd.DataFrame) -> pd.Series:
     # OHLC consistency with a half-tick tolerance: the source rounds the bar's
     # fields independently, and a discrepancy smaller than a tick is a rounding
     # artefact, not a broken bar (see tremor/audit.py and
-    # docs/tremor-deviations.md).
+    # docs/decisions.md).
     tolerance = asset.tick_size / 2
     inconsistent = (
         (frame["low"] > prices[["open", "close"]].min(axis=1) + tolerance)

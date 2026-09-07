@@ -6,7 +6,7 @@ diagnostics §7 asks for by name - events by month, which trigger produced them,
 how often the debounce bit, what the calendar multiplier contributed.
 
 Three decisions the spec does not make, all of which change the numbers, so they
-are stated here and in docs/tremor-deviations.md.
+are stated here and in docs/decisions.md.
 
 WHERE SCORING STARTS. §6.6 keeps an hour out of backtest statistics while its
 triggers are still warming up. The basket is not fully warm until 2021-11-22,

@@ -234,7 +234,7 @@ def csv_compression(csv_norm: pd.Series, m: pd.Series,
 
     It is left in place because §3.4 requires both sub-conditions to be logged
     separately, and because an empty column is itself the evidence. What replaced
-    it is `coherence` below. See docs/tremor-deviations.md §21.
+    it is `coherence` below. See docs/decisions.md.
     """
     rolling = csv_norm.shift(1).rolling(window, min_periods=window)
     q10 = rolling.quantile(0.10)

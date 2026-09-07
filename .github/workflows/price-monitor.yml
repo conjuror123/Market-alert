@@ -39,7 +39,7 @@ jobs:
       # reads the per-asset metrics, saed reads the basket factor, and cluster
       # ENRICHES metrics_basket_hour.parquet in place - so skipping it does not
       # merely omit a step, it leaves the file stripped of the eighteen columns
-      # cluster writes into it. Found the hard way; see docs/pre-launch-review.md.
+      # cluster writes into it. Found the hard way; see docs/operations.md.
       #
       # continue-on-error because price_monitor is the incumbent and must not be
       # taken down by a break in the system being built beside it. A failure here

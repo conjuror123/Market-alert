@@ -11,7 +11,7 @@ name: Backfill Economic Calendar
 # quarter of shifted copies, and the Kaggle dataset diverged from ForexFactory on
 # taxonomy - nine times more Medium events, which gave an archive built from two
 # sources a seam down the middle. See economic_calendar.py and
-# docs/tremor-deviations.md, §11.
+# docs/decisions.md.
 #
 # A full rebuild is ~69 requests with a two-second pause, about four minutes.
 

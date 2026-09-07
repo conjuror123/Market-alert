@@ -16,7 +16,7 @@ market data and of this file, and of nothing the detector does. A config_version
 on them would suggest they move when a threshold moves, and they do not.
 
 Two readings of §7 that the text leaves open are settled here, both recorded in
-docs/tremor-deviations.md: the accumulated move is compared in ABSOLUTE value, and
+docs/decisions.md: the accumulated move is compared in ABSOLUTE value, and
 the 2% of the baseline is read on the log scale like every other return in the
 system.
 """
@@ -146,7 +146,7 @@ def trailing_sum(values: np.ndarray, horizon: int = HORIZON) -> tuple[np.ndarray
     So both are computed: baseline_spy exactly as §7 writes it, and
     baseline_spy_trailing on the hours BEFORE t - "SPY has just moved 2%, expect
     more", which is a detector one could actually run and therefore the one worth
-    beating. Which of the two §7 intends is recorded in docs/tremor-deviations.md.
+    beating. Which of the two §7 intends is recorded in docs/decisions.md.
     """
     present = np.isfinite(values)
     cumulative = np.concatenate([[0.0], np.cumsum(np.where(present, values, 0.0))])

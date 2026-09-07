@@ -5,7 +5,7 @@ against its own recent history with a pair of z-scores, and messaged when either
 crossed a threshold. Tremor replaced that - not refined it, replaced it - and the
 old signals were switched off long before they were removed, so their absence
 here is the end of a migration rather than a loss of function. What they did
-badly is on the record in docs/tremor-deviations.md: one threshold shared by
+badly is on the record in docs/decisions.md: one threshold shared by
 every instrument, so a 1.5% hour meant the same thing in SHY as in SOL; nothing
 to say how rare a move was once it fired; and no way to tell an instrument moving
 on its own from the whole market moving together.
