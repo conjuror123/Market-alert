@@ -224,3 +224,69 @@ residuals are small and raw returns are large, and finding those was why the cha
 added. Deciding that requires asking whether its events duplicate the market-wide channel
 (`meals.market`), not whether its pass rate is flat - which the original plan could not
 have known, because neither the ladder nor the market channel existed when it was written.
+
+---
+
+# The absolute channel: do NOT flatten it
+
+"Step 1 done" ended by naming the absolute leg as the next thing to repair, on the
+grounds that all the remaining regime concentration sits in it (81.3× between the widest
+and calmest cross-section, against the abnormal channel's 3.7×), and proposed scaling it
+the same way BMP scales the relative leg so the whole condition becomes regime-relative.
+
+**Measured, that would remove the best channel in the system.** Scored against the §7
+yardstick, pushes split by which channel fired:
+
+| channel | alerts | caught | Precision | Recall | F1 | lead |
+|---|---:|---:|---:|---:|---:|---:|
+| abnormal only | 37 | 4 | **5.4%** | 3.1% | 3.9% | 7 h |
+| absolute only | 18 | 12 | **44.4%** | 9.2% | 15.3% | 16 h |
+| both | 51 | 14 | 21.6% | 10.8% | 14.4% | 14 h |
+| all pushes | 106 | 28 | 19.8% | 21.5% | 20.6% | 10 h |
+
+Eight times the precision of the channel BMP was built to fix. Its concentration is not a
+defect, it is its function: a market-wide crash is exactly when residuals are small and
+raw returns are large, and finding those is why the channel exists. Flattening it across
+regimes would make it stop firing when the market moves, which is the only time it has
+anything to say.
+
+**That comparison is not neutral, and the reason matters.** §7 calls an hour significant
+when a block's 24-hour move passes its Q99 — close to a direct measurement of what the
+absolute channel reports, and a question the abnormal channel is not trying to answer. So
+the table above is evidence that the absolute channel should stay, and weak evidence
+about the abnormal one.
+
+**A label-free test that suits both.** Noise reverts; information is still there a day
+later. Retention at 24 hours, on pushes:
+
+| basis | pushes | median retention | held (≥0.5) | reversed (<0) |
+|---|---:|---:|---:|---:|
+| abnormal | 229 | 1.23 | 73.4% | 16.6% |
+| absolute | 119 | 0.84 | 73.9% | 16.0% |
+| **both** | 180 | 1.15 | **80.0%** | **10.6%** |
+
+Neither channel is better than the other. **Their agreement is better than either**, and
+by the largest margin available anywhere in these measurements: reversals fall by a
+third, and `both` reaches the `extreme` tier on 10.2% of its events against 1.3% for
+abnormal and 3.2% for absolute.
+
+**Which is the field's own house rule, arriving from the data instead of the reading.**
+Step 5 quotes it: *run one parametric test and one non-parametric test and treat
+agreement as the evidence*. The two channels here are not that pair — they are two
+parametric tests of different questions — but the principle held anyway, and it says what
+the next step is worth doing for.
+
+**Revised order from here.**
+
+1. **Nothing to the absolute channel.** It is the most precise thing in the system and
+   its regime concentration is what makes it so.
+2. **Corrado ranks (original step 2), as a THIRD opinion rather than a replacement leg.**
+   The evidence above says agreement is what carries quality, so the value of a
+   non-parametric test is that it can agree or disagree with two parametric ones — not
+   that it would replace either. Returns are fat-tailed and both current channels are
+   parametric, so a rank test is the missing kind.
+3. **OU residual and the reversion filter (original step 5).** The retention table is a
+   crude version of what the reversion-speed filter would do properly, and the fact that
+   the crude version already separates good events from bad is the argument for building
+   the real one.
+4. **Second factor (original step 6), unchanged and last.**
