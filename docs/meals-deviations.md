@@ -1818,13 +1818,13 @@ number of alerts:
 
 | alerts/year | budget | MEALS caught | precision | SPY trailing caught | precision |
 |---:|---:|---:|---:|---:|---:|
-| 5 | 25 | 13/130 | **52.0%** | 10/130 | 40.0% |
-| 10 | 50 | 14/130 | **28.0%** | 13/130 | 26.0% |
-| 16 | 75 | 16/130 | 21.3% | 25/130 | **33.3%** |
-| 22 | 105 | 20/130 | 19.0% | 25/130 | **32.5%** |
+| 5 | 25 | 14/130 | **56.0%** | 10/130 | 40.0% |
+| 10 | 50 | 17/130 | **34.0%** | 13/130 | 26.0% |
+| 16 | 75 | 18/130 | 24.0% | 25/130 | **33.3%** |
+| 22 | 105 | 21/130 | 20.0% | 25/130 | **32.5%** |
 
 **The system beats the baseline at a tight budget and loses at a loose one.** Its most
-confident twenty-five alerts are right 52% of the time against the baseline's 40%; past
+confident twenty-five alerts are right 56% of the time against the baseline's 40%; past
 about ten alerts a year the ordering inverts and the trivial rule wins.
 
 That is a coherent thing for a detector to be. The severity ladder, the two channels and
@@ -1835,9 +1835,26 @@ have found more cheaply.
 **What it says about the budget.** The original aspiration in this project was *about
 seven pushed alerts a year*, and it was later relaxed to "23 a year is fine" on the
 grounds that the volume was tolerable. Tolerable is not the same as earned: at 22 a year
-the system is delivering 19.0% precision where the baseline delivers 32.5%, so most of
+the system is delivering 20.0% precision where the baseline delivers 32.5%, so most of
 those alerts are worse than a rule that fits on one line. **The first instinct was the
 right one**, and this is the measurement that shows why.
+
+**What precision here does and does not mean.** It is the share of alerts landing within
+twenty-four hours BEFORE an episode starts, or DURING it. It credits coincidence as much
+as prediction, and the demonstration is decisive: **delaying every alert by the six hours
+a `major` push really waits RAISES precision, from 52.0% to 56.0% at a budget of 25**,
+while cutting the median lead from 6 hours to 4. No predictive measure can behave that
+way. Precision answers "was the alert about something real"; the median lead answers "how
+much warning", and the first must never be read as the second.
+
+**And the timing it was scored at was wrong, which is look-ahead.** Alerts were credited
+to the event's OPENING hour. Two delays are real and were both being ignored: an event's
+tier is not known until the bar that earned it, which for an escalating event is later
+than the opening hour; and a `major` push waits `DELAY_HORIZON` hours for its retention
+check by construction, so it cannot be sent before then. 281 of 546 pushes are `major`.
+`tools/budget_curve.py` now times every alert at the moment it could actually have been
+sent, and the corrected table is above — the effect is small and in the system's favour,
+which is why it would have been easy to leave.
 
 **What it says about the yardstick.** The three measures now in use answer different
 questions and should be quoted together, never singly:
