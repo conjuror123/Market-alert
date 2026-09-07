@@ -1693,3 +1693,53 @@ about the world and needs an archive behind it; an empty one cannot tell "nothin
 happened" from "nothing was loaded", and only one of those is safe to say. The calendar
 is read once per run and only when something is actually going out, and a calendar that
 cannot be read never costs the alert.
+
+## 37. The Kaggle calendar, re-tested rather than recalled
+
+The Kaggle "Global Economic Calendar" was proposed again, described as covering 90+
+countries and 400,000+ events from around 2000 with exact release times. §35's docstring
+already rejected it, but the proposal differed from what was rejected - a single source
+for the WHOLE archive has no seam, which was the original objection - so it was
+downloaded and measured again rather than answered from the record.
+
+**It is reachable without credentials** (6.9 MB zip, 43.6 MB CSV, 663,497 rows), and
+every part of the description is wrong in the same direction.
+
+| claimed | measured |
+|---|---|
+| starts around 2000 | **2020-01-01 .. 2025-10-01** |
+| exact release time | 82% of rows have `All Day` and no time |
+| 400,000+ events | 663,497 rows, of which **17%** carry both an impact label and a time |
+
+It is *shallower than the archive it would replace*. ForexFactory gives 2007–2026 with an
+impact and a time on every row; this gives 2020–2025 with both on one row in six.
+Adopting it would delete thirteen years, including all of 2008.
+
+**And it has the GitHub dumps' defect.** 2020 holds 567,458 rows against about 20,000 in
+every other year: **547,217 of them (96%) are exact duplicates** of (date, time, zone,
+event).
+
+**The taxonomy finding reproduces.** Over 2021-01 .. 2025-09, after de-duplicating to
+give it the fairest possible run:
+
+```
+              Kaggle   ForexFactory
+High            13.0           15.2     <- matches
+Medium          97.2           12.8     <- 8x more
+Low            277.0           65.1
+```
+
+The original note recorded 96.9 against 11.3 for Medium and 13.0 against 13.4 for High.
+Four years later, a fresh copy, the same numbers.
+
+**The one angle worth testing was killed by the depth, not the taxonomy.** Because High
+matches, High-only events could have been spliced below ForexFactory's 2007 floor without
+a taxonomy seam - the mismatch is entirely in Medium. That was the genuinely new idea in
+the proposal. It is moot: the dataset starts in 2020, so there is nothing below 2007 in
+it to splice.
+
+**The rule this is an instance of.** A source's own description of its depth and
+completeness is a claim, not a measurement, and it took four commands to check. Re-testing
+a rejected option is cheap and occasionally right - the proposal here was not the one
+that had been rejected - but the re-test has to measure the same things the first one did,
+or it is just a second opinion with no evidence behind it.
