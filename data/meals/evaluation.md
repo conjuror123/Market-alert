@@ -27,8 +27,8 @@ Calibration happens on train alone; test is reported so the gap is visible, not 
 
 | Period | Alerts | Episodes | Caught | Precision | Recall | F1 |
 |---|---:|---:|---:|---:|---:|---:|
-| train | 91 | 100 | 25 | 23.1% | 25.0% | 24.0% |
-| test | 48 | 30 | 7 | 8.3% | 23.3% | 12.3% |
+| train | 92 | 100 | 25 | 22.8% | 25.0% | 23.9% |
+| test | 47 | 30 | 7 | 8.5% | 23.3% | 12.5% |
 
 ## By block
 
@@ -45,7 +45,7 @@ Calibration happens on train alone; test is reported so the gap is visible, not 
 | Quantity | Value |
 |---|---|
 | Hours without quorum | 1.5% |
-| Escalations | 28 |
+| Escalations | 27 |
 | Hours suppressed by the cooldown | 63 |
 | Early breaks refused by the debounce | 0 |
 | basket_coherence fires | 0.1% |
@@ -54,12 +54,12 @@ Calibration happens on train alone; test is reported so the gap is visible, not 
 | csv_compression fires (retired, §21) | 0.0% |
 | Calendar multiplier above 1, all hours | 17.2% |
 | Calendar multiplier above 1, at events | 53.2% |
-| Escalations inside a calendar window | 71.4% |
-| Escalations the calendar multiplier decided | 64.3% |
+| Escalations inside a calendar window | 70.4% |
+| Escalations the calendar multiplier decided | 59.3% |
 
-Escalations by reason: `si>=escalation_threshold` 28
+Escalations by reason: `si>=escalation_threshold` 27
 
-Share of events on which each trigger was true: `cluster_shift` 100.0%, `price_shock` 41.0%, `saed_breadth` 8.6%, `single_factor` 20.1%, `sustained` 0.0%, `volume` 14.4%
+Share of events on which each trigger was true: `cluster_shift` 100.0%, `price_shock` 40.3%, `saed_breadth` 7.9%, `single_factor` 20.1%, `sustained` 0.0%, `volume` 14.4%
 
 ## Events by month
 
@@ -83,6 +83,7 @@ Share of events on which each trigger was true: `cluster_shift` 100.0%, `price_s
 2023-03  ### 3
 2023-04  ## 2
 2023-05  ### 3
+2023-06  # 1
 2023-07  # 1
 2023-08  # 1
 2023-09  #### 4
@@ -116,7 +117,7 @@ Share of events on which each trigger was true: `cluster_shift` 100.0%, `price_s
 2026-03  ##### 5
 2026-04  # 1
 2026-05  ### 3
-2026-06  #### 4
+2026-06  ### 3
 2026-07  ### 3
 2026-08  ## 2
 ```
