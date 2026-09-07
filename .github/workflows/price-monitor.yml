@@ -72,7 +72,9 @@ jobs:
       # Two different cadences, for two different kinds of file.
       #
       # Every run: the small state. data/state.json carries which Tremor events
-      # have already been sent, so losing it means sending them all again.
+      # have already been sent, so losing it means sending them all again. The
+      # candle history and decision log that used to be committed here belonged
+      # to the old per-asset detector and went with it.
       #
       # Once a day: the bar archive and the event tables. Parquet rewrites a file
       # in full, so git stores a whole new blob for every changed one - hourly
@@ -84,11 +86,10 @@ jobs:
       # recoverable and committing it hourly buys nothing.
       - name: Commit updated state
         run: |
-          mkdir -p data/candle_history data/decision_log data/economic_calendar
+          mkdir -p data/economic_calendar
           git config user.name "price-monitor-bot"
           git config user.email "actions@github.com"
-          git add data/state.json data/alerts_log.json data/candle_history \
-                  data/decision_log data/economic_calendar
+          git add data/state.json data/economic_calendar
           if [ "$(date -u +%H)" = "04" ]; then
             git add data/tremor/bars data/tremor/saed_events.parquet \
                     data/tremor/saed_block_alerts.parquet \

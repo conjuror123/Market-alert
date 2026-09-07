@@ -1,114 +1,34 @@
-import pytest
+import os
 
-from price_monitor.config import Config, _parse_assets
-
-
-def test_parse_assets_fills_default_label():
-    assets = _parse_assets([{"symbol": "BTC-USD", "source": "coinbase"}])
-    assert assets[0].label == "BTC-USD"
+from price_monitor.config import load_config
 
 
-def test_parse_assets_keeps_explicit_label():
-    assets = _parse_assets([{"symbol": "GC=F", "source": "yahoo", "label": "Gold"}])
-    assert assets[0].label == "Gold"
+def test_the_mute_defaults_to_silent_when_nothing_says_otherwise(tmp_path):
+    # A missing config file must not mean "start messaging". Wiring the delivery
+    # and deciding to be interrupted by it are separate acts.
+    assert load_config(str(tmp_path / "absent.yaml")).tremor_alerts_muted is True
 
 
-def test_parse_assets_news_query_defaults_to_label():
-    assets = _parse_assets([{"symbol": "GC=F", "source": "yahoo", "label": "Gold futures"}])
-    assert assets[0].news_query == "Gold futures"
+def test_the_yaml_sets_the_mute(tmp_path):
+    path = tmp_path / "config.yaml"
+    path.write_text("tremor_alerts_muted: false\n", encoding="utf-8")
+    assert load_config(str(path)).tremor_alerts_muted is False
 
 
-def test_parse_assets_keeps_explicit_news_query():
-    assets = _parse_assets([{
-        "symbol": "GC=F", "source": "yahoo", "label": "Gold futures", "news_query": "gold price",
-    }])
-    assert assets[0].news_query == "gold price"
+def test_the_environment_overrides_the_yaml(tmp_path, monkeypatch):
+    path = tmp_path / "config.yaml"
+    path.write_text("tremor_alerts_muted: false\n", encoding="utf-8")
+    monkeypatch.setenv("TREMOR_ALERTS_MUTED", "true")
+    assert load_config(str(path)).tremor_alerts_muted is True
 
 
-def test_parse_assets_accepts_twelvedata_source():
-    assets = _parse_assets([{"symbol": "EUR/USD", "source": "twelvedata", "label": "EUR/USD"}])
-    assert assets[0].source == "twelvedata"
-
-
-def test_parse_assets_collects_daily_overrides():
-    assets = _parse_assets([{
-        "symbol": "EUR/USD", "source": "twelvedata",
-        "daily_price_zscore_threshold": 5.0, "daily_cooldown_minutes": 50000,
-    }])
-    assert assets[0].overrides == {
-        "daily_price_zscore_threshold": 5.0, "daily_cooldown_minutes": 50000,
-    }
-
-
-def test_parse_assets_rejects_unknown_source():
-    with pytest.raises(ValueError):
-        _parse_assets([{"symbol": "BTC-USD", "source": "binance"}])
-
-
-def test_parse_assets_rejects_missing_keys():
-    with pytest.raises(ValueError):
-        _parse_assets([{"symbol": "BTC-USD"}])
-
-
-def test_parse_assets_collects_known_overrides():
-    assets = _parse_assets([{
-        "symbol": "CNY=X", "source": "yahoo",
-        "price_zscore_threshold": 4.0, "cooldown_minutes": 60,
-    }])
-    assert assets[0].overrides == {"price_zscore_threshold": 4.0, "cooldown_minutes": 60}
-
-
-def test_parse_assets_ignores_non_override_keys():
-    assets = _parse_assets([{"symbol": "BTC-USD", "source": "coinbase", "label": "Bitcoin"}])
-    assert assets[0].overrides == {}
-
-
-def test_parse_assets_rejects_invalid_override_type():
-    with pytest.raises(ValueError):
-        _parse_assets([{"symbol": "BTC-USD", "source": "coinbase", "mad_window": "lots"}])
-
-
-def test_parse_assets_casts_override_to_declared_type():
-    assets = _parse_assets([{"symbol": "BTC-USD", "source": "coinbase", "price_zscore_threshold": 4}])
-    assert assets[0].overrides["price_zscore_threshold"] == 4.0
-    assert isinstance(assets[0].overrides["price_zscore_threshold"], float)
-
-
-def test_params_for_falls_back_to_global_defaults():
-    cfg = Config(assets=_parse_assets([{"symbol": "BTC-USD", "source": "coinbase"}]),
-                 price_zscore_threshold=3.0, volume_zscore_threshold=4.0)
-    params = cfg.params_for(cfg.assets[0])
-    assert params.price_zscore_threshold == 3.0
-    assert params.volume_zscore_threshold == 4.0
-
-
-def test_params_for_applies_asset_override_without_affecting_others():
-    assets = _parse_assets([
-        {"symbol": "BTC-USD", "source": "coinbase"},
-        {"symbol": "CNY=X", "source": "yahoo", "price_zscore_threshold": 4.0},
-    ])
-    cfg = Config(assets=assets, price_zscore_threshold=3.0)
-    btc_params = cfg.params_for(assets[0])
-    cny_params = cfg.params_for(assets[1])
-    assert btc_params.price_zscore_threshold == 3.0
-    assert cny_params.price_zscore_threshold == 4.0
-    # overriding one field leaves the asset's other resolved params at the globals
-    assert cny_params.volume_zscore_threshold == cfg.volume_zscore_threshold
-
-
-def test_params_for_falls_back_to_daily_global_defaults():
-    cfg = Config(assets=_parse_assets([{"symbol": "EUR/USD", "source": "twelvedata"}]),
-                 daily_price_zscore_threshold=4.0, daily_cooldown_minutes=43200)
-    params = cfg.params_for(cfg.assets[0])
-    assert params.daily_price_zscore_threshold == 4.0
-    assert params.daily_cooldown_minutes == 43200
-
-
-def test_params_for_applies_daily_override_without_affecting_hourly():
-    assets = _parse_assets([
-        {"symbol": "EUR/USD", "source": "twelvedata", "daily_price_zscore_threshold": 6.0},
-    ])
-    cfg = Config(assets=assets, price_zscore_threshold=7.0, daily_price_zscore_threshold=4.0)
-    params = cfg.params_for(assets[0])
-    assert params.daily_price_zscore_threshold == 6.0
-    assert params.price_zscore_threshold == 7.0
+def test_secrets_never_come_from_the_file(tmp_path, monkeypatch):
+    # The repository is public. A token in config.yaml would be committed, so
+    # these are read from the environment and nowhere else.
+    path = tmp_path / "config.yaml"
+    path.write_text("telegram_bot_token: leaked\ntwelvedata_api_key: leaked\n",
+                    encoding="utf-8")
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TWELVEDATA_API_KEY", raising=False)
+    cfg = load_config(str(path))
+    assert cfg.telegram_bot_token == "" and cfg.twelvedata_api_key == ""

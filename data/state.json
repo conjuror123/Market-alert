@@ -15,6 +15,9 @@
   "coinbase:SOL-USD:last_candle": {
     "open_time": 1788267600
   },
+  "tremor_delivery": {
+    "sent": {}
+  },
   "twelvedata:AUD/USD:last_candle": {
     "open_time": 1788267600
   },

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import pytest
 
 from price_monitor import weekly_digest
-from price_monitor.config import AssetConfig, Config
+from price_monitor.config import Config
 from price_monitor.notifier import TelegramError
 
 SATURDAY_NOON_ISRAEL_UTC = datetime(2026, 8, 29, 9, 30, tzinfo=timezone.utc)  # Saturday 12:30 Asia/Jerusalem
@@ -37,7 +37,6 @@ def no_network_backfill(request, monkeypatch):
 
 def make_config(tmp_path):
     return Config(
-        assets=[AssetConfig(symbol="EUR/USD", source="twelvedata", label="EUR/USD")],
         telegram_bot_token="tok", telegram_chat_id="chat",
         calendar_dir=str(tmp_path / "economic_calendar"),
     )

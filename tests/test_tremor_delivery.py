@@ -12,7 +12,7 @@ LABELS = {"twelvedata:GLD": "Gold", "coinbase:BTC-USD": "Bitcoin"}
 
 
 def cfg(**over):
-    base = dict(assets=[], telegram_bot_token="t", telegram_chat_id="c",
+    base = dict(telegram_bot_token="t", telegram_chat_id="c",
                 tremor_alerts_muted=False)
     return Config(**(base | over))
 
