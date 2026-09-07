@@ -13,7 +13,9 @@ on its own from the whole market moving together.
 What is left is a delivery pass. Three things run, none of which decide anything:
 
   the weekly calendar digest - a forecast of the coming week's scheduled
-  releases, on Sunday only, a no-op every other hour (see weekly_digest.py).
+  releases, tried on Saturday at 12:00 Israel time and sent on Sunday instead
+  if the feed is still serving the week that is ending. Once a week, a no-op
+  every other hour (see weekly_digest.py).
 
   Tremor delivery - the pushes and the Tuesday/Friday digest, read off the event
   table the pipeline wrote earlier in this same workflow run. If that pipeline
@@ -64,9 +66,10 @@ def main() -> int:
     had_error = False
     error_details: list[str] = []
 
-    # No-op except during the one hourly run that lands on Sunday ~12:00 Israel
-    # time - see weekly_digest.py's module docstring for why this piggybacks on
-    # the hourly trigger instead of taking a schedule of its own.
+    # No-op except in the 12:00 Israel-time hour on Saturday or Sunday, and then
+    # only once a week - see weekly_digest.py's module docstring for which of the
+    # two days it lands on and why this piggybacks on the hourly trigger instead
+    # of taking a schedule of its own.
     try:
         weekly_digest.maybe_send_weekly_digest(cfg, state, session)
     except Exception as exc:                     # pragma: no cover - defensive
