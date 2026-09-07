@@ -368,14 +368,32 @@ def combine(frame: pd.DataFrame, sources: dict[str, str],
     fired = best.notna()
 
     out = frame.copy()
-    out[tier_column] = pd.Series(
-        [TIERS[int(v)] if pd.notna(v) else pd.NA for v in best],
-        index=frame.index, dtype="string")
+    # Both columns are built by indexing arrays rather than by looping over rows.
+    # The row loop this replaces was the second-largest cost in the run after the
+    # rolling MAD: two scalar .at[] lookups per row per basis, forty thousand
+    # bars per instrument, to choose between four possible answers.
+    codes = best.to_numpy(dtype="float64")
+    known = np.isfinite(codes)
+    tiers = np.full(len(frame), None, dtype=object)
+    tiers[known] = np.array(TIERS, dtype=object)[codes[known].astype(int)]
+    out[tier_column] = pd.array(tiers, dtype="string")
+
     hits = ranks.notna()
-    names = pd.Series(
-        ["+".join(sorted(b for b in present if hits.at[i, b])) if fired.at[i] else pd.NA
-         for i in frame.index],
-        index=frame.index, dtype="string")
-    out[basis_column] = names.replace(
-        {"+".join(sorted(present)): "both"} if len(present) > 1 else {})
+    # One name per combination of channels, looked up by the bit pattern of which
+    # ones fired. With two channels that is four rows in the table, not forty
+    # thousand string joins.
+    order_of = sorted(present)
+    bits = np.zeros(len(frame), dtype=int)
+    for position, basis in enumerate(order_of):
+        bits |= hits[basis].to_numpy(dtype=bool) << position
+    every = "+".join(order_of)
+    lookup = np.array(
+        ["+".join(name for position, name in enumerate(order_of) if pattern >> position & 1)
+         for pattern in range(1 << len(order_of))], dtype=object)
+    if len(present) > 1:
+        lookup[lookup == every] = "both"
+    names = np.full(len(frame), None, dtype=object)
+    chosen = fired.to_numpy(dtype=bool)
+    names[chosen] = lookup[bits[chosen]]
+    out[basis_column] = pd.array(names, dtype="string")
     return out

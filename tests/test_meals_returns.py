@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from meals import bars, returns
+from meals import bars, returns, windows
 from meals.basket import Asset
 
 HOUR = 3600
@@ -147,3 +147,43 @@ def test_empty_input_keeps_the_columns():
     out = returns.winsorize(asset(), returns.split_channels(asset(), bars.empty_frame()))
     assert out.empty
     assert "r_w" in out.columns and "r_gap" in out.columns
+
+
+def test_the_vectorised_mad_matches_a_per_window_median_exactly():
+    # _rolling_mad was 54% of the whole pipeline: 1.7 million callbacks, one per
+    # bar per instrument, over a twenty-four-bar window where the call overhead
+    # dwarfs the arithmetic. Vectorising it has to be exact, not close - the
+    # levels the ladder fits are downstream of this - so it is checked against
+    # the per-window form it replaced, NaNs and short series included.
+    def per_window(series, window):
+        def mad(values):
+            median = np.median(values)
+            return float(np.median(np.abs(values - median)))
+        return series.shift(1).rolling(window).apply(mad, raw=True)
+
+    rng = np.random.default_rng(0)
+    for n, holes in ((5000, 0), (5000, 200), (50, 0), (24, 0), (20, 0)):
+        values = rng.normal(size=n)
+        if holes:
+            values[rng.choice(n, holes, replace=False)] = np.nan
+        series = pd.Series(values)
+        expected = per_window(series, windows.MAD_WINDOW)
+        actual = returns._rolling_mad(series, windows.MAD_WINDOW)
+        # NaN in the same places, and bit-identical where both are finite.
+        assert expected.isna().equals(actual.isna())
+        assert np.array_equal(expected.dropna().to_numpy(), actual.dropna().to_numpy())
+
+
+def test_the_vectorised_mad_spans_more_than_one_chunk():
+    # The |x - median| step materialises, so it runs in chunks; the seam between
+    # two chunks must not drop or duplicate a window.
+    rng = np.random.default_rng(1)
+    series = pd.Series(rng.normal(size=3000))
+    whole = returns._rolling_mad(series, windows.MAD_WINDOW)
+    original = returns._MAD_CHUNK
+    try:
+        returns._MAD_CHUNK = 500
+        chunked = returns._rolling_mad(series, windows.MAD_WINDOW)
+    finally:
+        returns._MAD_CHUNK = original
+    assert whole.equals(chunked)
