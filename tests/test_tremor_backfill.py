@@ -832,3 +832,117 @@ def test_a_shifted_archive_fails_before_anything_is_written(tmp_path, monkeypatc
     out = backfill.deepen_from_dukascopy(_fx_asset(), str(path), date(2003, 1, 1), None)
     assert out["added"] == 0 and "alignment check failed" in out["skipped"]
     assert len(bars.load(str(path))) == before
+
+
+# --- the session-aware skip ------------------------------------------------
+#
+# Every test here is about the same failure: skipping a fetch that would have
+# returned something. That is a hole in the history and a move the detector
+# never sees, where the worst a needless request costs is one of 800 a day.
+
+def _equity(**over):
+    return asset(ticker="SPY", session_template="us_equity", tick_size=0.01,
+                 label="S&P 500", **over)
+
+
+def _equity_store(tmp_path, hour_utc):
+    path = str(tmp_path / "spy.parquet")
+    bars.merge(path, bars.to_hourly(bars.candles_to_frame(
+        [Candle(open_time=hour_utc, open=1.0, high=2.0, low=0.5, close=1.5,
+                volume=1.0, close_time=hour_utc + HOUR)])))
+    return path
+
+
+def test_a_closed_market_with_nothing_new_is_not_asked_for():
+    from tremor.backfill import nothing_can_have_appeared
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as tmp:
+        # Friday 20:00 UTC stored; it is now Saturday afternoon and the calendar
+        # runs to Monday. Nothing can have traded in between.
+        friday = date(2026, 4, 3)
+        stored = int(datetime(2026, 4, 3, 20, tzinfo=timezone.utc).timestamp())
+        path = _equity_store(pathlib.Path(tmp), stored)
+        table = _table([friday, date(2026, 4, 6)])
+        now = datetime(2026, 4, 4, 15, tzinfo=timezone.utc)
+        assert nothing_can_have_appeared(_equity(), path, table, now) is True
+
+
+def test_an_open_market_is_always_asked_for():
+    from tremor.backfill import nothing_can_have_appeared
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as tmp:
+        # Stored up to 14:00 on a trading day, and the session runs to 20:00 UTC.
+        stored = int(datetime(2026, 4, 3, 14, tzinfo=timezone.utc).timestamp())
+        path = _equity_store(pathlib.Path(tmp), stored)
+        table = _table([date(2026, 4, 3)])
+        now = datetime(2026, 4, 3, 19, tzinfo=timezone.utc)
+        assert nothing_can_have_appeared(_equity(), path, table, now) is False
+
+
+def test_fx_and_crypto_are_never_skipped():
+    # FX has no session table here, and its Sunday reopen is exactly the edge a
+    # hand-written rule would get wrong.
+    from tremor.backfill import nothing_can_have_appeared
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as tmp:
+        stored = int(datetime(2026, 4, 3, 20, tzinfo=timezone.utc).timestamp())
+        path = _equity_store(pathlib.Path(tmp), stored)
+        table = _table([date(2026, 4, 3), date(2026, 4, 6)])
+        now = datetime(2026, 4, 4, 15, tzinfo=timezone.utc)
+        assert nothing_can_have_appeared(asset(), path, table, now) is False
+        assert nothing_can_have_appeared(
+            asset(source="coinbase", session_template="crypto_continuous"),
+            path, table, now) is False
+
+
+def test_a_calendar_that_stops_short_never_causes_a_skip():
+    # A table that ends before today reports "no session" for every day past its
+    # end. Read as a holiday that would silence the instrument permanently.
+    from tremor.backfill import nothing_can_have_appeared
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as tmp:
+        stored = int(datetime(2026, 4, 3, 20, tzinfo=timezone.utc).timestamp())
+        path = _equity_store(pathlib.Path(tmp), stored)
+        stale = _table([date(2026, 4, 3)])          # nothing after the stored bar
+        now = datetime(2026, 4, 20, 15, tzinfo=timezone.utc)
+        assert nothing_can_have_appeared(_equity(), path, stale, now) is False
+        assert nothing_can_have_appeared(_equity(), path, None, now) is False
+
+
+def test_the_newest_bar_is_re_asked_for_once_before_skipping_starts():
+    # The ordinary fetch asks for a day more than it needs, because the newest
+    # stored bar may have been served while its hour was still open. Skipping on
+    # the very next run would keep whatever was stored first.
+    from tremor.backfill import nothing_can_have_appeared
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as tmp:
+        stored = int(datetime(2026, 4, 3, 20, tzinfo=timezone.utc).timestamp())
+        path = _equity_store(pathlib.Path(tmp), stored)
+        table = _table([date(2026, 4, 3), date(2026, 4, 6)])
+        just_after = datetime(2026, 4, 3, 21, 30, tzinfo=timezone.utc)
+        assert nothing_can_have_appeared(_equity(), path, table, just_after) is False
+        settled = datetime(2026, 4, 3, 23, 30, tzinfo=timezone.utc)
+        assert nothing_can_have_appeared(_equity(), path, table, settled) is True
+
+
+def test_an_empty_store_is_always_asked_for():
+    from tremor.backfill import nothing_can_have_appeared
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as tmp:
+        path = str(pathlib.Path(tmp) / "empty.parquet")
+        table = _table([date(2026, 4, 3)])
+        now = datetime(2026, 4, 4, 15, tzinfo=timezone.utc)
+        assert nothing_can_have_appeared(_equity(), path, table, now) is False
+
+
+def test_a_store_that_has_fallen_days_behind_is_asked_for():
+    # After an outage the calendar has plenty of hours past the newest bar, and
+    # every one of them is a bar the detector is missing.
+    from tremor.backfill import nothing_can_have_appeared
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as tmp:
+        stored = int(datetime(2026, 4, 3, 20, tzinfo=timezone.utc).timestamp())
+        path = _equity_store(pathlib.Path(tmp), stored)
+        table = _table([date(2026, 4, 3), date(2026, 4, 6), date(2026, 4, 7)])
+        now = datetime(2026, 4, 7, 18, tzinfo=timezone.utc)
+        assert nothing_can_have_appeared(_equity(), path, table, now) is False

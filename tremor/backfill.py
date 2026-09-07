@@ -124,6 +124,62 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
     return bars.merge(path, bars.to_hourly(bars.candles_to_frame(candles)))
 
 
+# How recently a stored bar must have arrived for the top-up to run anyway. The
+# ordinary fetch deliberately asks for a day more than it needs, because the
+# newest stored bar may have been served while its hour was still open and the
+# source will hand back a corrected version later. Skipping on the very next run
+# would keep whatever was stored first. Three hours means the run right after a
+# close still re-asks, and only the quiet hours afterwards are skipped.
+SETTLE_HOURS = 3
+
+
+def nothing_can_have_appeared(asset: Asset, path: str,
+                              table: "dict | None",
+                              now: datetime | None = None) -> bool:
+    """True when the calendar says no new bar can exist for this instrument yet.
+
+    The free Twelve Data tier allows 800 requests a day and this basket asks for
+    21 of them an hour, so most of the budget was being spent asking for SPY
+    bars at three in the morning. Twelve of the instruments are US equity ETFs
+    that trade six and a half hours a day, five days a week: seventeen and a
+    half hours out of every twenty-four, and all weekend, the answer is known in
+    advance to be empty.
+
+    EVERY GUARD HERE IS AGAINST THE SAME MISTAKE - skipping a fetch that would
+    have returned something. A missed bar is a hole in the history and a move
+    the detector never sees, which is far worse than a wasted request, so each
+    condition below refuses to skip unless it is certain:
+
+      - only `us_equity`, the one template with an authoritative calendar. FX
+        and crypto are never skipped: FX has no session table here, and its
+        Sunday reopen is exactly the edge a hand-written rule would get wrong.
+      - never on an empty store, where there is no newest bar to reason from.
+      - never when the calendar does not reach today. A table that stops short
+        would otherwise report "no session" for every day past its end, which
+        reads as a permanent holiday and would silence the instrument for good.
+      - never within SETTLE_HOURS of the newest stored bar, so the correction
+        pass above still happens.
+      - and finally, only when the calendar claims no trading hour at all
+        between the newest stored bar and now.
+    """
+    if asset.session_template != CALENDAR_TEMPLATE or not table:
+        return False
+    stored = bars.load(path)
+    if stored.empty:
+        return False
+
+    now = now or datetime.now(timezone.utc)
+    newest = int(stored["hour_utc"].max())
+    if now.timestamp() - newest < SETTLE_HOURS * 3600:
+        return False
+    if max(table) < now.date():
+        return False
+
+    since = datetime.fromtimestamp(newest, tz=timezone.utc).date()
+    expected = _sessions.expected_hours(table, since, now.date())
+    return not any(hour > newest for hour in expected)
+
+
 def backfill_instrument(asset: Asset, basket: Basket, bars_dir: str, api_key: str,
                         session: requests.Session, legacy_dir: str = LEGACY_HISTORY_DIR,
                         extend_history: bool = False) -> dict:
@@ -843,8 +899,23 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     session = requests.Session()
+    # Loaded once. A missing table is not an error here - it only means no
+    # instrument can be skipped, which is the safe direction.
+    try:
+        session_table = _sessions.load_sessions()
+    except FileNotFoundError:
+        log.warning("No session table; every instrument will be asked for")
+        session_table = None
+
     failures = 0
+    skipped = 0
     for i, asset in enumerate(instruments):
+        if not args.extend_history and nothing_can_have_appeared(
+                asset, bars.store_path(args.bars_dir, asset.file_stem), session_table):
+            skipped += 1
+            log.info("%s: market closed since the newest stored bar, not asked for",
+                     asset.asset_id)
+            continue
         try:
             r = backfill_instrument(asset, basket, args.bars_dir, api_key, session,
                                     args.legacy_dir, args.extend_history)
@@ -858,6 +929,10 @@ def main(argv: list[str] | None = None) -> int:
         # monitor spends it too - the pause is needed between instruments as well.
         if asset.source == "twelvedata" and i < len(instruments) - 1:
             time.sleep(TWELVEDATA_DELAY_SECONDS)
+
+    if skipped:
+        log.info("%d instrument(s) skipped: the calendar says nothing new can exist",
+                 skipped)
 
     if not args.skip_vix:
         fred_key = os.environ.get("FRED_API_KEY", "")

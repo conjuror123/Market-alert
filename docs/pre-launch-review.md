@@ -145,12 +145,26 @@ and the rank gate already do.
 
 ---
 
-## Order of work
+## Order of work — status
 
-1. Restart the external trigger. Production is dead now, whatever else is decided.
-2. Decide the cadence: hourly at ~$14/month, or three-hourly free.
-3. Build the pipeline into the workflow — `cluster` included, derived data in an Actions
-   cache, only `bars/` and the event tables committed.
-4. Add the "x its typical hour" clause to the push.
-5. Fast-forward the production branch.
-6. Unmute, and watch one real alert arrive end to end before trusting the silence.
+1. ~~Restart the external trigger.~~ Done by hand.
+2. ~~Decide the cadence.~~ Moot: the repository is public, so Actions minutes are free
+   and unmetered. The run was also taken from 273s to 172s (§45) for its own sake.
+3. ~~Build the pipeline into the workflow.~~ Done, `cluster` included. Derived data is
+   gitignored rather than cached — it rebuilds from the bars in the same run that needs
+   it — and the bar archive and event tables commit once a day rather than hourly.
+4. ~~Add the "x its typical hour" clause.~~ Done.
+5. **Fast-forward the production branch.** Outstanding, and the only thing between here
+   and live.
+6. Unmute. `tremor_alerts_muted` is now false. `alerts_muted` is deliberately still
+   true: it silences the OLD per-asset detector, which is the thing Tremor replaces, and
+   running both would alert twice on the same move.
+
+The Twelve Data budget, raised in §1 as fitting with no headroom, is settled: the
+forward fetch now skips a US-equity instrument when the NYSE calendar says no bar can
+have appeared since its newest stored one. 504 requests a day becomes 293, and with
+price_monitor's 192 the total is 485 of 800. FX is never skipped - it has no session
+table here and its Sunday reopen is exactly the edge a hand-written rule would get
+wrong. The other half of that saving, price_monitor re-fetching eight pairs Tremor has
+already stored, is left for after the system has run: it changes what the incumbent
+detector reads, and deploy day is the wrong day for that.

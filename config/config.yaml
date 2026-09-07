@@ -182,7 +182,7 @@ alerts_muted: true
 # price_monitor/tremor_delivery.py). Silent while the pipeline is being wired -
 # the detector runs, events are routed and written, and nothing goes out.
 # Set to false to start receiving them.
-tremor_alerts_muted: true
+tremor_alerts_muted: false
 
 # How many recent candles to request at once. Bounded by the strictest source —
 # Coinbase serves at most 300 candles per request (300 * 1h ≈ 12.5 days of

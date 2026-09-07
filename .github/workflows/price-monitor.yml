@@ -1,19 +1,13 @@
 name: Price Spike Monitor
 
 on:
-  # The external trigger (cron-job.org calling workflow_dispatch through the
-  # GitHub API) remains the primary schedule - see README, the section on
-  # schedule reliability. The GitHub schedule below is a BACKUP, added after the
-  # external one stopped firing on 2026-09-01 and nothing noticed for six days.
-  # GitHub's own schedules run late and sometimes skip, which is why they are not
-  # the primary; late is still enormously better than never.
-  #
-  # IT ONLY FIRES ON THE DEFAULT BRANCH. GitHub ignores schedule: on every other
-  # branch, silently, so this line is a no-op until the branch carrying it is the
-  # repository default - which is worth knowing before trusting it as a backup.
+  # An external service (cron-job.org) triggers the hourly run by calling
+  # workflow_dispatch through the GitHub API. GitHub's own schedule: is not used
+  # and should not be added back - it was measured firing roughly once every ten
+  # hours on this repository rather than once an hour, and a trigger that
+  # unpredictably does not fire is worse than no trigger at all, because the
+  # silence looks identical to a quiet market. See README, on schedule reliability.
   workflow_dispatch: {}
-  schedule:
-    - cron: "20 * * * *"
 
 permissions:
   contents: write
