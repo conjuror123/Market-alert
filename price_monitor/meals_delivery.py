@@ -36,10 +36,11 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
+from price_monitor import economic_calendar
 from price_monitor.config import Config
 from price_monitor.notifier import TelegramError, send_telegram_message
 
@@ -186,6 +187,21 @@ def _labels() -> dict[str, str]:
         return {}
 
 
+def _calendar(cfg: Config) -> "list[dict] | None":
+    """The economic calendar archive, or None if it cannot be read.
+
+    A push must not be lost because the calendar is missing: the context is an
+    addition to the message, and an alert without it is far better than no
+    alert at all.
+    """
+    try:
+        return economic_calendar.load_events(
+            economic_calendar.store_path(cfg.calendar_dir))
+    except Exception as exc:                     # pragma: no cover - defensive
+        log.warning("calendar could not be read, sending without context: %s", exc)
+        return None
+
+
 def load_events(cfg: Config) -> "list[dict]":
     """Every routed event, instrument and market, as plain dicts.
 
@@ -263,13 +279,74 @@ def describe(event: dict, labels: dict[str, str]) -> str:
     return "\n".join(parts)
 
 
-def format_push(event: dict, labels: dict[str, str]) -> str:
+# How far back to look for scheduled news when a push goes out. Three hours
+# because that is long enough to cover a release the instrument was still
+# digesting and short enough that what it names is plausibly the cause;
+# measured over every push in the record, a three-hour window holds a median of
+# zero high-impact events and three at the ninetieth percentile, so the line
+# stays readable.
+CALENDAR_LOOKBACK_HOURS = 3
+
+# High impact only. Medium and Low are dominated by bank holidays and minor
+# prints - the same window holds a median of one Low event, and naming those
+# would turn the most important line of the most important message into noise.
+CALENDAR_IMPACT = "High"
+MAX_NAMED_EVENTS = 4
+
+
+def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
+    """What was scheduled in the hours before the move.
+
+    Both answers are worth printing. Naming the release tells the reader the
+    move has a known cause and they can stop looking for one. Saying that
+    nothing was scheduled is the more interesting half: 55% of pushes in the
+    record have no high-impact event in the previous three hours, and an
+    unexplained move with no news behind it is exactly what this system exists
+    to find.
+    """
+    # An empty archive is not evidence of a quiet three hours: it cannot tell
+    # "nothing was scheduled" from "nothing was loaded", and only one of those
+    # is safe to print. None and [] are both treated as "no calendar".
+    if not calendar:
+        return ""
+    upper = datetime.fromtimestamp(int(hour_utc), tz=timezone.utc)
+    lower = upper - timedelta(hours=CALENDAR_LOOKBACK_HOURS)
+    try:
+        window = economic_calendar.events_in_window(calendar, lower, upper)
+    except Exception as exc:                     # pragma: no cover - defensive
+        log.warning("calendar context unavailable: %s", exc)
+        return ""
+
+    named = [e for e in window if str(e.get("impact")) == CALENDAR_IMPACT]
+    header = f"Economic events in the previous {CALENDAR_LOOKBACK_HOURS} hours:"
+    if not named:
+        return f"{header} none scheduled."
+
+    named.sort(key=lambda e: str(e.get("date") or ""))
+    shown = named[:MAX_NAMED_EVENTS]
+    extra = len(named) - len(shown)
+    lines = [header]
+    for e in shown:
+        country = str(e.get("country") or "").strip()
+        title = str(e.get("title") or "").strip()
+        lines.append(f"     - {country} {title}".rstrip())
+    if extra:
+        lines.append(f"     - and {extra} more")
+    return "\n".join(lines)
+
+
+def format_push(event: dict, labels: dict[str, str],
+                calendar: "list[dict] | None" = None) -> str:
     """A single interrupting alert."""
     lines = [describe(event, labels)]
     note = BASIS_NOTE.get(str(event.get("basis") or ""))
     if note:
         lines.append("")
         lines.append(_escape(note))
+    context = calendar_context(int(event["hour_utc"]), calendar)
+    if context:
+        lines.append("")
+        lines.append(_escape(context))
     return "\n".join(lines)
 
 
@@ -374,12 +451,16 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         return 0
 
     labels = _labels()
+    # Loaded once for the whole run and only when something is actually going
+    # out: the archive is ninety thousand events and reading it on an hour that
+    # sends nothing would be the most expensive thing the hourly monitor does.
+    calendar = _calendar(cfg) if pushes else None
     pushed = digested = 0
 
     for event in pushes:
         try:
             send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
-                                  format_push(event, labels))
+                                  format_push(event, labels, calendar))
         except TelegramError as exc:
             log.error("Failed to send MEALS push %s: %s", event.get("event_id"), exc)
             continue

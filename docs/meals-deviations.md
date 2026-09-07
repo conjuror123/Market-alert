@@ -1587,3 +1587,81 @@ Nothing is lost: a collapsed push becomes a digest line.
 bursty, and "one every twelve days" was arithmetic that described no month in the
 record. The distribution of gaps — a median of seven days with a quarter of them under
 one — is what a recipient actually experiences, and it is the number to quote.
+
+## 35. The calendar reaches 2007, from the source it already used
+
+Two questions arrived together: should a push say what was scheduled before the move,
+and should the archive be deepened from Investing.com, whose calendar reaches the 1990s.
+
+**The second was already answered, in this module's own docstring.** Third-party sources
+were tried when the archive was built and all dropped: ForexFactory dumps from GitHub
+and Hugging Face, where a quarter of the High and Medium events were duplicates of the
+same event at a dominant seven-hour offset; then Kaggle's "Global Economic Calendar",
+whose times were fine and whose TAXONOMY was not — it handed out Medium nine times as
+freely, 96.9 events a week against 11.3, while High matched. The archive built from two
+sources acquired a seam exactly where one gave way to the other, and the §4.3 multiplier
+was on in 90.7% of hours across one half and 53.2% across the other. For calibration
+that is worse than gaps: the §7 train period would lie in one regime and the work run in
+the other.
+
+Investing.com would be a third taxonomy joined at 2015 — the boundary of the analysis
+window, which is the worst possible place to put a seam. It also sits behind Cloudflare,
+so the archive would depend on defeating bot protection that is there to stop exactly
+this.
+
+**The same source goes deeper than the archive was using.** Probed month by month: 2006
+returns nothing for any month, 2007-01 returns 328 events. The floor was never
+ForexFactory's — it was ours, `_ARCHIVE_SINCE = 2015-01-01`, set when the price history
+started in 2015 and justified by a comment that still said 2021. The bars now reach 2002
+and 2003, so the floor moved for the second time and for the same reason: an event with
+no bars beside it is dead weight, and one with bars beside it is not.
+
+**The seam test.** High-impact events per year across the join:
+
+```
+2013  1167    2014  1215    2015  1194    2016  1098
+```
+
+No step. 91,544 events, 2007–2026, zero unparsable, zero duplicates, one schema.
+
+Worth recording separately: within ForexFactory itself the High-impact count halves from
+1194 in 2015 to 552 in 2021 before recovering to ~900. That is the source's own labelling
+drifting, not a seam at our boundary — but §7's train period sits inside it, and the
+calibration should be read knowing the multiplier's coverage is not stationary.
+
+## 36. What was scheduled, and the more useful half of that answer
+
+The calendar existed, was used by the §4.3 multiplier and by the weekly digest, and had
+never appeared in an alert. A push said a move was not explained by the rest of the
+market and left the reader to guess whether it had been explained by the news.
+
+Now it says. Three hours back, **High impact only** — measured over every push in the
+record, that window holds a median of zero high-impact events and three at the ninetieth
+percentile, where Low is dominated by bank holidays and would turn the most important
+line of the most important message into noise.
+
+```
+🚨 New Zealand dollar / dollar - biggest move in about three years
+   (not explained by the rest of the market)
+     +0.50%, hour to 2026-05-27 02:00 UTC
+     and it kept going - 2.1x the original move a day later
+
+Economic events in the previous 3 hours:
+     - AUD CPI m/m
+     - AUD CPI y/y
+     - AUD Trimmed Mean CPI m/m
+     - NZD Official Cash Rate
+     - and 2 more
+```
+
+**The empty answer is the more interesting one.** 55% of pushes have no high-impact
+event in the previous three hours, and those say "none scheduled" rather than staying
+quiet — a large unexplained move with nothing on the calendar behind it is precisely
+what this system exists to find, and silence would leave the reader unable to tell that
+case from the one where the line was simply not implemented.
+
+With one refusal: an EMPTY archive prints nothing at all. "None scheduled" is a claim
+about the world and needs an archive behind it; an empty one cannot tell "nothing
+happened" from "nothing was loaded", and only one of those is safe to say. The calendar
+is read once per run and only when something is actually going out, and a calendar that
+cannot be read never costs the alert.

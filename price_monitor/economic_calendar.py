@@ -57,11 +57,20 @@ log = logging.getLogger("price_monitor.economic_calendar")
 CALENDAR_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 
 # The whole point of the archive is giving backtests calendar context around
-# price moves (see daily_signal_review.py) - the earliest candle history
-# (data/candle_history/) starts 2021-01-01, so nothing before that date can
-# ever be matched against a price move and is dropped from historical
-# imports rather than kept as dead weight.
-_ARCHIVE_SINCE = "2015-01-01T00:00:00+00:00"
+# price moves, so the floor follows the price history rather than leading it:
+# an event with no bars to sit beside is dead weight. It has moved twice for
+# that reason, and this is the second - the MEALS bar store now reaches 2002
+# for the ETFs and 2003 for the currency pairs, where it used to start in 2015.
+#
+# It stops at 2007-01 rather than following the bars all the way down because
+# that is where FOREXFACTORY stops: probed month by month, 2006 returns nothing
+# for any month and 2007-01 returns 328 events. Deepening past it would mean a
+# second source, and this module's own history says what that costs - a quarter
+# duplicated at a seven-hour offset from the GitHub dumps, and a taxonomy from
+# Kaggle that handed out Medium nine times as freely. One source for the whole
+# archive is worth more than the extra years.
+CALENDAR_FIRST_MONTH = (2007, 1)
+_ARCHIVE_SINCE = "2007-01-01T00:00:00+00:00"
 
 # The impact scale is exactly three-valued. A source's own extra categories
 # ("Holiday" in the live feed) carry none of the significance Medium/High do and

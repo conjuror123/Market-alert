@@ -261,3 +261,70 @@ def test_a_very_long_list_is_cut_rather_than_running_off_the_screen():
     line = md._also_moved({"also_moved": ids}, {})
     assert line.endswith("and 3 more within the day")
     assert line.count(",") == md.MAX_NAMED_COMPANIONS - 2
+
+
+def _cal(rows):
+    """rows: (iso date, country, title, impact)."""
+    return [{"date": d, "country": c, "title": t, "impact": i,
+             "actual": "", "forecast": "", "previous": ""} for d, c, t, i in rows]
+
+
+def test_a_push_names_the_scheduled_news_behind_it():
+    hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
+    cal = _cal([("2026-06-10T12:30:00+00:00", "USD", "Core CPI m/m", "High"),
+                ("2026-06-10T13:00:00+00:00", "USD", "Fed Chair Speaks", "High")])
+    out = md.calendar_context(hour, cal)
+    assert out.startswith("Economic events in the previous 3 hours:")
+    assert "USD Core CPI m/m" in out and "USD Fed Chair Speaks" in out
+
+
+def test_a_push_with_no_news_behind_it_says_so():
+    # The more interesting half: 55% of pushes in the record have no
+    # high-impact event in the previous three hours, and an unexplained move
+    # with nothing scheduled is what the system exists to find.
+    hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
+    elsewhere = _cal([("2026-05-01T12:00:00+00:00", "USD", "Old CPI", "High")])
+    assert md.calendar_context(hour, elsewhere) == \
+        "Economic events in the previous 3 hours: none scheduled."
+
+
+def test_an_empty_archive_claims_nothing_rather_than_claiming_silence():
+    # "none scheduled" is a claim about the world and needs an archive behind
+    # it. An empty one cannot tell "nothing happened" from "nothing was
+    # loaded", so it says neither.
+    hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
+    assert md.calendar_context(hour, []) == ""
+
+
+def test_only_high_impact_news_is_named():
+    # The same window holds a median of one Low event, almost all bank
+    # holidays; naming those would turn the most important line into noise.
+    hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
+    cal = _cal([("2026-06-10T12:30:00+00:00", "CHF", "Bank Holiday", "Low"),
+                ("2026-06-10T12:45:00+00:00", "EUR", "Trade Balance", "Medium")])
+    assert md.calendar_context(hour, cal).endswith("none scheduled.")
+
+
+def test_news_outside_the_window_is_not_claimed_as_context():
+    hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
+    cal = _cal([("2026-06-10T09:00:00+00:00", "USD", "Old News", "High"),
+                ("2026-06-10T15:00:00+00:00", "USD", "Later News", "High")])
+    out = md.calendar_context(hour, cal)
+    assert "Old News" not in out and "Later News" not in out
+
+
+def test_a_crowded_window_is_cut_rather_than_listed_in_full():
+    hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
+    cal = _cal([(f"2026-06-10T12:{m:02d}:00+00:00", "USD", f"Print {m}", "High")
+                for m in range(0, 60, 10)])
+    out = md.calendar_context(hour, cal)
+    assert out.count("     - ") == md.MAX_NAMED_EVENTS + 1
+    assert "and 2 more" in out
+
+
+def test_a_missing_calendar_never_costs_the_alert():
+    hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
+    assert md.calendar_context(hour, None) == ""
+    text = md.format_push({"hour_utc": hour, "asset_id": "a:SPY", "tier": "major",
+                           "basis": "abnormal", "r": 0.02}, {}, None)
+    assert "biggest move" in text
