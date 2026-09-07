@@ -1942,3 +1942,109 @@ exactly that reason — it asks whether this push is the same event as the last 
 how many have already gone out.
 
 The alert count is a thing to report afterwards, not a thing to steer by.
+
+## 42. Recall on the obvious, done properly — and it is 100%
+
+§40 measured recall at a flat 5% threshold. That was the wrong measurement twice over, and
+the objection that corrected it is one sentence long: **recall on the obvious should be
+100% and recall on the obviously normal should be 0%.** A yardstick that cannot reach
+either number is not measuring what it claims to.
+
+**A flat threshold cannot reach 100%, by construction.** 5% is a quiet hour in SOL and an
+apocalypse in SHY. Lumping them scores the ladder against a target the ladder is
+specifically designed not to hit. "Obvious" has to mean obvious *for this instrument*, so
+the bucket is now each instrument's own |r| percentile over the hours the detector
+actually scored — a ranking, not the system's fitted tail, so it is not grading its own
+homework.
+
+**And it counted continuation hours as misses.** §40 matched an hour against an event's
+opening-to-peak span. But the automaton folds repeats into one alert for twelve bars, so
+the single alert the reader got speaks for that whole window. Negative oil at 18:00 on
+2020-04-21 scored as a miss because the push had gone out at 16:00 — which is `collapse`
+working exactly as designed, not a gap. Matching against the cooldown window is what
+"would I have found out" actually asks.
+
+Redone, on the top 0.01% of each instrument's own hours, excluding crypto — 152 hours:
+
+| | Hours | Share |
+|---|---:|---:|
+| No ladder fitted yet | 6 | — |
+| **Of the 146 with a fitted ladder:** | | |
+| reached me as a push | 71 | 48.6% |
+| reached me in a digest | 71 | 48.6% |
+| dropped — the move reverted inside the day | 4 | 2.7% |
+| **silent** | **0** | **0.0%** |
+
+**Recall on the obvious is 100%.** Not one hour in the top 0.01% of any instrument's own
+history, over twenty-two years, failed to produce an event once the ladder existed.
+
+The six exceptions are all warm-up and all diagnosable: `tier` is NA and every `level_*`
+is NaN — IEF and EUR/USD in 2004, NZD/USD in 2005, and HYG three times in October 2008,
+HYG having launched in April 2007 against a ladder that needs two years of bars. The
+system is silent there because it has not yet earned the right to speak, which is correct
+and is not the same failure as missing a move it could see.
+
+At the other end, hours below an instrument's median |r| open an event 0.07% of the time —
+about one in fourteen hundred. Not zero, and §43 is about the part of that which is real.
+
+Neither number is an input. Nothing in the system reads them, no threshold is set from
+them, and they are computed from bars and events after the fact by
+`scratchpad/obvious2.py`. They are the report card, not the syllabus.
+
+## 43. Where the pushes are still weak: an asleep block manufacturing significance
+
+Sixty-seven of 581 pushes (11.5%) fire on a price move below that instrument's OWN 90th
+percentile — median |r| of 0.19% against 0.90% across all pushes. Sixty-five of the
+sixty-seven are `abnormal` basis, so the pattern is not subtle: the price barely moved,
+the residual was large, and the residual was large because of the denominator.
+
+The mechanism is `bmp_scale`. Under the BMP null the cross-sectional standard deviation of
+standardised residuals is ~1, and it is: the median over all scored hours is **0.963**, so
+the standardisation is well calibrated in general. But 0.9% of hours come in below 0.3,
+and in those the whole block was asleep — every member's residual an order of magnitude
+smaller than its own `sigma_lt` predicted, because `sigma_lt` was fitted on hours when the
+market was awake. Dividing by 0.05 turns a raw z of 0.86 into a 4.05.
+
+The worst case is exactly as silly as that sounds. EUR/USD, 2006-07-03 22:00 — the evening
+before Independence Day, five other instruments in the cross-section, all motionless:
+
+| | |
+|---|---|
+| move | +0.06% |
+| raw z | 0.86 |
+| bmp_scale | 0.089 |
+| z after standardisation | 4.05 |
+| tier | **extreme** — pushed |
+
+**This is not the problem the Wallace transform solved (§31).** That one was sampling
+variability in S: with few peers, S is noisy, and dividing by a noisy S makes a t rather
+than a z, so the tail was being read off the wrong distribution. Wallace fixes that and it
+is still right. This is different — S is not noisily estimated around 1, it is
+*systematically* an order of magnitude below 1, which says the standardisation is
+misspecified for that hour rather than merely uncertain.
+
+**And the obvious fix is wrong.** The instinct is a quorum on cross-sectional membership,
+and measurement kills it: `bmp_dof < 10` covers **37.5% of all scored hours**, which is not
+an anomaly but the shape of a twenty-four-hour basket whose equities trade for six and a
+half. Worse, the thin hours are where the best calls live. Every one of these fired with
+nine peers or fewer:
+
+| | dof | bmp_scale | basis |
+|---|---:|---:|---|
+| SNB unpegs the franc, 2015-01-15 | 6 | 3.30 | both |
+| Yuan devaluation, 2015-08-11 | 6 | 4.85 | both |
+| Brexit result, 2016-06-23 | 6 | 2.32 | absolute |
+| Post-Fukushima USD/JPY, 2011-03-16 | 5 | 5.33 | absolute |
+| SNB announces the floor, 2011-09-06 | 5 | 6.40 | absolute |
+| MoF intervention, 2024-05-01 | 9 | 1.59 | both |
+
+A quorum gate silences all six. The discriminator is not how many peers there were, it is
+whether they were **moving**: every headline event above has `bmp_scale` well ABOVE 1, and
+every manufactured one is far below it.
+
+Which suggests the shape of a fix — when `bmp_scale` is an order of magnitude below the
+value BMP predicts, the abnormal channel abstains for that hour and the absolute channel,
+which never touches the cross-section, decides alone. Measured, that removes 30 pushes
+(5.2%) and keeps every event in the table above, since all six are `absolute` or `both`.
+Not implemented: it is still a threshold, and choosing where to put it is a decision to
+take deliberately rather than to slip in beside a measurement.
