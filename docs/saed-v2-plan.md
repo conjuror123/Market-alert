@@ -290,3 +290,67 @@ the next step is worth doing for.
    the crude version already separates good events from bad is the argument for building
    the real one.
 4. **Second factor (original step 6), unchanged and last.**
+
+---
+
+# Step 2 done — Corrado ranks, and why they are recorded but not routed on
+
+`residuals.rank_statistic` adds `t_rank`, `rank_pct` and `rank_confirms`; every event
+carries `rank_confirms` as a field of its own, beside `basis` rather than inside it —
+`basis` says which channel CLAIMED the event, this says whether a test sharing none of
+their assumptions concurs.
+
+**Two departures from the published form, both forced by what it is being used for.**
+
+*It ranks the magnitude, not the signed abnormal return.* The two channels it must agree
+or disagree with are both two-sided magnitude tests, and agreement is only meaningful
+between tests asking the same question.
+
+*It confirms rather than grades.* Corrado's statistic is a rescaled rank, so it
+saturates: over a five-hundred-bar window the most extreme bar scores 1.729 and the fifth
+most extreme 1.701. It can say "the most extreme hour in five hundred" and never how much
+more extreme, so it cannot feed a return-period ladder. Confirmation is set at the top 1%
+of the window — not a taste threshold: the mildest tier is a once-a-fortnight event,
+which at this basket's bar rates is between one bar in 98 and one in 336, so a test
+confirming more freely than the ladder's own floor would agree with everything.
+
+**It is genuinely informative about reversal.** Over all 13,591 events:
+
+| | events | held (≥0.5) | reversed (<0) |
+|---|---:|---:|---:|
+| rank confirms | 5,172 | 66.9% | **19.6%** |
+| rank disagrees | 8,061 | 56.8% | **34.4%** |
+
+And its effect is largest exactly where it should be — on the abnormal channel, the
+parametric test most exposed to fat tails and the one that scored worst on the yardstick.
+Among its pushes: 10.4% reversed when the rank test agrees, 25.5% when it does not.
+Three-way agreement (both channels and the rank test) gives 173 pushes at 80.3% held and
+10.4% reversed; a single channel with the rank test dissenting gives 119 at 70.6% and
+25.2%.
+
+**And it is uninformative about the §7 label, which is why routing does not use it.**
+
+| | alerts | Precision | Recall | F1 | reversed |
+|---|---:|---:|---:|---:|---:|
+| pushes as they stand | 106 | 19.8% | 21.5% | 20.6% | 14.4% |
+| require rank agreement | 91 | **19.8%** | 16.2% | 17.8% | 11.2% |
+| the ones it would drop | 15 | **20.0%** | 5.4% | 8.5% | 34.4% |
+
+Precision is identical to a tenth of a point on all three rows. The events the rank test
+rejects are exactly as likely to precede a significant move as the ones it accepts — they
+are only more likely to give the move back afterwards.
+
+That is not a contradiction, it is two different questions. Retention asks whether *this
+instrument's* move persisted; the §7 label asks whether *the block* had a large 24-hour
+move. A rank test on an instrument's own residual history predicts the first and has
+nothing to say about the second. **Gating pushes on it would trade a quarter of the
+recall the yardstick measures for an improvement the yardstick cannot see**, on the
+strength of one measure out of two.
+
+So it is recorded, exported and available — a reader wanting to know how likely an alert
+is to be given back has it — and the routing is unchanged until there is a reason
+visible in more than one measure.
+
+**The rule this is an instance of.** Two quality measures that disagree are more useful
+than one that agrees with you. The retention table alone would have justified this change
+comfortably.

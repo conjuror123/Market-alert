@@ -173,6 +173,61 @@ def patell_scale(estimates: pd.DataFrame, factor: pd.Series,
     return np.sqrt(inflation.clip(lower=1.0)).fillna(1.0)
 
 
+# Corrado's rank test needs a pooled window to rank within, and the regression
+# window is the natural one: it is the stretch already treated as "normal" for
+# this instrument, and reusing it means the two tests disagree about the bar
+# rather than about which history to judge it against.
+RANK_WINDOW = windows.REGRESSION_WINDOW
+RANK_MIN = windows.REGRESSION_MIN
+
+# A bar confirms when it is among the most extreme one percent of its window.
+# Not a taste threshold: the routine tier is a once-a-fortnight event, which at
+# this basket's bar rates is between one bar in 98 and one in 336, so the top
+# percent of a five-hundred-bar window is the same order of rarity the mildest
+# tier already claims. A rank test that confirmed more freely than the ladder's
+# own floor would agree with everything and carry no information.
+RANK_CONFIRM_QUANTILE = 0.99
+
+
+def rank_statistic(residual: pd.Series, window: int = RANK_WINDOW,
+                   minimum: int = RANK_MIN) -> pd.DataFrame:
+    """Corrado's rank test, as the non-parametric third opinion.
+
+    Both existing channels are parametric: one standardises the residual by an
+    estimated scale, the other ranks a raw return against a fitted tail. Returns
+    are fat-tailed, so both are optimistic in the same direction, and two tests
+    that share an assumption cannot check each other on it. A rank test assumes
+    no distribution at all and is immune to outliers by construction - the most
+    extreme bar and the fifth most extreme differ by 0.028 in its statistic.
+
+    THAT BOUND IS WHY IT DOES NOT FEED THE LADDER. Corrado's statistic is a
+    rescaled rank, so it saturates: with a five-hundred-bar window it cannot
+    exceed 1.729 however violent the bar. It can say "this is the most extreme
+    hour in five hundred" and it cannot say how much more extreme, which makes
+    it a confirmation and never a tier.
+
+    ONE DEPARTURE from the published form. Corrado ranks the SIGNED abnormal
+    return and measures departure from the middle of the ranking. Here the
+    magnitude is ranked instead, because the two channels it is meant to agree
+    or disagree with are both two-sided magnitude tests - agreement is only
+    meaningful between tests asking the same question, and a signed rank would
+    have been answering a different one.
+    """
+    magnitude = residual.abs()
+    rolling = magnitude.rolling(window, min_periods=minimum)
+    k = rolling.rank()
+    n = rolling.count()
+    fraction = (k / n).where(n >= minimum)
+    # The published statistic: the rank's departure from the middle, in units of
+    # the standard deviation of a uniform rank.
+    statistic = ((k - (n + 1) / 2) / n) / np.sqrt(1.0 / 12.0)
+    return pd.DataFrame({
+        "t_rank": statistic,
+        "rank_pct": fraction,
+        "rank_confirms": (fraction >= RANK_CONFIRM_QUANTILE).where(fraction.notna()),
+    })
+
+
 def residuals(asset: Asset, frame: pd.DataFrame, factor: pd.Series,
               block_factor: pd.Series | None = None) -> pd.DataFrame:
     """The residual e and everything the §3.1 machinery needs to process it."""
@@ -209,6 +264,11 @@ def residuals(asset: Asset, frame: pd.DataFrame, factor: pd.Series,
     est = estimates.set_axis(out.index)
     out["patell_scale"] = patell_scale(
         est, factor_series, None if block_factor is None else block_series).to_numpy()
+
+    ranks = rank_statistic(out["e_resid"])
+    out["t_rank"] = ranks["t_rank"].to_numpy()
+    out["rank_pct"] = ranks["rank_pct"].to_numpy()
+    out["rank_confirms"] = ranks["rank_confirms"].to_numpy()
 
     # The residual's own long-term sigma, on data strictly before the current bar.
     out["sigma_lt_resid"] = (out["e_resid"].shift(1)

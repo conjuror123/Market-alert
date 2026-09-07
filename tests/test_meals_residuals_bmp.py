@@ -187,3 +187,64 @@ def test_a_frame_without_the_moments_is_left_alone():
     factor = pd.Series([0.01, 0.02])
     out = residuals.patell_scale(pd.DataFrame(index=factor.index), factor)
     assert list(out) == [1.0, 1.0]
+
+
+# --- Corrado's rank test, the non-parametric third opinion ------------------
+
+def test_the_most_extreme_bar_in_the_window_confirms():
+    rng = np.random.default_rng(3)
+    e = pd.Series(rng.standard_normal(1500) * 0.01)
+    e.iloc[1200] = 5.0
+    out = residuals.rank_statistic(e, window=500, minimum=200)
+    assert bool(out["rank_confirms"].iloc[1200])
+    assert out["rank_pct"].iloc[1200] == pytest.approx(1.0)
+
+
+def test_the_statistic_saturates_which_is_why_it_cannot_be_a_tier():
+    # The most extreme bar and a merely very extreme one score almost the same,
+    # so the test can confirm that a bar is exceptional and never say by how
+    # much. A return-period ladder fed by it would be meaningless.
+    rng = np.random.default_rng(4)
+    e = pd.Series(rng.standard_normal(1500) * 0.01)
+    e.iloc[1200] = 5.0
+    e.iloc[1300] = 500.0
+    out = residuals.rank_statistic(e, window=500, minimum=200)
+    big, enormous = out["t_rank"].iloc[1200], out["t_rank"].iloc[1300]
+    assert enormous == pytest.approx(big, abs=0.01)
+    assert enormous <= 1.73
+
+
+def test_an_ordinary_bar_does_not_confirm():
+    rng = np.random.default_rng(5)
+    e = pd.Series(rng.standard_normal(1500) * 0.01)
+    out = residuals.rank_statistic(e, window=500, minimum=200)
+    rate = out["rank_confirms"].dropna().mean()
+    # a top-one-percent rule should confirm about one percent of bars
+    assert 0.005 < rate < 0.02
+
+
+def test_it_is_immune_to_an_outlier_that_would_move_a_parametric_scale():
+    # One absurd bar drags a standard deviation and with it every Z in the
+    # window. A rank moves by one place.
+    rng = np.random.default_rng(6)
+    e = pd.Series(rng.standard_normal(1500) * 0.01)
+    clean = residuals.rank_statistic(e, window=500, minimum=200)
+    dirty_series = e.copy()
+    dirty_series.iloc[1100] = 1000.0
+    dirty = residuals.rank_statistic(dirty_series, window=500, minimum=200)
+    later = slice(1200, 1500)
+    assert (clean["t_rank"][later] - dirty["t_rank"][later]).abs().max() < 0.02
+
+
+def test_it_ranks_magnitude_so_both_directions_can_confirm():
+    rng = np.random.default_rng(8)
+    e = pd.Series(rng.standard_normal(1500) * 0.01)
+    e.iloc[1200] = -5.0
+    out = residuals.rank_statistic(e, window=500, minimum=200)
+    assert bool(out["rank_confirms"].iloc[1200])
+
+
+def test_a_window_that_has_not_filled_says_nothing_rather_than_no():
+    e = pd.Series(np.random.default_rng(9).standard_normal(300) * 0.01)
+    out = residuals.rank_statistic(e, window=500, minimum=200)
+    assert out["rank_confirms"].iloc[:199].isna().all()
