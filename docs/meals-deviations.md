@@ -2048,3 +2048,63 @@ which never touches the cross-section, decides alone. Measured, that removes 30 
 (5.2%) and keeps every event in the table above, since all six are `absolute` or `both`.
 Not implemented: it is still a threshold, and choosing where to put it is a decision to
 take deliberately rather than to slip in beside a measurement.
+
+## 44. Significance AND size — the ordinary answer, taken from everyone else
+
+§43 described the weakness and proposed a threshold on `bmp_scale`. Searching for how
+other people handle it turned up something simpler that needs no new constant.
+
+**The standard practice, everywhere.** A/B testing and production monitoring both refuse
+to act on statistical significance alone; they require *practical* significance beside it —
+Split.io alerts on "relative degradation of 20% **or** absolute degradation of 100ms", and
+the clinical-trials literature calls the same idea the minimal important difference. The
+discipline is one sentence: **first ask whether the effect is real, then ask whether it is
+big enough to matter.** This system was asking only the first question on the abnormal
+channel, which is how a six-basis-point move became an `extreme` push.
+
+**And the event-study literature names our exact failure.** Campbell & Wasley (1993) found
+the standardised test misspecified for thinly traded samples, because a high frequency of
+near-zero returns *distorts the variance estimate the test needs* — which is precisely
+`bmp_scale` collapsing when the block is asleep. Their remedy, and Cowan's, is a
+non-parametric rank test, which never estimates a variance at all.
+
+**We already compute it.** `rank_confirms` (Corrado, top 1% of the instrument's own
+window) has been on every event since v2 step 2, recorded but not routed on. So the rule
+costs nothing to add:
+
+> An hour claimed by the **abnormal channel alone** whose rank test contradicts it has that
+> claim withdrawn. If the absolute channel also fired, the hour was never abnormal-only and
+> nothing happens.
+
+`saed.withdraw_unconfirmed`. No threshold, no tuned constant, one existing column.
+
+**Why the "abnormal-only" clause is load-bearing.** The rank test is itself misspecified
+when variance jumps — which is exactly when the absolute channel fires. So the gate lifts
+precisely where the rank test stops being trustworthy. Measured: of 24 pushes in October
+2008 it removes one; of 15 in March 2020, none.
+
+**Results.**
+
+| | before | after |
+|---|---:|---:|
+| pushes | 581 | **484** (22.5/yr) |
+| median gap between pushes | 8.5d | **9.8d** |
+| digest items per issue | 3.8 | **2.4** |
+| silent on the obvious | 0 of 146 | **0 of 146** |
+| fired on a below-median hour | 0.07% | **0.008%** |
+| pushes that reversed | 13.2% | **12.2%** |
+
+Nine times fewer false alarms at the quiet end, no loss at the loud end, and every
+headline still pushed: SNB unpeg, the yuan devaluation, Brexit, post-Fukushima, the SNB
+floor, the 2024 MoF intervention, GLD's −5.9%.
+
+**This reverses a decision, and the reason is worth recording.** `docs/saed-v2-plan.md`
+step 2 rejected exactly this gate — correctly, on the evidence it had: against the §7
+label, rank agreement bought no precision and cost a quarter of the recall. What it also
+found, and could not use, was that the rank test predicts *reversal* very well (25.5%
+reversed when it disagrees against 10.4% when it agrees). The yardstick changed, and under
+"would I have found out" the gate costs nothing measurable and removes a tenth of the
+weak pushes. The old conclusion was right about the old question.
+
+**`tools/report_card.py`** now prints all of it — recall on the obvious, false alarms on
+the obviously normal, and the frequency the phone actually sees. Nothing imports it.

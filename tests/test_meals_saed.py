@@ -367,3 +367,49 @@ def test_an_instrument_without_a_price_column_is_not_gated():
     # vanish because a column is absent.
     frame = scored([5]).drop(columns=["close"], errors="ignore")
     assert len(saed.build_events(asset(), frame, cooldown_bars=12)) == 1
+
+
+def _rank_frame(basis, confirms, tier="major"):
+    n = len(basis)
+    frame = pd.DataFrame({
+        "hour_utc": [(i + 1) * HOUR for i in range(n)],
+        "tier_abnormal": pd.array([tier] * n, dtype="string"),
+        "tier_absolute": pd.array([pd.NA] * n, dtype="string"),
+        "basis": pd.array(basis, dtype="string"),
+        "rank_confirms": pd.array(confirms, dtype="boolean"),
+    })
+    return frame
+
+
+def _combined(frame):
+    """As the pipeline hands it over: combine() has already set tier and basis."""
+    return severity.combine(frame, saed.TIER_SOURCES)
+
+
+def test_an_abnormal_only_hour_the_ranks_contradict_is_withdrawn():
+    # The abnormal channel is a t-statistic - "large relative to the peers this
+    # hour" - so an asleep block makes six basis points look extreme. The rank
+    # test shares none of that machinery and never estimates a variance, which
+    # is the quantity thin trading corrupts.
+    out = saed.withdraw_unconfirmed(_combined(
+        _rank_frame(["abnormal"] * 4, [True, False, None, True])))
+    assert list(out["tier"].isna()) == [False, True, False, False]
+
+
+def test_the_ranks_do_not_withdraw_an_hour_the_absolute_channel_also_claimed():
+    # If the price itself moved, the hour was never abnormal-only and the whole
+    # objection does not apply - and this is what keeps the rule safe in a
+    # crisis, when the rank test is itself misspecified.
+    frame = _rank_frame(["both"] * 2, [False, False])
+    frame["tier_absolute"] = pd.array(["extreme"] * 2, dtype="string")
+    out = saed.withdraw_unconfirmed(_combined(frame))
+    assert not out["tier"].isna().any()
+    assert list(out["tier"]) == ["extreme", "extreme"]
+
+
+def test_a_rank_window_that_has_not_filled_has_not_disagreed():
+    # pandas NA is not False. An hour whose rank window is still warming up has
+    # said nothing, and silence is not a contradiction.
+    out = saed.withdraw_unconfirmed(_combined(
+        _rank_frame(["abnormal"] * 3, [None, None, None])))
+    assert not out["tier"].isna().any()
