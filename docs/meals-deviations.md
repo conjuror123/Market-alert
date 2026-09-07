@@ -1803,3 +1803,52 @@ would be recording a decision nobody has made.
 being good, however carefully each part was built — and the parts of this one were built
 carefully all day. The score is the first evidence about the whole, and the first thing
 it says is that the whole is worth less than the sum suggested.
+
+## 39. The budget curve — where the system is actually worth its complexity
+
+§38 reported that the system ties a one-line baseline and left it there. That comparison
+was unfair in a way that hid the useful part of the answer: it scored detectors firing
+106 and 940 times as though they cost the same. **F1 has no term for how often a person
+is interrupted**, and for an alerting system with a fixed budget that is the whole
+question.
+
+`tools/budget_curve.py` asks the question the budget makes. Both detectors ranked
+most-confident-first, both carrying the same 72-hour cooldown, and both cut to the same
+number of alerts:
+
+| alerts/year | budget | MEALS caught | precision | SPY trailing caught | precision |
+|---:|---:|---:|---:|---:|---:|
+| 5 | 25 | 13/130 | **52.0%** | 10/130 | 40.0% |
+| 10 | 50 | 14/130 | **28.0%** | 13/130 | 26.0% |
+| 16 | 75 | 16/130 | 21.3% | 25/130 | **33.3%** |
+| 22 | 105 | 20/130 | 19.0% | 25/130 | **32.5%** |
+
+**The system beats the baseline at a tight budget and loses at a loose one.** Its most
+confident twenty-five alerts are right 52% of the time against the baseline's 40%; past
+about ten alerts a year the ordering inverts and the trivial rule wins.
+
+That is a coherent thing for a detector to be. The severity ladder, the two channels and
+the retention gate are all machinery for ranking, and ranking is worth most at the top.
+Below the top the extra structure is spending alerts on moves a 24-hour SPY return would
+have found more cheaply.
+
+**What it says about the budget.** The original aspiration in this project was *about
+seven pushed alerts a year*, and it was later relaxed to "23 a year is fine" on the
+grounds that the volume was tolerable. Tolerable is not the same as earned: at 22 a year
+the system is delivering 19.0% precision where the baseline delivers 32.5%, so most of
+those alerts are worse than a rule that fits on one line. **The first instinct was the
+right one**, and this is the measurement that shows why.
+
+**What it says about the yardstick.** The three measures now in use answer different
+questions and should be quoted together, never singly:
+
+* *precision at a matched budget* — the only one that respects that attention is the
+  scarce resource. It is what `tools/budget_curve.py` reports.
+* *retention* — label-free, and the only one that asks whether the move was real rather
+  than whether the market happened to be moving.
+* *the §7 label* — kept because it is the written yardstick, and read knowing it is close
+  to a direct measurement of what the winning baseline reports.
+
+F1 over an unbounded alert count should not be quoted for this system again. It was what
+made §38 read as "we tie", when the truth is "we win where it matters and lose where it
+does not".
