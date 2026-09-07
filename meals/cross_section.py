@@ -162,23 +162,42 @@ def block_factors(panel: pd.DataFrame, basket: Basket) -> pd.DataFrame:
     equal, so a block's weighted median coincides with the plain one.
     """
     members: dict[str, list[str]] = {}
+    signs: dict[str, float] = {}
     for asset in basket.assets:
         if asset.asset_id in panel.columns:
             members.setdefault(asset.block, []).append(asset.asset_id)
+            signs[asset.asset_id] = asset.block_sign
+    for asset in basket.outside:
+        signs.setdefault(asset.asset_id, asset.block_sign)
 
     out = pd.DataFrame(index=panel.index, dtype="float64")
     for block, columns in members.items():
-        values = panel[columns].to_numpy(dtype="float64")
+        # ORIENTED before the median is taken. A median represents a common move
+        # only if the members respond to it with the same sign, and the FX block
+        # does not: it holds three pairs with the dollar as base and three with
+        # it as quote, so a dollar move pushes half up and half down and the
+        # median of the six is close to nothing. See Asset.block_sign for the
+        # measurement - the block factor was seeing about a quarter of the
+        # dollar move and the rest was leaking into every member's residual.
+        oriented = panel[columns].to_numpy(dtype="float64") * np.array(
+            [signs[c] for c in columns], dtype="float64")
         for position, asset_id in enumerate(columns):
-            others = np.delete(values, position, axis=1)
+            others = np.delete(oriented, position, axis=1)
             with np.errstate(invalid="ignore"):
-                out[asset_id] = np.nanmedian(others, axis=1) if others.size else np.nan
+                factor = np.nanmedian(others, axis=1) if others.size else np.nan
+            # Returned in the INSTRUMENT'S own orientation: the regression that
+            # consumes this expects a series the instrument moves with, and
+            # flipping it back here keeps beta_block comparable with what it
+            # meant before.
+            out[asset_id] = factor * signs[asset_id]
 
         # Instruments outside the basket do not enter the factor (§8.1), so
         # there is nothing to exclude for them - the whole block median is used.
         for asset in basket.outside:
             if asset.block == block:
-                out[asset.asset_id] = np.nanmedian(values, axis=1)
+                with np.errstate(invalid="ignore"):
+                    whole = np.nanmedian(oriented, axis=1)
+                out[asset.asset_id] = whole * signs[asset.asset_id]
     return out
 
 

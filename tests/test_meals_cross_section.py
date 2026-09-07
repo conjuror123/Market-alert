@@ -327,3 +327,61 @@ def test_the_specs_own_compression_is_kept_and_still_computed():
     fired, threshold = cs.csv_compression(csv_norm, m)
 
     assert fired.notna().any() and threshold.notna().any()
+
+
+def _fx_basket():
+    """A basket whose FX block is quoted from both sides of the dollar."""
+    return make_basket([make_asset(t, "FX") for t in
+                        ("EUR/USD", "GBP/USD", "AUD/USD",
+                         "USD/JPY", "USD/CHF", "USD/CAD")])
+
+
+def test_the_block_factor_sees_a_dollar_move_the_median_would_cancel():
+    # A pure dollar rally: the three USD-quote pairs fall, the three USD-base
+    # pairs rise. An unoriented median of the six is about zero, and the move
+    # leaks into every member's residual instead of being removed from it.
+    move = 0.01
+    panel = pd.DataFrame({
+        "twelvedata:EUR/USD": [-move], "twelvedata:GBP/USD": [-move],
+        "twelvedata:AUD/USD": [-move], "twelvedata:USD/JPY": [move],
+        "twelvedata:USD/CHF": [move], "twelvedata:USD/CAD": [move],
+    })
+    out = cs.block_factors(panel, _fx_basket())
+
+    # each pair sees the move in ITS OWN direction, at full size
+    assert out["twelvedata:EUR/USD"].iloc[0] == pytest.approx(-move)
+    assert out["twelvedata:USD/JPY"].iloc[0] == pytest.approx(+move)
+    # and an unoriented median would have seen nothing at all
+    assert abs(float(np.median(panel.iloc[0]))) < 1e-12
+
+
+def test_orientation_does_not_disturb_a_block_that_moves_together():
+    # Equities respond to their block's move with one sign, so the correction
+    # has to be the identity there.
+    basket = make_basket([make_asset(t, "equity") for t in ("SPY", "QQQ", "IWM")])
+    panel = pd.DataFrame({"twelvedata:SPY": [0.02], "twelvedata:QQQ": [0.03],
+                          "twelvedata:IWM": [0.04]})
+    out = cs.block_factors(panel, basket)
+    assert out["twelvedata:SPY"].iloc[0] == pytest.approx(0.035)
+
+
+def test_the_asset_is_still_left_out_of_its_own_block_factor():
+    # Orientation must not quietly undo the leave-one-out: an instrument that
+    # moves alone must not find its own move waiting in its block factor.
+    panel = pd.DataFrame({
+        "twelvedata:EUR/USD": [10.0], "twelvedata:GBP/USD": [-0.01],
+        "twelvedata:AUD/USD": [-0.01], "twelvedata:USD/JPY": [0.01],
+        "twelvedata:USD/CHF": [0.01], "twelvedata:USD/CAD": [0.01],
+    })
+    out = cs.block_factors(panel, _fx_basket())
+    assert abs(out["twelvedata:EUR/USD"].iloc[0]) < 0.02
+
+
+def test_the_orientation_comes_from_the_ticker_not_from_the_data():
+    # A sign fitted per window could flip between windows, which is worse than
+    # not correcting at all. It is a fact about how the pair is quoted.
+    assert make_asset("EUR/USD", "FX").block_sign == -1.0
+    assert make_asset("USD/JPY", "FX").block_sign == +1.0
+    assert make_asset("SPY", "equity").block_sign == +1.0
+    # a cross with no dollar leg is left alone rather than guessed at
+    assert make_asset("EUR/GBP", "FX").block_sign == +1.0

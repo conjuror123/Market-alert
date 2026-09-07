@@ -423,3 +423,73 @@ basket show common structure": the abnormal channel scores 5.4% precision agains
 yardstick while the absolute channel scores 44.4%, and the abnormal channel is the one a
 second factor would change. If a second component removes structure the first misses, it
 should show up there and nowhere else.
+
+---
+
+# Step 6 done — not a second factor: the block factor was cancelling itself
+
+The step asked whether the residuals still carry common structure, and to test a second
+principal component if so. They do — seven components above the Marchenko-Pastur noise
+ceiling — but the second one turned out not to need a new factor.
+
+**What the residual components are.** PCA on the residual panel (19 instruments, 33,109
+hours where 80% of the basket is present):
+
+```
+PC1  15.0%   GLD -0.44  SLV -0.39  IEF -0.32  USO +0.32  USD/JPY +0.32   (real assets vs the dollar)
+PC2  12.2%   AUD -0.53  EUR -0.51  GBP -0.50  NZD -0.26  JPY -0.22       (75% FX)
+PC3  10.1%   QQQ +0.49  SPY +0.40  IWM -0.36  XLF -0.29                  (within equities)
+```
+
+PC2 is the dollar, and the FX block factor is supposed to have removed it.
+
+**Why it did not.** The block factor is the median of the other members' returns, and a
+median represents a common move only if the members respond to it with the same sign. The
+FX block holds three pairs with the dollar as quote (EUR/USD, GBP/USD, AUD/USD) and three
+with it as base (USD/JPY, USD/CHF, USD/CAD). A dollar rally sends half down and half up,
+and **the median of three negatives and three positives is nearly zero.** Measured over
+142,400 hours with all six present, on the 1% of hours the dollar moves most:
+
+```
+the actual dollar move (sign-corrected)   40.72 bp
+what the block factor sees (plain median) 10.82 bp
+```
+
+Three quarters of it was leaking into all six residuals at once — which is what PC2 was.
+
+**The fix.** `Asset.block_sign` orients each member from its ticker before the median is
+taken, and flips the result back so `beta_block` keeps its meaning. Taken from the ticker
+rather than fitted, because it is a fact about how the pair is quoted and a sign estimated
+per window could flip between windows, which is worse than not correcting.
+
+It does what it was meant to: PC2's eigenvalue falls 2.31 → 1.99 and its FX share 75% →
+35%. PC1 is untouched at 2.84 → 2.91, correctly — a gold-versus-oil factor crosses blocks
+and no block factor can absorb it.
+
+**And it makes the detector slightly worse on both quality measures.**
+
+| | before | after |
+|---|---|---|
+| yardstick, all pushes | P 19.8% R 21.5% **F1 20.6** | P 16.8% R 19.2% **F1 17.9** |
+| retention, all pushes | held 75.8%, reversed 14.4% | held 73.7%, reversed 15.5% |
+| absolute channel precision | 44.4% | **50.0%** |
+| absolute channel regime concentration | 81.3× | **61.3×** |
+
+The likely reason is the one the earlier steps kept running into: removing more common
+structure moves the abnormal channel from "big move" toward "genuinely unexplained move",
+and both available measures prefer big moves — the §7 label by construction, and retention
+because a market-wide move persists more reliably than an idiosyncratic one. A dollar
+rally leaking into six residuals made six pairs fire, and a dollar rally is a macro event
+worth hearing about.
+
+**Kept anyway, and this is a judgement call where the numbers mildly disagree.** The
+difference is three episodes out of 130 and nineteen extra alerts, which is not much above
+noise for this sample; the modelling defect is definite and measured at four-to-one. A
+factor that silently cancels itself is also a latent hazard for anyone who later trusts
+`beta_block` to mean what it says. Reverting is one commit if the measured numbers are
+preferred to the cleaner model.
+
+**One thing checked and found already true.** The block factor's own stated purpose is
+stopping single-asset detection from firing in blocks. FX abnormal events never fired
+three-at-once either before or after (0.0%, max 2 both ways) — that part was already
+working, and the leak was showing up in the residuals rather than in simultaneous events.
