@@ -290,8 +290,13 @@ CALENDAR_LOOKBACK_HOURS = 3
 # High impact only. Medium and Low are dominated by bank holidays and minor
 # prints - the same window holds a median of one Low event, and naming those
 # would turn the most important line of the most important message into noise.
+#
+# All of them are listed rather than capped. The High filter is what keeps the
+# line short, and it keeps it short enough: over every push in the record the
+# window holds three at the ninetieth percentile and nine at the very worst, so
+# "and two more" would hide the tail of a busy morning - which on a busy
+# morning is the half worth reading - to save two lines.
 CALENDAR_IMPACT = "High"
-MAX_NAMED_EVENTS = 4
 
 
 def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
@@ -323,15 +328,11 @@ def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
         return f"{header} none scheduled."
 
     named.sort(key=lambda e: str(e.get("date") or ""))
-    shown = named[:MAX_NAMED_EVENTS]
-    extra = len(named) - len(shown)
     lines = [header]
-    for e in shown:
+    for e in named:
         country = str(e.get("country") or "").strip()
         title = str(e.get("title") or "").strip()
         lines.append(f"     - {country} {title}".rstrip())
-    if extra:
-        lines.append(f"     - and {extra} more")
     return "\n".join(lines)
 
 

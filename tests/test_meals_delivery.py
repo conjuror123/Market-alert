@@ -313,13 +313,25 @@ def test_news_outside_the_window_is_not_claimed_as_context():
     assert "Old News" not in out and "Later News" not in out
 
 
-def test_a_crowded_window_is_cut_rather_than_listed_in_full():
+def test_a_crowded_window_is_listed_in_full():
+    # The High filter is what keeps the line short. On a busy morning the tail
+    # is the half worth reading, so it is not traded away to save two lines.
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
     cal = _cal([(f"2026-06-10T12:{m:02d}:00+00:00", "USD", f"Print {m}", "High")
                 for m in range(0, 60, 10)])
     out = md.calendar_context(hour, cal)
-    assert out.count("     - ") == md.MAX_NAMED_EVENTS + 1
-    assert "and 2 more" in out
+    assert out.count("     - ") == 6
+    assert "more" not in out
+    for m in range(0, 60, 10):
+        assert f"Print {m}" in out
+
+
+def test_the_events_are_listed_in_the_order_they_happened():
+    hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
+    cal = _cal([("2026-06-10T13:30:00+00:00", "USD", "Later", "High"),
+                ("2026-06-10T11:30:00+00:00", "USD", "Earlier", "High")])
+    out = md.calendar_context(hour, cal)
+    assert out.index("Earlier") < out.index("Later")
 
 
 def test_a_missing_calendar_never_costs_the_alert():

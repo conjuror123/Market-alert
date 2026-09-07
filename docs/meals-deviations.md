@@ -1660,6 +1660,34 @@ quiet — a large unexplained move with nothing on the calendar behind it is pre
 what this system exists to find, and silence would leave the reader unable to tell that
 case from the one where the line was simply not implemented.
 
+**All of them are listed, not capped.** The High filter is what keeps the line short and
+it keeps it short enough - median zero, three at the ninetieth percentile, nine at the
+very worst. The worst case is the argument for listing them: on 2022-02-03 EUR/USD moved
++0.63% in a window holding the whole Bank of England package and the ECB's rate decision
+together, and a cap at four would have printed seven GBP lines and hidden the ECB, which
+is the half that explains EUR/USD.
+
+**FRED cannot serve this, for three independent reasons.** It was proposed as the deep
+official alternative, and it is the right database for what it holds - this project
+already takes VIX from it. But the calendar asks a different question than the series do:
+
+1. The `release_dates` API returns a DATE and no time of day. §4.3's multiplier is
+   hourly, and a date cannot say whether the 13:30 print explains the 13:00 hour. The
+   FRED website's own calendar does show times; the API does not expose them.
+2. It is US federal data. Measured on the archive, **66% of high-impact events are not
+   US** - GBP 15.8%, CAD 12.3%, AUD 11.5%, EUR 8.4%, NZD 7.4% - and the basket is seven
+   currency pairs that respond to exactly those. The worked example above is a push on
+   NZD/USD explained by the RBNZ Official Cash Rate and Australian CPI, neither of which
+   FRED carries.
+3. It has no impact taxonomy. High, Medium and Low are what drive §4.3, and inventing
+   them over FRED's releases would be the taxonomy problem of §35 again, this time
+   authored by us.
+
+What FRED could genuinely do is CHECK this archive rather than replace it: its release
+dates for a US series are authoritative, so disagreement with ForexFactory on the 34%
+they share would catch a systematic date error of the kind the GitHub dumps had. That is
+a validation, not a source, and it is not built yet.
+
 With one refusal: an EMPTY archive prints nothing at all. "None scheduled" is a claim
 about the world and needs an archive behind it; an empty one cannot tell "nothing
 happened" from "nothing was loaded", and only one of those is safe to say. The calendar
