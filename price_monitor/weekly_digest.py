@@ -56,7 +56,7 @@ from price_monitor.notifier import TelegramError, send_telegram_message
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("price_monitor.weekly_digest")
 
-_DIGEST_IMPACTS = {"Medium", "High"}
+_DIGEST_IMPACTS = set(economic_calendar.SHOWN_IMPACTS)
 # datetime.weekday(): Monday=0 ... Saturday=5, Sunday=6.
 #
 # There are two windows, and that is not belt-and-braces. The feed serves only
@@ -77,7 +77,9 @@ _DIGEST_HOUR_ISRAEL = 12
 _STATE_KEY = "weekly_digest:last_sent_week"
 
 _ISRAEL_TZ = ZoneInfo("Asia/Jerusalem")
-_IMPACT_EMOJI = {"High": "🔴", "Medium": "🟠"}
+# Shared with the push and digest messages so the two never drift apart; see
+# economic_calendar.IMPACT_EMOJI for why the colour lives there.
+_IMPACT_EMOJI = economic_calendar.IMPACT_EMOJI
 
 _WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday",
              "Friday", "Saturday", "Sunday")

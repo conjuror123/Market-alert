@@ -82,13 +82,18 @@ variance, which is the quantity thin trading corrupts.
 **6. One event, not many.** A cooldown of twelve bars folds repeats into one event,
 which keeps the highest tier and the biggest bar it saw.
 
-**7. Route it.** `extreme` interrupts at once. `major` waits six bars and goes only if
-the move is still standing. Everything else that held waits for the next digest;
-anything that fully reverted is dropped. Pushes belonging to one episode collapse into
-the first of them, unless a later one is rarer.
+**7. Route it.** `major` and `extreme` interrupt at once; everything else goes into the
+running digest note. Nothing waits and nothing is dropped — retention no longer decides
+whether an event is sent, only what the sent message says about it. Pushes belonging to
+one episode collapse into the first of them, unless a later one is rarer.
 
-**8. Deliver.** Pushes immediately, digests Tuesday and Friday at 12:00 Israel time.
-Nothing older than 48 hours is ever sent.
+**8. Deliver.** A push the hour it is found. A digest row into the note for its period,
+also the hour it is found — the note is *opened* Tuesday and Friday at 12:00 Israel time
+and edited in place for the rest of the period, so the phone buzzes twice a week and
+every row after that arrives silently. Both kinds of message are then corrected as the
+market answers: a push at two bars, six bars and the next close, a digest row at the
+next close. A push older than 48 hours is never sent, and a period that closed before
+this system saw it never gets a note.
 
 ---
 

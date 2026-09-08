@@ -87,6 +87,22 @@ def _normalize_impact(raw: str) -> str:
     return _IMPACT_ALIASES.get(raw, raw)
 
 
+# How an impact level is shown, wherever it is shown. A CIRCLE, in every message
+# that names a scheduled release: the Saturday calendar, a push, a digest line.
+# Moves are marked with a SQUARE of the same hues (tremor_delivery.TIER_EMOJI),
+# so the shape says which of the two kinds of thing a coloured line is - a move
+# that happened, or a release that was on the schedule - before the words do.
+#
+# Defined here rather than in either message module because two copies of the
+# same table drift, and the whole value of the convention is that it does not.
+IMPACT_EMOJI = {"High": "🔴", "Medium": "🟠", "Low": "⚪"}
+
+# The levels worth naming. Low is dominated by bank holidays and minor prints
+# and would turn every colour-coded line into noise, so it is carried in the
+# archive and never displayed.
+SHOWN_IMPACTS = ("High", "Medium")
+
+
 class CalendarError(RuntimeError):
     pass
 

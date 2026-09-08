@@ -42,20 +42,14 @@ def test_a_once_a_year_move_is_sent_at_once_even_if_it_later_reverts():
     assert list(routed["channel"]) == [routing.PUSH, routing.PUSH]
 
 
-def test_a_reverted_move_is_still_dropped_when_it_was_only_ever_a_digest_line():
-    # Nothing in the digest is urgent, so its retention is known long before it
-    # would be written up. A push has already gone out by then, and unsending
-    # it is not a thing Telegram can do.
-    routed = routing.route(events([(DAY, "notable", -0.4, -0.4)]))
-    assert routed["channel"].iloc[0] == routing.DROPPED
-
-
-def test_a_move_that_reverted_is_dropped_rather_than_digested():
-    # Not a failure of the detector - it correctly found an unusual move - but
-    # not something to spend a line on either.
+def test_a_move_that_reverted_is_still_written_down():
+    # It used to be dropped, and the price of that was a digest nobody could
+    # see until every one of its events had been answered. The note is now
+    # opened at the start of its period and the reversal is written onto the
+    # line instead.
     routed = routing.route(events([(DAY, "routine", -0.2, -0.4),
                                    (30 * DAY, "notable", 0.2, 0.1)]))
-    assert list(routed["channel"]) == [routing.DROPPED, routing.DROPPED]
+    assert list(routed["channel"]) == [routing.DIGEST, routing.DIGEST]
 
 
 def test_a_move_that_held_is_digested():
@@ -64,10 +58,10 @@ def test_a_move_that_held_is_digested():
     assert list(routed["channel"]) == [routing.DIGEST, routing.DIGEST]
 
 
-def test_retention_that_is_not_known_yet_is_not_a_reversal():
-    # Every event the live system has just produced has NaN retention. Treating
-    # that as "it reverted" would drop precisely the newest events, which is
-    # the opposite of what the system is for.
+def test_an_event_is_routed_before_its_retention_can_be_known():
+    # Every event the live system has just produced has NaN retention, and it
+    # goes into the open note that hour regardless - the answer arrives later
+    # as an edit.
     routed = routing.route(events([(DAY, "routine", float("nan"), float("nan"))]))
     assert routed["channel"].iloc[0] == routing.DIGEST
 
@@ -81,25 +75,28 @@ def test_nothing_is_demoted_for_being_the_third_push_of_the_week():
     assert list(routing.route(events(rows))["channel"]) == [routing.PUSH] * 5
 
 
-def test_the_digest_slot_is_the_next_tuesday_or_friday():
-    # Tuesday covers the weekend and Monday, which matters because crypto
-    # trades straight through it and equities gap on the Monday open; Friday
-    # closes the trading week.
+def test_the_slot_is_the_note_that_is_already_open():
+    # Wednesday's move joins the note opened on Tuesday, which is live and on
+    # the reader's phone - not one that will be written on Friday.
     wednesday = int(datetime(2026, 4, 1, 9, tzinfo=timezone.utc).timestamp())
     slot = datetime.fromtimestamp(routing.digest_slot(wednesday),
                                   tz=timezone.utc).astimezone(routing.DIGEST_TZ)
-    assert slot.weekday() == 4 and slot.hour == routing.DIGEST_HOUR_LOCAL
-    assert (slot.year, slot.month, slot.day) == (2026, 4, 3)
+    assert slot.weekday() == 1 and slot.hour == routing.DIGEST_HOUR_LOCAL
+    assert (slot.year, slot.month, slot.day) == (2026, 3, 31)
 
 
-def test_the_digest_slot_is_strictly_after_the_event():
-    # An event at one minute past the Tuesday send goes to Friday, not into a
-    # digest that has already gone out.
+def test_a_move_an_hour_after_a_note_opens_joins_that_note():
     tuesday_noon = datetime(2026, 3, 31, 12, tzinfo=routing.DIGEST_TZ)
     just_after = int(tuesday_noon.timestamp()) + HOUR
-    slot = datetime.fromtimestamp(routing.digest_slot(just_after),
-                                  tz=timezone.utc).astimezone(routing.DIGEST_TZ)
-    assert slot.weekday() == 4
+    assert routing.digest_slot(just_after) == int(tuesday_noon.timestamp())
+
+
+def test_the_window_runs_from_one_note_to_the_next():
+    tuesday_noon = int(datetime(2026, 3, 31, 12, tzinfo=routing.DIGEST_TZ).timestamp())
+    start, end = routing.digest_window(tuesday_noon)
+    assert start == tuesday_noon
+    closes = datetime.fromtimestamp(end, tz=timezone.utc).astimezone(routing.DIGEST_TZ)
+    assert closes.weekday() == 4 and closes.hour == routing.DIGEST_HOUR_LOCAL
 
 
 def test_the_digest_slot_is_local_noon_on_both_sides_of_daylight_saving():
@@ -117,11 +114,11 @@ def test_the_digest_slot_is_local_noon_on_both_sides_of_daylight_saving():
 
 def test_only_digested_events_carry_a_slot():
     routed = routing.route(events([(DAY, "extreme", 0.9, 0.9),
-                                   (30 * DAY, "routine", 0.9, 0.9),
-                                   (60 * DAY, "routine", -0.5, -0.5)]))
+                                   (30 * DAY, "routine", 0.9, 0.9)]))
     slots = routed["digest_slot"]
-    assert pd.isna(slots.iloc[0]) and pd.isna(slots.iloc[2])
-    assert slots.iloc[1] > routed["hour_utc"].iloc[1]
+    assert pd.isna(slots.iloc[0])
+    # At or before the event, because the note it joins is already open.
+    assert slots.iloc[1] <= routed["hour_utc"].iloc[1]
 
 
 def test_an_empty_table_keeps_the_columns():
@@ -169,9 +166,9 @@ def test_a_rarer_move_becomes_the_new_anchor():
 def test_collapse_leaves_events_that_were_never_pushes_alone():
     rows = [(DAY, "extreme", 0.9, 0.9), (DAY + HOUR, "routine", -0.5, -0.5)]
     frame = events(rows)
-    given = pd.Series([routing.PUSH, routing.DROPPED])
+    given = pd.Series([routing.PUSH, routing.DIGEST])
     channels, folded = routing.collapse(frame, given)
-    assert list(channels) == [routing.PUSH, routing.DROPPED]
+    assert list(channels) == [routing.PUSH, routing.DIGEST]
     assert list(folded) == ["", ""]
 
 

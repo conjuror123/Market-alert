@@ -96,21 +96,19 @@ def test_market_events_are_marked_as_such():
 
 def test_a_market_event_is_not_gated_on_a_retention_test_it_cannot_take():
     # A volatility regime is not a price move: a spike that subsided within the
-    # day was still a real spike. Left on, the retention check would have
-    # nothing to read and every market event would silently be DROPPED for
-    # failing a test it was never given. Shown on a digest tier, because that is
-    # where the drop-on-revert rule still lives - the push tiers no longer
-    # consult retention at all, they are corrected after the fact instead.
+    # day was still a real spike, and the retention check would have nothing to
+    # read. Routing no longer consults retention at all - the answer is written
+    # onto the message after the fact instead - so this holds for free, and the
+    # test stands to say that it must keep holding.
     events = pd.DataFrame({"hour_utc": [HOUR], "tier": pd.array(["notable"], dtype="string"),
                            "retention_settled": [-0.4]})
-    assert routing.route(events, require_retention=False)["channel"].iloc[0] == routing.DIGEST
-    assert routing.route(events)["channel"].iloc[0] == routing.DROPPED
+    assert routing.route(events)["channel"].iloc[0] == routing.DIGEST
 
 
-def test_without_retention_the_lower_tiers_still_digest():
+def test_the_lower_tiers_digest_with_no_retention_column_at_all():
     events = pd.DataFrame({"hour_utc": [HOUR, 2 * HOUR],
                            "tier": pd.array(["routine", "notable"], dtype="string")})
-    routed = routing.route(events, require_retention=False)
+    routed = routing.route(events)
     assert list(routed["channel"]) == [routing.DIGEST, routing.DIGEST]
     assert routed["digest_slot"].notna().all()
 

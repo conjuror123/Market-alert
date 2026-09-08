@@ -43,7 +43,7 @@ EVENTS_PATH = Path("data/tremor/saed_events.parquet")
 
 # Rank of each channel, so an hour covered by several events is credited with
 # the loudest one that spoke for it.
-RANK = {"push": 3, "digest": 2, "dropped": 1}
+RANK = {"push": 2, "digest": 1}
 
 # "Obvious" is the top of an instrument's own distribution. 0.01% of twenty-two
 # years of hours is a handful of bars per instrument - the ones nobody would
@@ -98,7 +98,7 @@ def per_asset(events: pd.DataFrame):
 
 
 def report(events: pd.DataFrame) -> str:
-    obvious = {"n": 0, "unfitted": 0, "push": 0, "digest": 0, "dropped": 0, "silent": 0}
+    obvious = {"n": 0, "unfitted": 0, "push": 0, "digest": 0, "silent": 0}
     quiet = {"n": 0, "fired": 0}
     lines: list[str] = []
 
@@ -114,7 +114,7 @@ def report(events: pd.DataFrame) -> str:
             obvious["n"] += int(top.sum())
             obvious["unfitted"] += int((top & ~fitted).sum())
             seen = top & fitted
-            for key, value in (("push", 3), ("digest", 2), ("dropped", 1), ("silent", 0)):
+            for key, value in (("push", 2), ("digest", 1), ("silent", 0)):
                 obvious[key] += int((seen & (covered == value)).sum())
             quiet["n"] += int(low.sum())
             quiet["fired"] += int(fired[low].sum())
@@ -136,7 +136,6 @@ def report(events: pd.DataFrame) -> str:
         f"  of the {fitted_n} with a ladder:",
         f"    push               {obvious['push']:5d}  {100*obvious['push']/fitted_n:5.1f}%",
         f"    digest             {obvious['digest']:5d}  {100*obvious['digest']/fitted_n:5.1f}%",
-        f"    dropped, reverted  {obvious['dropped']:5d}  {100*obvious['dropped']/fitted_n:5.1f}%",
         f"    SILENT             {obvious['silent']:5d}  {100*obvious['silent']/fitted_n:5.1f}%   <- wants to be 0",
         "",
         "FALSE ALARMS ON THE OBVIOUSLY NORMAL  (hours below the instrument's median move)",
@@ -151,8 +150,7 @@ def report(events: pd.DataFrame) -> str:
         f"  longest quiet stretch  {gaps.max():.0f} days",
         f"  worst single day       {per_day.max()} pushes",
         f"  digest                 {int(events['channel'].eq('digest').sum())} lines "
-        f"= {events['channel'].eq('digest').sum()/years/104:.1f} per digest (two a week)",
-        f"  never sent, reverted   {int(events['channel'].eq('dropped').sum())}",
+        f"= {events['channel'].eq('digest').sum()/years/104:.1f} per note (two a week)",
         "",
         "PER INSTRUMENT",
         *lines,

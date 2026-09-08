@@ -167,8 +167,8 @@ labels or a threshold anyone argues about.
 
 Measured, excluding crypto, 152 such hours over twenty-two years: six had no ladder
 fitted yet (the instrument too young), and of the remaining 146, **none were silent**.
-48.6% push, 48.6% digest, 2.7% dropped for reverting. Below-median hours open an event
-0.008% of the time.
+49.3% push and 50.7% digest, none silent. Below-median hours open an event 0.008% of the
+time.
 
 Two traps had to be cleared first. Close-to-close returns span the overnight gap the
 detector excludes, so the move being scored was partly something it never claimed to see.

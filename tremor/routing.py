@@ -1,4 +1,4 @@
-"""Who gets interrupted, who waits for Friday, and who is not worth a line.
+"""Who gets interrupted, and who goes quietly into the running note.
 
 The tier says how rare a move was. It does not say whether the message should
 make a phone buzz, and those are different questions - deliberately so. Rarity
@@ -8,25 +8,27 @@ willing to be interrupted is a property of the person, and it does not grow
 when the watchlist does. Keeping them apart is what stops the alert rate from
 tripling the day three stocks are added.
 
-The routing is the second half of the answer to a fair complaint about the old
-detector: not all big movements stay. A move that gives everything back within
-a few hours is not news, and there is a cheap way to know which ones did -
-wait and look (see tremor.persistence). So the channels differ in urgency, and
-the ones that are not urgent spend their delay earning the right to be sent:
+There are two channels, and they differ in how loudly they arrive rather than
+in how long they wait. Nothing is held back:
 
-  push      both push tiers, sent AT ONCE and then corrected in place. A
-            once-a-year move that arrives six hours late is a worse product
-            than one that arrives now and is marked "reverted" later, so the
-            message is edited at two bars, at six, and at the close of the
-            next trading day with how the move actually held (see
-            price_monitor.tremor_delivery). The
-            retention check did not go away - it moved from deciding whether
-            to send to deciding what the sent message says.
-  digest    everything else that held, batched into the next Tuesday or Friday
-            note. Nothing here is urgent by construction, so the settled
-            answer is available before it is written.
-  dropped   the move reverted. Not a failure of the detector - it correctly
-            found an unusual move - but not something to spend a line on.
+  push      both push tiers, sent AT ONCE, as their own message. A once-a-year
+            move that arrives six hours late is a worse product than one that
+            arrives now and is marked "reverted" later.
+  digest    everything else, written into the Tuesday or Friday note as it is
+            found. That note is OPENED at the start of the period it covers
+            and edited in place afterwards, so a digest line appears within the
+            hour of the move rather than up to three days later - and it is a
+            silent edit, so the reader is interrupted twice a week and no more
+            (see price_monitor.tremor_delivery).
+
+Both kinds of message are then corrected in place as the market answers: at two
+bars, at six, and at the close of the next trading day for a push, and at the
+next close for a digest line. That is where the retention check went. It used
+to decide whether an event was sent at all - a move that gave everything back
+took no line - and the price of that was silence for as long as the answer took
+to arrive. It now decides what the sent message SAYS, which costs nothing and
+hides nothing: a move that reverted is still shown, with the fact that it
+reverted written on it.
 
 There is deliberately no cap on how many pushes a week may contain. A detector
 that counts its own alerts and goes quiet on the third one is answering a
@@ -50,13 +52,9 @@ from tremor import persistence, severity
 
 PUSH = "push"
 DIGEST = "digest"
-DROPPED = "dropped"
 
-# The tiers that interrupt. Both go at once; neither waits for retention.
-PUSH_IMMEDIATE_TIER = "extreme"
-PUSH_DELAYED_TIER = "major"          # kept as a name; no longer delayed
-PUSH_TIERS = (PUSH_DELAYED_TIER, PUSH_IMMEDIATE_TIER)
-DELAY_HORIZON = persistence.BAR_HORIZONS[0]
+# The tiers that interrupt. Both go at once.
+PUSH_TIERS = ("major", "extreme")
 SETTLED_HORIZON = persistence.SETTLED        # the next trading close
 
 # datetime.weekday(): Monday=0. Tuesday covers the weekend and Monday - which
@@ -67,47 +65,22 @@ DIGEST_HOUR_LOCAL = 12
 DIGEST_TZ = ZoneInfo("Asia/Jerusalem")
 
 
-def channel(events: pd.DataFrame, require_retention: bool = True) -> pd.Series:
-    """The delivery channel for each event, before the rate limit.
+def channel(events: pd.DataFrame) -> pd.Series:
+    """The delivery channel for each event, before the collapse.
 
-    Retention that is not yet known is not treated as a reversal. An event
-    whose horizon has not elapsed - every event the live system has just
-    produced - has not failed the check, it has not taken it, and it waits for
-    the next digest rather than being dropped.
-
-    `require_retention` is off for streams the test does not apply to. Price
-    impact splits into a permanent part and a transitory one, which is what the
-    check measures; a volatility regime is not a price move and does not split
-    that way - a spike that subsided within the day was still a real spike, and
-    the market really was disorderly while it lasted. Left on, the check would
-    have nothing to read, and every market event would silently fall to the
-    digest for failing a test it was never given.
+    Tier alone, and deliberately nothing else. Retention used to enter here -
+    an event whose move had fully reverted was dropped rather than digested -
+    and the cost was that the digest could only be written once every one of
+    its events had been answered, which is what made it a report three days
+    after the fact. The answer is now written onto the line instead, and the
+    line goes up straight away.
     """
     if events.empty:
         return pd.Series(dtype="string")
 
-    tier = events["tier"]
-    if not require_retention:
-        out = pd.Series(DIGEST, index=events.index, dtype="string")
-        pushes = tier.isin([PUSH_IMMEDIATE_TIER, PUSH_DELAYED_TIER])
-        return out.mask(pushes.fillna(False).to_numpy(dtype=bool), PUSH)
-
-    # Every condition is reduced to a plain bool before it reaches mask().
-    # Series.mask treats a pandas NA in the condition as True, so an unknown
-    # retention - which is every event the live system has just produced, since
-    # the horizon has not elapsed - was being read as "it reverted" and dropped.
-    reverted = persistence.held(events, SETTLED_HORIZON).eq(False).fillna(False)
-    pushes = tier.isin(PUSH_TIERS).fillna(False).to_numpy(dtype=bool)
-
+    pushes = events["tier"].isin(PUSH_TIERS).fillna(False).to_numpy(dtype=bool)
     out = pd.Series(DIGEST, index=events.index, dtype="string")
-    # Dropping a reverted move applies to the DIGEST tiers only. Nothing there
-    # is urgent, so its retention is known long before it would be written up
-    # and a move that gave everything back need never take a line. A push has
-    # already gone out by the time that answer exists, and unsending it is not
-    # a thing Telegram can do - the follow-up edit says so instead.
-    out = out.mask(reverted.to_numpy(dtype=bool) & ~pushes, DROPPED)
-    out = out.mask(pushes, PUSH)
-    return out
+    return out.mask(pushes, PUSH)
 
 
 # How long one push speaks for. A second instrument moving inside this window is
@@ -192,13 +165,34 @@ def collapse(events: pd.DataFrame, channels: pd.Series,
 
 
 def digest_slot(hour_utc: int) -> int:
-    """The send time of the first digest strictly after this hour.
+    """WHICH digest note this hour belongs to: the one opened at or before it.
 
-    Local time, because the recipient reads it in local time and a digest that
-    lands at 04:00 twice a week is one nobody opens. Whether that is 12:00 UTC
+    The note is opened at the start of the period it covers and edited as
+    events are found, so the slot an event carries is a name for a message
+    that already exists rather than a time to wait for. Under the old
+    end-of-period digest this returned the next slot AFTER the hour, and the
+    difference is the whole change: an event now joins a live note instead of
+    queueing for one.
+
+    Local time, because the recipient reads it in local time and a note that
+    opens at 04:00 twice a week is one nobody opens. Whether that is 12:00 UTC
     or 13:00 depends on daylight saving, and letting the zone decide is why
     this is not arithmetic on the timestamp.
     """
+    moment = datetime.fromtimestamp(int(hour_utc), tz=timezone.utc).astimezone(DIGEST_TZ)
+    for back in range(0, 9):
+        day = (moment - timedelta(days=back)).date()
+        if day.weekday() not in DIGEST_WEEKDAYS:
+            continue
+        slot = datetime.combine(day, time(DIGEST_HOUR_LOCAL), tzinfo=DIGEST_TZ)
+        if slot <= moment:
+            return int(slot.astimezone(timezone.utc).timestamp())
+    raise RuntimeError("no digest slot within nine days")
+
+
+def next_digest_slot(hour_utc: int) -> int:
+    """The first slot strictly after this hour - when the open note stops taking
+    events and the next one opens."""
     moment = datetime.fromtimestamp(int(hour_utc), tz=timezone.utc).astimezone(DIGEST_TZ)
     for ahead in range(0, 9):
         day = (moment + timedelta(days=ahead)).date()
@@ -210,13 +204,18 @@ def digest_slot(hour_utc: int) -> int:
     raise RuntimeError("no digest slot within nine days")
 
 
-def route(events: pd.DataFrame, require_retention: bool = True) -> pd.DataFrame:
-    """Adds `channel` and, for the digested ones, the slot they belong to."""
+def digest_window(slot_utc: int) -> tuple[int, int]:
+    """The period a note covers: from when it opened to when the next one does."""
+    return int(slot_utc), next_digest_slot(int(slot_utc))
+
+
+def route(events: pd.DataFrame) -> pd.DataFrame:
+    """Adds `channel` and, for the digested ones, the note they belong to."""
     if events.empty:
         return events.assign(channel=pd.Series(dtype="string"),
                              digest_slot=pd.Series(dtype="Int64"))
 
-    channels, folded = collapse(events, channel(events, require_retention))
+    channels, folded = collapse(events, channel(events))
     digested = channels.eq(DIGEST).fillna(False).to_numpy(dtype=bool)
     slots = pd.Series(pd.NA, index=events.index, dtype="Int64")
     if digested.any():
@@ -232,5 +231,5 @@ def summarise(routed: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
     table = pd.crosstab(routed["tier"], routed["channel"])
     return table.reindex(index=[t for t in severity.TIERS if t in table.index],
-                         columns=[c for c in (PUSH, DIGEST, DROPPED)
-                                  if c in table.columns], fill_value=0)
+                         columns=[c for c in (PUSH, DIGEST) if c in table.columns],
+                         fill_value=0)

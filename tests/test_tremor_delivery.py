@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -10,10 +10,45 @@ HOUR = 3600
 NOW = datetime(2026, 9, 4, 12, 0, tzinfo=timezone.utc)   # a Friday
 LABELS = {"twelvedata:GLD": "Gold", "coinbase:BTC-USD": "Bitcoin"}
 
+# The note that is open at NOW. A digest row names the note it joins, and that
+# note was opened at the START of the period covering it.
+from tremor import routing                                       # noqa: E402
+
+SLOT = routing.digest_slot(int(NOW.timestamp()))
+
+
+def notes(sender):
+    """The digest notes among what was sent, later parts of a long one included.
+
+    A later part opens with an event line like a push does, so it is the header
+    or the part marker that tells them apart.
+    """
+    return [t for t in sender.texts if "<b>Digest</b>" in t or "<i>part " in t]
+
+
+def alerts(sender):
+    """The pushes: everything that is not part of a note."""
+    written = notes(sender)
+    return [t for t in sender.texts if t not in written]
+
+
+# Where a push's record goes. Without this the suite writes its fixtures into
+# the repository's real alerts log, which is how ninety-six imaginary Gold
+# alerts came to be committed.
+_LOG_PATH = ""
+
+
+@pytest.fixture(autouse=True)
+def alerts_log_path(tmp_path):
+    global _LOG_PATH
+    _LOG_PATH = str(tmp_path / "alerts_log.json")
+    yield
+    _LOG_PATH = ""
+
 
 def cfg(**over):
     base = dict(telegram_bot_token="t", telegram_chat_id="c",
-                tremor_alerts_muted=False)
+                tremor_alerts_muted=False, alerts_log_path=_LOG_PATH)
     return Config(**(base | over))
 
 
@@ -37,12 +72,31 @@ class Sent:
         return len(self.texts)
 
 
+class Edited:
+    """Stands in for notifier.edit_telegram_message."""
+
+    def __init__(self, fail=False):
+        self.calls, self.fail = [], fail
+
+    def __call__(self, token, chat, message_id, text, *a, **k):
+        if self.fail:
+            raise TelegramError("nope")
+        self.calls.append((message_id, text))
+
+
 @pytest.fixture
 def sender(monkeypatch):
     s = Sent()
     monkeypatch.setattr(md, "send_telegram_message", s)
     monkeypatch.setattr(md, "_labels", lambda: LABELS)
     return s
+
+
+@pytest.fixture
+def editor(monkeypatch):
+    e = Edited()
+    monkeypatch.setattr(md, "edit_telegram_message", e)
+    return e
 
 
 def deliver(monkeypatch, events, state=None, now=NOW, **over):
@@ -57,46 +111,62 @@ def test_nothing_goes_out_while_muted(monkeypatch, sender):
 
 
 def test_a_push_goes_out_once(monkeypatch, sender):
-    sent, state = deliver(monkeypatch, [event()])
-    assert sent == 1 and len(sender.texts) == 1
-    assert "Gold" in sender.texts[0]
+    _, state = deliver(monkeypatch, [event()])
+    assert len(alerts(sender)) == 1 and "Gold" in alerts(sender)[0]
 
-    # the same run again sends nothing: the id is remembered
+    # the same run again sends nothing: the id is remembered, and the note that
+    # was opened alongside it has not changed
     again, _ = deliver(monkeypatch, [event()], state=state)
-    assert again == 0 and len(sender.texts) == 1
+    assert again == 0 and len(alerts(sender)) == 1
 
 
 def test_stale_events_are_not_delivered(monkeypatch, sender):
     # The events table holds the whole history, so without this the first run
     # after the mute comes off would deliver five years of alerts at once.
     old = event(hour_utc=int(NOW.timestamp()) - (md.STALE_AFTER_HOURS + 1) * HOUR)
-    sent, _ = deliver(monkeypatch, [old])
-    assert sent == 0 and sender.texts == []
+    deliver(monkeypatch, [old])
+    assert alerts(sender) == []
 
 
 def test_an_event_from_the_future_is_not_delivered(monkeypatch, sender):
     ahead = event(hour_utc=int(NOW.timestamp()) + HOUR)
-    assert deliver(monkeypatch, [ahead])[0] == 0
+    deliver(monkeypatch, [ahead])
+    assert alerts(sender) == []
 
 
-def test_a_digest_waits_for_its_slot(monkeypatch, sender):
-    ahead = event(event_id="d1", channel="digest", tier="routine",
-                  digest_slot=int(NOW.timestamp()) + HOUR)
-    assert deliver(monkeypatch, [ahead])[0] == 0
+def test_the_note_is_opened_even_before_it_has_anything_in_it(monkeypatch, sender):
+    # It is opened at the START of the period it covers, so the reader has one
+    # message to watch and every event after that arrives as a silent edit.
+    elsewhere = event(event_id="old", channel="digest", tier="routine",
+                      digest_slot=SLOT - 30 * 24 * HOUR)
+    deliver(monkeypatch, [elsewhere])
+    assert len(notes(sender)) == 1
+    assert "Nothing so far" in notes(sender)[0]
+    assert "updated as moves are found" in notes(sender)[0]
 
-    due = event(event_id="d1", channel="digest", tier="routine",
-                digest_slot=int(NOW.timestamp()) - HOUR)
-    sent, _ = deliver(monkeypatch, [due])
-    assert sent == 1 and "Digest" in sender.texts[0]
+
+def test_a_move_joins_the_note_that_is_already_open(monkeypatch, sender):
+    row = event(event_id="d1", channel="digest", tier="routine", digest_slot=SLOT)
+    deliver(monkeypatch, [row])
+    assert "Gold" in notes(sender)[0]
 
 
-def test_the_digest_is_one_message_for_many_events(monkeypatch, sender):
+def test_a_note_whose_period_has_closed_is_not_opened_late(monkeypatch, sender):
+    # A period that ended without a note is a period the reader never saw, and
+    # "here is last Tuesday" three days late is a worse answer than silence.
+    stale = event(event_id="d1", channel="digest", tier="routine",
+                  digest_slot=SLOT - 4 * 24 * HOUR)
+    deliver(monkeypatch, [stale])
+    assert len(notes(sender)) == 1 and "Gold" not in notes(sender)[0]
+
+
+def test_the_note_is_one_message_for_many_events(monkeypatch, sender):
     rows = [event(event_id=f"d{i}", channel="digest", tier="routine",
                   hour_utc=int(NOW.timestamp()) - (i + 1) * HOUR,
-                  digest_slot=int(NOW.timestamp()) - HOUR) for i in range(5)]
-    sent, _ = deliver(monkeypatch, rows)
-    assert sent == 1
-    assert sender.texts[0].count("Gold") == 5
+                  digest_slot=SLOT) for i in range(5)]
+    deliver(monkeypatch, rows)
+    assert len(notes(sender)) == 1
+    assert notes(sender)[0].count("Gold") == 5
 
 
 def test_a_failed_send_is_retried_rather_than_lost(monkeypatch):
@@ -107,11 +177,12 @@ def test_a_failed_send_is_retried_rather_than_lost(monkeypatch):
     sent, state = deliver(monkeypatch, [event()])
     assert sent == 0
     assert not state[md.STATE_KEY][md._SENT]
+    assert not state[md.STATE_KEY].get(md.DIGEST_STATE)
 
     working = Sent()
     monkeypatch.setattr(md, "send_telegram_message", working)
-    again, _ = deliver(monkeypatch, [event()], state=state)
-    assert again == 1
+    deliver(monkeypatch, [event()], state=state)
+    assert len(alerts(working)) == 1
 
 
 def test_an_event_promoted_to_a_push_later_is_still_sent(monkeypatch, sender):
@@ -123,8 +194,8 @@ def test_an_event_promoted_to_a_push_later_is_still_sent(monkeypatch, sender):
                                            retention_settled=None)])
     assert not state[md.STATE_KEY][md._SENT]
 
-    sent, _ = deliver(monkeypatch, [event(channel="push")], state=state)
-    assert sent == 1
+    deliver(monkeypatch, [event(channel="push")], state=state)
+    assert len(alerts(sender)) == 1
 
 
 def test_the_state_does_not_grow_without_bound(monkeypatch, sender):
@@ -147,24 +218,23 @@ def test_the_severity_leads_the_digest(monkeypatch, sender):
     # A digest read only as far as its notification preview should still
     # deliver its most important line.
     rows = [
-        event(event_id="a", channel="digest", tier="routine",
-              digest_slot=int(NOW.timestamp()) - HOUR),
+        event(event_id="a", channel="digest", tier="routine", digest_slot=SLOT),
         event(event_id="b", channel="digest", tier="major",
-              asset_id="coinbase:BTC-USD", digest_slot=int(NOW.timestamp()) - HOUR),
+              asset_id="coinbase:BTC-USD", digest_slot=SLOT),
     ]
     deliver(monkeypatch, rows)
-    text = sender.texts[0]
+    text = notes(sender)[0]
     assert text.index("Bitcoin") < text.index("Gold")
 
 
 def test_a_long_digest_is_split_within_telegrams_limit(monkeypatch, sender):
     rows = [event(event_id=f"d{i}", channel="digest", tier="routine",
                   hour_utc=int(NOW.timestamp()) - HOUR,
-                  digest_slot=int(NOW.timestamp()) - HOUR) for i in range(200)]
-    sent, _ = deliver(monkeypatch, rows)
-    assert sent > 1
+                  digest_slot=SLOT) for i in range(200)]
+    deliver(monkeypatch, rows)
+    assert len(notes(sender)) > 1
     assert all(len(t) <= 4096 for t in sender.texts)
-    assert "part 1 of" in sender.texts[0]
+    assert "part 1 of" in notes(sender)[0]
 
 
 def test_labels_fall_back_to_the_ticker(monkeypatch, sender):
@@ -296,13 +366,27 @@ def test_an_empty_archive_claims_nothing_rather_than_claiming_silence():
     assert md.calendar_context(hour, []) == ""
 
 
-def test_only_high_impact_news_is_named():
-    # The same window holds a median of one Low event, almost all bank
-    # holidays; naming those would turn the most important line into noise.
+def test_low_impact_news_is_not_named():
+    # High and Medium are shown, the same two the Saturday calendar shows. Low
+    # is dominated by bank holidays and minor prints, and naming those would
+    # turn the most important line of the most important message into noise.
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
-    cal = _cal([("2026-06-10T12:30:00+00:00", "CHF", "Bank Holiday", "Low"),
+    only_low = _cal([("2026-06-10T12:30:00+00:00", "CHF", "Bank Holiday", "Low")])
+    assert md.calendar_context(hour, only_low).endswith("none scheduled.")
+
+    medium = _cal([("2026-06-10T12:45:00+00:00", "EUR", "Trade Balance", "Medium")])
+    assert "Trade Balance" in md.calendar_context(hour, medium)
+
+
+def test_each_named_release_carries_its_impact_colour():
+    # The same circles the Saturday calendar uses, against the squares a move
+    # carries: the shape says which kind of thing the line is.
+    hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
+    cal = _cal([("2026-06-10T12:30:00+00:00", "USD", "CPI", "High"),
                 ("2026-06-10T12:45:00+00:00", "EUR", "Trade Balance", "Medium")])
-    assert md.calendar_context(hour, cal).endswith("none scheduled.")
+    out = md.calendar_context(hour, cal)
+    assert "\U0001F534 USD CPI" in out
+    assert "\U0001F7E0 EUR Trade Balance" in out
 
 
 def test_news_outside_the_window_is_not_claimed_as_context():
@@ -329,7 +413,7 @@ def test_a_crowded_window_is_listed_in_full():
     cal = _cal([(f"2026-06-10T12:{m:02d}:00+00:00", "USD", f"Print {m}", "High")
                 for m in range(0, 60, 10)])
     out = md.calendar_context(hour, cal)
-    assert out.count("     - ") == 6
+    assert out.count("\U0001F534") == 6
     assert "more" not in out
     for m in range(0, 60, 10):
         assert f"Print {m}" in out
@@ -453,3 +537,125 @@ def test_a_landed_horizon_is_not_a_promise():
     # The placeholder is only for the check-ins that have no answer yet.
     text = md.follow_up_block(spy(retention_2=0.9), now=NOW)
     assert "2h - still there" in text and "next close - coming" in text
+
+
+# --- the note is written into, not written up -------------------------------
+#
+# The digest is opened at the start of the period it covers and edited in place
+# as events are found. Telegram notifies on a new message and stays silent on an
+# edit, so the reader is interrupted twice a week and everything after that
+# arrives quietly in a message they already have.
+
+def digest_row(**over):
+    return event(event_id="d1", channel="digest", tier="notable",
+                 digest_slot=SLOT, retention_settled=None) | over
+
+
+def test_a_later_move_edits_the_open_note_rather_than_sending_another(
+        monkeypatch, sender, editor):
+    _, state = deliver(monkeypatch, [digest_row()])
+    assert len(notes(sender)) == 1 and editor.calls == []
+
+    second = digest_row(event_id="d2", asset_id="coinbase:BTC-USD")
+    deliver(monkeypatch, [digest_row(), second], state=state)
+    assert len(notes(sender)) == 1          # nothing new arrived on the phone
+    assert len(editor.calls) == 1
+    assert "Bitcoin" in editor.calls[0][1] and "Gold" in editor.calls[0][1]
+
+
+def test_a_note_that_has_not_changed_is_not_edited(monkeypatch, sender, editor):
+    # Telegram rejects an edit whose text matches what is already there, and
+    # most hours change nothing.
+    _, state = deliver(monkeypatch, [digest_row()])
+    deliver(monkeypatch, [digest_row()], state=state)
+    deliver(monkeypatch, [digest_row()], state=state)
+    assert editor.calls == []
+
+
+def test_a_row_says_when_its_answer_is_due(monkeypatch, sender, editor):
+    # It is written the hour the move is found, long before the market has
+    # answered, so a row that said only its size would look like a bot that had
+    # forgotten to come back.
+    deliver(monkeypatch, [digest_row()])
+    assert "how it held - coming" in notes(sender)[0]
+
+
+def test_the_answer_replaces_the_promise_when_it_lands(monkeypatch, sender, editor):
+    _, state = deliver(monkeypatch, [digest_row()])
+    deliver(monkeypatch, [digest_row(retention_settled=0.95)], state=state)
+    assert len(editor.calls) == 1
+    text = editor.calls[0][1]
+    assert "still there at the next close" in text and "how it held - coming" not in text
+
+
+def test_a_move_that_reverted_stays_in_the_note_and_says_so(
+        monkeypatch, sender, editor):
+    # It used to be dropped before anyone saw it. Now it is already on the
+    # reader's phone by the time the answer arrives, and unsending is not a
+    # thing Telegram can do - so the line is corrected instead.
+    _, state = deliver(monkeypatch, [digest_row()])
+    deliver(monkeypatch, [digest_row(retention_settled=-0.4)], state=state)
+    assert "fully reversed before the next close" in editor.calls[0][1]
+
+
+def test_a_closed_note_is_still_corrected_when_its_last_answer_arrives(
+        monkeypatch, sender, editor):
+    # A move an hour before the period ends is answered at the next close,
+    # days after the note stopped taking new events.
+    _, state = deliver(monkeypatch, [digest_row()])
+    later = NOW + timedelta(days=4)
+    deliver(monkeypatch, [digest_row(retention_settled=0.9)], state=state, now=later)
+    assert len(editor.calls) == 1
+    assert "still there at the next close" in editor.calls[0][1]
+
+
+def test_a_note_is_forgotten_once_nothing_about_it_can_change(
+        monkeypatch, sender, editor):
+    _, state = deliver(monkeypatch, [digest_row()])
+    assert state[md.STATE_KEY][md.DIGEST_STATE]
+    much_later = NOW + timedelta(hours=md.DIGEST_TRACK_HOURS + 1)
+    _, state = deliver(monkeypatch, [digest_row()], state=state, now=much_later)
+    assert str(SLOT) not in state[md.STATE_KEY][md.DIGEST_STATE]
+
+
+def test_a_failed_edit_is_retried_rather_than_lost(monkeypatch, sender):
+    failing = Edited(fail=True)
+    monkeypatch.setattr(md, "edit_telegram_message", failing)
+    _, state = deliver(monkeypatch, [digest_row()])
+    deliver(monkeypatch, [digest_row(retention_settled=0.9)], state=state)
+
+    working = Edited()
+    monkeypatch.setattr(md, "edit_telegram_message", working)
+    deliver(monkeypatch, [digest_row(retention_settled=0.9)], state=state)
+    assert len(working.calls) == 1
+
+
+def test_a_move_carries_its_tier_as_a_colour(monkeypatch, sender):
+    # Squares for moves against the calendar's circles, so the shape says which
+    # kind of thing a coloured line is before the words do.
+    for tier, square in md.TIER_EMOJI.items():
+        assert md.describe(event(tier=tier), LABELS).startswith(square)
+
+
+def test_a_note_that_loses_a_part_does_not_leave_a_stale_one(monkeypatch, sender, editor):
+    # A recompute that no longer produces an event takes its lines with it, and
+    # Telegram cannot delete a message - so the surplus part is emptied instead
+    # of being left saying "part 3 of 5" under a note that now has two.
+    many = [event(event_id=f"d{i}", channel="digest", tier="routine",
+                  hour_utc=int(NOW.timestamp()) - HOUR, digest_slot=SLOT)
+            for i in range(200)]
+    _, state = deliver(monkeypatch, many)
+    parts = len(notes(sender))
+    assert parts > 2
+
+    deliver(monkeypatch, many[:2], state=state)
+    emptied = [t for _, t in editor.calls if md._EMPTIED_PART in t]
+    assert len(emptied) == parts - 1
+
+
+def test_an_hour_that_has_not_happened_yet_is_not_written_down(monkeypatch, sender):
+    # A bar has to close before it is scored, so this should not arise - but a
+    # clock skew must not put tomorrow in today's note.
+    ahead = digest_row(hour_utc=int(NOW.timestamp()) + 2 * HOUR)
+    deliver(monkeypatch, [ahead])
+    assert "Gold" not in notes(sender)[0]

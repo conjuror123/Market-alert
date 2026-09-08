@@ -273,14 +273,20 @@ Delivery splits by urgency, not by importance:
   one. Roughly one every eight days between them. The message is then edited in place
   at two bars, six bars and the close of the next trading day with how the move
   actually held; 75% of pushed moves were still standing at that close.
-* **Tuesday and Friday digest** — everything else that held, about two items a note.
+* **The running digest** — everything else, 3.6 items a note on average. The note is
+  *opened* Tuesday and Friday at 12:00 Israel time and then edited in place as moves
+  are found, so a row appears the hour it happens rather than up to three days later.
+  Telegram is silent on an edit, so this still costs exactly two interruptions a week.
   Tuesday covers the weekend and Monday, when crypto trades straight through and
   equities gap on the open; Friday closes the trading week. This is *separate from the
   Saturday calendar digest on purpose*: that one is a forecast of what is scheduled,
   this one is a report of what happened, and reading them as one message makes both
   harder to skim.
-* **Dropped** — the move reverted. Not a failure of the detector: it correctly found an
-  unusual move, and then the move gave itself back. About two in five.
+
+Nothing is held back and nothing is dropped. A move that fully reverted used to take no
+line at all; it is now already on the reader's phone by the time that is known, so the
+line says so instead. Every row carries the settled reading, or — until the next close
+answers it — the moment that answer is due.
 
 `price_monitor/tremor_delivery.py` renders and sends these; it decides nothing, because
 the channel and the digest slot are already stamped on each event by `tremor.routing`.

@@ -1,31 +1,49 @@
-"""Delivers Tremor events to Telegram: the pushes, and the Tuesday/Friday digest.
+"""Delivers Tremor events to Telegram: the pushes, and the running digest.
 
 The detector decides everything about WHAT to say - severity as a return period,
-which channel an event belongs to, which digest slot it falls in (see
-tremor.severity and tremor.routing). This module decides nothing. It reads those
-decisions, renders them, and remembers what it has already sent.
+which channel an event belongs to, which note it falls in (see tremor.severity
+and tremor.routing). This module decides nothing. It reads those decisions,
+renders them, and keeps the messages up to date.
 
-Like the calendar digest it piggybacks on the existing hourly trigger rather than
-taking a schedule of its own (see weekly_digest.py's module docstring). There is
-one deliberate difference. The calendar digest fires only in the exact hour that
-matches its window, because it is fetched live and there is nothing to send
-outside it. These events are already on disk with a slot stamped on them, so the
-rule here is "the slot has passed and this has not gone out yet". A missed hourly
-run therefore delays the digest to the next run instead of losing it, which
-matters because the trigger is an external service and the digest is the only
-thing that ever carries the routine tier.
+TWO KINDS OF MESSAGE, and the difference is how loudly they arrive rather than
+how long they wait. A push is its own message and goes out the hour the move is
+found. A digest row goes into the note for its period - and that note is OPENED
+at the start of the period rather than written at the end of it, so a row
+appears the same hour and the reader is not made to wait three days for
+something that has already happened and will not change. Telegram notifies on a
+new message and stays silent on an edit, so the whole arrangement costs exactly
+two interruptions a week: one when each note opens.
+
+EVERY MESSAGE IS CORRECTED IN PLACE. Neither kind waits for the market to
+answer, so both say what they are waiting for: a push carries the two-bar,
+six-bar and settled check-ins with the moment each is due, a digest row carries
+the settled one. When an answer lands the message is edited (see follow_up.py
+for pushes, _write_digest here for notes), which is why a move that fully
+reverted is no longer hidden - by the time that is known it is already on the
+reader's phone, and unsending is not a thing Telegram can do.
+
+NOTHING IS REMEMBERED ABOUT A NOTE EXCEPT ITS MESSAGE IDS. It is rendered whole
+from the events table every run and edited only when the text actually changed,
+so a late event simply appears, a recomputed-away one simply goes, and a run
+that renders twice writes the same thing twice.
+
+Like the calendar digest it piggybacks on the existing hourly trigger rather
+than taking a schedule of its own (see weekly_digest.py's module docstring).
 
 SEPARATE FROM THE SATURDAY CALENDAR DIGEST, on purpose, and not merely to keep
 files apart. The two are different tenses: the calendar digest is a forecast of
 what is scheduled next week, this one is a report of what actually happened.
 Reading them as one message makes both harder to skim.
 
-WHAT IS NOT SENT. Anything older than STALE_AFTER_HOURS, and this is the load-
-bearing rule rather than a nicety. The events table holds the entire history -
-2638 instrument events over five years - so without it, the first run after the
-mute comes off would deliver five years of alerts at once. It also does the right
-thing on an ordinary cold start, where there is no record of what was sent: old
-news is not news, whatever the state file does or does not remember.
+WHAT IS NOT SENT. A push older than STALE_AFTER_HOURS, and a note whose period
+closed before this system ever saw it. This is load-bearing rather than a
+nicety: the events table holds the entire history, so without it the first run
+after the mute comes off would deliver five years of alerts at once. It also
+does the right thing on an ordinary cold start, where there is no record of what
+was sent - old news is not news, whatever the state file does or does not
+remember. An EMPTY events table sends nothing at all, note included: it cannot
+tell "nothing happened" from "the pipeline did not run", and only one of those
+is safe to print.
 
 MUTED BY DEFAULT (Config.tremor_alerts_muted). The flag lives in config.yaml for
 the same reason alerts_muted does: "we are deliberately silent" is a state of the
@@ -34,6 +52,7 @@ where a month later nobody can tell it from a breakage.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 from datetime import datetime, timedelta, timezone
@@ -44,7 +63,8 @@ import pandas as pd
 
 from price_monitor import economic_calendar
 from price_monitor.config import Config
-from price_monitor.notifier import TelegramError, send_telegram_message
+from price_monitor.notifier import (TelegramError, edit_telegram_message,
+                                    send_telegram_message)
 
 log = logging.getLogger("price_monitor.tremor_delivery")
 
@@ -66,7 +86,15 @@ STALE_AFTER_HOURS = 48
 STATE_KEY = "tremor_delivery"
 _SENT = "sent"
 
-TIER_EMOJI = {"routine": "⚪", "notable": "🟠", "major": "🔴", "extreme": "🚨"}
+# How rare the move was, as a colour. A SQUARE, against the circles the economic
+# calendar uses for a release's impact (economic_calendar.IMPACT_EMOJI): the same
+# four hues carry the same "how much should I care", and the shape says which
+# kind of thing the line is - something the market did, or something that was on
+# the schedule - without the reader having to read the words first.
+#
+# Ordered like the ladder itself, so a digest sorted by tier is also sorted by
+# colour, and a long note can be skimmed down its left edge.
+TIER_EMOJI = {"routine": "⬜", "notable": "🟨", "major": "🟧", "extreme": "🟥"}
 
 # The tier names are internal; these are what a person reads. Said as a return
 # period, because "the biggest move in about three years" needs no calibration
@@ -290,14 +318,31 @@ def _scale_note(event: dict) -> str:
             f"that is {ratio:.0f}x its usual hour of {usual * 100:.2f}%")
 
 
-def describe(event: dict, labels: dict[str, str], for_push: bool = False) -> str:
+def _settled_line(event: dict, now: datetime | None = None) -> str:
+    """The one-line answer a digest row carries, or when it will have one.
+
+    Read off the series that matches what the event claimed - abnormal for a
+    move the market did not explain, raw for one that was simply large - the
+    same choice persistence.held and the push follow-up both make.
+    """
+    raw_basis = str(event.get("basis") or "") == "absolute"
+    key = "retention_raw_settled" if raw_basis else "retention_settled"
+    value = _clean(event.get(key))
+    if value is not None:
+        return _retention_note(value)
+    return f"how it held - {_due_in(event, 'settled', now)}"
+
+
+def describe(event: dict, labels: dict[str, str], for_push: bool = False,
+             now: datetime | None = None) -> str:
     """One line for one event, as it appears in a push or a digest row.
 
     `for_push` drops the single retention note, because a push carries the
     fuller follow-up block instead and would otherwise say how the move held
-    twice, once vaguely and once by horizon. A digest line keeps the short
-    form: by the time a digest is written every horizon has elapsed, so one
-    settled sentence is the whole answer rather than a promise of more.
+    twice, once vaguely and once by horizon. A digest row keeps the short form
+    - one sentence, or one promise. It is written the hour the move is found,
+    long before the answer exists, so the row says when the answer is due and
+    the note is edited when it lands.
     """
     tier = str(event.get("tier") or "routine")
     emoji = TIER_EMOJI.get(tier, "⚪")
@@ -328,9 +373,7 @@ def describe(event: dict, labels: dict[str, str], for_push: bool = False) -> str
         parts.append(f"     with {_escape(companions)}")
 
     if not for_push:
-        held = _clean(event.get("retention_settled"))
-        if held is not None:
-            parts.append(f"     {_retention_note(held)}")
+        parts.append(f"     {_settled_line(event, now)}")
     return "\n".join(parts)
 
 
@@ -352,16 +395,22 @@ CALENDAR_LOOKBACK_HOURS = 2
 # arriving with a later edit.
 CALENDAR_LOOKAHEAD_HOURS = 1
 
-# High impact only. Medium and Low are dominated by bank holidays and minor
-# prints - the same window holds a median of one Low event, and naming those
-# would turn the most important line of the most important message into noise.
+# High and Medium, the same two the Saturday calendar shows, and each carries
+# its colour. Low is excluded everywhere for the same reason: it is dominated by
+# bank holidays and minor prints, and naming those would turn the most important
+# line of the most important message into noise.
 #
-# All of them are listed rather than capped. The High filter is what keeps the
-# line short, and it keeps it short enough: over every push in the record the
-# window holds three at the ninetieth percentile and nine at the very worst, so
-# "and two more" would hide the tail of a busy morning - which on a busy
-# morning is the half worth reading - to save two lines.
-CALENDAR_IMPACT = "High"
+# Adding Medium was measured before it was done. Over every event in the record
+# that the archive covers, the three-hour window holds a median of two
+# High-or-Medium releases against one High, six at the ninetieth percentile
+# against four, and fourteen at the very worst against twelve - so the line
+# roughly doubles from short to short, and 24% of events still have nothing
+# scheduled around them at all, which is the more interesting half of the
+# answer.
+#
+# All of them are listed rather than capped: "and two more" would hide the tail
+# of a busy morning, which on a busy morning is the half worth reading.
+CALENDAR_IMPACTS = economic_calendar.SHOWN_IMPACTS
 
 
 def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
@@ -388,7 +437,7 @@ def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
         log.warning("calendar context unavailable: %s", exc)
         return ""
 
-    named = [e for e in window if str(e.get("impact")) == CALENDAR_IMPACT]
+    named = [e for e in window if str(e.get("impact")) in CALENDAR_IMPACTS]
     header = (f"Economic events, {CALENDAR_LOOKBACK_HOURS}h before to "
               f"{CALENDAR_LOOKAHEAD_HOURS}h after:")
     if not named:
@@ -397,9 +446,10 @@ def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
     named.sort(key=lambda e: str(e.get("date") or ""))
     lines = [header]
     for e in named:
+        colour = economic_calendar.IMPACT_EMOJI.get(str(e.get("impact")), "")
         country = str(e.get("country") or "").strip()
         title = str(e.get("title") or "").strip()
-        lines.append(f"     - {country} {title}".rstrip())
+        lines.append(f"     {colour} {country} {title}".rstrip())
     return "\n".join(lines)
 
 
@@ -567,39 +617,125 @@ def format_push(event: dict, labels: dict[str, str],
     return "\n".join(lines)
 
 
-def format_digest(events: "list[dict]", labels: dict[str, str],
-                  slot: datetime,
-                  calendar: "list[dict] | None" = None) -> "list[str]":
-    """The Tuesday or Friday note, split into parts Telegram will accept.
+# --- the running note -------------------------------------------------------
+#
+# The digest is not a report written at the end of a period. It is OPENED at the
+# start of the period it covers and edited in place as events are found, which
+# is a different product from the same events: a move that will be in Friday's
+# note is worth reading on Wednesday, and there is nothing to gain by holding
+# it - it happened, its size is known, and the only thing still missing is
+# whether it held, which the row says it is waiting for.
+#
+# It costs no extra interruption. Telegram notifies on a NEW message and stays
+# silent on an edit, so the reader is buzzed exactly twice a week, at the hour
+# each note opens, and everything after that arrives quietly in a message they
+# already have.
+DIGEST_STATE = "digests"
 
-    Ordered by severity and then by time, so the part that matters is at the top
-    of the first message - a digest read only as far as its notification preview
-    should still deliver its most important line.
+# How long a note stays editable after it opens. Its own window is at most three
+# and a half days, and the last event inside it then needs until the close of
+# the next trading day to be answered - over a holiday weekend, another four.
+# Ten days covers both with room to spare, after which the note is left as it
+# stands and forgotten.
+DIGEST_TRACK_HOURS = 240
+
+
+def _fingerprint(text: str) -> str:
+    """What the note said last time, so an unchanged note is not re-sent.
+
+    Telegram rejects an edit whose text matches the message already there, and
+    most hours change nothing: without this the run would call editMessageText
+    for every live note every hour and collect an error each time.
     """
-    if not events:
-        return []
+    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:16]
 
+
+def _slot_of(event: dict) -> "int | None":
+    value = event.get("digest_slot")
+    if value is None or value != value:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def digest_rows(events: "list[dict]", slot: int, now: datetime) -> "list[dict]":
+    """Every event belonging to one note. Recomputed from the table each run.
+
+    Nothing is remembered about which rows have already been written: the note
+    is rendered whole from the events table every time, so an event that
+    arrives late simply appears, and one a recompute no longer produces simply
+    goes. That is what makes editing safe to repeat.
+
+    An hour that has not happened yet is not written down, the same rule a push
+    is held to. It should not arise - a bar has to close before it is scored -
+    but a clock skew or a bad bar must not put tomorrow in today's note.
+    """
+    return [e for e in events
+            if str(e.get("channel") or "") == "digest" and _slot_of(e) == int(slot)
+            and float(e.get("hour_utc", 0)) <= now.timestamp()]
+
+
+def live_slots(events: "list[dict]", now: datetime) -> "list[int]":
+    """The notes this run should look at: the open one, and any recent one whose
+    rows can still change because their settled reading has not landed."""
+    from tremor import routing
+
+    current = routing.digest_slot(int(now.timestamp()))
+    cutoff = now.timestamp() - DIGEST_TRACK_HOURS * 3600
+    slots = {current}
+    for event in events:
+        if str(event.get("channel") or "") != "digest":
+            continue
+        slot = _slot_of(event)
+        if slot is not None and cutoff <= slot <= now.timestamp():
+            slots.add(slot)
+    return sorted(slots)
+
+
+def format_digest(events: "list[dict]", labels: dict[str, str], slot: int,
+                  calendar: "list[dict] | None" = None,
+                  now: datetime | None = None) -> "list[str]":
+    """One note, whole, split into parts Telegram will accept.
+
+    Ordered by severity and then by time, so the rarest move is at the top
+    however late it arrived - a note read only as far as its notification
+    preview should still lead with its most important line. The order is not
+    fixed when a row is added: a once-in-three-years move found on Thursday
+    moves to the head of a note opened on Tuesday.
+    """
+    from tremor import routing
     from tremor.severity import TIERS
+
+    now = now or datetime.now(timezone.utc)
+    start, end = routing.digest_window(int(slot))
+    opened = datetime.fromtimestamp(start, tz=timezone.utc)
+    closes = datetime.fromtimestamp(end, tz=timezone.utc)
+    live = now.timestamp() < end
 
     rank = {name: i for i, name in enumerate(TIERS)}
     ordered = sorted(events, key=lambda e: (-rank.get(str(e.get("tier")), 0),
                                             int(e["hour_utc"])))
-    header = (f"📋 <b>Digest</b> - {slot:%A %-d %B}\n"
-              f"{len(ordered)} event{'s' if len(ordered) != 1 else ''} "
-              f"since the last one")
+    if ordered:
+        count = (f"{len(ordered)} event{'s' if len(ordered) != 1 else ''}"
+                 + (" so far" if live else ""))
+    else:
+        count = "Nothing so far" if live else "Nothing in this period"
+    header = (f"📋 <b>Digest</b> - {opened:%a %-d} to {closes:%a %-d %B}\n"
+              + count + (" - this message is updated as moves are found" if live else ""))
 
     def block(event: dict) -> str:
-        line = describe(event, labels)
+        line = describe(event, labels, now=now)
         context = calendar_context(int(event["hour_utc"]), calendar)
         return f"{line}\n     {_escape(context)}" if context else line
 
-    blocks = [block(e) for e in ordered]
     messages, current = [], header
-    for block in blocks:
-        candidate = f"{current}\n\n{block}"
+    for text in [block(e) for e in ordered]:
+        candidate = f"{current}\n\n{text}"
         if len(candidate) > _MESSAGE_LIMIT and current != header:
             messages.append(current)
-            current = block
+            current = text
         else:
             current = candidate
     messages.append(current)
@@ -611,6 +747,76 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
     return messages
 
 
+_EMPTIED_PART = "<i>(this part is no longer needed - the note above is complete)</i>"
+
+
+def _write_digest(cfg: Config, store: dict, slot: int, texts: "list[str]",
+                  may_open: bool) -> "tuple[int, int]":
+    """Posts a note's parts, or edits the ones already posted.
+
+    Returns (posted, edited). A note is only ever OPENED while its own period is
+    the current one: a period that has closed without a note was a period the
+    reader never saw, and posting "here is last Tuesday" three days late is a
+    worse answer than not posting it.
+
+    Parts can only grow - events are added, never removed - so a new part is a
+    new message and everything before it is an edit. A failed post stops the
+    loop rather than skipping a part, because the parts are numbered and a gap
+    would be worse than a retry on the next run.
+    """
+    digests: dict = store.setdefault(DIGEST_STATE, {})
+    record = digests.get(str(slot))
+    if record is None:
+        if not may_open:
+            return 0, 0
+        record = {"ids": [], "hashes": []}
+
+    ids, hashes = record["ids"], record["hashes"]
+    if len(texts) < len(ids):
+        # A note can lose a part: a recompute that no longer produces an event
+        # takes its lines with it. The message itself cannot be deleted, so the
+        # surplus part is emptied rather than left saying "part 3 of 5" under a
+        # note that now has two.
+        texts = list(texts) + [_EMPTIED_PART] * (len(ids) - len(texts))
+
+    posted = edited = 0
+    for index, text in enumerate(texts):
+        mark = _fingerprint(text)
+        if index < len(ids):
+            if hashes[index] == mark:
+                continue
+            try:
+                edit_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
+                                      int(ids[index]), text)
+            except TelegramError as exc:
+                log.error("Could not update the digest for %s: %s", slot, exc)
+                continue
+            hashes[index] = mark
+            edited += 1
+        else:
+            try:
+                message_id = send_telegram_message(
+                    cfg.telegram_bot_token, cfg.telegram_chat_id, text)
+            except TelegramError as exc:
+                log.error("Could not post the digest for %s: %s", slot, exc)
+                break
+            ids.append(int(message_id))
+            hashes.append(mark)
+            posted += 1
+
+    # Remembered only once something is actually up there. A first post that
+    # failed must leave no trace, or the note would count as opened and the
+    # retry would never happen.
+    if ids:
+        digests[str(slot)] = record
+    return posted, edited
+
+
+def _prune_digests(digests: dict, now: datetime) -> dict:
+    cutoff = now.timestamp() - DIGEST_TRACK_HOURS * 3600
+    return {k: v for k, v in digests.items() if float(k) >= cutoff}
+
+
 def _fresh(event: dict, now: datetime, key: str = "hour_utc") -> bool:
     value = event.get(key)
     if value is None or value != value:
@@ -619,25 +825,20 @@ def _fresh(event: dict, now: datetime, key: str = "hour_utc") -> bool:
     return 0 <= age <= STALE_AFTER_HOURS * 3600
 
 
-def pending(events: "list[dict]", sent: dict, now: datetime
-            ) -> "tuple[list[dict], list[dict]]":
-    """Splits the events into (pushes, digest rows) that are due and unsent."""
-    pushes, digest = [], []
-    for event in events:
-        event_id = str(event.get("event_id", ""))
-        if not event_id or event_id in sent:
-            continue
-        channel = str(event.get("channel") or "")
-        if channel == "push" and _fresh(event, now):
-            pushes.append(event)
-        elif channel == "digest":
-            slot = event.get("digest_slot")
-            if slot is None or slot != slot:
-                continue
-            if float(slot) <= now.timestamp() and _fresh(event, now, "digest_slot"):
-                digest.append(event)
+def pending(events: "list[dict]", sent: dict, now: datetime) -> "list[dict]":
+    """The pushes that are due and have not gone out.
+
+    Only pushes. A digest row needs no record of having been written: its note
+    is rendered whole from the events table every run and edited if it changed,
+    so "already sent" is a question the digest side never has to ask.
+    """
+    pushes = [e for e in events
+              if str(e.get("channel") or "") == "push"
+              and str(e.get("event_id", ""))
+              and str(e.get("event_id", "")) not in sent
+              and _fresh(e, now)]
     pushes.sort(key=lambda e: int(e["hour_utc"]))
-    return pushes, digest
+    return pushes
 
 
 def _prune(sent: dict, now: datetime) -> dict:
@@ -651,12 +852,13 @@ def _prune(sent: dict, now: datetime) -> dict:
 
 
 def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
-    """Sends whatever is due. Returns how many Telegram messages went out.
+    """Sends whatever is due. Returns how many Telegram messages went out or changed.
 
     Failures are logged and swallowed: this runs inside the hourly monitoring
-    loop, and a Telegram outage must not bring the whole run down. An event is
-    marked sent only once its message has actually gone, so a failure means it
-    is retried on the next run rather than lost.
+    loop, and a Telegram outage must not bring the whole run down. A push is
+    marked sent only once its message has actually gone, and a note's part is
+    remembered only once it is up, so a failure means a retry on the next run
+    rather than a loss.
     """
     now = now or datetime.now(timezone.utc)
     if cfg.tremor_alerts_muted:
@@ -666,34 +868,35 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     if not events:
         return 0
 
+    from price_monitor import follow_up
+    from price_monitor.alerts_log import (load_alerts_log, record_sent_alert,
+                                          save_alerts_log)
+    from tremor import routing
+
     store = state.setdefault(STATE_KEY, {})
     sent: dict = store.setdefault(_SENT, {})
-    pushes, digest = pending(events, sent, now)
+    pushes = pending(events, sent, now)
 
-    # Corrections run on their own schedule - a push sent on Monday is edited on
-    # Tuesday whether or not Tuesday has news of its own - so this happens
-    # before the early return.
-    from price_monitor import follow_up
+    slots = live_slots(events, now)
+    current = routing.digest_slot(int(now.timestamp()))
+    notes = {slot: digest_rows(events, slot, now) for slot in slots}
+    # A closed note with nothing in it and nothing posted has nothing to say.
+    work = [slot for slot, rows in notes.items()
+            if rows or slot == current or str(slot) in store.get(DIGEST_STATE, {})]
 
-    corrected = follow_up.apply(cfg, state, events, _calendar(cfg), now)
+    # The archive is ninety thousand events, so it is read once for the whole
+    # run and only when there is something to render with it.
+    calendar = _calendar(cfg) if (pushes or work) else None
 
-    if not pushes and not digest:
-        store[_SENT] = _prune(sent, now)
-        return corrected
+    # Corrections to already-sent pushes run on their own schedule - one sent on
+    # Monday is edited on Tuesday whether or not Tuesday has news of its own.
+    corrected = follow_up.apply(cfg, state, events, calendar, now)
 
     labels = _labels()
-    # Loaded once for the whole run and only when something is actually going
-    # out: the archive is ninety thousand events and reading it on an hour that
-    # sends nothing would be the most expensive thing the hourly monitor does.
-    calendar = _calendar(cfg) if (pushes or digest) else None
-    pushed = digested = 0
-
-    from price_monitor import follow_up
-    from price_monitor.alerts_log import load_alerts_log, record_sent_alert, save_alerts_log
+    pushed = posted = edited = 0
 
     # The record "explain alerts" reads: it looks a push up by the message id
-    # printed in its footer and edits that message in place. Loaded only when a
-    # push is actually going out.
+    # printed in its footer and edits that message in place.
     alerts_log = load_alerts_log(cfg.alerts_log_path) if pushes else []
 
     for event in pushes:
@@ -722,30 +925,20 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
             now=datetime.fromtimestamp(int(event["hour_utc"]), tz=timezone.utc))
         pushed += 1
 
-    if digest:
-        slot = datetime.fromtimestamp(max(int(e["digest_slot"]) for e in digest),
-                                      tz=timezone.utc)
-        messages = format_digest(digest, labels, slot, calendar)
-        try:
-            for text in messages:
-                send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id, text)
-        except TelegramError as exc:
-            log.error("Failed to send Tremor digest: %s", exc)
-        else:
-            # Marked sent only as a whole. A digest that went out in three parts
-            # of which the third failed is retried entire on the next run: two
-            # duplicated parts are a smaller harm than a silently missing one,
-            # and the alternative - marking each event as its part lands - would
-            # split one note across two days.
-            for event in digest:
-                sent[str(event["event_id"])] = int(event["hour_utc"])
-            digested = len(messages)
-            log.info("Tremor digest sent (%d events, %d message(s))",
-                     len(digest), digested)
+    for slot in work:
+        texts = format_digest(notes[slot], labels, slot, calendar, now)
+        made, changed = _write_digest(cfg, store, slot, texts,
+                                      may_open=(slot == current))
+        posted += made
+        edited += changed
+        if made or changed:
+            log.info("Digest %s: %d part(s) posted, %d edited (%d event(s))",
+                     slot, made, changed, len(notes[slot]))
 
     if pushed:
         save_alerts_log(cfg.alerts_log_path, alerts_log)
     if pushes:
         log.info("Tremor pushes sent: %d of %d due", pushed, len(pushes))
     store[_SENT] = _prune(sent, now)
-    return pushed + digested + corrected
+    store[DIGEST_STATE] = _prune_digests(store.get(DIGEST_STATE, {}), now)
+    return pushed + posted + edited + corrected

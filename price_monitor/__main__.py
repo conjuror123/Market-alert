@@ -17,10 +17,12 @@ What is left is a delivery pass. Three things run, none of which decide anything
   if the feed is still serving the week that is ending. Once a week, a no-op
   every other hour (see weekly_digest.py).
 
-  Tremor delivery - the pushes and the Tuesday/Friday digest, read off the event
-  table the pipeline wrote earlier in this same workflow run. If that pipeline
-  did not run, the events are stale and delivery's own 48-hour rule sends
-  nothing, which is the safe direction.
+  Tremor delivery - the pushes, and the running Tuesday/Friday note that is
+  opened at the start of its period and edited in place for the rest of it. Read
+  off the event table the pipeline wrote earlier in this same workflow run. If
+  that pipeline did not run, the events are stale and delivery's own rules - a
+  48-hour ceiling on a push, and never opening a note for a period that has
+  already closed - send nothing, which is the safe direction.
 
   the health report - whether the previous runs failed, and a message when that
   changes. It reports runs that FAILED. It cannot report runs that never

@@ -98,14 +98,17 @@ thing that would.
 ## Silence is the normal state
 
 About **22 pushes a year**, a median of ten days apart, longest observed quiet stretch
-124 days. Digests Tuesday and Friday at 12:00 Israel time, roughly 2.4 items each. The
+124 days. A digest note opens Tuesday and Friday at 12:00 Israel time and fills in as
+moves are found, 3.6 items each by the time its period closes. The
 economic-calendar forecast goes out once a week, tried Saturday at 12:00 and falling
 through to Sunday if the feed is still serving the week that is ending.
 
-**Nothing is sent that is more than 48 hours old.** This is load-bearing rather than
-tidy: the events table holds the whole history, so without it the first run after a mute
-would deliver years of alerts at once. It also does the right thing on a cold start,
-where there is no record of what was sent.
+**No push is sent that is more than 48 hours old, and no note is opened for a period
+that has already closed.** This is load-bearing rather than tidy: the events table holds
+the whole history, so without it the first run after a mute would deliver years of alerts
+at once. It also does the right thing on a cold start, where there is no record of what
+was sent. An empty events table sends nothing at all — it cannot tell "nothing happened"
+from "the pipeline did not run".
 
 So a long silence is the expected reading, not evidence of a fault. What distinguishes
 the two is the Actions tab: green runs mean it looked and found nothing.

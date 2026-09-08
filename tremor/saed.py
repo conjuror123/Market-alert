@@ -374,7 +374,7 @@ def aggregate_block_alerts(events: pd.DataFrame) -> pd.DataFrame:
         # same reason it carries its worst member's tier: one instrument's
         # once-in-three-years move does not become a digest line because the
         # two that moved with it were ordinary.
-        urgency = {routing.PUSH: 2, routing.DIGEST: 1, routing.DROPPED: 0}
+        urgency = {routing.PUSH: 2, routing.DIGEST: 1}
         alerts = alerts.merge(
             grouped["channel"].agg(lambda s: max(s, key=lambda c: urgency.get(c, -1)))
             .reset_index(), on=["block", "hour_utc"], how="left")
@@ -579,7 +579,7 @@ def main(argv: list[str] | None = None) -> int:
         by_channel = events["channel"].value_counts()
         log.info("by basis: %s", events["basis"].value_counts().to_dict())
         log.info("by channel: %s", {c: int(by_channel.get(c, 0)) for c in
-                                    (routing.PUSH, routing.DIGEST, routing.DROPPED)})
+                                    (routing.PUSH, routing.DIGEST)})
         if span > 0 and by_channel.get(routing.PUSH, 0):
             log.info("a push every %.0f days, %.1f items per digest",
                      365.25 / (by_channel[routing.PUSH] / span),
