@@ -22,6 +22,8 @@ def _quiet(monkeypatch):
                         lambda token, chat, text: sent.append(text) or 1)
     monkeypatch.setattr(entry.weekly_digest, "maybe_send_weekly_digest",
                         lambda *a, **k: 0)
+    monkeypatch.setattr(entry.weekly_digest, "maybe_refresh_calendar",
+                        lambda *a, **k: False)
     monkeypatch.setattr(entry.requests, "Session", lambda: object())
     return sent
 

@@ -77,27 +77,43 @@ _DIGEST_HOUR_ISRAEL = 12
 # never inverts.
 _DIGEST_WITHIN_HOURS = 4
 
-# What "the coming week" means, stated rather than inferred from a feed: the
-# rest of today and the seven whole days after it.
+# What "the coming week" means, stated rather than inferred from a feed: from
+# the moment of sending through the end of the Sunday that closes the seventh
+# day. On a Friday that is the rest of today, the weekend, all of next week and
+# the weekend after it.
 #
-# WHOLE DAYS, which is not tidiness. Seven days to the minute would end at noon
-# next Friday, and the American payrolls print - the single most watched release
-# there is - lands at 12:30 UTC on the first Friday of the month. It would have
-# fallen just outside every window and been announced three hours ahead in the
-# next digest. Rounding to the end of the day costs a few hours of overlap
-# between consecutive digests and buys the whole of the closing Friday.
+# It runs from NOW rather than from Monday, and that is the part worth defending.
+# "Next Monday to Sunday" is the tidier phrase and it would silently drop the
+# Friday the message is sent on - on the sample week that is four US CPI prints
+# landing three and a half hours after the digest, which is the single worst
+# thing this message could omit.
+#
+# And it runs to a SUNDAY rather than to seven days to the minute, because seven
+# days from Friday noon ends at Friday noon, and the American payrolls print -
+# the most watched release there is - lands at 12:30 UTC on the first Friday of
+# the month. It would have fallen just outside every window. Extending to the
+# Sunday costs nothing: on the sample week it adds no events at all, weekends
+# being empty, and it leaves no hour of the calendar unlisted.
 _COMING_WEEK_DAYS = 7
 
 # How far short of the window's end the archive may stop and still be trusted to
-# say "nothing is scheduled". Two days, because a week with no Medium or High
-# release in its final two days does not happen, so an archive that stops there
-# has run out rather than found nothing.
-_COVERAGE_SLACK_DAYS = 2
+# say "nothing is scheduled". Three days, so the test lands on the closing
+# Friday rather than in the weekend behind it: a Saturday with no Medium or High
+# release is the normal case and says nothing about whether the archive ran out.
+_COVERAGE_SLACK_DAYS = 3
 
 # The Friday it was last sent for, in the recipient's own calendar. The day
 # rather than the week number, because that is what the grace window has to
 # de-duplicate: two runs inside the same four hours must not both send.
 _STATE_KEY = "weekly_digest:last_sent_week"
+
+# And the day the archive was last topped up from the live feed. The digest's
+# own refresh happens once a week, which is often enough for a message about
+# next week and far too seldom for the OTHER use of this archive: every push
+# names the releases in the three hours around the move, all week long, and a
+# schedule fetched last Friday does not have the speech that was added on
+# Wednesday. One request a day fixes that.
+_REFRESH_KEY = "weekly_digest:last_refreshed"
 
 _ISRAEL_TZ = ZoneInfo("Asia/Jerusalem")
 # Shared with the push and digest messages so the two never drift apart; see
@@ -133,9 +149,11 @@ def _week_identifier(now: datetime) -> str:
 
 
 def coming_week(now: datetime) -> "tuple[datetime, datetime]":
-    """The period this digest speaks for: from now to the end of the seventh day."""
+    """The period this digest speaks for: from now to the Sunday that closes it."""
     last_day = (now.astimezone(timezone.utc)
                 + timedelta(days=_COMING_WEEK_DAYS)).date()
+    # weekday(): Monday=0 ... Sunday=6.
+    last_day += timedelta(days=(6 - last_day.weekday()) % 7)
     end = datetime.combine(last_day + timedelta(days=1), time(0), tzinfo=timezone.utc)
     return now, end
 
@@ -287,6 +305,40 @@ def refresh_months(path: str, session: requests.Session | None = None,
     log.info("Actual backfill: %d events over %d month(s), records changed %d",
              len(fetched), len(months), updated)
     return updated
+
+
+def maybe_refresh_calendar(cfg: Config, state: dict,
+                           session: requests.Session | None = None,
+                           now: datetime | None = None) -> bool:
+    """Merges the live weekly feed into the archive, once a day.
+
+    Not for the digest - that refreshes the archive itself when it sends. This
+    is for the pushes, which name the scheduled releases around a move on every
+    day of the week and would otherwise be reading a schedule fetched last
+    Friday. Cheap enough to be unremarkable: one request, and only the first run
+    of each UTC day makes it.
+
+    Returns True if the archive was actually refreshed. A feed that will not
+    load is a warning, not a failure: the archive still has last week's copy
+    and the alerts still go out.
+    """
+    now = now or datetime.now(timezone.utc)
+    today = now.astimezone(timezone.utc).date().isoformat()
+    if state.get(_REFRESH_KEY) == today:
+        return False
+
+    try:
+        fetched = economic_calendar.fetch_calendar(session=session)
+    except economic_calendar.CalendarError as exc:
+        log.warning("The weekly feed could not be read: %s", exc)
+        return False
+
+    changed = economic_calendar.merge_events(
+        economic_calendar.store_path(cfg.calendar_dir), fetched)
+    state[_REFRESH_KEY] = today
+    log.info("Calendar refreshed from the weekly feed: %d events, %d changed",
+             len(fetched), changed)
+    return True
 
 
 def _refresh_archive(cfg: Config, session: requests.Session | None,

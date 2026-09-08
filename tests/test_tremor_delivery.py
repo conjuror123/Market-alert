@@ -731,3 +731,24 @@ def test_a_note_whose_first_post_failed_does_not_cover_its_period(monkeypatch):
     opens = datetime.fromtimestamp(routing.next_digest_slot(SLOT), tz=timezone.utc)
     deliver(monkeypatch, [row], state=state, now=opens)
     assert any("Gold" in t for t in working.texts)
+
+
+def test_a_folded_row_says_which_alert_it_belongs_to(monkeypatch, sender):
+    # The push named it as a companion and it takes a row of its own an hour
+    # later. The row carries its numbers, which the push did not - but it has to
+    # say it is the same episode, or it reads as the same news arriving twice.
+    row = digest_row(asset_id="coinbase:BTC-USD", folded_into="twelvedata:GLD")
+    deliver(monkeypatch, [row])
+    assert "part of the Gold alert" in notes(sender)[0]
+
+
+def test_a_row_that_belongs_to_nothing_says_nothing(monkeypatch, sender):
+    deliver(monkeypatch, [digest_row(folded_into="")])
+    assert "part of the" not in notes(sender)[0]
+
+
+def test_a_push_does_not_say_it_is_part_of_itself():
+    # An event can be folded into an earlier push on its OWN instrument - the
+    # same move continuing - and naming itself would read as an error.
+    text = md.describe(event(channel="digest", folded_into="twelvedata:GLD"), LABELS)
+    assert "part of the" not in text

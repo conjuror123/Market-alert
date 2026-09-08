@@ -380,6 +380,15 @@ def describe(event: dict, labels: dict[str, str], for_push: bool = False,
         parts.append(f"     with {_escape(companions)}")
 
     if not for_push:
+        # Which alert this row belongs to, when it belongs to one. A move folded
+        # into an earlier push does not buzz again, but it does take a row in
+        # the note - within the hour, right under the push that already named
+        # it - and without this the same news reads as arriving twice. 96% of
+        # the top-tier rows in the record are exactly this case.
+        anchor = str(event.get("folded_into") or "")
+        if anchor and anchor != asset_id:
+            named = labels.get(anchor) or anchor.split(":")[-1]
+            parts.append(f"     part of the {_escape(named)} alert")
         parts.append(f"     {_settled_line(event, now)}")
     return "\n".join(parts)
 

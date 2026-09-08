@@ -116,8 +116,12 @@ def collapse(events: pd.DataFrame, channels: pd.Series,
     hold this morning's alert back on the chance that something bigger arrives
     this afternoon, so neither does this.
 
-    Returns the channels and, beside them, which instruments each surviving
-    push now speaks for.
+    Returns the channels, which instruments each surviving push now speaks for,
+    and - the other way round - which push each folded event belongs to. Both
+    directions are needed now that the digest note is live: the folded events
+    reach it within the hour, right under the push that already named them, and
+    a row that cannot say which alert it belongs to reads as the same news
+    arriving twice.
     """
     order = events["hour_utc"].sort_values().index
     tier = events["tier"]
@@ -132,6 +136,7 @@ def collapse(events: pd.DataFrame, channels: pd.Series,
     # basket is that WHICH instruments moved together is the diagnosis.
     ids = events["asset_id"] if "asset_id" in events else None
     folded: dict = {}
+    belongs_to: dict = {}
     open_at: int | None = None
     open_rank = -1
     anchor = None
@@ -149,9 +154,10 @@ def collapse(events: pd.DataFrame, channels: pd.Series,
             # read "Dollar / franc - biggest move in about three years ... with
             # Dollar / franc within the day". It is a companion list, and an
             # instrument is not its own companion.
-            if (anchor is not None and ids is not None
-                    and ids.get(index) != ids.get(anchor)):
-                folded.setdefault(anchor, []).append(str(ids.get(index, "")))
+            if anchor is not None and ids is not None:
+                belongs_to[index] = str(ids.get(anchor, ""))
+                if ids.get(index) != ids.get(anchor):
+                    folded.setdefault(anchor, []).append(str(ids.get(index, "")))
             continue
         open_at, open_rank, anchor = hour, here, index
 
@@ -161,7 +167,10 @@ def collapse(events: pd.DataFrame, channels: pd.Series,
     joined = pd.Series("", index=events.index, dtype="object")
     for key, names in folded.items():
         joined.at[key] = " ".join(dict.fromkeys(n for n in names if n))
-    return out, joined
+    anchors = pd.Series("", index=events.index, dtype="object")
+    for key, name in belongs_to.items():
+        anchors.at[key] = name
+    return out, joined, anchors
 
 
 def digest_slot(hour_utc: int) -> int:
@@ -213,16 +222,18 @@ def route(events: pd.DataFrame) -> pd.DataFrame:
     """Adds `channel` and, for the digested ones, the note they belong to."""
     if events.empty:
         return events.assign(channel=pd.Series(dtype="string"),
-                             digest_slot=pd.Series(dtype="Int64"))
+                             digest_slot=pd.Series(dtype="Int64"),
+                             folded_into=pd.Series(dtype="string"))
 
-    channels, folded = collapse(events, channel(events))
+    channels, folded, anchors = collapse(events, channel(events))
     digested = channels.eq(DIGEST).fillna(False).to_numpy(dtype=bool)
     slots = pd.Series(pd.NA, index=events.index, dtype="Int64")
     if digested.any():
         slots.loc[digested] = pd.array(
             [digest_slot(h) for h in events.loc[digested, "hour_utc"]], dtype="Int64")
     return events.assign(channel=channels, digest_slot=slots,
-                         also_moved=folded.astype("string"))
+                         also_moved=folded.astype("string"),
+                         folded_into=anchors.astype("string"))
 
 
 def summarise(routed: pd.DataFrame) -> pd.DataFrame:

@@ -10,7 +10,12 @@ every instrument, so a 1.5% hour meant the same thing in SHY as in SOL; nothing
 to say how rare a move was once it fired; and no way to tell an instrument moving
 on its own from the whole market moving together.
 
-What is left is a delivery pass. Three things run, none of which decide anything:
+What is left is a delivery pass. Four things run, none of which decide anything:
+
+  a daily top-up of the economic-calendar archive from the live weekly feed.
+  Not for the digest, which refreshes the archive itself when it sends, but for
+  the pushes: they name the releases around a move on every day of the week, and
+  a schedule fetched last Friday does not have the speech added on Wednesday.
 
   the weekly calendar digest - a forecast of the coming week's scheduled
   releases, on Friday at 12:00 Israel time. Once a week, a no-op every other
@@ -73,6 +78,17 @@ def main() -> int:
     # week - see weekly_digest.py's module docstring for why this piggybacks on
     # the hourly trigger instead of taking a schedule of its own. Sent BEFORE the
     # price note, deliberately: see this module's docstring.
+    # Once a day, and nothing to do on the other twenty-three runs. Separate
+    # from the digest because it serves the PUSHES: they name the releases in
+    # the three hours around a move, every day of the week, and the digest's own
+    # weekly refresh would leave them reading last Friday's schedule.
+    try:
+        weekly_digest.maybe_refresh_calendar(cfg, state, session)
+    except Exception as exc:                     # pragma: no cover - defensive
+        log.error("Calendar refresh failed: %s", exc)
+        had_error = True
+        error_details.append(f"calendar refresh failed ({exc})")
+
     try:
         weekly_digest.maybe_send_weekly_digest(cfg, state, session)
     except Exception as exc:                     # pragma: no cover - defensive

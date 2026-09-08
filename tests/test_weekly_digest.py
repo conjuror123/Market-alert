@@ -173,7 +173,7 @@ def test_the_header_states_the_window_asked_for(tmp_path, monkeypatch):
     start, end = weekly_digest.coming_week(FRIDAY_NOON_ISRAEL_UTC)
     text = weekly_digest.format_digest(
         [e for e in RAW_EVENTS if e["impact"] in ("Medium", "High")], start, end)[0]
-    assert "28.08 — 04.09" in text
+    assert "28.08 — 06.09" in text
 
 
 def test_format_digest_excludes_low_and_holiday_and_sorts_by_time():
@@ -346,7 +346,7 @@ def test_main_force_sends_immediately_regardless_of_day(tmp_path, monkeypatch):
     cfg = make_config(tmp_path)
     sent_texts = []
     ahead = [dict(e, date=(datetime.now(timezone.utc) + timedelta(days=d)).isoformat())
-             for d, e in zip((1, 3, 5, 8), RAW_EVENTS)]
+             for d, e in zip((1, 5, 9, 13), RAW_EVENTS)]
     monkeypatch.setattr(weekly_digest, "load_config", lambda: cfg)
     monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", lambda session=None: ahead)
     monkeypatch.setattr(weekly_digest, "send_telegram_message", lambda *a, **k: sent_texts.append(a[2]) or 1)
@@ -436,3 +436,51 @@ def test_the_same_moment_in_two_notations_is_one_event(tmp_path):
     stored = calendar.load_events(path)
     assert len(stored) == 1
     assert stored[0]["actual"] == "0.4%"
+
+
+# --- keeping the archive fresh for the pushes -------------------------------
+#
+# The digest refreshes the archive when it sends, once a week. That is often
+# enough for a message about next week and far too seldom for the other use of
+# this archive: every push names the releases in the three hours around the
+# move, on every day of the week.
+
+def test_the_archive_is_topped_up_once_a_day(tmp_path, monkeypatch):
+    cfg = make_config(tmp_path)
+    calls = []
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar",
+                        lambda session=None: calls.append(1) or RAW_EVENTS)
+    state = {}
+    monday = datetime(2026, 8, 31, 9, 0, tzinfo=timezone.utc)
+
+    assert weekly_digest.maybe_refresh_calendar(cfg, state, now=monday) is True
+    assert weekly_digest.maybe_refresh_calendar(
+        cfg, state, now=monday + timedelta(hours=5)) is False
+    assert weekly_digest.maybe_refresh_calendar(
+        cfg, state, now=monday + timedelta(days=1)) is True
+    assert len(calls) == 2
+
+
+def test_the_top_up_reaches_the_archive_the_pushes_read(tmp_path, monkeypatch):
+    cfg = make_config(tmp_path)
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar",
+                        lambda session=None: RAW_EVENTS)
+    weekly_digest.maybe_refresh_calendar(
+        cfg, {}, now=datetime(2026, 8, 31, 9, 0, tzinfo=timezone.utc))
+    stored = weekly_digest.economic_calendar.load_events(
+        weekly_digest.economic_calendar.store_path(cfg.calendar_dir))
+    assert "Non-Farm Payrolls" in {e["title"] for e in stored}
+
+
+def test_a_feed_that_will_not_load_is_a_warning_not_a_failure(tmp_path, monkeypatch):
+    cfg = make_config(tmp_path)
+
+    def failing_fetch(session=None):
+        raise weekly_digest.economic_calendar.CalendarError("boom")
+
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", failing_fetch)
+    state = {}
+    assert weekly_digest.maybe_refresh_calendar(
+        cfg, state, now=datetime(2026, 8, 31, 9, 0, tzinfo=timezone.utc)) is False
+    # Not recorded, so the next run tries again rather than waiting a day.
+    assert weekly_digest._REFRESH_KEY not in state

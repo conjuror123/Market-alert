@@ -167,7 +167,7 @@ def test_collapse_leaves_events_that_were_never_pushes_alone():
     rows = [(DAY, "extreme", 0.9, 0.9), (DAY + HOUR, "routine", -0.5, -0.5)]
     frame = events(rows)
     given = pd.Series([routing.PUSH, routing.DIGEST])
-    channels, folded = routing.collapse(frame, given)
+    channels, folded, _ = routing.collapse(frame, given)
     assert list(channels) == [routing.PUSH, routing.DIGEST]
     assert list(folded) == ["", ""]
 
@@ -212,7 +212,34 @@ def test_a_push_does_not_name_its_own_instrument_as_a_companion():
             (DAY + 2 * HOUR, "major", 0.9, 0.9)]
     frame = events(rows)
     frame["asset_id"] = ["twelvedata:USD/CHF", "twelvedata:USD/CHF", "twelvedata:EUR/USD"]
-    _, folded = routing.collapse(frame, pd.Series([routing.PUSH] * len(rows)))
+    _, folded, _ = routing.collapse(frame, pd.Series([routing.PUSH] * len(rows)))
     named = folded.iloc[0].split(" ")
     assert "twelvedata:USD/CHF" not in named
     assert named == ["twelvedata:EUR/USD"]
+
+
+def test_a_folded_event_records_which_push_it_belongs_to():
+    # It does not buzz again, but it does take a row in the note - within the
+    # hour, right under the push that already named it. Without this the row
+    # cannot say which alert it belongs to, and the same news reads as arriving
+    # twice.
+    rows = [(DAY, "extreme", 0.9, 0.9), (DAY + HOUR, "extreme", 0.9, 0.9)]
+    routed = routing.route(events(rows, assets=["src:SPY", "src:XLF"]))
+    assert list(routed["channel"]) == [routing.PUSH, routing.DIGEST]
+    assert routed["folded_into"].iloc[0] == ""
+    assert routed["folded_into"].iloc[1] == "src:SPY"
+
+
+def test_an_event_that_was_never_a_push_belongs_to_nothing():
+    routed = routing.route(events([(DAY, "extreme", 0.9, 0.9),
+                                   (DAY + HOUR, "routine", 0.9, 0.9)],
+                                  assets=["src:SPY", "src:GLD"]))
+    assert routed["folded_into"].iloc[1] == ""
+
+
+def test_the_two_directions_agree():
+    # The push names its companions, each companion names the push.
+    rows = [(DAY, "extreme", 0.9, 0.9), (DAY + HOUR, "major", 0.9, 0.9)]
+    routed = routing.route(events(rows, assets=["src:SPY", "src:XLF"]))
+    assert routed["also_moved"].iloc[0] == "src:XLF"
+    assert routed["folded_into"].iloc[1] == "src:SPY"

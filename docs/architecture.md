@@ -87,7 +87,9 @@ running digest note. Nothing waits and nothing is dropped — retention no longe
 whether an event is sent, only what the sent message says about it. Pushes belonging to
 one episode collapse into the first of them, unless a later one is rarer.
 
-**8. Deliver.** A push the hour it is found. A digest row into the note for its period,
+**8. Deliver.** A push the hour it is found; a move folded into an earlier push does not
+buzz again but still takes a row, marked as part of that alert. A digest row into the note
+for its period,
 also the hour it is found — the note is *opened* Tuesday and Friday at 12:00 Israel time
 and edited in place for the rest of the period, so the phone buzzes twice a week and
 every row after that arrives silently. A note may only be opened in its own hour or the
@@ -150,7 +152,8 @@ collapse, digest slot)
 `windows` (every window and constant, in one file)
 
 **Delivery** lives in `price_monitor/`: `tremor_delivery` (messages), `weekly_digest`
-(the economic-calendar forecast), `health`, `notifier`, and the source clients
+(the economic-calendar forecast, and the daily top-up of the archive the pushes read),
+`health`, `notifier`, and the source clients
 (`twelvedata`, `coinbase`, `dukascopy`, `fxcm`, `hfdata`) that `tremor.backfill` fetches
 through.
 
