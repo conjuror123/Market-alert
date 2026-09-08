@@ -290,30 +290,34 @@ def test_no_alert_claims_the_economic_calendar_explained_anything():
     for tier in ("routine", "notable", "major", "extreme"):
         for basis in ("abnormal", "absolute", "both", "market"):
             assert "calendar" not in md._headline(tier, basis).lower()
-    assert "calendar" not in md._market_share_note(
-        {"r": 0.02, "e_resid": 0.018}).lower()
+    for line in md._split_lines({"r": 0.02, "e_resid": 0.018}, "Gold"):
+        assert "calendar" not in line.lower()
 
 
-def test_the_market_share_is_shown_as_a_number_not_named_as_a_concept():
-    # The one thing every alert was assuming the reader already understood.
-    # +7.00% of which +6.01% was the market is a market day; +0.24% of which
-    # +0.03% was the market is one currency pair doing something.
-    assert md._market_share_note({"r": 0.0700, "e_resid": 0.0099}) == \
-        "just following the market would have given +6.01%"
-    assert md._market_share_note({"r": 0.0024, "e_resid": 0.0021}) == \
-        "just following the market would have given +0.03%"
+def test_the_split_is_two_numbers_and_never_the_word_market():
+    # For the S&P 500, "the market" IS the S&P 500 - so naming the idea invited
+    # "which market, and how would I have followed it?". There is no index being
+    # followed: there are twenty-four instruments, and the question is how much
+    # of the move was the whole list drifting together.
+    lines = md._split_lines({"r": 0.0700, "e_resid": 0.0099}, "S&P 500")
+    assert lines == ["+6.01% of it came from the whole watchlist drifting together",
+                     "+0.99% of it was S&P 500 on its own"]
+    for line in lines:
+        assert "market" not in line
 
 
-def test_the_market_share_survives_the_market_moving_the_other_way():
-    # 38% of abnormal events have the market moving against them, and the line
+def test_the_split_reports_a_watchlist_moving_the_other_way():
+    # 38% of abnormal events have the rest drifting against them, and the line
     # has to stay true rather than tidy.
-    assert "-0.05%" in md._market_share_note({"r": 0.0024, "e_resid": 0.0029})
+    lines = md._split_lines({"r": 0.0024, "e_resid": 0.0029}, "Dollar / franc")
+    assert "the other way, by -0.05%" in lines[0]
+    assert lines[1] == "+0.29% of it was Dollar / franc on its own"
 
 
-def test_no_share_is_claimed_when_the_regression_has_not_been_fitted():
+def test_no_split_is_claimed_when_the_regression_has_not_been_fitted():
     # Beta is undefined through an instrument's first five hundred bars.
-    assert md._market_share_note({"r": 0.02, "e_resid": None}) == ""
-    assert md._market_share_note({}) == ""
+    assert md._split_lines({"r": 0.02, "e_resid": None}, "Gold") == []
+    assert md._split_lines({}, "Gold") == []
 
 
 def test_the_headline_does_not_claim_the_market_was_quiet():
@@ -478,15 +482,16 @@ def test_the_push_says_what_the_move_was_big_compared_with():
     event = {"asset_id": "twelvedata:SHY", "tier": "extreme", "basis": "absolute",
              "hour_utc": 1767225600, "r": 0.0013, "sigma_lt": 0.00013}
     text = md.format_push(event, {"twelvedata:SHY": "Treasuries 1-3 years"})
-    assert "10x its usual hour of 0.013%" in text
+    assert "that is 10x its usual hour, which is 0.013%" in text
 
 
-def test_a_move_close_to_an_ordinary_hour_gets_no_comparison():
-    # Below a few times normal the note would be making a small number look
-    # smaller, which is not what the tier language is describing.
+def test_a_modest_multiple_is_still_said_and_still_has_its_decimal():
+    # It used to be suppressed below three times normal, and that silence read
+    # as a gap rather than as "this one was only 2.7x". 21% of events fall under
+    # the old floor. The decimal matters too: "3x" for 2.7 flatters the alert.
     event = {"asset_id": "twelvedata:SPY", "tier": "routine", "basis": "absolute",
-             "hour_utc": 1767225600, "r": 0.002, "sigma_lt": 0.001}
-    assert "usual hour" not in md.format_push(event, {})
+             "hour_utc": 1767225600, "r": 0.0027, "sigma_lt": 0.001}
+    assert "that is 2.7x its usual hour" in md.format_push(event, {})
 
 
 def test_the_comparison_is_skipped_when_the_yardstick_is_missing():
@@ -804,3 +809,40 @@ def test_the_third_check_in_lands_on_a_push_that_already_has_two(monkeypatch, se
     assert "next day's close - 80% of it still there" in editor.calls[-1][1]
     # All three written, so the push is no longer tracked.
     assert not state[md.STATE_KEY][follow_up_module.TRACKED]
+
+
+# --- saying it in terms nobody needs statistics for -------------------------
+
+def test_the_alert_says_when_this_instrument_was_last_this_rare():
+    # "Biggest move in about a year" is a return period fitted to a tail: the
+    # honest way to say how unusual something is, and a hard thing to picture.
+    # The date is the same claim in a form that needs no statistics.
+    hour = int(datetime(2026, 9, 4, 14, tzinfo=timezone.utc).timestamp())
+    history = [
+        event(event_id="old", tier="major", hour_utc=hour - 400 * 24 * HOUR),
+        event(event_id="tiny", tier="routine", hour_utc=hour - 3 * 24 * HOUR),
+    ]
+    line = md._since_note(event(tier="major", hour_utc=hour), history)
+    assert "the last one this big was 31 July 2025" in line
+    assert "1.1 years ago" in line
+
+
+def test_a_rarer_earlier_move_counts_and_a_milder_one_does_not():
+    hour = int(datetime(2026, 9, 4, 14, tzinfo=timezone.utc).timestamp())
+    milder = [event(event_id="m", tier="notable", hour_utc=hour - 10 * 24 * HOUR)]
+    rarer = [event(event_id="r", tier="extreme", hour_utc=hour - 10 * 24 * HOUR)]
+    assert md._since_note(event(tier="major", hour_utc=hour), milder) == ""
+    assert "10 days ago" in md._since_note(event(tier="major", hour_utc=hour), rarer)
+
+
+def test_nothing_is_claimed_when_there_is_no_earlier_one():
+    # A young instrument, or genuinely the first in twenty-two years. Claiming
+    # either would be a guess.
+    assert md._since_note(event(), []) == ""
+
+
+def test_the_alert_says_where_the_instrument_actually_is():
+    # A percentage with no level behind it makes the reader open a chart.
+    assert md._level_note({"close": 0.80431}) == "ending the hour at 0.80431"
+    assert md._level_note({"close": 6421.5}) == "ending the hour at 6,421.50"
+    assert md._level_note({}) == ""

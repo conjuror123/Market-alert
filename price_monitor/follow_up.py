@@ -117,7 +117,8 @@ def apply(cfg: Config, state: dict, events: "list[dict]",
         # not happened yet, so the instruments it speaks for arrive later and
         # reach the reader through this edit.
         text = tremor_delivery.format_push(
-            event, labels, calendar, tremor_delivery.companions_of(event, events))
+            event, labels, calendar,
+            tremor_delivery.companions_of(event, events), events)
         try:
             edit_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
                                   int(record["message_id"]), text)

@@ -85,6 +85,10 @@ class SaedEvent:
     # three years" is unreadable on its own and reads as a bug, and 45% of
     # pushes show a number under 1%.
     sigma_lt: float
+    # The price at the end of the bar that earned the tier. Carried purely so the
+    # message can say where the instrument actually IS: a percentage with no
+    # level behind it makes a reader open a chart to place it.
+    close: float
 
 
 def _flag(value) -> "bool | None":
@@ -238,6 +242,8 @@ def build_events(asset: Asset, frame: pd.DataFrame,
     e = frame["e_resid"].to_numpy()
     r = frame["r"].to_numpy()
     beta = frame["beta"].to_numpy() if "beta" in frame else np.full(len(frame), np.nan)
+    level = (frame["close"].to_numpy(dtype="float64") if "close" in frame
+             else np.full(len(frame), np.nan))
     usual = (frame["sigma_lt"].to_numpy() if "sigma_lt" in frame
              else np.full(len(frame), np.nan))
     tier = frame["tier"].to_numpy(dtype=object)
@@ -299,7 +305,8 @@ def build_events(asset: Asset, frame: pd.DataFrame,
                                           "e_resid": float(e[i]),
                                           "r": float(r[i]),
                                           "beta": float(beta[i]),
-                                          "sigma_lt": float(usual[i])})
+                                          "sigma_lt": float(usual[i]),
+                                          "close": float(level[i])})
             continue
         open_at = i
         events.append(SaedEvent(
@@ -310,6 +317,7 @@ def build_events(asset: Asset, frame: pd.DataFrame,
             z_resid=float(z[i]), e_resid=float(e[i]), r=float(r[i]),
             beta=float(beta[i]), repeat_count=0, tier=str(tier[i]),
             basis=str(basis[i]), sigma_lt=float(usual[i]),
+            close=float(level[i]),
         ))
         counts.append(0)
         _peak_at.append(i)
@@ -321,7 +329,7 @@ def build_events(asset: Asset, frame: pd.DataFrame,
 def events_frame(events: list[SaedEvent]) -> pd.DataFrame:
     columns = ["event_id", "asset_id", "block", "hour_utc", "peak_hour_utc",
                "z_resid", "e_resid", "r", "beta", "repeat_count", "tier", "basis",
-               "sigma_lt",
+               "sigma_lt", "close",
                "rank_confirms", "ou_reverts"]
     if not events:
         return pd.DataFrame({c: pd.Series(dtype="object" if c in

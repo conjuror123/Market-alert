@@ -139,30 +139,88 @@ def _headline(tier: str, basis: str) -> str:
     return f"biggest {BASIS_NOUN.get(basis, 'move')} {period}"
 
 
-def _market_share_note(event: dict) -> str:
-    """How much of this move was simply the market, in the same units as the move.
+def _split_lines(event: dict, label: str) -> "list[str]":
+    """The move broken into the part that was everyone and the part that was this one.
 
-    The one thing every alert was assuming the reader already understood. Each
-    instrument is regressed on two things it moves with - the weighted median
-    return of the whole basket, and the median of its own block - on the five
-    hundred bars before this one, stopping three bars short so the move being
-    tested cannot adjust its own coefficients. What that regression predicts for
-    this hour is the part that was "the market"; the rest is the instrument's
-    own. The events table carries the move and the leftover, so the market's
-    part is simply the difference.
+    THE WORD "MARKET" IS DELIBERATELY ABSENT. Every attempt to name this idea
+    failed on the same objection, and the objection was right: for the S&P 500,
+    "the market" IS the S&P 500, so "following the market would have given
+    +6.01%" invites the question "which market, and how would I have followed
+    it?". There is no index being followed. There are twenty-four instruments in
+    this watchlist, and the question the number answers is how much of this move
+    was the whole list drifting together.
 
-    Shown as a number rather than named as a concept, because the number ends
-    the question: +7.00% of which +6.01% was the market is a market day, and
-    +0.24% of which +0.03% was the market is one currency pair doing something.
-    Measured across the record the two channels separate cleanly - the market
-    accounts for a median 50% of an absolute event and 4% of an abnormal one.
+    What is computed: each instrument is regressed on two things it moves with -
+    the weighted median return of the basket, and the median of its own block
+    with itself left out - over the five hundred bars before this one, stopping
+    three bars short so the move being tested cannot adjust its own
+    coefficients. The regression's prediction for this hour is the shared part;
+    the leftover is the instrument's own. Both are already on the event, so the
+    shared part is their difference.
+
+    Two lines rather than a phrase, because the two numbers are the answer and a
+    reader should not have to subtract. Measured across the record they separate
+    the channels cleanly: the shared part is a median 50% of an absolute event
+    and 4% of an abnormal one, and it runs the OTHER WAY on 38% of abnormal
+    events - which the second wording below reports rather than hides.
     """
     move = _clean(event.get("r"))
-    residual = _clean(event.get("e_resid"))
-    if move is None or residual is None:
+    own = _clean(event.get("e_resid"))
+    if move is None or own is None:
+        return []
+    shared = move - own
+    together = ("the other instruments we watch were drifting the other way, "
+                f"by {shared * 100:+.2f}%"
+                if shared * move < 0 else
+                f"{shared * 100:+.2f}% of it came from the whole watchlist "
+                "drifting together")
+    return [together, f"{own * 100:+.2f}% of it was {label} on its own"]
+
+
+def _level_note(event: dict) -> str:
+    """Where the instrument actually ended the hour.
+
+    A percentage with no level behind it makes the reader open a chart to place
+    it, and the level is free - the pipeline already has the bar's close.
+    """
+    close = _clean(event.get("close"))
+    if close is None or close == 0:
         return ""
-    return (f"just following the market would have given "
-            f"{(move - residual) * 100:+.2f}%")
+    digits = 5 if abs(close) < 10 else 2
+    return f"ending the hour at {close:,.{digits}f}"
+
+
+def _since_note(event: dict, events: "list[dict]") -> str:
+    """When this instrument was last this rare, as a date.
+
+    "Biggest move in about a year" is a return period fitted to a tail, which is
+    the honest way to say how unusual something is and a hard thing to picture.
+    The date is the same claim in a form nobody needs statistics for: it is the
+    last time this instrument produced an event at this tier or a rarer one.
+
+    Read off the events table, which the delivery layer already holds, so this
+    costs nothing. Silent where there is no earlier one - a young instrument, or
+    genuinely the first in twenty-two years, and claiming either would be a
+    guess.
+    """
+    from tremor.severity import TIERS
+
+    rank = {name: i for i, name in enumerate(TIERS)}
+    here = rank.get(str(event.get("tier")), -1)
+    asset_id = str(event.get("asset_id") or "")
+    hour = int(event["hour_utc"])
+    earlier = [int(e["hour_utc"]) for e in events
+               if str(e.get("asset_id") or "") == asset_id
+               and int(e["hour_utc"]) < hour
+               and rank.get(str(e.get("tier")), -1) >= here]
+    if not earlier:
+        return ""
+    when = datetime.fromtimestamp(max(earlier), tz=timezone.utc)
+    days = (hour - max(earlier)) / 86400
+    ago = (f"{days / 365.25:.1f} years" if days >= 365 else
+           f"{days / 30.44:.0f} months" if days >= 60 else
+           f"{days:.0f} days")
+    return f"the last one this big was {when:%-d %B %Y}, {ago} ago"
 
 
 def _retention_note(value: float) -> str:
@@ -360,12 +418,6 @@ def _clean(value) -> "float | None":
     return None if number != number else number   # NaN check without numpy
 
 
-# Below this the comparison is not worth a line: a move only twice its
-# instrument's usual hour is not what the tier language is describing, and the
-# note would be making a small number look smaller.
-_SCALE_FLOOR = 3.0
-
-
 def _scale_note(event: dict) -> str:
     """What the move was big COMPARED WITH, in the instrument's own units.
 
@@ -386,11 +438,15 @@ def _scale_note(event: dict) -> str:
     if move is None or usual is None or usual <= 0:
         return ""
     ratio = abs(move) / usual
-    if ratio < _SCALE_FLOOR:
-        return ""
-    return (f"that is {ratio:.0f}x its usual hour of {usual * 100:.3f}%"
-            if usual * 100 < 0.1 else
-            f"that is {ratio:.0f}x its usual hour of {usual * 100:.2f}%")
+    # Shown at every size now, where it used to be suppressed below three times
+    # normal. That silence was itself confusing: 21% of events fall under the old
+    # floor, and a reader who has seen the line on one alert reads its absence on
+    # the next as a gap rather than as "this one was only 2.7x". A decimal below
+    # ten, because "3x" for 2.7 looks like a rounding that flatters the alert.
+    size = f"{ratio:.0f}x" if ratio >= 10 else f"{ratio:.1f}x"
+    usual_pct = (f"{usual * 100:.3f}%" if usual * 100 < 0.1
+                 else f"{usual * 100:.2f}%")
+    return f"that is {size} its usual hour, which is {usual_pct}"
 
 
 def _settled_line(event: dict, now: datetime | None = None) -> str:
@@ -409,7 +465,8 @@ def _settled_line(event: dict, now: datetime | None = None) -> str:
 
 
 def describe(event: dict, labels: dict[str, str], for_push: bool = False,
-             now: datetime | None = None) -> str:
+             now: datetime | None = None,
+             events: "list[dict] | None" = None) -> str:
     """One line for one event, as it appears in a push or a digest row.
 
     `for_push` drops the single retention note, because a push carries the
@@ -434,18 +491,16 @@ def describe(event: dict, labels: dict[str, str], for_push: bool = False,
     move = _clean(event.get("r"))
     parts = [f"{emoji} <b>{_escape(label)}</b> - {headline}"]
 
-    detail = [f"hour to {when:%Y-%m-%d %H:%M} UTC"]
-    if move is not None:
-        detail.insert(0, f"{move * 100:+.2f}%")
-    parts.append("     " + ", ".join(detail))
+    detail = f"{move * 100:+.2f}% " if move is not None else ""
+    parts.append(f"     {detail}in the hour to {when:%Y-%m-%d %H:%M} UTC")
 
-    scale = _scale_note(event)
-    if scale:
-        parts.append(f"     {scale}")
+    for line in (_level_note(event), _scale_note(event),
+                 _since_note(event, events or [])):
+        if line:
+            parts.append(f"     {line}")
 
-    share = _market_share_note(event)
-    if share:
-        parts.append(f"     {share}")
+    for line in _split_lines(event, label):
+        parts.append(f"     {line}")
 
     if not for_push:
         parts.append(f"     {_settled_line(event, now)}")
@@ -690,14 +745,15 @@ def follow_up_block(event: dict, horizons=FOLLOW_UP_HORIZONS,
 
 def format_push(event: dict, labels: dict[str, str],
                 calendar: "list[dict] | None" = None,
-                companions: "dict[str, dict] | None" = None) -> str:
+                companions: "dict[str, dict] | None" = None,
+                events: "list[dict] | None" = None) -> str:
     """A single interrupting alert, speaking for its whole episode.
 
     Ordered so the reader meets one instrument first and the episode second: the
     move and how much of it was the market, then what else moved with it, then
     the scheduled news, then how it held.
     """
-    lines = [describe(event, labels, for_push=True)]
+    lines = [describe(event, labels, for_push=True, events=events)]
     moved_with = _also_moved(event, labels, companions)
     if moved_with:
         lines.append("")
@@ -835,7 +891,8 @@ def digest_rows(events: "list[dict]", window: "tuple[int, int]",
 def format_digest(events: "list[dict]", labels: dict[str, str],
                   window: "tuple[int, int]",
                   calendar: "list[dict] | None" = None,
-                  now: datetime | None = None) -> "list[str]":
+                  now: datetime | None = None,
+                  all_events: "list[dict] | None" = None) -> "list[str]":
     """One note, whole, split into parts Telegram will accept.
 
     Ordered by severity and then by time, so the rarest move is at the top
@@ -869,7 +926,7 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
               + count + (" - this message is updated as moves are found" if live else ""))
 
     def block(event: dict) -> str:
-        line = describe(event, labels, now=now)
+        line = describe(event, labels, now=now, events=all_events)
         context = calendar_context(int(event["hour_utc"]), calendar)
         return f"{line}\n     {_escape(context)}" if context else line
 
@@ -1042,7 +1099,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         try:
             message_id = send_telegram_message(
                 cfg.telegram_bot_token, cfg.telegram_chat_id,
-                format_push(event, labels, calendar, with_it))
+                format_push(event, labels, calendar, with_it, events))
         except TelegramError as exc:
             log.error("Failed to send Tremor push %s: %s", event.get("event_id"), exc)
             continue
@@ -1055,7 +1112,8 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         move = _clean(event.get("r"))
         record_sent_alert(
             alerts_log, chat_id=cfg.telegram_chat_id, message_id=message_id,
-            symbol=label, message_text=format_push(event, labels, calendar, with_it),
+            symbol=label,
+            message_text=format_push(event, labels, calendar, with_it, events),
             last_close=float(_clean(event.get("close")) or 0.0),
             last_return_pct=float((move or 0.0) * 100),
             ewma_z=float(_clean(event.get("z_resid")) or 0.0),
@@ -1066,7 +1124,8 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
 
     for slot in sorted(notes):
         record, rows = notes[slot]
-        texts = format_digest(rows, labels, note_window(slot, record), calendar, now)
+        texts = format_digest(rows, labels, note_window(slot, record), calendar,
+                              now, events)
         made, changed = _write_digest(cfg, slot, record, texts)
         posted += made
         edited += changed
