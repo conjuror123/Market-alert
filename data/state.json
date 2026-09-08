@@ -3,6 +3,16 @@
     "consecutive_failures": 0
   },
   "tremor_delivery": {
+    "digests": {
+      "1788858000": {
+        "hashes": [
+          "ae521b9f94d40782"
+        ],
+        "ids": [
+          7
+        ]
+      }
+    },
     "sent": {
       "twelvedata_DBC:1788530400": 1788530400,
       "twelvedata_USD_JPY:1788768000": 1788768000,
