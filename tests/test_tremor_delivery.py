@@ -267,12 +267,13 @@ def test_the_retention_wording_covers_the_whole_range():
     assert "reversed" in md._retention_note(0.0)
 
 
-def test_an_unexplained_move_is_not_called_simply_the_biggest_move():
-    # The instrument may well have had larger hours that the rest of the market
-    # accounted for perfectly; an unqualified "biggest move" would overstate
-    # what was detected. The qualifier carries it rather than a different noun.
+def test_a_move_on_the_abnormal_ladder_says_which_ladder_it_is_on():
+    # Two ladders exist: one ranks the raw return, the other what is left after
+    # the market is taken out. "Biggest move in about a year" would be false for
+    # the second - the instrument may well have had larger hours the market
+    # accounted for perfectly - and "of its own" says so without a glossary.
     assert md._headline("major", "abnormal") == (
-        "biggest move in about a year (more than the market explains)")
+        "biggest move of its own in about a year")
     assert md._headline("major", "absolute") == "biggest move in about a year"
     assert md._headline("major", "both") == "biggest move in about a year"
     assert md._headline("notable", "market") == "most disorderly hour in about two months"
@@ -289,25 +290,37 @@ def test_no_alert_claims_the_economic_calendar_explained_anything():
     for tier in ("routine", "notable", "major", "extreme"):
         for basis in ("abnormal", "absolute", "both", "market"):
             assert "calendar" not in md._headline(tier, basis).lower()
-    for note in md.BASIS_NOTE.values():
-        assert "calendar" not in note.lower()
+    assert "calendar" not in md._market_share_note(
+        {"r": 0.02, "e_resid": 0.018}).lower()
 
 
-def test_the_basis_note_is_not_repeated_when_the_headline_carries_it(sender, monkeypatch):
-    deliver(monkeypatch, [event(basis="abnormal")])
-    assert "more than the market explains" in alerts(sender)[0]
-    assert alerts(sender)[0].count("explain") == 1
+def test_the_market_share_is_shown_as_a_number_not_named_as_a_concept():
+    # The one thing every alert was assuming the reader already understood.
+    # +7.00% of which +6.01% was the market is a market day; +0.24% of which
+    # +0.03% was the market is one currency pair doing something.
+    assert md._market_share_note({"r": 0.0700, "e_resid": 0.0099}) == \
+        "just following the market would have given +6.01%"
+    assert md._market_share_note({"r": 0.0024, "e_resid": 0.0021}) == \
+        "just following the market would have given +0.03%"
 
-    sender.texts.clear()
-    deliver(monkeypatch, [event(event_id="x", basis="both")])
-    assert "more than the market explains" in alerts(sender)[0]
+
+def test_the_market_share_survives_the_market_moving_the_other_way():
+    # 38% of abnormal events have the market moving against them, and the line
+    # has to stay true rather than tidy.
+    assert "-0.05%" in md._market_share_note({"r": 0.0024, "e_resid": 0.0029})
 
 
-def test_the_qualifier_does_not_claim_the_market_was_quiet():
-    # The residual being large means the co-movement does not ACCOUNT for the
-    # size of the move. It does not mean the rest of the market was calm - on a
-    # macro hour everything moves and this one moved further still, which is the
-    # case the residual channel exists to catch.
+def test_no_share_is_claimed_when_the_regression_has_not_been_fitted():
+    # Beta is undefined through an instrument's first five hundred bars.
+    assert md._market_share_note({"r": 0.02, "e_resid": None}) == ""
+    assert md._market_share_note({}) == ""
+
+
+def test_the_headline_does_not_claim_the_market_was_quiet():
+    # A large residual means the co-movement does not ACCOUNT for the size of
+    # the move. It does not mean the rest of the market was calm - on a macro
+    # hour everything moves and this one moved further still, which is the case
+    # the residual channel exists to catch.
     line = md._headline("major", "abnormal")
     for overclaim in ("usual", "quiet", "normal", "calm", "did not move"):
         assert overclaim not in line

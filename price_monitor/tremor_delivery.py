@@ -113,38 +113,22 @@ TIER_PERIOD = {
     "extreme": "in about three years",
 }
 
-# What was biggest, which is not the same claim for each channel. An abnormal
-# event is the biggest move BEYOND what the market accounted for, and calling
-# that "the biggest move" overstates it - the instrument may well have had
-# larger hours that the market explained perfectly. The qualifier carries that
-# rather than a different noun: "biggest move in two weeks (more than the market
-# explains)" reads as one claim with a caveat, where "biggest unexplained move
-# in a fortnight" made the reader parse an adjective first.
+# WHICH LADDER the tier was measured against, said in the noun rather than in a
+# parenthesis. Two ladders exist and they answer different questions: the
+# absolute one ranks the raw return, the abnormal one ranks what is left after
+# the market is taken out (see tremor.residuals). "Biggest move in about a year"
+# would be false for the second - the instrument may well have had larger hours
+# the market accounted for perfectly - so the second says "biggest move OF ITS
+# OWN in about a year", which needs no glossary.
 #
-# "more than the market explains" is chosen carefully and is weaker than it
-# could be on purpose. The residual is r minus what the basket factor and the
-# block factor predicted for this instrument this hour (see tremor.residuals),
-# so what is true is that the co-movement does not ACCOUNT for the size of the
-# move. It is NOT true that the rest of the market was quiet: on a macro hour
-# everything moves and this one moved further still, which is exactly the case
-# the residual channel exists to catch. Saying "the market was normal" would be
-# a stronger claim than the measurement supports.
-#
-# The economic calendar plays no part in it either - it enters only the SI-Index
-# in tremor.cluster - so an alert saying the calendar failed to explain a move
-# would be claiming a test the system never ran.
-BASIS_NOUN = "move"
-BASIS_QUALIFIER = {
-    "abnormal": " (more than the market explains)",
-    "absolute": "",
-    "both": "",
-}
-
-# Said only where it adds something the headline does not. For an abnormal
-# event the headline already carries it, and repeating it is noise.
-BASIS_NOTE = {
-    "absolute": "The rest of the market moved with it.",
-    "both": "And it moved more than the market explains.",
+# It replaces "(not explained by the rest of the market)", and then "(more than
+# the market explains)", both of which asked the reader to hold an idea nobody
+# had defined for them. The idea is now shown instead of named, one line down,
+# in the units they are already reading: see _market_share_note.
+BASIS_NOUN = {
+    "abnormal": "move of its own",
+    "absolute": "move",
+    "both": "move",
 }
 
 
@@ -152,7 +136,33 @@ def _headline(tier: str, basis: str) -> str:
     period = TIER_PERIOD.get(tier, tier)
     if basis == "market":
         return f"most disorderly hour {period}"
-    return f"biggest {BASIS_NOUN} {period}{BASIS_QUALIFIER.get(basis, '')}"
+    return f"biggest {BASIS_NOUN.get(basis, 'move')} {period}"
+
+
+def _market_share_note(event: dict) -> str:
+    """How much of this move was simply the market, in the same units as the move.
+
+    The one thing every alert was assuming the reader already understood. Each
+    instrument is regressed on two things it moves with - the weighted median
+    return of the whole basket, and the median of its own block - on the five
+    hundred bars before this one, stopping three bars short so the move being
+    tested cannot adjust its own coefficients. What that regression predicts for
+    this hour is the part that was "the market"; the rest is the instrument's
+    own. The events table carries the move and the leftover, so the market's
+    part is simply the difference.
+
+    Shown as a number rather than named as a concept, because the number ends
+    the question: +7.00% of which +6.01% was the market is a market day, and
+    +0.24% of which +0.03% was the market is one currency pair doing something.
+    Measured across the record the two channels separate cleanly - the market
+    accounts for a median 50% of an absolute event and 4% of an abnormal one.
+    """
+    move = _clean(event.get("r"))
+    residual = _clean(event.get("e_resid"))
+    if move is None or residual is None:
+        return ""
+    return (f"just following the market would have given "
+            f"{(move - residual) * 100:+.2f}%")
 
 
 def _retention_note(value: float) -> str:
@@ -433,6 +443,10 @@ def describe(event: dict, labels: dict[str, str], for_push: bool = False,
     if scale:
         parts.append(f"     {scale}")
 
+    share = _market_share_note(event)
+    if share:
+        parts.append(f"     {share}")
+
     if not for_push:
         parts.append(f"     {_settled_line(event, now)}")
     return "\n".join(parts)
@@ -680,14 +694,10 @@ def format_push(event: dict, labels: dict[str, str],
     """A single interrupting alert, speaking for its whole episode.
 
     Ordered so the reader meets one instrument first and the episode second: the
-    move, what the market was doing, then what else moved with it, then the
-    scheduled news, then how it held.
+    move and how much of it was the market, then what else moved with it, then
+    the scheduled news, then how it held.
     """
     lines = [describe(event, labels, for_push=True)]
-    note = BASIS_NOTE.get(str(event.get("basis") or ""))
-    if note:
-        lines.append("")
-        lines.append(_escape(note))
     moved_with = _also_moved(event, labels, companions)
     if moved_with:
         lines.append("")

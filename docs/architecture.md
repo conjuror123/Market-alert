@@ -87,6 +87,12 @@ running digest note. Nothing waits and nothing is dropped — retention no longe
 whether an event is sent, only what the sent message says about it. Pushes belonging to
 one episode collapse into the first of them, unless a later one is rarer.
 
+Every alert then says how much of the move was simply the market: what the regression
+predicts for that hour, in the same units as the move — `+7.00%, just following the market
+would have given +6.01%` is a market day, `+0.24% … +0.03%` is one currency pair doing
+something. The abnormal channel's headline says *biggest move of its own*, because its
+ladder ranks the residual rather than the return.
+
 **8. Deliver.** A push the hour it is found, speaking for its whole episode: a move folded
 into it does not buzz again and takes no row of its own anywhere — the push lists it with
 its size, which matters because a folded companion moved *more* than the push that spoke
