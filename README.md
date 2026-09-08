@@ -274,7 +274,7 @@ Delivery splits by urgency, not by importance:
 
 * **Pushed at once** — both push tiers, a once-a-year move and a once-in-three-years
   one. Roughly one every eight days between them. The message is then edited in place
-  at two bars, six bars and the close of the next trading day with how the move
+  at this day's close and the next day's close with how the move
   actually held; 75% of pushed moves were still standing at that close.
 * **The running digest** — everything else, 3.6 items a note on average. The note is
   *opened* Tuesday and Friday at 12:00 Israel time and then edited in place as moves

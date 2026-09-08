@@ -87,15 +87,16 @@ running digest note. Nothing waits and nothing is dropped — retention no longe
 whether an event is sent, only what the sent message says about it. Pushes belonging to
 one episode collapse into the first of them, unless a later one is rarer.
 
-Every alert then splits the move in two, in the same units as the move: `+6.01% of it came
-from the whole watchlist drifting together` against `+1.00% of it was S&P 500 on its own`.
+Every alert then splits the move into the three things it can be, adding back to the move
+exactly: the whole basket drifting, the instrument's own block, and the instrument itself.
 The word *market* is deliberately absent — for the S&P 500 the market *is* the S&P 500, and
-there is no index being followed; there are twenty-four instruments and the question is how
-much of the move was all of them drifting at once. Beside it the alert gives the level, the
-size against the instrument's usual hour, and **the date it was last this rare** — the same
-claim as the return period, in a form that needs no statistics. The abnormal channel's
-headline says *biggest move of its own*, because its ladder ranks the residual rather than
-the return.
+there is no index being followed. The block is split out because two parts was sometimes
+wrong: on 2008-11-20 the financial sector's basket beta was negative and its +10.50% came
+almost entirely from the equity block. Beside it the alert gives the size against the
+instrument's usual hour and **the date it was last this rare** — the same claim as the
+return period, in a form that needs no statistics. The tier is said as a frequency (*a move
+this big happens about once every three years*) rather than as a record, because the ladder
+claims the former and the two contradict each other in a cluster.
 
 **8. Deliver.** A push the hour it is found, speaking for its whole episode: a move folded
 into it does not buzz again and takes no row of its own anywhere — the push lists it with
@@ -106,7 +107,7 @@ and edited in place for the rest of the period, so the phone buzzes twice a week
 every row after that arrives silently. A note may only be opened in its own hour or the
 three after it; a period that misses that window is picked up by the next note, so the
 buzz is always at noon and no move is dropped. Both kinds of message are then corrected
-as the market answers: a push at two bars, six bars and the next day's close, a digest row at
+as the market answers: a push at this day's close and the next day's close, a digest row at
 the next day's close. A push older than 48 hours is never sent.
 
 ---

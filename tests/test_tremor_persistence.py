@@ -18,39 +18,24 @@ def bars(abnormal, sigma=0.001, raw=None):
     })
 
 
-def test_forward_car_sums_the_bar_and_the_horizon_after_it():
-    car = ps.forward_car(np.array([1.0, 2.0, 3.0, 4.0, 5.0]), 2)
-    assert car[0] == 6.0        # 1 + 2 + 3
-    assert car[1] == 9.0        # 2 + 3 + 4
-    assert car[2] == 12.0       # 3 + 4 + 5
-
-
-def test_the_last_bars_get_no_answer_rather_than_a_short_one():
-    # A partial window quietly answers a different question - "how much held
-    # over the three bars that happen to exist" - and at the end of history
-    # that is every event the live system has just produced.
-    car = ps.forward_car(np.array([1.0, 2.0, 3.0, 4.0, 5.0]), 2)
-    assert np.isnan(car[3]) and np.isnan(car[4])
-
-
 def test_a_move_that_holds_retains_all_of_itself():
     frame = bars([0.0, 0.05] + [0.0] * 10)
-    assert abs(ps.retention(frame, 6).iloc[1] - 1.0) < 1e-12
+    assert abs(ps.retention(frame, ps.TODAY).iloc[1] - 1.0) < 1e-12
 
 
 def test_a_move_that_is_fully_given_back_retains_none_of_it():
     frame = bars([0.0, 0.05, -0.05] + [0.0] * 10)
-    assert abs(ps.retention(frame, 6).iloc[1]) < 1e-12
+    assert abs(ps.retention(frame, ps.TODAY).iloc[1]) < 1e-12
 
 
 def test_a_move_that_keeps_going_retains_more_than_all_of_it():
     frame = bars([0.0, 0.05, 0.05] + [0.0] * 10)
-    assert abs(ps.retention(frame, 6).iloc[1] - 2.0) < 1e-12
+    assert abs(ps.retention(frame, ps.TODAY).iloc[1] - 2.0) < 1e-12
 
 
 def test_an_overshoot_back_past_the_start_is_negative():
     frame = bars([0.0, 0.05, -0.08] + [0.0] * 10)
-    assert ps.retention(frame, 6).iloc[1] < 0
+    assert ps.retention(frame, ps.TODAY).iloc[1] < 0
 
 
 def test_the_ratio_is_undefined_where_the_move_is_too_small_to_divide_by():
@@ -58,13 +43,13 @@ def test_the_ratio_is_undefined_where_the_move_is_too_small_to_divide_by():
     # spread that hour was tiny; dividing by it reports a retention of forty
     # rather than a reversal.
     frame = bars([0.0, 0.0001, 0.004] + [0.0] * 10, sigma=0.01)
-    assert pd.isna(ps.retention(frame, 6).iloc[1])
+    assert pd.isna(ps.retention(frame, ps.TODAY).iloc[1])
 
 
 def test_the_sign_of_the_move_does_not_change_the_reading():
     up = bars([0.0, 0.05, -0.025] + [0.0] * 10)
     down = bars([0.0, -0.05, 0.025] + [0.0] * 10)
-    assert abs(ps.retention(up, 6).iloc[1] - ps.retention(down, 6).iloc[1]) < 1e-12
+    assert abs(ps.retention(up, ps.TODAY).iloc[1] - ps.retention(down, ps.TODAY).iloc[1]) < 1e-12
 
 
 def test_annotate_records_the_abnormal_move_and_the_raw_one_separately():
@@ -74,8 +59,8 @@ def test_annotate_records_the_abnormal_move_and_the_raw_one_separately():
     frame = bars([0.0, 0.05] + [0.0] * 10,
                  raw=[0.0, 0.05, 0.05] + [0.0] * 9)
     out = ps.annotate(frame)
-    assert abs(out["retention_6"].iloc[1] - 1.0) < 1e-12
-    assert abs(out["retention_raw_6"].iloc[1] - 2.0) < 1e-12
+    assert abs(out["retention_today"].iloc[1] - 1.0) < 1e-12
+    assert abs(out["retention_raw_today"].iloc[1] - 2.0) < 1e-12
     assert set(ps.RETENTION_COLUMNS) <= set(out.columns)
 
 
@@ -101,8 +86,8 @@ def test_attach_joins_on_the_asset_and_hour_not_on_row_order():
     events = pd.DataFrame({"asset_id": ["b", "a"], "hour_utc": [2 * HOUR] * 2})
     out = ps.attach(events, scored)
 
-    assert abs(out["retention_6"].iloc[0]) < 1e-12       # b gave it back
-    assert abs(out["retention_6"].iloc[1] - 1.0) < 1e-12  # a held
+    assert abs(out["retention_today"].iloc[0]) < 1e-12       # b gave it back
+    assert abs(out["retention_today"].iloc[1] - 1.0) < 1e-12  # a held
 
 
 def test_attach_keeps_the_schema_on_an_empty_table():
@@ -199,3 +184,26 @@ def test_the_exchange_day_is_used_when_a_timezone_is_given():
     # New York it is still the evening of day one, so its next close is bar 2.
     assert utc_days[1] == -1
     assert ny_days[1] == 1
+
+
+def test_the_day_close_reading_runs_to_the_last_bar_of_that_day():
+    # Not a bar count: how the move stood when THIS day closed. Six bars is most
+    # of a session in an ETF and a quarter of a day in crypto, and neither is a
+    # moment a reader can picture.
+    frame = bars([0.0, 0.05, -0.05, 0.05] + [0.0] * 8)
+    offsets = ps.today_close_offsets(frame)
+    assert offsets[-1] == 0                       # the closing bar itself
+    assert list(offsets[:3]) == [len(frame) - 1, len(frame) - 2, len(frame) - 3]
+
+
+def test_a_move_in_the_closing_hour_has_no_day_left_to_hold_through():
+    # Zero is not a failure - there is nothing left of that day, and the message
+    # says so rather than reporting a ratio of one and calling it news.
+    frame = bars([0.0, 0.05] + [0.0] * 10)
+    assert ps.today_close_offsets(frame)[-1] == 0
+
+
+def test_the_two_horizons_are_the_two_day_closes():
+    assert ps.HORIZONS == (ps.TODAY, ps.SETTLED)
+    assert "retention_today" in ps.RETENTION_COLUMNS
+    assert "retention_settled" in ps.RETENTION_COLUMNS

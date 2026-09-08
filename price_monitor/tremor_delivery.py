@@ -104,13 +104,21 @@ _SENT = "sent"
 TIER_EMOJI = {"routine": "⬜", "notable": "🟨", "major": "🟧", "extreme": "🟥"}
 
 # The tier names are internal; these are what a person reads. Said as a return
-# period, because "the biggest move in about three years" needs no calibration
-# intuition where a 1-to-100 score would.
+# period, because "about once every three years" needs no calibration intuition
+# where a 1-to-100 score would.
+#
+# AND SAID AS A FREQUENCY, not as a record. "Biggest move in about three years"
+# claims the last three years held nothing larger, and the ladder claims no such
+# thing - it says a move this size is expected about once in three years, on
+# average, which in a fat-tailed market means several can arrive in a month. The
+# old wording flatly contradicted the line beneath it: "biggest move in about
+# three years" over "the last one this big was 23 days ago". Only one of the two
+# was wrong, and it was the headline.
 TIER_PERIOD = {
-    "routine": "in two weeks",
-    "notable": "in about two months",
-    "major": "in about a year",
-    "extreme": "in about three years",
+    "routine": "about once a fortnight",
+    "notable": "about once every two months",
+    "major": "about once a year",
+    "extreme": "about once every three years",
 }
 
 # WHICH LADDER the tier was measured against, said in the noun rather than in a
@@ -126,68 +134,76 @@ TIER_PERIOD = {
 # had defined for them. The idea is now shown instead of named, one line down,
 # in the units they are already reading: see _market_share_note.
 BASIS_NOUN = {
-    "abnormal": "move of its own",
-    "absolute": "move",
-    "both": "move",
+    "abnormal": "a move of its own this big happens",
+    "absolute": "a move this big happens",
+    "both": "a move this big happens",
 }
 
 
 def _headline(tier: str, basis: str) -> str:
     period = TIER_PERIOD.get(tier, tier)
     if basis == "market":
-        return f"most disorderly hour {period}"
-    return f"biggest {BASIS_NOUN.get(basis, 'move')} {period}"
+        return f"an hour this disorderly happens {period}"
+    return f"{BASIS_NOUN.get(basis, 'a move this big happens')} {period}"
+
+
+# What the basket actually is, said once inside the alert rather than left as a
+# word. "The whole watchlist" answers nothing: the reader wants to know which
+# instruments were drifting together, and there are only five kinds of them.
+BASKET_FOOTER = ("<i>The basket is 24 instruments: US equities, Treasuries and "
+                 "credit, commodities, six major currency pairs, crypto.</i>")
+
+# What each block is called in a sentence. The internal names are lower case and
+# two of them are abbreviations.
+BLOCK_LABEL = {
+    "equity": "US equities",
+    "rates": "bonds and credit",
+    "commodities": "commodities",
+    "FX": "currencies",
+    "crypto": "crypto",
+}
 
 
 def _split_lines(event: dict, label: str) -> "list[str]":
-    """The move broken into the part that was everyone and the part that was this one.
+    """The move broken into the three things it can be, adding back to the move.
 
     THE WORD "MARKET" IS DELIBERATELY ABSENT. Every attempt to name this idea
     failed on the same objection, and the objection was right: for the S&P 500,
     "the market" IS the S&P 500, so "following the market would have given
-    +6.01%" invites the question "which market, and how would I have followed
-    it?". There is no index being followed. There are twenty-four instruments in
-    this watchlist, and the question the number answers is how much of this move
-    was the whole list drifting together.
+    +6.01%" invites "which market, and how would I have followed it?".
 
-    What is computed: each instrument is regressed on two things it moves with -
-    the weighted median return of the basket, and the median of its own block
-    with itself left out - over the five hundred bars before this one, stopping
-    three bars short so the move being tested cannot adjust its own
-    coefficients. The regression's prediction for this hour is the shared part;
-    the leftover is the instrument's own. Both are already on the event, so the
-    shared part is their difference.
+    So the parts are named by what they actually are. Each instrument is
+    regressed on two things it moves with - the weighted median return of the
+    basket, and the median of its own block with itself left out - over the five
+    hundred bars before this one, stopping three bars short so the move being
+    tested cannot adjust its own coefficients. The two fitted parts and the
+    leftover are all carried on the event, and they sum to the return exactly.
 
-    Two lines rather than a phrase, because the two numbers are the answer and a
-    reader should not have to subtract. Measured across the record they separate
-    the channels cleanly: the shared part is a median 50% of an absolute event
-    and 4% of an abnormal one, and it runs the OTHER WAY on 38% of abnormal
-    events - which the second wording below reports rather than hides.
+    THREE PARTS RATHER THAN TWO, because two was sometimes wrong. On 2008-11-20
+    the financial sector's basket beta was NEGATIVE and its +10.50% came almost
+    entirely from the equity block - calling that "the whole watchlist drifting"
+    would have named the wrong cause. Splitting the block out says "its own
+    sector did this", which is the diagnosis a reader can act on.
     """
     move = _clean(event.get("r"))
     own = _clean(event.get("e_resid"))
     if move is None or own is None:
         return []
-    shared = move - own
-    together = ("the other instruments we watch were drifting the other way, "
-                f"by {shared * 100:+.2f}%"
-                if shared * move < 0 else
-                f"{shared * 100:+.2f}% of it came from the whole watchlist "
-                "drifting together")
-    return [together, f"{own * 100:+.2f}% of it was {label} on its own"]
 
+    basket = _clean(event.get("co_basket"))
+    block = _clean(event.get("co_block"))
+    if basket is None or block is None:
+        # Before the two components were carried, only the total was. Falling
+        # back to it keeps an older row renderable rather than silent.
+        basket, block = move - own, 0.0
 
-def _level_note(event: dict) -> str:
-    """Where the instrument actually ended the hour.
-
-    A percentage with no level behind it makes the reader open a chart to place
-    it, and the level is free - the pipeline already has the bar's close.
-    """
-    close = _clean(event.get("close"))
-    if close is None or close == 0:
-        return ""
-    digits = 5 if abs(close) < 10 else 2
-    return f"ending the hour at {close:,.{digits}f}"
+    named = BLOCK_LABEL.get(str(event.get("block")), str(event.get("block") or "its block"))
+    lines = ["of that move:",
+             f"     {basket * 100:+.2f}%  the whole basket drifting together"]
+    if block:
+        lines.append(f"     {block * 100:+.2f}%  its own block, {_escape(named)}")
+    lines.append(f"     {own * 100:+.2f}%  {_escape(label)} on its own")
+    return lines
 
 
 def _since_note(event: dict, events: "list[dict]") -> str:
@@ -252,10 +268,6 @@ def _retention_note(value: float) -> str:
     return "fully reversed before the next day's close"
 
 
-# How many companions to name before the line stops being readable. Six is the
-# most the record ever produced in one window, so this is a guard rather than a
-# limit anyone should meet.
-MAX_NAMED_COMPANIONS = 6
 
 
 def companions_of(event: dict, events: "list[dict]") -> "dict[str, dict]":
@@ -266,7 +278,7 @@ def companions_of(event: dict, events: "list[dict]") -> "dict[str, dict]":
     tremor.routing.collapse). Those folded events take no line of their own
     anywhere else, so this is where their numbers have to come from.
     """
-    from tremor.routing import COLLAPSE_HOURS
+    from tremor.routing import same_day
 
     anchor = str(event.get("asset_id") or "")
     if not anchor:
@@ -274,28 +286,32 @@ def companions_of(event: dict, events: "list[dict]") -> "dict[str, dict]":
     hour = int(event["hour_utc"])
     return {str(e.get("asset_id") or ""): e for e in events
             if str(e.get("folded_into") or "") == anchor
-            and hour <= int(e["hour_utc"]) < hour + COLLAPSE_HOURS * 3600}
+            and int(e["hour_utc"]) >= hour and same_day(int(e["hour_utc"]), hour)}
 
 
-def _also_moved(event: dict, labels: dict[str, str],
-                companions: "dict[str, dict] | None" = None) -> str:
-    """The other instruments this push speaks for, named AND measured.
+# How long the whole message may run before Telegram rejects it. A push that had
+# to be split into two messages would buzz twice, which is the one thing the
+# collapse exists to prevent - so companions are dropped from the end until it
+# fits and the message says how many it dropped.
+_PUSH_LIMIT = 3600
 
-    "and six others moved" says something happened and nothing about what, and
-    WHICH instruments moved together is the whole diagnosis - equities and credit
-    is a different event from equities and the yen.
 
-    The size matters just as much, and used not to be here. Measured over the
-    record, a folded companion moved MORE than the push that spoke for it 49% of
-    the time and at least twice as much in 51 of 232 cases - so a bare list of
-    names reads as "these lesser things also moved" while half the time it is
-    hiding the biggest move of the day. On 2008-11-20 the push was the S&P 500 at
-    +7.00% and the financial sector, named without a number, had moved +10.50%.
+def _companion_blocks(event: dict, labels: dict[str, str],
+                      companions: "dict[str, dict] | None",
+                      now: datetime | None,
+                      events: "list[dict] | None",
+                      budget: int) -> str:
+    """The rest of the day's episode, each instrument written out in full.
 
-    Laid out as a block rather than a sentence because these lines are now the
-    only place those figures appear: the folded events are kept out of the digest
-    note, since a row there under the push that already named them is one episode
-    arriving twice.
+    Not a list of names, and no longer a list of names with a number beside
+    them. A push speaks for everything that moved with it until midnight, and
+    each of those has its own size, its own rarity, its own split and its own
+    two check-ins - the financial sector kept going to 1.9x on 2008-11-20 while
+    short Treasuries gave two thirds back, and a shared line could say neither.
+
+    Ordered rarest first and then biggest, because a folded companion moved MORE
+    than the push that spoke for it 49% of the time: the most important number
+    in the message is often down here rather than in the headline.
     """
     raw = event.get("also_moved")
     if raw is None or (isinstance(raw, float) and pd.isna(raw)):
@@ -312,22 +328,29 @@ def _also_moved(event: dict, labels: dict[str, str],
         return (-rank.get(str(row.get("tier")), -1),
                 -abs(_clean(row.get("r")) or 0.0))
 
-    lines = ["Also moved, within the day:"]
-    for asset_id in sorted(ids, key=sort_key)[:MAX_NAMED_COMPANIONS]:
-        row = companions.get(asset_id) or {}
-        named = labels.get(asset_id) or asset_id.split(":")[-1]
-        move = _clean(row.get("r"))
-        # A companion the caller could not look up still gets its name. It is
-        # the ordinary case at the moment a push is sent, when the window it
-        # collapses has not happened yet.
-        parts = [TIER_EMOJI.get(str(row.get("tier")), ""), _escape(named)]
-        if move is not None:
-            parts.append(f" {move * 100:+.2f}%")
-        lines.append("     " + " ".join(p for p in parts if p))
-    extra = len(ids) - MAX_NAMED_COMPANIONS
-    if extra > 0:
-        lines.append(f"     and {extra} more")
-    return "\n".join(lines)
+    blocks, used, dropped = [], 0, 0
+    for asset_id in sorted(ids, key=sort_key):
+        row = companions.get(asset_id)
+        if row is None:
+            # Named but not yet in the table: the ordinary case at the hour a
+            # push is sent, when the day it collects has not happened yet.
+            dropped += 1
+            continue
+        block = describe(row, labels, now, events)
+        if used + len(block) > budget:
+            dropped += 1
+            continue
+        blocks.append(block)
+        used += len(block)
+
+    if not blocks:
+        named = [labels.get(a) or a.split(":")[-1] for a in ids]
+        return "Also moved, within the day: " + _escape(", ".join(named))
+
+    head = ["<b>Also moved, within the day</b>"]
+    if dropped:
+        head.append(f"<i>and {dropped} more not shown</i>")
+    return "\n\n".join(head + blocks)
 
 
 def _escape(text: str) -> str:
@@ -449,32 +472,51 @@ def _scale_note(event: dict) -> str:
     return f"that is {size} its usual hour, which is {usual_pct}"
 
 
-def _settled_line(event: dict, now: datetime | None = None) -> str:
-    """The one-line answer a digest row carries, or when it will have one.
+def check_in_lines(event: dict, now: datetime | None = None,
+                   horizons=None) -> "list[str]":
+    """How the move held, one line per check-in, on every block that has a move.
 
-    Read off the series that matches what the event claimed - abnormal for a
-    move the market did not explain, raw for one that was simply large - the
-    same choice persistence.held and the push follow-up both make.
+    Both horizons are listed from the first message onward, so the reader can
+    see what is still coming rather than wondering whether the bot forgot. One
+    whose answer has not arrived yet says when it is due; the message is edited
+    in place as each lands (see follow_up.py).
+
+    Carried by EVERY instrument in a message now, not only the one in the
+    headline. A push speaks for a whole day's episode and each instrument in it
+    held or gave back its move on its own terms - the financial sector kept
+    going to 1.9x while short Treasuries gave two thirds back, and one shared
+    verdict at the bottom of the message could say neither.
+
+    Reading the ABNORMAL series or the RAW one is not a detail: an event found
+    because the market did not account for the move is tested on whether THAT
+    survived, and one found because the move was simply large is tested on the
+    price itself. persistence.held makes the same choice for the same reason.
     """
     raw_basis = str(event.get("basis") or "") == "absolute"
-    key = "retention_raw_settled" if raw_basis else "retention_settled"
-    value = _clean(event.get(key))
-    if value is not None:
-        return _retention_note(value)
-    return f"how it held - {_due_in(event, 'settled', now)}"
+    lines = []
+    for h in horizons or FOLLOW_UP_HORIZONS:
+        key = f"retention_raw_{h}" if raw_basis else f"retention_{h}"
+        value = _clean(event.get(key))
+        label = _HORIZON_LABEL.get(h, str(h))
+        answer = _retention_word(value) if value is not None else _due_in(event, h, now)
+        lines.append(f"     {label} - {answer}")
+    return lines
 
 
-def describe(event: dict, labels: dict[str, str], for_push: bool = False,
+def describe(event: dict, labels: dict[str, str],
              now: datetime | None = None,
              events: "list[dict] | None" = None) -> str:
-    """One line for one event, as it appears in a push or a digest row.
+    """One instrument's whole story, as it appears in a push or a digest row.
 
-    `for_push` drops the single retention note, because a push carries the
-    fuller follow-up block instead and would otherwise say how the move held
-    twice, once vaguely and once by horizon. A digest row keeps the short form
-    - one sentence, or one promise. It is written the hour the move is found,
-    long before the answer exists, so the row says when the answer is due and
-    the note is edited when it lands.
+    THE SAME BLOCK EVERYWHERE. A pushed move, an instrument folded into that
+    push, and a row in the running note are the same kind of thing seen at
+    different volumes, and they all deserve the same account: what moved, how
+    far, how that compares with its ordinary hour, when it was last this rare,
+    what the move was made of, and how it held at each of the two closes.
+
+    Written the hour the move is found, long before the answers exist, so the
+    check-in lines say when each is due and the message is edited when they
+    land.
     """
     tier = str(event.get("tier") or "routine")
     emoji = TIER_EMOJI.get(tier, "⚪")
@@ -494,16 +536,14 @@ def describe(event: dict, labels: dict[str, str], for_push: bool = False,
     detail = f"{move * 100:+.2f}% " if move is not None else ""
     parts.append(f"     {detail}in the hour to {when:%Y-%m-%d %H:%M} UTC")
 
-    for line in (_level_note(event), _scale_note(event),
-                 _since_note(event, events or [])):
+    for line in (_scale_note(event), _since_note(event, events or [])):
         if line:
             parts.append(f"     {line}")
 
     for line in _split_lines(event, label):
         parts.append(f"     {line}")
 
-    if not for_push:
-        parts.append(f"     {_settled_line(event, now)}")
+    parts.extend(check_in_lines(event, now))
     return "\n".join(parts)
 
 
@@ -591,8 +631,8 @@ def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
 #
 # Every one is listed from the first message onward WITH WHEN IT IS DUE, so a
 # line that has not landed yet reads as an appointment rather than an omission.
-FOLLOW_UP_HORIZONS = (2, 6, "settled")
-_HORIZON_LABEL = {2: "2h", 6: "6h", "settled": "next day's close"}
+FOLLOW_UP_HORIZONS = ("today", "settled")
+_HORIZON_LABEL = {"today": "this day's close", "settled": "next day's close"}
 
 
 def _retention_word(value: float) -> str:
@@ -651,10 +691,7 @@ def due_moment(event: dict, horizon) -> "int | None":
         hour = int(event["hour_utc"])
         if horizon == "settled":
             return sessions.next_close_after(hour, template, table)
-        stamp = sessions.bars_after(hour, int(horizon), template, table)
-        # A bar's answer exists once that bar has CLOSED, which is an hour after
-        # the stamp it opens on.
-        return None if stamp is None else stamp + sessions.HOUR
+        return sessions.today_close_after(hour, template, table)
     except Exception as exc:                     # pragma: no cover - defensive
         log.warning("Could not date the %s check-in: %s", horizon, exc)
         return None
@@ -685,7 +722,7 @@ def _due_in(event: dict, horizon, now: datetime | None = None) -> str:
     due = due_moment(event, horizon)
     if due is None:
         return ("coming at the next day's close" if horizon == "settled"
-                else "coming when trading resumes")
+                else "coming at this day's close")
 
     left = (due - now.timestamp()) / 3600.0
     if left <= 0:
@@ -694,76 +731,44 @@ def _due_in(event: dict, horizon, now: datetime | None = None) -> str:
         # never produces one at all.
         return "coming with the next update"
 
+    # Named as a CLOSE, never as a countdown or a bare timestamp. Both horizons
+    # are day closes, and for anything whose day is the UTC one that close falls
+    # at midnight - so "coming Thursday at 00:00 UTC" was the end of Wednesday
+    # wearing Thursday's name, and read as a day later than it is. Saying whose
+    # close it is removes the ambiguity, and it does not tick, so a message is
+    # not edited every hour to count it down.
     moment = datetime.fromtimestamp(due, tz=timezone.utc)
-    if horizon == "settled":
-        # Named as a CLOSE, never as a countdown or a bare timestamp. The
-        # settled reading is taken at the close of the next day the instrument
-        # trades, and for anything whose day is the UTC one that close falls at
-        # midnight - so "coming Thursday at 00:00 UTC" was the end of Wednesday
-        # wearing Thursday's name, and read as a day later than it is. Saying
-        # whose close it is removes the ambiguity, and it does not tick, so a
-        # note is not edited every hour to count it down.
-        ended = datetime.fromtimestamp(due - 1, tz=timezone.utc)
-        day = f"{ended:%A}" if left <= _WEEKDAY_LIMIT_HOURS else f"{ended:%-d %B}"
-        return f"coming at {day}'s close ({moment:%H:%M} UTC)"
-
-    if left <= 1:
-        return "coming within the hour"
-    if left <= _COUNTDOWN_LIMIT_HOURS:
-        return f"coming in {ceil(left)}h"
-    if left <= _WEEKDAY_LIMIT_HOURS:
-        return f"coming {moment:%A} at {moment:%H:%M} UTC"
-    return f"coming {moment:%-d %B} at {moment:%H:%M} UTC"
-
-
-def follow_up_block(event: dict, horizons=FOLLOW_UP_HORIZONS,
-                    now: datetime | None = None) -> str:
-    """The running record of how the move held, one line per check-in.
-
-    Every horizon is listed from the first message onward, so the reader can
-    see what is still coming rather than wondering whether the bot forgot. A
-    horizon whose answer has not arrived yet says so; the message is edited in
-    place as each one lands (see follow_up.py).
-
-    Reading the ABNORMAL series or the RAW one is not a detail: an event found
-    because the market did not explain the move is tested on whether that
-    survived, and one found because the move was simply large is tested on the
-    price itself. persistence.held makes the same choice for the same reason.
-    """
-    raw_basis = str(event.get("basis") or "") == "absolute"
-    lines = ["<i>Checking how the move held:</i>"]
-    for h in horizons:
-        key = f"retention_raw_{h}" if raw_basis else f"retention_{h}"
-        value = _clean(event.get(key))
-        label = _HORIZON_LABEL.get(h, str(h))
-        if value is not None:
-            lines.append(f"     {label} - {_retention_word(value)}")
-        else:
-            lines.append(f"     {label} - {_due_in(event, h, now)}")
-    return "\n".join(lines)
+    ended = datetime.fromtimestamp(due - 1, tz=timezone.utc)
+    day = f"{ended:%A}" if left <= _WEEKDAY_LIMIT_HOURS else f"{ended:%-d %B}"
+    return f"coming at {day}'s close ({moment:%H:%M} UTC)"
 
 
 def format_push(event: dict, labels: dict[str, str],
                 calendar: "list[dict] | None" = None,
                 companions: "dict[str, dict] | None" = None,
-                events: "list[dict] | None" = None) -> str:
-    """A single interrupting alert, speaking for its whole episode.
+                events: "list[dict] | None" = None,
+                now: datetime | None = None) -> str:
+    """A single interrupting alert, speaking for its whole day's episode.
 
-    Ordered so the reader meets one instrument first and the episode second: the
-    move and how much of it was the market, then what else moved with it, then
-    the scheduled news, then how it held.
+    Ordered so the reader meets one instrument first and the day second: the
+    move written out in full, then the news scheduled around it, then every
+    other instrument that moved before midnight, each written out the same way.
     """
-    lines = [describe(event, labels, for_push=True, events=events)]
-    moved_with = _also_moved(event, labels, companions)
-    if moved_with:
-        lines.append("")
-        lines.append(moved_with)
+    lines = [describe(event, labels, now, events)]
     context = calendar_context(int(event["hour_utc"]), calendar)
     if context:
         lines.append("")
         lines.append(_escape(context))
-    lines.append("")
-    lines.append(follow_up_block(event))
+    budget = _PUSH_LIMIT - len("\n\n".join(lines))
+    blocks = _companion_blocks(event, labels, companions, now, events, budget)
+    if blocks:
+        lines.append("")
+        lines.append(blocks)
+    # Once at the foot of the message rather than under every instrument: the
+    # reader needs to know what "the basket" is, and needs it said once.
+    if any("the whole basket" in line for line in lines):
+        lines.append("")
+        lines.append(BASKET_FOOTER)
     return "\n".join(lines)
 
 
@@ -926,7 +931,7 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
               + count + (" - this message is updated as moves are found" if live else ""))
 
     def block(event: dict) -> str:
-        line = describe(event, labels, now=now, events=all_events)
+        line = describe(event, labels, now, all_events)
         context = calendar_context(int(event["hour_utc"]), calendar)
         return f"{line}\n     {_escape(context)}" if context else line
 
@@ -939,6 +944,9 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
         else:
             current = candidate
     messages.append(current)
+
+    if any("the whole basket" in m for m in messages):
+        messages[-1] += "\n\n" + BASKET_FOOTER
 
     if len(messages) > 1:
         total = len(messages)
@@ -1099,7 +1107,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         try:
             message_id = send_telegram_message(
                 cfg.telegram_bot_token, cfg.telegram_chat_id,
-                format_push(event, labels, calendar, with_it, events))
+                format_push(event, labels, calendar, with_it, events, now))
         except TelegramError as exc:
             log.error("Failed to send Tremor push %s: %s", event.get("event_id"), exc)
             continue
@@ -1113,7 +1121,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         record_sent_alert(
             alerts_log, chat_id=cfg.telegram_chat_id, message_id=message_id,
             symbol=label,
-            message_text=format_push(event, labels, calendar, with_it, events),
+            message_text=format_push(event, labels, calendar, with_it, events, now),
             last_close=float(_clean(event.get("close")) or 0.0),
             last_return_pct=float((move or 0.0) * 100),
             ewma_z=float(_clean(event.get("z_resid")) or 0.0),

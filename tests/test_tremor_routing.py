@@ -243,3 +243,28 @@ def test_the_two_directions_agree():
     routed = routing.route(events(rows, assets=["src:SPY", "src:XLF"]))
     assert routed["also_moved"].iloc[0] == "src:XLF"
     assert routed["folded_into"].iloc[1] == "src:SPY"
+
+
+def test_the_collector_closes_at_midnight_rather_than_after_a_rolling_day():
+    # A rolling window means the reader can never say when the next interruption
+    # becomes possible. A day means they can: it fills until midnight, and the
+    # next one opens with the first bar after it.
+    midnight = 10 * DAY
+    rows = [(midnight - HOUR, "extreme", 0.9, 0.9),   # late on day 9
+            (midnight + HOUR, "extreme", 0.9, 0.9)]   # early on day 10
+    routed = routing.route(events(rows))
+    assert list(routed["channel"]) == [routing.PUSH, routing.PUSH]
+
+
+def test_a_whole_day_of_an_episode_still_folds_into_one():
+    midnight = 10 * DAY
+    rows = [(midnight + HOUR, "extreme", 0.9, 0.9),
+            (midnight + 10 * HOUR, "extreme", 0.9, 0.9),
+            (midnight + 22 * HOUR, "extreme", 0.9, 0.9)]
+    routed = routing.route(events(rows))
+    assert list(routed["channel"]) == [routing.PUSH, routing.DIGEST, routing.DIGEST]
+
+
+def test_the_day_boundary_is_utc():
+    assert routing.same_day(10 * DAY, 10 * DAY + 23 * HOUR)
+    assert not routing.same_day(10 * DAY + 23 * HOUR, 11 * DAY)

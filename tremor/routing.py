@@ -11,9 +11,11 @@ tripling the day three stocks are added.
 There are two channels, and they differ in how loudly they arrive rather than
 in how long they wait. Nothing is held back:
 
-  push      both push tiers, sent AT ONCE, as their own message. A once-a-year
-            move that arrives six hours late is a worse product than one that
-            arrives now and is marked "reverted" later.
+  push      both push tiers, sent AT ONCE, as their own message, and then that
+            message collects the rest of the day: another instrument moving
+            before midnight joins it rather than buzzing again (see collapse).
+            A once-a-year move that arrives six hours late is a worse product
+            than one that arrives now and is marked "reverted" later.
   digest    everything else, written into the Tuesday or Friday note as it is
             found. That note is OPENED at the start of the period it covers
             and edited in place afterwards, so a digest line appears within the
@@ -83,19 +85,32 @@ def channel(events: pd.DataFrame) -> pd.Series:
     return out.mask(pushes, PUSH)
 
 
-# How long one push speaks for. A second instrument moving inside this window is
-# almost always the same event seen again rather than news: measured over the
-# whole record, 2008-11-20 sent six pushes across two hours (SPY, XLF, USO, then
-# QQQ, IWM, TLT) and 2020-03-12 sent five, each of them one market event
-# delivered as five or six separate interruptions. Twenty-four hours because that
-# is the span over which a person reads a move as "still the same thing" - the
-# per-asset cooldown of §8.3 makes the same judgement one instrument at a time,
-# and this is that judgement across the portfolio.
-COLLAPSE_HOURS = 24
+# How long one push speaks for: THE REST OF THE DAY IT OPENED IN, by the UTC
+# clock. A second instrument moving inside that day is almost always the same
+# event seen again rather than news - measured over the whole record,
+# 2008-11-20 sent six pushes across two hours (SPY, XLF, USO, then QQQ, IWM,
+# TLT) and 2020-03-12 sent five, each of them one market event delivered as five
+# or six separate interruptions.
+#
+# A CALENDAR DAY RATHER THAN A ROLLING TWENTY-FOUR HOURS, and the difference is
+# legibility rather than arithmetic. A rolling window means the reader can never
+# say when the next interruption becomes possible; a day means they can - the
+# collector fills until midnight and the next one opens with the first bar after
+# it. Priced at 26.9 pushes a year against 25.0 for the rolling window: the day
+# is the shorter window on average, since an episode opening in the evening
+# collects only the hours left in it.
+#
+# UTC, and that is the boundary worth having rather than the recipient's own
+# midnight. Their midnight is 21:00 UTC, which lands in the busiest hour of the
+# American session and would cut episodes in half; 00:00 UTC falls between the
+# American close and the Asian open, which is as quiet as any hour gets.
+def same_day(hour: int, other: int) -> bool:
+    """Whether two hours fall in the same UTC day. The epoch begins at midnight,
+    so the day is the quotient and no calendar is needed."""
+    return int(hour) // 86400 == int(other) // 86400
 
 
-def collapse(events: pd.DataFrame, channels: pd.Series,
-             hours: int = COLLAPSE_HOURS) -> pd.Series:
+def collapse(events: pd.DataFrame, channels: pd.Series) -> pd.Series:
     """Folds pushes that belong to one episode into the first of them.
 
     The first push of an episode interrupts immediately - it is news, and
@@ -145,8 +160,7 @@ def collapse(events: pd.DataFrame, channels: pd.Series,
             continue
         hour = int(events.at[index, "hour_utc"])
         here = rank.get(tier.get(index), -1)
-        if (open_at is not None and hour - open_at < hours * 3600
-                and here <= open_rank):
+        if open_at is not None and same_day(hour, open_at) and here <= open_rank:
             out.at[index] = DIGEST
             # Not the anchor's own instrument. A second event on the SAME
             # instrument inside the window is the same move continuing, and

@@ -123,15 +123,23 @@ the watchlist does. Keeping them apart is what stops the alert rate tripling the
 three instruments are added.
 
 **Not every big move stays.** A move given back within hours is not news, and there is a
-cheap way to know which: wait and look. Of events still standing at six bars, 80% were
-still standing at the next day's close, against 26% of those that had already given it back.
-The answer is worth having — but not worth waiting for. Both push tiers go out at once,
-because a once-in-three-years move that arrives six hours late is a worse product than
-one that arrives now, and the message is then edited in place at two bars, six bars and
-the next day's close with how the move actually held. The retention check did not go away; it
-moved from deciding whether to send to deciding what the sent message says.
+cheap way to know which: wait and look. Of events still standing when their own day closed,
+80% were still standing at the next day's close, against 26% of those that had already given
+it back. The answer is worth having — but not worth waiting for. Both push tiers go out at
+once, because a once-in-three-years move that arrives six hours late is a worse product than
+one that arrives now, and every instrument in the message is then edited in place at **this
+day's close** and **the next day's close** with how its own move actually held. Neither is a
+bar count: six bars is most of a session in an ETF and a quarter of a day in crypto, and
+neither is a moment a reader can picture. The retention check did not go away; it moved from
+deciding whether to send to deciding what the sent message says.
 
-**One event, one interruption.** 2008-11-20 sent six pushes across two hours — SPY, XLF,
+**One event, one interruption, one day.** The push opens a collector that fills until
+midnight UTC: another instrument moving before then joins that message rather than buzzing
+again, and the next interruption becomes possible with the first bar of the new day. A
+calendar day rather than a rolling twenty-four hours because the reader can then say when
+the next one can come; UTC because their own midnight is 21:00 UTC, the busiest hour of the
+American session, where 00:00 UTC is as quiet as any hour gets. Priced at 26.9 pushes a year
+against 25.0 for the rolling window. 2008-11-20 sent six pushes across two hours — SPY, XLF,
 USO, then QQQ, IWM, TLT — one market event delivered as six separate buzzes. Pushes
 inside a 24-hour window now collapse into the first, **unless a later one is rarer**, and
 the survivor names the instruments it speaks for. Naming rather than counting, because

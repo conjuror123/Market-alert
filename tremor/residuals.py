@@ -335,8 +335,20 @@ def residuals(asset: Asset, frame: pd.DataFrame, factor: pd.Series,
     out["alpha"] = estimates["alpha"].to_numpy()
     out["beta"] = estimates["beta"].to_numpy()
     out["beta_block"] = estimates["beta_block"].to_numpy()
-    out["e_resid"] = out["r"] - (out["alpha"] + out["beta"] * factor_series
-                                 + out["beta_block"] * block_series)
+    # The move, split into the three things it can be, adding back exactly to r.
+    # Carried as columns rather than recomputed later because the message shows
+    # them: "of that move, this much was the whole basket drifting, this much was
+    # its own block, this much was the instrument itself" is the only form of
+    # this idea a reader has ever been able to act on, and it cannot be
+    # reconstructed downstream - the factor series live only here.
+    #
+    # Alpha rides with the basket part. It is a drift constant of a few tenths of
+    # a basis point, it belongs with "the general background" rather than with
+    # the instrument's own move, and folding it in is what makes the three parts
+    # sum to the return with nothing left over.
+    out["co_basket"] = out["alpha"] + out["beta"] * factor_series
+    out["co_block"] = out["beta_block"] * block_series
+    out["e_resid"] = out["r"] - (out["co_basket"] + out["co_block"])
 
     # Patell's inflation, carried as a column rather than folded into e_resid:
     # the raw residual is what the absolute channel, the retention check and

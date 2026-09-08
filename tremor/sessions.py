@@ -238,6 +238,21 @@ def bars_after(hour_utc: int, count: int, template: str,
     return None
 
 
+def today_close_after(hour_utc: int, template: str,
+                      table: "dict[date, Session] | None" = None,
+                      tz_name: str = EXCHANGE_TZ) -> "int | None":
+    """When the instrument's OWN day ends, as an epoch UTC moment.
+
+    The moment the first check-in becomes measurable. Equal to the end of the
+    bar itself when the move happened in the closing hour, which is not a
+    failure: there is no day left to hold through, and the message says so.
+    """
+    day = instrument_day(hour_utc, template, tz_name)
+    hours = instrument_day_hours(day, template, table, tz_name)
+    later = [h for h in hours if h >= int(hour_utc)]
+    return (later[-1] + HOUR) if later else None
+
+
 def next_close_after(hour_utc: int, template: str,
                      table: "dict[date, Session] | None" = None,
                      tz_name: str = EXCHANGE_TZ) -> "int | None":

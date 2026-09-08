@@ -46,21 +46,16 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-# The two short check-ins, in the instrument's own bars. Two is "is it still
-# there at all" and arrives while the move is still the thing you are thinking
-# about; six is "did it survive the session".
-BAR_HORIZONS: tuple[int, ...] = (2, 6)
-
-# And the settled one, which is NOT a bar count. Twenty-four bars means one day
-# in an instrument that trades round the clock and nearly four days in an ETF
-# that trades six and a half hours - so the same number was asking a different
-# question of each, and the answer arrived on a Thursday for a move that
-# happened on Monday. The settled reading is now taken at the CLOSE OF THE NEXT
-# TRADING DAY: one legible moment, the same sentence for every instrument, and
-# its distance from the event depends on what time of day the event happened,
-# which is the honest dependency rather than a hidden one.
+# TWO CHECK-INS, AND NEITHER IS A NUMBER OF BARS. They used to be: two bars,
+# six bars, and a settled reading. A bar count asks a different question of each
+# instrument - six bars is most of a session in an ETF and a quarter of a day in
+# crypto - and it gives the reader an appointment they cannot picture. Both are
+# now moments on the instrument's own calendar, and both are sentences anyone
+# can hold: how the move stood when THIS day closed, and how it stood when the
+# NEXT one did.
+TODAY = "today"
 SETTLED = "settled"
-HORIZONS: tuple = BAR_HORIZONS + (SETTLED,)
+HORIZONS: tuple = (TODAY, SETTLED)
 
 # What counts as having held. Taken from the measured permanent share of price
 # impact - roughly 51% to 73% of the peak - so a half is the bottom of the
@@ -75,22 +70,22 @@ HELD_MIN = 0.5
 MIN_DENOMINATOR_SIGMAS = 0.5
 
 
-def forward_car(abnormal: np.ndarray, horizon: int) -> np.ndarray:
-    """Cumulative abnormal return from each bar through `horizon` bars later.
+def today_close_offsets(frame: pd.DataFrame, tz_name: str | None = None) -> np.ndarray:
+    """Bars from each bar to the LAST bar of its own day.
 
-    The last `horizon` bars get NaN rather than a truncated sum. A partial
-    window would quietly answer a different question - "how much held over the
-    three bars that happen to exist" - and at the end of history that is every
-    event the live system has just produced.
+    Zero on the closing bar itself, which is not a failure: a move made in the
+    last hour of the day has nothing left of that day to hold through, and the
+    message says so rather than reporting a ratio of one and calling it news.
     """
-    values = np.asarray(abnormal, dtype="float64")
-    running = np.concatenate([[0.0], np.nancumsum(np.nan_to_num(values))])
-    n = values.size
-    out = np.full(n, np.nan)
-    reach = n - horizon
-    if reach > 0:
-        index = np.arange(reach)
-        out[:reach] = running[index + horizon + 1] - running[index]
+    hours = pd.to_datetime(frame["hour_utc"], unit="s", utc=True)
+    if tz_name:
+        hours = hours.dt.tz_convert(tz_name)
+    days = hours.dt.date.to_numpy()
+    positions = np.arange(len(days))
+    out = np.zeros(len(days), dtype="int64")
+    for day in dict.fromkeys(days):
+        mine = positions[days == day]
+        out[mine] = mine.max() - mine
     return out
 
 
@@ -153,8 +148,10 @@ def retention(frame: pd.DataFrame, horizon, column: str = "e_resid",
     dividing by it would report a retention of forty rather than a reversal.
     """
     values = frame[column].to_numpy(dtype="float64")
-    car = (forward_car_variable(values, next_close_offsets(frame, tz_name))
-           if horizon == SETTLED else forward_car(values, int(horizon)))
+    if horizon == SETTLED:
+        car = forward_car_variable(values, next_close_offsets(frame, tz_name))
+    else:
+        car = forward_car_variable(values, today_close_offsets(frame, tz_name))
     floor = MIN_DENOMINATOR_SIGMAS * frame["sigma_lt_resid"].to_numpy(dtype="float64") \
         if "sigma_lt_resid" in frame else np.zeros(values.size)
     usable = np.isfinite(values) & (np.abs(values) > np.maximum(floor, 1e-12))

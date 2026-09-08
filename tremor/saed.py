@@ -415,6 +415,7 @@ DEFAULT_RESIDUALS_DIR = "data/tremor/residuals"
 # yet they take as much space as everything else put together - they are series
 # of random numbers, and nothing compresses them.
 RESIDUAL_COLUMNS = ("hour_utc", "asset_id", "beta", "beta_block", "e_resid",
+                    "co_basket", "co_block",
                     "sigma_lt_resid", "patell_scale", "t_rank", "rank_pct",
                     "rank_confirms", "ou_reversion_bars", "s_score", "ou_reverts",
                     "z_resid", "bmp_scale", "bmp_dof",
