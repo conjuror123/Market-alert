@@ -103,8 +103,10 @@ moves are found, 3.6 items each by the time its period closes. The
 economic-calendar forecast goes out once a week, tried Saturday at 12:00 and falling
 through to Sunday if the feed is still serving the week that is ending.
 
-**No push is sent that is more than 48 hours old, and no note is opened for a period
-that has already closed.** This is load-bearing rather than tidy: the events table holds
+**No push is sent that is more than 48 hours old, and a note is only opened in its own
+hour or the three after it** — a period that misses that window is carried into the next
+note rather than arriving at some arbitrary time of day. This is load-bearing rather than
+tidy: the events table holds
 the whole history, so without it the first run after a mute would deliver years of alerts
 at once. It also does the right thing on a cold start, where there is no record of what
 was sent. An empty events table sends nothing at all — it cannot tell "nothing happened"

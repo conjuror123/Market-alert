@@ -276,7 +276,9 @@ Delivery splits by urgency, not by importance:
 * **The running digest** — everything else, 3.6 items a note on average. The note is
   *opened* Tuesday and Friday at 12:00 Israel time and then edited in place as moves
   are found, so a row appears the hour it happens rather than up to three days later.
-  Telegram is silent on an edit, so this still costs exactly two interruptions a week.
+  Telegram is silent on an edit, so this still costs exactly two interruptions a week —
+  and both of them at noon: a note may only be opened in its own hour or the three
+  after it, and a period that misses that window is carried into the next note.
   Tuesday covers the weekend and Monday, when crypto trades straight through and
   equities gap on the open; Friday closes the trading week. This is *separate from the
   Saturday calendar digest on purpose*: that one is a forecast of what is scheduled,

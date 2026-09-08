@@ -35,15 +35,22 @@ files apart. The two are different tenses: the calendar digest is a forecast of
 what is scheduled next week, this one is a report of what actually happened.
 Reading them as one message makes both harder to skim.
 
-WHAT IS NOT SENT. A push older than STALE_AFTER_HOURS, and a note whose period
-closed before this system ever saw it. This is load-bearing rather than a
-nicety: the events table holds the entire history, so without it the first run
-after the mute comes off would deliver five years of alerts at once. It also
-does the right thing on an ordinary cold start, where there is no record of what
-was sent - old news is not news, whatever the state file does or does not
-remember. An EMPTY events table sends nothing at all, note included: it cannot
-tell "nothing happened" from "the pipeline did not run", and only one of those
-is safe to print.
+WHEN A NOTE MAY BE OPENED is a rule of its own, and the strictest one here. Only
+in its own hour, or the three after it - because the whole arrangement is worth
+having precisely because those two interruptions land at noon on a Tuesday and a
+Friday, and a note opened whenever the system happened to next run is an
+ordinary unscheduled buzz wearing a schedule's clothes. A period that misses
+that window is not lost: the next note covers from where the last note that
+actually went out left off, so the buzz is always at noon AND no move is
+silently dropped for want of a scheduler.
+
+WHAT IS NOT SENT. A push older than STALE_AFTER_HOURS. This is load-bearing
+rather than a nicety: the events table holds the entire history, so without it
+the first run after the mute comes off would deliver five years of alerts at
+once - old news is not news, whatever the state file does or does not remember.
+An EMPTY events table sends nothing at all, note included: it cannot tell
+"nothing happened" from "the pipeline did not run", and only one of those is
+safe to print.
 
 MUTED BY DEFAULT (Config.tremor_alerts_muted). The flag lives in config.yaml for
 the same reason alerts_muted does: "we are deliberately silent" is a state of the
@@ -630,7 +637,24 @@ def format_push(event: dict, labels: dict[str, str],
 # silent on an edit, so the reader is buzzed exactly twice a week, at the hour
 # each note opens, and everything after that arrives quietly in a message they
 # already have.
+#
+# WHICH IS WHY THE OPENING HOUR IS THE ONE THING THAT CANNOT SLIP. The whole
+# arrangement is worth having because the two interruptions land at noon on a
+# Tuesday and a Friday; a note that opened whenever the system happened to next
+# run - at 22:16, as it did the first time this shipped - is an ordinary
+# unscheduled buzz wearing a schedule's clothes.
 DIGEST_STATE = "digests"
+
+# So a note may only be opened in its own hour, or shortly after. Three hours of
+# grace, because the trigger is an external service and one failed run must not
+# cost the whole note - but 15:00 is still an afternoon and 22:00 is not.
+DIGEST_OPEN_WITHIN_HOURS = 4
+
+# And when a note misses that window entirely, its period is not lost: it is
+# carried into the next note, which then covers from where the last note that
+# actually went out left off. That is the only way both halves can be true at
+# once - the buzz is always at noon, and no move is silently dropped for want of
+# a scheduler.
 
 # How long a note stays editable after it opens. Its own window is at most three
 # and a half days, and the last event inside it then needs until the close of
@@ -650,18 +674,53 @@ def _fingerprint(text: str) -> str:
     return hashlib.sha1(text.encode("utf-8")).hexdigest()[:16]
 
 
-def _slot_of(event: dict) -> "int | None":
-    value = event.get("digest_slot")
-    if value is None or value != value:
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
+def note_window(slot: int, record: "dict | None" = None) -> "tuple[int, int]":
+    """The hours one note speaks for: from where the last note stopped, to where
+    the next one starts.
+
+    Normally that is exactly the note's own period. It is wider only when a
+    previous note was never opened, and the record carries the wider bound so
+    the answer does not change if the state file is read again later.
+    """
+    from tremor import routing
+
+    slot = int(slot)
+    record = record or {}
+    return (int(record.get("from", slot)),
+            int(record.get("to") or routing.next_digest_slot(slot)))
 
 
-def digest_rows(events: "list[dict]", slot: int, now: datetime) -> "list[dict]":
-    """Every event belonging to one note. Recomputed from the table each run.
+def due_to_open(slot: int, now: datetime) -> bool:
+    """Whether a note that does not exist yet may be opened right now."""
+    return int(slot) <= now.timestamp() < int(slot) + DIGEST_OPEN_WITHIN_HOURS * 3600
+
+
+def carried_from(records: dict, slot: int) -> int:
+    """Where a note opening at `slot` should start covering.
+
+    The end of the last note that ACTUALLY went out - so a period whose note
+    was never opened is picked up by the next one instead of vanishing. A
+    record with no message behind it does not count as a note: it is a post
+    that failed and will be retried, and treating it as covered would lose
+    exactly the rows it failed to deliver.
+    """
+    from tremor import routing
+
+    ends = [note_window(int(key), record)[1]
+            for key, record in records.items() if record.get("ids")]
+    reached = [end for end in ends if end <= int(slot)]
+    # With no note behind it at all - a cold start, or a scheduler that has been
+    # down longer than a note is kept - one period back is the honest default.
+    # It is what the reader missed, it is bounded at three and a half days, and
+    # it arrives silently inside a note rather than as a burst of alerts.
+    fallback = routing.digest_slot(int(slot) - 1)
+    floor = int(slot) - DIGEST_TRACK_HOURS * 3600
+    return max(max(reached) if reached else fallback, floor)
+
+
+def digest_rows(events: "list[dict]", window: "tuple[int, int]",
+                now: datetime) -> "list[dict]":
+    """Every event one note speaks for. Recomputed from the table each run.
 
     Nothing is remembered about which rows have already been written: the note
     is rendered whole from the events table every time, so an event that
@@ -672,29 +731,15 @@ def digest_rows(events: "list[dict]", slot: int, now: datetime) -> "list[dict]":
     is held to. It should not arise - a bar has to close before it is scored -
     but a clock skew or a bad bar must not put tomorrow in today's note.
     """
+    start, end = window
     return [e for e in events
-            if str(e.get("channel") or "") == "digest" and _slot_of(e) == int(slot)
+            if str(e.get("channel") or "") == "digest"
+            and start <= float(e.get("hour_utc", 0)) < end
             and float(e.get("hour_utc", 0)) <= now.timestamp()]
 
 
-def live_slots(events: "list[dict]", now: datetime) -> "list[int]":
-    """The notes this run should look at: the open one, and any recent one whose
-    rows can still change because their settled reading has not landed."""
-    from tremor import routing
-
-    current = routing.digest_slot(int(now.timestamp()))
-    cutoff = now.timestamp() - DIGEST_TRACK_HOURS * 3600
-    slots = {current}
-    for event in events:
-        if str(event.get("channel") or "") != "digest":
-            continue
-        slot = _slot_of(event)
-        if slot is not None and cutoff <= slot <= now.timestamp():
-            slots.add(slot)
-    return sorted(slots)
-
-
-def format_digest(events: "list[dict]", labels: dict[str, str], slot: int,
+def format_digest(events: "list[dict]", labels: dict[str, str],
+                  window: "tuple[int, int]",
                   calendar: "list[dict] | None" = None,
                   now: datetime | None = None) -> "list[str]":
     """One note, whole, split into parts Telegram will accept.
@@ -704,12 +749,16 @@ def format_digest(events: "list[dict]", labels: dict[str, str], slot: int,
     preview should still lead with its most important line. The order is not
     fixed when a row is added: a once-in-three-years move found on Thursday
     moves to the head of a note opened on Tuesday.
+
+    The header states the period the note speaks for rather than the day it was
+    posted, because those come apart exactly when it matters: a note that had
+    to pick up a period whose own note never opened covers six days, and saying
+    so is the difference between a complete record and a puzzling one.
     """
-    from tremor import routing
     from tremor.severity import TIERS
 
     now = now or datetime.now(timezone.utc)
-    start, end = routing.digest_window(int(slot))
+    start, end = int(window[0]), int(window[1])
     opened = datetime.fromtimestamp(start, tz=timezone.utc)
     closes = datetime.fromtimestamp(end, tz=timezone.utc)
     live = now.timestamp() < end
@@ -750,27 +799,19 @@ def format_digest(events: "list[dict]", labels: dict[str, str], slot: int,
 _EMPTIED_PART = "<i>(this part is no longer needed - the note above is complete)</i>"
 
 
-def _write_digest(cfg: Config, store: dict, slot: int, texts: "list[str]",
-                  may_open: bool) -> "tuple[int, int]":
+def _write_digest(cfg: Config, slot: int, record: dict,
+                  texts: "list[str]") -> "tuple[int, int]":
     """Posts a note's parts, or edits the ones already posted.
 
-    Returns (posted, edited). A note is only ever OPENED while its own period is
-    the current one: a period that has closed without a note was a period the
-    reader never saw, and posting "here is last Tuesday" three days late is a
-    worse answer than not posting it.
+    Returns (posted, edited). Whether the note may exist at all was decided
+    before this was called; here it either has messages behind it or is having
+    its first ones sent.
 
     Parts can only grow - events are added, never removed - so a new part is a
     new message and everything before it is an edit. A failed post stops the
     loop rather than skipping a part, because the parts are numbered and a gap
     would be worse than a retry on the next run.
     """
-    digests: dict = store.setdefault(DIGEST_STATE, {})
-    record = digests.get(str(slot))
-    if record is None:
-        if not may_open:
-            return 0, 0
-        record = {"ids": [], "hashes": []}
-
     ids, hashes = record["ids"], record["hashes"]
     if len(texts) < len(ids):
         # A note can lose a part: a recompute that no longer produces an event
@@ -803,12 +844,6 @@ def _write_digest(cfg: Config, store: dict, slot: int, texts: "list[str]",
             ids.append(int(message_id))
             hashes.append(mark)
             posted += 1
-
-    # Remembered only once something is actually up there. A first post that
-    # failed must leave no trace, or the note would count as opened and the
-    # retry would never happen.
-    if ids:
-        digests[str(slot)] = record
     return posted, edited
 
 
@@ -877,16 +912,22 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     sent: dict = store.setdefault(_SENT, {})
     pushes = pending(events, sent, now)
 
-    slots = live_slots(events, now)
+    # Open this period's note if its hour has come and it is not open already.
+    # Nothing else ever creates one: a period whose hour passed unopened is
+    # picked up by the next note instead (see carried_from).
+    digests: dict = store.setdefault(DIGEST_STATE, {})
     current = routing.digest_slot(int(now.timestamp()))
-    notes = {slot: digest_rows(events, slot, now) for slot in slots}
-    # A closed note with nothing in it and nothing posted has nothing to say.
-    work = [slot for slot, rows in notes.items()
-            if rows or slot == current or str(slot) in store.get(DIGEST_STATE, {})]
+    if str(current) not in digests and due_to_open(current, now):
+        digests[str(current)] = {"ids": [], "hashes": [],
+                                 "from": carried_from(digests, current),
+                                 "to": routing.next_digest_slot(current)}
+
+    notes = {int(key): (record, digest_rows(events, note_window(int(key), record), now))
+             for key, record in digests.items()}
 
     # The archive is ninety thousand events, so it is read once for the whole
     # run and only when there is something to render with it.
-    calendar = _calendar(cfg) if (pushes or work) else None
+    calendar = _calendar(cfg) if (pushes or notes) else None
 
     # Corrections to already-sent pushes run on their own schedule - one sent on
     # Monday is edited on Tuesday whether or not Tuesday has news of its own.
@@ -925,20 +966,20 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
             now=datetime.fromtimestamp(int(event["hour_utc"]), tz=timezone.utc))
         pushed += 1
 
-    for slot in work:
-        texts = format_digest(notes[slot], labels, slot, calendar, now)
-        made, changed = _write_digest(cfg, store, slot, texts,
-                                      may_open=(slot == current))
+    for slot in sorted(notes):
+        record, rows = notes[slot]
+        texts = format_digest(rows, labels, note_window(slot, record), calendar, now)
+        made, changed = _write_digest(cfg, slot, record, texts)
         posted += made
         edited += changed
         if made or changed:
             log.info("Digest %s: %d part(s) posted, %d edited (%d event(s))",
-                     slot, made, changed, len(notes[slot]))
+                     slot, made, changed, len(rows))
 
     if pushed:
         save_alerts_log(cfg.alerts_log_path, alerts_log)
     if pushes:
         log.info("Tremor pushes sent: %d of %d due", pushed, len(pushes))
     store[_SENT] = _prune(sent, now)
-    store[DIGEST_STATE] = _prune_digests(store.get(DIGEST_STATE, {}), now)
+    store[DIGEST_STATE] = _prune_digests(digests, now)
     return pushed + posted + edited + corrected

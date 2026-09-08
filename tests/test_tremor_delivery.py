@@ -138,7 +138,7 @@ def test_the_note_is_opened_even_before_it_has_anything_in_it(monkeypatch, sende
     # It is opened at the START of the period it covers, so the reader has one
     # message to watch and every event after that arrives as a silent edit.
     elsewhere = event(event_id="old", channel="digest", tier="routine",
-                      digest_slot=SLOT - 30 * 24 * HOUR)
+                      hour_utc=SLOT - 30 * 24 * HOUR)
     deliver(monkeypatch, [elsewhere])
     assert len(notes(sender)) == 1
     assert "Nothing so far" in notes(sender)[0]
@@ -146,27 +146,24 @@ def test_the_note_is_opened_even_before_it_has_anything_in_it(monkeypatch, sende
 
 
 def test_a_move_joins_the_note_that_is_already_open(monkeypatch, sender):
-    row = event(event_id="d1", channel="digest", tier="routine", digest_slot=SLOT)
+    row = event(event_id="d1", channel="digest", tier="routine")
     deliver(monkeypatch, [row])
     assert "Gold" in notes(sender)[0]
 
 
-def test_a_note_whose_period_has_closed_is_not_opened_late(monkeypatch, sender):
-    # A period that ended without a note is a period the reader never saw, and
-    # "here is last Tuesday" three days late is a worse answer than silence.
+def test_a_move_from_before_the_note_opened_is_not_in_it(monkeypatch, sender):
     stale = event(event_id="d1", channel="digest", tier="routine",
-                  digest_slot=SLOT - 4 * 24 * HOUR)
+                  hour_utc=SLOT - 4 * 24 * HOUR)
     deliver(monkeypatch, [stale])
     assert len(notes(sender)) == 1 and "Gold" not in notes(sender)[0]
 
 
 def test_the_note_is_one_message_for_many_events(monkeypatch, sender):
     rows = [event(event_id=f"d{i}", channel="digest", tier="routine",
-                  hour_utc=int(NOW.timestamp()) - (i + 1) * HOUR,
-                  digest_slot=SLOT) for i in range(5)]
+                  hour_utc=SLOT + i * HOUR) for i in range(3)]
     deliver(monkeypatch, rows)
     assert len(notes(sender)) == 1
-    assert notes(sender)[0].count("Gold") == 5
+    assert notes(sender)[0].count("Gold") == 3
 
 
 def test_a_failed_send_is_retried_rather_than_lost(monkeypatch):
@@ -177,7 +174,8 @@ def test_a_failed_send_is_retried_rather_than_lost(monkeypatch):
     sent, state = deliver(monkeypatch, [event()])
     assert sent == 0
     assert not state[md.STATE_KEY][md._SENT]
-    assert not state[md.STATE_KEY].get(md.DIGEST_STATE)
+    # The note counts as opened only once a message is behind it.
+    assert not state[md.STATE_KEY][md.DIGEST_STATE][str(SLOT)]["ids"]
 
     working = Sent()
     monkeypatch.setattr(md, "send_telegram_message", working)
@@ -548,7 +546,7 @@ def test_a_landed_horizon_is_not_a_promise():
 
 def digest_row(**over):
     return event(event_id="d1", channel="digest", tier="notable",
-                 digest_slot=SLOT, retention_settled=None) | over
+                 retention_settled=None) | over
 
 
 def test_a_later_move_edits_the_open_note_rather_than_sending_another(
@@ -659,3 +657,77 @@ def test_an_hour_that_has_not_happened_yet_is_not_written_down(monkeypatch, send
     ahead = digest_row(hour_utc=int(NOW.timestamp()) + 2 * HOUR)
     deliver(monkeypatch, [ahead])
     assert "Gold" not in notes(sender)[0]
+
+
+# --- the opening hour is the one thing that cannot slip ---------------------
+#
+# The whole arrangement is worth having because the two interruptions land at
+# noon on a Tuesday and a Friday. A note opened whenever the system happened to
+# next run is an ordinary unscheduled buzz wearing a schedule's clothes.
+
+LATE = datetime.fromtimestamp(SLOT + 10 * HOUR, tz=timezone.utc)
+
+
+def test_a_note_is_not_opened_hours_after_its_hour(monkeypatch, sender):
+    deliver(monkeypatch, [event(channel="digest")], now=LATE)
+    assert notes(sender) == []
+
+
+def test_one_missed_run_does_not_cost_the_note(monkeypatch, sender):
+    # The trigger is an external service. Three hours of grace, because 15:00 is
+    # still an afternoon and 22:00 is not.
+    late_but_ok = datetime.fromtimestamp(SLOT + 3 * HOUR, tz=timezone.utc)
+    deliver(monkeypatch, [event(channel="digest")], now=late_but_ok)
+    assert len(notes(sender)) == 1
+
+
+def test_a_period_whose_note_never_opened_is_carried_into_the_next(monkeypatch, sender):
+    # Both halves have to be true at once: the buzz is always at noon, and no
+    # move is silently dropped for want of a scheduler.
+    missed = event(event_id="d1", channel="digest", tier="routine",
+                   hour_utc=SLOT + 5 * HOUR)
+    _, state = deliver(monkeypatch, [missed], now=LATE)
+    assert notes(sender) == []
+
+    next_slot = routing.next_digest_slot(SLOT)
+    opens = datetime.fromtimestamp(next_slot, tz=timezone.utc)
+    deliver(monkeypatch, [missed], state=state, now=opens)
+    assert len(notes(sender)) == 1
+    assert "Gold" in notes(sender)[0]
+
+
+def test_the_carried_note_says_which_period_it_covers(monkeypatch, sender):
+    # The header states the period the note speaks for, not the day it was
+    # posted, because those come apart exactly when it matters.
+    elsewhere = [event(channel="digest", hour_utc=SLOT - 40 * 24 * HOUR)]
+    _, state = deliver(monkeypatch, elsewhere, now=LATE)
+    opens = datetime.fromtimestamp(routing.next_digest_slot(SLOT), tz=timezone.utc)
+    deliver(monkeypatch, elsewhere, state=state, now=opens)
+    # A week, not the usual three days: it picked up the period that never opened.
+    assert "Fri 4 to Fri 11 September" in notes(sender)[0]
+
+
+def test_an_ordinary_note_covers_only_its_own_period(monkeypatch, sender):
+    elsewhere = [event(channel="digest", hour_utc=SLOT - 40 * 24 * HOUR)]
+    opens = datetime.fromtimestamp(SLOT, tz=timezone.utc)
+    _, state = deliver(monkeypatch, elsewhere, now=opens)
+    later = datetime.fromtimestamp(routing.next_digest_slot(SLOT), tz=timezone.utc)
+    deliver(monkeypatch, elsewhere, state=state, now=later)
+    assert "Tue 8 to Fri 11 September" in notes(sender)[1]
+
+
+def test_a_note_whose_first_post_failed_does_not_cover_its_period(monkeypatch):
+    # It is a post that will be retried, not a note the reader has - so the next
+    # note must still pick those rows up if it never lands.
+    failing = Sent(fail=True)
+    monkeypatch.setattr(md, "send_telegram_message", failing)
+    monkeypatch.setattr(md, "_labels", lambda: LABELS)
+    row = event(event_id="d1", channel="digest", tier="routine",
+                hour_utc=SLOT + 2 * HOUR)
+    _, state = deliver(monkeypatch, [row], now=datetime.fromtimestamp(SLOT, tz=timezone.utc))
+
+    working = Sent()
+    monkeypatch.setattr(md, "send_telegram_message", working)
+    opens = datetime.fromtimestamp(routing.next_digest_slot(SLOT), tz=timezone.utc)
+    deliver(monkeypatch, [row], state=state, now=opens)
+    assert any("Gold" in t for t in working.texts)
