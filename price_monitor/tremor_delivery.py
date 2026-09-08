@@ -113,7 +113,15 @@ def _headline(tier: str, basis: str) -> str:
 
 
 def _retention_note(value: float) -> str:
-    """How the move stood a day later, in words rather than a bare ratio.
+    """How the move stood once settled, in words rather than a bare ratio.
+
+    Used on a DIGEST line, where every horizon has long since elapsed and one
+    settled sentence is the whole answer - a push carries the three-line
+    follow-up instead, because for a push the answer is still arriving.
+
+    "By the next close" rather than "a day later": the settled reading is taken
+    at the close of the next trading day, which in an instrument that trades six
+    and a half hours is not the same thing as twenty-four hours later.
 
     A ratio above one means the move CONTINUED, and rendering that as a
     percentage still standing produces sentences like "360% of it still
@@ -121,12 +129,12 @@ def _retention_note(value: float) -> str:
     system can say about an event.
     """
     if value > 1.15:
-        return f"and it kept going - {value:.1f}x the original move a day later"
+        return f"and it kept going - {value:.1f}x the original move by the next close"
     if value >= 0.85:
-        return "still there a day later"
+        return "still there at the next close"
     if value > 0:
-        return f"{value * 100:.0f}% of it still there a day later"
-    return "fully reversed within the day"
+        return f"{value * 100:.0f}% of it still there at the next close"
+    return "fully reversed before the next close"
 
 
 # How many companions to name before the line stops being readable. Six is the

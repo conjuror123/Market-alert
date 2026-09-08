@@ -190,7 +190,7 @@ def test_a_move_that_kept_going_does_not_read_as_a_percentage_still_standing():
 
 
 def test_the_retention_wording_covers_the_whole_range():
-    assert md._retention_note(0.95) == "still there a day later"
+    assert md._retention_note(0.95) == "still there at the next close"
     assert "60%" in md._retention_note(0.6)
     assert "reversed" in md._retention_note(-0.2)
     assert "reversed" in md._retention_note(0.0)
