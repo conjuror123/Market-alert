@@ -9,14 +9,14 @@ DAY = 24 * HOUR
 
 
 def events(rows, assets=None):
-    """rows: (hour_utc, tier, retention_6, retention_24).
+    """rows: (hour_utc, tier, retention_6, retention_settled).
 
     `assets` names the instruments; distinct ones by default, because that is
     the case the collapse is about - one episode seen through several
     instruments.
     """
     frame = pd.DataFrame(rows, columns=["hour_utc", "tier", "retention_6",
-                                        "retention_24"])
+                                        "retention_settled"])
     frame["tier"] = frame["tier"].astype("string")
     frame["asset_id"] = (assets if assets is not None
                          else [f"src:A{i}" for i in range(len(frame))])

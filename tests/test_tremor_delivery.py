@@ -20,7 +20,7 @@ def cfg(**over):
 def event(**over):
     base = dict(event_id="e1", asset_id="twelvedata:GLD", hour_utc=int(NOW.timestamp()) - HOUR,
                 tier="major", basis="abnormal", channel="push", r=0.021,
-                retention_24=0.9, digest_slot=None)
+                retention_settled=0.9, digest_slot=None)
     return base | over
 
 
@@ -120,7 +120,7 @@ def test_an_event_promoted_to_a_push_later_is_still_sent(monkeypatch, sender):
     # mark on the hour would have stepped over it in between.
     slot = int(NOW.timestamp()) + 3 * HOUR          # its digest has not run yet
     _, state = deliver(monkeypatch, [event(channel="digest", digest_slot=slot,
-                                           retention_24=None)])
+                                           retention_settled=None)])
     assert not state[md.STATE_KEY][md._SENT]
 
     sent, _ = deliver(monkeypatch, [event(channel="push")], state=state)
@@ -137,7 +137,7 @@ def test_the_state_does_not_grow_without_bound(monkeypatch, sender):
 
 def test_a_market_event_reads_as_market_wide(monkeypatch, sender):
     row = event(event_id="m1", basis="market", asset_id=None, r=None,
-                retention_24=None, tier="notable")
+                retention_settled=None, tier="notable")
     deliver(monkeypatch, [row])
     assert "Market-wide" in sender.texts[0]
     assert "most disorderly" in sender.texts[0]

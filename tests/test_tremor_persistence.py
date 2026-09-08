@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 import numpy as np
 import pandas as pd
 
@@ -80,7 +82,7 @@ def test_annotate_records_the_abnormal_move_and_the_raw_one_separately():
 def test_held_is_null_where_the_horizon_has_not_elapsed():
     # An event that has not taken the test has not failed it. A caller treating
     # the two alike would drop exactly the newest events.
-    events = pd.DataFrame({"retention_24": [0.9, 0.1, np.nan]})
+    events = pd.DataFrame({"retention_settled": [0.9, 0.1, np.nan]})
     assert list(ps.held(events)[:2]) == [True, False]
     assert pd.isna(ps.held(events).iloc[2])
 
@@ -116,8 +118,8 @@ def test_held_reads_the_series_that_matches_what_the_event_claimed():
     # macro day, is most of them.
     events = pd.DataFrame({
         "basis": pd.array(["abnormal", "absolute"], dtype="string"),
-        "retention_24": [0.9, 0.1],       # the residual gave it back
-        "retention_raw_24": [0.1, 0.9],   # the price did not
+        "retention_settled": [0.9, 0.1],       # the residual gave it back
+        "retention_raw_settled": [0.1, 0.9],   # the price did not
     })
     assert list(ps.held(events)) == [True, True]
 
@@ -127,11 +129,73 @@ def test_an_event_on_both_bases_is_tested_on_the_abnormal_one():
     # whether it held is the one the detector's own claim rests on.
     events = pd.DataFrame({
         "basis": pd.array(["both"], dtype="string"),
-        "retention_24": [0.1], "retention_raw_24": [0.9],
+        "retention_settled": [0.1], "retention_raw_settled": [0.9],
     })
     assert list(ps.held(events)) == [False]
 
 
 def test_held_without_a_basis_column_uses_the_abnormal_series():
-    events = pd.DataFrame({"retention_24": [0.9, 0.1]})
+    events = pd.DataFrame({"retention_settled": [0.9, 0.1]})
     assert list(ps.held(events)) == [True, False]
+
+
+# --- the settled horizon lands at the next trading close --------------------
+
+def _session_frame():
+    """Two 4-hour equity days, then a third, on the round hour."""
+    hours = []
+    for day in (1, 2, 3):
+        hours += [int(datetime(2026, 6, day, h, tzinfo=timezone.utc).timestamp())
+                  for h in (14, 15, 16, 17)]
+    return pd.DataFrame({"hour_utc": hours,
+                         "e_resid": [0.01] * len(hours),
+                         "r": [0.01] * len(hours),
+                         "sigma_lt_resid": [0.001] * len(hours)})
+
+
+def test_the_settled_check_lands_on_the_last_bar_of_the_next_day():
+    # Not twenty-four bars. In a four-bar day that would be six days away; the
+    # close of the next day is the point a person would actually look.
+    frame = _session_frame()
+    offsets = ps.next_close_offsets(frame)
+    # First bar of day 1 (index 0) -> last bar of day 2 (index 7).
+    assert offsets[0] == 7
+    # Last bar of day 1 (index 3) -> still the last bar of day 2.
+    assert offsets[3] == 4
+    # Day 3 is the final day: no next day, so no answer.
+    assert (offsets[8:] == -1).all()
+
+
+def test_the_distance_depends_on_the_hour_the_move_happened():
+    # Which is the point: an early move waits longer for the same close than a
+    # late one, and that dependency is the honest one rather than a hidden one.
+    offsets = ps.next_close_offsets(_session_frame())
+    assert offsets[0] > offsets[1] > offsets[2] > offsets[3]
+
+
+def test_a_weekend_or_holiday_is_simply_not_a_day():
+    # The offset is read off the bars present, so a gap needs no special case.
+    hours = [int(datetime(2026, 6, d, h, tzinfo=timezone.utc).timestamp())
+             for d, h in [(5, 14), (5, 15), (8, 14), (8, 15)]]   # Friday, Monday
+    frame = pd.DataFrame({"hour_utc": hours, "e_resid": [0.01] * 4,
+                          "r": [0.01] * 4, "sigma_lt_resid": [0.001] * 4})
+    offsets = ps.next_close_offsets(frame)
+    assert offsets[0] == 3        # Friday's first bar -> Monday's last
+    assert (offsets[2:] == -1).all()
+
+
+def test_the_exchange_day_is_used_when_a_timezone_is_given():
+    # 23:00 UTC is the evening in New York, not the next day, so two bars either
+    # side of midnight UTC belong to ONE session and must not be split.
+    hours = [int(datetime(2026, 6, 1, 23, tzinfo=timezone.utc).timestamp()),
+             int(datetime(2026, 6, 2, 0, tzinfo=timezone.utc).timestamp()),
+             int(datetime(2026, 6, 2, 23, tzinfo=timezone.utc).timestamp())]
+    frame = pd.DataFrame({"hour_utc": hours, "e_resid": [0.01] * 3,
+                          "r": [0.01] * 3, "sigma_lt_resid": [0.001] * 3})
+    utc_days = ps.next_close_offsets(frame)
+    ny_days = ps.next_close_offsets(frame, "America/New_York")
+    # Bar 1 is the tell. By the clock it has already crossed into the last day
+    # of the frame, so there is no next close for it and the answer is -1. In
+    # New York it is still the evening of day one, so its next close is bar 2.
+    assert utc_days[1] == -1
+    assert ny_days[1] == 1

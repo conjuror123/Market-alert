@@ -44,13 +44,21 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-# Three check-ins, because the reader gets all three. Two bars is "is it still
+# The two short check-ins, in the instrument's own bars. Two is "is it still
 # there at all" and arrives while the move is still the thing you are thinking
-# about; six is "did it survive the session"; twenty-four is the cleaner
-# reading of whether the move was information or someone's liquidity. The alert
-# goes out immediately and is then EDITED at each of these, so the horizons are
-# the schedule of that follow-up as much as they are a measurement.
-HORIZONS: tuple[int, ...] = (2, 6, 24)
+# about; six is "did it survive the session".
+BAR_HORIZONS: tuple[int, ...] = (2, 6)
+
+# And the settled one, which is NOT a bar count. Twenty-four bars means one day
+# in an instrument that trades round the clock and nearly four days in an ETF
+# that trades six and a half hours - so the same number was asking a different
+# question of each, and the answer arrived on a Thursday for a move that
+# happened on Monday. The settled reading is now taken at the CLOSE OF THE NEXT
+# TRADING DAY: one legible moment, the same sentence for every instrument, and
+# its distance from the event depends on what time of day the event happened,
+# which is the honest dependency rather than a hidden one.
+SETTLED = "settled"
+HORIZONS: tuple = BAR_HORIZONS + (SETTLED,)
 
 # What counts as having held. Taken from the measured permanent share of price
 # impact - roughly 51% to 73% of the peak - so a half is the bottom of the
@@ -84,8 +92,57 @@ def forward_car(abnormal: np.ndarray, horizon: int) -> np.ndarray:
     return out
 
 
-def retention(frame: pd.DataFrame, horizon: int,
-              column: str = "e_resid") -> pd.Series:
+def next_close_offsets(frame: pd.DataFrame, tz_name: str | None = None) -> np.ndarray:
+    """Bars from each bar to the LAST bar of the next day the instrument trades.
+
+    "Next day" is the exchange's local day where there is an authoritative
+    calendar for it, and the UTC day otherwise - a currency pair has no daily
+    close to speak of, so its day is the one the clock gives. Either way the
+    offset is read off the bars actually present, so a holiday, a half day or a
+    weekend simply is not a day: the next one is whatever traded next.
+
+    The final day of history gets -1, meaning no answer yet, which is the same
+    thing the fixed-horizon path says by running off the end of the array.
+    """
+    hours = pd.to_datetime(frame["hour_utc"], unit="s", utc=True)
+    if tz_name:
+        hours = hours.dt.tz_convert(tz_name)
+    days = hours.dt.date.to_numpy()
+
+    # Positional index of the last bar of each day, and the order of the days.
+    unique, first_index = np.unique(days, return_index=True)
+    order = np.argsort(first_index)
+    unique = unique[order]
+    last_of_day = {}
+    positions = np.arange(len(days))
+    for day in unique:
+        last_of_day[day] = int(positions[days == day].max())
+
+    following = {day: unique[i + 1] if i + 1 < len(unique) else None
+                 for i, day in enumerate(unique)}
+    out = np.full(len(days), -1, dtype="int64")
+    for i, day in enumerate(days):
+        nxt = following.get(day)
+        if nxt is not None:
+            out[i] = last_of_day[nxt] - i
+    return out
+
+
+def forward_car_variable(abnormal: np.ndarray, offsets: np.ndarray) -> np.ndarray:
+    """forward_car with a per-bar horizon instead of one shared by every bar."""
+    values = np.asarray(abnormal, dtype="float64")
+    running = np.concatenate([[0.0], np.nancumsum(np.nan_to_num(values))])
+    n = values.size
+    out = np.full(n, np.nan)
+    index = np.arange(n)
+    reach = index + offsets
+    usable = (offsets >= 0) & (reach < n)
+    out[usable] = running[reach[usable] + 1] - running[index[usable]]
+    return out
+
+
+def retention(frame: pd.DataFrame, horizon, column: str = "e_resid",
+              tz_name: str | None = None) -> pd.Series:
     """The share of the bar's move still standing `horizon` bars later.
 
     Undefined where the move being divided by is too small to be a move. That
@@ -94,7 +151,8 @@ def retention(frame: pd.DataFrame, horizon: int,
     dividing by it would report a retention of forty rather than a reversal.
     """
     values = frame[column].to_numpy(dtype="float64")
-    car = forward_car(values, horizon)
+    car = (forward_car_variable(values, next_close_offsets(frame, tz_name))
+           if horizon == SETTLED else forward_car(values, int(horizon)))
     floor = MIN_DENOMINATOR_SIGMAS * frame["sigma_lt_resid"].to_numpy(dtype="float64") \
         if "sigma_lt_resid" in frame else np.zeros(values.size)
     usable = np.isfinite(values) & (np.abs(values) > np.maximum(floor, 1e-12))
@@ -103,13 +161,19 @@ def retention(frame: pd.DataFrame, horizon: int,
                      index=frame.index)
 
 
-def annotate(frame: pd.DataFrame) -> pd.DataFrame:
-    """Adds retention at every horizon, abnormal and raw, to one asset's frame."""
+def annotate(frame: pd.DataFrame, tz_name: str | None = None) -> pd.DataFrame:
+    """Adds retention at every horizon, abnormal and raw, to one asset's frame.
+
+    `tz_name` is the exchange's timezone for an instrument whose day is a
+    trading session rather than a clock day; leaving it None makes the settled
+    horizon fall on the UTC day, which is what a round-the-clock instrument
+    wants.
+    """
     out = frame.copy()
     for horizon in HORIZONS:
-        out[f"retention_{horizon}"] = retention(frame, horizon, "e_resid")
+        out[f"retention_{horizon}"] = retention(frame, horizon, "e_resid", tz_name)
         if "r" in frame:
-            out[f"retention_raw_{horizon}"] = retention(frame, horizon, "r")
+            out[f"retention_raw_{horizon}"] = retention(frame, horizon, "r", tz_name)
     return out
 
 

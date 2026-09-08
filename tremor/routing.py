@@ -55,8 +55,8 @@ DROPPED = "dropped"
 PUSH_IMMEDIATE_TIER = "extreme"
 PUSH_DELAYED_TIER = "major"          # kept as a name; no longer delayed
 PUSH_TIERS = (PUSH_DELAYED_TIER, PUSH_IMMEDIATE_TIER)
-DELAY_HORIZON = persistence.HORIZONS[0]      # 6 bars
-SETTLED_HORIZON = persistence.HORIZONS[-1]   # 24 bars
+DELAY_HORIZON = persistence.BAR_HORIZONS[0]
+SETTLED_HORIZON = persistence.SETTLED        # the next trading close
 
 # datetime.weekday(): Monday=0. Tuesday covers the weekend and Monday - which
 # matters, because crypto trades straight through it and equities gap on the

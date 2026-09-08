@@ -493,7 +493,16 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
     scored = {aid: severity.combine(frame, TIER_SOURCES)
               for aid, frame in scored.items()}
     scored = {aid: withdraw_unconfirmed(frame) for aid, frame in scored.items()}
-    scored = {aid: persistence.annotate(frame) for aid, frame in scored.items()}
+    # The settled retention lands at the close of the next trading day, so an
+    # instrument whose day is a SESSION is measured in its exchange's local day
+    # and a round-the-clock one in the UTC day. CALENDAR_TEMPLATE is the only
+    # template with an authoritative calendar behind it.
+    from tremor.sessions import EXCHANGE_TZ
+
+    day_tz = {a.asset_id: (EXCHANGE_TZ if a.session_template == "us_equity" else None)
+              for a in basket.instruments}
+    scored = {aid: persistence.annotate(frame, day_tz.get(aid))
+              for aid, frame in scored.items()}
 
     all_events: list[SaedEvent] = []
     for asset in basket.instruments:

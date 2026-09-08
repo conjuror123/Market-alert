@@ -323,12 +323,12 @@ def test_retention_is_measured_from_the_peak_not_the_opening():
     lookup = pd.DataFrame({"hour_utc": frame["hour_utc"]})
     for column in persistence.RETENTION_COLUMNS:
         lookup[column] = 0.0
-    abnormal = [f"retention_{h}" for h in persistence.HORIZONS]
+    abnormal = [f"retention_{h}" for h in persistence.HORIZONS]  # 2, 6, settled
     lookup.loc[5, abnormal] = 99.0    # the opening bar
     lookup.loc[7, abnormal] = 0.5     # the peak bar
     out = persistence.attach(events, {asset().asset_id: lookup})
 
-    assert out["retention_24"].iloc[0] == pytest.approx(0.5)
+    assert out["retention_settled"].iloc[0] == pytest.approx(0.5)
 
 
 def test_a_move_smaller_than_the_instrument_can_resolve_is_not_an_event():

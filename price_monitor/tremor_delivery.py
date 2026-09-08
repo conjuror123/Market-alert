@@ -318,7 +318,7 @@ def describe(event: dict, labels: dict[str, str], for_push: bool = False) -> str
         parts.append(f"     with {_escape(companions)}")
 
     if not for_push:
-        held = _clean(event.get("retention_24"))
+        held = _clean(event.get("retention_settled"))
         if held is not None:
             parts.append(f"     {_retention_note(held)}")
     return "\n".join(parts)
@@ -332,11 +332,14 @@ def describe(event: dict, labels: dict[str, str], for_push: bool = False) -> str
 # stays readable.
 CALENDAR_LOOKBACK_HOURS = 2
 # And an hour AFTER. A release five minutes after the hour closed is a cause,
-# not a coincidence, and the window used to end exactly where the move did -
-# which excluded precisely the releases the reader would blame first. The
-# forward hour is empty in the message that goes out immediately, because that
-# hour has not happened yet; it fills in at the first follow-up edit, which is
-# what makes the after-window affordable at all.
+# not a coincidence, and the window used to end exactly where the move did,
+# which excluded precisely the releases a reader would blame first.
+#
+# This costs no waiting. The archive is a SCHEDULE, not a log: it carries the
+# releases announced ahead of time, currently a few hundred of them reaching
+# weeks into the future. So the hour after a move is already known when the
+# push is written, and the line is complete in the first message rather than
+# arriving with a later edit.
 CALENDAR_LOOKAHEAD_HOURS = 1
 
 # High impact only. Medium and Low are dominated by bank holidays and minor
@@ -390,10 +393,16 @@ def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
     return "\n".join(lines)
 
 
-# The check-ins a push promises, in the instrument's own bars, matching
-# tremor.persistence.HORIZONS. The message says up front that these are coming,
-# so silence between them reads as "not yet" rather than "forgotten".
-FOLLOW_UP_HORIZONS = (2, 6, 24)
+# The check-ins a push promises, matching tremor.persistence.HORIZONS. The first
+# two are bar counts; the last is the close of the next trading day, which is a
+# moment rather than a distance - in an ETF that trades six and a half hours,
+# twenty-four bars was nearly four days away and arrived on a Thursday for a
+# Monday move.
+#
+# Every one is listed from the first message onward WITH WHEN IT IS DUE, so a
+# line that has not landed yet reads as an appointment rather than an omission.
+FOLLOW_UP_HORIZONS = (2, 6, "settled")
+_HORIZON_LABEL = {2: "2h", 6: "6h", "settled": "next close"}
 
 
 def _retention_word(value: float) -> str:
@@ -409,7 +418,29 @@ def _retention_word(value: float) -> str:
     return "fully reversed"
 
 
-def follow_up_block(event: dict, horizons=FOLLOW_UP_HORIZONS) -> str:
+def _due_in(event: dict, horizon, now: datetime | None = None) -> str:
+    """When an unanswered check-in is expected, in the reader's terms.
+
+    A placeholder that says only "not yet" is indistinguishable from a bot that
+    has forgotten. Saying when it is due makes the same silence an appointment.
+    The two short horizons are bar counts, and a bar is an hour, so the wait is
+    arithmetic; the settled one lands at a close whose date depends on when the
+    move happened, so it is named rather than counted.
+    """
+    if horizon == "settled":
+        return "coming at the next market close"
+    now = now or datetime.now(timezone.utc)
+    elapsed = (now.timestamp() - int(event["hour_utc"])) / 3600.0
+    left = int(round(horizon - elapsed))
+    if left <= 0:
+        # The hours have passed but the bars have not: a closed market cannot
+        # move, so the answer waits for trading to resume rather than for time.
+        return "coming when trading resumes"
+    return f"coming in {left}h" if left > 1 else "coming within the hour"
+
+
+def follow_up_block(event: dict, horizons=FOLLOW_UP_HORIZONS,
+                    now: datetime | None = None) -> str:
     """The running record of how the move held, one line per check-in.
 
     Every horizon is listed from the first message onward, so the reader can
@@ -427,10 +458,11 @@ def follow_up_block(event: dict, horizons=FOLLOW_UP_HORIZONS) -> str:
     for h in horizons:
         key = f"retention_raw_{h}" if raw_basis else f"retention_{h}"
         value = _clean(event.get(key))
-        if value is None:
-            lines.append(f"     {h}h - not yet")
+        label = _HORIZON_LABEL.get(h, str(h))
+        if value is not None:
+            lines.append(f"     {label} - {_retention_word(value)}")
         else:
-            lines.append(f"     {h}h - {_retention_word(value)}")
+            lines.append(f"     {label} - {_due_in(event, h, now)}")
     return "\n".join(lines)
 
 

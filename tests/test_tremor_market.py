@@ -102,7 +102,7 @@ def test_a_market_event_is_not_gated_on_a_retention_test_it_cannot_take():
     # where the drop-on-revert rule still lives - the push tiers no longer
     # consult retention at all, they are corrected after the fact instead.
     events = pd.DataFrame({"hour_utc": [HOUR], "tier": pd.array(["notable"], dtype="string"),
-                           "retention_24": [-0.4]})
+                           "retention_settled": [-0.4]})
     assert routing.route(events, require_retention=False)["channel"].iloc[0] == routing.DIGEST
     assert routing.route(events)["channel"].iloc[0] == routing.DROPPED
 
