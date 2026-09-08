@@ -31,12 +31,23 @@ def test_the_rarest_tier_is_sent_without_waiting_to_see_if_it_held():
     assert routed["channel"].iloc[0] == routing.PUSH
 
 
-def test_a_once_a_year_move_is_sent_only_if_it_is_still_standing():
+def test_a_once_a_year_move_is_sent_at_once_even_if_it_later_reverts():
+    # It used to wait six bars and go only if it had held. That trades six
+    # hours of lateness for a filter the follow-up edit now does better: the
+    # message goes at once and is corrected in place when the answer arrives.
     routed = routing.route(events([
-        (DAY, "major", 0.9, 0.9),        # held at six bars - sent
-        (30 * DAY, "major", 0.1, 0.8),   # gave it back, then recovered - too late
+        (DAY, "major", 0.9, 0.9),        # held
+        (30 * DAY, "major", -0.4, -0.4), # reverted, and still pushed
     ]))
-    assert list(routed["channel"]) == [routing.PUSH, routing.DIGEST]
+    assert list(routed["channel"]) == [routing.PUSH, routing.PUSH]
+
+
+def test_a_reverted_move_is_still_dropped_when_it_was_only_ever_a_digest_line():
+    # Nothing in the digest is urgent, so its retention is known long before it
+    # would be written up. A push has already gone out by then, and unsending
+    # it is not a thing Telegram can do.
+    routed = routing.route(events([(DAY, "notable", -0.4, -0.4)]))
+    assert routed["channel"].iloc[0] == routing.DROPPED
 
 
 def test_a_move_that_reverted_is_dropped_rather_than_digested():

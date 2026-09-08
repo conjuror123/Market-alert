@@ -274,7 +274,7 @@ def test_a_push_names_the_scheduled_news_behind_it():
     cal = _cal([("2026-06-10T12:30:00+00:00", "USD", "Core CPI m/m", "High"),
                 ("2026-06-10T13:00:00+00:00", "USD", "Fed Chair Speaks", "High")])
     out = md.calendar_context(hour, cal)
-    assert out.startswith("Economic events in the previous 3 hours:")
+    assert out.startswith("Economic events, 2h before to 1h after:")
     assert "USD Core CPI m/m" in out and "USD Fed Chair Speaks" in out
 
 
@@ -285,7 +285,7 @@ def test_a_push_with_no_news_behind_it_says_so():
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
     elsewhere = _cal([("2026-05-01T12:00:00+00:00", "USD", "Old CPI", "High")])
     assert md.calendar_context(hour, elsewhere) == \
-        "Economic events in the previous 3 hours: none scheduled."
+        "Economic events, 2h before to 1h after: none scheduled."
 
 
 def test_an_empty_archive_claims_nothing_rather_than_claiming_silence():
@@ -308,9 +308,18 @@ def test_only_high_impact_news_is_named():
 def test_news_outside_the_window_is_not_claimed_as_context():
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
     cal = _cal([("2026-06-10T09:00:00+00:00", "USD", "Old News", "High"),
-                ("2026-06-10T15:00:00+00:00", "USD", "Later News", "High")])
+                ("2026-06-10T16:30:00+00:00", "USD", "Much Later News", "High")])
     out = md.calendar_context(hour, cal)
-    assert "Old News" not in out and "Later News" not in out
+    assert "Old News" not in out and "Much Later News" not in out
+
+
+def test_a_release_just_after_the_move_is_named():
+    # The window used to end exactly where the move did, which excluded the
+    # releases a reader would blame first: a print five minutes after the hour
+    # closed is a cause, not a coincidence.
+    hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
+    cal = _cal([("2026-06-10T14:30:00+00:00", "USD", "FOMC Statement", "High")])
+    assert "FOMC Statement" in md.calendar_context(hour, cal)
 
 
 def test_a_crowded_window_is_listed_in_full():
@@ -328,8 +337,8 @@ def test_a_crowded_window_is_listed_in_full():
 
 def test_the_events_are_listed_in_the_order_they_happened():
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
-    cal = _cal([("2026-06-10T13:30:00+00:00", "USD", "Later", "High"),
-                ("2026-06-10T11:30:00+00:00", "USD", "Earlier", "High")])
+    cal = _cal([("2026-06-10T14:30:00+00:00", "USD", "Later", "High"),
+                ("2026-06-10T12:30:00+00:00", "USD", "Earlier", "High")])
     out = md.calendar_context(hour, cal)
     assert out.index("Earlier") < out.index("Later")
 

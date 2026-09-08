@@ -44,11 +44,13 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-# Six bars is "did it survive the session", twenty-four "did it survive the
-# day". Both are needed: the six-bar figure is what a delayed alert can wait
-# for without the news going stale, the twenty-four-bar one is the cleaner
-# reading of whether the move was information or someone's liquidity.
-HORIZONS: tuple[int, ...] = (6, 24)
+# Three check-ins, because the reader gets all three. Two bars is "is it still
+# there at all" and arrives while the move is still the thing you are thinking
+# about; six is "did it survive the session"; twenty-four is the cleaner
+# reading of whether the move was information or someone's liquidity. The alert
+# goes out immediately and is then EDITED at each of these, so the horizons are
+# the schedule of that follow-up as much as they are a measurement.
+HORIZONS: tuple[int, ...] = (2, 6, 24)
 
 # What counts as having held. Taken from the measured permanent share of price
 # impact - roughly 51% to 73% of the peak - so a half is the bottom of the

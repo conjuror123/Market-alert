@@ -14,15 +14,13 @@ a few hours is not news, and there is a cheap way to know which ones did -
 wait and look (see tremor.persistence). So the channels differ in urgency, and
 the ones that are not urgent spend their delay earning the right to be sent:
 
-  push      the rarest tier, sent at once. It cannot wait for the retention
-            check, and should not: a once-in-three-years move in an instrument
-            is worth knowing about while it is happening even if it turns out
-            to have been liquidity. Roughly seven a year.
-  push      a once-a-year move, sent six bars later and only if it is still
-  (delayed)  standing. Six bars is hours, not days, so the news is not stale,
-            and it is worth the wait: of the events still standing at six
-            bars, 72% were still standing at twenty-four, against 32% of those
-            that had already given it back.
+  push      both push tiers, sent AT ONCE and then corrected in place. A
+            once-a-year move that arrives six hours late is a worse product
+            than one that arrives now and is marked "reverted" later, so the
+            message is edited at two, six and twenty-four bars with how the
+            move actually held (see price_monitor.tremor_delivery). The
+            retention check did not go away - it moved from deciding whether
+            to send to deciding what the sent message says.
   digest    everything else that held, batched into the next Tuesday or Friday
             note. Nothing here is urgent by construction, so the full
             twenty-four-bar answer is available before it is written.
@@ -53,10 +51,10 @@ PUSH = "push"
 DIGEST = "digest"
 DROPPED = "dropped"
 
-# Sent at once, without waiting to see whether it held.
+# The tiers that interrupt. Both go at once; neither waits for retention.
 PUSH_IMMEDIATE_TIER = "extreme"
-# Sent after the short retention check, and only if it passes it.
-PUSH_DELAYED_TIER = "major"
+PUSH_DELAYED_TIER = "major"          # kept as a name; no longer delayed
+PUSH_TIERS = (PUSH_DELAYED_TIER, PUSH_IMMEDIATE_TIER)
 DELAY_HORIZON = persistence.HORIZONS[0]      # 6 bars
 SETTLED_HORIZON = persistence.HORIZONS[-1]   # 24 bars
 
@@ -98,14 +96,16 @@ def channel(events: pd.DataFrame, require_retention: bool = True) -> pd.Series:
     # retention - which is every event the live system has just produced, since
     # the horizon has not elapsed - was being read as "it reverted" and dropped.
     reverted = persistence.held(events, SETTLED_HORIZON).eq(False).fillna(False)
-    standing = persistence.held(events, DELAY_HORIZON).eq(True).fillna(False)
+    pushes = tier.isin(PUSH_TIERS).fillna(False).to_numpy(dtype=bool)
 
     out = pd.Series(DIGEST, index=events.index, dtype="string")
-    out = out.mask(reverted.to_numpy(dtype=bool), DROPPED)
-    out = out.mask((tier.eq(PUSH_DELAYED_TIER).fillna(False) & standing)
-                   .to_numpy(dtype=bool), PUSH)
-    out = out.mask(tier.eq(PUSH_IMMEDIATE_TIER).fillna(False).to_numpy(dtype=bool),
-                   PUSH)
+    # Dropping a reverted move applies to the DIGEST tiers only. Nothing there
+    # is urgent, so its retention is known long before it would be written up
+    # and a move that gave everything back need never take a line. A push has
+    # already gone out by the time that answer exists, and unsending it is not
+    # a thing Telegram can do - the follow-up edit says so instead.
+    out = out.mask(reverted.to_numpy(dtype=bool) & ~pushes, DROPPED)
+    out = out.mask(pushes, PUSH)
     return out
 
 

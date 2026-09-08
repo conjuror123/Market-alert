@@ -320,13 +320,12 @@ def test_retention_is_measured_from_the_peak_not_the_opening():
 
     frame = scored({5: "routine", 7: "extreme"})
     events = saed.events_frame(saed.build_events(asset(), frame, cooldown_bars=12))
-    lookup = pd.DataFrame({
-        "hour_utc": frame["hour_utc"],
-        "retention_6": 0.0, "retention_24": 0.0,
-        "retention_raw_6": 0.0, "retention_raw_24": 0.0,
-    })
-    lookup.loc[5, ["retention_6", "retention_24"]] = 99.0    # the opening bar
-    lookup.loc[7, ["retention_6", "retention_24"]] = 0.5     # the peak bar
+    lookup = pd.DataFrame({"hour_utc": frame["hour_utc"]})
+    for column in persistence.RETENTION_COLUMNS:
+        lookup[column] = 0.0
+    abnormal = [f"retention_{h}" for h in persistence.HORIZONS]
+    lookup.loc[5, abnormal] = 99.0    # the opening bar
+    lookup.loc[7, abnormal] = 0.5     # the peak bar
     out = persistence.attach(events, {asset().asset_id: lookup})
 
     assert out["retention_24"].iloc[0] == pytest.approx(0.5)

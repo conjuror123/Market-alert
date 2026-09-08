@@ -3,6 +3,7 @@
     "consecutive_failures": 0
   },
   "tremor_delivery": {
-    "sent": {}
+    "sent": {},
+    "tracked": {}
   }
 }

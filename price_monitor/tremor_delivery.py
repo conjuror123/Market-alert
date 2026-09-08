@@ -280,8 +280,15 @@ def _scale_note(event: dict) -> str:
             f"that is {ratio:.0f}x its usual hour of {usual * 100:.2f}%")
 
 
-def describe(event: dict, labels: dict[str, str]) -> str:
-    """One line for one event, as it appears in a push or a digest row."""
+def describe(event: dict, labels: dict[str, str], for_push: bool = False) -> str:
+    """One line for one event, as it appears in a push or a digest row.
+
+    `for_push` drops the single retention note, because a push carries the
+    fuller follow-up block instead and would otherwise say how the move held
+    twice, once vaguely and once by horizon. A digest line keeps the short
+    form: by the time a digest is written every horizon has elapsed, so one
+    settled sentence is the whole answer rather than a promise of more.
+    """
     tier = str(event.get("tier") or "routine")
     emoji = TIER_EMOJI.get(tier, "⚪")
     when = datetime.fromtimestamp(int(event["hour_utc"]), tz=timezone.utc)
@@ -310,9 +317,10 @@ def describe(event: dict, labels: dict[str, str]) -> str:
     if companions:
         parts.append(f"     with {_escape(companions)}")
 
-    held = _clean(event.get("retention_24"))
-    if held is not None:
-        parts.append(f"     {_retention_note(held)}")
+    if not for_push:
+        held = _clean(event.get("retention_24"))
+        if held is not None:
+            parts.append(f"     {_retention_note(held)}")
     return "\n".join(parts)
 
 
@@ -322,7 +330,14 @@ def describe(event: dict, labels: dict[str, str]) -> str:
 # measured over every push in the record, a three-hour window holds a median of
 # zero high-impact events and three at the ninetieth percentile, so the line
 # stays readable.
-CALENDAR_LOOKBACK_HOURS = 3
+CALENDAR_LOOKBACK_HOURS = 2
+# And an hour AFTER. A release five minutes after the hour closed is a cause,
+# not a coincidence, and the window used to end exactly where the move did -
+# which excluded precisely the releases the reader would blame first. The
+# forward hour is empty in the message that goes out immediately, because that
+# hour has not happened yet; it fills in at the first follow-up edit, which is
+# what makes the after-window affordable at all.
+CALENDAR_LOOKAHEAD_HOURS = 1
 
 # High impact only. Medium and Low are dominated by bank holidays and minor
 # prints - the same window holds a median of one Low event, and naming those
@@ -337,7 +352,7 @@ CALENDAR_IMPACT = "High"
 
 
 def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
-    """What was scheduled in the hours before the move.
+    """What was scheduled around the move - before it and just after.
 
     Both answers are worth printing. Naming the release tells the reader the
     move has a known cause and they can stop looking for one. Saying that
@@ -351,8 +366,9 @@ def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
     # is safe to print. None and [] are both treated as "no calendar".
     if not calendar:
         return ""
-    upper = datetime.fromtimestamp(int(hour_utc), tz=timezone.utc)
-    lower = upper - timedelta(hours=CALENDAR_LOOKBACK_HOURS)
+    moment = datetime.fromtimestamp(int(hour_utc), tz=timezone.utc)
+    lower = moment - timedelta(hours=CALENDAR_LOOKBACK_HOURS)
+    upper = moment + timedelta(hours=CALENDAR_LOOKAHEAD_HOURS)
     try:
         window = economic_calendar.events_in_window(calendar, lower, upper)
     except Exception as exc:                     # pragma: no cover - defensive
@@ -360,7 +376,8 @@ def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
         return ""
 
     named = [e for e in window if str(e.get("impact")) == CALENDAR_IMPACT]
-    header = f"Economic events in the previous {CALENDAR_LOOKBACK_HOURS} hours:"
+    header = (f"Economic events, {CALENDAR_LOOKBACK_HOURS}h before to "
+              f"{CALENDAR_LOOKAHEAD_HOURS}h after:")
     if not named:
         return f"{header} none scheduled."
 
@@ -373,10 +390,54 @@ def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
     return "\n".join(lines)
 
 
+# The check-ins a push promises, in the instrument's own bars, matching
+# tremor.persistence.HORIZONS. The message says up front that these are coming,
+# so silence between them reads as "not yet" rather than "forgotten".
+FOLLOW_UP_HORIZONS = (2, 6, 24)
+
+
+def _retention_word(value: float) -> str:
+    """How the move stood, in the same words the digest uses."""
+    if value > 1.15:
+        return f"kept going, {value:.1f}x the original move"
+    if value >= 0.85:
+        return "still there"
+    if value >= 0.5:
+        return f"{value * 100:.0f}% of it still there"
+    if value > 0:
+        return f"mostly given back, {value * 100:.0f}% left"
+    return "fully reversed"
+
+
+def follow_up_block(event: dict, horizons=FOLLOW_UP_HORIZONS) -> str:
+    """The running record of how the move held, one line per check-in.
+
+    Every horizon is listed from the first message onward, so the reader can
+    see what is still coming rather than wondering whether the bot forgot. A
+    horizon whose answer has not arrived yet says so; the message is edited in
+    place as each one lands (see follow_up.py).
+
+    Reading the ABNORMAL series or the RAW one is not a detail: an event found
+    because the market did not explain the move is tested on whether that
+    survived, and one found because the move was simply large is tested on the
+    price itself. persistence.held makes the same choice for the same reason.
+    """
+    raw_basis = str(event.get("basis") or "") == "absolute"
+    lines = ["<i>Checking how the move held:</i>"]
+    for h in horizons:
+        key = f"retention_raw_{h}" if raw_basis else f"retention_{h}"
+        value = _clean(event.get(key))
+        if value is None:
+            lines.append(f"     {h}h - not yet")
+        else:
+            lines.append(f"     {h}h - {_retention_word(value)}")
+    return "\n".join(lines)
+
+
 def format_push(event: dict, labels: dict[str, str],
                 calendar: "list[dict] | None" = None) -> str:
     """A single interrupting alert."""
-    lines = [describe(event, labels)]
+    lines = [describe(event, labels, for_push=True)]
     note = BASIS_NOTE.get(str(event.get("basis") or ""))
     if note:
         lines.append("")
@@ -385,11 +446,14 @@ def format_push(event: dict, labels: dict[str, str],
     if context:
         lines.append("")
         lines.append(_escape(context))
+    lines.append("")
+    lines.append(follow_up_block(event))
     return "\n".join(lines)
 
 
 def format_digest(events: "list[dict]", labels: dict[str, str],
-                  slot: datetime) -> "list[str]":
+                  slot: datetime,
+                  calendar: "list[dict] | None" = None) -> "list[str]":
     """The Tuesday or Friday note, split into parts Telegram will accept.
 
     Ordered by severity and then by time, so the part that matters is at the top
@@ -408,7 +472,12 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
               f"{len(ordered)} event{'s' if len(ordered) != 1 else ''} "
               f"since the last one")
 
-    blocks = [describe(e, labels) for e in ordered]
+    def block(event: dict) -> str:
+        line = describe(event, labels)
+        context = calendar_context(int(event["hour_utc"]), calendar)
+        return f"{line}\n     {_escape(context)}" if context else line
+
+    blocks = [block(e) for e in ordered]
     messages, current = [], header
     for block in blocks:
         candidate = f"{current}\n\n{block}"
@@ -484,31 +553,63 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     store = state.setdefault(STATE_KEY, {})
     sent: dict = store.setdefault(_SENT, {})
     pushes, digest = pending(events, sent, now)
+
+    # Corrections run on their own schedule - a push sent on Monday is edited on
+    # Tuesday whether or not Tuesday has news of its own - so this happens
+    # before the early return.
+    from price_monitor import follow_up
+
+    corrected = follow_up.apply(cfg, state, events, _calendar(cfg), now)
+
     if not pushes and not digest:
         store[_SENT] = _prune(sent, now)
-        return 0
+        return corrected
 
     labels = _labels()
     # Loaded once for the whole run and only when something is actually going
     # out: the archive is ninety thousand events and reading it on an hour that
     # sends nothing would be the most expensive thing the hourly monitor does.
-    calendar = _calendar(cfg) if pushes else None
+    calendar = _calendar(cfg) if (pushes or digest) else None
     pushed = digested = 0
+
+    from price_monitor import follow_up
+    from price_monitor.alerts_log import load_alerts_log, record_sent_alert, save_alerts_log
+
+    # The record "explain alerts" reads: it looks a push up by the message id
+    # printed in its footer and edits that message in place. Loaded only when a
+    # push is actually going out.
+    alerts_log = load_alerts_log(cfg.alerts_log_path) if pushes else []
 
     for event in pushes:
         try:
-            send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
-                                  format_push(event, labels, calendar))
+            message_id = send_telegram_message(
+                cfg.telegram_bot_token, cfg.telegram_chat_id,
+                format_push(event, labels, calendar))
         except TelegramError as exc:
             log.error("Failed to send Tremor push %s: %s", event.get("event_id"), exc)
             continue
         sent[str(event["event_id"])] = int(event["hour_utc"])
+        # Remembered so the two, six and twenty-four bar check-ins can edit this
+        # very message rather than sending three more.
+        follow_up.track(store, event, message_id)
+        label = labels.get(str(event.get("asset_id", ""))) or str(
+            event.get("asset_id", "")).split(":")[-1]
+        move = _clean(event.get("r"))
+        record_sent_alert(
+            alerts_log, chat_id=cfg.telegram_chat_id, message_id=message_id,
+            symbol=label, message_text=format_push(event, labels, calendar),
+            last_close=float(_clean(event.get("close")) or 0.0),
+            last_return_pct=float((move or 0.0) * 100),
+            ewma_z=float(_clean(event.get("z_resid")) or 0.0),
+            robust_z=float(_clean(event.get("z_resid")) or 0.0),
+            volume_z=0.0, signal_type=str(event.get("tier") or "push"),
+            now=datetime.fromtimestamp(int(event["hour_utc"]), tz=timezone.utc))
         pushed += 1
 
     if digest:
         slot = datetime.fromtimestamp(max(int(e["digest_slot"]) for e in digest),
                                       tz=timezone.utc)
-        messages = format_digest(digest, labels, slot)
+        messages = format_digest(digest, labels, slot, calendar)
         try:
             for text in messages:
                 send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id, text)
@@ -526,7 +627,9 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
             log.info("Tremor digest sent (%d events, %d message(s))",
                      len(digest), digested)
 
+    if pushed:
+        save_alerts_log(cfg.alerts_log_path, alerts_log)
     if pushes:
         log.info("Tremor pushes sent: %d of %d due", pushed, len(pushes))
     store[_SENT] = _prune(sent, now)
-    return pushed + digested
+    return pushed + digested + corrected
