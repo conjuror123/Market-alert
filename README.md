@@ -290,7 +290,9 @@ Delivery splits by urgency, not by importance:
 
 Nothing is held back and nothing is dropped. A move that fully reverted used to take no
 line at all; it is now already on the reader's phone by the time that is known, so the
-line says so instead. Every row carries the settled reading, or — until the next close
+line says so instead. A move folded into an earlier push is the one exception to
+"everything else": the push speaks for it and lists it with its size, so it takes no row
+of its own. Every row carries the settled reading, or — until the next day's close
 answers it — the moment that answer is due.
 
 `price_monitor/tremor_delivery.py` renders and sends these; it decides nothing, because

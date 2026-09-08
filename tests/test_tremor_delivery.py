@@ -261,7 +261,7 @@ def test_a_move_that_kept_going_does_not_read_as_a_percentage_still_standing():
 
 
 def test_the_retention_wording_covers_the_whole_range():
-    assert md._retention_note(0.95) == "still there at the next close"
+    assert md._retention_note(0.95) == "still there at the next day's close"
     assert "60%" in md._retention_note(0.6)
     assert "reversed" in md._retention_note(-0.2)
     assert "reversed" in md._retention_note(0.0)
@@ -272,7 +272,7 @@ def test_an_unexplained_move_is_not_called_simply_the_biggest_move():
     # accounted for perfectly; an unqualified "biggest move" would overstate
     # what was detected. The qualifier carries it rather than a different noun.
     assert md._headline("major", "abnormal") == (
-        "biggest move in about a year (not explained by the rest of the market)")
+        "biggest move in about a year (more than the market explains)")
     assert md._headline("major", "absolute") == "biggest move in about a year"
     assert md._headline("major", "both") == "biggest move in about a year"
     assert md._headline("notable", "market") == "most disorderly hour in about two months"
@@ -295,30 +295,52 @@ def test_no_alert_claims_the_economic_calendar_explained_anything():
 
 def test_the_basis_note_is_not_repeated_when_the_headline_carries_it(sender, monkeypatch):
     deliver(monkeypatch, [event(basis="abnormal")])
-    assert "not explained by the rest of the market" in sender.texts[0]
-    assert sender.texts[0].count("explain") == 1
+    assert "more than the market explains" in alerts(sender)[0]
+    assert alerts(sender)[0].count("explain") == 1
 
     sender.texts.clear()
     deliver(monkeypatch, [event(event_id="x", basis="both")])
-    assert "did not explain" in sender.texts[0]
+    assert "more than the market explains" in alerts(sender)[0]
+
+
+def test_the_qualifier_does_not_claim_the_market_was_quiet():
+    # The residual being large means the co-movement does not ACCOUNT for the
+    # size of the move. It does not mean the rest of the market was calm - on a
+    # macro hour everything moves and this one moved further still, which is the
+    # case the residual channel exists to catch.
+    line = md._headline("major", "abnormal")
+    for overclaim in ("usual", "quiet", "normal", "calm", "did not move"):
+        assert overclaim not in line
 
 
 def test_the_push_names_the_instruments_that_moved_with_it():
-    labels = {"twelvedata:SPY": "S&P 500", "twelvedata:XLF": "US financial sector",
-              "twelvedata:USO": "WTI crude oil"}
-    line = md._also_moved({"also_moved": "twelvedata:SPY twelvedata:XLF"}, labels)
-    assert line == "S&P 500 and US financial sector within the day"
+    labels = {"twelvedata:SPY": "S&P 500", "twelvedata:XLF": "US financial sector"}
+    block = md._also_moved({"also_moved": "twelvedata:SPY twelvedata:XLF"}, labels)
+    assert "S&amp;P 500" in block and "US financial sector" in block
+    assert block.startswith("Also moved, within the day:")
 
 
-def test_three_companions_read_as_a_list():
-    labels = {"a:1": "Gold", "a:2": "Silver", "a:3": "WTI crude oil"}
-    line = md._also_moved({"also_moved": "a:1 a:2 a:3"}, labels)
-    assert line == "Gold, Silver and WTI crude oil within the day"
+def test_a_companion_carries_its_own_move():
+    # Measured over the record, a folded companion moved MORE than the push that
+    # spoke for it 49% of the time. A bare list of names reads as "these lesser
+    # things also moved" while half the time it hides the biggest move of the day.
+    labels = {"a:XLF": "US financial sector"}
+    with_it = {"a:XLF": {"asset_id": "a:XLF", "tier": "extreme", "r": 0.105}}
+    block = md._also_moved({"also_moved": "a:XLF"}, labels, with_it)
+    assert "US financial sector" in block and "+10.50%" in block
+    assert md.TIER_EMOJI["extreme"] in block
+
+
+def test_the_biggest_companion_is_named_first():
+    labels = {"a:1": "Small", "a:2": "Large"}
+    with_it = {"a:1": {"tier": "major", "r": 0.01},
+               "a:2": {"tier": "extreme", "r": 0.09}}
+    block = md._also_moved({"also_moved": "a:1 a:2"}, labels, with_it)
+    assert block.index("Large") < block.index("Small")
 
 
 def test_an_unlabelled_instrument_falls_back_to_its_ticker():
-    assert md._also_moved({"also_moved": "twelvedata:EUR/USD"}, {}) == \
-        "EUR/USD within the day"
+    assert "EUR/USD" in md._also_moved({"also_moved": "twelvedata:EUR/USD"}, {})
 
 
 def test_no_companions_produces_no_line():
@@ -329,9 +351,9 @@ def test_no_companions_produces_no_line():
 
 def test_a_very_long_list_is_cut_rather_than_running_off_the_screen():
     ids = " ".join(f"a:{i}" for i in range(9))
-    line = md._also_moved({"also_moved": ids}, {})
-    assert line.endswith("and 3 more within the day")
-    assert line.count(",") == md.MAX_NAMED_COMPANIONS - 2
+    block = md._also_moved({"also_moved": ids}, {})
+    assert block.rstrip().endswith("and 3 more")
+    assert len(block.splitlines()) == md.MAX_NAMED_COMPANIONS + 2
 
 
 def _cal(rows):
@@ -531,13 +553,13 @@ def test_an_undatable_check_in_says_less_rather_than_something_wrong(monkeypatch
     # An unreadable session table must not raise inside a push that is going out.
     monkeypatch.setattr(md, "due_moment", lambda e, h: None)
     assert md._due_in(spy(), 2) == "coming when trading resumes"
-    assert md._due_in(spy(), "settled") == "coming at the next market close"
+    assert md._due_in(spy(), "settled") == "coming at the next day's close"
 
 
 def test_a_landed_horizon_is_not_a_promise():
     # The placeholder is only for the check-ins that have no answer yet.
     text = md.follow_up_block(spy(retention_2=0.9), now=NOW)
-    assert "2h - still there" in text and "next close - coming" in text
+    assert "2h - still there" in text and "next day's close - coming" in text
 
 
 # --- the note is written into, not written up -------------------------------
@@ -586,7 +608,8 @@ def test_the_answer_replaces_the_promise_when_it_lands(monkeypatch, sender, edit
     deliver(monkeypatch, [digest_row(retention_settled=0.95)], state=state)
     assert len(editor.calls) == 1
     text = editor.calls[0][1]
-    assert "still there at the next close" in text and "how it held - coming" not in text
+    assert "still there at the next day's close" in text \
+        and "how it held - coming" not in text
 
 
 def test_a_move_that_reverted_stays_in_the_note_and_says_so(
@@ -596,7 +619,7 @@ def test_a_move_that_reverted_stays_in_the_note_and_says_so(
     # thing Telegram can do - so the line is corrected instead.
     _, state = deliver(monkeypatch, [digest_row()])
     deliver(monkeypatch, [digest_row(retention_settled=-0.4)], state=state)
-    assert "fully reversed before the next close" in editor.calls[0][1]
+    assert "fully reversed before the next day's close" in editor.calls[0][1]
 
 
 def test_a_closed_note_is_still_corrected_when_its_last_answer_arrives(
@@ -607,7 +630,7 @@ def test_a_closed_note_is_still_corrected_when_its_last_answer_arrives(
     later = NOW + timedelta(days=4)
     deliver(monkeypatch, [digest_row(retention_settled=0.9)], state=state, now=later)
     assert len(editor.calls) == 1
-    assert "still there at the next close" in editor.calls[0][1]
+    assert "still there at the next day's close" in editor.calls[0][1]
 
 
 def test_a_note_is_forgotten_once_nothing_about_it_can_change(
@@ -736,25 +759,18 @@ def test_a_note_whose_first_post_failed_does_not_cover_its_period(monkeypatch):
     assert any("Gold" in t for t in working.texts)
 
 
-def test_a_folded_row_says_which_alert_it_belongs_to(monkeypatch, sender):
-    # The push named it as a companion and it takes a row of its own an hour
-    # later. The row carries its numbers, which the push did not - but it has to
-    # say it is the same episode, or it reads as the same news arriving twice.
+def test_a_move_folded_into_a_push_takes_no_row_in_the_note(monkeypatch, sender):
+    # The push already speaks for it and now carries its size. A row of its own
+    # in the note - arriving under that push, within the hour - would be one
+    # episode reaching the reader twice.
     row = digest_row(asset_id="coinbase:BTC-USD", folded_into="twelvedata:GLD")
     deliver(monkeypatch, [row])
-    assert "part of the Gold alert" in notes(sender)[0]
+    assert "Bitcoin" not in notes(sender)[0]
 
 
-def test_a_row_that_belongs_to_nothing_says_nothing(monkeypatch, sender):
+def test_a_move_that_belongs_to_no_push_keeps_its_row(monkeypatch, sender):
     deliver(monkeypatch, [digest_row(folded_into="")])
-    assert "part of the" not in notes(sender)[0]
-
-
-def test_a_push_does_not_say_it_is_part_of_itself():
-    # An event can be folded into an earlier push on its OWN instrument - the
-    # same move continuing - and naming itself would read as an error.
-    text = md.describe(event(channel="digest", folded_into="twelvedata:GLD"), LABELS)
-    assert "part of the" not in text
+    assert "Gold" in notes(sender)[0]
 
 
 def test_the_third_check_in_lands_on_a_push_that_already_has_two(monkeypatch, sender, editor):
@@ -772,6 +788,6 @@ def test_the_third_check_in_lands_on_a_push_that_already_has_two(monkeypatch, se
     deliver(monkeypatch, [event(channel="push", retention_2=0.9, retention_6=0.9,
                                 retention_settled=0.8)], state=state)
     assert len(editor.calls) == 2
-    assert "next close - 80% of it still there" in editor.calls[-1][1]
+    assert "next day's close - 80% of it still there" in editor.calls[-1][1]
     # All three written, so the push is no longer tracked.
     assert not state[md.STATE_KEY][follow_up_module.TRACKED]

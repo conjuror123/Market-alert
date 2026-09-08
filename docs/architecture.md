@@ -87,16 +87,17 @@ running digest note. Nothing waits and nothing is dropped — retention no longe
 whether an event is sent, only what the sent message says about it. Pushes belonging to
 one episode collapse into the first of them, unless a later one is rarer.
 
-**8. Deliver.** A push the hour it is found; a move folded into an earlier push does not
-buzz again but still takes a row, marked as part of that alert. A digest row into the note
-for its period,
+**8. Deliver.** A push the hour it is found, speaking for its whole episode: a move folded
+into it does not buzz again and takes no row of its own anywhere — the push lists it with
+its size, which matters because a folded companion moved *more* than the push that spoke
+for it 49% of the time. A digest row into the note for its period,
 also the hour it is found — the note is *opened* Tuesday and Friday at 12:00 Israel time
 and edited in place for the rest of the period, so the phone buzzes twice a week and
 every row after that arrives silently. A note may only be opened in its own hour or the
 three after it; a period that misses that window is picked up by the next note, so the
 buzz is always at noon and no move is dropped. Both kinds of message are then corrected
-as the market answers: a push at two bars, six bars and the next close, a digest row at
-the next close. A push older than 48 hours is never sent.
+as the market answers: a push at two bars, six bars and the next day's close, a digest row at
+the next day's close. A push older than 48 hours is never sent.
 
 ---
 

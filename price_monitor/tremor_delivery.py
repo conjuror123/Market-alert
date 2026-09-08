@@ -114,22 +114,28 @@ TIER_PERIOD = {
 }
 
 # What was biggest, which is not the same claim for each channel. An abnormal
-# event is the biggest move the rest of the market did NOT explain, and calling
+# event is the biggest move BEYOND what the market accounted for, and calling
 # that "the biggest move" overstates it - the instrument may well have had
-# larger hours that the market accounted for perfectly. The qualifier carries
-# that rather than a different noun: "biggest move in two weeks (not explained
-# by the rest of the market)" reads as one claim with a caveat, where "biggest
-# unexplained move in a fortnight" made the reader parse an adjective first.
+# larger hours that the market explained perfectly. The qualifier carries that
+# rather than a different noun: "biggest move in two weeks (more than the market
+# explains)" reads as one claim with a caveat, where "biggest unexplained move
+# in a fortnight" made the reader parse an adjective first.
 #
-# "the rest of the market" is meant literally and is the only accurate phrase
-# available: the residual is r minus what the basket factor and the block
-# factor predicted for this instrument this hour (see tremor.residuals). The
-# economic calendar plays no part in it - it enters only the SI-Index in
-# tremor.cluster - so an alert saying the calendar failed to explain a move
+# "more than the market explains" is chosen carefully and is weaker than it
+# could be on purpose. The residual is r minus what the basket factor and the
+# block factor predicted for this instrument this hour (see tremor.residuals),
+# so what is true is that the co-movement does not ACCOUNT for the size of the
+# move. It is NOT true that the rest of the market was quiet: on a macro hour
+# everything moves and this one moved further still, which is exactly the case
+# the residual channel exists to catch. Saying "the market was normal" would be
+# a stronger claim than the measurement supports.
+#
+# The economic calendar plays no part in it either - it enters only the SI-Index
+# in tremor.cluster - so an alert saying the calendar failed to explain a move
 # would be claiming a test the system never ran.
 BASIS_NOUN = "move"
 BASIS_QUALIFIER = {
-    "abnormal": " (not explained by the rest of the market)",
+    "abnormal": " (more than the market explains)",
     "absolute": "",
     "both": "",
 }
@@ -138,7 +144,7 @@ BASIS_QUALIFIER = {
 # event the headline already carries it, and repeating it is noise.
 BASIS_NOTE = {
     "absolute": "The rest of the market moved with it.",
-    "both": "And the rest of the market did not explain it.",
+    "both": "And it moved more than the market explains.",
 }
 
 
@@ -156,9 +162,12 @@ def _retention_note(value: float) -> str:
     settled sentence is the whole answer - a push carries the three-line
     follow-up instead, because for a push the answer is still arriving.
 
-    "By the next close" rather than "a day later": the settled reading is taken
-    at the close of the next trading day, which in an instrument that trades six
-    and a half hours is not the same thing as twenty-four hours later.
+    "By the next day's close" rather than "a day later": the settled reading is
+    taken at the close of the next day the instrument TRADES, which in something
+    that trades six and a half hours is not the same thing as twenty-four hours
+    later. And "the next day's" rather than "the next", because a move at eleven
+    in the morning has a close of its own a few hours later and that is not the
+    one being measured.
 
     A ratio above one means the move CONTINUED, and rendering that as a
     percentage still standing produces sentences like "360% of it still
@@ -166,12 +175,13 @@ def _retention_note(value: float) -> str:
     system can say about an event.
     """
     if value > 1.15:
-        return f"and it kept going - {value:.1f}x the original move by the next close"
+        return (f"and it kept going - {value:.1f}x the original move "
+                f"by the next day's close")
     if value >= 0.85:
-        return "still there at the next close"
+        return "still there at the next day's close"
     if value > 0:
-        return f"{value * 100:.0f}% of it still there at the next close"
-    return "fully reversed before the next close"
+        return f"{value * 100:.0f}% of it still there at the next day's close"
+    return "fully reversed before the next day's close"
 
 
 # How many companions to name before the line stops being readable. Six is the
@@ -180,12 +190,44 @@ def _retention_note(value: float) -> str:
 MAX_NAMED_COMPANIONS = 6
 
 
-def _also_moved(event: dict, labels: dict[str, str]) -> str:
-    """The other instruments this push speaks for, named.
+def companions_of(event: dict, events: "list[dict]") -> "dict[str, dict]":
+    """The events folded into this push, by asset_id.
 
-    "and six others moved" says something happened and nothing about what,
-    and WHICH instruments moved together is the whole diagnosis - equities and
-    credit is a different event from equities and the yen.
+    A push speaks for a whole episode: a second instrument moving inside the
+    collapse window does not buzz again, it is folded into the first (see
+    tremor.routing.collapse). Those folded events take no line of their own
+    anywhere else, so this is where their numbers have to come from.
+    """
+    from tremor.routing import COLLAPSE_HOURS
+
+    anchor = str(event.get("asset_id") or "")
+    if not anchor:
+        return {}
+    hour = int(event["hour_utc"])
+    return {str(e.get("asset_id") or ""): e for e in events
+            if str(e.get("folded_into") or "") == anchor
+            and hour <= int(e["hour_utc"]) < hour + COLLAPSE_HOURS * 3600}
+
+
+def _also_moved(event: dict, labels: dict[str, str],
+                companions: "dict[str, dict] | None" = None) -> str:
+    """The other instruments this push speaks for, named AND measured.
+
+    "and six others moved" says something happened and nothing about what, and
+    WHICH instruments moved together is the whole diagnosis - equities and credit
+    is a different event from equities and the yen.
+
+    The size matters just as much, and used not to be here. Measured over the
+    record, a folded companion moved MORE than the push that spoke for it 49% of
+    the time and at least twice as much in 51 of 232 cases - so a bare list of
+    names reads as "these lesser things also moved" while half the time it is
+    hiding the biggest move of the day. On 2008-11-20 the push was the S&P 500 at
+    +7.00% and the financial sector, named without a number, had moved +10.50%.
+
+    Laid out as a block rather than a sentence because these lines are now the
+    only place those figures appear: the folded events are kept out of the digest
+    note, since a row there under the push that already named them is one episode
+    arriving twice.
     """
     raw = event.get("also_moved")
     if raw is None or (isinstance(raw, float) and pd.isna(raw)):
@@ -193,15 +235,31 @@ def _also_moved(event: dict, labels: dict[str, str]) -> str:
     ids = [a for a in str(raw).split(" ") if a]
     if not ids:
         return ""
-    named = [labels.get(a) or a.split(":")[-1] for a in ids]
-    shown, extra = named[:MAX_NAMED_COMPANIONS], len(named) - MAX_NAMED_COMPANIONS
-    if len(shown) == 1:
-        listed = shown[0]
-    else:
-        listed = ", ".join(shown[:-1]) + " and " + shown[-1]
+
+    companions = companions or {}
+    rank = {"routine": 0, "notable": 1, "major": 2, "extreme": 3}
+
+    def sort_key(asset_id: str):
+        row = companions.get(asset_id) or {}
+        return (-rank.get(str(row.get("tier")), -1),
+                -abs(_clean(row.get("r")) or 0.0))
+
+    lines = ["Also moved, within the day:"]
+    for asset_id in sorted(ids, key=sort_key)[:MAX_NAMED_COMPANIONS]:
+        row = companions.get(asset_id) or {}
+        named = labels.get(asset_id) or asset_id.split(":")[-1]
+        move = _clean(row.get("r"))
+        # A companion the caller could not look up still gets its name. It is
+        # the ordinary case at the moment a push is sent, when the window it
+        # collapses has not happened yet.
+        parts = [TIER_EMOJI.get(str(row.get("tier")), ""), _escape(named)]
+        if move is not None:
+            parts.append(f" {move * 100:+.2f}%")
+        lines.append("     " + " ".join(p for p in parts if p))
+    extra = len(ids) - MAX_NAMED_COMPANIONS
     if extra > 0:
-        listed += f" and {extra} more"
-    return f"{listed} within the day"
+        lines.append(f"     and {extra} more")
+    return "\n".join(lines)
 
 
 def _escape(text: str) -> str:
@@ -375,20 +433,7 @@ def describe(event: dict, labels: dict[str, str], for_push: bool = False,
     if scale:
         parts.append(f"     {scale}")
 
-    companions = _also_moved(event, labels)
-    if companions:
-        parts.append(f"     with {_escape(companions)}")
-
     if not for_push:
-        # Which alert this row belongs to, when it belongs to one. A move folded
-        # into an earlier push does not buzz again, but it does take a row in
-        # the note - within the hour, right under the push that already named
-        # it - and without this the same news reads as arriving twice. 96% of
-        # the top-tier rows in the record are exactly this case.
-        anchor = str(event.get("folded_into") or "")
-        if anchor and anchor != asset_id:
-            named = labels.get(anchor) or anchor.split(":")[-1]
-            parts.append(f"     part of the {_escape(named)} alert")
         parts.append(f"     {_settled_line(event, now)}")
     return "\n".join(parts)
 
@@ -478,7 +523,7 @@ def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
 # Every one is listed from the first message onward WITH WHEN IT IS DUE, so a
 # line that has not landed yet reads as an appointment rather than an omission.
 FOLLOW_UP_HORIZONS = (2, 6, "settled")
-_HORIZON_LABEL = {2: "2h", 6: "6h", "settled": "next close"}
+_HORIZON_LABEL = {2: "2h", 6: "6h", "settled": "next day's close"}
 
 
 def _retention_word(value: float) -> str:
@@ -570,7 +615,7 @@ def _due_in(event: dict, horizon, now: datetime | None = None) -> str:
     now = now or datetime.now(timezone.utc)
     due = due_moment(event, horizon)
     if due is None:
-        return ("coming at the next market close" if horizon == "settled"
+        return ("coming at the next day's close" if horizon == "settled"
                 else "coming when trading resumes")
 
     left = (due - now.timestamp()) / 3600.0
@@ -630,13 +675,23 @@ def follow_up_block(event: dict, horizons=FOLLOW_UP_HORIZONS,
 
 
 def format_push(event: dict, labels: dict[str, str],
-                calendar: "list[dict] | None" = None) -> str:
-    """A single interrupting alert."""
+                calendar: "list[dict] | None" = None,
+                companions: "dict[str, dict] | None" = None) -> str:
+    """A single interrupting alert, speaking for its whole episode.
+
+    Ordered so the reader meets one instrument first and the episode second: the
+    move, what the market was doing, then what else moved with it, then the
+    scheduled news, then how it held.
+    """
     lines = [describe(event, labels, for_push=True)]
     note = BASIS_NOTE.get(str(event.get("basis") or ""))
     if note:
         lines.append("")
         lines.append(_escape(note))
+    moved_with = _also_moved(event, labels, companions)
+    if moved_with:
+        lines.append("")
+        lines.append(moved_with)
     context = calendar_context(int(event["hour_utc"]), calendar)
     if context:
         lines.append("")
@@ -749,6 +804,12 @@ def digest_rows(events: "list[dict]", window: "tuple[int, int]",
     arrives late simply appears, and one a recompute no longer produces simply
     goes. That is what makes editing safe to repeat.
 
+    An event folded into a push is NOT here. It does not buzz again, but the
+    push already speaks for it and now carries its size, and a row of its own in
+    the note - arriving under that push, within the hour - is one episode
+    reaching the reader twice. Only push tiers are ever folded, so this is
+    exactly the rule "a move that belongs to an alert belongs to that alert".
+
     An hour that has not happened yet is not written down, the same rule a push
     is held to. It should not arise - a bar has to close before it is scored -
     but a clock skew or a bad bar must not put tomorrow in today's note.
@@ -756,6 +817,7 @@ def digest_rows(events: "list[dict]", window: "tuple[int, int]",
     start, end = window
     return [e for e in events
             if str(e.get("channel") or "") == "digest"
+            and not str(e.get("folded_into") or "")
             and start <= float(e.get("hour_utc", 0)) < end
             and float(e.get("hour_utc", 0)) <= now.timestamp()]
 
@@ -963,10 +1025,14 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     alerts_log = load_alerts_log(cfg.alerts_log_path) if pushes else []
 
     for event in pushes:
+        # What this push speaks for. Usually nothing: only a fifth of pushes
+        # have a companion, and at the hour one is sent the window it collapses
+        # is still open, so the block fills in through the follow-up edits.
+        with_it = companions_of(event, events)
         try:
             message_id = send_telegram_message(
                 cfg.telegram_bot_token, cfg.telegram_chat_id,
-                format_push(event, labels, calendar))
+                format_push(event, labels, calendar, with_it))
         except TelegramError as exc:
             log.error("Failed to send Tremor push %s: %s", event.get("event_id"), exc)
             continue
@@ -979,7 +1045,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         move = _clean(event.get("r"))
         record_sent_alert(
             alerts_log, chat_id=cfg.telegram_chat_id, message_id=message_id,
-            symbol=label, message_text=format_push(event, labels, calendar),
+            symbol=label, message_text=format_push(event, labels, calendar, with_it),
             last_close=float(_clean(event.get("close")) or 0.0),
             last_return_pct=float((move or 0.0) * 100),
             ewma_z=float(_clean(event.get("z_resid")) or 0.0),
