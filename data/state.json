@@ -5,12 +5,14 @@
   "tremor_delivery": {
     "digests": {
       "1788858000": {
+        "from": 1788858000,
         "hashes": [
           "ae521b9f94d40782"
         ],
         "ids": [
           7
-        ]
+        ],
+        "to": 1789117200
       }
     },
     "sent": {

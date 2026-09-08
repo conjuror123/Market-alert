@@ -100,8 +100,9 @@ thing that would.
 About **22 pushes a year**, a median of ten days apart, longest observed quiet stretch
 124 days. A digest note opens Tuesday and Friday at 12:00 Israel time and fills in as
 moves are found, 3.6 items each by the time its period closes. The
-economic-calendar forecast goes out once a week, tried Saturday at 12:00 and falling
-through to Sunday if the feed is still serving the week that is ending.
+economic-calendar forecast goes out once a week, on Friday at 12:00 immediately before
+the note opens, so the note - the message that keeps changing - is the last one in the
+chat.
 
 **No push is sent that is more than 48 hours old, and a note is only opened in its own
 hour or the three after it** — a period that misses that window is carried into the next

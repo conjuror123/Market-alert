@@ -88,7 +88,7 @@ def _normalize_impact(raw: str) -> str:
 
 
 # How an impact level is shown, wherever it is shown. A CIRCLE, in every message
-# that names a scheduled release: the Saturday calendar, a push, a digest line.
+# that names a scheduled release: the weekly calendar, a push, a digest line.
 # Moves are marked with a SQUARE of the same hues (tremor_delivery.TIER_EMOJI),
 # so the shape says which of the two kinds of thing a coloured line is - a move
 # that happened, or a release that was on the schedule - before the words do.

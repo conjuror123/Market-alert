@@ -1,7 +1,7 @@
 name: Test Weekly Digest
 
 # A manual, one-off way to see the economic calendar digest right now, without
-# waiting for a real Saturday at 12:00 Israel time (see README, "Weekly economic
+# waiting for a real Friday at 12:00 Israel time (see README, "Weekly economic
 # calendar digest") - useful both for looking at the coming week and for checking
 # the sending mechanism itself. `--force` bypasses the day/time check and does not
 # touch "already sent this week" in state.json - this is not part of the regular

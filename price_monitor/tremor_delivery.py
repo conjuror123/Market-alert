@@ -402,7 +402,7 @@ CALENDAR_LOOKBACK_HOURS = 2
 # arriving with a later edit.
 CALENDAR_LOOKAHEAD_HOURS = 1
 
-# High and Medium, the same two the Saturday calendar shows, and each carries
+# High and Medium, the same two the weekly calendar shows, and each carries
 # its colour. Low is excluded everywhere for the same reason: it is dominated by
 # bank holidays and minor prints, and naming those would turn the most important
 # line of the most important message into noise.
@@ -570,9 +570,22 @@ def _due_in(event: dict, horizon, now: datetime | None = None) -> str:
         # a few minutes past the hour, and a bar the quality gate threw out
         # never produces one at all.
         return "coming with the next update"
+
+    moment = datetime.fromtimestamp(due, tz=timezone.utc)
+    if horizon == "settled":
+        # Named as a CLOSE, never as a countdown or a bare timestamp. The
+        # settled reading is taken at the close of the next day the instrument
+        # trades, and for anything whose day is the UTC one that close falls at
+        # midnight - so "coming Thursday at 00:00 UTC" was the end of Wednesday
+        # wearing Thursday's name, and read as a day later than it is. Saying
+        # whose close it is removes the ambiguity, and it does not tick, so a
+        # note is not edited every hour to count it down.
+        ended = datetime.fromtimestamp(due - 1, tz=timezone.utc)
+        day = f"{ended:%A}" if left <= _WEEKDAY_LIMIT_HOURS else f"{ended:%-d %B}"
+        return f"coming at {day}'s close ({moment:%H:%M} UTC)"
+
     if left <= 1:
         return "coming within the hour"
-    moment = datetime.fromtimestamp(due, tz=timezone.utc)
     if left <= _COUNTDOWN_LIMIT_HOURS:
         return f"coming in {ceil(left)}h"
     if left <= _WEEKDAY_LIMIT_HOURS:

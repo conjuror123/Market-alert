@@ -243,10 +243,13 @@ schema `schema/event_export.schema.json`, and a test validates against it both a
 synthetic event and all 188 real ones.
 
 The archive of economic events is assembled entirely from ForexFactory's monthly pages,
-from a single source and with no key. The live weekly feed extends it forward on every
-Saturday digest, and the actual for released events is read back from the same place
-month by month. Why there is one source and what was tried before it is above, in the
-calendar section, and in `docs/tremor-deviations.md`.
+from a single source and with no key. Every Friday digest reads three months back into
+it — the previous one and the current one for the `actual` of released events, and the
+one the coming week runs into so that week is there to be listed at all. The live weekly
+feed is merged too, for the days immediately ahead. The digest is then built from the
+archive over a window it states outright, which is why it can go out on a Friday: the
+feed's own week boundary no longer has to be guessed. Why there is one source and what
+was tried before it is above, in the calendar section.
 
 ### What actually reaches you, and the switch that stops it
 
@@ -281,7 +284,7 @@ Delivery splits by urgency, not by importance:
   after it, and a period that misses that window is carried into the next note.
   Tuesday covers the weekend and Monday, when crypto trades straight through and
   equities gap on the open; Friday closes the trading week. This is *separate from the
-  Saturday calendar digest on purpose*: that one is a forecast of what is scheduled,
+  weekly calendar digest on purpose*: that one is a forecast of what is scheduled,
   this one is a report of what happened, and reading them as one message makes both
   harder to skim.
 

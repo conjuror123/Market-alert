@@ -1,28 +1,35 @@
-"""Posts a Saturday digest of the coming week's Medium/High-impact economic
+"""Posts a Friday digest of the coming week's Medium/High-impact economic
 calendar events to Telegram.
 
 Piggybacks on the existing hourly trigger (see .github/workflows/price-monitor.yml
 and README - external cron-job.org calls workflow_dispatch roughly once an hour)
 instead of provisioning a second schedule: __main__.py calls
 maybe_send_weekly_digest on every run, and it's a no-op except during the one
-hourly run that happens to land on Saturday, ~12:00 Israel time. "Already sent
-this week" is tracked in state.json (already loaded/saved every run) so a
-second run landing in the same hour - or the external trigger firing a little
-early or late - never posts the digest twice.
+hourly run that lands on Friday at 12:00 Israel time. "Already sent this week"
+is tracked in state.json (already loaded/saved every run) so a second run inside
+the grace window - or the external trigger firing a little early or late - never
+posts the digest twice.
 
-The send day used to be Saturday, on the assumption that the ForexFactory feed
-(CALENDAR_URL) has already rolled over to the coming week by then. That cannot be
-verified except by a request on an actual Saturday, and both possible week
-boundaries at the source (Sunday-Saturday and Saturday-Friday) fit equally well
-what the feed serves on a weekday.
+FRIDAY, IMMEDIATELY BEFORE THE PRICE NOTE, and that ordering is the reason for
+the day. __main__ calls this first and tremor_delivery second, so in the one run
+that lands on the Friday slot both go out in that order and the running price
+note is the last message in the chat - which is where it should be, because it
+is the one that keeps changing for the next three days.
 
-So the day is no longer chosen, it is tested. There are two windows, Saturday and
-Sunday, and the digest goes out in the first one where the feed genuinely looks
-forward (_looks_forward: the feed's last event is still ahead). If Saturday
-serves the week that is ending, the message simply waits a day. It will not go
-out twice: the dedup key is taken from the feed itself - from the date of its
-first event - and Saturday and Sunday, having served the same week, give the same
-key.
+It used to go out on Saturday, or Sunday if Saturday would not do. That whole
+apparatus is gone with the day. The old digest was built from the LIVE WEEKLY
+FEED, which serves "this week" without saying where its week starts, so the send
+day had to be a day the feed could be expected to have rolled over - and even
+then it had to be tested (_looks_forward) and deferred to Sunday when it had
+not. On a Friday the feed has certainly not rolled over, so the feed cannot be
+the source.
+
+It is built from THE ARCHIVE instead, over a window this module states outright:
+the seven days from the moment it is sent. The archive reaches weeks into the
+future because ForexFactory's monthly pages are read into it (see
+refresh_months), so the coming week is simply looked up rather than hoped for -
+and the window no longer depends on a boundary nobody can see. Consecutive
+digests abut exactly, so nothing is listed twice and nothing falls between them.
 
 Low-impact events and holidays are both excluded (see _DIGEST_IMPACTS) - only
 Medium/High. No LLM involved on purpose (see README, "Daily signal" and the
@@ -32,11 +39,11 @@ there's nothing here for an LLM to add.
 
 Every value the source gave is printed under each event: actual, forecast,
 previous. The actual takes separate work - the live weekly feed does not serve it
-at all, see backfill_actuals.
+at all, see refresh_months.
 
-Also runnable directly as a one-off, bypassing the Saturday/dedup checks - see
+Also runnable directly as a one-off, bypassing the day and dedup checks - see
 main() and .github/workflows/weekly-digest-test.yml - for manually checking
-what the digest actually looks like without waiting for Saturday:
+what the digest actually looks like without waiting for Friday:
     python -m price_monitor.weekly_digest --force
 """
 from __future__ import annotations
@@ -44,7 +51,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import requests
@@ -57,23 +64,39 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("price_monitor.weekly_digest")
 
 _DIGEST_IMPACTS = set(economic_calendar.SHOWN_IMPACTS)
-# datetime.weekday(): Monday=0 ... Saturday=5, Sunday=6.
-#
-# There are two windows, and that is not belt-and-braces. The feed serves only
-# "this week", and where ForexFactory's week boundary falls has been confirmed
-# live only for Sunday: on Sunday the request returns exactly the coming week. For
-# Saturday it stayed a guess, and both possible boundaries (Sun-Sat and Sat-Fri)
-# fit equally well what is served on a weekday - they can only be told apart by a
-# request on an actual Saturday.
-#
-# So the day is not chosen, it is tested. The digest tries to go out on Saturday
-# but leaves only if the feed genuinely looks forward (_looks_forward); if
-# Saturday still serves the week that is ending, the Sunday window sends it a day
-# later. It goes out exactly once: the dedup key is taken from THE FEED ITSELF -
-# from the date of its first event - so Saturday and Sunday, having served the
-# same week, give the same key.
-_DIGEST_WEEKDAYS = (5, 6)
+
+# datetime.weekday(): Monday=0 ... Friday=4. The same slot the price note opens
+# on, deliberately: they are one delivery in two messages, and __main__ sends
+# this one first so the note that keeps changing is the last thing in the chat.
+_DIGEST_WEEKDAYS = (4,)
 _DIGEST_HOUR_ISRAEL = 12
+
+# And the same three hours of grace the price note has, for the same reason: the
+# trigger is an external service, one failed run must not cost the week's
+# calendar, and both messages must keep landing in the same run so their order
+# never inverts.
+_DIGEST_WITHIN_HOURS = 4
+
+# What "the coming week" means, stated rather than inferred from a feed: the
+# rest of today and the seven whole days after it.
+#
+# WHOLE DAYS, which is not tidiness. Seven days to the minute would end at noon
+# next Friday, and the American payrolls print - the single most watched release
+# there is - lands at 12:30 UTC on the first Friday of the month. It would have
+# fallen just outside every window and been announced three hours ahead in the
+# next digest. Rounding to the end of the day costs a few hours of overlap
+# between consecutive digests and buys the whole of the closing Friday.
+_COMING_WEEK_DAYS = 7
+
+# How far short of the window's end the archive may stop and still be trusted to
+# say "nothing is scheduled". Two days, because a week with no Medium or High
+# release in its final two days does not happen, so an archive that stops there
+# has run out rather than found nothing.
+_COVERAGE_SLACK_DAYS = 2
+
+# The Friday it was last sent for, in the recipient's own calendar. The day
+# rather than the week number, because that is what the grace window has to
+# de-duplicate: two runs inside the same four hours must not both send.
 _STATE_KEY = "weekly_digest:last_sent_week"
 
 _ISRAEL_TZ = ZoneInfo("Asia/Jerusalem")
@@ -92,37 +115,29 @@ _MESSAGE_LIMIT = 4000
 
 
 def _is_digest_window(now: datetime) -> bool:
+    """Whether a digest may go out at this moment: Friday noon, or the three
+    hours after it if the runs at noon were missed."""
     israel_now = now.astimezone(_ISRAEL_TZ)
-    return (israel_now.weekday() in _DIGEST_WEEKDAYS
-            and israel_now.hour == _DIGEST_HOUR_ISRAEL)
-
-
-def _week_identifier(events: list[dict]) -> str:
-    """Dedup key - the date of the FEED's first event, not today's date.
-
-    The digest is about a week, not about the day it is sent, and the key must be
-    the week. Taking the run date, Saturday and Sunday would get different keys
-    and the same week would go out to the chat twice.
-    """
-    if not events:
-        return ""
-    first = min(economic_calendar.parse_event_time(e["date"]) for e in events)
-    return first.date().isoformat()
-
-
-def _looks_forward(events: list[dict], now: datetime) -> bool:
-    """Whether the feed looks forward, that is, whether it is about the coming week
-    or the one that is ending.
-
-    Judged by the last event: for the coming week it is still ahead, for the
-    ending one it is already behind. The last rather than the first: the feed's
-    week starts on Sunday, and at Sunday noon some events have already passed even
-    though the week is indeed the coming one.
-    """
-    if not events:
+    if israel_now.weekday() not in _DIGEST_WEEKDAYS:
         return False
-    last = max(economic_calendar.parse_event_time(e["date"]) for e in events)
-    return last > now
+    return 0 <= israel_now.hour - _DIGEST_HOUR_ISRAEL < _DIGEST_WITHIN_HOURS
+
+
+def _week_identifier(now: datetime) -> str:
+    """Dedup key: the Friday this digest belongs to, in the recipient's calendar.
+
+    The day it is sent for rather than anything read out of the data, because
+    the grace window means several runs can qualify and only the first may send.
+    """
+    return now.astimezone(_ISRAEL_TZ).date().isoformat()
+
+
+def coming_week(now: datetime) -> "tuple[datetime, datetime]":
+    """The period this digest speaks for: from now to the end of the seventh day."""
+    last_day = (now.astimezone(timezone.utc)
+                + timedelta(days=_COMING_WEEK_DAYS)).date()
+    end = datetime.combine(last_day + timedelta(days=1), time(0), tzinfo=timezone.utc)
+    return now, end
 
 
 def _escape(text: str) -> str:
@@ -165,13 +180,19 @@ def _event_lines(event: dict) -> list[str]:
     return lines
 
 
-def format_digest(events: list[dict]) -> list[str]:
+def format_digest(events: list[dict], start: datetime | None = None,
+                  end: datetime | None = None) -> list[str]:
     """The week's digest, split by day and, when needed, across several messages.
     Returns a list - the sender posts them in order.
 
     Every event's time is UTC and that is stated once in the header rather than on
     every line: with two or three dozen events, repeating "UTC" on each line takes
     more space than it carries meaning.
+
+    The header states the WINDOW ASKED FOR rather than the span of the events
+    that happen to be in it. Those differ exactly when the week is quiet at one
+    end, and a header taken from the events would then quietly narrow the claim
+    the message is making.
     """
     header = "📅 <b>Economic calendar for the week</b>"
     if not events:
@@ -179,8 +200,11 @@ def format_digest(events: list[dict]) -> list[str]:
 
     ordered = sorted(events, key=lambda e: e["date"])
     high = sum(1 for e in ordered if e["impact"] == "High")
-    first = economic_calendar.parse_event_time(ordered[0]["date"])
-    last = economic_calendar.parse_event_time(ordered[-1]["date"])
+    first = start or economic_calendar.parse_event_time(ordered[0]["date"])
+    # A second before the end, because the window closes at midnight and
+    # midnight belongs to the day that just finished.
+    last = (end - timedelta(seconds=1)) if end \
+        else economic_calendar.parse_event_time(ordered[-1]["date"])
     intro = (f"{header}\n"
              f"<i>{first.strftime('%d.%m')} — {last.strftime('%d.%m')}, "
              f"times UTC · {len(ordered)} events, of them 🔴 {high}</i>")
@@ -211,9 +235,15 @@ def format_digest(events: list[dict]) -> list[str]:
     return messages
 
 
-def backfill_actuals(path: str, session: requests.Session | None = None,
-                     now: datetime | None = None) -> int:
-    """Fills in released values (`actual`) for the current and previous month.
+def refresh_months(path: str, session: requests.Session | None = None,
+                   now: datetime | None = None,
+                   through: datetime | None = None) -> int:
+    """Reads ForexFactory's monthly pages into the archive, backwards and forwards.
+
+    Backwards, this fills in released values (`actual`). Forwards, it is what
+    puts the coming week in the archive at all - and the digest is built from
+    the archive, so this is not a nicety attached to the digest, it is the
+    digest's source of data.
 
     Without this the archive would grow forward with a permanently empty actual.
     The live weekly feed is the only source that arrives here regularly, and it
@@ -236,6 +266,10 @@ def backfill_actuals(path: str, session: requests.Session | None = None,
     months = {(now.year, now.month)}
     previous = (now.replace(day=1) - timedelta(days=1))
     months.add((previous.year, previous.month))
+    # And the month the coming week runs into, which is a different one whenever
+    # the digest goes out in the last days of a month.
+    if through is not None:
+        months.add((through.year, through.month))
 
     fetched: list[dict] = []
     for year, month in sorted(months):
@@ -255,23 +289,57 @@ def backfill_actuals(path: str, session: requests.Session | None = None,
     return updated
 
 
+def _refresh_archive(cfg: Config, session: requests.Session | None,
+                     now: datetime, through: datetime) -> str:
+    """Brings the archive up to date and returns its path.
+
+    The weekly feed is merged for what it is good at - it is the freshest view
+    of the days immediately ahead - and its failure is a warning rather than an
+    abort, because the monthly pages carry the coming week and the digest is
+    built from the archive either way.
+    """
+    path = economic_calendar.store_path(cfg.calendar_dir)
+    try:
+        economic_calendar.merge_events(
+            path, economic_calendar.fetch_calendar(session=session))
+    except economic_calendar.CalendarError as exc:
+        log.warning("The weekly feed could not be read: %s", exc)
+    refresh_months(path, session=session, now=now, through=through)
+    return path
+
+
+def _covers(events: list[dict], through: datetime) -> bool:
+    """Whether the archive reaches the end of the window being reported on.
+
+    An archive that stops short cannot tell "nothing is scheduled" from "nothing
+    was imported", and only one of those is safe to print under the heading "for
+    the week".
+    """
+    if not events:
+        return False
+    last = max(economic_calendar.parse_event_time(e["date"]) for e in events)
+    return last >= through - timedelta(days=_COVERAGE_SLACK_DAYS)
+
+
 def _send_digest(cfg: Config, session: requests.Session | None,
-                 raw_events: list[dict]) -> bool:
-    """Puts the fetched feed into the archive (every impact level - see the
-    economic_calendar module docstring), reads back released values and sends the
-    Medium+High digest to Telegram.
+                 now: datetime) -> bool:
+    """Refreshes the archive and sends the coming week's Medium+High digest.
 
     Failures are swallowed rather than raised: the digest lives inside the hourly
     monitoring run, and a failed send must not bring the whole run down - the same
     approach as the per-asset error handling in __main__.py. Returns True if the
     digest actually went out.
     """
-    path = economic_calendar.store_path(cfg.calendar_dir)
-    economic_calendar.merge_events(path, raw_events)
-    backfill_actuals(path, session=session)
+    start, end = coming_week(now)
+    path = _refresh_archive(cfg, session, now, end)
+    archive = economic_calendar.load_events(path)
+    if not _covers(archive, end):
+        log.warning("The archive does not reach %s - digest held back", end.date())
+        return False
 
-    digest_events = [e for e in raw_events if e["impact"] in _DIGEST_IMPACTS]
-    messages = format_digest(digest_events)
+    digest_events = [e for e in economic_calendar.events_in_window(archive, start, end)
+                     if e["impact"] in _DIGEST_IMPACTS]
+    messages = format_digest(digest_events, start, end)
     try:
         for text in messages:
             send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id, text)
@@ -279,52 +347,24 @@ def _send_digest(cfg: Config, session: requests.Session | None,
         log.error("Failed to send weekly digest: %s", exc)
         return False
 
-    log.info("Weekly digest sent (%d Medium/High events of %d total, %d message(s))",
-             len(digest_events), len(raw_events), len(messages))
+    log.info("Weekly digest sent (%d Medium/High events, %s .. %s, %d message(s))",
+             len(digest_events), start.date(), end.date(), len(messages))
     return True
-
-
-def _fetch_and_send_digest(cfg: Config, session: requests.Session) -> bool:
-    """Manual one-off run (main, --force): fetches the feed and sends the digest
-    without the day or already-sent checks. There is deliberately no
-    looks-forward check here either - the point of --force is to see the message
-    as it is, on any day of the week.
-    """
-    try:
-        raw_events = economic_calendar.fetch_calendar(session=session)
-    except economic_calendar.CalendarError as exc:
-        log.error("Failed to fetch economic calendar for weekly digest: %s", exc)
-        return False
-    return _send_digest(cfg, session, raw_events)
 
 
 def maybe_send_weekly_digest(
     cfg: Config, state: dict, session: requests.Session, now: datetime | None = None,
 ) -> bool:
-    """No-ops outside the Saturday ~12:00 Israel-time window, and no-ops if
-    this week's digest has already been sent. Returns True if a digest was
-    actually sent."""
+    """No-ops outside the Friday noon window, and no-ops if this week's digest
+    has already been sent. Returns True if a digest was actually sent."""
     now = now or datetime.now(timezone.utc)
     if not _is_digest_window(now):
         return False
 
-    try:
-        raw_events = economic_calendar.fetch_calendar(session=session)
-    except economic_calendar.CalendarError as exc:
-        log.error("Failed to fetch economic calendar for weekly digest: %s", exc)
-        return False
-
-    week_id = _week_identifier(raw_events)
+    week_id = _week_identifier(now)
     if state.get(_STATE_KEY) == week_id:
         return False
-    if not _looks_forward(raw_events, now):
-        # The feed still serves the week that is ending. Sending out a list of
-        # what has already happened under the heading "for the week" is not on,
-        # and the next day's window will send the real coming week.
-        log.info("The feed serves the ending week (%s) - digest deferred", week_id)
-        return False
-
-    if not _send_digest(cfg, session, raw_events):
+    if not _send_digest(cfg, session, now):
         return False
 
     state[_STATE_KEY] = week_id
@@ -334,20 +374,20 @@ def maybe_send_weekly_digest(
 def main() -> int:
     """Manual one-off: sends the digest right now, regardless of day/time,
     without touching state.json's "already sent this week" tracking - this
-    isn't part of the regular Saturday schedule (see
+    isn't part of the regular Friday schedule (see
     .github/workflows/weekly-digest-test.yml), just a way to see what the
-    digest actually looks like without waiting for Saturday."""
+    digest actually looks like without waiting for Friday."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "--force", action="store_true",
-        help="Send immediately, bypassing the Saturday-window and already-sent-this-week checks")
+        help="Send immediately, bypassing the Friday-window and already-sent-this-week checks")
     args = parser.parse_args()
     if not args.force:
         parser.error("nothing to do - pass --force (see module docstring)")
 
     cfg = load_config()
     session = requests.Session()
-    return 0 if _fetch_and_send_digest(cfg, session) else 1
+    return 0 if _send_digest(cfg, session, datetime.now(timezone.utc)) else 1
 
 
 if __name__ == "__main__":

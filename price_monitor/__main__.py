@@ -13,9 +13,10 @@ on its own from the whole market moving together.
 What is left is a delivery pass. Three things run, none of which decide anything:
 
   the weekly calendar digest - a forecast of the coming week's scheduled
-  releases, tried on Saturday at 12:00 Israel time and sent on Sunday instead
-  if the feed is still serving the week that is ending. Once a week, a no-op
-  every other hour (see weekly_digest.py).
+  releases, on Friday at 12:00 Israel time. Once a week, a no-op every other
+  hour (see weekly_digest.py). It runs FIRST, and that is the point of the
+  order: the price note goes out in the same run, and it is the one that keeps
+  changing for the next three days, so it belongs last in the chat.
 
   Tremor delivery - the pushes, and the running Tuesday/Friday note that is
   opened at the start of its period and edited in place for the rest of it. Read
@@ -68,10 +69,10 @@ def main() -> int:
     had_error = False
     error_details: list[str] = []
 
-    # No-op except in the 12:00 Israel-time hour on Saturday or Sunday, and then
-    # only once a week - see weekly_digest.py's module docstring for which of the
-    # two days it lands on and why this piggybacks on the hourly trigger instead
-    # of taking a schedule of its own.
+    # No-op except in the 12:00 Israel-time hour on Friday, and then only once a
+    # week - see weekly_digest.py's module docstring for why this piggybacks on
+    # the hourly trigger instead of taking a schedule of its own. Sent BEFORE the
+    # price note, deliberately: see this module's docstring.
     try:
         weekly_digest.maybe_send_weekly_digest(cfg, state, session)
     except Exception as exc:                     # pragma: no cover - defensive
