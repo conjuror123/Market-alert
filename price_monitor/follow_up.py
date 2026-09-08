@@ -120,9 +120,17 @@ def apply(cfg: Config, state: dict, events: "list[dict]",
             log.error("Could not update push %s: %s", event_id, exc)
             continue
 
-        record["written"] = sorted(set(record.get("written") or []) | set(landed))
+        # Kept in the horizons' own order rather than sorted. They are not all
+        # the same kind of thing - two and six are bar counts, "settled" is a
+        # moment - and sorting a set holding both raises the moment the third
+        # answer lands on a push whose first two are already written. That is
+        # every push, and the exception would surface inside the hourly
+        # delivery run rather than here.
+        written = set(record.get("written") or []) | set(landed)
+        record["written"] = [h for h in tremor_delivery.FOLLOW_UP_HORIZONS
+                             if h in written]
         edited += 1
-        log.info("Updated push %s with the %s-bar check-in",
+        log.info("Updated push %s with the %s check-in",
                  event_id, ", ".join(str(h) for h in landed))
 
         if set(record["written"]) >= set(tremor_delivery.FOLLOW_UP_HORIZONS):

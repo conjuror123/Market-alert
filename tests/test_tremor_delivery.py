@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from price_monitor import follow_up as follow_up_module
 from price_monitor import tremor_delivery as md
 from price_monitor.config import Config
 from price_monitor.notifier import TelegramError
@@ -94,8 +95,10 @@ def sender(monkeypatch):
 
 @pytest.fixture
 def editor(monkeypatch):
+    """Both editors: the notes are edited from here, the pushes from follow_up."""
     e = Edited()
     monkeypatch.setattr(md, "edit_telegram_message", e)
+    monkeypatch.setattr(follow_up_module, "edit_telegram_message", e)
     return e
 
 
@@ -752,3 +755,23 @@ def test_a_push_does_not_say_it_is_part_of_itself():
     # same move continuing - and naming itself would read as an error.
     text = md.describe(event(channel="digest", folded_into="twelvedata:GLD"), LABELS)
     assert "part of the" not in text
+
+
+def test_the_third_check_in_lands_on_a_push_that_already_has_two(monkeypatch, sender, editor):
+    # The horizons are not all the same kind of thing - two and six are bar
+    # counts, "settled" is a moment - and holding both in one set used to raise
+    # the moment the third answer arrived, inside the hourly delivery run.
+    pushed = event(channel="push", retention_2=None, retention_6=None,
+                   retention_settled=None)
+    _, state = deliver(monkeypatch, [pushed])
+    tracked = state[md.STATE_KEY][follow_up_module.TRACKED]
+    assert tracked
+
+    deliver(monkeypatch, [event(channel="push", retention_2=0.9, retention_6=0.9,
+                                retention_settled=None)], state=state)
+    deliver(monkeypatch, [event(channel="push", retention_2=0.9, retention_6=0.9,
+                                retention_settled=0.8)], state=state)
+    assert len(editor.calls) == 2
+    assert "next close - 80% of it still there" in editor.calls[-1][1]
+    # All three written, so the push is no longer tracked.
+    assert not state[md.STATE_KEY][follow_up_module.TRACKED]
