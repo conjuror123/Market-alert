@@ -269,10 +269,10 @@ wildly different percentages.
 
 Delivery splits by urgency, not by importance:
 
-* **Pushed at once** — the rarest tier. Roughly one every three to four weeks.
-* **Pushed after six bars** — a once-a-year move, and only if it is still standing.
-  Of the events still standing at six bars, 72% were still standing at twenty-four,
-  against 32% of those that had already given it back.
+* **Pushed at once** — both push tiers, a once-a-year move and a once-in-three-years
+  one. Roughly one every eight days between them. The message is then edited in place
+  at two bars, six bars and the close of the next trading day with how the move
+  actually held; 75% of pushed moves were still standing at that close.
 * **Tuesday and Friday digest** — everything else that held, about two items a note.
   Tuesday covers the weekend and Monday, when crypto trades straight through and
   equities gap on the open; Friday closes the trading week. This is *separate from the

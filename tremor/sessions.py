@@ -29,6 +29,7 @@ import csv
 import os
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
+from functools import lru_cache
 
 HOUR = 3600
 DEFAULT_SESSIONS_PATH = os.path.join("data", "tremor", "sessions", "nyse.csv")
@@ -149,6 +150,111 @@ def expected_hours(sessions: dict[date, Session], first: date, last: date,
             for day, session in sessions.items()
             if first <= day <= last
             for stamp in session_hours(session, tz_name)}
+
+
+def cached_sessions(path: str = DEFAULT_SESSIONS_PATH) -> dict[date, Session]:
+    """load_sessions, read once per process.
+
+    The delivery layer asks the same question of the same table once per event
+    per horizon, and the table is a static file of several thousand rows that
+    only ever changes when someone regenerates it by hand.
+    """
+    return _load_sessions_cached(os.path.abspath(path))
+
+
+@lru_cache(maxsize=4)
+def _load_sessions_cached(path: str) -> dict[date, Session]:
+    return load_sessions(path)
+
+
+# How far forward the bar walk will look before giving up. Three weeks is far
+# past any weekend, holiday or exchange closure the table describes, and the
+# ceiling exists only so a template whose days are all empty - a session table
+# that has run out of years, say - returns "no answer" instead of looping.
+MAX_LOOKAHEAD_DAYS = 21
+
+
+def instrument_day(hour_utc: int, template: str,
+                   tz_name: str = EXCHANGE_TZ) -> date:
+    """The day an hour belongs to, in the calendar this instrument's day uses.
+
+    An exchange-listed instrument's day is the exchange's local day; everything
+    else has no daily close to speak of, so its day is the UTC one. Same rule as
+    persistence.next_close_offsets, and it has to stay the same rule: that is
+    where the settled reading is actually measured.
+    """
+    moment = datetime.fromtimestamp(int(hour_utc), tz=timezone.utc)
+    if template == "us_equity":
+        from zoneinfo import ZoneInfo
+
+        return moment.astimezone(ZoneInfo(tz_name)).date()
+    return moment.date()
+
+
+def instrument_day_hours(day: date, template: str,
+                         table: "dict[date, Session] | None" = None,
+                         tz_name: str = EXCHANGE_TZ) -> list[int]:
+    """Every hour_utc the instrument trades on that day, in order.
+
+    Empty for a day it does not trade - a weekend, a holiday, a Saturday in a
+    currency pair - which is what makes the walk below skip such days without
+    knowing anything about why they are closed.
+    """
+    if template == "us_equity":
+        session = (table or {}).get(day)
+        return session_hours(session, tz_name) if session else []
+
+    midnight = int(datetime.combine(day, time(0), tzinfo=timezone.utc).timestamp())
+    hours = [midnight + i * HOUR for i in range(24)]
+    if template == "crypto_24_7":
+        return hours
+    if template == "fx_continuous":
+        return [h for h in hours if is_reference_hour(h, tz_name)]
+    raise ValueError(f"unknown session template '{template}'")
+
+
+def bars_after(hour_utc: int, count: int, template: str,
+               table: "dict[date, Session] | None" = None,
+               tz_name: str = EXCHANGE_TZ) -> "int | None":
+    """The stamp of the bar `count` bars after the one opening at `hour_utc`.
+
+    Bars, not hours: the answer to "two bars after Friday's last one" is Monday
+    morning, and every horizon in this system is counted the same way (see
+    tremor.persistence). Returns None when the calendar cannot reach that far -
+    the honest answer for an instrument whose session table has run out.
+    """
+    if count <= 0:
+        return int(hour_utc)
+    day = instrument_day(hour_utc, template, tz_name)
+    seen = 0
+    for _ in range(MAX_LOOKAHEAD_DAYS):
+        for stamp in instrument_day_hours(day, template, table, tz_name):
+            if stamp <= hour_utc:
+                continue
+            seen += 1
+            if seen == count:
+                return stamp
+        day += timedelta(days=1)
+    return None
+
+
+def next_close_after(hour_utc: int, template: str,
+                     table: "dict[date, Session] | None" = None,
+                     tz_name: str = EXCHANGE_TZ) -> "int | None":
+    """When the instrument's NEXT trading day ends, as an epoch UTC moment.
+
+    The moment the settled reading becomes measurable: the last bar of that day
+    has closed. Which day is "next" is read off the trading calendar, so a
+    Friday move settles at Monday's close and a move on the eve of a holiday at
+    the close after it.
+    """
+    day = instrument_day(hour_utc, template, tz_name)
+    for _ in range(MAX_LOOKAHEAD_DAYS):
+        day += timedelta(days=1)
+        hours = instrument_day_hours(day, template, table, tz_name)
+        if hours:
+            return hours[-1] + HOUR
+    return None
 
 
 def reference_week_bounds(any_moment: datetime, anchor_tz: str) -> tuple[int, int]:

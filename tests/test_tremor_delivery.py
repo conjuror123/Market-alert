@@ -376,3 +376,80 @@ def test_the_comparison_is_skipped_when_the_yardstick_is_missing():
              "hour_utc": 1767225600, "r": 0.02, "sigma_lt": float("nan")}
     text = md.format_push(event, {})
     assert "usual hour" not in text and "+2.00%" in text
+
+
+# --- when the next check-in is due -----------------------------------------
+#
+# The horizons are counted in the instrument's own bars, so the wait for one is
+# a question about the trading calendar rather than about the clock. Counting it
+# in hours - which it used to - told a Friday-afternoon push it was "coming
+# within the hour" all through the weekend, because the hours passed and the
+# bars did not.
+
+FRIDAY_LAST_ETF_BAR = int(datetime(2026, 9, 4, 19, 0, tzinfo=timezone.utc).timestamp())
+
+
+def spy(**over):
+    return {"asset_id": "twelvedata:SPY", "hour_utc": FRIDAY_LAST_ETF_BAR,
+            "tier": "extreme", "basis": "abnormal", "r": 0.03} | over
+
+
+def test_a_check_in_due_after_the_close_is_dated_not_counted():
+    # The 2h check on an ETF's last bar of the week cannot land until the market
+    # reopens, so it is named as a moment rather than promised within the hour.
+    saturday = datetime(2026, 9, 5, 12, 0, tzinfo=timezone.utc)
+    said = md._due_in(spy(), 2, saturday)
+    assert "within the hour" not in said and "UTC" in said
+
+
+def test_the_weekend_does_not_burn_the_bars_it_is_waiting_for():
+    # Two days of closed market must not move the answer any closer.
+    friday = datetime(2026, 9, 4, 20, 10, tzinfo=timezone.utc)
+    monday = datetime(2026, 9, 7, 12, 0, tzinfo=timezone.utc)
+    assert md._due_in(spy(), 2, friday) == md._due_in(spy(), 2, monday)
+
+
+def test_a_holiday_is_skipped_like_any_other_closed_day():
+    # Monday 7 September 2026 is Labor Day, so the first bar after Friday's last
+    # one is on the Tuesday - which is what the session table says and what the
+    # message has to say too.
+    due = md.due_moment(spy(), 2)
+    assert datetime.fromtimestamp(due, tz=timezone.utc).strftime("%a") == "Tue"
+
+
+def test_a_check_in_a_few_hours_out_is_still_counted_in_hours():
+    # Inside a session the countdown is the readable form: "coming in 2h" needs
+    # nothing from the reader, where a timestamp would.
+    hour = int(datetime(2026, 9, 8, 14, 0, tzinfo=timezone.utc).timestamp())
+    now = datetime(2026, 9, 8, 15, 10, tzinfo=timezone.utc)
+    assert md._due_in(spy(hour_utc=hour), 2, now) == "coming in 2h"
+
+
+def test_round_the_clock_bars_are_simply_hours():
+    # Nothing closes, so a bar is an hour and the countdown is arithmetic.
+    btc = {"asset_id": "coinbase:BTC-USD", "hour_utc": FRIDAY_LAST_ETF_BAR,
+           "basis": "absolute"}
+    now = datetime(2026, 9, 4, 20, 10, tzinfo=timezone.utc)
+    assert md._due_in(btc, 6, now) == "coming in 6h"
+
+
+def test_the_settled_reading_is_dated_by_the_next_trading_day():
+    # Not "24 hours later": the settled reading lands at the close of the next
+    # day the instrument actually trades, and over Labor Day weekend that is the
+    # Tuesday.
+    due = md.due_moment(spy(), "settled")
+    moment = datetime.fromtimestamp(due, tz=timezone.utc)
+    assert moment.strftime("%a %H:%M") == "Tue 20:00"
+
+
+def test_an_undatable_check_in_says_less_rather_than_something_wrong(monkeypatch):
+    # An unreadable session table must not raise inside a push that is going out.
+    monkeypatch.setattr(md, "due_moment", lambda e, h: None)
+    assert md._due_in(spy(), 2) == "coming when trading resumes"
+    assert md._due_in(spy(), "settled") == "coming at the next market close"
+
+
+def test_a_landed_horizon_is_not_a_promise():
+    # The placeholder is only for the check-ins that have no answer yet.
+    text = md.follow_up_block(spy(retention_2=0.9), now=NOW)
+    assert "2h - still there" in text and "next close - coming" in text

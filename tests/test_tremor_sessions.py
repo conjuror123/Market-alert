@@ -218,3 +218,74 @@ def test_expected_hours_is_bounded_by_the_days_asked_for():
                         is_early_close=False)
              for d in (date(2021, 1, 4), date(2021, 1, 5), date(2021, 1, 6))}
     assert len(expected_hours(table, date(2021, 1, 5), date(2021, 1, 6))) == 14
+
+
+# --- walking forward in the instrument's own bars ---------------------------
+
+def _table(days):
+    from tremor.sessions import Session
+
+    return {d: Session(day=d, local_open="09:30", local_close="16:00",
+                       is_early_close=False) for d in days}
+
+
+def test_bars_after_crosses_a_closed_day_rather_than_counting_through_it():
+    # Friday's last bar plus two is Monday morning, not Friday evening. Nothing
+    # trades in between, so nothing can revert in between either.
+    from tremor.sessions import bars_after
+
+    table = _table([date(2026, 9, 3), date(2026, 9, 4), date(2026, 9, 8)])
+    friday_last = int(datetime(2026, 9, 4, 19, 0, tzinfo=timezone.utc).timestamp())
+    stamp = bars_after(friday_last, 2, "us_equity", table)
+    assert datetime.fromtimestamp(stamp, tz=timezone.utc) == datetime(
+        2026, 9, 8, 14, 0, tzinfo=timezone.utc)
+
+
+def test_a_day_missing_from_the_table_is_a_day_that_does_not_exist():
+    # A holiday is simply an absent row, so the walk needs to know nothing about
+    # what kind of closure it is.
+    from tremor.sessions import bars_after, next_close_after
+
+    table = _table([date(2026, 9, 4), date(2026, 9, 8)])
+    friday_last = int(datetime(2026, 9, 4, 19, 0, tzinfo=timezone.utc).timestamp())
+    for stamp in (bars_after(friday_last, 1, "us_equity", table),
+                  next_close_after(friday_last, "us_equity", table)):
+        assert datetime.fromtimestamp(stamp, tz=timezone.utc).day == 8
+
+
+def test_a_round_the_clock_bar_is_an_hour():
+    from tremor.sessions import bars_after
+
+    start = int(datetime(2026, 9, 4, 20, 0, tzinfo=timezone.utc).timestamp())
+    assert bars_after(start, 6, "crypto_24_7") == start + 6 * 3600
+
+
+def test_a_currency_pair_waits_for_the_week_to_reopen():
+    # The FX week runs Sunday 17:00 to Friday 17:00 in the anchor exchange's
+    # time, so a Friday-evening bar's successor is on the Sunday.
+    from tremor.sessions import bars_after
+
+    friday = int(datetime(2026, 9, 4, 20, 0, tzinfo=timezone.utc).timestamp())
+    stamp = bars_after(friday, 1, "fx_continuous")
+    assert datetime.fromtimestamp(stamp, tz=timezone.utc) == datetime(
+        2026, 9, 6, 21, 0, tzinfo=timezone.utc)
+
+
+def test_the_walk_gives_up_rather_than_looping_past_the_table():
+    # Past the end of the session table there is no answer, and saying so is the
+    # honest result - the caller renders less rather than something wrong.
+    from tremor.sessions import bars_after
+
+    table = _table([date(2026, 9, 4)])
+    friday_last = int(datetime(2026, 9, 4, 19, 0, tzinfo=timezone.utc).timestamp())
+    assert bars_after(friday_last, 2, "us_equity", table) is None
+
+
+def test_next_close_after_is_the_end_of_the_following_session():
+    from tremor.sessions import next_close_after
+
+    table = _table([date(2026, 9, 8), date(2026, 9, 9)])
+    hour = int(datetime(2026, 9, 8, 14, 0, tzinfo=timezone.utc).timestamp())
+    assert datetime.fromtimestamp(next_close_after(hour, "us_equity", table),
+                                  tz=timezone.utc) == datetime(
+        2026, 9, 9, 20, 0, tzinfo=timezone.utc)

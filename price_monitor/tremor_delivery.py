@@ -37,6 +37,8 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
+from math import ceil
 
 import pandas as pd
 
@@ -426,25 +428,99 @@ def _retention_word(value: float) -> str:
     return "fully reversed"
 
 
+def _template(asset_id: str) -> str:
+    """Which trading calendar this instrument keeps.
+
+    Falls back to the round-the-clock one, where a bar is an hour and there are
+    no closed days, because that is the assumption that degrades gracefully: it
+    can make a promise arrive early, never make one that never arrives.
+    """
+    return _templates().get(asset_id, "crypto_24_7")
+
+
+@lru_cache(maxsize=1)
+def _templates() -> dict[str, str]:
+    """asset_id -> session template, from the basket definition."""
+    try:
+        from tremor.basket import load_basket
+
+        return {a.asset_id: a.session_template for a in load_basket().instruments}
+    except Exception as exc:                     # pragma: no cover - defensive
+        log.warning("Could not read basket session templates: %s", exc)
+        return {}
+
+
+def due_moment(event: dict, horizon) -> "int | None":
+    """The earliest epoch second at which this check-in can have an answer.
+
+    Every horizon in this system is measured in the instrument's OWN bars, and a
+    closed market has none - so the wait for an answer is a question about the
+    trading calendar, not about the clock. Two bars after an ETF's last bar of
+    the week is Monday morning; the settled reading is the close of the next day
+    the instrument actually trades.
+
+    None where the calendar cannot answer - an unreadable session table, or a
+    date past the end of it. The caller then says less rather than saying
+    something wrong.
+    """
+    try:
+        from tremor import sessions
+
+        template = _template(str(event.get("asset_id") or ""))
+        table = sessions.cached_sessions() if template == "us_equity" else None
+        hour = int(event["hour_utc"])
+        if horizon == "settled":
+            return sessions.next_close_after(hour, template, table)
+        stamp = sessions.bars_after(hour, int(horizon), template, table)
+        # A bar's answer exists once that bar has CLOSED, which is an hour after
+        # the stamp it opens on.
+        return None if stamp is None else stamp + sessions.HOUR
+    except Exception as exc:                     # pragma: no cover - defensive
+        log.warning("Could not date the %s check-in: %s", horizon, exc)
+        return None
+
+
+# Past this, counting hours stops being useful. "Coming in 63h" is arithmetic a
+# reader has to do something with; "coming Monday at 14:00 UTC" is an
+# appointment. Half a day is the crossover: everything inside it is today or
+# tonight and reads naturally as a countdown.
+_COUNTDOWN_LIMIT_HOURS = 12
+# And past a week a weekday name is ambiguous, so the date is named instead.
+_WEEKDAY_LIMIT_HOURS = 6 * 24
+
+
 def _due_in(event: dict, horizon, now: datetime | None = None) -> str:
     """When an unanswered check-in is expected, in the reader's terms.
 
     A placeholder that says only "not yet" is indistinguishable from a bot that
     has forgotten. Saying when it is due makes the same silence an appointment.
-    The two short horizons are bar counts, and a bar is an hour, so the wait is
-    arithmetic; the settled one lands at a close whose date depends on when the
-    move happened, so it is named rather than counted.
+
+    The wait is computed through the instrument's trading calendar and then
+    rendered in ordinary clock time, because those are the two different things
+    the writer and the reader each need. Counting the horizon in hours instead -
+    which is what this did - told a Friday-afternoon push it was "coming within
+    the hour" for the whole weekend, since the hours passed and the bars did not.
     """
-    if horizon == "settled":
-        return "coming at the next market close"
     now = now or datetime.now(timezone.utc)
-    elapsed = (now.timestamp() - int(event["hour_utc"])) / 3600.0
-    left = int(round(horizon - elapsed))
+    due = due_moment(event, horizon)
+    if due is None:
+        return ("coming at the next market close" if horizon == "settled"
+                else "coming when trading resumes")
+
+    left = (due - now.timestamp()) / 3600.0
     if left <= 0:
-        # The hours have passed but the bars have not: a closed market cannot
-        # move, so the answer waits for trading to resume rather than for time.
-        return "coming when trading resumes"
-    return f"coming in {left}h" if left > 1 else "coming within the hour"
+        # The bar has closed and the answer has not appeared: the pipeline runs
+        # a few minutes past the hour, and a bar the quality gate threw out
+        # never produces one at all.
+        return "coming with the next update"
+    if left <= 1:
+        return "coming within the hour"
+    moment = datetime.fromtimestamp(due, tz=timezone.utc)
+    if left <= _COUNTDOWN_LIMIT_HOURS:
+        return f"coming in {ceil(left)}h"
+    if left <= _WEEKDAY_LIMIT_HOURS:
+        return f"coming {moment:%A} at {moment:%H:%M} UTC"
+    return f"coming {moment:%-d %B} at {moment:%H:%M} UTC"
 
 
 def follow_up_block(event: dict, horizons=FOLLOW_UP_HORIZONS,
@@ -629,8 +705,8 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
             log.error("Failed to send Tremor push %s: %s", event.get("event_id"), exc)
             continue
         sent[str(event["event_id"])] = int(event["hour_utc"])
-        # Remembered so the two, six and twenty-four bar check-ins can edit this
-        # very message rather than sending three more.
+        # Remembered so the two-bar, six-bar and settled check-ins can edit
+        # this very message rather than sending three more.
         follow_up.track(store, event, message_id)
         label = labels.get(str(event.get("asset_id", ""))) or str(
             event.get("asset_id", "")).split(":")[-1]

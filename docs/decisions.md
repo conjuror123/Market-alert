@@ -123,10 +123,13 @@ the watchlist does. Keeping them apart is what stops the alert rate tripling the
 three instruments are added.
 
 **Not every big move stays.** A move given back within hours is not news, and there is a
-cheap way to know which: wait and look. Of events still standing at six bars, 72% were
-still standing at twenty-four, against 32% of those that had already given it back. So
-`major` waits six bars; `extreme` does not, because a once-in-three-years move is worth
-knowing about while it is happening even if it turns out to have been liquidity.
+cheap way to know which: wait and look. Of events still standing at six bars, 80% were
+still standing at the next close, against 26% of those that had already given it back.
+The answer is worth having — but not worth waiting for. Both push tiers go out at once,
+because a once-in-three-years move that arrives six hours late is a worse product than
+one that arrives now, and the message is then edited in place at two bars, six bars and
+the next close with how the move actually held. The retention check did not go away; it
+moved from deciding whether to send to deciding what the sent message says.
 
 **One event, one interruption.** 2008-11-20 sent six pushes across two hours — SPY, XLF,
 USO, then QQQ, IWM, TLT — one market event delivered as six separate buzzes. Pushes

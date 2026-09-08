@@ -3,8 +3,8 @@
 A push goes out the moment the move is found, because a once-in-three-years
 move that arrives six hours late is a worse product than one that arrives now
 and is corrected later. The correction is this module: at two, six and
-twenty-four of the instrument's own bars, the ORIGINAL message is edited to say
-how the move actually held. Nothing new arrives on the phone - Telegram edits
+at the close of the next trading day, the ORIGINAL message is edited to say how
+the move actually held. Nothing new arrives on the phone - Telegram edits
 in place, so the record of an event stays one message rather than four.
 
 WHAT IS BEING CHECKED. Retention, the event study's own measure: the abnormal
@@ -15,9 +15,10 @@ going. So "still there at 24h" is a statement about whether the move was
 information or somebody's liquidity, not about whether the price is merely near
 where it was.
 
-WHY IT IS SAFE TO EDIT LATE. The horizons are counted in the asset's own bars,
-so a Friday-evening move is not declared reverted by a closed market over the
-weekend - the answer simply arrives on Monday. The edit is idempotent: it
+WHY IT IS SAFE TO EDIT LATE. The horizons are read off the asset's own trading
+calendar, so a Friday-evening move is not declared reverted by a closed market
+over the weekend - the answer simply arrives on Monday, and the unanswered lines
+say so with the date they are due (see tremor_delivery.due_moment). The edit is idempotent: it
 re-renders the whole message from the event row every time, so a run that edits
 twice writes the same text twice rather than appending to itself.
 
@@ -42,11 +43,11 @@ log = logging.getLogger("price_monitor.follow_up")
 # Where the tracked pushes live inside the delivery layer's own state blob.
 TRACKED = "tracked"
 
-# How long a push stays editable. Twenty-four BARS can be several days of
-# calendar time in an instrument that trades six and a half hours a day, so the
-# wall-clock ceiling has to be generous or the last check-in would be dropped
-# exactly for the instruments whose bars are scarcest. Ten days covers
-# twenty-four equity bars plus a long weekend and a holiday.
+# How long a push stays editable. Six BARS is most of a day in an instrument
+# that trades six and a half hours, and the settled reading waits for the next
+# session to close, so the wall-clock ceiling has to be generous or the last
+# check-in would be dropped exactly for the instruments whose bars are scarcest.
+# Ten days covers a long weekend, a holiday and a stalled scheduler on top.
 TRACK_HOURS = 240
 
 

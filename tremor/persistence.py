@@ -27,10 +27,12 @@ wait until Friday's digest can simply be looked at again first, and the ones
 that reverted never make the page. Only the top tier, which interrupts
 someone, has to be sent before the answer is known.
 
-Two horizons, and both counted in THE ASSET'S OWN BARS rather than calendar
-hours - the same reason the cooldown is (see tremor.saed). A closed market
-cannot revert, and twenty-four bars is a comparable amount of trading in every
-instrument where twenty-four hours is not.
+Three check-ins, and none of them is a number of hours. The two short ones are
+counted in THE ASSET'S OWN BARS rather than calendar hours - the same reason the
+cooldown is (see tremor.saed) - because a closed market cannot revert, and six
+bars is a comparable amount of trading in every instrument where six hours is
+not. The third is a moment rather than a distance: the close of the next day the
+instrument trades.
 
 Abnormal and raw are both recorded because they answer different questions.
 The abnormal one is the honest test of what the detector claimed: it fired on

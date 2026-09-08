@@ -17,13 +17,14 @@ the ones that are not urgent spend their delay earning the right to be sent:
   push      both push tiers, sent AT ONCE and then corrected in place. A
             once-a-year move that arrives six hours late is a worse product
             than one that arrives now and is marked "reverted" later, so the
-            message is edited at two, six and twenty-four bars with how the
-            move actually held (see price_monitor.tremor_delivery). The
+            message is edited at two bars, at six, and at the close of the
+            next trading day with how the move actually held (see
+            price_monitor.tremor_delivery). The
             retention check did not go away - it moved from deciding whether
             to send to deciding what the sent message says.
   digest    everything else that held, batched into the next Tuesday or Friday
-            note. Nothing here is urgent by construction, so the full
-            twenty-four-bar answer is available before it is written.
+            note. Nothing here is urgent by construction, so the settled
+            answer is available before it is written.
   dropped   the move reverted. Not a failure of the detector - it correctly
             found an unusual move - but not something to spend a line on.
 
