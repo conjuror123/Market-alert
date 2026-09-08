@@ -621,7 +621,9 @@ def test_an_undatable_check_in_says_less_rather_than_something_wrong(monkeypatch
 
 def test_a_landed_horizon_is_not_a_promise():
     # The placeholder is only for the check-ins that have no answer yet.
-    lines = md.check_in_lines(spy(retention_today=0.9), now=NOW)
+    midday = spy(hour_utc=int(datetime(2026, 9, 8, 14, tzinfo=timezone.utc).timestamp()),
+                 retention_today=0.9)
+    lines = md.check_in_lines(midday, now=NOW)
     assert "this day's close - still there" in lines[0]
     assert "next day's close - coming" in lines[1]
 
@@ -885,3 +887,16 @@ def test_nothing_is_claimed_when_there_is_no_earlier_one():
     assert md._since_note(event(), []) == ""
 
 
+
+
+def test_a_move_in_the_closing_hour_reports_no_ratio_for_its_own_day():
+    # 6% of moves are made in the last hour their instrument trades that day.
+    # There is nothing left of the day to hold through, so the ratio is one by
+    # construction and "still there" would be reporting arithmetic as news.
+    closing = spy(retention_today=1.0)          # Friday's last ETF bar
+    lines = md.check_in_lines(closing, now=NOW)
+    assert lines[0] == "     this day's close - the move was in the closing hour"
+
+    midday = spy(hour_utc=int(datetime(2026, 9, 8, 14, tzinfo=timezone.utc).timestamp()),
+                 retention_today=1.0)
+    assert "still there" in md.check_in_lines(midday, now=NOW)[0]

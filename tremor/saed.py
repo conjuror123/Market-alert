@@ -73,6 +73,13 @@ class SaedEvent:
     ou_reverts: "bool | None"
     z_resid: float
     e_resid: float
+    # The move, split into the three things it can be, summing back to r exactly
+    # (see tremor.residuals). Carried onto the event because the message shows
+    # them and the factor series they come from live only in the residual step:
+    # "of that move, this much was the whole basket drifting, this much was its
+    # own block, this much was the instrument itself".
+    co_basket: float
+    co_block: float
     r: float
     beta: float
     repeat_count: int
@@ -242,6 +249,10 @@ def build_events(asset: Asset, frame: pd.DataFrame,
     e = frame["e_resid"].to_numpy()
     r = frame["r"].to_numpy()
     beta = frame["beta"].to_numpy() if "beta" in frame else np.full(len(frame), np.nan)
+    basket_part = (frame["co_basket"].to_numpy(dtype="float64")
+                   if "co_basket" in frame else np.full(len(frame), np.nan))
+    block_part = (frame["co_block"].to_numpy(dtype="float64")
+                  if "co_block" in frame else np.full(len(frame), np.nan))
     level = (frame["close"].to_numpy(dtype="float64") if "close" in frame
              else np.full(len(frame), np.nan))
     usual = (frame["sigma_lt"].to_numpy() if "sigma_lt" in frame
@@ -303,6 +314,8 @@ def build_events(asset: Asset, frame: pd.DataFrame,
                                           "ou_reverts": _flag(reverts[i]),
                                           "z_resid": float(z[i]),
                                           "e_resid": float(e[i]),
+                                          "co_basket": float(basket_part[i]),
+                                          "co_block": float(block_part[i]),
                                           "r": float(r[i]),
                                           "beta": float(beta[i]),
                                           "sigma_lt": float(usual[i]),
@@ -314,7 +327,9 @@ def build_events(asset: Asset, frame: pd.DataFrame,
             asset_id=asset.asset_id, block=asset.block, hour_utc=int(hours[i]),
             peak_hour_utc=int(hours[i]), rank_confirms=_flag(confirms[i]),
             ou_reverts=_flag(reverts[i]),
-            z_resid=float(z[i]), e_resid=float(e[i]), r=float(r[i]),
+            z_resid=float(z[i]), e_resid=float(e[i]),
+            co_basket=float(basket_part[i]), co_block=float(block_part[i]),
+            r=float(r[i]),
             beta=float(beta[i]), repeat_count=0, tier=str(tier[i]),
             basis=str(basis[i]), sigma_lt=float(usual[i]),
             close=float(level[i]),
@@ -328,7 +343,8 @@ def build_events(asset: Asset, frame: pd.DataFrame,
 
 def events_frame(events: list[SaedEvent]) -> pd.DataFrame:
     columns = ["event_id", "asset_id", "block", "hour_utc", "peak_hour_utc",
-               "z_resid", "e_resid", "r", "beta", "repeat_count", "tier", "basis",
+               "z_resid", "e_resid", "co_basket", "co_block",
+               "r", "beta", "repeat_count", "tier", "basis",
                "sigma_lt", "close",
                "rank_confirms", "ou_reverts"]
     if not events:

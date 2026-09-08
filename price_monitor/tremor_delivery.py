@@ -498,9 +498,24 @@ def check_in_lines(event: dict, now: datetime | None = None,
         key = f"retention_raw_{h}" if raw_basis else f"retention_{h}"
         value = _clean(event.get(key))
         label = _HORIZON_LABEL.get(h, str(h))
-        answer = _retention_word(value) if value is not None else _due_in(event, h, now)
+        if h == "today" and _closed_the_day(event):
+            # 6% of moves are made in the last hour their instrument trades that
+            # day. There is nothing left of the day to hold through, so the
+            # ratio is one by construction and saying "still there" would be
+            # reporting arithmetic as news.
+            answer = "the move was in the closing hour"
+        elif value is not None:
+            answer = _retention_word(value)
+        else:
+            answer = _due_in(event, h, now)
         lines.append(f"     {label} - {answer}")
     return lines
+
+
+def _closed_the_day(event: dict) -> bool:
+    """Whether the move was made in the last hour its instrument traded that day."""
+    due = due_moment(event, "today")
+    return due is not None and due == int(event["hour_utc"]) + 3600
 
 
 def describe(event: dict, labels: dict[str, str],
