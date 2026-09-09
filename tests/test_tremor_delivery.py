@@ -947,8 +947,8 @@ def test_the_footer_names_every_instrument_that_is_tracked():
     footer = md.basket_footer()
     for ticker in ("SPY", "XLK", "TLT", "HYG", "GLD", "EUR/USD", "BTC-USD"):
         assert ticker in footer
-    assert "VIXY*" in footer             # watched, not counted in its own block
-    assert "62 instruments tracked" in footer
+    assert "DBC*" in footer              # watched, not counted in its own block
+    assert "61 instruments tracked" in footer
     # Every block gets a line of its own, under the name the move's own line uses.
     for label in ("US and global equities", "US Treasuries",
                   "corporate and sovereign credit", "precious metals"):

@@ -690,26 +690,6 @@ assets:
 # a basket member they use the WHOLE block median, since there is nothing of
 # theirs in it to leave out.
 outside_basket:
-  # Fear, hourly. It is here rather than in a block of its own because a block
-  # of one has no median to take: the leave-one-out factor of a single member is
-  # undefined, and the instrument would be left with no model at all. Out here it
-  # is modelled against the WHOLE equity block, where the regression finds it a
-  # beta of about -4 on its own - no sign convention needed, since orienting
-  # matters only for taking a median, not for fitting a slope.
-  #
-  # That makes its residual the quantity actually worth alerting on: not "VIX
-  # rose", which is the same news as "stocks fell", but "fear rose by more than
-  # the fall in stocks accounts for".
-  - ticker: VIXY
-    source: twelvedata
-    tier: 1
-    block: equity
-    has_volume: true
-    tick_size: 0.01
-    session_template: us_equity
-    fetch_interval: 30min
-    label: "VIX short-term futures"
-
   # A broad commodity index is roughly 55% energy, the rest metals and
   # agriculture, so it belongs to no block and cannot be a member of one without
   # dragging that block's median toward the others. Out here it keeps its alerts
@@ -728,11 +708,27 @@ outside_basket:
 # in the quorum. Source: FRED, series VIXCLS - the real index going back to 1990,
 # without the contango drift of ETFs on VIX futures.
 #
-# This is the LEVEL of fear, daily. The hourly instrument that moves with it is
-# VIXY in the volatility block above, and the two are deliberately both here:
-# Twelve Data does not carry the VIX index at all, and FRED has no intraday
-# series, so the only way to have fear in the same hour as a move is to track the
-# tradable futures product and keep the index for the level.
+# THE LEVEL OF FEAR, AND NOTHING ELSE. VIXY, the tradable futures product, was
+# briefly listed as a watched instrument here so that fear could be read in the
+# same hour as a move. It was removed, on two grounds measured rather than
+# assumed.
+#
+# It could not have earned a message. It belongs to the equity block, so its
+# events land on the days the equity block moves and collapse into that push -
+# it would have contributed one more line, never an interruption of its own.
+#
+# And that line would have been the least trustworthy in the block. Measured
+# across 5956 trading days, the residual a linear beta leaves on days the S&P
+# moved more than 3% is systematically signed: -2.35 sigma on the down days and
+# +4.18 sigma on the up ones. Ordinary members show the same shape - XLF is
+# -1.63 and +2.10, IEF +2.19 and -1.65 - so this is a difference of degree and
+# not of kind, but VIX is the worst of them by roughly a factor of two, and what
+# the residual would mostly be reporting is that the beta was fitted on quiet
+# hours.
+#
+# What a reader wants from VIX is the regime, not a residual: "this happened
+# with VIX at 34, having been 17 last week". That is a level, it moves slowly
+# enough for a daily series to carry it, and FRED serves it back to 1990.
 #
 # Two peculiarities of the FRED series, both departures from the letter of the
 # spec:
