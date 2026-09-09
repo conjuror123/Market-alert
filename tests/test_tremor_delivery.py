@@ -1,5 +1,7 @@
 from datetime import date, datetime, timedelta, timezone
 
+import pandas as pd
+
 import pytest
 
 from price_monitor import follow_up as follow_up_module
@@ -1051,3 +1053,83 @@ def test_a_block_headline_starts_with_a_capital():
     text = md.describe(block_event(block="precious_metals",
                                    asset_id="block:precious_metals"), LABELS)
     assert "<b>Precious metals</b>" in text
+
+
+# --- the regime the move happened in ----------------------------------------
+
+def vix_frame(rows, spikes=()):
+    """rows: (observed date, known date, close). `spikes` indexes into rows."""
+    frame = pd.DataFrame({
+        "day": [int(datetime(*d, tzinfo=timezone.utc).timestamp()) for d, _, _ in rows],
+        "available_at": [int(datetime(*k, tzinfo=timezone.utc).timestamp())
+                         for _, k, _ in rows],
+        "close": [c for _, _, c in rows],
+    })
+    frame["is_spike"] = [i in spikes for i in range(len(rows))]
+    return frame
+
+
+def use_vix(monkeypatch, frame):
+    monkeypatch.setattr(md, "_vix_scored", lambda: frame)
+
+
+def test_the_regime_line_never_quotes_a_reading_that_did_not_exist_yet(monkeypatch):
+    # FRED publishes VIX one to two business days late. A message about Monday's
+    # move that quoted Monday's close would be reading a number the system could
+    # not have had, which is the one thing a replayable record must not do.
+    use_vix(monkeypatch, vix_frame([
+        ((2020, 3, 9), (2020, 3, 10, 15), 54.46),
+        ((2020, 3, 10), (2020, 3, 11, 15), 47.30),
+        ((2020, 3, 11), (2020, 3, 12, 15), 53.90),
+        ((2020, 3, 12), (2020, 3, 13, 15), 75.47),
+    ]))
+    text = md.vix_context(int(datetime(2020, 3, 12, 19, tzinfo=timezone.utc).timestamp()))
+
+    assert "53.90" in text and "11 Mar" in text
+    assert "75.47" not in text
+
+
+def test_the_regime_line_is_silent_before_any_reading_is_known(monkeypatch):
+    use_vix(monkeypatch, vix_frame([((2026, 9, 3), (2026, 9, 4, 15), 14.32)]))
+    assert md.vix_context(int(datetime(2026, 9, 1, tzinfo=timezone.utc).timestamp())) == ""
+
+
+def test_the_level_is_placed_in_its_own_history(monkeypatch):
+    # 16 and 54 are both just numbers until one of them is "calmer than three
+    # days in five" and the other "higher than all but one day in a hundred".
+    rows = [((2020, 1, d // 24 + 1, d % 24), (2020, 2, 1, 15), 10.0 + d)
+            for d in range(0, 40)]
+    use_vix(monkeypatch, vix_frame(rows))
+    at = int(datetime(2020, 3, 1, tzinfo=timezone.utc).timestamp())
+    assert "higher than 100% of days" not in md.vix_context(at)
+    assert "the highest it has been since" in md.vix_context(at)
+
+
+def test_a_stress_episode_is_named_while_it_is_running_and_not_after(monkeypatch):
+    # This is the multiplier finally becoming visible: it raises how seriously
+    # clustered moves are taken for twenty-four REFERENCE hours after a spike,
+    # and until now it has fed a channel nobody reads.
+    use_vix(monkeypatch, vix_frame([
+        ((2020, 2, 24), (2020, 2, 25, 15), 25.0),
+        ((2020, 2, 27), (2020, 2, 28, 15), 39.16),
+    ], spikes=(1,)))
+
+    inside = md.vix_context(int(datetime(2020, 2, 28, 18, tzinfo=timezone.utc).timestamp()))
+    assert "stress episode" in inside and "28 Feb" in inside
+
+    later = md.vix_context(int(datetime(2020, 3, 20, 18, tzinfo=timezone.utc).timestamp()))
+    assert "39.16" in later                      # still the latest known reading
+    assert "stress episode" not in later         # but the window closed long ago
+
+
+def test_a_push_carries_the_regime_and_so_does_the_note(monkeypatch):
+    use_vix(monkeypatch, vix_frame([((2026, 9, 3), (2026, 9, 4, 15), 14.32)]))
+    later = event(hour_utc=int(datetime(2026, 9, 8, 14, tzinfo=timezone.utc).timestamp()))
+    push = md.format_push(later, LABELS)
+    assert "Fear gauge" in push and "14.32" in push
+
+    window = (int(datetime(2026, 9, 8, 9, tzinfo=timezone.utc).timestamp()),
+              int(datetime(2026, 9, 11, 9, tzinfo=timezone.utc).timestamp()))
+    note = md.format_digest([event()], LABELS, window,
+                            now=datetime(2026, 9, 9, 12, tzinfo=timezone.utc))
+    assert "Fear gauge" in note[0]

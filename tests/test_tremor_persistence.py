@@ -207,3 +207,53 @@ def test_the_two_horizons_are_the_two_day_closes():
     assert ps.HORIZONS == (ps.TODAY, ps.SETTLED)
     assert "retention_today" in ps.RETENTION_COLUMNS
     assert "retention_settled" in ps.RETENTION_COLUMNS
+
+
+# --- the day boundaries, which used to be the whole cost of the pipeline -----
+
+def _frame(hours):
+    return pd.DataFrame({"hour_utc": hours})
+
+
+def test_the_offsets_agree_with_the_obvious_slow_answer():
+    # The fast path is a grouped maximum; this is the definition it replaced,
+    # written out. Checked on a SHUFFLED frame as well, because an offset is a
+    # distance in rows and nothing in the pipeline promises the rows are sorted.
+    def reference(frame):
+        days = pd.to_datetime(frame["hour_utc"], unit="s", utc=True).dt.date.to_numpy()
+        positions = np.arange(len(days))
+        return np.array([positions[days == day].max() - i
+                         for i, day in enumerate(days)])
+
+    day = int(datetime(2026, 3, 2, tzinfo=timezone.utc).timestamp())
+    hours = [day + h * HOUR for h in range(6)] + [day + 86400 + h * HOUR for h in range(4)]
+    assert list(ps.today_close_offsets(_frame(hours))) == [5, 4, 3, 2, 1, 0, 3, 2, 1, 0]
+
+    for order in ([3, 0, 7, 1, 9, 2, 4, 8, 5, 6], list(reversed(range(10)))):
+        frame = _frame([hours[i] for i in order])
+        assert list(ps.today_close_offsets(frame)) == list(reference(frame))
+
+
+def test_the_offsets_survive_an_empty_frame():
+    assert len(ps.today_close_offsets(_frame([]))) == 0
+    assert len(ps.next_close_offsets(_frame([]))) == 0
+
+
+def test_the_day_boundaries_are_linear_in_the_number_of_bars():
+    # This was O(bars x days): both functions looped over the days and compared
+    # the whole day column against each one. At 145,000 bars and 6,000 days that
+    # is 870 million comparisons per call, four calls per instrument, and it was
+    # 96% of the cost of the hourly run - eighteen seconds a call. The bound
+    # here is loose on purpose; the point is that it cannot be quadratic again.
+    import time
+
+    start = int(datetime(2015, 1, 1, tzinfo=timezone.utc).timestamp())
+    hours = [start + d * 86400 + h * HOUR for d in range(2000) for h in range(24)]
+    frame = _frame(hours)
+
+    began = time.perf_counter()
+    ps.today_close_offsets(frame)
+    ps.next_close_offsets(frame)
+    elapsed = time.perf_counter() - began
+
+    assert elapsed < 5.0, f"{len(hours)} bars over 2000 days took {elapsed:.1f}s"

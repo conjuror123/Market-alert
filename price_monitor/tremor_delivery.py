@@ -694,6 +694,136 @@ def _block_move_phrase(block: str, move: "float | None") -> str:
     return f"the typical member moved {move * 100:+.2f}% "
 
 
+# --- the regime the move happened in ----------------------------------------
+#
+# VIX is the one thing in this system that is not about a single instrument. It
+# is the price of protection on the S&P 500, so it says what the market as a
+# whole expected of the near future - and "SPY fell 1.8%" reads completely
+# differently at a VIX of 13 and at a VIX of 38.
+#
+# It has been computed since the beginning and shown to nobody. The daily FRED
+# series feeds a stress multiplier that raises the weight of clustered moves for
+# a day after a spike, and that multiplier feeds the SI-Index, which feeds the
+# cluster channel, which is not delivered. So the whole of it has been invisible.
+# This is where it becomes a line in a message.
+#
+# WHY THE DAILY INDEX AND NOT AN HOURLY PRODUCT. Twelve Data does not carry the
+# VIX index at all, and the tradable futures ETF that tracks it was tried as an
+# instrument and removed - see config/basket.yaml for the measurements. What a
+# reader wants here is the regime, and a regime is slow: an index that updates
+# once a day and reaches back to 1990 describes it better than a decaying
+# futures product that starts in 2011.
+VIX_PATH = os.path.join("data", "tremor", "vix", "fred_VIXCLS.parquet")
+
+# What "a week before" compares against. Seven CALENDAR days, matched to the
+# nearest earlier reading, because the comparison is meant to be legible rather
+# than exact - "up from 17 a week before" is the sentence, and whether that
+# reading was Monday or the Friday before it changes nothing about the point.
+VIX_COMPARE_DAYS = 7
+
+# Below this the two readings are called unchanged rather than given a
+# direction. A tenth is about the daily noise of the index, and "up from 15.9"
+# on a reading of 16.1 is a direction that is not there.
+VIX_FLAT = 0.10
+
+
+@lru_cache(maxsize=1)
+def _vix_scored() -> "pd.DataFrame | None":
+    """The VIX series with the spike test already applied, read once per process.
+
+    Carries `available_at` - the moment the value became KNOWN, which FRED
+    publishes one to two business days after the observation. Every reading
+    below is chosen by that column and not by the observation date, so a message
+    about Monday's move never quotes a number that did not exist until Wednesday.
+    """
+    try:
+        from tremor import vix as vix_module
+
+        series = pd.read_parquet(VIX_PATH).sort_values("day").reset_index(drop=True)
+        return vix_module.score(series)
+    except Exception as exc:                     # pragma: no cover - defensive
+        log.warning("Could not read the VIX series: %s", exc)
+        return None
+
+
+def _stress_open_since(scored: "pd.DataFrame", hour_utc: int) -> "int | None":
+    """When the stress episode covering this hour began, if one does.
+
+    The multiplier's window is twenty-four REFERENCE hours long - the hours the
+    basket's anchor exchange is open - rather than twenty-four clock hours, so a
+    Friday spike is still live on Monday morning. Counted by walking those hours
+    forward from the spike, which is at most a few dozen steps, rather than by
+    materialising every reference hour since 1990.
+    """
+    from tremor import sessions, windows as w
+
+    known = scored[scored["is_spike"].fillna(False)
+                   & (scored["available_at"] <= hour_utc)]
+    if known.empty:
+        return None
+    opened = int(known["available_at"].iloc[-1])
+
+    counted, hour = 0, opened
+    while counted < w.VIX_WINDOW:
+        hour += 3600
+        if hour > hour_utc:
+            return opened                        # still inside the window
+        if sessions.is_reference_hour(hour, "America/New_York"):
+            counted += 1
+    return None
+
+
+def vix_context(hour_utc: int) -> str:
+    """Where fear stood when this happened, as the message says it.
+
+    Silent when there is no reading the system could have had at that hour - a
+    young archive, or an unreadable file - because a regime line that guesses is
+    worse than no regime line.
+    """
+    scored = _vix_scored()
+    if scored is None or scored.empty:
+        return ""
+    hour_utc = int(hour_utc)
+    known = scored[scored["available_at"] <= hour_utc]
+    if known.empty:
+        return ""
+
+    latest = known.iloc[-1]
+    level, day = float(latest["close"]), int(latest["day"])
+    when = datetime.fromtimestamp(day, tz=timezone.utc)
+
+    # Where the level sits in its own history, which is the only form of this
+    # number a reader can do anything with: 16 and 54 are both just numbers
+    # until one of them is "calmer than three days in five" and the other is
+    # "higher than all but one day in a hundred". Computed on the readings KNOWN
+    # at this hour, like everything else here.
+    rank = float((known["close"] <= level).mean()) * 100
+    first = _vix_since(known)
+    place = (f"the highest it has been since {first}" if rank >= 99.995 else
+             f"higher than {rank:.0f}% of days since {first}" if rank >= 50 else
+             f"calmer than {100 - rank:.0f}% of days since {first}")
+    lines = [f"🌡 <b>Fear gauge</b>: VIX {level:.2f} at the {when:%-d %b} close - {place}"]
+
+    earlier = known[known["day"] <= day - VIX_COMPARE_DAYS * 86400]
+    if not earlier.empty:
+        before = float(earlier["close"].iloc[-1])
+        direction = ("up from" if level - before > VIX_FLAT else
+                     "down from" if before - level > VIX_FLAT else "level with")
+        lines.append(f"     {direction} {before:.2f} a week before")
+
+    since = _stress_open_since(scored, hour_utc)
+    if since is not None:
+        began = datetime.fromtimestamp(int(since), tz=timezone.utc)
+        lines.append("     a jump that large counts as a stress episode - this one "
+                     f"has been running since {began:%-d %b}")
+    return "\n".join(lines)
+
+
+def _vix_since(known: "pd.DataFrame") -> int:
+    """The first year the percentile is taken over, so the claim can be checked."""
+    return datetime.fromtimestamp(int(known["day"].iloc[0]), tz=timezone.utc).year
+
+
 def _describe_block(event: dict, headline: str, emoji: str, when: datetime,
                     now: "datetime | None", events: "list[dict] | None") -> str:
     """A block's own move, as it appears in a push or a digest row.
@@ -967,6 +1097,13 @@ def format_push(event: dict, labels: dict[str, str],
     if context:
         lines.append("")
         lines.append(_escape(context))
+    # After the scheduled news and before the rest of the day: the release says
+    # what happened, the regime says how frightened the market already was when
+    # it did, and both belong above the list of everything else that moved.
+    regime = vix_context(int(event["hour_utc"]))
+    if regime:
+        lines.append("")
+        lines.append(regime)
     budget = _PUSH_LIMIT - len("\n\n".join(lines))
     blocks = _companion_blocks(event, labels, companions, now, events, budget)
     if blocks:
@@ -1139,6 +1276,13 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
         count = "Nothing so far" if live else "Nothing in this period"
     header = (f"📋 <b>Digest</b> - {opened:%a %-d} to {closes:%a %-d %B}\n"
               + count + (" - this message is updated as moves are found" if live else ""))
+    # The regime the whole period sits in, read at the note's latest edit rather
+    # than at its opening: a note is re-rendered every time a row is added, so
+    # while it is live this tracks the market, and once the period closes it
+    # freezes at the last reading inside it.
+    regime = vix_context(int(min(now.timestamp(), end)))
+    if regime:
+        header += "\n" + regime
 
     def block(event: dict) -> str:
         line = describe(event, labels, now, all_events)

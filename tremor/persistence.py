@@ -70,6 +70,40 @@ HELD_MIN = 0.5
 MIN_DENOMINATOR_SIGMAS = 0.5
 
 
+def _day_bounds(frame: pd.DataFrame,
+                tz_name: str | None = None) -> "tuple[np.ndarray, np.ndarray]":
+    """Which day each bar belongs to, and the last bar of each day.
+
+    Returned as (code per bar, last position per code), where the codes run in
+    calendar order over the days actually present - so code + 1 is "the next day
+    this instrument traded", holidays and weekends skipped by construction.
+
+    Vectorised, and that is the whole point of the function existing. Both
+    callers used to loop over the days and compare the entire day column against
+    each one: at six thousand days and a hundred and forty-five thousand bars
+    that is 870 million comparisons per call, four calls per instrument, and it
+    was 96% of the cost of the hourly pipeline - eighteen seconds a call where
+    this is under a tenth of one.
+
+    The day itself is an integer, not a datetime.date. An object array of dates
+    compares elementwise in Python; local midnight as nanoseconds since the
+    epoch is one int64 per bar, unique per local day and ordered like the
+    calendar, which is all either caller needs.
+    """
+    hours = pd.to_datetime(frame["hour_utc"], unit="s", utc=True)
+    if tz_name:
+        hours = hours.dt.tz_convert(tz_name)
+    day = hours.dt.normalize().astype("int64").to_numpy()
+
+    unique, codes = np.unique(day, return_inverse=True)
+    positions = np.arange(len(day), dtype="int64")
+    last = np.zeros(len(unique), dtype="int64")
+    # Not simply "the last row of each run": the frame is sorted in practice but
+    # nothing here requires it, and a maximum is right either way.
+    np.maximum.at(last, codes, positions)
+    return codes, last
+
+
 def today_close_offsets(frame: pd.DataFrame, tz_name: str | None = None) -> np.ndarray:
     """Bars from each bar to the LAST bar of its own day.
 
@@ -77,16 +111,10 @@ def today_close_offsets(frame: pd.DataFrame, tz_name: str | None = None) -> np.n
     last hour of the day has nothing left of that day to hold through, and the
     message says so rather than reporting a ratio of one and calling it news.
     """
-    hours = pd.to_datetime(frame["hour_utc"], unit="s", utc=True)
-    if tz_name:
-        hours = hours.dt.tz_convert(tz_name)
-    days = hours.dt.date.to_numpy()
-    positions = np.arange(len(days))
-    out = np.zeros(len(days), dtype="int64")
-    for day in dict.fromkeys(days):
-        mine = positions[days == day]
-        out[mine] = mine.max() - mine
-    return out
+    if frame.empty:
+        return np.zeros(0, dtype="int64")
+    codes, last = _day_bounds(frame, tz_name)
+    return last[codes] - np.arange(len(codes), dtype="int64")
 
 
 def next_close_offsets(frame: pd.DataFrame, tz_name: str | None = None) -> np.ndarray:
@@ -101,27 +129,14 @@ def next_close_offsets(frame: pd.DataFrame, tz_name: str | None = None) -> np.nd
     The final day of history gets -1, meaning no answer yet, which is the same
     thing the fixed-horizon path says by running off the end of the array.
     """
-    hours = pd.to_datetime(frame["hour_utc"], unit="s", utc=True)
-    if tz_name:
-        hours = hours.dt.tz_convert(tz_name)
-    days = hours.dt.date.to_numpy()
-
-    # Positional index of the last bar of each day, and the order of the days.
-    unique, first_index = np.unique(days, return_index=True)
-    order = np.argsort(first_index)
-    unique = unique[order]
-    last_of_day = {}
-    positions = np.arange(len(days))
-    for day in unique:
-        last_of_day[day] = int(positions[days == day].max())
-
-    following = {day: unique[i + 1] if i + 1 < len(unique) else None
-                 for i, day in enumerate(unique)}
-    out = np.full(len(days), -1, dtype="int64")
-    for i, day in enumerate(days):
-        nxt = following.get(day)
-        if nxt is not None:
-            out[i] = last_of_day[nxt] - i
+    if frame.empty:
+        return np.zeros(0, dtype="int64")
+    codes, last = _day_bounds(frame, tz_name)
+    positions = np.arange(len(codes), dtype="int64")
+    out = np.full(len(codes), -1, dtype="int64")
+    following = codes + 1
+    known = following < len(last)
+    out[known] = last[following[known]] - positions[known]
     return out
 
 
