@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
@@ -953,3 +953,101 @@ def test_the_footer_names_every_instrument_that_is_tracked():
     for label in ("US and global equities", "US Treasuries",
                   "corporate and sovereign credit", "precious metals"):
         assert label in footer
+
+
+# --- a block's own move ------------------------------------------------------
+
+def block_event(**over):
+    base = dict(event_id="block_equity:1", asset_id="block:equity", block="equity",
+                hour_utc=int(datetime(2026, 9, 8, 14, tzinfo=timezone.utc).timestamp()),
+                peak_hour_utc=int(datetime(2026, 9, 8, 14, tzinfo=timezone.utc).timestamp()),
+                tier="extreme", basis="block", r=-0.0241, e_resid=-0.0241,
+                co_block=0.0, sigma_lt=0.0058, n_members=16,
+                leaders="XLE -6.20%, XLF -5.80%, XLI -5.10%, XLB -4.90%",
+                channel="push", z_resid=-4.2)
+    return base | over
+
+
+def test_a_block_move_is_told_as_a_block_and_not_as_an_instrument():
+    # It has no ticker to chart, no price level and no split into "its block and
+    # itself" - it IS the block - so the lines that would say those things are
+    # replaced by what a typical member did and which members did most of it.
+    text = md.describe(block_event(), LABELS)
+
+    assert text.startswith(md.TIER_EMOJI["extreme"] + " <b>US and global equities</b> - ")
+    assert "of that move" not in text
+    assert "the whole block moved together" in text
+    assert "the typical member moved -2.41%" in text
+    assert "that is 4.2x a typical member's usual hour, which is 0.58%" in text
+    assert "biggest movers: XLE -6.20%, XLF -5.80%" in text
+    assert "(of 16 trading that hour)" in text
+    # No split line: there is nothing above a block to explain its move with.
+    assert "of that move:" not in text
+    assert "on its own" not in text
+
+
+def test_a_block_move_still_gets_its_two_check_ins():
+    # The question "did it hold" is the same question for a block as for an
+    # instrument, and it is the one the reader asks next.
+    lines = md.describe(block_event(retention_today=1.4), LABELS).splitlines()
+    assert any("this day's close - kept going, 1.4x the original move" in l for l in lines)
+    assert any("next day's close -" in l for l in lines)
+
+
+def test_a_block_push_speaks_for_the_members_folded_into_it():
+    # The block is the more informative statement of the two, so on the same bar
+    # it takes the anchor and its members appear underneath it rather than
+    # buzzing separately.
+    labels = {"a:XLF": "US financial sector"}
+    with_it = {"a:XLF": event(asset_id="a:XLF", tier="major", basis="absolute",
+                              r=-0.058, e_resid=-0.001, co_block=-0.057,
+                              block="equity", sigma_lt=0.009)}
+    text = md.format_push(block_event(also_moved="a:XLF"), labels, companions=with_it)
+
+    assert "US and global equities" in text
+    assert "US financial sector" in text
+    # And the footer, because the message made a claim about a group of
+    # instruments and the reader is entitled to see which ones.
+    assert "instruments tracked, by block" in text
+
+
+def test_a_block_check_in_is_dated_on_its_members_calendar():
+    # Without this a block would fall back to the round-the-clock calendar and
+    # promise a US block's close at midnight - eight hours before it happens, on
+    # a day the market is shut.
+    assert md._template("block:equity") == "us_equity"
+    assert md._template("block:crypto") == "crypto_24_7"
+    assert md._template("block:FX") == "fx_continuous"
+
+    friday = int(datetime(2026, 9, 4, 17, tzinfo=timezone.utc).timestamp())
+    due = md.due_moment({"asset_id": "block:equity", "hour_utc": friday}, "settled")
+    assert due is not None
+    # The next day US equities trade after that Friday is Tuesday the 8th: the
+    # Monday is Labor Day. On the round-the-clock calendar it would have been
+    # Saturday, three days and one closed market too early.
+    assert datetime.fromtimestamp(due, tz=timezone.utc).date() == date(2026, 9, 8)
+
+
+def test_the_currency_block_names_the_dollar_rather_than_a_sign():
+    # Its members are oriented before the median, so the figure is a statement
+    # about the DOLLAR while the movers under it are quoted the way a chart
+    # quotes them. "+0.88%" above "EUR/USD -1.05%" reads as a contradiction and
+    # is not one.
+    text = md.describe(block_event(
+        block="FX", asset_id="block:FX", r=0.0088, e_resid=0.0088, sigma_lt=0.0008,
+        leaders="USD/CHF +1.31%, EUR/USD -1.22%"), LABELS)
+
+    assert "Currencies" in text
+    assert "the dollar gained 0.88% against the typical pair" in text
+    assert "+0.88%" not in text
+
+    fell = md.describe(block_event(
+        block="FX", asset_id="block:FX", r=-0.0088, e_resid=-0.0088,
+        sigma_lt=0.0008, leaders="EUR/USD +1.22%"), LABELS)
+    assert "the dollar lost 0.88% against the typical pair" in fell
+
+
+def test_a_block_headline_starts_with_a_capital():
+    text = md.describe(block_event(block="precious_metals",
+                                   asset_id="block:precious_metals"), LABELS)
+    assert "<b>Precious metals</b>" in text

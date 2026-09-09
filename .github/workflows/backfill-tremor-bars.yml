@@ -6,7 +6,7 @@ name: Backfill Tremor Bars
 # history_since changes nothing on its own - --extend-history is what asks the
 # source for the older end.
 #
-# A Twelve Data key is needed for the eighteen ETFs and currency pairs, and it
+# A Twelve Data key is needed for the ETFs and currency pairs, and it
 # is used only inside this workflow: an Actions secret cannot be read back out,
 # which makes this the way to deepen the archive without the key passing through
 # a chat.

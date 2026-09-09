@@ -136,3 +136,85 @@ def test_to_hourly_prefers_the_later_copy_of_a_repeated_bar():
     assert out.iloc[0]["close"] == 78076.91
     assert out.iloc[0]["volume"] == 174.29
     assert out.iloc[0]["low"] == 77969.24
+
+
+# --- the store is sharded by year ------------------------------------------
+
+def _hour(year, month=1, day=1, hour=0):
+    from datetime import datetime, timezone
+    return int(datetime(year, month, day, hour, tzinfo=timezone.utc).timestamp())
+
+
+def _rows(hours):
+    return pd.DataFrame({
+        "hour_utc": hours, "open": 1.0, "high": 2.0, "low": 0.5, "close": 1.5,
+        "volume": 10.0, "n_src": 2,
+    })
+
+
+def test_a_write_lands_one_file_per_year(tmp_path):
+    store = bars.store_path(str(tmp_path), "twelvedata_SPY")
+    bars.write(store, _rows([_hour(2003), _hour(2003, 6), _hour(2004), _hour(2026)]))
+
+    import os
+    assert sorted(os.listdir(store)) == ["2003.parquet", "2004.parquet", "2026.parquet"]
+    assert len(bars.load(store)) == 4
+
+
+def test_a_settled_year_is_not_rewritten_when_a_new_hour_arrives(tmp_path):
+    # The whole reason the store is sharded: parquet rewrites a file whole, and
+    # the archive is committed daily. A year whose bars are long finished must
+    # produce no file write at all, or git stores the entire history again to
+    # record one hour.
+    import os
+
+    store = bars.store_path(str(tmp_path), "twelvedata_SPY")
+    bars.write(store, _rows([_hour(2003), _hour(2026)]))
+    settled = os.path.join(store, "2003.parquet")
+    stamp = os.stat(settled).st_mtime_ns
+
+    bars.merge(store, _rows([_hour(2026, 1, 1, 5)]))
+
+    assert os.stat(settled).st_mtime_ns == stamp
+    assert len(bars.load(store)) == 3
+
+
+def test_a_legacy_single_file_is_read_and_then_folded_in(tmp_path):
+    # The migration is the ordinary write path rather than a script somebody has
+    # to remember to run: the first merge reads the old file, lays the union down
+    # as shards and removes it.
+    import os
+
+    store = bars.store_path(str(tmp_path), "twelvedata_SPY")
+    legacy = f"{store}.parquet"
+    os.makedirs(str(tmp_path), exist_ok=True)
+    bars.write(legacy, _rows([_hour(2003), _hour(2004)]))
+
+    assert len(bars.load(store)) == 2
+    bars.merge(store, _rows([_hour(2026)]))
+
+    assert not os.path.exists(legacy)
+    assert sorted(os.listdir(store)) == ["2003.parquet", "2004.parquet", "2026.parquet"]
+    assert sorted(bars.load(store)["hour_utc"]) == [_hour(2003), _hour(2004), _hour(2026)]
+
+
+def test_a_revised_bar_wins_over_the_stored_one(tmp_path):
+    store = bars.store_path(str(tmp_path), "twelvedata_SPY")
+    bars.write(store, _rows([_hour(2026)]))
+    revised = _rows([_hour(2026)])
+    revised.loc[0, "close"] = 99.0
+
+    added = bars.merge(store, revised)
+
+    assert added == 0
+    assert bars.load(store)["close"].iloc[0] == 99.0
+
+
+def test_a_year_that_lost_its_bars_loses_its_shard(tmp_path):
+    import os
+
+    store = bars.store_path(str(tmp_path), "twelvedata_SPY")
+    bars.write(store, _rows([_hour(2003), _hour(2026)]))
+    bars.write(store, _rows([_hour(2026)]))
+
+    assert os.listdir(store) == ["2026.parquet"]

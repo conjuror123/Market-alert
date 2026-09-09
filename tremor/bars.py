@@ -1,10 +1,16 @@
-"""Tremor hourly bar store: Parquet, one file per instrument.
+"""Tremor hourly bar store: Parquet, one directory of per-year shards per
+instrument.
 
 Why Parquet rather than the NDJSON of the existing monitor: there a file is only
-appended one row per hour and grows slowly, whereas here a basket of 23
-instruments since 2021 amounts to roughly half a million bars, and they must be
-read in full on every run of the PCA and the regressions. A typed columnar format
-reads an order of magnitude faster and takes several times less space.
+appended one row per hour and grows slowly, whereas here sixty-two instruments
+back to 2003 amount to several million bars, and they must be read in full on
+every run of the PCA and the regressions. A typed columnar format reads an order
+of magnitude faster and takes several times less space.
+
+Why sharded by year rather than one file per instrument: parquet rewrites a file
+whole, so a settled year re-commits itself every time the current hour arrives.
+The archive is committed daily and cannot be re-fetched from the free tier, so
+dropping it from git is not an option - sharding is. See store_path.
 
 The time convention comes from §1.2 of the spec: hour_utc stores the bar's
 OPENING moment, and the closing moment is t = hour_utc + 1 hour. This is the same
@@ -38,26 +44,114 @@ SCHEMA = {
 
 
 def store_path(base_dir: str, file_stem: str) -> str:
-    return os.path.join(base_dir, f"{file_stem}.parquet")
+    """Where one instrument's bars live: a DIRECTORY of per-year shards.
+
+    It used to be a single file, and the reason it is not any more is git.
+    Parquet rewrites a file whole, so a one-megabyte store re-commits a whole
+    megabyte to say that one hour arrived; the archive is committed daily, and at
+    sixty-two instruments that was ninety megabytes of new objects a day, about
+    thirty gigabytes a year against a repository already at half a gigabyte and a
+    five-gigabyte soft limit. Sharded by year, only the current year's file
+    changes, and the daily commit is a few hundred kilobytes.
+
+    The path is still handed around as one string, so nothing above this module
+    has to know. `load` also reads the legacy single file where one is still
+    lying about, and the next `write` folds it into the shards and deletes it -
+    the migration is the ordinary write path, not a script somebody has to
+    remember to run.
+    """
+    return os.path.join(base_dir, file_stem)
 
 
 def empty_frame() -> pd.DataFrame:
     return pd.DataFrame({name: pd.Series(dtype=dt) for name, dt in SCHEMA.items()})
 
 
-def load(path: str) -> pd.DataFrame:
-    if not os.path.exists(path):
+def _legacy_path(store: str) -> str:
+    return f"{store}.parquet"
+
+
+def _year_of(hours: pd.Series) -> pd.Series:
+    return pd.to_datetime(hours, unit="s", utc=True).dt.year
+
+
+def _shards(store: str) -> list[str]:
+    """Every file the store is spread across, oldest first.
+
+    A path that already names a .parquet file is honoured as one - callers that
+    hold an explicit file (the tests, and anything pointing at an old store)
+    keep working unchanged.
+    """
+    if store.endswith(".parquet"):
+        return [store] if os.path.exists(store) else []
+    found = []
+    legacy = _legacy_path(store)
+    if os.path.exists(legacy):
+        found.append(legacy)
+    if os.path.isdir(store):
+        found.extend(sorted(os.path.join(store, name) for name in os.listdir(store)
+                            if name.endswith(".parquet")))
+    return found
+
+
+def _normalise(frame: pd.DataFrame) -> pd.DataFrame:
+    return frame.astype(SCHEMA).sort_values("hour_utc").reset_index(drop=True)
+
+
+def load(store: str) -> pd.DataFrame:
+    """The whole instrument, every shard concatenated.
+
+    A legacy file is read FIRST so that a shard covering the same hour wins the
+    de-duplication - during a migration the shard is the newer copy by
+    construction, and reading it second would resurrect stale rows.
+    """
+    parts = [pd.read_parquet(path) for path in _shards(store)]
+    if not parts:
         return empty_frame()
-    return pd.read_parquet(path).astype(SCHEMA).sort_values("hour_utc").reset_index(drop=True)
+    combined = pd.concat(parts, ignore_index=True)
+    combined = combined.drop_duplicates(subset="hour_utc", keep="last")
+    return _normalise(combined)
 
 
-def write(path: str, frame: pd.DataFrame) -> None:
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    frame.astype(SCHEMA).sort_values("hour_utc").reset_index(drop=True).to_parquet(
-        path, index=False, compression="zstd")
+def write(store: str, frame: pd.DataFrame) -> None:
+    """Rewrites the store, touching only the shards whose contents changed.
+
+    Not touching an unchanged shard is the entire point: a year whose bars are
+    long settled must produce no file write at all, so that git sees one changed
+    file a day rather than twenty-four.
+    """
+    frame = _normalise(frame)
+    if store.endswith(".parquet"):
+        os.makedirs(os.path.dirname(store) or ".", exist_ok=True)
+        frame.to_parquet(store, index=False, compression="zstd")
+        return
+
+    os.makedirs(store, exist_ok=True)
+    wanted = {str(year): part.reset_index(drop=True)
+              for year, part in frame.groupby(_year_of(frame["hour_utc"]))}
+    for year, part in wanted.items():
+        path = os.path.join(store, f"{year}.parquet")
+        if os.path.exists(path):
+            try:
+                if _normalise(pd.read_parquet(path)).equals(part):
+                    continue
+            except Exception:                    # pragma: no cover - defensive
+                pass                             # unreadable shard: rewrite it
+        part.to_parquet(path, index=False, compression="zstd")
+    for name in os.listdir(store):
+        # A year that no longer has bars in the frame. Only reachable when a
+        # store is rebuilt from a shorter history, but leaving the file behind
+        # would make load() return rows write() was told to drop.
+        if name.endswith(".parquet") and name[:-len(".parquet")] not in wanted:
+            os.remove(os.path.join(store, name))
+    legacy = _legacy_path(store)
+    if os.path.exists(legacy):
+        # Everything it held is now in the shards - load() read it before this
+        # write and write() has just laid the union back down.
+        os.remove(legacy)
 
 
-def merge(path: str, frame: pd.DataFrame) -> int:
+def merge(store: str, frame: pd.DataFrame) -> int:
     """Idempotently brings the store to the union of what is already there and
     `frame`. On a matching hour_utc the new row wins: the source may have revised
     the bar, and the fresher version is more trustworthy. Returns the number of
@@ -65,11 +159,11 @@ def merge(path: str, frame: pd.DataFrame) -> int:
     """
     if frame.empty:
         return 0
-    existing = load(path)
+    existing = load(store)
     before = len(existing)
     combined = pd.concat([existing, frame.astype(SCHEMA)], ignore_index=True)
     combined = combined.drop_duplicates(subset="hour_utc", keep="last")
-    write(path, combined)
+    write(store, combined)
     return len(combined) - before
 
 

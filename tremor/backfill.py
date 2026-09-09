@@ -53,6 +53,11 @@ TWELVEDATA_DELAY_SECONDS = 8.0
 # default applies.
 CHUNK_DAYS = {"30min": 300, "1h": 150}
 
+# How many instruments with an EMPTY store one ordinary run will fetch. See the
+# loop in main() - this is the guard that keeps a batch of newly configured
+# tickers from turning the hourly job into a backfill.
+SEED_PER_RUN = 4
+
 
 def _days_since(start: date) -> float:
     return max(1.0, (datetime.now(timezone.utc) - datetime.combine(
@@ -92,7 +97,17 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
     stored = bars.load(path)
     end: datetime | None = None
     if stored.empty:
-        days = _days_since(since)
+        # A never-seen instrument. The ordinary hourly run takes ONE chunk of it
+        # - a single credit - and leaves the archive to the deepening workflow.
+        # Asking for the whole history here is what an empty store used to mean,
+        # and at the acquisition floor of 2002 that is about thirty chunks paced
+        # eight seconds apart: four minutes and thirty credits per instrument,
+        # which for a batch of new tickers is hours of wall clock and more than
+        # a day's free-tier budget spent inside a job that is supposed to take
+        # ninety seconds. One chunk gets the instrument producing bars now; depth
+        # is a separate, deliberate act.
+        days = float(CHUNK_DAYS[asset.fetch_interval]) if not extend_history \
+            else _days_since(since)
     elif extend_history:
         # Deepening: the walk goes backwards, so it starts at the oldest bar
         # already held rather than at today. Starting at today would spend a
@@ -909,9 +924,24 @@ def main(argv: list[str] | None = None) -> int:
 
     failures = 0
     skipped = 0
+    seeded = 0
     for i, asset in enumerate(instruments):
-        if not args.extend_history and nothing_can_have_appeared(
-                asset, bars.store_path(args.bars_dir, asset.file_stem), session_table):
+        path = bars.store_path(args.bars_dir, asset.file_stem)
+        if not args.extend_history and bars.load(path).empty:
+            # Only a few never-seen instruments per run. Adding a block of new
+            # tickers to the configuration otherwise turns the next hourly run
+            # into a batch job: the free tier is 800 credits a day and eight a
+            # minute, so thirty-eight empty stores would spend the budget and
+            # overrun the job. They are seeded a handful at a time and are all
+            # producing bars within a few hours.
+            if seeded >= SEED_PER_RUN:
+                skipped += 1
+                log.info("%s: new instrument, waiting its turn to be seeded",
+                         asset.asset_id)
+                continue
+            seeded += 1
+        elif not args.extend_history and nothing_can_have_appeared(
+                asset, path, session_table):
             skipped += 1
             log.info("%s: market closed since the newest stored bar, not asked for",
                      asset.asset_id)

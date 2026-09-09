@@ -946,3 +946,53 @@ def test_a_store_that_has_fallen_days_behind_is_asked_for():
         table = _table([date(2026, 4, 3), date(2026, 4, 6), date(2026, 4, 7)])
         now = datetime(2026, 4, 7, 18, tzinfo=timezone.utc)
         assert nothing_can_have_appeared(_equity(), path, table, now) is False
+
+
+# --- a newly configured instrument does not turn the hourly run into a job ---
+
+def test_an_empty_store_takes_one_chunk_not_the_whole_archive(monkeypatch, tmp_path):
+    # At the acquisition floor of 2002 the whole archive is about thirty chunks
+    # paced eight seconds apart: four minutes and thirty credits for ONE
+    # instrument, inside a job that is meant to take ninety seconds.
+    from tremor import backfill
+
+    asked = {}
+
+    def fake(symbol, interval, days, **kw):
+        asked["days"] = days
+        return []
+
+    monkeypatch.setattr(backfill.twelvedata, "fetch_full_history", fake)
+    asset = Asset(ticker="XLK", source="twelvedata", tier=1, block="equity",
+                  has_volume=True, session_template="us_equity",
+                  fetch_interval="30min", label="Technology", in_basket=True,
+                  tick_size=0.01)
+    store = backfill.bars.store_path(str(tmp_path), asset.file_stem)
+
+    backfill.fetch_missing(asset, store, date(2002, 1, 1), "key", None)
+
+    assert asked["days"] == backfill.CHUNK_DAYS["30min"]
+
+
+def test_extending_history_still_asks_for_the_whole_archive(monkeypatch, tmp_path):
+    # The deepening workflow is the deliberate act, and it must not be capped by
+    # the guard that protects the hourly run.
+    from tremor import backfill
+
+    asked = {}
+
+    def fake(symbol, interval, days, **kw):
+        asked["days"] = days
+        return []
+
+    monkeypatch.setattr(backfill.twelvedata, "fetch_full_history", fake)
+    asset = Asset(ticker="XLK", source="twelvedata", tier=1, block="equity",
+                  has_volume=True, session_template="us_equity",
+                  fetch_interval="30min", label="Technology", in_basket=True,
+                  tick_size=0.01)
+    store = backfill.bars.store_path(str(tmp_path), asset.file_stem)
+
+    backfill.fetch_missing(asset, store, date(2002, 1, 1), "key", None,
+                           extend_history=True)
+
+    assert asked["days"] > 8000

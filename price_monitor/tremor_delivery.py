@@ -137,6 +137,10 @@ BASIS_NOUN = {
     "abnormal": "a move of its own this big happens",
     "absolute": "a move this big happens",
     "both": "a move this big happens",
+    # A block. "Of its own" would be meaningless - there is nothing above a block
+    # to explain its move with - and a bare "a move this big" would read as a
+    # claim about one price when it is a claim about a whole complex.
+    "block": "the whole block moved together, and a move this big for it happens",
 }
 
 
@@ -525,6 +529,13 @@ def _is_market(event: dict) -> bool:
     return str(event.get("basis") or "") == "market"
 
 
+def _is_block(event: dict) -> bool:
+    """Whether this row is a block rather than an instrument (see tremor.blocks)."""
+    from tremor.blocks import is_block
+
+    return is_block(str(event.get("asset_id") or ""))
+
+
 def _clean(value) -> "float | None":
     try:
         number = float(value)
@@ -561,7 +572,11 @@ def _scale_note(event: dict) -> str:
     size = f"{ratio:.0f}x" if ratio >= 10 else f"{ratio:.1f}x"
     usual_pct = (f"{usual * 100:.3f}%" if usual * 100 < 0.1
                  else f"{usual * 100:.2f}%")
-    return f"that is {size} its usual hour, which is {usual_pct}"
+    # For a block the yardstick is the median member's usual hour rather than any
+    # one instrument's, and saying "its" would invite the reader to look for an
+    # instrument that does not exist.
+    whose = "a typical member's usual hour" if _is_block(event) else "its usual hour"
+    return f"that is {size} {whose}, which is {usual_pct}"
 
 
 def check_in_lines(event: dict, now: datetime | None = None,
@@ -635,6 +650,9 @@ def describe(event: dict, labels: dict[str, str],
         return (f"{emoji} <b>Market-wide</b> - {headline}"
                 f"\n     hour to {when:%Y-%m-%d %H:%M} UTC")
 
+    if _is_block(event):
+        return _describe_block(event, headline, emoji, when, now, events)
+
     asset_id = str(event.get("asset_id", ""))
     label = labels.get(asset_id) or asset_id.split(":")[-1]
     move = _clean(event.get("r"))
@@ -652,6 +670,62 @@ def describe(event: dict, labels: dict[str, str],
 
     for line in _split_lines(event, label):
         parts.append(f"     {line}")
+
+    parts.extend(check_in_lines(event, now))
+    return "\n".join(parts)
+
+
+def _block_move_phrase(block: str, move: "float | None") -> str:
+    """How far the block moved, said so that it agrees with the tickers below it.
+
+    The currency block is the one that needs saying carefully. Its members are
+    sign-oriented before the median is taken - three pairs quote the dollar as
+    base and the rest as quote, so an unoriented median of a dollar rally is
+    close to nothing - and the oriented figure is therefore a statement about the
+    DOLLAR, while the movers listed under it are quoted the way a chart quotes
+    them. Printing "+0.88%" above "EUR/USD -1.05%" reads as a contradiction and
+    is not one, so the dollar is named and the sign goes into the verb.
+    """
+    if move is None:
+        return ""
+    if block == "FX":
+        verb = "gained" if move > 0 else "lost"
+        return f"the dollar {verb} {abs(move) * 100:.2f}% against the typical pair "
+    return f"the typical member moved {move * 100:+.2f}% "
+
+
+def _describe_block(event: dict, headline: str, emoji: str, when: datetime,
+                    now: "datetime | None", events: "list[dict] | None") -> str:
+    """A block's own move, as it appears in a push or a digest row.
+
+    Deliberately NOT the instrument block with a different name at the top. A
+    block has no ticker to chart, no price level, and no split into "its block
+    and itself" - it IS the block - so the three lines that would say those
+    things are replaced by the two a reader actually needs: what a typical member
+    did, and which members did most of it.
+
+    "The typical member moved -2.41%" rather than "the block moved -2.41%",
+    because the figure is a median across instruments whose usual hours differ by
+    a factor of twenty-five, and stating it as the block's own return would be
+    claiming a precision the construction does not have.
+    """
+    block = str(event.get("block") or "")
+    named = BLOCK_LABEL.get(block, block or "a block")
+    parts = [f"{emoji} <b>{_escape(named[:1].upper() + named[1:])}</b> - {headline}"]
+
+    move = _clean(event.get("r"))
+    detail = _block_move_phrase(block, move)
+    parts.append(f"     {detail}in the hour to {when:%Y-%m-%d %H:%M} UTC")
+
+    for line in (_scale_note(event), _since_note(event, events or [])):
+        if line:
+            parts.append(f"     {line}")
+
+    leaders = str(event.get("leaders") or "")
+    if leaders:
+        count = _clean(event.get("n_members"))
+        of = f" (of {int(count)} trading that hour)" if count else ""
+        parts.append(f"     biggest movers: {_escape(leaders)}{_escape(of)}")
 
     parts.extend(check_in_lines(event, now))
     return "\n".join(parts)
@@ -781,11 +855,24 @@ def _template(asset_id: str) -> str:
 
 @lru_cache(maxsize=1)
 def _templates() -> dict[str, str]:
-    """asset_id -> session template, from the basket definition."""
+    """asset_id -> session template, from the basket definition.
+
+    Blocks are in here too, under their own ids. A block's day closes when its
+    members' day closes, and without this a block event would fall back to the
+    round-the-clock calendar and promise a US block's close at midnight - eight
+    hours before it happens, on a day the market is shut.
+    """
     try:
         from tremor.basket import load_basket
+        from tremor.blocks import block_id
 
-        return {a.asset_id: a.session_template for a in load_basket().instruments}
+        basket = load_basket()
+        out = {a.asset_id: a.session_template for a in basket.instruments}
+        for block, members in basket.by_block().items():
+            shared = {a.session_template for a in members}
+            if len(shared) == 1:
+                out[block_id(block)] = shared.pop()
+        return out
     except Exception as exc:                     # pragma: no cover - defensive
         log.warning("Could not read basket session templates: %s", exc)
         return {}
@@ -885,9 +972,11 @@ def format_push(event: dict, labels: dict[str, str],
     if blocks:
         lines.append("")
         lines.append(blocks)
-    # Once at the foot of the message rather than under every instrument: the
-    # reader needs to know what "the basket" is, and needs it said once.
-    if any("instruments drifting together" in line for line in lines):
+    # Once at the foot of the message rather than under every instrument: any
+    # message that says "its own block" or speaks for a block outright is asking
+    # the reader to accept a claim about a group of instruments, and they are
+    # entitled to see which instruments - said once.
+    if any("its own block" in line or "the whole block" in line for line in lines):
         lines.append("")
         lines.append(basket_footer())
     return "\n".join(lines)

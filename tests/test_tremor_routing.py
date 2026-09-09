@@ -268,3 +268,34 @@ def test_a_whole_day_of_an_episode_still_folds_into_one():
 def test_the_day_boundary_is_utc():
     assert routing.same_day(10 * DAY, 10 * DAY + 23 * HOUR)
     assert not routing.same_day(10 * DAY + 23 * HOUR, 11 * DAY)
+
+
+def test_a_block_takes_the_anchor_from_its_members_on_the_same_bar():
+    # The block push and the members that made it up land on the same hour. The
+    # block is the more informative of the two - "the whole complex repriced,
+    # led by these three" rather than "this member moved and six others moved
+    # with it" - so it interrupts and they fold under it.
+    HOUR = 3600
+    frame = events([(10 * HOUR, "major", 1.0, 1.0),
+                    (10 * HOUR, "major", 1.0, 1.0),
+                    (10 * HOUR, "major", 1.0, 1.0)],
+                   assets=["src:XLF", "block:equity", "src:XLE"])
+    out = routing.route(frame)
+
+    anchor = out[out["channel"] == routing.PUSH]
+    assert list(anchor["asset_id"]) == ["block:equity"]
+    assert set(str(anchor["also_moved"].iloc[0]).split()) == {"src:XLF", "src:XLE"}
+    assert set(out[out["channel"] == routing.DIGEST]["folded_into"]) == {"block:equity"}
+
+
+def test_a_rarer_member_still_interrupts_a_block_push():
+    # The one rule the collapse must never break: a later, rarer push is news
+    # whoever it belongs to, and being a block does not make the anchor stick.
+    HOUR = 3600
+    frame = events([(10 * HOUR, "major", 1.0, 1.0),
+                    (12 * HOUR, "extreme", 1.0, 1.0)],
+                   assets=["block:equity", "src:XLF"])
+    out = routing.route(frame)
+
+    assert list(out[out["channel"] == routing.PUSH]["asset_id"]) == [
+        "block:equity", "src:XLF"]

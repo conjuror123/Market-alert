@@ -35,7 +35,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from tremor import persistence, quality, routing, severity, windows
+from tremor import blocks, persistence, quality, routing, severity, windows
 from tremor.basket import Asset, Basket
 
 
@@ -468,7 +468,9 @@ def load_residuals(basket: Basket,
 
 
 def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
-                     block_factors: pd.DataFrame | None = None
+                     block_factors: pd.DataFrame | None = None,
+                     panel: pd.DataFrame | None = None,
+                     sigma_panel: pd.DataFrame | None = None
                      ) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, pd.DataFrame]]:
     """Computes residuals and events for every instrument, non-basket ones included.
 
@@ -532,8 +534,27 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
         if asset.asset_id in scored:
             all_events.extend(build_events(asset, scored[asset.asset_id]))
 
-    events = routing.route(persistence.attach(events_frame(all_events), scored))
-    alerts = aggregate_block_alerts(events)
+    # The blocks themselves, as rows in the same table. Widening the blocks made
+    # every member's residual smaller on the days the whole block moves - which
+    # is what it is for - and the cost of that is silence on exactly those days,
+    # because then no member is abnormal. See tremor.blocks.
+    block_scored: dict[str, pd.DataFrame] = {}
+    block_rows = pd.DataFrame()
+    if panel is not None and sigma_panel is not None:
+        block_scored = blocks.frames(basket, panel, sigma_panel)
+        block_rows = blocks.events_frame(block_scored, basket, panel)
+
+    frame = events_frame(all_events)
+    if not block_rows.empty:
+        frame = pd.concat([frame, block_rows], ignore_index=True)
+    retention_from = dict(scored)
+    retention_from.update({blocks.block_id(name): f for name, f in block_scored.items()})
+
+    events = routing.route(persistence.attach(frame, retention_from))
+    # Block rows stay out of the member aggregation: it answers "several members
+    # of this block fired at once", and a block row is not one of its members.
+    alerts = aggregate_block_alerts(
+        events[~events["asset_id"].map(blocks.is_block)] if not events.empty else events)
     return link_alerts(events, alerts), alerts, scored
 
 
@@ -572,7 +593,9 @@ def main(argv: list[str] | None = None) -> int:
     block_factors = cross_section.block_factors(
         panel.loc[reference], basket, sigma_panel.loc[reference])
 
-    events, alerts, scored = build_for_basket(basket, metrics, block_factors)
+    events, alerts, scored = build_for_basket(
+        basket, metrics, block_factors,
+        panel.loc[reference], sigma_panel.loc[reference])
 
     from tremor import versioning
 

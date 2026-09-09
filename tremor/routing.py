@@ -138,7 +138,18 @@ def collapse(events: pd.DataFrame, channels: pd.Series) -> pd.Series:
     a row that cannot say which alert it belongs to reads as the same news
     arriving twice.
     """
-    order = events["hour_utc"].sort_values().index
+    # Chronological, and within an hour the BLOCK first. A block push and the
+    # members that made it up land on the same bar, and the block is the more
+    # informative of the two - "the whole complex repriced, led by these three"
+    # rather than "this one member moved and six others moved with it" - so it
+    # takes the anchor and they fold under it. Nothing else about the rule
+    # changes: a rarer push later still interrupts, block or not.
+    from tremor.blocks import is_block
+
+    order = events.assign(
+        _block_first=events["asset_id"].map(is_block).map({True: 0, False: 1})
+        if "asset_id" in events else 1
+    ).sort_values(["hour_utc", "_block_first"], kind="mergesort").index
     tier = events["tier"]
     rank = {name: i for i, name in enumerate(severity.TIERS)}
     out = channels.copy()

@@ -24,6 +24,7 @@ dropped from the production configuration as redundant.
 from __future__ import annotations
 
 import os
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -176,34 +177,15 @@ def block_factors(panel: pd.DataFrame, basket: Basket,
     equality rule all weights within a block are equal, so a block's weighted
     median coincides with the plain one.
     """
-    members: dict[str, list[str]] = {}
-    signs: dict[str, float] = {}
-    for asset in basket.assets:
-        if asset.asset_id in panel.columns:
-            members.setdefault(asset.block, []).append(asset.asset_id)
-            signs[asset.asset_id] = asset.block_sign
-    for asset in basket.outside:
-        signs.setdefault(asset.asset_id, asset.block_sign)
-
+    members, signs = _block_members(panel, basket)
     out = pd.DataFrame(index=panel.index, dtype="float64")
     for block, columns in members.items():
-        # ORIENTED before the median is taken. A median represents a common move
-        # only if the members respond to it with the same sign, and the FX block
-        # does not: it holds pairs with the dollar as base and pairs with it as
-        # quote, so a dollar move pushes half up and half down and the median of
-        # the six is close to nothing. See Asset.block_sign for the measurement -
-        # the block factor was seeing about a quarter of the dollar move and the
-        # rest was leaking into every member's residual.
-        sign_row = np.array([signs[c] for c in columns], dtype="float64")
-        oriented = panel[columns].to_numpy(dtype="float64") * sign_row
         scale = _scale_row(sigma_panel, columns, panel.index)
-        with np.errstate(invalid="ignore", divide="ignore"):
-            unit = oriented / scale
+        unit = _oriented_units(panel, columns, signs, scale)
         for position, asset_id in enumerate(columns):
             others = np.delete(unit, position, axis=1)
-            with np.errstate(invalid="ignore"):
-                factor = np.nanmedian(others, axis=1) if others.size else np.full(
-                    len(panel), np.nan)
+            factor = (_nanmedian(others) if others.size
+                      else np.full(len(panel), np.nan))
             # Returned in the INSTRUMENT'S own units and orientation: the
             # regression that consumes this expects a series the instrument moves
             # with, and converting back here keeps beta_block near one for a
@@ -216,11 +198,100 @@ def block_factors(panel: pd.DataFrame, basket: Basket,
         for asset in basket.outside:
             if asset.block != block:
                 continue
-            with np.errstate(invalid="ignore"):
-                whole = np.nanmedian(unit, axis=1)
             own = _scale_row(sigma_panel, [asset.asset_id], panel.index)[:, 0]
-            out[asset.asset_id] = whole * own * signs[asset.asset_id]
+            out[asset.asset_id] = _nanmedian(unit) * own * signs[asset.asset_id]
     return out
+
+
+def block_moves(panel: pd.DataFrame, basket: Basket,
+                sigma_panel: pd.DataFrame | None = None) -> pd.DataFrame:
+    """One series per block: how far the block itself moved, in sigmas.
+
+    The block factor above answers "what did this instrument's peers do", once
+    per instrument and in that instrument's units. This answers the question the
+    peers themselves raise - "did the whole block move" - once per block, and it
+    is a different question with a different consumer: the ladder is fitted to
+    THIS series to give a block its own return period.
+
+    Why it has to exist at all. Widening the blocks made every member's residual
+    smaller on the days the block moves together, which is the point - but it
+    also means that on those days no member is abnormal and nothing pushes. The
+    biggest days in the record are exactly the days a whole complex moves as one,
+    and without this series they would be the quietest.
+
+    Unitless on purpose, where block_factors converts back. A block has no units
+    of its own - "the equity block moved 2%" is a claim about a median of
+    percentages across instruments with different volatilities - so the honest
+    statement is in sigmas: the median member moved this many times its own usual
+    hour. The message converts that back into named members and their own
+    percentages, which is what a reader can check.
+
+    Every member counts here, including the ones the leave-one-out factor omits
+    for a given instrument, because the subject is the block rather than any one
+    of its members. Instruments outside the basket stay out, for the same reason
+    they stay out of the factor: they are watched, not counted.
+    """
+    members, signs = _block_members(panel, basket)
+    out = pd.DataFrame(index=panel.index, dtype="float64")
+    counts = pd.DataFrame(index=panel.index, dtype="float64")
+    for block, columns in members.items():
+        scale = _scale_row(sigma_panel, columns, panel.index)
+        unit = _oriented_units(panel, columns, signs, scale)
+        out[block] = _nanmedian(unit)
+        counts[block] = np.isfinite(unit).sum(axis=1)
+    return out.where(counts >= BLOCK_MOVE_MIN_MEMBERS)
+
+
+# How many members must be present in an hour before the block is credited with
+# a move of its own. Two is the floor at which a median is a median rather than
+# a copy of the one instrument that happened to be trading, and it matches the
+# floor the configuration already enforces on a block's size.
+BLOCK_MOVE_MIN_MEMBERS = 2
+
+
+def _block_members(panel: pd.DataFrame,
+                   basket: Basket) -> "tuple[dict[str, list[str]], dict[str, float]]":
+    """Which basket instruments make up each block, and how each is oriented."""
+    members: dict[str, list[str]] = {}
+    signs: dict[str, float] = {}
+    for asset in basket.assets:
+        if asset.asset_id in panel.columns:
+            members.setdefault(asset.block, []).append(asset.asset_id)
+            signs[asset.asset_id] = asset.block_sign
+    for asset in basket.outside:
+        signs.setdefault(asset.asset_id, asset.block_sign)
+    return members, signs
+
+
+def _oriented_units(panel: pd.DataFrame, columns: list[str],
+                    signs: dict[str, float], scale: np.ndarray) -> np.ndarray:
+    """Members' returns, sign-oriented and divided by their own scale.
+
+    ORIENTED before any median is taken. A median represents a common move only
+    if the members respond to it with the same sign, and the FX block does not:
+    it holds pairs with the dollar as base and pairs with it as quote, so a
+    dollar move pushes half up and half down and the median of the six is close
+    to nothing. See Asset.block_sign for the measurement - the block factor was
+    seeing about a quarter of the dollar move and the rest was leaking into every
+    member's residual.
+    """
+    sign_row = np.array([signs[c] for c in columns], dtype="float64")
+    oriented = panel[columns].to_numpy(dtype="float64") * sign_row
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return oriented / scale
+
+
+def _nanmedian(values: np.ndarray) -> np.ndarray:
+    """Row-wise median ignoring gaps, quietly where a whole row is missing.
+
+    An hour in which no member of a block traded is an ordinary fact - most
+    blocks are shut for most of the day - and numpy's warning for it would be
+    emitted once per row per block, which at a hundred thousand hours drowns the
+    log the run is supposed to be read from.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        return np.nanmedian(values, axis=1)
 
 
 def _scale_row(sigma_panel: "pd.DataFrame | None", columns: list[str],
