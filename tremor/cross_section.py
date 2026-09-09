@@ -642,8 +642,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     panel_hours = build_panel(metrics, "r").index
-    reference = pd.Index([h for h in panel_hours
-                          if sessions.is_reference_hour(int(h), basket.anchor_exchange_tz)])
+    reference = panel_hours[sessions.reference_hours_mask(
+        pd.Series(panel_hours), basket.anchor_exchange_tz).to_numpy()]
     frame = build_basket_metrics(metrics, basket, reference)
 
     # §6.3: the versions go into the metrics as well. cluster then rewrites this

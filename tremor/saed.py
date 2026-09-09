@@ -586,8 +586,8 @@ def main(argv: list[str] | None = None) -> int:
     # the two can run in either order and a cross_section failure can no longer
     # take the events down with it.
     panel = cross_section.build_panel(metrics, "r")
-    reference = [h for h in panel.index
-                 if sessions.is_reference_hour(int(h), basket.anchor_exchange_tz)]
+    reference = panel.index[sessions.reference_hours_mask(
+        pd.Series(panel.index), basket.anchor_exchange_tz).to_numpy()]
     sigma_panel = cross_section.build_panel(metrics, "sigma_eff").reindex(
         index=panel.index)
     block_factors = cross_section.block_factors(

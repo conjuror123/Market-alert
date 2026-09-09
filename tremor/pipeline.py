@@ -132,6 +132,95 @@ def build_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
     return result
 
 
+# --- the same thing, across the machine's cores ------------------------------
+#
+# The instruments are independent: nothing in the metric chain for EUR/USD looks
+# at SPY. The cross-sectional work that does comes later, in cross_section, and
+# reads these files off disk. So the loop above is embarrassingly parallel, and
+# the only reason it was not was that it started life with twelve instruments
+# and a few seconds.
+#
+# Written as a pool over PROCESSES rather than threads because the work is
+# numpy and pandas holding the GIL for most of it. The workers return summaries
+# only, never frames: a scored frame is 145,000 rows by forty columns, and
+# pickling twenty-three of them back to the parent would cost more than the
+# computation saved. They write their own parquet, which the loop above already
+# did, and whoever needs the numbers reads them back with load_all.
+_POOL_STATE: dict = {}
+
+
+def _pool_init(bars_dir: str, metrics_dir: str, versions: tuple[str, str]) -> None:
+    """Loaded once per worker, not once per instrument.
+
+    The session table is six thousand rows and the corporate-action table a few
+    hundred; sending either through the task queue for every instrument would
+    hand back most of what the pool is for.
+    """
+    _POOL_STATE.update(
+        bars_dir=bars_dir, metrics_dir=metrics_dir, versions=versions,
+        session_table=sessions.load_sessions(),
+        actions=corporate_actions.load_actions(),
+    )
+
+
+def _pool_one(payload: "tuple[Asset, Basket]") -> "tuple[str, int, int, int] | None":
+    asset, basket = payload
+    from tremor import versioning
+
+    frame = bars.load(bars.store_path(_POOL_STATE["bars_dir"], asset.file_stem))
+    metrics = build_asset_metrics(asset, basket, frame, _POOL_STATE["session_table"],
+                                  _POOL_STATE["actions"].get(asset.ticker))
+    if metrics.empty:
+        return None
+    stored = metrics[[c for c in METRIC_COLUMNS if c in metrics]]
+    config, run = _POOL_STATE["versions"]
+    versioning.stamp(stored, config, run).to_parquet(
+        metrics_path(_POOL_STATE["metrics_dir"], asset.file_stem),
+        index=False, compression="zstd")
+    return (asset.asset_id, len(metrics), int(metrics["breach_q95"].sum()),
+            int(metrics["breach_q99"].sum()))
+
+
+def write_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
+              metrics_dir: str = DEFAULT_METRICS_DIR,
+              versions: tuple[str, str] | None = None,
+              workers: int | None = None) -> int:
+    """build_all's work, in parallel, returning a count rather than the frames.
+
+    This is what the command line calls. build_all stays as it is, serial and
+    returning everything, because that is what the tests and every in-process
+    caller want - and because a pool that has to be right about pickling is not
+    a thing to put in the path of a caller that does not need it.
+    """
+    import concurrent.futures as cf
+    import multiprocessing as mp
+    from tremor import versioning
+
+    os.makedirs(metrics_dir, exist_ok=True)
+    versions = versions or versioning.versions_for()
+    workers = workers or min(len(basket.instruments), os.cpu_count() or 1)
+    if workers <= 1:
+        return len(build_all(basket, bars_dir, metrics_dir, versions))
+
+    payloads = [(asset, basket) for asset in basket.instruments]
+    written = 0
+    # "spawn" rather than the platform default: a forked worker inherits the
+    # parent's numpy and BLAS state, and the combination of fork with a threaded
+    # BLAS is the classic way to get a pool that hangs on some machines and not
+    # on others.
+    with cf.ProcessPoolExecutor(
+            max_workers=workers, mp_context=mp.get_context("spawn"),
+            initializer=_pool_init,
+            initargs=(bars_dir, metrics_dir, versions)) as pool:
+        for outcome in pool.map(_pool_one, payloads):
+            if outcome is None:
+                continue
+            asset_id, rows, q95, q99 = outcome
+            written += 1
+            log.info("%s: bars %d, Q95 breaches %s, Q99 %s", asset_id, rows, q95, q99)
+    return written
+
+
 def load_all(basket: Basket, metrics_dir: str = DEFAULT_METRICS_DIR) -> dict[str, pd.DataFrame]:
     out = {}
     for asset in basket.instruments:
@@ -147,11 +236,14 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Recompute per-asset metrics (§6.1)")
     parser.add_argument("--bars-dir", default=bars.DEFAULT_BARS_DIR)
     parser.add_argument("--metrics-dir", default=DEFAULT_METRICS_DIR)
+    parser.add_argument("--workers", type=int, default=None,
+                        help="parallel workers; 1 forces the serial path")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    built = build_all(load_basket(), args.bars_dir, args.metrics_dir)
-    print(f"metrics computed for {len(built)} instruments")
+    built = write_all(load_basket(), args.bars_dir, args.metrics_dir,
+                      workers=args.workers)
+    print(f"metrics computed for {built} instruments")
     return 0
 
 

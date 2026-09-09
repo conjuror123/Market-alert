@@ -272,6 +272,10 @@ def next_close_after(hour_utc: int, template: str,
     return None
 
 
+# The reference week runs Sunday 17:00 to Friday 17:00 local: five days on.
+REFERENCE_CLOSE_DAYS = 5
+
+
 def reference_week_bounds(any_moment: datetime, anchor_tz: str) -> tuple[int, int]:
     """Bounds of the reference-calendar week containing `any_moment`:
     (open, close) in epoch UTC.
@@ -292,9 +296,58 @@ def reference_week_bounds(any_moment: datetime, anchor_tz: str) -> tuple[int, in
     if local < opened:
         opened = datetime.combine(sunday - timedelta(days=7), time(REFERENCE_OPEN_HOUR),
                                   tzinfo=tz)
-    closed = datetime.combine(opened.date() + timedelta(days=5),
+    closed = datetime.combine(opened.date() + timedelta(days=REFERENCE_CLOSE_DAYS),
                               time(REFERENCE_CLOSE_HOUR), tzinfo=tz)
     return int(opened.timestamp()), int(closed.timestamp())
+
+
+def reference_week_opens(moments: "pd.Series", anchor_tz: str) -> "pd.Series":
+    """reference_week_bounds' opening moment, for a whole series at once.
+
+    The scalar version is Python datetime arithmetic and two timezone
+    conversions per call, and the callers ask it per BAR: at 145,000 bars it was
+    292,165 calls and the single largest cost in the metrics stage. Nothing
+    about the answer is per-bar - it is a property of the week - so it
+    vectorises completely.
+
+    DST is the reason this is not simply "add seventeen hours". The bounds are
+    defined in the anchor exchange's local time, so the arithmetic is done on
+    NAIVE local timestamps and localised afterwards; adding a seventeen-hour
+    offset to a tz-aware timestamp would work in absolute time and drift by an
+    hour across each transition, which is exactly what storing the bounds as UTC
+    would have done and what the design forbids.
+    """
+    import pandas as pd
+
+    local = pd.to_datetime(moments, utc=True).dt.tz_convert(anchor_tz)
+    naive = local.dt.tz_localize(None)
+    days_since_sunday = (naive.dt.weekday + 1) % 7
+    sunday = naive.dt.normalize() - pd.to_timedelta(days_since_sunday, unit="D")
+    opened = sunday + pd.Timedelta(hours=REFERENCE_OPEN_HOUR)
+    # A moment before its own Sunday open belongs to the previous week.
+    opened = opened.where(naive >= opened, opened - pd.Timedelta(days=7))
+    return opened.dt.tz_localize(anchor_tz, nonexistent="shift_forward",
+                                 ambiguous=True)
+
+
+def reference_hours_mask(hours_utc, anchor_tz: str) -> "pd.Series":
+    """Which of these hours fall inside the reference calendar, vectorised.
+
+    Same answer as is_reference_hour one at a time, and the same caveat: the
+    week is exactly 120 hours long and holidays are not subtracted from it. The
+    caller's index is preserved, because every caller is masking a frame with it.
+    """
+    import pandas as pd
+
+    hours = hours_utc if isinstance(hours_utc, pd.Series) else pd.Series(
+        list(hours_utc), dtype="int64")
+    moments = pd.to_datetime(hours.astype("int64"), unit="s", utc=True)
+    opened = reference_week_opens(moments, anchor_tz)
+    closed = (opened.dt.tz_localize(None)
+              + pd.Timedelta(days=REFERENCE_CLOSE_DAYS)
+              + pd.Timedelta(hours=REFERENCE_CLOSE_HOUR - REFERENCE_OPEN_HOUR)
+              ).dt.tz_localize(anchor_tz, nonexistent="shift_forward", ambiguous=True)
+    return (moments >= opened) & (moments < closed)
 
 
 def is_reference_hour(hour_utc: int, anchor_tz: str) -> bool:

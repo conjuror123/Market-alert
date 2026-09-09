@@ -27,3 +27,34 @@ data/calibration_review/
 data/tremor/events/
 data/tremor/residuals/
 data/tremor/metrics/
+
+# The same reasoning, arrived at late and the hard way. These are single files
+# rather than directories, so they looked small enough to keep - and they are
+# not, because git cannot delta them. A parquet of floats that the pipeline
+# recomputes in full has no bytes in common with its previous version, so every
+# commit stores the WHOLE file again:
+#
+#     metrics_basket_hour.parquet   13 copies, 108.5 MB   8.3 MB a commit
+#     decision_log.parquet          10 copies,  44.9 MB
+#     detector_scores.parquet        1 copy,    25.2 MB
+#     saed_events.parquet           14 copies,  13.8 MB
+#
+# against the bar archive, which appends and therefore deltas: a 2 MB parquet
+# with one more hour in it costs 2.3 KB in the pack, measured. So the bars are
+# not the problem and never were - these are, at about ten megabytes a day.
+#
+# Every one of them is rebuilt from the bars by the run that reads it, and the
+# reading always happens in the SAME workflow run that wrote it (cluster reads
+# what saed just wrote; delivery reads the events table the pipeline just
+# produced). Nothing anywhere loads them from a previous run, so committing
+# them buys nothing at all.
+data/tremor/metrics_basket_hour.parquet
+data/tremor/decision_log.parquet
+data/tremor/detector_scores.parquet
+data/tremor/detector_alerts.parquet
+data/tremor/saed_events.parquet
+data/tremor/saed_block_alerts.parquet
+data/tremor/cluster_events.parquet
+data/tremor/cluster_event_escalations.parquet
+data/tremor/market_events.parquet
+data/tremor/truth_labels.parquet

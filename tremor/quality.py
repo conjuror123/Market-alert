@@ -56,7 +56,7 @@ def in_session(asset: Asset, hours: pd.Series,
     if asset.session_template == "fx_continuous":
         # Spot FX trades continuously from Sun 17:00 to Fri 17:00 in the anchor
         # exchange's time - exactly the basket's reference week from §2.2.
-        return hours.map(lambda h: sessions_mod.is_reference_hour(int(h), anchor_tz))
+        return sessions_mod.reference_hours_mask(hours, anchor_tz)
 
     if asset.session_template != "us_equity":
         raise ValueError(f"{asset.ticker}: unknown session template "

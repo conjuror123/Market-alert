@@ -54,10 +54,12 @@ def session_ids(asset: Asset, hours: pd.Series, anchor_tz: str = "America/New_Yo
         return local.dt.strftime("%Y-%m-%d")
 
     if asset.session_template == "fx_continuous":
-        from tremor.sessions import reference_week_bounds
-        return pd.Series(
-            [reference_week_bounds(m.to_pydatetime(), anchor_tz)[0] for m in moments],
-            index=hours.index)
+        # Vectorised, and it has to be: this used to call reference_week_bounds
+        # once per bar, which at 145,000 bars was the single largest cost in the
+        # whole metrics stage - 292,165 calls, two timezone conversions each.
+        from tremor.sessions import reference_week_opens
+
+        return reference_week_opens(moments, anchor_tz).astype("int64") // 10 ** 9
 
     raise ValueError(f"{asset.ticker}: unknown session template '{asset.session_template}'")
 

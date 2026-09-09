@@ -338,7 +338,7 @@ def test_a_block_that_contributed_nothing_still_takes_its_line():
     # dropping the line would delete the finding.
     lines = md._split_lines({"r": 0.018, "e_resid": 0.018,
                              "co_block": 0.0, "block": "FX"}, "Euro / dollar")
-    assert "+0.00%  its own block moving, currencies" in lines[1]
+    assert "+0.00%  its own block moving, the dollar block" in lines[1]
     assert "+1.80%  Euro / dollar on its own" in lines[2]
 
 
@@ -1039,7 +1039,10 @@ def test_the_currency_block_names_the_dollar_rather_than_a_sign():
         block="FX", asset_id="block:FX", r=0.0088, e_resid=0.0088, sigma_lt=0.0008,
         leaders="USD/CHF +1.31%, EUR/USD -1.22%"), LABELS)
 
-    assert "Currencies" in text
+    # And the block is named for what its members have in common rather than
+    # for the members themselves: "currencies" made a number in ONE pair's own
+    # direction look like a claim about all of them at once.
+    assert "<b>The dollar block</b>" in text
     assert "the dollar gained 0.88% against the typical pair" in text
     assert "+0.88%" not in text
 

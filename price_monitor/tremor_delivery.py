@@ -163,7 +163,14 @@ BLOCK_LABEL = {
     "precious_metals": "precious metals",
     "industrial_metals": "industrial metals",
     "agriculture": "agriculture",
-    "FX": "currencies",
+    # "Currencies" invited a reading the number does not support. The block's
+    # members are sign-oriented before the median is taken, so the thing they
+    # have in common IS the dollar, and naming the group after its members made
+    # a line like "-0.02%, its own block moving, currencies - EUR/USD, USD/JPY,
+    # AUD/USD..." look like a claim that all of those moved -0.02% at once, or
+    # that the dollar did. It is neither: it is THIS pair's own move, the part
+    # of it the common dollar move accounts for, in this pair's own direction.
+    "FX": "the dollar block",
     "crypto": "crypto",
 }
 

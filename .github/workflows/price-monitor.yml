@@ -76,14 +76,22 @@ jobs:
       # candle history and decision log that used to be committed here belonged
       # to the old per-asset detector and went with it.
       #
-      # Once a day: the bar archive and the event tables. Parquet rewrites a file
-      # in full, so git stores a whole new blob for every changed one - hourly
-      # that is gigabytes a month for no new facts. The archive is the one thing
-      # here that cannot be rebuilt (the providers do not serve 2003 on the free
-      # plan, which is why it was assembled from Dukascopy in the first place),
-      # but it only ever grows forward, and backfill re-fetches whatever the
-      # store is missing from its newest bar. So a day's worth is always
-      # recoverable and committing it hourly buys nothing.
+      # Once a day: the bar archive, and nothing else. It is the one thing here
+      # that cannot be rebuilt - the providers do not serve 2003 on the free
+      # plan, which is why it was assembled from Dukascopy and HF Data in the
+      # first place - and it APPENDS, which is what makes it cheap to keep: git
+      # deltas a 2 MB parquet with one more hour in it down to 2.3 KB, measured.
+      # Daily rather than hourly only because backfill re-fetches whatever the
+      # store is missing from its newest bar, so a day's worth is always
+      # recoverable anyway.
+      #
+      # The derived tables used to be committed here too and are not any more.
+      # A parquet of floats that the pipeline recomputes in full shares no bytes
+      # with its previous version, so git stores the whole thing again every
+      # time: metrics_basket_hour alone was 8.3 MB a commit, thirteen copies in
+      # the pack. They are rebuilt by the run that reads them - always the same
+      # run - so keeping them cost about ten megabytes a day and bought nothing.
+      # See .gitignore.
       - name: Commit updated state
         run: |
           mkdir -p data/economic_calendar
@@ -91,11 +99,7 @@ jobs:
           git config user.email "actions@github.com"
           git add data/state.json data/economic_calendar
           if [ "$(date -u +%H)" = "04" ]; then
-            git add data/tremor/bars data/tremor/saed_events.parquet \
-                    data/tremor/saed_block_alerts.parquet \
-                    data/tremor/market_events.parquet \
-                    data/tremor/metrics_basket_hour.parquet \
-                    data/tremor/cluster_events.parquet 2>/dev/null || true
+            git add data/tremor/bars 2>/dev/null || true
           fi
           if git diff --cached --quiet; then
             echo "No state changes to commit."
