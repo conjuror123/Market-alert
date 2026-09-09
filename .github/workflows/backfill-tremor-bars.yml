@@ -27,7 +27,12 @@ name: Backfill Tremor Bars
 #                   hundred requests, and a failure part way through then costs
 #                   one pair rather than all eight
 #   deepen-etfs     the same for the US-equity instruments, from HF Data's
-#                   consolidated-tape minute bars (needs HFDATA_API_KEY)
+#                   consolidated-tape minute bars (needs HFDATA_API_KEY).
+#                   NOT optional for a newly added ETF: Twelve Data's intraday
+#                   archive stops at 2020-02 for every ticker at once, so
+#                   extend-history alone leaves a new instrument with six years
+#                   where SPY has twenty-three. Run extend-history first, then
+#                   this. It spends no Twelve Data credits.
 #   corporate-actions
 #                   rebuild the ex-date table from the acquisition floor. It
 #                   must reach at least as far back as the bars, or an older

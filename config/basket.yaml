@@ -78,8 +78,21 @@ history_since: "2015-01-01"
 # not taken now may not be takeable later, and storing history the analysis does
 # not use costs nothing but disk. Each source stops at its own limit on its own
 # (see tremor.backfill and price_monitor.fxcm), so a floor deeper than anything
-# available is simply the instruction "as deep as you can". In practice Twelve
-# Data's intraday archive begins 2002-12-30 for every ETF here.
+# available is simply the instruction "as deep as you can".
+#
+# WHICH SOURCE REACHES HOW FAR BACK, because it is not one answer and getting it
+# wrong wastes a day of credits:
+#   Twelve Data   intraday stops at 2020-02 for every ETF at once, whatever the
+#                 ticker's real age. This is the ordinary --extend-history pass.
+#   HF Data       2002 to 2020-02 for US equity, from the consolidated tape.
+#                 This is the --deepen-etfs pass, it spends no Twelve Data
+#                 credits, and it is the ONLY way an ETF here reaches 2002. The
+#                 library switches to IEX-only data in March 2022 and the module
+#                 refuses those bars outright - see price_monitor.hfdata.
+#   Dukascopy     2003 for the currency pairs (--deepen-dukascopy), no key.
+#   Coinbase      each pair's own listing date, no key and no credits.
+# So a newly added ETF needs BOTH Twelve Data passes and the HF Data one before
+# its history is comparable with SPY's.
 fetch_since: "2002-01-01"
 
 # Session templates are filled in during phase 1 (holiday and half-session
