@@ -149,10 +149,16 @@ def _headline(tier: str, basis: str) -> str:
 
 # What each block is called in a sentence. The internal names are lower case and
 # two of them are abbreviations.
+# Reader-facing names for the blocks. The configuration's own names are keys in
+# a taxonomy; these are what a person would call the thing.
 BLOCK_LABEL = {
-    "equity": "US equities",
-    "rates": "bonds and credit",
-    "commodities": "commodities",
+    "equity": "US and global equities",
+    "rates": "US Treasuries",
+    "credit": "corporate and sovereign credit",
+    "energy": "energy",
+    "precious_metals": "precious metals",
+    "industrial_metals": "industrial metals",
+    "agriculture": "agriculture",
     "FX": "currencies",
     "crypto": "crypto",
 }
@@ -204,10 +210,11 @@ def _block_peers(event: dict) -> str:
 def basket_footer() -> str:
     """Every instrument tracked, named, grouped, once at the foot of a message.
 
-    A reader asked to accept "the whole basket drifting together" is entitled to
-    know what is in it, and the honest form of that is a list rather than a
+    A reader told "its own block moved" is entitled to know which instruments
+    that block holds, and the honest form of that is a list rather than a
     category. Built from the configuration, so it cannot drift from what the
-    pipeline actually watches.
+    pipeline actually watches, and grouped in the configuration's own order so
+    the block named on a move's own line is findable here.
     """
     tickers, blocks = _basket()
     if not blocks:
@@ -219,10 +226,9 @@ def basket_footer() -> str:
     except Exception:                            # pragma: no cover - defensive
         outside = set()
 
-    lines = [f"<i>The {len(tickers)} instruments tracked "
-             f"(* watched, but outside the basket factor):</i>"]
-    for block in ("equity", "rates", "commodities", "FX", "crypto"):
-        members = blocks.get(block) or []
+    lines = [f"<i>The {len(tickers)} instruments tracked, by block "
+             f"(* watched, but not counted in its block's own move):</i>"]
+    for block, members in blocks.items():
         if not members:
             continue
         named = ", ".join(_ticker(a) + ("*" if a in outside else "") for a in members)
@@ -231,7 +237,7 @@ def basket_footer() -> str:
 
 
 def _split_lines(event: dict, label: str) -> "list[str]":
-    """The move broken into the three things it can be, adding back to the move.
+    """The move broken into the two things it can be, adding back to the move.
 
     THE WORD "MARKET" IS DELIBERATELY ABSENT. Every attempt to name this idea
     failed on the same objection, and the objection was right: for the S&P 500,
@@ -239,39 +245,40 @@ def _split_lines(event: dict, label: str) -> "list[str]":
     +6.01%" invites "which market, and how would I have followed it?".
 
     So the parts are named by what they actually are. Each instrument is
-    regressed on two things it moves with - the weighted median return of the
-    basket, and the median of its own block with itself left out - over the five
-    hundred bars before this one, stopping three bars short so the move being
-    tested cannot adjust its own coefficients. The two fitted parts and the
-    leftover are all carried on the event, and they sum to the return exactly.
+    regressed on ONE thing it moves with - the median of its own block, taken
+    across its peers with the instrument itself left out - over the five hundred
+    bars before this one, stopping three bars short so the move being tested
+    cannot adjust its own coefficients. The fitted part and the leftover are both
+    carried on the event, and they sum to the return exactly.
 
-    THREE PARTS RATHER THAN TWO, because two was sometimes wrong. On 2008-11-20
-    the financial sector's basket beta was NEGATIVE and its +10.50% came almost
-    entirely from the equity block - calling that "the whole watchlist drifting"
-    would have named the wrong cause. Splitting the block out says "its own
-    sector did this", which is the diagnosis a reader can act on.
+    TWO PARTS, WHERE THERE USED TO BE THREE. The third was a weighted median of
+    the whole basket, and it was deleted because it did not say anything: the
+    basket spanned every asset class at once, so a median across it cancelled
+    whenever stocks and bonds moved oppositely - which is most of the time, and
+    is exactly what a broad risk-off hour looks like. On the events where it was
+    largest it was usually just a proxy for the block anyway. What replaced it is
+    not "nothing" but narrower, more honest blocks: eleven sectors where there
+    was one equity bucket, credit separated from Treasuries, and four commodity
+    blocks where gold and crude used to share one median.
     """
     move = _clean(event.get("r"))
     own = _clean(event.get("e_resid"))
     if move is None or own is None:
         return []
 
-    basket = _clean(event.get("co_basket"))
     block = _clean(event.get("co_block"))
-    if basket is None or block is None:
-        # Before the two components were carried, only the total was. Falling
-        # back to it keeps an older row renderable rather than silent.
-        basket, block = move - own, 0.0
+    if block is None:
+        # Before the split was carried, only the total was. Falling back to the
+        # difference keeps an older row renderable rather than silent.
+        block = move - own
 
     named = BLOCK_LABEL.get(str(event.get("block")), str(event.get("block") or "its block"))
     peers = _block_peers(event)
-    lines = ["of that move:",
-             f"     {basket * 100:+.2f}%  all 24 instruments drifting together"]
-    if block:
-        line = f"     {block * 100:+.2f}%  its own block, {_escape(named)}"
-        if peers:
-            line += f" - {_escape(peers)}"
-        lines.append(line)
+    lines = ["of that move:"]
+    line = f"     {block * 100:+.2f}%  its own block moving, {_escape(named)}"
+    if peers:
+        line += f" - {_escape(peers)}"
+    lines.append(line)
     lines.append(f"     {own * 100:+.2f}%  {_escape(label)} on its own")
     return lines
 

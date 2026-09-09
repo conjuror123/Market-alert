@@ -23,8 +23,14 @@ import yaml
 
 DEFAULT_BASKET_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "basket.yaml")
 
-# The blocks of §2.3 plus crypto - the fifth block was added deliberately, see basket.yaml.
-BLOCKS = ("equity", "rates", "FX", "commodities", "crypto")
+# The blocks. Ten, where there used to be five, and the split is not cosmetic:
+# every one of them exists so that a median across its members stands for
+# something. "rates" lost its credit instrument to a credit block of its own, and
+# the old single "commodities" block became four, because gold and crude do not
+# respond to the same thing and a median across both stands for neither. See
+# basket.yaml for the whole argument.
+BLOCKS = ("equity", "rates", "credit", "energy", "precious_metals",
+          "industrial_metals", "agriculture", "FX", "crypto")
 TIERS = (1, 2)
 SOURCES = ("twelvedata", "coinbase")
 FETCH_INTERVALS = ("30min", "1h")

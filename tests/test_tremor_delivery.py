@@ -305,41 +305,46 @@ def test_no_alert_claims_the_economic_calendar_explained_anything():
         assert "calendar" not in line.lower()
 
 
-def test_the_split_is_three_parts_and_never_the_word_market():
+def test_the_split_is_two_parts_and_never_the_word_market():
     # For the S&P 500, "the market" IS the S&P 500 - so naming the idea invited
     # "which market, and how would I have followed it?". The parts are named by
     # what they actually are instead.
-    lines = md._split_lines({"r": 0.0700, "e_resid": 0.0100, "co_basket": 0.0210,
-                             "co_block": 0.0390, "block": "equity"}, "S&P 500")
+    lines = md._split_lines({"r": 0.0700, "e_resid": 0.0100,
+                             "co_block": 0.0600, "block": "equity"}, "S&P 500")
     assert lines[0] == "of that move:"
-    assert "+2.10%  all 24 instruments drifting together" in lines[1]
-    assert "+3.90%  its own block, US equities" in lines[2]
-    assert "+1.00%  S&amp;P 500 on its own" in lines[3]
+    assert "+6.00%  its own block moving, US and global equities" in lines[1]
+    assert "+1.00%  S&amp;P 500 on its own" in lines[2]
+    assert len(lines) == 3
     for line in lines:
         assert "market" not in line
 
 
-def test_the_block_is_split_out_because_two_parts_was_sometimes_wrong():
-    # On 2008-11-20 the financial sector's basket beta was NEGATIVE and its
-    # +10.50% came almost entirely from the equity block. Calling that "the
-    # whole watchlist drifting" would have named the wrong cause.
-    lines = md._split_lines({"r": 0.1050, "e_resid": 0.0088, "co_basket": -0.0021,
-                             "co_block": 0.0983, "block": "equity"},
+def test_the_block_line_carries_the_cause_on_its_own():
+    # On 2008-11-20 the financial sector's +10.50% came almost entirely from the
+    # equity block. Naming the block is the diagnosis a reader can act on; the
+    # basket term that used to sit above this line said -0.21% and nothing else.
+    lines = md._split_lines({"r": 0.1050, "e_resid": 0.0088,
+                             "co_block": 0.0962, "block": "equity"},
                             "US financial sector")
-    assert "-0.21%  all 24 instruments" in lines[1]
-    assert "+9.83%  its own block, US equities" in lines[2]
+    assert "+9.62%  its own block moving, US and global equities" in lines[1]
+    assert "+0.88%  US financial sector on its own" in lines[2]
 
 
-def test_a_block_that_contributed_nothing_takes_no_line():
-    lines = md._split_lines({"r": 0.02, "e_resid": 0.018, "co_basket": 0.002,
+def test_a_block_that_contributed_nothing_still_takes_its_line():
+    # Zero is an answer here, and a load-bearing one: "its block did nothing and
+    # the instrument did all of it" is the strongest thing the split can say, so
+    # dropping the line would delete the finding.
+    lines = md._split_lines({"r": 0.018, "e_resid": 0.018,
                              "co_block": 0.0, "block": "FX"}, "Euro / dollar")
-    assert not any("its own block" in line for line in lines)
+    assert "+0.00%  its own block moving, currencies" in lines[1]
+    assert "+1.80%  Euro / dollar on its own" in lines[2]
 
 
-def test_the_split_falls_back_to_two_parts_on_an_older_row():
-    # Before the two components were carried, only the total was.
-    lines = md._split_lines({"r": 0.02, "e_resid": 0.018}, "Gold")
-    assert "+0.20%  all 24 instruments drifting together" in lines[1]
+def test_the_split_falls_back_to_the_difference_on_an_older_row():
+    # Before the split was carried, only the total was.
+    lines = md._split_lines({"r": 0.02, "e_resid": 0.018, "block": "precious_metals"},
+                            "Gold")
+    assert "+0.20%  its own block moving, precious metals" in lines[1]
     assert "+1.80%  Gold on its own" in lines[2]
 
 
@@ -370,13 +375,13 @@ def test_every_instrument_in_the_episode_is_written_out_in_full():
     # its own size, rarity, split and two check-ins.
     labels = {"a:XLF": "US financial sector"}
     with_it = {"a:XLF": event(asset_id="a:XLF", tier="extreme", basis="absolute",
-                              r=0.105, e_resid=0.0088, co_basket=-0.0021,
-                              co_block=0.0983, block="equity", sigma_lt=0.0081,
+                              r=0.105, e_resid=0.0088,
+                              co_block=0.0962, block="equity", sigma_lt=0.0081,
                               retention_raw_today=1.7, retention_raw_settled=1.9)}
     block = _blocks("a:XLF", with_it, labels)
     assert "US financial sector" in block
     assert "+10.50%" in block
-    assert "its own block, US equities" in block
+    assert "its own block moving, US and global equities" in block
     assert "this day's close - kept going, 1.7x the original move" in block
     assert "next day's close - kept going, 1.9x the original move" in block
 
@@ -924,7 +929,8 @@ def test_the_block_line_names_the_instrument_s_peers():
     # against its neighbours, never against itself, so naming it in its own peer
     # group would misdescribe the number on the line.
     peers = md._block_peers({"asset_id": "twelvedata:SPY", "block": "equity"})
-    assert peers == "QQQ, IWM, XLF"
+    assert peers.startswith("XLK, XLF, XLY")
+    assert "QQQ" in peers and "EEM" in peers
     assert "SPY" not in peers
 
 
@@ -936,10 +942,14 @@ def test_the_headline_leads_with_the_ticker():
 
 
 def test_the_footer_names_every_instrument_that_is_tracked():
-    # A reader asked to accept "all 24 instruments drifting together" is
-    # entitled to know what is in it, and the honest form is a list.
+    # A reader told "its own block moved" is entitled to know which instruments
+    # that block holds, and the honest form is a list.
     footer = md.basket_footer()
-    for ticker in ("SPY", "TLT", "GLD", "EUR/USD", "BTC-USD"):
+    for ticker in ("SPY", "XLK", "TLT", "HYG", "GLD", "EUR/USD", "BTC-USD"):
         assert ticker in footer
-    assert "NZD/USD*" in footer          # watched, outside the basket factor
-    assert "24 instruments tracked" in footer
+    assert "VIXY*" in footer             # watched, not counted in its own block
+    assert "62 instruments tracked" in footer
+    # Every block gets a line of its own, under the name the move's own line uses.
+    for label in ("US and global equities", "US Treasuries",
+                  "corporate and sovereign credit", "precious metals"):
+        assert label in footer

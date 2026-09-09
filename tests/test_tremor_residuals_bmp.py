@@ -152,33 +152,19 @@ def test_the_inflation_matches_the_textbook_formula():
     assert out.iloc[0] == pytest.approx(expected, rel=1e-12)
 
 
-def test_two_factors_use_the_full_quadratic_form_not_a_sum():
-    # A block factor is part of the basket, so the two are correlated; adding
-    # two one-factor terms would understate the leverage exactly when they move
-    # together, which is the case of interest.
+def test_leverage_grows_with_distance_from_the_window_centre():
+    # The whole point of the correction: a bar judged where the factor sits far
+    # from its estimation window's average is a bar where the fitted beta is
+    # extrapolating, and its forecast error is genuinely wider than an in-sample
+    # residual. Not correcting inflates the score exactly on the violent hours
+    # the detector is asked about.
     index = range(1)
-    est = pd.DataFrame({"n_est": 200.0, "f_mean": 0.0, "b_mean": 0.0,
-                        "f_var": 1e-4, "b_var": 1e-4, "fb_cov": 9e-5},
-                       index=index)
-    f = pd.Series([0.02], index=index)
-    b = pd.Series([0.02], index=index)
-    full = residuals.patell_scale(est, f, b).iloc[0]
+    est = pd.DataFrame({"n_est": 200.0, "f_mean": 0.0, "f_var": 1e-4}, index=index)
+    near = residuals.patell_scale(est, pd.Series([0.002], index=index)).iloc[0]
+    far = residuals.patell_scale(est, pd.Series([0.02], index=index)).iloc[0]
 
-    naive = np.sqrt(1 + 1 / 200 + 0.02 ** 2 / (199 * 1e-4) * 2)
-    assert full != pytest.approx(naive)
-    assert full > 1.0
-
-
-def test_a_collinear_window_falls_back_to_the_basket_factor_alone():
-    # Same fallback the regression itself makes when the determinant collapses.
-    index = range(1)
-    est = pd.DataFrame({"n_est": 200.0, "f_mean": 0.0, "b_mean": 0.0,
-                        "f_var": 1e-4, "b_var": 1e-4, "fb_cov": 1e-4},
-                       index=index)
-    f = pd.Series([0.02], index=index)
-    out = residuals.patell_scale(est, f, pd.Series([0.02], index=index)).iloc[0]
-    expected = np.sqrt(1 + 1 / 200 + 0.02 ** 2 / (199 * 1e-4))
-    assert out == pytest.approx(expected, rel=1e-9)
+    assert far > near > 1.0
+    assert far == pytest.approx(np.sqrt(1 + 1 / 200 + 0.02 ** 2 / (199 * 1e-4)))
 
 
 def test_a_frame_without_the_moments_is_left_alone():

@@ -1,9 +1,12 @@
 """Single-asset event module, SAED (spec §8).
 
-Catches moves that the common market does not explain. It runs alongside the
-cluster detector, and the dependency between them is one-way: SAED takes the
-basket factor as input but has no effect on the SI-Index, the cluster gate or the
-cluster cooldown.
+Catches moves that an instrument's own peers do not explain. It runs alongside
+the cluster detector and is now independent of it in both directions: SAED builds
+the block factors it needs from the per-asset metrics itself, and has no effect
+on the SI-Index, the cluster gate or the cluster cooldown. It used to read the
+basket factor out of metrics_basket_hour, which meant a cross_section failure
+took the events down with it; that factor is gone (see config/basket.yaml) and
+so is the dependency.
 
 Three things that are easy to miss and that the spec addresses separately.
 
@@ -73,15 +76,14 @@ class SaedEvent:
     ou_reverts: "bool | None"
     z_resid: float
     e_resid: float
-    # The move, split into the three things it can be, summing back to r exactly
+    # The move, split into the two things it can be, summing back to r exactly
     # (see tremor.residuals). Carried onto the event because the message shows
     # them and the factor series they come from live only in the residual step:
-    # "of that move, this much was the whole basket drifting, this much was its
-    # own block, this much was the instrument itself".
-    co_basket: float
+    # "of that move, this much was its block moving and this much was the
+    # instrument itself".
     co_block: float
     r: float
-    beta: float
+    beta_block: float
     repeat_count: int
     tier: str
     basis: str
@@ -248,9 +250,8 @@ def build_events(asset: Asset, frame: pd.DataFrame,
     z = frame["z_resid"].to_numpy()
     e = frame["e_resid"].to_numpy()
     r = frame["r"].to_numpy()
-    beta = frame["beta"].to_numpy() if "beta" in frame else np.full(len(frame), np.nan)
-    basket_part = (frame["co_basket"].to_numpy(dtype="float64")
-                   if "co_basket" in frame else np.full(len(frame), np.nan))
+    beta = (frame["beta_block"].to_numpy() if "beta_block" in frame
+            else np.full(len(frame), np.nan))
     block_part = (frame["co_block"].to_numpy(dtype="float64")
                   if "co_block" in frame else np.full(len(frame), np.nan))
     level = (frame["close"].to_numpy(dtype="float64") if "close" in frame
@@ -314,10 +315,9 @@ def build_events(asset: Asset, frame: pd.DataFrame,
                                           "ou_reverts": _flag(reverts[i]),
                                           "z_resid": float(z[i]),
                                           "e_resid": float(e[i]),
-                                          "co_basket": float(basket_part[i]),
                                           "co_block": float(block_part[i]),
                                           "r": float(r[i]),
-                                          "beta": float(beta[i]),
+                                          "beta_block": float(beta[i]),
                                           "sigma_lt": float(usual[i]),
                                           "close": float(level[i])})
             continue
@@ -328,9 +328,8 @@ def build_events(asset: Asset, frame: pd.DataFrame,
             peak_hour_utc=int(hours[i]), rank_confirms=_flag(confirms[i]),
             ou_reverts=_flag(reverts[i]),
             z_resid=float(z[i]), e_resid=float(e[i]),
-            co_basket=float(basket_part[i]), co_block=float(block_part[i]),
-            r=float(r[i]),
-            beta=float(beta[i]), repeat_count=0, tier=str(tier[i]),
+            co_block=float(block_part[i]), r=float(r[i]),
+            beta_block=float(beta[i]), repeat_count=0, tier=str(tier[i]),
             basis=str(basis[i]), sigma_lt=float(usual[i]),
             close=float(level[i]),
         ))
@@ -343,8 +342,8 @@ def build_events(asset: Asset, frame: pd.DataFrame,
 
 def events_frame(events: list[SaedEvent]) -> pd.DataFrame:
     columns = ["event_id", "asset_id", "block", "hour_utc", "peak_hour_utc",
-               "z_resid", "e_resid", "co_basket", "co_block",
-               "r", "beta", "repeat_count", "tier", "basis",
+               "z_resid", "e_resid", "co_block",
+               "r", "beta_block", "repeat_count", "tier", "basis",
                "sigma_lt", "close",
                "rank_confirms", "ou_reverts"]
     if not events:
@@ -430,8 +429,8 @@ DEFAULT_RESIDUALS_DIR = "data/tremor/residuals"
 # recovered unambiguously from e_resid and sigma_LT by the same §2.5 machinery,
 # yet they take as much space as everything else put together - they are series
 # of random numbers, and nothing compresses them.
-RESIDUAL_COLUMNS = ("hour_utc", "asset_id", "beta", "beta_block", "e_resid",
-                    "co_basket", "co_block",
+RESIDUAL_COLUMNS = ("hour_utc", "asset_id", "beta_block", "e_resid",
+                    "co_block",
                     "sigma_lt_resid", "patell_scale", "t_rank", "rank_pct",
                     "rank_confirms", "ou_reversion_bars", "s_score", "ou_reverts",
                     "z_resid", "bmp_scale", "bmp_dof",
@@ -469,14 +468,13 @@ def load_residuals(basket: Basket,
 
 
 def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
-                     factor: pd.Series,
                      block_factors: pd.DataFrame | None = None
                      ) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, pd.DataFrame]]:
     """Computes residuals and events for every instrument, non-basket ones included.
 
-    Non-basket instruments use the same basket factor and the same beta-estimation
-    scheme (§8.1): they do not affect the factor, but they are explained by it just
-    like the rest.
+    Non-basket instruments are modelled the same way and on the same
+    beta-estimation scheme: they do not enter their block's factor, but they are
+    explained by it just like the rest.
     """
     from tremor import pipeline, residuals, windows as w
 
@@ -489,7 +487,7 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
         own_block = (block_factors[asset.asset_id]
                      if block_factors is not None and asset.asset_id in block_factors
                      else None)
-        with_residuals = residuals.residuals(asset, frame, factor, own_block)
+        with_residuals = residuals.residuals(asset, frame, own_block)
         b_asset = pipeline.bars_per_session(asset, frame, basket.anchor_exchange_tz)
         windows_by_asset[asset.asset_id] = w.w_asset(b_asset)
         scored[asset.asset_id] = residuals.score_residuals(
@@ -549,7 +547,6 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description="SAED events (§3.6, §8)")
     parser.add_argument("--metrics-dir", default=pipeline.DEFAULT_METRICS_DIR)
-    parser.add_argument("--basket-metrics", default=cross_section.DEFAULT_BASKET_METRICS_PATH)
     parser.add_argument("--events-out", default=DEFAULT_EVENTS_PATH)
     parser.add_argument("--alerts-out", default=DEFAULT_ALERTS_PATH)
     parser.add_argument("--residuals-out", default=DEFAULT_RESIDUALS_DIR)
@@ -563,19 +560,19 @@ def main(argv: list[str] | None = None) -> int:
     if not metrics:
         log.error("No per-asset metrics - run python -m tremor.pipeline first")
         return 2
-    if not os.path.exists(args.basket_metrics):
-        log.error("No basket metrics - run python -m tremor.cross_section first")
-        return 2
-
-    basket_frame = pd.read_parquet(args.basket_metrics).set_index("hour_utc")
-    factor = basket_frame["m_weighted_median"]
-
+    # No longer reads metrics_basket_hour at all. It used to, for the basket
+    # factor; with that gone SAED depends on nothing cross_section produces, so
+    # the two can run in either order and a cross_section failure can no longer
+    # take the events down with it.
     panel = cross_section.build_panel(metrics, "r")
     reference = [h for h in panel.index
                  if sessions.is_reference_hour(int(h), basket.anchor_exchange_tz)]
-    block_factors = cross_section.block_factors(panel.loc[reference], basket)
+    sigma_panel = cross_section.build_panel(metrics, "sigma_eff").reindex(
+        index=panel.index)
+    block_factors = cross_section.block_factors(
+        panel.loc[reference], basket, sigma_panel.loc[reference])
 
-    events, alerts, scored = build_for_basket(basket, metrics, factor, block_factors)
+    events, alerts, scored = build_for_basket(basket, metrics, block_factors)
 
     from tremor import versioning
 

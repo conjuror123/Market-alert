@@ -1,42 +1,85 @@
-# Tremor basket configuration (spec 5.1, §2.3).
+# Tremor basket configuration.
 #
-# Weights are DELIBERATELY absent here: per §2.3 they are derived, computed by
-# the system from the composition on a date under the equality rule
+# WHAT A BLOCK IS FOR. Every instrument here is modelled against the median of
+# its own block, and against nothing else:
+#
+#     r = alpha + beta_block * B + e
+#
+# So a block is not a filing category. It is a claim that its members respond to
+# the same thing with the same sign, because a median only stands for a common
+# move when they do. That claim is what the composition below is chosen to make
+# true, and it is why the blocks are narrower than they used to be.
+#
+# WHAT USED TO BE HERE AND IS NOT. A second regressor, the weighted median of the
+# whole basket, meant as the "everything de-risks at once" factor. Such a factor
+# is real - it is the first principal component of a multi-asset panel, and it is
+# what 2008 and March 2020 look like - but a median cannot carry it, because that
+# factor has SIGNS: equities down, Treasuries up, gold up. A median assumes its
+# members all move the same way, so on exactly the days the common factor is
+# strongest, stocks and bonds cancelled and the factor read near nothing.
+#
+# It could not be repaired by orienting the blocks the way the FX block is
+# oriented, either. The equity-rates correlation is not a constant to hard-code:
+# measured on the block medians it runs -0.66 in 2002 and -0.42 in 2008, and then
+# FLIPS after the 2022 inflation shock to +0.24, +0.28, +0.43. A fixed sign would
+# be right for twenty years and wrong for the last four; a rolling one is a
+# principal component with extra steps.
+#
+# Dropping it was measured, not assumed. Adding the basket component back into
+# every residual - which is what a block-only fit leaves, since least squares
+# makes the fitted parts orthogonal to the residual - moved the hours where three
+# or more instruments exceed four sigma at once from 610 to 645 in twenty-one
+# years, and the mean absolute correlation between standardised residuals from
+# 0.146 to 0.161. The rarity ladder is fitted to each instrument's own residual
+# tail, so a uniform rise in residual sigma rescales away entirely and the alert
+# rate is unchanged; only the clustering moves, and the same-day collapse folds
+# most of that into one message anyway.
+#
+# WHY THE BLOCKS LOOK LIKE THIS. Commercial multi-asset risk models do not use
+# one global factor either: they build a factor block per asset class and model
+# the blocks jointly, on the stated assumption that all the risk factors inside a
+# block share their time-series behaviour. Within equity the standard
+# substructure is the eleven GICS sectors; within commodities it is the GSCI
+# sectors - energy, precious metals, industrial metals, agriculture. That is what
+# is below.
+#
+# The one block that used to break its own rule was rates, which held HYG. High
+# yield is credit risk, and credit risk trades like equity, not like duration:
+# HYG's block factor explained 8% of its spread against SPY's 63%, and the basket
+# factor was the only thing carrying it - which is exactly why it looked like the
+# best argument for keeping the basket. It now sits in a credit block beside JNK,
+# LQD, EMB, BKLN and PFF, where its peers are actually its peers.
+#
+# Weights are DELIBERATELY absent. They are derived from the composition under
+# the equality rule
 #     weight_i = 1 / (N_blocks * N_assets_block)
-# If a weight lived in this file, someone could hand-edit it out of line with the
-# rule - and the spec then declares the configuration invalid, so the only way
-# never to diverge is not to store it.
+# and a stored weight could be hand-edited out of line with the rule, so the only
+# way never to diverge is not to store it. They no longer enter the model at all
+# - a block median is unweighted, since within a block the rule makes every
+# weight equal - and survive only for the cross-sectional diagnostics (breadth,
+# CSV, PC1) that feed the cluster channel.
 #
-# There are five blocks, not the four of the original §2.3. The fifth, crypto,
-# was added on purpose: without it, outside the US session the basket holds only
-# currency pairs, that is, one block, while the hourly quorum requires at least
-# two blocks of two assets each. Six pairs plus three crypto assets give nine
-# assets at night against a minimum of eight - a margin of exactly one invalid
-# bar. Without this block the system would be blind for roughly 17 hours a day.
-#
-# There are three sources. Yahoo Finance is not used in Tremor at all: every one
-# of its instruments duplicated something already covered by an ETF (GC=F and GLD
-# are the same gold, CL=F and USO the same oil, ES=F and SPY the same S&P, ZB=F
-# and TLT/IEF the same long Treasuries, DX-Y.NYB the same currency pairs in
-# different packaging), and with history only from April 2024 and through an
-# unofficial endpoint.
+# There are two price sources. Yahoo Finance is not used in Tremor at all: every
+# one of its instruments duplicated something already covered by an ETF, with
+# history only from April 2024 and through an unofficial endpoint.
 
-# Anchor exchange of the basket's reference calendar (§2.2): Sun 17:00 .. Fri
-# 17:00 local time. The bounds are stored in this timezone and converted to UTC
-# on the fly - §2.2 forbids storing them as UTC.
+# Anchor exchange of the basket's reference calendar: Sun 17:00 .. Fri 17:00
+# local time. The bounds are stored in this timezone and converted to UTC on the
+# fly - they must not be stored as UTC.
 anchor_exchange_tz: America/New_York
 
-# Start of history (§2.1). Matches the train period of §7 - this is the
-# ANALYSIS floor, and moving it moves the evaluation window.
+# Start of history. Matches the train period - this is the ANALYSIS floor, and
+# moving it moves the evaluation window.
 history_since: "2015-01-01"
 
 # The ACQUISITION floor, which is a different question: take whatever the
 # sources will still give, whether or not the analysis reaches it yet. Free
 # archives are not permanent - FXCM's stopped updating in April 2026 - so bars
-# not taken now may not be takeable later, and storing history the analysis
-# does not use costs nothing but disk. Each source stops at its own limit on
-# its own (see tremor.backfill and price_monitor.fxcm), so a floor deeper than
-# anything available is simply the instruction "as deep as you can".
+# not taken now may not be takeable later, and storing history the analysis does
+# not use costs nothing but disk. Each source stops at its own limit on its own
+# (see tremor.backfill and price_monitor.fxcm), so a floor deeper than anything
+# available is simply the instruction "as deep as you can". In practice Twelve
+# Data's intraday archive begins 2002-12-30 for every ETF here.
 fetch_since: "2002-01-01"
 
 # Session templates are filled in during phase 1 (holiday and half-session
@@ -55,14 +98,16 @@ session_templates:
     tz: UTC
     description: "around the clock, no weekends"
 
-# tick_size is the exchange price step, needed by the §2.5 winsorization (the
-# eps_MAD floor includes the return on half a tick). It is stated explicitly
-# rather than measured from the data: the source serves ETF prices with a
-# floating tail - 769.53992 where the exchange shows 769.54 - so a measured
-# precision of 1e-7 describes the vendor's storage format, not the trading step.
-# For currency pairs the source precision and the step coincide: five decimals,
-# the yen included (verified on real data). The audit cross-checks the two and
-# complains if the step is finer than the precision.
+# tick_size is the exchange price step, needed by the winsorization (the eps_MAD
+# floor includes the return on half a tick). It is stated explicitly rather than
+# measured from the data: the source serves ETF prices with a floating tail -
+# 769.53992 where the exchange shows 769.54 - so a measured precision of 1e-7
+# describes the vendor's storage format, not the trading step. For currency pairs
+# the source precision and the step coincide: five decimals, the yen included
+# (verified on real data). For crypto the step is the pair's own quote_increment
+# as Coinbase publishes it, which is not 0.01 for every pair - ADA and DOGE quote
+# to five decimals. The audit cross-checks the two and complains if the step is
+# finer than the precision.
 #
 # fetch_interval is the interval at which the instrument is REQUESTED from the
 # source; it is not the system's working interval. ETF bars run on the :30
@@ -70,8 +115,117 @@ session_templates:
 # bars on the round UTC hour - otherwise the cross-section would measure synchrony
 # on series offset from one another by half an hour. This costs no credits: the
 # plan counts requests, not rows.
+#
+# WHAT THIS COSTS. Twelve Data's free tier is 800 credits a day and one credit per
+# symbol per request, batched or not. The 45 US-session instruments are asked for
+# only during their own session and for three hours after it - see
+# tremor.backfill.nothing_can_have_appeared - which is about ten requests a day
+# each; the eight currency pairs trade around the clock and cost 24 each. That is
+# roughly 640 of the 800, and the nine crypto pairs come from Coinbase, which is
+# free. Deepening a newly added instrument to 2002 costs about 30 more, once,
+# because a 30-minute chunk covers 300 days.
 assets:
-  # --- equity -------------------------------------------------------------
+  # --- equity ----------------------------------------------------------------
+  # US and developed-market equity, the eleven GICS sectors first.
+  - ticker: XLK
+    source: twelvedata
+    tier: 1
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Technology sector"
+  - ticker: XLF
+    source: twelvedata
+    tier: 1
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Financial sector"
+  - ticker: XLY
+    source: twelvedata
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Consumer discretionary sector"
+  - ticker: XLP
+    source: twelvedata
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Consumer staples sector"
+  - ticker: XLE
+    source: twelvedata
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Energy sector"
+  - ticker: XLV
+    source: twelvedata
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Health care sector"
+  - ticker: XLI
+    source: twelvedata
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Industrial sector"
+  - ticker: XLB
+    source: twelvedata
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Materials sector"
+  - ticker: XLU
+    source: twelvedata
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Utilities sector"
+  - ticker: XLRE
+    source: twelvedata
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Real estate sector"
+  - ticker: XLC
+    source: twelvedata
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Communication services sector"
   - ticker: SPY
     source: twelvedata
     tier: 1
@@ -99,7 +253,7 @@ assets:
     session_template: us_equity
     fetch_interval: 30min
     label: "Russell 2000 (small caps)"
-  - ticker: XLF
+  - ticker: EFA
     source: twelvedata
     tier: 2
     block: equity
@@ -107,27 +261,18 @@ assets:
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "US financial sector"
-
-  # --- rates --------------------------------------------------------------
-  - ticker: TLT
+    label: "Developed markets outside the US"
+  - ticker: EEM
     source: twelvedata
-    tier: 1
-    block: rates
+    tier: 2
+    block: equity
     has_volume: true
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "Treasuries 20+ years"
-  - ticker: IEF
-    source: twelvedata
-    tier: 1
-    block: rates
-    has_volume: true
-    tick_size: 0.01
-    session_template: us_equity
-    fetch_interval: 30min
-    label: "Treasuries 7-10 years"
+    label: "Emerging markets"
+  # --- rates -----------------------------------------------------------------
+  # US Treasuries by maturity, plus the two government-backed sectors.
   - ticker: SHY
     source: twelvedata
     tier: 2
@@ -137,7 +282,7 @@ assets:
     session_template: us_equity
     fetch_interval: 30min
     label: "Treasuries 1-3 years"
-  - ticker: HYG
+  - ticker: IEI
     source: twelvedata
     tier: 2
     block: rates
@@ -145,50 +290,244 @@ assets:
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "High-yield bonds (credit risk)"
-
-  # --- commodities --------------------------------------------------------
-  - ticker: GLD
+    label: "Treasuries 3-7 years"
+  - ticker: IEF
     source: twelvedata
     tier: 1
-    block: commodities
+    block: rates
     has_volume: true
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "Gold"
+    label: "Treasuries 7-10 years"
+  - ticker: TLH
+    source: twelvedata
+    tier: 2
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Treasuries 10-20 years"
+  - ticker: TLT
+    source: twelvedata
+    tier: 1
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Treasuries 20+ years"
+  - ticker: TIP
+    source: twelvedata
+    tier: 2
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Inflation-protected Treasuries"
+  - ticker: MBB
+    source: twelvedata
+    tier: 2
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Mortgage-backed securities"
+  # --- credit ----------------------------------------------------------------
+  # Corporate and sovereign credit risk, from investment grade down.
+  - ticker: LQD
+    source: twelvedata
+    tier: 1
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Investment-grade corporate bonds"
+  - ticker: HYG
+    source: twelvedata
+    tier: 1
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "High-yield corporate bonds"
+  - ticker: JNK
+    source: twelvedata
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "High-yield corporate bonds (second index)"
+  - ticker: EMB
+    source: twelvedata
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Emerging-market sovereign bonds in dollars"
+  - ticker: BKLN
+    source: twelvedata
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Senior bank loans"
+  - ticker: PFF
+    source: twelvedata
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Preferred shares"
+  # --- energy ----------------------------------------------------------------
+  # The energy complex.
   - ticker: USO
     source: twelvedata
     tier: 1
-    block: commodities
+    block: energy
     has_volume: true
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
     label: "WTI crude oil"
-  - ticker: SLV
+  - ticker: BNO
     source: twelvedata
     tier: 2
-    block: commodities
+    block: energy
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Brent crude oil"
+  - ticker: UGA
+    source: twelvedata
+    tier: 2
+    block: energy
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Gasoline"
+  - ticker: UNG
+    source: twelvedata
+    tier: 2
+    block: energy
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Natural gas"
+  # --- precious_metals -------------------------------------------------------
+  # Precious metals.
+  - ticker: GLD
+    source: twelvedata
+    tier: 1
+    block: precious_metals
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Gold"
+  - ticker: SLV
+    source: twelvedata
+    tier: 1
+    block: precious_metals
     has_volume: true
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
     label: "Silver"
-  - ticker: DBC
+  - ticker: PPLT
     source: twelvedata
     tier: 2
-    block: commodities
+    block: precious_metals
     has_volume: true
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "Broad commodity basket"
-
-  # --- FX -----------------------------------------------------------------
-  # Spot FX has no consolidated exchange volume at any provider, hence
-  # has_volume: false - per §3.5 volume confirmation for them is not assessed at
-  # all (V_R = NULL), rather than counted as having failed.
+    label: "Platinum"
+  - ticker: PALL
+    source: twelvedata
+    tier: 2
+    block: precious_metals
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Palladium"
+  # --- industrial_metals -----------------------------------------------------
+  # Industrial metals.
+  - ticker: DBB
+    source: twelvedata
+    tier: 1
+    block: industrial_metals
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Base metals (aluminium, zinc, copper)"
+  - ticker: CPER
+    source: twelvedata
+    tier: 2
+    block: industrial_metals
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Copper"
+  # --- agriculture -----------------------------------------------------------
+  # Agricultural commodities.
+  - ticker: DBA
+    source: twelvedata
+    tier: 1
+    block: agriculture
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Broad agriculture"
+  - ticker: CORN
+    source: twelvedata
+    tier: 2
+    block: agriculture
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Corn"
+  - ticker: WEAT
+    source: twelvedata
+    tier: 2
+    block: agriculture
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Wheat"
+  - ticker: SOYB
+    source: twelvedata
+    tier: 2
+    block: agriculture
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Soybeans"
+  # --- FX --------------------------------------------------------------------
+  # Major currency pairs, all quoted against the dollar.
   - ticker: EUR/USD
     source: twelvedata
     tier: 1
@@ -225,6 +564,15 @@ assets:
     session_template: fx_continuous
     fetch_interval: 1h
     label: "Australian dollar / dollar"
+  - ticker: NZD/USD
+    source: twelvedata
+    tier: 2
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "New Zealand dollar / dollar"
   - ticker: USD/CHF
     source: twelvedata
     tier: 2
@@ -243,8 +591,17 @@ assets:
     session_template: fx_continuous
     fetch_interval: 1h
     label: "Dollar / Canadian dollar"
-
-  # --- crypto -------------------------------------------------------------
+  - ticker: USD/CNH
+    source: twelvedata
+    tier: 2
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Dollar / offshore yuan"
+  # --- crypto ----------------------------------------------------------------
+  # Crypto, the only block that trades every hour of the week.
   - ticker: BTC-USD
     source: coinbase
     tier: 1
@@ -256,26 +613,13 @@ assets:
     label: "Bitcoin"
   - ticker: ETH-USD
     source: coinbase
-    tier: 2
+    tier: 1
     block: crypto
     has_volume: true
     tick_size: 0.01
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Ethereum"
-
-# Instruments outside the basket (§8.1): they take no part in the quorum, the
-# weights, breadth or the cluster triggers, but SAED computes their residuals on
-# the common basket factor. block is mandatory - it is needed only for block-alert
-# aggregation per §8.4. These two pairs were moved out of the basket so as not to
-# skew the FX block by headcount, while their alerts are preserved.
-outside_basket:
-  # Moved out of the basket, not deleted: Coinbase listed SOL on 2021-06-14 and it
-  # did not exist before, so it alone held the crypto block - and with it the
-  # basket's history - at 2021. Out here the floor becomes ETH's 2016-05-18 and
-  # the block still has its two members, so the quorum is untouched: 70.6% of
-  # hours pass it either way, measured. Bars keep being collected and SAED keeps
-  # producing its alerts, which is where a single asset matters anyway.
   - ticker: SOL-USD
     source: coinbase
     tier: 2
@@ -285,66 +629,124 @@ outside_basket:
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Solana"
-  - ticker: NZD/USD
-    source: twelvedata
+  - ticker: LTC-USD
+    source: coinbase
     tier: 2
-    block: FX
-    has_volume: false
-    tick_size: 0.00001
-    session_template: fx_continuous
+    block: crypto
+    has_volume: true
+    tick_size: 0.001
+    session_template: crypto_24_7
     fetch_interval: 1h
-    label: "New Zealand dollar / dollar"
-  - ticker: USD/CNY
-    source: twelvedata
+    label: "Litecoin"
+  - ticker: BCH-USD
+    source: coinbase
     tier: 2
-    block: FX
-    has_volume: false
-    tick_size: 0.00001
-    session_template: fx_continuous
+    block: crypto
+    has_volume: true
+    tick_size: 0.01
+    session_template: crypto_24_7
     fetch_interval: 1h
-    label: "Dollar / yuan"
-  # The OFFSHORE yuan, collected alongside the onshore one rather than instead
-  # of it, because the two are not the same instrument and the measurement says
-  # so: over 32300 shared hours their intra-hour returns correlate at 0.59, not
-  # the 0.999 an identical chart would give, and the level basis runs from -176
-  # to +118 bp with the widest days landing on Chinese holidays when the
-  # onshore fix is stale and the offshore market is still trading. USD/CNY
-  # trades only the onshore session and so covers about 77% of the week;
-  # USD/CNH trades 24/5 like every other pair here, and Dukascopy carries it
-  # hourly from 2012 against Twelve Data's 2019 for CNY.
-  #
-  # Out here rather than in the basket for now: it takes no part in the quorum,
-  # the weights or breadth, so collecting it changes nothing that is already
-  # calibrated, while SAED still produces its alerts. Whether it should REPLACE
-  # USD/CNY in the FX block is a separate decision, and one that is easier to
-  # take with both series on disk than with neither.
-  - ticker: USD/CNH
-    source: twelvedata
+    label: "Bitcoin Cash"
+  - ticker: LINK-USD
+    source: coinbase
     tier: 2
-    block: FX
-    has_volume: false
-    tick_size: 0.00001
-    session_template: fx_continuous
+    block: crypto
+    has_volume: true
+    tick_size: 0.001
+    session_template: crypto_24_7
     fetch_interval: 1h
-    label: "Dollar / offshore yuan"
+    label: "Chainlink"
+  - ticker: ADA-USD
+    source: coinbase
+    tier: 2
+    block: crypto
+    has_volume: true
+    tick_size: 0.00001
+    session_template: crypto_24_7
+    fetch_interval: 1h
+    label: "Cardano"
+  - ticker: DOGE-USD
+    source: coinbase
+    tier: 2
+    block: crypto
+    has_volume: true
+    tick_size: 0.00001
+    session_template: crypto_24_7
+    fetch_interval: 1h
+    label: "Dogecoin"
+  - ticker: AVAX-USD
+    source: coinbase
+    tier: 2
+    block: crypto
+    has_volume: true
+    tick_size: 0.001
+    session_template: crypto_24_7
+    fetch_interval: 1h
+    label: "Avalanche"
 
-# External one-sided stress indicator (§4.4). Not part of the basket and takes no
-# part in the quorum. Source: FRED, series VIXCLS - the real index going back to
-# 1990, without the contango drift of ETFs on VIX futures.
+# Instruments outside the basket: they take no part in the quorum, the weights or
+# breadth, but they get residuals and events like anything else. block is
+# mandatory - it decides which block factor they are modelled against, and unlike
+# a basket member they use the WHOLE block median, since there is nothing of
+# theirs in it to leave out.
+outside_basket:
+  # Fear, hourly. It is here rather than in a block of its own because a block
+  # of one has no median to take: the leave-one-out factor of a single member is
+  # undefined, and the instrument would be left with no model at all. Out here it
+  # is modelled against the WHOLE equity block, where the regression finds it a
+  # beta of about -4 on its own - no sign convention needed, since orienting
+  # matters only for taking a median, not for fitting a slope.
+  #
+  # That makes its residual the quantity actually worth alerting on: not "VIX
+  # rose", which is the same news as "stocks fell", but "fear rose by more than
+  # the fall in stocks accounts for".
+  - ticker: VIXY
+    source: twelvedata
+    tier: 1
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "VIX short-term futures"
+
+  # A broad commodity index is roughly 55% energy, the rest metals and
+  # agriculture, so it belongs to no block and cannot be a member of one without
+  # dragging that block's median toward the others. Out here it keeps its alerts
+  # and is modelled against energy, the largest thing inside it.
+  - ticker: DBC
+    source: twelvedata
+    tier: 2
+    block: energy
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Broad commodity basket"
+
+# External one-sided stress indicator. Not part of the basket and takes no part
+# in the quorum. Source: FRED, series VIXCLS - the real index going back to 1990,
+# without the contango drift of ETFs on VIX futures.
 #
-# Two peculiarities, both recorded as departures from the letter of §4.4:
-#   1. The series is DAILY - FRED has no intraday VIX in any series, so a spike is
-#      identified by the §3.1 machinery on daily bars, not hourly ones.
+# This is the LEVEL of fear, daily. The hourly instrument that moves with it is
+# VIXY in the volatility block above, and the two are deliberately both here:
+# Twelve Data does not carry the VIX index at all, and FRED has no intraday
+# series, so the only way to have fear in the same hour as a move is to track the
+# tradable futures product and keep the index for the level.
+#
+# Two peculiarities of the FRED series, both departures from the letter of the
+# spec:
+#   1. It is DAILY, so a spike is identified on daily bars, not hourly ones.
 #   2. It is published with a one- to two-business-day delay, so the multiplier
-#      window is counted from the moment the value became known to the system, not
-#      from the observation date. Otherwise the backtest would look ahead.
+#      window is counted from the moment the value became known to the system,
+#      not from the observation date. Otherwise the backtest would look ahead.
 # history_since here is ITS OWN, different from the basket's, and that is not
-# sloppiness. The §2.7 burn-in needs 720 observations before sigma_LT appears, and
-# for a daily series that is almost three years. Starting from 2021 we would get a
-# working multiplier only from October 2023 - that is, across the entire §7 train
+# sloppiness. The burn-in needs 720 observations before sigma_LT appears, and for
+# a daily series that is almost three years. Starting from 2021 we would get a
+# working multiplier only from October 2023 - that is, across the entire train
 # period it would silently equal one, and threshold calibration would run on a
-# series in which stress regimes appear not to exist. VIX is not in the basket, so
-# the §2.1 limit on the basket's history depth does not apply to it, and FRED
+# series in which stress regimes appear not to exist. VIX is not in the basket,
+# so the limit on the basket's history depth does not apply to it, and FRED
 # serves the series from 1990 for free.
 volatility_index:
   series_id: VIXCLS

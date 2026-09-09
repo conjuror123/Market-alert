@@ -102,7 +102,7 @@ def _asset_frame(metrics: pd.DataFrame,
     frame = metrics.set_index("hour_utc")
     if residuals is not None and not residuals.empty:
         extra = residuals.set_index("hour_utc")
-        for name in ("z_resid", "e_resid", "beta"):
+        for name in ("z_resid", "e_resid", "beta_block"):
             if name in extra.columns:
                 frame[name] = extra[name]
     return frame

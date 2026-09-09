@@ -39,7 +39,7 @@ SIGMA_LT_MIN_BARS = 720
 # sessions and holidays are excluded from the profile.
 VOLUME_PROFILE_DAYS = 20
 
-# Regression window on the basket factor (§3.6) - in bars where the instrument
+# Regression window on the block factor (§3.6) - in bars where the instrument
 # and the factor are BOTH valid.
 REGRESSION_WINDOW = 500
 REGRESSION_MIN = 200

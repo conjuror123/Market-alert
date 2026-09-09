@@ -6,11 +6,29 @@ day when everything falls, every asset shows a large move and a large Z, and a
 detector built on raw returns fires twenty identical alerts about one and the
 same event - which is exactly how the current bot's hourly signal behaves.
 
-So the common basket factor is subtracted from the return:
-r = alpha + beta * F + e, and only the residual e goes forward. Beta is estimated
-on a rolling window and strictly on data BEFORE the current bar - otherwise the
-very move we are trying to detect would adjust the coefficient and partly
-subtract itself from itself.
+So the move of the instrument's own block is subtracted from the return:
+
+    r = alpha + beta_block * B + e
+
+and only the residual e goes forward. Beta is estimated on a rolling window and
+strictly on data BEFORE the current bar - otherwise the very move we are trying
+to detect would adjust the coefficient and partly subtract itself from itself.
+
+ONE FACTOR, NOT TWO. There used to be a second regressor in front of this one, a
+weighted median of the whole basket meant to carry the "everything de-risks at
+once" move. It is gone. A median cannot carry that factor, because that factor
+has signs - equities down, Treasuries up, gold up - and a median stands for a
+common move only where its members share one. On the days the cross-asset factor
+was strongest, stocks and bonds cancelled inside it and it read near zero; and
+the stock-bond sign is not a constant that could be hard-coded, having run -0.66
+in 2002 and flipped to +0.43 by 2026. The whole argument, with the measurements,
+is in config/basket.yaml.
+
+What replaced it is not "nothing" but narrower blocks: eleven GICS sectors where
+there was one equity block, a credit block that finally holds credit, four
+commodity blocks where there was one. A block factor only has to represent the
+instruments inside it, which is a claim the composition can be chosen to make
+true.
 
 The residual is processed by the same §3.1 machinery as the price, but with
 entirely ITS OWN states: its own EWMA, its own long-term sigma, its own smoothed
@@ -32,7 +50,7 @@ def rolling_beta(returns: pd.Series, factor: pd.Series,
     """Rolling regression of r on F over bars where BOTH are valid (§2.7).
 
     The window is measured in bars where both quantities are defined, not in
-    calendar hours: for an ETF the basket factor exists only during the US
+    calendar hours: for an ETF the block factor exists only during the US
     session, and a window of five hundred calendar hours would give it four times
     fewer observations than a currency pair.
 
@@ -64,65 +82,7 @@ def rolling_beta(returns: pd.Series, factor: pd.Series,
     return estimates.reindex(returns.index)
 
 
-def rolling_two_factor(returns: pd.Series, factor: pd.Series, block_factor: pd.Series,
-                       window: int = windows.REGRESSION_WINDOW,
-                       minimum: int = windows.REGRESSION_MIN) -> pd.DataFrame:
-    """Regression on two factors: the basket and the asset's own block.
-
-    Solved through the normal equations rather than by fitting in a loop: for two
-    regressors the 2x2 system can be written out explicitly in terms of rolling
-    variances and covariances, and the whole calculation stays vectorised
-    (layer A of §6.1).
-
-    The degenerate case is handled explicitly. If the two factors are nearly
-    collinear within the window, the determinant tends to zero and the
-    coefficients fly off to arbitrary values with opposite signs - formally there
-    is a solution, in substance it is noise. In such a window the regression falls
-    back to the basket factor alone, that is, to the behaviour of §3.6.
-    """
-    joint = pd.DataFrame({"y": returns, "x1": factor, "x2": block_factor}).dropna()
-    if len(joint) < minimum:
-        return pd.DataFrame({"alpha": np.nan, "beta": np.nan, "beta_block": np.nan},
-                            index=returns.index)
-
-    rolling = joint.rolling(window, min_periods=minimum)
-    mean_y, mean_1, mean_2 = rolling["y"].mean(), rolling["x1"].mean(), rolling["x2"].mean()
-    var_1, var_2 = rolling["x1"].var(ddof=1), rolling["x2"].var(ddof=1)
-    covariances = rolling.cov().unstack()
-    cov_12 = covariances[("x1", "x2")]
-    cov_1y = covariances[("x1", "y")]
-    cov_2y = covariances[("x2", "y")]
-
-    determinant = var_1 * var_2 - cov_12 ** 2
-    # The determinant is compared not against zero but against the product of the
-    # variances: on its own it is small simply because returns are small, and an
-    # absolute threshold would declare every window degenerate.
-    degenerate = (determinant / (var_1 * var_2)).abs() < 1e-8
-
-    beta = ((var_2 * cov_1y - cov_12 * cov_2y) / determinant).mask(degenerate)
-    beta_block = ((var_1 * cov_2y - cov_12 * cov_1y) / determinant).mask(degenerate)
-
-    single = (cov_1y / var_1).where(var_1 > 0)
-    beta = beta.fillna(single)
-    beta_block = beta_block.fillna(0.0)
-
-    alpha = mean_y - beta * mean_1 - beta_block * mean_2
-    gap = windows.REGRESSION_GAP_BARS
-    estimates = pd.DataFrame({
-        "alpha": alpha.shift(gap), "beta": beta.shift(gap),
-        "beta_block": beta_block.shift(gap),
-        # Carried for Patell's inflation, from the same window and with the
-        # same gap as the coefficients themselves.
-        "n_est": rolling["x1"].count().shift(gap),
-        "f_mean": mean_1.shift(gap), "b_mean": mean_2.shift(gap),
-        "f_var": var_1.shift(gap), "b_var": var_2.shift(gap),
-        "fb_cov": cov_12.shift(gap),
-    })
-    return estimates.reindex(returns.index)
-
-
-def patell_scale(estimates: pd.DataFrame, factor: pd.Series,
-                 block: pd.Series | None = None) -> pd.Series:
+def patell_scale(estimates: pd.DataFrame, factor: pd.Series) -> pd.Series:
     """How much wider a forecast error is than an in-sample residual.
 
     The residual here is an OUT-OF-SAMPLE forecast error: the coefficients come
@@ -141,31 +101,13 @@ def patell_scale(estimates: pd.DataFrame, factor: pd.Series,
     and the residual is genuinely noisier than usual. Not correcting for it
     inflates the score precisely on the days the detector is asked about.
 
-    For the two-factor model the leverage is the full quadratic form, cross term
-    included, rather than the sum of two one-factor terms: the basket factor and
-    a block factor are not orthogonal - a block is part of the basket - and
-    pretending they were would understate the leverage whenever they move
-    together, which is the case of interest.
     """
     n = estimates.get("n_est")
     if n is None or "f_var" not in estimates:
         return pd.Series(1.0, index=factor.index)
 
     df = factor - estimates["f_mean"]
-    var_f = estimates["f_var"]
-    if block is None or "b_var" not in estimates:
-        leverage = df ** 2 / ((n - 1) * var_f)
-    else:
-        db = block - estimates["b_mean"]
-        var_b, cov = estimates["b_var"], estimates["fb_cov"]
-        det = var_f * var_b - cov ** 2
-        quad = df ** 2 * var_b - 2 * df * db * cov + db ** 2 * var_f
-        leverage = quad / ((n - 1) * det)
-        # A degenerate window - the two factors collinear inside it - falls back
-        # to the basket factor alone, exactly as the regression itself does.
-        single = df ** 2 / ((n - 1) * var_f)
-        leverage = leverage.where((det / (var_f * var_b)).abs() >= 1e-8, single)
-
+    leverage = df ** 2 / ((n - 1) * estimates["f_var"])
     inflation = 1.0 + 1.0 / n + leverage
     # Never smaller than one: the forecast error cannot be tighter than the
     # in-sample residual, and a negative leverage means the window was
@@ -309,54 +251,60 @@ def ou_fit(residual: pd.Series, window: int = OU_WINDOW, minimum: int = OU_MIN,
     })
 
 
-def residuals(asset: Asset, frame: pd.DataFrame, factor: pd.Series,
+def residuals(asset: Asset, frame: pd.DataFrame,
               block_factor: pd.Series | None = None) -> pd.DataFrame:
     """The residual e and everything the §3.1 machinery needs to process it."""
     out = frame.copy()
     if out.empty:
         return out.assign(alpha=pd.Series(dtype="float64"),
-                          beta=pd.Series(dtype="float64"),
                           beta_block=pd.Series(dtype="float64"),
                           e_resid=pd.Series(dtype="float64"),
                           e_resid_w=pd.Series(dtype="float64"),
                           sigma_lt_resid=pd.Series(dtype="float64"))
 
-    factor_series = pd.Series(factor.reindex(out["hour_utc"]).to_numpy(), index=out.index)
-
     if block_factor is None:
-        estimates = rolling_beta(out["r"], factor_series)
-        estimates["beta_block"] = 0.0
-        block_series = pd.Series(0.0, index=out.index)
+        # No peers, so no factor and no slope to fit: the model collapses to a
+        # drift constant and the residual is the return less that drift. This is
+        # not a failure mode to guard against - it is what an instrument with an
+        # empty block is entitled to, and it makes its abnormal channel agree
+        # with its absolute one, which is the honest answer when there is nothing
+        # to compare it with.
+        block_series = pd.Series(np.nan, index=out.index)
+        estimates = pd.DataFrame({
+            "alpha": out["r"].shift(1).rolling(
+                windows.REGRESSION_WINDOW,
+                min_periods=windows.REGRESSION_MIN).mean(),
+            "beta_block": 0.0, "n_est": np.nan, "f_mean": np.nan, "f_var": np.nan,
+        }, index=out.index)
     else:
         block_series = pd.Series(block_factor.reindex(out["hour_utc"]).to_numpy(),
                                  index=out.index)
-        estimates = rolling_two_factor(out["r"], factor_series, block_series)
+        estimates = rolling_beta(out["r"], block_series).rename(
+            columns={"beta": "beta_block"})
 
     out["alpha"] = estimates["alpha"].to_numpy()
-    out["beta"] = estimates["beta"].to_numpy()
     out["beta_block"] = estimates["beta_block"].to_numpy()
-    # The move, split into the three things it can be, adding back exactly to r.
+    # The move, split into the two things it can be, adding back exactly to r.
     # Carried as columns rather than recomputed later because the message shows
-    # them: "of that move, this much was the whole basket drifting, this much was
-    # its own block, this much was the instrument itself" is the only form of
-    # this idea a reader has ever been able to act on, and it cannot be
-    # reconstructed downstream - the factor series live only here.
+    # them: "of that move, this much was its block moving and this much was the
+    # instrument itself" is the only form of this idea a reader has ever been
+    # able to act on, and it cannot be reconstructed downstream - the factor
+    # series lives only here.
     #
-    # Alpha rides with the basket part. It is a drift constant of a few tenths of
+    # Alpha rides with the block part. It is a drift constant of a few tenths of
     # a basis point, it belongs with "the general background" rather than with
-    # the instrument's own move, and folding it in is what makes the three parts
+    # the instrument's own move, and folding it in is what makes the two parts
     # sum to the return with nothing left over.
-    out["co_basket"] = out["alpha"] + out["beta"] * factor_series
-    out["co_block"] = out["beta_block"] * block_series
-    out["e_resid"] = out["r"] - (out["co_basket"] + out["co_block"])
+    out["co_block"] = (out["alpha"] + out["beta_block"] * block_series).fillna(
+        out["alpha"])
+    out["e_resid"] = out["r"] - out["co_block"]
 
     # Patell's inflation, carried as a column rather than folded into e_resid:
     # the raw residual is what the absolute channel, the retention check and
     # the event export all read, and it should stay the size the price actually
     # moved. Only the STANDARDISATION divides by it.
     est = estimates.set_axis(out.index)
-    out["patell_scale"] = patell_scale(
-        est, factor_series, None if block_factor is None else block_series).to_numpy()
+    out["patell_scale"] = patell_scale(est, block_series).to_numpy()
 
     ou = ou_fit(out["e_resid"])
     for column in ("ou_reversion_bars", "s_score", "ou_reverts"):

@@ -61,7 +61,7 @@ def test_weight_is_not_readable_from_the_file(tmp_path):
 
 def test_rejects_block_outside_the_taxonomy(tmp_path):
     raw = two_block_config()
-    raw["assets"].append(asset("E", "energy"))
+    raw["assets"].append(asset("E", "livestock"))
     with pytest.raises(BasketConfigError, match="is not one of"):
         load_basket(write(tmp_path, raw))
 
@@ -85,7 +85,7 @@ def test_rejects_basket_where_quorum_is_unreachable(tmp_path):
     # requires two blocks of two, so the cluster triggers will never fire.
     raw = MINIMAL | {"assets": [
         asset("A", "equity"), asset("B", "equity", tier=2),
-        asset("C", "FX"), asset("D", "rates"), asset("E", "commodities"),
+        asset("C", "FX"), asset("D", "rates"), asset("E", "credit"),
     ]}
     with pytest.raises(BasketConfigError, match="Quorum unreachable"):
         load_basket(write(tmp_path, raw))
@@ -110,12 +110,16 @@ def test_file_stem_is_filesystem_safe(tmp_path):
 
 def test_real_basket_config_is_valid():
     basket = load_basket()
-    assert set(basket.by_block()) == {"equity", "rates", "FX", "commodities", "crypto"}
+    assert set(basket.by_block()) == {
+        "equity", "rates", "credit", "energy", "precious_metals",
+        "industrial_metals", "agriculture", "FX", "crypto"}
     # Every block needs two members or it can never be active (§4.2's
     # BLOCK_ACTIVE_MIN), and a block that can never be active contributes exactly
     # nothing to the quorum - measured: one crypto asset instead of two takes the
     # share of hours passing quorum from 70.6% to 19.9%, losing every overnight
-    # hour.
+    # hour. Two is also the floor at which the leave-one-out block factor exists
+    # at all: drop a block to one member and that member has no peers to be
+    # compared with and no model but its own drift.
     for block, members in basket.by_block().items():
         assert len(members) >= 2, block
     assert sum(basket.weights().values()) == pytest.approx(1.0)

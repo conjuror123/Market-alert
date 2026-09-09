@@ -241,7 +241,7 @@ def test_overlap_starts_out_null_rather_than_false():
     events = saed.events_frame([
         saed.SaedEvent(event_id="x", asset_id="a", block="FX", hour_utc=3600,
                        peak_hour_utc=3600, rank_confirms=None, ou_reverts=None,
-                       z_resid=4.0, e_resid=0.01, co_basket=0.0, co_block=0.0, r=0.01, beta=1.0, repeat_count=0,
+                       z_resid=4.0, e_resid=0.01, co_block=0.0, r=0.01, beta_block=1.0, repeat_count=0,
                        tier="routine", basis="abnormal", sigma_lt=0.002,
                        close=1.2345)])
 

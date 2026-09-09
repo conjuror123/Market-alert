@@ -136,30 +136,45 @@ def basket_median(panel: pd.DataFrame, basket: Basket) -> pd.Series:
     return pd.Series(out, index=panel.index)
 
 
-def block_factors(panel: pd.DataFrame, basket: Basket) -> pd.DataFrame:
+def block_factors(panel: pd.DataFrame, basket: Basket,
+                  sigma_panel: pd.DataFrame | None = None) -> pd.DataFrame:
     """The own-block factor for each instrument, EXCLUDING the instrument itself.
 
-    A departure from §3.6, where there is a single regressor - the basket factor.
-    The reason is measured, not assumed: in hours when four or more currency pairs
-    fire, 97% of the time they all agree on the direction of the dollar, and for
-    crypto the agreement on residual sign is 100% at the median. Those are not
-    independent idiosyncratic moves but one block move that the basket factor
-    failed to absorb and that leaked wholesale into the residuals of every member.
-    A weighted median across five blocks barely shifts when one block weighing a
-    fifth moves - and a module meant to catch SINGLE-ASSET moves was firing in
-    blocks, systematically.
+    THIS IS NOW THE ONLY REGRESSOR. It used to be the second of two, beside a
+    weighted median of the whole basket; that one is gone, because a median
+    cannot carry a factor whose members respond with opposite signs and the
+    equity-rates sign is not even stable across the record. See basket.yaml.
 
-    The quantity M_block,t is defined in the spec (§2.3) but reserved there for
-    truth labelling in §7. Here it becomes the second regressor.
+    Why a block factor works where a basket factor did not is the same argument
+    read forwards: in hours when four or more currency pairs fire, 97% of the
+    time they all agree on the direction of the dollar, and for crypto the
+    agreement on residual sign is 100% at the median. Those are not independent
+    idiosyncratic moves but one block move, and a module meant to catch
+    SINGLE-ASSET moves was firing in blocks, systematically.
 
-    Excluding the asset itself is mandatory. Otherwise, in a block of three crypto
-    assets, an instrument would subtract a third of itself, and its own move would
-    partly vanish from the residual - exactly the error that §3.6 guards against
+    Excluding the asset itself is mandatory. Otherwise, in a block of three
+    instruments, one would subtract a third of itself and its own move would
+    partly vanish from the residual - exactly the error the design guards against
     by estimating beta on data before the current bar.
 
-    The median here is plain rather than weighted, and that is not a
-    simplification: under the equality rule of §2.3 all weights within a block are
-    equal, so a block's weighted median coincides with the plain one.
+    STANDARDISED BEFORE THE MEDIAN IS TAKEN, and this is what changed when the
+    blocks were widened. A plain median across raw returns is set by whichever
+    member happens to lie in the middle, and in a block that spans SHY and TLT
+    the middle member moves twenty-five times less than the extreme one - so the
+    factor was reporting the calm end of the block and calling it the block. The
+    fix is to divide each member by its own effective sigma, take the median of
+    those unitless numbers, and multiply back by the sigma of the instrument
+    being modelled:
+
+        B_i = sigma_i * median_{j != i} ( sign_j * r_j / sigma_j ) * sign_i
+
+    which is scale-free in the members and lands in the units of instrument i.
+    With no sigma panel the plain median is used, which is what a block of
+    like-for-like instruments gave before and what the tests are written against.
+
+    The median is unweighted, and that is not a simplification: under the
+    equality rule all weights within a block are equal, so a block's weighted
+    median coincides with the plain one.
     """
     members: dict[str, list[str]] = {}
     signs: dict[str, float] = {}
@@ -174,31 +189,55 @@ def block_factors(panel: pd.DataFrame, basket: Basket) -> pd.DataFrame:
     for block, columns in members.items():
         # ORIENTED before the median is taken. A median represents a common move
         # only if the members respond to it with the same sign, and the FX block
-        # does not: it holds three pairs with the dollar as base and three with
-        # it as quote, so a dollar move pushes half up and half down and the
-        # median of the six is close to nothing. See Asset.block_sign for the
-        # measurement - the block factor was seeing about a quarter of the
-        # dollar move and the rest was leaking into every member's residual.
-        oriented = panel[columns].to_numpy(dtype="float64") * np.array(
-            [signs[c] for c in columns], dtype="float64")
+        # does not: it holds pairs with the dollar as base and pairs with it as
+        # quote, so a dollar move pushes half up and half down and the median of
+        # the six is close to nothing. See Asset.block_sign for the measurement -
+        # the block factor was seeing about a quarter of the dollar move and the
+        # rest was leaking into every member's residual.
+        sign_row = np.array([signs[c] for c in columns], dtype="float64")
+        oriented = panel[columns].to_numpy(dtype="float64") * sign_row
+        scale = _scale_row(sigma_panel, columns, panel.index)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            unit = oriented / scale
         for position, asset_id in enumerate(columns):
-            others = np.delete(oriented, position, axis=1)
+            others = np.delete(unit, position, axis=1)
             with np.errstate(invalid="ignore"):
-                factor = np.nanmedian(others, axis=1) if others.size else np.nan
-            # Returned in the INSTRUMENT'S own orientation: the regression that
-            # consumes this expects a series the instrument moves with, and
-            # flipping it back here keeps beta_block comparable with what it
-            # meant before.
-            out[asset_id] = factor * signs[asset_id]
+                factor = np.nanmedian(others, axis=1) if others.size else np.full(
+                    len(panel), np.nan)
+            # Returned in the INSTRUMENT'S own units and orientation: the
+            # regression that consumes this expects a series the instrument moves
+            # with, and converting back here keeps beta_block near one for a
+            # member that simply follows its block.
+            out[asset_id] = factor * scale[:, position] * signs[asset_id]
 
-        # Instruments outside the basket do not enter the factor (§8.1), so
-        # there is nothing to exclude for them - the whole block median is used.
+        # Instruments outside the basket do not enter the factor, so there is
+        # nothing to exclude for them - the whole block median is used, and their
+        # own sigma scales it back.
         for asset in basket.outside:
-            if asset.block == block:
-                with np.errstate(invalid="ignore"):
-                    whole = np.nanmedian(oriented, axis=1)
-                out[asset.asset_id] = whole * signs[asset.asset_id]
+            if asset.block != block:
+                continue
+            with np.errstate(invalid="ignore"):
+                whole = np.nanmedian(unit, axis=1)
+            own = _scale_row(sigma_panel, [asset.asset_id], panel.index)[:, 0]
+            out[asset.asset_id] = whole * own * signs[asset.asset_id]
     return out
+
+
+def _scale_row(sigma_panel: "pd.DataFrame | None", columns: list[str],
+               index: pd.Index) -> np.ndarray:
+    """The per-member scale the block median is taken in, as a 2-D array.
+
+    Ones when there is no sigma panel, which reduces the whole construction to
+    the plain median of raw returns it used to be. A sigma that is missing, zero
+    or negative becomes NaN rather than one: dividing by a scale we do not have
+    would put that member into the median at its raw size, which is the very
+    thing standardising is meant to stop.
+    """
+    if sigma_panel is None:
+        return np.ones((len(index), len(columns)), dtype="float64")
+    frame = sigma_panel.reindex(index=index, columns=columns)
+    scale = frame.to_numpy(dtype="float64")
+    return np.where(np.isfinite(scale) & (scale > 0), scale, np.nan)
 
 
 def cross_sectional_volatility(panel: pd.DataFrame, sigma_panel: pd.DataFrame,

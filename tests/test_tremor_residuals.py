@@ -146,78 +146,74 @@ def test_empty_input_keeps_columns():
     empty = pd.DataFrame({"hour_utc": [], "close": [], "r": []})
     out = residuals.residuals(asset(), empty, pd.Series(dtype="float64"))
     assert out.empty
-    assert {"e_resid", "beta", "sigma_lt_resid"} <= set(out.columns)
+    assert {"e_resid", "beta_block", "sigma_lt_resid"} <= set(out.columns)
 
 
-def test_two_factor_absorbs_a_block_wide_move():
-    # Exactly the case the second factor was added for: a move common to a whole
-    # block. With the basket factor alone it would stay entirely in the residual
-    # and fire for every member of the block at once.
+def test_the_block_factor_absorbs_a_block_wide_move():
+    # Exactly the case the block factor exists for: a move common to a whole
+    # block. Left in the residual it would fire for every member of the block at
+    # once, which is what the single-asset detector is meant not to do.
     rng = np.random.default_rng(10)
-    basket_factor = rng.normal(0, 0.005, 900)
-    block_move = rng.normal(0, 0.02, 900)          # the block moves on its own
-    frame = frame_with(list(0.5 * basket_factor + 1.0 * block_move))
-    factor = pd.Series(basket_factor, index=frame["hour_utc"])
+    block_move = rng.normal(0, 0.02, 900)
+    frame = frame_with(list(1.0 * block_move))
     block = pd.Series(block_move, index=frame["hour_utc"])
 
-    one = residuals.residuals(asset(), frame, factor)
-    two = residuals.residuals(asset(), frame, factor, block)
+    with_block = residuals.residuals(asset(), frame, block)
+    without = residuals.residuals(asset(), frame, None)
 
-    assert two["e_resid"].dropna().abs().max() < 1e-6
-    assert one["e_resid"].dropna().abs().max() > 0.01
+    assert with_block["e_resid"].dropna().abs().max() < 1e-6
+    assert without["e_resid"].dropna().abs().max() > 0.01
 
 
-def test_two_factor_keeps_a_genuinely_single_move():
+def test_the_block_factor_keeps_a_genuinely_single_move():
     rng = np.random.default_rng(11)
-    basket_factor = rng.normal(0, 0.005, 900)
     block_move = rng.normal(0, 0.02, 900)
     own = np.zeros(900)
     own[800] = 0.08
-    frame = frame_with(list(0.5 * basket_factor + block_move + own))
-    factor = pd.Series(basket_factor, index=frame["hour_utc"])
+    frame = frame_with(list(block_move + own))
     block = pd.Series(block_move, index=frame["hour_utc"])
 
-    out = residuals.residuals(asset(), frame, factor, block)
+    out = residuals.residuals(asset(), frame, block)
     assert out["e_resid"].iloc[800] == pytest.approx(0.08, abs=1e-3)
 
 
 def test_block_beta_is_recovered():
     rng = np.random.default_rng(12)
-    basket_factor = rng.normal(0, 0.005, 900)
     block_move = rng.normal(0, 0.02, 900)
-    frame = frame_with(list(0.3 * basket_factor + 2.5 * block_move))
-    factor = pd.Series(basket_factor, index=frame["hour_utc"])
+    frame = frame_with(list(2.5 * block_move))
     block = pd.Series(block_move, index=frame["hour_utc"])
 
-    out = residuals.residuals(asset(), frame, factor, block)
-    assert out["beta"].dropna().iloc[-1] == pytest.approx(0.3, abs=0.01)
+    out = residuals.residuals(asset(), frame, block)
     assert out["beta_block"].dropna().iloc[-1] == pytest.approx(2.5, abs=0.01)
 
 
-def test_collinear_factors_fall_back_to_one():
-    # If the factors nearly coincide, the determinant tends to zero and the
-    # coefficients fly off to arbitrary values with opposite signs. Formally there
-    # is a solution, in substance it is noise - so we fall back to §3.6.
-    rng = np.random.default_rng(13)
-    basket_factor = rng.normal(0, 0.01, 900)
-    frame = frame_with(list(1.5 * basket_factor))
-    factor = pd.Series(basket_factor, index=frame["hour_utc"])
-    same = pd.Series(basket_factor, index=frame["hour_utc"])   # the same series
+def test_an_instrument_with_no_peers_is_left_with_its_own_drift():
+    # A block of one has no leave-one-out median, so there is no factor to fit.
+    # That is not an error state: the model collapses to a drift constant, the
+    # residual is the return less that drift, and the abnormal channel agrees
+    # with the absolute one - which is the honest answer when there is nothing
+    # to compare the instrument with.
+    rng = np.random.default_rng(15)
+    moves = rng.normal(0.001, 0.02, 900)
+    frame = frame_with(list(moves))
 
-    out = residuals.residuals(asset(), frame, factor, same)
-    settled = out.dropna(subset=["beta"])
+    out = residuals.residuals(asset(), frame, None)
+    settled = out.dropna(subset=["e_resid"])
 
     assert (settled["beta_block"] == 0.0).all()
-    assert settled["beta"].iloc[-1] == pytest.approx(1.5, abs=0.01)
+    assert settled["alpha"].iloc[-1] == pytest.approx(0.001, abs=0.002)
+    assert settled["e_resid"].iloc[-1] == pytest.approx(
+        moves[-1] - settled["alpha"].iloc[-1], abs=1e-12)
 
 
-def test_single_factor_stays_available():
-    # The §3.6 behaviour without a second factor must be preserved verbatim.
-    rng = np.random.default_rng(14)
-    factor_values = rng.normal(0, 0.01, 600)
-    frame = frame_with(list(2.0 * factor_values))
-    factor = pd.Series(factor_values, index=frame["hour_utc"])
+def test_the_two_parts_of_the_move_add_back_to_it():
+    # The message shows the split, so it has to be a split: co_block plus the
+    # residual is the return, with nothing left over and no rounding slack.
+    rng = np.random.default_rng(16)
+    block_move = rng.normal(0, 0.02, 900)
+    own = rng.normal(0, 0.005, 900)
+    frame = frame_with(list(1.4 * block_move + own))
+    block = pd.Series(block_move, index=frame["hour_utc"])
 
-    out = residuals.residuals(asset(), frame, factor)
-    assert (out["beta_block"] == 0.0).all()
-    assert out["beta"].dropna().iloc[-1] == pytest.approx(2.0, abs=0.01)
+    out = residuals.residuals(asset(), frame, block).dropna(subset=["e_resid"])
+    assert (out["co_block"] + out["e_resid"] - out["r"]).abs().max() < 1e-15
