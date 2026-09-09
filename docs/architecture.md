@@ -92,8 +92,13 @@ exactly: the whole basket drifting, the instrument's own block, and the instrume
 The word *market* is deliberately absent — for the S&P 500 the market *is* the S&P 500, and
 there is no index being followed. The block is split out because two parts was sometimes
 wrong: on 2008-11-20 the financial sector's basket beta was negative and its +10.50% came
-almost entirely from the equity block. Beside it the alert gives the size against the
-instrument's usual hour and **the date it was last this rare** — the same claim as the
+almost entirely from the equity block. Each line names the instruments it is talking about:
+the block line lists the peers the factor is a leave-one-out median of, and a footer lists
+all twenty-four tracked instruments by block. Measured across the record the basket carries
+a median **13%** of the three-way spread against the block's **37%** — smallest of the
+three, but not nothing, and it ranges from 10% on the S&P 500 to 32% on high-yield credit,
+whose own block explains almost nothing about it. Beside it the alert gives the size against
+the instrument's usual hour and **the date it was last this rare** — the same claim as the
 return period, in a form that needs no statistics. The tier is said as a frequency (*a move
 this big happens about once every three years*) rather than as a record, because the ladder
 claims the former and the two contradict each other in a cluster.

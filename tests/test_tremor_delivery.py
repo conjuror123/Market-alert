@@ -312,7 +312,7 @@ def test_the_split_is_three_parts_and_never_the_word_market():
     lines = md._split_lines({"r": 0.0700, "e_resid": 0.0100, "co_basket": 0.0210,
                              "co_block": 0.0390, "block": "equity"}, "S&P 500")
     assert lines[0] == "of that move:"
-    assert "+2.10%  the whole basket drifting together" in lines[1]
+    assert "+2.10%  all 24 instruments drifting together" in lines[1]
     assert "+3.90%  its own block, US equities" in lines[2]
     assert "+1.00%  S&amp;P 500 on its own" in lines[3]
     for line in lines:
@@ -326,7 +326,7 @@ def test_the_block_is_split_out_because_two_parts_was_sometimes_wrong():
     lines = md._split_lines({"r": 0.1050, "e_resid": 0.0088, "co_basket": -0.0021,
                              "co_block": 0.0983, "block": "equity"},
                             "US financial sector")
-    assert "-0.21%  the whole basket" in lines[1]
+    assert "-0.21%  all 24 instruments" in lines[1]
     assert "+9.83%  its own block, US equities" in lines[2]
 
 
@@ -339,7 +339,7 @@ def test_a_block_that_contributed_nothing_takes_no_line():
 def test_the_split_falls_back_to_two_parts_on_an_older_row():
     # Before the two components were carried, only the total was.
     lines = md._split_lines({"r": 0.02, "e_resid": 0.018}, "Gold")
-    assert "+0.20%  the whole basket drifting together" in lines[1]
+    assert "+0.20%  all 24 instruments drifting together" in lines[1]
     assert "+1.80%  Gold on its own" in lines[2]
 
 
@@ -900,3 +900,29 @@ def test_a_move_in_the_closing_hour_reports_no_ratio_for_its_own_day():
     midday = spy(hour_utc=int(datetime(2026, 9, 8, 14, tzinfo=timezone.utc).timestamp()),
                  retention_today=1.0)
     assert "still there" in md.check_in_lines(midday, now=NOW)[0]
+
+
+def test_the_block_line_names_the_instrument_s_peers():
+    # The block factor is a leave-one-out median: the instrument is measured
+    # against its neighbours, never against itself, so naming it in its own peer
+    # group would misdescribe the number on the line.
+    peers = md._block_peers({"asset_id": "twelvedata:SPY", "block": "equity"})
+    assert peers == "QQQ, IWM, XLF"
+    assert "SPY" not in peers
+
+
+def test_the_headline_leads_with_the_ticker():
+    # It is what the reader will type into a chart, and the only name that is
+    # the same everywhere.
+    text = md.describe(event(asset_id="twelvedata:GLD"), LABELS)
+    assert text.startswith(md.TIER_EMOJI["major"] + " <b>GLD</b> · Gold - ")
+
+
+def test_the_footer_names_every_instrument_that_is_tracked():
+    # A reader asked to accept "all 24 instruments drifting together" is
+    # entitled to know what is in it, and the honest form is a list.
+    footer = md.basket_footer()
+    for ticker in ("SPY", "TLT", "GLD", "EUR/USD", "BTC-USD"):
+        assert ticker in footer
+    assert "NZD/USD*" in footer          # watched, outside the basket factor
+    assert "24 instruments tracked" in footer

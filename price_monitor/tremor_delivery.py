@@ -147,12 +147,6 @@ def _headline(tier: str, basis: str) -> str:
     return f"{BASIS_NOUN.get(basis, 'a move this big happens')} {period}"
 
 
-# What the basket actually is, said once inside the alert rather than left as a
-# word. "The whole watchlist" answers nothing: the reader wants to know which
-# instruments were drifting together, and there are only five kinds of them.
-BASKET_FOOTER = ("<i>The basket is 24 instruments: US equities, Treasuries and "
-                 "credit, commodities, six major currency pairs, crypto.</i>")
-
 # What each block is called in a sentence. The internal names are lower case and
 # two of them are abbreviations.
 BLOCK_LABEL = {
@@ -162,6 +156,78 @@ BLOCK_LABEL = {
     "FX": "currencies",
     "crypto": "crypto",
 }
+
+
+@lru_cache(maxsize=1)
+def _basket() -> "tuple[dict, dict]":
+    """(asset_id -> ticker, block -> [asset_ids]), from the basket definition.
+
+    Read once per process and used to say WHICH instruments a line is talking
+    about. "The whole watchlist" and "its own block" are both answers a reader
+    cannot check; the tickers are.
+    """
+    try:
+        from tremor.basket import load_basket
+
+        basket = load_basket()
+        tickers = {a.asset_id: a.ticker for a in basket.instruments}
+        blocks: dict = {}
+        for a in basket.instruments:
+            blocks.setdefault(a.block, []).append(a.asset_id)
+        return tickers, blocks
+    except Exception as exc:                     # pragma: no cover - defensive
+        log.warning("Could not read the basket composition: %s", exc)
+        return {}, {}
+
+
+def _ticker(asset_id: str) -> str:
+    tickers, _ = _basket()
+    return tickers.get(asset_id) or str(asset_id).split(":")[-1]
+
+
+def _block_peers(event: dict) -> str:
+    """The OTHER members of this instrument's block, by ticker.
+
+    The others rather than all of them, because the block factor is a
+    leave-one-out median (see tremor.cross_section): the instrument is measured
+    against its neighbours, never against itself, and naming it in its own peer
+    group would misdescribe the number on the line.
+    """
+    _, blocks = _basket()
+    members = blocks.get(str(event.get("block") or ""), [])
+    mine = str(event.get("asset_id") or "")
+    peers = [_ticker(a) for a in members if a != mine]
+    return ", ".join(peers)
+
+
+@lru_cache(maxsize=1)
+def basket_footer() -> str:
+    """Every instrument tracked, named, grouped, once at the foot of a message.
+
+    A reader asked to accept "the whole basket drifting together" is entitled to
+    know what is in it, and the honest form of that is a list rather than a
+    category. Built from the configuration, so it cannot drift from what the
+    pipeline actually watches.
+    """
+    tickers, blocks = _basket()
+    if not blocks:
+        return ""
+    try:
+        from tremor.basket import load_basket
+
+        outside = {a.asset_id for a in load_basket().instruments if not a.in_basket}
+    except Exception:                            # pragma: no cover - defensive
+        outside = set()
+
+    lines = [f"<i>The {len(tickers)} instruments tracked "
+             f"(* watched, but outside the basket factor):</i>"]
+    for block in ("equity", "rates", "commodities", "FX", "crypto"):
+        members = blocks.get(block) or []
+        if not members:
+            continue
+        named = ", ".join(_ticker(a) + ("*" if a in outside else "") for a in members)
+        lines.append(f"     <i>{BLOCK_LABEL.get(block, block)}: {_escape(named)}</i>")
+    return "\n".join(lines)
 
 
 def _split_lines(event: dict, label: str) -> "list[str]":
@@ -198,10 +264,14 @@ def _split_lines(event: dict, label: str) -> "list[str]":
         basket, block = move - own, 0.0
 
     named = BLOCK_LABEL.get(str(event.get("block")), str(event.get("block") or "its block"))
+    peers = _block_peers(event)
     lines = ["of that move:",
-             f"     {basket * 100:+.2f}%  the whole basket drifting together"]
+             f"     {basket * 100:+.2f}%  all 24 instruments drifting together"]
     if block:
-        lines.append(f"     {block * 100:+.2f}%  its own block, {_escape(named)}")
+        line = f"     {block * 100:+.2f}%  its own block, {_escape(named)}"
+        if peers:
+            line += f" - {_escape(peers)}"
+        lines.append(line)
     lines.append(f"     {own * 100:+.2f}%  {_escape(label)} on its own")
     return lines
 
@@ -546,7 +616,10 @@ def describe(event: dict, labels: dict[str, str],
     asset_id = str(event.get("asset_id", ""))
     label = labels.get(asset_id) or asset_id.split(":")[-1]
     move = _clean(event.get("r"))
-    parts = [f"{emoji} <b>{_escape(label)}</b> - {headline}"]
+    # The ticker leads. It is what the reader will type into a chart, and it is
+    # the only name that is the same everywhere.
+    parts = [f"{emoji} <b>{_escape(_ticker(asset_id))}</b> · "
+             f"{_escape(label)} - {headline}"]
 
     detail = f"{move * 100:+.2f}% " if move is not None else ""
     parts.append(f"     {detail}in the hour to {when:%Y-%m-%d %H:%M} UTC")
@@ -781,9 +854,9 @@ def format_push(event: dict, labels: dict[str, str],
         lines.append(blocks)
     # Once at the foot of the message rather than under every instrument: the
     # reader needs to know what "the basket" is, and needs it said once.
-    if any("the whole basket" in line for line in lines):
+    if any("instruments drifting together" in line for line in lines):
         lines.append("")
-        lines.append(BASKET_FOOTER)
+        lines.append(basket_footer())
     return "\n".join(lines)
 
 
@@ -960,8 +1033,8 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
             current = candidate
     messages.append(current)
 
-    if any("the whole basket" in m for m in messages):
-        messages[-1] += "\n\n" + BASKET_FOOTER
+    if any("instruments drifting together" in m for m in messages):
+        messages[-1] += "\n\n" + basket_footer()
 
     if len(messages) > 1:
         total = len(messages)
