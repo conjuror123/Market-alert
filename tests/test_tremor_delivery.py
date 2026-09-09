@@ -683,8 +683,25 @@ def test_a_move_that_reverted_stays_in_the_note_and_says_so(
     # reader's phone by the time the answer arrives, and unsending is not a
     # thing Telegram can do - so the line is corrected instead.
     _, state = deliver(monkeypatch, [digest_row()])
-    deliver(monkeypatch, [digest_row(retention_settled=-0.4)], state=state)
+    deliver(monkeypatch, [digest_row(retention_settled=-0.02)], state=state)
     assert "next day's close - fully reversed" in editor.calls[0][1]
+
+
+def test_a_move_that_reversed_past_its_start_says_how_far_past(
+        monkeypatch, sender, editor):
+    # A fifth of settled readings are negative: the price gave the move back
+    # and kept going the other way. Calling that "fully reversed" throws away
+    # the louder half of the fact, so the overshoot is said in the move's own
+    # units, the same way a continuation is.
+    _, state = deliver(monkeypatch, [digest_row()])
+    deliver(monkeypatch, [digest_row(retention_settled=-0.4)], state=state)
+    assert ("next day's close - reversed past where it started, "
+            "40% of the move the other way") in editor.calls[0][1]
+
+    _, state = deliver(monkeypatch, [digest_row()])
+    deliver(monkeypatch, [digest_row(retention_settled=-1.7)], state=state)
+    assert ("next day's close - reversed past where it started, "
+            "1.7x the move the other way") in editor.calls[1][1]
 
 
 def test_a_closed_note_is_still_corrected_when_its_last_answer_arrives(

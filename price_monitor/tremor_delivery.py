@@ -327,15 +327,30 @@ def _retention_note(value: float) -> str:
     percentage still standing produces sentences like "360% of it still
     standing", which reads as an error rather than as the strongest thing the
     system can say about an event.
+
+    A ratio BELOW ZERO means the price went past where it started - a +5% hour
+    that gave the 5% back and then fell 5% further reads -1.0 - and that is a
+    different and louder fact than "fully reversed", which only says the move
+    is gone. It is not a corner: a fifth of settled readings are negative and
+    a fourteenth of them overshoot by more than the move itself. So the two
+    sides are told the same way, in the move's own units, and only the flat
+    band around zero - where the price really did come back to where it began -
+    is called a full reversal.
     """
     if value > 1.15:
         return (f"and it kept going - {value:.1f}x the original move "
                 f"by the next day's close")
     if value >= 0.85:
         return "still there at the next day's close"
-    if value > 0:
+    if value >= 0.05:
         return f"{value * 100:.0f}% of it still there at the next day's close"
-    return "fully reversed before the next day's close"
+    if value > -0.05:
+        return "fully reversed before the next day's close"
+    if value > -1.15:
+        return (f"reversed past where it started - {-value * 100:.0f}% of the move "
+                f"the other way by the next day's close")
+    return (f"reversed past where it started - {-value:.1f}x the move "
+            f"the other way by the next day's close")
 
 
 
@@ -724,16 +739,27 @@ _HORIZON_LABEL = {"today": "this day's close", "settled": "next day's close"}
 
 
 def _retention_word(value: float) -> str:
-    """How the move stood, in the same words the digest uses."""
+    """How the move stood, in the same words the digest uses.
+
+    Symmetric about zero on purpose. Above one the move kept going and is said
+    as a multiple; below zero the price crossed back past where it started and
+    is said as the same multiple the other way, because "fully reversed" would
+    throw that away - a +5% hour now sitting 5% BELOW its starting price is not
+    the same news as one that merely came back to it.
+    """
     if value > 1.15:
         return f"kept going, {value:.1f}x the original move"
     if value >= 0.85:
         return "still there"
     if value >= 0.5:
         return f"{value * 100:.0f}% of it still there"
-    if value > 0:
+    if value >= 0.05:
         return f"mostly given back, {value * 100:.0f}% left"
-    return "fully reversed"
+    if value > -0.05:
+        return "fully reversed"
+    if value > -1.15:
+        return f"reversed past where it started, {-value * 100:.0f}% of the move the other way"
+    return f"reversed past where it started, {-value:.1f}x the move the other way"
 
 
 def _template(asset_id: str) -> str:
