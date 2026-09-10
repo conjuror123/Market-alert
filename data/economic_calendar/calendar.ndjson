@@ -91289,8 +91289,10 @@
 {"actual": "", "country": "CNY", "date": "2026-09-09T01:30:00+00:00", "forecast": "3.6%", "impact": "Low", "previous": "3.5%", "title": "PPI y/y"}
 {"actual": "", "country": "JPY", "date": "2026-09-09T06:00:00+00:00", "forecast": "", "impact": "Low", "previous": "50.4%", "title": "Prelim Machine Tool Orders y/y"}
 {"actual": "", "country": "EUR", "date": "2026-09-09T06:45:00+00:00", "forecast": "0.2%", "impact": "Low", "previous": "0.1%", "title": "French Industrial Production m/m"}
+{"actual": "", "country": "EUR", "date": "2026-09-09T09:33:00+00:00", "forecast": "", "impact": "Low", "previous": "3.26|1.1", "title": "German 10-y Bond Auction"}
 {"actual": "", "country": "EUR", "date": "2026-09-09T09:42:00+00:00", "forecast": "", "impact": "Low", "previous": "3.26|1.1", "title": "German 10-y Bond Auction"}
-{"actual": "", "country": "USD", "date": "2026-09-09T12:15:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "ADP Weekly Employment Change"}
+{"actual": "", "country": "USD", "date": "2026-09-09T12:14:00+00:00", "forecast": "", "impact": "Low", "previous": "11.8K", "title": "ADP Weekly Employment Change"}
+{"actual": "", "country": "USD", "date": "2026-09-09T12:15:00+00:00", "forecast": "", "impact": "Low", "previous": "10.0K", "title": "ADP Weekly Employment Change"}
 {"actual": "", "country": "USD", "date": "2026-09-09T12:16:00+00:00", "forecast": "", "impact": "Low", "previous": "11.8K", "title": "ADP Weekly Employment Change"}
 {"actual": "", "country": "EUR", "date": "2026-09-09T17:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "German Buba President Nagel Speaks"}
 {"actual": "", "country": "EUR", "date": "2026-09-09T17:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "ECB President Lagarde Speaks"}
@@ -91298,6 +91300,7 @@
 {"actual": "", "country": "USD", "date": "2026-09-09T20:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "API Weekly Statistical Bulletin"}
 {"actual": "", "country": "GBP", "date": "2026-09-09T23:01:00+00:00", "forecast": "-30%", "impact": "Low", "previous": "-30%", "title": "RICS House Price Balance"}
 {"actual": "", "country": "AUD", "date": "2026-09-10T01:00:00+00:00", "forecast": "", "impact": "Low", "previous": "4.9%", "title": "MI Inflation Expectations"}
+{"actual": "", "country": "USD", "date": "2026-09-10T01:15:00+00:00", "forecast": "", "impact": "Medium", "previous": "", "title": "President Trump Speaks"}
 {"actual": "", "country": "EUR", "date": "2026-09-10T06:00:00+00:00", "forecast": "0.2%", "impact": "Low", "previous": "0.2%", "title": "German Final CPI m/m"}
 {"actual": "", "country": "EUR", "date": "2026-09-10T08:00:00+00:00", "forecast": "0.3%", "impact": "Low", "previous": "-1.0%", "title": "Italian Industrial Production m/m"}
 {"actual": "", "country": "EUR", "date": "2026-09-10T09:34:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "German 30-y Bond Auction"}
@@ -91310,8 +91313,8 @@
 {"actual": "", "country": "EUR", "date": "2026-09-10T12:45:00+00:00", "forecast": "", "impact": "High", "previous": "", "title": "ECB Press Conference"}
 {"actual": "", "country": "USD", "date": "2026-09-10T14:00:00+00:00", "forecast": "3.98M", "impact": "Low", "previous": "4.06M", "title": "Existing Home Sales"}
 {"actual": "", "country": "USD", "date": "2026-09-10T14:00:00+00:00", "forecast": "1.2%", "impact": "Low", "previous": "1.3%", "title": "Final Wholesale Inventories m/m"}
-{"actual": "", "country": "USD", "date": "2026-09-10T14:30:00+00:00", "forecast": "", "impact": "Low", "previous": "30B", "title": "Natural Gas Storage"}
-{"actual": "", "country": "USD", "date": "2026-09-10T16:00:00+00:00", "forecast": "", "impact": "Low", "previous": "-4.5M", "title": "Crude Oil Inventories"}
+{"actual": "", "country": "USD", "date": "2026-09-10T14:30:00+00:00", "forecast": "35B", "impact": "Low", "previous": "30B", "title": "Natural Gas Storage"}
+{"actual": "", "country": "USD", "date": "2026-09-10T16:00:00+00:00", "forecast": "-1.4M", "impact": "Low", "previous": "-4.5M", "title": "Crude Oil Inventories"}
 {"actual": "", "country": "USD", "date": "2026-09-10T17:01:00+00:00", "forecast": "", "impact": "Low", "previous": "5.22|2.4", "title": "30-y Bond Auction"}
 {"actual": "", "country": "NZD", "date": "2026-09-10T22:30:00+00:00", "forecast": "", "impact": "Low", "previous": "54.3", "title": "BusinessNZ Manufacturing Index"}
 {"actual": "", "country": "JPY", "date": "2026-09-10T23:50:00+00:00", "forecast": "2.5", "impact": "Low", "previous": "-1.8", "title": "BSI Manufacturing Index"}
