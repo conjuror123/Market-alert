@@ -168,3 +168,51 @@ def test_a_warm_run_reproduces_a_cold_one_exactly():
     for column in ("r", "e_resid", "z_resid", "co_block", "sigma_lt"):
         diff = (merged[f"{column}_c"] - merged[f"{column}_w"]).abs().max()
         assert not (diff > 1e-9), f"{column}: {diff}"
+
+
+def test_a_backfill_below_the_fitted_history_is_not_covered():
+    # The case the cache could not see. An instrument is fitted over the history
+    # it had, then the archive is DEEPENED - HF Data reaching under Twelve Data's
+    # 2020 floor - and eighteen more years appear below the first segment. Every
+    # level in the cache is now an answer about a tail fitted on a fraction of
+    # the bars, and covers() cannot tell: it is asked about the trailing slice a
+    # warm run would score, and that slice did not move.
+    rate, step = 1.0, 720
+    hours, frame, _ = fitted(20000, rate, start=100000)
+    rows = ladder.segments("x:EFA", "abnormal", hours, frame, rate, step, "cfg")
+
+    # The slice still looks perfectly covered, which is the whole problem.
+    assert ladder.covers(rows, "x:EFA", "abnormal", hours)
+    # Asked about the history under it, the cache says no.
+    assert ladder.fitted_below(rows, "x:EFA", "abnormal", 100000 * HOUR)
+    assert not ladder.fitted_below(rows, "x:EFA", "abnormal", 1 * HOUR)
+
+
+def test_a_frame_reaching_below_its_warm_up_is_not_covered():
+    # The same failure for an instrument short enough to be scored whole rather
+    # than trimmed: there the deepened bars ARE in the frame covers() is handed.
+    rate, step = 1.0, 720
+    hours, frame, warmup = fitted(20000, rate, start=100000)
+    rows = ladder.segments("x:A", "abnormal", hours, frame, rate, step, "cfg")
+
+    deeper = pd.Series([(100000 - warmup - 5000 + i) * HOUR
+                        for i in range(warmup + 5000)] + list(hours))
+    assert not ladder.covers(rows, "x:A", "abnormal", deeper)
+
+
+def test_a_cache_without_the_fitted_from_column_is_not_trusted():
+    # A cache written before this check existed cannot answer the question, and
+    # guessing that it reaches far enough is the one answer that is unsafe.
+    hours, frame, _ = fitted(20000, start=100000)
+    rows = ladder.segments("x:A", "abnormal", hours, frame, 1.0, 720, "cfg")
+    legacy = rows.drop(columns=["fitted_from"])
+    assert not ladder.fitted_below(legacy, "x:A", "abnormal", 100000 * HOUR)
+
+
+def test_a_ladder_fitted_over_more_history_than_is_held_still_covers():
+    # Bars are never removed, so a fit that saw MORE than the store now holds
+    # means a rollback, and refitting on less than the fit already saw is not an
+    # improvement. Only a history reaching further DOWN invalidates.
+    hours, frame, _ = fitted(20000, start=100000)
+    rows = ladder.segments("x:A", "abnormal", hours, frame, 1.0, 720, "cfg")
+    assert ladder.fitted_below(rows, "x:A", "abnormal", 200000 * HOUR)

@@ -50,14 +50,19 @@ DEFAULT_LADDER_PATH = os.path.join("data", "tremor", "ladder.csv")
 # hundred bytes where it stores a rewritten parquet whole. Measured on the bar
 # archive: 0.8 KB per append for csv against 2.3 KB for parquet, and parquet
 # only does that well because its settled row groups happen to be byte-stable.
-COLUMNS = ("config", "asset_id", "ladder", "from_hour", "rate", "step") + tuple(
-    f"level_{name}" for name in severity.TIERS)
+# fitted_from is the first bar of the history the fit ran over, and it is what
+# makes a BACKWARD extension of the archive visible. config already stops one
+# version's answers being reused by another version's question; it says nothing
+# about the data those answers were computed from, and a backfill changes the
+# data while the code stands still. See fitted_below.
+COLUMNS = ("config", "asset_id", "ladder", "from_hour", "fitted_from", "rate",
+           "step") + tuple(f"level_{name}" for name in severity.TIERS)
 
 
 def empty() -> pd.DataFrame:
     return pd.DataFrame({c: pd.Series(dtype="float64") for c in COLUMNS}).astype(
         {"config": "object", "asset_id": "object", "ladder": "object",
-         "from_hour": "int64", "step": "int64"})
+         "from_hour": "int64", "fitted_from": "int64", "step": "int64"})
 
 
 def load(path: str = DEFAULT_LADDER_PATH,
@@ -124,6 +129,8 @@ def segments(asset_id: str, ladder: str, hours: pd.Series, levels: pd.DataFrame,
     out = pd.DataFrame({
         "config": str(config), "asset_id": asset_id, "ladder": ladder,
         "from_hour": hours.to_numpy()[starts].astype("int64"),
+        # The history this fit ran over, not the segment's own opening bar.
+        "fitted_from": int(hours.to_numpy()[0]),
         "rate": float(rate), "step": int(step),
     })
     for position, name in enumerate(names):
@@ -142,17 +149,58 @@ def covers(cache: pd.DataFrame, asset_id: str, ladder: str,
            hours: pd.Series) -> bool:
     """Whether the cache can answer for every bar in `hours` without a refit.
 
-    Two ways it cannot. The frame may reach back before the first segment, which
-    means the instrument's warm-up is inside it and the ladder genuinely has to
-    be built; or the newest bars may run a whole refit step past the last
-    segment, which means a refit is due.
+    Two ways it cannot. The frame may reach back further below the first segment
+    than the warm-up that segment sits on, which means this is not the history
+    the ladder was fitted over and it genuinely has to be built; or the newest
+    bars may run a whole refit step past the last segment, which means a refit is
+    due.
+
+    The first test allows exactly one warm-up below the first segment because
+    that is where `segments` puts it: a fit begins one warm-up after its history
+    starts. More than that below it is a frame whose history begins earlier than
+    the fitted one did - see `fitted_below`, which catches the same thing for an
+    instrument long enough to be judged on a trailing slice instead.
     """
     mine = _mine(cache, asset_id, ladder)
     if mine.empty or hours.empty:
         return False
+    moments = hours.to_numpy()
+    first = mine.iloc[0]
+    below = int((moments < int(first["from_hour"])).sum())
+    warmup = int(severity.WARMUP_DAYS * severity.HOURS_PER_DAY * float(first["rate"]))
+    if below > warmup:
+        return False
     last = mine.iloc[-1]
-    beyond = int((hours.to_numpy() > int(last["from_hour"])).sum())
+    beyond = int((moments > int(last["from_hour"])).sum())
     return beyond < int(last["step"])
+
+
+def fitted_below(cache: pd.DataFrame, asset_id: str, ladder: str,
+                 first_hour: int) -> bool:
+    """Whether the cached ladder was fitted over a history starting at or before
+    `first_hour` - the first bar the instrument now holds.
+
+    WHY THIS IS SEPARATE FROM covers. covers is asked about the bars a run is
+    about to score, and for any instrument long enough to be trimmed those are a
+    trailing slice: they begin years after the first segment, so nothing in them
+    can show that the history UNDER the fit has changed. That is exactly the case
+    a backfill creates - the store grows downwards, the slice does not move, and
+    every check passes while the levels answer a question about a shorter past.
+
+    The cache records the first bar of the history each fit ran over, so the
+    question can be asked directly. A row without that column predates this check
+    and is treated as not covering: one cold run rewrites it and the cost is paid
+    once. A ladder cached over a LONGER history than the store now holds is not
+    refused - bars are never removed, so that means the store was rolled back,
+    and refitting on less history than the fit already saw is not an improvement.
+    """
+    mine = _mine(cache, asset_id, ladder)
+    if mine.empty or "fitted_from" not in mine.columns:
+        return False
+    fitted_from = pd.to_numeric(mine["fitted_from"], errors="coerce").min()
+    if not np.isfinite(fitted_from):
+        return False
+    return int(fitted_from) <= int(first_hour)
 
 
 def levels_for(cache: pd.DataFrame, asset_id: str, ladder: str,

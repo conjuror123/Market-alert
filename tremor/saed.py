@@ -536,6 +536,12 @@ def plan_frames(basket: Basket, metrics: "dict[str, pd.DataFrame]",
     about than simply doing the whole run cold. With about seventy ladders each
     refitting every thirty days, roughly two runs a day come out cold and the
     rest warm - and a cold run is exactly what every run did before this.
+
+    The trimming is also why the frame's FIRST bar is checked here rather than
+    left to covers(). Once an instrument is cut to its trailing slice nothing in
+    what remains records how far the archive reaches, so a backfill - which grows
+    the store downwards, under the slice - is invisible from the slice alone. It
+    is not invisible here, where the untrimmed frame is still in hand.
     """
     from tremor import ladder, pipeline
 
@@ -545,6 +551,7 @@ def plan_frames(basket: Basket, metrics: "dict[str, pd.DataFrame]",
         frame = metrics.get(asset.asset_id)
         if frame is None or frame.empty:
             continue
+        first_hour = int(frame["hour_utc"].iloc[0])
         bars_per = pipeline.bars_per_session(asset, frame, basket.anchor_exchange_tz)
         keep = windows.warm_bars(windows.w_asset(bars_per),
                                  severity.bar_rate(frame["hour_utc"]))
@@ -555,6 +562,7 @@ def plan_frames(basket: Basket, metrics: "dict[str, pd.DataFrame]",
         tail = frame.tail(keep).reset_index(drop=True)
         trimmed[asset.asset_id] = tail
         if not all(ladder.covers(cache, asset.asset_id, name, tail["hour_utc"])
+                   and ladder.fitted_below(cache, asset.asset_id, name, first_hour)
                    for name, _ in LADDERS):
             warm = False
     return (trimmed, warm) if warm else (dict(metrics), False)
