@@ -7,12 +7,24 @@
       "1788858000": {
         "from": 1788858000,
         "hashes": [
-          "7ca7248b9f226c55"
+          "2be4e34d810fc7f2",
+          "0de71a69cea2c464"
         ],
         "ids": [
-          7
+          7,
+          8
         ],
         "to": 1789117200
+      },
+      "1789117200": {
+        "from": 1789117200,
+        "hashes": [
+          "28149e40022d3a03"
+        ],
+        "ids": [
+          10
+        ],
+        "to": 1789462800
       }
     },
     "sent": {
@@ -22,5 +34,6 @@
     },
     "tracked": {}
   },
-  "weekly_digest:last_refreshed": "2026-09-09"
+  "weekly_digest:last_refreshed": "2026-09-12",
+  "weekly_digest:last_sent_week": "2026-09-11"
 }
