@@ -310,7 +310,8 @@ def level_columns(prefix: str = LEVEL_PREFIX) -> tuple[str, ...]:
 def annotate(frame: pd.DataFrame, column: str = "z_resid_bmp",
              prefix: str = LEVEL_PREFIX, tier_column: str = "tier",
              fallback: str | None = "z_resid",
-             two_sided: bool = True) -> pd.DataFrame:
+             two_sided: bool = True,
+             levels: "pd.DataFrame | None" = None) -> pd.DataFrame:
     """Adds the four fitted levels and the resulting tier to one asset's frame.
 
     The column is a parameter because the same question - how rare is this for
@@ -325,6 +326,12 @@ def annotate(frame: pd.DataFrame, column: str = "z_resid_bmp",
     rather than by whatever it does today. That is the conservative reading:
     the ladder is in calendar time, and the average is what actually maps a
     fortnight onto a bar count over the stretch being fitted.
+
+    `levels` short-circuits the fit. A level, once fitted, never changes - it is
+    built on bars strictly before the segment it describes and applies forward -
+    so a caller holding yesterday's answer is not approximating anything by
+    handing it back. See tremor.ladder, which is what makes a trailing slice of
+    history enough for everything else.
     """
     if column in frame:
         score = frame[column]
@@ -333,8 +340,9 @@ def annotate(frame: pd.DataFrame, column: str = "z_resid_bmp",
     else:
         raise KeyError(f"{column!r} not in frame and no usable fallback")
 
-    rate = bar_rate(frame["hour_utc"]) if "hour_utc" in frame else 1.0
-    levels = rolling_levels(score, rate, two_sided=two_sided)
+    if levels is None:
+        rate = bar_rate(frame["hour_utc"]) if "hour_utc" in frame else 1.0
+        levels = rolling_levels(score, rate, two_sided=two_sided)
     out = frame.copy()
     for name in TIERS:
         out[f"{prefix}_{name}"] = levels[name].to_numpy()

@@ -32,6 +32,18 @@ CONFIG_INPUTS = (
     os.path.join("tremor", "volume.py"),
     os.path.join("tremor", "quality.py"),
     os.path.join("tremor", "residuals.py"),
+    # Added late, and the omission was a real gap rather than a tidy-up:
+    # severity decides what tier every single event gets, persistence decides
+    # whether it held, and blocks decides whether a whole complex moving is an
+    # event at all. A change to any of them changes every number downstream and
+    # has to change the configuration version with it. It matters more again now
+    # that the fitted ladder is CACHED between runs - a cached level is only an
+    # answer to the question the code was asking when it was fitted, and the
+    # config hash is what stops one version's answers being reused by another.
+    os.path.join("tremor", "severity.py"),
+    os.path.join("tremor", "persistence.py"),
+    os.path.join("tremor", "blocks.py"),
+    os.path.join("tremor", "ladder.py"),
     os.path.join("tremor", "cross_section.py"),
     os.path.join("tremor", "si_index.py"),
     os.path.join("tremor", "cluster.py"),

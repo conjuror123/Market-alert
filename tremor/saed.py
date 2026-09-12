@@ -467,10 +467,126 @@ def load_residuals(basket: Basket,
     return out
 
 
+# Which ladders an instrument carries, and the column prefix each one writes.
+LADDERS = (("abnormal", severity.LEVEL_PREFIX), ("absolute", ABSOLUTE_LEVEL_PREFIX))
+
+
+def _segments_of(asset_id: str, frame: pd.DataFrame,
+                 ladders=LADDERS) -> "list[pd.DataFrame]":
+    """The ladder cache rows a freshly fitted frame implies.
+
+    Only ever called on a frame fitted over FULL history - a trailing slice
+    cannot reach the two-year warm-up, so the levels it would produce are not
+    the ones being cached here.
+    """
+    from tremor import ladder as ladder_module
+    from tremor import versioning
+
+    if frame.empty or "hour_utc" not in frame:
+        return []
+    rate = severity.bar_rate(frame["hour_utc"])
+    step = max(int(severity.REFIT_DAYS * severity.HOURS_PER_DAY * rate), 1)
+    config, _ = versioning.versions_for()
+    out = []
+    for name, prefix in ladders:
+        columns = {f"{prefix}_{tier}": tier for tier in severity.TIERS}
+        if not set(columns) <= set(frame.columns):
+            continue
+        rows = ladder_module.segments(
+            asset_id, name, frame["hour_utc"],
+            frame[list(columns)].rename(columns=columns), rate, step, config)
+        if not rows.empty:
+            out.append(rows)
+    return out
+
+
+def _cached_levels(cache: "pd.DataFrame | None", asset_id: str, name: str,
+                   frame: pd.DataFrame) -> "pd.DataFrame | None":
+    """The cached ladder for this instrument, or None to fit it afresh.
+
+    None wherever the cache cannot answer for every bar in the frame - a missing
+    entry, a frame reaching back before the first segment, or a refit that has
+    come due. Falling back is the whole safety story here: an absent or stale
+    cache costs time and changes no number.
+    """
+    from tremor import ladder
+
+    if cache is None or cache.empty or frame.empty:
+        return None
+    if not ladder.covers(cache, asset_id, name, frame["hour_utc"]):
+        return None
+    return ladder.levels_for(cache, asset_id, name, frame["hour_utc"])
+
+
+def plan_frames(basket: Basket, metrics: "dict[str, pd.DataFrame]",
+                cache: pd.DataFrame) -> "tuple[dict[str, pd.DataFrame], bool]":
+    """Trim each instrument to a trailing window, or say that the run must be cold.
+
+    ALL OR NOTHING, on purpose. Every per-bar quantity here can be rebuilt
+    exactly from a bounded slice of the past (see windows.warm_bars), but the
+    rarity ladder cannot: it is fitted on every bar before the one it describes.
+    So a trailing slice is only usable where the cache already holds that
+    instrument's ladder - and where it does not, fitting on the slice would not
+    merely be less accurate, it would fall short of the two-year warm-up and
+    produce NO TIERS AT ALL. Silently.
+
+    That failure mode is why the decision is not taken per instrument. A run in
+    which half the basket is warm and half is cold has a cross-section built
+    from two different amounts of history, which is a harder thing to reason
+    about than simply doing the whole run cold. With about seventy ladders each
+    refitting every thirty days, roughly two runs a day come out cold and the
+    rest warm - and a cold run is exactly what every run did before this.
+    """
+    from tremor import ladder, pipeline
+
+    trimmed: dict[str, pd.DataFrame] = {}
+    warm = True
+    for asset in basket.instruments:
+        frame = metrics.get(asset.asset_id)
+        if frame is None or frame.empty:
+            continue
+        bars_per = pipeline.bars_per_session(asset, frame, basket.anchor_exchange_tz)
+        keep = windows.warm_bars(windows.w_asset(bars_per),
+                                 severity.bar_rate(frame["hour_utc"]))
+        if len(frame) <= keep:
+            # Short enough that the whole history IS the window.
+            trimmed[asset.asset_id] = frame
+            continue
+        tail = frame.tail(keep).reset_index(drop=True)
+        trimmed[asset.asset_id] = tail
+        if not all(ladder.covers(cache, asset.asset_id, name, tail["hour_utc"])
+                   for name, _ in LADDERS):
+            warm = False
+    return (trimmed, warm) if warm else (dict(metrics), False)
+
+
+def blocks_are_covered(basket: Basket, panel: pd.DataFrame,
+                       sigma_panel: pd.DataFrame, cache: pd.DataFrame) -> bool:
+    """Whether every block that HAS a ladder has it cached for the hours it needs.
+
+    Only the blocks that actually produce a frame are asked about: a block with
+    fewer than two members holding bars produces nothing, has nothing to cache,
+    and must not be able to hold the whole run on the cold path for ever.
+
+    And asked against the hours that block really has, not the panel's whole
+    index - an equity block trades the US session while the index carries every
+    currency hour too, and counting those would put it permanently past its last
+    refit.
+    """
+    from tremor import ladder
+
+    for name, hours in blocks.hours_by_block(basket, panel, sigma_panel).items():
+        if not ladder.covers(cache, blocks.block_id(name), "block", pd.Series(hours)):
+            return False
+    return True
+
+
 def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
                      block_factors: pd.DataFrame | None = None,
                      panel: pd.DataFrame | None = None,
-                     sigma_panel: pd.DataFrame | None = None
+                     sigma_panel: pd.DataFrame | None = None,
+                     cache: "pd.DataFrame | None" = None,
+                     fitted: "list | None" = None
                      ) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, pd.DataFrame]]:
     """Computes residuals and events for every instrument, non-basket ones included.
 
@@ -486,9 +602,16 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
         frame = metrics.get(asset.asset_id)
         if frame is None or frame.empty:
             continue
-        own_block = (block_factors[asset.asset_id]
-                     if block_factors is not None and asset.asset_id in block_factors
-                     else None)
+        # An all-NaN column is NOT a factor. block_factors returns one for a
+        # block whose only member is this instrument - the leave-one-out median
+        # of nothing - and passing it on would make the regression fail to fit,
+        # leaving e_resid as r minus NaN: the instrument goes silent, with no
+        # error anywhere. None is the honest input, and residuals() answers it
+        # with the drift-only model an instrument with no peers is entitled to.
+        own_block = None
+        if block_factors is not None and asset.asset_id in block_factors:
+            column = block_factors[asset.asset_id]
+            own_block = column if column.notna().any() else None
         with_residuals = residuals.residuals(asset, frame, own_block)
         b_asset = pipeline.bars_per_session(asset, frame, basket.anchor_exchange_tz)
         windows_by_asset[asset.asset_id] = w.w_asset(b_asset)
@@ -508,13 +631,25 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
     # deliberately NOT pooled across the basket: the whole point of a return
     # period is that it is the instrument's own history that says what is rare
     # for it, and pooling would put SHY and SOL back on one yardstick.
-    scored = {aid: severity.annotate(frame, tier_column=TIER_SOURCES["abnormal"])
-              for aid, frame in scored.items()}
+    #
+    # `cache` hands back the levels this fit produced on an earlier run, where it
+    # has them. That is not an approximation: a level is built on bars strictly
+    # before the segment it describes and applies forward, so it never changes
+    # once fitted. It is what makes a trailing slice of history enough - see
+    # tremor.ladder, and the note on windows.warm_bars.
+    scored = {aid: severity.annotate(
+        frame, tier_column=TIER_SOURCES["abnormal"],
+        levels=_cached_levels(cache, aid, "abnormal", frame))
+        for aid, frame in scored.items()}
     scored = {aid: severity.annotate(frame, column=ABSOLUTE_COLUMN,
                                      prefix=ABSOLUTE_LEVEL_PREFIX,
                                      tier_column=TIER_SOURCES["absolute"],
-                                     fallback=None)
+                                     fallback=None,
+                                     levels=_cached_levels(cache, aid, "absolute", frame))
               for aid, frame in scored.items()}
+    if fitted is not None:
+        for aid, frame in scored.items():
+            fitted.extend(_segments_of(aid, frame))
     scored = {aid: severity.combine(frame, TIER_SOURCES)
               for aid, frame in scored.items()}
     scored = {aid: withdraw_unconfirmed(frame) for aid, frame in scored.items()}
@@ -541,7 +676,11 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
     block_scored: dict[str, pd.DataFrame] = {}
     block_rows = pd.DataFrame()
     if panel is not None and sigma_panel is not None:
-        block_scored = blocks.frames(basket, panel, sigma_panel)
+        block_scored = blocks.frames(basket, panel, sigma_panel, cache)
+        if fitted is not None:
+            for name, frame in block_scored.items():
+                fitted.extend(_segments_of(blocks.block_id(name), frame,
+                                           (("block", severity.LEVEL_PREFIX),)))
         block_rows = blocks.events_frame(block_scored, basket, panel)
 
     frame = events_frame(all_events)
@@ -571,35 +710,83 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--events-out", default=DEFAULT_EVENTS_PATH)
     parser.add_argument("--alerts-out", default=DEFAULT_ALERTS_PATH)
     parser.add_argument("--residuals-out", default=DEFAULT_RESIDUALS_DIR)
+    parser.add_argument("--ladder", default=None,
+                        help="where the fitted rarity ladder is cached")
+    parser.add_argument("--full", action="store_true",
+                        help="ignore the ladder cache and refit on all history")
     args = parser.parse_args(argv)
+    from tremor import ladder as _ladder
+
+    args.ladder = args.ladder or _ladder.DEFAULT_LADDER_PATH
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     log = logging.getLogger("tremor.saed")
+
+    from tremor import ladder, versioning
 
     basket = load_basket()
     metrics = pipeline.load_all(basket, args.metrics_dir)
     if not metrics:
         log.error("No per-asset metrics - run python -m tremor.pipeline first")
         return 2
+
+    config, run_id = versioning.versions_for()
+    cache = ladder.empty() if args.full else ladder.load(args.ladder, config)
+    frames, warm = plan_frames(basket, metrics, cache)
+
+    def panels(source):
+        panel = cross_section.build_panel(source, "r")
+        hours = panel.index[sessions.reference_hours_mask(
+            pd.Series(panel.index), basket.anchor_exchange_tz).to_numpy()]
+        sigma = cross_section.build_panel(source, "sigma_eff").reindex(index=panel.index)
+        return panel.loc[hours], sigma.loc[hours]
+
+    panel, sigma_panel = panels(frames)
+    if warm and not blocks_are_covered(basket, panel, sigma_panel, cache):
+        # One block due a refit sends the whole run cold, for the same reason
+        # one instrument does: a ladder fitted on a trailing slice never reaches
+        # its warm-up and would quietly stop assigning tiers at all.
+        log.info("A block ladder is due a refit; running on full history")
+        frames, warm = dict(metrics), False
+        panel, sigma_panel = panels(frames)
+
+    kept = sum(len(f) for f in frames.values())
+    whole = sum(len(f) for f in metrics.values())
+    log.info("%s run: %d of %d bars (%.0f%%)",
+             "warm" if warm else "cold", kept, whole, 100 * kept / max(whole, 1))
+
     # No longer reads metrics_basket_hour at all. It used to, for the basket
     # factor; with that gone SAED depends on nothing cross_section produces, so
     # the two can run in either order and a cross_section failure can no longer
     # take the events down with it.
-    panel = cross_section.build_panel(metrics, "r")
-    reference = panel.index[sessions.reference_hours_mask(
-        pd.Series(panel.index), basket.anchor_exchange_tz).to_numpy()]
-    sigma_panel = cross_section.build_panel(metrics, "sigma_eff").reindex(
-        index=panel.index)
-    block_factors = cross_section.block_factors(
-        panel.loc[reference], basket, sigma_panel.loc[reference])
+    block_factors = cross_section.block_factors(panel, basket, sigma_panel)
 
+    fitted: list = []
     events, alerts, scored = build_for_basket(
-        basket, metrics, block_factors,
-        panel.loc[reference], sigma_panel.loc[reference])
+        basket, frames, block_factors, panel, sigma_panel,
+        cache=cache if warm else None, fitted=None if warm else fitted)
 
-    from tremor import versioning
+    if fitted:
+        # Only a cold run refits, and a cold run refits everything, so its rows
+        # replace the file rather than being merged into it.
+        ladder.save(pd.concat(fitted, ignore_index=True), args.ladder)
+        log.info("ladder cache: %d segments written to %s",
+                 sum(len(f) for f in fitted), args.ladder)
 
-    config, run_id = versioning.versions_for()
+    if warm and not events.empty:
+        # A warm run publishes only the span it is exact over. Beyond it the
+        # trailing window is still warming up, and those rows differ from a full
+        # run - not by much, but the event table is where "the last one this big
+        # was" is read from, and a tier that is nearly right there names the
+        # wrong date.
+        from tremor.severity import TIER_DAYS
+
+        floor = int(events["hour_utc"].max()) - int(max(TIER_DAYS.values()) * 86400)
+        before = len(events)
+        events = events[events["hour_utc"] >= floor].reset_index(drop=True)
+        log.info("warm run publishes %d of %d events - the %d days it is exact over",
+                 len(events), before, int(max(TIER_DAYS.values())))
+
     events = versioning.stamp(unevaluated_overlap(events), config, run_id)
     for path, frame in ((args.events_out, events),
                         (args.alerts_out, versioning.stamp(alerts, config, run_id))):

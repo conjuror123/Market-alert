@@ -97,7 +97,13 @@ jobs:
           mkdir -p data/economic_calendar
           git config user.name "price-monitor-bot"
           git config user.email "actions@github.com"
-          git add data/state.json data/economic_calendar
+          # The ladder cache goes with the state, every run rather than daily.
+          # It is what lets the hourly run rebuild from a slice of the archive
+          # instead of all twenty-three years, and a runner is thrown away after
+          # each run - so an uncommitted cache is a cache that never exists. It
+          # only changes when a refit actually happened, which is a couple of
+          # instruments a day, so most runs commit nothing extra.
+          git add data/state.json data/economic_calendar data/tremor/ladder.csv
           if [ "$(date -u +%H)" = "04" ]; then
             git add data/tremor/bars 2>/dev/null || true
           fi

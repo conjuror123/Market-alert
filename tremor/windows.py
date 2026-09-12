@@ -54,6 +54,59 @@ REGRESSION_MIN = 200
 # window - the coefficients do not measurably move.
 REGRESSION_GAP_BARS = 3
 
+# How much trailing history reproduces a recent bar EXACTLY, so that the hourly
+# run does not have to recompute twenty-three years to learn about one hour.
+#
+# Every per-bar quantity here depends on a bounded stretch of the past. The two
+# that bind are the long-run sigma at SIGMA_LT_BARS, and the adaptive thresholds,
+# whose window is w_asset counted over DEFINED values - which for the residual
+# series, present only on reference hours, spans considerably more rows than
+# that - followed by an EWMA smoother with its own tail.
+#
+# The multiplier is measured rather than reasoned. Taking the smallest trailing
+# window whose last two hundred bars agree with a full run to one part in a
+# billion:
+#
+#     SPY      41,573 bars   w_asset   840    8,000
+#     XLF      41,558 bars   w_asset   840    6,000
+#     HYG      33,979 bars   w_asset   840    8,000
+#     GLD      38,241 bars   w_asset   840    6,000
+#     BTC-USD  97,585 bars   w_asset 2,880   10,000
+#     ETH-USD  90,176 bars   w_asset 2,880   10,000
+#     EUR/USD 147,083 bars   w_asset 2,880   12,000
+#     USD/JPY 147,031 bars   w_asset 2,880   12,000
+#
+# which is SIGMA_LT_BARS plus about two and a half w_asset. Four is used here,
+# so an ETF takes 8,360 and a currency pair 16,520 - between a third and a half
+# again more than anything measured needed. The cost of being generous is a few
+# seconds; the cost of being tight is a bar that disagrees with the archive.
+# The window is warm-up PLUS a usable span, and the two are kept apart because
+# they answer different questions.
+#
+# The warm-up is what it costs to make a bar exact: the long-run sigma and four
+# times the adaptive-threshold window, per the measurements above. Bars inside
+# it are not wrong in an interesting way, they are simply not finished, and
+# nothing downstream should look at them.
+#
+# The usable span is how far back the run must still be RIGHT. A push says "the
+# last one this big was 23 days ago", read off the event table, so the table has
+# to be correct at least as far back as the deepest rung claims - three years -
+# or a once-in-three-years move would name the wrong predecessor or none. Sizing
+# the window at warm-up alone was measured and rejected: tiers matched exactly
+# within a year and then drifted, 50 of them across the whole window, with 31
+# events appearing that a full run does not produce.
+def trusted_bars(rate: float) -> int:
+    """How many bars back a run must still be exact, at this instrument's rate."""
+    from tremor.severity import TIER_DAYS
+
+    return int(max(TIER_DAYS.values()) * 24 * rate)
+
+
+def warm_bars(w_asset_bars: int, rate: float | None = None) -> int:
+    window = SIGMA_LT_BARS + 4 * int(w_asset_bars)
+    return window + trusted_bars(rate) if rate else window
+
+
 # Per-asset cooldown of a single-asset event (§8.3) - in that asset's own bars;
 # calendar hours are not used here.
 SAED_COOLDOWN_BARS = 12

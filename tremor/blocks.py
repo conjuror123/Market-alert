@@ -84,8 +84,33 @@ def _member_scale(sigma_panel: pd.DataFrame, columns: list[str],
         return pd.Series(np.nanmedian(values, axis=1), index=index)
 
 
-def frames(basket: Basket, panel: pd.DataFrame,
-           sigma_panel: pd.DataFrame) -> "dict[str, pd.DataFrame]":
+def hours_by_block(basket: Basket, panel: pd.DataFrame,
+                   sigma_panel: pd.DataFrame) -> "dict[str, pd.Index]":
+    """The hours each block actually has a move on, for the blocks that have one.
+
+    A block is absent entirely when fewer than two of its members have bars -
+    which is the ordinary state of a block whose instruments are still being
+    collected - and short blocks are absent too: a tail cannot be fitted to a
+    history that does not reach the burn-in, and inventing one would make the
+    first months of a new instrument the loudest thing in the basket.
+
+    Shared with the coverage check in saed, deliberately. Asking that question
+    against the panel's whole index instead - which is what it did first - counts
+    every currency hour against a block that only trades the US session, and a
+    block could then never be considered covered at all.
+    """
+    moves = cross_section.block_moves(panel, basket, sigma_panel)
+    members, _ = cross_section._block_members(panel, basket)
+    out = {}
+    for block in members:
+        hours = moves[block].dropna().index
+        if len(hours) >= MIN_BARS:
+            out[block] = hours
+    return out
+
+
+def frames(basket: Basket, panel: pd.DataFrame, sigma_panel: pd.DataFrame,
+           cache: "pd.DataFrame | None" = None) -> "dict[str, pd.DataFrame]":
     """One scored frame per block, shaped like an instrument's.
 
     Shaped like an instrument's on purpose: it then goes through the same
@@ -99,10 +124,6 @@ def frames(basket: Basket, panel: pd.DataFrame,
     for block, columns in members.items():
         move = moves[block].dropna()
         if len(move) < MIN_BARS:
-            # Too short to fit a tail to. A block whose members have only just
-            # started being collected has no history to call anything rare
-            # against, and inventing one would make the first months of a new
-            # instrument the loudest.
             continue
         scale = _member_scale(sigma_panel, columns, panel.index).reindex(move.index)
         frame = pd.DataFrame({
@@ -128,8 +149,15 @@ def frames(basket: Basket, panel: pd.DataFrame,
                                    .rolling(windows.SIGMA_LT_BARS,
                                             min_periods=windows.SIGMA_LT_MIN_BARS)
                                    .std(ddof=1))
+        levels = None
+        if cache is not None and not cache.empty:
+            from tremor import ladder
+
+            if ladder.covers(cache, block_id(block), "block", frame["hour_utc"]):
+                levels = ladder.levels_for(cache, block_id(block), "block",
+                                           frame["hour_utc"])
         frame = severity.annotate(frame, column="z_resid", fallback=None,
-                                  tier_column="tier")
+                                  tier_column="tier", levels=levels)
         frame["basis"] = pd.Series(BLOCK_BASIS, index=frame.index,
                                    dtype="string").where(frame["tier"].notna())
         # A block whose members all keep the US session has its day closed by
@@ -188,7 +216,13 @@ def events_frame(scored: "dict[str, pd.DataFrame]", basket: Basket,
             "z_resid", "e_resid", "co_block", "r", "beta_block", "repeat_count",
             "tier", "basis", "sigma_lt", "close", "n_members", "leaders",
             "rank_confirms", "ou_reverts"])
-    return pd.DataFrame(rows).sort_values("hour_utc").reset_index(drop=True)
+    # Stable, and tie-broken by name. Pandas sorts with quicksort by default,
+    # so two blocks firing in the same hour came out in an arbitrary order that
+    # depended on the length of the input - and the collapse then took whichever
+    # of them happened to land first as the day's anchor. Nothing about that was
+    # visible until a run over a shorter history picked the other one.
+    return pd.DataFrame(rows).sort_values(
+        ["hour_utc", "asset_id"], kind="mergesort").reset_index(drop=True)
 
 
 def _leaders(panel: pd.DataFrame, columns: list[str], hour_utc: int,

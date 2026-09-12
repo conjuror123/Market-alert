@@ -146,10 +146,18 @@ def collapse(events: pd.DataFrame, channels: pd.Series) -> pd.Series:
     # changes: a rarer push later still interrupts, block or not.
     from tremor.blocks import is_block
 
-    order = events.assign(
-        _block_first=events["asset_id"].map(is_block).map({True: 0, False: 1})
-        if "asset_id" in events else 1
-    ).sort_values(["hour_utc", "_block_first"], kind="mergesort").index
+    # And within an hour and a rank, the BIGGEST move. That used to be decided
+    # by row order, which is to say by nothing: two blocks reaching the extreme
+    # tier in the same hour were separated by whichever the frame happened to
+    # carry first, and the answer changed when the frame changed length. The
+    # anchor is the loudest thing that happened, so say so.
+    keys = pd.DataFrame({
+        "hour": events["hour_utc"].astype("int64"),
+        "block_first": (events["asset_id"].map(is_block).map({True: 0, False: 1})
+                        if "asset_id" in events else 1),
+        "biggest": -events["z_resid"].abs().fillna(0.0) if "z_resid" in events else 0.0,
+    }, index=events.index)
+    order = keys.sort_values(["hour", "block_first", "biggest"], kind="mergesort").index
     tier = events["tier"]
     rank = {name: i for i, name in enumerate(severity.TIERS)}
     out = channels.copy()
