@@ -101,7 +101,7 @@ _SENT = "sent"
 #
 # Ordered like the ladder itself, so a digest sorted by tier is also sorted by
 # colour, and a long note can be skimmed down its left edge.
-TIER_EMOJI = {"routine": "⬜", "notable": "🟨", "major": "🟧", "extreme": "🟥"}
+TIER_EMOJI = {"noticeable": "⬜", "high": "🟨", "major": "🟧", "extreme": "🟥"}
 
 # The tier names are internal; these are what a person reads. Said as a return
 # period, because "about once every three years" needs no calibration intuition
@@ -115,8 +115,8 @@ TIER_EMOJI = {"routine": "⬜", "notable": "🟨", "major": "🟧", "extreme": "
 # three years" over "the last one this big was 23 days ago". Only one of the two
 # was wrong, and it was the headline.
 TIER_PERIOD = {
-    "routine": "about once a fortnight",
-    "notable": "about once every two months",
+    "noticeable": "about once a fortnight",
+    "high": "about once every two months",
     "major": "about once a year",
     "extreme": "about once every three years",
 }
@@ -424,7 +424,7 @@ def _companion_blocks(event: dict, labels: dict[str, str],
         return ""
 
     companions = companions or {}
-    rank = {"routine": 0, "notable": 1, "major": 2, "extreme": 3}
+    rank = {"noticeable": 0, "high": 1, "major": 2, "extreme": 3}
 
     def sort_key(asset_id: str):
         row = companions.get(asset_id) or {}
@@ -647,7 +647,7 @@ def describe(event: dict, labels: dict[str, str],
     check-in lines say when each is due and the message is edited when they
     land.
     """
-    tier = str(event.get("tier") or "routine")
+    tier = str(event.get("tier") or "noticeable")
     emoji = TIER_EMOJI.get(tier, "⚪")
     when = datetime.fromtimestamp(int(event["hour_utc"]), tz=timezone.utc)
 

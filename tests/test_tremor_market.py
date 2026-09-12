@@ -20,7 +20,7 @@ def scores(excess, base=-6.0):
 def test_the_ladder_reads_the_exceedance_not_the_level():
     # The forecast is not stationary - its level depends on which instruments
     # are in the basket, and this basket grew. Fitted on an expanding window a
-    # ladder on the level never fires again: measured, the routine level
+    # ladder on the level never fires again: measured, the noticeable level
     # settled at -5.21 during the 2021-2022 warm-up and the forecast never
     # reached it afterwards. The exceedance is stationary by construction,
     # because the detector's own threshold is a rolling quantile.
@@ -55,7 +55,7 @@ def test_consecutive_hours_are_one_event():
     scored = pd.DataFrame({
         "hour_utc": np.arange(6) * HOUR,
         "excess": [0.1, 0.2, 0.3, 0.1, 0.1, 0.1],
-        "tier": pd.array(["routine", "routine", "major", None, None, None],
+        "tier": pd.array(["noticeable", "noticeable", "major", None, None, None],
                          dtype="string"),
     })
     out = market.events(scored, cooldown_bars=windows.CLUSTER_COOLDOWN)
@@ -71,7 +71,7 @@ def test_a_new_event_opens_after_the_cluster_cooldown():
     scored = pd.DataFrame({
         "hour_utc": np.arange(gap + 1) * HOUR,
         "excess": 0.2,
-        "tier": pd.array(["routine"] + [None] * (gap - 1) + ["routine"],
+        "tier": pd.array(["noticeable"] + [None] * (gap - 1) + ["noticeable"],
                          dtype="string"),
     })
     assert len(market.events(scored)) == 2
@@ -100,14 +100,14 @@ def test_a_market_event_is_not_gated_on_a_retention_test_it_cannot_take():
     # read. Routing no longer consults retention at all - the answer is written
     # onto the message after the fact instead - so this holds for free, and the
     # test stands to say that it must keep holding.
-    events = pd.DataFrame({"hour_utc": [HOUR], "tier": pd.array(["notable"], dtype="string"),
+    events = pd.DataFrame({"hour_utc": [HOUR], "tier": pd.array(["high"], dtype="string"),
                            "retention_settled": [-0.4]})
     assert routing.route(events)["channel"].iloc[0] == routing.DIGEST
 
 
 def test_the_lower_tiers_digest_with_no_retention_column_at_all():
     events = pd.DataFrame({"hour_utc": [HOUR, 2 * HOUR],
-                           "tier": pd.array(["routine", "notable"], dtype="string")})
+                           "tier": pd.array(["noticeable", "high"], dtype="string")})
     routed = routing.route(events)
     assert list(routed["channel"]) == [routing.DIGEST, routing.DIGEST]
     assert routed["digest_slot"].notna().all()

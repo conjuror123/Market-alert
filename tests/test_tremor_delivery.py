@@ -144,7 +144,7 @@ def test_an_event_from_the_future_is_not_delivered(monkeypatch, sender):
 def test_the_note_is_opened_even_before_it_has_anything_in_it(monkeypatch, sender):
     # It is opened at the START of the period it covers, so the reader has one
     # message to watch and every event after that arrives as a silent edit.
-    elsewhere = event(event_id="old", channel="digest", tier="routine",
+    elsewhere = event(event_id="old", channel="digest", tier="noticeable",
                       hour_utc=SLOT - 30 * 24 * HOUR)
     deliver(monkeypatch, [elsewhere])
     assert len(notes(sender)) == 1
@@ -153,24 +153,24 @@ def test_the_note_is_opened_even_before_it_has_anything_in_it(monkeypatch, sende
 
 
 def test_a_move_joins_the_note_that_is_already_open(monkeypatch, sender):
-    row = event(event_id="d1", channel="digest", tier="routine")
+    row = event(event_id="d1", channel="digest", tier="noticeable")
     deliver(monkeypatch, [row])
     assert "Gold" in notes(sender)[0]
 
 
 def test_a_move_from_before_the_note_opened_is_not_in_it(monkeypatch, sender):
-    stale = event(event_id="d1", channel="digest", tier="routine",
+    stale = event(event_id="d1", channel="digest", tier="noticeable",
                   hour_utc=SLOT - 4 * 24 * HOUR)
     deliver(monkeypatch, [stale])
     assert len(notes(sender)) == 1 and "Gold" not in notes(sender)[0]
 
 
 def test_the_note_is_one_message_for_many_events(monkeypatch, sender):
-    rows = [event(event_id=f"d{i}", channel="digest", tier="routine",
+    rows = [event(event_id=f"d{i}", channel="digest", tier="noticeable",
                   hour_utc=SLOT + i * HOUR) for i in range(3)]
     deliver(monkeypatch, rows)
     assert len(notes(sender)) == 1
-    assert notes(sender)[0].count(md.TIER_EMOJI["routine"]) == 3
+    assert notes(sender)[0].count(md.TIER_EMOJI["noticeable"]) == 3
 
 
 def test_a_failed_send_is_retried_rather_than_lost(monkeypatch):
@@ -213,7 +213,7 @@ def test_the_state_does_not_grow_without_bound(monkeypatch, sender):
 
 def test_a_market_event_reads_as_market_wide(monkeypatch, sender):
     row = event(event_id="m1", basis="market", asset_id=None, r=None,
-                retention_settled=None, tier="notable")
+                retention_settled=None, tier="high")
     deliver(monkeypatch, [row])
     assert "Market-wide" in alerts(sender)[0]
     assert "this disorderly" in alerts(sender)[0]
@@ -223,7 +223,7 @@ def test_the_severity_leads_the_digest(monkeypatch, sender):
     # A digest read only as far as its notification preview should still
     # deliver its most important line.
     rows = [
-        event(event_id="a", channel="digest", tier="routine", digest_slot=SLOT),
+        event(event_id="a", channel="digest", tier="noticeable", digest_slot=SLOT),
         event(event_id="b", channel="digest", tier="major",
               asset_id="coinbase:BTC-USD", digest_slot=SLOT),
     ]
@@ -233,7 +233,7 @@ def test_the_severity_leads_the_digest(monkeypatch, sender):
 
 
 def test_a_long_digest_is_split_within_telegrams_limit(monkeypatch, sender):
-    rows = [event(event_id=f"d{i}", channel="digest", tier="routine",
+    rows = [event(event_id=f"d{i}", channel="digest", tier="noticeable",
                   hour_utc=int(NOW.timestamp()) - HOUR,
                   digest_slot=SLOT) for i in range(200)]
     deliver(monkeypatch, rows)
@@ -282,7 +282,7 @@ def test_a_move_on_the_abnormal_ladder_says_which_ladder_it_is_on():
         "a move this big happens about once a year")
     assert md._headline("major", "both") == (
         "a move this big happens about once a year")
-    assert md._headline("notable", "market") == (
+    assert md._headline("high", "market") == (
         "an hour this disorderly happens about once every two months")
 
 
@@ -291,7 +291,7 @@ def test_the_period_is_a_frequency_and_not_a_record():
     # that the last fortnight held nothing larger. The old wording flatly
     # contradicted the line beneath it: "biggest move in about three years" over
     # "the last one this big was 23 days ago".
-    assert md._headline("routine", "absolute") == (
+    assert md._headline("noticeable", "absolute") == (
         "a move this big happens about once a fortnight")
     assert "biggest" not in md._headline("extreme", "absolute")
 
@@ -300,7 +300,7 @@ def test_no_alert_claims_the_economic_calendar_explained_anything():
     # The residual is r minus what the basket and block factors predicted; the
     # calendar enters only the SI-Index, never this basis. An alert naming it
     # would be reporting a test the system never ran.
-    for tier in ("routine", "notable", "major", "extreme"):
+    for tier in ("noticeable", "high", "major", "extreme"):
         for basis in ("abnormal", "absolute", "both", "market"):
             assert "calendar" not in md._headline(tier, basis).lower()
     for line in md._split_lines({"r": 0.02, "e_resid": 0.018}, "Gold"):
@@ -537,7 +537,7 @@ def test_a_modest_multiple_is_still_said_and_still_has_its_decimal():
     # It used to be suppressed below three times normal, and that silence read
     # as a gap rather than as "this one was only 2.7x". 21% of events fall under
     # the old floor. The decimal matters too: "3x" for 2.7 flatters the alert.
-    event = {"asset_id": "twelvedata:SPY", "tier": "routine", "basis": "absolute",
+    event = {"asset_id": "twelvedata:SPY", "tier": "noticeable", "basis": "absolute",
              "hour_utc": 1767225600, "r": 0.0027, "sigma_lt": 0.001}
     assert "that is 2.7x its usual hour" in md.format_push(event, {})
 
@@ -643,7 +643,7 @@ def test_a_landed_horizon_is_not_a_promise():
 # arrives quietly in a message they already have.
 
 def digest_row(**over):
-    return event(event_id="d1", channel="digest", tier="notable",
+    return event(event_id="d1", channel="digest", tier="high",
                  retention_today=None, retention_settled=None) | over
 
 
@@ -754,7 +754,7 @@ def test_a_note_that_loses_a_part_does_not_leave_a_stale_one(monkeypatch, sender
     # A recompute that no longer produces an event takes its lines with it, and
     # Telegram cannot delete a message - so the surplus part is emptied instead
     # of being left saying "part 3 of 5" under a note that now has two.
-    many = [event(event_id=f"d{i}", channel="digest", tier="routine",
+    many = [event(event_id=f"d{i}", channel="digest", tier="noticeable",
                   hour_utc=int(NOW.timestamp()) - HOUR, digest_slot=SLOT)
             for i in range(200)]
     _, state = deliver(monkeypatch, many)
@@ -799,7 +799,7 @@ def test_one_missed_run_does_not_cost_the_note(monkeypatch, sender):
 def test_a_period_whose_note_never_opened_is_carried_into_the_next(monkeypatch, sender):
     # Both halves have to be true at once: the buzz is always at noon, and no
     # move is silently dropped for want of a scheduler.
-    missed = event(event_id="d1", channel="digest", tier="routine",
+    missed = event(event_id="d1", channel="digest", tier="noticeable",
                    hour_utc=SLOT + 5 * HOUR)
     _, state = deliver(monkeypatch, [missed], now=LATE)
     assert notes(sender) == []
@@ -837,7 +837,7 @@ def test_a_note_whose_first_post_failed_does_not_cover_its_period(monkeypatch):
     failing = Sent(fail=True)
     monkeypatch.setattr(md, "send_telegram_message", failing)
     monkeypatch.setattr(md, "_labels", lambda: LABELS)
-    row = event(event_id="d1", channel="digest", tier="routine",
+    row = event(event_id="d1", channel="digest", tier="noticeable",
                 hour_utc=SLOT + 2 * HOUR)
     _, state = deliver(monkeypatch, [row], now=datetime.fromtimestamp(SLOT, tz=timezone.utc))
 
@@ -890,7 +890,7 @@ def test_the_alert_says_when_this_instrument_was_last_this_rare():
     hour = int(datetime(2026, 9, 4, 14, tzinfo=timezone.utc).timestamp())
     history = [
         event(event_id="old", tier="major", hour_utc=hour - 400 * 24 * HOUR),
-        event(event_id="tiny", tier="routine", hour_utc=hour - 3 * 24 * HOUR),
+        event(event_id="tiny", tier="noticeable", hour_utc=hour - 3 * 24 * HOUR),
     ]
     line = md._since_note(event(tier="major", hour_utc=hour), history)
     assert "the last one this big was 31 July 2025" in line
@@ -899,7 +899,7 @@ def test_the_alert_says_when_this_instrument_was_last_this_rare():
 
 def test_a_rarer_earlier_move_counts_and_a_milder_one_does_not():
     hour = int(datetime(2026, 9, 4, 14, tzinfo=timezone.utc).timestamp())
-    milder = [event(event_id="m", tier="notable", hour_utc=hour - 10 * 24 * HOUR)]
+    milder = [event(event_id="m", tier="high", hour_utc=hour - 10 * 24 * HOUR)]
     rarer = [event(event_id="r", tier="extreme", hour_utc=hour - 10 * 24 * HOUR)]
     assert md._since_note(event(tier="major", hour_utc=hour), milder) == ""
     assert "10 days ago" in md._since_note(event(tier="major", hour_utc=hour), rarer)

@@ -175,7 +175,7 @@ def events_frame(scored: "dict[str, pd.DataFrame]", basket: Basket,
                  panel: pd.DataFrame) -> pd.DataFrame:
     """The block events, in the same columns an asset event carries.
 
-    Only the push tiers. A block moving at the routine or notable level is the
+    Only the push tiers. A block moving at the noticeable or high level is the
     ordinary background of a market - some block is always the one that moved
     most - and a digest line for it every fortnight would say nothing. The two
     rare tiers are the ones that mean "this whole complex repriced".

@@ -25,7 +25,7 @@ second, parallel notion of importance.
 WHAT THE LADDER IS ASKED OF, and why it is not the forecast itself. The
 forecast is not stationary: its LEVEL depends on which instruments are in the
 basket, and this basket grew. Fitted on an expanding window the ladder therefore
-never fires again - measured, the routine level settled at -5.21 during the
+never fires again - measured, the noticeable level settled at -5.21 during the
 crypto-heavy 2021-2022 warm-up and the forecast never once reached it
 afterwards, topping out between -5.46 and -5.74 in every half-year since. Zero
 market events, silently, forever.

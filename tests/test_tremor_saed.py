@@ -15,7 +15,7 @@ def asset(**over):
     return Asset(**(base | over))
 
 
-def scored(hits, n=40, sigma=0.01, tier="routine"):
+def scored(hits, n=40, sigma=0.01, tier="noticeable"):
     """A series where the trigger condition holds at positions `hits`, quiet elsewhere.
 
     The score the trigger reads is z_resid_bmp - the residual standardised against
@@ -23,7 +23,7 @@ def scored(hits, n=40, sigma=0.01, tier="routine"):
     column is set directly rather than fitted: severity.rolling_levels needs two
     years of bars before it will say anything, and these fixtures are forty bars
     long. The levels are still filled in, because triggers() reads them to tell
-    "quieter than routine" apart from "nothing fitted yet".
+    "quieter than noticeable" apart from "nothing fitted yet".
 
     `hits` may be a list of positions, or a dict of position -> tier name when a
     test needs the tiers to differ.
@@ -56,7 +56,7 @@ def test_trigger_fires_on_the_tier_not_on_the_size_of_the_move():
     # value it replaces, for the reason the event-study literature gives - the
     # standardisation is the test - and the raw-magnitude leg removed before it
     # passed 139.9x more often in the loudest hours than the quietest.
-    frame = scored({0: "routine"})
+    frame = scored({0: "noticeable"})
     frame.loc[0, "e_resid"] = 0.000001    # a tiny raw move, and it still counts
     frame.loc[1, "e_resid"] = 10.0        # a huge raw move with no tier, and it does not
 
@@ -66,7 +66,7 @@ def test_trigger_fires_on_the_tier_not_on_the_size_of_the_move():
 
 
 def test_trigger_fires_in_both_directions():
-    frame = scored({0: "routine", 1: "major"})
+    frame = scored({0: "noticeable", 1: "major"})
     frame.loc[0, "z_resid_bmp"] = -10.0
     out = saed.triggers(frame)
     assert bool(out.iloc[0]) and bool(out.iloc[1])
@@ -102,7 +102,7 @@ def test_an_hour_is_assessed_if_either_ladder_could_speak():
     # other one answered. Only an hour where neither could speak is NULL.
     frame = scored([0])
     frame[f"level_{severity.TIERS[0]}"] = np.nan     # the abnormal ladder is blank
-    frame["abs_level_routine"] = 0.01                # the absolute one is not
+    frame["abs_level_noticeable"] = 0.01                # the absolute one is not
     assert bool(saed.triggers(frame).iloc[0])
 
 
@@ -137,10 +137,10 @@ def test_cooldown_folds_repeats_into_one_event():
 
 
 def test_the_event_keeps_the_worst_tier_it_reached_inside_the_pause():
-    # A move that opens routine and turns major an hour later is a major event.
+    # A move that opens noticeable and turns major an hour later is a major event.
     # Reporting the tier it happened to open at would understate it purely
     # because of when the automaton opened.
-    events = saed.build_events(asset(), scored({5: "routine", 7: "major"}),
+    events = saed.build_events(asset(), scored({5: "noticeable", 7: "major"}),
                                cooldown_bars=12)
     assert len(events) == 1
     assert events[0].tier == "major"
@@ -148,7 +148,7 @@ def test_the_event_keeps_the_worst_tier_it_reached_inside_the_pause():
 
 
 def test_the_event_is_not_downgraded_by_a_milder_repeat():
-    events = saed.build_events(asset(), scored({5: "major", 7: "routine"}),
+    events = saed.build_events(asset(), scored({5: "major", 7: "noticeable"}),
                                cooldown_bars=12)
     assert len(events) == 1 and events[0].tier == "major"
 
@@ -187,7 +187,7 @@ def test_block_alert_aggregates_the_same_hour():
         "z_resid": [5.0, -8.0, 4.0],
         "e_resid": [0.05, -0.06, 0.04],
         "r": [0.01, 0.02, 0.03], "beta": [1.0, 1.0, 1.0], "repeat_count": [0, 0, 0],
-        "tier": ["routine", "major", "notable"],
+        "tier": ["noticeable", "major", "high"],
         "channel": ["digest", "push", "dropped"],
     })
     alerts = saed.aggregate_block_alerts(events)
@@ -208,7 +208,7 @@ def test_different_hours_are_different_alerts():
         "event_id": ["a", "b"], "asset_id": ["x", "y"], "block": ["FX", "FX"],
         "hour_utc": [HOUR, 2 * HOUR], "z_resid": [5.0, 6.0],
         "e_resid": [0.05, 0.06], "r": [0.01, 0.01], "beta": [1.0, 1.0],
-        "repeat_count": [0, 0], "tier": ["routine", "routine"],
+        "repeat_count": [0, 0], "tier": ["noticeable", "noticeable"],
     })
     assert len(saed.aggregate_block_alerts(events)) == 2
 
@@ -218,7 +218,7 @@ def test_events_link_back_to_their_alert():
         "event_id": ["a", "b"], "asset_id": ["x", "y"], "block": ["FX", "FX"],
         "hour_utc": [HOUR, HOUR], "z_resid": [5.0, 6.0], "e_resid": [0.05, 0.06],
         "r": [0.01, 0.01], "beta": [1.0, 1.0], "repeat_count": [0, 0],
-        "tier": ["routine", "routine"],
+        "tier": ["noticeable", "noticeable"],
     })
     alerts = saed.aggregate_block_alerts(events)
     linked = saed.link_alerts(events, alerts)
@@ -242,7 +242,7 @@ def test_overlap_starts_out_null_rather_than_false():
         saed.SaedEvent(event_id="x", asset_id="a", block="FX", hour_utc=3600,
                        peak_hour_utc=3600, rank_confirms=None, ou_reverts=None,
                        z_resid=4.0, e_resid=0.01, co_block=0.0, r=0.01, beta_block=1.0, repeat_count=0,
-                       tier="routine", basis="abnormal", sigma_lt=0.002,
+                       tier="noticeable", basis="abnormal", sigma_lt=0.002,
                        close=1.2345)])
 
     tagged = saed.unevaluated_overlap(events)
@@ -256,7 +256,7 @@ def test_an_escalated_event_reports_the_move_that_earned_its_tier():
     # Reporting the opening bar's move next to the peak bar's tier describes
     # two different hours as one event, and the delivery layer prints them
     # together - it produced pushes reading "biggest move in 3 years, +0.01%".
-    frame = scored({5: "routine", 7: "extreme"})
+    frame = scored({5: "noticeable", 7: "extreme"})
     frame.loc[5, ["r", "z_resid", "z_resid_bmp", "e_resid"]] = [0.00005, 3.0, 3.0, 0.00002]
     frame.loc[7, ["r", "z_resid", "z_resid_bmp", "e_resid"]] = [0.013, 30.0, 30.0, 0.02]
 
@@ -306,7 +306,7 @@ def test_a_smaller_bar_at_the_same_tier_does_not_move_the_peak():
 
 
 def test_an_event_that_never_escalates_peaks_where_it_opened():
-    events = saed.build_events(asset(), scored({5: "major", 7: "routine"}),
+    events = saed.build_events(asset(), scored({5: "major", 7: "noticeable"}),
                                cooldown_bars=12)
     assert len(events) == 1
     assert events[0].peak_hour_utc == events[0].hour_utc == 6 * HOUR
@@ -319,7 +319,7 @@ def test_retention_is_measured_from_the_peak_not_the_opening():
     # than the market.
     from tremor import persistence
 
-    frame = scored({5: "routine", 7: "extreme"})
+    frame = scored({5: "noticeable", 7: "extreme"})
     events = saed.events_frame(saed.build_events(asset(), frame, cooldown_bars=12))
     lookup = pd.DataFrame({"hour_utc": frame["hour_utc"]})
     for column in persistence.RETENTION_COLUMNS:

@@ -216,7 +216,7 @@ def test_saed_events_keep_their_order_across_runs():
         frame[f"level_{name}"] = 5.0
     for position in (20, 21, 100):
         frame.loc[position, ["z_resid", "e_resid", "r"]] = [6.0, 0.05, 0.06]
-        frame.loc[position, "tier"] = "routine"
+        frame.loc[position, "tier"] = "noticeable"
 
     first = saed.events_frame(saed.build_events(asset, frame))
     second = saed.events_frame(saed.build_events(asset, frame))

@@ -80,9 +80,9 @@ def test_inside_the_body_the_empirical_quantile_is_used():
 
 
 def test_levels_do_not_decrease_across_the_ladder():
-    # Imposed, not assumed: the routine level comes from an empirical quantile
+    # Imposed, not assumed: the noticeable level comes from an empirical quantile
     # and the rarer ones from a fitted tail, and nothing in either guarantees
-    # they arrive in order. A "major" level below "notable" would let a move
+    # they arrive in order. A "major" level below "high" would let a move
     # land in the higher box while failing the lower one.
     rng = np.random.default_rng(2)
     for _ in range(20):
@@ -129,7 +129,7 @@ def test_nothing_is_assigned_during_the_warm_up():
     # Everything the two-year warm-up can back is available the moment it ends:
     # a fortnight, two months and a year are all claims two years of history
     # supports. Three years is not, and waits.
-    assert levels.iloc[warmup:][["routine", "notable", "major"]].notna().all().all()
+    assert levels.iloc[warmup:][["noticeable", "high", "major"]].notna().all().all()
 
 
 def test_a_tier_is_withheld_until_the_history_can_back_the_claim():
@@ -145,7 +145,7 @@ def test_a_tier_is_withheld_until_the_history_can_back_the_claim():
     warmup = int(sv.WARMUP_DAYS * sv.HOURS_PER_DAY)
     # The three tiers the warm-up already covers arrive together with it; the
     # one it does not covers waits for its own return period to elapse.
-    assert first["routine"] == first["notable"] == first["major"] == warmup
+    assert first["noticeable"] == first["high"] == first["major"] == warmup
     assert first["extreme"] >= sv.TIER_DAYS["extreme"] * sv.HOURS_PER_DAY
 
 
@@ -169,11 +169,11 @@ def test_a_history_shorter_than_the_warm_up_yields_no_tiers():
 
 def test_assign_picks_the_rarest_level_cleared():
     score = pd.Series([0.5, 1.5, 2.5, 3.5, 4.5, -4.5])
-    levels = pd.DataFrame({"routine": 1.0, "notable": 2.0, "major": 3.0,
+    levels = pd.DataFrame({"noticeable": 1.0, "high": 2.0, "major": 3.0,
                            "extreme": 4.0}, index=score.index)
     tier = sv.assign(score, levels)
 
-    assert list(tier[1:]) == ["routine", "notable", "major", "extreme", "extreme"]
+    assert list(tier[1:]) == ["noticeable", "high", "major", "extreme", "extreme"]
     assert pd.isna(tier.iloc[0])
     assert list(sv.rank(tier)[1:]) == [1, 2, 3, 4, 4]
 
@@ -224,8 +224,8 @@ def test_a_missing_column_with_no_fallback_is_an_error_not_a_silent_default():
 
 def test_combine_keeps_the_rarest_tier_and_records_where_it_came_from():
     frame = pd.DataFrame({
-        "a": pd.array(["routine", "major", None, "notable"], dtype="string"),
-        "b": pd.array(["extreme", None, None, "notable"], dtype="string"),
+        "a": pd.array(["noticeable", "major", None, "high"], dtype="string"),
+        "b": pd.array(["extreme", None, None, "high"], dtype="string"),
     })
     out = sv.combine(frame, {"abnormal": "a", "absolute": "b"})
     assert list(out["tier"][:2]) == ["extreme", "major"]

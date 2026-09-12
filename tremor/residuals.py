@@ -123,7 +123,7 @@ RANK_WINDOW = windows.REGRESSION_WINDOW
 RANK_MIN = windows.REGRESSION_MIN
 
 # A bar confirms when it is among the most extreme one percent of its window.
-# Not a taste threshold: the routine tier is a once-a-fortnight event, which at
+# Not a taste threshold: the noticeable tier is a once-a-month event, which at
 # this basket's bar rates is between one bar in 98 and one in 336, so the top
 # percent of a five-hundred-bar window is the same order of rarity the mildest
 # tier already claims. A rank test that confirmed more freely than the ladder's

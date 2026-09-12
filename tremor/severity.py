@@ -28,7 +28,7 @@ probability-weighted moments (Hosking & Wallis 1987) rather than maximum
 likelihood - it is a closed form, so there is no optimiser to fail to converge,
 and it is the better estimator for the small tail samples this actually has.
 
-Below the POT threshold there is no need to extrapolate at all: the routine
+Below the POT threshold there is no need to extrapolate at all: the noticeable
 tier sits where the empirical quantile has hundreds of observations behind it,
 so that is what is used. The two meet by construction at the threshold, where
 the expected exceedance count is one.
@@ -52,8 +52,8 @@ import pandas as pd
 # level of seriousness. Everything rarer than the top tier is still the top
 # tier - there is no fifth box, because at that point the message is the same.
 TIER_DAYS: dict[str, float] = {
-    "routine": 14.0,      # a fortnight   - digest only, roughly 26 a year
-    "notable": 61.0,      # two months    - pushed, roughly 6 a year
+    "noticeable": 14.0,      # a fortnight   - digest only, roughly 26 a year
+    "high": 61.0,      # two months    - pushed, roughly 6 a year
     "major": 365.25,      # a year        - pushed, roughly 1 a year
     "extreme": 1095.75,   # three years   - pushed, roughly 1 every 3 years
 }
@@ -204,10 +204,10 @@ def tier_levels(values: np.ndarray, rate: float,
                 available_days: float = float("inf")) -> dict[str, float]:
     """One return level per tier, forced to be non-decreasing.
 
-    The monotonicity is imposed rather than assumed. The routine tier comes
+    The monotonicity is imposed rather than assumed. The noticeable tier comes
     from an empirical quantile and the rarer ones from a fitted tail; nothing
     in either guarantees they come out in order, and a "major" level below the
-    "notable" one would let a move land in the higher box while failing the
+    "high" one would let a move land in the higher box while failing the
     lower, which is not a thing the ladder is allowed to do.
     """
     levels: dict[str, float] = {}
@@ -281,7 +281,7 @@ def assign(score: pd.Series, levels: pd.DataFrame,
            two_sided: bool = True) -> pd.Series:
     """The tier of each bar: the rarest level it clears, or NA for none.
 
-    NA covers both "quieter than the routine level" and "no level was fitted
+    NA covers both "quieter than the noticeable level" and "no level was fitted
     yet", which are deliberately the same answer here - in both cases there is
     nothing to say about this bar - and are told apart, when it matters, by
     whether the levels themselves are NaN.
@@ -294,7 +294,7 @@ def assign(score: pd.Series, levels: pd.DataFrame,
 
 
 def rank(tier: pd.Series) -> pd.Series:
-    """Tier as an integer, 1 for routine up to 4, so it can be compared and maxed."""
+    """Tier as an integer, 1 for noticeable up to 4, so it can be compared and maxed."""
     order = {name: i + 1 for i, name in enumerate(TIERS)}
     return tier.map(order).astype("Int64")
 

@@ -155,7 +155,7 @@ def withdraw_unconfirmed(frame: pd.DataFrame,
 
 
 def triggers(frame: pd.DataFrame) -> pd.Series:
-    """The event-generation condition: the move cleared its own routine return level.
+    """The event-generation condition: the move cleared its own noticeable return level.
 
     This replaces a single critical value shared by every instrument. The
     critical value answered "is this distinguishable from noise", which is a
@@ -276,7 +276,7 @@ def build_events(asset: Asset, frame: pd.DataFrame,
     for i in np.flatnonzero(fired):
         if open_at is not None and i - open_at < cooldown_bars:
             # Inside the pause: the same event continues, no notification - but
-            # it can still get worse. A move that opens at the routine level and
+            # it can still get worse. A move that opens at the noticeable level and
             # reaches the major one an hour later is a major event; reporting
             # the tier it happened to start at would understate it purely
             # because of when the automaton opened. So the event keeps the
@@ -304,7 +304,7 @@ def build_events(asset: Asset, frame: pd.DataFrame,
                 # event - and the delivery layer prints that magnitude next to
                 # the tier's own words. It produced pushes reading "biggest move
                 # in 3 years, +0.01%": a fifth of a basis point on SHY, opened
-                # at the routine level at 15:00, with the extreme belonging to
+                # at the noticeable level at 15:00, with the extreme belonging to
                 # the +0.13% at 17:00. Identity stays at the opening hour, so
                 # event_id and the cooldown are untouched; the description
                 # follows the bar that earned the label.
@@ -387,7 +387,7 @@ def aggregate_block_alerts(events: pd.DataFrame) -> pd.DataFrame:
         max_abs_z_resid=("z_resid", lambda s: float(s.abs().max())),
         n_assets=("asset_id", "nunique"),
         # The block alert is delivered at the severity of its worst member. A
-        # block carrying one major move and three routine ones is a major
+        # block carrying one major move and three noticeable ones is a major
         # alert; averaging or taking the first would bury the reason it is
         # being sent at all.
         tier=("tier", lambda s: max(s, key=lambda t: order.get(t, -1))),

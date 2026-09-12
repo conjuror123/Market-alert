@@ -151,7 +151,7 @@ def test_only_saed_events_inside_the_window_are_listed():
         "event_id": ["a", "b"], "asset_id": ["twelvedata:SPY"] * 2,
         "block": ["equity"] * 2, "hour_utc": [30 * HOUR, 55 * HOUR],
         "z_resid": [5.0, 6.0], "e_resid": [0.01, 0.02], "r": [0.02, 0.03],
-        "repeat_count": [0, 1], "tier": ["major", "routine"],
+        "repeat_count": [0, 1], "tier": ["major", "noticeable"],
     })
     payload = build(30 * HOUR, saed=saed)
     assert [e["event_id"] for e in payload["saed_events"]] == ["a"]

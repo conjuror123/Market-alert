@@ -47,14 +47,14 @@ def test_a_move_that_reverted_is_still_written_down():
     # see until every one of its events had been answered. The note is now
     # opened at the start of its period and the reversal is written onto the
     # line instead.
-    routed = routing.route(events([(DAY, "routine", -0.2, -0.4),
-                                   (30 * DAY, "notable", 0.2, 0.1)]))
+    routed = routing.route(events([(DAY, "noticeable", -0.2, -0.4),
+                                   (30 * DAY, "high", 0.2, 0.1)]))
     assert list(routed["channel"]) == [routing.DIGEST, routing.DIGEST]
 
 
 def test_a_move_that_held_is_digested():
-    routed = routing.route(events([(DAY, "routine", 0.9, 0.8),
-                                   (30 * DAY, "notable", 0.6, 0.7)]))
+    routed = routing.route(events([(DAY, "noticeable", 0.9, 0.8),
+                                   (30 * DAY, "high", 0.6, 0.7)]))
     assert list(routed["channel"]) == [routing.DIGEST, routing.DIGEST]
 
 
@@ -62,7 +62,7 @@ def test_an_event_is_routed_before_its_retention_can_be_known():
     # Every event the live system has just produced has NaN retention, and it
     # goes into the open note that hour regardless - the answer arrives later
     # as an edit.
-    routed = routing.route(events([(DAY, "routine", float("nan"), float("nan"))]))
+    routed = routing.route(events([(DAY, "noticeable", float("nan"), float("nan"))]))
     assert routed["channel"].iloc[0] == routing.DIGEST
 
 
@@ -114,7 +114,7 @@ def test_the_digest_slot_is_local_noon_on_both_sides_of_daylight_saving():
 
 def test_only_digested_events_carry_a_slot():
     routed = routing.route(events([(DAY, "extreme", 0.9, 0.9),
-                                   (30 * DAY, "routine", 0.9, 0.9)]))
+                                   (30 * DAY, "noticeable", 0.9, 0.9)]))
     slots = routed["digest_slot"]
     assert pd.isna(slots.iloc[0])
     # At or before the event, because the note it joins is already open.
@@ -164,7 +164,7 @@ def test_a_rarer_move_becomes_the_new_anchor():
 
 
 def test_collapse_leaves_events_that_were_never_pushes_alone():
-    rows = [(DAY, "extreme", 0.9, 0.9), (DAY + HOUR, "routine", -0.5, -0.5)]
+    rows = [(DAY, "extreme", 0.9, 0.9), (DAY + HOUR, "noticeable", -0.5, -0.5)]
     frame = events(rows)
     given = pd.Series([routing.PUSH, routing.DIGEST])
     channels, folded, _ = routing.collapse(frame, given)
@@ -232,7 +232,7 @@ def test_a_folded_event_records_which_push_it_belongs_to():
 
 def test_an_event_that_was_never_a_push_belongs_to_nothing():
     routed = routing.route(events([(DAY, "extreme", 0.9, 0.9),
-                                   (DAY + HOUR, "routine", 0.9, 0.9)],
+                                   (DAY + HOUR, "noticeable", 0.9, 0.9)],
                                   assets=["src:SPY", "src:GLD"]))
     assert routed["folded_into"].iloc[1] == ""
 

@@ -74,7 +74,7 @@ def per_asset(events: pd.DataFrame):
         residuals = RESIDUALS_DIR / path.name
         if not residuals.exists():
             continue
-        scored = pd.read_parquet(residuals, columns=["hour_utc", "level_routine"])
+        scored = pd.read_parquet(residuals, columns=["hour_utc", "level_noticeable"])
         bars = pd.read_parquet(path)
         hours = bars["hour_utc"].to_numpy("int64")
         # The system's own return channel. NOT close-to-close, which spans the
@@ -85,7 +85,7 @@ def per_asset(events: pd.DataFrame):
         if len(hours) < MIN_HOURS:
             continue
 
-        fitted = scored.set_index("hour_utc")["level_routine"].reindex(hours).notna().to_numpy()
+        fitted = scored.set_index("hour_utc")["level_noticeable"].reindex(hours).notna().to_numpy()
         mine = events[events["asset_id"] == asset_id]
         covered = np.zeros(len(hours), dtype=int)
         for opened, channel in zip(mine["hour_utc"].astype("int64"), mine["channel"]):
