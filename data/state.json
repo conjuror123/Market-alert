@@ -8,7 +8,7 @@
         "from": 1788858000,
         "hashes": [
           "2be4e34d810fc7f2",
-          "0de71a69cea2c464"
+          "c314feb81c279b04"
         ],
         "ids": [
           7,
@@ -28,9 +28,7 @@
       }
     },
     "sent": {
-      "twelvedata_DBC:1788530400": 1788530400,
-      "twelvedata_USD_JPY:1788768000": 1788768000,
-      "twelvedata_USO:1788530400": 1788530400
+      "twelvedata_USD_JPY:1788768000": 1788768000
     },
     "tracked": {}
   },
