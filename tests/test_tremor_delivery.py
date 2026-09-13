@@ -1161,14 +1161,14 @@ def test_a_digest_row_buzzes_once_and_says_almost_nothing(monkeypatch, sender):
                 digest_slot=int(NOW.timestamp()) + 3 * HOUR)
     _, state = deliver(monkeypatch, [row])
 
-    pings = [t for t in sender.texts if "moved!" in t]
-    assert pings == ["⬜ <b>Gold</b> moved! (+2.10%)"]
+    pings = [t for t in sender.texts if t.startswith("⬜")]
+    assert pings == ["⬜ <b>Gold</b> +2.10%"]
     assert state[md.STATE_KEY][md.PINGS] == {"p1": 1}
 
     # And not again on the next run: the buzz is once per move, not per hour.
     before = len(sender.texts)
     deliver(monkeypatch, [row], state=state)
-    assert [t for t in sender.texts[before:] if "moved!" in t] == []
+    assert [t for t in sender.texts[before:] if t.startswith("⬜")] == []
 
 
 def test_a_push_tier_never_buzzes_even_while_it_sits_in_the_digest():

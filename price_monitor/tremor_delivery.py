@@ -1408,8 +1408,8 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
     move = _clean(event.get("r"))
     if _is_block(event):
         name = f"Block {name}"
-    shown = f" ({move * 100:+.2f}%)" if move is not None else ""
-    return f"{emoji} <b>{_escape(name)}</b> moved!{shown}"
+    shown = f" {move * 100:+.2f}%" if move is not None else ""
+    return f"{emoji} <b>{_escape(name)}</b>{shown}"
 
 
 def pending_pings(events: "list[dict]", pinged: dict,
