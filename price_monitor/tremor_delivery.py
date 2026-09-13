@@ -356,39 +356,6 @@ def _split_lines(event: dict, label: str, tier: str = "",
     return lines
 
 
-def _since_note(event: dict, events: "list[dict]") -> str:
-    """When this instrument was last this rare, as a date.
-
-    "Biggest move in about a year" is a return period fitted to a tail, which is
-    the honest way to say how unusual something is and a hard thing to picture.
-    The date is the same claim in a form nobody needs statistics for: it is the
-    last time this instrument produced an event at this tier or a rarer one.
-
-    Read off the events table, which the delivery layer already holds, so this
-    costs nothing. Silent where there is no earlier one - a young instrument, or
-    genuinely the first in twenty-two years, and claiming either would be a
-    guess.
-    """
-    from tremor.severity import TIERS
-
-    rank = {name: i for i, name in enumerate(TIERS)}
-    here = rank.get(str(event.get("tier")), -1)
-    asset_id = str(event.get("asset_id") or "")
-    hour = int(event["hour_utc"])
-    earlier = [int(e["hour_utc"]) for e in events
-               if str(e.get("asset_id") or "") == asset_id
-               and int(e["hour_utc"]) < hour
-               and rank.get(str(e.get("tier")), -1) >= here]
-    if not earlier:
-        return ""
-    when = datetime.fromtimestamp(max(earlier), tz=timezone.utc)
-    days = (hour - max(earlier)) / 86400
-    ago = (f"{days / 365.25:.1f} years" if days >= 365 else
-           f"{days / 30.44:.0f} months" if days >= 60 else
-           f"{days:.0f} days")
-    return f"similar move {ago} ago"
-
-
 def _retention_note(value: float) -> str:
     """How the move stood once settled, in words rather than a bare ratio.
 
@@ -654,8 +621,7 @@ def describe(event: dict, labels: dict[str, str],
     parts = [f"{emoji} <b>{_escape(_ticker(asset_id))}</b> · "
              f"{_escape(label)}{shown}"]
 
-    context = " · ".join(x for x in (_scale_note(event),
-                                     _since_note(event, events or [])) if x)
+    context = _scale_note(event)
     if context:
         parts.append(context)
 
@@ -840,8 +806,7 @@ def _describe_block(event: dict, headline: str, emoji: str, when: datetime,
              f"{_escape(named[:1].upper() + named[1:])}</b>"
              f"{f' · {_block_move_phrase(block, move).strip()}' if move is not None else ''}"]
 
-    context = " · ".join(x for x in (_scale_note(event),
-                                     _since_note(event, events or [])) if x)
+    context = _scale_note(event)
     if context:
         parts.append(context)
     # Not str.capitalize(), which lowercases everything after the first letter

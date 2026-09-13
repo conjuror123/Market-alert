@@ -899,34 +899,27 @@ def test_the_third_check_in_lands_on_a_push_that_already_has_two(monkeypatch, se
 
 # --- saying it in terms nobody needs statistics for -------------------------
 
-def test_the_alert_says_when_this_instrument_was_last_this_rare():
-    # "Biggest move in about a year" is a return period fitted to a tail: the
-    # honest way to say how unusual something is, and a hard thing to picture.
-    # The date is the same claim in a form that needs no statistics.
+def test_only_one_date_line_and_it_is_the_exact_one():
+    # There used to be two. The headline said how OFTEN a move like this happens
+    # and a second line said when the last one was - and under a fitted ladder
+    # those could flatly contradict each other ("biggest move in about three
+    # years" over "the last one this big was 23 days ago").
+    #
+    # The headline is now itself a date, read off the bar the level was measured
+    # against, so the second line was the same claim computed a weaker way: it
+    # searched the EVENTS table for the last row at this tier or rarer, which
+    # can be a different bar entirely - a smaller move that still cleared the
+    # rung, or one claimed by the other ladder. Measured on a real push the two
+    # disagreed, "the biggest since July" against "similar move 28 days ago".
     hour = int(datetime(2026, 9, 4, 14, tzinfo=timezone.utc).timestamp())
-    history = [
-        event(event_id="old", tier="major", hour_utc=hour - 400 * 24 * HOUR),
-        event(event_id="tiny", tier="noticeable", hour_utc=hour - 3 * 24 * HOUR),
-    ]
-    line = md._since_note(event(tier="major", hour_utc=hour), history)
-    assert "similar move 1.1 years ago" in line
-    assert "1.1 years ago" in line
+    history = [event(event_id="old", tier="major", hour_utc=hour - 400 * 24 * HOUR)]
+    row = event(tier="major", hour_utc=hour, basis="absolute",
+                record_since=hour - 400 * 24 * HOUR)
+    text = md.format_push(row, LABELS, None, events=history)
 
-
-def test_a_rarer_earlier_move_counts_and_a_milder_one_does_not():
-    hour = int(datetime(2026, 9, 4, 14, tzinfo=timezone.utc).timestamp())
-    milder = [event(event_id="m", tier="high", hour_utc=hour - 10 * 24 * HOUR)]
-    rarer = [event(event_id="r", tier="extreme", hour_utc=hour - 10 * 24 * HOUR)]
-    assert md._since_note(event(tier="major", hour_utc=hour), milder) == ""
-    assert "10 days ago" in md._since_note(event(tier="major", hour_utc=hour), rarer)
-
-
-def test_nothing_is_claimed_when_there_is_no_earlier_one():
-    # A young instrument, or genuinely the first in twenty-two years. Claiming
-    # either would be a guess.
-    assert md._since_note(event(), []) == ""
-
-
+    assert "the biggest move since" in text
+    for gone in ("similar move", "ago"):
+        assert gone not in text
 
 
 def test_a_move_in_the_closing_hour_reports_no_ratio_for_its_own_day():
