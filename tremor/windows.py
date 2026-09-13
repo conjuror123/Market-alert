@@ -100,9 +100,9 @@ REGRESSION_GAP_BARS = 3
 # events appearing that a full run does not produce.
 def trusted_bars(rate: float) -> int:
     """How many bars back a run must still be exact, at this instrument's rate."""
-    from tremor.severity import TIER_DAYS
+    from tremor.severity import tier_days
 
-    return int(max(TIER_DAYS.values()) * 24 * rate)
+    return int(max(tier_days().values()) * 24 * rate)
 
 
 def warm_bars(w_asset_bars: int, rate: float | None = None) -> int:

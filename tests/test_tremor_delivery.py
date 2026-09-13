@@ -277,11 +277,11 @@ def test_a_move_on_the_abnormal_ladder_says_which_ladder_it_is_on():
     # the second - the instrument may well have had larger hours the market
     # accounted for perfectly - and "of its own" says so without a glossary.
     assert md._headline("major", "abnormal") == (
-        "a move of its own this big happens about once every three years")
+        "a move of its own this big happens about once every 3 years")
     assert md._headline("major", "absolute") == (
-        "a move this big happens about once every three years")
+        "a move this big happens about once every 3 years")
     assert md._headline("major", "both") == (
-        "a move this big happens about once every three years")
+        "a move this big happens about once every 3 years")
     assert md._headline("high", "market") == (
         "an hour this disorderly happens about once a quarter")
 
@@ -520,7 +520,7 @@ def test_a_missing_calendar_never_costs_the_alert():
     assert md.calendar_context(hour, None) == ""
     text = md.format_push({"hour_utc": hour, "asset_id": "a:SPY", "tier": "major",
                            "basis": "abnormal", "r": 0.02}, {}, None)
-    assert "happens about once every three years" in text
+    assert "happens about once every 3 years" in text
 
 
 def test_the_push_says_what_the_move_was_big_compared_with():

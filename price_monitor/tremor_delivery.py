@@ -114,12 +114,15 @@ TIER_EMOJI = {"noticeable": "⬜", "high": "🟨", "major": "🟧", "extreme": "
 # old wording flatly contradicted the line beneath it: "biggest move in about
 # three years" over "the last one this big was 23 days ago". Only one of the two
 # was wrong, and it was the headline.
-TIER_PERIOD = {
-    "noticeable": "about once a month",
-    "high": "about once a quarter",
-    "major": "about once every three years",
-    "extreme": "about once every six years",
-}
+# DERIVED, not written here. The rungs move - a trader retuned them, and the
+# sensitivity knob in config/basket.yaml moves them again - and a table of
+# phrases sitting beside them survives that silently, which turns every message
+# into a confident lie about a number the reader has no way to check.
+def tier_period(tier: str) -> str:
+    from tremor import severity
+
+    days = severity.tier_days().get(tier)
+    return severity.period_phrase(days) if days else tier
 
 # WHICH LADDER the tier was measured against, said in the noun rather than in a
 # parenthesis. Two ladders exist and they answer different questions: the
@@ -145,7 +148,7 @@ BASIS_NOUN = {
 
 
 def _headline(tier: str, basis: str) -> str:
-    period = TIER_PERIOD.get(tier, tier)
+    period = tier_period(tier)
     if basis == "market":
         return f"an hour this disorderly happens {period}"
     return f"{BASIS_NOUN.get(basis, 'a move this big happens')} {period}"

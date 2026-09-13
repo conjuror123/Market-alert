@@ -76,6 +76,54 @@ TIERS: tuple[str, ...] = tuple(TIER_DAYS)
 
 HOURS_PER_DAY = 24.0
 
+
+def tier_days() -> dict[str, float]:
+    """The rungs as they currently stand, after the sensitivity knob.
+
+    TIER_DAYS above is the BASE - what the words mean at sensitivity 1.0 - and
+    this is what everything downstream must read. `sensitivity` in
+    config/basket.yaml scales all four together: 2.0 makes every rung twice as
+    rare and the messages roughly half as many, 0.5 the other way.
+
+    Scaling them TOGETHER is the point. Sensitivity is one question - how rare
+    before I want to know - and answering it must not silently re-rank a move
+    from `major` to `high`, which is what moving one rung alone would do. It is
+    also not a per-instrument dial and must never become one: each instrument is
+    still judged against its own history, so SHY may speak once a year and SOL a
+    hundred times, and flattening that would throw away the only thing a return
+    period buys.
+    """
+    from tremor.basket import load_tuning
+
+    scale = load_tuning().sensitivity
+    return {name: days * scale for name, days in TIER_DAYS.items()}
+
+
+def period_phrase(days: float) -> str:
+    """A return period as a person says it.
+
+    Derived from the number rather than written beside it. The rungs move - a
+    trader retuned them once and the knob moves them again - and a hard-coded
+    "about once a fortnight" survives that silently, which turns every message
+    into a lie about a number the reader cannot check.
+    """
+    if days < 10.5:
+        return "about once a week"
+    if days < 18:
+        return "about once every 2 weeks"
+    if days < 45:
+        return "about once a month"
+    if days < 75:
+        return "about once every 2 months"
+    if days < 135:
+        return "about once a quarter"
+    if days < 270:
+        return "about once every 6 months"
+    if days < 550:
+        return "about once a year"
+    years = round(days / 365.25)
+    return f"about once every {years} years"
+
 # How many tail points to fit the GPD on. Too few and the shape parameter is
 # noise; too many and the fit is dragged down by the body of the distribution,
 # which is not Pareto and was never claimed to be. One percent of the sample is
@@ -250,7 +298,7 @@ def tier_levels(values: np.ndarray, rate: float,
     """
     levels: dict[str, float] = {}
     running = -np.inf
-    for name, days in TIER_DAYS.items():
+    for name, days in tier_days().items():
         if days > EXTRAPOLATION_LIMIT * available_days:
             levels[name] = float("nan")
             continue

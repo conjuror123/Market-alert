@@ -314,3 +314,47 @@ def test_the_floor_lifts_a_short_window_towards_its_settled_level():
     settled = sv.return_level(x, m)
     short = sv.return_level(x[:30000], m)
     assert abs(short - settled) / settled < 0.15
+
+
+def test_the_sensitivity_knob_scales_every_rung_together(tmp_path):
+    # One question - how rare before I want to know - so the rungs move as a
+    # group. Moving one alone would silently re-rank a move from major to high,
+    # which is a different thing from asking for fewer messages.
+    import tremor.basket as tb
+
+    cfg = tmp_path / "basket.yaml"
+    try:
+        for scale in (0.5, 2.0):
+            cfg.write_text(f"sensitivity: {scale}\nmin_move_sigma: 1.0\n")
+            tb.load_tuning.cache_clear()
+            assert tb.load_tuning(str(cfg)).sensitivity == scale
+        # A file with no knob in it behaves as 1.0 rather than failing.
+        cfg.write_text("history_since: \"2015-01-01\"\n")
+        tb.load_tuning.cache_clear()
+        assert tb.load_tuning(str(cfg)).sensitivity == 1.0
+    finally:
+        tb.load_tuning.cache_clear()
+
+    # At the shipped setting the live rungs are exactly the base ones, and they
+    # keep their order whatever the scale.
+    assert sv.tier_days() == dict(sv.TIER_DAYS)
+    assert list(sv.tier_days().values()) == sorted(sv.tier_days().values())
+
+
+def test_the_phrase_is_derived_from_the_number_not_written_beside_it():
+    # A hard-coded phrase survives a retune silently and turns every message
+    # into a lie about a number the reader cannot check.
+    assert sv.period_phrase(14.0) == "about once every 2 weeks"   # not "a fortnight"
+    assert sv.period_phrase(30.0) == "about once a month"
+    assert sv.period_phrase(105.0) == "about once a quarter"
+    assert sv.period_phrase(1095.75) == "about once every 3 years"
+    assert sv.period_phrase(2191.5) == "about once every 6 years"
+    # And it tracks the knob rather than the base.
+    assert sv.period_phrase(sv.TIER_DAYS["extreme"] * 2) == "about once every 12 years"
+
+
+def test_every_live_rung_has_a_phrase_a_person_would_say():
+    for name, days in sv.tier_days().items():
+        phrase = sv.period_phrase(days)
+        assert phrase.startswith("about once")
+        assert "fortnight" not in phrase

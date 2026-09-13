@@ -808,13 +808,13 @@ def main(argv: list[str] | None = None) -> int:
         # run - not by much, but the event table is where "the last one this big
         # was" is read from, and a tier that is nearly right there names the
         # wrong date.
-        from tremor.severity import TIER_DAYS
+        from tremor.severity import tier_days
 
-        floor = int(events["hour_utc"].max()) - int(max(TIER_DAYS.values()) * 86400)
+        floor = int(events["hour_utc"].max()) - int(max(tier_days().values()) * 86400)
         before = len(events)
         events = events[events["hour_utc"] >= floor].reset_index(drop=True)
         log.info("warm run publishes %d of %d events - the %d days it is exact over",
-                 len(events), before, int(max(TIER_DAYS.values())))
+                 len(events), before, int(max(tier_days().values())))
 
     events = versioning.stamp(unevaluated_overlap(events), config, run_id)
     for path, frame in ((args.events_out, events),
