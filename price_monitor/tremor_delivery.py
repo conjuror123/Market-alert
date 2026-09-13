@@ -1261,7 +1261,12 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
                  + (" so far" if live else ""))
     else:
         count = "Nothing so far" if live else "Nothing in this period"
-    header = (f"📋 <b>Digest</b> - {opened:%a %-d} to {closes:%a %-d %B}\n"
+    # The month is named on the opening date too WHEN THE NOTE CROSSES ONE, and
+    # only then. "Mon 27 to Sat 1 November" left the reader to work out which
+    # month the 27th belonged to, and the answer was the other one. Naming it
+    # every time would instead put the same word twice in five words.
+    opened_fmt = "%a %-d %B" if opened.month != closes.month else "%a %-d"
+    header = (f"📋 <b>Digest</b> - {opened:{opened_fmt}} to {closes:%a %-d %B}\n"
               + count + (" - this message is updated as moves are found" if live else ""))
     # The regime the whole period sits in, read at the note's latest edit rather
     # than at its opening: a note is re-rendered every time a row is added, so

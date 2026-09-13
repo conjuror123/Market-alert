@@ -1244,6 +1244,24 @@ def test_a_row_with_no_split_still_says_how_rare_it_was():
     assert lines == ["a move of its own this big happens about once in 6 years"]
 
 
+def test_the_note_names_the_month_only_when_it_crosses_one():
+    # A Monday-to-Saturday note falls inside one month five times in six, and
+    # naming it twice in five words is noise. The sixth is the one that matters:
+    # "Mon 27 to Sat 1 November" left the reader to work out which month the
+    # 27th was, and the answer was the other one.
+    def header(y, m, d):
+        opens = int(datetime(y, m, d, 0, 5, tzinfo=timezone.utc).timestamp())
+        return md.format_digest([], LABELS, routing.digest_window(opens),
+                                None, NOW)[0].splitlines()[0]
+
+    inside = header(2026, 3, 9)          # Monday 9 to Saturday 14 March
+    assert "Mon 9 to Sat 14 March" in inside
+    assert inside.count("March") == 1
+
+    across = header(2026, 3, 30)         # Monday 30 March to Saturday 4 April
+    assert "Mon 30 March to Sat 4 April" in across
+
+
 def test_the_note_runs_in_time_order_across_all_its_parts():
     # A long note is cut into several messages. Sorting each part on its own
     # would restart the clock at every cut, so the rows are ordered once and the
