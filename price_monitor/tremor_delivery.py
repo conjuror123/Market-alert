@@ -1039,8 +1039,11 @@ def _due_in(event: dict, horizon, now: datetime | None = None) -> str:
     now = now or datetime.now(timezone.utc)
     due = due_moment(event, horizon)
     if due is None:
-        return ("coming at the next day's close" if horizon == "settled"
-                else "coming at this day's close")
+        # The horizon has already been named by the line this answer is appended
+        # to, so naming it again produced "this day's close - coming at this
+        # day's close". Say the one thing the caller does not already know:
+        # that a moment was wanted and the calendar would not give one.
+        return "coming, though the trading calendar could not say when"
 
     left = (due - now.timestamp()) / 3600.0
     if left <= 0:

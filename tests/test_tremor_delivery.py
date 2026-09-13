@@ -367,15 +367,6 @@ def test_the_headline_does_not_claim_the_market_was_quiet():
         assert overclaim not in line
 
 
-def _blocks(anchor_ids, companions=None, labels=None, budget=9999):
-    return md._companion_blocks({"also_moved": anchor_ids}, labels or {},
-                                companions, NOW, [], budget)
-
-
-
-
-
-
 
 def _cal(rows):
     """rows: (iso date, country, title, impact)."""
@@ -605,8 +596,20 @@ def test_the_settled_reading_is_dated_by_the_next_trading_day():
 def test_an_undatable_check_in_says_less_rather_than_something_wrong(monkeypatch):
     # An unreadable session table must not raise inside a push that is going out.
     monkeypatch.setattr(md, "due_moment", lambda e, h: None)
-    assert md._due_in(spy(), "today") == "coming at this day's close"
-    assert md._due_in(spy(), "settled") == "coming at the next day's close"
+    for horizon in ("today", "settled"):
+        assert md._due_in(spy(), horizon).startswith("coming,")
+
+
+def test_an_undatable_check_in_does_not_repeat_the_horizon_it_is_written_under(
+        monkeypatch):
+    # The full line is "<horizon> - <answer>", so a fallback naming the horizon
+    # again read "this day's close - coming at this day's close".
+    monkeypatch.setattr(md, "due_moment", lambda e, h: None)
+    lines = md.check_in_lines(event(retention_today=None,
+                                    retention_settled=None), NOW)
+    for line in lines:
+        label, _, answer = line.strip().partition(" - ")
+        assert label and label not in answer
 
 
 def test_a_landed_horizon_is_not_a_promise():
@@ -1032,6 +1035,32 @@ def test_the_currency_block_names_the_dollar_rather_than_a_sign():
         block="FX", asset_id="block:FX", r=-0.0088, e_resid=-0.0088,
         sigma_lt=0.0008, leaders="EUR/USD +1.22%"), LABELS)
     assert "the dollar lost 0.88% against the typical pair" in fell
+
+
+def test_a_block_ping_carries_the_black_mark_too():
+    # The ping and the note row arrive one after the other and have to agree on
+    # what kind of thing moved. blocks.events_frame only emits the push tiers
+    # today, so this path is not reachable from the pipeline - it is here so
+    # that relaxing that filter cannot silently produce an unmarked ping.
+    ping = md.format_ping(block_event(tier="noticeable", channel="digest",
+                                      block="agriculture",
+                                      asset_id="block:agriculture", r=-0.0072), {})
+    assert ping == (f"{md.BLOCK_MARK}{md.TIER_EMOJI['noticeable']} "
+                    f"<b>Agriculture</b> -0.72%")
+
+
+def test_a_block_routes_on_its_tier_exactly_as_an_instrument_does():
+    # There is no separate block channel and there should not be: a block is the
+    # same four rarities read one level up, so the black mark is the ONLY thing
+    # that distinguishes it in delivery.
+    frame = pd.DataFrame([
+        {"asset_id": "block:equity", "tier": "extreme", "hour_utc": int(NOW.timestamp())},
+        {"asset_id": "block:rates", "tier": "major", "hour_utc": int(NOW.timestamp())},
+        {"asset_id": "block:energy", "tier": "high", "hour_utc": int(NOW.timestamp())},
+    ])
+    frame["tier"] = frame["tier"].astype("string")
+    assert list(routing.route(frame)["channel"]) == [
+        routing.PUSH, routing.PUSH, routing.DIGEST]
 
 
 def test_a_block_headline_starts_with_a_capital():
