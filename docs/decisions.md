@@ -40,6 +40,45 @@ boundary and nowhere else.
 **Refit monthly, applied only forward.** A full-sample fit would label a 2016 move using
 the knowledge that 2020 was coming.
 
+**A bounded tail is refused.** The floor on the shape is 0, not a negative number: a
+Generalised Pareto with a negative shape has a finite upper endpoint, which asserts a
+hardest possible move. A price magnitude has no such ceiling, and on a short window the
+fit reaches for one anyway — EUR/USD reads -0.153 at six years of data, -0.024 at ten,
++0.039 by twenty-three, and the level it implies climbs 4.39 to 6.00 with it. Flooring at
+the exponential case improved 10 instruments and worsened 1, and took the median
+|log(realised/promised)| from 1.022 to 0.758.
+
+**What is left over is WHEN an instrument's shocks happened, and it is not fixable.**
+After the floor, the six-year rung still fires 2.4x too often for the currency pairs and
+about 0.34x for equity and credit. That spread is not an estimator fault and five
+candidate causes were measured and cleared: it is not the exceedance cap (uncapping moves
+EUR/USD's settled level 0.4%), not the cooldown counted in an asset's own bars
+(de-clustering at 72 calendar hours takes FX from 57 events to 56), not tail fatness (FX
+scores 1.42 on q99.9/q99, the same as rates and credit and below crypto's 1.55), not the
+extrapolation limit, and not the estimator — held at a CONSTANT full-sample level, FX
+exceeds about as often as it should, 4 against 3.8 expected for USD/JPY.
+
+It is the causal fit lagging the truth, and the direction of the lag is set by when an
+instrument's worst moves fell in its own life. Measured as the median position of each
+instrument's twenty largest moves, 0 being the start of its history and 1 the end:
+
+    FX        0.74   level climbs 1.24x   fires 2.43x
+    energy    0.70                1.22           1.35x
+    rates     0.53                1.08           1.36x
+    equity    0.42                0.97           0.34x
+    credit    0.37                0.89           0.34x
+
+Correlation with over-firing, 0.543. The currency pairs' worst hours are the 2015 franc
+unpeg, Brexit and the 2022 yen - all in the last quarter of their history - so every fit
+before them was set on a market that had not yet shown what it could do. Equity and
+credit carry 2008 in their first half, so their bar was set high early and the years
+since look quiet against it. No fit that refuses to look forward can know which of the
+two it is in, which is the price of refusing, and it is worth paying.
+
+Partial pooling of the shape toward a basket-wide prior was measured as the one remaining
+lever and does not help: median |log err| 0.758 to 0.743, currency pairs unmoved. The
+floor at zero already does what a prior near +0.039 would.
+
 ---
 
 ## The residual
