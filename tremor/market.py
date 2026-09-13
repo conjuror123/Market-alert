@@ -69,6 +69,7 @@ log = logging.getLogger("tremor.market")
 FORECAST_COLUMN = "forecast"
 THRESHOLD_COLUMN = "threshold"
 EXCESS_COLUMN = "excess"
+SCALE_COLUMN = "excess_sigma"
 LEVEL_PREFIX = "mkt_level"
 DEFAULT_EVENTS_PATH = os.path.join("data", "tremor", "market_events.parquet")
 
@@ -79,8 +80,15 @@ def tiers(scores: pd.DataFrame) -> pd.DataFrame:
     frame = frame[["hour_utc", FORECAST_COLUMN, THRESHOLD_COLUMN]].dropna()
     frame = frame.sort_values("hour_utc").reset_index(drop=True)
     frame[EXCESS_COLUMN] = frame[FORECAST_COLUMN] - frame[THRESHOLD_COLUMN]
+    # The rungs are in sigma units, and an exceedance is in log-volatility ones,
+    # so it has to be given a divisor like any other raw quantity. Its own
+    # trailing standard deviation, expanding rather than full-sample so that no
+    # hour is scored using knowledge of its own future.
+    scale = frame[EXCESS_COLUMN].expanding(min_periods=500).std().shift(1)
+    frame[SCALE_COLUMN] = scale
     return severity.annotate(frame, column=EXCESS_COLUMN, prefix=LEVEL_PREFIX,
-                             tier_column="tier", fallback=None, two_sided=False)
+                             tier_column="tier", fallback=None, two_sided=False,
+                             scale_column=SCALE_COLUMN)
 
 
 def events(scored: pd.DataFrame,

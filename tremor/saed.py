@@ -562,22 +562,20 @@ def plan_frames(basket: Basket, metrics: "dict[str, pd.DataFrame]"
     """Trim each instrument to a trailing window, or say that the run must be cold.
 
     Every per-bar quantity here rebuilds exactly from a bounded slice of the past
-    (see windows.warm_bars), and the rarity ladder is now one of them: a rung is
-    the largest move in its own lookback, so a slice reaching back past the
-    deepest rung answers it exactly. That used to be untrue - the ladder was a
-    tail fitted on every bar before the one it described, so it needed either the
-    whole archive or a cache of what earlier fits produced, and tremor.ladder
-    existed for exactly that. The record rule deleted the problem rather than
-    solving it.
+    (see windows.warm_bars). The RUNG needs no history at all beyond the sigma it
+    divides by - it is a size, not a lookback - but the DATE the message prints
+    does: "the biggest since March 2020" is a statement about the instrument's
+    record, and a trimmed slice can only speak for the part it holds. So the
+    slice must still reach back past RECORD_HORIZON_DAYS, and a warm run
+    publishes only the stretch it is exact over.
 
     ALL OR NOTHING still, on purpose. A run in which half the basket is trimmed
     and half is not has a cross-section built from two different amounts of
     history, which is harder to reason about than doing the whole run cold. In
     practice every instrument clears the check - the warm window is already
     around eight to eleven years and the deepest rung is six - so this is a guard
-    against a retuned ladder rather than a routine cost. Turn `sensitivity` up
-    far enough and the deepest rung outgrows the window; then this notices and
-    the run goes cold rather than quietly assigning no tiers.
+    against a shortened archive rather than a routine cost: the warm window is
+    already eight to eleven years and the record horizon is six.
 
     The first bar is checked from the UNTRIMMED frame because that is the only
     place it is still visible: once an instrument is cut to its slice, nothing in
@@ -585,7 +583,7 @@ def plan_frames(basket: Basket, metrics: "dict[str, pd.DataFrame]"
     """
     from tremor import pipeline
 
-    deepest = max(severity.tier_days().values()) * severity.SECONDS_PER_DAY
+    deepest = severity.RECORD_HORIZON_DAYS * severity.SECONDS_PER_DAY
     trimmed: dict[str, pd.DataFrame] = {}
     warm = True
     for asset in basket.instruments:
@@ -656,15 +654,19 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
     # period is that it is the instrument's own history that says what is rare
     # for it, and pooling would put SHY and SOL back on one yardstick.
     #
-    # Each rung is the largest move in its own lookback, read off the frame in
-    # hand. Nothing is cached between runs because there is nothing to remember:
-    # a record level moves with every bar, and recomputing it is one pass.
-    scored = {aid: severity.annotate(frame, tier_column=TIER_SOURCES["abnormal"])
+    # A rung is a size: the move over the instrument's own long-run sigma,
+    # against a threshold set per block. The abnormal channel scores the BMP
+    # residual, which is ALREADY a t-statistic, so it takes no divisor - passing
+    # sigma there would apply the normalisation twice.
+    blocks_of = {a.asset_id: a.block for a in basket.instruments}
+    scored = {aid: severity.annotate(frame, tier_column=TIER_SOURCES["abnormal"],
+                                     block=blocks_of.get(aid))
               for aid, frame in scored.items()}
     scored = {aid: severity.annotate(frame, column=ABSOLUTE_COLUMN,
                                      prefix=ABSOLUTE_LEVEL_PREFIX,
                                      tier_column=TIER_SOURCES["absolute"],
-                                     fallback=None)
+                                     fallback=None, scale_column="sigma_lt",
+                                     block=blocks_of.get(aid))
               for aid, frame in scored.items()}
     scored = {aid: severity.combine(frame, TIER_SOURCES)
               for aid, frame in scored.items()}
@@ -772,13 +774,13 @@ def main(argv: list[str] | None = None) -> int:
         # run - not by much, but the event table is where "the last one this big
         # was" is read from, and a tier that is nearly right there names the
         # wrong date.
-        from tremor.severity import tier_days
+        from tremor.severity import RECORD_HORIZON_DAYS
 
-        floor = int(events["hour_utc"].max()) - int(max(tier_days().values()) * 86400)
+        floor = int(events["hour_utc"].max()) - int(RECORD_HORIZON_DAYS * 86400)
         before = len(events)
         events = events[events["hour_utc"] >= floor].reset_index(drop=True)
         log.info("warm run publishes %d of %d events - the %d days it is exact over",
-                 len(events), before, int(max(tier_days().values())))
+                 len(events), before, int(RECORD_HORIZON_DAYS))
 
     events = versioning.stamp(unevaluated_overlap(events), config, run_id)
     for path, frame in ((args.events_out, events),

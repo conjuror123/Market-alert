@@ -19,49 +19,51 @@ means different things per instrument, but "once a year" means the same thing
 everywhere. That is the whole reason the hydrology and insurance literature
 states extremes this way rather than in raw units.
 
-THE RULE IS A RECORD, NOT A FIT, and that is a correction rather than a
-simplification. A bar's tier is decided by ONE question asked of the instrument's
-own past: how far back must you go to find a move at least this big? Six years
-and it is `extreme`, three and it is `major`, and so on down. Nothing is
-estimated, nothing is extrapolated, and the message writes itself - "the biggest
-move in SPY since 3 March 2020" is a fact about the record rather than a claim
-about a distribution.
+THE RUNG IS A SIZE; THE MESSAGE IS A DATE. Two different questions, answered
+separately, and conflating them is what the last two versions of this file each
+got wrong in their own way.
 
-WHAT THIS REPLACED AND WHY. The tiers used to be return levels fitted by
-peaks-over-threshold: a Generalised Pareto tail above a high threshold,
-extrapolated out to the rung (Coles 2001 ch. 4; Hosking & Wallis 1987 for the
-probability-weighted moments). That is the standard method and it was correctly
-implemented. It was also being asked a question it cannot answer at this sample
-size. Measured on this archive: fitting the SAME instrument with the SAME code
-on different six-year windows, the estimated once-in-six-years level for SPY
-ranges from 2.22% to 6.78% - a factor of three, and a factor of four for XLF and
-IWM - purely according to which six years the window happened to contain. The
-result was printed as a bare phrase with no interval on it, and it was wrong in
-a consistent direction: the top rung fired 1.75 times as often as its own words
-promised.
+  the rung   how big was this move, in the instrument's own terms - |r| over its
+             own long-run sigma, against a threshold set per BLOCK. Monotone by
+             construction: a bigger move can never be given a milder word.
+  the date   when this instrument last moved at least this far, read straight off
+             its record (see record_since). "The biggest since 3 March 2020" is a
+             fact, not an estimate, and it is the half a reader actually uses.
 
-WHY A RECORD IS EXACTLY CALIBRATED, which is the argument for the whole change.
-For ANY distribution whatever, stationary or not, the probability that the
-newest of N observations is the largest of those N is exactly 1/N. So "the
-largest in the trailing six years" happens on average once every six years by
-construction - not because a model was fitted well, but because there is no
-model to fit. Measured against the archive the record rule delivers 1.21 per six
-years where the fitted ladder delivered 1.75, and the residual excess is
-volatility clustering rather than bias: 29 records against 23.8 expected is
-within Poisson noise of exact.
+WHAT THIS REPLACED, TWICE. The tiers were first return levels fitted by
+peaks-over-threshold, which at this sample size could not answer the question:
+the same instrument fitted on different six-year windows gave once-in-six-years
+levels a factor of three apart, and the top rung fired 1.75x as often as its own
+words promised.
 
-It also makes overclaiming structurally impossible. An instrument cannot be "the
-biggest in six years" until it has six years, because the answer is a lookback
-into a record that does not exist yet. The old code needed an explicit
-EXTRAPOLATION_LIMIT to stop the fit promising more than the data could support;
-that rule is now the shape of the arithmetic and cannot be got wrong.
+They were then RANKS - "the biggest move in the trailing six years" - which is
+exactly calibrated in frequency and, it turns out, wrong about severity. A rank
+is relative to a window, so a move sits in the shadow of any bigger one still
+inside it: after a crash, nothing can reach the top rung until that crash rolls
+out, however violent the market gets. Measured on the record, 395 moves LARGER
+than the typical `extreme` were reported as something milder - a 47x move in
+Bitcoin Cash went out as `high`, digest-only, no push - and the dates were
+March 2020, October 2008, the 2015 yuan devaluation. The rule demoted precisely
+the episodes it exists for.
 
-WHAT IS LOST. A record is coarser than a fitted level - it says a move beat
-everything in six years but not by how far - so ordering two moves inside one
-tier needs the magnitude alongside, which saed already carries. And records
-cluster: a crisis produces several in a week where a fitted level would have
-spread them. That is a true property of markets rather than an artefact, and
-the reader is better served seeing the cluster.
+Size has neither failure. It is monotone, so the shadow cannot happen, and it
+needs no tail fit, because sigma over five thousand bars is an ordinary standard
+deviation rather than an extrapolation.
+
+WHY THE THRESHOLD IS PER BLOCK. A flat threshold across the basket is a claim
+that 5 sigma means the same thing in Solana and in utilities, and it does not:
+measured, a flat ladder put crypto at 36-43 messages a year and XLU, XLRE and
+XLB at about one, a 47x spread. Instruments in a block share a return SHAPE -
+crypto is fat-tailed as a class, utilities are not - so setting the threshold per
+block removes the systematic part of that difference and leaves the idiosyncratic
+part standing. It brings the spread to about 7x: crypto to ~13 a year, the quiet
+sector ETFs up to ~2.3, and the equity block still spans 6.5x internally, so XLU
+and XLK are not flattened into each other.
+
+Block SIZE is deliberately not used, and the measurement is why: the equity block
+has the most members, sixteen, and the second-quietest assets - 70 messages a
+year between them against crypto's 281 from nine. Dividing by headcount would
+quiet the block that is already quiet and barely touch the one that floods.
 
 CAUSALITY is unchanged and is now structural rather than maintained. A level is
 the maximum over bars STRICTLY BEFORE the one being described, so no bar can be
@@ -83,76 +85,56 @@ import pandas as pd
 # he would expect each rung to mean for one instrument; the resulting rate per
 # year is an output worth watching and has never been an input.
 #
-# WHY THE TOP RUNG IS SIX YEARS. Because six is inside the five-to-ten the
-# recipient asked for, and for no other reason.
+# The ladder, in multiples of the instrument's own long-run sigma, per block.
 #
-# It used to be chosen differently and the difference matters. The old note here
-# argued for six because seven "would silence the top rung for eighteen
-# instruments at once" - the boundary was set to fit the shape of the archive,
-# so the meaning of the word depended on how much history had been downloaded,
-# and deepening an instrument would have quietly renamed moves that had already
-# been sent. A rung is a statement about what the reader wants to hear, and it
-# must not be a statement about what happens to be on disk. An instrument that
-# has not lived six years simply cannot claim the rung - that is now arithmetic
-# rather than policy - and the honest answer there is silence at that level, not
-# a redefinition of the level for everybody else.
-TIER_DAYS: dict[str, float] = {
-    "noticeable": 30.0,    # a month       - digest only
-    "high": 105.0,         # three months and a half - digest only
-    "major": 1095.75,      # three years   - pushed
-    "extreme": 2191.5,     # six years     - pushed
+# THESE ARE PREFERENCES, NOT ESTIMATES, which is why they are written down rather
+# than fitted. They were seeded from a measurement - the value that puts each
+# block near ten messages per instrument-year at the shallowest rung - and then
+# they stay put until a person moves them. A number that refits itself is a
+# number nobody can reason about, and it was refitting that produced the two
+# failures this file records above.
+#
+# The spacing between rungs is geometric and shared: each is about 1.5x the one
+# below. What separates blocks is where the ladder STARTS, not how it climbs.
+BLOCK_SIGMA: dict[str, tuple[float, float, float, float]] = {
+    "crypto":            (7.2, 10.8, 15.9, 23.1),
+    "FX":                (6.3,  9.4, 13.8, 20.0),
+    "precious_metals":   (4.4,  6.6,  9.6, 14.0),
+    "credit":            (4.3,  6.4,  9.4, 13.7),
+    "energy":            (4.3,  6.4,  9.4, 13.7),
+    "equity":            (4.2,  6.2,  9.1, 13.3),
+    "rates":             (4.1,  6.2,  9.1, 13.2),
+    "agriculture":       (3.8,  5.8,  8.4, 12.3),
+    "industrial_metals": (3.8,  5.7,  8.4, 12.2),
 }
-TIERS: tuple[str, ...] = tuple(TIER_DAYS)
+
+# What an unlisted block falls back to, and what a BLOCK'S OWN move is scored
+# against. A block event is a median across members that is already in sigma
+# units (see tremor.blocks), so it needs a ladder in the same shape but not the
+# same numbers as any member's.
+DEFAULT_SIGMA: tuple[float, float, float, float] = (4.2, 6.2, 9.1, 13.3)
+
+TIERS: tuple[str, ...] = ("noticeable", "high", "major", "extreme")
+
+# How far back the message may claim a record. Beyond it the archive is trimmed
+# on a warm run, so "the biggest since" would be a statement about the slice
+# rather than about the instrument - the message says "in at least six years"
+# there instead, which is what the data actually supports.
+RECORD_HORIZON_DAYS = 2191.5
 
 HOURS_PER_DAY = 24.0
+SECONDS_PER_DAY = 86400.0
 
 
-def tier_days() -> dict[str, float]:
-    """The rungs as they currently stand, after the sensitivity knob.
-
-    TIER_DAYS above is the BASE - what the words mean at sensitivity 1.0 - and
-    this is what everything downstream must read. `sensitivity` in
-    config/basket.yaml scales all four together: 2.0 makes every rung twice as
-    rare and the messages roughly half as many, 0.5 the other way.
-
-    Scaling them TOGETHER is the point. Sensitivity is one question - how rare
-    before I want to know - and answering it must not silently re-rank a move
-    from `major` to `high`, which is what moving one rung alone would do. It is
-    also not a per-instrument dial and must never become one: each instrument is
-    still judged against its own history, so SHY may speak once a year and SOL a
-    hundred times, and flattening that would throw away the only thing a return
-    period buys.
-    """
+def tier_sigma(block: str | None = None) -> dict[str, float]:
+    """This block's rungs, after the sensitivity knob."""
     from tremor.basket import load_tuning
 
-    scale = load_tuning().sensitivity
-    return {name: days * scale for name, days in TIER_DAYS.items()}
+    tuning = load_tuning()
+    ladder = tuning.sigma_for(block) if block else DEFAULT_SIGMA
+    return {name: value * tuning.sensitivity
+            for name, value in zip(TIERS, ladder)}
 
-
-def period_phrase(days: float) -> str:
-    """A return period as a person says it.
-
-    Derived from the number rather than written beside it. The rungs move - a
-    trader retuned them once and the knob moves them again - and a hard-coded
-    "about once a fortnight" survives that silently, which turns every message
-    into a lie about a number the reader cannot check.
-    """
-    if days < 10.5:
-        return "about once a week"
-    if days < 18:
-        return "about once in 2 weeks"
-    if days < 45:
-        return "about once a month"
-    if days < 75:
-        return "about once in 2 months"
-    if days < 135:
-        return "about once a quarter"
-    if days < 270:
-        return "about once in 6 months"
-    if days < 550:
-        return "about once a year"
-    years = round(days / 365.25)
-    return f"about once in {years} years"
 
 def bar_rate(hour_utc: pd.Series | np.ndarray) -> float:
     """Bars per calendar hour for one instrument, measured rather than declared.
@@ -189,59 +171,30 @@ def magnitudes(score: pd.Series, two_sided: bool = True) -> pd.Series:
 SECONDS_PER_DAY = 86400.0
 
 
-def rolling_levels(score: pd.Series, rate: float | None = None,
-                   hour_utc: pd.Series | None = None,
-                   two_sided: bool = True) -> pd.DataFrame:
-    """Per-bar tier levels: the bar to beat, over each rung's own lookback.
+def sigma_levels(scale: "pd.Series | None", index, block: str | None = None,
+                 ) -> pd.DataFrame:
+    """The four levels a bar must clear, in the units its score is already in.
 
-    A rung's level at bar i is the largest magnitude among the bars STRICTLY
-    BEFORE i and within that rung's window - so clearing it means exactly "this
-    is the biggest move since at least that far back", which is the sentence the
-    message prints. assign() below is unchanged by the switch away from a fitted
-    tail, because a record is still expressed as a level to clear.
+    `scale` is the instrument's own long-run sigma where the score is a RAW
+    quantity (the return), and None where the score is already standardised (the
+    BMP residual t-statistic, which is in sigma units by construction). Passing
+    sigma for something already divided by it would square the normalisation and
+    make every quiet hour look enormous.
 
-    THE WINDOWS ARE IN CALENDAR TIME, not in bars, and that is not a detail. The
-    rungs are what a person means by six years, and an instrument's bars per year
-    change with its venue's hours, its holidays, and whether it trades at all at
-    the weekend. Counting bars would make the same rung mean six years in one
-    instrument and four in another.
-
-    A rung is NaN until the instrument has lived that long, which is what stops
-    a two-year-old listing announcing the biggest move in six years. The old code
-    needed a rule for that; here it falls out, because the answer is a lookback
-    into a record that does not exist yet. Downstream treats NaN as "no tier",
-    never as "no event" - the two differ, and the distinction is what lets the
-    evaluation say why an instrument was silent rather than guessing.
-
-    The rungs come out non-decreasing for free, the windows being nested: the
-    largest move in six years is at least the largest in three. The old fit had
-    to impose that by hand, because an extrapolated level and an empirical
-    quantile had nothing keeping them in order.
-
-    `rate` is accepted and ignored. It described bars per calendar hour, which a
-    fit over a bar count needed and a calendar window does not; it stays in the
-    signature because callers pass it positionally, and removing it would be a
-    silent argument shift rather than an error. Without `hour_utc` there is no
-    calendar to window on, and the levels are all NaN - no tier rather than a
-    guessed one.
+    No lookback, no window, no warm-up beyond whatever sigma itself needs. A
+    bigger move gets a rung at least as deep as a smaller one, always, which is
+    the property the rank rule could not offer: there is nothing here for a move
+    to sit in the shadow of.
     """
-    magnitude = magnitudes(score, two_sided)
-    frame = pd.DataFrame({name: np.full(len(magnitude), np.nan) for name in TIERS},
-                         index=score.index)
-    if hour_utc is None or len(magnitude) == 0:
-        return frame
-
-    hours = np.asarray(hour_utc, dtype="float64")
-    stamped = pd.Series(magnitude.to_numpy(dtype="float64"),
-                        index=pd.to_datetime(hours, unit="s"))
-    lived = hours - hours[0]
-    for name, days in tier_days().items():
-        # closed="left" is what makes the level a statement about the PAST: it
-        # takes the window's left edge and drops its right, so the current bar
-        # is never part of the record it is being measured against.
-        window = stamped.rolling(f"{int(days * SECONDS_PER_DAY)}s",
-                                 closed="left").max().to_numpy()
-        frame[name] = np.where(lived >= days * SECONDS_PER_DAY, window, np.nan)
+    levels = tier_sigma(block)
+    frame = pd.DataFrame(index=index)
+    for name in TIERS:
+        if scale is None:
+            frame[name] = float(levels[name])
+        else:
+            usual = pd.to_numeric(scale, errors="coerce").to_numpy(dtype="float64")
+            usual = np.where(np.isfinite(usual) & (usual > 0), usual, np.nan)
+            frame[name] = levels[name] * usual
     return frame
 
 
@@ -311,32 +264,33 @@ def annotate(frame: pd.DataFrame, column: str = "z_resid_bmp",
              prefix: str = LEVEL_PREFIX, tier_column: str = "tier",
              fallback: str | None = "z_resid",
              two_sided: bool = True,
+             scale_column: "str | None" = None,
+             block: "str | None" = None,
              levels: "pd.DataFrame | None" = None) -> pd.DataFrame:
-    """Adds the four fitted levels and the resulting tier to one asset's frame.
+    """Adds the four levels, the resulting tier, and what the move beat.
 
-    The column is a parameter because the same question - how rare is this for
+    The column is a parameter because the same question - how big is this, for
     this instrument - is worth asking of more than one quantity. Asked of the
-    residual it means "the market did not explain this"; asked of the raw
-    return it means "this was a big move". Those are different events and both
-    are wanted, which is why nothing here is specific to either.
+    residual it means "the market did not explain this"; asked of the raw return
+    it means "this was a big move". Those are different events and both are
+    wanted, which is why nothing here is specific to either.
 
-    The bar rate is measured from the frame's own hours, so an instrument that
-    changed session length part-way through history - a venue extending its
-    hours, an ETF that started trading pre-market - is described by its average
-    rather than by whatever it does today. That is the conservative reading:
-    the ladder is in calendar time, and the average is what actually maps a
-    fortnight onto a bar count over the stretch being fitted.
+    `scale_column` is what makes that work without a second ladder. A raw return
+    is in price units and has to be divided by the instrument's own long-run
+    sigma before any threshold can mean anything; the BMP residual is already a
+    t-statistic and must NOT be, or the normalisation is applied twice and every
+    quiet hour looks enormous. So the caller names the divisor, or names none.
+
+    `block` picks which rung set to use - see BLOCK_SIGMA and the note above it
+    on why the block and not the instrument.
 
     `levels` short-circuits the computation for a caller that already holds the
-    answer - blocks, which score a series built elsewhere. It is no longer a
-    cache: a record level moves with every bar rather than standing for a month,
-    so there is nothing to remember between runs. What made a trailing slice of
-    history enough is now simply that the slice covers the deepest rung's
-    lookback, which saed checks outright.
+    answer. Nothing is cached between runs: a level is a threshold times a sigma
+    the frame already carries, which is one multiplication.
 
     RECORD_SINCE RIDES ALONG because it costs one pass and the message cannot be
-    written without it: the tier says which rung was cleared, and this says what
-    the move was actually bigger than.
+    written without it. The tier says how big the move was; this says when the
+    instrument last went that far, which is the half the reader uses.
     """
     if column in frame:
         score = frame[column]
@@ -347,7 +301,13 @@ def annotate(frame: pd.DataFrame, column: str = "z_resid_bmp",
 
     hours = frame["hour_utc"] if "hour_utc" in frame else None
     if levels is None:
-        levels = rolling_levels(score, hour_utc=hours, two_sided=two_sided)
+        scale = frame[scale_column] if scale_column and scale_column in frame \
+            else None
+        if scale_column and scale is None:
+            # Named a divisor the frame does not carry. Silently scoring the raw
+            # quantity against a sigma threshold would call every bar extreme.
+            raise KeyError(f"{scale_column!r} is needed to scale {column!r}")
+        levels = sigma_levels(scale, frame.index, block)
     out = frame.copy()
     for name in TIERS:
         out[f"{prefix}_{name}"] = levels[name].to_numpy()

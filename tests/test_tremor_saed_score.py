@@ -50,99 +50,67 @@ def events(rows):
     return pd.DataFrame(rows, columns=["asset_id", "hour_utc", "tier", "basis"])
 
 
-# --- the frequency claim ------------------------------------------------------
+# --- how much arrives -------------------------------------------------------
 
 def spans(**years):
     return dict(years)
 
 
-def counts(**by_source):
-    return {source: dict(tiers) for source, tiers in by_source.items()}
+def volume_events(pairs):
+    return pd.DataFrame(pairs, columns=["asset_id", "hour_utc"])
 
 
-def test_a_rung_arriving_at_its_claimed_rate_scores_one():
-    # The whole point of the table: a rung is the biggest move in its own
-    # lookback, so it should arrive about once per lookback whatever the market
-    # is doing, and this is what that looks like when it holds.
-    years = 24.0
-    # Over the ELIGIBLE span - the record minus the rung's own lookback, since
-    # the instrument owes the rung nothing until it has lived that long.
-    per = saed_score.eligible_years(spans(A=years))["extreme"] \
-        / (severity.tier_days()["extreme"] / 365.25)
-    cal = saed_score.calibration(counts(absolute={"extreme": round(per)}),
-                                 spans(A=years))
-    row = cal[cal["tier"].eq("extreme")].iloc[0]
-    assert row["ratio"] == pytest.approx(1.0, abs=0.15)
+def test_volume_is_reported_per_instrument_year():
+    ev = volume_events([("src:A", i) for i in range(20)]
+                       + [("src:B", i) for i in range(5)])
+    by_block, per_asset = saed_score.volume(
+        ev, spans(**{"src:A": 2.0, "src:B": 5.0}),
+        {"src:A": "equity", "src:B": "equity"})
+    rates = per_asset.set_index("asset_id")["per_year"]
+    assert rates["src:A"] == pytest.approx(10.0)
+    assert rates["src:B"] == pytest.approx(1.0)
 
 
-def test_a_rung_arriving_twice_as_often_as_it_promises_scores_two():
-    years = 24.0
-    per = saed_score.eligible_years(spans(A=years))["extreme"] \
-        / (severity.tier_days()["extreme"] / 365.25)
-    cal = saed_score.calibration(counts(absolute={"extreme": round(2 * per)}),
-                                 spans(A=years))
-    row = cal[cal["tier"].eq("extreme")].iloc[0]
-    assert row["ratio"] == pytest.approx(2.0, rel=0.15)
-    assert row["actual_days"] < severity.tier_days()["extreme"]
+def test_the_block_table_totals_rather_than_averages_away_its_members():
+    # The number that matters for an inbox is what a block sends ALTOGETHER, and
+    # it is the one that made block size look like the culprit until it was
+    # measured: sixteen quiet instruments can still out-send nine loud ones.
+    ev = volume_events([("src:A", i) for i in range(20)]
+                       + [("src:B", i) for i in range(20)]
+                       + [("src:C", i) for i in range(30)])
+    by_block, _ = saed_score.volume(
+        ev, spans(**{"src:A": 1.0, "src:B": 1.0, "src:C": 1.0}),
+        {"src:A": "equity", "src:B": "equity", "src:C": "crypto"})
+    row = by_block.set_index("block")
+    assert row.loc["equity", "members"] == 2
+    assert row.loc["equity", "block_per_year"] == pytest.approx(40.0)
+    assert row.loc["crypto", "block_per_year"] == pytest.approx(30.0)
+    # equity sends more in total while every crypto asset is louder
+    assert row.loc["crypto", "per_asset"] > row.loc["equity", "per_asset"]
 
 
-def test_each_ladder_is_scored_separately_from_the_union_of_the_two():
-    # Reading the union as a ladder is how this was misread once already. Two
-    # ladders each arriving at their own claimed rate produce messages at
-    # roughly twice that rate, and the union row is a VOLUME figure rather than
-    # a miscalibrated rung.
-    years = 24.0
-    per = round(saed_score.eligible_years(spans(A=years))["extreme"]
-                / (severity.tier_days()["extreme"] / 365.25))
-    cal = saed_score.calibration(
-        {"absolute": {"extreme": per}, "abnormal": {"extreme": per},
-         "every message": {"extreme": 2 * per}}, spans(A=years))
-    by = cal.set_index(["source", "tier"])["ratio"]
-    assert by[("absolute", "extreme")] == pytest.approx(1.0, abs=0.15)
-    assert by[("abnormal", "extreme")] == pytest.approx(1.0, abs=0.15)
-    assert by[("every message", "extreme")] == pytest.approx(2.0, rel=0.15)
+def test_an_instrument_with_no_events_is_still_counted_as_quiet():
+    # Dropping it would flatter the spread by hiding the quiet end.
+    ev = volume_events([("src:A", 1)])
+    _, per_asset = saed_score.volume(ev, spans(**{"src:A": 1.0, "src:B": 1.0}),
+                                     {"src:A": "equity", "src:B": "equity"})
+    assert set(per_asset["asset_id"]) == {"src:A", "src:B"}
+    assert per_asset.set_index("asset_id").loc["src:B", "per_year"] == 0.0
 
 
-def test_an_instrument_too_young_for_a_rung_is_left_out_of_its_denominator():
-    # A four-year-old listing is silent at six years by construction. Counting
-    # its years would report the ladder as well behaved for the arithmetic
-    # reason that part of the watchlist cannot speak.
-    years = saed_score.eligible_years(spans(A=10.0, B=4.0))
-    assert years["extreme"] == pytest.approx(10.0 - 6.0)      # B contributes none
-    assert years["major"] == pytest.approx((10.0 - 3.0) + (4.0 - 3.0))
+def test_nothing_is_reported_without_spans():
+    by_block, per_asset = saed_score.volume(volume_events([("src:A", 1)]), {}, {})
+    assert by_block.empty and per_asset.empty
 
 
-def test_the_instruments_too_young_for_a_rung_are_named():
-    missing = saed_score.unreachable_tiers(spans(A=10.0, B=4.0))
-    assert missing["extreme"] == ["B"]
-    assert "noticeable" not in missing
+# --- the label for what counts as a large hour ------------------------------
 
-
-# --- the hindsight label ------------------------------------------------------
-
-def test_the_label_is_drawn_where_the_claimed_rate_falls_in_the_sample():
-    # No fit and no extrapolation. Twelve years of hourly bars at one an hour is
-    # about two `extreme` occurrences, so the line sits at the second largest.
-    n = int(12 * saed_score.SECONDS_PER_YEAR / HOUR)
-    values = background(n, {n - 1: 100.0, n - 2: 90.0, n - 3: 80.0})
-    levels = saed_score.hindsight_levels({"src:A": series(n, values)})
-    # Two `extreme` occurrences fit in twelve years, so the line sits between
-    # the largest and the third - drawn off the sample, not extrapolated past it.
-    assert 80.0 <= levels[("src:A", "extreme")] <= 100.0
-    # and the rarest tier sits above the commoner one, which is the only
-    # ordering the words permit
-    assert levels[("src:A", "extreme")] >= levels[("src:A", "major")]
-    assert levels[("src:A", "major")] >= levels[("src:A", "noticeable")]
-
-
-def test_a_tier_too_rare_for_the_record_gets_no_label():
-    # One year of history has no answer to "what does once in six years look
-    # like", and extrapolating one would make the label a second model with no
-    # way to tell whose error was being measured.
-    n = int(1.0 * saed_score.SECONDS_PER_YEAR / HOUR)
-    levels = saed_score.hindsight_levels({"src:A": series(n)})
-    assert ("src:A", "extreme") not in levels
-    assert ("src:A", "noticeable") in levels
+def test_the_large_line_is_a_plain_quantile_of_the_instruments_own_hours():
+    # Not tied to any rung: the rungs are sizes now and have no rate to match.
+    n = 20000
+    values = np.concatenate([np.full(n - 10, 1.0), np.linspace(50, 100, 10)])
+    level = saed_score.hindsight_levels({"src:A": series(n, values)})["src:A"]
+    assert 1.0 < level <= 100.0
 
 
 def test_a_series_shorter_than_the_minimum_is_not_labelled(tmp_path):
@@ -152,44 +120,6 @@ def test_a_series_shorter_than_the_minimum_is_not_labelled(tmp_path):
     loaded = saed_score._load_series(str(tmp_path), "absolute",
                                      pd.Series({"src:A": START}))
     assert loaded == {}
-
-
-# --- which yardstick each event is judged by ---------------------------------
-
-def test_each_event_is_judged_on_the_quantity_its_own_ladder_scores():
-    # The easiest way to produce a confidently meaningless table. An abnormal
-    # event's raw move may be small - that is not what it claimed - and an
-    # absolute event's residual may be nothing.
-    n = 4000
-    at = START
-    # The instrument had a huge residual and an ordinary raw move at `at`.
-    frames = {"abnormal": {"src:A": series(n, background(n, {0: 500.0}))},
-              "absolute": {"src:A": series(n, background(n))}}
-    out = saed_score.precision(
-        events([("src:A", at, "noticeable", "abnormal")]), frames)
-    assert out["precision"].iloc[0] == 1.0
-
-    # The same hour called an ABSOLUTE event is judged on the raw move and misses.
-    out = saed_score.precision(
-        events([("src:A", at, "noticeable", "absolute")]), frames)
-    assert out["precision"].iloc[0] == 0.0
-
-
-def test_an_event_claiming_both_is_a_hit_when_either_holds():
-    n = 4000
-    frames = {"abnormal": {"src:A": series(n, background(n, {0: 500.0}))},
-              "absolute": {"src:A": series(n, background(n))}}
-    out = saed_score.precision(events([("src:A", START, "noticeable", "both")]), frames)
-    assert out["precision"].iloc[0] == 1.0
-
-
-def test_an_event_with_no_label_for_its_tier_is_not_counted_either_way():
-    # A year of history and an `extreme` claim: the record cannot say whether it
-    # was right, and a scorer that guesses is worse than one that abstains.
-    n = int(1.0 * saed_score.SECONDS_PER_YEAR / HOUR)
-    frames = {"abnormal": {"src:A": series(n)}, "absolute": {"src:A": series(n)}}
-    out = saed_score.precision(events([("src:A", START, "extreme", "absolute")]), frames)
-    assert out.empty
 
 
 # --- what was missed ----------------------------------------------------------
@@ -211,7 +141,7 @@ def test_an_episode_is_caught_by_an_event_a_bar_off_its_edge():
     # fired one bar before the run starts
     fired = events([("src:A", START + 99 * HOUR, "noticeable", "absolute")])
     out = saed_score.recall(fired, frames)
-    every = out[out["label"].eq("every large move") & out["tier"].eq("noticeable")]
+    every = out[out["label"].eq("every large move")]
     assert every["caught"].iloc[0] >= 1
 
 
@@ -225,9 +155,8 @@ def test_a_large_move_the_block_explains_is_not_counted_as_an_unexplained_miss()
               # residual stays ordinary throughout: the block explained it
               "abnormal": {"src:A": series(n, background(n))}}
     out = saed_score.recall(events([]), frames)
-    every = out[out["label"].eq("every large move") & out["tier"].eq("noticeable")]
-    unexplained = out[out["label"].eq("large and unexplained")
-                      & out["tier"].eq("noticeable")]
+    every = out[out["label"].eq("every large move")]
+    unexplained = out[out["label"].eq("large and unexplained")]
     assert every["episodes"].iloc[0] >= 1
     assert unexplained["episodes"].iloc[0] < every["episodes"].iloc[0]
 

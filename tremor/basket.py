@@ -235,6 +235,16 @@ class Tuning:
     sensitivity: float = 1.0
     min_move_sigma: float = 1.0
     floors: "tuple[tuple[str, float], ...]" = ()
+    ladders: "tuple[tuple[str, tuple[float, float, float, float]], ...]" = ()
+
+    def sigma_for(self, block: "str | None") -> "tuple[float, float, float, float]":
+        """This block's rungs, or the shared fallback for one not listed."""
+        from tremor import severity
+
+        for name, values in self.ladders:
+            if name == block:
+                return values
+        return severity.BLOCK_SIGMA.get(str(block), severity.DEFAULT_SIGMA)
 
     def floor_for(self, asset_id: str) -> float:
         """This instrument's floor, or the shared one where it has no override."""
@@ -283,8 +293,29 @@ def load_tuning(path: str = DEFAULT_BASKET_PATH) -> Tuning:
                 f"{asset_id}: min_move_sigma must not be negative, got {value}")
         floors.append((asset_id, value))
 
+    # Per-block rung overrides. Absent from the file, severity.BLOCK_SIGMA
+    # stands - the table lives there because it is the shape of the ladder
+    # rather than a deployment setting, and a config that has to restate nine
+    # blocks to change one is a config nobody edits.
+    ladders = []
+    for name, values in (raw.get("block_sigma") or {}).items():
+        try:
+            rungs = tuple(float(v) for v in values)
+        except (TypeError, ValueError):
+            raise BasketConfigError(f"block_sigma {name}: {values!r} is not four numbers")
+        if len(rungs) != 4:
+            raise BasketConfigError(
+                f"block_sigma {name}: needs four rungs, got {len(rungs)}")
+        if not all(a < b for a, b in zip(rungs, rungs[1:])):
+            raise BasketConfigError(
+                f"block_sigma {name}: rungs must increase, got {rungs}")
+        if rungs[0] <= 0:
+            raise BasketConfigError(f"block_sigma {name}: rungs must be positive")
+        ladders.append((str(name), rungs))
+
     return Tuning(sensitivity=positive("sensitivity", 1.0),
-                  min_move_sigma=shared, floors=tuple(sorted(floors)))
+                  min_move_sigma=shared, floors=tuple(sorted(floors)),
+                  ladders=tuple(sorted(ladders)))
 
 
 def load_basket(path: str = DEFAULT_BASKET_PATH) -> Basket:

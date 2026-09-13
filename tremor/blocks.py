@@ -149,6 +149,11 @@ def frames(basket: Basket, panel: pd.DataFrame,
                                    .rolling(windows.SIGMA_LT_BARS,
                                             min_periods=windows.SIGMA_LT_MIN_BARS)
                                    .std(ddof=1))
+        # A block's move is already a median of member moves each divided by
+        # its own sigma, so it arrives standardised and takes no divisor. It
+        # gets the default ladder rather than its own block's: the numbers in
+        # BLOCK_SIGMA describe how a MEMBER of that block moves, and a median
+        # across members is a quieter series than any of them.
         frame = severity.annotate(frame, column="z_resid", fallback=None,
                                   tier_column="tier")
         frame["basis"] = pd.Series(BLOCK_BASIS, index=frame.index,

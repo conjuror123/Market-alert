@@ -151,7 +151,14 @@ def record_phrase(event: dict) -> str:
     since = event.get("record_since")
     if since is None or (isinstance(since, float) and not since == since) \
             or pd.isna(since):
-        return "in the whole record"
+        # Nothing in the archive matched it. On a full run that means exactly
+        # what it says; on a warm one the archive was trimmed to the record
+        # horizon, so the honest claim is the horizon rather than "ever" - the
+        # slice cannot speak for what sits below it.
+        from tremor.severity import RECORD_HORIZON_DAYS
+
+        years = int(round(RECORD_HORIZON_DAYS / 365.25))
+        return f"in at least {years} years"
     moment = datetime.fromtimestamp(int(since), tz=timezone.utc)
     now = datetime.fromtimestamp(int(event["hour_utc"]), tz=timezone.utc)
     days = (now - moment).total_seconds() / 86400.0

@@ -310,8 +310,10 @@ def test_the_claim_is_a_record_and_names_the_date():
 def test_a_move_bigger_than_anything_on_record_says_so_rather_than_guessing():
     # No earlier bar to name, so there is no date to print. Inventing one would
     # be the only outright false thing this line could say.
+    # "in the whole record" would overclaim on a warm run, where the archive is
+    # trimmed to the record horizon and cannot speak for what sits below it.
     assert md._headline(dated(since=None), "extreme", "absolute") == (
-        "the biggest move in the whole record")
+        "the biggest move in at least 6 years")
 
 
 def test_the_date_gets_coarser_the_further_back_it_is():

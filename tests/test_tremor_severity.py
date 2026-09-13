@@ -1,115 +1,90 @@
 import numpy as np
 import pandas as pd
+import pytest
 
 from tremor import severity as sv
 
 HOUR = 3600
 
 
-def hourly(values, start=0):
+def hourly(values, start=0, sigma=None):
     """A frame on a round-the-clock hourly grid, which is the simplest clock."""
-    return pd.DataFrame({"hour_utc": np.arange(len(values)) * HOUR + start,
-                         "score": np.asarray(values, dtype=float)})
+    frame = pd.DataFrame({"hour_utc": np.arange(len(values)) * HOUR + start,
+                          "score": np.asarray(values, dtype=float)})
+    if sigma is not None:
+        frame["sigma_lt"] = sigma
+    return frame
+
+
+def test_a_level_is_the_threshold_times_the_instruments_own_sigma():
+    # The whole rule for a raw quantity: a return is in price units, so it means
+    # nothing against a bare number until it is divided by what this instrument
+    # usually does in an hour.
+    rungs = sv.tier_sigma("equity")
+    levels = sv.sigma_levels(pd.Series([0.01] * 5), pd.RangeIndex(5), "equity")
+    assert levels["noticeable"].iloc[0] == pytest.approx(rungs["noticeable"] * 0.01)
+    assert levels["extreme"].iloc[0] == pytest.approx(rungs["extreme"] * 0.01)
+
+
+def test_an_already_standardised_score_is_not_divided_again():
+    # The BMP residual is a t-statistic. Handing it a sigma too would apply the
+    # normalisation twice and make every quiet hour look enormous.
+    levels = sv.sigma_levels(None, pd.RangeIndex(3), "equity")
+    assert levels["noticeable"].iloc[0] == pytest.approx(sv.tier_sigma("equity")["noticeable"])
 
 
 def test_levels_do_not_decrease_across_the_ladder():
-    # Free now, where the fitted ladder had to impose it by hand: the windows
-    # are nested, so the largest move in six years is at least the largest in
-    # three. A "major" level below "high" would let a move land in the higher
-    # box while failing the lower one.
-    rng = np.random.default_rng(2)
-    n = 8766 * 8
-    f = hourly(rng.standard_t(3, n))
-    levels = sv.rolling_levels(f["score"], hour_utc=f["hour_utc"])
-    ordered = levels.dropna()
-    assert len(ordered) > 1000
-    for a, b in zip(sv.TIERS, sv.TIERS[1:]):
-        assert (ordered[b] >= ordered[a]).all()
+    for block in list(sv.BLOCK_SIGMA) + ["not-a-block"]:
+        rungs = [sv.tier_sigma(block)[name] for name in sv.TIERS]
+        assert rungs == sorted(rungs), block
 
 
-def test_bar_rate_separates_a_session_from_the_clock():
-    # No longer used by the ladder, which windows in calendar time directly, but
-    # saed still measures it to size a trailing slice. Round-the-clock is 1.0; a
-    # seven-hour session five days in seven is about a fifth of that.
-    continuous = pd.Series(np.arange(10000) * HOUR)
-    assert abs(sv.bar_rate(continuous) - 1.0) < 0.001
+def test_a_bigger_move_can_never_be_given_a_milder_word():
+    # The property the rank rule could not offer, and the reason for the switch.
+    # Under "the biggest in six years" a move sat in the shadow of any larger one
+    # still inside the window: measured on the record, 395 moves LARGER than the
+    # typical `extreme` went out as something milder, a 47x move in Bitcoin Cash
+    # among them, and the dates were March 2020 and October 2008.
+    n = 400
+    rising = np.linspace(0.001, 0.30, n)
+    f = hourly(rising, sigma=0.01)
+    levels = sv.sigma_levels(f["sigma_lt"], f.index, "equity")
+    ranks = sv.rank(sv.assign(f["score"], levels)).fillna(0).to_numpy()
+    assert (np.diff(ranks) >= 0).all()
 
-    hours = [d * 24 + h for d in range(400) if d % 7 < 5 for h in range(14, 21)]
-    assert abs(sv.bar_rate(pd.Series([h * HOUR for h in hours])) - 0.208) < 0.02
-
-
-def test_a_level_is_the_biggest_move_in_its_own_lookback():
-    # The whole rule, on a hand-made series. A month back from the last bar the
-    # biggest thing is 3.0, so that is what the noticeable rung asks a move to
-    # beat - and the current bar is never part of its own record.
-    n = 8766
-    values = np.full(n, 1.0)
-    values[n - 200] = 3.0          # inside a 30-day lookback from the end
-    values[n - 2000] = 9.0         # outside it, inside the 105-day one
-    f = hourly(values)
-    levels = sv.rolling_levels(f["score"], hour_utc=f["hour_utc"])
-    assert levels["noticeable"].iloc[-1] == 3.0
-    assert levels["high"].iloc[-1] == 9.0
+    # and the shadow case outright: a huge bar, then a bigger one right after.
+    pair = hourly([0.20, 0.30], sigma=0.01)
+    tiers = sv.assign(pair["score"], sv.sigma_levels(pair["sigma_lt"], pair.index,
+                                                     "equity"))
+    assert sv.rank(tiers).iloc[1] >= sv.rank(tiers).iloc[0]
 
 
-def test_rolling_levels_never_look_forward():
-    # A level is the maximum over bars STRICTLY BEFORE the one it describes, so
-    # no bar can be labelled using knowledge of its own future. Structural now -
-    # the window is closed on the left - rather than maintained by a refit
-    # schedule.
-    rng = np.random.default_rng(4)
-    f = hourly(rng.standard_t(4, 8766 * 8))
-    before = sv.rolling_levels(f["score"], hour_utc=f["hour_utc"])
-
-    disturbed = f["score"].copy()
-    disturbed.iloc[60000:] *= 50            # a violent, entirely future regime
-    after = sv.rolling_levels(disturbed, hour_utc=f["hour_utc"])
-
-    pd.testing.assert_frame_equal(before.iloc[:60000], after.iloc[:60000])
-    assert not before.iloc[60000:].equals(after.iloc[60000:])
+def test_a_block_with_fatter_tails_is_held_to_a_higher_bar():
+    # Not a fudge: measured on the archive a flat threshold put crypto at 36-43
+    # messages a year and the quiet sector ETFs at about one. Instruments in a
+    # block share a return shape, so the block is where that difference belongs.
+    assert sv.tier_sigma("crypto")["noticeable"] > sv.tier_sigma("rates")["noticeable"]
+    assert sv.tier_sigma("FX")["extreme"] > sv.tier_sigma("agriculture")["extreme"]
 
 
-def test_a_rung_is_silent_until_the_instrument_has_lived_that_long():
-    # "The largest move in six years" cannot be said on two years of data. The
-    # fitted ladder needed a rule to stop it saying so; here the answer is a
-    # lookback into a record that does not exist yet, so it cannot be got wrong.
-    rng = np.random.default_rng(21)
-    n = 8766 * 7
-    f = hourly(rng.standard_t(4, n))
-    levels = sv.rolling_levels(f["score"], hour_utc=f["hour_utc"])
-
-    first = {name: levels[name].first_valid_index() for name in sv.TIERS}
-    for name in sv.TIERS:
-        lived = f["hour_utc"].iloc[first[name]] - f["hour_utc"].iloc[0]
-        assert lived >= sv.tier_days()[name] * sv.SECONDS_PER_DAY
-    assert first["extreme"] > first["major"] > first["high"] > first["noticeable"]
+def test_an_unlisted_block_falls_back_rather_than_going_silent():
+    assert sv.tier_sigma("a block nobody has added yet") == sv.tier_sigma(None)
+    assert tuple(sv.tier_sigma(None).values()) == sv.DEFAULT_SIGMA
 
 
-def test_the_ladder_grows_a_rung_at_a_time():
-    # An instrument that is only four years old has no business calling anything
-    # a once-in-six-years move, and says so by leaving the rung empty rather
-    # than by lowering it. Four years sits BETWEEN two rungs, so one arrives and
-    # the next is withheld on the same history.
-    rng = np.random.default_rng(22)
-    f = hourly(rng.standard_t(4, int(4 * 8766)))
-    levels = sv.rolling_levels(f["score"], hour_utc=f["hour_utc"])
-    assert levels["major"].notna().any()
-    assert levels["extreme"].isna().all()
+def test_a_bar_with_no_sigma_yet_takes_no_tier_rather_than_a_guessed_one():
+    f = hourly([0.5, 0.5], sigma=[np.nan, 0.01])
+    levels = sv.sigma_levels(f["sigma_lt"], f.index, "equity")
+    assert np.isnan(levels["noticeable"].iloc[0])
+    assert sv.assign(f["score"], levels).isna().iloc[0]
 
 
-def test_a_history_shorter_than_the_shallowest_rung_yields_no_tiers():
-    f = hourly(np.random.default_rng(8).standard_t(4, 500))
-    levels = sv.rolling_levels(f["score"], hour_utc=f["hour_utc"])
-    assert levels.isna().all().all()
-    assert sv.assign(f["score"], levels).isna().all()
-
-
-def test_without_a_clock_there_is_no_tier_rather_than_a_guessed_one():
-    # The windows are calendar time. Handed no hours there is nothing to window
-    # on, and inventing a bar-count window would make the same rung mean six
-    # years in one instrument and four in another.
-    score = pd.Series(np.random.default_rng(9).standard_t(4, 30000))
-    assert sv.rolling_levels(score).isna().all().all()
+def test_naming_a_divisor_the_frame_does_not_carry_is_an_error():
+    # Scoring a raw return against a sigma threshold without dividing would call
+    # every bar extreme, and silence is the only worse answer than an exception.
+    f = hourly([0.02] * 10)
+    with pytest.raises(KeyError, match="sigma_lt"):
+        sv.annotate(f, column="score", fallback=None, scale_column="sigma_lt")
 
 
 def test_assign_picks_the_rarest_level_cleared():
@@ -121,27 +96,6 @@ def test_assign_picks_the_rarest_level_cleared():
     assert list(tier[1:]) == ["noticeable", "high", "major", "extreme", "extreme"]
     assert pd.isna(tier.iloc[0])
     assert list(sv.rank(tier)[1:]) == [1, 2, 3, 4, 4]
-
-
-def test_annotate_fires_at_roughly_the_advertised_rate():
-    # The ladder is a promise about frequency, so it is worth checking that the
-    # machinery keeps it. Loose bounds on purpose - this is one draw, and the
-    # point is to catch a rate that is wrong by an order of magnitude.
-    rng = np.random.default_rng(12)
-    n = 8766 * 6
-    frame = pd.DataFrame({"hour_utc": np.arange(n) * HOUR,
-                          "z_resid_bmp": rng.standard_t(4, n)})
-    out = sv.annotate(frame)
-    # Every rung but the deepest is live for most of the record; score over the
-    # span the shallowest one covers, which is what dominates the count.
-    scored_years = (n - sv.tier_days()["noticeable"] * 24) / 8766
-
-    per_year = out["tier"].notna().sum() / scored_years
-    nominal = sum(365.25 / days for days in sv.tier_days().values())
-    # Tighter than the 2.5x the fitted ladder needed: a record is calibrated by
-    # construction, so the only slack wanted is one draw's sampling noise.
-    assert nominal / 1.5 < per_year < nominal * 1.5
-    assert set(out.columns) >= set(sv.LEVEL_COLUMNS) | {"tier"}
 
 
 def test_the_same_ladder_can_be_asked_of_a_different_quantity():
@@ -199,43 +153,27 @@ def test_a_one_sided_quantity_is_not_read_through_its_magnitude():
     # to -4.98, and a ladder built on its magnitude ranked the quietest hours
     # as the rarest - an inversion, not a conservative default.
     rng = np.random.default_rng(41)
-    n = 8766 * 4
-    level = pd.Series(-6.0 + rng.standard_t(4, n) * 0.3)
+    n = 4000
+    # A standardised one-sided score, so the rungs apply to it directly: high is
+    # an event, low is the calmest market on record.
+    level = pd.Series(rng.standard_t(4, n))
     frame = pd.DataFrame({"hour_utc": np.arange(n) * HOUR, "level": level})
 
     one = sv.annotate(frame, column="level", prefix="m", tier_column="tier",
                       fallback=None, two_sided=False)
     fired = one.loc[one["tier"].notna(), "level"]
-    assert (fired > level.median()).all()      # only the loud hours
+    assert len(fired) and (fired > 0).all()      # only the loud hours
 
     two = sv.annotate(frame, column="level", prefix="m", tier_column="tier",
                       fallback=None, two_sided=True)
-    assert (two.loc[two["tier"].notna(), "level"] < level.median()).all()
+    both = two.loc[two["tier"].notna(), "level"]
+    assert (both < 0).any()                      # the magnitude reads both ends
 
 
 def test_magnitudes_passes_a_one_sided_score_through_unchanged():
     score = pd.Series([-3.0, 1.0, 2.0])
     assert list(sv.magnitudes(score, two_sided=False)) == [-3.0, 1.0, 2.0]
     assert list(sv.magnitudes(score, two_sided=True)) == [3.0, 1.0, 2.0]
-
-
-def test_a_record_is_calibrated_without_any_distribution_assumption():
-    # The argument for the whole rule. For ANY series, the chance that the newest
-    # of N observations is the largest of those N is exactly 1/N - so the rung
-    # fires at its claimed rate because there is no model to get wrong. Run it on
-    # a fat tail and on a uniform, which no single fitted tail describes both of.
-    for seed, draw in ((41, lambda r, n: r.standard_t(3, n)),
-                       (42, lambda r, n: r.uniform(-1, 1, n))):
-        rng = np.random.default_rng(seed)
-        n = 8766 * 30
-        f = hourly(draw(rng, n))
-        levels = sv.rolling_levels(f["score"], hour_utc=f["hour_utc"])
-        magnitude = sv.magnitudes(f["score"])
-        for name in ("high", "major"):
-            days = sv.tier_days()[name]
-            eligible = (n / 8766) - days / 365.25
-            fired = int((magnitude > levels[name]).sum())
-            assert 0.6 < (fired / eligible) / (365.25 / days) < 1.6, name
 
 
 def test_record_since_names_the_bar_the_move_actually_beat():
@@ -260,31 +198,6 @@ def test_record_since_is_two_sided_like_the_ladder():
     assert since.iloc[1] == f["hour_utc"].iloc[0]
 
 
-def test_record_since_agrees_with_the_rungs_it_has_to_explain():
-    # The two are computed separately - one pass of a monotonic stack against
-    # four rolling windows - and a message that named a date the tier did not
-    # support would be the worst kind of wrong, because both halves look right.
-    rng = np.random.default_rng(43)
-    n = 8766 * 10
-    f = hourly(rng.standard_t(4, n))
-    levels = sv.rolling_levels(f["score"], hour_utc=f["hour_utc"])
-    since = sv.record_since(f["score"], f["hour_utc"])
-    magnitude = sv.magnitudes(f["score"])
-    hours = f["hour_utc"].to_numpy()
-
-    age = np.where(since.isna().to_numpy(), np.inf,
-                   hours - since.fillna(0).to_numpy())
-    for name in sv.TIERS:
-        window = sv.tier_days()[name] * sv.SECONDS_PER_DAY
-        cleared = (magnitude > levels[name]).to_numpy()
-        lived = hours - hours[0] >= window
-        # STRICTLY older than the window, not "at least as old". A move matched
-        # exactly one window ago is still inside the lookback - the window is
-        # [t - D, t) - so it does not clear the rung. Three bars in this draw sit
-        # on that boundary, and getting it wrong would date a message a rung out.
-        assert np.array_equal(cleared[lived], (age > window)[lived]), name
-
-
 def test_the_sensitivity_knob_scales_every_rung_together(tmp_path):
     # One question - how rare before I want to know - so the rungs move as a
     # group. Moving one alone would silently re-rank a move from major to high,
@@ -305,25 +218,11 @@ def test_the_sensitivity_knob_scales_every_rung_together(tmp_path):
         tb.load_tuning.cache_clear()
 
     # At the shipped setting the live rungs are exactly the base ones, and they
-    # keep their order whatever the scale.
-    assert sv.tier_days() == dict(sv.TIER_DAYS)
-    assert list(sv.tier_days().values()) == sorted(sv.tier_days().values())
+    # keep their order whatever the scale - and the knob moves every block, not
+    # just one, or turning it down would re-rank a move rather than reduce them.
+    for block in ("equity", "crypto", None):
+        rungs = sv.tier_sigma(block)
+        assert list(rungs.values()) == sorted(rungs.values())
+    assert tuple(sv.tier_sigma("equity").values()) == sv.BLOCK_SIGMA["equity"]
 
 
-def test_the_phrase_is_derived_from_the_number_not_written_beside_it():
-    # A hard-coded phrase survives a retune silently and turns every message
-    # into a lie about a number the reader cannot check.
-    assert sv.period_phrase(14.0) == "about once in 2 weeks"   # not "a fortnight"
-    assert sv.period_phrase(30.0) == "about once a month"
-    assert sv.period_phrase(105.0) == "about once a quarter"
-    assert sv.period_phrase(1095.75) == "about once in 3 years"
-    assert sv.period_phrase(2191.5) == "about once in 6 years"
-    # And it tracks the knob rather than the base.
-    assert sv.period_phrase(sv.TIER_DAYS["extreme"] * 2) == "about once in 12 years"
-
-
-def test_every_live_rung_has_a_phrase_a_person_would_say():
-    for name, days in sv.tier_days().items():
-        phrase = sv.period_phrase(days)
-        assert phrase.startswith("about once")
-        assert "fortnight" not in phrase

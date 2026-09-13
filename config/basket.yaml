@@ -102,19 +102,43 @@ fetch_since: "2002-01-01"
 #
 # They answer DIFFERENT questions and neither substitutes for the other.
 #
-# sensitivity - HOW RARE must a move be before it is worth a line. It scales
-# every rung of the ladder at once: 1.0 leaves them where a trader set them
-# (a month, a quarter, three years, six years), 2.0 makes every rung twice as
-# rare and the messages roughly half as many, 0.5 the other way. It does NOT
-# equalise instruments - each one is still judged against its own history, so
-# SHY may speak once a year and SOL a hundred times, which is the whole point
-# of a return period and not a fault to be normalised away. The message text
-# follows the scaled rungs automatically; it is derived, never hard-coded, or
-# turning this knob would make every message a lie.
+# sensitivity - HOW BIG must a move be before it is worth a line. It scales every
+# rung of every block at once: 1.0 leaves them where tremor/severity.py sets
+# them, 2.0 doubles every threshold and cuts the messages hard, 0.5 the other
+# way. Scaling them TOGETHER is the point - moving one rung alone would silently
+# re-rank a move from major to high, which is a different thing from asking for
+# fewer messages.
 #
-# Changing it moves config_version and so retires the fitted ladder cache. That
-# is correct - the rungs moved - and costs one cold run.
+# It does NOT equalise instruments, and must not: the rungs are in units of each
+# instrument's own sigma, and how often a market crosses them is a fact about
+# that market. Measured, the basket spans about 7x between its quietest and
+# loudest instrument, which is the dispersion the ladder was rebuilt to get.
+#
+# Changing it moves config_version, which retires derived data and costs one
+# cold run. That is correct: the events would otherwise be a mix of two rules.
 sensitivity: 1.0
+
+# block_sigma - the rungs themselves, per block, in multiples of the
+# instrument's own long-run sigma. OPTIONAL: the shipped table lives in
+# tremor/severity.py (BLOCK_SIGMA) because it is the shape of the ladder rather
+# than a deployment setting, and only the blocks named here override it.
+#
+# Four numbers, increasing: noticeable, high, major, extreme.
+#
+#   block_sigma:
+#     crypto: [7.2, 10.8, 15.9, 23.1]
+#
+# WHY PER BLOCK. A single threshold across the basket claims that 5 sigma means
+# the same thing in Solana and in utilities, and it does not: flat, crypto ran at
+# 36-43 messages a year and XLU, XLRE and XLB at about one - a 47x spread.
+# Instruments in a block share a return shape, so setting the threshold per block
+# removes the systematic part of that difference and leaves the idiosyncratic
+# part standing. The equity block still spans 6.5x internally.
+#
+# WHY NOT PER BLOCK SIZE. Measured, and it is the opposite of the intuition: the
+# equity block has the MOST members, sixteen, and the second-quietest assets - 70
+# messages a year between them against crypto's 281 from nine. Dividing by
+# headcount would quiet the block that is already quiet.
 
 # min_move_sigma - HOW BIG must a move be, in its own terms, to be worth a line
 # at all, whatever the ladder says about rarity. This is the floor the system

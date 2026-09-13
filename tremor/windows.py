@@ -92,17 +92,18 @@ REGRESSION_GAP_BARS = 3
 # last one this big was 23 days ago", read off the event table, so the table has
 # to be correct at least as far back as the deepest rung claims - six years -
 # or a once-in-six-years move would name the wrong predecessor or none. It
-# follows max(TIER_DAYS) rather than a constant, so moving the top rung moves
-# this with it: at six years an ETF must stay exact over 10,519 bars where
-# three asked for 5,259, and a warm run costs that much more of the archive. Sizing
+# follows severity.RECORD_HORIZON_DAYS rather than a constant, so moving the
+# horizon moves this with it: at six years an ETF must stay exact over 10,519
+# bars where three asked for 5,259, and a warm run costs that much more of the
+# archive. Sizing
 # the window at warm-up alone was measured and rejected: tiers matched exactly
 # within a year and then drifted, 50 of them across the whole window, with 31
 # events appearing that a full run does not produce.
 def trusted_bars(rate: float) -> int:
     """How many bars back a run must still be exact, at this instrument's rate."""
-    from tremor.severity import tier_days
+    from tremor.severity import RECORD_HORIZON_DAYS
 
-    return int(max(tier_days().values()) * 24 * rate)
+    return int(RECORD_HORIZON_DAYS * 24 * rate)
 
 
 def warm_bars(w_asset_bars: int, rate: float | None = None) -> int:

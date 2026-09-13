@@ -16,45 +16,34 @@ instrument", which is a claim about the present and about a distribution, and
 scoring it against a forecast target would produce another number that means
 nothing and would be quoted anyway.
 
-So it is scored on the claim it actually makes, in three parts.
+WHAT IS AND IS NOT WORTH SCORING NOW. A rung is a size - the move over the
+instrument's own long-run sigma, against a threshold set per block - so there is
+nothing to grade about whether the tier is "right". It is arithmetic, the way a
+thermometer is not graded on whether it agrees that 30 degrees is hot. Two
+earlier versions of this report scored the ladder as a frequency claim, because
+two earlier versions of the ladder made one; neither does now.
 
-1. CALIBRATION, which is the part that matters most and needs no labels at all.
-   Every message carries a return period - "about once in 6 years" - and that is
-   a falsifiable statement about frequency. Count how often each tier really
-   fires per instrument-year and compare. The ladder is fitted causally on an
-   expanding window and applied forward only, so the realised rate is genuinely
-   out of sample: this is a fair test, not a fit being graded on its own data.
+What is left is the pair of questions a person actually has.
 
-2. PRECISION, on a label that is deliberately NOT the detector's own machinery.
-   For each instrument the label is a plain full-sample empirical quantile of
-   the same quantity the ladder scores, set at the rate the tier claims. The
-   detector is a causal, model-based (peaks-over-threshold) extrapolation into
-   the tail; the label is model-free hindsight. Both look at the same series,
-   which is unavoidable - any label about whether a move was big must look at
-   the move - but the label borrows none of the fitting, so what is being tested
-   is the extrapolation rather than the definition.
+1. HOW MUCH ARRIVES, and from whom. Not a target to hit - the reader was explicit
+   that alerts per year is "a resulting statistic for human analysis only" and
+   never an input - but the thing they look at to decide whether to turn
+   `sensitivity`, or to raise one instrument's floor. Reported per block and per
+   instrument, with the spread, because the spread is the property the ladder was
+   rebuilt to get: a flat threshold gave 47x between the quietest and loudest
+   instrument, per-block thresholds give about 7x.
 
-   EACH EVENT IS JUDGED ON THE LADDER THAT FIRED IT, and getting this wrong is
-   the easiest way to produce a confidently meaningless table. The two ladders
-   score different quantities: `absolute` scores the raw return r, `abnormal`
-   scores the BMP-standardised residual z_resid_bmp. Judging abnormal events on
-   raw size scores them at 3.5%, and judging absolute events on the residual
-   scores them at 1.1% - both figures say only that the yardstick was swapped.
-   On their own quantities they are 76% and 84%.
-
-3. RECALL, per EPISODE rather than per hour, for the reason tremor.evaluate
-   already gives: one shock spans several bars, the detector deliberately
+2. WHAT IT MISSED, per EPISODE rather than per hour, for the reason
+   tremor.evaluate already gives: one shock spans several bars, the detector
    reports the peak and suppresses the repeats, and per-hour recall would mostly
    measure the debounce.
 
-   Reported twice, because the plain number is not the honest one. Recall
-   against every large raw move counts as misses the moves that the instrument's
-   own block explains - and not firing on those is the entire purpose of the
-   system, since twenty members of one complex moving together is one
-   observation and firing twenty times about it is the fault this was built to
-   fix. So the second figure keeps only the episodes that were large AND
-   unexplained by the block, which are the misses with nothing to be said for
-   them.
+   Reported twice, because the plain number is not the honest one. Recall against
+   every large raw move counts as misses the moves an instrument's own block
+   explains - and not firing on those is the entire purpose of the system, since
+   twenty members of one complex moving together is one observation. So the
+   second figure keeps only the episodes that were large AND unexplained, which
+   are the misses with nothing to be said for them.
 
 WHAT IS NOT SCORED HERE. Whether the reader wanted the message. No statistic can
 answer that and none here pretends to: the feedback loop in tremor.feedback is
@@ -137,141 +126,55 @@ def _load_series(directory: str, ladder: str,
     return out
 
 
-def hindsight_levels(series: "dict[str, pd.DataFrame]") -> "dict[tuple[str, str], float]":
-    """The level a tier's claimed rate implies, read straight off the sample.
+# The share of an instrument's hours a move has to be in to count as "large" for
+# the miss table. Not tied to any rung - the rungs are sizes now and have no rate
+# to match - just a plain statement of what a person means by one of the biggest
+# hours this instrument has had. One in two thousand is about twice a year for a
+# round-the-clock market and about once for an ETF.
+LARGE_QUANTILE = 1.0 - 1.0 / 2000.0
 
-    No fit and no extrapolation: if a tier says once in six years and the record
-    holds nineteen, the line is drawn where the third-largest observation sits.
-    That is exactly why it is usable as a label for a model that DOES
-    extrapolate - it cannot inherit the model's error, only the sample's.
 
-    A tier whose claimed rate implies fewer than one occurrence in the record
-    gets no level: there is no sample answer to give, and inventing one by
-    extrapolating would turn the label into a second model with no way to tell
-    whose error was being measured.
+def hindsight_levels(series: "dict[str, pd.DataFrame]") -> "dict[str, float]":
+    """What counts as a large hour for each instrument, read off the sample.
+
+    A plain full-sample quantile: no fit, no extrapolation, and deliberately not
+    the detector's own machinery, so what is being measured is whether the
+    delivered system found the instrument's big hours rather than whether it
+    agrees with itself.
     """
-    days = severity.tier_days()
-    out: dict[tuple[str, str], float] = {}
-    for asset_id, frame in series.items():
-        span = (int(frame["hour_utc"].iloc[-1])
-                - int(frame["hour_utc"].iloc[0])) / SECONDS_PER_YEAR
-        values = frame["score"].to_numpy()
-        for tier in severity.TIERS:
-            expected = span / (days[tier] / 365.25)
-            if expected < 1.0:
-                continue
-            out[(asset_id, tier)] = float(
-                np.quantile(values, 1.0 - expected / len(values)))
-    return out
+    return {asset: float(np.quantile(frame["score"].to_numpy(), LARGE_QUANTILE))
+            for asset, frame in series.items() if len(frame) >= MIN_BARS}
 
 
-def eligible_years(spans: "dict[str, float]") -> "dict[str, float]":
-    """Instrument-years in which each rung could have fired at all.
+def volume(events: pd.DataFrame, spans: "dict[str, float]",
+           blocks: "dict[str, str]") -> "tuple[pd.DataFrame, pd.DataFrame]":
+    """Messages per instrument-year, by block and by instrument.
 
-    A rung is a lookback, so an instrument owes it nothing until it has lived
-    that long: a four-year-old listing is silent at six years by construction,
-    and folding its years into the denominator would report the ladder as well
-    behaved for the arithmetic reason that part of the watchlist cannot speak.
+    A REPORT, not a test. There is no target rate to miss: the rungs are sizes,
+    and how many of them a market produces is a fact about that market. What the
+    reader does with it is decide whether to turn `sensitivity` for everything or
+    a single instrument's floor for one thing.
+
+    Block size is deliberately absent from the arithmetic and present in the
+    table, because the measurement that settled it is counter-intuitive: the
+    equity block has the most members and the second-quietest assets - sixteen
+    instruments producing 70 messages a year between them against crypto's 281
+    from nine - so dividing by headcount would quiet the block that is already
+    quiet.
     """
-    days = severity.tier_days()
-    return {tier: sum(max(span - days[tier] / 365.25, 0.0)
-                      for span in spans.values())
-            for tier in severity.TIERS}
-
-
-def calibration(counts: "dict[str, dict[str, int]]",
-                spans: "dict[str, float]") -> pd.DataFrame:
-    """Claimed frequency against realised, per rung and per source.
-
-    PER LADDER AND NOT ONLY PER EVENT, because the two answer different
-    questions and reading the second as the first is how this was misread once
-    already. Each ladder makes its own claim - "the biggest raw move since" and
-    "the biggest move of its own since" - and each is separately checkable. An
-    EVENT is the union of the two, taking whichever rung is rarer, so its rate is
-    roughly their sum and would read as a badly calibrated ladder when it is
-    simply two well calibrated ones. The union is a volume figure, and volume is
-    what `sensitivity` in config/basket.yaml is for.
-    """
-    days = severity.tier_days()
-    years = eligible_years(spans)
-    rows = []
-    for source, by_tier in counts.items():
-        for tier in severity.TIERS:
-            claimed = 365.25 / days[tier]
-            fired = int(by_tier.get(tier, 0))
-            actual = fired / years[tier] if years[tier] else float("nan")
-            rows.append({
-                "source": source, "tier": tier, "events": fired,
-                "instrument_years": years[tier],
-                "claimed_per_year": claimed, "actual_per_year": actual,
-                "ratio": actual / claimed if claimed else float("nan"),
-                "claimed_period": severity.period_phrase(days[tier]),
-                "actual_days": 365.25 / actual if actual else float("nan"),
-            })
-    return pd.DataFrame(rows)
-
-
-def unreachable_tiers(spans: "dict[str, float]") -> "dict[str, list[str]]":
-    """Instruments too young to claim a rung at all.
-
-    Not a scoring result but a precondition for reading one. Under the fitted
-    ladder this was a property of whether the tail fit reached far enough, which
-    could surprise; now it is arithmetic - you cannot be the biggest in six years
-    until you have six years - so the list is exactly the young instruments.
-    """
-    days = severity.tier_days()
-    out = {}
-    for tier in severity.TIERS:
-        missing = sorted(asset for asset, span in spans.items()
-                         if span < days[tier] / 365.25)
-        if missing:
-            out[tier] = missing
-    return out
-
-
-def _event_score(events: pd.DataFrame, ladder: str,
-                 series: "dict[str, pd.DataFrame]") -> np.ndarray:
-    """Each event's value of one ladder's quantity, looked up by hour."""
-    lookup = {asset: dict(zip(frame["hour_utc"].to_numpy(),
-                              frame["score"].to_numpy()))
-              for asset, frame in series.items()}
-    return np.array([lookup.get(a, {}).get(int(h), np.nan)
-                     for a, h in zip(events["asset_id"], events["hour_utc"])])
-
-
-def precision(events: pd.DataFrame,
-              series: "dict[str, dict[str, pd.DataFrame]]") -> pd.DataFrame:
-    """Of the events sent, how many clear the hindsight line for their tier.
-
-    An event of basis `both` cleared both ladders and is counted a hit if either
-    quantity clears its own line - the message it produced claimed both things,
-    so either being true makes the message true.
-    """
-    levels = {name: hindsight_levels(frames) for name, frames in series.items()}
-    scores = {name: _event_score(events, name, frames)
-              for name, frames in series.items()}
-
-    hit = np.zeros(len(events), dtype=bool)
-    judged = np.zeros(len(events), dtype=bool)
-    basis = events["basis"].astype("string").to_numpy()
-    tiers = events["tier"].astype("string").to_numpy()
-    assets = events["asset_id"].to_numpy()
-    for name in series:
-        applies = (basis == name) | (basis == "both")
-        line = np.array([levels[name].get((a, t), np.nan)
-                         for a, t in zip(assets, tiers)])
-        usable = applies & np.isfinite(line) & np.isfinite(scores[name])
-        judged |= usable
-        hit |= usable & (scores[name] >= line)
-
-    frame = events.assign(_hit=hit, _judged=judged)
-    frame = frame[frame["_judged"]]
-    if frame.empty:
-        return pd.DataFrame()
-    grouped = frame.groupby(["basis", "tier"])["_hit"].agg(["size", "sum"])
-    grouped = grouped.rename(columns={"size": "events", "sum": "on_target"})
-    grouped["precision"] = grouped["on_target"] / grouped["events"]
-    return grouped.reset_index()
+    if events.empty or not spans:
+        return pd.DataFrame(), pd.DataFrame()
+    counts = events["asset_id"].value_counts()
+    rows = [{"asset_id": asset, "block": blocks.get(asset, "?"),
+             "years": years, "events": int(counts.get(asset, 0)),
+             "per_year": counts.get(asset, 0) / years if years else float("nan")}
+            for asset, years in spans.items() if years > 0]
+    per_asset = pd.DataFrame(rows).sort_values("per_year")
+    by_block = per_asset.groupby("block").agg(
+        members=("asset_id", "size"), per_asset=("per_year", "mean"),
+        block_per_year=("per_year", "sum")).sort_values(
+            "block_per_year", ascending=False).reset_index()
+    return by_block, per_asset
 
 
 def _episodes(flags: np.ndarray) -> "list[tuple[int, int]]":
@@ -290,14 +193,14 @@ def _episodes(flags: np.ndarray) -> "list[tuple[int, int]]":
 
 def recall(events: pd.DataFrame,
            series: "dict[str, dict[str, pd.DataFrame]]") -> pd.DataFrame:
-    """Of the largest moves in hindsight, how many produced a message.
+    """Of an instrument's largest hours, how many produced a message.
 
     Twice over. `every large move` counts an episode whenever the raw return
     clears the line, which includes the ones the instrument's block fully
     explains - those are supposed to be silent, so the figure is a floor rather
     than a verdict. `large and unexplained` keeps only the episodes where the
-    residual clears its line in the same hours, and those are misses with
-    nothing to be said for them.
+    residual clears its line in the same hours, and those are misses with nothing
+    to be said for them.
     """
     fired = {asset: set(group["hour_utc"].astype("int64"))
              for asset, group in events.groupby("asset_id")}
@@ -307,51 +210,41 @@ def recall(events: pd.DataFrame,
 
     rows = []
     for asset_id, frame in size.items():
+        line = size_levels.get(asset_id)
+        if line is None:
+            continue
         hours = frame["hour_utc"].to_numpy()
-        values = frame["score"].to_numpy()
+        big = frame["score"].to_numpy() >= line
         seen = fired.get(asset_id, set())
         resid = abnormal.get(asset_id)
         unexplained = None
-        if resid is not None:
+        resid_line = abnormal_levels.get(asset_id)
+        if resid is not None and resid_line is not None:
             joined = frame.merge(resid, on="hour_utc", how="left",
                                  suffixes=("", "_resid"))
-            unexplained = joined["score_resid"].to_numpy()
+            unexplained = joined["score_resid"].to_numpy() >= resid_line
 
-        for tier in severity.TIERS:
-            line = size_levels.get((asset_id, tier))
-            if line is None:
+        for label, mask in (("every large move", big),
+                            ("large and unexplained",
+                             big & unexplained if unexplained is not None else None)):
+            if mask is None:
                 continue
-            big = values >= line
-            resid_line = abnormal_levels.get((asset_id, tier))
-            for label, mask in (("every large move", big),
-                                ("large and unexplained",
-                                 big & (unexplained >= resid_line)
-                                 if unexplained is not None and resid_line is not None
-                                 else None)):
-                if mask is None:
-                    continue
-                spans = _episodes(mask)
-                caught = sum(
-                    any(int(h) in seen for h in hours[max(0, a - CATCH_SLACK_BARS):
-                                                      min(len(hours), b + CATCH_SLACK_BARS)])
-                    for a, b in spans)
-                rows.append({"label": label, "tier": tier,
-                             "episodes": len(spans), "caught": caught})
+            spans = _episodes(mask)
+            caught = sum(
+                any(int(h) in seen
+                    for h in hours[max(0, a - CATCH_SLACK_BARS):
+                                   min(len(hours), b + CATCH_SLACK_BARS)])
+                for a, b in spans)
+            rows.append({"label": label, "episodes": len(spans), "caught": caught})
     if not rows:
         return pd.DataFrame()
-    grouped = pd.DataFrame(rows).groupby(["label", "tier"])[
-        ["episodes", "caught"]].sum().reset_index()
+    grouped = pd.DataFrame(rows).groupby("label")[["episodes", "caught"]].sum()
     grouped["recall"] = grouped["caught"] / grouped["episodes"].replace(0, np.nan)
-    return grouped
+    return grouped.reset_index()
 
 
-def _order(frame: pd.DataFrame) -> pd.DataFrame:
-    rank = {tier: i for i, tier in enumerate(severity.TIERS)}
-    return frame.assign(_o=frame["tier"].map(rank)).sort_values("_o").drop(columns="_o")
-
-
-def render(cal: pd.DataFrame, prec: pd.DataFrame, rec: pd.DataFrame,
-           unreachable: dict, events: pd.DataFrame) -> str:
+def render(by_block: pd.DataFrame, per_asset: pd.DataFrame,
+           rec: pd.DataFrame, events: pd.DataFrame) -> str:
     lines = ["## The detector that is delivered", ""]
     lines.append(
         f"`saed_events.parquet` — {len(events):,} events, which is what "
@@ -360,68 +253,54 @@ def render(cal: pd.DataFrame, prec: pd.DataFrame, rec: pd.DataFrame,
         "to nobody; the two are not comparable and the numbers below are the "
         "ones that describe the product.")
     lines.append("")
-
-    lines += ["### Does a rung arrive as often as it claims?", "",
-              "A rung is the biggest move in its own lookback, so for any "
-              "distribution at all it should arrive about once per lookback — "
-              "the chance that the newest of N observations is the largest of "
-              "those N is exactly 1/N, with nothing fitted and nothing "
-              "extrapolated. This is the test of that.", "",
-              "Read PER LADDER. Each makes its own claim — *the biggest raw "
-              "move since*, and *the biggest move of its own since* — and each "
-              "is separately checkable. A message is the union of the two, "
-              "taking whichever rung is rarer, so its rate is roughly their sum: "
-              "that last row is a volume figure, not a miscalibrated ladder, and "
-              "volume is what `sensitivity` turns.", "",
-              "| Source | Rung | Says | Actually | Instrument-years | Count | Ratio |",
-              "|---|---|---|---|---:|---:|---:|"]
-    for source in cal["source"].drop_duplicates():
-        for row in _order(cal[cal["source"].eq(source)]).itertuples(index=False):
-            actual = (severity.period_phrase(row.actual_days)
-                      if np.isfinite(row.actual_days) else "—")
-            lines.append(
-                f"| {row.source} | {row.tier} | {row.claimed_period} | {actual} | "
-                f"{row.instrument_years:,.0f} | {row.events} | {row.ratio:.2f}× |")
+    lines.append(
+        "A rung is a SIZE — the move over the instrument's own long-run sigma, "
+        "against a threshold set per block — so there is nothing here grading "
+        "whether a tier is correct. It is arithmetic. What follows is how much "
+        "arrives and what was missed.")
     lines.append("")
 
-    if unreachable:
-        lines.append("**Rungs no instrument can claim yet** — silent because they "
-                     "have not lived that long, which is arithmetic rather than a "
-                     "judgement about the market:")
+    if not by_block.empty:
+        lines += ["### How much arrives, and from whom", "",
+                  "Not a target. Alerts per year is a resulting statistic, never "
+                  "an input — it is what you read to decide whether to turn "
+                  "`sensitivity` for everything or one instrument's "
+                  "`min_move_sigma` for one thing.", "",
+                  "| Block | Members | Per asset/yr | Block total/yr |",
+                  "|---|---:|---:|---:|"]
+        for row in by_block.itertuples(index=False):
+            lines.append(f"| {row.block} | {row.members} | {row.per_asset:.1f} | "
+                         f"{row.block_per_year:.0f} |")
         lines.append("")
-        for tier, assets in unreachable.items():
-            lines.append(f"- `{tier}`: {len(assets)} instruments — "
-                         + ", ".join(a.split(":")[-1] for a in assets[:12])
-                         + ("…" if len(assets) > 12 else ""))
+        lines.append("Block SIZE is not used to set anything, and this table is "
+                     "why: the block with the most members is among the quietest "
+                     "per asset, so dividing by headcount would quiet what is "
+                     "already quiet and barely touch what floods.")
         lines.append("")
 
-    if not prec.empty:
-        lines += ["### Were the moves it sent actually rare?", "",
-                  "Each event judged against a plain full-sample quantile of the "
-                  "quantity ITS OWN ladder scores — `absolute` against the raw "
-                  "return, `abnormal` against the standardised residual — drawn "
-                  "at the rate its tier claims. Swapping the two yardsticks "
-                  "scores them at 3.5% and 1.1% and means nothing except that "
-                  "they were swapped.", "",
-                  "| Basis | Tier | Events | On target | Precision |",
-                  "|---|---|---:|---:|---:|"]
-        for row in prec.sort_values(["basis", "tier"]).itertuples(index=False):
-            lines.append(f"| {row.basis} | {row.tier} | {row.events} | "
-                         f"{row.on_target} | {row.precision * 100:.1f}% |")
-        lines.append("")
+    if not per_asset.empty and len(per_asset) > 6:
+        quiet = per_asset.head(3)
+        loud = per_asset.tail(3)
+        spread = (loud["per_year"].iloc[-1] / quiet["per_year"].iloc[0]
+                  if quiet["per_year"].iloc[0] else float("nan"))
+        def names(part):
+            return ", ".join(f"{r.asset_id.split(':')[-1]} {r.per_year:.1f}"
+                             for r in part.itertuples())
+        lines += [f"Quietest: {names(quiet)}. Loudest: {names(loud)}. "
+                  f"Spread across the basket **{spread:.1f}×** — a flat threshold "
+                  "gave 47×, a rank-based ladder 2.2×.", ""]
 
     if not rec.empty:
         lines += ["### What did it miss?", "",
                   "Per episode, not per hour: one shock spans several bars and "
                   "the detector reports the peak and suppresses the repeats, so "
                   "a per-hour figure would mostly measure the debounce.", "",
-                  "| Label | Tier | Episodes | Caught | Recall |",
-                  "|---|---|---:|---:|---:|"]
+                  "| Label | Episodes | Caught | Recall |", "|---|---:|---:|---:|"]
         for label in ("every large move", "large and unexplained"):
             part = rec[rec["label"].eq(label)]
-            for row in _order(part).itertuples(index=False):
-                lines.append(f"| {row.label} | {row.tier} | {row.episodes} | "
-                             f"{row.caught} | {row.recall * 100:.1f}% |")
+            for row in part.itertuples(index=False):
+                lines.append(f"| {row.label} | {row.episodes} | {row.caught} | "
+                             f"{row.recall * 100:.1f}% |")
         lines.append("")
         lines.append("`every large move` counts the moves a block fully explains, "
                      "which are meant to be silent — twenty members of one complex "
@@ -432,32 +311,24 @@ def render(cal: pd.DataFrame, prec: pd.DataFrame, rec: pd.DataFrame,
     return "\n".join(lines)
 
 
-def ladder_counts(residuals_dir: str) -> "tuple[dict, dict[str, float]]":
-    """Per-rung bar counts for each ladder, and each instrument's span in years.
+def spans_and_blocks(residuals_dir: str) -> "tuple[dict, dict]":
+    """Each instrument's span in years, and which block it sits in."""
+    from tremor.basket import load_basket
 
-    Read off the rung each ladder ACTUALLY assigned - tier_absolute and
-    tier_abnormal - rather than off an event's `basis`. The basis says which
-    ladders fired at all, not which one produced the rung being reported, so
-    counting by basis credits a ladder with rungs it never assigned and inflates
-    its rate by half.
-    """
-    counts = {name: {tier: 0 for tier in severity.TIERS}
-              for name in ("absolute", "abnormal")}
+    try:
+        blocks = {a.asset_id: a.block for a in load_basket().instruments}
+    except Exception as exc:                     # pragma: no cover - defensive
+        log.warning("could not read the basket: %s", exc)
+        blocks = {}
     spans: dict[str, float] = {}
     for path in sorted(glob.glob(os.path.join(residuals_dir, "*.parquet"))):
-        frame = pd.read_parquet(path)
-        if frame.empty or "asset_id" not in frame or len(frame) < MIN_BARS:
+        frame = pd.read_parquet(path, columns=["hour_utc", "asset_id"])
+        if frame.empty or len(frame) < MIN_BARS:
             continue
         asset_id = str(frame["asset_id"].iloc[0])
         spans[asset_id] = float((frame["hour_utc"].max() - frame["hour_utc"].min())
                                 / SECONDS_PER_YEAR)
-        for name in counts:
-            column = f"tier_{name}"
-            if column not in frame:
-                continue
-            for tier in severity.TIERS:
-                counts[name][tier] += int(frame[column].eq(tier).sum())
-    return counts, spans
+    return spans, blocks
 
 
 def build(events_path: str = DEFAULT_EVENTS_PATH,
@@ -475,25 +346,18 @@ def build(events_path: str = DEFAULT_EVENTS_PATH,
     if events.empty:
         return ""
 
-    counts, spans = ladder_counts(residuals_dir)
+    spans, blocks = spans_and_blocks(residuals_dir)
     if not spans:
         log.warning("no residuals - section skipped")
         return ""
-    # Every instrument starts where its own record does: a rung is a lookback, so
-    # there is no separate warm-up to cut at any more.
     coverage = pd.Series({asset: 0 for asset in spans})
     series = {"abnormal": _load_series(residuals_dir, "abnormal", coverage),
               "absolute": _load_series(metrics_dir, "absolute", coverage)}
-    if not series["absolute"]:
-        log.warning("no per-instrument metrics - section skipped")
-        return ""
 
     single = events[~events["asset_id"].astype(str).str.startswith("block:")]
-    counts["every message"] = single["tier"].value_counts().to_dict()
-    return render(calibration(counts, spans),
-                  precision(single, series),
-                  recall(single, series),
-                  unreachable_tiers(spans), events)
+    by_block, per_asset = volume(single, spans, blocks)
+    rec = recall(single, series) if series["absolute"] else pd.DataFrame()
+    return render(by_block, per_asset, rec, events)
 
 
 def main(argv: "list[str] | None" = None) -> int:
