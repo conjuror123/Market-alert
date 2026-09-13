@@ -127,34 +127,39 @@ def test_nothing_is_assigned_during_the_warm_up():
 
     assert levels.iloc[:warmup].isna().all().all()
     # Everything the two-year warm-up can back is available the moment it ends:
-    # a fortnight, two months and a year are all claims two years of history
-    # supports. Three years is not, and waits.
-    assert levels.iloc[warmup:][["noticeable", "high", "major"]].notna().all().all()
+    # a month and a quarter are both claims two years of history supports.
+    # Three years and six are not, and wait for their own period to elapse.
+    assert levels.iloc[warmup:][["noticeable", "high"]].notna().all().all()
+    assert levels["major"].first_valid_index() >= sv.TIER_DAYS["major"] * sv.HOURS_PER_DAY
+    assert levels["extreme"].isna().all()      # 30000 hours is under six years
 
 
 def test_a_tier_is_withheld_until_the_history_can_back_the_claim():
-    # "The largest move in three years" cannot be said on two years of data.
+    # "The largest move in six years" cannot be said on two years of data.
     # Fitted at the warm-up boundary it was not merely unsupported but wrong:
     # eight "extreme" events landed in the single month where the boundary fell,
     # and nowhere else in five years.
     rng = np.random.default_rng(21)
-    score = pd.Series(rng.standard_t(4, 8766 * 5))
-    levels = sv.rolling_levels(score, 1.0)
+    score = pd.Series(rng.standard_t(4, 8766 * 7))     # seven years, so the top
+    levels = sv.rolling_levels(score, 1.0)             # rung can arrive at all
 
     first = {name: levels[name].first_valid_index() for name in sv.TIERS}
     warmup = int(sv.WARMUP_DAYS * sv.HOURS_PER_DAY)
-    # The three tiers the warm-up already covers arrive together with it; the
-    # one it does not covers waits for its own return period to elapse.
-    assert first["noticeable"] == first["high"] == first["major"] == warmup
+    # The two tiers the warm-up already covers arrive together with it; the two
+    # it does not each wait for their own return period to elapse.
+    assert first["noticeable"] == first["high"] == warmup
+    assert first["major"] >= sv.TIER_DAYS["major"] * sv.HOURS_PER_DAY
     assert first["extreme"] >= sv.TIER_DAYS["extreme"] * sv.HOURS_PER_DAY
+    assert first["extreme"] > first["major"] > first["high"]
 
 
 def test_the_ladder_grows_a_rung_at_a_time():
-    # An instrument that is only two and a half years old has no business
-    # calling anything a once-in-three-years move, and says so by leaving the
-    # rung empty rather than by lowering it.
+    # An instrument that is only four years old has no business calling anything
+    # a once-in-six-years move, and says so by leaving the rung empty rather
+    # than by lowering it. Four years is chosen to sit BETWEEN two rungs, so the
+    # test shows one arriving and the next withheld on the same history.
     rng = np.random.default_rng(22)
-    short = pd.Series(rng.standard_t(4, int(2.5 * 8766)))
+    short = pd.Series(rng.standard_t(4, int(4 * 8766)))
     levels = sv.rolling_levels(short, 1.0)
     assert levels["major"].notna().any()
     assert levels["extreme"].isna().all()

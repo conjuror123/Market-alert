@@ -161,7 +161,7 @@ def triggers(frame: pd.DataFrame) -> pd.Series:
     critical value answered "is this distinguishable from noise", which is a
     question about the null hypothesis and not about the recipient - it fired
     2.1 times a week and every event it produced looked alike. The condition
-    now is that the move is at least a once-a-fortnight event FOR THIS
+    now is that the move is at least a once-a-month event FOR THIS
     INSTRUMENT, and what comes out with it is how rare it actually was, which
     is what decides whether the message interrupts anyone (see tremor.severity).
 

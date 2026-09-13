@@ -9,12 +9,19 @@ That last part is the whole design. A 1.5% hour is nothing in SOL and a
 once-a-year event in short Treasuries, so a single percentage threshold shared
 across a basket says almost nothing. Instead each instrument is measured against
 its own history, and what comes out is a return period — "the biggest move in
-about three years" — which means the same thing everywhere and needs no
+about six years" — which means the same thing everywhere and needs no
 calibration intuition to read.
 
 Measured over twenty-two years of hourly history: about **22 pushes a year**, a
-median of ten days between them, and of the hours that were unmistakably large
-for their own instrument (its top 0.01%), **none went unreported**.
+median of nine days between them, and of the hours that were unmistakably large
+for their own instrument (its top 0.01%), **none went unreported** — 262 such
+hours, every one of them tiered.
+
+That rate is an OUTPUT, watched rather than aimed at. Nothing in the system caps
+it, and it is not what the rungs are tuned against: they are tuned against what
+each word should mean for a single instrument, so the yearly total is whatever
+sixty instruments of that sensitivity happen to produce. Widening the basket
+raises it and that is not a fault.
 
 It runs entirely on GitHub Actions. Nothing extra needs hosting.
 
@@ -322,8 +329,8 @@ important they are — severity is a separate axis, and it is the same ladder fo
 
 | channel | asks | example |
 |---|---|---|
-| abnormal | was this move unexplained by the market and its own block | *biggest unexplained move in about a year* |
-| absolute | was this simply a big move for this instrument | *biggest move in about three years* |
+| abnormal | was this move unexplained by the market and its own block | *biggest unexplained move in about three years* |
+| absolute | was this simply a big move for this instrument | *biggest move in about six years* |
 
 Both run at the block level too, not only per instrument: did a whole sector move
 together, cleaned of what the rest of the market did, ranked on its own ladder the same
@@ -334,19 +341,26 @@ dropped from the model (see `tremor.residuals` above).
 
 Severity is a **return period** — how long you would ordinarily wait to see something
 this large in this instrument — because "the biggest move in Bitcoin since March 2023"
-needs no calibration intuition where a 1-to-100 score would. Four rungs: a fortnight,
-two months, a year, three years. Fitted per instrument on its own history, so a
-once-a-year move in `SHY` and one in `SOL` mean the same thing to a reader while being
-wildly different percentages.
+needs no calibration intuition where a 1-to-100 score would. Four rungs — noticeable,
+high, major, extreme — at a month, a quarter, three years and six years. Fitted per
+instrument on its own history, so a once-in-three-years move in `SHY` and one in `SOL`
+mean the same thing to a reader while being wildly different percentages.
+
+Those four numbers are a trader's reading of what the words should mean, not a
+fitted quantity. The top rung stops at six years rather than going deeper because a
+rung may only be claimed by an instrument that has lived that long: at six years
+that costs the four youngest crypto listings and `XLP`, where seven would silence it
+for eighteen instruments at once — thirteen of them shallow only because their
+archive has gaps. Deepening that history is what buys a deeper top rung.
 
 Delivery splits by urgency, not by importance:
 
-* **Pushed at once** — both push tiers, a once-a-year move and a once-in-three-years
-  one. Roughly one every eight days between them. The message is then edited in place
+* **Pushed at once** — both push tiers, a once-in-three-years move and a
+  once-in-six-years one. Roughly one every sixteen days between them. The message is then edited in place
   at this day's close and the next day's close with how the move actually held; of
   moves still standing when their own day closed, 80% were still standing at the next
   day's close too.
-* **The running digest** — everything else, 3.6 items a note on average. The note is
+* **The running digest** — everything else, 3.8 items a note on average. The note is
   *opened* Tuesday and Friday at 12:00 Israel time and then edited in place as moves
   are found, so a row appears the hour it happens rather than up to three days later.
   Telegram is silent on an edit, so this still costs exactly two interruptions a week —
@@ -422,5 +436,6 @@ The tests are run with `pytest -q`.
   no key. The per-minute ceiling of 8 requests, not the daily one, is what makes a run
   take minutes rather than seconds.
 - The ladder cannot claim a return period longer than the history it has. A newly
-  added instrument says "biggest in two months" for two years before it can say
-  "biggest in three years", and says nothing at all for the first two.
+  added instrument says "biggest in a quarter" for years before it can say "biggest
+  in six years", and says nothing at all for the first two. Five instruments cannot
+  reach the top rung today for exactly this reason.

@@ -277,22 +277,22 @@ def test_a_move_on_the_abnormal_ladder_says_which_ladder_it_is_on():
     # the second - the instrument may well have had larger hours the market
     # accounted for perfectly - and "of its own" says so without a glossary.
     assert md._headline("major", "abnormal") == (
-        "a move of its own this big happens about once a year")
+        "a move of its own this big happens about once every three years")
     assert md._headline("major", "absolute") == (
-        "a move this big happens about once a year")
+        "a move this big happens about once every three years")
     assert md._headline("major", "both") == (
-        "a move this big happens about once a year")
+        "a move this big happens about once every three years")
     assert md._headline("high", "market") == (
-        "an hour this disorderly happens about once every two months")
+        "an hour this disorderly happens about once a quarter")
 
 
 def test_the_period_is_a_frequency_and_not_a_record():
-    # The ladder says a move this size is expected about once a fortnight, not
+    # The ladder says a move this size is expected about once a month, not
     # that the last fortnight held nothing larger. The old wording flatly
     # contradicted the line beneath it: "biggest move in about three years" over
     # "the last one this big was 23 days ago".
     assert md._headline("noticeable", "absolute") == (
-        "a move this big happens about once a fortnight")
+        "a move this big happens about once a month")
     assert "biggest" not in md._headline("extreme", "absolute")
 
 
@@ -520,7 +520,7 @@ def test_a_missing_calendar_never_costs_the_alert():
     assert md.calendar_context(hour, None) == ""
     text = md.format_push({"hour_utc": hour, "asset_id": "a:SPY", "tier": "major",
                            "basis": "abnormal", "r": 0.02}, {}, None)
-    assert "happens about once a year" in text
+    assert "happens about once every three years" in text
 
 
 def test_the_push_says_what_the_move_was_big_compared_with():

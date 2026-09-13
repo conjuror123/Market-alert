@@ -80,9 +80,12 @@ def test_a_block_too_young_to_have_a_tail_gets_no_events():
     assert blocks.frames(b, panel, sig) == {}
 
 
-def _long_block(n=20000, spike_at=19000, spike=0.25):
-    # Long enough to clear the ladder's two-year warm-up: below it nothing is
-    # given a tier at all, which is the right answer and a useless fixture.
+def _long_block(n=30000, spike_at=29000, spike=0.25):
+    # Long enough to clear the shallowest PUSH rung, which is what this module
+    # emits: `major` is a three-year claim, so a fixture shorter than three
+    # years leaves every hour untiered and every block event unborn. That is the
+    # right answer and a useless fixture - the two-year warm-up alone is no
+    # longer enough to reach the tiers being tested.
     rng = np.random.default_rng(2)
     common = rng.normal(0, 0.01, n)
     common[spike_at] = spike

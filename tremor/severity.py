@@ -51,11 +51,26 @@ import pandas as pd
 # statistician's: how often a person is willing to hear from the system at each
 # level of seriousness. Everything rarer than the top tier is still the top
 # tier - there is no fifth box, because at that point the message is the same.
+#
+# The values are a TRADER'S reading of what each word should mean, not a target
+# alert count. They were set by the person who receives the messages, asked what
+# he would expect each rung to mean for one instrument; the resulting rate per
+# year is an output worth watching and has never been an input.
+#
+# WHY THE TOP RUNG IS SIX YEARS AND NOT THE SEVEN-AND-A-HALF THAT SITS IN THE
+# MIDDLE OF "FIVE TO TEN". A rung can only be claimed by an instrument that has
+# lived that long (see EXTRAPOLATION_LIMIT), and the basket's history lengths
+# are not spread evenly - thirteen instruments sit together at 6.6 years,
+# shallow because their archive has gaps rather than because they are young.
+# Six years clears that shelf and costs only the four crypto listings and XLP
+# that genuinely have not lived long enough to be described this way; seven
+# would silence the top rung for eighteen instruments at once. When that history
+# is filled in, this can go deeper.
 TIER_DAYS: dict[str, float] = {
-    "noticeable": 14.0,      # a fortnight   - digest only, roughly 26 a year
-    "high": 61.0,      # two months    - pushed, roughly 6 a year
-    "major": 365.25,      # a year        - pushed, roughly 1 a year
-    "extreme": 1095.75,   # three years   - pushed, roughly 1 every 3 years
+    "noticeable": 30.0,    # a month       - digest only
+    "high": 105.0,         # three months and a half - digest only
+    "major": 1095.75,      # three years   - pushed
+    "extreme": 2191.5,     # six years     - pushed
 }
 TIERS: tuple[str, ...] = tuple(TIER_DAYS)
 
@@ -95,7 +110,7 @@ WARMUP_DAYS = 730.0
 REFIT_DAYS = 30.0
 
 # A tier is not assignable until the instrument has as much history as the tier
-# claims. "The largest move in three years" cannot be said on two years of data,
+# claims. "The largest move in six years" cannot be said on two years of data,
 # and the arithmetic agrees with the English: fitted at the two-year mark, the
 # three-year level came out low enough to produce eight "extreme" events in one
 # month across the basket - a burst that sat exactly on the warm-up boundary and
@@ -253,8 +268,8 @@ def rolling_levels(score: pd.Series, rate: float | None = None,
     The deeper tiers stay NaN for longer still, until the instrument has as much
     history as the tier claims (EXTRAPOLATION_LIMIT). So an instrument's ladder
     grows a rung at a time as it ages, which is the honest behaviour: it can say
-    "the largest in two months" long before it has earned the right to say "the
-    largest in three years".
+    "the largest in three months" long before it has earned the right to say "the
+    largest in six years".
     """
     magnitude = magnitudes(score, two_sided).to_numpy(dtype="float64")
     n = magnitude.size

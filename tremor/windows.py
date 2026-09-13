@@ -90,8 +90,11 @@ REGRESSION_GAP_BARS = 3
 #
 # The usable span is how far back the run must still be RIGHT. A push says "the
 # last one this big was 23 days ago", read off the event table, so the table has
-# to be correct at least as far back as the deepest rung claims - three years -
-# or a once-in-three-years move would name the wrong predecessor or none. Sizing
+# to be correct at least as far back as the deepest rung claims - six years -
+# or a once-in-six-years move would name the wrong predecessor or none. It
+# follows max(TIER_DAYS) rather than a constant, so moving the top rung moves
+# this with it: at six years an ETF must stay exact over 10,519 bars where
+# three asked for 5,259, and a warm run costs that much more of the archive. Sizing
 # the window at warm-up alone was measured and rejected: tiers matched exactly
 # within a year and then drifted, 50 of them across the whole window, with 31
 # events appearing that a full run does not produce.

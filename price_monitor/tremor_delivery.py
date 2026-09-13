@@ -104,21 +104,21 @@ _SENT = "sent"
 TIER_EMOJI = {"noticeable": "⬜", "high": "🟨", "major": "🟧", "extreme": "🟥"}
 
 # The tier names are internal; these are what a person reads. Said as a return
-# period, because "about once every three years" needs no calibration intuition
+# period, because "about once every six years" needs no calibration intuition
 # where a 1-to-100 score would.
 #
-# AND SAID AS A FREQUENCY, not as a record. "Biggest move in about three years"
-# claims the last three years held nothing larger, and the ladder claims no such
-# thing - it says a move this size is expected about once in three years, on
+# AND SAID AS A FREQUENCY, not as a record. "Biggest move in about six years"
+# claims the last six years held nothing larger, and the ladder claims no such
+# thing - it says a move this size is expected about once in six years, on
 # average, which in a fat-tailed market means several can arrive in a month. The
 # old wording flatly contradicted the line beneath it: "biggest move in about
 # three years" over "the last one this big was 23 days ago". Only one of the two
 # was wrong, and it was the headline.
 TIER_PERIOD = {
-    "noticeable": "about once a fortnight",
-    "high": "about once every two months",
-    "major": "about once a year",
-    "extreme": "about once every three years",
+    "noticeable": "about once a month",
+    "high": "about once a quarter",
+    "major": "about once every three years",
+    "extreme": "about once every six years",
 }
 
 # WHICH LADDER the tier was measured against, said in the noun rather than in a
