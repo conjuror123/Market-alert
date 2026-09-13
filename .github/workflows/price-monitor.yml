@@ -97,13 +97,14 @@ jobs:
           mkdir -p data/economic_calendar
           git config user.name "price-monitor-bot"
           git config user.email "actions@github.com"
-          # The ladder cache goes with the state, every run rather than daily.
-          # It is what lets the hourly run rebuild from a slice of the archive
-          # instead of all twenty-three years, and a runner is thrown away after
-          # each run - so an uncommitted cache is a cache that never exists. It
-          # only changes when a refit actually happened, which is a couple of
-          # instruments a day, so most runs commit nothing extra.
-          git add data/state.json data/economic_calendar data/tremor/ladder.csv
+          # data/tremor/ladder.csv used to be committed here too. The ladder was
+          # a fitted tail that needed either the whole archive or a cache of
+          # earlier fits, and a runner is thrown away after each run, so an
+          # uncommitted cache was a cache that never existed. A rung is now the
+          # biggest move in its own lookback, which a trailing slice answers in
+          # one pass - there is nothing left to carry between runs, and naming a
+          # file that no longer exists would fail this step every hour.
+          git add data/state.json data/economic_calendar
           if [ "$(date -u +%H)" = "04" ]; then
             git add data/tremor/bars 2>/dev/null || true
           fi

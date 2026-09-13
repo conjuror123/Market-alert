@@ -76,9 +76,9 @@ tick size and trading calendar. There are no per-instrument thresholds to set �
 ladder is fitted from each instrument's own history, which is the point.
 
 **Adding one** means adding the entry and running `python -m tremor.backfill` to
-acquire its history. Three things to know before you do. Its ladder stays empty for
-two years of bars and can only claim a return period as long as the history it has,
-so a new instrument is quiet at first and then conservative for a while. The
+acquire its history. Three things to know before you do. A rung is the biggest move
+in its own lookback, so a new instrument can only claim one it has actually lived —
+silent at `extreme` until it is six years old, and it grows a rung at a time. The
 Twelve Data free tier is 8 requests a minute and 800 a day, which the current basket
 already uses about 293 of. And for a US-listed equity or ETF that pays dividends,
 `python -m tremor.corporate_actions` needs rerunning too — the pre-2020 deepening in
@@ -229,7 +229,7 @@ python -m tremor.sessions        # regenerate the NYSE schedule
 python -m tremor.corporate_actions  # rebuild the ex-dividend table
 python -m tremor.pipeline        # recompute per-asset metrics
 python -m tremor.cross_section   # recompute basket metrics: quorum, the block factor
-python -m tremor.saed            # rarity ladder (cached) + single-asset and block events
+python -m tremor.saed            # rarity ladder + single-asset and block events
 python -m tremor.cluster         # SI-Index, cluster events, the decision journal
 python -m tremor.export          # export events to JSON under the schema
 python -m tremor.truth           # §7 truth labels and the baseline
@@ -239,7 +239,7 @@ python -m price_monitor.economic_calendar --rebuild   # rebuild the calendar arc
 ```
 
 The order matters: `cross_section` works off the per-asset metrics, `saed` off the
-block factor `cross_section` produced (and the ladder cache, next), `cluster` off the
+block factor `cross_section` produced, `cluster` off the
 basket metrics and the SAED residuals — it also writes eighteen columns *into*
 `metrics_basket_hour.parquet`, so skipping it leaves that file stripped rather than
 merely stale — and `export` off all of it at once.
