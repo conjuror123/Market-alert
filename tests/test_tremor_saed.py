@@ -413,3 +413,36 @@ def test_a_rank_window_that_has_not_filled_has_not_disagreed():
     out = saed.withdraw_unconfirmed(_combined(
         _rank_frame(["abnormal"] * 3, [None, None, None])))
     assert not out["tier"].isna().any()
+
+
+def test_a_move_smaller_than_its_own_usual_hour_is_not_an_event():
+    # The IEI case, found by a reader rather than by a test: +0.03% at half the
+    # instrument's usual hour, reported as a once-a-month event because the
+    # RESIDUAL was unusual while the move was not. The abnormal channel asks
+    # whether a move was unexplained, never whether it was large.
+    frame = pd.DataFrame({
+        "hour_utc": [0, 3600, 7200],
+        "r":        [0.0003, 0.0200, 0.0005],   # tiny, large, tiny
+        "sigma_lt": [0.0060, 0.0060, 0.0060],   # its usual hour
+        "z_resid_bmp": [9.0, 9.0, 9.0],         # all three look remarkable
+        "level_noticeable": [1.0, 1.0, 1.0],
+        "abs_level_noticeable": [1.0, 1.0, 1.0],
+        "tier": ["high", "high", "high"],
+    })
+    fired = saed.triggers(frame).fillna(False).tolist()
+    assert fired == [False, True, False]
+
+
+def test_an_instrument_with_no_usual_hour_yet_is_not_filtered_out():
+    # A bar whose sigma_LT has not been measured has not FAILED the size test,
+    # it has not taken it - the floor must not silence a warming-up instrument.
+    frame = pd.DataFrame({
+        "hour_utc": [0, 3600],
+        "r":        [0.0001, 0.0001],
+        "sigma_lt": [np.nan, 0.0],
+        "z_resid_bmp": [9.0, 9.0],
+        "level_noticeable": [1.0, 1.0],
+        "abs_level_noticeable": [1.0, 1.0],
+        "tier": ["high", "high"],
+    })
+    assert saed.triggers(frame).fillna(False).tolist() == [True, True]

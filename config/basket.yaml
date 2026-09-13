@@ -95,6 +95,40 @@ history_since: "2015-01-01"
 # its history is comparable with SPY's.
 fetch_since: "2002-01-01"
 
+# ---------------------------------------------------------------------------
+# THE TWO KNOBS. Everything else in this file describes the market; these two
+# describe how much of it you want to hear about, and they are here rather than
+# in the code so that turning them is an edit and not a release.
+#
+# They answer DIFFERENT questions and neither substitutes for the other.
+#
+# sensitivity - HOW RARE must a move be before it is worth a line. It scales
+# every rung of the ladder at once: 1.0 leaves them where a trader set them
+# (a month, a quarter, three years, six years), 2.0 makes every rung twice as
+# rare and the messages roughly half as many, 0.5 the other way. It does NOT
+# equalise instruments - each one is still judged against its own history, so
+# SHY may speak once a year and SOL a hundred times, which is the whole point
+# of a return period and not a fault to be normalised away. The message text
+# follows the scaled rungs automatically; it is derived, never hard-coded, or
+# turning this knob would make every message a lie.
+#
+# Changing it moves config_version and so retires the fitted ladder cache. That
+# is correct - the rungs moved - and costs one cold run.
+sensitivity: 1.0
+
+# min_move_sigma - HOW BIG must a move be, in its own terms, to be worth a line
+# at all, whatever the ladder says about rarity. This is the floor the system
+# went without for too long: the abnormal channel asks whether a move was
+# unexplained, not whether it was large, so an instrument that ticked +0.03%
+# while its block went the other way could be reported as a once-a-month event.
+# Measured on the record, every event below one times its own usual hour was
+# abnormal-only - 240 of 9,069, about eleven a year - and they are the ones
+# that read as noise.
+#
+# In units of the instrument's own sigma_LT, so it means the same thing to SHY
+# and to SOL and needs no per-asset table. 0 disables it.
+min_move_sigma: 1.0
+
 # Session templates are filled in during phase 1 (holiday and half-session
 # calendars); here only the names the assets refer to.
 session_templates:

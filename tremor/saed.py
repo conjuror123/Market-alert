@@ -36,7 +36,7 @@ import numpy as np
 import pandas as pd
 
 from tremor import blocks, persistence, quality, routing, severity, windows
-from tremor.basket import Asset, Basket
+from tremor.basket import Asset, Basket, load_tuning
 
 
 # The two questions worth asking of one instrument's hour, and the column each
@@ -165,11 +165,24 @@ def triggers(frame: pd.DataFrame) -> pd.Series:
     INSTRUMENT, and what comes out with it is how rare it actually was, which
     is what decides whether the message interrupts anyone (see tremor.severity).
 
-    There is still no second filter on raw magnitude, volume or anything else.
-    That was true of the critical-value test for the reason the event-study
-    literature gives - the standardisation is the test - and it stays true
-    here: a single-asset move is grounds in itself, and how much it matters is
-    now carried by the tier rather than decided at the door.
+    THERE IS A SECOND FILTER ON RAW MAGNITUDE, and there did not use to be. The
+    argument against one was that the standardisation IS the test, which the
+    event-study literature says and which is true of the question that
+    literature asks. It is not true of the question a person asks. The abnormal
+    channel measures whether a move was UNEXPLAINED, never whether it was
+    LARGE, and those come apart at the bottom: an instrument that ticked +0.03%
+    while its block went the other way has a residual its own history finds
+    remarkable, and a reader does not. Measured over the whole record, every
+    single event below one times its own usual hour was abnormal-only - 240 of
+    9,069, about eleven a year - and each one reads as the system failing to
+    understand its own units.
+
+    So a move must also clear `min_move_sigma` times the instrument's own
+    sigma_LT. In its own terms, so it means the same thing to SHY as to SOL and
+    needs no per-asset table; and separate from `sensitivity`, because turning
+    rarity down to silence these would silence genuinely small instruments too.
+    A bar with no sigma_LT yet is not filtered - it has not failed the test, it
+    has not taken it.
     """
     if "tier" not in frame:
         raise KeyError("severity.annotate must run before triggers")
@@ -184,7 +197,15 @@ def triggers(frame: pd.DataFrame) -> pd.Series:
         first = severity.level_columns(prefix)[0]
         if column in frame and first in frame:
             assessed |= frame[column].notna() & frame[first].notna()
-    return frame["tier"].notna().where(assessed, pd.NA).astype("boolean")
+
+    fired = frame["tier"].notna()
+    floor = load_tuning().min_move_sigma
+    if floor > 0 and "r" in frame and "sigma_lt" in frame:
+        usual = frame["sigma_lt"]
+        big_enough = frame["r"].abs() >= floor * usual
+        # An unmeasured sigma_LT is not a failed test, so it does not filter.
+        fired &= big_enough | usual.isna() | (usual <= 0)
+    return fired.where(assessed, pd.NA).astype("boolean")
 
 
 def _exceedance(frame: pd.DataFrame, tier: np.ndarray) -> np.ndarray:

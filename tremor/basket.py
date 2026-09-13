@@ -17,6 +17,7 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from datetime import date, datetime
 
 import yaml
@@ -210,6 +211,42 @@ def _asset(raw: dict, *, in_basket: bool) -> Asset:
         tick_size=float(raw["tick_size"]),
         label=raw.get("label", raw["ticker"]), in_basket=in_basket,
     )
+
+
+@dataclass(frozen=True)
+class Tuning:
+    """The two knobs of config/basket.yaml: how rare, and how big.
+
+    Read on their own rather than through load_basket because the ladder asks
+    for them inside its refit loop, and parsing sixty assets to learn one float
+    would be paid thousands of times a run. The file is read once and cached;
+    an hourly job is a fresh process, so a turned knob takes effect on the next
+    run without anything to invalidate by hand.
+    """
+    sensitivity: float = 1.0
+    min_move_sigma: float = 1.0
+
+
+@lru_cache(maxsize=8)
+def load_tuning(path: str = DEFAULT_BASKET_PATH) -> Tuning:
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            raw = yaml.safe_load(f) or {}
+    except OSError:
+        return Tuning()
+
+    def positive(name: str, default: float, allow_zero: bool = False) -> float:
+        value = raw.get(name, default)
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            raise BasketConfigError(f"{name}: {value!r} is not a number")
+        if not (value > 0 or (allow_zero and value == 0)):
+            raise BasketConfigError(f"{name}: must be positive, got {value}")
+        return value
+
+    return Tuning(sensitivity=positive("sensitivity", 1.0),
+                  min_move_sigma=positive("min_move_sigma", 1.0, allow_zero=True))
 
 
 def load_basket(path: str = DEFAULT_BASKET_PATH) -> Basket:
