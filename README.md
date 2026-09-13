@@ -143,10 +143,8 @@ The detector (SAED — live, the product)
 tremor/residuals.py    — the market model, on the block factor alone: a basket-wide
                           factor was tried and dropped, for the reason a block factor
                           works and a basket one did not scale to sixty instruments
-tremor/severity.py     — the rarity ladder, Generalised Pareto fit above a high threshold
-tremor/ladder.py       — the ladder cache: fitted segments persisted to
-                          data/tremor/ladder.csv, so an hourly run refits only a
-                          trailing slice of history instead of all of it — see below
+tremor/severity.py     — the rarity ladder: a rung is the biggest move in its own
+                          lookback, so nothing is fitted and nothing extrapolated
 tremor/saed.py          — events from the residuals and the ladder, the cooldown, the gates
 tremor/persistence.py  — did the move hold at the next close
 tremor/routing.py      — channel, collapse, digest slot
@@ -165,13 +163,12 @@ tremor/windows.py      — every window and constant, in one file
 
 Delivery — price_monitor/
 tremor_delivery.py     — renders and sends; decides nothing, routing is already stamped
-weekly_digest.py       — the economic-calendar forecast, Friday, just before the note opens
+weekly_digest.py       — the economic-calendar forecast, Saturday, just before the note opens
 health.py, notifier.py — failure reporting
 twelvedata.py, coinbase.py, dukascopy.py, fxcm.py, hfdata.py — the source clients
                           tremor.backfill fetches through
 
 data/tremor/bars/                  hourly bars, one Parquet per instrument per year   TRACKED
-data/tremor/ladder.csv             the fitted rarity-ladder cache                     TRACKED
 data/tremor/corporate_actions.csv  ex-dates for the funds                             TRACKED
 data/tremor/sessions/              the NYSE schedule                                  TRACKED
 data/tremor/vix/                   the daily VIX series                               TRACKED
@@ -236,7 +233,7 @@ python -m tremor.saed            # rarity ladder (cached) + single-asset and blo
 python -m tremor.cluster         # SI-Index, cluster events, the decision journal
 python -m tremor.export          # export events to JSON under the schema
 python -m tremor.truth           # §7 truth labels and the baseline
-python -m tremor.evaluate        # score the detector against them
+python -m tremor.evaluate        # score both detectors; SAED first, SI-Index against §7
 python -m tremor.calibrate       # §7 fit on train (writes calibration.json; never reads test)
 python -m price_monitor.economic_calendar --rebuild   # rebuild the calendar archive
 ```
@@ -247,15 +244,14 @@ basket metrics and the SAED residuals — it also writes eighteen columns *into*
 `metrics_basket_hour.parquet`, so skipping it leaves that file stripped rather than
 merely stale — and `export` off all of it at once.
 
-**The rarity-ladder cache.** Each instrument's ladder — the Generalised Pareto fit that
-turns a residual or a raw move into a return period — is refit monthly and does not
-change between refits. `tremor.ladder` persists every fitted segment to
-`data/tremor/ladder.csv`, and `tremor.saed` reads it before recomputing anything: where
-the cache already covers an instrument's ladder for the hours a run needs, that
-instrument is trimmed to a trailing window instead of being refit cold over its whole
-history. This is the difference between an hourly run costing a slice of 23 years of
-history and costing all of it. With about seventy ladders each due for a refit every
-thirty days, roughly two runs a day come out fully cold and the rest are warm — and the
+**The rarity ladder needs no cache.** It used to: the ladder was a Generalised Pareto
+tail fitted over every bar before the one it described, so an hourly run either read all
+23 years or read a file of fitted segments. A rung is now the biggest move in its own
+lookback, which a trailing slice reaching back past the deepest rung answers exactly and
+in one pass — so `tremor/ladder.py` and `data/tremor/ladder.csv` are gone rather than
+maintained. `tremor.saed` checks the slice covers the deepest rung and goes cold if it
+does not, which under the current settings never happens: the warm window is eight to
+eleven years and the deepest rung is six. The
 decision is taken for the whole run at once, not per instrument, because a run half warm
 and half cold would build a cross-section out of two different amounts of history. The
 cache costs nothing when it is stale or missing: that instrument just falls back to a
@@ -313,12 +309,12 @@ minutes. The export format is fixed by the schema
 `schema/event_export.schema.json`, and a test validates a synthetic event against it.
 
 The archive of economic events is assembled entirely from ForexFactory's monthly pages,
-from a single source and with no key. Every Friday digest reads three months back into
+from a single source and with no key. Every Saturday digest reads three months back into
 it — the previous one and the current one for the `actual` of released events, and the
 one the coming week runs into so that week is there to be listed at all. The live weekly
 feed is merged too, for the days immediately ahead. The digest is then built from the
-archive over a window it states outright, which is why it can go out on a Friday: the
-feed's own week boundary no longer has to be guessed. Why there is one source and what
+archive over a window it states outright, which is why the send day is free to be
+whichever one suits the reader: the feed's own week boundary no longer has to be guessed. Why there is one source and what
 was tried before it is above, in the calendar section.
 
 ### What actually reaches you, and the switch that stops it
@@ -387,16 +383,19 @@ Delivery splits by urgency, not by importance:
   exact. Set up as a channel (see "Quick start") the pings always go. In a private
   chat one older than two days simply stays — Telegram's rule, not a bug to fix.
 * **The running digest** — everything else, 3.8 items a note on average. The note is
-  *opened* Tuesday and Friday at 12:00 Israel time and then edited in place as moves
-  are found, so a row appears the hour it happens rather than up to three days later.
-  Telegram is silent on an edit, so this still costs exactly two interruptions a week —
-  and both of them at noon: a note may only be opened in its own hour or the three
-  after it, and a period that misses that window is carried into the next note.
-  Tuesday covers the weekend and Monday, when crypto trades straight through and
-  equities gap on the open; Friday closes the trading week. This is *separate from the
-  weekly calendar digest on purpose*: that one is a forecast of what is scheduled,
-  this one is a report of what happened, and reading them as one message makes both
-  harder to skim.
+  *opened* Monday and Saturday at 00:05 UTC and then edited in place as moves are
+  found, so a row appears the hour it happens rather than up to three days later.
+  Telegram is silent on an edit, so the note itself never buzzes; each row it gains
+  sends a throwaway ping instead, deleted when the next note opens. A note may only
+  be opened in its own hour or the three after it, and a period that misses that
+  window is carried into the next note. Monday to Saturday is the trading week;
+  Saturday to Monday is the weekend, when crypto trades straight through and equities
+  gap on the Monday open — so a note is never half working days and half weekend,
+  which a Tuesday/Friday pair could not avoid. 00:05 UTC is the seam between the
+  American close and the Asian open, the quietest hour there is, and unlike a local
+  noon it does not move twice a year. This is *separate from the weekly calendar
+  digest on purpose*: that one is a forecast of what is scheduled, this one is a
+  report of what happened, and reading them as one message makes both harder to skim.
 
 Nothing is held back and nothing is dropped. A move that fully reverted used to take no
 line at all; it is now already on the reader's phone by the time that is known, so the

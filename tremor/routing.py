@@ -11,17 +11,16 @@ tripling the day three stocks are added.
 There are two channels, and they differ in how loudly they arrive rather than
 in how long they wait. Nothing is held back:
 
-  push      both push tiers, sent AT ONCE, as their own message, and then that
-            message collects the rest of the day: another instrument moving
-            before midnight joins it rather than buzzing again (see collapse).
-            A once-a-year move that arrives six hours late is a worse product
-            than one that arrives now and is marked "reverted" later.
-  digest    everything else, written into the Tuesday or Friday note as it is
+  push      both push tiers, sent AT ONCE, as their own message, and final on
+            arrival - nothing folds into it and nothing moves it afterwards. A
+            once-a-year move that arrives six hours late is a worse product than
+            one that arrives now and is marked "reverted" later.
+  digest    everything else, written into the Monday or Saturday note as it is
             found. That note is OPENED at the start of the period it covers
             and edited in place afterwards, so a digest line appears within the
-            hour of the move rather than up to three days later - and it is a
-            silent edit, so the reader is interrupted twice a week and no more
-            (see price_monitor.tremor_delivery).
+            hour of the move rather than days later - and the edit is silent, so
+            each row also gets a throwaway ping that is deleted when the next
+            note opens (see price_monitor.tremor_delivery).
 
 Both kinds of message are then corrected in place as the market answers: at two
 bars, at six, and at the close of the next trading day for a push, and at the
@@ -38,15 +37,15 @@ question about the reader's patience with an instrument's price history, and
 the two have nothing to do with each other: the week the franc is unpegged is
 exactly the week a budget would start silencing things. Volume is controlled
 where it is actually generated - by the rarity ladder, which asks how unusual
-this move is for THIS instrument, and by the collapse below, which asks whether
-this is a new event or the same one seen again. Both are statements about the
-market. Neither needs to know the running total, and the total is a thing to
-report afterwards, not a thing to steer by.
+this move is for THIS instrument, and by the size floor beside it, which asks
+whether the move was big enough in the instrument's own terms to be worth a
+line. Both are statements about the market. Neither needs to know the running
+total, and the total is a thing to report afterwards, not a thing to steer by.
+Both are turned from config/basket.yaml rather than from here.
 """
 from __future__ import annotations
 
 from datetime import datetime, time, timedelta, timezone
-from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -59,12 +58,25 @@ DIGEST = "digest"
 PUSH_TIERS = ("major", "extreme")
 SETTLED_HORIZON = persistence.SETTLED        # the next trading close
 
-# datetime.weekday(): Monday=0. Tuesday covers the weekend and Monday - which
-# matters, because crypto trades straight through it and equities gap on the
-# Monday open - and Friday closes the trading week before the weekend.
-DIGEST_WEEKDAYS = (1, 4)
-DIGEST_HOUR_LOCAL = 12
-DIGEST_TZ = ZoneInfo("Asia/Jerusalem")
+# datetime.weekday(): Monday=0, Saturday=5. Two notes a week, each opening at
+# the start of the stretch it covers rather than in the middle of one: the
+# workweek note opens Monday and runs to Saturday, the weekend note opens
+# Saturday and runs to Monday. So a note is never half trading week and half
+# weekend, which is what a Tuesday/Friday pair could not avoid.
+#
+# UTC AND NOT THE READER'S CLOCK, which is the reverse of the old rule and for
+# a reason that has since changed. A note used to be the thing that buzzed, so
+# it had to land at a civilised local hour; the ping does that now, and the
+# note is a record. A record wants the boundary the market uses - 00:05 UTC sits
+# between the American close and the Asian open, the quietest hour there is, and
+# it does not drift by an hour twice a year.
+#
+# Five past rather than on the hour: the hourly job runs at :05, so a note opens
+# on the first run of its period instead of waiting fifty-five minutes.
+DIGEST_WEEKDAYS = (0, 5)
+DIGEST_HOUR_LOCAL = 0
+DIGEST_MINUTE_LOCAL = 5
+DIGEST_TZ = timezone.utc
 
 
 def channel(events: pd.DataFrame) -> pd.Series:
@@ -112,17 +124,18 @@ def digest_slot(hour_utc: int) -> int:
     difference is the whole change: an event now joins a live note instead of
     queueing for one.
 
-    Local time, because the recipient reads it in local time and a note that
-    opens at 04:00 twice a week is one nobody opens. Whether that is 12:00 UTC
-    or 13:00 depends on daylight saving, and letting the zone decide is why
-    this is not arithmetic on the timestamp.
+    Kept as a zone lookup rather than arithmetic on the timestamp even though
+    the zone is now UTC: the boundary is a wall-clock rule - Monday and Saturday
+    at 00:05 - and expressing it as a modulus would quietly break the day a
+    different zone is wanted again.
     """
     moment = datetime.fromtimestamp(int(hour_utc), tz=timezone.utc).astimezone(DIGEST_TZ)
     for back in range(0, 9):
         day = (moment - timedelta(days=back)).date()
         if day.weekday() not in DIGEST_WEEKDAYS:
             continue
-        slot = datetime.combine(day, time(DIGEST_HOUR_LOCAL), tzinfo=DIGEST_TZ)
+        slot = datetime.combine(day, time(DIGEST_HOUR_LOCAL, DIGEST_MINUTE_LOCAL),
+                                tzinfo=DIGEST_TZ)
         if slot <= moment:
             return int(slot.astimezone(timezone.utc).timestamp())
     raise RuntimeError("no digest slot within nine days")
@@ -136,7 +149,8 @@ def next_digest_slot(hour_utc: int) -> int:
         day = (moment + timedelta(days=ahead)).date()
         if day.weekday() not in DIGEST_WEEKDAYS:
             continue
-        slot = datetime.combine(day, time(DIGEST_HOUR_LOCAL), tzinfo=DIGEST_TZ)
+        slot = datetime.combine(day, time(DIGEST_HOUR_LOCAL, DIGEST_MINUTE_LOCAL),
+                                tzinfo=DIGEST_TZ)
         if slot > moment:
             return int(slot.astimezone(timezone.utc).timestamp())
     raise RuntimeError("no digest slot within nine days")

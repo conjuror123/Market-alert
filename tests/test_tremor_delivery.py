@@ -10,7 +10,7 @@ from price_monitor.config import Config
 from price_monitor.notifier import TelegramError
 
 HOUR = 3600
-NOW = datetime(2026, 9, 4, 12, 0, tzinfo=timezone.utc)   # a Friday
+NOW = datetime(2026, 9, 14, 3, 0, tzinfo=timezone.utc)   # a Monday, inside the note's opening window
 LABELS = {"twelvedata:GLD": "Gold", "coinbase:BTC-USD": "Bitcoin"}
 
 # The note that is open at NOW. A digest row names the note it joins, and that
@@ -53,6 +53,15 @@ def cfg(**over):
     base = dict(telegram_bot_token="t", telegram_chat_id="c",
                 tremor_alerts_muted=False, alerts_log_path=_LOG_PATH)
     return Config(**(base | over))
+
+
+def dated(since=int(datetime(2020, 3, 16, tzinfo=timezone.utc).timestamp()), hour=None, **over):
+    """The two fields every record claim is built from: when the move was, and
+    the last time the instrument matched it."""
+    base = {"hour_utc": hour if hour is not None
+            else int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp()),
+            "record_since": since}
+    return base | over
 
 
 def event(**over):
@@ -216,7 +225,7 @@ def test_a_market_event_reads_as_market_wide(monkeypatch, sender):
                 retention_settled=None, tier="high")
     deliver(monkeypatch, [row])
     assert "Market-wide" in alerts(sender)[0]
-    assert "this disorderly" in alerts(sender)[0]
+    assert "disorderly hour" in alerts(sender)[0]
 
 
 def test_the_severity_leads_the_digest(monkeypatch, sender):
@@ -276,24 +285,45 @@ def test_a_move_on_the_abnormal_ladder_says_which_ladder_it_is_on():
     # the market is taken out. "Biggest move in about a year" would be false for
     # the second - the instrument may well have had larger hours the market
     # accounted for perfectly - and "of its own" says so without a glossary.
-    assert md._headline("major", "abnormal") == (
-        "a move of its own this big happens about once every 3 years")
-    assert md._headline("major", "absolute") == (
-        "a move this big happens about once every 3 years")
-    assert md._headline("major", "both") == (
-        "a move this big happens about once every 3 years")
-    assert md._headline("high", "market") == (
-        "an hour this disorderly happens about once a quarter")
+    event = dated()
+    assert md._headline(event, "major", "abnormal") == (
+        "the biggest move of its own since March 2020")
+    assert md._headline(event, "major", "absolute") == (
+        "the biggest move since March 2020")
+    assert md._headline(event, "major", "both") == (
+        "the biggest move since March 2020")
+    assert md._headline(event, "high", "market") == (
+        "the most disorderly hour since March 2020")
 
 
-def test_the_period_is_a_frequency_and_not_a_record():
-    # The ladder says a move this size is expected about once a month, not
-    # that the last fortnight held nothing larger. The old wording flatly
-    # contradicted the line beneath it: "biggest move in about three years" over
-    # "the last one this big was 23 days ago".
-    assert md._headline("noticeable", "absolute") == (
-        "a move this big happens about once a month")
-    assert "biggest" not in md._headline("extreme", "absolute")
+def test_the_claim_is_a_record_and_names_the_date():
+    # It used to be a frequency - "about once in 3 years" - because the fitted
+    # ladder could not support a record claim and the two flatly contradicted
+    # each other: "biggest move in about three years" over "the last one this
+    # big was 23 days ago". A rung is now literally the biggest move in its own
+    # lookback, so the record claim is the true one and it can name the bar.
+    assert md._headline(dated(), "noticeable", "absolute") == (
+        "the biggest move since March 2020")
+    assert "once in" not in md._headline(dated(), "extreme", "absolute")
+
+
+def test_a_move_bigger_than_anything_on_record_says_so_rather_than_guessing():
+    # No earlier bar to name, so there is no date to print. Inventing one would
+    # be the only outright false thing this line could say.
+    assert md._headline(dated(since=None), "extreme", "absolute") == (
+        "the biggest move in the whole record")
+
+
+def test_the_date_gets_coarser_the_further_back_it_is():
+    # Within a month the day is what places it; past a year only the year is.
+    now = int(datetime(2026, 6, 10, tzinfo=timezone.utc).timestamp())
+    day = 86400
+    assert md.record_phrase({"hour_utc": now, "record_since": now - 10 * day}) \
+        == "since 31 May"
+    assert md.record_phrase({"hour_utc": now, "record_since": now - 120 * day}) \
+        == "since February"
+    assert md.record_phrase({"hour_utc": now, "record_since": now - 900 * day}) \
+        == "since December 2023"
 
 
 def test_no_alert_claims_the_economic_calendar_explained_anything():
@@ -302,7 +332,7 @@ def test_no_alert_claims_the_economic_calendar_explained_anything():
     # would be reporting a test the system never ran.
     for tier in ("noticeable", "high", "major", "extreme"):
         for basis in ("abnormal", "absolute", "both", "market"):
-            assert "calendar" not in md._headline(tier, basis).lower()
+            assert "calendar" not in md._headline(dated(), tier, basis).lower()
     for line in md._split_lines({"r": 0.02, "e_resid": 0.018}, "Gold"):
         assert "calendar" not in line.lower()
 
@@ -313,10 +343,11 @@ def test_the_split_is_two_parts_and_never_the_word_market():
     # what they actually are instead.
     lines = md._split_lines({"r": 0.0700, "e_resid": 0.0100,
                              "co_block": 0.0600, "block": "equity"}, "S&P 500")
-    assert lines[0] == "of that move:"
-    assert "+6.00%  its own block moving, US and global equities" in lines[1]
-    assert "+1.00%  S&amp;P 500 on its own" in lines[2]
-    assert len(lines) == 3
+    # Two lines and no header: "of that move:" was a whole line spent saying
+    # that the two beneath it add up, which the numbers already show.
+    assert "+6.00%  block moving, [US and global equities]" in lines[0]
+    assert "+1.00%  move on its own" in lines[1]
+    assert len(lines) == 2
     for line in lines:
         assert "market" not in line
 
@@ -328,8 +359,8 @@ def test_the_block_line_carries_the_cause_on_its_own():
     lines = md._split_lines({"r": 0.1050, "e_resid": 0.0088,
                              "co_block": 0.0962, "block": "equity"},
                             "US financial sector")
-    assert "+9.62%  its own block moving, US and global equities" in lines[1]
-    assert "+0.88%  US financial sector on its own" in lines[2]
+    assert "+9.62%  block moving, [US and global equities]" in lines[0]
+    assert "+0.88%  move on its own" in lines[1]
 
 
 def test_a_block_that_contributed_nothing_still_takes_its_line():
@@ -338,16 +369,16 @@ def test_a_block_that_contributed_nothing_still_takes_its_line():
     # dropping the line would delete the finding.
     lines = md._split_lines({"r": 0.018, "e_resid": 0.018,
                              "co_block": 0.0, "block": "FX"}, "Euro / dollar")
-    assert "+0.00%  its own block moving, the dollar block" in lines[1]
-    assert "+1.80%  Euro / dollar on its own" in lines[2]
+    assert "+0.00%  block moving, [the dollar block]" in lines[0]
+    assert "+1.80%  move on its own" in lines[1]
 
 
 def test_the_split_falls_back_to_the_difference_on_an_older_row():
     # Before the split was carried, only the total was.
     lines = md._split_lines({"r": 0.02, "e_resid": 0.018, "block": "precious_metals"},
                             "Gold")
-    assert "+0.20%  its own block moving, precious metals" in lines[1]
-    assert "+1.80%  Gold on its own" in lines[2]
+    assert "+0.20%  block moving, [precious metals]" in lines[0]
+    assert "+1.80%  move on its own" in lines[1]
 
 
 def test_no_split_is_claimed_when_the_regression_has_not_been_fitted():
@@ -361,18 +392,9 @@ def test_the_headline_does_not_claim_the_market_was_quiet():
     # the move. It does not mean the rest of the market was calm - on a macro
     # hour everything moves and this one moved further still, which is the case
     # the residual channel exists to catch.
-    line = md._headline("major", "abnormal")
+    line = md._headline(dated(), "major", "abnormal")
     for overclaim in ("usual", "quiet", "normal", "calm", "did not move"):
         assert overclaim not in line
-
-
-def _blocks(anchor_ids, companions=None, labels=None, budget=9999):
-    return md._companion_blocks({"also_moved": anchor_ids}, labels or {},
-                                companions, NOW, [], budget)
-
-
-
-
 
 
 
@@ -387,24 +409,26 @@ def test_a_push_names_the_scheduled_news_behind_it():
     cal = _cal([("2026-06-10T12:30:00+00:00", "USD", "Core CPI m/m", "High"),
                 ("2026-06-10T13:00:00+00:00", "USD", "Fed Chair Speaks", "High")])
     out = md.calendar_context(hour, cal)
-    assert out.startswith("Economic events, 2h before to 1h after:")
+    assert out.startswith("Nearby economic events (-2h+1h):")
     assert "USD Core CPI m/m" in out and "USD Fed Chair Speaks" in out
 
 
-def test_a_push_with_no_news_behind_it_says_so():
-    # The more interesting half: 55% of pushes in the record have no
-    # high-impact event in the previous three hours, and an unexplained move
-    # with nothing scheduled is what the system exists to find.
+def test_a_push_with_nothing_scheduled_prints_no_calendar_line_at_all():
+    # It used to say "none scheduled", and the statistic behind that is real:
+    # 55% of pushes in the record have no Medium or High release in the window.
+    # Which is exactly why the line went - on more than half of all messages it
+    # was a line saying nothing had happened, and a line that usually says
+    # nothing stops being read. The absence is carried by the absence.
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
     elsewhere = _cal([("2026-05-01T12:00:00+00:00", "USD", "Old CPI", "High")])
-    assert md.calendar_context(hour, elsewhere) == \
-        "Economic events, 2h before to 1h after: none scheduled."
+    assert md.calendar_context(hour, elsewhere) == ""
 
 
 def test_an_empty_archive_claims_nothing_rather_than_claiming_silence():
-    # "none scheduled" is a claim about the world and needs an archive behind
-    # it. An empty one cannot tell "nothing happened" from "nothing was
-    # loaded", so it says neither.
+    # An empty archive cannot tell "nothing was scheduled" from "nothing was
+    # loaded". Now that a quiet window prints nothing either, the two agree on
+    # the output - but for different reasons, and this is the one that would
+    # have to change first if the line ever came back.
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
     assert md.calendar_context(hour, []) == ""
 
@@ -415,7 +439,7 @@ def test_low_impact_news_is_not_named():
     # turn the most important line of the most important message into noise.
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
     only_low = _cal([("2026-06-10T12:30:00+00:00", "CHF", "Bank Holiday", "Low")])
-    assert md.calendar_context(hour, only_low).endswith("none scheduled.")
+    assert md.calendar_context(hour, only_low) == ""
 
     medium = _cal([("2026-06-10T12:45:00+00:00", "EUR", "Trade Balance", "Medium")])
     assert "Trade Balance" in md.calendar_context(hour, medium)
@@ -428,8 +452,33 @@ def test_each_named_release_carries_its_impact_colour():
     cal = _cal([("2026-06-10T12:30:00+00:00", "USD", "CPI", "High"),
                 ("2026-06-10T12:45:00+00:00", "EUR", "Trade Balance", "Medium")])
     out = md.calendar_context(hour, cal)
-    assert "\U0001F534 USD CPI" in out
-    assert "\U0001F7E0 EUR Trade Balance" in out
+    assert "\U0001F534 \U0001F1FA\U0001F1F8 USD CPI" in out
+    assert "\U0001F7E0 \U0001F1EA\U0001F1FA EUR Trade Balance" in out
+
+
+def test_a_release_carries_its_country_flag_beside_the_code():
+    # The flag is what is caught at a glance; the code is what makes it certain.
+    # Several of these flags are the same two colours in nearly the same
+    # arrangement at the size a phone draws them.
+    hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
+    cal = _cal([("2026-06-10T12:30:00+00:00", "AUD", "Employment Change", "High"),
+                ("2026-06-10T12:40:00+00:00", "NZD", "Official Cash Rate", "High"),
+                ("2026-06-10T12:50:00+00:00", "All", "G7 Meetings", "High")])
+    out = md.calendar_context(hour, cal)
+    assert "\U0001F1E6\U0001F1FA AUD" in out
+    assert "\U0001F1F3\U0001F1FF NZD" in out
+    # No country at all is the source's own answer, and a globe is the honest
+    # rendering of it rather than a stand-in for a missing flag.
+    assert "\U0001F310 All" in out
+
+
+def test_a_currency_with_no_flag_still_prints_its_code():
+    # The source can add a currency whenever it likes and the message must not
+    # sprout a placeholder box when it does.
+    hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
+    cal = _cal([("2026-06-10T12:30:00+00:00", "XYZ", "Rate Decision", "High")])
+    out = md.calendar_context(hour, cal)
+    assert "XYZ Rate Decision" in out
 
 
 def test_news_outside_the_window_is_not_claimed_as_context():
@@ -474,8 +523,9 @@ def test_a_missing_calendar_never_costs_the_alert():
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
     assert md.calendar_context(hour, None) == ""
     text = md.format_push({"hour_utc": hour, "asset_id": "a:SPY", "tier": "major",
-                           "basis": "abnormal", "r": 0.02}, {}, None)
-    assert "happens about once every 3 years" in text
+                           "basis": "abnormal", "r": 0.02,
+                           "record_since": hour - 900 * 86400}, {}, None)
+    assert "the biggest move of its own since" in text
 
 
 def test_the_push_says_what_the_move_was_big_compared_with():
@@ -485,7 +535,7 @@ def test_the_push_says_what_the_move_was_big_compared_with():
     event = {"asset_id": "twelvedata:SHY", "tier": "extreme", "basis": "absolute",
              "hour_utc": 1767225600, "r": 0.0013, "sigma_lt": 0.00013}
     text = md.format_push(event, {"twelvedata:SHY": "Treasuries 1-3 years"})
-    assert "that is 10x its usual hour, which is 0.013%" in text
+    assert "10x usual hour" in text
 
 
 def test_a_modest_multiple_is_still_said_and_still_has_its_decimal():
@@ -494,7 +544,7 @@ def test_a_modest_multiple_is_still_said_and_still_has_its_decimal():
     # the old floor. The decimal matters too: "3x" for 2.7 flatters the alert.
     event = {"asset_id": "twelvedata:SPY", "tier": "noticeable", "basis": "absolute",
              "hour_utc": 1767225600, "r": 0.0027, "sigma_lt": 0.001}
-    assert "that is 2.7x its usual hour" in md.format_push(event, {})
+    assert "2.7x usual hour" in md.format_push(event, {})
 
 
 def test_the_comparison_is_skipped_when_the_yardstick_is_missing():
@@ -577,8 +627,20 @@ def test_the_settled_reading_is_dated_by_the_next_trading_day():
 def test_an_undatable_check_in_says_less_rather_than_something_wrong(monkeypatch):
     # An unreadable session table must not raise inside a push that is going out.
     monkeypatch.setattr(md, "due_moment", lambda e, h: None)
-    assert md._due_in(spy(), "today") == "coming at this day's close"
-    assert md._due_in(spy(), "settled") == "coming at the next day's close"
+    for horizon in ("today", "settled"):
+        assert md._due_in(spy(), horizon).startswith("coming,")
+
+
+def test_an_undatable_check_in_does_not_repeat_the_horizon_it_is_written_under(
+        monkeypatch):
+    # The full line is "<horizon> - <answer>", so a fallback naming the horizon
+    # again read "this day's close - coming at this day's close".
+    monkeypatch.setattr(md, "due_moment", lambda e, h: None)
+    lines = md.check_in_lines(event(retention_today=None,
+                                    retention_settled=None), NOW)
+    for line in lines:
+        label, _, answer = line.strip().partition(" - ")
+        assert label and label not in answer
 
 
 def test_a_landed_horizon_is_not_a_promise():
@@ -773,8 +835,12 @@ def test_the_carried_note_says_which_period_it_covers(monkeypatch, sender):
     _, state = deliver(monkeypatch, elsewhere, now=LATE)
     opens = datetime.fromtimestamp(routing.next_digest_slot(SLOT), tz=timezone.utc)
     deliver(monkeypatch, elsewhere, state=state, now=opens)
-    # A week, not the usual three days: it picked up the period that never opened.
-    assert "Fri 4 to Fri 11 September" in notes(sender)[0]
+    # Longer than its own period: it picked up the one that never opened.
+    covers = datetime.fromtimestamp(SLOT, tz=timezone.utc)
+    ends = datetime.fromtimestamp(routing.next_digest_slot(int(opens.timestamp())),
+                                  tz=timezone.utc)
+    assert f"{covers:%a %-d} to {ends:%a %-d %B}" in notes(sender)[0]
+    assert (ends - covers).days > (ends - opens).days
 
 
 def test_an_ordinary_note_covers_only_its_own_period(monkeypatch, sender):
@@ -783,7 +849,10 @@ def test_an_ordinary_note_covers_only_its_own_period(monkeypatch, sender):
     _, state = deliver(monkeypatch, elsewhere, now=opens)
     later = datetime.fromtimestamp(routing.next_digest_slot(SLOT), tz=timezone.utc)
     deliver(monkeypatch, elsewhere, state=state, now=later)
-    assert "Tue 8 to Fri 11 September" in notes(sender)[1]
+    ends = datetime.fromtimestamp(routing.next_digest_slot(int(later.timestamp())),
+                                  tz=timezone.utc)
+    # Only its own stretch, because the note before it did open.
+    assert f"{later:%a %-d} to {ends:%a %-d %B}" in notes(sender)[1]
 
 
 def test_a_note_whose_first_post_failed_does_not_cover_its_period(monkeypatch):
@@ -830,34 +899,27 @@ def test_the_third_check_in_lands_on_a_push_that_already_has_two(monkeypatch, se
 
 # --- saying it in terms nobody needs statistics for -------------------------
 
-def test_the_alert_says_when_this_instrument_was_last_this_rare():
-    # "Biggest move in about a year" is a return period fitted to a tail: the
-    # honest way to say how unusual something is, and a hard thing to picture.
-    # The date is the same claim in a form that needs no statistics.
+def test_only_one_date_line_and_it_is_the_exact_one():
+    # There used to be two. The headline said how OFTEN a move like this happens
+    # and a second line said when the last one was - and under a fitted ladder
+    # those could flatly contradict each other ("biggest move in about three
+    # years" over "the last one this big was 23 days ago").
+    #
+    # The headline is now itself a date, read off the bar the level was measured
+    # against, so the second line was the same claim computed a weaker way: it
+    # searched the EVENTS table for the last row at this tier or rarer, which
+    # can be a different bar entirely - a smaller move that still cleared the
+    # rung, or one claimed by the other ladder. Measured on a real push the two
+    # disagreed, "the biggest since July" against "similar move 28 days ago".
     hour = int(datetime(2026, 9, 4, 14, tzinfo=timezone.utc).timestamp())
-    history = [
-        event(event_id="old", tier="major", hour_utc=hour - 400 * 24 * HOUR),
-        event(event_id="tiny", tier="noticeable", hour_utc=hour - 3 * 24 * HOUR),
-    ]
-    line = md._since_note(event(tier="major", hour_utc=hour), history)
-    assert "the last one this big was 31 July 2025" in line
-    assert "1.1 years ago" in line
+    history = [event(event_id="old", tier="major", hour_utc=hour - 400 * 24 * HOUR)]
+    row = event(tier="major", hour_utc=hour, basis="absolute",
+                record_since=hour - 400 * 24 * HOUR)
+    text = md.format_push(row, LABELS, None, events=history)
 
-
-def test_a_rarer_earlier_move_counts_and_a_milder_one_does_not():
-    hour = int(datetime(2026, 9, 4, 14, tzinfo=timezone.utc).timestamp())
-    milder = [event(event_id="m", tier="high", hour_utc=hour - 10 * 24 * HOUR)]
-    rarer = [event(event_id="r", tier="extreme", hour_utc=hour - 10 * 24 * HOUR)]
-    assert md._since_note(event(tier="major", hour_utc=hour), milder) == ""
-    assert "10 days ago" in md._since_note(event(tier="major", hour_utc=hour), rarer)
-
-
-def test_nothing_is_claimed_when_there_is_no_earlier_one():
-    # A young instrument, or genuinely the first in twenty-two years. Claiming
-    # either would be a guess.
-    assert md._since_note(event(), []) == ""
-
-
+    assert "the biggest move since" in text
+    for gone in ("similar move", "ago"):
+        assert gone not in text
 
 
 def test_a_move_in_the_closing_hour_reports_no_ratio_for_its_own_day():
@@ -866,7 +928,7 @@ def test_a_move_in_the_closing_hour_reports_no_ratio_for_its_own_day():
     # construction and "still there" would be reporting arithmetic as news.
     closing = spy(retention_today=1.0)          # Friday's last ETF bar
     lines = md.check_in_lines(closing, now=NOW)
-    assert lines[0] == "     this day's close - the move was in the closing hour"
+    assert lines[0] == "\tthis day's close - the move was in the closing hour"
 
     midday = spy(hour_utc=int(datetime(2026, 9, 8, 14, tzinfo=timezone.utc).timestamp()),
                  retention_today=1.0)
@@ -883,11 +945,23 @@ def test_the_block_line_names_the_instrument_s_peers():
     assert "SPY" not in peers
 
 
-def test_the_headline_leads_with_the_ticker():
-    # It is what the reader will type into a chart, and the only name that is
-    # the same everywhere.
+def test_the_headline_leads_with_the_rarity_the_ticker_and_the_move():
+    # The rarity is a colour so it reads before any word does; the ticker is
+    # what a reader types into a chart; the move is the number they came for and
+    # it used to be on the second line.
     text = md.describe(event(asset_id="twelvedata:GLD"), LABELS)
-    assert text.startswith(md.TIER_EMOJI["major"] + " <b>GLD</b> · Gold - ")
+    first = text.split("\n")[0]
+    assert first == md.TIER_EMOJI["major"] + " <b>GLD</b> · Gold · +2.10%"
+
+
+def test_the_hour_is_the_last_line_and_is_bold():
+    # Everything above it is what happened; this is when. Bold because it is the
+    # one thing a reader cross-checks against a chart.
+    text = md.describe(event(asset_id="twelvedata:GLD"), LABELS)
+    last = text.split("\n")[-1]
+    assert last.startswith(md.TIME_EMOJI)
+    stamp = (NOW - timedelta(hours=1)).strftime("%Y-%m-%d %H:%M")
+    assert last.endswith("UTC</b>") and f"<b>{stamp}" in last
 
 
 def test_the_footer_names_every_instrument_that_is_tracked():
@@ -923,15 +997,19 @@ def test_a_block_move_is_told_as_a_block_and_not_as_an_instrument():
     # replaced by what a typical member did and which members did most of it.
     text = md.describe(block_event(), LABELS)
 
-    assert text.startswith(md.TIER_EMOJI["extreme"] + " <b>US and global equities</b> - ")
+    # Black IN FRONT OF the rarity, not instead of it: a block is the same four
+    # rarities read at a different level of the market, and dropping the colour
+    # would trade what every line is skimmed by for what one line in twenty needs.
+    assert text.startswith(md.BLOCK_MARK + md.TIER_EMOJI["extreme"]
+                           + " <b>US and global equities</b> · ")
     assert "of that move" not in text
-    assert "the whole block moved together" in text
+    assert "whole block moved together" in text.lower()
     assert "the typical member moved -2.41%" in text
-    assert "that is 4.2x a typical member's usual hour, which is 0.58%" in text
+    assert "4.2x a typical member's usual hour" in text
     assert "biggest movers: XLE -6.20%, XLF -5.80%" in text
     assert "(of 16 trading that hour)" in text
     # No split line: there is nothing above a block to explain its move with.
-    assert "of that move:" not in text
+    assert "\t+6.00%  block moving," not in text
     assert "on its own" not in text
 
 
@@ -981,6 +1059,32 @@ def test_the_currency_block_names_the_dollar_rather_than_a_sign():
         block="FX", asset_id="block:FX", r=-0.0088, e_resid=-0.0088,
         sigma_lt=0.0008, leaders="EUR/USD +1.22%"), LABELS)
     assert "the dollar lost 0.88% against the typical pair" in fell
+
+
+def test_a_block_ping_carries_the_black_mark_too():
+    # The ping and the note row arrive one after the other and have to agree on
+    # what kind of thing moved. blocks.events_frame only emits the push tiers
+    # today, so this path is not reachable from the pipeline - it is here so
+    # that relaxing that filter cannot silently produce an unmarked ping.
+    ping = md.format_ping(block_event(tier="noticeable", channel="digest",
+                                      block="agriculture",
+                                      asset_id="block:agriculture", r=-0.0072), {})
+    assert ping == (f"{md.BLOCK_MARK}{md.TIER_EMOJI['noticeable']} "
+                    f"<b>Agriculture</b> -0.72%")
+
+
+def test_a_block_routes_on_its_tier_exactly_as_an_instrument_does():
+    # There is no separate block channel and there should not be: a block is the
+    # same four rarities read one level up, so the black mark is the ONLY thing
+    # that distinguishes it in delivery.
+    frame = pd.DataFrame([
+        {"asset_id": "block:equity", "tier": "extreme", "hour_utc": int(NOW.timestamp())},
+        {"asset_id": "block:rates", "tier": "major", "hour_utc": int(NOW.timestamp())},
+        {"asset_id": "block:energy", "tier": "high", "hour_utc": int(NOW.timestamp())},
+    ])
+    frame["tier"] = frame["tier"].astype("string")
+    assert list(routing.route(frame)["channel"]) == [
+        routing.PUSH, routing.PUSH, routing.DIGEST]
 
 
 def test_a_block_headline_starts_with_a_capital():
@@ -1136,3 +1240,82 @@ def test_nothing_stale_is_ever_buzzed(monkeypatch):
     old = event(event_id="ancient", tier="noticeable", channel="digest",
                 hour_utc=int(NOW.timestamp()) - 40 * 24 * HOUR)
     assert md.pending_pings([old], {}, NOW) == []
+
+
+def test_the_rarity_is_said_of_the_thing_its_ladder_actually_ranks():
+    # Not cosmetic. The abnormal ladder ranks what is LEFT after the block is
+    # taken out, so its return period belongs on the "on its own" line: said of
+    # the whole move it would claim the instrument had not moved this far in
+    # years when its block may have carried it there last week. The absolute
+    # ladder ranks the move itself, so there it belongs to the move.
+    row = dict(dated(), r=0.0700, e_resid=0.0100, co_block=0.0600, block="equity")
+
+    abnormal = md._split_lines(row, "S&P 500", "major", "abnormal")
+    assert "the biggest since March 2020" in abnormal[-1]
+    assert "move on its own" in abnormal[-1]
+    assert not any("the biggest move since" in line for line in abnormal)
+
+    absolute = md._split_lines(row, "S&P 500", "major", "absolute")
+    assert absolute[0] == "the biggest move since March 2020"
+    assert "biggest" not in absolute[-1]
+
+
+def test_a_row_with_no_split_still_says_how_rare_it_was():
+    # No block to hang it on, so it is said as a sentence - and by the same
+    # function the headline uses, because "the biggest move" and "the biggest
+    # move of its own" are different claims and only one is true of a channel.
+    lines = md._split_lines(dict(dated(), r=0.02, e_resid=None),
+                            "Gold", "extreme", "abnormal")
+    assert lines == ["the biggest move of its own since March 2020"]
+
+
+def test_the_note_names_the_month_only_when_it_crosses_one():
+    # A Monday-to-Saturday note falls inside one month five times in six, and
+    # naming it twice in five words is noise. The sixth is the one that matters:
+    # "Mon 27 to Sat 1 November" left the reader to work out which month the
+    # 27th was, and the answer was the other one.
+    def header(y, m, d):
+        opens = int(datetime(y, m, d, 0, 5, tzinfo=timezone.utc).timestamp())
+        return md.format_digest([], LABELS, routing.digest_window(opens),
+                                None, NOW)[0].splitlines()[0]
+
+    inside = header(2026, 3, 9)          # Monday 9 to Saturday 14 March
+    assert "Mon 9 to Sat 14 March" in inside
+    assert inside.count("March") == 1
+
+    across = header(2026, 3, 30)         # Monday 30 March to Saturday 4 April
+    assert "Mon 30 March to Sat 4 April" in across
+
+
+def test_the_note_runs_in_time_order_across_all_its_parts():
+    # A long note is cut into several messages. Sorting each part on its own
+    # would restart the clock at every cut, so the rows are ordered once and the
+    # cut falls wherever the character budget runs out.
+    rows = [event(event_id=f"d{i}", channel="digest", tier="noticeable",
+                  hour_utc=SLOT + i * HOUR, asset_id="twelvedata:GLD")
+            for i in range(60)]
+    texts = md.format_digest(rows, LABELS, (SLOT, SLOT + 200 * HOUR), None, NOW)
+    assert len(texts) > 1, "the fixture must be long enough to split"
+
+    stamps = []
+    for part in texts:
+        for line in part.split("\n"):
+            if line.startswith(md.TIME_EMOJI):
+                stamps.append(line)
+    assert stamps == sorted(stamps), "the hours must ascend across the parts"
+    assert len(stamps) == len(rows)
+
+
+def test_two_moves_in_one_hour_put_the_rarer_first():
+    # The one case time cannot separate.
+    same = SLOT + 5 * HOUR
+    rows = [event(event_id="mild", channel="digest", tier="noticeable",
+                  hour_utc=same, asset_id="twelvedata:GLD"),
+            event(event_id="rare", channel="digest", tier="high",
+                  hour_utc=same, asset_id="coinbase:BTC-USD")]
+    text = md.format_digest(rows, LABELS, (SLOT, SLOT + 200 * HOUR), None, NOW)[0]
+    assert text.index("Bitcoin") < text.index("Gold")
+
+    # and reversing the input does not change the answer
+    text = md.format_digest(rows[::-1], LABELS, (SLOT, SLOT + 200 * HOUR), None, NOW)[0]
+    assert text.index("Bitcoin") < text.index("Gold")

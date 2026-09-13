@@ -19,28 +19,54 @@ means different things per instrument, but "once a year" means the same thing
 everywhere. That is the whole reason the hydrology and insurance literature
 states extremes this way rather than in raw units.
 
-THE ESTIMATOR. Return levels far out in the tail cannot be read off the
-empirical distribution - a once-in-three-years level over five years of history
-rests on one or two observations. The standard answer is peaks-over-threshold:
-fit a Generalised Pareto distribution to the excesses above a high threshold
-and extrapolate from the fitted tail (Coles 2001, ch. 4). The fit here uses
-probability-weighted moments (Hosking & Wallis 1987) rather than maximum
-likelihood - it is a closed form, so there is no optimiser to fail to converge,
-and it is the better estimator for the small tail samples this actually has.
+THE RULE IS A RECORD, NOT A FIT, and that is a correction rather than a
+simplification. A bar's tier is decided by ONE question asked of the instrument's
+own past: how far back must you go to find a move at least this big? Six years
+and it is `extreme`, three and it is `major`, and so on down. Nothing is
+estimated, nothing is extrapolated, and the message writes itself - "the biggest
+move in SPY since 3 March 2020" is a fact about the record rather than a claim
+about a distribution.
 
-Below the POT threshold there is no need to extrapolate at all: the noticeable
-tier sits where the empirical quantile has hundreds of observations behind it,
-so that is what is used. The two meet by construction at the threshold, where
-the expected exceedance count is one.
+WHAT THIS REPLACED AND WHY. The tiers used to be return levels fitted by
+peaks-over-threshold: a Generalised Pareto tail above a high threshold,
+extrapolated out to the rung (Coles 2001 ch. 4; Hosking & Wallis 1987 for the
+probability-weighted moments). That is the standard method and it was correctly
+implemented. It was also being asked a question it cannot answer at this sample
+size. Measured on this archive: fitting the SAME instrument with the SAME code
+on different six-year windows, the estimated once-in-six-years level for SPY
+ranges from 2.22% to 6.78% - a factor of three, and a factor of four for XLF and
+IWM - purely according to which six years the window happened to contain. The
+result was printed as a bare phrase with no interval on it, and it was wrong in
+a consistent direction: the top rung fired 1.75 times as often as its own words
+promised.
 
-CAUSALITY. The levels are refitted on an expanding window and applied only
-forward, never to the bars they were fitted on. This costs a warm-up period at
-the start of history where no tier can be assigned, and it is worth it: a
-full-sample fit would label a 2016 move using the knowledge that 2020 was
-coming, which makes every backtested tier optimistic and makes the live system
-behave differently from the tested one. The refit is periodic rather than
-per-bar because a tail estimate does not meaningfully move in an hour, and
-recalibrating monthly is what practitioners do.
+WHY A RECORD IS EXACTLY CALIBRATED, which is the argument for the whole change.
+For ANY distribution whatever, stationary or not, the probability that the
+newest of N observations is the largest of those N is exactly 1/N. So "the
+largest in the trailing six years" happens on average once every six years by
+construction - not because a model was fitted well, but because there is no
+model to fit. Measured against the archive the record rule delivers 1.21 per six
+years where the fitted ladder delivered 1.75, and the residual excess is
+volatility clustering rather than bias: 29 records against 23.8 expected is
+within Poisson noise of exact.
+
+It also makes overclaiming structurally impossible. An instrument cannot be "the
+biggest in six years" until it has six years, because the answer is a lookback
+into a record that does not exist yet. The old code needed an explicit
+EXTRAPOLATION_LIMIT to stop the fit promising more than the data could support;
+that rule is now the shape of the arithmetic and cannot be got wrong.
+
+WHAT IS LOST. A record is coarser than a fitted level - it says a move beat
+everything in six years but not by how far - so ordering two moves inside one
+tier needs the magnitude alongside, which saed already carries. And records
+cluster: a crisis produces several in a week where a fitted level would have
+spread them. That is a true property of markets rather than an artefact, and
+the reader is better served seeing the cluster.
+
+CAUSALITY is unchanged and is now structural rather than maintained. A level is
+the maximum over bars STRICTLY BEFORE the one being described, so no bar can be
+labelled using knowledge of its own future. There is no refit schedule to get
+wrong and no warm-up beyond the rung's own window.
 """
 from __future__ import annotations
 
@@ -57,15 +83,19 @@ import pandas as pd
 # he would expect each rung to mean for one instrument; the resulting rate per
 # year is an output worth watching and has never been an input.
 #
-# WHY THE TOP RUNG IS SIX YEARS AND NOT THE SEVEN-AND-A-HALF THAT SITS IN THE
-# MIDDLE OF "FIVE TO TEN". A rung can only be claimed by an instrument that has
-# lived that long (see EXTRAPOLATION_LIMIT), and the basket's history lengths
-# are not spread evenly - thirteen instruments sit together at 6.6 years,
-# shallow because their archive has gaps rather than because they are young.
-# Six years clears that shelf and costs only the four crypto listings and XLP
-# that genuinely have not lived long enough to be described this way; seven
-# would silence the top rung for eighteen instruments at once. When that history
-# is filled in, this can go deeper.
+# WHY THE TOP RUNG IS SIX YEARS. Because six is inside the five-to-ten the
+# recipient asked for, and for no other reason.
+#
+# It used to be chosen differently and the difference matters. The old note here
+# argued for six because seven "would silence the top rung for eighteen
+# instruments at once" - the boundary was set to fit the shape of the archive,
+# so the meaning of the word depended on how much history had been downloaded,
+# and deepening an instrument would have quietly renamed moves that had already
+# been sent. A rung is a statement about what the reader wants to hear, and it
+# must not be a statement about what happens to be on disk. An instrument that
+# has not lived six years simply cannot claim the rung - that is now arithmetic
+# rather than policy - and the honest answer there is silence at that level, not
+# a redefinition of the level for everybody else.
 TIER_DAYS: dict[str, float] = {
     "noticeable": 30.0,    # a month       - digest only
     "high": 105.0,         # three months and a half - digest only
@@ -110,88 +140,19 @@ def period_phrase(days: float) -> str:
     if days < 10.5:
         return "about once a week"
     if days < 18:
-        return "about once every 2 weeks"
+        return "about once in 2 weeks"
     if days < 45:
         return "about once a month"
     if days < 75:
-        return "about once every 2 months"
+        return "about once in 2 months"
     if days < 135:
         return "about once a quarter"
     if days < 270:
-        return "about once every 6 months"
+        return "about once in 6 months"
     if days < 550:
         return "about once a year"
     years = round(days / 365.25)
-    return f"about once every {years} years"
-
-# How many tail points to fit the GPD on. Too few and the shape parameter is
-# noise; too many and the fit is dragged down by the body of the distribution,
-# which is not Pareto and was never claimed to be. One percent of the sample is
-# the usual starting point, held between these bounds so that a short history
-# still gets a usable fit and a long one does not reach down into the body.
-POT_MIN_EXCEEDANCES = 50
-POT_MAX_EXCEEDANCES = 1000
-POT_FRACTION = 0.01
-
-# The upper bound started at 500 and was raised on measurement, against the
-# intuition that a tail fit wants the deepest threshold it can get. Checked
-# against Student-t(4) - a harder case than the GPD itself, since t only
-# approaches Pareto asymptotically - the three-year return level came out 13%
-# low at 200 tail points and within 2% at 600. Below a few hundred points the
-# variance of the shape estimate dominates the asymptotic bias it was meant to
-# remove, and a level that is 13% low fires close to twice as often as its
-# nominal rate. One percent of the sample lands inside the flat part of that
-# curve for every history length here, from 3000 bars to 48000.
-
-# The tail index is clipped before it is used. Above, left unbounded, a fit on
-# fifty points can return a shape above 1 - a distribution with no finite mean -
-# and extrapolate it six years out, which produces a threshold no move will ever
-# reach and silences the instrument completely.
-#
-# BELOW, THE FLOOR IS ZERO AND NOT A NEGATIVE NUMBER, which is a claim about
-# markets rather than about estimators. A Generalised Pareto with a negative
-# shape has a FINITE UPPER ENDPOINT, u + scale/|shape|: it asserts a hardest
-# possible move, past which nothing can go. For the magnitude of a standardised
-# residual on a traded price that is not a thin tail, it is a false one, and the
-# extrapolation saturates against a ceiling the market has never agreed to.
-#
-# It is also, measured, what a SHORT WINDOW returns. EUR/USD decomposed over its
-# own history: the fit reads -0.153 at six years of data, -0.024 at ten, -0.008
-# at fourteen and settles at +0.039 by twenty-three. The level it implies climbs
-# 4.39 -> 5.15 -> 5.28 -> 6.00 with it, so an instrument spends its early years
-# judged against a bar a quarter too low - and since the tail is steep, a level
-# a quarter low fires several times too often. That is most of why the currency
-# pairs, which have the longest histories and a true shape nearest zero, were
-# the worst-calibrated block in the basket.
-#
-# Flooring at the exponential case says the least the tail can do is decay
-# exponentially, which is the conventional conservative reading and the one the
-# data supports: across 61 instruments the full-sample shape has a median of
-# +0.039, and the fifteen that come out negative do so by a median of -0.031 -
-# noise around zero, not evidence of a ceiling. Measured over the whole basket
-# at the six-year rung, the floor improves 10 instruments and worsens 1, and
-# takes the median |log(realised/promised)| from 1.022 to 0.758.
-SHAPE_MIN, SHAPE_MAX = 0.0, 0.5
-
-# Two calendar years before the first tier is assigned, and a refit every 30
-# calendar days after that. Both are expressed in calendar time and converted
-# per asset, because an ETF and a currency pair reach two years of history at
-# very different bar counts.
-WARMUP_DAYS = 730.0
-REFIT_DAYS = 30.0
-
-# A tier is not assignable until the instrument has as much history as the tier
-# claims. "The largest move in six years" cannot be said on two years of data,
-# and the arithmetic agrees with the English: fitted at the two-year mark, the
-# three-year level came out low enough to produce eight "extreme" events in one
-# month across the basket - a burst that sat exactly on the warm-up boundary and
-# nowhere else. Extrapolating a return level much past the sample length is
-# where POT stops being reliable, and this is the natural place to draw it,
-# because it is also the point past which the message would be a claim the data
-# cannot support. Moves that clear an unavailable level are not lost: they land
-# in the deepest tier the history does support.
-EXTRAPOLATION_LIMIT = 1.0
-
+    return f"about once in {years} years"
 
 def bar_rate(hour_utc: pd.Series | np.ndarray) -> float:
     """Bars per calendar hour for one instrument, measured rather than declared.
@@ -211,106 +172,6 @@ def bar_rate(hour_utc: pd.Series | np.ndarray) -> float:
     return float(np.clip(hours.size / span, 1e-3, 1.0))
 
 
-def fit_gpd(excesses: np.ndarray) -> tuple[float, float]:
-    """Generalised Pareto (shape, scale) by probability-weighted moments.
-
-    Hosking & Wallis (1987), in their parameterisation F(y) = 1 - (1 - ky/a)^(1/k),
-    which relates to the usual extreme-value shape by xi = -k. Both estimators
-    are closed forms of the first two PWMs, so this cannot fail to converge; it
-    can still be handed a degenerate sample, and returns the exponential case
-    (shape 0) when it is, which is the right conservative answer.
-    """
-    y = np.sort(np.asarray(excesses, dtype="float64"))
-    y = y[np.isfinite(y)]
-    n = y.size
-    if n < 2:
-        return 0.0, float(y.mean()) if n else 0.0
-
-    plotting = (np.arange(1, n + 1) - 0.35) / n
-    a0 = float(y.mean())
-    a1 = float(np.mean(y * (1.0 - plotting)))
-    denominator = a0 - 2.0 * a1
-    if not np.isfinite(denominator) or abs(denominator) < 1e-12:
-        return 0.0, max(a0, 1e-12)
-
-    shape = float(np.clip(-(a0 / denominator - 2.0), SHAPE_MIN, SHAPE_MAX))
-
-    # The scale is recovered from the mean excess and the CLIPPED shape rather
-    # than taken from the second PWM directly. Algebraically the two are the
-    # same thing - the PWM scale is exactly a0 * (1 - shape), since the GPD mean
-    # is scale / (1 - shape) - so nothing changes on a well-behaved sample. What
-    # it fixes is the clipped one: clipping the shape alone leaves a pair that
-    # no longer describes any distribution, and a fit on near-identical excesses
-    # then pairs a shape of -0.5 with a scale in the thousands and extrapolates
-    # a level no move will ever reach. That does not fail loudly - it silences
-    # the instrument. Recomputing keeps the pair consistent by construction.
-    scale = a0 * (1.0 - shape)
-    if not np.isfinite(scale) or scale <= 0:
-        return 0.0, max(a0, 1e-12)
-    return shape, float(scale)
-
-
-def return_level(values: np.ndarray, m: float) -> float:
-    """The level exceeded on average once every `m` bars.
-
-    Two regimes, and the split is not a hedge. Out in the tail, where the
-    expected number of exceedances of the POT threshold is below one, the
-    empirical distribution has nothing to say and the fitted GPD extrapolates
-    (Coles 2001, eq. 4.13). Closer in, the empirical quantile has hundreds of
-    observations behind it and is simply better than a model. They agree where
-    they meet, at m * zeta = 1, because that is the point at which the GPD
-    formula returns the threshold itself.
-    """
-    x = np.asarray(values, dtype="float64")
-    x = x[np.isfinite(x)]
-    n = x.size
-    if n == 0 or not np.isfinite(m) or m <= 1:
-        return float("nan")
-
-    k = int(np.clip(round(POT_FRACTION * n), POT_MIN_EXCEEDANCES, POT_MAX_EXCEEDANCES))
-    k = min(k, n // 2)
-    if k < 2:
-        return float(np.quantile(x, 1.0 - 1.0 / m)) if n >= m else float("nan")
-
-    ordered = np.sort(x)
-    threshold = float(ordered[-k - 1])
-    zeta = k / n
-
-    if m * zeta < 1.0:
-        # Inside the body: the empirical quantile is better than any fit.
-        return float(np.quantile(x, 1.0 - 1.0 / m))
-
-    shape, scale = fit_gpd(ordered[-k:] - threshold)
-    if abs(shape) < 1e-6:
-        return threshold + scale * float(np.log(m * zeta))
-    return threshold + (scale / shape) * (float((m * zeta) ** shape) - 1.0)
-
-
-def tier_levels(values: np.ndarray, rate: float,
-                available_days: float = float("inf")) -> dict[str, float]:
-    """One return level per tier, forced to be non-decreasing.
-
-    The monotonicity is imposed rather than assumed. The noticeable tier comes
-    from an empirical quantile and the rarer ones from a fitted tail; nothing
-    in either guarantees they come out in order, and a "major" level below the
-    "high" one would let a move land in the higher box while failing the
-    lower, which is not a thing the ladder is allowed to do.
-    """
-    levels: dict[str, float] = {}
-    running = -np.inf
-    for name, days in tier_days().items():
-        if days > EXTRAPOLATION_LIMIT * available_days:
-            levels[name] = float("nan")
-            continue
-        level = return_level(values, days * HOURS_PER_DAY * rate)
-        if np.isfinite(level):
-            running = max(running, level)
-            levels[name] = running
-        else:
-            levels[name] = float("nan")
-    return levels
-
-
 def magnitudes(score: pd.Series, two_sided: bool = True) -> pd.Series:
     """The quantity the ladder is actually built on.
 
@@ -325,42 +186,95 @@ def magnitudes(score: pd.Series, two_sided: bool = True) -> pd.Series:
     return score.abs() if two_sided else score
 
 
+SECONDS_PER_DAY = 86400.0
+
+
 def rolling_levels(score: pd.Series, rate: float | None = None,
                    hour_utc: pd.Series | None = None,
                    two_sided: bool = True) -> pd.DataFrame:
-    """Per-bar tier levels, each fitted only on bars strictly before it.
+    """Per-bar tier levels: the bar to beat, over each rung's own lookback.
 
-    Nothing is assigned during the warm-up: the levels stay NaN until there is
-    enough history for the fit to mean anything, and every downstream caller
-    treats NaN as "no tier", not as "no event". Those are different, and the
-    distinction matters when the evaluation harness asks why an instrument was
-    silent in 2015.
+    A rung's level at bar i is the largest magnitude among the bars STRICTLY
+    BEFORE i and within that rung's window - so clearing it means exactly "this
+    is the biggest move since at least that far back", which is the sentence the
+    message prints. assign() below is unchanged by the switch away from a fitted
+    tail, because a record is still expressed as a level to clear.
 
-    The deeper tiers stay NaN for longer still, until the instrument has as much
-    history as the tier claims (EXTRAPOLATION_LIMIT). So an instrument's ladder
-    grows a rung at a time as it ages, which is the honest behaviour: it can say
-    "the largest in three months" long before it has earned the right to say "the
-    largest in six years".
+    THE WINDOWS ARE IN CALENDAR TIME, not in bars, and that is not a detail. The
+    rungs are what a person means by six years, and an instrument's bars per year
+    change with its venue's hours, its holidays, and whether it trades at all at
+    the weekend. Counting bars would make the same rung mean six years in one
+    instrument and four in another.
+
+    A rung is NaN until the instrument has lived that long, which is what stops
+    a two-year-old listing announcing the biggest move in six years. The old code
+    needed a rule for that; here it falls out, because the answer is a lookback
+    into a record that does not exist yet. Downstream treats NaN as "no tier",
+    never as "no event" - the two differ, and the distinction is what lets the
+    evaluation say why an instrument was silent rather than guessing.
+
+    The rungs come out non-decreasing for free, the windows being nested: the
+    largest move in six years is at least the largest in three. The old fit had
+    to impose that by hand, because an extrapolated level and an empirical
+    quantile had nothing keeping them in order.
+
+    `rate` is accepted and ignored. It described bars per calendar hour, which a
+    fit over a bar count needed and a calendar window does not; it stays in the
+    signature because callers pass it positionally, and removing it would be a
+    silent argument shift rather than an error. Without `hour_utc` there is no
+    calendar to window on, and the levels are all NaN - no tier rather than a
+    guessed one.
     """
-    magnitude = magnitudes(score, two_sided).to_numpy(dtype="float64")
-    n = magnitude.size
-    if rate is None:
-        rate = bar_rate(hour_utc) if hour_utc is not None else 1.0
-
-    frame = pd.DataFrame({name: np.full(n, np.nan) for name in TIERS},
+    magnitude = magnitudes(score, two_sided)
+    frame = pd.DataFrame({name: np.full(len(magnitude), np.nan) for name in TIERS},
                          index=score.index)
-    warmup = int(WARMUP_DAYS * HOURS_PER_DAY * rate)
-    step = max(int(REFIT_DAYS * HOURS_PER_DAY * rate), 1)
-    if n <= warmup:
+    if hour_utc is None or len(magnitude) == 0:
         return frame
 
-    for start in range(warmup, n, step):
-        available_days = start / (rate * HOURS_PER_DAY)
-        levels = tier_levels(magnitude[:start], rate, available_days)
-        stop = min(start + step, n)
-        for name, level in levels.items():
-            frame.iloc[start:stop, frame.columns.get_loc(name)] = level
+    hours = np.asarray(hour_utc, dtype="float64")
+    stamped = pd.Series(magnitude.to_numpy(dtype="float64"),
+                        index=pd.to_datetime(hours, unit="s"))
+    lived = hours - hours[0]
+    for name, days in tier_days().items():
+        # closed="left" is what makes the level a statement about the PAST: it
+        # takes the window's left edge and drops its right, so the current bar
+        # is never part of the record it is being measured against.
+        window = stamped.rolling(f"{int(days * SECONDS_PER_DAY)}s",
+                                 closed="left").max().to_numpy()
+        frame[name] = np.where(lived >= days * SECONDS_PER_DAY, window, np.nan)
     return frame
+
+
+def record_since(score: pd.Series, hour_utc: pd.Series,
+                 two_sided: bool = True) -> pd.Series:
+    """For each bar, the hour of the last bar that was at least as big.
+
+    This is the whole message: the difference between a bar's own hour and this
+    one is how far back you must go to find a move to match it, which is what
+    "the biggest since 3 March 2020" means. NA where there is no such bar - the
+    move is the largest in the whole record - and the caller says so in words
+    rather than inventing a date.
+
+    A monotonic stack, so it costs one pass. The stack holds exactly the bars
+    still visible from the present - those with nothing at least as large
+    between them and now - and every bar is pushed and popped at most once.
+    Computing it as four separate lookbacks would be four passes and would still
+    only answer to the nearest rung.
+    """
+    magnitude = magnitudes(score, two_sided).to_numpy(dtype="float64")
+    hours = np.asarray(hour_utc, dtype="int64")
+    out = np.full(len(magnitude), -1, dtype="int64")
+    stack: list[int] = []
+    for i, value in enumerate(magnitude):
+        if not np.isfinite(value):
+            continue
+        while stack and magnitude[stack[-1]] < value:
+            stack.pop()
+        if stack:
+            out[i] = hours[stack[-1]]
+        stack.append(i)
+    return pd.Series(pd.array(np.where(out >= 0, out, None), dtype="Int64"),
+                     index=score.index)
 
 
 def assign(score: pd.Series, levels: pd.DataFrame,
@@ -413,11 +327,16 @@ def annotate(frame: pd.DataFrame, column: str = "z_resid_bmp",
     the ladder is in calendar time, and the average is what actually maps a
     fortnight onto a bar count over the stretch being fitted.
 
-    `levels` short-circuits the fit. A level, once fitted, never changes - it is
-    built on bars strictly before the segment it describes and applies forward -
-    so a caller holding yesterday's answer is not approximating anything by
-    handing it back. See tremor.ladder, which is what makes a trailing slice of
-    history enough for everything else.
+    `levels` short-circuits the computation for a caller that already holds the
+    answer - blocks, which score a series built elsewhere. It is no longer a
+    cache: a record level moves with every bar rather than standing for a month,
+    so there is nothing to remember between runs. What made a trailing slice of
+    history enough is now simply that the slice covers the deepest rung's
+    lookback, which saed checks outright.
+
+    RECORD_SINCE RIDES ALONG because it costs one pass and the message cannot be
+    written without it: the tier says which rung was cleared, and this says what
+    the move was actually bigger than.
     """
     if column in frame:
         score = frame[column]
@@ -426,13 +345,15 @@ def annotate(frame: pd.DataFrame, column: str = "z_resid_bmp",
     else:
         raise KeyError(f"{column!r} not in frame and no usable fallback")
 
+    hours = frame["hour_utc"] if "hour_utc" in frame else None
     if levels is None:
-        rate = bar_rate(frame["hour_utc"]) if "hour_utc" in frame else 1.0
-        levels = rolling_levels(score, rate, two_sided=two_sided)
+        levels = rolling_levels(score, hour_utc=hours, two_sided=two_sided)
     out = frame.copy()
     for name in TIERS:
         out[f"{prefix}_{name}"] = levels[name].to_numpy()
     out[tier_column] = assign(score, levels, two_sided).to_numpy()
+    if hours is not None:
+        out[f"{prefix}_since"] = record_since(score, hours, two_sided).to_numpy()
     return out
 
 

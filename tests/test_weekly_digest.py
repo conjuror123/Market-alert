@@ -6,17 +6,24 @@ import pytest
 from price_monitor import weekly_digest
 from price_monitor.config import Config
 from price_monitor.notifier import TelegramError
+from tremor import routing
 
-# Friday 12:30 Asia/Jerusalem. The digest goes out in the same run as the price
-# note and immediately before it, so the note - which keeps changing for the
-# next three days - is the last message in the chat.
-FRIDAY_NOON_ISRAEL_UTC = datetime(2026, 8, 28, 9, 30, tzinfo=timezone.utc)
-FRIDAY_AFTERNOON_ISRAEL_UTC = datetime(2026, 8, 28, 11, 30, tzinfo=timezone.utc)
-FRIDAY_EVENING_ISRAEL_UTC = datetime(2026, 8, 28, 18, 0, tzinfo=timezone.utc)
-SATURDAY_NOON_ISRAEL_UTC = datetime(2026, 8, 29, 9, 30, tzinfo=timezone.utc)
-MONDAY_NOON_ISRAEL_UTC = datetime(2026, 8, 31, 9, 30, tzinfo=timezone.utc)
+# The moment the weekend price note opens: Saturday 00:05 UTC. The digest goes
+# out in the same run and immediately before it, so the note - which keeps
+# changing for the next two days - is the last message in the chat. Derived from
+# routing rather than written down, because that is the property under test:
+# these two messages share one boundary and cannot be given separate ones.
+WEEKEND_OPEN = datetime.fromtimestamp(
+    routing.digest_slot(int(datetime(2026, 8, 29, 6, tzinfo=timezone.utc).timestamp())),
+    tz=timezone.utc)
+WEEKEND_LATE = WEEKEND_OPEN + timedelta(hours=3)      # inside the grace window
+WEEKEND_EVENING = WEEKEND_OPEN + timedelta(hours=18)  # outside it
+WORKWEEK_OPEN = datetime.fromtimestamp(
+    routing.digest_slot(int(datetime(2026, 8, 31, 6, tzinfo=timezone.utc).timestamp())),
+    tz=timezone.utc)
+MIDWEEK = datetime(2026, 9, 2, 9, 30, tzinfo=timezone.utc)
 
-# Inside the seven days after FRIDAY_NOON, except the last, which is not.
+# Inside the window after WEEKEND_OPEN, except the last, which is not.
 RAW_EVENTS = [
     {"title": "Non-Farm Payrolls", "country": "USD", "date": "2026-09-04T08:30:00-04:00",
      "impact": "High", "forecast": "", "previous": ""},
@@ -47,28 +54,47 @@ def make_config(tmp_path):
     )
 
 
-def test_the_digest_goes_out_on_friday_at_noon():
-    # Friday, so that the price note - sent immediately after it in the same run
-    # - is the last message in the chat.
-    assert weekly_digest._is_digest_window(FRIDAY_NOON_ISRAEL_UTC) is True
-    assert weekly_digest._is_digest_window(SATURDAY_NOON_ISRAEL_UTC) is False
-    assert weekly_digest._is_digest_window(MONDAY_NOON_ISRAEL_UTC) is False
+def test_the_digest_goes_out_as_the_weekend_note_opens():
+    # A forecast wants to arrive before the week it forecasts, with a weekend to
+    # read it in - and in the same run as the price note, immediately before it,
+    # so the note is the last message in the chat.
+    assert weekly_digest._is_digest_window(WEEKEND_OPEN) is True
+    assert weekly_digest._is_digest_window(MIDWEEK) is False
 
 
-def test_a_missed_run_at_noon_does_not_cost_the_week(monkeypatch):
-    # The same three hours of grace the price note has, and for the same reason:
-    # the trigger is an external service, and both messages have to keep landing
-    # in one run so their order never inverts.
-    assert weekly_digest._is_digest_window(FRIDAY_AFTERNOON_ISRAEL_UTC) is True
-    assert weekly_digest._is_digest_window(FRIDAY_EVENING_ISRAEL_UTC) is False
+def test_the_monday_note_takes_no_calendar():
+    # Both notes open at 00:05 and only one of them is a week beginning. A
+    # calendar of the coming week delivered a minute into that week is a
+    # schedule handed out after the meeting began.
+    assert weekly_digest._is_digest_window(WORKWEEK_OPEN) is False
 
 
-def test_the_week_key_is_the_friday_it_belongs_to():
+def test_the_send_day_is_read_off_the_note_rather_than_written_down_twice():
+    # The one property that keeps these two messages in the same run. If routing
+    # moves the weekend boundary, this moves with it; a second "Saturday" spelled
+    # out here would not.
+    opens = datetime.fromtimestamp(
+        routing.digest_slot(int(WEEKEND_OPEN.timestamp())), tz=timezone.utc)
+    assert opens == WEEKEND_OPEN
+    assert opens.weekday() in routing.DIGEST_WEEKDAYS
+
+
+def test_a_missed_run_at_the_opening_does_not_cost_the_week(monkeypatch):
+    # The same hours of grace the price note has, and for the same reason: the
+    # trigger is an external service, and both messages have to keep landing in
+    # one run so their order never inverts.
+    assert weekly_digest._is_digest_window(WEEKEND_LATE) is True
+    assert weekly_digest._is_digest_window(WEEKEND_EVENING) is False
+
+
+def test_the_week_key_is_the_note_opening_it_belongs_to():
     # It has to de-duplicate the grace window: several runs qualify and only the
-    # first may send.
-    assert weekly_digest._week_identifier(FRIDAY_NOON_ISRAEL_UTC) == "2026-08-28"
-    assert (weekly_digest._week_identifier(FRIDAY_AFTERNOON_ISRAEL_UTC)
-            == weekly_digest._week_identifier(FRIDAY_NOON_ISRAEL_UTC))
+    # first may send. The slot rather than a date, because the slot is exact and
+    # needs no timezone to say which one it means.
+    assert (weekly_digest._week_identifier(WEEKEND_OPEN)
+            == str(int(WEEKEND_OPEN.timestamp())))
+    assert (weekly_digest._week_identifier(WEEKEND_LATE)
+            == weekly_digest._week_identifier(WEEKEND_OPEN))
 
 
 def test_the_grace_window_does_not_send_twice(tmp_path, monkeypatch):
@@ -81,9 +107,9 @@ def test_the_grace_window_does_not_send_twice(tmp_path, monkeypatch):
                         lambda *a, **k: sent.append(a[2]) or 1)
 
     assert weekly_digest.maybe_send_weekly_digest(
-        cfg, state, session=None, now=FRIDAY_NOON_ISRAEL_UTC) is True
+        cfg, state, session=None, now=WEEKEND_OPEN) is True
     assert weekly_digest.maybe_send_weekly_digest(
-        cfg, state, session=None, now=FRIDAY_AFTERNOON_ISRAEL_UTC) is False
+        cfg, state, session=None, now=WEEKEND_LATE) is False
     assert len(sent) == 1
 
 
@@ -102,7 +128,7 @@ def test_the_week_is_read_from_the_archive_not_from_the_feed(tmp_path, monkeypat
                         lambda *a, **k: sent.append(a[2]) or 1)
 
     assert weekly_digest.maybe_send_weekly_digest(
-        cfg, {}, session=None, now=FRIDAY_NOON_ISRAEL_UTC) is True
+        cfg, {}, session=None, now=WEEKEND_OPEN) is True
     assert "Non-Farm Payrolls" in sent[0]
 
 
@@ -120,7 +146,7 @@ def test_a_feed_that_will_not_load_does_not_cost_the_digest(tmp_path, monkeypatc
                         lambda *a, **k: sent.append(a[2]) or 1)
 
     assert weekly_digest.maybe_send_weekly_digest(
-        cfg, {}, session=None, now=FRIDAY_NOON_ISRAEL_UTC) is True
+        cfg, {}, session=None, now=WEEKEND_OPEN) is True
     assert len(sent) == 1
 
 
@@ -138,7 +164,7 @@ def test_an_archive_that_stops_short_holds_the_digest_back(tmp_path, monkeypatch
 
     state = {}
     assert weekly_digest.maybe_send_weekly_digest(
-        cfg, state, session=None, now=FRIDAY_NOON_ISRAEL_UTC) is False
+        cfg, state, session=None, now=WEEKEND_OPEN) is False
     assert weekly_digest._STATE_KEY not in state
 
 
@@ -160,20 +186,61 @@ def test_events_outside_the_coming_week_are_not_listed(tmp_path, monkeypatch):
                         lambda *a, **k: sent.append(a[2]) or 1)
 
     weekly_digest.maybe_send_weekly_digest(
-        cfg, {}, session=None, now=FRIDAY_NOON_ISRAEL_UTC)
+        cfg, {}, session=None, now=WEEKEND_OPEN)
     text = "\n".join(sent)
     assert "Non-Farm Payrolls" in text
     assert "Far Future Rate Decision" not in text
     assert "Last Month Payrolls" not in text
 
 
+def test_the_window_is_the_next_whole_week_monday_to_monday():
+    # Sent at 00:05 on Saturday the 29th: the 31st through the 6th, a week
+    # starting on the day a week starts. Not "seven days from now", which would
+    # begin mid-weekend and end mid-weekend.
+    start, end = weekly_digest.coming_week(WEEKEND_OPEN)
+    assert start == datetime(2026, 8, 31, tzinfo=timezone.utc)
+    assert end == datetime(2026, 9, 7, tzinfo=timezone.utc)
+    assert start.weekday() == 0 and end.weekday() == 0
+    assert end - start == timedelta(days=7)
+
+
+def test_the_window_does_not_move_with_the_hour_the_run_lands_on():
+    # The grace window lets the send slip by hours. If the period slipped with
+    # it, two digests would overlap by however late the trigger was.
+    assert (weekly_digest.coming_week(WEEKEND_LATE)
+            == weekly_digest.coming_week(WEEKEND_OPEN))
+
+
+def test_consecutive_digests_abut_exactly():
+    # THE reason the window may start on the Monday rather than at the moment of
+    # sending. The weekend a digest goes out in looks dropped and is not: the
+    # previous week's digest listed it seven days earlier. Nothing is listed
+    # twice and no hour falls between two digests.
+    previous = weekly_digest.coming_week(WEEKEND_OPEN - timedelta(days=7))
+    current = weekly_digest.coming_week(WEEKEND_OPEN)
+    assert previous[1] == current[0]
+
+    # And the sending weekend itself is inside the previous one.
+    assert previous[0] <= WEEKEND_OPEN < previous[1]
+
+
 def test_the_header_states_the_window_asked_for(tmp_path, monkeypatch):
     # Not the span of the events that happen to be in it: a quiet end to the week
     # would otherwise narrow the claim the message is making.
-    start, end = weekly_digest.coming_week(FRIDAY_NOON_ISRAEL_UTC)
+    start, end = weekly_digest.coming_week(WEEKEND_OPEN)
     text = weekly_digest.format_digest(
         [e for e in RAW_EVENTS if e["impact"] in ("Medium", "High")], start, end)[0]
-    assert "28.08 — 06.09" in text
+    assert "31.08 — 06.09" in text
+
+
+def test_each_event_carries_its_country_flag_beside_the_code():
+    # The flag is what is caught at a glance in a list of thirty; the code is
+    # what makes it certain, because at the size a phone draws them AUD and NZD
+    # are the same two colours in nearly the same arrangement.
+    text = "\n".join(weekly_digest.format_digest(
+        [e for e in RAW_EVENTS if e["impact"] in ("Medium", "High")]))
+    assert "\U0001F1FA\U0001F1F8 USD" in text
+    assert "\U0001F1EA\U0001F1FA EUR" in text
 
 
 def test_format_digest_excludes_low_and_holiday_and_sorts_by_time():
@@ -248,7 +315,7 @@ def test_maybe_send_weekly_digest_noops_outside_window(tmp_path, monkeypatch):
     monkeypatch.setattr(weekly_digest, "send_telegram_message", lambda *a, **k: (_ for _ in ()).throw(
         AssertionError("should not send outside the digest window")))
 
-    sent = weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=MONDAY_NOON_ISRAEL_UTC)
+    sent = weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=MIDWEEK)
 
     assert sent is False
     assert weekly_digest._STATE_KEY not in state
@@ -261,7 +328,7 @@ def test_maybe_send_weekly_digest_sends_and_records_state(tmp_path, monkeypatch)
     monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", lambda session=None: RAW_EVENTS)
     monkeypatch.setattr(weekly_digest, "send_telegram_message", lambda *a, **k: sent_texts.append(a[2]) or 1)
 
-    sent = weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=FRIDAY_NOON_ISRAEL_UTC)
+    sent = weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=WEEKEND_OPEN)
 
     assert sent is True
     assert len(sent_texts) == 1
@@ -270,10 +337,12 @@ def test_maybe_send_weekly_digest_sends_and_records_state(tmp_path, monkeypatch)
 
 
 def test_the_closing_friday_of_the_window_is_inside_it(tmp_path, monkeypatch):
-    # Seven days to the minute would end at noon next Friday, and the American
-    # payrolls print lands at 12:30 UTC on the first Friday of the month - just
-    # outside every window, announced three hours ahead by the next digest.
-    start, end = weekly_digest.coming_week(FRIDAY_NOON_ISRAEL_UTC)
+    # The American payrolls print lands at 12:30 UTC on the first Friday of the
+    # month and is the most watched release there is. A window aligned to the
+    # week always contains its own Friday; one measured seven days from the
+    # moment of sending would have put it either just inside or just outside
+    # depending on what time the trigger fired.
+    start, end = weekly_digest.coming_week(WEEKEND_OPEN)
     payrolls = datetime(2026, 9, 4, 12, 30, tzinfo=timezone.utc)
     assert start < payrolls < end
 
@@ -286,7 +355,7 @@ def test_maybe_send_weekly_digest_persists_every_impact_level_to_local_store(tmp
     monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", lambda session=None: RAW_EVENTS)
     monkeypatch.setattr(weekly_digest, "send_telegram_message", lambda *a, **k: 1)
 
-    weekly_digest.maybe_send_weekly_digest(cfg, {}, session=None, now=FRIDAY_NOON_ISRAEL_UTC)
+    weekly_digest.maybe_send_weekly_digest(cfg, {}, session=None, now=WEEKEND_OPEN)
 
     stored = weekly_digest.economic_calendar.load_events(
         weekly_digest.economic_calendar.store_path(cfg.calendar_dir))
@@ -301,8 +370,8 @@ def test_maybe_send_weekly_digest_does_not_resend_the_same_week(tmp_path, monkey
     monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", lambda session=None: RAW_EVENTS)
     monkeypatch.setattr(weekly_digest, "send_telegram_message", lambda *a, **k: calls.append(1) or 1)
 
-    weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=FRIDAY_NOON_ISRAEL_UTC)
-    second = weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=FRIDAY_NOON_ISRAEL_UTC)
+    weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=WEEKEND_OPEN)
+    second = weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=WEEKEND_OPEN)
 
     assert second is False
     assert len(calls) == 1
@@ -316,7 +385,7 @@ def test_an_empty_archive_and_an_unreachable_feed_send_nothing(tmp_path, monkeyp
 
     monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", failing_fetch)
     assert weekly_digest.maybe_send_weekly_digest(
-        cfg, {}, session=None, now=FRIDAY_NOON_ISRAEL_UTC) is False
+        cfg, {}, session=None, now=WEEKEND_OPEN) is False
 
 
 def test_maybe_send_weekly_digest_returns_false_on_send_failure(tmp_path, monkeypatch):
@@ -329,7 +398,7 @@ def test_maybe_send_weekly_digest_returns_false_on_send_failure(tmp_path, monkey
 
     monkeypatch.setattr(weekly_digest, "send_telegram_message", failing_send)
 
-    assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=FRIDAY_NOON_ISRAEL_UTC) is False
+    assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=WEEKEND_OPEN) is False
     assert weekly_digest._STATE_KEY not in state
 
 

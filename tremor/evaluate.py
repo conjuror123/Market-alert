@@ -39,7 +39,7 @@ from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
 
-from tremor import si_index, truth, windows
+from tremor import saed_score, si_index, truth, windows
 
 log = logging.getLogger("tremor.evaluate")
 
@@ -208,13 +208,32 @@ def _num(value, digits=1) -> str:
 
 def render(scores: dict, per_block: dict, diag: dict, start: int, end: int,
            thresholds: pd.DataFrame, periods: dict | None = None,
-           near: dict | None = None) -> str:
+           near: dict | None = None, delivered: str = "") -> str:
     span = (f"{datetime.fromtimestamp(start, tz=timezone.utc):%Y-%m-%d} .. "
             f"{datetime.fromtimestamp(end, tz=timezone.utc):%Y-%m-%d}")
-    out = ["# Tremor backtest against the §7 yardstick", "",
-           f"Scored window {span} — from the hour the whole basket is warm (§6.6). "
-           "Recall is per episode, not per hour, and the baselines carry the same "
-           "72-hour cooldown as the detector; see the module docstring for why.", ""]
+    out = ["# Tremor backtest", ""]
+
+    # THE DELIVERED DETECTOR GOES FIRST, and the ordering is the correction. The
+    # §7 table below scores the SI-Index cluster channel, and for a long time it
+    # was the only table here - so "we barely beat the SPY rule" was read off a
+    # channel that is computed, written, and delivered to nobody. A reader
+    # opening this file should meet the thing on their phone before they meet
+    # anything else. See tremor.saed_score.
+    if delivered:
+        out += [delivered, "", "---", ""]
+
+    out += ["# Against the §7 yardstick", "",
+            f"Scored window {span} — from the hour the whole basket is warm (§6.6). "
+            "Recall is per episode, not per hour, and the baselines carry the same "
+            "72-hour cooldown as the detector; see the module docstring for why.",
+            "",
+            "THE DETECTOR SCORED BELOW IS NOT THE ONE DELIVERED. It is the "
+            "SI-Index cluster channel; `price_monitor` reads "
+            "`saed_events.parquet`. The §7 label also asks a forecasting "
+            "question — did a big move follow in the next 24 hours — which is "
+            "not what either detector claims to answer. Both tables are kept "
+            "because the comparison against the SPY baseline is worth having; "
+            "neither is a verdict on the product.", ""]
 
     out += ["## Detectors", "",
             "| Detector | Alerts | Episodes | Caught | Precision | Recall | F1 | "
@@ -375,8 +394,16 @@ def main(argv: list[str] | None = None) -> int:
                        events[events["t0_utc"] >= start],
                        escalations[escalations["hour_utc"] >= start], scored)
 
+    # Built here rather than inside render so that a missing residuals
+    # directory costs the section and not the whole report.
+    try:
+        delivered = saed_score.build()
+    except Exception as exc:                     # pragma: no cover - defensive
+        log.warning("the delivered-detector section could not be built: %s", exc)
+        delivered = ""
+
     report = render(scores, per_block, diag, int(scored.index.min()),
-                    int(scored.index.max()), thresholds, periods, near)
+                    int(scored.index.max()), thresholds, periods, near, delivered)
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(report)

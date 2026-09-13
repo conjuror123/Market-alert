@@ -70,9 +70,9 @@ instrument on an expanding window and applied only forward:
 
 Each yields a tier by return period: `routine` (a fortnight), `notable` (two months),
 `major` (a year), `extreme` (three years). An hour clearing both is reported at its
-rarest tier and marked `both`. Levels come from a Generalised Pareto fit above a high
-threshold, because a three-year level cannot be read off five years of empirical
-quantiles.
+rarest tier and marked `both`. A level is simply the biggest move in that rung's own
+lookback — nothing fitted, nothing extrapolated — so clearing it means exactly what the
+message says: *the biggest move since 3 March 2020*.
 
 **5. Sanity gates.** A move smaller than two ticks is not a small event but an
 unobserved one, and is dropped. An hour claimed by the abnormal channel *alone* that
@@ -107,11 +107,11 @@ claims the former and the two contradict each other in a cluster.
 into it does not buzz again and takes no row of its own anywhere — the push lists it with
 its size, which matters because a folded companion moved *more* than the push that spoke
 for it 49% of the time. A digest row into the note for its period,
-also the hour it is found — the note is *opened* Tuesday and Friday at 12:00 Israel time
-and edited in place for the rest of the period, so the phone buzzes twice a week and
-every row after that arrives silently. A note may only be opened in its own hour or the
-three after it; a period that misses that window is picked up by the next note, so the
-buzz is always at noon and no move is dropped. Both kinds of message are then corrected
+also the hour it is found — the note is *opened* Monday and Saturday at 00:05 UTC and
+edited in place for the rest of the period. The edit is silent, so each row also sends a
+throwaway ping that is deleted when the next note opens. A note may only be opened in its
+own hour or the three after it; a period that misses that window is picked up by the next
+note, so the boundaries hold and no move is dropped. Both kinds of message are then corrected
 as the market answers: a push at this day's close and the next day's close, a digest row at
 the next day's close. A push older than 48 hours is never sent.
 

@@ -20,33 +20,50 @@ SHY, but "once a year" means the same thing everywhere.
 **Fitted per instrument, never pooled.** Pooling would put SHY and SOL back on one
 yardstick, which is the thing the ladder exists to avoid.
 
-**Peaks-over-threshold, not empirical quantiles.** A once-in-three-years level over five
-years of history rests on one or two observations. A Generalised Pareto fit above a high
-threshold extrapolates from the fitted tail. Probability-weighted moments rather than
-maximum likelihood: closed form, so no optimiser to fail, and the better estimator for
-small tail samples.
+**A RECORD, NOT A FIT — and this replaced peaks-over-threshold.** A rung is now the
+biggest move in its own lookback: "the biggest since 3 March 2020" is a fact about the
+instrument's record rather than a claim about a distribution. The tiers used to be return
+levels fitted by POT — a Generalised Pareto tail above a high threshold, probability-
+weighted moments, the whole apparatus from Coles (2001) and Hosking & Wallis (1987) —
+correctly implemented and asked a question it cannot answer at this sample size.
 
-**One percent of the sample as the tail, between 50 and 1000 points.** Checked against
-Student-t(4), a harder case than the GPD itself: the three-year level came out 13% low at
-200 tail points and within 2% at 600. Below a few hundred, the variance of the shape
-estimate dominates the bias it was meant to remove — and a level 13% low fires nearly
-twice as often as its nominal rate.
+**Why it had to go, measured.** Fitting the SAME instrument with the SAME code on
+different six-year windows, the estimated once-in-six-years level for SPY ranged from
+2.22% to 6.78% — a factor of three, and a factor of four for XLF and IWM — purely
+according to which six years the window contained. That was printed as a bare phrase with
+no interval on it, and it was wrong in a consistent direction: the top rung fired 1.75
+times as often as its own words promised. Hydrology, which invented the method, never
+publishes a return level without a confidence interval.
 
-**A tier cannot outrun its history.** "The largest in three years" cannot be said on two
-years of data. Fitted at the two-year mark, the three-year level produced eight
-`extreme` events in one month across the basket — a burst sitting exactly on the warm-up
-boundary and nowhere else.
+**Why a record is exactly calibrated.** For any distribution whatever, the probability
+that the newest of N observations is the largest of those N is exactly 1/N. So "the
+largest in the trailing six years" happens about once every six years by construction —
+not because a model was fitted well, but because there is no model. Measured on the
+archive the record rule delivers 1.21 per six years against the fitted ladder's 1.75, and
+29 records against 23.8 expected is within Poisson noise of exact. End to end the
+absolute ladder now reads 0.73 / 1.09 / 1.05 / 1.18 across the four rungs.
 
-**Refit monthly, applied only forward.** A full-sample fit would label a 2016 move using
-the knowledge that 2020 was coming.
+**Read the ladders separately, never their union.** Each ladder makes its own claim and
+each is separately calibrated; a message is the union of the two, taking whichever rung is
+rarer, so its rate is roughly their sum — 2.03x at `extreme`. That is a VOLUME figure, and
+volume is what `sensitivity` turns. Reading it as a miscalibrated rung is a mistake made
+once already in this repository.
 
-**A bounded tail is refused.** The floor on the shape is 0, not a negative number: a
-Generalised Pareto with a negative shape has a finite upper endpoint, which asserts a
-hardest possible move. A price magnitude has no such ceiling, and on a short window the
-fit reaches for one anyway — EUR/USD reads -0.153 at six years of data, -0.024 at ten,
-+0.039 by twenty-three, and the level it implies climbs 4.39 to 6.00 with it. Flooring at
-the exponential case improved 10 instruments and worsened 1, and took the median
-|log(realised/promised)| from 1.022 to 0.758.
+**Overclaiming is now structurally impossible.** An instrument cannot be "the biggest in
+six years" until it has six years, because the answer is a lookback into a record that does
+not exist yet. The old code needed an explicit EXTRAPOLATION_LIMIT for that; the rule is
+now the shape of the arithmetic.
+
+**The top rung is six years because six is inside the five-to-ten the recipient asked for,
+and for no other reason.** It used to be argued for on the grounds that seven "would
+silence the top rung for eighteen instruments at once" — the boundary set to fit the shape
+of the archive, so the meaning of the word depended on how much history had been
+downloaded and deepening an instrument would quietly rename moves already sent.
+
+**What is lost.** A record is coarser than a fitted level: it says a move beat everything
+in six years, not by how far, so ordering within a tier needs the magnitude alongside.
+And records cluster — a crisis produces several in a week where a fitted level would have
+spread them — which is a true property of markets rather than an artefact.
 
 **What is left over is WHEN an instrument's shocks happened, and it is not fixable.**
 After the floor, the six-year rung still fires 2.4x too often for the currency pairs and
@@ -224,6 +241,39 @@ misses — negative oil at 18:00 on 2020-04-21 scored as missed because the push
 at 16:00, which is the collapse working. The cooldown window is what "would I have found
 out" actually asks.
 
+**The published score measured a detector nobody receives.** `tremor.evaluate` scored the
+SI-Index cluster channel against the §7 label and that table was, for a long time, the
+only one in the report — so "we barely beat the SPY rule" (F1 20.8% against the
+baseline's 21.6%) was read off a channel that is computed, written and delivered to
+nobody. `price_monitor` reads `saed_events.parquet`. The 8,838 events that reach a phone
+had never been scored at all. `tremor.saed_score` now scores them, and the report leads
+with it.
+
+**The delivered detector is scored on the claim it makes, not on §7's.** §7 asks whether
+a big move follows in the next 24 hours. SAED does not forecast; it says the move that
+just happened was unusual for this instrument. Three measurements instead: whether a tier
+fires as often as its words promise, whether the moves it sent clear a plain full-sample
+quantile at that rate, and which large moves it missed.
+
+**The return periods are wrong, and by how much is now on the record.** Against the rate
+each tier claims: `noticeable` 0.45x, `high` 0.88x, `major` 1.41x, `extreme` 1.75x. A
+message saying "about once in 6 years" describes something that happens about once in
+three. `noticeable` firing at less than half its claimed rate is partly the size floor
+doing its job, so that one is a floor rather than a fault; the two rare tiers have no
+such excuse, and the `absolute` ladder is where it comes from — its precision at `major`
+and `extreme` is 19% and 26% against the `abnormal` ladder's 56% and 52%.
+
+**Each event must be judged on the quantity its own ladder scores**, and getting this
+wrong produces a confident table that means nothing. `absolute` scores the raw return,
+`abnormal` scores the BMP-standardised residual. Judged on raw size the abnormal events
+score 3.5%; judged on the residual the absolute ones score 1.1%. On their own quantities
+they are 76% and 84%. Both wrong figures look like findings and are arithmetic.
+
+**Recall is reported twice because the plain figure is not the honest one.** Against every
+large raw move, 56-69% per episode. But a large move its block fully explains is supposed
+to be silent — that is the fault the system was built to fix — so the figure that matters
+keeps only episodes that were large AND unexplained: 68-87%.
+
 **A flat threshold cannot reach 100% by construction**, which is why an earlier "89.7% of
 5%+ moves" figure was meaningless: 5% is a quiet hour in SOL and an apocalypse in SHY.
 
@@ -261,6 +311,27 @@ provider's hole, not a fetching bug.
 forecast/actual pairing) and a Kaggle export (starts too late, wrong columns) were each
 tested and rejected with the measurement. The archive reaches 2007 from the source
 already in use, 91,544 events.
+
+**A vendor's dividend adjustment breaks across a share split, measurably.** XLK, XLY,
+XLE, XLU and XLB split 2:1 on 2025-12-05. Twelve Data's `adjust=all` series divides the
+NOMINAL pre-split dividend by the SPLIT-ADJUSTED price, so every dividend step before
+that date on those five reads exactly twice its true size - verified to three decimals
+on six ex-dates against published amounts, while SPY, which did not split, is exact
+throughout. The ratio method cannot see the split itself: both series are split-adjusted,
+so it cancels, and `SPLIT_THRESHOLD` has never fired. Consequence: `load_steps` is used
+only to un-adjust HF Data prices for deepening, where the error is 504-2705bp against
+`verify_alignment`'s 25bp tolerance - so the check refuses the import rather than
+corrupting the store, and those five carry six years of history instead of twenty-four.
+Not yet fixed; the fix is a third series at `adjust=none`, whose ratio to the default
+reveals the split factor.
+
+**The corporate-actions table stops at late October 2006, and it does not matter.**
+`acquire_since` is 2002 but the request also carries `outputsize=5000`, which caps the
+reply at the most recent 5000 daily rows - about 19.8 years - so roughly 375 ex-dates
+between 2002 and 2006 are missing. The cost is nil: an ex-date's price drop lands in
+`r_gap`, and `r_gap` is computed, stored, and read by nothing. Every detector consumes
+`r`, which on a session-open bar is `log(close/open)` - inside the bar. The same fact is
+why a future split cannot fire a false alert either.
 
 **Versions hash content, not timestamps.** A re-download that changes nothing must not
 invalidate a calibration, and an edited threshold must invalidate it even if the file's

@@ -98,19 +98,23 @@ thing that would.
 ## Silence is the normal state
 
 About **22 pushes a year**, a median of ten days apart, longest observed quiet stretch
-124 days. A digest note opens Tuesday and Friday at 12:00 Israel time and fills in as
+124 days. A digest note opens Monday and Saturday at 00:05 UTC and fills in as
 moves are found, 3.6 items each by the time its period closes. The
-economic-calendar forecast goes out once a week, on Friday at 12:00 immediately before
-the note opens, so the note - the message that keeps changing - is the last one in the
-chat. It covers from that moment to the end of the following Sunday, read out of the
-archive rather than out of the live feed.
+economic-calendar forecast goes out once a week, at the Saturday opening and in the same
+run immediately before it, so the note - the message that keeps changing - is the last
+one in the chat. It takes its day from tremor.routing rather than from a weekday of its
+own, so the pair cannot be separated by editing one of them. It covers the next whole
+week, Monday 00:00 UTC to the following Monday 00:00 UTC - so a digest sent on Saturday
+the 1st lists the 3rd through the 9th - read out of the archive rather than out of the
+live feed. Consecutive digests abut exactly: the weekend a digest is sent in looks
+dropped and is not, because the previous week's digest listed it seven days earlier.
 
 **The economic-calendar archive is topped up from the live feed once a day**, separately
-from the Friday digest. The digest refreshes it when it sends, which is often enough for a
+from the weekly digest. The digest refreshes it when it sends, which is often enough for a
 message about next week and far too seldom for the pushes: they name the releases in the
-three hours around a move on every day of the week, and a schedule fetched last Friday
+three hours around a move on every day of the week, and a schedule fetched last Saturday
 does not have the speech added on Wednesday. Three ForexFactory monthly pages are read on
-the Friday send - the two behind for released values, the one ahead so the coming week is
+the weekly send - the two behind for released values, the one ahead so the coming week is
 there to list.
 
 **No push is sent that is more than 48 hours old, and a note is only opened in its own

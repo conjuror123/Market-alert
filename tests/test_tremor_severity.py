@@ -6,105 +6,31 @@ from tremor import severity as sv
 HOUR = 3600
 
 
-def gpd_sample(rng, n, shape, scale=2.0):
-    u = rng.random(n)
-    if shape == 0:
-        return -scale * np.log(1 - u)
-    return (scale / shape) * ((1 - u) ** (-shape) - 1)
-
-
-def test_pwm_recovers_the_generalised_pareto_parameters():
-    # The estimator is a closed form of the first two probability-weighted
-    # moments (Hosking & Wallis 1987), so this is a direct check of the algebra
-    # rather than of an optimiser's luck.
-    #
-    # Only non-negative shapes are recoverable, and that is the point rather
-    # than a limitation: a negative shape is a tail with a finite upper endpoint,
-    # which a price magnitude does not have, so the estimator floors it. The
-    # bounded case is checked below instead of being recovered here.
-    rng = np.random.default_rng(7)
-    for true_shape in (0.0, 0.1, 0.3):
-        fits = np.array([sv.fit_gpd(gpd_sample(rng, 2000, true_shape))
-                         for _ in range(30)])
-        assert abs(fits[:, 0].mean() - true_shape) < 0.03
-        assert abs(fits[:, 1].mean() - 2.0) < 0.1
-
-    # A genuinely bounded sample is not recovered - it is floored.
-    bounded = np.array([sv.fit_gpd(gpd_sample(rng, 2000, -0.2))[0]
-                        for _ in range(10)])
-    assert (bounded == sv.SHAPE_MIN).all()
-
-
-def test_the_exponential_case_comes_out_at_shape_zero():
-    rng = np.random.default_rng(1)
-    shape, scale = sv.fit_gpd(rng.exponential(3.0, 20000))
-    assert abs(shape) < 0.02
-    assert abs(scale - 3.0) < 0.1
-
-
-def test_a_degenerate_sample_falls_back_to_the_exponential():
-    # Not a hypothetical: an instrument halted for a stretch produces a tail of
-    # identical values, and the PWM denominator goes to zero on it.
-    # The shape saturates at the clip, and the scale must stay consistent with
-    # it: a shape of -0.5 paired with the unclipped scale extrapolates a level
-    # nothing ever reaches, which silences the instrument instead of failing.
-    shape, scale = sv.fit_gpd(np.full(500, 4.0))
-    assert shape == sv.SHAPE_MIN
-    assert 0 < scale < 10 * 4.0
-    assert sv.fit_gpd(np.array([])) == (0.0, 0.0)
-    assert sv.fit_gpd(np.zeros(500)) == (0.0, 1e-12)
-
-
-def test_the_shape_is_clipped_before_it_is_extrapolated():
-    # A shape above 1 is a distribution with no finite mean. Extrapolated three
-    # years out it produces a level nothing will ever reach, which silences the
-    # instrument completely rather than failing loudly - so it is clipped.
-    rng = np.random.default_rng(5)
-    shape, _ = sv.fit_gpd(gpd_sample(rng, 300, 0.9))
-    assert shape <= sv.SHAPE_MAX
-
-
-def test_return_levels_track_a_known_fat_tail():
-    # Student-t(4) is a harder case than the GPD itself - t only approaches
-    # Pareto asymptotically - so it is the honest test of the extrapolation.
-    rng = np.random.default_rng(3)
-    sample = np.abs(rng.standard_t(4, 40000))
-    truth = np.abs(rng.standard_t(4, 4_000_000))
-    for days in sv.TIER_DAYS.values():
-        m = days * sv.HOURS_PER_DAY
-        got = sv.return_level(sample, m)
-        expected = float(np.quantile(truth, 1 - 1 / m))
-        assert abs(got - expected) / expected < 0.15
-
-
-def test_inside_the_body_the_empirical_quantile_is_used():
-    # Where the expected number of exceedances of the POT threshold is above
-    # one there is nothing to extrapolate, and hundreds of observations to read
-    # off instead. The two regimes have to agree, not just each be defensible.
-    rng = np.random.default_rng(9)
-    sample = np.abs(rng.standard_normal(50000))
-    # Not exact equality: 1 - 1/100 is not 0.99 in binary, so the quantile
-    # position differs in the last bits. A GPD extrapolation would miss by
-    # orders of magnitude more than this.
-    assert abs(sv.return_level(sample, 100) - np.quantile(sample, 0.99)) < 1e-4
+def hourly(values, start=0):
+    """A frame on a round-the-clock hourly grid, which is the simplest clock."""
+    return pd.DataFrame({"hour_utc": np.arange(len(values)) * HOUR + start,
+                         "score": np.asarray(values, dtype=float)})
 
 
 def test_levels_do_not_decrease_across_the_ladder():
-    # Imposed, not assumed: the noticeable level comes from an empirical quantile
-    # and the rarer ones from a fitted tail, and nothing in either guarantees
-    # they arrive in order. A "major" level below "high" would let a move
-    # land in the higher box while failing the lower one.
+    # Free now, where the fitted ladder had to impose it by hand: the windows
+    # are nested, so the largest move in six years is at least the largest in
+    # three. A "major" level below "high" would let a move land in the higher
+    # box while failing the lower one.
     rng = np.random.default_rng(2)
-    for _ in range(20):
-        levels = sv.tier_levels(np.abs(rng.standard_t(3, 4000)), 1.0)
-        values = [levels[name] for name in sv.TIERS]
-        assert values == sorted(values)
+    n = 8766 * 8
+    f = hourly(rng.standard_t(3, n))
+    levels = sv.rolling_levels(f["score"], hour_utc=f["hour_utc"])
+    ordered = levels.dropna()
+    assert len(ordered) > 1000
+    for a, b in zip(sv.TIERS, sv.TIERS[1:]):
+        assert (ordered[b] >= ordered[a]).all()
 
 
 def test_bar_rate_separates_a_session_from_the_clock():
-    # This is what turns the ladder, which is in calendar time, into the bar
-    # counts the quantiles need. Round-the-clock is 1.0; a seven-hour session
-    # five days in seven is about a fifth of that.
+    # No longer used by the ladder, which windows in calendar time directly, but
+    # saed still measures it to size a trailing slice. Round-the-clock is 1.0; a
+    # seven-hour session five days in seven is about a fifth of that.
     continuous = pd.Series(np.arange(10000) * HOUR)
     assert abs(sv.bar_rate(continuous) - 1.0) < 0.001
 
@@ -112,74 +38,78 @@ def test_bar_rate_separates_a_session_from_the_clock():
     assert abs(sv.bar_rate(pd.Series([h * HOUR for h in hours])) - 0.208) < 0.02
 
 
+def test_a_level_is_the_biggest_move_in_its_own_lookback():
+    # The whole rule, on a hand-made series. A month back from the last bar the
+    # biggest thing is 3.0, so that is what the noticeable rung asks a move to
+    # beat - and the current bar is never part of its own record.
+    n = 8766
+    values = np.full(n, 1.0)
+    values[n - 200] = 3.0          # inside a 30-day lookback from the end
+    values[n - 2000] = 9.0         # outside it, inside the 105-day one
+    f = hourly(values)
+    levels = sv.rolling_levels(f["score"], hour_utc=f["hour_utc"])
+    assert levels["noticeable"].iloc[-1] == 3.0
+    assert levels["high"].iloc[-1] == 9.0
+
+
 def test_rolling_levels_never_look_forward():
-    # The reason the fit is expanding rather than full-sample. A full-sample fit
-    # would label a 2016 move using the knowledge that 2020 was coming, which
-    # makes every backtested tier optimistic and makes the live system behave
-    # differently from the tested one.
+    # A level is the maximum over bars STRICTLY BEFORE the one it describes, so
+    # no bar can be labelled using knowledge of its own future. Structural now -
+    # the window is closed on the left - rather than maintained by a refit
+    # schedule.
     rng = np.random.default_rng(4)
-    score = pd.Series(rng.standard_t(4, 30000))
-    before = sv.rolling_levels(score, 1.0)
+    f = hourly(rng.standard_t(4, 8766 * 8))
+    before = sv.rolling_levels(f["score"], hour_utc=f["hour_utc"])
 
-    disturbed = score.copy()
-    disturbed.iloc[24000:] *= 50            # a violent, entirely future regime
-    after = sv.rolling_levels(disturbed, 1.0)
+    disturbed = f["score"].copy()
+    disturbed.iloc[60000:] *= 50            # a violent, entirely future regime
+    after = sv.rolling_levels(disturbed, hour_utc=f["hour_utc"])
 
-    pd.testing.assert_frame_equal(before.iloc[:24000], after.iloc[:24000])
-    assert not before.iloc[24000:].equals(after.iloc[24000:])
-
-
-def test_nothing_is_assigned_during_the_warm_up():
-    rng = np.random.default_rng(6)
-    score = pd.Series(rng.standard_t(4, 30000))
-    levels = sv.rolling_levels(score, 1.0)
-    warmup = int(sv.WARMUP_DAYS * sv.HOURS_PER_DAY)
-
-    assert levels.iloc[:warmup].isna().all().all()
-    # Everything the two-year warm-up can back is available the moment it ends:
-    # a month and a quarter are both claims two years of history supports.
-    # Three years and six are not, and wait for their own period to elapse.
-    assert levels.iloc[warmup:][["noticeable", "high"]].notna().all().all()
-    assert levels["major"].first_valid_index() >= sv.TIER_DAYS["major"] * sv.HOURS_PER_DAY
-    assert levels["extreme"].isna().all()      # 30000 hours is under six years
+    pd.testing.assert_frame_equal(before.iloc[:60000], after.iloc[:60000])
+    assert not before.iloc[60000:].equals(after.iloc[60000:])
 
 
-def test_a_tier_is_withheld_until_the_history_can_back_the_claim():
-    # "The largest move in six years" cannot be said on two years of data.
-    # Fitted at the warm-up boundary it was not merely unsupported but wrong:
-    # eight "extreme" events landed in the single month where the boundary fell,
-    # and nowhere else in five years.
+def test_a_rung_is_silent_until_the_instrument_has_lived_that_long():
+    # "The largest move in six years" cannot be said on two years of data. The
+    # fitted ladder needed a rule to stop it saying so; here the answer is a
+    # lookback into a record that does not exist yet, so it cannot be got wrong.
     rng = np.random.default_rng(21)
-    score = pd.Series(rng.standard_t(4, 8766 * 7))     # seven years, so the top
-    levels = sv.rolling_levels(score, 1.0)             # rung can arrive at all
+    n = 8766 * 7
+    f = hourly(rng.standard_t(4, n))
+    levels = sv.rolling_levels(f["score"], hour_utc=f["hour_utc"])
 
     first = {name: levels[name].first_valid_index() for name in sv.TIERS}
-    warmup = int(sv.WARMUP_DAYS * sv.HOURS_PER_DAY)
-    # The two tiers the warm-up already covers arrive together with it; the two
-    # it does not each wait for their own return period to elapse.
-    assert first["noticeable"] == first["high"] == warmup
-    assert first["major"] >= sv.TIER_DAYS["major"] * sv.HOURS_PER_DAY
-    assert first["extreme"] >= sv.TIER_DAYS["extreme"] * sv.HOURS_PER_DAY
-    assert first["extreme"] > first["major"] > first["high"]
+    for name in sv.TIERS:
+        lived = f["hour_utc"].iloc[first[name]] - f["hour_utc"].iloc[0]
+        assert lived >= sv.tier_days()[name] * sv.SECONDS_PER_DAY
+    assert first["extreme"] > first["major"] > first["high"] > first["noticeable"]
 
 
 def test_the_ladder_grows_a_rung_at_a_time():
     # An instrument that is only four years old has no business calling anything
     # a once-in-six-years move, and says so by leaving the rung empty rather
-    # than by lowering it. Four years is chosen to sit BETWEEN two rungs, so the
-    # test shows one arriving and the next withheld on the same history.
+    # than by lowering it. Four years sits BETWEEN two rungs, so one arrives and
+    # the next is withheld on the same history.
     rng = np.random.default_rng(22)
-    short = pd.Series(rng.standard_t(4, int(4 * 8766)))
-    levels = sv.rolling_levels(short, 1.0)
+    f = hourly(rng.standard_t(4, int(4 * 8766)))
+    levels = sv.rolling_levels(f["score"], hour_utc=f["hour_utc"])
     assert levels["major"].notna().any()
     assert levels["extreme"].isna().all()
 
 
-def test_a_history_shorter_than_the_warm_up_yields_no_tiers():
-    score = pd.Series(np.random.default_rng(8).standard_t(4, 500))
-    levels = sv.rolling_levels(score, 1.0)
+def test_a_history_shorter_than_the_shallowest_rung_yields_no_tiers():
+    f = hourly(np.random.default_rng(8).standard_t(4, 500))
+    levels = sv.rolling_levels(f["score"], hour_utc=f["hour_utc"])
     assert levels.isna().all().all()
-    assert sv.assign(score, levels).isna().all()
+    assert sv.assign(f["score"], levels).isna().all()
+
+
+def test_without_a_clock_there_is_no_tier_rather_than_a_guessed_one():
+    # The windows are calendar time. Handed no hours there is nothing to window
+    # on, and inventing a bar-count window would make the same rung mean six
+    # years in one instrument and four in another.
+    score = pd.Series(np.random.default_rng(9).standard_t(4, 30000))
+    assert sv.rolling_levels(score).isna().all().all()
 
 
 def test_assign_picks_the_rarest_level_cleared():
@@ -202,11 +132,15 @@ def test_annotate_fires_at_roughly_the_advertised_rate():
     frame = pd.DataFrame({"hour_utc": np.arange(n) * HOUR,
                           "z_resid_bmp": rng.standard_t(4, n)})
     out = sv.annotate(frame)
-    scored_years = (n - sv.WARMUP_DAYS * sv.HOURS_PER_DAY) / 8766
+    # Every rung but the deepest is live for most of the record; score over the
+    # span the shallowest one covers, which is what dominates the count.
+    scored_years = (n - sv.tier_days()["noticeable"] * 24) / 8766
 
     per_year = out["tier"].notna().sum() / scored_years
-    nominal = sum(365.25 / days for days in sv.TIER_DAYS.values())
-    assert nominal / 2.5 < per_year < nominal * 2.5
+    nominal = sum(365.25 / days for days in sv.tier_days().values())
+    # Tighter than the 2.5x the fitted ladder needed: a record is calibrated by
+    # construction, so the only slack wanted is one draw's sampling noise.
+    assert nominal / 1.5 < per_year < nominal * 1.5
     assert set(out.columns) >= set(sv.LEVEL_COLUMNS) | {"tier"}
 
 
@@ -285,35 +219,70 @@ def test_magnitudes_passes_a_one_sided_score_through_unchanged():
     assert list(sv.magnitudes(score, two_sided=True)) == [3.0, 1.0, 2.0]
 
 
-def test_a_bounded_tail_is_refused_and_floored_at_the_exponential_case():
-    # A negative shape is a Generalised Pareto with a finite upper endpoint - it
-    # asserts a hardest possible move. For a price magnitude that is a false
-    # claim, and on a short window it is what the fit returns anyway: the level
-    # it implies saturates against a ceiling and the instrument fires several
-    # times too often against it.
-    rng = np.random.default_rng(31)
-    # Uniform excesses are the textbook bounded case: PWM reads shape well below
-    # zero on them, so this is the fit the floor exists to catch.
-    shape, scale = sv.fit_gpd(rng.uniform(0, 1, 400))
+def test_a_record_is_calibrated_without_any_distribution_assumption():
+    # The argument for the whole rule. For ANY series, the chance that the newest
+    # of N observations is the largest of those N is exactly 1/N - so the rung
+    # fires at its claimed rate because there is no model to get wrong. Run it on
+    # a fat tail and on a uniform, which no single fitted tail describes both of.
+    for seed, draw in ((41, lambda r, n: r.standard_t(3, n)),
+                       (42, lambda r, n: r.uniform(-1, 1, n))):
+        rng = np.random.default_rng(seed)
+        n = 8766 * 30
+        f = hourly(draw(rng, n))
+        levels = sv.rolling_levels(f["score"], hour_utc=f["hour_utc"])
+        magnitude = sv.magnitudes(f["score"])
+        for name in ("high", "major"):
+            days = sv.tier_days()[name]
+            eligible = (n / 8766) - days / 365.25
+            fired = int((magnitude > levels[name]).sum())
+            assert 0.6 < (fired / eligible) / (365.25 / days) < 1.6, name
 
-    assert shape >= 0.0                      # floored, not merely clipped somewhere
-    assert scale > 0                         # and still a usable pair
-    # The pair stays self-consistent: the scale is recomputed from the FLOORED
-    # shape, so it still describes a distribution rather than a bare parameter.
-    assert np.isfinite(sv.return_level(rng.uniform(0, 1, 5000), 2000.0))
+
+def test_record_since_names_the_bar_the_move_actually_beat():
+    # This is the message. The tier says which rung was cleared; this says what
+    # the move was bigger than, and the difference between the two hours is how
+    # far back the reader has to think.
+    values = np.array([5.0, 1.0, 2.0, 9.0, 3.0])
+    f = hourly(values)
+    since = sv.record_since(f["score"], f["hour_utc"])
+    assert pd.isna(since.iloc[0])              # nothing before it
+    assert since.iloc[1] == f["hour_utc"].iloc[0]   # the 5.0
+    assert since.iloc[2] == f["hour_utc"].iloc[0]   # still the 5.0, not the 1.0
+    assert pd.isna(since.iloc[3])              # 9.0 beats everything on record
+    assert since.iloc[4] == f["hour_utc"].iloc[3]   # the 9.0
 
 
-def test_the_floor_lifts_a_short_window_towards_its_settled_level():
-    # The measured failure, in miniature: the same series fitted on a quarter of
-    # its history and on all of it. With a bounded tail allowed, the short fit
-    # sits far below the long one; floored, it is much closer.
-    rng = np.random.default_rng(32)
-    x = np.abs(rng.standard_t(8, 120000))
-    m = 30000.0
+def test_record_since_is_two_sided_like_the_ladder():
+    # A large fall is as much an event as a large rise, so the lookback is over
+    # magnitudes - otherwise a crash would be measured against rallies only.
+    f = hourly([-8.0, 3.0])
+    since = sv.record_since(f["score"], f["hour_utc"])
+    assert since.iloc[1] == f["hour_utc"].iloc[0]
 
-    settled = sv.return_level(x, m)
-    short = sv.return_level(x[:30000], m)
-    assert abs(short - settled) / settled < 0.15
+
+def test_record_since_agrees_with_the_rungs_it_has_to_explain():
+    # The two are computed separately - one pass of a monotonic stack against
+    # four rolling windows - and a message that named a date the tier did not
+    # support would be the worst kind of wrong, because both halves look right.
+    rng = np.random.default_rng(43)
+    n = 8766 * 10
+    f = hourly(rng.standard_t(4, n))
+    levels = sv.rolling_levels(f["score"], hour_utc=f["hour_utc"])
+    since = sv.record_since(f["score"], f["hour_utc"])
+    magnitude = sv.magnitudes(f["score"])
+    hours = f["hour_utc"].to_numpy()
+
+    age = np.where(since.isna().to_numpy(), np.inf,
+                   hours - since.fillna(0).to_numpy())
+    for name in sv.TIERS:
+        window = sv.tier_days()[name] * sv.SECONDS_PER_DAY
+        cleared = (magnitude > levels[name]).to_numpy()
+        lived = hours - hours[0] >= window
+        # STRICTLY older than the window, not "at least as old". A move matched
+        # exactly one window ago is still inside the lookback - the window is
+        # [t - D, t) - so it does not clear the rung. Three bars in this draw sit
+        # on that boundary, and getting it wrong would date a message a rung out.
+        assert np.array_equal(cleared[lived], (age > window)[lived]), name
 
 
 def test_the_sensitivity_knob_scales_every_rung_together(tmp_path):
@@ -344,13 +313,13 @@ def test_the_sensitivity_knob_scales_every_rung_together(tmp_path):
 def test_the_phrase_is_derived_from_the_number_not_written_beside_it():
     # A hard-coded phrase survives a retune silently and turns every message
     # into a lie about a number the reader cannot check.
-    assert sv.period_phrase(14.0) == "about once every 2 weeks"   # not "a fortnight"
+    assert sv.period_phrase(14.0) == "about once in 2 weeks"   # not "a fortnight"
     assert sv.period_phrase(30.0) == "about once a month"
     assert sv.period_phrase(105.0) == "about once a quarter"
-    assert sv.period_phrase(1095.75) == "about once every 3 years"
-    assert sv.period_phrase(2191.5) == "about once every 6 years"
+    assert sv.period_phrase(1095.75) == "about once in 3 years"
+    assert sv.period_phrase(2191.5) == "about once in 6 years"
     # And it tracks the knob rather than the base.
-    assert sv.period_phrase(sv.TIER_DAYS["extreme"] * 2) == "about once every 12 years"
+    assert sv.period_phrase(sv.TIER_DAYS["extreme"] * 2) == "about once in 12 years"
 
 
 def test_every_live_rung_has_a_phrase_a_person_would_say():

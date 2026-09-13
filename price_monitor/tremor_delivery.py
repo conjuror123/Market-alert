@@ -35,14 +35,14 @@ files apart. The two are different tenses: the calendar digest is a forecast of
 what is scheduled next week, this one is a report of what actually happened.
 Reading them as one message makes both harder to skim.
 
-WHEN A NOTE MAY BE OPENED is a rule of its own, and the strictest one here. Only
-in its own hour, or the three after it - because the whole arrangement is worth
-having precisely because those two interruptions land at noon on a Tuesday and a
-Friday, and a note opened whenever the system happened to next run is an
-ordinary unscheduled buzz wearing a schedule's clothes. A period that misses
-that window is not lost: the next note covers from where the last note that
-actually went out left off, so the buzz is always at noon AND no move is
-silently dropped for want of a scheduler.
+WHEN A NOTE MAY BE OPENED is a rule of its own. Only in its own hour, or the
+three after it, so that a note stays a thing with a date on it: Monday 00:05 UTC
+and Saturday 00:05 UTC, the two quietest hours of the week and the two seams
+where a stretch of trading actually ends. A note opened whenever the system
+happened to next run is not a schedule, it is an arrival time. A period that
+misses the window is not lost: the next note covers from where the last one that
+actually went out left off, so the boundaries hold AND no move is silently
+dropped for want of a scheduler.
 
 WHAT IS NOT SENT. A push older than STALE_AFTER_HOURS. This is load-bearing
 rather than a nicety: the events table holds the entire history, so without it
@@ -108,26 +108,58 @@ PINGS = "pings"
 # colour, and a long note can be skimmed down its left edge.
 TIER_EMOJI = {"noticeable": "⬜", "high": "🟨", "major": "🟧", "extreme": "🟥"}
 
-# The tier names are internal; these are what a person reads. Said as a return
-# period, because "about once every six years" needs no calibration intuition
-# where a 1-to-100 score would.
-#
-# AND SAID AS A FREQUENCY, not as a record. "Biggest move in about six years"
-# claims the last six years held nothing larger, and the ladder claims no such
-# thing - it says a move this size is expected about once in six years, on
-# average, which in a fat-tailed market means several can arrive in a month. The
-# old wording flatly contradicted the line beneath it: "biggest move in about
-# three years" over "the last one this big was 23 days ago". Only one of the two
-# was wrong, and it was the headline.
-# DERIVED, not written here. The rungs move - a trader retuned them, and the
-# sensitivity knob in config/basket.yaml moves them again - and a table of
-# phrases sitting beside them survives that silently, which turns every message
-# into a confident lie about a number the reader has no way to check.
-def tier_period(tier: str) -> str:
-    from tremor import severity
+# A block is the same four rarities seen at a different level of the market, so
+# it keeps the rarity colour and gains a black square in front of it: the tier
+# still reads at a glance and a block is never mistaken for an instrument.
+BLOCK_MARK = "\u2b1b"
 
-    days = severity.tier_days().get(tier)
-    return severity.period_phrase(days) if days else tier
+# Marks the timestamp footer. The hour is the last thing on the line rather
+# than the first because it is what a reader checks last - everything above it
+# is what happened, and this is when.
+TIME_EMOJI = "\U0001f550 "
+
+# SAID AS A RECORD, AND NAMING THE DATE. "Biggest move since 3 March 2020" is a
+# fact about the instrument's own history: the reader can check it, it needs no
+# calibration intuition, and it tells them something the rung alone does not -
+# which past episode this one is being measured against.
+#
+# This reverses an earlier decision, and the reversal is the point. The wording
+# used to be a frequency - "about once in six years" - specifically BECAUSE the
+# ladder could not support a record claim: it was a Generalised Pareto tail
+# extrapolated to the rung, so it said a move this size was expected about once
+# in six years on average, and a record claim over the top of that flatly
+# contradicted the line beneath it ("biggest move in about three years" over
+# "the last one this big was 23 days ago"). The frequency was the honest reading
+# of that estimator.
+#
+# The estimator is gone (see tremor.severity). A rung is now literally the
+# largest move in its own lookback, so the record claim is the one that is true
+# and the contradiction cannot arise: the date printed here IS the bar the level
+# was measured against. And the frequency claim it replaces was wrong in a way
+# nobody could see - the top rung fired 1.75 times as often as its words
+# promised, and the same level refitted on different six-year windows moved by a
+# factor of three.
+def record_phrase(event: dict) -> str:
+    """When this instrument last did something this big, as a person says it.
+
+    The DATE rather than an elapsed time, because a date is what a reader can
+    place - "since March 2020" lands somewhere, "in six years and two months"
+    has to be subtracted from today first. Precision falls away with distance
+    for the same reason: within a month the day matters, within a year the month
+    does, and past that the year is all anyone holds.
+    """
+    since = event.get("record_since")
+    if since is None or (isinstance(since, float) and not since == since) \
+            or pd.isna(since):
+        return "in the whole record"
+    moment = datetime.fromtimestamp(int(since), tz=timezone.utc)
+    now = datetime.fromtimestamp(int(event["hour_utc"]), tz=timezone.utc)
+    days = (now - moment).total_seconds() / 86400.0
+    if days < 45:
+        return f"since {moment:%-d %B}"
+    if days < 330:
+        return f"since {moment:%B}"
+    return f"since {moment:%B %Y}"
 
 # WHICH LADDER the tier was measured against, said in the noun rather than in a
 # parenthesis. Two ladders exist and they answer different questions: the
@@ -142,21 +174,23 @@ def tier_period(tier: str) -> str:
 # had defined for them. The idea is now shown instead of named, one line down,
 # in the units they are already reading: see _market_share_note.
 BASIS_NOUN = {
-    "abnormal": "a move of its own this big happens",
-    "absolute": "a move this big happens",
-    "both": "a move this big happens",
+    "abnormal": "the biggest move of its own",
+    "absolute": "the biggest move",
+    "both": "the biggest move",
     # A block. "Of its own" would be meaningless - there is nothing above a block
-    # to explain its move with - and a bare "a move this big" would read as a
+    # to explain its move with - and a bare "the biggest move" would read as a
     # claim about one price when it is a claim about a whole complex.
-    "block": "the whole block moved together, and a move this big for it happens",
+    "block": "the whole block moved together, the biggest",
 }
 
 
-def _headline(tier: str, basis: str) -> str:
-    period = tier_period(tier)
+def _headline(event: dict, tier: str, basis: str) -> str:
+    record = record_phrase(event)
     if basis == "market":
-        return f"an hour this disorderly happens {period}"
-    return f"{BASIS_NOUN.get(basis, 'a move this big happens')} {period}"
+        return f"the most disorderly hour {record}"
+    if basis == "block":
+        return f"the whole block moved together, the biggest {record}"
+    return f"{BASIS_NOUN.get(basis, 'the biggest move')} {record}"
 
 
 # What each block is called in a sentence. The internal names are lower case and
@@ -255,7 +289,8 @@ def basket_footer() -> str:
     return "\n".join(lines)
 
 
-def _split_lines(event: dict, label: str) -> "list[str]":
+def _split_lines(event: dict, label: str, tier: str = "",
+                 basis: str = "") -> "list[str]":
     """The move broken into the two things it can be, adding back to the move.
 
     THE WORD "MARKET" IS DELIBERATELY ABSENT. Every attempt to name this idea
@@ -282,8 +317,22 @@ def _split_lines(event: dict, label: str) -> "list[str]":
     """
     move = _clean(event.get("r"))
     own = _clean(event.get("e_resid"))
+    rarity = record_phrase(event) if tier else ""
+
+    # WHERE THE RARITY IS SAID depends on which channel claimed the hour, and
+    # getting it wrong makes the message a false statement rather than an ugly
+    # one. The abnormal ladder ranks what is LEFT after the block is taken out,
+    # so its return period belongs on the "on its own" line and nowhere else -
+    # said of the whole move it would claim the instrument had not moved this
+    # far in years when the block may have carried it there last week. The
+    # absolute ladder ranks the move itself, so there it belongs to the move.
+    whole_move = basis == "absolute" or not basis
     if move is None or own is None:
-        return []
+        # No split to hang it on, so the rarity is said as a sentence - and by
+        # the same function the headline uses, because "a move this big" and "a
+        # move of its own this big" are different claims and only one of them
+        # is true of a given channel.
+        return [_headline(event, tier, basis)] if tier else []
 
     block = _clean(event.get("co_block"))
     if block is None:
@@ -293,46 +342,18 @@ def _split_lines(event: dict, label: str) -> "list[str]":
 
     named = BLOCK_LABEL.get(str(event.get("block")), str(event.get("block") or "its block"))
     peers = _block_peers(event)
-    lines = ["of that move:"]
-    line = f"     {block * 100:+.2f}%  its own block moving, {_escape(named)}"
+    lines = []
+    if whole_move and tier:
+        lines.append(_headline(event, tier, basis))
+    line = f"\t{block * 100:+.2f}%  block moving, [{_escape(named)}]"
     if peers:
         line += f" - {_escape(peers)}"
     lines.append(line)
-    lines.append(f"     {own * 100:+.2f}%  {_escape(label)} on its own")
+    own_line = f"\t{own * 100:+.2f}%  move on its own"
+    if rarity and not whole_move:
+        own_line += f" - the biggest {rarity}"
+    lines.append(own_line)
     return lines
-
-
-def _since_note(event: dict, events: "list[dict]") -> str:
-    """When this instrument was last this rare, as a date.
-
-    "Biggest move in about a year" is a return period fitted to a tail, which is
-    the honest way to say how unusual something is and a hard thing to picture.
-    The date is the same claim in a form nobody needs statistics for: it is the
-    last time this instrument produced an event at this tier or a rarer one.
-
-    Read off the events table, which the delivery layer already holds, so this
-    costs nothing. Silent where there is no earlier one - a young instrument, or
-    genuinely the first in twenty-two years, and claiming either would be a
-    guess.
-    """
-    from tremor.severity import TIERS
-
-    rank = {name: i for i, name in enumerate(TIERS)}
-    here = rank.get(str(event.get("tier")), -1)
-    asset_id = str(event.get("asset_id") or "")
-    hour = int(event["hour_utc"])
-    earlier = [int(e["hour_utc"]) for e in events
-               if str(e.get("asset_id") or "") == asset_id
-               and int(e["hour_utc"]) < hour
-               and rank.get(str(e.get("tier")), -1) >= here]
-    if not earlier:
-        return ""
-    when = datetime.fromtimestamp(max(earlier), tz=timezone.utc)
-    days = (hour - max(earlier)) / 86400
-    ago = (f"{days / 365.25:.1f} years" if days >= 365 else
-           f"{days / 30.44:.0f} months" if days >= 60 else
-           f"{days:.0f} days")
-    return f"the last one this big was {when:%-d %B %Y}, {ago} ago"
 
 
 def _retention_note(value: float) -> str:
@@ -493,9 +514,10 @@ def _scale_note(event: dict) -> str:
 
     The yardstick is sigma_LT, the instrument's own rolling standard deviation
     over the previous five thousand bars, so it is causal like everything else
-    and was already being computed. Both numbers are shown rather than just the
-    ratio: seeing "0.013%" beside it is what makes the claim checkable instead
-    of asking the reader to trust a multiplier.
+    and was already being computed. Only the ratio is shown. The raw sigma used
+    to sit beside it as a receipt - "3.0x its usual hour, which is 0.24%" - and
+    it made the line twice as long for a number no reader was checking, in a
+    message deliberately being cut short so that fewer notes need splitting.
     """
     move = _clean(event.get("r"))
     usual = _clean(event.get("sigma_lt"))
@@ -508,13 +530,11 @@ def _scale_note(event: dict) -> str:
     # the next as a gap rather than as "this one was only 2.7x". A decimal below
     # ten, because "3x" for 2.7 looks like a rounding that flatters the alert.
     size = f"{ratio:.0f}x" if ratio >= 10 else f"{ratio:.1f}x"
-    usual_pct = (f"{usual * 100:.3f}%" if usual * 100 < 0.1
-                 else f"{usual * 100:.2f}%")
     # For a block the yardstick is the median member's usual hour rather than any
     # one instrument's, and saying "its" would invite the reader to look for an
     # instrument that does not exist.
-    whose = "a typical member's usual hour" if _is_block(event) else "its usual hour"
-    return f"that is {size} {whose}, which is {usual_pct}"
+    whose = "a typical member's usual hour" if _is_block(event) else "usual hour"
+    return f"{size} {whose}"
 
 
 def check_in_lines(event: dict, now: datetime | None = None,
@@ -553,7 +573,7 @@ def check_in_lines(event: dict, now: datetime | None = None,
             answer = _retention_word(value)
         else:
             answer = _due_in(event, h, now)
-        lines.append(f"     {label} - {answer}")
+        lines.append(f"\t{label} - {answer}")
     return lines
 
 
@@ -583,7 +603,7 @@ def describe(event: dict, labels: dict[str, str],
     when = datetime.fromtimestamp(int(event["hour_utc"]), tz=timezone.utc)
 
     basis = str(event.get("basis") or "")
-    headline = _headline(tier, basis)
+    headline = _headline(event, tier, basis)
     if _is_market(event):
         return (f"{emoji} <b>Market-wide</b> - {headline}"
                 f"\n     hour to {when:%Y-%m-%d %H:%M} UTC")
@@ -595,21 +615,19 @@ def describe(event: dict, labels: dict[str, str],
     label = labels.get(asset_id) or asset_id.split(":")[-1]
     move = _clean(event.get("r"))
     # The ticker leads. It is what the reader will type into a chart, and it is
-    # the only name that is the same everywhere.
+    # the only name that is the same everywhere. The move joins it on the same
+    # line: it is the first thing anyone wants and it used to be on the second.
+    shown = f" · {move * 100:+.2f}%" if move is not None else ""
     parts = [f"{emoji} <b>{_escape(_ticker(asset_id))}</b> · "
-             f"{_escape(label)} - {headline}"]
+             f"{_escape(label)}{shown}"]
 
-    detail = f"{move * 100:+.2f}% " if move is not None else ""
-    parts.append(f"     {detail}in the hour to {when:%Y-%m-%d %H:%M} UTC")
+    context = _scale_note(event)
+    if context:
+        parts.append(context)
 
-    for line in (_scale_note(event), _since_note(event, events or [])):
-        if line:
-            parts.append(f"     {line}")
-
-    for line in _split_lines(event, label):
-        parts.append(f"     {line}")
-
+    parts.extend(_split_lines(event, label, tier, basis))
     parts.extend(check_in_lines(event, now))
+    parts.append(f"{TIME_EMOJI}<b>{when:%Y-%m-%d %H:%M} UTC</b>")
     return "\n".join(parts)
 
 
@@ -779,23 +797,30 @@ def _describe_block(event: dict, headline: str, emoji: str, when: datetime,
     """
     block = str(event.get("block") or "")
     named = BLOCK_LABEL.get(block, block or "a block")
-    parts = [f"{emoji} <b>{_escape(named[:1].upper() + named[1:])}</b> - {headline}"]
-
     move = _clean(event.get("r"))
-    detail = _block_move_phrase(block, move)
-    parts.append(f"     {detail}in the hour to {when:%Y-%m-%d %H:%M} UTC")
+    # BLACK IN FRONT OF THE RARITY, not instead of it. A block is the same four
+    # rarities read at a different level of the market, so dropping the colour
+    # to mark it would trade the thing every line is sorted and skimmed by for
+    # the thing one line in twenty needs.
+    parts = [f"{BLOCK_MARK}{emoji} <b>"
+             f"{_escape(named[:1].upper() + named[1:])}</b>"
+             f"{f' · {_block_move_phrase(block, move).strip()}' if move is not None else ''}"]
 
-    for line in (_scale_note(event), _since_note(event, events or [])):
-        if line:
-            parts.append(f"     {line}")
+    context = _scale_note(event)
+    if context:
+        parts.append(context)
+    # Not str.capitalize(), which lowercases everything after the first letter
+    # and turned "since November 2021" into "since november 2021".
+    parts.append(headline[:1].upper() + headline[1:])
 
     leaders = str(event.get("leaders") or "")
     if leaders:
         count = _clean(event.get("n_members"))
         of = f" (of {int(count)} trading that hour)" if count else ""
-        parts.append(f"     biggest movers: {_escape(leaders)}{_escape(of)}")
+        parts.append(f"\tbiggest movers: {_escape(leaders)}{_escape(of)}")
 
     parts.extend(check_in_lines(event, now))
+    parts.append(f"{TIME_EMOJI}<b>{when:%Y-%m-%d %H:%M} UTC</b>")
     return "\n".join(parts)
 
 
@@ -838,12 +863,16 @@ CALENDAR_IMPACTS = economic_calendar.SHOWN_IMPACTS
 def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
     """What was scheduled around the move - before it and just after.
 
-    Both answers are worth printing. Naming the release tells the reader the
-    move has a known cause and they can stop looking for one. Saying that
-    nothing was scheduled is the more interesting half: 55% of pushes in the
-    record have no high-impact event in the previous three hours, and an
-    unexplained move with no news behind it is exactly what this system exists
-    to find.
+    Naming the release tells the reader the move has a known cause and they can
+    stop looking for one. NOTHING IS PRINTED WHEN NOTHING WAS SCHEDULED, which
+    reverses an earlier rule and is worth saying why. The old line read "none
+    scheduled", on the argument that the absence is the more interesting half -
+    55% of pushes in the record have no Medium or High release in the window,
+    and an unexplained move is exactly what this system exists to find. That is
+    true of the STATISTIC and false of the MESSAGE: on more than half of all
+    messages it was a line that said nothing had happened, and a line that
+    usually says nothing stops being read, taking the half that does say
+    something with it. Silence carries the same fact in no space at all.
     """
     # An empty archive is not evidence of a quiet three hours: it cannot tell
     # "nothing was scheduled" from "nothing was loaded", and only one of those
@@ -860,16 +889,20 @@ def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
         return ""
 
     named = [e for e in window if str(e.get("impact")) in CALENDAR_IMPACTS]
-    header = (f"Economic events, {CALENDAR_LOOKBACK_HOURS}h before to "
-              f"{CALENDAR_LOOKAHEAD_HOURS}h after:")
     if not named:
-        return f"{header} none scheduled."
+        return ""
 
+    # The span as an offset pair rather than a sentence. It is the same fact in
+    # a fifth of the width, and the width matters here: this header sits above
+    # a list on a phone, where the sentence wrapped onto a second line and the
+    # events themselves were pushed down the message.
+    header = (f"Nearby economic events "
+              f"(-{CALENDAR_LOOKBACK_HOURS}h+{CALENDAR_LOOKAHEAD_HOURS}h):")
     named.sort(key=lambda e: str(e.get("date") or ""))
     lines = [header]
     for e in named:
         colour = economic_calendar.IMPACT_EMOJI.get(str(e.get("impact")), "")
-        country = str(e.get("country") or "").strip()
+        country = economic_calendar.country_label(e.get("country"))
         title = str(e.get("title") or "").strip()
         lines.append(f"     {colour} {country} {title}".rstrip())
     return "\n".join(lines)
@@ -997,8 +1030,11 @@ def _due_in(event: dict, horizon, now: datetime | None = None) -> str:
     now = now or datetime.now(timezone.utc)
     due = due_moment(event, horizon)
     if due is None:
-        return ("coming at the next day's close" if horizon == "settled"
-                else "coming at this day's close")
+        # The horizon has already been named by the line this answer is appended
+        # to, so naming it again produced "this day's close - coming at this
+        # day's close". Say the one thing the caller does not already know:
+        # that a moment was wanted and the calendar would not give one.
+        return "coming, though the trading calendar could not say when"
 
     left = (due - now.timestamp()) / 3600.0
     if left <= 0:
@@ -1182,11 +1218,18 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
                   all_events: "list[dict] | None" = None) -> "list[str]":
     """One note, whole, split into parts Telegram will accept.
 
-    Ordered by severity and then by time, so the rarest move is at the top
-    however late it arrived - a note read only as far as its notification
-    preview should still lead with its most important line. The order is not
-    fixed when a row is added: a once-in-three-years move found on Thursday
-    moves to the head of a note opened on Tuesday.
+    ORDERED BY TIME, and by rarity only inside an hour. The note used to lead
+    with its rarest row wherever it fell, on the argument that a notification
+    preview should show the most important line - but the note does not notify,
+    the ping does, so that argument was buying nothing and costing the thing a
+    record is for. A period read top to bottom now runs in the order it
+    happened, and two moves in the same hour are the one case where time cannot
+    separate them, so the rarer goes first.
+
+    The order runs ACROSS the parts, not within each. A long note is cut into
+    several messages, and sorting each part on its own would restart the clock
+    at every cut - so the rows are ordered once and the cut falls wherever the
+    character budget runs out.
 
     The header states the period the note speaks for rather than the day it was
     posted, because those come apart exactly when it matters: a note that had
@@ -1202,14 +1245,19 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
     live = now.timestamp() < end
 
     rank = {name: i for i, name in enumerate(TIERS)}
-    ordered = sorted(events, key=lambda e: (-rank.get(str(e.get("tier")), 0),
-                                            int(e["hour_utc"])))
+    ordered = sorted(events, key=lambda e: (int(e["hour_utc"]),
+                                            -rank.get(str(e.get("tier")), 0)))
     if ordered:
         count = (f"{len(ordered)} event{'s' if len(ordered) != 1 else ''}"
                  + (" so far" if live else ""))
     else:
         count = "Nothing so far" if live else "Nothing in this period"
-    header = (f"📋 <b>Digest</b> - {opened:%a %-d} to {closes:%a %-d %B}\n"
+    # The month is named on the opening date too WHEN THE NOTE CROSSES ONE, and
+    # only then. "Mon 27 to Sat 1 November" left the reader to work out which
+    # month the 27th belonged to, and the answer was the other one. Naming it
+    # every time would instead put the same word twice in five words.
+    opened_fmt = "%a %-d %B" if opened.month != closes.month else "%a %-d"
+    header = (f"📋 <b>Digest</b> - {opened:{opened_fmt}} to {closes:%a %-d %B}\n"
               + count + (" - this message is updated as moves are found" if live else ""))
     # The regime the whole period sits in, read at the note's latest edit rather
     # than at its opening: a note is re-rendered every time a row is added, so
@@ -1326,10 +1374,13 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
     asset_id = str(event.get("asset_id", ""))
     name = labels.get(asset_id) or asset_id.split(":")[-1]
     move = _clean(event.get("r"))
+    mark = ""
     if _is_block(event):
-        name = f"Block {name}"
+        name = BLOCK_LABEL.get(str(event.get("block")), name)
+        name = name[:1].upper() + name[1:]
+        mark = BLOCK_MARK
     shown = f" {move * 100:+.2f}%" if move is not None else ""
-    return f"{emoji} <b>{_escape(name)}</b>{shown}"
+    return f"{mark}{emoji} <b>{_escape(name)}</b>{shown}"
 
 
 def pending_pings(events: "list[dict]", pinged: dict,
