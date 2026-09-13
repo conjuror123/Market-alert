@@ -35,14 +35,14 @@ files apart. The two are different tenses: the calendar digest is a forecast of
 what is scheduled next week, this one is a report of what actually happened.
 Reading them as one message makes both harder to skim.
 
-WHEN A NOTE MAY BE OPENED is a rule of its own, and the strictest one here. Only
-in its own hour, or the three after it - because the whole arrangement is worth
-having precisely because those two interruptions land at noon on a Tuesday and a
-Friday, and a note opened whenever the system happened to next run is an
-ordinary unscheduled buzz wearing a schedule's clothes. A period that misses
-that window is not lost: the next note covers from where the last note that
-actually went out left off, so the buzz is always at noon AND no move is
-silently dropped for want of a scheduler.
+WHEN A NOTE MAY BE OPENED is a rule of its own. Only in its own hour, or the
+three after it, so that a note stays a thing with a date on it: Monday 00:05 UTC
+and Saturday 00:05 UTC, the two quietest hours of the week and the two seams
+where a stretch of trading actually ends. A note opened whenever the system
+happened to next run is not a schedule, it is an arrival time. A period that
+misses the window is not lost: the next note covers from where the last one that
+actually went out left off, so the boundaries hold AND no move is silently
+dropped for want of a scheduler.
 
 WHAT IS NOT SENT. A push older than STALE_AFTER_HOURS. This is load-bearing
 rather than a nicety: the events table holds the entire history, so without it
@@ -1216,11 +1216,18 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
                   all_events: "list[dict] | None" = None) -> "list[str]":
     """One note, whole, split into parts Telegram will accept.
 
-    Ordered by severity and then by time, so the rarest move is at the top
-    however late it arrived - a note read only as far as its notification
-    preview should still lead with its most important line. The order is not
-    fixed when a row is added: a once-in-three-years move found on Thursday
-    moves to the head of a note opened on Tuesday.
+    ORDERED BY TIME, and by rarity only inside an hour. The note used to lead
+    with its rarest row wherever it fell, on the argument that a notification
+    preview should show the most important line - but the note does not notify,
+    the ping does, so that argument was buying nothing and costing the thing a
+    record is for. A period read top to bottom now runs in the order it
+    happened, and two moves in the same hour are the one case where time cannot
+    separate them, so the rarer goes first.
+
+    The order runs ACROSS the parts, not within each. A long note is cut into
+    several messages, and sorting each part on its own would restart the clock
+    at every cut - so the rows are ordered once and the cut falls wherever the
+    character budget runs out.
 
     The header states the period the note speaks for rather than the day it was
     posted, because those come apart exactly when it matters: a note that had
@@ -1236,8 +1243,8 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
     live = now.timestamp() < end
 
     rank = {name: i for i, name in enumerate(TIERS)}
-    ordered = sorted(events, key=lambda e: (-rank.get(str(e.get("tier")), 0),
-                                            int(e["hour_utc"])))
+    ordered = sorted(events, key=lambda e: (int(e["hour_utc"]),
+                                            -rank.get(str(e.get("tier")), 0)))
     if ordered:
         count = (f"{len(ordered)} event{'s' if len(ordered) != 1 else ''}"
                  + (" so far" if live else ""))

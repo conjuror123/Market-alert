@@ -98,7 +98,7 @@ thing that would.
 ## Silence is the normal state
 
 About **22 pushes a year**, a median of ten days apart, longest observed quiet stretch
-124 days. A digest note opens Tuesday and Friday at 12:00 Israel time and fills in as
+124 days. A digest note opens Monday and Saturday at 00:05 UTC and fills in as
 moves are found, 3.6 items each by the time its period closes. The
 economic-calendar forecast goes out once a week, on Friday at 12:00 immediately before
 the note opens, so the note - the message that keeps changing - is the last one in the

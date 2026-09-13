@@ -387,16 +387,19 @@ Delivery splits by urgency, not by importance:
   exact. Set up as a channel (see "Quick start") the pings always go. In a private
   chat one older than two days simply stays — Telegram's rule, not a bug to fix.
 * **The running digest** — everything else, 3.8 items a note on average. The note is
-  *opened* Tuesday and Friday at 12:00 Israel time and then edited in place as moves
-  are found, so a row appears the hour it happens rather than up to three days later.
-  Telegram is silent on an edit, so this still costs exactly two interruptions a week —
-  and both of them at noon: a note may only be opened in its own hour or the three
-  after it, and a period that misses that window is carried into the next note.
-  Tuesday covers the weekend and Monday, when crypto trades straight through and
-  equities gap on the open; Friday closes the trading week. This is *separate from the
-  weekly calendar digest on purpose*: that one is a forecast of what is scheduled,
-  this one is a report of what happened, and reading them as one message makes both
-  harder to skim.
+  *opened* Monday and Saturday at 00:05 UTC and then edited in place as moves are
+  found, so a row appears the hour it happens rather than up to three days later.
+  Telegram is silent on an edit, so the note itself never buzzes; each row it gains
+  sends a throwaway ping instead, deleted when the next note opens. A note may only
+  be opened in its own hour or the three after it, and a period that misses that
+  window is carried into the next note. Monday to Saturday is the trading week;
+  Saturday to Monday is the weekend, when crypto trades straight through and equities
+  gap on the Monday open — so a note is never half working days and half weekend,
+  which a Tuesday/Friday pair could not avoid. 00:05 UTC is the seam between the
+  American close and the Asian open, the quietest hour there is, and unlike a local
+  noon it does not move twice a year. This is *separate from the weekly calendar
+  digest on purpose*: that one is a forecast of what is scheduled, this one is a
+  report of what happened, and reading them as one message makes both harder to skim.
 
 Nothing is held back and nothing is dropped. A move that fully reverted used to take no
 line at all; it is now already on the reader's phone by the time that is known, so the

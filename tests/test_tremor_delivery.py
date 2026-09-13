@@ -10,7 +10,7 @@ from price_monitor.config import Config
 from price_monitor.notifier import TelegramError
 
 HOUR = 3600
-NOW = datetime(2026, 9, 4, 12, 0, tzinfo=timezone.utc)   # a Friday
+NOW = datetime(2026, 9, 14, 3, 0, tzinfo=timezone.utc)   # a Monday, inside the note's opening window
 LABELS = {"twelvedata:GLD": "Gold", "coinbase:BTC-USD": "Bitcoin"}
 
 # The note that is open at NOW. A digest row names the note it joins, and that
@@ -774,8 +774,12 @@ def test_the_carried_note_says_which_period_it_covers(monkeypatch, sender):
     _, state = deliver(monkeypatch, elsewhere, now=LATE)
     opens = datetime.fromtimestamp(routing.next_digest_slot(SLOT), tz=timezone.utc)
     deliver(monkeypatch, elsewhere, state=state, now=opens)
-    # A week, not the usual three days: it picked up the period that never opened.
-    assert "Fri 4 to Fri 11 September" in notes(sender)[0]
+    # Longer than its own period: it picked up the one that never opened.
+    covers = datetime.fromtimestamp(SLOT, tz=timezone.utc)
+    ends = datetime.fromtimestamp(routing.next_digest_slot(int(opens.timestamp())),
+                                  tz=timezone.utc)
+    assert f"{covers:%a %-d} to {ends:%a %-d %B}" in notes(sender)[0]
+    assert (ends - covers).days > (ends - opens).days
 
 
 def test_an_ordinary_note_covers_only_its_own_period(monkeypatch, sender):
@@ -784,7 +788,10 @@ def test_an_ordinary_note_covers_only_its_own_period(monkeypatch, sender):
     _, state = deliver(monkeypatch, elsewhere, now=opens)
     later = datetime.fromtimestamp(routing.next_digest_slot(SLOT), tz=timezone.utc)
     deliver(monkeypatch, elsewhere, state=state, now=later)
-    assert "Tue 8 to Fri 11 September" in notes(sender)[1]
+    ends = datetime.fromtimestamp(routing.next_digest_slot(int(later.timestamp())),
+                                  tz=timezone.utc)
+    # Only its own stretch, because the note before it did open.
+    assert f"{later:%a %-d} to {ends:%a %-d %B}" in notes(sender)[1]
 
 
 def test_a_note_whose_first_post_failed_does_not_cover_its_period(monkeypatch):
@@ -899,7 +906,8 @@ def test_the_hour_is_the_last_line_and_is_bold():
     text = md.describe(event(asset_id="twelvedata:GLD"), LABELS)
     last = text.split("\n")[-1]
     assert last.startswith(md.TIME_EMOJI)
-    assert last.endswith("UTC</b>") and "<b>2026-09-04 11:00" in last
+    stamp = (NOW - timedelta(hours=1)).strftime("%Y-%m-%d %H:%M")
+    assert last.endswith("UTC</b>") and f"<b>{stamp}" in last
 
 
 def test_the_footer_names_every_instrument_that_is_tracked():
@@ -1178,3 +1186,37 @@ def test_a_row_with_no_split_still_says_how_rare_it_was():
     # own this big" are different claims and only one is true of a channel.
     lines = md._split_lines({"r": 0.02, "e_resid": None}, "Gold", "extreme", "abnormal")
     assert lines == ["a move of its own this big happens about once in 6 years"]
+
+
+def test_the_note_runs_in_time_order_across_all_its_parts():
+    # A long note is cut into several messages. Sorting each part on its own
+    # would restart the clock at every cut, so the rows are ordered once and the
+    # cut falls wherever the character budget runs out.
+    rows = [event(event_id=f"d{i}", channel="digest", tier="noticeable",
+                  hour_utc=SLOT + i * HOUR, asset_id="twelvedata:GLD")
+            for i in range(60)]
+    texts = md.format_digest(rows, LABELS, (SLOT, SLOT + 200 * HOUR), None, NOW)
+    assert len(texts) > 1, "the fixture must be long enough to split"
+
+    stamps = []
+    for part in texts:
+        for line in part.split("\n"):
+            if line.startswith(md.TIME_EMOJI):
+                stamps.append(line)
+    assert stamps == sorted(stamps), "the hours must ascend across the parts"
+    assert len(stamps) == len(rows)
+
+
+def test_two_moves_in_one_hour_put_the_rarer_first():
+    # The one case time cannot separate.
+    same = SLOT + 5 * HOUR
+    rows = [event(event_id="mild", channel="digest", tier="noticeable",
+                  hour_utc=same, asset_id="twelvedata:GLD"),
+            event(event_id="rare", channel="digest", tier="high",
+                  hour_utc=same, asset_id="coinbase:BTC-USD")]
+    text = md.format_digest(rows, LABELS, (SLOT, SLOT + 200 * HOUR), None, NOW)[0]
+    assert text.index("Bitcoin") < text.index("Gold")
+
+    # and reversing the input does not change the answer
+    text = md.format_digest(rows[::-1], LABELS, (SLOT, SLOT + 200 * HOUR), None, NOW)[0]
+    assert text.index("Bitcoin") < text.index("Gold")

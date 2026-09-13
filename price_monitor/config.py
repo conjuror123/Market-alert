@@ -23,7 +23,7 @@ DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "c
 
 @dataclass
 class Config:
-    # Silence for the Tremor side: the pushes and the Tuesday/Friday digest.
+    # Silence for the Tremor side: the pushes and the Monday/Saturday digest.
     # DEFAULT ON - that is, silent - because wiring the delivery is not the same
     # act as deciding to be interrupted by it, and running the pipeline with
     # nothing going out is a state worth being able to hold on purpose.

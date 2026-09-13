@@ -14,7 +14,7 @@
 # true - the hourly run proceeds as usual: bars are fetched, the pipeline runs,
 # events are routed and written, the Sunday calendar digest goes out and so does
 # the bot's own health alert. The only thing that does not go out is Tremor's own
-# pushes and its Tuesday/Friday digest.
+# pushes and its Monday/Saturday digest.
 #
 # It lives here rather than on the external scheduler's side, deliberately: "we
 # are deliberately silent" is a state of the project and must be visible where

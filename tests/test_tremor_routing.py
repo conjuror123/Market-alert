@@ -11,9 +11,8 @@ DAY = 24 * HOUR
 def events(rows, assets=None):
     """rows: (hour_utc, tier, retention_6, retention_settled).
 
-    `assets` names the instruments; distinct ones by default, because that is
-    the case the collapse is about - one episode seen through several
-    instruments.
+    `assets` names the instruments; distinct ones by default, which is the
+    ordinary case - one episode is usually seen through several of them.
     """
     frame = pd.DataFrame(rows, columns=["hour_utc", "tier", "retention_6",
                                         "retention_settled"])
@@ -76,40 +75,59 @@ def test_nothing_is_demoted_for_being_the_third_push_of_the_week():
 
 
 def test_the_slot_is_the_note_that_is_already_open():
-    # Wednesday's move joins the note opened on Tuesday, which is live and on
-    # the reader's phone - not one that will be written on Friday.
+    # Wednesday's move joins the note opened on Monday, which is live and on
+    # the reader's phone - not one that will be written on Saturday.
     wednesday = int(datetime(2026, 4, 1, 9, tzinfo=timezone.utc).timestamp())
     slot = datetime.fromtimestamp(routing.digest_slot(wednesday),
                                   tz=timezone.utc).astimezone(routing.DIGEST_TZ)
-    assert slot.weekday() == 1 and slot.hour == routing.DIGEST_HOUR_LOCAL
-    assert (slot.year, slot.month, slot.day) == (2026, 3, 31)
+    assert slot.weekday() == 0 and slot.hour == routing.DIGEST_HOUR_LOCAL
+    assert (slot.year, slot.month, slot.day) == (2026, 3, 30)
 
 
 def test_a_move_an_hour_after_a_note_opens_joins_that_note():
-    tuesday_noon = datetime(2026, 3, 31, 12, tzinfo=routing.DIGEST_TZ)
-    just_after = int(tuesday_noon.timestamp()) + HOUR
-    assert routing.digest_slot(just_after) == int(tuesday_noon.timestamp())
+    monday = datetime(2026, 3, 30, routing.DIGEST_HOUR_LOCAL,
+                      routing.DIGEST_MINUTE_LOCAL, tzinfo=routing.DIGEST_TZ)
+    just_after = int(monday.timestamp()) + HOUR
+    assert routing.digest_slot(just_after) == int(monday.timestamp())
 
 
 def test_the_window_runs_from_one_note_to_the_next():
-    tuesday_noon = int(datetime(2026, 3, 31, 12, tzinfo=routing.DIGEST_TZ).timestamp())
-    start, end = routing.digest_window(tuesday_noon)
-    assert start == tuesday_noon
+    # The workweek note: opened Monday, closed when Saturday's opens.
+    monday = int(datetime(2026, 3, 30, routing.DIGEST_HOUR_LOCAL,
+                          routing.DIGEST_MINUTE_LOCAL,
+                          tzinfo=routing.DIGEST_TZ).timestamp())
+    start, end = routing.digest_window(monday)
+    assert start == monday
     closes = datetime.fromtimestamp(end, tz=timezone.utc).astimezone(routing.DIGEST_TZ)
-    assert closes.weekday() == 4 and closes.hour == routing.DIGEST_HOUR_LOCAL
+    assert closes.weekday() == 5 and closes.hour == routing.DIGEST_HOUR_LOCAL
 
 
-def test_the_digest_slot_is_local_noon_on_both_sides_of_daylight_saving():
-    # A digest that lands at 04:00 twice a week is one nobody opens, so the
-    # send time is local and the UTC hour is whatever that implies.
-    winter = routing.digest_slot(int(datetime(2026, 1, 5, tzinfo=timezone.utc).timestamp()))
-    summer = routing.digest_slot(int(datetime(2026, 7, 6, tzinfo=timezone.utc).timestamp()))
-    for moment in (winter, summer):
-        local = datetime.fromtimestamp(moment, tz=timezone.utc).astimezone(routing.DIGEST_TZ)
-        assert local.hour == routing.DIGEST_HOUR_LOCAL
-    utc_hours = {datetime.fromtimestamp(m, tz=timezone.utc).hour
-                 for m in (winter, summer)}
-    assert len(utc_hours) == 2      # the zone moved, the local hour did not
+def test_a_note_never_covers_half_a_trading_week_and_half_a_weekend():
+    # The whole reason the boundaries are Monday and Saturday. A Tuesday/Friday
+    # pair could not avoid a note that was part working days and part weekend,
+    # and those two stretches have nothing to say to each other.
+    saturday = int(datetime(2026, 4, 4, 6, tzinfo=timezone.utc).timestamp())
+    sunday = int(datetime(2026, 4, 5, 18, tzinfo=timezone.utc).timestamp())
+    assert routing.digest_slot(saturday) == routing.digest_slot(sunday)
+    opens = datetime.fromtimestamp(routing.digest_slot(saturday),
+                                   tz=timezone.utc).astimezone(routing.DIGEST_TZ)
+    assert opens.weekday() == 5
+    # ...and Monday morning starts the other one.
+    monday = int(datetime(2026, 4, 6, 6, tzinfo=timezone.utc).timestamp())
+    assert routing.digest_slot(monday) != routing.digest_slot(sunday)
+
+
+def test_a_note_opens_at_the_same_utc_hour_on_both_sides_of_daylight_saving():
+    # The reverse of the rule this replaced. A note used to be the thing that
+    # buzzed, so it had to land at a civilised LOCAL hour and its UTC hour moved
+    # twice a year; the ping buzzes now and the note is a record, so it takes
+    # the boundary the market uses and does not drift at all.
+    winter = routing.digest_slot(int(datetime(2026, 1, 7, tzinfo=timezone.utc).timestamp()))
+    summer = routing.digest_slot(int(datetime(2026, 7, 8, tzinfo=timezone.utc).timestamp()))
+    stamps = {(datetime.fromtimestamp(m, tz=timezone.utc).hour,
+               datetime.fromtimestamp(m, tz=timezone.utc).minute)
+              for m in (winter, summer)}
+    assert stamps == {(routing.DIGEST_HOUR_LOCAL, routing.DIGEST_MINUTE_LOCAL)}
 
 
 def test_only_digested_events_carry_a_slot():
