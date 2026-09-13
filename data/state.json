@@ -7,7 +7,7 @@
       "1788858000": {
         "from": 1788858000,
         "hashes": [
-          "cc64e4c468a50363",
+          "017b3dfb3194a877",
           "6c8a4e2c1648b469"
         ],
         "ids": [
@@ -19,7 +19,7 @@
       "1789117200": {
         "from": 1789117200,
         "hashes": [
-          "aac5f53a45d4fa8a"
+          "a5186c8ac86e7581"
         ],
         "ids": [
           10
@@ -28,7 +28,8 @@
       }
     },
     "pings": {
-      "coinbase_ETH-USD:1789131600": 11
+      "coinbase_ETH-USD:1789131600": 11,
+      "twelvedata_USD_CNH:1789333200": 12
     },
     "sent": {
       "twelvedata_USD_JPY:1788768000": 1788768000
