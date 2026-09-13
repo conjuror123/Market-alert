@@ -356,7 +356,10 @@ archive has gaps. Deepening that history is what buys a deeper top rung.
 Delivery splits by urgency, not by importance:
 
 * **Pushed at once** — both push tiers, a once-in-three-years move and a
-  once-in-six-years one. Roughly one every sixteen days between them. The message is then edited in place
+  once-in-six-years one. Roughly one every thirteen days between them, and each
+  one is its own message: a push is final when it arrives. Six on the day the
+  market breaks is the bot working; nothing is held back or folded into anything
+  else, and no event ever changes channel after it is built. The message is then edited in place
   at this day's close and the next day's close with how the move actually held; of
   moves still standing when their own day closed, 80% were still standing at the next
   day's close too.

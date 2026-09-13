@@ -162,7 +162,7 @@ def test_a_warm_run_reproduces_a_cold_one_exactly():
 
     assert set(older["event_id"]) == set(fresh["event_id"])
     merged = older.merge(fresh, on="event_id", suffixes=("_c", "_w"))
-    for column in ("tier", "basis", "channel", "also_moved", "folded_into"):
+    for column in ("tier", "basis", "channel"):
         left, right = merged[f"{column}_c"].astype(str), merged[f"{column}_w"].astype(str)
         assert (left == right).all(), column
     for column in ("r", "e_resid", "z_resid", "co_block", "sigma_lt"):

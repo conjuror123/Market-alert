@@ -127,13 +127,6 @@ def test_an_empty_table_keeps_the_columns():
     assert "channel" in routed.columns and "digest_slot" in routed.columns
 
 
-def test_a_second_instrument_in_the_same_episode_does_not_buzz_again():
-    # 2008-11-20 sent six pushes over two hours for one market event.
-    rows = [(DAY, "extreme", 0.9, 0.9), (DAY + HOUR, "extreme", 0.9, 0.9),
-            (DAY + 2 * HOUR, "extreme", 0.9, 0.9)]
-    routed = routing.route(events(rows))
-    assert list(routed["channel"]) == [routing.PUSH, routing.DIGEST, routing.DIGEST]
-
 
 def test_the_window_reopens_the_next_day():
     # "if it continues to the next day, it is worth firing again"
@@ -150,99 +143,15 @@ def test_a_rarer_move_inside_the_window_still_interrupts():
     assert list(routed["channel"]) == [routing.PUSH, routing.PUSH]
 
 
-def test_a_milder_move_inside_the_window_does_not():
-    rows = [(DAY, "extreme", 0.9, 0.9), (DAY + 3 * HOUR, "major", 0.9, 0.9)]
-    routed = routing.route(events(rows))
-    assert list(routed["channel"]) == [routing.PUSH, routing.DIGEST]
 
 
-def test_a_rarer_move_becomes_the_new_anchor():
-    rows = [(DAY, "major", 0.9, 0.9), (DAY + 3 * HOUR, "extreme", 0.9, 0.9),
-            (DAY + 6 * HOUR, "major", 0.9, 0.9)]
-    routed = routing.route(events(rows))
-    assert list(routed["channel"]) == [routing.PUSH, routing.PUSH, routing.DIGEST]
 
 
-def test_collapse_leaves_events_that_were_never_pushes_alone():
-    rows = [(DAY, "extreme", 0.9, 0.9), (DAY + HOUR, "noticeable", -0.5, -0.5)]
-    frame = events(rows)
-    given = pd.Series([routing.PUSH, routing.DIGEST])
-    channels, folded, _ = routing.collapse(frame, given)
-    assert list(channels) == [routing.PUSH, routing.DIGEST]
-    assert list(folded) == ["", ""]
 
 
-def test_the_surviving_push_names_the_instruments_it_speaks_for():
-    # Collapsing six alerts into one must not understate the day, and a bare
-    # count would: WHICH instruments moved together is the diagnosis.
-    rows = [(DAY, "extreme", 0.9, 0.9), (DAY + HOUR, "extreme", 0.9, 0.9),
-            (DAY + 2 * HOUR, "extreme", 0.9, 0.9)]
-    routed = routing.route(events(rows, ["s:SPY", "s:XLF", "s:USO"]))
-    assert list(routed["channel"]) == [routing.PUSH, routing.DIGEST, routing.DIGEST]
-    assert routed["also_moved"].iloc[0] == "s:XLF s:USO"
 
 
-def test_a_lone_push_speaks_for_nobody():
-    routed = routing.route(events([(DAY, "extreme", 0.9, 0.9)]))
-    assert routed["also_moved"].iloc[0] == ""
 
-
-def test_the_same_instrument_is_not_named_twice():
-    rows = [(DAY, "extreme", 0.9, 0.9), (DAY + HOUR, "extreme", 0.9, 0.9),
-            (DAY + 2 * HOUR, "extreme", 0.9, 0.9)]
-    routed = routing.route(events(rows, ["s:SPY", "s:XLF", "s:XLF"]))
-    assert routed["also_moved"].iloc[0] == "s:XLF"
-
-
-def test_the_names_follow_the_new_anchor_after_an_escalation():
-    # major opens, extreme takes over, a later major folds into the EXTREME -
-    # so the names belong to the extreme, not to the major that opened.
-    rows = [(DAY, "major", 0.9, 0.9), (DAY + 3 * HOUR, "extreme", 0.9, 0.9),
-            (DAY + 6 * HOUR, "major", 0.9, 0.9)]
-    routed = routing.route(events(rows, ["s:A", "s:B", "s:C"]))
-    assert list(routed["also_moved"]) == ["", "s:C", ""]
-
-
-def test_a_push_does_not_name_its_own_instrument_as_a_companion():
-    # A second event on the same instrument inside the window is the same move
-    # continuing. Folding its id into the companion list made the biggest
-    # messages read absurdly: "Dollar / franc - biggest move in about three
-    # years ... with Dollar / franc within the day".
-    rows = [(DAY, "extreme", 0.9, 0.9), (DAY + HOUR, "major", 0.9, 0.9),
-            (DAY + 2 * HOUR, "major", 0.9, 0.9)]
-    frame = events(rows)
-    frame["asset_id"] = ["twelvedata:USD/CHF", "twelvedata:USD/CHF", "twelvedata:EUR/USD"]
-    _, folded, _ = routing.collapse(frame, pd.Series([routing.PUSH] * len(rows)))
-    named = folded.iloc[0].split(" ")
-    assert "twelvedata:USD/CHF" not in named
-    assert named == ["twelvedata:EUR/USD"]
-
-
-def test_a_folded_event_records_which_push_it_belongs_to():
-    # It does not buzz again, but it does take a row in the note - within the
-    # hour, right under the push that already named it. Without this the row
-    # cannot say which alert it belongs to, and the same news reads as arriving
-    # twice.
-    rows = [(DAY, "extreme", 0.9, 0.9), (DAY + HOUR, "extreme", 0.9, 0.9)]
-    routed = routing.route(events(rows, assets=["src:SPY", "src:XLF"]))
-    assert list(routed["channel"]) == [routing.PUSH, routing.DIGEST]
-    assert routed["folded_into"].iloc[0] == ""
-    assert routed["folded_into"].iloc[1] == "src:SPY"
-
-
-def test_an_event_that_was_never_a_push_belongs_to_nothing():
-    routed = routing.route(events([(DAY, "extreme", 0.9, 0.9),
-                                   (DAY + HOUR, "noticeable", 0.9, 0.9)],
-                                  assets=["src:SPY", "src:GLD"]))
-    assert routed["folded_into"].iloc[1] == ""
-
-
-def test_the_two_directions_agree():
-    # The push names its companions, each companion names the push.
-    rows = [(DAY, "extreme", 0.9, 0.9), (DAY + HOUR, "major", 0.9, 0.9)]
-    routed = routing.route(events(rows, assets=["src:SPY", "src:XLF"]))
-    assert routed["also_moved"].iloc[0] == "src:XLF"
-    assert routed["folded_into"].iloc[1] == "src:SPY"
 
 
 def test_the_collector_closes_at_midnight_rather_than_after_a_rolling_day():
@@ -256,36 +165,7 @@ def test_the_collector_closes_at_midnight_rather_than_after_a_rolling_day():
     assert list(routed["channel"]) == [routing.PUSH, routing.PUSH]
 
 
-def test_a_whole_day_of_an_episode_still_folds_into_one():
-    midnight = 10 * DAY
-    rows = [(midnight + HOUR, "extreme", 0.9, 0.9),
-            (midnight + 10 * HOUR, "extreme", 0.9, 0.9),
-            (midnight + 22 * HOUR, "extreme", 0.9, 0.9)]
-    routed = routing.route(events(rows))
-    assert list(routed["channel"]) == [routing.PUSH, routing.DIGEST, routing.DIGEST]
 
-
-def test_the_day_boundary_is_utc():
-    assert routing.same_day(10 * DAY, 10 * DAY + 23 * HOUR)
-    assert not routing.same_day(10 * DAY + 23 * HOUR, 11 * DAY)
-
-
-def test_a_block_takes_the_anchor_from_its_members_on_the_same_bar():
-    # The block push and the members that made it up land on the same hour. The
-    # block is the more informative of the two - "the whole complex repriced,
-    # led by these three" rather than "this member moved and six others moved
-    # with it" - so it interrupts and they fold under it.
-    HOUR = 3600
-    frame = events([(10 * HOUR, "major", 1.0, 1.0),
-                    (10 * HOUR, "major", 1.0, 1.0),
-                    (10 * HOUR, "major", 1.0, 1.0)],
-                   assets=["src:XLF", "block:equity", "src:XLE"])
-    out = routing.route(frame)
-
-    anchor = out[out["channel"] == routing.PUSH]
-    assert list(anchor["asset_id"]) == ["block:equity"]
-    assert set(str(anchor["also_moved"].iloc[0]).split()) == {"src:XLF", "src:XLE"}
-    assert set(out[out["channel"] == routing.DIGEST]["folded_into"]) == {"block:equity"}
 
 
 def test_a_rarer_member_still_interrupts_a_block_push():
@@ -299,3 +179,44 @@ def test_a_rarer_member_still_interrupts_a_block_push():
 
     assert list(out[out["channel"] == routing.PUSH]["asset_id"]) == [
         "block:equity", "src:XLF"]
+
+
+# --- a push is final when it arrives ---------------------------------------
+
+def test_the_channel_is_a_function_of_the_tier_and_nothing_else():
+    # There used to be a collapse: a second push inside the same UTC day was
+    # folded under the first, so an event's channel depended on what else
+    # happened that day. Measured on the record that put 199 of 9,069 events in
+    # a channel their tier did not choose, and it made "which channel is this
+    # in" a question with a time-dependent answer.
+    rows = pd.DataFrame({
+        "asset_id": ["a:1", "a:2", "a:3", "a:4"],
+        "hour_utc": [DAY, DAY + HOUR, DAY + 2 * HOUR, DAY + 3 * HOUR],
+        "tier": ["extreme", "major", "high", "noticeable"],
+    })
+    routed = routing.route(rows)
+    assert list(routed["channel"]) == ["push", "push", "digest", "digest"]
+
+    # Same tiers, all in one hour, and the answer does not move.
+    together = rows.assign(hour_utc=[DAY] * 4)
+    assert list(routing.route(together)["channel"]) == list(routed["channel"])
+
+
+def test_a_whole_day_of_pushes_all_push():
+    # 2008-11-20 sent six across two hours and 2020-03-12 five. Folding them
+    # was an argument about message count, and the count is not what this is
+    # for: six messages on the day the market breaks is the bot working.
+    rows = pd.DataFrame({
+        "asset_id": [f"a:{i}" for i in range(6)],
+        "hour_utc": [DAY + i * HOUR for i in range(6)],
+        "tier": ["extreme"] * 3 + ["major"] * 3,
+    })
+    routed = routing.route(rows)
+    assert (routed["channel"] == "push").all()
+
+
+def test_nothing_records_a_fold_any_more():
+    rows = pd.DataFrame({"asset_id": ["a:1"], "hour_utc": [DAY], "tier": ["extreme"]})
+    routed = routing.route(rows)
+    assert "folded_into" not in routed.columns
+    assert "also_moved" not in routed.columns

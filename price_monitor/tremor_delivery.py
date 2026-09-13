@@ -381,87 +381,10 @@ def _retention_note(value: float) -> str:
 
 
 
-def companions_of(event: dict, events: "list[dict]") -> "dict[str, dict]":
-    """The events folded into this push, by asset_id.
-
-    A push speaks for a whole episode: a second instrument moving inside the
-    collapse window does not buzz again, it is folded into the first (see
-    tremor.routing.collapse). Those folded events take no line of their own
-    anywhere else, so this is where their numbers have to come from.
-    """
-    from tremor.routing import same_day
-
-    anchor = str(event.get("asset_id") or "")
-    if not anchor:
-        return {}
-    hour = int(event["hour_utc"])
-    return {str(e.get("asset_id") or ""): e for e in events
-            if str(e.get("folded_into") or "") == anchor
-            and int(e["hour_utc"]) >= hour and same_day(int(e["hour_utc"]), hour)}
-
-
-# How long the whole message may run before Telegram rejects it. A push that had
-# to be split into two messages would buzz twice, which is the one thing the
-# collapse exists to prevent - so companions are dropped from the end until it
-# fits and the message says how many it dropped.
+# How long the whole message may run before Telegram rejects it. A push is one
+# instrument's story now that nothing is folded into it, so this is headroom
+# rather than a budget anything is trimmed against.
 _PUSH_LIMIT = 3600
-
-
-def _companion_blocks(event: dict, labels: dict[str, str],
-                      companions: "dict[str, dict] | None",
-                      now: datetime | None,
-                      events: "list[dict] | None",
-                      budget: int) -> str:
-    """The rest of the day's episode, each instrument written out in full.
-
-    Not a list of names, and no longer a list of names with a number beside
-    them. A push speaks for everything that moved with it until midnight, and
-    each of those has its own size, its own rarity, its own split and its own
-    two check-ins - the financial sector kept going to 1.9x on 2008-11-20 while
-    short Treasuries gave two thirds back, and a shared line could say neither.
-
-    Ordered rarest first and then biggest, because a folded companion moved MORE
-    than the push that spoke for it 49% of the time: the most important number
-    in the message is often down here rather than in the headline.
-    """
-    raw = event.get("also_moved")
-    if raw is None or (isinstance(raw, float) and pd.isna(raw)):
-        return ""
-    ids = [a for a in str(raw).split(" ") if a]
-    if not ids:
-        return ""
-
-    companions = companions or {}
-    rank = {"noticeable": 0, "high": 1, "major": 2, "extreme": 3}
-
-    def sort_key(asset_id: str):
-        row = companions.get(asset_id) or {}
-        return (-rank.get(str(row.get("tier")), -1),
-                -abs(_clean(row.get("r")) or 0.0))
-
-    blocks, used, dropped = [], 0, 0
-    for asset_id in sorted(ids, key=sort_key):
-        row = companions.get(asset_id)
-        if row is None:
-            # Named but not yet in the table: the ordinary case at the hour a
-            # push is sent, when the day it collects has not happened yet.
-            dropped += 1
-            continue
-        block = describe(row, labels, now, events)
-        if used + len(block) > budget:
-            dropped += 1
-            continue
-        blocks.append(block)
-        used += len(block)
-
-    if not blocks:
-        named = [labels.get(a) or a.split(":")[-1] for a in ids]
-        return "Also moved, within the day: " + _escape(", ".join(named))
-
-    head = ["<b>Also moved, within the day</b>"]
-    if dropped:
-        head.append(f"<i>and {dropped} more not shown</i>")
-    return "\n\n".join(head + blocks)
 
 
 def _escape(text: str) -> str:
@@ -1098,14 +1021,18 @@ def _due_in(event: dict, horizon, now: datetime | None = None) -> str:
 
 def format_push(event: dict, labels: dict[str, str],
                 calendar: "list[dict] | None" = None,
-                companions: "dict[str, dict] | None" = None,
                 events: "list[dict] | None" = None,
                 now: datetime | None = None) -> str:
-    """A single interrupting alert, speaking for its whole day's episode.
+    """A single interrupting alert.
 
     Ordered so the reader meets one instrument first and the day second: the
-    move written out in full, then the news scheduled around it, then every
-    other instrument that moved before midnight, each written out the same way.
+    move written out in full, then the news scheduled around it, then how
+    frightened the market already was when it happened.
+
+    ONE INSTRUMENT, and only one. A push used to speak for every other move of
+    its day, because a second push inside the day was folded into it rather than
+    sent. Nothing is folded now - a push is final when it arrives - so each one
+    is its own story and the day assembles itself out of however many arrive.
     """
     lines = [describe(event, labels, now, events)]
     context = calendar_context(int(event["hour_utc"]), calendar)
@@ -1119,11 +1046,6 @@ def format_push(event: dict, labels: dict[str, str],
     if regime:
         lines.append("")
         lines.append(regime)
-    budget = _PUSH_LIMIT - len("\n\n".join(lines))
-    blocks = _companion_blocks(event, labels, companions, now, events, budget)
-    if blocks:
-        lines.append("")
-        lines.append(blocks)
     # Once at the foot of the message rather than under every instrument: any
     # message that says "its own block" or speaks for a block outright is asking
     # the reader to accept a claim about a group of instruments, and they are
@@ -1237,11 +1159,10 @@ def digest_rows(events: "list[dict]", window: "tuple[int, int]",
     arrives late simply appears, and one a recompute no longer produces simply
     goes. That is what makes editing safe to repeat.
 
-    An event folded into a push is NOT here. It does not buzz again, but the
-    push already speaks for it and now carries its size, and a row of its own in
-    the note - arriving under that push, within the hour - is one episode
-    reaching the reader twice. Only push tiers are ever folded, so this is
-    exactly the rule "a move that belongs to an alert belongs to that alert".
+    A push tier is never here, and needs no filtering to keep it out: its
+    channel is decided from its tier alone and never revised, so an event is
+    either a note row for its whole life or a standalone alert for its whole
+    life. Nothing is ever both.
 
     An hour that has not happened yet is not written down, the same rule a push
     is held to. It should not arise - a bar has to close before it is scored -
@@ -1250,7 +1171,6 @@ def digest_rows(events: "list[dict]", window: "tuple[int, int]",
     start, end = window
     return [e for e in events
             if str(e.get("channel") or "") == "digest"
-            and not str(e.get("folded_into") or "")
             and start <= float(e.get("hour_utc", 0)) < end
             and float(e.get("hour_utc", 0)) <= now.timestamp()]
 
@@ -1558,11 +1478,10 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         # What this push speaks for. Usually nothing: only a fifth of pushes
         # have a companion, and at the hour one is sent the window it collapses
         # is still open, so the block fills in through the follow-up edits.
-        with_it = companions_of(event, events)
         try:
             message_id = send_telegram_message(
                 cfg.telegram_bot_token, cfg.telegram_chat_id,
-                format_push(event, labels, calendar, with_it, events, now))
+                format_push(event, labels, calendar, events, now))
         except TelegramError as exc:
             log.error("Failed to send Tremor push %s: %s", event.get("event_id"), exc)
             continue
@@ -1576,7 +1495,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         record_sent_alert(
             alerts_log, chat_id=cfg.telegram_chat_id, message_id=message_id,
             symbol=label,
-            message_text=format_push(event, labels, calendar, with_it, events, now),
+            message_text=format_push(event, labels, calendar, events, now),
             last_close=float(_clean(event.get("close")) or 0.0),
             last_return_pct=float((move or 0.0) * 100),
             ewma_z=float(_clean(event.get("z_resid")) or 0.0),

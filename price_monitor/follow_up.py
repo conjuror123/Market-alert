@@ -112,13 +112,12 @@ def apply(cfg: Config, state: dict, events: "list[dict]",
         if not landed:
             continue
 
-        # Re-rendered whole, which is how the companion block gets filled in:
-        # at the hour a push is sent, the twenty-four hours it collapses have
-        # not happened yet, so the instruments it speaks for arrive later and
-        # reach the reader through this edit.
+        # Re-rendered whole, which is how the check-in lines get their
+        # answers: at the hour a push is sent neither close has happened, so
+        # how the move held arrives later and reaches the reader through this
+        # edit rather than through a second message.
         text = tremor_delivery.format_push(
-            event, labels, calendar,
-            tremor_delivery.companions_of(event, events), events, now)
+            event, labels, calendar, events, now)
         try:
             edit_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
                                   int(record["message_id"]), text)

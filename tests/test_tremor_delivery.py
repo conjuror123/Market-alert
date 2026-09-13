@@ -371,54 +371,9 @@ def _blocks(anchor_ids, companions=None, labels=None, budget=9999):
                                 companions, NOW, [], budget)
 
 
-def test_every_instrument_in_the_episode_is_written_out_in_full():
-    # Not a list of names, and not a list of names with a number beside them. A
-    # push speaks for everything that moved with it until midnight, and each has
-    # its own size, rarity, split and two check-ins.
-    labels = {"a:XLF": "US financial sector"}
-    with_it = {"a:XLF": event(asset_id="a:XLF", tier="extreme", basis="absolute",
-                              r=0.105, e_resid=0.0088,
-                              co_block=0.0962, block="equity", sigma_lt=0.0081,
-                              retention_raw_today=1.7, retention_raw_settled=1.9)}
-    block = _blocks("a:XLF", with_it, labels)
-    assert "US financial sector" in block
-    assert "+10.50%" in block
-    assert "its own block moving, US and global equities" in block
-    assert "this day's close - kept going, 1.7x the original move" in block
-    assert "next day's close - kept going, 1.9x the original move" in block
 
 
-def test_the_rarest_and_biggest_companion_comes_first():
-    # A folded companion moved MORE than the push that spoke for it 49% of the
-    # time: the most important number is often down here, not in the headline.
-    labels = {"a:1": "Small", "a:2": "Large"}
-    with_it = {"a:1": event(asset_id="a:1", tier="major", r=0.01),
-               "a:2": event(asset_id="a:2", tier="extreme", r=0.09)}
-    block = _blocks("a:1 a:2", with_it, labels)
-    assert block.index("Large") < block.index("Small")
 
-
-def test_a_companion_not_yet_in_the_table_is_only_named():
-    # The ordinary case at the hour a push is sent: the day it collects has not
-    # happened yet, so there is nothing to write out.
-    block = _blocks("twelvedata:EUR/USD")
-    assert block == "Also moved, within the day: EUR/USD"
-
-
-def test_no_companions_produces_no_block():
-    for value in ("", None, float("nan")):
-        assert _blocks(value) == ""
-    assert md._companion_blocks({}, {}, None, NOW, [], 9999) == ""
-
-
-def test_the_message_is_trimmed_rather_than_split_into_a_second_buzz():
-    # A push split into two messages would buzz twice, which is the one thing
-    # the collapse exists to prevent.
-    with_it = {f"a:{i}": event(asset_id=f"a:{i}", tier="major", r=0.01)
-               for i in range(6)}
-    block = _blocks(" ".join(with_it), with_it, budget=600)
-    assert "more not shown" in block
-    assert len(block) < 1200
 
 
 def _cal(rows):
@@ -848,14 +803,6 @@ def test_a_note_whose_first_post_failed_does_not_cover_its_period(monkeypatch):
     assert any("Gold" in t for t in working.texts)
 
 
-def test_a_move_folded_into_a_push_takes_no_row_in_the_note(monkeypatch, sender):
-    # The push already speaks for it and now carries its size. A row of its own
-    # in the note - arriving under that push, within the hour - would be one
-    # episode reaching the reader twice.
-    row = digest_row(asset_id="coinbase:BTC-USD", folded_into="twelvedata:GLD")
-    deliver(monkeypatch, [row])
-    assert "Bitcoin" not in notes(sender)[0]
-
 
 def test_a_move_that_belongs_to_no_push_keeps_its_row(monkeypatch, sender):
     deliver(monkeypatch, [digest_row(folded_into="")])
@@ -995,22 +942,6 @@ def test_a_block_move_still_gets_its_two_check_ins():
     assert any("this day's close - kept going, 1.4x the original move" in l for l in lines)
     assert any("next day's close -" in l for l in lines)
 
-
-def test_a_block_push_speaks_for_the_members_folded_into_it():
-    # The block is the more informative statement of the two, so on the same bar
-    # it takes the anchor and its members appear underneath it rather than
-    # buzzing separately.
-    labels = {"a:XLF": "US financial sector"}
-    with_it = {"a:XLF": event(asset_id="a:XLF", tier="major", basis="absolute",
-                              r=-0.058, e_resid=-0.001, co_block=-0.057,
-                              block="equity", sigma_lt=0.009)}
-    text = md.format_push(block_event(also_moved="a:XLF"), labels, companions=with_it)
-
-    assert "US and global equities" in text
-    assert "US financial sector" in text
-    # And the footer, because the message made a claim about a group of
-    # instruments and the reader is entitled to see which ones.
-    assert "instruments tracked, by block" in text
 
 
 def test_a_block_check_in_is_dated_on_its_members_calendar():
