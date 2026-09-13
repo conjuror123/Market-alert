@@ -224,6 +224,39 @@ misses — negative oil at 18:00 on 2020-04-21 scored as missed because the push
 at 16:00, which is the collapse working. The cooldown window is what "would I have found
 out" actually asks.
 
+**The published score measured a detector nobody receives.** `tremor.evaluate` scored the
+SI-Index cluster channel against the §7 label and that table was, for a long time, the
+only one in the report — so "we barely beat the SPY rule" (F1 20.8% against the
+baseline's 21.6%) was read off a channel that is computed, written and delivered to
+nobody. `price_monitor` reads `saed_events.parquet`. The 8,838 events that reach a phone
+had never been scored at all. `tremor.saed_score` now scores them, and the report leads
+with it.
+
+**The delivered detector is scored on the claim it makes, not on §7's.** §7 asks whether
+a big move follows in the next 24 hours. SAED does not forecast; it says the move that
+just happened was unusual for this instrument. Three measurements instead: whether a tier
+fires as often as its words promise, whether the moves it sent clear a plain full-sample
+quantile at that rate, and which large moves it missed.
+
+**The return periods are wrong, and by how much is now on the record.** Against the rate
+each tier claims: `noticeable` 0.45x, `high` 0.88x, `major` 1.41x, `extreme` 1.75x. A
+message saying "about once in 6 years" describes something that happens about once in
+three. `noticeable` firing at less than half its claimed rate is partly the size floor
+doing its job, so that one is a floor rather than a fault; the two rare tiers have no
+such excuse, and the `absolute` ladder is where it comes from — its precision at `major`
+and `extreme` is 19% and 26% against the `abnormal` ladder's 56% and 52%.
+
+**Each event must be judged on the quantity its own ladder scores**, and getting this
+wrong produces a confident table that means nothing. `absolute` scores the raw return,
+`abnormal` scores the BMP-standardised residual. Judged on raw size the abnormal events
+score 3.5%; judged on the residual the absolute ones score 1.1%. On their own quantities
+they are 76% and 84%. Both wrong figures look like findings and are arithmetic.
+
+**Recall is reported twice because the plain figure is not the honest one.** Against every
+large raw move, 56-69% per episode. But a large move its block fully explains is supposed
+to be silent — that is the fault the system was built to fix — so the figure that matters
+keeps only episodes that were large AND unexplained: 68-87%.
+
 **A flat threshold cannot reach 100% by construction**, which is why an earlier "89.7% of
 5%+ moves" figure was meaningless: 5% is a quiet hour in SOL and an apocalypse in SHY.
 
@@ -261,6 +294,27 @@ provider's hole, not a fetching bug.
 forecast/actual pairing) and a Kaggle export (starts too late, wrong columns) were each
 tested and rejected with the measurement. The archive reaches 2007 from the source
 already in use, 91,544 events.
+
+**A vendor's dividend adjustment breaks across a share split, measurably.** XLK, XLY,
+XLE, XLU and XLB split 2:1 on 2025-12-05. Twelve Data's `adjust=all` series divides the
+NOMINAL pre-split dividend by the SPLIT-ADJUSTED price, so every dividend step before
+that date on those five reads exactly twice its true size - verified to three decimals
+on six ex-dates against published amounts, while SPY, which did not split, is exact
+throughout. The ratio method cannot see the split itself: both series are split-adjusted,
+so it cancels, and `SPLIT_THRESHOLD` has never fired. Consequence: `load_steps` is used
+only to un-adjust HF Data prices for deepening, where the error is 504-2705bp against
+`verify_alignment`'s 25bp tolerance - so the check refuses the import rather than
+corrupting the store, and those five carry six years of history instead of twenty-four.
+Not yet fixed; the fix is a third series at `adjust=none`, whose ratio to the default
+reveals the split factor.
+
+**The corporate-actions table stops at late October 2006, and it does not matter.**
+`acquire_since` is 2002 but the request also carries `outputsize=5000`, which caps the
+reply at the most recent 5000 daily rows - about 19.8 years - so roughly 375 ex-dates
+between 2002 and 2006 are missing. The cost is nil: an ex-date's price drop lands in
+`r_gap`, and `r_gap` is computed, stored, and read by nothing. Every detector consumes
+`r`, which on a session-open bar is `log(close/open)` - inside the bar. The same fact is
+why a future split cannot fire a false alert either.
 
 **Versions hash content, not timestamps.** A re-download that changes nothing must not
 invalidate a calibration, and an edited threshold must invalidate it even if the file's

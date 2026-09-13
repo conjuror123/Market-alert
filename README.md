@@ -236,7 +236,7 @@ python -m tremor.saed            # rarity ladder (cached) + single-asset and blo
 python -m tremor.cluster         # SI-Index, cluster events, the decision journal
 python -m tremor.export          # export events to JSON under the schema
 python -m tremor.truth           # §7 truth labels and the baseline
-python -m tremor.evaluate        # score the detector against them
+python -m tremor.evaluate        # score both detectors; SAED first, SI-Index against §7
 python -m tremor.calibrate       # §7 fit on train (writes calibration.json; never reads test)
 python -m price_monitor.economic_calendar --rebuild   # rebuild the calendar archive
 ```
