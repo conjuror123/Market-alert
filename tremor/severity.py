@@ -95,12 +95,35 @@ POT_FRACTION = 0.01
 # nominal rate. One percent of the sample lands inside the flat part of that
 # curve for every history length here, from 3000 bars to 48000.
 
-# The tail index is clipped before it is used. Left unbounded, a fit on fifty
-# points can return a shape above 1 - a distribution with no finite mean - and
-# extrapolate it three years out, which produces a threshold no move will ever
-# reach and silences the instrument completely. Financial tails sit well inside
-# this range; the clip only ever catches a fit that has gone wrong.
-SHAPE_MIN, SHAPE_MAX = -0.5, 0.5
+# The tail index is clipped before it is used. Above, left unbounded, a fit on
+# fifty points can return a shape above 1 - a distribution with no finite mean -
+# and extrapolate it six years out, which produces a threshold no move will ever
+# reach and silences the instrument completely.
+#
+# BELOW, THE FLOOR IS ZERO AND NOT A NEGATIVE NUMBER, which is a claim about
+# markets rather than about estimators. A Generalised Pareto with a negative
+# shape has a FINITE UPPER ENDPOINT, u + scale/|shape|: it asserts a hardest
+# possible move, past which nothing can go. For the magnitude of a standardised
+# residual on a traded price that is not a thin tail, it is a false one, and the
+# extrapolation saturates against a ceiling the market has never agreed to.
+#
+# It is also, measured, what a SHORT WINDOW returns. EUR/USD decomposed over its
+# own history: the fit reads -0.153 at six years of data, -0.024 at ten, -0.008
+# at fourteen and settles at +0.039 by twenty-three. The level it implies climbs
+# 4.39 -> 5.15 -> 5.28 -> 6.00 with it, so an instrument spends its early years
+# judged against a bar a quarter too low - and since the tail is steep, a level
+# a quarter low fires several times too often. That is most of why the currency
+# pairs, which have the longest histories and a true shape nearest zero, were
+# the worst-calibrated block in the basket.
+#
+# Flooring at the exponential case says the least the tail can do is decay
+# exponentially, which is the conventional conservative reading and the one the
+# data supports: across 61 instruments the full-sample shape has a median of
+# +0.039, and the fifteen that come out negative do so by a median of -0.031 -
+# noise around zero, not evidence of a ceiling. Measured over the whole basket
+# at the six-year rung, the floor improves 10 instruments and worsens 1, and
+# takes the median |log(realised/promised)| from 1.022 to 0.758.
+SHAPE_MIN, SHAPE_MAX = 0.0, 0.5
 
 # Two calendar years before the first tier is assigned, and a refit every 30
 # calendar days after that. Both are expressed in calendar time and converted

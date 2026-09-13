@@ -17,12 +17,22 @@ def test_pwm_recovers_the_generalised_pareto_parameters():
     # The estimator is a closed form of the first two probability-weighted
     # moments (Hosking & Wallis 1987), so this is a direct check of the algebra
     # rather than of an optimiser's luck.
+    #
+    # Only non-negative shapes are recoverable, and that is the point rather
+    # than a limitation: a negative shape is a tail with a finite upper endpoint,
+    # which a price magnitude does not have, so the estimator floors it. The
+    # bounded case is checked below instead of being recovered here.
     rng = np.random.default_rng(7)
-    for true_shape in (0.0, 0.1, 0.3, -0.2):
+    for true_shape in (0.0, 0.1, 0.3):
         fits = np.array([sv.fit_gpd(gpd_sample(rng, 2000, true_shape))
                          for _ in range(30)])
         assert abs(fits[:, 0].mean() - true_shape) < 0.03
         assert abs(fits[:, 1].mean() - 2.0) < 0.1
+
+    # A genuinely bounded sample is not recovered - it is floored.
+    bounded = np.array([sv.fit_gpd(gpd_sample(rng, 2000, -0.2))[0]
+                        for _ in range(10)])
+    assert (bounded == sv.SHAPE_MIN).all()
 
 
 def test_the_exponential_case_comes_out_at_shape_zero():
@@ -273,3 +283,34 @@ def test_magnitudes_passes_a_one_sided_score_through_unchanged():
     score = pd.Series([-3.0, 1.0, 2.0])
     assert list(sv.magnitudes(score, two_sided=False)) == [-3.0, 1.0, 2.0]
     assert list(sv.magnitudes(score, two_sided=True)) == [3.0, 1.0, 2.0]
+
+
+def test_a_bounded_tail_is_refused_and_floored_at_the_exponential_case():
+    # A negative shape is a Generalised Pareto with a finite upper endpoint - it
+    # asserts a hardest possible move. For a price magnitude that is a false
+    # claim, and on a short window it is what the fit returns anyway: the level
+    # it implies saturates against a ceiling and the instrument fires several
+    # times too often against it.
+    rng = np.random.default_rng(31)
+    # Uniform excesses are the textbook bounded case: PWM reads shape well below
+    # zero on them, so this is the fit the floor exists to catch.
+    shape, scale = sv.fit_gpd(rng.uniform(0, 1, 400))
+
+    assert shape >= 0.0                      # floored, not merely clipped somewhere
+    assert scale > 0                         # and still a usable pair
+    # The pair stays self-consistent: the scale is recomputed from the FLOORED
+    # shape, so it still describes a distribution rather than a bare parameter.
+    assert np.isfinite(sv.return_level(rng.uniform(0, 1, 5000), 2000.0))
+
+
+def test_the_floor_lifts_a_short_window_towards_its_settled_level():
+    # The measured failure, in miniature: the same series fitted on a quarter of
+    # its history and on all of it. With a bounded tail allowed, the short fit
+    # sits far below the long one; floored, it is much closer.
+    rng = np.random.default_rng(32)
+    x = np.abs(rng.standard_t(8, 120000))
+    m = 30000.0
+
+    settled = sv.return_level(x, m)
+    short = sv.return_level(x[:30000], m)
+    assert abs(short - settled) / settled < 0.15
