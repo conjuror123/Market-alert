@@ -420,6 +420,49 @@ python -m price_monitor        # deliver whatever is due
 
 The tests are run with `pytest -q`.
 
+## Turning it up or down
+
+Two knobs, in `config/basket.yaml`, and they answer different questions.
+
+```yaml
+sensitivity: 1.0      # how RARE must a move be before it is worth a line
+min_move_sigma: 1.0   # how BIG must it be, in its own terms, whatever the rarity
+```
+
+`sensitivity` scales all four rungs together: `2.0` makes every rung twice as
+rare and the messages roughly half as many, `0.5` the other way. It does **not**
+equalise instruments — each is still judged against its own history, so `SHY` may
+speak once a year and `SOL` a hundred times. That spread is the point of a return
+period, not a fault to normalise away, and the alert count is an output to watch
+rather than a target to hit. The message text follows the scaled rungs
+automatically.
+
+`min_move_sigma` is the floor the system went without for too long. The abnormal
+channel asks whether a move was *unexplained*, never whether it was *large*, so
+an instrument that ticked +0.03% while its block went the other way could be
+reported as a once-a-month event. In units of the instrument's own sigma, so it
+means the same to `SHY` as to `SOL`.
+
+**Neither number is guessable, so there is a way to argue with them.** Point at a
+message that was not worth reading:
+
+```bash
+python -m tremor.feedback --boring "IEI 2026-09-10 18:00"   # as the message wrote it
+python -m tremor.feedback --missed "GLD 2026-09-11 14:00"   # this should have arrived
+python -m tremor.feedback                                    # what the knobs imply
+```
+
+It keys on the ticker and the hour the message already shows, matches the bar
+the message meant, and reports the smallest floor that would exclude everything
+flagged *and what that would cost elsewhere* — then stops. It does not turn the
+knobs; a loop that retuned itself from a handful of judgements would chase the
+last thing that annoyed anyone. Verdicts live in `data/tremor/feedback.csv`.
+
+The asymmetry is deliberate: you can point at a message that arrived and should
+not have, and cannot point at one that never came. So the system is meant to err
+loud and be turned down from recorded judgements, rather than err quiet and never
+learn what it swallowed.
+
 ## Limitations
 
 - `price-monitor.yml` has no schedule of its own. GitHub's own `schedule:` was
