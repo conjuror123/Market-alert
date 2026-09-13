@@ -74,7 +74,6 @@ from tremor import severity
 log = logging.getLogger("tremor.saed_score")
 
 DEFAULT_EVENTS_PATH = os.path.join("data", "tremor", "saed_events.parquet")
-DEFAULT_LADDER_PATH = os.path.join("data", "tremor", "ladder.csv")
 DEFAULT_RESIDUALS_DIR = os.path.join("data", "tremor", "residuals")
 DEFAULT_METRICS_DIR = os.path.join("data", "tremor", "metrics")
 
@@ -166,59 +165,65 @@ def hindsight_levels(series: "dict[str, pd.DataFrame]") -> "dict[tuple[str, str]
     return out
 
 
-def calibration(events: pd.DataFrame, ladder: pd.DataFrame) -> pd.DataFrame:
-    """Claimed frequency against realised, per tier.
+def eligible_years(spans: "dict[str, float]") -> "dict[str, float]":
+    """Instrument-years in which each rung could have fired at all.
 
-    The denominator is instrument-YEARS and only those in which the tier could
-    have fired at all. Five instruments have no `extreme` level - the fit never
-    reached that far out - and folding their years into the total would report
-    the ladder as well behaved for the arithmetic reason that part of the
-    watchlist is unable to speak.
+    A rung is a lookback, so an instrument owes it nothing until it has lived
+    that long: a four-year-old listing is silent at six years by construction,
+    and folding its years into the denominator would report the ladder as well
+    behaved for the arithmetic reason that part of the watchlist cannot speak.
     """
     days = severity.tier_days()
-    end = int(events["hour_utc"].max())
+    return {tier: sum(max(span - days[tier] / 365.25, 0.0)
+                      for span in spans.values())
+            for tier in severity.TIERS}
+
+
+def calibration(counts: "dict[str, dict[str, int]]",
+                spans: "dict[str, float]") -> pd.DataFrame:
+    """Claimed frequency against realised, per rung and per source.
+
+    PER LADDER AND NOT ONLY PER EVENT, because the two answer different
+    questions and reading the second as the first is how this was misread once
+    already. Each ladder makes its own claim - "the biggest raw move since" and
+    "the biggest move of its own since" - and each is separately checkable. An
+    EVENT is the union of the two, taking whichever rung is rarer, so its rate is
+    roughly their sum and would read as a badly calibrated ladder when it is
+    simply two well calibrated ones. The union is a volume figure, and volume is
+    what `sensitivity` in config/basket.yaml is for.
+    """
+    days = severity.tier_days()
+    years = eligible_years(spans)
     rows = []
-    for tier in severity.TIERS:
-        column = f"level_{tier}"
-        if column not in ladder:
-            continue
-        reachable = ladder[ladder[column].notna()]
-        first = reachable.groupby("asset_id")["from_hour"].min()
-        if first.empty:
-            continue
-        years = ((end - first) / SECONDS_PER_YEAR).clip(lower=0)
-        fired = int(events["tier"].eq(tier).sum())
-        claimed = 365.25 / days[tier]
-        actual = fired / years.sum() if years.sum() else float("nan")
-        rows.append({
-            "tier": tier,
-            "instruments": int(len(first)),
-            "instrument_years": float(years.sum()),
-            "events": fired,
-            "claimed_per_year": claimed,
-            "actual_per_year": actual,
-            "ratio": actual / claimed if claimed else float("nan"),
-            "claimed_period": severity.period_phrase(days[tier]),
-            "actual_days": 365.25 / actual if actual else float("nan"),
-        })
+    for source, by_tier in counts.items():
+        for tier in severity.TIERS:
+            claimed = 365.25 / days[tier]
+            fired = int(by_tier.get(tier, 0))
+            actual = fired / years[tier] if years[tier] else float("nan")
+            rows.append({
+                "source": source, "tier": tier, "events": fired,
+                "instrument_years": years[tier],
+                "claimed_per_year": claimed, "actual_per_year": actual,
+                "ratio": actual / claimed if claimed else float("nan"),
+                "claimed_period": severity.period_phrase(days[tier]),
+                "actual_days": 365.25 / actual if actual else float("nan"),
+            })
     return pd.DataFrame(rows)
 
 
-def unreachable_tiers(ladder: pd.DataFrame) -> "dict[str, list[str]]":
-    """Instruments whose ladder never produced a level for a tier.
+def unreachable_tiers(spans: "dict[str, float]") -> "dict[str, list[str]]":
+    """Instruments too young to claim a rung at all.
 
-    Not a scoring result but a precondition for reading one: an instrument with
-    no `extreme` line is silent at that tier by construction, and that is a fact
-    about the fit rather than about the market.
+    Not a scoring result but a precondition for reading one. Under the fitted
+    ladder this was a property of whether the tail fit reached far enough, which
+    could surprise; now it is arithmetic - you cannot be the biggest in six years
+    until you have six years - so the list is exactly the young instruments.
     """
-    everything = set(ladder["asset_id"].unique())
+    days = severity.tier_days()
     out = {}
     for tier in severity.TIERS:
-        column = f"level_{tier}"
-        if column not in ladder:
-            continue
-        have = set(ladder[ladder[column].notna()]["asset_id"].unique())
-        missing = sorted(everything - have)
+        missing = sorted(asset for asset, span in spans.items()
+                         if span < days[tier] / 365.25)
         if missing:
             out[tier] = missing
     return out
@@ -356,28 +361,33 @@ def render(cal: pd.DataFrame, prec: pd.DataFrame, rec: pd.DataFrame,
         "ones that describe the product.")
     lines.append("")
 
-    lines += ["### Does a tier fire as often as it claims?", "",
-              "Every message states a return period. That is a falsifiable claim "
-              "about frequency and this is the test of it. Levels are fitted on "
-              "an expanding window and applied forward only, so the realised "
-              "rate is out of sample.", "",
-              "| Tier | Says | Actually | Instruments | Instrument-years | Events | Ratio |",
-              "|---|---|---|---:|---:|---:|---:|"]
-    for row in _order(cal).itertuples(index=False):
-        actual = (severity.period_phrase(row.actual_days)
-                  if np.isfinite(row.actual_days) else "—")
-        lines.append(
-            f"| {row.tier} | {row.claimed_period} | {actual} | "
-            f"{row.instruments} | {row.instrument_years:,.0f} | {row.events} | "
-            f"{row.ratio:.2f}× |")
-    lines.append("")
-    lines.append("A ratio above 1 means the tier fires more often than its words "
-                 "promise, and the message overstates the rarity by that factor.")
+    lines += ["### Does a rung arrive as often as it claims?", "",
+              "A rung is the biggest move in its own lookback, so for any "
+              "distribution at all it should arrive about once per lookback — "
+              "the chance that the newest of N observations is the largest of "
+              "those N is exactly 1/N, with nothing fitted and nothing "
+              "extrapolated. This is the test of that.", "",
+              "Read PER LADDER. Each makes its own claim — *the biggest raw "
+              "move since*, and *the biggest move of its own since* — and each "
+              "is separately checkable. A message is the union of the two, "
+              "taking whichever rung is rarer, so its rate is roughly their sum: "
+              "that last row is a volume figure, not a miscalibrated ladder, and "
+              "volume is what `sensitivity` turns.", "",
+              "| Source | Rung | Says | Actually | Instrument-years | Count | Ratio |",
+              "|---|---|---|---|---:|---:|---:|"]
+    for source in cal["source"].drop_duplicates():
+        for row in _order(cal[cal["source"].eq(source)]).itertuples(index=False):
+            actual = (severity.period_phrase(row.actual_days)
+                      if np.isfinite(row.actual_days) else "—")
+            lines.append(
+                f"| {row.source} | {row.tier} | {row.claimed_period} | {actual} | "
+                f"{row.instrument_years:,.0f} | {row.events} | {row.ratio:.2f}× |")
     lines.append("")
 
     if unreachable:
-        lines.append("**Tiers no level was ever fitted for**, which are silent by "
-                     "construction rather than because the market was quiet:")
+        lines.append("**Rungs no instrument can claim yet** — silent because they "
+                     "have not lived that long, which is arithmetic rather than a "
+                     "judgement about the market:")
         lines.append("")
         for tier, assets in unreachable.items():
             lines.append(f"- `{tier}`: {len(assets)} instruments — "
@@ -422,8 +432,35 @@ def render(cal: pd.DataFrame, prec: pd.DataFrame, rec: pd.DataFrame,
     return "\n".join(lines)
 
 
+def ladder_counts(residuals_dir: str) -> "tuple[dict, dict[str, float]]":
+    """Per-rung bar counts for each ladder, and each instrument's span in years.
+
+    Read off the rung each ladder ACTUALLY assigned - tier_absolute and
+    tier_abnormal - rather than off an event's `basis`. The basis says which
+    ladders fired at all, not which one produced the rung being reported, so
+    counting by basis credits a ladder with rungs it never assigned and inflates
+    its rate by half.
+    """
+    counts = {name: {tier: 0 for tier in severity.TIERS}
+              for name in ("absolute", "abnormal")}
+    spans: dict[str, float] = {}
+    for path in sorted(glob.glob(os.path.join(residuals_dir, "*.parquet"))):
+        frame = pd.read_parquet(path)
+        if frame.empty or "asset_id" not in frame or len(frame) < MIN_BARS:
+            continue
+        asset_id = str(frame["asset_id"].iloc[0])
+        spans[asset_id] = float((frame["hour_utc"].max() - frame["hour_utc"].min())
+                                / SECONDS_PER_YEAR)
+        for name in counts:
+            column = f"tier_{name}"
+            if column not in frame:
+                continue
+            for tier in severity.TIERS:
+                counts[name][tier] += int(frame[column].eq(tier).sum())
+    return counts, spans
+
+
 def build(events_path: str = DEFAULT_EVENTS_PATH,
-          ladder_path: str = DEFAULT_LADDER_PATH,
           residuals_dir: str = DEFAULT_RESIDUALS_DIR,
           metrics_dir: str = DEFAULT_METRICS_DIR) -> str:
     """The whole section, or an empty string if the inputs are not there.
@@ -431,30 +468,32 @@ def build(events_path: str = DEFAULT_EVENTS_PATH,
     Empty rather than an exception: this runs inside tremor.evaluate, and a
     missing residuals directory must not cost the report that does exist.
     """
-    if not (os.path.exists(events_path) and os.path.exists(ladder_path)):
-        log.warning("no SAED events or ladder cache - section skipped")
+    if not os.path.exists(events_path):
+        log.warning("no SAED events - section skipped")
         return ""
     events = pd.read_parquet(events_path)
-    ladder = pd.read_csv(ladder_path)
-    if events.empty or ladder.empty:
+    if events.empty:
         return ""
 
-    coverage = ladder.groupby("asset_id")["from_hour"].min()
+    counts, spans = ladder_counts(residuals_dir)
+    if not spans:
+        log.warning("no residuals - section skipped")
+        return ""
+    # Every instrument starts where its own record does: a rung is a lookback, so
+    # there is no separate warm-up to cut at any more.
+    coverage = pd.Series({asset: 0 for asset in spans})
     series = {"abnormal": _load_series(residuals_dir, "abnormal", coverage),
               "absolute": _load_series(metrics_dir, "absolute", coverage)}
     if not series["absolute"]:
         log.warning("no per-instrument metrics - section skipped")
         return ""
 
-    # Blocks are scored by the same ladder machinery but have no per-instrument
-    # series here to label them against, so they are left out of precision and
-    # recall. They stay in calibration, where the question is only how often the
-    # tier fires and the answer does not need a label.
     single = events[~events["asset_id"].astype(str).str.startswith("block:")]
-    return render(calibration(events, ladder),
+    counts["every message"] = single["tier"].value_counts().to_dict()
+    return render(calibration(counts, spans),
                   precision(single, series),
                   recall(single, series),
-                  unreachable_tiers(ladder), events)
+                  unreachable_tiers(spans), events)
 
 
 def main(argv: "list[str] | None" = None) -> int:
@@ -462,13 +501,12 @@ def main(argv: "list[str] | None" = None) -> int:
 
     parser = argparse.ArgumentParser(description="Score the delivered detector")
     parser.add_argument("--events", default=DEFAULT_EVENTS_PATH)
-    parser.add_argument("--ladder", default=DEFAULT_LADDER_PATH)
     parser.add_argument("--residuals-dir", default=DEFAULT_RESIDUALS_DIR)
     parser.add_argument("--metrics-dir", default=DEFAULT_METRICS_DIR)
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(message)s")
-    section = build(args.events, args.ladder, args.residuals_dir, args.metrics_dir)
+    section = build(args.events, args.residuals_dir, args.metrics_dir)
     if not section:
         return 2
     print(section)

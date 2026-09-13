@@ -109,8 +109,8 @@ def hours_by_block(basket: Basket, panel: pd.DataFrame,
     return out
 
 
-def frames(basket: Basket, panel: pd.DataFrame, sigma_panel: pd.DataFrame,
-           cache: "pd.DataFrame | None" = None) -> "dict[str, pd.DataFrame]":
+def frames(basket: Basket, panel: pd.DataFrame,
+           sigma_panel: pd.DataFrame) -> "dict[str, pd.DataFrame]":
     """One scored frame per block, shaped like an instrument's.
 
     Shaped like an instrument's on purpose: it then goes through the same
@@ -149,15 +149,8 @@ def frames(basket: Basket, panel: pd.DataFrame, sigma_panel: pd.DataFrame,
                                    .rolling(windows.SIGMA_LT_BARS,
                                             min_periods=windows.SIGMA_LT_MIN_BARS)
                                    .std(ddof=1))
-        levels = None
-        if cache is not None and not cache.empty:
-            from tremor import ladder
-
-            if ladder.covers(cache, block_id(block), "block", frame["hour_utc"]):
-                levels = ladder.levels_for(cache, block_id(block), "block",
-                                           frame["hour_utc"])
         frame = severity.annotate(frame, column="z_resid", fallback=None,
-                                  tier_column="tier", levels=levels)
+                                  tier_column="tier")
         frame["basis"] = pd.Series(BLOCK_BASIS, index=frame.index,
                                    dtype="string").where(frame["tier"].notna())
         # A block whose members all keep the US session has its day closed by
@@ -202,6 +195,11 @@ def events_frame(scored: "dict[str, pd.DataFrame]", basket: Basket,
                 # block's own figure is a median, so it names nobody. The
                 # reader's next question is always which members did it.
                 "leaders": _leaders(panel, columns, int(row.hour_utc)),
+                # What the block move actually beat. A block has one ladder, so
+                # there is no basis to choose between: the date is simply when
+                # this complex last moved together this hard.
+                "record_since": (None if pd.isna(getattr(row, "level_since", None))
+                                 else int(row.level_since)),
                 # A block move is not put to the two confirmations an asset move
                 # is. Corrado's rank test and the OU fit both ask whether ONE
                 # instrument's residual behaves idiosyncratically, and a block
@@ -215,7 +213,7 @@ def events_frame(scored: "dict[str, pd.DataFrame]", basket: Basket,
             "event_id", "asset_id", "block", "hour_utc", "peak_hour_utc",
             "z_resid", "e_resid", "co_block", "r", "beta_block", "repeat_count",
             "tier", "basis", "sigma_lt", "close", "n_members", "leaders",
-            "rank_confirms", "ou_reverts"])
+            "record_since", "rank_confirms", "ou_reverts"])
     # Stable, and tie-broken by name. Pandas sorts with quicksort by default,
     # so two blocks firing in the same hour came out in an arbitrary order that
     # depended on the length of the input - and the collapse then took whichever

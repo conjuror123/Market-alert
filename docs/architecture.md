@@ -70,9 +70,9 @@ instrument on an expanding window and applied only forward:
 
 Each yields a tier by return period: `routine` (a fortnight), `notable` (two months),
 `major` (a year), `extreme` (three years). An hour clearing both is reported at its
-rarest tier and marked `both`. Levels come from a Generalised Pareto fit above a high
-threshold, because a three-year level cannot be read off five years of empirical
-quantiles.
+rarest tier and marked `both`. A level is simply the biggest move in that rung's own
+lookback — nothing fitted, nothing extrapolated — so clearing it means exactly what the
+message says: *the biggest move since 3 March 2020*.
 
 **5. Sanity gates.** A move smaller than two ticks is not a small event but an
 unobserved one, and is dropped. An hour claimed by the abnormal channel *alone* that

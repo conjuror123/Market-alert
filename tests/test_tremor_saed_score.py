@@ -52,59 +52,69 @@ def events(rows):
 
 # --- the frequency claim ------------------------------------------------------
 
-def fired_over(years, per_year, tier="extreme", asset="src:A"):
-    """`per_year` events a year for `years` years, the last one closing the span.
-
-    The span is measured from the ladder's start to the LAST event, so the last
-    one has to land on the end or the denominator is short and every ratio comes
-    out high.
-    """
-    end = START + int(years * saed_score.SECONDS_PER_YEAR)
-    count = max(int(round(years * per_year)), 1)
-    hours = np.linspace(START, end, count).astype("int64")
-    return events([(asset, int(h), tier, "absolute") for h in hours])
+def spans(**years):
+    return dict(years)
 
 
-def test_a_tier_firing_at_its_claimed_rate_scores_one():
-    # The whole point of the table: "about once in 6 years" is a falsifiable
-    # statement and this is what it looks like when it holds.
-    claimed = 365.25 / severity.tier_days()["extreme"]
-    cal = saed_score.calibration(fired_over(12.0, claimed), ladder_rows(["src:A"]))
+def counts(**by_source):
+    return {source: dict(tiers) for source, tiers in by_source.items()}
+
+
+def test_a_rung_arriving_at_its_claimed_rate_scores_one():
+    # The whole point of the table: a rung is the biggest move in its own
+    # lookback, so it should arrive about once per lookback whatever the market
+    # is doing, and this is what that looks like when it holds.
+    years = 24.0
+    # Over the ELIGIBLE span - the record minus the rung's own lookback, since
+    # the instrument owes the rung nothing until it has lived that long.
+    per = saed_score.eligible_years(spans(A=years))["extreme"] \
+        / (severity.tier_days()["extreme"] / 365.25)
+    cal = saed_score.calibration(counts(absolute={"extreme": round(per)}),
+                                 spans(A=years))
     row = cal[cal["tier"].eq("extreme")].iloc[0]
-    assert row["ratio"] == pytest.approx(1.0, abs=0.05)
+    assert row["ratio"] == pytest.approx(1.0, abs=0.15)
 
 
-def test_a_tier_that_fires_twice_as_often_as_it_promises_scores_two():
-    claimed = 365.25 / severity.tier_days()["extreme"]
-    cal = saed_score.calibration(fired_over(12.0, 2 * claimed), ladder_rows(["src:A"]))
+def test_a_rung_arriving_twice_as_often_as_it_promises_scores_two():
+    years = 24.0
+    per = saed_score.eligible_years(spans(A=years))["extreme"] \
+        / (severity.tier_days()["extreme"] / 365.25)
+    cal = saed_score.calibration(counts(absolute={"extreme": round(2 * per)}),
+                                 spans(A=years))
     row = cal[cal["tier"].eq("extreme")].iloc[0]
-    assert row["ratio"] == pytest.approx(2.0, rel=0.1)
-    # and the words the report prints move with it
+    assert row["ratio"] == pytest.approx(2.0, rel=0.15)
     assert row["actual_days"] < severity.tier_days()["extreme"]
 
 
-def test_an_instrument_with_no_level_is_left_out_of_the_denominator():
-    # An instrument whose fit never reached `extreme` is silent there by
-    # construction. Counting its years would report the ladder as well behaved
-    # for the arithmetic reason that part of the watchlist cannot speak.
-    end = START + int(10 * saed_score.SECONDS_PER_YEAR)
-    ladder = pd.concat([ladder_rows(["src:A"]),
-                        ladder_rows(["src:B"], tiers=("noticeable", "high", "major"))])
-    rows = [("src:A", END, "extreme", "absolute")
-            for END in (START, end)]
-    cal = saed_score.calibration(events(rows), ladder)
-    extreme = cal[cal["tier"].eq("extreme")].iloc[0]
-    major = cal[cal["tier"].eq("major")].iloc[0]
-    assert extreme["instruments"] == 1
-    assert major["instruments"] == 2
-    assert extreme["instrument_years"] < major["instrument_years"]
+def test_each_ladder_is_scored_separately_from_the_union_of_the_two():
+    # Reading the union as a ladder is how this was misread once already. Two
+    # ladders each arriving at their own claimed rate produce messages at
+    # roughly twice that rate, and the union row is a VOLUME figure rather than
+    # a miscalibrated rung.
+    years = 24.0
+    per = round(saed_score.eligible_years(spans(A=years))["extreme"]
+                / (severity.tier_days()["extreme"] / 365.25))
+    cal = saed_score.calibration(
+        {"absolute": {"extreme": per}, "abnormal": {"extreme": per},
+         "every message": {"extreme": 2 * per}}, spans(A=years))
+    by = cal.set_index(["source", "tier"])["ratio"]
+    assert by[("absolute", "extreme")] == pytest.approx(1.0, abs=0.15)
+    assert by[("abnormal", "extreme")] == pytest.approx(1.0, abs=0.15)
+    assert by[("every message", "extreme")] == pytest.approx(2.0, rel=0.15)
 
 
-def test_the_instruments_with_no_level_are_named():
-    ladder = pd.concat([ladder_rows(["src:A"]),
-                        ladder_rows(["src:B"], tiers=("noticeable",))])
-    missing = saed_score.unreachable_tiers(ladder)
-    assert missing["extreme"] == ["src:B"]
+def test_an_instrument_too_young_for_a_rung_is_left_out_of_its_denominator():
+    # A four-year-old listing is silent at six years by construction. Counting
+    # its years would report the ladder as well behaved for the arithmetic
+    # reason that part of the watchlist cannot speak.
+    years = saed_score.eligible_years(spans(A=10.0, B=4.0))
+    assert years["extreme"] == pytest.approx(10.0 - 6.0)      # B contributes none
+    assert years["major"] == pytest.approx((10.0 - 3.0) + (4.0 - 3.0))
+
+
+def test_the_instruments_too_young_for_a_rung_are_named():
+    missing = saed_score.unreachable_tiers(spans(A=10.0, B=4.0))
+    assert missing["extreme"] == ["B"]
     assert "noticeable" not in missing
 
 
@@ -227,25 +237,29 @@ def test_a_large_move_the_block_explains_is_not_counted_as_an_unexplained_miss()
 def test_a_missing_residuals_directory_costs_the_section_and_not_the_report(tmp_path):
     # It runs inside tremor.evaluate. A directory that is not there must not
     # take down the report that is.
-    assert saed_score.build(events_path=str(tmp_path / "nope.parquet"),
-                            ladder_path=str(tmp_path / "nope.csv")) == ""
+    assert saed_score.build(events_path=str(tmp_path / "nope.parquet")) == ""
 
 
 def test_the_section_says_which_detector_it_is_about(tmp_path):
     e = events([("src:A", START + i * HOUR, "noticeable", "absolute")
                 for i in range(20)])
     e.to_parquet(tmp_path / "events.parquet", index=False)
-    ladder_rows(["src:A"]).to_csv(tmp_path / "ladder.csv", index=False)
+    n = 4000
+    hours = np.arange(n, dtype="int64") * HOUR + START
+    residuals = tmp_path / "residuals"
+    residuals.mkdir()
+    pd.DataFrame({"hour_utc": hours, "asset_id": "src:A",
+                  "z_resid_bmp": np.sin(np.arange(n) * 0.3),
+                  "tier_absolute": pd.array([None] * n, dtype="string"),
+                  "tier_abnormal": pd.array([None] * n, dtype="string")}
+                 ).to_parquet(residuals / "a.parquet", index=False)
     metrics = tmp_path / "metrics"
     metrics.mkdir()
-    n = 4000
-    pd.DataFrame({"hour_utc": np.arange(n, dtype="int64") * HOUR + START,
-                  "asset_id": "src:A",
+    pd.DataFrame({"hour_utc": hours, "asset_id": "src:A",
                   "r": np.sin(np.arange(n) * 0.7)}).to_parquet(
         metrics / "a.parquet", index=False)
     out = saed_score.build(str(tmp_path / "events.parquet"),
-                           str(tmp_path / "ladder.csv"),
-                           str(tmp_path / "missing_residuals"), str(metrics))
+                           str(residuals), str(metrics))
     assert "saed_events.parquet" in out
     assert "delivered to nobody" in out
 

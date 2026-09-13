@@ -143,10 +143,8 @@ The detector (SAED — live, the product)
 tremor/residuals.py    — the market model, on the block factor alone: a basket-wide
                           factor was tried and dropped, for the reason a block factor
                           works and a basket one did not scale to sixty instruments
-tremor/severity.py     — the rarity ladder, Generalised Pareto fit above a high threshold
-tremor/ladder.py       — the ladder cache: fitted segments persisted to
-                          data/tremor/ladder.csv, so an hourly run refits only a
-                          trailing slice of history instead of all of it — see below
+tremor/severity.py     — the rarity ladder: a rung is the biggest move in its own
+                          lookback, so nothing is fitted and nothing extrapolated
 tremor/saed.py          — events from the residuals and the ladder, the cooldown, the gates
 tremor/persistence.py  — did the move hold at the next close
 tremor/routing.py      — channel, collapse, digest slot
@@ -171,7 +169,6 @@ twelvedata.py, coinbase.py, dukascopy.py, fxcm.py, hfdata.py — the source clie
                           tremor.backfill fetches through
 
 data/tremor/bars/                  hourly bars, one Parquet per instrument per year   TRACKED
-data/tremor/ladder.csv             the fitted rarity-ladder cache                     TRACKED
 data/tremor/corporate_actions.csv  ex-dates for the funds                             TRACKED
 data/tremor/sessions/              the NYSE schedule                                  TRACKED
 data/tremor/vix/                   the daily VIX series                               TRACKED
@@ -247,15 +244,14 @@ basket metrics and the SAED residuals — it also writes eighteen columns *into*
 `metrics_basket_hour.parquet`, so skipping it leaves that file stripped rather than
 merely stale — and `export` off all of it at once.
 
-**The rarity-ladder cache.** Each instrument's ladder — the Generalised Pareto fit that
-turns a residual or a raw move into a return period — is refit monthly and does not
-change between refits. `tremor.ladder` persists every fitted segment to
-`data/tremor/ladder.csv`, and `tremor.saed` reads it before recomputing anything: where
-the cache already covers an instrument's ladder for the hours a run needs, that
-instrument is trimmed to a trailing window instead of being refit cold over its whole
-history. This is the difference between an hourly run costing a slice of 23 years of
-history and costing all of it. With about seventy ladders each due for a refit every
-thirty days, roughly two runs a day come out fully cold and the rest are warm — and the
+**The rarity ladder needs no cache.** It used to: the ladder was a Generalised Pareto
+tail fitted over every bar before the one it described, so an hourly run either read all
+23 years or read a file of fitted segments. A rung is now the biggest move in its own
+lookback, which a trailing slice reaching back past the deepest rung answers exactly and
+in one pass — so `tremor/ladder.py` and `data/tremor/ladder.csv` are gone rather than
+maintained. `tremor.saed` checks the slice covers the deepest rung and goes cold if it
+does not, which under the current settings never happens: the warm window is eight to
+eleven years and the deepest rung is six. The
 decision is taken for the whole run at once, not per instrument, because a run half warm
 and half cold would build a cross-section out of two different amounts of history. The
 cache costs nothing when it is stale or missing: that instrument just falls back to a

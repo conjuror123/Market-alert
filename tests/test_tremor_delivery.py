@@ -55,6 +55,15 @@ def cfg(**over):
     return Config(**(base | over))
 
 
+def dated(since=int(datetime(2020, 3, 16, tzinfo=timezone.utc).timestamp()), hour=None, **over):
+    """The two fields every record claim is built from: when the move was, and
+    the last time the instrument matched it."""
+    base = {"hour_utc": hour if hour is not None
+            else int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp()),
+            "record_since": since}
+    return base | over
+
+
 def event(**over):
     base = dict(event_id="e1", asset_id="twelvedata:GLD", block="commodities",
                 hour_utc=int(NOW.timestamp()) - HOUR,
@@ -216,7 +225,7 @@ def test_a_market_event_reads_as_market_wide(monkeypatch, sender):
                 retention_settled=None, tier="high")
     deliver(monkeypatch, [row])
     assert "Market-wide" in alerts(sender)[0]
-    assert "this disorderly" in alerts(sender)[0]
+    assert "disorderly hour" in alerts(sender)[0]
 
 
 def test_the_severity_leads_the_digest(monkeypatch, sender):
@@ -276,24 +285,45 @@ def test_a_move_on_the_abnormal_ladder_says_which_ladder_it_is_on():
     # the market is taken out. "Biggest move in about a year" would be false for
     # the second - the instrument may well have had larger hours the market
     # accounted for perfectly - and "of its own" says so without a glossary.
-    assert md._headline("major", "abnormal") == (
-        "a move of its own this big happens about once in 3 years")
-    assert md._headline("major", "absolute") == (
-        "a move this big happens about once in 3 years")
-    assert md._headline("major", "both") == (
-        "a move this big happens about once in 3 years")
-    assert md._headline("high", "market") == (
-        "an hour this disorderly happens about once a quarter")
+    event = dated()
+    assert md._headline(event, "major", "abnormal") == (
+        "the biggest move of its own since March 2020")
+    assert md._headline(event, "major", "absolute") == (
+        "the biggest move since March 2020")
+    assert md._headline(event, "major", "both") == (
+        "the biggest move since March 2020")
+    assert md._headline(event, "high", "market") == (
+        "the most disorderly hour since March 2020")
 
 
-def test_the_period_is_a_frequency_and_not_a_record():
-    # The ladder says a move this size is expected about once a month, not
-    # that the last fortnight held nothing larger. The old wording flatly
-    # contradicted the line beneath it: "biggest move in about three years" over
-    # "the last one this big was 23 days ago".
-    assert md._headline("noticeable", "absolute") == (
-        "a move this big happens about once a month")
-    assert "biggest" not in md._headline("extreme", "absolute")
+def test_the_claim_is_a_record_and_names_the_date():
+    # It used to be a frequency - "about once in 3 years" - because the fitted
+    # ladder could not support a record claim and the two flatly contradicted
+    # each other: "biggest move in about three years" over "the last one this
+    # big was 23 days ago". A rung is now literally the biggest move in its own
+    # lookback, so the record claim is the true one and it can name the bar.
+    assert md._headline(dated(), "noticeable", "absolute") == (
+        "the biggest move since March 2020")
+    assert "once in" not in md._headline(dated(), "extreme", "absolute")
+
+
+def test_a_move_bigger_than_anything_on_record_says_so_rather_than_guessing():
+    # No earlier bar to name, so there is no date to print. Inventing one would
+    # be the only outright false thing this line could say.
+    assert md._headline(dated(since=None), "extreme", "absolute") == (
+        "the biggest move in the whole record")
+
+
+def test_the_date_gets_coarser_the_further_back_it_is():
+    # Within a month the day is what places it; past a year only the year is.
+    now = int(datetime(2026, 6, 10, tzinfo=timezone.utc).timestamp())
+    day = 86400
+    assert md.record_phrase({"hour_utc": now, "record_since": now - 10 * day}) \
+        == "since 31 May"
+    assert md.record_phrase({"hour_utc": now, "record_since": now - 120 * day}) \
+        == "since February"
+    assert md.record_phrase({"hour_utc": now, "record_since": now - 900 * day}) \
+        == "since December 2023"
 
 
 def test_no_alert_claims_the_economic_calendar_explained_anything():
@@ -302,7 +332,7 @@ def test_no_alert_claims_the_economic_calendar_explained_anything():
     # would be reporting a test the system never ran.
     for tier in ("noticeable", "high", "major", "extreme"):
         for basis in ("abnormal", "absolute", "both", "market"):
-            assert "calendar" not in md._headline(tier, basis).lower()
+            assert "calendar" not in md._headline(dated(), tier, basis).lower()
     for line in md._split_lines({"r": 0.02, "e_resid": 0.018}, "Gold"):
         assert "calendar" not in line.lower()
 
@@ -362,7 +392,7 @@ def test_the_headline_does_not_claim_the_market_was_quiet():
     # the move. It does not mean the rest of the market was calm - on a macro
     # hour everything moves and this one moved further still, which is the case
     # the residual channel exists to catch.
-    line = md._headline("major", "abnormal")
+    line = md._headline(dated(), "major", "abnormal")
     for overclaim in ("usual", "quiet", "normal", "calm", "did not move"):
         assert overclaim not in line
 
@@ -493,8 +523,9 @@ def test_a_missing_calendar_never_costs_the_alert():
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
     assert md.calendar_context(hour, None) == ""
     text = md.format_push({"hour_utc": hour, "asset_id": "a:SPY", "tier": "major",
-                           "basis": "abnormal", "r": 0.02}, {}, None)
-    assert "happens about once in 3 years" in text
+                           "basis": "abnormal", "r": 0.02,
+                           "record_since": hour - 900 * 86400}, {}, None)
+    assert "the biggest move of its own since" in text
 
 
 def test_the_push_says_what_the_move_was_big_compared_with():
@@ -1224,24 +1255,25 @@ def test_the_rarity_is_said_of_the_thing_its_ladder_actually_ranks():
     # the whole move it would claim the instrument had not moved this far in
     # years when its block may have carried it there last week. The absolute
     # ladder ranks the move itself, so there it belongs to the move.
-    row = dict(r=0.0700, e_resid=0.0100, co_block=0.0600, block="equity")
+    row = dict(dated(), r=0.0700, e_resid=0.0100, co_block=0.0600, block="equity")
 
     abnormal = md._split_lines(row, "S&P 500", "major", "abnormal")
-    assert "happens about once in 3 years" in abnormal[-1]
+    assert "the biggest since March 2020" in abnormal[-1]
     assert "move on its own" in abnormal[-1]
-    assert not any("a move this big happens" in line for line in abnormal)
+    assert not any("the biggest move since" in line for line in abnormal)
 
     absolute = md._split_lines(row, "S&P 500", "major", "absolute")
-    assert absolute[0] == "a move this big happens about once in 3 years"
-    assert "happens" not in absolute[-1]
+    assert absolute[0] == "the biggest move since March 2020"
+    assert "biggest" not in absolute[-1]
 
 
 def test_a_row_with_no_split_still_says_how_rare_it_was():
     # No block to hang it on, so it is said as a sentence - and by the same
-    # function the headline uses, because "a move this big" and "a move of its
-    # own this big" are different claims and only one is true of a channel.
-    lines = md._split_lines({"r": 0.02, "e_resid": None}, "Gold", "extreme", "abnormal")
-    assert lines == ["a move of its own this big happens about once in 6 years"]
+    # function the headline uses, because "the biggest move" and "the biggest
+    # move of its own" are different claims and only one is true of a channel.
+    lines = md._split_lines(dict(dated(), r=0.02, e_resid=None),
+                            "Gold", "extreme", "abnormal")
+    assert lines == ["the biggest move of its own since March 2020"]
 
 
 def test_the_note_names_the_month_only_when_it_crosses_one():

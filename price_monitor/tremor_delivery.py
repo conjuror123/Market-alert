@@ -118,26 +118,48 @@ BLOCK_MARK = "\u2b1b"
 # is what happened, and this is when.
 TIME_EMOJI = "\U0001f550 "
 
-# The tier names are internal; these are what a person reads. Said as a return
-# period, because "about once every six years" needs no calibration intuition
-# where a 1-to-100 score would.
+# SAID AS A RECORD, AND NAMING THE DATE. "Biggest move since 3 March 2020" is a
+# fact about the instrument's own history: the reader can check it, it needs no
+# calibration intuition, and it tells them something the rung alone does not -
+# which past episode this one is being measured against.
 #
-# AND SAID AS A FREQUENCY, not as a record. "Biggest move in about six years"
-# claims the last six years held nothing larger, and the ladder claims no such
-# thing - it says a move this size is expected about once in six years, on
-# average, which in a fat-tailed market means several can arrive in a month. The
-# old wording flatly contradicted the line beneath it: "biggest move in about
-# three years" over "the last one this big was 23 days ago". Only one of the two
-# was wrong, and it was the headline.
-# DERIVED, not written here. The rungs move - a trader retuned them, and the
-# sensitivity knob in config/basket.yaml moves them again - and a table of
-# phrases sitting beside them survives that silently, which turns every message
-# into a confident lie about a number the reader has no way to check.
-def tier_period(tier: str) -> str:
-    from tremor import severity
+# This reverses an earlier decision, and the reversal is the point. The wording
+# used to be a frequency - "about once in six years" - specifically BECAUSE the
+# ladder could not support a record claim: it was a Generalised Pareto tail
+# extrapolated to the rung, so it said a move this size was expected about once
+# in six years on average, and a record claim over the top of that flatly
+# contradicted the line beneath it ("biggest move in about three years" over
+# "the last one this big was 23 days ago"). The frequency was the honest reading
+# of that estimator.
+#
+# The estimator is gone (see tremor.severity). A rung is now literally the
+# largest move in its own lookback, so the record claim is the one that is true
+# and the contradiction cannot arise: the date printed here IS the bar the level
+# was measured against. And the frequency claim it replaces was wrong in a way
+# nobody could see - the top rung fired 1.75 times as often as its words
+# promised, and the same level refitted on different six-year windows moved by a
+# factor of three.
+def record_phrase(event: dict) -> str:
+    """When this instrument last did something this big, as a person says it.
 
-    days = severity.tier_days().get(tier)
-    return severity.period_phrase(days) if days else tier
+    The DATE rather than an elapsed time, because a date is what a reader can
+    place - "since March 2020" lands somewhere, "in six years and two months"
+    has to be subtracted from today first. Precision falls away with distance
+    for the same reason: within a month the day matters, within a year the month
+    does, and past that the year is all anyone holds.
+    """
+    since = event.get("record_since")
+    if since is None or (isinstance(since, float) and not since == since) \
+            or pd.isna(since):
+        return "in the whole record"
+    moment = datetime.fromtimestamp(int(since), tz=timezone.utc)
+    now = datetime.fromtimestamp(int(event["hour_utc"]), tz=timezone.utc)
+    days = (now - moment).total_seconds() / 86400.0
+    if days < 45:
+        return f"since {moment:%-d %B}"
+    if days < 330:
+        return f"since {moment:%B}"
+    return f"since {moment:%B %Y}"
 
 # WHICH LADDER the tier was measured against, said in the noun rather than in a
 # parenthesis. Two ladders exist and they answer different questions: the
@@ -152,21 +174,23 @@ def tier_period(tier: str) -> str:
 # had defined for them. The idea is now shown instead of named, one line down,
 # in the units they are already reading: see _market_share_note.
 BASIS_NOUN = {
-    "abnormal": "a move of its own this big happens",
-    "absolute": "a move this big happens",
-    "both": "a move this big happens",
+    "abnormal": "the biggest move of its own",
+    "absolute": "the biggest move",
+    "both": "the biggest move",
     # A block. "Of its own" would be meaningless - there is nothing above a block
-    # to explain its move with - and a bare "a move this big" would read as a
+    # to explain its move with - and a bare "the biggest move" would read as a
     # claim about one price when it is a claim about a whole complex.
-    "block": "the whole block moved together, and a move this big for it happens",
+    "block": "the whole block moved together, the biggest",
 }
 
 
-def _headline(tier: str, basis: str) -> str:
-    period = tier_period(tier)
+def _headline(event: dict, tier: str, basis: str) -> str:
+    record = record_phrase(event)
     if basis == "market":
-        return f"an hour this disorderly happens {period}"
-    return f"{BASIS_NOUN.get(basis, 'a move this big happens')} {period}"
+        return f"the most disorderly hour {record}"
+    if basis == "block":
+        return f"the whole block moved together, the biggest {record}"
+    return f"{BASIS_NOUN.get(basis, 'the biggest move')} {record}"
 
 
 # What each block is called in a sentence. The internal names are lower case and
@@ -293,7 +317,7 @@ def _split_lines(event: dict, label: str, tier: str = "",
     """
     move = _clean(event.get("r"))
     own = _clean(event.get("e_resid"))
-    rarity = tier_period(tier) if tier else ""
+    rarity = record_phrase(event) if tier else ""
 
     # WHERE THE RARITY IS SAID depends on which channel claimed the hour, and
     # getting it wrong makes the message a false statement rather than an ugly
@@ -308,7 +332,7 @@ def _split_lines(event: dict, label: str, tier: str = "",
         # the same function the headline uses, because "a move this big" and "a
         # move of its own this big" are different claims and only one of them
         # is true of a given channel.
-        return [_headline(tier, basis)] if tier else []
+        return [_headline(event, tier, basis)] if tier else []
 
     block = _clean(event.get("co_block"))
     if block is None:
@@ -320,14 +344,14 @@ def _split_lines(event: dict, label: str, tier: str = "",
     peers = _block_peers(event)
     lines = []
     if whole_move and tier:
-        lines.append(_headline(tier, basis))
+        lines.append(_headline(event, tier, basis))
     line = f"\t{block * 100:+.2f}%  block moving, [{_escape(named)}]"
     if peers:
         line += f" - {_escape(peers)}"
     lines.append(line)
     own_line = f"\t{own * 100:+.2f}%  move on its own"
     if rarity and not whole_move:
-        own_line += f" - happens {rarity}"
+        own_line += f" - the biggest {rarity}"
     lines.append(own_line)
     return lines
 
@@ -612,7 +636,7 @@ def describe(event: dict, labels: dict[str, str],
     when = datetime.fromtimestamp(int(event["hour_utc"]), tz=timezone.utc)
 
     basis = str(event.get("basis") or "")
-    headline = _headline(tier, basis)
+    headline = _headline(event, tier, basis)
     if _is_market(event):
         return (f"{emoji} <b>Market-wide</b> - {headline}"
                 f"\n     hour to {when:%Y-%m-%d %H:%M} UTC")
@@ -820,7 +844,9 @@ def _describe_block(event: dict, headline: str, emoji: str, when: datetime,
                                      _since_note(event, events or [])) if x)
     if context:
         parts.append(context)
-    parts.append(headline.capitalize())
+    # Not str.capitalize(), which lowercases everything after the first letter
+    # and turned "since November 2021" into "since november 2021".
+    parts.append(headline[:1].upper() + headline[1:])
 
     leaders = str(event.get("leaders") or "")
     if leaders:
