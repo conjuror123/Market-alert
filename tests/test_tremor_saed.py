@@ -446,3 +446,67 @@ def test_an_instrument_with_no_usual_hour_yet_is_not_filtered_out():
         "tier": ["high", "high"],
     })
     assert saed.triggers(frame).fillna(False).tolist() == [True, True]
+
+
+# --- the per-instrument size floor -------------------------------------------
+
+def floored(tmp_path, monkeypatch, overrides, shared=1.0):
+    """Point load_tuning at a config carrying per-instrument floors."""
+    import yaml
+
+    from tremor import basket as basket_module
+
+    raw = {"anchor_exchange_tz": "America/New_York", "history_since": "2021-01-01",
+           "session_templates": {"s": {"tz": "UTC"}},
+           "volatility_index": {"series_id": "V", "source": "fred", "interval": "1d"},
+           "min_move_sigma": shared,
+           "assets": [{"ticker": t, "source": "twelvedata", "tier": 1,
+                       "block": "equity", "has_volume": True, "tick_size": 0.01,
+                       "session_template": "s", "fetch_interval": "1h",
+                       "min_move_sigma": v} for t, v in overrides.items()]}
+    path = tmp_path / "basket.yaml"
+    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+    basket_module.load_tuning.cache_clear()
+    monkeypatch.setattr(basket_module, "DEFAULT_BASKET_PATH", str(path))
+    monkeypatch.setattr(saed, "load_tuning",
+                        lambda *a, **k: basket_module.load_tuning(str(path)))
+
+
+def with_size(frame, asset_id, move, sigma):
+    return frame.assign(asset_id=asset_id, r=move, sigma_lt=sigma)
+
+
+def test_the_floor_silences_the_instrument_it_was_raised_on(tmp_path, monkeypatch):
+    # Two instruments, the same move in their own terms, one floor raised. The
+    # reader pointed at LOUD and must not lose QUIET with it.
+    floored(tmp_path, monkeypatch, {"LOUD": 4.0, "QUIET": 1.0})
+    # a move of 2x each instrument's usual hour
+    loud = with_size(scored([5]), "twelvedata:LOUD", 0.02, 0.01)
+    quiet = with_size(scored([5]), "twelvedata:QUIET", 0.02, 0.01)
+
+    assert saed.triggers(loud).fillna(False).sum() == 0     # under its 4x floor
+    assert saed.triggers(quiet).fillna(False).sum() == 1    # over its 1x floor
+
+
+def test_an_instrument_with_no_override_uses_the_shared_floor(tmp_path, monkeypatch):
+    floored(tmp_path, monkeypatch, {"LOUD": 4.0}, shared=3.0)
+    other = with_size(scored([5]), "twelvedata:SOMETHING-ELSE", 0.02, 0.01)
+    assert saed.triggers(other).fillna(False).sum() == 0    # 2x, under the shared 3x
+    bigger = with_size(scored([5]), "twelvedata:SOMETHING-ELSE", 0.04, 0.01)
+    assert saed.triggers(bigger).fillna(False).sum() == 1   # 4x, over it
+
+
+def test_a_floor_of_zero_lets_everything_its_tier_allows_through(tmp_path, monkeypatch):
+    floored(tmp_path, monkeypatch, {"OPEN": 0.0}, shared=5.0)
+    tiny = with_size(scored([5]), "twelvedata:OPEN", 0.0001, 0.01)
+    assert saed.triggers(tiny).fillna(False).sum() == 1
+
+
+def test_a_frame_with_no_asset_id_falls_back_to_the_shared_floor(tmp_path, monkeypatch):
+    # Older callers and fixtures hand over a frame with no asset_id. Reading
+    # nothing at all there would silence them; guessing an instrument would be
+    # worse.
+    floored(tmp_path, monkeypatch, {"LOUD": 4.0}, shared=3.0)
+    frame = scored([5]).assign(r=0.02, sigma_lt=0.01)
+    assert "asset_id" not in frame
+    assert saed.triggers(frame).fillna(False).sum() == 0    # 2x under the shared 3x

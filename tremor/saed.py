@@ -216,11 +216,24 @@ def triggers(frame: pd.DataFrame) -> pd.Series:
     understand its own units.
 
     So a move must also clear `min_move_sigma` times the instrument's own
-    sigma_LT. In its own terms, so it means the same thing to SHY as to SOL and
-    needs no per-asset table; and separate from `sensitivity`, because turning
-    rarity down to silence these would silence genuinely small instruments too.
-    A bar with no sigma_LT yet is not filtered - it has not failed the test, it
-    has not taken it.
+    sigma_LT - separate from `sensitivity`, because turning rarity down to
+    silence these would silence genuinely small instruments too. A bar with no
+    sigma_LT yet is not filtered: it has not failed the test, it has not taken
+    it.
+
+    AND THE FLOOR IS PER INSTRUMENT, which it did not use to be. The old note
+    here argued one shared number "means the same thing to SHY as to SOL and
+    needs no per-asset table", and in its own units that is true - but it made
+    the floor the one thing in the system that could NOT tell them apart, and by
+    then it was the only thing left that could. A rung is the biggest move in
+    its own lookback, so every instrument clears one about once per lookback
+    whatever its market does; that is what makes the word mean one thing across
+    a digest, and it also means the rungs cannot be what separates a loan ETF
+    from Solana. Measured with one shared floor, the whole basket sat between
+    9.3 and 20.4 events a year - a 2.2x spread across instruments that differ by
+    far more than that. An instrument that keeps producing lines the reader does
+    not want has its own floor raised (see tremor.feedback); the rest are
+    untouched, which a shared knob cannot do.
     """
     if "tier" not in frame:
         raise KeyError("severity.annotate must run before triggers")
@@ -237,12 +250,21 @@ def triggers(frame: pd.DataFrame) -> pd.Series:
             assessed |= frame[column].notna() & frame[first].notna()
 
     fired = frame["tier"].notna()
-    floor = load_tuning().min_move_sigma
-    if floor > 0 and "r" in frame and "sigma_lt" in frame:
+    if "r" in frame and "sigma_lt" in frame:
+        tuning = load_tuning()
+        # Per row rather than once per frame. Frames are built per instrument, so
+        # in practice this is one lookup repeated - but a frame that ever carried
+        # two instruments would silently take the first one's floor for both, and
+        # that is the kind of wrong that never raises.
+        if "asset_id" in frame:
+            floor = frame["asset_id"].map(tuning.floor_for).astype("float64")
+        else:
+            floor = pd.Series(tuning.min_move_sigma, index=frame.index)
         usual = frame["sigma_lt"]
         big_enough = frame["r"].abs() >= floor * usual
         # An unmeasured sigma_LT is not a failed test, so it does not filter.
-        fired &= big_enough | usual.isna() | (usual <= 0)
+        # Nor is a floor of zero, which is how an instrument opts out entirely.
+        fired &= big_enough | usual.isna() | (usual <= 0) | (floor <= 0)
     return fired.where(assessed, pd.NA).astype("boolean")
 
 

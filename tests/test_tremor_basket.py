@@ -152,3 +152,74 @@ def test_real_config_tick_sizes_are_plausible(tmp_path):
     basket = load_basket()
     for a in basket.instruments:
         assert 0 < a.tick_size <= 0.01, a.ticker
+
+
+# --- the per-instrument size floor -------------------------------------------
+
+def tuning_for(tmp_path, raw):
+    from tremor.basket import load_tuning
+
+    load_tuning.cache_clear()
+    return load_tuning(write(tmp_path, raw))
+
+
+def test_an_instrument_without_an_override_takes_the_shared_floor(tmp_path):
+    t = tuning_for(tmp_path, two_block_config(min_move_sigma=1.5))
+    assert t.floor_for("twelvedata:A") == 1.5
+    assert t.floor_for("twelvedata:nothing-like-this") == 1.5
+
+
+def test_an_instrument_with_an_override_takes_its_own(tmp_path):
+    # The one lever that makes instruments speak at different rates. The rungs
+    # cannot: every instrument clears a rung about once per its lookback,
+    # whatever its market does.
+    raw = MINIMAL | {"min_move_sigma": 1.0, "assets": [
+        asset("A", "equity"), asset("B", "equity", tier=2, min_move_sigma=2.5),
+    ]}
+    t = tuning_for(tmp_path, raw)
+    assert t.floor_for("twelvedata:B") == 2.5
+    assert t.floor_for("twelvedata:A") == 1.0        # untouched
+
+
+def test_raising_one_instruments_floor_leaves_every_other_alone(tmp_path):
+    # The whole reason this is per instrument. Raising the SHARED number high
+    # enough to silence the one that annoyed the reader silences every quiet
+    # instrument with it - point at one and lose the others.
+    raw = MINIMAL | {"min_move_sigma": 1.0, "assets": [
+        asset("A", "equity", min_move_sigma=4.0), asset("B", "equity", tier=2),
+        asset("C", "FX"), asset("D", "FX", tier=2),
+    ]}
+    t = tuning_for(tmp_path, raw)
+    assert t.floor_for("twelvedata:A") == 4.0
+    assert [t.floor_for(f"twelvedata:{x}") for x in "BCD"] == [1.0, 1.0, 1.0]
+
+
+def test_an_instrument_can_opt_out_of_the_floor_entirely(tmp_path):
+    raw = MINIMAL | {"min_move_sigma": 2.0,
+                     "assets": [asset("A", "equity", min_move_sigma=0)]}
+    assert tuning_for(tmp_path, raw).floor_for("twelvedata:A") == 0.0
+
+
+def test_a_non_basket_instrument_may_carry_a_floor_too(tmp_path):
+    raw = MINIMAL | {"assets": [asset("A", "equity")],
+                     "outside": [asset("Z", "equity", min_move_sigma=3.0)]}
+    assert tuning_for(tmp_path, raw).floor_for("twelvedata:Z") == 3.0
+
+
+def test_a_floor_that_is_not_a_number_is_refused_by_name(tmp_path):
+    raw = MINIMAL | {"assets": [asset("A", "equity", min_move_sigma="loud")]}
+    with pytest.raises(BasketConfigError, match="twelvedata:A"):
+        tuning_for(tmp_path, raw)
+
+
+def test_a_negative_floor_is_refused(tmp_path):
+    raw = MINIMAL | {"assets": [asset("A", "equity", min_move_sigma=-1)]}
+    with pytest.raises(BasketConfigError, match="negative"):
+        tuning_for(tmp_path, raw)
+
+
+def test_the_tuning_stays_hashable_so_it_can_be_cached(tmp_path):
+    # load_tuning is lru_cached and Tuning is frozen. A dict field would quietly
+    # stop it being either, and the failure would be a TypeError deep in a run.
+    t = tuning_for(tmp_path, two_block_config())
+    assert hash(t) == hash(t)

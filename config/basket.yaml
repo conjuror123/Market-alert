@@ -125,8 +125,34 @@ sensitivity: 1.0
 # abnormal-only - 240 of 9,069, about eleven a year - and they are the ones
 # that read as noise.
 #
-# In units of the instrument's own sigma_LT, so it means the same thing to SHY
-# and to SOL and needs no per-asset table. 0 disables it.
+# In units of the instrument's own sigma_LT, so the number means the same thing
+# to SHY and to SOL. 0 disables it.
+#
+# THIS IS THE DEFAULT, AND ANY INSTRUMENT MAY OVERRIDE IT on its own entry in
+# `assets` or `outside` below:
+#
+#   - ticker: PFF
+#     ...
+#     min_move_sigma: 2.5
+#
+# That override is the ONE lever that makes instruments speak at different
+# rates, and it exists because nothing else can. A rung is the biggest move in
+# its own lookback, so every instrument clears one about once per lookback
+# whatever its market does - that is what makes "the biggest since March 2020"
+# mean one thing across a digest, and it is also why the rungs cannot be what
+# separates a loan ETF from Solana. With one shared floor the whole basket sat
+# between 9.3 and 20.4 events a year, a 2.2x spread across instruments that
+# differ by far more.
+#
+# Do not guess these. `python -m tremor.feedback --boring 'PFF 2026-09-09 13:00'`
+# records that a message was not worth reading, and the suggestion it prints
+# names the floor that instrument would need and what it costs that instrument
+# alone. Raising the shared number instead silences every quiet instrument at
+# once - point at PFF and lose SHY.
+#
+# Changing any of them moves config_version, which retires derived data and
+# costs one cold run. That is correct: the events would otherwise be a mix of
+# two rules.
 min_move_sigma: 1.0
 
 # Session templates are filled in during phase 1 (holiday and half-session

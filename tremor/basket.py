@@ -215,16 +215,33 @@ def _asset(raw: dict, *, in_basket: bool) -> Asset:
 
 @dataclass(frozen=True)
 class Tuning:
-    """The two knobs of config/basket.yaml: how rare, and how big.
+    """The knobs of config/basket.yaml: how rare, how big, and how big FOR WHOM.
 
     Read on their own rather than through load_basket because the ladder asks
     for them inside its refit loop, and parsing sixty assets to learn one float
     would be paid thousands of times a run. The file is read once and cached;
     an hourly job is a fresh process, so a turned knob takes effect on the next
     run without anything to invalidate by hand.
+
+    `floors` is the per-instrument override of min_move_sigma, and it is the one
+    lever that makes instruments speak at DIFFERENT rates. The rungs cannot: a
+    rung is the biggest move in its own lookback, so every instrument clears one
+    about once per lookback whatever its market does - which is exactly what
+    makes the word mean one thing across a digest, and exactly why it cannot
+    also be the thing that separates a loan ETF from Solana. Measured before
+    this existed, the whole basket sat inside a 2.2x spread of events per year,
+    which is far too flat for instruments that different.
     """
     sensitivity: float = 1.0
     min_move_sigma: float = 1.0
+    floors: "tuple[tuple[str, float], ...]" = ()
+
+    def floor_for(self, asset_id: str) -> float:
+        """This instrument's floor, or the shared one where it has no override."""
+        for name, value in self.floors:
+            if name == asset_id:
+                return value
+        return self.min_move_sigma
 
 
 @lru_cache(maxsize=8)
@@ -245,8 +262,29 @@ def load_tuning(path: str = DEFAULT_BASKET_PATH) -> Tuning:
             raise BasketConfigError(f"{name}: must be positive, got {value}")
         return value
 
+    # The per-instrument overrides are read here rather than off a loaded
+    # Basket so that the trigger can ask for a floor without parsing sixty asset
+    # entries to get it. A tuple of pairs rather than a dict because Tuning is
+    # frozen and hashable, and a dict field would quietly stop it being either.
+    shared = positive("min_move_sigma", 1.0, allow_zero=True)
+    floors = []
+    for entry in list(raw.get("assets") or []) + list(raw.get("outside") or []):
+        if not isinstance(entry, dict) or "min_move_sigma" not in entry:
+            continue
+        asset_id = f"{entry.get('source')}:{entry.get('ticker')}"
+        value = entry["min_move_sigma"]
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            raise BasketConfigError(
+                f"{asset_id}: min_move_sigma {value!r} is not a number")
+        if value < 0:
+            raise BasketConfigError(
+                f"{asset_id}: min_move_sigma must not be negative, got {value}")
+        floors.append((asset_id, value))
+
     return Tuning(sensitivity=positive("sensitivity", 1.0),
-                  min_move_sigma=positive("min_move_sigma", 1.0, allow_zero=True))
+                  min_move_sigma=shared, floors=tuple(sorted(floors)))
 
 
 def load_basket(path: str = DEFAULT_BASKET_PATH) -> Basket:

@@ -148,23 +148,38 @@ def suggest(rows: list[dict], events) -> list[str]:
         if sizes:
             from tremor.basket import load_tuning
 
-            need = max(sizes)
-            removed = int((size < need).sum())
-            current = load_tuning().min_move_sigma
+            tuning = load_tuning()
             lines.append("")
-            lines.append(f"  smallest floor that excludes all of them: {need:.2f}x")
-            lines.append(f"  it would take {removed} of {len(events)} recorded events "
-                         f"with it ({removed/len(events)*100:.1f}%)")
-            if current >= need:
-                lines.append(f"  min_move_sigma is already {current:g} - these are "
-                             f"covered, and were recorded before it was set")
-            else:
-                lines.append(f"  min_move_sigma: {current:g} -> {need:.2f} in "
-                             f"config/basket.yaml would do it")
-            if need > 3.0:
-                lines.append("  but that is a large floor and these were not small "
-                             "moves: the floor is the wrong lever here, and "
-                             "sensitivity is the one")
+            # PER INSTRUMENT, and that is the whole change. One shared floor
+            # raised high enough to silence the instrument that annoyed the
+            # reader silences every quiet instrument with it - the reader
+            # pointed at BKLN and lost SHY. The verdict names an instrument, so
+            # the answer should too.
+            lines.append("  the floor each of these implies, for that instrument "
+                         "alone:")
+            by_asset: dict[str, list[float]] = {}
+            for (_, m), s in zip(boring, sizes):
+                by_asset.setdefault(str(m["asset_id"]), []).append(s)
+            for asset_id, seen in sorted(by_asset.items()):
+                need = max(seen)
+                current = tuning.floor_for(asset_id)
+                mine = events[events["asset_id"].eq(asset_id)]
+                cost = int((size[mine.index] < need).sum()) if len(mine) else 0
+                lines.append(f"    {asset_id:<22} {current:g} -> {need:.2f}x  "
+                             f"(takes {cost} of this instrument's {len(mine)} "
+                             f"events, and none of anyone else's)")
+                if current >= need:
+                    lines.append(f"      already at {current:g} - these predate it")
+                if need > 3.0:
+                    lines.append("      but that is a large floor and these were "
+                                 "not small moves: the floor is the wrong lever "
+                                 "here, and sensitivity is the one")
+            lines.append("")
+            lines.append("  in config/basket.yaml, on that instrument's own entry:")
+            for asset_id, seen in sorted(by_asset.items()):
+                lines.append(f"    - ticker: {asset_id.split(':')[-1]}"
+                             f"    # ... its existing fields")
+                lines.append(f"      min_move_sigma: {max(seen):.2f}")
 
     if missed:
         lines.append("")
