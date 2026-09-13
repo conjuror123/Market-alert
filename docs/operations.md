@@ -103,9 +103,11 @@ moves are found, 3.6 items each by the time its period closes. The
 economic-calendar forecast goes out once a week, at the Saturday opening and in the same
 run immediately before it, so the note - the message that keeps changing - is the last
 one in the chat. It takes its day from tremor.routing rather than from a weekday of its
-own, so the pair cannot be separated by editing one of them. It covers from that moment
-to the end of the following Sunday - this weekend and then Monday to Sunday entire - read
-out of the archive rather than out of the live feed.
+own, so the pair cannot be separated by editing one of them. It covers the next whole
+week, Monday 00:00 UTC to the following Monday 00:00 UTC - so a digest sent on Saturday
+the 1st lists the 3rd through the 9th - read out of the archive rather than out of the
+live feed. Consecutive digests abut exactly: the weekend a digest is sent in looks
+dropped and is not, because the previous week's digest listed it seven days earlier.
 
 **The economic-calendar archive is topped up from the live feed once a day**, separately
 from the weekly digest. The digest refreshes it when it sends, which is often enough for a

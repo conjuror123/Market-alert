@@ -193,13 +193,44 @@ def test_events_outside_the_coming_week_are_not_listed(tmp_path, monkeypatch):
     assert "Last Month Payrolls" not in text
 
 
+def test_the_window_is_the_next_whole_week_monday_to_monday():
+    # Sent at 00:05 on Saturday the 29th: the 31st through the 6th, a week
+    # starting on the day a week starts. Not "seven days from now", which would
+    # begin mid-weekend and end mid-weekend.
+    start, end = weekly_digest.coming_week(WEEKEND_OPEN)
+    assert start == datetime(2026, 8, 31, tzinfo=timezone.utc)
+    assert end == datetime(2026, 9, 7, tzinfo=timezone.utc)
+    assert start.weekday() == 0 and end.weekday() == 0
+    assert end - start == timedelta(days=7)
+
+
+def test_the_window_does_not_move_with_the_hour_the_run_lands_on():
+    # The grace window lets the send slip by hours. If the period slipped with
+    # it, two digests would overlap by however late the trigger was.
+    assert (weekly_digest.coming_week(WEEKEND_LATE)
+            == weekly_digest.coming_week(WEEKEND_OPEN))
+
+
+def test_consecutive_digests_abut_exactly():
+    # THE reason the window may start on the Monday rather than at the moment of
+    # sending. The weekend a digest goes out in looks dropped and is not: the
+    # previous week's digest listed it seven days earlier. Nothing is listed
+    # twice and no hour falls between two digests.
+    previous = weekly_digest.coming_week(WEEKEND_OPEN - timedelta(days=7))
+    current = weekly_digest.coming_week(WEEKEND_OPEN)
+    assert previous[1] == current[0]
+
+    # And the sending weekend itself is inside the previous one.
+    assert previous[0] <= WEEKEND_OPEN < previous[1]
+
+
 def test_the_header_states_the_window_asked_for(tmp_path, monkeypatch):
     # Not the span of the events that happen to be in it: a quiet end to the week
     # would otherwise narrow the claim the message is making.
     start, end = weekly_digest.coming_week(WEEKEND_OPEN)
     text = weekly_digest.format_digest(
         [e for e in RAW_EVENTS if e["impact"] in ("Medium", "High")], start, end)[0]
-    assert "29.08 — 06.09" in text
+    assert "31.08 — 06.09" in text
 
 
 def test_each_event_carries_its_country_flag_beside_the_code():
@@ -306,10 +337,11 @@ def test_maybe_send_weekly_digest_sends_and_records_state(tmp_path, monkeypatch)
 
 
 def test_the_closing_friday_of_the_window_is_inside_it(tmp_path, monkeypatch):
-    # Seven days to the minute would end on Saturday morning and cut the closing
-    # weekend in half. Extending to the Sunday costs nothing and keeps the
-    # American payrolls print - 12:30 UTC on the first Friday of the month, the
-    # most watched release there is - safely inside.
+    # The American payrolls print lands at 12:30 UTC on the first Friday of the
+    # month and is the most watched release there is. A window aligned to the
+    # week always contains its own Friday; one measured seven days from the
+    # moment of sending would have put it either just inside or just outside
+    # depending on what time the trigger fired.
     start, end = weekly_digest.coming_week(WEEKEND_OPEN)
     payrolls = datetime(2026, 9, 4, 12, 30, tzinfo=timezone.utc)
     assert start < payrolls < end

@@ -34,14 +34,12 @@ so the send day had to be one the feed could be expected to have rolled over on 
 and even then it had to be checked and deferred when it had not.
 
 It is built from THE ARCHIVE instead, over a window this module states outright:
-from the moment of sending to the end of the Sunday that closes the seventh day.
-The archive reaches weeks into the future because ForexFactory's monthly pages
-are read into it (see refresh_months), so the coming week is simply looked up
-rather than hoped for, and the window no longer depends on a boundary nobody can
-see. Consecutive windows OVERLAP by about a week, deliberately: a reader sees
-each day twice, once a week out and once a day or two out, by which time the
-forecasts have firmed and late additions are in. The half that matters is the
-other one - no hour of the calendar falls between two digests.
+the next whole calendar week, Monday 00:00 UTC to the following Monday 00:00
+UTC. The archive reaches weeks into the future because ForexFactory's monthly
+pages are read into it (see refresh_months), so the coming week is simply looked
+up rather than hoped for, and the window no longer depends on a boundary nobody
+can see. Consecutive windows ABUT EXACTLY: nothing is listed twice and no hour
+of the calendar falls between two digests.
 
 Low-impact events and holidays are both excluded (see _DIGEST_IMPACTS) - only
 Medium/High. No LLM involved on purpose (see README, "Daily signal" and the
@@ -89,31 +87,39 @@ _DIGEST_WEEKDAY = 5
 # must keep landing in the same run so their order never inverts.
 _DIGEST_WITHIN_HOURS = 4
 
-# What "the coming week" means, stated rather than inferred from a feed: from
-# the moment of sending through the end of the Sunday that closes the seventh
-# day. Sent at 00:05 on a Saturday, that is this weekend, then Monday to Sunday
-# entire - which is the week the message is about.
+# What "the coming week" means, stated rather than inferred from a feed: THE
+# CALENDAR WEEK AFTER THIS ONE, Monday 00:00 UTC to the following Monday 00:00
+# UTC. Sent at 00:05 on Saturday the 1st, the digest lists the 3rd through the
+# 9th - a whole week, starting on the day a week starts.
 #
-# It runs from NOW rather than from Monday, and that is the part worth defending,
-# because "next Monday to Sunday" is the tidier phrase and it is what this was
-# asked for. It would silently drop the weekend it is sent in, and the weekend is
-# not empty: 1,158 Medium/High releases in the archive fall on a Saturday or a
-# Sunday by UTC clock. Nearly all of them are Asia-Pacific prints at 21:45 or
-# 23:50 UTC on the Sunday, which is Monday morning in Tokyo and Wellington - the
-# first data of the very week this digest is for, dropped on a technicality of
-# which side of midnight London keeps. The rest are G7 and Davos weekends, which
-# are precisely the ones worth knowing about in advance.
+# Seven days exactly and aligned to the week, rather than seven days from the
+# moment of sending, and the alignment is what makes the guarantee possible:
+# CONSECUTIVE DIGESTS ABUT. The one sent on Saturday the 25th covered the 27th
+# to the 3rd, which is why this one may begin on the 3rd - the weekend it is
+# itself sent in was listed a week ago. Nothing is listed twice and no hour of
+# the calendar falls between two digests.
 #
-# And it runs to a SUNDAY rather than to seven days to the minute, because seven
-# days from Saturday 00:05 ends on Saturday 00:05 and would cut the last weekend
-# in half. Extending to the Sunday leaves no hour of the calendar unlisted.
+# That is worth spelling out because starting on the Monday LOOKS like it drops
+# the sending weekend, and the sending weekend is not empty: 1,158 Medium/High
+# releases in the archive fall on a Saturday or Sunday by UTC clock, nearly all
+# Asia-Pacific prints at 21:45 or 23:50 on the Sunday - Monday morning in Tokyo.
+# They are not dropped. They were announced in the previous digest, seven days
+# earlier, which is a question about how fresh the warning is rather than about
+# whether it was given. A window running from the moment of sending would buy
+# that freshness and pay for it by overlapping its predecessor by a week, so
+# that most of every message was a week-old repeat.
 _COMING_WEEK_DAYS = 7
 
+# datetime.weekday(): Monday=0. Where a week is taken to start, which is the
+# only reason this file knows about weekdays twice - the SEND day comes from
+# routing (see _DIGEST_WEEKDAY) and is free to move without touching this.
+_WEEK_STARTS_ON = 0
+
 # How far short of the window's end the archive may stop and still be trusted to
-# say "nothing is scheduled". Three days, so the test lands on the closing
-# Friday rather than in the weekend behind it: a Saturday with only a handful of
-# Medium or High releases is the normal case and says nothing about whether the
-# archive ran out.
+# say "nothing is scheduled". Three days, so the test lands on the Friday that
+# closes the working week rather than in the weekend behind it: a Saturday with
+# only a handful of Medium or High releases is the normal case and says nothing
+# about whether the archive ran out.
 _COVERAGE_SLACK_DAYS = 3
 
 # The note-opening it was last sent for, as the exact UTC second routing gives.
@@ -175,13 +181,19 @@ def _week_identifier(now: datetime) -> str:
 
 
 def coming_week(now: datetime) -> "tuple[datetime, datetime]":
-    """The period this digest speaks for: from now to the Sunday that closes it."""
-    last_day = (now.astimezone(timezone.utc)
-                + timedelta(days=_COMING_WEEK_DAYS)).date()
-    # weekday(): Monday=0 ... Sunday=6.
-    last_day += timedelta(days=(6 - last_day.weekday()) % 7)
-    end = datetime.combine(last_day + timedelta(days=1), time(0), tzinfo=timezone.utc)
-    return now, end
+    """The period this digest speaks for: the next whole week, Monday to Monday.
+
+    The Monday STRICTLY AFTER `now`, so the answer does not depend on the hour
+    the run happens to land on. Sent at 00:05 on Saturday the 1st or at 03:00
+    after two missed runs, the digest covers the 3rd to the 10th either way -
+    which is what makes the grace window free and what makes two digests abut
+    instead of overlapping by however long the trigger was late.
+    """
+    moment = now.astimezone(timezone.utc)
+    ahead = (_WEEK_STARTS_ON - moment.weekday()) % 7 or 7
+    start = datetime.combine(moment.date() + timedelta(days=ahead), time(0),
+                             tzinfo=timezone.utc)
+    return start, start + timedelta(days=_COMING_WEEK_DAYS)
 
 
 def _escape(text: str) -> str:
