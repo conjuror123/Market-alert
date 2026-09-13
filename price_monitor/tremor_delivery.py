@@ -872,12 +872,16 @@ CALENDAR_IMPACTS = economic_calendar.SHOWN_IMPACTS
 def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
     """What was scheduled around the move - before it and just after.
 
-    Both answers are worth printing. Naming the release tells the reader the
-    move has a known cause and they can stop looking for one. Saying that
-    nothing was scheduled is the more interesting half: 55% of pushes in the
-    record have no high-impact event in the previous three hours, and an
-    unexplained move with no news behind it is exactly what this system exists
-    to find.
+    Naming the release tells the reader the move has a known cause and they can
+    stop looking for one. NOTHING IS PRINTED WHEN NOTHING WAS SCHEDULED, which
+    reverses an earlier rule and is worth saying why. The old line read "none
+    scheduled", on the argument that the absence is the more interesting half -
+    55% of pushes in the record have no Medium or High release in the window,
+    and an unexplained move is exactly what this system exists to find. That is
+    true of the STATISTIC and false of the MESSAGE: on more than half of all
+    messages it was a line that said nothing had happened, and a line that
+    usually says nothing stops being read, taking the half that does say
+    something with it. Silence carries the same fact in no space at all.
     """
     # An empty archive is not evidence of a quiet three hours: it cannot tell
     # "nothing was scheduled" from "nothing was loaded", and only one of those
@@ -894,16 +898,20 @@ def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
         return ""
 
     named = [e for e in window if str(e.get("impact")) in CALENDAR_IMPACTS]
-    header = (f"Economic events, {CALENDAR_LOOKBACK_HOURS}h before to "
-              f"{CALENDAR_LOOKAHEAD_HOURS}h after:")
     if not named:
-        return f"{header} none scheduled."
+        return ""
 
+    # The span as an offset pair rather than a sentence. It is the same fact in
+    # a fifth of the width, and the width matters here: this header sits above
+    # a list on a phone, where the sentence wrapped onto a second line and the
+    # events themselves were pushed down the message.
+    header = (f"Nearby economic events "
+              f"(-{CALENDAR_LOOKBACK_HOURS}h+{CALENDAR_LOOKAHEAD_HOURS}h):")
     named.sort(key=lambda e: str(e.get("date") or ""))
     lines = [header]
     for e in named:
         colour = economic_calendar.IMPACT_EMOJI.get(str(e.get("impact")), "")
-        country = str(e.get("country") or "").strip()
+        country = economic_calendar.country_label(e.get("country"))
         title = str(e.get("title") or "").strip()
         lines.append(f"     {colour} {country} {title}".rstrip())
     return "\n".join(lines)

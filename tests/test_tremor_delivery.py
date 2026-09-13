@@ -388,24 +388,26 @@ def test_a_push_names_the_scheduled_news_behind_it():
     cal = _cal([("2026-06-10T12:30:00+00:00", "USD", "Core CPI m/m", "High"),
                 ("2026-06-10T13:00:00+00:00", "USD", "Fed Chair Speaks", "High")])
     out = md.calendar_context(hour, cal)
-    assert out.startswith("Economic events, 2h before to 1h after:")
+    assert out.startswith("Nearby economic events (-2h+1h):")
     assert "USD Core CPI m/m" in out and "USD Fed Chair Speaks" in out
 
 
-def test_a_push_with_no_news_behind_it_says_so():
-    # The more interesting half: 55% of pushes in the record have no
-    # high-impact event in the previous three hours, and an unexplained move
-    # with nothing scheduled is what the system exists to find.
+def test_a_push_with_nothing_scheduled_prints_no_calendar_line_at_all():
+    # It used to say "none scheduled", and the statistic behind that is real:
+    # 55% of pushes in the record have no Medium or High release in the window.
+    # Which is exactly why the line went - on more than half of all messages it
+    # was a line saying nothing had happened, and a line that usually says
+    # nothing stops being read. The absence is carried by the absence.
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
     elsewhere = _cal([("2026-05-01T12:00:00+00:00", "USD", "Old CPI", "High")])
-    assert md.calendar_context(hour, elsewhere) == \
-        "Economic events, 2h before to 1h after: none scheduled."
+    assert md.calendar_context(hour, elsewhere) == ""
 
 
 def test_an_empty_archive_claims_nothing_rather_than_claiming_silence():
-    # "none scheduled" is a claim about the world and needs an archive behind
-    # it. An empty one cannot tell "nothing happened" from "nothing was
-    # loaded", so it says neither.
+    # An empty archive cannot tell "nothing was scheduled" from "nothing was
+    # loaded". Now that a quiet window prints nothing either, the two agree on
+    # the output - but for different reasons, and this is the one that would
+    # have to change first if the line ever came back.
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
     assert md.calendar_context(hour, []) == ""
 
@@ -416,7 +418,7 @@ def test_low_impact_news_is_not_named():
     # turn the most important line of the most important message into noise.
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
     only_low = _cal([("2026-06-10T12:30:00+00:00", "CHF", "Bank Holiday", "Low")])
-    assert md.calendar_context(hour, only_low).endswith("none scheduled.")
+    assert md.calendar_context(hour, only_low) == ""
 
     medium = _cal([("2026-06-10T12:45:00+00:00", "EUR", "Trade Balance", "Medium")])
     assert "Trade Balance" in md.calendar_context(hour, medium)
@@ -429,8 +431,33 @@ def test_each_named_release_carries_its_impact_colour():
     cal = _cal([("2026-06-10T12:30:00+00:00", "USD", "CPI", "High"),
                 ("2026-06-10T12:45:00+00:00", "EUR", "Trade Balance", "Medium")])
     out = md.calendar_context(hour, cal)
-    assert "\U0001F534 USD CPI" in out
-    assert "\U0001F7E0 EUR Trade Balance" in out
+    assert "\U0001F534 \U0001F1FA\U0001F1F8 USD CPI" in out
+    assert "\U0001F7E0 \U0001F1EA\U0001F1FA EUR Trade Balance" in out
+
+
+def test_a_release_carries_its_country_flag_beside_the_code():
+    # The flag is what is caught at a glance; the code is what makes it certain.
+    # Several of these flags are the same two colours in nearly the same
+    # arrangement at the size a phone draws them.
+    hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
+    cal = _cal([("2026-06-10T12:30:00+00:00", "AUD", "Employment Change", "High"),
+                ("2026-06-10T12:40:00+00:00", "NZD", "Official Cash Rate", "High"),
+                ("2026-06-10T12:50:00+00:00", "All", "G7 Meetings", "High")])
+    out = md.calendar_context(hour, cal)
+    assert "\U0001F1E6\U0001F1FA AUD" in out
+    assert "\U0001F1F3\U0001F1FF NZD" in out
+    # No country at all is the source's own answer, and a globe is the honest
+    # rendering of it rather than a stand-in for a missing flag.
+    assert "\U0001F310 All" in out
+
+
+def test_a_currency_with_no_flag_still_prints_its_code():
+    # The source can add a currency whenever it likes and the message must not
+    # sprout a placeholder box when it does.
+    hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
+    cal = _cal([("2026-06-10T12:30:00+00:00", "XYZ", "Rate Decision", "High")])
+    out = md.calendar_context(hour, cal)
+    assert "XYZ Rate Decision" in out
 
 
 def test_news_outside_the_window_is_not_claimed_as_context():

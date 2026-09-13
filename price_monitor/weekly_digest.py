@@ -1,35 +1,47 @@
-"""Posts a Friday digest of the coming week's Medium/High-impact economic
+"""Posts a Saturday digest of the coming week's Medium/High-impact economic
 calendar events to Telegram.
 
 Piggybacks on the existing hourly trigger (see .github/workflows/price-monitor.yml
 and README - external cron-job.org calls workflow_dispatch roughly once an hour)
 instead of provisioning a second schedule: __main__.py calls
 maybe_send_weekly_digest on every run, and it's a no-op except during the one
-hourly run that lands on Friday at 12:00 Israel time. "Already sent this week"
-is tracked in state.json (already loaded/saved every run) so a second run inside
-the grace window - or the external trigger firing a little early or late - never
-posts the digest twice.
+hourly run that lands on the Saturday note's opening. "Already sent" is tracked
+in state.json (already loaded/saved every run) so a second run inside the grace
+window - or the external trigger firing a little early or late - never posts the
+digest twice.
 
-FRIDAY, IMMEDIATELY BEFORE THE PRICE NOTE, and that ordering is the reason for
+IMMEDIATELY BEFORE THE WEEKEND PRICE NOTE, and that ordering is the reason for
 the day. __main__ calls this first and tremor_delivery second, so in the one run
-that lands on the Friday slot both go out in that order and the running price
+that lands on the Saturday slot both go out in that order and the running price
 note is the last message in the chat - which is where it should be, because it
-is the one that keeps changing for the next three days.
+is the one that keeps changing for the next two days.
 
-It used to go out on Saturday, or Sunday if Saturday would not do. That whole
-apparatus is gone with the day. The old digest was built from the LIVE WEEKLY
-FEED, which serves "this week" without saying where its week starts, so the send
-day had to be a day the feed could be expected to have rolled over - and even
-then it had to be tested (_looks_forward) and deferred to Sunday when it had
-not. On a Friday the feed has certainly not rolled over, so the feed cannot be
-the source.
+THE DAY IS NOT WRITTEN DOWN HERE AS A WEEKDAY. It is read off tremor.routing,
+which owns the note boundaries, and this module only asks whether the note due
+to open right now is the WEEKEND one. Two constants both spelling "Saturday" in
+two files is exactly the pair that survives one of them being changed, and the
+entire point of the day is that these two messages arrive in the same run.
+
+The weekend note and not the Monday one, because a forecast wants to arrive
+before the week it forecasts, with a weekend to read it in. A calendar of the
+coming week delivered one minute past the start of that week is a schedule
+handed out after the meeting began.
+
+It used to go out on Friday, and before that on Saturday-or-Sunday by way of a
+test on the feed. That whole apparatus is gone. The old digest was built from the
+LIVE WEEKLY FEED, which serves "this week" without saying where its week starts,
+so the send day had to be one the feed could be expected to have rolled over on -
+and even then it had to be checked and deferred when it had not.
 
 It is built from THE ARCHIVE instead, over a window this module states outright:
-the seven days from the moment it is sent. The archive reaches weeks into the
-future because ForexFactory's monthly pages are read into it (see
-refresh_months), so the coming week is simply looked up rather than hoped for -
-and the window no longer depends on a boundary nobody can see. Consecutive
-digests abut exactly, so nothing is listed twice and nothing falls between them.
+from the moment of sending to the end of the Sunday that closes the seventh day.
+The archive reaches weeks into the future because ForexFactory's monthly pages
+are read into it (see refresh_months), so the coming week is simply looked up
+rather than hoped for, and the window no longer depends on a boundary nobody can
+see. Consecutive windows OVERLAP by about a week, deliberately: a reader sees
+each day twice, once a week out and once a day or two out, by which time the
+forecasts have firmed and late additions are in. The half that matters is the
+other one - no hour of the calendar falls between two digests.
 
 Low-impact events and holidays are both excluded (see _DIGEST_IMPACTS) - only
 Medium/High. No LLM involved on purpose (see README, "Daily signal" and the
@@ -43,7 +55,7 @@ at all, see refresh_months.
 
 Also runnable directly as a one-off, bypassing the day and dedup checks - see
 main() and .github/workflows/weekly-digest-test.yml - for manually checking
-what the digest actually looks like without waiting for Friday:
+what the digest actually looks like without waiting for Saturday:
     python -m price_monitor.weekly_digest --force
 """
 from __future__ import annotations
@@ -52,70 +64,72 @@ import argparse
 import logging
 import sys
 from datetime import datetime, time, timedelta, timezone
-from zoneinfo import ZoneInfo
 
 import requests
 
 from price_monitor import economic_calendar
 from price_monitor.config import Config, load_config
 from price_monitor.notifier import TelegramError, send_telegram_message
+from tremor import routing
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("price_monitor.weekly_digest")
 
 _DIGEST_IMPACTS = set(economic_calendar.SHOWN_IMPACTS)
 
-# datetime.weekday(): Monday=0 ... Friday=4. The same slot the price note opens
-# on, deliberately: they are one delivery in two messages, and __main__ sends
-# this one first so the note that keeps changing is the last thing in the chat.
-_DIGEST_WEEKDAYS = (4,)
-_DIGEST_HOUR_ISRAEL = 12
+# datetime.weekday(): Monday=0 ... Saturday=5. Which of routing.DIGEST_WEEKDAYS
+# this digest rides on - the weekend note, not the Monday one. The MOMENT it goes
+# out is not stated here at all: it is whatever routing says the weekend note
+# opens at, so the two cannot drift apart no matter which is edited.
+_DIGEST_WEEKDAY = 5
 
-# And the same three hours of grace the price note has, for the same reason: the
-# trigger is an external service, one failed run must not cost the week's
-# calendar, and both messages must keep landing in the same run so their order
-# never inverts.
+# And the same hours of grace the price note has (tremor_delivery
+# .DIGEST_OPEN_WITHIN_HOURS), for the same reason: the trigger is an external
+# service, one failed run must not cost the week's calendar, and both messages
+# must keep landing in the same run so their order never inverts.
 _DIGEST_WITHIN_HOURS = 4
 
 # What "the coming week" means, stated rather than inferred from a feed: from
 # the moment of sending through the end of the Sunday that closes the seventh
-# day. On a Friday that is the rest of today, the weekend, all of next week and
-# the weekend after it.
+# day. Sent at 00:05 on a Saturday, that is this weekend, then Monday to Sunday
+# entire - which is the week the message is about.
 #
-# It runs from NOW rather than from Monday, and that is the part worth defending.
-# "Next Monday to Sunday" is the tidier phrase and it would silently drop the
-# Friday the message is sent on - on the sample week that is four US CPI prints
-# landing three and a half hours after the digest, which is the single worst
-# thing this message could omit.
+# It runs from NOW rather than from Monday, and that is the part worth defending,
+# because "next Monday to Sunday" is the tidier phrase and it is what this was
+# asked for. It would silently drop the weekend it is sent in, and the weekend is
+# not empty: 1,158 Medium/High releases in the archive fall on a Saturday or a
+# Sunday by UTC clock. Nearly all of them are Asia-Pacific prints at 21:45 or
+# 23:50 UTC on the Sunday, which is Monday morning in Tokyo and Wellington - the
+# first data of the very week this digest is for, dropped on a technicality of
+# which side of midnight London keeps. The rest are G7 and Davos weekends, which
+# are precisely the ones worth knowing about in advance.
 #
 # And it runs to a SUNDAY rather than to seven days to the minute, because seven
-# days from Friday noon ends at Friday noon, and the American payrolls print -
-# the most watched release there is - lands at 12:30 UTC on the first Friday of
-# the month. It would have fallen just outside every window. Extending to the
-# Sunday costs nothing: on the sample week it adds no events at all, weekends
-# being empty, and it leaves no hour of the calendar unlisted.
+# days from Saturday 00:05 ends on Saturday 00:05 and would cut the last weekend
+# in half. Extending to the Sunday leaves no hour of the calendar unlisted.
 _COMING_WEEK_DAYS = 7
 
 # How far short of the window's end the archive may stop and still be trusted to
 # say "nothing is scheduled". Three days, so the test lands on the closing
-# Friday rather than in the weekend behind it: a Saturday with no Medium or High
-# release is the normal case and says nothing about whether the archive ran out.
+# Friday rather than in the weekend behind it: a Saturday with only a handful of
+# Medium or High releases is the normal case and says nothing about whether the
+# archive ran out.
 _COVERAGE_SLACK_DAYS = 3
 
-# The Friday it was last sent for, in the recipient's own calendar. The day
-# rather than the week number, because that is what the grace window has to
-# de-duplicate: two runs inside the same four hours must not both send.
+# The note-opening it was last sent for, as the exact UTC second routing gives.
+# The slot rather than a date or a week number, because the slot is what the
+# grace window has to de-duplicate: two runs inside the same four hours must not
+# both send, and unlike a calendar day it needs no timezone to be unambiguous.
 _STATE_KEY = "weekly_digest:last_sent_week"
 
 # And the day the archive was last topped up from the live feed. The digest's
 # own refresh happens once a week, which is often enough for a message about
 # next week and far too seldom for the OTHER use of this archive: every push
 # names the releases in the three hours around the move, all week long, and a
-# schedule fetched last Friday does not have the speech that was added on
+# schedule fetched last Saturday does not have the speech that was added on
 # Wednesday. One request a day fixes that.
 _REFRESH_KEY = "weekly_digest:last_refreshed"
 
-_ISRAEL_TZ = ZoneInfo("Asia/Jerusalem")
 # Shared with the push and digest messages so the two never drift apart; see
 # economic_calendar.IMPACT_EMOJI for why the colour lives there.
 _IMPACT_EMOJI = economic_calendar.IMPACT_EMOJI
@@ -130,22 +144,34 @@ _WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday",
 _MESSAGE_LIMIT = 4000
 
 
+def _weekend_slot(now: datetime) -> "int | None":
+    """The weekend note-opening this moment belongs to, or None on a weekday.
+
+    routing.digest_slot answers "which note is open right now", which is either
+    the Monday one or the Saturday one. Only the Saturday one takes a calendar,
+    so a Monday slot is simply not this digest's business.
+    """
+    slot = routing.digest_slot(int(now.timestamp()))
+    opens = datetime.fromtimestamp(slot, tz=timezone.utc).astimezone(routing.DIGEST_TZ)
+    return slot if opens.weekday() == _DIGEST_WEEKDAY else None
+
+
 def _is_digest_window(now: datetime) -> bool:
-    """Whether a digest may go out at this moment: Friday noon, or the three
-    hours after it if the runs at noon were missed."""
-    israel_now = now.astimezone(_ISRAEL_TZ)
-    if israel_now.weekday() not in _DIGEST_WEEKDAYS:
+    """Whether a digest may go out at this moment: as the weekend note opens, or
+    within the few hours after it if those runs were missed."""
+    slot = _weekend_slot(now)
+    if slot is None:
         return False
-    return 0 <= israel_now.hour - _DIGEST_HOUR_ISRAEL < _DIGEST_WITHIN_HOURS
+    return 0 <= now.timestamp() - slot < _DIGEST_WITHIN_HOURS * 3600
 
 
 def _week_identifier(now: datetime) -> str:
-    """Dedup key: the Friday this digest belongs to, in the recipient's calendar.
+    """Dedup key: the note-opening this digest belongs to.
 
-    The day it is sent for rather than anything read out of the data, because
+    The slot it is sent for rather than anything read out of the data, because
     the grace window means several runs can qualify and only the first may send.
     """
-    return now.astimezone(_ISRAEL_TZ).date().isoformat()
+    return str(_weekend_slot(now) or "")
 
 
 def coming_week(now: datetime) -> "tuple[datetime, datetime]":
@@ -191,7 +217,8 @@ def format_event_values(event: dict) -> str:
 def _event_lines(event: dict) -> list[str]:
     event_time = economic_calendar.parse_event_time(event["date"])
     lines = [f"{_IMPACT_EMOJI[event['impact']]} <b>{event_time.strftime('%H:%M')}</b> "
-             f"{_escape(event['country'])} — {_escape(event['title'])}"]
+             f"{_escape(economic_calendar.country_label(event['country']))} "
+             f"— {_escape(event['title'])}"]
     values = format_event_values(event)
     if values:
         lines.append(f"    <i>{values}</i>")
@@ -315,7 +342,7 @@ def maybe_refresh_calendar(cfg: Config, state: dict,
     Not for the digest - that refreshes the archive itself when it sends. This
     is for the pushes, which name the scheduled releases around a move on every
     day of the week and would otherwise be reading a schedule fetched last
-    Friday. Cheap enough to be unremarkable: one request, and only the first run
+    Saturday. Cheap enough to be unremarkable: one request, and only the first run
     of each UTC day makes it.
 
     Returns True if the archive was actually refreshed. A feed that will not
@@ -407,8 +434,8 @@ def _send_digest(cfg: Config, session: requests.Session | None,
 def maybe_send_weekly_digest(
     cfg: Config, state: dict, session: requests.Session, now: datetime | None = None,
 ) -> bool:
-    """No-ops outside the Friday noon window, and no-ops if this week's digest
-    has already been sent. Returns True if a digest was actually sent."""
+    """No-ops outside the weekend note's opening window, and no-ops if this
+    week's digest has already been sent. Returns True if one actually went."""
     now = now or datetime.now(timezone.utc)
     if not _is_digest_window(now):
         return False
@@ -426,13 +453,13 @@ def maybe_send_weekly_digest(
 def main() -> int:
     """Manual one-off: sends the digest right now, regardless of day/time,
     without touching state.json's "already sent this week" tracking - this
-    isn't part of the regular Friday schedule (see
+    isn't part of the regular Saturday schedule (see
     .github/workflows/weekly-digest-test.yml), just a way to see what the
-    digest actually looks like without waiting for Friday."""
+    digest actually looks like without waiting for Saturday."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "--force", action="store_true",
-        help="Send immediately, bypassing the Friday-window and already-sent-this-week checks")
+        help="Send immediately, bypassing the day-window and already-sent-this-week checks")
     args = parser.parse_args()
     if not args.force:
         parser.error("nothing to do - pass --force (see module docstring)")

@@ -102,6 +102,47 @@ IMPACT_EMOJI = {"High": "🔴", "Medium": "🟠", "Low": "⚪"}
 # archive and never displayed.
 SHOWN_IMPACTS = ("High", "Medium")
 
+# The flag for a release's country, for the same reason and in the same place as
+# the impact circle: every message that names a release names its country, and
+# two copies of this table would drift.
+#
+# The source labels an event by CURRENCY rather than by country - that is what
+# ForexFactory serves and what the archive stores - so this maps a currency to
+# the place its central bank sits. EUR is the union rather than any one member,
+# and "All" is the source's own label for something with no country at all: a
+# G7 meeting, a Davos week, an OPEC decision. Those get a globe rather than a
+# flag, which is the honest answer and not a fallback.
+#
+# The code is kept BESIDE the flag rather than replaced by it. A flag at small
+# sizes is three coloured stripes and several of these are genuinely hard to
+# tell apart on a phone - AUD and NZD are the same two colours in nearly the
+# same arrangement - so the flag is there to be caught at a glance and the
+# three letters are there to be certain.
+COUNTRY_FLAG = {
+    "USD": "🇺🇸",
+    "EUR": "🇪🇺",
+    "GBP": "🇬🇧",
+    "JPY": "🇯🇵",
+    "AUD": "🇦🇺",
+    "CAD": "🇨🇦",
+    "NZD": "🇳🇿",
+    "CHF": "🇨🇭",
+    "CNY": "🇨🇳",
+    "All": "🌐",
+}
+
+
+def country_label(country: str) -> str:
+    """The flag and the code, or just the code for a currency not in the table.
+
+    A missing flag is not worth a placeholder: the source can add a currency at
+    any time, and three letters with no flag reads as an ordinary line rather
+    than as something broken.
+    """
+    code = str(country or "").strip()
+    flag = COUNTRY_FLAG.get(code)
+    return f"{flag} {code}" if flag else code
+
 
 class CalendarError(RuntimeError):
     pass

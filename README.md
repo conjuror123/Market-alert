@@ -165,7 +165,7 @@ tremor/windows.py      — every window and constant, in one file
 
 Delivery — price_monitor/
 tremor_delivery.py     — renders and sends; decides nothing, routing is already stamped
-weekly_digest.py       — the economic-calendar forecast, Friday, just before the note opens
+weekly_digest.py       — the economic-calendar forecast, Saturday, just before the note opens
 health.py, notifier.py — failure reporting
 twelvedata.py, coinbase.py, dukascopy.py, fxcm.py, hfdata.py — the source clients
                           tremor.backfill fetches through
@@ -313,12 +313,12 @@ minutes. The export format is fixed by the schema
 `schema/event_export.schema.json`, and a test validates a synthetic event against it.
 
 The archive of economic events is assembled entirely from ForexFactory's monthly pages,
-from a single source and with no key. Every Friday digest reads three months back into
+from a single source and with no key. Every Saturday digest reads three months back into
 it — the previous one and the current one for the `actual` of released events, and the
 one the coming week runs into so that week is there to be listed at all. The live weekly
 feed is merged too, for the days immediately ahead. The digest is then built from the
-archive over a window it states outright, which is why it can go out on a Friday: the
-feed's own week boundary no longer has to be guessed. Why there is one source and what
+archive over a window it states outright, which is why the send day is free to be
+whichever one suits the reader: the feed's own week boundary no longer has to be guessed. Why there is one source and what
 was tried before it is above, in the calendar section.
 
 ### What actually reaches you, and the switch that stops it
