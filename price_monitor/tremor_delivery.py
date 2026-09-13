@@ -108,6 +108,16 @@ PINGS = "pings"
 # colour, and a long note can be skimmed down its left edge.
 TIER_EMOJI = {"noticeable": "⬜", "high": "🟨", "major": "🟧", "extreme": "🟥"}
 
+# A block is the same four rarities seen at a different level of the market, so
+# it keeps the rarity colour and gains a black square in front of it: the tier
+# still reads at a glance and a block is never mistaken for an instrument.
+BLOCK_MARK = "\u2b1b"
+
+# Marks the timestamp footer. The hour is the last thing on the line rather
+# than the first because it is what a reader checks last - everything above it
+# is what happened, and this is when.
+TIME_EMOJI = "\U0001f550 "
+
 # The tier names are internal; these are what a person reads. Said as a return
 # period, because "about once every six years" needs no calibration intuition
 # where a 1-to-100 score would.
@@ -255,7 +265,8 @@ def basket_footer() -> str:
     return "\n".join(lines)
 
 
-def _split_lines(event: dict, label: str) -> "list[str]":
+def _split_lines(event: dict, label: str, tier: str = "",
+                 basis: str = "") -> "list[str]":
     """The move broken into the two things it can be, adding back to the move.
 
     THE WORD "MARKET" IS DELIBERATELY ABSENT. Every attempt to name this idea
@@ -282,8 +293,22 @@ def _split_lines(event: dict, label: str) -> "list[str]":
     """
     move = _clean(event.get("r"))
     own = _clean(event.get("e_resid"))
+    rarity = tier_period(tier) if tier else ""
+
+    # WHERE THE RARITY IS SAID depends on which channel claimed the hour, and
+    # getting it wrong makes the message a false statement rather than an ugly
+    # one. The abnormal ladder ranks what is LEFT after the block is taken out,
+    # so its return period belongs on the "on its own" line and nowhere else -
+    # said of the whole move it would claim the instrument had not moved this
+    # far in years when the block may have carried it there last week. The
+    # absolute ladder ranks the move itself, so there it belongs to the move.
+    whole_move = basis == "absolute" or not basis
     if move is None or own is None:
-        return []
+        # No split to hang it on, so the rarity is said as a sentence - and by
+        # the same function the headline uses, because "a move this big" and "a
+        # move of its own this big" are different claims and only one of them
+        # is true of a given channel.
+        return [_headline(tier, basis)] if tier else []
 
     block = _clean(event.get("co_block"))
     if block is None:
@@ -293,12 +318,17 @@ def _split_lines(event: dict, label: str) -> "list[str]":
 
     named = BLOCK_LABEL.get(str(event.get("block")), str(event.get("block") or "its block"))
     peers = _block_peers(event)
-    lines = ["of that move:"]
-    line = f"     {block * 100:+.2f}%  its own block moving, {_escape(named)}"
+    lines = []
+    if whole_move and tier:
+        lines.append(_headline(tier, basis))
+    line = f"\t{block * 100:+.2f}%  block moving, [{_escape(named)}]"
     if peers:
         line += f" - {_escape(peers)}"
     lines.append(line)
-    lines.append(f"     {own * 100:+.2f}%  {_escape(label)} on its own")
+    own_line = f"\t{own * 100:+.2f}%  move on its own"
+    if rarity and not whole_move:
+        own_line += f" - happens {rarity}"
+    lines.append(own_line)
     return lines
 
 
@@ -332,7 +362,7 @@ def _since_note(event: dict, events: "list[dict]") -> str:
     ago = (f"{days / 365.25:.1f} years" if days >= 365 else
            f"{days / 30.44:.0f} months" if days >= 60 else
            f"{days:.0f} days")
-    return f"the last one this big was {when:%-d %B %Y}, {ago} ago"
+    return f"similar move {ago} ago"
 
 
 def _retention_note(value: float) -> str:
@@ -493,9 +523,10 @@ def _scale_note(event: dict) -> str:
 
     The yardstick is sigma_LT, the instrument's own rolling standard deviation
     over the previous five thousand bars, so it is causal like everything else
-    and was already being computed. Both numbers are shown rather than just the
-    ratio: seeing "0.013%" beside it is what makes the claim checkable instead
-    of asking the reader to trust a multiplier.
+    and was already being computed. Only the ratio is shown. The raw sigma used
+    to sit beside it as a receipt - "3.0x its usual hour, which is 0.24%" - and
+    it made the line twice as long for a number no reader was checking, in a
+    message deliberately being cut short so that fewer notes need splitting.
     """
     move = _clean(event.get("r"))
     usual = _clean(event.get("sigma_lt"))
@@ -508,13 +539,11 @@ def _scale_note(event: dict) -> str:
     # the next as a gap rather than as "this one was only 2.7x". A decimal below
     # ten, because "3x" for 2.7 looks like a rounding that flatters the alert.
     size = f"{ratio:.0f}x" if ratio >= 10 else f"{ratio:.1f}x"
-    usual_pct = (f"{usual * 100:.3f}%" if usual * 100 < 0.1
-                 else f"{usual * 100:.2f}%")
     # For a block the yardstick is the median member's usual hour rather than any
     # one instrument's, and saying "its" would invite the reader to look for an
     # instrument that does not exist.
-    whose = "a typical member's usual hour" if _is_block(event) else "its usual hour"
-    return f"that is {size} {whose}, which is {usual_pct}"
+    whose = "a typical member's usual hour" if _is_block(event) else "usual hour"
+    return f"{size} {whose}"
 
 
 def check_in_lines(event: dict, now: datetime | None = None,
@@ -553,7 +582,7 @@ def check_in_lines(event: dict, now: datetime | None = None,
             answer = _retention_word(value)
         else:
             answer = _due_in(event, h, now)
-        lines.append(f"     {label} - {answer}")
+        lines.append(f"\t{label} - {answer}")
     return lines
 
 
@@ -595,21 +624,20 @@ def describe(event: dict, labels: dict[str, str],
     label = labels.get(asset_id) or asset_id.split(":")[-1]
     move = _clean(event.get("r"))
     # The ticker leads. It is what the reader will type into a chart, and it is
-    # the only name that is the same everywhere.
+    # the only name that is the same everywhere. The move joins it on the same
+    # line: it is the first thing anyone wants and it used to be on the second.
+    shown = f" · {move * 100:+.2f}%" if move is not None else ""
     parts = [f"{emoji} <b>{_escape(_ticker(asset_id))}</b> · "
-             f"{_escape(label)} - {headline}"]
+             f"{_escape(label)}{shown}"]
 
-    detail = f"{move * 100:+.2f}% " if move is not None else ""
-    parts.append(f"     {detail}in the hour to {when:%Y-%m-%d %H:%M} UTC")
+    context = " · ".join(x for x in (_scale_note(event),
+                                     _since_note(event, events or [])) if x)
+    if context:
+        parts.append(context)
 
-    for line in (_scale_note(event), _since_note(event, events or [])):
-        if line:
-            parts.append(f"     {line}")
-
-    for line in _split_lines(event, label):
-        parts.append(f"     {line}")
-
+    parts.extend(_split_lines(event, label, tier, basis))
     parts.extend(check_in_lines(event, now))
+    parts.append(f"{TIME_EMOJI}<b>{when:%Y-%m-%d %H:%M} UTC</b>")
     return "\n".join(parts)
 
 
@@ -779,23 +807,29 @@ def _describe_block(event: dict, headline: str, emoji: str, when: datetime,
     """
     block = str(event.get("block") or "")
     named = BLOCK_LABEL.get(block, block or "a block")
-    parts = [f"{emoji} <b>{_escape(named[:1].upper() + named[1:])}</b> - {headline}"]
-
     move = _clean(event.get("r"))
-    detail = _block_move_phrase(block, move)
-    parts.append(f"     {detail}in the hour to {when:%Y-%m-%d %H:%M} UTC")
+    # BLACK IN FRONT OF THE RARITY, not instead of it. A block is the same four
+    # rarities read at a different level of the market, so dropping the colour
+    # to mark it would trade the thing every line is sorted and skimmed by for
+    # the thing one line in twenty needs.
+    parts = [f"{BLOCK_MARK}{emoji} <b>"
+             f"{_escape(named[:1].upper() + named[1:])}</b>"
+             f"{f' · {_block_move_phrase(block, move).strip()}' if move is not None else ''}"]
 
-    for line in (_scale_note(event), _since_note(event, events or [])):
-        if line:
-            parts.append(f"     {line}")
+    context = " · ".join(x for x in (_scale_note(event),
+                                     _since_note(event, events or [])) if x)
+    if context:
+        parts.append(context)
+    parts.append(headline.capitalize())
 
     leaders = str(event.get("leaders") or "")
     if leaders:
         count = _clean(event.get("n_members"))
         of = f" (of {int(count)} trading that hour)" if count else ""
-        parts.append(f"     biggest movers: {_escape(leaders)}{_escape(of)}")
+        parts.append(f"\tbiggest movers: {_escape(leaders)}{_escape(of)}")
 
     parts.extend(check_in_lines(event, now))
+    parts.append(f"{TIME_EMOJI}<b>{when:%Y-%m-%d %H:%M} UTC</b>")
     return "\n".join(parts)
 
 
@@ -1326,10 +1360,13 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
     asset_id = str(event.get("asset_id", ""))
     name = labels.get(asset_id) or asset_id.split(":")[-1]
     move = _clean(event.get("r"))
+    mark = ""
     if _is_block(event):
-        name = f"Block {name}"
+        name = BLOCK_LABEL.get(str(event.get("block")), name)
+        name = name[:1].upper() + name[1:]
+        mark = BLOCK_MARK
     shown = f" {move * 100:+.2f}%" if move is not None else ""
-    return f"{emoji} <b>{_escape(name)}</b>{shown}"
+    return f"{mark}{emoji} <b>{_escape(name)}</b>{shown}"
 
 
 def pending_pings(events: "list[dict]", pinged: dict,

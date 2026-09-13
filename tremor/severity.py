@@ -110,19 +110,19 @@ def period_phrase(days: float) -> str:
     if days < 10.5:
         return "about once a week"
     if days < 18:
-        return "about once every 2 weeks"
+        return "about once in 2 weeks"
     if days < 45:
         return "about once a month"
     if days < 75:
-        return "about once every 2 months"
+        return "about once in 2 months"
     if days < 135:
         return "about once a quarter"
     if days < 270:
-        return "about once every 6 months"
+        return "about once in 6 months"
     if days < 550:
         return "about once a year"
     years = round(days / 365.25)
-    return f"about once every {years} years"
+    return f"about once in {years} years"
 
 # How many tail points to fit the GPD on. Too few and the shape parameter is
 # noise; too many and the fit is dragged down by the body of the distribution,

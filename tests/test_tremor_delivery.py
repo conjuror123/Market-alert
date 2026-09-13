@@ -277,11 +277,11 @@ def test_a_move_on_the_abnormal_ladder_says_which_ladder_it_is_on():
     # the second - the instrument may well have had larger hours the market
     # accounted for perfectly - and "of its own" says so without a glossary.
     assert md._headline("major", "abnormal") == (
-        "a move of its own this big happens about once every 3 years")
+        "a move of its own this big happens about once in 3 years")
     assert md._headline("major", "absolute") == (
-        "a move this big happens about once every 3 years")
+        "a move this big happens about once in 3 years")
     assert md._headline("major", "both") == (
-        "a move this big happens about once every 3 years")
+        "a move this big happens about once in 3 years")
     assert md._headline("high", "market") == (
         "an hour this disorderly happens about once a quarter")
 
@@ -313,10 +313,11 @@ def test_the_split_is_two_parts_and_never_the_word_market():
     # what they actually are instead.
     lines = md._split_lines({"r": 0.0700, "e_resid": 0.0100,
                              "co_block": 0.0600, "block": "equity"}, "S&P 500")
-    assert lines[0] == "of that move:"
-    assert "+6.00%  its own block moving, US and global equities" in lines[1]
-    assert "+1.00%  S&amp;P 500 on its own" in lines[2]
-    assert len(lines) == 3
+    # Two lines and no header: "of that move:" was a whole line spent saying
+    # that the two beneath it add up, which the numbers already show.
+    assert "+6.00%  block moving, [US and global equities]" in lines[0]
+    assert "+1.00%  move on its own" in lines[1]
+    assert len(lines) == 2
     for line in lines:
         assert "market" not in line
 
@@ -328,8 +329,8 @@ def test_the_block_line_carries_the_cause_on_its_own():
     lines = md._split_lines({"r": 0.1050, "e_resid": 0.0088,
                              "co_block": 0.0962, "block": "equity"},
                             "US financial sector")
-    assert "+9.62%  its own block moving, US and global equities" in lines[1]
-    assert "+0.88%  US financial sector on its own" in lines[2]
+    assert "+9.62%  block moving, [US and global equities]" in lines[0]
+    assert "+0.88%  move on its own" in lines[1]
 
 
 def test_a_block_that_contributed_nothing_still_takes_its_line():
@@ -338,16 +339,16 @@ def test_a_block_that_contributed_nothing_still_takes_its_line():
     # dropping the line would delete the finding.
     lines = md._split_lines({"r": 0.018, "e_resid": 0.018,
                              "co_block": 0.0, "block": "FX"}, "Euro / dollar")
-    assert "+0.00%  its own block moving, the dollar block" in lines[1]
-    assert "+1.80%  Euro / dollar on its own" in lines[2]
+    assert "+0.00%  block moving, [the dollar block]" in lines[0]
+    assert "+1.80%  move on its own" in lines[1]
 
 
 def test_the_split_falls_back_to_the_difference_on_an_older_row():
     # Before the split was carried, only the total was.
     lines = md._split_lines({"r": 0.02, "e_resid": 0.018, "block": "precious_metals"},
                             "Gold")
-    assert "+0.20%  its own block moving, precious metals" in lines[1]
-    assert "+1.80%  Gold on its own" in lines[2]
+    assert "+0.20%  block moving, [precious metals]" in lines[0]
+    assert "+1.80%  move on its own" in lines[1]
 
 
 def test_no_split_is_claimed_when_the_regression_has_not_been_fitted():
@@ -475,7 +476,7 @@ def test_a_missing_calendar_never_costs_the_alert():
     assert md.calendar_context(hour, None) == ""
     text = md.format_push({"hour_utc": hour, "asset_id": "a:SPY", "tier": "major",
                            "basis": "abnormal", "r": 0.02}, {}, None)
-    assert "happens about once every 3 years" in text
+    assert "happens about once in 3 years" in text
 
 
 def test_the_push_says_what_the_move_was_big_compared_with():
@@ -485,7 +486,7 @@ def test_the_push_says_what_the_move_was_big_compared_with():
     event = {"asset_id": "twelvedata:SHY", "tier": "extreme", "basis": "absolute",
              "hour_utc": 1767225600, "r": 0.0013, "sigma_lt": 0.00013}
     text = md.format_push(event, {"twelvedata:SHY": "Treasuries 1-3 years"})
-    assert "that is 10x its usual hour, which is 0.013%" in text
+    assert "10x usual hour" in text
 
 
 def test_a_modest_multiple_is_still_said_and_still_has_its_decimal():
@@ -494,7 +495,7 @@ def test_a_modest_multiple_is_still_said_and_still_has_its_decimal():
     # the old floor. The decimal matters too: "3x" for 2.7 flatters the alert.
     event = {"asset_id": "twelvedata:SPY", "tier": "noticeable", "basis": "absolute",
              "hour_utc": 1767225600, "r": 0.0027, "sigma_lt": 0.001}
-    assert "that is 2.7x its usual hour" in md.format_push(event, {})
+    assert "2.7x usual hour" in md.format_push(event, {})
 
 
 def test_the_comparison_is_skipped_when_the_yardstick_is_missing():
@@ -840,7 +841,7 @@ def test_the_alert_says_when_this_instrument_was_last_this_rare():
         event(event_id="tiny", tier="noticeable", hour_utc=hour - 3 * 24 * HOUR),
     ]
     line = md._since_note(event(tier="major", hour_utc=hour), history)
-    assert "the last one this big was 31 July 2025" in line
+    assert "similar move 1.1 years ago" in line
     assert "1.1 years ago" in line
 
 
@@ -866,7 +867,7 @@ def test_a_move_in_the_closing_hour_reports_no_ratio_for_its_own_day():
     # construction and "still there" would be reporting arithmetic as news.
     closing = spy(retention_today=1.0)          # Friday's last ETF bar
     lines = md.check_in_lines(closing, now=NOW)
-    assert lines[0] == "     this day's close - the move was in the closing hour"
+    assert lines[0] == "\tthis day's close - the move was in the closing hour"
 
     midday = spy(hour_utc=int(datetime(2026, 9, 8, 14, tzinfo=timezone.utc).timestamp()),
                  retention_today=1.0)
@@ -883,11 +884,22 @@ def test_the_block_line_names_the_instrument_s_peers():
     assert "SPY" not in peers
 
 
-def test_the_headline_leads_with_the_ticker():
-    # It is what the reader will type into a chart, and the only name that is
-    # the same everywhere.
+def test_the_headline_leads_with_the_rarity_the_ticker_and_the_move():
+    # The rarity is a colour so it reads before any word does; the ticker is
+    # what a reader types into a chart; the move is the number they came for and
+    # it used to be on the second line.
     text = md.describe(event(asset_id="twelvedata:GLD"), LABELS)
-    assert text.startswith(md.TIER_EMOJI["major"] + " <b>GLD</b> · Gold - ")
+    first = text.split("\n")[0]
+    assert first == md.TIER_EMOJI["major"] + " <b>GLD</b> · Gold · +2.10%"
+
+
+def test_the_hour_is_the_last_line_and_is_bold():
+    # Everything above it is what happened; this is when. Bold because it is the
+    # one thing a reader cross-checks against a chart.
+    text = md.describe(event(asset_id="twelvedata:GLD"), LABELS)
+    last = text.split("\n")[-1]
+    assert last.startswith(md.TIME_EMOJI)
+    assert last.endswith("UTC</b>") and "<b>2026-09-04 11:00" in last
 
 
 def test_the_footer_names_every_instrument_that_is_tracked():
@@ -923,15 +935,19 @@ def test_a_block_move_is_told_as_a_block_and_not_as_an_instrument():
     # replaced by what a typical member did and which members did most of it.
     text = md.describe(block_event(), LABELS)
 
-    assert text.startswith(md.TIER_EMOJI["extreme"] + " <b>US and global equities</b> - ")
+    # Black IN FRONT OF the rarity, not instead of it: a block is the same four
+    # rarities read at a different level of the market, and dropping the colour
+    # would trade what every line is skimmed by for what one line in twenty needs.
+    assert text.startswith(md.BLOCK_MARK + md.TIER_EMOJI["extreme"]
+                           + " <b>US and global equities</b> · ")
     assert "of that move" not in text
-    assert "the whole block moved together" in text
+    assert "whole block moved together" in text.lower()
     assert "the typical member moved -2.41%" in text
-    assert "that is 4.2x a typical member's usual hour, which is 0.58%" in text
+    assert "4.2x a typical member's usual hour" in text
     assert "biggest movers: XLE -6.20%, XLF -5.80%" in text
     assert "(of 16 trading that hour)" in text
     # No split line: there is nothing above a block to explain its move with.
-    assert "of that move:" not in text
+    assert "\t+6.00%  block moving," not in text
     assert "on its own" not in text
 
 
@@ -1136,3 +1152,29 @@ def test_nothing_stale_is_ever_buzzed(monkeypatch):
     old = event(event_id="ancient", tier="noticeable", channel="digest",
                 hour_utc=int(NOW.timestamp()) - 40 * 24 * HOUR)
     assert md.pending_pings([old], {}, NOW) == []
+
+
+def test_the_rarity_is_said_of_the_thing_its_ladder_actually_ranks():
+    # Not cosmetic. The abnormal ladder ranks what is LEFT after the block is
+    # taken out, so its return period belongs on the "on its own" line: said of
+    # the whole move it would claim the instrument had not moved this far in
+    # years when its block may have carried it there last week. The absolute
+    # ladder ranks the move itself, so there it belongs to the move.
+    row = dict(r=0.0700, e_resid=0.0100, co_block=0.0600, block="equity")
+
+    abnormal = md._split_lines(row, "S&P 500", "major", "abnormal")
+    assert "happens about once in 3 years" in abnormal[-1]
+    assert "move on its own" in abnormal[-1]
+    assert not any("a move this big happens" in line for line in abnormal)
+
+    absolute = md._split_lines(row, "S&P 500", "major", "absolute")
+    assert absolute[0] == "a move this big happens about once in 3 years"
+    assert "happens" not in absolute[-1]
+
+
+def test_a_row_with_no_split_still_says_how_rare_it_was():
+    # No block to hang it on, so it is said as a sentence - and by the same
+    # function the headline uses, because "a move this big" and "a move of its
+    # own this big" are different claims and only one is true of a channel.
+    lines = md._split_lines({"r": 0.02, "e_resid": None}, "Gold", "extreme", "abnormal")
+    assert lines == ["a move of its own this big happens about once in 6 years"]
