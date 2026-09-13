@@ -93,6 +93,11 @@ STALE_AFTER_HOURS = 48
 STATE_KEY = "tremor_delivery"
 _SENT = "sent"
 
+# The outstanding throwaway pings, {event_id: message_id}. Kept because a
+# message can only be deleted by its id, and the runner that sent it is thrown
+# away within the minute - an untracked ping is a ping that stays for ever.
+PINGS = "pings"
+
 # How rare the move was, as a colour. A SQUARE, against the circles the economic
 # calendar uses for a release's impact (economic_calendar.IMPACT_EMOJI): the same
 # four hues carry the same "how much should I care", and the shape says which
@@ -1383,6 +1388,85 @@ def _fresh(event: dict, now: datetime, key: str = "hour_utc") -> bool:
     return 0 <= age <= STALE_AFTER_HOURS * 3600
 
 
+def format_ping(event: dict, labels: dict[str, str]) -> str:
+    """The throwaway line that says a digest row just appeared.
+
+    A digest row is written the hour its move is found, but the note stays
+    silent - Telegram does not notify on an edit - so a reader who wants to know
+    NOW has to keep opening it. This is the buzz, and it is deliberately almost
+    empty: the rarity, what moved, how far. Everything else is already in the
+    note, one tap away, and repeating it here would make two messages competing
+    to be the record.
+
+    It is deleted when the next note opens, so what remains is a clean run of
+    notes rather than a scroll of pings around them.
+    """
+    tier = str(event.get("tier") or "noticeable")
+    emoji = TIER_EMOJI.get(tier, "⚪")
+    asset_id = str(event.get("asset_id", ""))
+    name = labels.get(asset_id) or asset_id.split(":")[-1]
+    move = _clean(event.get("r"))
+    if _is_block(event):
+        name = f"Block {name}"
+    shown = f" ({move * 100:+.2f}%)" if move is not None else ""
+    return f"{emoji} <b>{_escape(name)}</b> moved!{shown}"
+
+
+def pending_pings(events: "list[dict]", pinged: dict,
+                  now: datetime) -> "list[dict]":
+    """Digest rows that have appeared and not yet been announced.
+
+    Keyed on the TIER and not merely on where the event sits right now. A
+    once-a-year move is routed to the digest while its retention is unknown and
+    becomes a push six bars later when the answer lands - so a channel test
+    would buzz for it, then push it, and the reader would be interrupted twice
+    for one move. A push tier never pings; it gets the message with the story in
+    it, which is the whole distinction between the two.
+
+    The same freshness rule as a push, and for the same reason: without it the
+    first run after the mute comes off would buzz once for every row in the
+    history rather than for what just happened.
+    """
+    from tremor.routing import PUSH_TIERS
+
+    out = [e for e in events
+           if str(e.get("channel") or "") == "digest"
+           and str(e.get("tier") or "") not in PUSH_TIERS
+           and str(e.get("event_id", ""))
+           and str(e.get("event_id", "")) not in pinged
+           and _fresh(e, now)]
+    out.sort(key=lambda e: int(e["hour_utc"]))
+    return out
+
+
+def sweep_pings(cfg: Config, store: dict) -> int:
+    """Removes every outstanding ping. Called as the next note opens.
+
+    An id is dropped from the state whether or not Telegram agreed to delete it:
+    a ping it refuses is one it will keep refusing - too old, or already gone -
+    and retrying it every hour for ever would be a leak dressed as diligence.
+    """
+    from price_monitor.notifier import delete_telegram_message
+
+    outstanding: dict = store.get(PINGS) or {}
+    if not outstanding:
+        return 0
+    gone = 0
+    for event_id, message_id in list(outstanding.items()):
+        try:
+            if delete_telegram_message(cfg.telegram_bot_token,
+                                       cfg.telegram_chat_id, int(message_id)):
+                gone += 1
+        except TelegramError as exc:
+            log.warning("Could not clear ping %s: %s", event_id, exc)
+    store[PINGS] = {}
+    if gone < len(outstanding):
+        log.info("Cleared %d of %d pings; the rest Telegram would not delete "
+                 "(a bot may only delete its own message within 48 hours "
+                 "outside a channel)", gone, len(outstanding))
+    return gone
+
+
 def pending(events: "list[dict]", sent: dict, now: datetime) -> "list[dict]":
     """The pushes that are due and have not gone out.
 
@@ -1441,6 +1525,13 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     digests: dict = store.setdefault(DIGEST_STATE, {})
     current = routing.digest_slot(int(now.timestamp()))
     if str(current) not in digests and due_to_open(current, now):
+        # Before the note, never after: the pings are the interim signal that a
+        # row appeared, and the note they were standing in for is about to say
+        # it properly. Clearing them afterwards would leave a window where both
+        # are on screen claiming the same moves.
+        swept = sweep_pings(cfg, store)
+        if swept:
+            log.info("Cleared %d ping(s) ahead of the %s note", swept, current)
         digests[str(current)] = {"ids": [], "hashes": [],
                                  "from": carried_from(digests, current),
                                  "to": routing.next_digest_slot(current)}
@@ -1494,6 +1585,24 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
             now=datetime.fromtimestamp(int(event["hour_utc"]), tz=timezone.utc))
         pushed += 1
 
+    # The buzz for a digest row. Sent after the pushes so that on an hour
+    # carrying both, the message with the whole story arrives first and the
+    # throwaway line second.
+    pings: dict = store.setdefault(PINGS, {})
+    buzzed = 0
+    for event in pending_pings(events, pings, now):
+        try:
+            message_id = send_telegram_message(
+                cfg.telegram_bot_token, cfg.telegram_chat_id,
+                format_ping(event, labels))
+        except TelegramError as exc:
+            log.error("Failed to send ping %s: %s", event.get("event_id"), exc)
+            continue
+        pings[str(event["event_id"])] = int(message_id)
+        buzzed += 1
+    if buzzed:
+        log.info("Pings sent: %d", buzzed)
+
     for slot in sorted(notes):
         record, rows = notes[slot]
         texts = format_digest(rows, labels, note_window(slot, record), calendar,
@@ -1511,4 +1620,4 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         log.info("Tremor pushes sent: %d of %d due", pushed, len(pushes))
     store[_SENT] = _prune(sent, now)
     store[DIGEST_STATE] = _prune_digests(digests, now)
-    return pushed + posted + edited + corrected
+    return pushed + posted + edited + corrected + buzzed

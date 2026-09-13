@@ -1136,3 +1136,72 @@ def test_a_push_carries_the_regime_and_so_does_the_note(monkeypatch):
     note = md.format_digest([event()], LABELS, window,
                             now=datetime(2026, 9, 9, 12, tzinfo=timezone.utc))
     assert "Fear gauge" in note[0]
+
+
+# --- the throwaway ping ----------------------------------------------------
+#
+# A digest row is written the hour its move is found, but a note stays silent
+# because Telegram does not notify on an edit. The ping is the buzz that says a
+# row appeared; it is deleted when the next note opens, so the record left
+# behind is a clean run of notes.
+
+class Deleted:
+    """Stands in for notifier.delete_telegram_message."""
+
+    def __init__(self, refuse=()):
+        self.ids, self.refuse = [], set(refuse)
+
+    def __call__(self, token, chat, message_id, *a, **k):
+        self.ids.append(int(message_id))
+        return int(message_id) not in self.refuse
+
+
+def test_a_digest_row_buzzes_once_and_says_almost_nothing(monkeypatch, sender):
+    row = event(event_id="p1", tier="noticeable", channel="digest",
+                digest_slot=int(NOW.timestamp()) + 3 * HOUR)
+    _, state = deliver(monkeypatch, [row])
+
+    pings = [t for t in sender.texts if "moved!" in t]
+    assert pings == ["⬜ <b>Gold</b> moved! (+2.10%)"]
+    assert state[md.STATE_KEY][md.PINGS] == {"p1": 1}
+
+    # And not again on the next run: the buzz is once per move, not per hour.
+    before = len(sender.texts)
+    deliver(monkeypatch, [row], state=state)
+    assert [t for t in sender.texts[before:] if "moved!" in t] == []
+
+
+def test_a_push_tier_never_buzzes_even_while_it_sits_in_the_digest():
+    # A once-a-year move waits in the digest until its retention is known and is
+    # promoted six bars later. Keyed on the channel it would buzz and THEN push,
+    # interrupting twice for one move.
+    waiting = event(tier="major", channel="digest")
+    assert md.pending_pings([waiting], {}, NOW) == []
+
+
+def test_the_pings_are_cleared_as_the_next_note_opens(monkeypatch, sender):
+    killer = Deleted()
+    monkeypatch.setattr("price_monitor.notifier.delete_telegram_message", killer)
+    store = {md.PINGS: {"old1": 11, "old2": 12}}
+    assert md.sweep_pings(cfg(), store) == 2
+    assert killer.ids == [11, 12]
+    assert store[md.PINGS] == {}
+
+
+def test_a_ping_telegram_refuses_to_delete_is_dropped_anyway(monkeypatch):
+    # Outside a channel a bot may only delete its own message for 48 hours. One
+    # it will not delete now it will not delete later, and retrying it every
+    # hour for ever is a leak wearing the clothes of diligence.
+    killer = Deleted(refuse=[12])
+    monkeypatch.setattr("price_monitor.notifier.delete_telegram_message", killer)
+    store = {md.PINGS: {"a": 11, "b": 12}}
+    assert md.sweep_pings(cfg(), store) == 1
+    assert store[md.PINGS] == {}
+
+
+def test_nothing_stale_is_ever_buzzed(monkeypatch):
+    # Without this the first run after the mute comes off buzzes once for every
+    # row in the history instead of for what just happened.
+    old = event(event_id="ancient", tier="noticeable", channel="digest",
+                hour_utc=int(NOW.timestamp()) - 40 * 24 * HOUR)
+    assert md.pending_pings([old], {}, NOW) == []

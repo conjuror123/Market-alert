@@ -360,6 +360,22 @@ Delivery splits by urgency, not by importance:
   at this day's close and the next day's close with how the move actually held; of
   moves still standing when their own day closed, 80% were still standing at the next
   day's close too.
+* **A throwaway ping** — a digest row is written the hour its move is found, but a
+  note stays silent because Telegram does not notify on an edit. So each row also
+  buzzes once, with almost nothing in it: `⬜ <b>Gold</b> moved! (+2.10%)` — the
+  rarity, what moved, how far. Everything else is in the note, one tap away. Each
+  ping is deleted as the next note opens, so what is left behind is a clean run of
+  notes rather than a scroll of pings between them.
+
+  A push tier never pings. A once-a-year move sits in the digest until its
+  retention is known and is promoted to a push later; buzzing for it and then
+  pushing it would interrupt twice for one move.
+
+  **The 48-hour rule.** A bot may delete its own message in a private chat only
+  within 48 hours of sending it; in a channel where it is an administrator there
+  is no limit. So the self-clearing is dependable for a reader on a channel and
+  best-effort for one in a private chat, where a ping sent more than two days
+  before the next note simply stays. That is Telegram's limit, not a bug to fix.
 * **The running digest** — everything else, 3.8 items a note on average. The note is
   *opened* Tuesday and Friday at 12:00 Israel time and then edited in place as moves
   are found, so a row appears the hour it happens rather than up to three days later.
