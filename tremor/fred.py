@@ -1,8 +1,14 @@
 """FRED client for the daily VIX series (spec §4.4).
 
-Why FRED rather than an ETF on VIX futures: this is the real index going back to
-1990 from the official source, without the contango drift that afflicts any
-futures ETF. The price of that choice is two peculiarities, both recorded as
+ONE OF TWO SOURCES for that series, and the slower one - see tremor.cboe, which
+takes the same numbers from the exchange that computes them, the same evening
+rather than the next business day. FRED is kept because it carries 1999-12-31,
+which CBOE's file omits, and because two mirrors mean neither is a single point
+of failure. tremor.backfill unions them.
+
+Why either of these rather than an ETF on VIX futures: this is the real index
+going back to 1990 from the official source, without the contango drift that
+afflicts any futures ETF. The price of that choice is two peculiarities, both recorded as
 departures from the letter of §4.4:
 
 1. The series is DAILY. FRED has no intraday VIX in any series - verified by
@@ -15,6 +21,13 @@ departures from the letter of §4.4:
    moment of availability is computed explicitly by available_at below. Otherwise
    the backtest would apply the multiplier in an hour when the value did not yet
    exist, that is, it would look ahead.
+
+   That lag is FRED's alone and not the market's, which is what tremor.cboe is
+   for. It measured, at 09:00 UTC on Monday 14 September 2026: FRED's newest
+   value was Thursday's 17.84 while the index had closed Friday at 15.84, so the
+   gauge read "higher than 52% of days" about a market that was in fact calmer
+   than 62% of them. Where both sources carry a day, the EARLIER availability
+   wins - see cboe.merge, and the reason it has to be the earlier one.
 """
 from __future__ import annotations
 

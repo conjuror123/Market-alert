@@ -678,6 +678,12 @@ def _block_move_phrase(block: str, move: "float | None") -> str:
 # reader wants here is the regime, and a regime is slow: an index that updates
 # once a day and reaches back to 1990 describes it better than a decaying
 # futures product that starts in 2011.
+#
+# Daily is not the same as late, and the two were confused here for a while. The
+# file is still named for FRED because that is where its history came from, but
+# it is now the union of FRED and CBOE's own daily file (see tremor.cboe): the
+# exchange posts the close the same evening, so the gauge no longer sits three
+# calendar days behind across a weekend.
 VIX_PATH = os.path.join("data", "tremor", "vix", "fred_VIXCLS.parquet")
 
 # What "a week before" compares against. Seven CALENDAR days, matched to the
@@ -696,10 +702,11 @@ VIX_FLAT = 0.10
 def _vix_scored() -> "pd.DataFrame | None":
     """The VIX series with the spike test already applied, read once per process.
 
-    Carries `available_at` - the moment the value became KNOWN, which FRED
-    publishes one to two business days after the observation. Every reading
-    below is chosen by that column and not by the observation date, so a message
-    about Monday's move never quotes a number that did not exist until Wednesday.
+    Carries `available_at` - the moment the value became KNOWN, which is the
+    evening of the observation for a day CBOE served and one to two business
+    days later for a day only FRED had. Every reading below is chosen by that
+    column and not by the observation date, so a message about Monday's move
+    never quotes a number that did not exist until Wednesday.
     """
     try:
         from tremor import vix as vix_module

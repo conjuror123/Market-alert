@@ -27,7 +27,7 @@ from datetime import date, datetime, timedelta, timezone
 import pandas as pd
 import requests
 
-from tremor import bars, corporate_actions, fred
+from tremor import bars, cboe, corporate_actions, fred
 from tremor import sessions as _sessions
 from tremor.basket import Asset, Basket, load_basket
 from price_monitor import (candle_store, coinbase, dukascopy, fxcm, hfdata,
@@ -215,14 +215,47 @@ def backfill_instrument(asset: Asset, basket: Basket, bars_dir: str, api_key: st
 
 def backfill_vix(basket: Basket, vix_dir: str, api_key: str,
                  session: requests.Session) -> dict:
+    """The daily VIX series, from both sources that serve it.
+
+    CBOE computes the index and posts the close the same evening; FRED
+    republishes it on the next business day. Taking both costs one extra HTTP
+    call and buys two things: the gauge stops running up to three calendar days
+    behind over a weekend, and neither source is a single point of failure -
+    a run with no FRED key still has a series, which it did not before.
+
+    Neither is trusted over the other, because measured over the whole record
+    they agree to the cent on all 9,270 days they share. They are unioned: CBOE
+    carries the newest day, FRED carries 1999-12-31, which CBOE's file omits.
+    """
     vix = basket.volatility_index
-    frame = fred.fetch_series(vix.series_id, api_key, vix.history_since, session=session)
+    pieces, sources, trouble = [], [], []
+
+    try:
+        pieces.append(cboe.fetch_vix_history(vix.history_since, session=session))
+        sources.append("cboe")
+    except Exception as exc:
+        trouble.append(f"cboe: {exc}")
+
+    if api_key:
+        try:
+            pieces.append(fred.fetch_series(vix.series_id, api_key,
+                                            vix.history_since, session=session))
+            sources.append("fred")
+        except Exception as exc:
+            trouble.append(f"fred: {exc}")
+    else:
+        trouble.append("fred: FRED_API_KEY is not set")
+
+    frame = cboe.merge(*pieces)
+    if frame.empty:
+        raise RuntimeError("no VIX source answered - " + "; ".join(trouble))
+
     path = os.path.join(vix_dir, f"{vix.file_stem}.parquet")
     os.makedirs(vix_dir, exist_ok=True)
-    frame.sort_values("day").reset_index(drop=True).to_parquet(
-        path, index=False, compression="zstd")
+    frame.to_parquet(path, index=False, compression="zstd")
     return {"asset_id": vix.series_id, "rows": len(frame),
-            "first": int(frame["day"].min()), "last": int(frame["day"].max())}
+            "first": int(frame["day"].min()), "last": int(frame["day"].max()),
+            "sources": sources, "trouble": trouble}
 
 
 def _fmt(epoch: int | None) -> str:
@@ -965,18 +998,20 @@ def main(argv: list[str] | None = None) -> int:
                  skipped)
 
     if not args.skip_vix:
-        fred_key = os.environ.get("FRED_API_KEY", "")
-        if not fred_key:
-            log.error("FRED_API_KEY is not set - the VIX series was skipped")
+        try:
+            r = backfill_vix(basket, args.vix_dir,
+                             os.environ.get("FRED_API_KEY", ""), session)
+            log.info("%s: %d daily values (%s .. %s) from %s",
+                     r["asset_id"], r["rows"], _fmt(r["first"]), _fmt(r["last"]),
+                     " + ".join(r["sources"]))
+            # Warned rather than failed: one source is enough to deliver, and a
+            # run that goes red over a mirror being down would cry wolf. The
+            # message names which one so a silent degradation is still visible.
+            for note in r["trouble"]:
+                log.warning("VIX source unavailable - %s", note)
+        except Exception as exc:
             failures += 1
-        else:
-            try:
-                r = backfill_vix(basket, args.vix_dir, fred_key, session)
-                log.info("%s: %d daily values (%s .. %s)",
-                         r["asset_id"], r["rows"], _fmt(r["first"]), _fmt(r["last"]))
-            except Exception as exc:
-                failures += 1
-                log.error("VIX: failed - %s", exc)
+            log.error("VIX: failed - %s", exc)
 
     return 1 if failures else 0
 
