@@ -53,6 +53,12 @@ MAX_OUTPUTSIZE = 5000
 # the API does not publish per-symbol history depth. Intraday depth on the free
 # tier is a few years, so any walk back to 2015 reaches it.
 _NO_DATA_MESSAGE = "no data is available"
+# Twelve Data says "You have run out of API credits for the day" when the daily
+# budget is gone and "...for the current minute" when it is the rate limit. The
+# two differ by three words and mean opposite things - one clears at midnight,
+# the other in under a minute - so the match has to include the period. Matching
+# the common prefix would turn every transient rate limit into a full stop.
+_QUOTA_MESSAGE = "api credits for the day"
 
 
 class PermanentExchangeError(ExchangeError):
@@ -68,6 +74,24 @@ class PermanentExchangeError(ExchangeError):
 
 class NoDataInRange(PermanentExchangeError):
     """The requested window is before the start of this symbol's history."""
+
+
+class DailyQuotaExhausted(PermanentExchangeError):
+    """The API key has spent its credits for the day. Nothing else will succeed.
+
+    The one 429 that is not a rate limit. A rate limit clears in seconds and is
+    worth waiting out; this clears at midnight UTC, and the budget is per KEY,
+    so it is not a statement about this symbol at all - every remaining symbol
+    in the run will fail identically.
+
+    Separated because the cost of getting it wrong was measured rather than
+    guessed. Treated as a retryable 429 it cost three attempts at eight-second
+    backoff plus the eight-second pacing pause: 32 seconds per instrument, every
+    one of them a certain failure. Across 52 instruments that is 27 minutes, and
+    the job's 20-minute timeout killed the run before it could deliver anything
+    - so an exhausted quota, which should cost the run some fresh bars, silently
+    cost it every alert instead.
+    """
 
 
 def _interval_code(interval: str) -> str:
@@ -106,6 +130,8 @@ def _classify(symbol: str, status_code: int, body: str) -> ExchangeError:
     # here that looks exactly like success.
     if status_code == 400 and _NO_DATA_MESSAGE in body.lower():
         return NoDataInRange(f"{symbol}: no data before the requested window")
+    if status_code == 429 and _QUOTA_MESSAGE in body.lower():
+        return DailyQuotaExhausted(f"{symbol}: {body[:200]}")
     # 429 is the rate limit and 5xx are the server's problem; both are worth
     # another attempt. Everything else in the 4xx range is a statement about the
     # request itself and will not become true by being asked again.
@@ -243,6 +269,11 @@ def fetch_full_history(
         try:
             fetched = _request(sess, url, params, granularity_seconds,
                                retries=3, backoff_seconds=8.0, symbol=symbol)
+        except DailyQuotaExhausted:
+            # Not this symbol's problem and not this walk's: the budget is gone
+            # for every symbol until midnight. Propagated so the caller can stop
+            # the whole run rather than discovering it once per instrument.
+            raise
         except NoDataInRange:
             # The edge of this symbol's history, which is the normal way a walk
             # back to a date older than the provider holds ends. Not an error,

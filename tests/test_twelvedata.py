@@ -273,10 +273,43 @@ def test_the_no_data_message_alone_does_not_make_an_error_permanent(monkeypatch)
 
 
 def test_a_rate_limit_is_still_retried(monkeypatch):
+    # The PER-MINUTE limit, which clears in seconds and is worth waiting out.
+    # Its wording is three words from the daily one's, and the two mean opposite
+    # things, so this fixture carries the real text rather than a paraphrase.
     monkeypatch.setattr(twelvedata.time, "sleep", lambda *_: None)
-    session = _Walk(good=0, status=429, message="You have run out of API credits")
+    session = _Walk(good=0, status=429, message=(
+        "You have run out of API credits for the current minute. 9 API credits "
+        "were used, with the current limit being 8."))
     with pytest.raises(ExchangeError):
         twelvedata.fetch_klines(symbol="SPY", interval="30min", limit=10,
                                 base_url="https://x", api_key="k", session=session,
                                 retries=3, backoff_seconds=0)
     assert session.calls == 3
+
+
+def test_the_daily_budget_running_out_is_not_retried(monkeypatch):
+    # The one 429 that cannot come good. Retried three times at eight seconds it
+    # cost 32 seconds per instrument and 27 minutes per run, and the job's
+    # 20-minute timeout then skipped delivery entirely - an exhausted budget,
+    # which should cost a run some fresh bars, cost it every alert instead.
+    monkeypatch.setattr(twelvedata.time, "sleep", lambda *_: None)
+    session = _Walk(good=0, status=429, message=(
+        "You have run out of API credits for the day. 1750 API credits were "
+        "used, with the current limit being 800."))
+    with pytest.raises(twelvedata.DailyQuotaExhausted):
+        twelvedata.fetch_klines(symbol="SPY", interval="30min", limit=10,
+                                base_url="https://x", api_key="k", session=session,
+                                retries=3, backoff_seconds=0)
+    assert session.calls == 1
+
+
+def test_the_daily_budget_stops_a_history_walk_rather_than_ending_it_quietly():
+    # fetch_full_history swallows an ExchangeError and returns what it has, which
+    # is right for a bad chunk and wrong for this: the caller has fifty more
+    # instruments to ask and every one of them will fail the same way.
+    session = _Walk(good=0, status=429, message=(
+        "You have run out of API credits for the day. 900 API credits were used."))
+    with pytest.raises(twelvedata.DailyQuotaExhausted):
+        twelvedata.fetch_full_history(
+            symbol="SPY", interval="1h", days=900, base_url="https://x",
+            api_key="k", session=session, request_delay_seconds=0, chunk_days=150)

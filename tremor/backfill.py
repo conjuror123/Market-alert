@@ -958,6 +958,7 @@ def main(argv: list[str] | None = None) -> int:
     failures = 0
     skipped = 0
     seeded = 0
+    quota_gone = False
     for i, asset in enumerate(instruments):
         path = bars.store_path(args.bars_dir, asset.file_stem)
         if not args.extend_history and bars.load(path).empty:
@@ -985,6 +986,18 @@ def main(argv: list[str] | None = None) -> int:
             log.info("%s: %d bars (%s .. %s), from local history %d, from network %d",
                      r["asset_id"], r["rows"], _fmt(r["first"]), _fmt(r["last"]),
                      r["from_legacy"], r["from_api"])
+        except twelvedata.DailyQuotaExhausted as exc:
+            # STOP THE WHOLE LOOP, and this is the difference between a run that
+            # delivers on slightly stale bars and a run that delivers nothing.
+            # The budget is per key and per day, so every instrument after this
+            # one fails too; asking them anyway cost 32 seconds each and pushed
+            # the job past its timeout, which skipped delivery entirely.
+            quota_gone = True
+            log.error("Twelve Data daily credits are gone - %s", exc)
+            log.error("Stopping the fetch here. %d instrument(s) not asked for; "
+                      "the pipeline continues on the bars already stored.",
+                      len(instruments) - i - 1)
+            break
         except Exception as exc:
             failures += 1
             log.error("%s: failed - %s", asset.asset_id, exc)
@@ -996,6 +1009,12 @@ def main(argv: list[str] | None = None) -> int:
     if skipped:
         log.info("%d instrument(s) skipped: the calendar says nothing new can exist",
                  skipped)
+    # Not counted as a failure: a spent budget is a known limit being reached,
+    # not a breakage, and failing the run would turn a daily certainty into a
+    # daily red cross. It is logged loudly instead - and the run still delivers.
+    if quota_gone:
+        log.warning("The Twelve Data budget is spent for the UTC day. "
+                    "Bars will resume at midnight.")
 
     if not args.skip_vix:
         try:
