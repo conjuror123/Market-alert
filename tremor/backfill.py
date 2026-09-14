@@ -55,6 +55,15 @@ TWELVEDATA_DELAY_SECONDS = 8.0
 # default applies.
 CHUNK_DAYS = {"30min": 300, "1h": 150}
 
+# How far back each provider will answer, by interval. Twelve Data and Coinbase
+# page backwards without a wall and are absent on purpose; the two recent-end
+# providers are not, and a request past their reach returns an empty result,
+# which is indistinguishable from a quiet market.
+_PROVIDER_REACH = {
+    "yahoo": yahoo.MAX_LOOKBACK_DAYS,
+    "tiingo": tiingo.MAX_LOOKBACK_DAYS,
+}
+
 # How many instruments with an EMPTY store one ordinary run will fetch. See the
 # loop in main() - this is the guard that keeps a batch of newly configured
 # tickers from turning the hourly job into a backfill.
@@ -124,7 +133,22 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
         last = datetime.fromtimestamp(int(stored["hour_utc"].max()), tz=timezone.utc)
         days = max(1.0, (datetime.now(timezone.utc) - last).total_seconds() / 86400 + 1)
 
-    provider = asset.fetched_from
+    # WHICH PROVIDER ANSWERS, and it is not always the fast one. Deepening walks
+    # BACKWARDS through history, and only the archive provider holds it: Yahoo
+    # serves at most 55 days of 30-minute bars and Tiingo caps a response at
+    # 10000 rows. `source` is the provider the archive came from, so that is who
+    # a deepening run asks, however the hourly top-up is routed.
+    provider = asset.source if extend_history else asset.fetched_from
+    # A first fetch of an empty store asks for a whole chunk - 300 days at 30
+    # minutes - which is more than the recent-end providers will answer. Clamp
+    # it rather than fail: the point of the seeding path is to get an instrument
+    # producing bars now, and depth is a separate, deliberate act either way.
+    reach = _PROVIDER_REACH.get(provider, {}).get(asset.fetch_interval)
+    if reach is not None and days > reach:
+        log.info("%s: %s serves %d days at %s, not %.0f - asking for what it has",
+                 asset.asset_id, provider, reach, asset.fetch_interval, days)
+        days = float(reach)
+
     if provider == "twelvedata":
         candles = twelvedata.fetch_full_history(
             symbol=asset.ticker, interval=asset.fetch_interval, days=days,
