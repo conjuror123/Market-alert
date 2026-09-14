@@ -33,3 +33,8 @@ jobs:
         env:
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: python -m tools.tiingo_probe
+
+      - name: Probe Tiingo, second pass
+        env:
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+        run: python -m tools.tiingo_probe2

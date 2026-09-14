@@ -193,8 +193,8 @@ def main() -> int:
         print(f"      rows={len(body)}  span {body[0].get('date')} .. "
               f"{body[-1].get('date')}")
     if size_capped and size_default:
-        print(f"      >>> bounded is {size_default / size_capped:5.1f}x smaller "
-              f"({size_capped:,}B vs {size_default:,}B)")
+        print(f"      >>> bounded(4d)={size_capped:,}B  default={size_default:,}B "
+              f"  ratio {size_capped / size_default:4.1f}x")
         for label, per in (("bounded", size_capped), ("default", size_default)):
             monthly = per * 33 * 24 * 30 / 1e9
             print(f"      >>> {label}: 33 symbols x 24 runs x 30 days = "
