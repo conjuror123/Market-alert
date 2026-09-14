@@ -33,11 +33,29 @@ BASE = "https://api.tiingo.com"
 TIMEOUT = 30
 BARS_DIR = "data/tremor/bars"
 
-# Liquid names first, then the thin ones where IEX's small share bites hardest.
-LIQUID = ["SPY", "QQQ", "IWM", "XLK", "XLF", "TLT", "HYG", "GLD"]
-THIN = ["CPER", "SOYB", "CORN", "UGA", "PPLT", "BKLN", "UNG", "PALL"]
+# Every ETF in the basket. The point of the exercise is to decide, per symbol,
+# which feed it should come from, so every symbol has to be measured - a rule
+# inferred from eight of them would be a guess about the other thirty-six.
+ETFS = [
+    "XLK", "XLF", "XLY", "XLP", "XLE", "XLV", "XLI", "XLB", "XLU", "XLRE",
+    "XLC", "SPY", "QQQ", "IWM", "EFA", "EEM", "SHY", "IEI", "IEF", "TLH",
+    "TLT", "TIP", "MBB", "LQD", "HYG", "JNK", "EMB", "BKLN", "PFF", "USO",
+    "BNO", "UGA", "UNG", "GLD", "SLV", "PPLT", "PALL", "DBB", "CPER", "DBA",
+    "CORN", "WEAT", "SOYB", "DBC",
+]
+
+# The line between "same feed" and "a different feed that will invent events".
+# An hourly sigma for these ETFs is 20-40 bps, so 2 bps of median disagreement
+# is under a tenth of a sigma and vanishes into the noise the detector already
+# tolerates; past that, the feed starts contributing its own moves.
+SAFE_MEDIAN_BPS = 2.0
+SAFE_P90_BPS = 5.0
 
 _key = ""
+
+
+class RateLimited(RuntimeError):
+    """Tiingo's 50-requests-per-hour bucket is empty; stop and keep what we have."""
 
 
 def fetch_hourly(ticker: str, start: str) -> pd.DataFrame:
@@ -50,6 +68,8 @@ def fetch_hourly(ticker: str, start: str) -> pd.DataFrame:
                  "Authorization": f"Token {_key}"},
         timeout=TIMEOUT,
     )
+    if r.status_code == 429:
+        raise RateLimited(f"{ticker}: hourly request budget spent")
     r.raise_for_status()
     rows = r.json()
     if not isinstance(rows, list) or not rows:
@@ -76,63 +96,68 @@ def main() -> int:
 
     start = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
     print(f"Comparing Tiingo IEX against stored Twelve Data bars, from {start}.")
-    print("close_bps / open_bps: median and worst absolute difference, in basis")
-    print("points. vol_share: IEX volume as a fraction of the stored volume.\n")
+    print("bps columns: absolute difference between the two feeds' hourly close,")
+    print("in basis points. vol_share: IEX volume as a fraction of the stored")
+    print("(consolidated) volume for the same hours.\n")
 
     header = (f"{'ticker':<8}{'hours':>6}{'med_bps':>9}{'p90_bps':>9}"
-              f"{'max_bps':>9}{'max_hour':>18}{'vol_share':>11}")
+              f"{'max_bps':>9}{'vol_share':>11}   verdict")
     print(header)
     print("-" * len(header))
 
     summary = []
-    for group, tickers in (("LIQUID", LIQUID), ("THIN", THIN)):
-        print(f"  -- {group} --")
-        for ticker in tickers:
-            try:
-                fresh = fetch_hourly(ticker, start)
-            except Exception as exc:
-                print(f"{ticker:<8} fetch failed: {str(exc)[:60]}")
-                continue
-            stored = bars.load(bars.store_path(BARS_DIR, f"twelvedata_{ticker}"))
-            if fresh.empty or stored.empty:
-                print(f"{ticker:<8} no overlap (fresh={len(fresh)}, "
-                      f"stored={len(stored)})")
-                continue
-            joined = fresh.merge(stored, on="hour_utc", suffixes=("_tg", "_td"))
-            # Only compare hours the store considers closed; the newest stored
-            # bar may still have been open when it was written.
-            joined = joined[joined["hour_utc"] < int(stored["hour_utc"].max())]
-            if joined.empty:
-                print(f"{ticker:<8} no overlapping closed hours")
-                continue
-            bps = ((joined["close_tg"] - joined["close_td"]).abs()
-                   / joined["close_td"] * 1e4)
-            worst = int(joined.loc[bps.idxmax(), "hour_utc"])
-            vol_td = joined["volume_td"].sum()
-            share = (joined["volume_tg"].sum() / vol_td) if vol_td else float("nan")
-            print(f"{ticker:<8}{len(joined):>6}{bps.median():>9.2f}"
-                  f"{bps.quantile(0.9):>9.2f}{bps.max():>9.2f}"
-                  f"{datetime.fromtimestamp(worst, timezone.utc):%Y-%m-%d %H:%M}"
-                  f"{share:>11.1%}")
-            summary.append((group, ticker, bps.median(), bps.max(), share))
-            time.sleep(0.05)
+    stopped = False
+    for ticker in ETFS:
+        try:
+            fresh = fetch_hourly(ticker, start)
+        except RateLimited as exc:
+            print(f"\n  stopped early: {exc}")
+            stopped = True
+            break
+        except Exception as exc:
+            print(f"{ticker:<8} fetch failed: {str(exc)[:60]}")
+            continue
+        stored = bars.load(bars.store_path(BARS_DIR, f"twelvedata_{ticker}"))
+        if fresh.empty or stored.empty:
+            print(f"{ticker:<8} no overlap (fresh={len(fresh)}, stored={len(stored)})")
+            continue
+        joined = fresh.merge(stored, on="hour_utc", suffixes=("_tg", "_td"))
+        joined = joined[joined["hour_utc"] < int(stored["hour_utc"].max())]
+        if joined.empty:
+            print(f"{ticker:<8} no overlapping closed hours")
+            continue
+        bps = ((joined["close_tg"] - joined["close_td"]).abs()
+               / joined["close_td"] * 1e4)
+        med, p90, mx = bps.median(), bps.quantile(0.9), bps.max()
+        vol_td = joined["volume_td"].sum()
+        share = (joined["volume_tg"].sum() / vol_td) if vol_td else float("nan")
+        safe = med <= SAFE_MEDIAN_BPS and p90 <= SAFE_P90_BPS
+        print(f"{ticker:<8}{len(joined):>6}{med:>9.2f}{p90:>9.2f}{mx:>9.2f}"
+              f"{share:>11.1%}   {'TIINGO' if safe else 'keep on TD'}")
+        summary.append((ticker, med, p90, mx, share, safe))
+        time.sleep(0.05)
 
     print()
     print("=" * 78)
-    for group in ("LIQUID", "THIN"):
-        rows = [s for s in summary if s[0] == group]
-        if not rows:
-            continue
-        med = sorted(r[2] for r in rows)[len(rows) // 2]
-        worst = max(r[3] for r in rows)
-        shares = [r[4] for r in rows if r[4] == r[4]]
-        print(f"{group:<7} median-of-medians {med:6.2f} bps   worst single hour "
-              f"{worst:7.2f} bps   IEX volume share "
-              f"{sum(shares) / len(shares):5.1%}" if shares else "")
+    safe = [r[0] for r in summary if r[5]]
+    unsafe = [r[0] for r in summary if not r[5]]
+    print(f"Measured {len(summary)} of {len(ETFS)} ETFs"
+          + ("  (stopped early on the rate limit)" if stopped else ""))
+    print(f"\nAGREES WITH TWELVE DATA ({len(safe)}) - safe to move to Tiingo:")
+    print("  " + " ".join(safe))
+    print(f"\nDISAGREES ({len(unsafe)}) - keep on Twelve Data:")
+    print("  " + " ".join(unsafe))
+    if summary:
+        meds = sorted(r[1] for r in summary)
+        shares = [r[4] for r in summary if r[4] == r[4]]
+        print(f"\nmedian disagreement across all measured: "
+              f"{meds[len(meds) // 2]:.2f} bps")
+        print(f"IEX volume share, average: {sum(shares) / len(shares):.1%}")
     print()
-    print("For scale: an hourly move of 1 sigma is roughly 20-40 bps for these")
-    print("ETFs, so a feed disagreement of 1 bps is ~0.03 sigma and invisible;")
-    print("10 bps is ~0.3 sigma and would start to move the ladder.")
+    print(f"Threshold: median <= {SAFE_MEDIAN_BPS} bps and p90 <= {SAFE_P90_BPS} bps.")
+    print("An hourly move of 1 sigma is roughly 20-40 bps for these ETFs, so 2 bps")
+    print("is under a tenth of a sigma - inside the noise the detector already")
+    print("tolerates. Past that the feed starts contributing moves of its own.")
     print("=" * 78)
     return 0
 
