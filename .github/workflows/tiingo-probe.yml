@@ -16,6 +16,10 @@ on:
         description: 'Also run the first pass (coverage, FX, sizing)'
         type: boolean
         default: false
+      second_pass:
+        description: 'Also run the second pass (splits, volume, depth)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -35,7 +39,7 @@ jobs:
           cache: "pip"
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install -r requirements.txt
 
       - name: Probe Tiingo
         if: inputs.first_pass
@@ -44,6 +48,14 @@ jobs:
         run: python -m tools.tiingo_probe
 
       - name: Probe Tiingo, second pass
+        if: inputs.second_pass
         env:
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: python -m tools.tiingo_probe2
+
+      # Needs the checked-out bar store as well as the key: it compares the two
+      # feeds hour by hour on the bars already held.
+      - name: Compare Tiingo against the stored Twelve Data bars
+        env:
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+        run: python -m tools.tiingo_compare
