@@ -7,7 +7,15 @@
 name: Tiingo Probe
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      # Tiingo's free tier allows 50 requests per hour, and the two passes cost
+      # about 22 each. Running both twice inside one hour trips the limit, so
+      # the first pass - whose questions are already answered - is opt-in.
+      first_pass:
+        description: 'Also run the first pass (coverage, FX, sizing)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -30,6 +38,7 @@ jobs:
         run: pip install requests
 
       - name: Probe Tiingo
+        if: inputs.first_pass
         env:
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: python -m tools.tiingo_probe
