@@ -94,6 +94,17 @@ def main() -> int:
         print("TIINGO_API_KEY is not set.")
         return 1
 
+    # 44 tickers is most of the 50-per-hour bucket, and anything else spent in
+    # the same hour pushes the sweep over it. TIINGO_TICKERS runs a named
+    # subset so the basket can be measured across two runs instead of one.
+    wanted = [t.strip().upper() for t in
+              (os.environ.get("TIINGO_TICKERS") or "").split(",") if t.strip()]
+    tickers = wanted or ETFS
+    unknown = [t for t in tickers if t not in ETFS]
+    if unknown:
+        print(f"not in the basket, ignoring: {unknown}")
+        tickers = [t for t in tickers if t in ETFS]
+
     start = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
     print(f"Comparing Tiingo IEX against stored Twelve Data bars, from {start}.")
     print("bps columns: absolute difference between the two feeds' hourly close,")
@@ -107,7 +118,7 @@ def main() -> int:
 
     summary = []
     stopped = False
-    for ticker in ETFS:
+    for ticker in tickers:
         try:
             fresh = fetch_hourly(ticker, start)
         except RateLimited as exc:
@@ -141,7 +152,7 @@ def main() -> int:
     print("=" * 78)
     safe = [r[0] for r in summary if r[5]]
     unsafe = [r[0] for r in summary if not r[5]]
-    print(f"Measured {len(summary)} of {len(ETFS)} ETFs"
+    print(f"Measured {len(summary)} of {len(tickers)} requested ETFs"
           + ("  (stopped early on the rate limit)" if stopped else ""))
     print(f"\nAGREES WITH TWELVE DATA ({len(safe)}) - safe to move to Tiingo:")
     print("  " + " ".join(safe))

@@ -20,6 +20,18 @@ on:
         description: 'Also run the second pass (splits, volume, depth)'
         type: boolean
         default: false
+      compare:
+        description: 'Run the feed comparison'
+        type: boolean
+        default: true
+      tickers:
+        description: 'Comma-separated ETFs to compare (blank = all 44)'
+        type: string
+        default: ''
+      fx_and_actions:
+        description: 'Run the FX and corporate-action checks'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -56,6 +68,14 @@ jobs:
       # Needs the checked-out bar store as well as the key: it compares the two
       # feeds hour by hour on the bars already held.
       - name: Compare Tiingo against the stored Twelve Data bars
+        if: inputs.compare
         env:
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+          TIINGO_TICKERS: ${{ inputs.tickers }}
         run: python -m tools.tiingo_compare
+
+      - name: Check FX agreement and the declared corporate actions
+        if: inputs.fx_and_actions
+        env:
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+        run: python -m tools.tiingo_fx_and_actions
