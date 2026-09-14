@@ -127,6 +127,39 @@ DEFAULT_SIGMA: tuple[float, float, float, float] = (4.2, 6.2, 9.1, 13.3)
 #
 # Seeded the same way as the member table: the value putting each block near one
 # `major` every two years and one `extreme` every seven.
+# THE THIRD TABLE, and the one whose absence made a whole channel silent. The
+# abnormal ladder scores z_resid_bmp, which is a BMP standardised residual - a
+# t-statistic - and it was given the member table above. Those numbers were
+# calibrated on |r| / sigma_lt, a raw return over its own sigma, and the two do
+# not live on the same scale at all: measured over 2,595,077 bars the raw ratio
+# reaches 112.9 and the t-statistic reaches 15.6. Standardising is precisely the
+# operation that removes the fat tail, and the BMP correction deflates the
+# statistic further exactly when the whole cross-section is moving, which is when
+# the biggest moves happen.
+#
+# So the member table did not make the abnormal ladder strict, it made it
+# IMPOSSIBLE. In seven blocks of nine the `major` rung sat above the highest
+# value the statistic had ever taken, and in eight of nine `extreme` did: FX
+# asked for 20.0 of a series that has never passed 10.9, credit for 9.4 of one
+# that has never passed 7.2. Over the whole record the abnormal ladder produced
+# 698 events and exactly ONE push.
+#
+# Seeded by rate rather than by eye: each rung is the quantile of that block's
+# own |z_resid_bmp| that fires as often as the same rung on the absolute ladder,
+# so "major" means the same rarity whichever question found it.
+BLOCK_RESID_SIGMA: dict[str, tuple[float, float, float, float]] = {
+    "crypto":            (5.1, 6.6, 7.7, 10.6),
+    "FX":                (4.3, 5.3, 6.5,  7.3),
+    "industrial_metals": (3.2, 4.4, 6.1,  6.6),
+    "agriculture":       (3.4, 4.6, 5.6,  6.4),
+    "energy":            (3.6, 4.6, 5.4,  6.4),
+    "precious_metals":   (3.2, 4.2, 5.0,  6.1),
+    "rates":             (3.1, 3.8, 4.6,  5.8),
+    "equity":            (3.1, 3.8, 4.5,  5.2),
+    "credit":            (3.2, 3.7, 4.0,  4.5),
+}
+DEFAULT_RESID_SIGMA = (3.2, 4.4, 5.4, 6.4)
+
 BLOCK_MOVE_SIGMA: dict[str, tuple[float, float, float, float]] = {
     "crypto":            (7.1, 10.5, 15.5, 19.3),
     "FX":                (5.7,  8.4, 12.3, 14.7),
@@ -152,21 +185,36 @@ HOURS_PER_DAY = 24.0
 SECONDS_PER_DAY = 86400.0
 
 
-def tier_sigma(block: str | None = None, own_move: bool = False) -> dict[str, float]:
-    """The rungs for this block, after the sensitivity knob.
+# Which of the three scores a ladder is being asked about. A name rather than a
+# flag because there are three, and because every one of them was added after
+# something was measured firing at the wrong rate - or, in the residual's case,
+# at no rate at all. Passing the wrong one is silent: the levels come out, the
+# tiers come out, and only the count over twenty years says anything is wrong.
+MEMBER = "member"          # |r| / sigma_lt, one instrument's raw move
+BLOCK_OWN = "block"        # a block's own median series, already standardised
+RESIDUAL = "residual"      # z_resid_bmp, the market-adjusted t-statistic
 
-    `own_move` picks the ladder for the BLOCK'S OWN series rather than for one of
-    its members - see BLOCK_MOVE_SIGMA for why they cannot be the same numbers.
+
+def tier_sigma(block: str | None = None, ladder: str = MEMBER) -> dict[str, float]:
+    """The rungs for this block on this ladder, after the sensitivity knob.
+
+    The three tables are not interchangeable and cannot be made so - see
+    BLOCK_RESID_SIGMA and BLOCK_MOVE_SIGMA for what each one is measured against
+    and what happened when they shared numbers.
     """
     from tremor.basket import load_tuning
 
     tuning = load_tuning()
-    if own_move:
-        ladder = BLOCK_MOVE_SIGMA.get(str(block), DEFAULT_BLOCK_MOVE_SIGMA)
+    if ladder == BLOCK_OWN:
+        rungs = BLOCK_MOVE_SIGMA.get(str(block), DEFAULT_BLOCK_MOVE_SIGMA)
+    elif ladder == RESIDUAL:
+        rungs = BLOCK_RESID_SIGMA.get(str(block), DEFAULT_RESID_SIGMA)
+    elif ladder == MEMBER:
+        rungs = tuning.sigma_for(block) if block else DEFAULT_SIGMA
     else:
-        ladder = tuning.sigma_for(block) if block else DEFAULT_SIGMA
+        raise ValueError(f"unknown ladder {ladder!r}")
     return {name: value * tuning.sensitivity
-            for name, value in zip(TIERS, ladder)}
+            for name, value in zip(TIERS, rungs)}
 
 
 def bar_rate(hour_utc: pd.Series | np.ndarray) -> float:
@@ -205,7 +253,7 @@ SECONDS_PER_DAY = 86400.0
 
 
 def sigma_levels(scale: "pd.Series | None", index, block: str | None = None,
-                 own_move: bool = False) -> pd.DataFrame:
+                 ladder: str = MEMBER) -> pd.DataFrame:
     """The four levels a bar must clear, in the units its score is already in.
 
     `scale` is the instrument's own long-run sigma where the score is a RAW
@@ -219,7 +267,7 @@ def sigma_levels(scale: "pd.Series | None", index, block: str | None = None,
     the property the rank rule could not offer: there is nothing here for a move
     to sit in the shadow of.
     """
-    levels = tier_sigma(block, own_move)
+    levels = tier_sigma(block, ladder)
     frame = pd.DataFrame(index=index)
     for name in TIERS:
         if scale is None:
@@ -299,7 +347,7 @@ def annotate(frame: pd.DataFrame, column: str = "z_resid_bmp",
              two_sided: bool = True,
              scale_column: "str | None" = None,
              block: "str | None" = None,
-             own_move: bool = False,
+             ladder: str = MEMBER,
              levels: "pd.DataFrame | None" = None) -> pd.DataFrame:
     """Adds the four levels, the resulting tier, and what the move beat.
 
@@ -341,7 +389,7 @@ def annotate(frame: pd.DataFrame, column: str = "z_resid_bmp",
             # Named a divisor the frame does not carry. Silently scoring the raw
             # quantity against a sigma threshold would call every bar extreme.
             raise KeyError(f"{scale_column!r} is needed to scale {column!r}")
-        levels = sigma_levels(scale, frame.index, block, own_move)
+        levels = sigma_levels(scale, frame.index, block, ladder)
     out = frame.copy()
     for name in TIERS:
         out[f"{prefix}_{name}"] = levels[name].to_numpy()

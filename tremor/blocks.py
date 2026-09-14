@@ -155,7 +155,8 @@ def frames(basket: Basket, panel: pd.DataFrame,
         # of eight FX pairs is not, and giving both the member numbers left the
         # US equity complex firing once in twenty-five years.
         frame = severity.annotate(frame, column="z_resid", fallback=None,
-                                  tier_column="tier", block=block, own_move=True)
+                                  tier_column="tier", block=block,
+                                  ladder=severity.BLOCK_OWN)
         frame["basis"] = pd.Series(BLOCK_BASIS, index=frame.index,
                                    dtype="string").where(frame["tier"].notna())
         out[block] = persistence.annotate(frame, _day_tz(basket, columns))

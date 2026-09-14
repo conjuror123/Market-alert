@@ -226,3 +226,60 @@ def test_the_sensitivity_knob_scales_every_rung_together(tmp_path):
     assert tuple(sv.tier_sigma("equity").values()) == sv.BLOCK_SIGMA["equity"]
 
 
+
+
+# --- the three ladders, and why they cannot share numbers -------------------
+
+def test_the_three_ladders_are_distinct_tables():
+    from tremor import severity as sv
+
+    equity = [sv.tier_sigma("equity", L) for L in (sv.MEMBER, sv.BLOCK_OWN, sv.RESIDUAL)]
+    assert len({tuple(d.values()) for d in equity}) == 3
+
+
+def test_an_unknown_ladder_is_refused_rather_than_defaulted():
+    # Silently falling back to the member table is exactly the bug this
+    # parameter exists to prevent, and it is invisible in every output.
+    from tremor import severity as sv
+
+    with pytest.raises(ValueError):
+        sv.tier_sigma("equity", "raw")
+
+
+def test_the_residual_rungs_sit_far_below_the_member_rungs():
+    # NOT a style preference - a fact about the two scores. The member table is
+    # calibrated on |r| / sigma_lt, which is a raw return over its own sigma and
+    # keeps its fat tail: measured over 2,595,077 bars it reaches 112.9. The
+    # residual table is calibrated on z_resid_bmp, a standardised t-statistic
+    # whose tail standardising has already removed: it reaches 15.6, and the BMP
+    # correction deflates it further exactly when the cross-section is widest.
+    #
+    # Giving the residual ladder the member numbers made it UNREACHABLE, not
+    # strict: seven blocks of nine asked `major` for a value the statistic had
+    # never taken. 698 events, one push, over the whole record.
+    from tremor import severity as sv
+
+    for block in sv.BLOCK_RESID_SIGMA:
+        member = sv.tier_sigma(block, sv.MEMBER)
+        resid = sv.tier_sigma(block, sv.RESIDUAL)
+        for tier in sv.TIERS:
+            assert resid[tier] < member[tier], (block, tier)
+
+
+def test_every_residual_rung_is_reachable():
+    # The observed maximum of |z_resid_bmp| across the whole store. A rung above
+    # this is not a high bar, it is a channel that is switched off.
+    from tremor import severity as sv
+
+    OBSERVED_MAX = 15.56
+    for block, rungs in sv.BLOCK_RESID_SIGMA.items():
+        assert max(rungs) < OBSERVED_MAX, block
+    assert max(sv.DEFAULT_RESID_SIGMA) < OBSERVED_MAX
+
+
+def test_every_block_has_rungs_on_every_ladder():
+    # A block missing from a table silently takes the default, which is how one
+    # complex ends up calibrated for another.
+    from tremor import severity as sv
+
+    assert set(sv.BLOCK_RESID_SIGMA) == set(sv.BLOCK_SIGMA) == set(sv.BLOCK_MOVE_SIGMA)

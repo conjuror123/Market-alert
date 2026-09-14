@@ -686,9 +686,16 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
     # against a threshold set per block. The abnormal channel scores the BMP
     # residual, which is ALREADY a t-statistic, so it takes no divisor - passing
     # sigma there would apply the normalisation twice.
+    #
+    # And it takes its OWN table, which is the other half of that sentence and
+    # was missing for a long time. Not squaring the normalisation is not the same
+    # as being on the same scale: a t-statistic has had its tail removed by
+    # construction and tops out near 15 where the raw ratio reaches 113, so the
+    # member rungs were not strict here but unreachable. See BLOCK_RESID_SIGMA.
     blocks_of = {a.asset_id: a.block for a in basket.instruments}
     scored = {aid: severity.annotate(frame, tier_column=TIER_SOURCES["abnormal"],
-                                     block=blocks_of.get(aid))
+                                     block=blocks_of.get(aid),
+                                     ladder=severity.RESIDUAL)
               for aid, frame in scored.items()}
     scored = {aid: severity.annotate(frame, column=ABSOLUTE_COLUMN,
                                      prefix=ABSOLUTE_LEVEL_PREFIX,
