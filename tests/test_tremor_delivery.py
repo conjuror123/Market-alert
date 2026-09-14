@@ -841,7 +841,8 @@ def test_the_carried_note_says_which_period_it_covers(monkeypatch, sender):
     covers = datetime.fromtimestamp(SLOT, tz=timezone.utc)
     ends = datetime.fromtimestamp(routing.next_digest_slot(int(opens.timestamp())),
                                   tz=timezone.utc)
-    assert f"{covers:%a %-d} to {ends:%a %-d %B}" in notes(sender)[0]
+    last = ends - timedelta(hours=1)      # the last day it can hold an hour of
+    assert f"{covers:%a %-d} to {last:%a %-d %B}" in notes(sender)[0]
     assert (ends - covers).days > (ends - opens).days
 
 
@@ -852,7 +853,7 @@ def test_an_ordinary_note_covers_only_its_own_period(monkeypatch, sender):
     later = datetime.fromtimestamp(routing.next_digest_slot(SLOT), tz=timezone.utc)
     deliver(monkeypatch, elsewhere, state=state, now=later)
     ends = datetime.fromtimestamp(routing.next_digest_slot(int(later.timestamp())),
-                                  tz=timezone.utc)
+                                  tz=timezone.utc) - timedelta(hours=1)
     # Only its own stretch, because the note before it did open.
     assert f"{later:%a %-d} to {ends:%a %-d %B}" in notes(sender)[1]
 
@@ -1271,22 +1272,32 @@ def test_a_row_with_no_split_still_says_how_rare_it_was():
     assert lines == ["the biggest move of its own since March 2020"]
 
 
-def test_the_note_names_the_month_only_when_it_crosses_one():
-    # A Monday-to-Saturday note falls inside one month five times in six, and
-    # naming it twice in five words is noise. The sixth is the one that matters:
-    # "Mon 27 to Sat 1 November" left the reader to work out which month the
-    # 27th was, and the answer was the other one.
-    def header(y, m, d):
-        opens = int(datetime(y, m, d, 0, 5, tzinfo=timezone.utc).timestamp())
-        return md.format_digest([], LABELS, routing.digest_window(opens),
-                                None, NOW)[0].splitlines()[0]
+def header_for(y, m, d):
+    opens = int(datetime(y, m, d, 0, 5, tzinfo=timezone.utc).timestamp())
+    return md.format_digest([], LABELS, routing.digest_window(opens),
+                            None, NOW)[0].splitlines()[0]
 
-    inside = header(2026, 3, 9)          # Monday 9 to Saturday 14 March
-    assert "Mon 9 to Sat 14 March" in inside
+
+def test_the_header_names_the_last_day_the_note_can_hold_an_hour_of():
+    # A note runs to the instant the next one opens, and that instant is 00:05 -
+    # so the workweek note reaches into Saturday by five minutes and was headed
+    # "Mon 14 to Sat 19", handing Saturday to a note that carries none of it.
+    # The note is a list of hourly bars: a five-minute sliver cannot hold one.
+    assert "Mon 14 to Fri 18 September" in header_for(2026, 9, 14)
+    assert "Sat 19 to Sun 20 September" in header_for(2026, 9, 19)
+
+
+def test_the_note_names_the_month_only_when_it_crosses_one():
+    # A workweek note falls inside one month five times in six, and naming it
+    # twice in five words is noise. The sixth is the one that matters: a header
+    # reading "Mon 27 to Fri 1 November" would leave the reader to work out
+    # which month the 27th was, and the answer is the other one.
+    inside = header_for(2026, 3, 9)
+    assert "Mon 9 to Fri 13 March" in inside
     assert inside.count("March") == 1
 
-    across = header(2026, 3, 30)         # Monday 30 March to Saturday 4 April
-    assert "Mon 30 March to Sat 4 April" in across
+    across = header_for(2026, 3, 30)     # Monday 30 March into April
+    assert "Mon 30 March to Fri 3 April" in across
 
 
 def test_the_note_runs_in_time_order_across_all_its_parts():

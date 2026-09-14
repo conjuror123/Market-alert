@@ -1305,12 +1305,23 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
                  + (" so far" if live else ""))
     else:
         count = "Nothing so far" if live else "Nothing in this period"
+    # THE LAST DAY THE NOTE CAN HOLD ANYTHING, not the moment it stops. A note
+    # runs to the instant the next one opens, and under the current boundaries
+    # that instant is 00:05 - so the workweek note technically reaches into
+    # Saturday by five minutes and was printing "Mon 14 to Sat 19", handing
+    # Saturday to a note that carries none of it. Saturday is the weekend note's.
+    #
+    # An hour back rather than a second, and the hour is the unit that makes it
+    # true rather than merely nicer: the note is a list of hourly bars, so a
+    # stretch shorter than an hour cannot contain one, and naming that day claims
+    # something the note is unable to have.
+    last = closes - timedelta(hours=1)
     # The month is named on the opening date too WHEN THE NOTE CROSSES ONE, and
     # only then. "Mon 27 to Sat 1 November" left the reader to work out which
     # month the 27th belonged to, and the answer was the other one. Naming it
     # every time would instead put the same word twice in five words.
-    opened_fmt = "%a %-d %B" if opened.month != closes.month else "%a %-d"
-    header = (f"📋 <b>Digest</b> - {opened:{opened_fmt}} to {closes:%a %-d %B}\n"
+    opened_fmt = "%a %-d %B" if opened.month != last.month else "%a %-d"
+    header = (f"📋 <b>Digest</b> - {opened:{opened_fmt}} to {last:%a %-d %B}\n"
               + count + (" - this message is updated as moves are found" if live else ""))
     # The regime the whole period sits in, read at the note's latest edit rather
     # than at its opening: a note is re-rendered every time a row is added, so
