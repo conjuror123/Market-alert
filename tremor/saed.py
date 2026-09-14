@@ -743,6 +743,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--events-out", default=DEFAULT_EVENTS_PATH)
     parser.add_argument("--alerts-out", default=DEFAULT_ALERTS_PATH)
     parser.add_argument("--residuals-out", default=DEFAULT_RESIDUALS_DIR)
+    parser.add_argument("--residuals-always", action="store_true",
+                        help="write the residual series even on a warm run, "
+                             "where it covers only the trailing window")
     parser.add_argument("--full", action="store_true",
                         help="score on all history rather than the trailing window")
     args = parser.parse_args(argv)
@@ -806,7 +809,22 @@ def main(argv: list[str] | None = None) -> int:
                         (args.alerts_out, versioning.stamp(alerts, config, run_id))):
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         frame.to_parquet(path, index=False, compression="zstd")
-    save_residuals(scored, args.residuals_out)
+    # RESIDUALS ARE A BACKTEST ARTEFACT, not something the hourly run produces
+    # for anyone. Nothing in the delivery path reads them: the only readers are
+    # tremor.saed_score and tools/report_card.py, both run by hand. Writing them
+    # every hour cost 268 MB and about thirteen seconds for nobody.
+    #
+    # And it was worse than waste. A warm run scores only the trailing window,
+    # so the files it wrote held 57% of each series - and then the scorer and
+    # the report card, which want the whole history, read that truncated series
+    # and reported on it without any sign that most of it was missing. Written
+    # on a cold run, which is the one whose residuals mean what they say.
+    if warm and not args.residuals_always:
+        log.info("warm run: residuals not written (they would hold only the "
+                 "trailing window). Use --full, or --residuals-always, for a "
+                 "set tremor.saed_score can score.")
+    else:
+        save_residuals(scored, args.residuals_out)
 
     log.info("events %d, block alerts %d, later firings merged into their day %d",
              len(events), len(alerts),
