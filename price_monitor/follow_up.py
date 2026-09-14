@@ -2,10 +2,11 @@
 
 A push goes out the moment the move is found, because a once-in-three-years
 move that arrives six hours late is a worse product than one that arrives now
-and is corrected later. The correction is this module: at two, six and
-at the close of the next trading day, the ORIGINAL message is edited to say how
-the move actually held. Nothing new arrives on the phone - Telegram edits
-in place, so the record of an event stays one message rather than four.
+and is corrected later. The correction is this module: at the close of the day
+the move happened and again at the close of the next day the instrument trades,
+the ORIGINAL message is edited to say how the move actually held. Nothing new
+arrives on the phone - Telegram edits in place, so the record of an event stays
+one message rather than three.
 
 WHAT IS BEING CHECKED. Retention, the event study's own measure: the abnormal
 return accumulated from the event bar through h bars later, divided by the

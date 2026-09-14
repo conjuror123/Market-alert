@@ -21,18 +21,18 @@ abnormal return on the event bar itself:
 
 so 1.0 means the move held exactly, 0.0 means it gave everything back, above
 1.0 means it kept going, and below 0.0 means it overshot the way back. Nothing
-is being predicted here - it is measured after the fact, which is the whole
-point of using it to gate the tiers that are not urgent. A move that has to
-wait until Friday's digest can simply be looked at again first, and the ones
-that reverted never make the page. Only the top tier, which interrupts
-someone, has to be sent before the answer is known.
+is being predicted here - it is measured after the fact, and that is why it no
+longer decides anything. It used to gate the tiers that were not urgent: a move
+that gave everything back took no line. The cost was silence for as long as the
+answer took to arrive, so every message now goes out at once and this is written
+onto it afterwards as an edit (see tremor.routing and price_monitor.follow_up).
+It reports; it does not suppress.
 
-Three check-ins, and none of them is a number of hours. The two short ones are
-counted in THE ASSET'S OWN BARS rather than calendar hours - the same reason the
-cooldown is (see tremor.saed) - because a closed market cannot revert, and six
-bars is a comparable amount of trading in every instrument where six hours is
-not. The third is a moment rather than a distance: the close of the next day the
-instrument trades.
+Two check-ins, and neither is a number of hours. Both are moments on the
+instrument's own trading calendar: the close of the day the move happened, and
+the close of the next day it trades. Bar counts were tried and dropped - see the
+comment on HORIZONS - because a closed market cannot revert, and because six
+bars is most of a session in an ETF and a quarter of a day in crypto.
 
 Abnormal and raw are both recorded because they answer different questions.
 The abnormal one is the honest test of what the detector claimed: it fired on

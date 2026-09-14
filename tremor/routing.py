@@ -22,12 +22,12 @@ in how long they wait. Nothing is held back:
             each row also gets a throwaway ping that is deleted when the next
             note opens (see price_monitor.tremor_delivery).
 
-Both kinds of message are then corrected in place as the market answers: at two
-bars, at six, and at the close of the next trading day for a push, and at the
-next close for a digest line. That is where the retention check went. It used
-to decide whether an event was sent at all - a move that gave everything back
-took no line - and the price of that was silence for as long as the answer took
-to arrive. It now decides what the sent message SAYS, which costs nothing and
+Both kinds of message are then corrected in place as the market answers: at the
+close of the day the move happened and at the close of the next day the
+instrument trades, for a push and for a digest line alike. That is where the
+retention check went. It used to decide whether an event was sent at all - a
+move that gave everything back took no line - and the price of that was silence
+for as long as the answer took to arrive. It now decides what the sent message SAYS, which costs nothing and
 hides nothing: a move that reverted is still shown, with the fact that it
 reverted written on it.
 
