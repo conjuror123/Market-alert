@@ -1354,3 +1354,55 @@ def test_a_note_still_drops_one_row_of_several(monkeypatch, sender, editor):
     deliver(monkeypatch, rows[:1], state=state)
     assert editor.calls, "the surviving row should have been rewritten"
     assert "Bitcoin" not in editor.calls[-1][1]
+
+
+def test_notes_never_overlap_even_when_the_schedule_moves(monkeypatch, sender):
+    # Seen live, moving the notes from Tuesday/Friday to Monday/Saturday: a note
+    # opened under the old boundaries was still running when the new one opened
+    # inside it, and carried_from - looking for the last end that had been
+    # REACHED - skipped past the open note to the one before it. Both then
+    # claimed the same hours, and the reader got two notes listing one move.
+    old_slot = SLOT - 3 * 24 * HOUR
+    digests = {
+        str(old_slot - 3 * 24 * HOUR): {"ids": [1], "hashes": ["a"],
+                                        "from": old_slot - 3 * 24 * HOUR,
+                                        "to": old_slot},
+        str(old_slot): {"ids": [2], "hashes": ["b"], "from": old_slot,
+                        "to": SLOT + 24 * HOUR},          # still open past SLOT
+        str(SLOT): {"ids": [3], "hashes": ["c"], "from": old_slot,  # overlaps it
+                    "to": routing.next_digest_slot(SLOT)},
+    }
+    assert md.tidy_windows(digests)
+
+    windows = [md.note_window(int(k), v) for k, v in
+               sorted(digests.items(), key=lambda kv: int(kv[0]))]
+    for earlier, later in zip(windows, windows[1:]):
+        assert earlier[1] == later[0], "notes must meet exactly, never overlap"
+
+
+def test_straightening_a_window_drops_the_rows_it_no_longer_owns(monkeypatch):
+    # The rows marker guards a note against being emptied by a change to what
+    # qualifies. A straightened window is different: those rows belong to the
+    # note beside it now, and holding them would print the move twice.
+    digests = {
+        str(SLOT - 3 * 24 * HOUR): {"ids": [1], "hashes": ["a"], "rows": 2,
+                                    "from": SLOT - 3 * 24 * HOUR,
+                                    "to": SLOT + 24 * HOUR},
+        str(SLOT): {"ids": [2], "hashes": ["b"], "rows": 2,
+                    "from": SLOT - 3 * 24 * HOUR,
+                    "to": routing.next_digest_slot(SLOT)},
+    }
+    md.tidy_windows(digests)
+    assert "rows" not in digests[str(SLOT)]
+    assert "rows" not in digests[str(SLOT - 3 * 24 * HOUR)]
+
+
+def test_tidying_leaves_a_healthy_set_of_notes_alone():
+    slots = [SLOT - 3 * 24 * HOUR, SLOT]
+    digests = {str(slots[0]): {"ids": [1], "hashes": ["a"], "rows": 2,
+                               "from": slots[0], "to": slots[1]},
+               str(slots[1]): {"ids": [2], "hashes": ["b"], "rows": 1,
+                               "from": slots[1],
+                               "to": routing.next_digest_slot(slots[1])}}
+    assert md.tidy_windows(digests) == 0
+    assert digests[str(slots[1])]["rows"] == 1      # the guard survives

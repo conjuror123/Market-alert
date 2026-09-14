@@ -1193,6 +1193,52 @@ def carried_from(records: dict, slot: int) -> int:
     return max(max(reached) if reached else fallback, floor)
 
 
+def tidy_windows(records: dict) -> int:
+    """Makes the open notes cover one stretch each, end to end, never overlapping.
+
+    THE SCHEDULE CAN MOVE UNDER A LIVE NOTE, and when it does the arithmetic that
+    is right the rest of the time goes wrong. A note is opened with a `to` taken
+    from the boundaries in force at the time; change those boundaries and the
+    next note can open INSIDE a note that is still running. carried_from then
+    looks for the last note end that has been reached, finds the one before the
+    still-open note rather than the still-open note itself, and starts the new
+    note there - so both claim the same hours.
+
+    Seen live, moving the notes from Tuesday/Friday to Monday/Saturday:
+
+        Fri 11 09:00  covers Fri 11 09:00 -> Tue 15 09:00   (still open)
+        Mon 14 00:05  covers Fri 11 09:00 -> Sat 19 00:05   (opened inside it)
+
+    The reader gets one note headed "Fri 11 to Sat 19" and another headed
+    "Fri 11 to Tue 15", both listing the same move.
+
+    So a note ends where the next one begins, always. Applied on every run rather
+    than only when a note is opened, because that also repairs records already
+    written this way - there is no migration to run and no state to hand-edit.
+    Returns how many records it changed, for the log.
+    """
+    fixed = 0
+    ordered = sorted(int(key) for key in records)
+    for earlier, later in zip(ordered, ordered[1:]):
+        before, after = records[str(earlier)], records[str(later)]
+        end = int(note_window(earlier, before)[1])
+        if end > later:
+            before["to"] = later
+            before.pop("rows", None)
+            end = later
+            fixed += 1
+        if int(after.get("from", later)) < end:
+            after["from"] = end
+            # The rows marker guards a note against being emptied by a change to
+            # what QUALIFIES (see the note in maybe_deliver). A window that has
+            # just been straightened is a different thing: the rows it is losing
+            # were never its own, they belong to the note beside it, and holding
+            # them would leave the same move printed twice.
+            after.pop("rows", None)
+            fixed += 1
+    return fixed
+
+
 def digest_rows(events: "list[dict]", window: "tuple[int, int]",
                 now: datetime) -> "list[dict]":
     """Every event one note speaks for. Recomputed from the table each run.
@@ -1513,6 +1559,12 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         digests[str(current)] = {"ids": [], "hashes": [],
                                  "from": carried_from(digests, current),
                                  "to": routing.next_digest_slot(current)}
+
+    # After opening, so a note created this run is tidied with the rest, and on
+    # every run, so records written before this existed are repaired in place.
+    straightened = tidy_windows(digests)
+    if straightened:
+        log.info("Straightened %d overlapping note window(s)", straightened)
 
     notes = {int(key): (record, digest_rows(events, note_window(int(key), record), now))
              for key, record in digests.items()}
