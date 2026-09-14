@@ -25,17 +25,24 @@
           10
         ],
         "to": 1789462800
+      },
+      "1789344300": {
+        "from": 1789117200,
+        "hashes": [
+          "8e7cad7bfe5f0a38"
+        ],
+        "ids": [
+          13
+        ],
+        "to": 1789776300
       }
     },
-    "pings": {
-      "coinbase_ETH-USD:1789131600": 11,
-      "twelvedata_USD_CNH:1789333200": 12
-    },
+    "pings": {},
     "sent": {
       "twelvedata_USD_JPY:1788768000": 1788768000
     },
     "tracked": {}
   },
-  "weekly_digest:last_refreshed": "2026-09-13",
+  "weekly_digest:last_refreshed": "2026-09-14",
   "weekly_digest:last_sent_week": "2026-09-11"
 }
