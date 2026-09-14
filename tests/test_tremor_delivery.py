@@ -1114,6 +1114,48 @@ def use_vix(monkeypatch, frame):
     monkeypatch.setattr(md, "_vix_scored", lambda: frame)
 
 
+def test_the_comparison_names_the_close_it_compares_against(monkeypatch):
+    # "a week before" was true to the intent and not to the number: the line
+    # takes the most recent reading at least a week back, which lands on a
+    # different day depending on where weekends and holidays fall, and a reader
+    # could not tell nine days from seven.
+    use_vix(monkeypatch, vix_frame([
+        ((2026, 9, 1), (2026, 9, 2, 15), 14.32),
+        ((2026, 9, 4), (2026, 9, 7, 15), 15.10),
+        ((2026, 9, 10), (2026, 9, 11, 15), 17.84),
+    ]))
+    at = int(datetime(2026, 9, 12, 9, tzinfo=timezone.utc).timestamp())
+    line = md.vix_context(at).splitlines()[1]
+    # nine days back, not seven - and it says so instead of rounding to a week
+    assert "up from 14.32 at the 1 Sep close" in line
+
+
+def test_the_comparison_says_which_way_it_moved(monkeypatch):
+    rows = [((2026, 9, 1), (2026, 9, 2, 15), 20.00),
+            ((2026, 9, 10), (2026, 9, 11, 15), 14.00)]
+    use_vix(monkeypatch, vix_frame(rows))
+    at = int(datetime(2026, 9, 12, 9, tzinfo=timezone.utc).timestamp())
+    assert "down from 20.00 at the 1 Sep close" in md.vix_context(at)
+
+    rows[1] = ((2026, 9, 10), (2026, 9, 11, 15), 20.05)   # inside VIX_FLAT
+    use_vix(monkeypatch, vix_frame(rows))
+    assert "level with 20.00 at the 1 Sep close" in md.vix_context(at)
+
+
+def test_the_gauge_moves_on_as_soon_as_a_reading_is_published(monkeypatch):
+    # A live note is re-rendered every run, so it must not sit on a stale gauge:
+    # the moment FRED publishes the next close, the line follows it.
+    use_vix(monkeypatch, vix_frame([
+        ((2026, 9, 1), (2026, 9, 2, 15), 14.32),
+        ((2026, 9, 9), (2026, 9, 10, 15), 16.46),
+        ((2026, 9, 10), (2026, 9, 11, 15), 17.84),
+    ]))
+    before = int(datetime(2026, 9, 11, 10, tzinfo=timezone.utc).timestamp())
+    after = int(datetime(2026, 9, 11, 16, tzinfo=timezone.utc).timestamp())
+    assert "16.46 at the 9 Sep close" in md.vix_context(before)
+    assert "17.84 at the 10 Sep close" in md.vix_context(after)
+
+
 def test_the_regime_line_never_quotes_a_reading_that_did_not_exist_yet(monkeypatch):
     # FRED publishes VIX one to two business days late. A message about Monday's
     # move that quoted Monday's close would be reading a number the system could

@@ -770,9 +770,17 @@ def vix_context(hour_utc: int) -> str:
     earlier = known[known["day"] <= day - VIX_COMPARE_DAYS * 86400]
     if not earlier.empty:
         before = float(earlier["close"].iloc[-1])
+        # DATED like the reading above it, not "a week before". The comparison
+        # takes the most recent reading at least a week back, which lands on a
+        # different day depending on where weekends and holidays fall - so "a
+        # week" was true to the intent and not to the number, and a reader could
+        # not tell nine days from seven. Both halves of the sentence now name
+        # their close, which also makes it obvious at a glance when the feed has
+        # stopped moving.
+        was = datetime.fromtimestamp(int(earlier["day"].iloc[-1]), tz=timezone.utc)
         direction = ("up from" if level - before > VIX_FLAT else
                      "down from" if before - level > VIX_FLAT else "level with")
-        lines.append(f"     {direction} {before:.2f} a week before")
+        lines.append(f"     {direction} {before:.2f} at the {was:%-d %b} close")
 
     since = _stress_open_since(scored, hour_utc)
     if since is not None:
