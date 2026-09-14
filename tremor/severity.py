@@ -108,11 +108,37 @@ BLOCK_SIGMA: dict[str, tuple[float, float, float, float]] = {
     "industrial_metals": (3.8,  5.7,  8.4, 12.2),
 }
 
-# What an unlisted block falls back to, and what a BLOCK'S OWN move is scored
-# against. A block event is a median across members that is already in sigma
-# units (see tremor.blocks), so it needs a ladder in the same shape but not the
-# same numbers as any member's.
+# What an unlisted block falls back to.
 DEFAULT_SIGMA: tuple[float, float, float, float] = (4.2, 6.2, 9.1, 13.3)
+
+# And the ladder for a BLOCK'S OWN move, which is a different series and needs
+# different numbers. A block move is the median across its members of each
+# member's move over that member's own sigma - so it arrives standardised, but a
+# median of eight FX pairs and a median of sixteen equity ETFs do not have the
+# same shape at all: the equity median is the most diversified series in the
+# basket and the quietest, the FX one moves when the dollar moves and is not.
+#
+# Giving blocks the member table was measured and wrong: at 9.1 for `major` the
+# US equity complex fired 0.04 times a year - once in twenty-five years, which
+# is silence - while FX ran at 1.9 and crypto at 1.7. The block channel exists
+# because widening the blocks made every member's residual small on exactly the
+# days the whole complex repriced, and a table that silences equity gives that
+# back for the block a reader cares about most.
+#
+# Seeded the same way as the member table: the value putting each block near one
+# `major` every two years and one `extreme` every seven.
+BLOCK_MOVE_SIGMA: dict[str, tuple[float, float, float, float]] = {
+    "crypto":            (7.1, 10.5, 15.5, 19.3),
+    "FX":                (5.7,  8.4, 12.3, 14.7),
+    "industrial_metals": (4.6,  6.8, 10.0, 18.0),
+    "precious_metals":   (4.4,  6.5,  9.5, 10.8),
+    "agriculture":       (4.0,  6.0,  8.8, 12.9),
+    "rates":             (4.0,  5.8,  8.6, 12.0),
+    "credit":            (3.6,  5.4,  7.9, 10.2),
+    "energy":            (3.1,  4.6,  6.8,  8.4),
+    "equity":            (2.9,  4.3,  6.3,  7.8),
+}
+DEFAULT_BLOCK_MOVE_SIGMA: tuple[float, float, float, float] = (4.0, 5.8, 8.6, 12.0)
 
 TIERS: tuple[str, ...] = ("noticeable", "high", "major", "extreme")
 
@@ -126,12 +152,19 @@ HOURS_PER_DAY = 24.0
 SECONDS_PER_DAY = 86400.0
 
 
-def tier_sigma(block: str | None = None) -> dict[str, float]:
-    """This block's rungs, after the sensitivity knob."""
+def tier_sigma(block: str | None = None, own_move: bool = False) -> dict[str, float]:
+    """The rungs for this block, after the sensitivity knob.
+
+    `own_move` picks the ladder for the BLOCK'S OWN series rather than for one of
+    its members - see BLOCK_MOVE_SIGMA for why they cannot be the same numbers.
+    """
     from tremor.basket import load_tuning
 
     tuning = load_tuning()
-    ladder = tuning.sigma_for(block) if block else DEFAULT_SIGMA
+    if own_move:
+        ladder = BLOCK_MOVE_SIGMA.get(str(block), DEFAULT_BLOCK_MOVE_SIGMA)
+    else:
+        ladder = tuning.sigma_for(block) if block else DEFAULT_SIGMA
     return {name: value * tuning.sensitivity
             for name, value in zip(TIERS, ladder)}
 
@@ -172,7 +205,7 @@ SECONDS_PER_DAY = 86400.0
 
 
 def sigma_levels(scale: "pd.Series | None", index, block: str | None = None,
-                 ) -> pd.DataFrame:
+                 own_move: bool = False) -> pd.DataFrame:
     """The four levels a bar must clear, in the units its score is already in.
 
     `scale` is the instrument's own long-run sigma where the score is a RAW
@@ -186,7 +219,7 @@ def sigma_levels(scale: "pd.Series | None", index, block: str | None = None,
     the property the rank rule could not offer: there is nothing here for a move
     to sit in the shadow of.
     """
-    levels = tier_sigma(block)
+    levels = tier_sigma(block, own_move)
     frame = pd.DataFrame(index=index)
     for name in TIERS:
         if scale is None:
@@ -266,6 +299,7 @@ def annotate(frame: pd.DataFrame, column: str = "z_resid_bmp",
              two_sided: bool = True,
              scale_column: "str | None" = None,
              block: "str | None" = None,
+             own_move: bool = False,
              levels: "pd.DataFrame | None" = None) -> pd.DataFrame:
     """Adds the four levels, the resulting tier, and what the move beat.
 
@@ -307,7 +341,7 @@ def annotate(frame: pd.DataFrame, column: str = "z_resid_bmp",
             # Named a divisor the frame does not carry. Silently scoring the raw
             # quantity against a sigma threshold would call every bar extreme.
             raise KeyError(f"{scale_column!r} is needed to scale {column!r}")
-        levels = sigma_levels(scale, frame.index, block)
+        levels = sigma_levels(scale, frame.index, block, own_move)
     out = frame.copy()
     for name in TIERS:
         out[f"{prefix}_{name}"] = levels[name].to_numpy()

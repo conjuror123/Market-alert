@@ -1321,3 +1321,36 @@ def test_two_moves_in_one_hour_put_the_rarer_first():
     # and reversing the input does not change the answer
     text = md.format_digest(rows[::-1], LABELS, (SLOT, SLOT + 200 * HOUR), None, NOW)[0]
     assert text.index("Bitcoin") < text.index("Gold")
+
+
+def test_a_note_never_un_says_what_the_reader_already_read(monkeypatch, sender, editor):
+    # It is rendered whole from the events table every run, which is what lets a
+    # late event appear and a recomputed-away one go. That is right for one row
+    # among several and wrong for ALL of them: a retuned ladder can empty a note
+    # the reader has read and been pinged about, which reads as the bot
+    # forgetting rather than correcting. Seen live - a note showing two moves
+    # went back to "Nothing so far" the run after the rungs changed.
+    row = event(event_id="d1", channel="digest", tier="noticeable",
+                hour_utc=SLOT + 2 * HOUR)
+    _, state = deliver(monkeypatch, [row])
+    assert "Gold" in notes(sender)[0]
+
+    # the recompute now produces nothing at all for that period
+    before = len(editor.calls)
+    deliver(monkeypatch, [], state=state)
+    assert len(editor.calls) == before, "the note was edited down to nothing"
+
+
+def test_a_note_still_drops_one_row_of_several(monkeypatch, sender, editor):
+    # Only the all-or-nothing case is held. A genuine recompute that removes one
+    # row of two still shows, because the note is not being emptied.
+    rows = [event(event_id="d1", channel="digest", tier="noticeable",
+                  hour_utc=SLOT + HOUR, asset_id="twelvedata:GLD"),
+            event(event_id="d2", channel="digest", tier="noticeable",
+                  hour_utc=SLOT + 2 * HOUR, asset_id="coinbase:BTC-USD")]
+    _, state = deliver(monkeypatch, rows)
+    assert "Bitcoin" in notes(sender)[0]
+
+    deliver(monkeypatch, rows[:1], state=state)
+    assert editor.calls, "the surviving row should have been rewritten"
+    assert "Bitcoin" not in editor.calls[-1][1]

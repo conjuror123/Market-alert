@@ -149,13 +149,14 @@ def frames(basket: Basket, panel: pd.DataFrame,
                                    .rolling(windows.SIGMA_LT_BARS,
                                             min_periods=windows.SIGMA_LT_MIN_BARS)
                                    .std(ddof=1))
-        # A block's move is already a median of member moves each divided by
-        # its own sigma, so it arrives standardised and takes no divisor. It
-        # gets the default ladder rather than its own block's: the numbers in
-        # BLOCK_SIGMA describe how a MEMBER of that block moves, and a median
-        # across members is a quieter series than any of them.
+        # A block's move is already a median of member moves each divided by its
+        # own sigma, so it arrives standardised and takes no divisor. It gets
+        # BLOCK_MOVE_SIGMA rather than the member table: a median of sixteen
+        # equity ETFs is the most diversified series in the basket and a median
+        # of eight FX pairs is not, and giving both the member numbers left the
+        # US equity complex firing once in twenty-five years.
         frame = severity.annotate(frame, column="z_resid", fallback=None,
-                                  tier_column="tier")
+                                  tier_column="tier", block=block, own_move=True)
         frame["basis"] = pd.Series(BLOCK_BASIS, index=frame.index,
                                    dtype="string").where(frame["tier"].notna())
         # A block whose members all keep the US session has its day closed by

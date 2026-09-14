@@ -1582,11 +1582,30 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
 
     for slot in sorted(notes):
         record, rows = notes[slot]
+        # A NOTE NEVER UN-SAYS SOMETHING. It is rendered whole from the events
+        # table every run, which is what lets a late event simply appear and a
+        # recomputed-away one simply go - and that is right for one row among
+        # several. It is not right for ALL of them: a change to what qualifies
+        # (a retuned ladder, a moved threshold) can empty a note the reader has
+        # already read and already been pinged about, which reads as the bot
+        # forgetting rather than correcting. Measured once, live: a note showing
+        # two moves went back to "Nothing so far" the run after the rungs
+        # changed.
+        #
+        # So a note that has had rows keeps them until its period closes. A
+        # genuine recompute that drops one row of three still shows, because the
+        # note is not empty; only the all-or-nothing case is held.
+        if not rows and record.get("rows"):
+            log.info("Digest %s: recomputed to nothing, keeping the %d row(s) "
+                     "already published", slot, record["rows"])
+            continue
         texts = format_digest(rows, labels, note_window(slot, record), calendar,
                               now, events)
         made, changed = _write_digest(cfg, slot, record, texts)
         posted += made
         edited += changed
+        if rows:
+            record["rows"] = len(rows)
         if made or changed:
             log.info("Digest %s: %d part(s) posted, %d edited (%d event(s))",
                      slot, made, changed, len(rows))

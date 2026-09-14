@@ -409,13 +409,20 @@ def test_main_requires_the_force_flag(monkeypatch):
 
 
 def test_main_force_sends_immediately_regardless_of_day(tmp_path, monkeypatch):
-    """--force is meant for manual testing outside the Friday window - it
-    should send right away, with no day/time gating and no state.json
-    involvement at all (main() never even receives a state dict)."""
+    """--force is meant for manual testing outside the send window - it should
+    send right away, with no day/time gating and no state.json involvement at
+    all (main() never even receives a state dict)."""
     cfg = make_config(tmp_path)
     sent_texts = []
-    ahead = [dict(e, date=(datetime.now(timezone.utc) + timedelta(days=d)).isoformat())
-             for d, e in zip((1, 5, 9, 13), RAW_EVENTS)]
+    # Placed INSIDE the window the digest will actually ask for rather than at
+    # fixed offsets from today. The window is the next whole Monday-to-Monday
+    # week, so a fixed offset lands inside it or outside it depending on what
+    # day the test is run - which is a property of the calendar and not of the
+    # code under test.
+    start, end = weekly_digest.coming_week(datetime.now(timezone.utc))
+    inside = start + (end - start) / 2
+    ahead = [dict(e, date=(inside + timedelta(hours=h)).isoformat())
+             for h, e in zip((0, 6, 12, 18), RAW_EVENTS)]
     monkeypatch.setattr(weekly_digest, "load_config", lambda: cfg)
     monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", lambda session=None: ahead)
     monkeypatch.setattr(weekly_digest, "send_telegram_message", lambda *a, **k: sent_texts.append(a[2]) or 1)
