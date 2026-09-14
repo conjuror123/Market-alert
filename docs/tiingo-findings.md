@@ -105,3 +105,54 @@ produces it can be replaced by a declared amount rather than repaired.
 `splitFactor` also states the 2:1 split directly, which `SPLIT_THRESHOLD` has
 never been able to see because both Twelve Data series are split-adjusted and
 the ratio cancels it.
+
+## Yahoo, which turned out to matter more
+
+Tiingo was the question; Yahoo was the answer to a different one. The run time
+is set by whichever provider is slowest, and after the pairs move to Tiingo the
+slowest thing left is the ETFs Tiingo cannot price - sitting on Twelve Data's
+8-second pace. So the source worth finding was never another FX feed: it was a
+consolidated-tape feed for thin ETFs.
+
+`query1.finance.yahoo.com/v8/finance/chart` needs no key, no account and has no
+published quota, answers in 0.77 s, and measured the same way over 62 hours:
+
+| | median | p90 | max | volume vs stored |
+|---|---|---|---|---|
+| 8 liquid ETFs | 0.00 | 0.00 | 0.00 | ~100% |
+| 15 thin ETFs | 0.00 | 0.00 | 0.00-23 | 90-100% |
+
+Zero, not "close" - including every fund where Tiingo's IEX feed drifts. It is
+the consolidated tape, and its volume is the stored volume rather than the 2-8%
+an IEX-only feed reports.
+
+Splits are back-adjusted the same way the store is: XLK's hourly closes across
+the 2:1 of 2025-12-05 run 145.53 then 146.58, which are the two numbers already
+on disk. A raw series would have put a 2x step inside a return.
+
+On FX, though, Yahoo is **worse** than Tiingo - 0.43 to 3.26 bps against 0.43 to
+1.57 - because its currency quotes are indicative rather than a traded feed.
+That is why the pairs did not follow the ETFs across.
+
+### The closing stub
+
+Yahoo appends one extra bar per session at 20:00 UTC carrying no volume and the
+same price four times over. It is a marker for the closing instant - the 19:30
+bar already holds the closing auction - and Twelve Data does not produce it.
+Measured on 14 of 15 tickers, once per session, always at 20:00. Kept, it would
+have opened an hourly bucket the session calendar does not expect on every ETF
+on every run: a zero-return hour appended after every close. The client drops
+it, on zero volume AND zero width together, because an illiquid fund can
+legitimately print a whole half-hour at one price.
+
+The first comparison did not catch this: it inner-joined on hours both feeds
+had, so a bar only one feed produced was invisible by construction.
+
+## The two that are not live sources, confirmed
+
+Both were tested rather than assumed:
+
+- **FXCM** - archive frozen, nothing past about week 17 of 2026.
+- **Dukascopy** - publishes whole months only. On 2026-09-14 the August file was
+  complete at 744 bars and September returned 404. Fine for history, unusable
+  for an hourly top-up.

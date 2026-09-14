@@ -221,11 +221,41 @@ session_templates:
 # roughly 640 of the 800, and the nine crypto pairs come from Coinbase, which is
 # free. Deepening a newly added instrument to 2002 costs about 30 more, once,
 # because a 30-minute chunk covers 300 days.
+#
+# SOURCE IS THE STORE; PROVIDER IS THE SERVER. `source` names the identity: both
+# the asset_id and the file on disk are built from it, so every bar ever stored,
+# every row of feedback.csv and every exported event is keyed by it. It is not
+# edited when the fetch moves. `provider` says who is actually asked, and it can
+# change freely - the bars land in the same place either way.
+#
+# WHY THEY DIFFER NOW. Twelve Data's free tier allows 8 requests a minute, which
+# the backfill honours with an 8-second pause between instruments. For 52 symbols
+# that pause was the entire run: 416 seconds of deliberate waiting. The other two
+# providers have no enforced pace, so the run is now about 12 seconds.
+#
+# WHICH PROVIDER, AND ON WHAT EVIDENCE. Each instrument was fetched from both
+# candidates and compared against the bars already stored, hour by hour, in basis
+# points - the full table is in docs/tiingo-findings.md.
+#
+#   tiingo  the eight currency pairs, and the ETFs whose IEX-only price matches
+#           the consolidated tape. Tiingo is the best FX source measured here
+#           (0.43-1.57 bps against Yahoo's 0.43-3.26, whose FX quotes are
+#           indicative rather than traded).
+#   yahoo   the fifteen ETFs where IEX is NOT the same price. These are thin
+#           commodity and credit funds where one exchange's slice of the tape
+#           diverges: SOYB by 7.2 bps, UGA by 7.97 with a worst hour of 76.8,
+#           which is about two sigma and would be delivered as a move that never
+#           happened. Yahoo matches the store at 0.00 bps median on all of them.
+#
+# Twelve Data still holds the archive and still serves --fill-gaps and
+# --extend-history: Yahoo caps intraday lookback at 55 days and Tiingo caps a
+# response at 10000 rows, so neither can deepen history however fast they answer.
 assets:
   # --- equity ----------------------------------------------------------------
   # US and developed-market equity, the eleven GICS sectors first.
   - ticker: XLK
     source: twelvedata
+    provider: tiingo
     tier: 1
     block: equity
     has_volume: true
@@ -235,6 +265,7 @@ assets:
     label: "Technology sector"
   - ticker: XLF
     source: twelvedata
+    provider: tiingo
     tier: 1
     block: equity
     has_volume: true
@@ -244,6 +275,7 @@ assets:
     label: "Financial sector"
   - ticker: XLY
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: equity
     has_volume: true
@@ -253,6 +285,7 @@ assets:
     label: "Consumer discretionary sector"
   - ticker: XLP
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: equity
     has_volume: true
@@ -262,6 +295,7 @@ assets:
     label: "Consumer staples sector"
   - ticker: XLE
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: equity
     has_volume: true
@@ -271,6 +305,7 @@ assets:
     label: "Energy sector"
   - ticker: XLV
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: equity
     has_volume: true
@@ -280,6 +315,7 @@ assets:
     label: "Health care sector"
   - ticker: XLI
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: equity
     has_volume: true
@@ -289,6 +325,7 @@ assets:
     label: "Industrial sector"
   - ticker: XLB
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: equity
     has_volume: true
@@ -298,6 +335,7 @@ assets:
     label: "Materials sector"
   - ticker: XLU
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: equity
     has_volume: true
@@ -307,6 +345,7 @@ assets:
     label: "Utilities sector"
   - ticker: XLRE
     source: twelvedata
+    provider: yahoo
     tier: 2
     block: equity
     has_volume: true
@@ -316,6 +355,7 @@ assets:
     label: "Real estate sector"
   - ticker: XLC
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: equity
     has_volume: true
@@ -325,6 +365,7 @@ assets:
     label: "Communication services sector"
   - ticker: SPY
     source: twelvedata
+    provider: tiingo
     tier: 1
     block: equity
     has_volume: true
@@ -334,6 +375,7 @@ assets:
     label: "S&P 500"
   - ticker: QQQ
     source: twelvedata
+    provider: tiingo
     tier: 1
     block: equity
     has_volume: true
@@ -343,6 +385,7 @@ assets:
     label: "Nasdaq 100"
   - ticker: IWM
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: equity
     has_volume: true
@@ -352,6 +395,7 @@ assets:
     label: "Russell 2000 (small caps)"
   - ticker: EFA
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: equity
     has_volume: true
@@ -361,6 +405,7 @@ assets:
     label: "Developed markets outside the US"
   - ticker: EEM
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: equity
     has_volume: true
@@ -372,6 +417,7 @@ assets:
   # US Treasuries by maturity, plus the two government-backed sectors.
   - ticker: SHY
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: rates
     has_volume: true
@@ -381,6 +427,7 @@ assets:
     label: "Treasuries 1-3 years"
   - ticker: IEI
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: rates
     has_volume: true
@@ -390,6 +437,7 @@ assets:
     label: "Treasuries 3-7 years"
   - ticker: IEF
     source: twelvedata
+    provider: tiingo
     tier: 1
     block: rates
     has_volume: true
@@ -399,6 +447,7 @@ assets:
     label: "Treasuries 7-10 years"
   - ticker: TLH
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: rates
     has_volume: true
@@ -408,6 +457,7 @@ assets:
     label: "Treasuries 10-20 years"
   - ticker: TLT
     source: twelvedata
+    provider: tiingo
     tier: 1
     block: rates
     has_volume: true
@@ -417,6 +467,7 @@ assets:
     label: "Treasuries 20+ years"
   - ticker: TIP
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: rates
     has_volume: true
@@ -426,6 +477,7 @@ assets:
     label: "Inflation-protected Treasuries"
   - ticker: MBB
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: rates
     has_volume: true
@@ -437,6 +489,7 @@ assets:
   # Corporate and sovereign credit risk, from investment grade down.
   - ticker: LQD
     source: twelvedata
+    provider: tiingo
     tier: 1
     block: credit
     has_volume: true
@@ -446,6 +499,7 @@ assets:
     label: "Investment-grade corporate bonds"
   - ticker: HYG
     source: twelvedata
+    provider: tiingo
     tier: 1
     block: credit
     has_volume: true
@@ -455,6 +509,7 @@ assets:
     label: "High-yield corporate bonds"
   - ticker: JNK
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: credit
     has_volume: true
@@ -464,6 +519,7 @@ assets:
     label: "High-yield corporate bonds (second index)"
   - ticker: EMB
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: credit
     has_volume: true
@@ -473,6 +529,7 @@ assets:
     label: "Emerging-market sovereign bonds in dollars"
   - ticker: BKLN
     source: twelvedata
+    provider: yahoo
     tier: 2
     block: credit
     has_volume: true
@@ -482,6 +539,7 @@ assets:
     label: "Senior bank loans"
   - ticker: PFF
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: credit
     has_volume: true
@@ -493,6 +551,7 @@ assets:
   # The energy complex.
   - ticker: USO
     source: twelvedata
+    provider: tiingo
     tier: 1
     block: energy
     has_volume: true
@@ -502,6 +561,7 @@ assets:
     label: "WTI crude oil"
   - ticker: BNO
     source: twelvedata
+    provider: yahoo
     tier: 2
     block: energy
     has_volume: true
@@ -511,6 +571,7 @@ assets:
     label: "Brent crude oil"
   - ticker: UGA
     source: twelvedata
+    provider: yahoo
     tier: 2
     block: energy
     has_volume: true
@@ -520,6 +581,7 @@ assets:
     label: "Gasoline"
   - ticker: UNG
     source: twelvedata
+    provider: yahoo
     tier: 2
     block: energy
     has_volume: true
@@ -531,6 +593,7 @@ assets:
   # Precious metals.
   - ticker: GLD
     source: twelvedata
+    provider: yahoo
     tier: 1
     block: precious_metals
     has_volume: true
@@ -540,6 +603,7 @@ assets:
     label: "Gold"
   - ticker: SLV
     source: twelvedata
+    provider: tiingo
     tier: 1
     block: precious_metals
     has_volume: true
@@ -549,6 +613,7 @@ assets:
     label: "Silver"
   - ticker: PPLT
     source: twelvedata
+    provider: yahoo
     tier: 2
     block: precious_metals
     has_volume: true
@@ -558,6 +623,7 @@ assets:
     label: "Platinum"
   - ticker: PALL
     source: twelvedata
+    provider: yahoo
     tier: 2
     block: precious_metals
     has_volume: true
@@ -569,6 +635,7 @@ assets:
   # Industrial metals.
   - ticker: DBB
     source: twelvedata
+    provider: yahoo
     tier: 1
     block: industrial_metals
     has_volume: true
@@ -578,6 +645,7 @@ assets:
     label: "Base metals (aluminium, zinc, copper)"
   - ticker: CPER
     source: twelvedata
+    provider: yahoo
     tier: 2
     block: industrial_metals
     has_volume: true
@@ -589,6 +657,7 @@ assets:
   # Agricultural commodities.
   - ticker: DBA
     source: twelvedata
+    provider: yahoo
     tier: 1
     block: agriculture
     has_volume: true
@@ -598,6 +667,7 @@ assets:
     label: "Broad agriculture"
   - ticker: CORN
     source: twelvedata
+    provider: yahoo
     tier: 2
     block: agriculture
     has_volume: true
@@ -607,6 +677,7 @@ assets:
     label: "Corn"
   - ticker: WEAT
     source: twelvedata
+    provider: yahoo
     tier: 2
     block: agriculture
     has_volume: true
@@ -616,6 +687,7 @@ assets:
     label: "Wheat"
   - ticker: SOYB
     source: twelvedata
+    provider: yahoo
     tier: 2
     block: agriculture
     has_volume: true
@@ -627,6 +699,7 @@ assets:
   # Major currency pairs, all quoted against the dollar.
   - ticker: EUR/USD
     source: twelvedata
+    provider: tiingo
     tier: 1
     block: FX
     has_volume: false
@@ -636,6 +709,7 @@ assets:
     label: "Euro / dollar"
   - ticker: USD/JPY
     source: twelvedata
+    provider: tiingo
     tier: 1
     block: FX
     has_volume: false
@@ -645,6 +719,7 @@ assets:
     label: "Dollar / yen"
   - ticker: GBP/USD
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: FX
     has_volume: false
@@ -654,6 +729,7 @@ assets:
     label: "Pound / dollar"
   - ticker: AUD/USD
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: FX
     has_volume: false
@@ -663,6 +739,7 @@ assets:
     label: "Australian dollar / dollar"
   - ticker: NZD/USD
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: FX
     has_volume: false
@@ -672,6 +749,7 @@ assets:
     label: "New Zealand dollar / dollar"
   - ticker: USD/CHF
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: FX
     has_volume: false
@@ -681,6 +759,7 @@ assets:
     label: "Dollar / franc"
   - ticker: USD/CAD
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: FX
     has_volume: false
@@ -690,6 +769,7 @@ assets:
     label: "Dollar / Canadian dollar"
   - ticker: USD/CNH
     source: twelvedata
+    provider: tiingo
     tier: 2
     block: FX
     has_volume: false
@@ -793,6 +873,7 @@ outside_basket:
   # and is modelled against energy, the largest thing inside it.
   - ticker: DBC
     source: twelvedata
+    provider: yahoo
     tier: 2
     block: energy
     has_volume: true

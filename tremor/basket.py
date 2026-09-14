@@ -33,7 +33,22 @@ DEFAULT_BASKET_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "b
 BLOCKS = ("equity", "rates", "credit", "energy", "precious_metals",
           "industrial_metals", "agriculture", "FX", "crypto")
 TIERS = (1, 2)
+# WHAT `source` IS, AND WHAT IT IS NOT. It names the store, not the server.
+# `asset_id` and `file_stem` are both built from it, so every bar on disk, every
+# row of feedback.csv and every event ever exported is keyed by it - which makes
+# it an identity, and identities cannot be edited to follow an implementation
+# detail. Moving XLK from Twelve Data to Yahoo by rewriting `source` would point
+# the fetch at an empty store and orphan six years of history and every verdict
+# recorded against it.
+#
+# `provider` is who actually answers the request, and that CAN change: see
+# docs/tiingo-findings.md for the measurement behind the current split. It
+# defaults to `source`, which is why the crypto rows need no provider line.
 SOURCES = ("twelvedata", "coinbase")
+
+# Who can be asked for bars. Wider than SOURCES because a provider may serve an
+# instrument whose history came from somewhere else.
+PROVIDERS = ("twelvedata", "coinbase", "tiingo", "yahoo")
 FETCH_INTERVALS = ("30min", "1h")
 
 
@@ -44,6 +59,7 @@ class BasketConfigError(ValueError):
 @dataclass(frozen=True)
 class Asset:
     ticker: str
+    # The store's identity. See SOURCES - this is not necessarily who serves it.
     source: str
     tier: int
     block: str
@@ -59,6 +75,14 @@ class Asset:
     # from the exchange specification: the value must match the quote format the
     # source actually serves.
     tick_size: float
+    # Who is asked for the bars. Defaults to `source` when the configuration
+    # does not say otherwise.
+    provider: str = ""
+
+    @property
+    def fetched_from(self) -> str:
+        """The provider to request bars from, which may not be `source`."""
+        return self.provider or self.source
 
     @property
     def asset_id(self) -> str:
@@ -194,6 +218,10 @@ def _asset(raw: dict, *, in_basket: bool) -> Asset:
     if raw["source"] not in SOURCES:
         raise BasketConfigError(
             f"{raw['ticker']}: source '{raw['source']}' is not one of {list(SOURCES)}")
+    if raw.get("provider") and raw["provider"] not in PROVIDERS:
+        raise BasketConfigError(
+            f"{raw['ticker']}: provider '{raw['provider']}' is not one of "
+            f"{list(PROVIDERS)}")
     if raw["fetch_interval"] not in FETCH_INTERVALS:
         raise BasketConfigError(
             f"{raw['ticker']}: fetch_interval '{raw['fetch_interval']}' "
@@ -210,6 +238,7 @@ def _asset(raw: dict, *, in_basket: bool) -> Asset:
         session_template=raw["session_template"], fetch_interval=raw["fetch_interval"],
         tick_size=float(raw["tick_size"]),
         label=raw.get("label", raw["ticker"]), in_basket=in_basket,
+        provider=raw.get("provider", ""),
     )
 
 

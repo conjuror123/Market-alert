@@ -31,7 +31,7 @@ from tremor import bars, cboe, corporate_actions, fred
 from tremor import sessions as _sessions
 from tremor.basket import Asset, Basket, load_basket
 from price_monitor import (candle_store, coinbase, dukascopy, fxcm, hfdata,
-                           twelvedata)
+                           tiingo, twelvedata, yahoo)
 from price_monitor.models import ExchangeError
 
 log = logging.getLogger("tremor.backfill")
@@ -40,6 +40,8 @@ LEGACY_HISTORY_DIR = os.path.join("data", "candle_history")
 
 COINBASE_BASE_URL = "https://api.exchange.coinbase.com"
 TWELVEDATA_BASE_URL = "https://api.twelvedata.com"
+TIINGO_BASE_URL = tiingo.BASE_URL
+YAHOO_BASE_URL = yahoo.BASE_URL
 
 # Pause between Twelve Data requests. The free plan allows 8 requests a minute,
 # and 8 seconds hold exactly that boundary with a small margin. The pause is held
@@ -78,7 +80,8 @@ def import_legacy(asset: Asset, path: str, legacy_dir: str = LEGACY_HISTORY_DIR)
 
 
 def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
-                  session: requests.Session, extend_history: bool = False) -> int:
+                  session: requests.Session, extend_history: bool = False,
+                  tiingo_key: str = "") -> int:
     """Fetches whatever the store does not have yet: from the last saved bar up
     to now, or from `since` when the store is empty.
 
@@ -121,20 +124,31 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
         last = datetime.fromtimestamp(int(stored["hour_utc"].max()), tz=timezone.utc)
         days = max(1.0, (datetime.now(timezone.utc) - last).total_seconds() / 86400 + 1)
 
-    if asset.source == "twelvedata":
+    provider = asset.fetched_from
+    if provider == "twelvedata":
         candles = twelvedata.fetch_full_history(
             symbol=asset.ticker, interval=asset.fetch_interval, days=days,
             base_url=TWELVEDATA_BASE_URL, api_key=api_key, session=session,
             request_delay_seconds=TWELVEDATA_DELAY_SECONDS,
             chunk_days=CHUNK_DAYS[asset.fetch_interval], end=end,
         )
-    elif asset.source == "coinbase":
+    elif provider == "coinbase":
         candles = coinbase.fetch_full_history(
             symbol=asset.ticker, interval=asset.fetch_interval, days=days,
             base_url=COINBASE_BASE_URL, session=session,
         )
+    elif provider == "tiingo":
+        candles = tiingo.fetch_full_history(
+            symbol=asset.ticker, interval=asset.fetch_interval, days=days,
+            base_url=TIINGO_BASE_URL, api_key=tiingo_key, session=session, end=end,
+        )
+    elif provider == "yahoo":
+        candles = yahoo.fetch_full_history(
+            symbol=asset.ticker, interval=asset.fetch_interval, days=days,
+            base_url=YAHOO_BASE_URL, session=session, end=end,
+        )
     else:
-        raise ExchangeError(f"{asset.asset_id}: unknown source '{asset.source}'")
+        raise ExchangeError(f"{asset.asset_id}: unknown provider '{provider}'")
 
     return bars.merge(path, bars.to_hourly(bars.candles_to_frame(candles)))
 
@@ -197,11 +211,11 @@ def nothing_can_have_appeared(asset: Asset, path: str,
 
 def backfill_instrument(asset: Asset, basket: Basket, bars_dir: str, api_key: str,
                         session: requests.Session, legacy_dir: str = LEGACY_HISTORY_DIR,
-                        extend_history: bool = False) -> dict:
+                        extend_history: bool = False, tiingo_key: str = "") -> dict:
     path = bars.store_path(bars_dir, asset.file_stem)
     from_legacy = import_legacy(asset, path, legacy_dir)
     from_api = fetch_missing(asset, path, basket.acquire_since, api_key, session,
-                             extend_history)
+                             extend_history, tiingo_key)
     stored = bars.load(path)
     return {
         "asset_id": asset.asset_id,
@@ -336,6 +350,11 @@ def fill_gaps(asset: Asset, path: str, table: dict, api_key: str,
     if asset.session_template != CALENDAR_TEMPLATE:
         return {"skipped": "no authoritative calendar", "added": 0, "gaps": 0}
     if asset.source != "twelvedata":
+        # Deliberately `source`, not `fetched_from`. This walks backwards
+        # through history, which Twelve Data holds and the fast providers do
+        # not: Yahoo serves at most 55 days of 30-minute bars and Tiingo caps a
+        # response at 10000 rows. An instrument moved to another provider for
+        # its hourly top-up is still filled from Twelve Data here.
         return {"skipped": f"source {asset.source} not supported here",
                 "added": 0, "gaps": 0}
 
@@ -942,8 +961,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     api_key = os.environ.get("TWELVEDATA_API_KEY", "")
-    if not api_key and any(a.source == "twelvedata" for a in instruments):
+    if not api_key and any(a.fetched_from == "twelvedata" for a in instruments):
         log.error("TWELVEDATA_API_KEY is not set, and the list contains Twelve Data instruments")
+        return 2
+
+    tiingo_key = os.environ.get("TIINGO_API_KEY", "")
+    if not tiingo_key and any(a.fetched_from == "tiingo" for a in instruments):
+        log.error("TIINGO_API_KEY is not set, and the list contains Tiingo instruments")
         return 2
 
     session = requests.Session()
@@ -959,6 +983,7 @@ def main(argv: list[str] | None = None) -> int:
     skipped = 0
     seeded = 0
     quota_gone = False
+    tiingo_gone = False
     for i, asset in enumerate(instruments):
         path = bars.store_path(args.bars_dir, asset.file_stem)
         if not args.extend_history and bars.load(path).empty:
@@ -980,9 +1005,12 @@ def main(argv: list[str] | None = None) -> int:
             log.info("%s: market closed since the newest stored bar, not asked for",
                      asset.asset_id)
             continue
+        if tiingo_gone and asset.fetched_from == "tiingo":
+            skipped += 1
+            continue
         try:
             r = backfill_instrument(asset, basket, args.bars_dir, api_key, session,
-                                    args.legacy_dir, args.extend_history)
+                                    args.legacy_dir, args.extend_history, tiingo_key)
             log.info("%s: %d bars (%s .. %s), from local history %d, from network %d",
                      r["asset_id"], r["rows"], _fmt(r["first"]), _fmt(r["last"]),
                      r["from_legacy"], r["from_api"])
@@ -998,12 +1026,23 @@ def main(argv: list[str] | None = None) -> int:
                       "the pipeline continues on the bars already stored.",
                       len(instruments) - i - 1)
             break
+        except tiingo.RateLimited as exc:
+            # Tiingo's 50-an-hour bucket, or its 1000-a-day one. Neither clears
+            # inside a run, so every later Tiingo instrument would spend a
+            # round trip to be told the same thing. The others carry on: this
+            # is one provider being out, not the run failing.
+            tiingo_gone = True
+            log.error("Tiingo's request budget is spent - %s", exc)
+            log.error("Skipping the remaining Tiingo instruments; the other "
+                      "providers continue.")
         except Exception as exc:
             failures += 1
             log.error("%s: failed - %s", asset.asset_id, exc)
         # The 8-requests-per-minute limit is per key, and the running hourly
         # monitor spends it too - the pause is needed between instruments as well.
-        if asset.source == "twelvedata" and i < len(instruments) - 1:
+        # Only Twelve Data is paced: Coinbase, Tiingo and Yahoo have no enforced
+        # rate, and pausing after them would spend the wait twice over.
+        if asset.fetched_from == "twelvedata" and i < len(instruments) - 1:
             time.sleep(TWELVEDATA_DELAY_SECONDS)
 
     if skipped:
@@ -1015,6 +1054,9 @@ def main(argv: list[str] | None = None) -> int:
     if quota_gone:
         log.warning("The Twelve Data budget is spent for the UTC day. "
                     "Bars will resume at midnight.")
+    if tiingo_gone:
+        log.warning("The Tiingo request budget is spent. The hourly bucket "
+                    "refills within the hour; the daily one at midnight UTC.")
 
     if not args.skip_vix:
         try:
