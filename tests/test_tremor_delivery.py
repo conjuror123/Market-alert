@@ -220,14 +220,6 @@ def test_the_state_does_not_grow_without_bound(monkeypatch, sender):
     assert "e1" in state[md.STATE_KEY][md._SENT]
 
 
-def test_a_market_event_reads_as_market_wide(monkeypatch, sender):
-    row = event(event_id="m1", basis="market", asset_id=None, r=None,
-                retention_settled=None, tier="high")
-    deliver(monkeypatch, [row])
-    assert "Market-wide" in alerts(sender)[0]
-    assert "disorderly hour" in alerts(sender)[0]
-
-
 def test_the_severity_leads_the_digest(monkeypatch, sender):
     # A digest read only as far as its notification preview should still
     # deliver its most important line.
@@ -257,9 +249,8 @@ def test_labels_fall_back_to_the_ticker(monkeypatch, sender):
     assert "GLD" in sender.texts[0]
 
 
-def test_missing_parquet_files_are_not_an_error(tmp_path):
-    quiet = cfg(tremor_events_path=str(tmp_path / "nope.parquet"),
-                tremor_market_events_path=str(tmp_path / "also-nope.parquet"))
+def test_a_missing_parquet_file_is_not_an_error(tmp_path):
+    quiet = cfg(tremor_events_path=str(tmp_path / "nope.parquet"))
     assert md.load_events(quiet) == []
     assert md.maybe_deliver(quiet, {}) == 0
 
@@ -292,8 +283,6 @@ def test_a_move_on_the_abnormal_ladder_says_which_ladder_it_is_on():
         "the biggest move since March 2020")
     assert md._headline(event, "major", "both") == (
         "the biggest move since March 2020")
-    assert md._headline(event, "high", "market") == (
-        "the most disorderly hour since March 2020")
 
 
 def test_the_claim_is_a_record_and_names_the_date():

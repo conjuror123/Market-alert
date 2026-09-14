@@ -35,11 +35,15 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # Everything Tremor needs, in the one order that works: cross_section
-      # reads the per-asset metrics, saed reads the basket factor, and cluster
-      # ENRICHES metrics_basket_hour.parquet in place - so skipping it does not
-      # merely omit a step, it leaves the file stripped of the eighteen columns
-      # cluster writes into it. Found the hard way; see docs/operations.md.
+      # Two steps feed the third: backfill brings the bars up to date and
+      # pipeline turns them into per-asset metrics, which is what saed reads.
+      #
+      # TWO STEPS LEFT THIS LIST and neither is missed. `tremor.cluster` built
+      # the SI-Index detector's events every hour and no module ever read them -
+      # not delivery, not the digest, nothing; it is deleted. `tremor.cross_section`
+      # wrote metrics_basket_hour.parquet, whose only reader WAS cluster: saed
+      # imports cross_section's functions and builds its panels in memory, so the
+      # file was ten megabytes written for nobody. The module stays, the step goes.
       #
       # continue-on-error because price_monitor is the incumbent and must not be
       # taken down by a break in the system being built beside it. A failure here
@@ -55,9 +59,7 @@ jobs:
         run: |
           python -m tremor.backfill
           python -m tremor.pipeline
-          python -m tremor.cross_section
           python -m tremor.saed
-          python -m tremor.cluster
 
       # Runs after the pipeline, and this order is the point: the delivery layer
       # inside it reads saed_events.parquet off disk, so it must read the file

@@ -101,20 +101,6 @@ def test_a_detector_that_never_fires_has_no_precision_but_zero_recall():
     assert result["detections"] == 0
 
 
-# --- warm-up --------------------------------------------------------------
-
-def test_evaluation_starts_when_the_last_input_is_warm():
-    warmup = pd.DataFrame({
-        "scope": ["basket", "twelvedata:SPY", "coinbase:BTC-USD", "twelvedata:SPY"],
-        "trigger": ["single_factor", "breach_q95", "breach_q95", "v_r"],
-        "first_valid_hour": [100.0, 900.0, 300.0, 10_000.0],
-        "evaluated_hours": [1, 1, 1, 1], "total_hours": [1, 1, 1, 1]})
-
-    # v_r is not what the cluster shift is built from, so its later warm-up does
-    # not hold the whole evaluation back.
-    assert evaluate.evaluation_start(warmup) == 900
-
-
 def test_f1_is_undefined_only_when_nothing_fired():
     silent = evaluate.score(np.array([], dtype=int), [(0, 2)], lead_max=24)
     assert silent["f1"] != silent["f1"]      # NaN: there is no precision to take

@@ -53,8 +53,6 @@ class Config:
     # decides nothing except what it has already sent.
     tremor_events_path: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(__file__), "..", "data", "tremor", "saed_events.parquet"))
-    tremor_market_events_path: str = field(default_factory=lambda: os.path.join(
-        os.path.dirname(__file__), "..", "data", "tremor", "market_events.parquet"))
     # Kept because tremor/backfill.py fetches through these clients.
     coinbase_base_url: str = "https://api.exchange.coinbase.com"
     twelvedata_base_url: str = "https://api.twelvedata.com"

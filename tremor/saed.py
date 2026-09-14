@@ -24,9 +24,7 @@ one block jerked in the same hour, that is one observation about the block, not
 three identical messages.
 
 Versioning (config_version, run_version) is stamped here, on the table this
-module writes. The overlap_with_cluster flag is not: it is a fact about the
-cluster system, and this module runs before it, so the field leaves here as NULL
-- not evaluated, per §1.2 - and cluster.tag_overlap fills it in straight after.
+module writes.
 """
 from __future__ import annotations
 
@@ -468,18 +466,6 @@ def events_frame(events: list[SaedEvent]) -> pd.DataFrame:
     return pd.DataFrame([e.__dict__ for e in events])[columns]
 
 
-def unevaluated_overlap(events: pd.DataFrame) -> pd.DataFrame:
-    """overlap_with_cluster as NULL, not False (§8.5, §1.2).
-
-    The field is a fact about the cluster system, and this module runs before it:
-    the cluster events of this run do not exist yet. NULL says exactly that -
-    not evaluated - where False would claim there was no active cluster event.
-    cluster.tag_overlap fills it in immediately afterwards.
-    """
-    return events.assign(overlap_with_cluster=pd.array([pd.NA] * len(events),
-                                                       dtype="boolean"))
-
-
 def aggregate_block_alerts(events: pd.DataFrame) -> pd.DataFrame:
     """Block aggregation per §8.4: simultaneous events of assets in one block
     combine into a single alert.
@@ -815,7 +801,7 @@ def main(argv: list[str] | None = None) -> int:
         log.info("warm run publishes %d of %d events - the %d days it is exact over",
                  len(events), before, int(RECORD_HORIZON_DAYS))
 
-    events = versioning.stamp(unevaluated_overlap(events), config, run_id)
+    events = versioning.stamp(events, config, run_id)
     for path, frame in ((args.events_out, events),
                         (args.alerts_out, versioning.stamp(alerts, config, run_id))):
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)

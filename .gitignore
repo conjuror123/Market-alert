@@ -39,22 +39,24 @@ data/tremor/metrics/
 #     detector_scores.parquet        1 copy,    25.2 MB
 #     saed_events.parquet           14 copies,  13.8 MB
 #
-# against the bar archive, which appends and therefore deltas: a 2 MB parquet
-# with one more hour in it costs 2.3 KB in the pack, measured. So the bars are
-# not the problem and never were - these are, at about ten megabytes a day.
+# against the bar archive, which at least appends. THAT COMPARISON USED TO SAY
+# "2.3 KB in the pack, measured, so the bars are not the problem" and it is no
+# longer true at this basket size: 22 bar commits have cost 146 MB, and a
+# routine daily append touching 61 files costs 3.3 to 3.8 MB. Parquet is
+# compressed, so appending a row rewrites the block and git cannot delta it
+# either. Keep that number in mind before proposing to commit the bars more
+# often than once a day.
 #
-# Every one of them is rebuilt from the bars by the run that reads it, and the
-# reading always happens in the SAME workflow run that wrote it (cluster reads
-# what saed just wrote; delivery reads the events table the pipeline just
-# produced). Nothing anywhere loads them from a previous run, so committing
-# them buys nothing at all.
+# Every derived file below is rebuilt from the bars by the run that reads it,
+# and the reading always happens in the SAME workflow run that wrote it -
+# delivery reads the events table the pipeline just produced. Nothing anywhere
+# loads them from a previous run, so committing them buys nothing at all.
+#
+# The cluster, market and truth tables were listed here too, until the
+# detectors that wrote them were deleted. metrics_basket_hour stays listed
+# because tremor.cross_section can still be run by hand; nothing in the hourly
+# job writes it any more.
 data/tremor/metrics_basket_hour.parquet
 data/tremor/decision_log.parquet
-data/tremor/detector_scores.parquet
-data/tremor/detector_alerts.parquet
 data/tremor/saed_events.parquet
 data/tremor/saed_block_alerts.parquet
-data/tremor/cluster_events.parquet
-data/tremor/cluster_event_escalations.parquet
-data/tremor/market_events.parquet
-data/tremor/truth_labels.parquet

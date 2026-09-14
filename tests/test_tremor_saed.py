@@ -260,22 +260,6 @@ def test_empty_inputs_keep_the_schema():
     assert "max_abs_z_resid" in alerts.columns
 
 
-def test_overlap_starts_out_null_rather_than_false():
-    # §1.2: NULL is not False. SAED runs before the cluster automaton, so at this
-    # point "was there an active cluster event" is unanswered, not answered "no".
-    events = saed.events_frame([
-        saed.SaedEvent(event_id="x", asset_id="a", block="FX", hour_utc=3600,
-                       peak_hour_utc=3600, rank_confirms=None, ou_reverts=None,
-                       z_resid=4.0, e_resid=0.01, co_block=0.0, r=0.01, beta_block=1.0, repeat_count=0,
-                       tier="noticeable", basis="abnormal", sigma_lt=0.002,
-                       close=1.2345, record_since=None)])
-
-    tagged = saed.unevaluated_overlap(events)
-
-    assert tagged["overlap_with_cluster"].dtype.name == "boolean"
-    assert tagged["overlap_with_cluster"].isna().all()
-
-
 def test_an_escalated_event_reports_the_move_that_earned_its_tier():
     # The tier comes from the peak bar, so the magnitude beside it must too.
     # Reporting the opening bar's move next to the peak bar's tier describes

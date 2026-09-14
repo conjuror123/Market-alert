@@ -195,8 +195,6 @@ BASIS_NOUN = {
 
 def _headline(event: dict, tier: str, basis: str) -> str:
     record = record_phrase(event)
-    if basis == "market":
-        return f"the most disorderly hour {record}"
     if basis == "block":
         return f"the whole block moved together, the biggest {record}"
     return f"{BASIS_NOUN.get(basis, 'the biggest move')} {record}"
@@ -461,14 +459,18 @@ def _calendar(cfg: Config) -> "list[dict] | None":
 
 
 def load_events(cfg: Config) -> "list[dict]":
-    """Every routed event, instrument and market, as plain dicts.
+    """Every routed event as a plain dict.
 
-    Returns an empty list rather than raising when the parquet files are absent.
-    They are produced by python -m tremor.saed and python -m tremor.market, and the
-    hourly monitoring run must not fall over because a pipeline step has not been
-    run yet.
+    Returns an empty list rather than raising when the parquet file is absent.
+    It is produced by python -m tremor.saed, and the hourly monitoring run must
+    not fall over because a pipeline step has not been run yet.
+
+    A second path used to be read here, for a market-wide channel that
+    tremor.market produced. It was never wired into the hourly run, so the file
+    never existed and this always loaded one table; the module and the basis it
+    carried are gone.
     """
-    paths = [cfg.tremor_events_path, cfg.tremor_market_events_path]
+    paths = [cfg.tremor_events_path]
     if not any(os.path.exists(p) for p in paths):
         return []
 
@@ -491,10 +493,6 @@ def load_events(cfg: Config) -> "list[dict]":
             continue
         rows.extend(frame.to_dict("records"))
     return rows
-
-
-def _is_market(event: dict) -> bool:
-    return str(event.get("basis") or "") == "market"
 
 
 def _is_block(event: dict) -> bool:
@@ -613,10 +611,6 @@ def describe(event: dict, labels: dict[str, str],
 
     basis = str(event.get("basis") or "")
     headline = _headline(event, tier, basis)
-    if _is_market(event):
-        return (f"{emoji} <b>Market-wide</b> - {headline}"
-                f"\n     hour to {when:%Y-%m-%d %H:%M} UTC")
-
     if _is_block(event):
         return _describe_block(event, headline, emoji, when, now, events)
 

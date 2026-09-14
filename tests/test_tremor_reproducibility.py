@@ -19,7 +19,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from tremor import cluster, export, journal, saed, severity, versioning
+from tremor import saed, severity, versioning
 from tremor.basket import Asset
 
 HOUR = 3600
@@ -62,44 +62,6 @@ def run_frame(n=400, fire_at=(50, 200, 300)):
 
 
 # --- the set of events ------------------------------------------------------
-
-def test_repeating_the_run_gives_the_identical_event_set():
-    frame = run_frame()
-    first, first_journal = cluster.run(frame)
-    second, second_journal = cluster.run(frame)
-
-    assert cluster.events_frame(first).equals(cluster.events_frame(second))
-    assert cluster.escalations_frame(first).equals(cluster.escalations_frame(second))
-    assert first_journal.equals(second_journal)
-
-
-def test_the_event_order_is_stable_not_merely_the_set():
-    # The set matched but the order diverged - that is no longer
-    # reproducibility: events are numbered and linked by parent_event_id, and a
-    # permutation breaks the references.
-    frame = run_frame()
-    first = [(e.event_id, e.t0_utc) for e in cluster.run(frame)[0]]
-    second = [(e.event_id, e.t0_utc) for e in cluster.run(frame)[0]]
-    assert first == second
-    assert [t0 for _, t0 in first] == sorted(t0 for _, t0 in first)
-
-
-def test_the_runner_does_not_trip_over_its_own_output():
-    # The main source of divergence: the basket metrics file is both input and
-    # output. The second run reads a frame that already has the derived columns.
-    frame = basket_frame()
-    reused = cluster.reset_derived(with_derived(frame))
-    assert list(reused.columns) == list(frame.columns)
-    assert reused.equals(frame)
-
-
-def test_resetting_derived_columns_is_idempotent():
-    frame = basket_frame()
-    once = cluster.reset_derived(with_derived(frame))
-    assert cluster.reset_derived(once).equals(once)
-
-
-# --- versions ---------------------------------------------------------------
 
 def test_the_same_data_yields_the_same_run_version(tmp_path):
     (tmp_path / "bars").mkdir()
@@ -166,37 +128,6 @@ def test_the_config_version_does_not_depend_on_the_run(tmp_path):
     inputs = ("windows.py",)
     assert versioning.config_version(str(tmp_path), inputs) \
         == versioning.config_version(str(tmp_path), inputs)
-
-
-# --- journal and export -----------------------------------------------------
-
-def test_the_journal_is_identical_between_runs():
-    frame = with_derived(basket_frame()).assign(
-        csv_norm_q10=0.85, pc1_threshold=0.6,
-        csv_compression=pd.array([False] * 400, dtype="boolean"),
-        pca_sync=pd.array([False] * 400, dtype="boolean"))
-    first = journal.stamp(journal.basket_decisions(frame), "cfg", "run")
-    second = journal.stamp(journal.basket_decisions(frame), "cfg", "run")
-    assert first.equals(second)
-
-
-def test_the_exported_json_is_byte_identical_between_runs(tmp_path):
-    from tests.test_tremor_export import (EMPTY_ESCALATIONS, EMPTY_SAED,
-                                         asset_metrics, basket_frame as export_frame,
-                                         event, residual_frame)
-
-    def build():
-        return export.build_event(
-            event(30 * HOUR), export_frame(), {"twelvedata:SPY": asset_metrics()},
-            {"twelvedata:SPY": residual_frame()}, EMPTY_SAED, EMPTY_ESCALATIONS,
-            "cfg", "run")
-
-    first = export.write_event(build(), str(tmp_path))
-    text = open(first, encoding="utf-8").read()
-    second = export.write_event(build(), str(tmp_path))
-    assert first == second
-    assert open(second, encoding="utf-8").read() == text
-    assert json.loads(text)["event_id"] == f"cluster:{30 * HOUR}"
 
 
 def test_saed_events_keep_their_order_across_runs():
