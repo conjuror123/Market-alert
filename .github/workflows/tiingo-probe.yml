@@ -32,6 +32,10 @@ on:
         description: 'Run the FX and corporate-action checks'
         type: boolean
         default: false
+      live_backfill:
+        description: 'Run tremor.backfill for real against the checked-out store'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -73,6 +77,22 @@ jobs:
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
           TIINGO_TICKERS: ${{ inputs.tickers }}
         run: python -m tools.tiingo_compare
+
+      # The end-to-end proof: the real backfill, against the real store, with
+      # both keys. Nothing is committed - this workflow has read-only contents
+      # permission and no push step, so the topped-up bars die with the runner.
+      - name: Live backfill dry run
+        if: inputs.live_backfill
+        env:
+          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: |
+          start=$(date +%s)
+          python -m tremor.backfill
+          echo "=== backfill wall clock: $(( $(date +%s) - start ))s ==="
+          git -c core.fileMode=false status --porcelain data/tremor/bars | head -20
+          echo "(changes above are discarded with the runner)"
 
       - name: Check FX agreement and the declared corporate actions
         if: inputs.fx_and_actions
