@@ -1,0 +1,35 @@
+# Runs tools/tiingo_probe.py, which is the only place TIINGO_API_KEY can be
+# exercised: the key is a repository secret, so a laptop or a sandbox cannot
+# reach it. Read-only - the probe fetches and measures, and writes nothing.
+#
+# Manual only, and deliberately not on a schedule: every run spends requests
+# from the same free-tier bucket the monitor would use.
+name: Tiingo Probe
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Probe Tiingo
+        env:
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+        run: python -m tools.tiingo_probe
