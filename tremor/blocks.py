@@ -34,9 +34,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from tremor import cross_section, persistence, severity, windows
+from tremor import cross_section, persistence, sessions, severity, windows
 from tremor.basket import Basket
-from tremor.sessions import EXCHANGE_TZ
 
 # The asset_id a block event carries. Prefixed rather than bare so that nothing
 # downstream can confuse a block with an instrument by accident, and so that a
@@ -159,15 +158,34 @@ def frames(basket: Basket, panel: pd.DataFrame,
                                   tier_column="tier", block=block, own_move=True)
         frame["basis"] = pd.Series(BLOCK_BASIS, index=frame.index,
                                    dtype="string").where(frame["tier"].notna())
-        # A block whose members all keep the US session has its day closed by
-        # that session; one that trades around the clock has a UTC day. Mixed
-        # blocks do not occur - the configuration groups by what a thing is, and
-        # what a thing is decides where it trades.
-        tz = EXCHANGE_TZ if all(
-            a.session_template == "us_equity"
-            for a in basket.assets if a.asset_id in columns) else None
-        out[block] = persistence.annotate(frame, tz)
+        out[block] = persistence.annotate(frame, _day_tz(basket, columns))
     return out
+
+
+def _day_tz(basket: Basket, columns: "list[str]") -> "str | None":
+    """The calendar a block's day follows: its members', where they agree.
+
+    Mixed blocks do not occur - the configuration groups by what a thing is, and
+    what a thing is decides where it trades - so one shared template means one
+    answer. A block whose members somehow disagreed falls back to the UTC day,
+    the only boundary that means something to all of them.
+    """
+    templates = {a.session_template for a in basket.assets
+                 if a.asset_id in columns}
+    return sessions.day_tz(templates.pop()) if len(templates) == 1 else None
+
+
+def _by_day(positions: np.ndarray, day: np.ndarray) -> "list[np.ndarray]":
+    """The fired positions grouped into the trading days they fall in, in order.
+
+    Split on the changes rather than grouped by value: the codes run in calendar
+    order down a frame sorted by hour, so a run of equal codes IS a day and the
+    split keeps the groups in the order they happened.
+    """
+    if positions.size == 0:
+        return []
+    codes = day[positions]
+    return np.split(positions, np.flatnonzero(codes[1:] != codes[:-1]) + 1)
 
 
 def events_frame(scored: "dict[str, pd.DataFrame]", basket: Basket,
@@ -178,22 +196,54 @@ def events_frame(scored: "dict[str, pd.DataFrame]", basket: Basket,
     ordinary background of a market - some block is always the one that moved
     most - and a digest line for it every fortnight would say nothing. The two
     rare tiers are the ones that mean "this whole complex repriced".
+
+    ONE ROW PER BLOCK PER TRADING DAY, the same rule an instrument gets, and
+    until now blocks had no such rule at all: every qualifying bar became its own
+    push, so the day a complex repriced in three legs sent three alerts saying
+    the same thing. A block's day is closed by its members' session where they
+    share one and by the UTC clock where they do not.
+
+    Within the day the row describes the bar that earned the tier, not the bar
+    the day opened on - a whole complex usually starts moving before it has
+    moved far, so the opening bar is typically the smallest of the run. Identity
+    stays with the opening bar so that a push already sent is edited rather than
+    repeated.
     """
     from tremor.routing import PUSH_TIERS
 
     members, _ = cross_section._block_members(panel, basket)
+    order = {name: i for i, name in enumerate(severity.TIERS)}
     rows = []
     for block, frame in scored.items():
         fired = frame[frame["tier"].isin(PUSH_TIERS)]
         columns = [c for c in members.get(block, []) if c in panel.columns]
-        for row in fired.itertuples(index=False):
+        if fired.empty:
+            continue
+        day = persistence.day_codes(frame, _day_tz(basket, columns))
+        size = frame["z_resid"].abs().to_numpy(dtype="float64")
+        tiers = frame["tier"].to_numpy(dtype=object)
+        for positions in _by_day(fired.index.to_numpy(), day):
+            peak = positions[0]
+            for i in positions[1:]:
+                here, there = order.get(tiers[i], -1), order.get(tiers[peak], -1)
+                # A higher tier always wins, and a bigger move at the SAME tier
+                # wins too: extreme is the top of the ladder, so a day that opens
+                # there can never escalate and would otherwise be described by
+                # whichever bar happened to come first. One-directional, so an
+                # equal bar leaves the description alone.
+                if here > there or (here == there and size[i] > size[peak]):
+                    peak = i
+            row = frame.iloc[peak]
             rows.append({
-                "event_id": f"{block_id(block).replace(':', '_')}:{int(row.hour_utc)}",
+                "event_id": f"{block_id(block).replace(':', '_')}:"
+                            f"{int(frame['hour_utc'].iat[positions[0]])}",
                 "asset_id": block_id(block), "block": block,
-                "hour_utc": int(row.hour_utc), "peak_hour_utc": int(row.hour_utc),
+                "hour_utc": int(frame["hour_utc"].iat[positions[0]]),
+                "peak_hour_utc": int(row.hour_utc),
                 "z_resid": float(row.z_resid), "e_resid": float(row.e_resid),
                 "co_block": 0.0, "r": float(row.r), "beta_block": float("nan"),
-                "repeat_count": 0, "tier": str(row.tier), "basis": BLOCK_BASIS,
+                "repeat_count": len(positions) - 1, "tier": str(row.tier),
+                "basis": BLOCK_BASIS,
                 "sigma_lt": float(row.sigma_lt), "close": float("nan"),
                 "n_members": int(row.n_members),
                 # Carried on the row rather than looked up at delivery time: the

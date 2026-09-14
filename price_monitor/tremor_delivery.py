@@ -86,10 +86,12 @@ _MESSAGE_LIMIT = 4000
 STALE_AFTER_HOURS = 48
 
 # What the state file remembers. Event ids rather than a high-water mark on the
-# hour, because an event can legitimately change channel after the fact: a
-# once-a-year move is routed to the digest while its retention is unknown and
-# becomes a push six bars later, when the answer arrives. A watermark would have
-# stepped over it in between and it would never have been sent at all.
+# hour, because an event can legitimately change channel after the fact: an event
+# is open for the rest of its trading day and escalates if the move gets worse,
+# so a digest row found at 10:00 can be a push by 15:00. A watermark would have
+# stepped over it in between and it would never have been sent at all. The wait
+# is bounded by STALE_AFTER_HOURS with room to spare: an event can escalate at
+# most 23 hours after it opened, and nothing is dropped before 48.
 STATE_KEY = "tremor_delivery"
 _SENT = "sent"
 
@@ -1459,9 +1461,9 @@ def pending_pings(events: "list[dict]", pinged: dict,
                   now: datetime) -> "list[dict]":
     """Digest rows that have appeared and not yet been announced.
 
-    Keyed on the TIER and not merely on where the event sits right now. A
-    once-a-year move is routed to the digest while its retention is unknown and
-    becomes a push six bars later when the answer lands - so a channel test
+    Keyed on the TIER and not merely on where the event sits right now. An event
+    stays open for the rest of its trading day, so a row found at the noticeable
+    level in the morning can be a push by the afternoon - and a channel test
     would buzz for it, then push it, and the reader would be interrupted twice
     for one move. A push tier never pings; it gets the message with the story in
     it, which is the whole distinction between the two.

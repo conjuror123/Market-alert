@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -126,50 +128,73 @@ def test_trigger_needs_severity_to_have_run():
         saed.triggers(scored([0]).drop(columns=["tier"]))
 
 
-def test_cooldown_folds_repeats_into_one_event():
-    # §8.3: repeat firings inside the pause create no events but are logged as a
-    # continuation of the current one.
-    events = saed.build_events(asset(), scored([5, 8, 10]), cooldown_bars=12)
+def test_every_later_firing_that_day_joins_the_open_event():
+    # §8.3: repeat firings inside the instrument's day create no events but are
+    # logged as a continuation of the current one.
+    events = saed.build_events(asset(), scored([5, 8, 10]))
 
     assert len(events) == 1
     assert events[0].hour_utc == 6 * HOUR
     assert events[0].repeat_count == 2
 
 
-def test_the_event_keeps_the_worst_tier_it_reached_inside_the_pause():
+def test_the_event_keeps_the_worst_tier_it_reached_that_day():
     # A move that opens noticeable and turns major an hour later is a major event.
     # Reporting the tier it happened to open at would understate it purely
     # because of when the automaton opened.
-    events = saed.build_events(asset(), scored({5: "noticeable", 7: "major"}),
-                               cooldown_bars=12)
+    events = saed.build_events(asset(), scored({5: "noticeable", 7: "major"}))
     assert len(events) == 1
     assert events[0].tier == "major"
     assert events[0].repeat_count == 1
 
 
 def test_the_event_is_not_downgraded_by_a_milder_repeat():
-    events = saed.build_events(asset(), scored({5: "major", 7: "noticeable"}),
-                               cooldown_bars=12)
+    events = saed.build_events(asset(), scored({5: "major", 7: "noticeable"}))
     assert len(events) == 1 and events[0].tier == "major"
 
 
-def test_a_new_event_opens_after_the_cooldown():
-    events = saed.build_events(asset(), scored([5, 20]), cooldown_bars=12)
+def test_a_new_event_opens_when_the_day_turns():
+    # Fifteen bars apart used to be two events and four apart used to be one.
+    # Neither is the rule any more: what separates these two is a date.
+    events = saed.build_events(asset(), scored([5, 30]))
 
     assert len(events) == 2
     assert [e.repeat_count for e in events] == [0, 0]
 
 
-def test_cooldown_is_counted_in_asset_bars_not_calendar_hours():
-    # Twelve bars are one and a half sessions for an ETF and half a day for
-    # crypto. Were the pause counted in calendar hours, an ETF would stay silent
-    # for nearly two days where a round-the-clock instrument recovers in twelve.
-    sparse = scored([0, 13])
-    # The bars are a day apart, but only 13 of the asset's own bars separate them.
-    sparse["hour_utc"] = [(i + 1) * HOUR * 24 for i in range(len(sparse))]
+def test_a_second_firing_later_the_same_day_is_not_a_second_event():
+    # Fifteen bars apart, which the twelve-bar pause let through as a fresh
+    # alert. It is the same session, so it is the same event.
+    events = saed.build_events(asset(), scored([5, 20]))
 
-    events = saed.build_events(asset(), sparse, cooldown_bars=12)
-    assert len(events) == 2
+    assert len(events) == 1
+    assert events[0].repeat_count == 1
+
+
+def test_the_day_that_matters_is_the_instruments_own():
+    # 22:00 and 02:00 UTC are four hours apart and sit either side of midnight.
+    # For a fund listed in New York they are 17:00 and 21:00 of ONE session and
+    # the second is not news; for a coin, whose day is the clock's, they are two
+    # days and the second is. A single calendar rule could not say both.
+    frame = scored([2, 6], n=12)
+    base = int(datetime(2021, 3, 10, 20, tzinfo=timezone.utc).timestamp())
+    frame["hour_utc"] = [base + i * HOUR for i in range(len(frame))]
+
+    assert len(saed.build_events(asset(), frame)) == 1
+    assert len(saed.build_events(asset(session_template="crypto_24_7"), frame)) == 2
+
+
+def test_a_currency_pair_takes_the_utc_day_like_a_coin():
+    # Not the FX convention's 17:00 New York roll, and sessions.day_tz says at
+    # length why. Pinned because the convention is the obvious thing to reach
+    # for and the measurement that rejected it is not in the diff.
+    frame = scored([3, 7], n=12)
+    base = int(datetime(2016, 6, 23, 18, tzinfo=timezone.utc).timestamp())
+    frame["hour_utc"] = [base + i * HOUR for i in range(len(frame))]
+
+    pair = saed.build_events(asset(session_template="fx_continuous"), frame)
+    coin = saed.build_events(asset(session_template="crypto_24_7"), frame)
+    assert len(pair) == len(coin) == 2
 
 
 def test_no_events_without_triggers():
@@ -260,7 +285,7 @@ def test_an_escalated_event_reports_the_move_that_earned_its_tier():
     frame.loc[5, ["r", "z_resid", "z_resid_bmp", "e_resid"]] = [0.00005, 3.0, 3.0, 0.00002]
     frame.loc[7, ["r", "z_resid", "z_resid_bmp", "e_resid"]] = [0.013, 30.0, 30.0, 0.02]
 
-    events = saed.build_events(asset(), frame, cooldown_bars=12)
+    events = saed.build_events(asset(), frame)
 
     assert len(events) == 1
     event = events[0]
@@ -281,7 +306,7 @@ def test_an_event_that_opens_at_the_top_tier_still_follows_its_biggest_bar():
     frame.loc[5, ["r", "z_resid", "z_resid_bmp", "e_resid"]] = [-0.035, -62.0, -62.0, -0.036]
     frame.loc[7, ["r", "z_resid", "z_resid_bmp", "e_resid"]] = [-0.105, -153.0, -153.0, -0.105]
 
-    events = saed.build_events(asset(), frame, cooldown_bars=12)
+    events = saed.build_events(asset(), frame)
 
     assert len(events) == 1
     assert events[0].tier == "extreme"
@@ -298,7 +323,7 @@ def test_a_smaller_bar_at_the_same_tier_does_not_move_the_peak():
     frame.loc[5, ["r", "z_resid", "z_resid_bmp", "e_resid"]] = [-0.105, -153.0, -153.0, -0.105]
     frame.loc[7, ["r", "z_resid", "z_resid_bmp", "e_resid"]] = [-0.035, -62.0, -62.0, -0.036]
 
-    events = saed.build_events(asset(), frame, cooldown_bars=12)
+    events = saed.build_events(asset(), frame)
 
     assert len(events) == 1
     assert events[0].peak_hour_utc == 6 * HOUR
@@ -306,8 +331,7 @@ def test_a_smaller_bar_at_the_same_tier_does_not_move_the_peak():
 
 
 def test_an_event_that_never_escalates_peaks_where_it_opened():
-    events = saed.build_events(asset(), scored({5: "major", 7: "noticeable"}),
-                               cooldown_bars=12)
+    events = saed.build_events(asset(), scored({5: "major", 7: "noticeable"}))
     assert len(events) == 1
     assert events[0].peak_hour_utc == events[0].hour_utc == 6 * HOUR
 
@@ -320,11 +344,11 @@ def test_retention_is_measured_from_the_peak_not_the_opening():
     from tremor import persistence
 
     frame = scored({5: "noticeable", 7: "extreme"})
-    events = saed.events_frame(saed.build_events(asset(), frame, cooldown_bars=12))
+    events = saed.events_frame(saed.build_events(asset(), frame))
     lookup = pd.DataFrame({"hour_utc": frame["hour_utc"]})
     for column in persistence.RETENTION_COLUMNS:
         lookup[column] = 0.0
-    abnormal = [f"retention_{h}" for h in persistence.HORIZONS]  # 2, 6, settled
+    abnormal = [f"retention_{h}" for h in persistence.HORIZONS]  # today, settled
     lookup.loc[5, abnormal] = 99.0    # the opening bar
     lookup.loc[7, abnormal] = 0.5     # the peak bar
     out = persistence.attach(events, {asset().asset_id: lookup})
@@ -339,7 +363,7 @@ def test_a_move_smaller_than_the_instrument_can_resolve_is_not_an_event():
     frame = scored([5])
     frame["close"] = 100.0
     frame.loc[5, "r"] = 0.0001            # one cent on 100 dollars = 1 tick
-    assert saed.build_events(asset(), frame, cooldown_bars=12) == []
+    assert saed.build_events(asset(), frame) == []
 
 
 def test_two_ticks_is_enough_to_be_an_event():
@@ -348,7 +372,7 @@ def test_two_ticks_is_enough_to_be_an_event():
     frame = scored([5])
     frame["close"] = 100.0
     frame.loc[5, "r"] = 0.0002
-    assert len(saed.build_events(asset(), frame, cooldown_bars=12)) == 1
+    assert len(saed.build_events(asset(), frame)) == 1
 
 
 def test_the_gate_scales_with_the_price_not_with_a_fixed_percentage():
@@ -358,15 +382,15 @@ def test_the_gate_scales_with_the_price_not_with_a_fixed_percentage():
     # that; this is why the gate is stated in ticks.
     dear = scored([5]);  dear["close"] = 400.0;  dear.loc[5, "r"] = 0.0002
     cheap = scored([5]); cheap["close"] = 20.0;  cheap.loc[5, "r"] = 0.0002
-    assert len(saed.build_events(asset(), dear, cooldown_bars=12)) == 1
-    assert saed.build_events(asset(), cheap, cooldown_bars=12) == []
+    assert len(saed.build_events(asset(), dear)) == 1
+    assert saed.build_events(asset(), cheap) == []
 
 
 def test_an_instrument_without_a_price_column_is_not_gated():
     # FX and crypto frames reach here the same way; nothing should silently
     # vanish because a column is absent.
     frame = scored([5]).drop(columns=["close"], errors="ignore")
-    assert len(saed.build_events(asset(), frame, cooldown_bars=12)) == 1
+    assert len(saed.build_events(asset(), frame)) == 1
 
 
 def _rank_frame(basis, confirms, tier="major"):

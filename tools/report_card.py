@@ -23,11 +23,12 @@ Three questions, in the order they matter:
      median gap of eight days with a tenth of them a day apart.
 
 Two matching rules, because the two questions are different. Recall matches an
-hour against an open event's COOLDOWN window - the automaton folds repeats for
-twelve bars, so the one alert the reader got speaks for all of them, and scoring
-negative oil at 18:00 as a miss because the push went out at 16:00 measures
-`routing.collapse` rather than the detector. False alarms match on the hour an
-event OPENED, which is the system claiming that hour was remarkable.
+hour against the REST OF THE TRADING DAY the event opened on - the automaton
+folds every later firing that day into it, so the one alert the reader got
+speaks for all of them, and scoring negative oil at 18:00 as a miss because the
+push went out at 16:00 measures the automaton rather than the detector. False
+alarms match on the hour an event OPENED, which is the system claiming that
+hour was remarkable.
 """
 from __future__ import annotations
 
@@ -35,7 +36,8 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-from tremor import routing, windows
+from tremor import persistence, routing, sessions
+from tremor.basket import load_basket
 
 BARS_DIR = Path("data/tremor/bars")
 RESIDUALS_DIR = Path("data/tremor/residuals")
@@ -60,22 +62,36 @@ def _asset_for(stem: str, ids) -> str | None:
 
 
 def load_events() -> pd.DataFrame:
+    """The events as delivered. The channel is read off the table, not recomputed.
+
+    It used to call routing.collapse, which no longer exists - a push is final
+    when it arrives, so nothing moves an event between channels after the fact
+    and the column the pipeline wrote IS the answer. The call had outlived the
+    function and took this tool down with it.
+    """
     events = pd.read_parquet(EVENTS_PATH)
-    channels, _ = routing.collapse(events, routing.channel(events))
-    return events.assign(channel=channels)
+    if "channel" in events:
+        return events
+    return events.assign(channel=routing.channel(events))
 
 
 def per_asset(events: pd.DataFrame):
     """For each instrument: its hours, |r|, coverage, firings and ladder state."""
-    for path in sorted(BARS_DIR.glob("*.parquet")):
-        asset_id = _asset_for(path.stem, events["asset_id"].unique())
+    day_of = {a.asset_id: sessions.day_tz(a.session_template)
+              for a in load_basket().instruments}
+    # One DIRECTORY per instrument, partitioned by year. It used to be one file,
+    # and this tool was still globbing for files: it matched nothing, yielded
+    # nothing, and the caller divided the totals by a zero it had no reason to
+    # expect.
+    for path in sorted(p for p in BARS_DIR.iterdir() if p.is_dir()):
+        asset_id = _asset_for(path.name, events["asset_id"].unique())
         if asset_id is None:
             continue
-        residuals = RESIDUALS_DIR / path.name
+        residuals = RESIDUALS_DIR / f"{path.name}.parquet"
         if not residuals.exists():
             continue
         scored = pd.read_parquet(residuals, columns=["hour_utc", "level_noticeable"])
-        bars = pd.read_parquet(path)
+        bars = pd.read_parquet(path).sort_values("hour_utc")
         hours = bars["hour_utc"].to_numpy("int64")
         # The system's own return channel. NOT close-to-close, which spans the
         # overnight gap the detector deliberately does not watch.
@@ -88,9 +104,15 @@ def per_asset(events: pd.DataFrame):
         fitted = scored.set_index("hour_utc")["level_noticeable"].reindex(hours).notna().to_numpy()
         mine = events[events["asset_id"] == asset_id]
         covered = np.zeros(len(hours), dtype=int)
+        # An event speaks for the rest of the day it opened on, because that is
+        # exactly what the automaton folds into it.
+        day = persistence.day_codes(pd.DataFrame({"hour_utc": hours}),
+                                    day_of.get(asset_id))
         for opened, channel in zip(mine["hour_utc"].astype("int64"), mine["channel"]):
             i = int(np.searchsorted(hours, opened, "left"))
-            j = min(i + windows.SAED_COOLDOWN_BARS + 1, len(hours))
+            if i >= len(hours):
+                continue
+            j = int(np.searchsorted(day, day[i], "right"))
             covered[i:j] = np.maximum(covered[i:j], RANK.get(channel, 0))
         fired = np.isin(hours, mine["hour_utc"].to_numpy("int64"))
         percentile = np.searchsorted(np.sort(move), move, "left") / len(move) * 100

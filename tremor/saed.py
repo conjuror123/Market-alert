@@ -10,14 +10,14 @@ so is the dependency.
 
 Three things that are easy to miss and that the spec addresses separately.
 
-The cooldown is counted in THE ASSET'S OWN BARS, not in calendar hours. Twelve
-bars are one and a half trading sessions for an ETF and half a day for crypto.
-Otherwise an ETF with seven bars a day would stay silent for nearly two days
-where a round-the-clock instrument recovers in twelve hours.
+An instrument speaks ONCE PER TRADING DAY, and the day is the instrument's own -
+the exchange's local day for a listed fund, the UTC day for everything else. It
+replaces a twelve-bar pause, which was a window nobody could picture and which
+let sixty pairs of pushes through on one instrument inside forty-eight hours.
 
-The pause does not cancel an event, it merges it into the current one: repeat
-firings inside the cooldown increment repeat_count. These are different things -
-"the move stopped" and "the move continues, but we have already reported it".
+The day does not cancel an event, it merges into the current one: every later
+firing that day increments repeat_count. These are different things - "the move
+stopped" and "the move continues, but we have already reported it".
 
 The notification goes out per BLOCK alert, not per asset. If three instruments of
 one block jerked in the same hour, that is one observation about the block, not
@@ -35,7 +35,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from tremor import blocks, persistence, quality, routing, severity, windows
+from tremor import (blocks, persistence, quality, routing, sessions, severity,
+                    windows)
 from tremor.basket import Asset, Basket, load_tuning
 
 
@@ -105,6 +106,12 @@ class SaedEvent:
     # where nothing in the archive matches it: the move is the largest on record,
     # and the message says so rather than inventing a date.
     record_since: "int | None"
+
+
+# "work the instrument's own day out from its session template", as distinct
+# from a caller passing None to mean the UTC day. Only the tests pass one
+# explicitly; the pipeline always wants the instrument's own answer.
+_DERIVE = object()
 
 
 def _opt_int(value) -> "int | None":
@@ -309,12 +316,28 @@ def _exceedance(frame: pd.DataFrame, tier: np.ndarray) -> np.ndarray:
 
 
 def build_events(asset: Asset, frame: pd.DataFrame,
-                 cooldown_bars: int = windows.SAED_COOLDOWN_BARS) -> list[SaedEvent]:
-    """Runs the cooldown automaton over the asset's bars (§8.3).
+                 day_tz: "str | None" = _DERIVE) -> list[SaedEvent]:
+    """Runs the event automaton over the asset's bars (§8.3).
+
+    ONE EVENT PER INSTRUMENT PER TRADING DAY. Every firing after the first joins
+    the open event - escalating it, if it is worse - until the instrument's day
+    turns, and only then can a new one open. It replaces a twelve-bar pause, and
+    the reason is the one thing a bar count could never give: a rule the reader
+    can hold. "SPY has already been reported today" is a sentence; "SPY fired
+    nine bars ago" is an implementation detail, and the two disagreed exactly
+    where it mattered - sixty pairs of pushes on one instrument inside forty-
+    eight hours, half of them the instrument thrashing back the way it came.
+
+    The day is the INSTRUMENT'S, not the clock's: an exchange-listed fund's day
+    is the exchange's local one, so an afternoon move and the following
+    morning's are two days apart even though six hours separate them, while
+    22:00 and 02:00 UTC are the same session and fire once. Round-the-clock
+    instruments take the UTC day. Same rule as the retention horizons, and
+    deliberately: the today-close reading lands exactly when the instrument
+    becomes eligible to fire again.
 
     The sequential pass is layer B of §6.1: whether a firing joins the current
-    event or opens a new one depends on how many bars have passed since the
-    previous one began, and that is a path-dependent decision.
+    event or opens a new one is a path-dependent decision.
     """
     fired = triggers(frame).fillna(False).to_numpy(dtype=bool)
     # An hour whose price moved less than the instrument can resolve is not a
@@ -352,6 +375,9 @@ def build_events(asset: Asset, frame: pd.DataFrame,
     since = _record_since(frame, basis)
     rank = {name: i for i, name in enumerate(severity.TIERS)}
     exceedance = _exceedance(frame, tier)
+    day = persistence.day_codes(
+        frame, sessions.day_tz(asset.session_template)
+        if day_tz is _DERIVE else day_tz)
 
     events: list[SaedEvent] = []
     counts: list[int] = []
@@ -359,8 +385,8 @@ def build_events(asset: Asset, frame: pd.DataFrame,
     open_at: int | None = None   # index of the bar on which the current event opened
 
     for i in np.flatnonzero(fired):
-        if open_at is not None and i - open_at < cooldown_bars:
-            # Inside the pause: the same event continues, no notification - but
+        if open_at is not None and day[i] == day[open_at]:
+            # Still the same day: the same event continues, no notification - but
             # it can still get worse. A move that opens at the noticeable level and
             # reaches the major one an hour later is a major event; reporting
             # the tier it happened to start at would understate it purely
@@ -373,7 +399,8 @@ def build_events(asset: Asset, frame: pd.DataFrame,
             # tier, and that second half is not a nicety: extreme is the top of
             # the ladder, so an event that opens there can never be escalated,
             # and without this the reported bar would stay wherever the
-            # automaton happened to open. On 2015-01-15 the franc peg broke:
+            # automaton happened to open - which, over a whole day, is usually
+            # the smallest bar of the move rather than its peak. On 2015-01-15 the franc peg broke:
             # 09:00 was already extreme at -3.5%, 10:00 was -10.5%, and the
             # push described the first. Comparing exceedance rather than raw
             # magnitude keeps the two channels commensurable - each bar is
@@ -391,8 +418,9 @@ def build_events(asset: Asset, frame: pd.DataFrame,
                 # in 3 years, +0.01%": a fifth of a basis point on SHY, opened
                 # at the noticeable level at 15:00, with the extreme belonging to
                 # the +0.13% at 17:00. Identity stays at the opening hour, so
-                # event_id and the cooldown are untouched; the description
-                # follows the bar that earned the label.
+                # event_id is untouched and a push already sent is edited rather
+                # than repeated; the description follows the bar that earned the
+                # label.
                 events[-1] = SaedEvent(**{**events[-1].__dict__,
                                           "tier": tier[i], "basis": str(basis[i]),
                                           "peak_hour_utc": int(hours[i]),
@@ -673,13 +701,11 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
     scored = {aid: withdraw_unconfirmed(frame) for aid, frame in scored.items()}
     # The settled retention lands at the close of the next trading day, so an
     # instrument whose day is a SESSION is measured in its exchange's local day
-    # and a round-the-clock one in the UTC day. CALENDAR_TEMPLATE is the only
-    # template with an authoritative calendar behind it.
-    from tremor.sessions import EXCHANGE_TZ
-
-    day_tz = {a.asset_id: (EXCHANGE_TZ if a.session_template == "us_equity" else None)
+    # and a round-the-clock one in the UTC day. us_equity is the only template
+    # with an authoritative calendar behind it.
+    day_of = {a.asset_id: sessions.day_tz(a.session_template)
               for a in basket.instruments}
-    scored = {aid: persistence.annotate(frame, day_tz.get(aid))
+    scored = {aid: persistence.annotate(frame, day_of.get(aid))
               for aid, frame in scored.items()}
 
     all_events: list[SaedEvent] = []
@@ -789,7 +815,7 @@ def main(argv: list[str] | None = None) -> int:
         frame.to_parquet(path, index=False, compression="zstd")
     save_residuals(scored, args.residuals_out)
 
-    log.info("events %d, block alerts %d, repeats inside pauses %d",
+    log.info("events %d, block alerts %d, later firings merged into their day %d",
              len(events), len(alerts),
              int(events["repeat_count"].sum()) if not events.empty else 0)
     if not alerts.empty:

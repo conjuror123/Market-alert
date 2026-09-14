@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 from tremor import persistence as ps
+from tremor import persistence, sessions
 
 HOUR = 3600
 
@@ -257,3 +258,25 @@ def test_the_day_boundaries_are_linear_in_the_number_of_bars():
     elapsed = time.perf_counter() - began
 
     assert elapsed < 5.0, f"{len(hours)} bars over 2000 days took {elapsed:.1f}s"
+
+
+def test_the_day_boundary_is_one_answer_used_everywhere():
+    # The retention horizons, the event automaton and the block roll-up all have
+    # to read the same one, so there is one function that says it.
+    assert sessions.day_tz("us_equity") == "America/New_York"
+    assert sessions.day_tz("fx_continuous") is None
+    assert sessions.day_tz("crypto_24_7") is None
+
+
+def test_an_exchange_listed_instruments_day_turns_over_at_local_midnight():
+    # Not at midnight UTC, which falls at 19:00 or 20:00 in New York and would
+    # put a late-afternoon bar and the next morning's in one day for half the
+    # year and two for the other.
+    base = int(datetime(2016, 6, 23, 12, tzinfo=timezone.utc).timestamp())
+    frame = pd.DataFrame({"hour_utc": [base + i * 3600 for i in range(48)]})
+    tz = sessions.day_tz("us_equity")
+    codes = persistence.day_codes(frame, tz)
+
+    hours = pd.to_datetime(frame["hour_utc"], unit="s", utc=True)
+    turned = hours[np.flatnonzero(np.diff(codes)) + 1].dt.tz_convert(tz)
+    assert set(turned.dt.hour) == {0}

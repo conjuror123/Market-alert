@@ -174,14 +174,43 @@ def _load_sessions_cached(path: str) -> dict[date, Session]:
 MAX_LOOKAHEAD_DAYS = 21
 
 
+def day_tz(template: str, tz_name: str = EXCHANGE_TZ) -> "str | None":
+    """The timezone whose calendar day IS this instrument's trading day.
+
+    None for an instrument with no daily close to speak of, which is what every
+    caller downstream reads as "the UTC day". One function rather than the same
+    conditional written out in four modules, because the answer has to be the
+    same in all of them: it decides when the settled retention reading lands,
+    when an instrument becomes eligible to fire again, and where a block's day
+    ends, and those three drifting apart would be invisible.
+
+    A CURRENCY PAIR TAKES THE UTC DAY TOO, and that is a measured choice rather
+    than an oversight. The FX day properly rolls at 17:00 in New York - the bars
+    themselves keep that week, Sunday 17:00 through Friday 16:00 - so the
+    convention was tried. It is no better and it is worse where it fails. Over
+    the whole record each rule leaves exactly two currency repeats inside
+    thirteen hours; the UTC day splits an overnight story at midnight (the
+    referendum result reached the market at 21:00 UTC on 23 June 2016 and
+    sterling was still falling at 01:00), and the 17:00 roll splits USD/CNH
+    between two CONSECUTIVE bars, because 17:00 in New York is not the quiet
+    hour it sounds like: it carries 76 events against 23 at 16:00 and 30 at
+    18:00, the liquidity gap at the daily roll showing up as moves. A boundary
+    belongs where the market is thin, and for FX that is neither of these - so
+    take the simpler of the two.
+    """
+    return tz_name if template == "us_equity" else None
+
+
 def instrument_day(hour_utc: int, template: str,
                    tz_name: str = EXCHANGE_TZ) -> date:
     """The day an hour belongs to, in the calendar this instrument's day uses.
 
     An exchange-listed instrument's day is the exchange's local day; everything
-    else has no daily close to speak of, so its day is the UTC one. Same rule as
-    persistence.next_close_offsets, and it has to stay the same rule: that is
-    where the settled reading is actually measured.
+    else gets the UTC one. Note that this is the BAR WALK's notion of a day - an
+    enumeration device for "which stamps come next", nothing more. Where a bar
+    BELONGS, which is what the retention horizons and the event automaton ask,
+    is day_tz's question. They agree today; they are separate because they are
+    asked for different reasons.
     """
     moment = datetime.fromtimestamp(int(hour_utc), tz=timezone.utc)
     if template == "us_equity":

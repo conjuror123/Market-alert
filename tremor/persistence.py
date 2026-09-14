@@ -32,7 +32,9 @@ Two check-ins, and neither is a number of hours. Both are moments on the
 instrument's own trading calendar: the close of the day the move happened, and
 the close of the next day it trades. Bar counts were tried and dropped - see the
 comment on HORIZONS - because a closed market cannot revert, and because six
-bars is most of a session in an ETF and a quarter of a day in crypto.
+bars is most of a session in an ETF and a quarter of a day in crypto. The event
+automaton counts days off the same calendar, and the first check-in therefore
+lands exactly when the instrument becomes eligible to fire again.
 
 Abnormal and raw are both recorded because they answer different questions.
 The abnormal one is the honest test of what the detector claimed: it fired on
@@ -102,6 +104,21 @@ def _day_bounds(frame: pd.DataFrame,
     # nothing here requires it, and a maximum is right either way.
     np.maximum.at(last, codes, positions)
     return codes, last
+
+
+def day_codes(frame: pd.DataFrame, tz_name: str | None = None) -> np.ndarray:
+    """Which trading day each bar belongs to, as an integer that sorts like the
+    calendar.
+
+    The same codes the close offsets are built on, exposed because the event
+    automaton needs them too: an instrument fires once per trading day, and
+    "the same day" has to mean the same thing there as it does here or the
+    today-close reading would land on a bar the automaton considers tomorrow.
+    """
+    if frame.empty:
+        return np.zeros(0, dtype="int64")
+    codes, _ = _day_bounds(frame, tz_name)
+    return codes
 
 
 def today_close_offsets(frame: pd.DataFrame, tz_name: str | None = None) -> np.ndarray:
@@ -178,10 +195,9 @@ def retention(frame: pd.DataFrame, horizon, column: str = "e_resid",
 def annotate(frame: pd.DataFrame, tz_name: str | None = None) -> pd.DataFrame:
     """Adds retention at every horizon, abnormal and raw, to one asset's frame.
 
-    `tz_name` is the exchange's timezone for an instrument whose day is a
-    trading session rather than a clock day; leaving it None makes the settled
-    horizon fall on the UTC day, which is what a round-the-clock instrument
-    wants.
+    `tz_name` comes from sessions.day_tz, which is the only place that decides
+    where an instrument's day ends. None - the default - is the round-the-clock
+    answer, the UTC day.
     """
     out = frame.copy()
     for horizon in HORIZONS:
@@ -232,7 +248,7 @@ def attach(events: pd.DataFrame, scored: dict[str, pd.DataFrame]) -> pd.DataFram
     its row order is not any single asset's bar order.
 
     The hour joined on is `peak_hour_utc`, not the opening hour, and the two
-    differ whenever an event escalated inside its cooldown. Retention divides
+    differ whenever an event escalated later in its day. Retention divides
     the forward move by the move it is retaining, so measuring it from an
     opening bar whose move was a fifth of a basis point - while the event is
     reported at the tier a later, far larger bar earned - yields ratios like

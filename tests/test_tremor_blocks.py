@@ -142,3 +142,46 @@ def test_a_block_move_is_not_put_to_the_single_asset_confirmations():
     events = blocks.events_frame(blocks.frames(b, panel, sig), b, panel)
     assert events["rank_confirms"].isna().all()
     assert events["ou_reverts"].isna().all()
+
+
+def _two_spikes(first, second, sizes=(0.25, 0.30), n=30000, template="crypto_24_7"):
+    """The same long block, moving hard twice."""
+    rng = np.random.default_rng(2)
+    common = rng.normal(0, 0.01, n)
+    common[first], common[second] = sizes
+    panel, sig = panels(n, {"A": common, "B": common * 1.01, "C": common * 0.99})
+    b = basket_of(*(asset(t, "crypto", template=template) for t in "ABC"))
+    return b, panel, sig
+
+
+def test_a_block_reports_once_a_day_however_many_legs_the_move_had():
+    # Blocks had no pause of any kind: every qualifying bar became its own push,
+    # so a complex that repriced in three legs sent three alerts saying the same
+    # thing. One a day now, the same rule its members get.
+    b, panel, sig = _two_spikes(29000, 29005)
+    events = blocks.events_frame(blocks.frames(b, panel, sig), b, panel)
+
+    assert len(events) == 1
+    row = events.iloc[0]
+    assert row["hour_utc"] == 29001 * HOUR        # identity stays at the first leg
+    assert row["peak_hour_utc"] == 29006 * HOUR   # the description follows the biggest
+    assert row["r"] == pytest.approx(0.30, rel=0.05)
+    assert row["repeat_count"] == 1
+
+
+def test_a_block_can_speak_again_once_its_day_has_turned():
+    b, panel, sig = _two_spikes(29000, 29030)
+    events = blocks.events_frame(blocks.frames(b, panel, sig), b, panel)
+    assert len(events) == 2
+    assert list(events["repeat_count"]) == [0, 0]
+
+
+def test_an_exchange_listed_block_closes_its_day_with_the_exchange():
+    # 23:00 and 01:00 UTC sit either side of midnight and are one New York
+    # evening. A block of funds listed there speaks once; a block of coins,
+    # whose day is the clock's, speaks twice for the same two bars.
+    listed = _two_spikes(29014, 29016, template="us_equity")
+    around = _two_spikes(29014, 29016, template="crypto_24_7")
+
+    assert len(blocks.events_frame(blocks.frames(*listed), listed[0], listed[1])) == 1
+    assert len(blocks.events_frame(blocks.frames(*around), around[0], around[1])) == 2

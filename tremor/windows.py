@@ -111,9 +111,9 @@ def warm_bars(w_asset_bars: int, rate: float | None = None) -> int:
     return window + trusted_bars(rate) if rate else window
 
 
-# Per-asset cooldown of a single-asset event (§8.3) - in that asset's own bars;
-# calendar hours are not used here.
-SAED_COOLDOWN_BARS = 12
+# THE PER-ASSET COOLDOWN IS NOT A NUMBER AND SO IS NOT HERE. §8.3's twelve bars
+# are gone: an instrument and a block each report once per THEIR OWN TRADING DAY,
+# which is a rule with no window to tune. See tremor.saed.build_events.
 
 # Burn-in of an asset's EWMA state (§6.6).
 EWMA_BURN_IN_BARS = 500
