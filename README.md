@@ -369,11 +369,12 @@ Delivery splits by urgency, not by importance:
   day's close too.
 * **A throwaway ping** — a digest row is written the hour its move is found, but a
   note stays silent because Telegram does not notify on an edit. So each row also
-  buzzes once, carrying only the rarity, the name and the move:
+  buzzes once, carrying the ticker, the name, the move and how many usual hours
+  that was, plus a pointer at the note:
 
   ```
-  ⬜ Broad agriculture -0.72%
-  🟨 BTC-USD +4.13%
+  ⬜ BKLN · Senior bank loans +0.12% (2.0x)
+  Added to digest👆🏻👆🏻
   ```
 
   Everything else is in the note, one tap away — a second message competing to be

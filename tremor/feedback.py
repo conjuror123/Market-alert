@@ -56,14 +56,15 @@ def _now() -> str:
 def parse_when(text: str) -> int:
     """A time as it appears in a message, to an epoch second."""
     text = text.strip().replace("UTC", "").strip()
-    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H", "%Y-%m-%d"):
+    for fmt in ("%d-%m-%Y %H:%M", "%d-%m-%Y %H", "%d-%m-%Y",
+                "%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H", "%Y-%m-%d"):
         try:
             return int(datetime.strptime(text, fmt)
                        .replace(tzinfo=timezone.utc).timestamp())
         except ValueError:
             continue
     raise ValueError(f"cannot read a time from {text!r} - expected "
-                     f"'2026-09-09 13:00'")
+                     f"'14-09-2026 13:00'")
 
 
 def resolve_asset(ticker: str, basket) -> str:

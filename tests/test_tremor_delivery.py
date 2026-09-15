@@ -967,7 +967,7 @@ def test_the_hour_is_the_last_line_and_is_bold():
     text = md.describe(event(asset_id="twelvedata:GLD"), LABELS)
     last = text.split("\n")[-1]
     assert last.startswith(md.TIME_EMOJI)
-    stamp = (NOW - timedelta(hours=1)).strftime("%Y-%m-%d %H:%M")
+    stamp = (NOW - timedelta(hours=1)).strftime("%d-%m-%Y %H:%M")
     assert last.endswith("UTC</b>") and f"<b>{stamp}" in last
 
 
@@ -1075,9 +1075,11 @@ def test_a_block_ping_carries_the_black_mark_too():
     # that relaxing that filter cannot silently produce an unmarked ping.
     ping = md.format_ping(block_event(tier="noticeable", channel="digest",
                                       block="agriculture",
-                                      asset_id="block:agriculture", r=-0.0072), {})
+                                      asset_id="block:agriculture", r=-0.0072,
+                                      sigma_lt=0.0036), {})
     assert ping == (f"{md.BLOCK_MARK}{md.TIER_EMOJI['noticeable']} "
-                    f"<b>Agriculture</b> -0.72%")
+                    f"<b>Agriculture</b> -0.72% (2.0x)\n"
+                    f"Added to digest👆🏻👆🏻")
 
 
 def test_a_block_routes_on_its_tier_exactly_as_an_instrument_does():
@@ -1209,17 +1211,17 @@ def test_a_stress_episode_is_named_while_it_is_running_and_not_after(monkeypatch
     assert "stress episode" not in later         # but the window closed long ago
 
 
-def test_a_push_carries_the_regime_and_so_does_the_note(monkeypatch):
+def test_a_push_does_not_carry_the_regime_the_note_does(monkeypatch):
     use_vix(monkeypatch, vix_frame([((2026, 9, 3), (2026, 9, 4, 15), 14.32)]))
     later = event(hour_utc=int(datetime(2026, 9, 8, 14, tzinfo=timezone.utc).timestamp()))
     push = md.format_push(later, LABELS)
-    assert "Fear gauge" in push and "14.32" in push
+    assert "Fear gauge" not in push
 
     window = (int(datetime(2026, 9, 8, 9, tzinfo=timezone.utc).timestamp()),
               int(datetime(2026, 9, 11, 9, tzinfo=timezone.utc).timestamp()))
     note = md.format_digest([event()], LABELS, window,
                             now=datetime(2026, 9, 9, 12, tzinfo=timezone.utc))
-    assert "Fear gauge" in note[0]
+    assert "Fear gauge" in note[0] and "14.32" in note[0]
 
 
 # --- the throwaway ping ----------------------------------------------------
@@ -1240,13 +1242,14 @@ class Deleted:
         return int(message_id) not in self.refuse
 
 
-def test_a_digest_row_buzzes_once_and_says_almost_nothing(monkeypatch, sender):
+def test_a_digest_row_buzzes_once_with_ticker_size_and_a_pointer(monkeypatch, sender):
     row = event(event_id="p1", tier="noticeable", channel="digest",
-                digest_slot=int(NOW.timestamp()) + 3 * HOUR)
+                digest_slot=int(NOW.timestamp()) + 3 * HOUR,
+                sigma_lt=0.0105)
     _, state = deliver(monkeypatch, [row])
 
     pings = [t for t in sender.texts if t.startswith("⬜")]
-    assert pings == ["⬜ <b>Gold</b> +2.10%"]
+    assert pings == ["⬜ <b>GLD</b> · Gold +2.10% (2.0x)\nAdded to digest👆🏻👆🏻"]
     assert state[md.STATE_KEY][md.PINGS] == {"p1": 1}
 
     # And not again on the next run: the buzz is once per move, not per hour.

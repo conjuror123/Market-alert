@@ -527,22 +527,24 @@ def _scale_note(event: dict) -> str:
     it made the line twice as long for a number no reader was checking, in a
     message deliberately being cut short so that fewer notes need splitting.
     """
-    move = _clean(event.get("r"))
-    usual = _clean(event.get("sigma_lt"))
-    if move is None or usual is None or usual <= 0:
+    size = _ratio_short(event)
+    if not size:
         return ""
-    ratio = abs(move) / usual
-    # Shown at every size now, where it used to be suppressed below three times
-    # normal. That silence was itself confusing: 21% of events fall under the old
-    # floor, and a reader who has seen the line on one alert reads its absence on
-    # the next as a gap rather than as "this one was only 2.7x". A decimal below
-    # ten, because "3x" for 2.7 looks like a rounding that flatters the alert.
-    size = f"{ratio:.0f}x" if ratio >= 10 else f"{ratio:.1f}x"
     # For a block the yardstick is the median member's usual hour rather than any
     # one instrument's, and saying "its" would invite the reader to look for an
     # instrument that does not exist.
     whose = "a typical member's usual hour" if _is_block(event) else "usual hour"
     return f"{size} {whose}"
+
+
+def _ratio_short(event: dict) -> str:
+    """Just '2.0x' / '10x'. Decimal below ten, because '3x' for 2.7 flatters it."""
+    move = _clean(event.get("r"))
+    usual = _clean(event.get("sigma_lt"))
+    if move is None or usual is None or usual <= 0:
+        return ""
+    ratio = abs(move) / usual
+    return f"{ratio:.0f}x" if ratio >= 10 else f"{ratio:.1f}x"
 
 
 def check_in_lines(event: dict, now: datetime | None = None,
@@ -631,7 +633,7 @@ def describe(event: dict, labels: dict[str, str],
 
     parts.extend(_split_lines(event, label, tier, basis))
     parts.extend(check_in_lines(event, now))
-    parts.append(f"{TIME_EMOJI}<b>{when:%Y-%m-%d %H:%M} UTC</b>")
+    parts.append(f"{TIME_EMOJI}<b>{when:%d-%m-%Y %H:%M} UTC</b>")
     return "\n".join(parts)
 
 
@@ -839,7 +841,7 @@ def _describe_block(event: dict, headline: str, emoji: str, when: datetime,
         parts.append(f"\tbiggest movers: {_escape(leaders)}{_escape(of)}")
 
     parts.extend(check_in_lines(event, now))
-    parts.append(f"{TIME_EMOJI}<b>{when:%Y-%m-%d %H:%M} UTC</b>")
+    parts.append(f"{TIME_EMOJI}<b>{when:%d-%m-%Y %H:%M} UTC</b>")
     return "\n".join(parts)
 
 
@@ -1081,26 +1083,21 @@ def format_push(event: dict, labels: dict[str, str],
     """A single interrupting alert.
 
     Ordered so the reader meets one instrument first and the day second: the
-    move written out in full, then the news scheduled around it, then how
-    frightened the market already was when it happened.
+    move written out in full, then the news scheduled around it.
 
     ONE INSTRUMENT, and only one. A push used to speak for every other move of
     its day, because a second push inside the day was folded into it rather than
     sent. Nothing is folded now - a push is final when it arrives - so each one
     is its own story and the day assembles itself out of however many arrive.
+    The fear gauge lives on the digest note, not here: a standalone alert is
+    already one instrument's story, and repeating the regime on every major
+    and every block duplicated a line the running note already carries.
     """
     lines = [describe(event, labels, now, events)]
     context = calendar_context(int(event["hour_utc"]), calendar)
     if context:
         lines.append("")
         lines.append(_escape(context))
-    # After the scheduled news and before the rest of the day: the release says
-    # what happened, the regime says how frightened the market already was when
-    # it did, and both belong above the list of everything else that moved.
-    regime = vix_context(int(event["hour_utc"]))
-    if regime:
-        lines.append("")
-        lines.append(regime)
     # Once at the foot of the message rather than under every instrument: any
     # message that says "its own block" or speaks for a block outright is asking
     # the reader to accept a claim about a group of instruments, and they are
@@ -1441,10 +1438,9 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
 
     A digest row is written the hour its move is found, but the note stays
     silent - Telegram does not notify on an edit - so a reader who wants to know
-    NOW has to keep opening it. This is the buzz, and it is deliberately almost
-    empty: the rarity, what moved, how far. Everything else is already in the
-    note, one tap away, and repeating it here would make two messages competing
-    to be the record.
+    NOW has to keep opening it. This is the buzz: ticker, name, size, and a
+    pointer at the note. The rarity colour, the check-ins and the calendar stay
+    in the note, one tap away.
 
     It is deleted when the next note opens, so what remains is a clean run of
     notes rather than a scroll of pings around them.
@@ -1452,15 +1448,22 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
     tier = str(event.get("tier") or "noticeable")
     emoji = TIER_EMOJI.get(tier, "⚪")
     asset_id = str(event.get("asset_id", ""))
-    name = labels.get(asset_id) or asset_id.split(":")[-1]
     move = _clean(event.get("r"))
-    mark = ""
-    if _is_block(event):
-        name = BLOCK_LABEL.get(str(event.get("block")), name)
-        name = name[:1].upper() + name[1:]
-        mark = BLOCK_MARK
     shown = f" {move * 100:+.2f}%" if move is not None else ""
-    return f"{mark}{emoji} <b>{_escape(name)}</b>{shown}"
+    ratio = _ratio_short(event)
+    extra = f" ({ratio})" if ratio else ""
+    if _is_block(event):
+        name = BLOCK_LABEL.get(str(event.get("block")),
+                               labels.get(asset_id) or asset_id.split(":")[-1])
+        name = name[:1].upper() + name[1:]
+        first = (f"{BLOCK_MARK}{emoji} <b>{_escape(name)}</b>"
+                 f"{shown}{extra}")
+    else:
+        ticker = _ticker(asset_id)
+        label = labels.get(asset_id) or ticker
+        first = (f"{emoji} <b>{_escape(ticker)}</b> · {_escape(label)}"
+                 f"{shown}{extra}")
+    return f"{first}\nAdded to digest👆🏻👆🏻"
 
 
 def pending_pings(events: "list[dict]", pinged: dict,

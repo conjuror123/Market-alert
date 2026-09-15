@@ -46,7 +46,7 @@ CONFIG_INPUTS = (
     os.path.join("tremor", "saed.py"),
     # si_index.py, cluster.py and calendar_multiplier.py were here until the
     # cluster detector was deleted. vix.py stays: it no longer feeds a stress
-    # multiplier, but it is still the fear gauge printed on every push.
+    # multiplier, but it is still the fear gauge printed on the digest note.
     os.path.join("tremor", "vix.py"),
 )
 
