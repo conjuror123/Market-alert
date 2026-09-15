@@ -79,6 +79,17 @@ def test_recovery_is_announced_only_after_a_reported_outage(tmp_path, monkeypatc
     assert _quiet[0][0] == "ops"
 
 
+def test_a_corrupt_state_file_stops_the_run(tmp_path, monkeypatch, _quiet):
+    path = tmp_path / "state.json"
+    path.write_text("{not json", encoding="utf-8")
+    monkeypatch.setattr(entry, "load_config", lambda: _cfg(tmp_path))
+    called = []
+    monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver",
+                        lambda *a, **k: called.append(True) or 0)
+    assert entry.main() == 2
+    assert called == []
+
+
 def test_a_broken_weekly_digest_is_also_carried_into_health(tmp_path, monkeypatch, _quiet):
     def boom(*a, **k):
         raise RuntimeError("calendar is down")

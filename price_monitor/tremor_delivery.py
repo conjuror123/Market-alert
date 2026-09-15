@@ -72,6 +72,7 @@ from price_monitor import economic_calendar
 from price_monitor.config import Config
 from price_monitor.notifier import (TelegramError, edit_telegram_message,
                                     send_telegram_message)
+from price_monitor.state import save_state
 
 log = logging.getLogger("price_monitor.tremor_delivery")
 
@@ -1371,7 +1372,7 @@ _EMPTIED_PART = "<i>(this part is no longer needed - the note above is complete)
 
 
 def _write_digest(cfg: Config, slot: int, record: dict,
-                  texts: "list[str]") -> "tuple[int, int]":
+                  texts: "list[str]", state: dict | None = None) -> "tuple[int, int]":
     """Posts a note's parts, or edits the ones already posted.
 
     Returns (posted, edited). Whether the note may exist at all was decided
@@ -1405,6 +1406,8 @@ def _write_digest(cfg: Config, slot: int, record: dict,
                 continue
             hashes[index] = mark
             edited += 1
+            if state is not None:
+                save_state(cfg.state_path, state)
         else:
             try:
                 message_id = send_telegram_message(
@@ -1415,6 +1418,8 @@ def _write_digest(cfg: Config, slot: int, record: dict,
             ids.append(int(message_id))
             hashes.append(mark)
             posted += 1
+            if state is not None:
+                save_state(cfg.state_path, state)
     return posted, edited
 
 
@@ -1621,6 +1626,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         # Remembered so the two-bar, six-bar and settled check-ins can edit
         # this very message rather than sending three more.
         follow_up.track(store, event, message_id)
+        save_state(cfg.state_path, state)
         label = labels.get(str(event.get("asset_id", ""))) or str(
             event.get("asset_id", "")).split(":")[-1]
         move = _clean(event.get("r"))
@@ -1650,6 +1656,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
             log.error("Failed to send ping %s: %s", event.get("event_id"), exc)
             continue
         pings[str(event["event_id"])] = int(message_id)
+        save_state(cfg.state_path, state)
         buzzed += 1
     if buzzed:
         log.info("Pings sent: %d", buzzed)
@@ -1675,7 +1682,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
             continue
         texts = format_digest(rows, labels, note_window(slot, record), calendar,
                               now, events)
-        made, changed = _write_digest(cfg, slot, record, texts)
+        made, changed = _write_digest(cfg, slot, record, texts, state)
         posted += made
         edited += changed
         if rows:

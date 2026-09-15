@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta, timezone
+import os
 
 import pandas as pd
 
@@ -37,21 +38,26 @@ def alerts(sender):
 
 # Where a push's record goes. Without this the suite writes its fixtures into
 # the repository's real alerts log, which is how ninety-six imaginary Gold
-# alerts came to be committed.
+# alerts came to be committed. The sent map is the same: a successful send
+# now writes state.json immediately, so the tests must not touch data/state.json.
 _LOG_PATH = ""
+_STATE_PATH = ""
 
 
 @pytest.fixture(autouse=True)
 def alerts_log_path(tmp_path):
-    global _LOG_PATH
+    global _LOG_PATH, _STATE_PATH
     _LOG_PATH = str(tmp_path / "alerts_log.json")
+    _STATE_PATH = str(tmp_path / "state.json")
     yield
     _LOG_PATH = ""
+    _STATE_PATH = ""
 
 
 def cfg(**over):
     base = dict(telegram_bot_token="t", telegram_chat_id="c",
-                tremor_alerts_muted=False, alerts_log_path=_LOG_PATH)
+                tremor_alerts_muted=False, alerts_log_path=_LOG_PATH,
+                state_path=_STATE_PATH)
     return Config(**(base | over))
 
 
@@ -192,11 +198,20 @@ def test_a_failed_send_is_retried_rather_than_lost(monkeypatch):
     assert not state[md.STATE_KEY][md._SENT]
     # The note counts as opened only once a message is behind it.
     assert not state[md.STATE_KEY][md.DIGEST_STATE][str(SLOT)]["ids"]
+    assert not os.path.exists(_STATE_PATH)
 
     working = Sent()
     monkeypatch.setattr(md, "send_telegram_message", working)
     deliver(monkeypatch, [event()], state=state)
     assert len(alerts(working)) == 1
+
+
+def test_a_successful_send_is_written_to_disk_immediately(monkeypatch, sender):
+    from price_monitor.state import load_state
+
+    deliver(monkeypatch, [event()])
+    on_disk = load_state(_STATE_PATH)
+    assert "e1" in on_disk[md.STATE_KEY][md._SENT]
 
 
 def test_an_event_promoted_to_a_push_later_is_still_sent(monkeypatch, sender):

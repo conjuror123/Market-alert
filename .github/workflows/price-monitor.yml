@@ -129,7 +129,20 @@ jobs:
             echo "No state changes to commit."
           else
             git commit -m "chore: update monitor state [skip ci]"
-            git push
+            # A rejected push leaves the next checkout with the old sent map
+            # and re-delivers every push still inside 48 hours. Rebase onto
+            # whatever landed and try again, same loop as the bars persist.
+            for attempt in 1 2 3 4 5; do
+              if git push origin "HEAD:${{ github.ref_name }}"; then
+                echo "pushed on attempt $attempt"
+                exit 0
+              fi
+              echo "push rejected, rebasing onto origin/${{ github.ref_name }}"
+              git pull --rebase origin "${{ github.ref_name }}" || exit 1
+              sleep $((attempt * 3))
+            done
+            echo "::error::could not push monitor state after 5 attempts"
+            exit 1
           fi
 
       # Last, so that a Tremor failure still leaves the monitor's own work done

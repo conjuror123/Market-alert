@@ -65,7 +65,9 @@ deepening modes that the live providers do not cover.
 ## What gets committed, and when
 
 **Every run:** `data/state.json` (which events have been sent — losing it re-sends them)
-and `data/economic_calendar/`.
+and `data/economic_calendar/`. The hourly push rebases and retries if the branch
+moved, because a rejected push is the same as losing the sent map. A truncated
+`state.json` fails the run rather than being read as a cold start.
 
 **At 04:00 UTC only:** `data/tremor/bars/` (year-sharded hourly parquet) and
 `data/tremor/vix/`. Event tables are gitignored and rebuilt in the run that needs

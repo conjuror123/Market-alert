@@ -45,7 +45,7 @@ import requests
 from price_monitor import health, tremor_delivery, weekly_digest
 from price_monitor.config import load_config
 from price_monitor.notifier import TelegramError, send_telegram_message
-from price_monitor.state import load_state, save_state
+from price_monitor.state import CorruptState, load_state, save_state
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("price_monitor")
@@ -68,7 +68,11 @@ def format_health_recovered(streak: int) -> str:
 
 def main() -> int:
     cfg = load_config()
-    state = load_state(cfg.state_path)
+    try:
+        state = load_state(cfg.state_path)
+    except CorruptState as exc:
+        log.error("Refusing to run with a corrupt sent map: %s", exc)
+        return 2
     session = requests.Session()
 
     had_error = False
