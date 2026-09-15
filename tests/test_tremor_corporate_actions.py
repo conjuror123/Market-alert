@@ -129,6 +129,7 @@ def test_load_steps_excludes_splits_by_default(tmp_path):
     assert dates["XLK"] == {date(2024, 6, 24), date(2025, 12, 5)}
     both = ca.load_steps(str(path), kinds=("dividend", "split"))
     assert [k for k, _ in both["XLK"]] == [date(2024, 6, 24), date(2025, 12, 5)]
+    assert not (tmp_path / "actions.csv.tmp").exists()
 
 
 def test_a_zero_dividend_row_emits_nothing():

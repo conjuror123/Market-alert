@@ -27,13 +27,13 @@ from datetime import date, datetime, timedelta, timezone
 import pandas as pd
 import requests
 
-from tremor import bars, cboe, corporate_actions, fred
+from tremor import atomic, bars, cboe, corporate_actions, fred
 from tremor import sessions as _sessions
 from tremor.basket import Asset, Basket, load_basket
 from price_monitor import (candle_store, coinbase, dukascopy, hfdata,
                            tiingo, twelvedata, yahoo)
 from price_monitor.models import ExchangeError
-from price_monitor.notifier import TelegramError, send_telegram_message
+from price_monitor.notifier import TelegramError, redact_secrets, send_telegram_message
 
 log = logging.getLogger("tremor.backfill")
 
@@ -75,14 +75,17 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
                             tiingo_gone: bool = False,
                             tiingo_skipped: int = 0,
                             tiingo_remaining: str | None = None,
-                            tiingo_trip: str | None = None) -> str:
+                            tiingo_trip: str | None = None,
+                            yahoo_gone: bool = False,
+                            yahoo_skipped: int = 0,
+                            yahoo_trip: str | None = None) -> str:
     """One operational message naming who went dark. Does not switch provider."""
     lines = []
     if dark:
         lines.append(
             f"⚠️ <b>Backfill: {len(dark)} instrument(s) went dark</b>")
         for asset_id, provider, err in dark[:20]:
-            lines.append(f"• {asset_id} ({provider}): {err}")
+            lines.append(f"• {asset_id} ({provider}): {redact_secrets(err)}")
         if len(dark) > 20:
             lines.append(f"• …and {len(dark) - 20} more")
     if tiingo_gone:
@@ -94,6 +97,13 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
                 "remaining headroom not in the 429")
         lines.append(f"⚠️ <b>Tiingo request budget spent{who}</b>")
         lines.append(f"{head}; {tiingo_skipped} remaining Tiingo instrument(s) skipped.")
+        lines.append("Provider was not switched automatically.")
+    if yahoo_gone:
+        if lines:
+            lines.append("")
+        who = f" after {yahoo_trip}" if yahoo_trip else ""
+        lines.append(f"⚠️ <b>Yahoo rate limit{who}</b>")
+        lines.append(f"{yahoo_skipped} remaining Yahoo instrument(s) skipped.")
         lines.append("Provider was not switched automatically.")
     return "\n".join(lines)
 
@@ -130,15 +140,22 @@ def import_legacy(asset: Asset, path: str, legacy_dir: str = LEGACY_HISTORY_DIR)
     return bars.merge(path, bars.to_hourly(bars.candles_to_frame(candles)))
 
 
+# Overlap the newest stored bar by this many hours on a forward fetch, and
+# refuse to skip a fetch that is this close to that bar. A bar served while
+# its hour was still open is revised later; merge keeps the new copy.
+SETTLE_HOURS = 3
+
+
 def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
                   session: requests.Session, extend_history: bool = False,
-                  tiingo_key: str = "") -> int:
+                  tiingo_key: str = "",
+                  now: datetime | None = None) -> int:
     """Fetches whatever the store does not have yet: from the last saved bar up
     to now, or from `since` when the store is empty.
 
-    It asks for a day more than strictly needed: the last saved bar may have been
-    incomplete when it was stored, and the overlap gives the source a chance to
-    serve its corrected version (merge keeps the new one).
+    The ordinary forward fetch starts at the newest stored bar minus
+    SETTLE_HOURS, so a bar served while its hour was still open is re-asked.
+    bars.merge keeps the later copy.
 
     `extend_history` asks from `since` even when the store already has data. The
     ordinary path only ever reaches FORWARD from the last saved bar, which is
@@ -149,6 +166,7 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
     ones are added.
     """
     stored = bars.load(path)
+    now = now or datetime.now(timezone.utc)
     end: datetime | None = None
     if stored.empty:
         # A never-seen instrument. The ordinary hourly run takes ONE chunk of it
@@ -173,7 +191,8 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
             since, datetime.min.time(), tzinfo=timezone.utc)).total_seconds() / 86400)
     else:
         last = datetime.fromtimestamp(int(stored["hour_utc"].max()), tz=timezone.utc)
-        days = max(1.0, (datetime.now(timezone.utc) - last).total_seconds() / 86400 + 1)
+        start = last - timedelta(hours=SETTLE_HOURS)
+        days = max(SETTLE_HOURS / 24.0, (now - start).total_seconds() / 86400)
 
     # WHICH PROVIDER ANSWERS, and it is not always the fast one. Deepening walks
     # BACKWARDS through history, and only the archive provider holds it: Yahoo
@@ -217,15 +236,6 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
         raise ExchangeError(f"{asset.asset_id}: unknown provider '{provider}'")
 
     return bars.merge(path, bars.to_hourly(bars.candles_to_frame(candles)))
-
-
-# How recently a stored bar must have arrived for the top-up to run anyway. The
-# ordinary fetch deliberately asks for a day more than it needs, because the
-# newest stored bar may have been served while its hour was still open and the
-# source will hand back a corrected version later. Skipping on the very next run
-# would keep whatever was stored first. Three hours means the run right after a
-# close still re-asks, and only the quiet hours afterwards are skipped.
-SETTLE_HOURS = 3
 
 
 def nothing_can_have_appeared(asset: Asset, path: str,
@@ -396,7 +406,7 @@ def backfill_vix(basket: Basket, vix_dir: str, api_key: str,
                 "sources": sources, "trouble": trouble}
 
     os.makedirs(vix_dir, exist_ok=True)
-    frame.to_parquet(path, index=False, compression="zstd")
+    atomic.write_parquet(path, frame)
     return {"asset_id": vix.series_id, "rows": len(frame),
             "first": int(frame["day"].min()), "last": int(frame["day"].max()),
             "sources": sources, "trouble": trouble}
@@ -1051,6 +1061,9 @@ def main(argv: list[str] | None = None) -> int:
     tiingo_skipped = 0
     tiingo_trip = None
     tiingo_remaining = None
+    yahoo_gone = False
+    yahoo_skipped = 0
+    yahoo_trip = None
     dark: list[tuple[str, str, str]] = []
     for i, asset in enumerate(instruments):
         path = bars.store_path(args.bars_dir, asset.file_stem)
@@ -1076,6 +1089,10 @@ def main(argv: list[str] | None = None) -> int:
         if tiingo_gone and asset.fetched_from == "tiingo":
             skipped += 1
             tiingo_skipped += 1
+            continue
+        if yahoo_gone and asset.fetched_from == "yahoo":
+            skipped += 1
+            yahoo_skipped += 1
             continue
         try:
             r = backfill_instrument(asset, basket, args.bars_dir, api_key, session,
@@ -1108,6 +1125,12 @@ def main(argv: list[str] | None = None) -> int:
             log.error("Tiingo's request budget is spent - %s", exc)
             log.error("Skipping the remaining Tiingo instruments; the other "
                       "providers continue.")
+        except yahoo.RateLimited as exc:
+            yahoo_gone = True
+            yahoo_trip = asset.asset_id
+            log.error("Yahoo's rate limit is spent - %s", exc)
+            log.error("Skipping the remaining Yahoo instruments; the other "
+                      "providers continue.")
         except Exception as exc:
             failures += 1
             dark.append((asset.asset_id, asset.fetched_from, str(exc)))
@@ -1131,6 +1154,9 @@ def main(argv: list[str] | None = None) -> int:
     if tiingo_gone:
         log.warning("The Tiingo request budget is spent. The hourly bucket "
                     "refills within the hour; the daily one at midnight UTC.")
+    if yahoo_gone:
+        log.warning("Yahoo's rate limit is spent. Remaining Yahoo instruments "
+                    "were skipped; the other providers continue.")
 
     if not args.skip_vix:
         try:
@@ -1151,10 +1177,14 @@ def main(argv: list[str] | None = None) -> int:
 
     text = format_provider_failure(
         dark, tiingo_gone=tiingo_gone, tiingo_skipped=tiingo_skipped,
-        tiingo_remaining=tiingo_remaining, tiingo_trip=tiingo_trip)
+        tiingo_remaining=tiingo_remaining, tiingo_trip=tiingo_trip,
+        yahoo_gone=yahoo_gone, yahoo_skipped=yahoo_skipped,
+        yahoo_trip=yahoo_trip)
     if text:
         send_ops_alert(text)
 
+    # Nonzero so the hourly job goes red. The workflow still runs pipeline and
+    # saed after this process exits, so healthy instruments still get events.
     return 1 if failures else 0
 
 

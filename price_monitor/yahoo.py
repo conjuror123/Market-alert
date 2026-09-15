@@ -69,6 +69,10 @@ MAX_ATTEMPTS = 3
 BACKOFF_SECONDS = 2.0
 
 
+class RateLimited(ExchangeError):
+    """Yahoo answered 429 after retries. The rest of this provider is skipped."""
+
+
 def _interval_code(interval: str) -> str:
     try:
         return INTERVAL_CODES[interval]
@@ -152,7 +156,10 @@ def _request(session, url: str, params: dict, granularity: int,
         if resp.status_code == 404:
             # Yahoo does not know this ticker. Retrying cannot change that.
             raise ExchangeError(f"{symbol}: unknown to Yahoo (404)")
-        if resp.status_code in (429, 500, 502, 503, 504):
+        if resp.status_code == 429:
+            last = RateLimited(f"{symbol}: status 429")
+            continue
+        if resp.status_code in (500, 502, 503, 504):
             last = ExchangeError(f"{symbol}: status {resp.status_code}")
             continue
         if resp.status_code != 200:

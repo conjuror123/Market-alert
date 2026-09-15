@@ -29,6 +29,17 @@ def _quiet(monkeypatch):
     return sent
 
 
+def test_health_down_redacts_secrets_in_error_details():
+    text = entry.format_health_down(3, [
+        "https://api.telegram.org/bot999:AAA/sendMessage failed",
+        "provider said apikey=sk-live",
+    ])
+    assert "bot999:AAA" not in text
+    assert "sk-live" not in text
+    assert "bot<redacted>" in text
+    assert "apikey=<redacted>" in text
+
+
 def test_a_clean_run_delivers_and_reports_nothing(tmp_path, monkeypatch, _quiet):
     monkeypatch.setattr(entry, "load_config", lambda: _cfg(tmp_path))
     monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", lambda cfg, state: 0)
@@ -77,6 +88,36 @@ def test_recovery_is_announced_only_after_a_reported_outage(tmp_path, monkeypatc
     assert entry.main() == 0
     assert len(_quiet) == 1 and "recovered" in _quiet[0][1]
     assert _quiet[0][0] == "ops"
+
+
+def test_a_red_tremor_step_is_not_reported_as_recovered(tmp_path, monkeypatch, _quiet):
+    cfg = _cfg(tmp_path)
+    monkeypatch.setattr(entry, "load_config", lambda: cfg)
+
+    def boom(cfg_, state):
+        raise RuntimeError("no")
+
+    monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", boom)
+    entry.main()
+    entry.main()
+    _quiet.clear()
+    monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", lambda cfg_, state: 0)
+    monkeypatch.setenv("TREMOR_STEP_FAILED", "true")
+    assert entry.main() == 0
+    assert _quiet == []
+    assert entry.load_state(str(tmp_path / "state.json"))[
+        entry.health.STATE_KEY]["consecutive_failures"] == 2
+
+
+def test_a_corrupt_state_file_stops_the_run(tmp_path, monkeypatch, _quiet):
+    path = tmp_path / "state.json"
+    path.write_text("{not json", encoding="utf-8")
+    monkeypatch.setattr(entry, "load_config", lambda: _cfg(tmp_path))
+    called = []
+    monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver",
+                        lambda *a, **k: called.append(True) or 0)
+    assert entry.main() == 2
+    assert called == []
 
 
 def test_a_broken_weekly_digest_is_also_carried_into_health(tmp_path, monkeypatch, _quiet):

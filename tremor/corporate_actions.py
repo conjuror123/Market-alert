@@ -29,6 +29,7 @@ from datetime import date
 
 import requests
 
+from tremor import atomic
 from price_monitor import tiingo
 from price_monitor.tiingo import DailyRow
 
@@ -168,12 +169,15 @@ def derive_actions_tiingo(ticker: str, rows: list[DailyRow]) -> list[CorporateAc
 
 
 def write_actions(path: str, actions: list[CorporateAction]) -> None:
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    with open(path, "w", encoding="utf-8", newline="") as f:
-        writer = csv.writer(f, lineterminator="\n")
-        writer.writerow(["ticker", "date", "kind", "factor_step"])
-        for a in sorted(actions, key=lambda a: (a.ticker, a.day, a.kind)):
-            writer.writerow([a.ticker, a.day.isoformat(), a.kind, f"{a.factor_step:.8f}"])
+    def _write(tmp: str) -> None:
+        with open(tmp, "w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f, lineterminator="\n")
+            writer.writerow(["ticker", "date", "kind", "factor_step"])
+            for a in sorted(actions, key=lambda a: (a.ticker, a.day, a.kind)):
+                writer.writerow(
+                    [a.ticker, a.day.isoformat(), a.kind, f"{a.factor_step:.8f}"])
+
+    atomic.write_replacing(path, _write)
 
 
 def load_actions(path: str = DEFAULT_ACTIONS_PATH) -> dict[str, set[date]]:

@@ -159,6 +159,7 @@ def test_a_write_lands_one_file_per_year(tmp_path):
     import os
     assert sorted(os.listdir(store)) == ["2003.parquet", "2004.parquet", "2026.parquet"]
     assert len(bars.load(store)) == 4
+    assert not any(name.endswith(".tmp") for name in os.listdir(store))
 
 
 def test_a_settled_year_is_not_rewritten_when_a_new_hour_arrives(tmp_path):

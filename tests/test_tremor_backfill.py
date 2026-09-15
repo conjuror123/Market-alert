@@ -2,6 +2,7 @@ import os
 from datetime import date, datetime, timezone
 
 import pandas as pd
+import pytest
 
 from tremor import bars
 from tremor.backfill import import_legacy
@@ -122,6 +123,37 @@ def test_a_first_ever_fetch_still_walks_back_from_today(tmp_path, monkeypatch):
     backfill.fetch_missing(asset, str(tmp_path / "nope.parquet"), date(2015, 1, 1),
                            "key", None, extend_history=True)
     assert seen["end"] is None
+
+
+def test_a_forward_fetch_asks_from_the_settle_window_not_an_extra_day(
+        tmp_path, monkeypatch):
+    from tremor import backfill
+
+    asked = {}
+
+    def fake_history(**kwargs):
+        asked.update(kwargs)
+        return []
+
+    monkeypatch.setattr(backfill.twelvedata, "fetch_full_history", fake_history)
+    newest = datetime(2026, 4, 4, 10, tzinfo=timezone.utc)
+    now = datetime(2026, 4, 4, 15, tzinfo=timezone.utc)
+    path = tmp_path / "twelvedata_SPY.parquet"
+    bars.merge(str(path), bars.to_hourly(bars.candles_to_frame([
+        Candle(open_time=int(newest.timestamp()), open=1.0, high=1.0, low=1.0,
+               close=1.0, volume=0.0,
+               close_time=int(newest.timestamp()) + HOUR)])))
+    asset = Asset(ticker="SPY", source="twelvedata", tier=1, block="equity",
+                  has_volume=True, tick_size=0.01, session_template="us_equity",
+                  fetch_interval="30min", label="S&P 500", in_basket=True)
+
+    backfill.fetch_missing(asset, str(path), date(2015, 1, 1), "key", None,
+                           now=now)
+
+    # Five hours after the newest bar, plus three hours of settle, not +1 day.
+    assert asked["days"] == pytest.approx(
+        (5 + backfill.SETTLE_HOURS) / 24.0, abs=1e-9)
+    assert asked["days"] < 1.0
 
 
 # --- filling sessions the calendar has and the store does not ---------------
@@ -1060,3 +1092,88 @@ def test_vix_asks_fred_from_a_recent_start_not_from_nineteen_ninety(
     backfill.backfill_vix(_vix_basket(), str(tmp_path), "key", None, now=now)
 
     assert seen["start"] == date(2026, 4, 3) - timedelta(days=21)
+
+
+# --- Yahoo 429 skips the rest of that provider, like Tiingo -----------------
+
+def _yahoo_asset(ticker):
+    return Asset(ticker=ticker, source="twelvedata", provider="yahoo",
+                 tier=2, block="energy", has_volume=True, tick_size=0.01,
+                 session_template="us_equity", fetch_interval="30min",
+                 label=ticker, in_basket=True)
+
+
+def test_a_yahoo_rate_limit_skips_remaining_yahoo_instruments(tmp_path, monkeypatch):
+    from tremor import backfill
+    from tremor.basket import Basket, VolatilityIndex
+    from price_monitor import yahoo
+
+    asked = []
+    alerts = []
+
+    def fake_backfill(asset, *a, **k):
+        asked.append(asset.ticker)
+        if asset.ticker == "UGA":
+            raise yahoo.RateLimited("UGA: status 429")
+        return {"asset_id": asset.asset_id, "rows": 1, "first": 1, "last": 1,
+                "from_legacy": 0, "from_api": 1}
+
+    basket = Basket(
+        assets=(_yahoo_asset("UGA"), _yahoo_asset("UNG"), _yahoo_asset("CPER"),
+                Asset(ticker="BTC-USD", source="coinbase", tier=1, block="crypto",
+                      has_volume=True, tick_size=0.01, session_template="crypto_24_7",
+                      fetch_interval="1h", label="Bitcoin", in_basket=True)),
+        outside=(),
+        volatility_index=VolatilityIndex(
+            "VIXCLS", "fred", "1d", "VIX", date(1990, 1, 1)),
+        anchor_exchange_tz="America/New_York",
+        history_since=date(2021, 1, 1), session_templates={
+            "us_equity": {}, "crypto_24_7": {}},
+    )
+    monkeypatch.setattr(backfill, "load_basket", lambda: basket)
+    monkeypatch.setattr(backfill, "backfill_instrument", fake_backfill)
+    monkeypatch.setattr(backfill._sessions, "load_sessions",
+                        lambda: (_ for _ in ()).throw(FileNotFoundError()))
+    monkeypatch.setattr(backfill, "send_ops_alert", alerts.append)
+
+    rc = backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
+
+    assert rc == 0
+    assert asked == ["UGA", "BTC-USD"]
+    assert "2 remaining Yahoo" in alerts[0]
+    assert "UGA" in alerts[0]
+
+
+def test_a_yahoo_404_stays_per_instrument_and_does_not_skip_the_rest(
+        tmp_path, monkeypatch):
+    from tremor import backfill
+    from tremor.basket import Basket, VolatilityIndex
+    from price_monitor.models import ExchangeError
+
+    asked = []
+
+    def fake_backfill(asset, *a, **k):
+        asked.append(asset.ticker)
+        if asset.ticker == "UGA":
+            raise ExchangeError("UGA: unknown to Yahoo (404)")
+        return {"asset_id": asset.asset_id, "rows": 1, "first": 1, "last": 1,
+                "from_legacy": 0, "from_api": 1}
+
+    basket = Basket(
+        assets=(_yahoo_asset("UGA"), _yahoo_asset("UNG")),
+        outside=(),
+        volatility_index=VolatilityIndex(
+            "VIXCLS", "fred", "1d", "VIX", date(1990, 1, 1)),
+        anchor_exchange_tz="America/New_York",
+        history_since=date(2021, 1, 1), session_templates={"us_equity": {}},
+    )
+    monkeypatch.setattr(backfill, "load_basket", lambda: basket)
+    monkeypatch.setattr(backfill, "backfill_instrument", fake_backfill)
+    monkeypatch.setattr(backfill._sessions, "load_sessions",
+                        lambda: (_ for _ in ()).throw(FileNotFoundError()))
+    monkeypatch.setattr(backfill, "send_ops_alert", lambda *_: None)
+
+    rc = backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
+
+    assert rc == 1
+    assert asked == ["UGA", "UNG"]

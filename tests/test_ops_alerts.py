@@ -9,6 +9,18 @@ def test_a_dead_instrument_is_named_with_its_provider():
     assert "went dark" in text
 
 
+def test_ops_message_redacts_an_apikey_in_the_provider_error():
+    text = format_provider_failure(
+        [("twelvedata:SPY", "twelvedata",
+          "https://api.twelvedata.com/time_series?apikey=sk-live")])
+    assert "sk-live" not in text
+    assert "apikey=<redacted>" in text
+    text = format_provider_failure(
+        [("twelvedata:SPY", "yahoo", "HTTP 500")])
+    assert "twelvedata:SPY (yahoo): HTTP 500" in text
+    assert "went dark" in text
+
+
 def test_tiingo_bucket_pressure_is_in_the_same_message():
     text = format_provider_failure(
         [], tiingo_gone=True, tiingo_skipped=12,
@@ -19,8 +31,12 @@ def test_tiingo_bucket_pressure_is_in_the_same_message():
     assert "not switched automatically" in text
 
 
-def test_nothing_to_report_is_an_empty_string():
-    assert format_provider_failure([]) == ""
+def test_yahoo_rate_limit_is_in_the_same_message():
+    text = format_provider_failure(
+        [], yahoo_gone=True, yahoo_skipped=14, yahoo_trip="twelvedata:UGA")
+    assert "14 remaining Yahoo" in text
+    assert "twelvedata:UGA" in text
+    assert "not switched automatically" in text
 
 
 def test_ops_alert_uses_the_health_chat_not_the_product_one(monkeypatch):

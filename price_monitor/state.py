@@ -16,7 +16,15 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
+
+
+class CorruptState(ValueError):
+    """state.json exists but is not JSON.
+
+    Loading it as {} would forget the sent map and re-deliver every push still
+    inside the 48-hour window. A missing file is a cold start; a truncated one
+    is a failed write, and the run must stop rather than guess.
+    """
 
 
 def load_state(path: str) -> dict:
@@ -25,12 +33,14 @@ def load_state(path: str) -> dict:
     with open(path, "r", encoding="utf-8") as f:
         try:
             return json.load(f)
-        except json.JSONDecodeError:
-            return {}
+        except json.JSONDecodeError as exc:
+            raise CorruptState(f"{path} is not valid JSON") from exc
 
 
 def save_state(path: str, state: dict) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    tmp = f"{path}.tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2, sort_keys=True)
         f.write("\n")
+    os.replace(tmp, path)

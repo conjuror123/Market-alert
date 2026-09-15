@@ -65,13 +65,17 @@ deepening modes that the live providers do not cover.
 ## What gets committed, and when
 
 **Every run:** `data/state.json` (which events have been sent — losing it re-sends them)
-and `data/economic_calendar/`.
+and `data/economic_calendar/`. The hourly push rebases and retries if the branch
+moved, because a rejected push is the same as losing the sent map. A truncated
+`state.json` fails the run rather than being read as a cold start.
 
 **At 04:00 UTC only:** `data/tremor/bars/` (year-sharded hourly parquet) and
 `data/tremor/vix/`. Event tables are gitignored and rebuilt in the run that needs
 them. Parquet rewrites files whole, so hourly commits would add gigabytes a year for
-no new facts. Nothing is lost by waiting: the forward fetch measures its window from
-each instrument's own newest bar, so a day's worth is always recoverable.
+no new facts. Nothing is lost by waiting: the forward fetch starts at each
+instrument's newest bar minus three hours, so a day's worth is always recoverable.
+VIX is in that daily commit so skip-if-fresh can see the latest close and skip
+CBOE's full 1990 file.
 
 **Never:** `data/tremor/metrics/`, `residuals/`, `events/`. Derived, gitignored, rebuilt
 in the run that needs them.
@@ -85,14 +89,19 @@ delivery — but the job is **failed at the end anyway**. A pipeline that quietl
 updating while the repository looks healthy is the exact failure this arrangement exists
 to prevent.
 
-If the pipeline fails, the events table is left as it was, and delivery's 48-hour
-staleness rule then sends nothing rather than something wrong.
+If a fetch fails, pipeline and saed still run on the bars already stored, so
+healthy instruments still get events. The job is failed at the end. Delivery's
+48-hour staleness rule still drops events that did not refresh. Health does
+not send "recovered" or record a clean run when the Tremor step is red: empty
+events would otherwise look like a quiet hour.
 
 A provider failure now also names the instruments (and their providers) in a
 Telegram message to `TELEGRAM_HEALTH_CHAT_ID`, falling back to `TELEGRAM_CHAT_ID`
 until that secret exists. The product channel is not used for diagnostics once
 the health chat is set. The job still fails; the provider is not switched
-automatically.
+automatically. A Yahoo 429 after retries skips the remaining Yahoo instruments
+the same way a spent Tiingo bucket does, and is named in that ops message; a
+404 stays a per-instrument dark.
 
 **Two independent emails cover failure**, and neither needs code:
 

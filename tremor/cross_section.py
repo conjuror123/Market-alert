@@ -29,7 +29,7 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from tremor import windows
+from tremor import atomic, windows
 from tremor.basket import Basket
 
 # Quorum of an hour (§2.3).
@@ -650,9 +650,9 @@ def main(argv: list[str] | None = None) -> int:
     # same file with its own derived columns and re-stamps it - whoever wrote the
     # file last is who the stamp has to describe.
     config, run_id = versioning.versions_for()
-    os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
-    versioning.stamp(frame.reset_index(names="hour_utc"), config, run_id).to_parquet(
-        args.out, index=False, compression="zstd")
+    atomic.write_parquet(
+        args.out,
+        versioning.stamp(frame.reset_index(names="hour_utc"), config, run_id))
 
     correlation = subcondition_correlation(frame)
     log.info("hours %d, quorum %d, compression %d, synchrony %d, single-factor %d",
