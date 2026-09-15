@@ -110,7 +110,8 @@ def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
                          session_table: dict[date, sessions.Session],
                          action_days: "set[date] | None",
                          stored: pd.DataFrame,
-                         config_version: str) -> "pd.DataFrame | None":
+                         config_version: str,
+                         run_version: str | None = None) -> "pd.DataFrame | None":
     """The stored metrics with the new bars computed onto the end, or None.
 
     None means "this cannot be extended, compute the whole thing" - an empty
@@ -135,12 +136,15 @@ def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
     """
     if stored is None or stored.empty or "hour_utc" not in stored:
         return None
+    # A leftover file with no stamp cannot be trusted across a config change:
+    # extending it would glue unversioned rows onto a new calculation.
+    if "config_version" not in stored.columns:
+        return None
     # A different calculation is not an extension of this one. Nothing else in
     # the store says the code changed, so this is the whole guard.
-    if "config_version" in stored:
-        seen = stored["config_version"].dropna().unique()
-        if len(seen) != 1 or str(seen[0]) != str(config_version):
-            return None
+    seen = stored["config_version"].dropna().unique()
+    if len(seen) != 1 or str(seen[0]) != str(config_version):
+        return None
 
     newest = int(stored["hour_utc"].max())
     fresh = frame[frame["hour_utc"] > newest]
@@ -161,6 +165,14 @@ def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
     added = recomputed[recomputed["hour_utc"] > newest]
     if added.empty:
         return stored
+    from tremor import versioning
+    stamp_run = run_version
+    if stamp_run is None and "run_version" in stored.columns:
+        stamp_run = str(stored["run_version"].iloc[-1])
+    if stamp_run is None:
+        added = added.assign(config_version=config_version)
+    else:
+        added = versioning.stamp(added, config_version, stamp_run)
     keep = [c for c in stored.columns if c in added.columns]
     return pd.concat([stored, added[keep]], ignore_index=True)
 
@@ -251,7 +263,7 @@ def _pool_one(payload: "tuple[Asset, Basket]") -> "tuple[str, int, int, int, boo
             existing = None
     metrics = extend_asset_metrics(asset, basket, frame,
                                    _POOL_STATE["session_table"], actions,
-                                   existing, config) if existing is not None else None
+                                   existing, config, run) if existing is not None else None
     extended = metrics is not None
     if not extended:
         computed = build_asset_metrics(asset, basket, frame,

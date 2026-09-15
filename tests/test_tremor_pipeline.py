@@ -155,3 +155,38 @@ def test_an_empty_or_absent_store_is_rebuilt():
     assert pl.extend_asset_metrics(asset, small, frame, {}, None, None, "cfg") is None
     assert pl.extend_asset_metrics(asset, small, frame, {}, None,
                                    pd.DataFrame(), "cfg") is None
+
+
+def test_a_store_without_a_version_stamp_is_rebuilt():
+    from tremor import pipeline as pl
+
+    small = _small_basket(("SPY",))
+    asset = small.instruments[0]
+    frame = bars.load(bars.store_path(bars.DEFAULT_BARS_DIR, asset.file_stem))
+    stored = pd.DataFrame({"hour_utc": [int(frame["hour_utc"].max())]})
+    assert pl.extend_asset_metrics(asset, small, frame, {}, None, stored, "cfg") is None
+
+
+def test_added_rows_are_stamped_before_they_are_concatenated(monkeypatch):
+    from tremor import pipeline as pl
+
+    small = _small_basket(("SPY",))
+    asset = small.instruments[0]
+    stored = pd.DataFrame({
+        "hour_utc": [100, 200],
+        "r": [0.0, 0.0],
+        "config_version": ["cfg", "cfg"],
+        "run_version": ["old", "old"],
+    })
+    frame = pd.DataFrame({"hour_utc": [100, 200, 300]})
+    monkeypatch.setattr(pl, "bars_per_session", lambda *a, **k: 1)
+    monkeypatch.setattr(pl.windows, "w_asset", lambda *_: 1)
+    monkeypatch.setattr(pl.windows, "warm_bars", lambda *_: 1)
+    monkeypatch.setattr(
+        pl, "build_asset_metrics",
+        lambda *a, **k: pd.DataFrame({"hour_utc": [200, 300], "r": [0.0, 0.1]}))
+    out = pl.extend_asset_metrics(asset, small, frame, {}, None, stored, "cfg", "new")
+    assert list(out["hour_utc"]) == [100, 200, 300]
+    assert list(out["config_version"]) == ["cfg", "cfg", "cfg"]
+    assert list(out["run_version"]) == ["old", "old", "new"]
+    assert list(out["r"]) == [0.0, 0.0, 0.1]
