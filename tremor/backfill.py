@@ -293,8 +293,35 @@ def backfill_instrument(asset: Asset, basket: Basket, bars_dir: str, api_key: st
     }
 
 
+def _vix_day(epoch: int) -> date:
+    return datetime.fromtimestamp(int(epoch), tz=timezone.utc).date()
+
+
+def _latest_vix_day_available(now: datetime) -> date | None:
+    """Newest observation day whose CBOE or FRED gate has already opened."""
+    d = now.date()
+    now_ts = now.timestamp()
+    for _ in range(21):
+        if now_ts >= cboe.available_at(d) or now_ts >= fred.available_at(d):
+            return d
+        d -= timedelta(days=1)
+    return None
+
+
+def _vix_frames_equal(left: pd.DataFrame, right: pd.DataFrame) -> bool:
+    cols = ["day", "close", "available_at"]
+    if left.empty and right.empty:
+        return True
+    if len(left) != len(right) or left.empty or right.empty:
+        return False
+    a = left[cols].sort_values("day").reset_index(drop=True)
+    b = right[cols].sort_values("day").reset_index(drop=True)
+    return a.equals(b)
+
+
 def backfill_vix(basket: Basket, vix_dir: str, api_key: str,
-                 session: requests.Session) -> dict:
+                 session: requests.Session,
+                 now: datetime | None = None) -> dict:
     """The daily VIX series, from both sources that serve it.
 
     CBOE computes the index and posts the close the same evening; FRED
@@ -306,31 +333,65 @@ def backfill_vix(basket: Basket, vix_dir: str, api_key: str,
     Neither is trusted over the other, because measured over the whole record
     they agree to the cent on all 9,270 days they share. They are unioned: CBOE
     carries the newest day, FRED carries 1999-12-31, which CBOE's file omits.
+
+    The series gains at most one value a day. CBOE's endpoint takes no range
+    parameters (~400 KB every time), so the only saving is not calling it.
+    When the store already covers what the availability gates say can exist,
+    both fetches and the parquet write are skipped.
     """
     vix = basket.volatility_index
-    pieces, sources, trouble = [], [], []
+    path = os.path.join(vix_dir, f"{vix.file_stem}.parquet")
+    stored = pd.DataFrame()
+    if os.path.exists(path):
+        stored = pd.read_parquet(path).sort_values("day").reset_index(drop=True)
 
+    now = now or datetime.now(timezone.utc)
+    latest = _latest_vix_day_available(now)
+    if not stored.empty and latest is not None:
+        newest = _vix_day(int(stored["day"].max()))
+        if newest >= latest:
+            log.info("VIX: stored through %s already covers what can exist; not fetched",
+                     newest)
+            return {"asset_id": vix.series_id, "rows": len(stored),
+                    "first": int(stored["day"].min()), "last": int(stored["day"].max()),
+                    "sources": ["stored"], "trouble": []}
+
+    pieces, sources, trouble = [], [], []
     try:
         pieces.append(cboe.fetch_vix_history(vix.history_since, session=session))
         sources.append("cboe")
     except Exception as exc:
         trouble.append(f"cboe: {exc}")
 
+    fred_start = vix.history_since
+    if not stored.empty:
+        newest = _vix_day(int(stored["day"].max()))
+        # Wide enough to span a holiday stretch; empty FRED raises.
+        fred_start = max(vix.history_since, newest - timedelta(days=21))
+
     if api_key:
         try:
             pieces.append(fred.fetch_series(vix.series_id, api_key,
-                                            vix.history_since, session=session))
+                                            fred_start, session=session))
             sources.append("fred")
         except Exception as exc:
             trouble.append(f"fred: {exc}")
     else:
         trouble.append("fred: FRED_API_KEY is not set")
 
+    if not stored.empty:
+        pieces.append(stored)
+
     frame = cboe.merge(*pieces)
     if frame.empty:
         raise RuntimeError("no VIX source answered - " + "; ".join(trouble))
 
-    path = os.path.join(vix_dir, f"{vix.file_stem}.parquet")
+    if _vix_frames_equal(frame, stored):
+        log.info("VIX: merged frame equals the store; parquet not rewritten")
+        return {"asset_id": vix.series_id, "rows": len(frame),
+                "first": int(frame["day"].min()), "last": int(frame["day"].max()),
+                "sources": sources, "trouble": trouble}
+
     os.makedirs(vix_dir, exist_ok=True)
     frame.to_parquet(path, index=False, compression="zstd")
     return {"asset_id": vix.series_id, "rows": len(frame),

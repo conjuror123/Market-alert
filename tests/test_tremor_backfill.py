@@ -1033,3 +1033,93 @@ def test_extending_history_still_asks_for_the_whole_archive(monkeypatch, tmp_pat
                            extend_history=True)
 
     assert asked["days"] > 8000
+
+
+# --- VIX skip-if-fresh -------------------------------------------------------
+
+def _vix_basket():
+    from tremor.basket import Basket, VolatilityIndex
+    return Basket(
+        assets=(), outside=(),
+        volatility_index=VolatilityIndex(
+            "VIXCLS", "fred", "1d", "VIX", date(1990, 1, 1)),
+        anchor_exchange_tz="America/New_York",
+        history_since=date(2021, 1, 1), session_templates={},
+    )
+
+
+def _vix_frame(days, close=15.0):
+    from tremor import cboe
+    return pd.DataFrame([
+        {"day": int(datetime(d.year, d.month, d.day, tzinfo=timezone.utc).timestamp()),
+         "close": close, "available_at": cboe.available_at(d)}
+        for d in days
+    ])
+
+
+def test_vix_is_not_fetched_when_the_store_already_covers_what_can_exist(
+        tmp_path, monkeypatch):
+    from tremor import backfill
+
+    calls = []
+    monkeypatch.setattr(backfill.cboe, "fetch_vix_history",
+                        lambda *a, **k: calls.append("cboe") or _vix_frame([]))
+    monkeypatch.setattr(backfill.fred, "fetch_series",
+                        lambda *a, **k: calls.append("fred") or _vix_frame([]))
+
+    frame = _vix_frame([date(2026, 4, 2), date(2026, 4, 3)])
+    frame.to_parquet(tmp_path / "fred_VIXCLS.parquet", index=False)
+    # Saturday 15:00 UTC: CBOE's 22:00 UTC gate for the 4th has not opened, so
+    # the newest day that can exist is the 3rd, which the store already has.
+    now = datetime(2026, 4, 4, 15, tzinfo=timezone.utc)
+    out = backfill.backfill_vix(_vix_basket(), str(tmp_path), "key", None, now=now)
+
+    assert calls == []
+    assert out["sources"] == ["stored"]
+    assert out["rows"] == 2
+
+
+def test_vix_does_not_rewrite_parquet_when_the_merge_equals_the_store(
+        tmp_path, monkeypatch):
+    from tremor import backfill
+
+    stored = _vix_frame([date(2026, 4, 2), date(2026, 4, 3)])
+    path = tmp_path / "fred_VIXCLS.parquet"
+    stored.to_parquet(path, index=False)
+    before = path.read_bytes()
+
+    monkeypatch.setattr(backfill.cboe, "fetch_vix_history",
+                        lambda *a, **k: stored.copy())
+    monkeypatch.setattr(backfill.fred, "fetch_series",
+                        lambda *a, **k: stored.copy())
+
+    # After 22:00 UTC the 4th is available, so the skip-if-fresh path does not
+    # fire and the fetch runs. The merge is identical to what is already stored.
+    now = datetime(2026, 4, 4, 23, tzinfo=timezone.utc)
+    out = backfill.backfill_vix(_vix_basket(), str(tmp_path), "key", None, now=now)
+
+    assert path.read_bytes() == before
+    assert "cboe" in out["sources"]
+
+
+def test_vix_asks_fred_from_a_recent_start_not_from_nineteen_ninety(
+        tmp_path, monkeypatch):
+    from datetime import timedelta
+    from tremor import backfill
+
+    stored = _vix_frame([date(2026, 4, 2), date(2026, 4, 3)])
+    stored.to_parquet(tmp_path / "fred_VIXCLS.parquet", index=False)
+    seen = {}
+
+    monkeypatch.setattr(backfill.cboe, "fetch_vix_history",
+                        lambda *a, **k: stored.copy())
+
+    def fake_fred(series_id, api_key, start, session=None):
+        seen["start"] = start
+        return stored.copy()
+
+    monkeypatch.setattr(backfill.fred, "fetch_series", fake_fred)
+    now = datetime(2026, 4, 4, 23, tzinfo=timezone.utc)
+    backfill.backfill_vix(_vix_basket(), str(tmp_path), "key", None, now=now)
+
+    assert seen["start"] == date(2026, 4, 3) - timedelta(days=21)
