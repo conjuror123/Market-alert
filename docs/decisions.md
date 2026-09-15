@@ -322,8 +322,12 @@ so it cancels, and `SPLIT_THRESHOLD` has never fired. Consequence: `load_steps` 
 only to un-adjust HF Data prices for deepening, where the error is 504-2705bp against
 `verify_alignment`'s 25bp tolerance - so the check refuses the import rather than
 corrupting the store, and those five carry six years of history instead of twenty-four.
-Not yet fixed; the fix is a third series at `adjust=none`, whose ratio to the default
-reveals the split factor.
+Fixed by replacing inference with Tiingo's declared `divCash` / `splitFactor`. The step
+is `d/(1-d)` on the raw previous close, never `adjClose`. Splits are written into the
+CSV for provenance and for `split_channels`, then filtered out at `load_steps` so they
+cannot enter `unadjust_factor` (the store is already split-adjusted). The Twelve Data
+ratio path remains a labelled fallback (`--source twelvedata`); it still cannot see
+splits. Deepening those five to ~2002 is a separate migration.
 
 **The corporate-actions table stops at late October 2006, and it does not matter.**
 `acquire_since` is 2002 but the request also carries `outputsize=5000`, which caps the
