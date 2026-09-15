@@ -118,3 +118,30 @@ def test_fx_ticker_spelling():
     assert tiingo.fx_ticker("EUR/USD") == "eurusd"
     assert tiingo.fx_ticker("USD_JPY") == "usdjpy"
     assert tiingo.is_fx("EUR/USD") and not tiingo.is_fx("SPY")
+
+
+DAILY_ROW = {
+    "date": "2025-12-05T00:00:00.000Z",
+    "close": 145.53,
+    "adjClose": 145.53,
+    "divCash": 0.0,
+    "splitFactor": 2.0,
+}
+
+
+def test_daily_history_uses_the_daily_endpoint_and_does_not_ask_for_columns():
+    from datetime import date
+
+    s = _Session(_Resp([DAILY_ROW]))
+    out = tiingo.fetch_daily_history("XLK", date(2025, 12, 1),
+                                     api_key="k", session=s,
+                                     end=date(2025, 12, 10))
+    assert "/tiingo/daily/XLK/prices" in s.calls[0]["url"]
+    assert "columns" not in s.calls[0]["params"]
+    assert s.calls[0]["params"]["startDate"] == "2025-12-01"
+    assert s.calls[0]["params"]["endDate"] == "2025-12-10"
+    assert len(out) == 1
+    assert out[0].day == date(2025, 12, 5)
+    assert out[0].close == 145.53
+    assert out[0].split_factor == 2.0
+    assert out[0].div_cash == 0.0

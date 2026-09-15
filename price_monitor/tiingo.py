@@ -37,7 +37,8 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timedelta, timezone
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta, timezone
 
 import requests
 
@@ -48,6 +49,7 @@ log = logging.getLogger("price_monitor.tiingo")
 BASE_URL = "https://api.tiingo.com"
 IEX_ENDPOINT = "/iex/{ticker}/prices"
 FX_ENDPOINT = "/tiingo/fx/{ticker}/prices"
+DAILY_ENDPOINT = "/tiingo/daily/{ticker}/prices"
 
 # This app's interval names -> Tiingo's resampleFreq.
 INTERVAL_CODES = {"30min": "30min", "1h": "1hour", "1d": "daily"}
@@ -131,8 +133,13 @@ def _parse(rows: object, granularity: int, ticker: str) -> list[Candle]:
     return candles
 
 
-def _request(session, url: str, params: dict, api_key: str, granularity: int,
-             ticker: str) -> list[Candle]:
+def _get_json(session, url: str, params: dict, api_key: str, ticker: str):
+    """HTTP half of a Tiingo GET: auth, retries, the status codes that stop us.
+
+    Returns the decoded JSON payload. Callers that want candles go through
+    `_request`; the daily endpoint has a different row shape and reads this
+    directly so `divCash` / `splitFactor` cannot be dropped by `_parse`.
+    """
     sess = session or requests
     headers = {"Content-Type": "application/json",
                "Authorization": f"Token {api_key}"}
@@ -158,12 +165,95 @@ def _request(session, url: str, params: dict, api_key: str, granularity: int,
             raise ExchangeError(
                 f"{ticker}: unexpected status {resp.status_code}: {resp.text[:200]}")
         try:
-            payload = resp.json()
+            return resp.json()
         except ValueError as exc:
             last = ExchangeError(f"{ticker}: response was not JSON ({exc})")
             continue
-        return _parse(payload, granularity, ticker)
     raise last or ExchangeError(f"{ticker}: no response")
+
+
+def _request(session, url: str, params: dict, api_key: str, granularity: int,
+             ticker: str) -> list[Candle]:
+    return _parse(_get_json(session, url, params, api_key, ticker),
+                  granularity, ticker)
+
+
+@dataclass(frozen=True)
+class DailyRow:
+    day: date
+    close: float
+    adj_close: float
+    div_cash: float
+    split_factor: float
+
+
+def _as_day(value) -> str:
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    return str(value)[:10]
+
+
+def _parse_day(stamp: object) -> date | None:
+    text = str(stamp).replace("Z", "+00:00")
+    try:
+        if "T" in text:
+            moment = datetime.fromisoformat(text)
+            return moment.date()
+        return date.fromisoformat(text[:10])
+    except ValueError:
+        return None
+
+
+def _parse_daily(rows: object, ticker: str) -> list[DailyRow]:
+    if not isinstance(rows, list):
+        raise ExchangeError(f"{ticker}: unexpected response shape {type(rows).__name__}")
+    out: list[DailyRow] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        day = _parse_day(row.get("date"))
+        close = row.get("close")
+        if day is None or close is None:
+            continue
+        adj = row.get("adjClose")
+        if adj is None:
+            adj = close
+        out.append(DailyRow(
+            day=day,
+            close=float(close),
+            adj_close=float(adj),
+            div_cash=float(row.get("divCash") or 0.0),
+            split_factor=float(row.get("splitFactor") or 1.0),
+        ))
+    out.sort(key=lambda r: r.day)
+    return out
+
+
+def fetch_daily_history(
+    symbol: str,
+    start,
+    api_key: str = "",
+    session: requests.Session | None = None,
+    end=None,
+    base_url: str = BASE_URL,
+) -> list[DailyRow]:
+    """EOD composite rows, including declared `divCash` and `splitFactor`.
+
+    `columns` is deliberately not sent. On the intraday endpoint omitting it
+    silently drops volume; on this endpoint the full row is the default and
+    asking for a subset risks losing `divCash` the same way. This is not the
+    IEX feed, so the liquidity split that governs which ETFs may use `/iex`
+    does not apply.
+    """
+    if not api_key:
+        raise ExchangeError("No Tiingo API key configured (TIINGO_API_KEY)")
+    url = f"{base_url}{DAILY_ENDPOINT.format(ticker=symbol)}"
+    params = {"startDate": _as_day(start)}
+    if end is not None:
+        params["endDate"] = _as_day(end)
+    return _parse_daily(_get_json(session, url, params, api_key, symbol), symbol)
 
 
 def fetch_full_history(

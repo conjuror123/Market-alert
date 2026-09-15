@@ -505,8 +505,9 @@ def unadjust_to_store(minutes: "pd.DataFrame", stored: "pd.DataFrame",
     pinning uses the first month of the overlap while the check that follows
     uses all of it, so roughly two years of the test never touched the fit.
 
-    Volume is left alone. Every action in the table is a dividend and none is a
-    split, and a dividend does not restate share counts.
+    Volume is left alone. Splits are recorded in the table but excluded from
+    the steps used here (`load_steps` defaults to dividends); a dividend does
+    not restate share counts, and the store is already split-adjusted.
     """
     import numpy as np
 

@@ -34,9 +34,11 @@ name: Backfill Tremor Bars
 #                   where SPY has twenty-three. Run extend-history first, then
 #                   this. It spends no Twelve Data credits.
 #   corporate-actions
-#                   rebuild the ex-date table from the acquisition floor. It
-#                   must reach at least as far back as the bars, or an older
-#                   payout arrives as an unexplained price drop
+#                   rebuild the ex-date table from Tiingo's declared divCash /
+#                   splitFactor (needs TIINGO_API_KEY). It must reach at least
+#                   as far back as the bars, or an older payout arrives as an
+#                   unexplained price drop. Twelve Data remains a labelled
+#                   fallback (`--source twelvedata`) that cannot see splits.
 #   probe-hfdata    print one HF Data ticker's schema and first timestamps and
 #                   stop. Their columns and timezone are undocumented, and
 #                   deepen-etfs refuses to run until the zone has been read off
@@ -98,6 +100,7 @@ jobs:
       - name: Deepen the bar store
         env:
           TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
           HFDATA_API_KEY: ${{ secrets.HFDATA_API_KEY }}
         run: |

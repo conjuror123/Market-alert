@@ -505,6 +505,43 @@ def _adjusted(minutes, steps, reference, ratio):
     return out
 
 
+def test_unadjust_factor_round_trips_a_declared_dividend_series():
+    # Prices are built FORWARD from declared cash dividends - multiply every
+    # pre-ex bar by (1 - d), d = cash / previous true close - and only then
+    # un-adjusted. `_adjusted` below is the inverse of unadjust_factor and so
+    # cannot fail; this can.
+    from datetime import date as _date
+
+    from tremor import backfill
+
+    import numpy as np
+    base = int(datetime(2020, 2, 10, tzinfo=timezone.utc).timestamp())
+    rng = np.random.default_rng(23)
+    n = 60 * 24 * 400
+    walk = 300 * np.exp(np.cumsum(rng.standard_normal(n) * 0.0002))
+    truth = _hf_minutes(base, n, walk)
+    stored = bars.to_hourly(truth)
+    days = pd.to_datetime(truth["hour_utc"], unit="s", utc=True).dt.date.to_numpy()
+
+    payouts = [(_date(2020, 3, 20), 1.50), (_date(2020, 6, 19), 1.50),
+               (_date(2020, 9, 18), 1.50), (_date(2020, 12, 18), 1.50)]
+    vendor = truth.copy()
+    steps = []
+    for ex, cash in payouts:
+        prior = truth.loc[days < ex, "close"]
+        prev_close = float(prior.iloc[-1])
+        d = cash / prev_close
+        steps.append((ex, d / (1.0 - d)))
+        factor = np.where(days < ex, 1.0 - d, 1.0)
+        for column in ("open", "high", "low", "close"):
+            vendor[column] = vendor[column].to_numpy() * factor
+
+    fixed, info = backfill.unadjust_to_store(vendor, stored, steps)
+    assert info["calibrated"]
+    check = backfill.verify_alignment(fixed, stored)
+    assert check["ok"] and check["median_bp"] < 1.0, check
+
+
 def test_the_adjustment_is_undone_and_the_result_matches_the_store():
     from datetime import date as _date
 
