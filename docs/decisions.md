@@ -251,17 +251,23 @@ with it.
 
 **The delivered detector is scored on the claim it makes, not on §7's.** §7 asks whether
 a big move follows in the next 24 hours. SAED does not forecast; it says the move that
-just happened was unusual for this instrument. Three measurements instead: whether a tier
-fires as often as its words promise, whether the moves it sent clear a plain full-sample
-quantile at that rate, and which large moves it missed.
+just happened was unusual for this instrument.
 
-**The return periods are wrong, and by how much is now on the record.** Against the rate
-each tier claims: `noticeable` 0.45x, `high` 0.88x, `major` 1.41x, `extreme` 1.75x. A
-message saying "about once in 6 years" describes something that happens about once in
-three. `noticeable` firing at less than half its claimed rate is partly the size floor
-doing its job, so that one is a floor rather than a fault; the two rare tiers have no
-such excuse, and the `absolute` ladder is where it comes from — its precision at `major`
-and `extreme` is 19% and 26% against the `abnormal` ladder's 56% and 52%.
+**The 0.45× / 1.75× frequency table is a frozen artifact.** It measured whether a tier
+fired as often as the old message wording promised ("about once in 6 years"). That
+wording was removed: delivery now names the date of the last move this big
+(`price_monitor.tremor_delivery.record_phrase`, the comment at that function), which is
+the claim a lookback ladder can actually support. `tremor.saed_score` no longer scores
+the frequency claim. `data/tremor/evaluation.md` still holds the old table and **must
+not be regenerated** — `python -m tremor.evaluate` would overwrite it and would silently
+drop the freeze notice; the entry point refuses that path unless `--force` is passed.
+The numbers themselves: `noticeable` 0.45x, `high` 0.88x, `major` 1.41x, `extreme`
+1.75x. A message saying "about once in 6 years" described something that happens about
+once in three. `noticeable` firing at less than half its claimed rate is partly the
+size floor doing its job; the two rare tiers have no such excuse, and the `absolute`
+ladder is where it comes from — its precision at `major` and `extreme` is 19% and 26%
+against the `abnormal` ladder's 56% and 52%. That precision gap is still open (not in
+this change).
 
 **Each event must be judged on the quantity its own ladder scores**, and getting this
 wrong produces a confident table that means nothing. `absolute` scores the raw return,

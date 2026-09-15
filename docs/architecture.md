@@ -1,9 +1,9 @@
 # How Tremor works
 
-Twenty-four instruments, one hourly pass, and a message only when one of them moves
-unusually **for itself**. This is the map: what runs, in what order, and why each piece
-exists. For *why* particular choices were made, see `decisions.md`. For running it, see
-`operations.md`.
+Sixty instruments in the basket, plus `DBC` tracked outside it (61 names), one hourly
+pass, and a message only when one of them moves unusually **for itself**. This is the
+map: what runs, in what order, and why each piece exists. For *why* particular choices
+were made, see `decisions.md`. For running it, see `operations.md`.
 
 ---
 
@@ -94,14 +94,15 @@ there is no index being followed. The block is split out because two parts was s
 wrong: on 2008-11-20 the financial sector's basket beta was negative and its +10.50% came
 almost entirely from the equity block. Each line names the instruments it is talking about:
 the block line lists the peers the factor is a leave-one-out median of, and a footer lists
-all twenty-four tracked instruments by block. Measured across the record the basket carries
+all sixty-one tracked instruments by block. Measured across the record the basket carries
 a median **13%** of the three-way spread against the block's **37%** — smallest of the
 three, but not nothing, and it ranges from 10% on the S&P 500 to 32% on high-yield credit,
 whose own block explains almost nothing about it. Beside it the alert gives the size against
-the instrument's usual hour and **the date it was last this rare** — the same claim as the
-return period, in a form that needs no statistics. The tier is said as a frequency (*a move
-this big happens about once every three years*) rather than as a record, because the ladder
-claims the former and the two contradict each other in a cluster.
+the instrument's usual hour and **the date it was last this rare**. The frequency wording
+("about once every three years") was removed: a lookback ladder can support a record
+claim and cannot support a rate, and `saed_score` no longer scores that rate. The
+0.45× / 1.75× table in `data/tremor/evaluation.md` is a frozen artifact of the old
+wording; see `docs/decisions.md`.
 
 **8. Deliver.** A push the hour it is found, speaking for its whole episode: a move folded
 into it does not buzz again and takes no row of its own anywhere — the push lists it with
@@ -171,15 +172,21 @@ collapse, digest slot)
 **Delivery** lives in `price_monitor/`: `tremor_delivery` (messages), `weekly_digest`
 (the economic-calendar forecast, and the daily top-up of the archive the pushes read),
 `health`, `notifier`, and the source clients
-(`twelvedata`, `coinbase`, `dukascopy`, `fxcm`, `hfdata`) that `tremor.backfill` fetches
-through.
+(`tiingo`, `yahoo`, `coinbase`, `twelvedata`, `dukascopy`, `hfdata`) that `tremor.backfill`
+fetches through. Product pushes go to `TELEGRAM_CHAT_ID`. Health and named provider
+failures go to `TELEGRAM_HEALTH_CHAT_ID`, falling back to the product chat until that
+secret exists. Hourly bars are Tiingo / Yahoo / Coinbase; Twelve Data is archive and
+gaps; Dukascopy and HF Data deepen history. Corporate actions are declared
+`divCash` / `splitFactor` from Tiingo, not inferred from an adjusted/raw ratio.
 
 ---
 
 ## Where the data lives
 
 ```
-data/tremor/bars/          hourly bars, one Parquet per instrument   TRACKED
+data/tremor/bars/          hourly bars, one Parquet per instrument per year   TRACKED
+data/tremor/vix/           daily VIX close                                    TRACKED
+data/tremor/corporate_actions.csv  declared ex-dates and splits               TRACKED
 data/tremor/metrics/       per-instrument metrics                    gitignored
 data/tremor/residuals/     residuals, ladders, tiers                 gitignored
 data/tremor/events/        JSON export                               gitignored

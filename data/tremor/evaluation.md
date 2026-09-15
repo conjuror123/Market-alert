@@ -1,5 +1,11 @@
 # Tremor backtest
 
+> **Frozen artifact.** Do not regenerate this file with `python -m tremor.evaluate`.
+> Delivery no longer states a frequency (`price_monitor/tremor_delivery.py`);
+> `tremor.saed_score` no longer scores that claim. The 0.45× / 1.75× table
+> below records what the old wording promised. See `docs/decisions.md`.
+> `python -m tremor.evaluate` refuses this path unless `--force` is passed.
+
 ## The detector that is delivered
 
 `saed_events.parquet` — 8,838 events, which is what `price_monitor` reads and what reaches a phone. The SI-Index table further down scores a different channel that is written and delivered to nobody; the two are not comparable and the numbers below are the ones that describe the product.

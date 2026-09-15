@@ -26,7 +26,8 @@ repository, all of which read as sound reasoning until measured:
 
 ## Boundaries
 
-**Secrets never enter the repository.** `TWELVEDATA_API_KEY`, `FRED_API_KEY`,
+**Secrets never enter the repository.** `TWELVEDATA_API_KEY`, `TIINGO_API_KEY`,
+`FRED_API_KEY`,
 `HFDATA_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`,
 `TELEGRAM_HEALTH_CHAT_ID` live in GitHub Actions secrets
 and are read from the environment. The repository is public. `config.yaml` may name a

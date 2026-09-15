@@ -110,13 +110,26 @@ def main(argv: list[str] | None = None) -> int:
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Report on the delivered detector (spec section 7)")
+        description="Report on the delivered detector (spec section 7). "
+                    "data/tremor/evaluation.md is a frozen artifact; this "
+                    "entry point refuses to overwrite it unless --force.")
     parser.add_argument("--out", default=DEFAULT_REPORT_PATH)
+    parser.add_argument("--force", action="store_true",
+                        help="overwrite the frozen tracked report. That file "
+                             "records a frequency claim the live detector no "
+                             "longer makes (docs/decisions.md).")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(message)s")
     log = logging.getLogger("tremor.evaluate")
+
+    if (os.path.abspath(args.out) == os.path.abspath(DEFAULT_REPORT_PATH)
+            and not args.force):
+        log.error("%s is a frozen artifact of a frequency claim the live "
+                  "detector no longer makes (see docs/decisions.md). Pass "
+                  "--force to overwrite it, or --out elsewhere.", args.out)
+        return 2
 
     report = saed_score.build()
     if not report:

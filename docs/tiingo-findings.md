@@ -27,7 +27,10 @@ IEX is one exchange and sees **5.5% of consolidated volume on average** here, so
 coverage proves nothing on its own. Every symbol was fetched, folded onto the
 hourly grid with `bars.to_hourly`, and joined to the stored Twelve Data bars.
 Figures are the absolute difference between the two feeds' hourly close, in
-basis points, over 27 overlapping hours (124 for FX).
+basis points, over 27 overlapping hours (124 for FX). That window is a **limit**,
+not a settled sample: borderline names (UGA, SOYB, UNG, WEAT, PPLT, CORN, BKLN,
+PALL, DBB, CPER) are not closed. Re-run via `.github/workflows/tiingo-probe.yml`
+with `compare: true`, or `python -m tools.tiingo_compare` (44 requests).
 
 An hourly move of one sigma is roughly 20-40 bps for these instruments. So one
 bps is about 0.03 sigma and invisible; ten bps is 0.3 sigma and starts to move
@@ -58,7 +61,8 @@ maths. These are single-commodity and niche-credit funds that trade thinly
 enough that IEX's slice of the tape is a different price.
 
 The sample is one week. It should be re-run before any of these lines is
-treated as settled; `tools/tiingo_compare.py` does it in 44 requests.
+treated as settled; `tools/tiingo_compare.py` does it in 44 requests, and
+`tiingo-probe.yml` `compare: true` is the same measurement from Actions.
 
 ## Where the request budget actually goes
 
@@ -67,30 +71,34 @@ Simulated over twelve weeks against the NYSE calendar, mirroring
 
 ```
 44 ETFs   277/day    6.29 each - skipped while the market is shut
- 8 FX     192/day   24    each - never skipped, no session table to skip by
-TOTAL     469/day  = 59% of Twelve Data's 800
+ 8 FX     ~138/day  ~17   each - skipped when the Sun 17:00 → Fri 17:00
+                                 New York week is shut (54 empty hours/day
+                                 used to be asked anyway)
+TOTAL     ~415/day = 52% of Twelve Data's 800, and the hourly path no
+                       longer spends that budget at all
 ```
 
-The eight currency pairs are **41% of every request the monitor makes** while
-being 15% of the basket. Routine hourly runs are not what exhausts the daily
-quota - they sit at 59%. Backfills are.
+The eight currency pairs were **41% of every Twelve Data request** while being
+15% of the basket, because they were never skipped. They now use the same
+reference week as the bar walk. Routine hourly runs are not what exhausts a
+daily quota - they sit on Tiingo's 50/hour bucket (37 live names in a US-session
+hour) and Yahoo (no published cap). Backfills and probes are.
 
 Separately: 47 of the 168 hours in a week carry no FX bar at all (all of
-Saturday, Sunday up to 21:00 UTC, Friday 23:00). That is 54 requests a day,
-11% of total demand, asked and answered empty.
+Saturday, Sunday up to 21:00 UTC, Friday 23:00). That used to be 54 requests a
+day asked and answered empty. `nothing_can_have_appeared` now skips them.
 
-## The dividend bug in `docs/decisions.md`, confirmed and solvable
+## The dividend bug in `docs/decisions.md`, confirmed and **fixed**
 
-`decisions.md` records that Twelve Data's `adjust=all` series divides the
+`decisions.md` recorded that Twelve Data's `adjust=all` series divides the
 nominal pre-split dividend by the split-adjusted price, so every dividend step
 before 2025-12-05 on the five SPDRs that split 2:1 reads twice its true size -
 which fails `verify_alignment`'s 25 bps tolerance and leaves those five with six
-years of history instead of twenty-four. The recorded fix is to buy a third
-Twelve Data series at `adjust=none` and take a ratio.
+years of history instead of twenty-four.
 
 Tiingo publishes `divCash` and `splitFactor` as declared values on the free
-daily endpoint. Measured against them, the stored step is **exactly 2.00x on all
-fifteen ex-dates tested**, across all five tickers:
+daily endpoint. Measured against them, the stored inferred step was **exactly
+2.00x on all fifteen ex-dates tested**, across all five tickers:
 
 ```
 ticker  ex-date      divCash  prev_close   true_step  stored_step  ratio
@@ -100,11 +108,13 @@ XLU     2024-12-23    0.6280       76.43    0.008217     0.016433  2.00x
 ...
 ```
 
-So the bug is confirmed from an independent source, and the inference step that
-produces it can be replaced by a declared amount rather than repaired.
-`splitFactor` also states the 2:1 split directly, which `SPLIT_THRESHOLD` has
-never been able to see because both Twelve Data series are split-adjusted and
-the ratio cancels it.
+So the bug was confirmed from an independent source. Inference is gone:
+`tremor.corporate_actions` now derives the step as `d/(1-d)` on the raw previous
+close (`divCash / close_{t-1}`), never `adjClose`. Splits are written into
+`data/tremor/corporate_actions.csv` for provenance and filtered out of
+`load_steps`, so they cannot enter `unadjust_factor`. Twelve Data remains a
+labelled `--source twelvedata` fallback that still cannot see splits. Deepening
+those five to ~2002 is a separate migration.
 
 ## Yahoo, which turned out to matter more
 
@@ -152,7 +162,21 @@ had, so a bar only one feed produced was invisible by construction.
 
 Both were tested rather than assumed:
 
-- **FXCM** - archive frozen, nothing past about week 17 of 2026.
+- **FXCM** - archive frozen, nothing past about week 17 of 2026. The client and
+  `--deepen-fx` have been deleted. Dukascopy remains.
 - **Dukascopy** - publishes whole months only. On 2026-09-14 the August file was
   complete at 744 bars and September returned 404. Fine for history, unusable
   for an hourly top-up.
+
+## Ops visibility, and what this file does not settle
+
+Provider failures and health down/recovered go to `TELEGRAM_HEALTH_CHAT_ID`,
+falling back to `TELEGRAM_CHAT_ID` until that secret exists. Product pushes stay
+on the product chat. A single dead instrument fails the run and the ops message
+names it.
+
+The 27-hour (124 FX) comparison above is a ceiling on what has been measured,
+not a verdict on the borderline names. Re-measure with
+`.github/workflows/tiingo-probe.yml` (`compare: true`) or
+`python -m tools.tiingo_compare` (44 requests) before treating UGA/SOYB/UNG and
+the rest of that table as closed.

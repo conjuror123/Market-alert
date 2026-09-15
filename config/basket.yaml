@@ -59,9 +59,9 @@
 # weight equal - and survive only for the cross-sectional diagnostics (breadth,
 # CSV, PC1) that feed the cluster channel.
 #
-# There are two price sources. Yahoo Finance is not used in Tremor at all: every
-# one of its instruments duplicated something already covered by an ETF, with
-# history only from April 2024 and through an unofficial endpoint.
+# There are two live US-session providers besides Coinbase. Yahoo is the
+# consolidated-tape feed for the fifteen thin ETFs Tiingo's IEX slice cannot
+# price (see docs/tiingo-findings.md). Twelve Data remains the archive.
 
 # Anchor exchange of the basket's reference calendar: Sun 17:00 .. Fri 17:00
 # local time. The bounds are stored in this timezone and converted to UTC on the
@@ -213,14 +213,14 @@ session_templates:
 # on series offset from one another by half an hour. This costs no credits: the
 # plan counts requests, not rows.
 #
-# WHAT THIS COSTS. Twelve Data's free tier is 800 credits a day and one credit per
-# symbol per request, batched or not. The 45 US-session instruments are asked for
-# only during their own session and for three hours after it - see
-# tremor.backfill.nothing_can_have_appeared - which is about ten requests a day
-# each; the eight currency pairs trade around the clock and cost 24 each. That is
-# roughly 640 of the 800, and the nine crypto pairs come from Coinbase, which is
-# free. Deepening a newly added instrument to 2002 costs about 30 more, once,
-# because a 30-minute chunk covers 300 days.
+# WHAT THIS COSTS, HOURLY. Live bars are not Twelve Data. Tiingo serves 29
+# US-session funds and the 8 FX pairs (50 requests/hour, 1000/day); Yahoo
+# serves the 15 thin ETFs (no published quota); Coinbase serves the 9 crypto
+# pairs (free). US-session names skip when the NYSE calendar says no bar can
+# have appeared; FX skips when the Sun 17:00-Fri 17:00 New York week is shut
+# - see tremor.backfill.nothing_can_have_appeared. Twelve Data's 800/day and
+# 8-second pause apply to archive work (--extend-history, --fill-gaps), not
+# the hourly run. Deepening a newly added ETF to 2002 is HF Data, once.
 #
 # SOURCE IS THE STORE; PROVIDER IS THE SERVER. `source` names the identity: both
 # the asset_id and the file on disk are built from it, so every bar ever stored,
