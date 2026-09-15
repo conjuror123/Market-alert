@@ -31,16 +31,17 @@
       "1789344300": {
         "from": 1789344300,
         "hashes": [
-          "fa452fdf27cc3c82"
+          "971cc67712987b71"
         ],
         "ids": [
           13
         ],
-        "rows": 1,
+        "rows": 2,
         "to": 1789776300
       }
     },
     "pings": {
+      "twelvedata_BKLN:1789498800": 16,
       "twelvedata_DBB:1789390800": 15
     },
     "sent": {
