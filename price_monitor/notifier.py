@@ -1,11 +1,30 @@
 """Telegram notification sender."""
 from __future__ import annotations
 
+import re
+
 import requests
 
 
 class TelegramError(RuntimeError):
     pass
+
+
+_BOT_TOKEN = re.compile(r"bot\d+:[A-Za-z0-9_-]+")
+_APIKEY = re.compile(r"(?i)apikey=[^&\s]+")
+_AUTH = re.compile(r"(?i)(authorization:\s*)\S.*")
+
+
+def redact_secrets(text: str) -> str:
+    """Strip bot tokens, apikey= values and Authorization headers from text.
+
+    RequestException and provider URLs otherwise land in ops/health messages
+    carrying the Telegram token (it is in the request path) or an API key.
+    """
+    text = _BOT_TOKEN.sub("bot<redacted>", text)
+    text = _APIKEY.sub("apikey=<redacted>", text)
+    text = _AUTH.sub(r"\1<redacted>", text)
+    return text
 
 
 def send_telegram_message(bot_token: str, chat_id: str, text: str, timeout: int = 15) -> int:
@@ -14,16 +33,20 @@ def send_telegram_message(bot_token: str, chat_id: str, text: str, timeout: int 
         raise TelegramError("TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID are not configured")
 
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    resp = requests.post(
-        url,
-        json={
-            "chat_id": chat_id,
-            "text": text,
-            "parse_mode": "HTML",
-            "disable_web_page_preview": True,
-        },
-        timeout=timeout,
-    )
+    try:
+        resp = requests.post(
+            url,
+            json={
+                "chat_id": chat_id,
+                "text": text,
+                "parse_mode": "HTML",
+                "disable_web_page_preview": True,
+            },
+            timeout=timeout,
+        )
+    except requests.RequestException:
+        # The token is in the URL; str(exc) would put it in health/ops text.
+        raise TelegramError("Telegram request failed") from None
     if resp.status_code != 200:
         raise TelegramError(f"Telegram API error {resp.status_code}: {resp.text[:300]}")
     return resp.json()["result"]["message_id"]
@@ -37,17 +60,20 @@ def edit_telegram_message(
         raise TelegramError("TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID are not configured")
 
     url = f"https://api.telegram.org/bot{bot_token}/editMessageText"
-    resp = requests.post(
-        url,
-        json={
-            "chat_id": chat_id,
-            "message_id": message_id,
-            "text": text,
-            "parse_mode": "HTML",
-            "disable_web_page_preview": True,
-        },
-        timeout=timeout,
-    )
+    try:
+        resp = requests.post(
+            url,
+            json={
+                "chat_id": chat_id,
+                "message_id": message_id,
+                "text": text,
+                "parse_mode": "HTML",
+                "disable_web_page_preview": True,
+            },
+            timeout=timeout,
+        )
+    except requests.RequestException:
+        raise TelegramError("Telegram request failed") from None
     if resp.status_code != 200:
         raise TelegramError(f"Telegram API error {resp.status_code}: {resp.text[:300]}")
 

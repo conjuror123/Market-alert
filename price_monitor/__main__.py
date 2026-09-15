@@ -45,7 +45,7 @@ import requests
 
 from price_monitor import health, tremor_delivery, weekly_digest
 from price_monitor.config import load_config
-from price_monitor.notifier import TelegramError, send_telegram_message
+from price_monitor.notifier import TelegramError, redact_secrets, send_telegram_message
 from price_monitor.state import CorruptState, load_state, save_state
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -59,7 +59,7 @@ def format_health_down(streak: int, error_details: list[str]) -> str:
         "or the Telegram token may be invalid.",
         "",
     ]
-    lines.extend(f"• {d}" for d in error_details[:10])
+    lines.extend(f"• {redact_secrets(d)}" for d in error_details[:10])
     return "\n".join(lines)
 
 

@@ -1,4 +1,5 @@
 import pytest
+import requests
 
 from price_monitor import notifier
 from price_monitor.notifier import TelegramError, edit_telegram_message, send_telegram_message
@@ -69,6 +70,32 @@ def test_edit_missing_credentials_raise_without_request(monkeypatch):
     monkeypatch.setattr(notifier.requests, "post", fake_post)
     with pytest.raises(TelegramError):
         edit_telegram_message("", "@chan", 99, "text")
+
+
+def test_a_request_error_does_not_contain_the_bot_token(monkeypatch):
+    def fake_post(*args, **kwargs):
+        raise requests.ConnectionError(
+            "HTTPSConnectionPool(host='api.telegram.org', port=443): "
+            "Failed to resolve 'api.telegram.org/bot123456:secret-token/sendMessage'")
+
+    monkeypatch.setattr(notifier.requests, "post", fake_post)
+    with pytest.raises(TelegramError, match="Telegram request failed") as caught:
+        send_telegram_message("123456:secret-token", "@chan", "hello")
+    assert "secret-token" not in str(caught.value)
+    assert "bot123456:secret-token" not in str(caught.value)
+
+
+def test_redact_secrets_strips_token_apikey_and_authorization():
+    text = notifier.redact_secrets(
+        "https://api.telegram.org/bot999:AAA-bbb/sendMessage "
+        "https://api.twelvedata.com/time_series?apikey=sk-live&symbol=SPY "
+        "Authorization: Bearer tok")
+    assert "bot999:AAA-bbb" not in text
+    assert "sk-live" not in text
+    assert "Bearer tok" not in text
+    assert "bot<redacted>" in text
+    assert "apikey=<redacted>" in text
+    assert "Authorization: <redacted>" in text
 
 
 def test_edit_non_200_status_raises(monkeypatch):

@@ -33,7 +33,7 @@ from tremor.basket import Asset, Basket, load_basket
 from price_monitor import (candle_store, coinbase, dukascopy, hfdata,
                            tiingo, twelvedata, yahoo)
 from price_monitor.models import ExchangeError
-from price_monitor.notifier import TelegramError, send_telegram_message
+from price_monitor.notifier import TelegramError, redact_secrets, send_telegram_message
 
 log = logging.getLogger("tremor.backfill")
 
@@ -85,7 +85,7 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
         lines.append(
             f"⚠️ <b>Backfill: {len(dark)} instrument(s) went dark</b>")
         for asset_id, provider, err in dark[:20]:
-            lines.append(f"• {asset_id} ({provider}): {err}")
+            lines.append(f"• {asset_id} ({provider}): {redact_secrets(err)}")
         if len(dark) > 20:
             lines.append(f"• …and {len(dark) - 20} more")
     if tiingo_gone:

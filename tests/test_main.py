@@ -29,6 +29,17 @@ def _quiet(monkeypatch):
     return sent
 
 
+def test_health_down_redacts_secrets_in_error_details():
+    text = entry.format_health_down(3, [
+        "https://api.telegram.org/bot999:AAA/sendMessage failed",
+        "provider said apikey=sk-live",
+    ])
+    assert "bot999:AAA" not in text
+    assert "sk-live" not in text
+    assert "bot<redacted>" in text
+    assert "apikey=<redacted>" in text
+
+
 def test_a_clean_run_delivers_and_reports_nothing(tmp_path, monkeypatch, _quiet):
     monkeypatch.setattr(entry, "load_config", lambda: _cfg(tmp_path))
     monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", lambda cfg, state: 0)

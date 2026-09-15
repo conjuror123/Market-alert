@@ -9,6 +9,18 @@ def test_a_dead_instrument_is_named_with_its_provider():
     assert "went dark" in text
 
 
+def test_ops_message_redacts_an_apikey_in_the_provider_error():
+    text = format_provider_failure(
+        [("twelvedata:SPY", "twelvedata",
+          "https://api.twelvedata.com/time_series?apikey=sk-live")])
+    assert "sk-live" not in text
+    assert "apikey=<redacted>" in text
+    text = format_provider_failure(
+        [("twelvedata:SPY", "yahoo", "HTTP 500")])
+    assert "twelvedata:SPY (yahoo): HTTP 500" in text
+    assert "went dark" in text
+
+
 def test_tiingo_bucket_pressure_is_in_the_same_message():
     text = format_provider_failure(
         [], tiingo_gone=True, tiingo_skipped=12,
