@@ -85,8 +85,9 @@ delivery — but the job is **failed at the end anyway**. A pipeline that quietl
 updating while the repository looks healthy is the exact failure this arrangement exists
 to prevent.
 
-If the pipeline fails, the events table is left as it was, and delivery's 48-hour
-staleness rule then sends nothing rather than something wrong.
+If a fetch fails, pipeline and saed still run on the bars already stored, so
+healthy instruments still get events. The job is failed at the end. Delivery's
+48-hour staleness rule still drops events that did not refresh.
 
 A provider failure now also names the instruments (and their providers) in a
 Telegram message to `TELEGRAM_HEALTH_CHAT_ID`, falling back to `TELEGRAM_CHAT_ID`

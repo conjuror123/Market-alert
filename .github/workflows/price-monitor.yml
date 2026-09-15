@@ -45,11 +45,11 @@ jobs:
       # imports cross_section's functions and builds its panels in memory, so the
       # file was ten megabytes written for nobody. The module stays, the step goes.
       #
-      # continue-on-error because price_monitor is the incumbent and must not be
-      # taken down by a break in the system being built beside it. A failure here
-      # leaves the events table as it was, and delivery's own staleness rule
-      # (48 hours) then sends nothing rather than something wrong. The job is
-      # failed at the end regardless, so a silent breakage is not possible.
+      # continue-on-error so delivery still runs. A fetch failure used to abort
+      # this whole script under bash -e, so pipeline and saed never wrote
+      # events (gitignored; a fresh runner has no previous table) and delivery
+      # sent nothing. Now pipeline and saed always run on whatever bars are
+      # stored; the step still exits nonzero so the job goes red at the end.
       - name: Tremor pipeline
         id: tremor
         continue-on-error: true
@@ -61,9 +61,18 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_HEALTH_CHAT_ID: ${{ secrets.TELEGRAM_HEALTH_CHAT_ID }}
         run: |
+          set +e
           python -m tremor.backfill
+          bf=$?
+          set -e
           python -m tremor.pipeline
           python -m tremor.saed
+          if [ "$bf" -ne 0 ]; then
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "failed=false" >> "$GITHUB_OUTPUT"
+          fi
+          exit "$bf"
 
       # Runs after the pipeline, and this order is the point: the delivery layer
       # inside it reads saed_events.parquet off disk, so it must read the file
