@@ -30,7 +30,7 @@ import requests
 from tremor import bars, cboe, corporate_actions, fred
 from tremor import sessions as _sessions
 from tremor.basket import Asset, Basket, load_basket
-from price_monitor import (candle_store, coinbase, dukascopy, fxcm, hfdata,
+from price_monitor import (candle_store, coinbase, dukascopy, hfdata,
                            tiingo, twelvedata, yahoo)
 from price_monitor.models import ExchangeError
 from price_monitor.notifier import TelegramError, send_telegram_message
@@ -765,48 +765,10 @@ def fill_gaps_from_hfdata(asset: Asset, path: str, table: dict, api_key: str,
             "check": check, "adjustment": adjustment}
 
 
-def deepen_from_fxcm(asset: Asset, path: str, since: date,
-                     session: requests.Session) -> dict:
-    """Fills an FX pair's history BELOW what is already stored, from FXCM.
-
-    Only the stretch older than the oldest stored bar is asked for. Twelve Data
-    stays the live source for these pairs and keeps collecting the recent end;
-    this reaches under it and stops, so the two never compete for the same hour
-    and the merge cannot overwrite a live bar with an archived one.
-
-    Nothing happens for a pair the archive does not carry - USD/CNY - or where
-    the store already reaches back past `since`. Both are ordinary outcomes and
-    are reported as zero rather than raised.
-    """
-    symbol = fxcm.symbol_for(asset.ticker)
-    if symbol is None:
-        return {"skipped": "no FXCM symbol", "added": 0}
-
-    stored = bars.load(path)
-    if stored.empty:
-        # Deepening is defined against something. With nothing stored there is
-        # no "below" to fill, and the ordinary Twelve Data backfill runs first.
-        return {"skipped": "nothing stored yet", "added": 0}
-
-    oldest = datetime.fromtimestamp(int(stored["hour_utc"].min()), tz=timezone.utc)
-    if oldest.date() <= since:
-        return {"skipped": "already reaches back far enough", "added": 0}
-
-    candles = fxcm.fetch_history(symbol, since, oldest.date(), session)
-    if not candles:
-        return {"skipped": "archive returned nothing", "added": 0}
-
-    added = bars.merge(path, bars.to_hourly(bars.candles_to_frame(candles)))
-    return {"skipped": None, "added": added, "fetched": len(candles),
-            "from": since, "to": oldest.date()}
-
-
 # How far ABOVE the oldest stored bar to fetch before writing anything below it.
-# Unlike the FXCM archive, which starts where the store already had bars and had
-# to be spliced blind, Dukascopy covers the whole stored range - so an overlap
-# can be bought for six extra requests a pair and the splice can be gated on it
-# instead of trusted. Three months of a 24/5 pair is about 1500 hours against
-# the 200 the check needs.
+# Dukascopy covers the whole stored range, so an overlap can be bought for six
+# extra requests a pair and the splice can be gated on it instead of trusted.
+# Three months of a 24/5 pair is about 1500 hours against the 200 the check needs.
 DUKASCOPY_OVERLAP_DAYS = 93
 
 
@@ -888,18 +850,12 @@ def main(argv: list[str] | None = None) -> int:
                              "calendar has and the store does not. Whether a "
                              "day is recoverable is the point: an empty answer "
                              "confirms the hole is the provider's.")
-    parser.add_argument("--deepen-fx", action="store_true",
-                        help="fill the FX pairs' history below what is stored "
-                             "from FXCM's public archive, which reaches 2012 "
-                             "where Twelve Data's plan stops at 2020. Needs no "
-                             "key and touches no other instrument.")
     parser.add_argument("--deepen-dukascopy", action="store_true",
                         help="fill the FX pairs' history below what is stored "
                              "from Dukascopy's public archive, which reaches "
-                             "2003 where FXCM's stops at 2012, and which also "
-                             "carries USD/CNH. Needs no key. Unlike the FXCM "
-                             "pass this one overlaps the store and is gated on "
-                             "agreeing with it.")
+                             "2003 and also carries USD/CNH. Needs no key. "
+                             "Overlaps the store and is gated on agreeing with "
+                             "it.")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -1038,35 +994,12 @@ def main(argv: list[str] | None = None) -> int:
                  "the source", filled, unfilled)
         return 0
 
-    if args.deepen_fx:
-        # Its own mode rather than a step inside the usual pass: it needs no
-        # API key, spends no Twelve Data credits, and touches only the pairs
-        # the archive carries. Mixing it in would make a run that fails for
-        # want of a key also fail to do the part that never needed one.
-        session = requests.Session()
-        total = 0
-        for asset in instruments:
-            path = bars.store_path(args.bars_dir, asset.file_stem)
-            try:
-                result = deepen_from_fxcm(asset, path, basket.acquire_since, session)
-            except Exception as exc:
-                log.error("%s: FXCM deepening failed - %s", asset.asset_id, exc)
-                continue
-            if result["skipped"]:
-                log.info("%s: skipped (%s)", asset.asset_id, result["skipped"])
-                continue
-            total += result["added"]
-            log.info("%s: +%d bars from FXCM (%s .. %s, %d fetched)",
-                     asset.asset_id, result["added"], result["from"],
-                     result["to"], result["fetched"])
-        log.info("FXCM deepening added %d bars", total)
-        return 0
-
     if args.deepen_dukascopy:
-        # Same reasoning as the FXCM mode for being its own: no key, no credits,
-        # and only the pairs the archive carries. Run per pair from the workflow
-        # - each is a few hundred requests, and a failure part way through then
-        # costs one pair rather than all eight.
+        # Its own mode rather than a step inside the usual pass: it needs no
+        # API key, spends no credits, and touches only the pairs the archive
+        # carries. Run per pair from the workflow - each is a few hundred
+        # requests, and a failure part way through then costs one pair rather
+        # than all eight.
         session = requests.Session()
         total = 0
         for asset in instruments:

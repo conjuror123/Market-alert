@@ -1,10 +1,9 @@
 """Dukascopy's public tick archive, read as hourly candles.
 
-WHY THIS EXISTS ALONGSIDE FXCM. FXCM's archive starts in 2012 and stopped
-updating around week 17 of 2026. Dukascopy serves the same seven majors from
-2003 - nine years deeper, which is what puts the FX history in the same era as
-the ETFs, so 2008 stops being a crisis the basket can only half see. It also
-carries USD/CNH, which FXCM does not carry under any spelling.
+WHY THIS EXISTS. No free live plan serves FX history back to 2003. Dukascopy
+serves the seven majors from then - which is what puts the FX history in the
+same era as the ETFs, so 2008 stops being a crisis the basket can only half
+see. It also carries USD/CNH.
 
 NO NODE, NO KEY, NO ACCOUNT. The popular dukascopy-node package is a wrapper
 around these same plain HTTPS files; there is no API behind it. One file holds
@@ -41,8 +40,8 @@ noise - it DEFLATES the volatility estimate the severity ladder is fitted to,
 and a ladder fitted to fabricated calm fires too easily. They are dropped on
 volume.
 
-TIMESTAMPS ARE UTC, measured the same way the FXCM ones were: every offset from
--1 to +1 hour tried against the bars already stored, on EUR/USD's 2013 Q1.
+TIMESTAMPS ARE UTC, measured against the bars already stored, on EUR/USD's
+2013 Q1. Every offset from -1 to +1 hour was tried:
 
     +0h   n=1509   median |level diff| 0.08 bp   return corr 0.9832
     -1h   n=1495   median |level diff| 4.68 bp   return corr -0.045
@@ -208,7 +207,8 @@ def fetch_history(symbol: str, start: date, end: date,
 
     # `end` is exclusive, so the month it lands on contributes nothing when it
     # lands on the 1st - two requests a pair for a file every row of which is
-    # filtered out again. The same trap the FXCM reader has for years.
+    # filtered out again. An exclusive end on the 1st of the month would fetch
+    # a whole file that then gets dropped.
     candles: list[Candle] = []
     for year, month in _months(start, end - timedelta(days=1)):
         if floor and (year, month) < floor:

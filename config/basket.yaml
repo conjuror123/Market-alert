@@ -74,10 +74,10 @@ history_since: "2015-01-01"
 
 # The ACQUISITION floor, which is a different question: take whatever the
 # sources will still give, whether or not the analysis reaches it yet. Free
-# archives are not permanent - FXCM's stopped updating in April 2026 - so bars
-# not taken now may not be takeable later, and storing history the analysis does
-# not use costs nothing but disk. Each source stops at its own limit on its own
-# (see tremor.backfill and price_monitor.fxcm), so a floor deeper than anything
+# archives freeze, so bars not taken now may not be takeable later, and storing
+# history the analysis does not use costs nothing but disk. Each source stops at
+# its own limit on its own (see tremor.backfill and price_monitor.dukascopy), so
+# a floor deeper than anything
 # available is simply the instruction "as deep as you can".
 #
 # WHICH SOURCE REACHES HOW FAR BACK, because it is not one answer and getting it
