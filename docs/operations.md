@@ -72,8 +72,10 @@ moved, because a rejected push is the same as losing the sent map. A truncated
 **At 04:00 UTC only:** `data/tremor/bars/` (year-sharded hourly parquet) and
 `data/tremor/vix/`. Event tables are gitignored and rebuilt in the run that needs
 them. Parquet rewrites files whole, so hourly commits would add gigabytes a year for
-no new facts. Nothing is lost by waiting: the forward fetch measures its window from
-each instrument's own newest bar, so a day's worth is always recoverable.
+no new facts. Nothing is lost by waiting: the forward fetch starts at each
+instrument's newest bar minus three hours, so a day's worth is always recoverable.
+VIX is in that daily commit so skip-if-fresh can see the latest close and skip
+CBOE's full 1990 file.
 
 **Never:** `data/tremor/metrics/`, `residuals/`, `events/`. Derived, gitignored, rebuilt
 in the run that needs them.

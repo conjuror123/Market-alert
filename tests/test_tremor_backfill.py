@@ -2,6 +2,7 @@ import os
 from datetime import date, datetime, timezone
 
 import pandas as pd
+import pytest
 
 from tremor import bars
 from tremor.backfill import import_legacy
@@ -122,6 +123,37 @@ def test_a_first_ever_fetch_still_walks_back_from_today(tmp_path, monkeypatch):
     backfill.fetch_missing(asset, str(tmp_path / "nope.parquet"), date(2015, 1, 1),
                            "key", None, extend_history=True)
     assert seen["end"] is None
+
+
+def test_a_forward_fetch_asks_from_the_settle_window_not_an_extra_day(
+        tmp_path, monkeypatch):
+    from tremor import backfill
+
+    asked = {}
+
+    def fake_history(**kwargs):
+        asked.update(kwargs)
+        return []
+
+    monkeypatch.setattr(backfill.twelvedata, "fetch_full_history", fake_history)
+    newest = datetime(2026, 4, 4, 10, tzinfo=timezone.utc)
+    now = datetime(2026, 4, 4, 15, tzinfo=timezone.utc)
+    path = tmp_path / "twelvedata_SPY.parquet"
+    bars.merge(str(path), bars.to_hourly(bars.candles_to_frame([
+        Candle(open_time=int(newest.timestamp()), open=1.0, high=1.0, low=1.0,
+               close=1.0, volume=0.0,
+               close_time=int(newest.timestamp()) + HOUR)])))
+    asset = Asset(ticker="SPY", source="twelvedata", tier=1, block="equity",
+                  has_volume=True, tick_size=0.01, session_template="us_equity",
+                  fetch_interval="30min", label="S&P 500", in_basket=True)
+
+    backfill.fetch_missing(asset, str(path), date(2015, 1, 1), "key", None,
+                           now=now)
+
+    # Five hours after the newest bar, plus three hours of settle, not +1 day.
+    assert asked["days"] == pytest.approx(
+        (5 + backfill.SETTLE_HOURS) / 24.0, abs=1e-9)
+    assert asked["days"] < 1.0
 
 
 # --- filling sessions the calendar has and the store does not ---------------

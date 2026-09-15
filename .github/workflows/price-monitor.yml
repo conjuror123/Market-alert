@@ -94,13 +94,12 @@ jobs:
       # candle history and decision log that used to be committed here belonged
       # to the old per-asset detector and went with it.
       #
-      # Once a day: the bar archive, and nothing else. It is the one thing here
-      # that cannot be rebuilt - the providers do not serve 2003 on the free
-      # plan, which is why it was assembled from Dukascopy and HF Data in the
-      # first place - and it APPENDS, which is what makes it cheap to keep: git
-      # deltas a 2 MB parquet with one more hour in it down to 2.3 KB, measured.
-      # Daily rather than hourly only because backfill re-fetches whatever the
-      # store is missing from its newest bar, so a day's worth is always
+      # Once a day: the bar archive and the VIX store. The bars cannot be
+      # rebuilt - the providers do not serve 2003 on the free plan - and they
+      # APPEND, which is what makes them cheap to keep. VIX is committed so
+      # skip-if-fresh can see yesterday's close and skip CBOE's full 1990 file.
+      # Daily rather than hourly only because backfill re-fetches from the
+      # newest bar minus a short settle window, so a day's worth is always
       # recoverable anyway.
       #
       # The derived tables used to be committed here too and are not any more.
@@ -124,7 +123,7 @@ jobs:
           # file that no longer exists would fail this step every hour.
           git add data/state.json data/economic_calendar
           if [ "$(date -u +%H)" = "04" ]; then
-            git add data/tremor/bars 2>/dev/null || true
+            git add data/tremor/bars data/tremor/vix 2>/dev/null || true
           fi
           if git diff --cached --quiet; then
             echo "No state changes to commit."

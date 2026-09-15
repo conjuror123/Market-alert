@@ -140,15 +140,22 @@ def import_legacy(asset: Asset, path: str, legacy_dir: str = LEGACY_HISTORY_DIR)
     return bars.merge(path, bars.to_hourly(bars.candles_to_frame(candles)))
 
 
+# Overlap the newest stored bar by this many hours on a forward fetch, and
+# refuse to skip a fetch that is this close to that bar. A bar served while
+# its hour was still open is revised later; merge keeps the new copy.
+SETTLE_HOURS = 3
+
+
 def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
                   session: requests.Session, extend_history: bool = False,
-                  tiingo_key: str = "") -> int:
+                  tiingo_key: str = "",
+                  now: datetime | None = None) -> int:
     """Fetches whatever the store does not have yet: from the last saved bar up
     to now, or from `since` when the store is empty.
 
-    It asks for a day more than strictly needed: the last saved bar may have been
-    incomplete when it was stored, and the overlap gives the source a chance to
-    serve its corrected version (merge keeps the new one).
+    The ordinary forward fetch starts at the newest stored bar minus
+    SETTLE_HOURS, so a bar served while its hour was still open is re-asked.
+    bars.merge keeps the later copy.
 
     `extend_history` asks from `since` even when the store already has data. The
     ordinary path only ever reaches FORWARD from the last saved bar, which is
@@ -159,6 +166,7 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
     ones are added.
     """
     stored = bars.load(path)
+    now = now or datetime.now(timezone.utc)
     end: datetime | None = None
     if stored.empty:
         # A never-seen instrument. The ordinary hourly run takes ONE chunk of it
@@ -183,7 +191,8 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
             since, datetime.min.time(), tzinfo=timezone.utc)).total_seconds() / 86400)
     else:
         last = datetime.fromtimestamp(int(stored["hour_utc"].max()), tz=timezone.utc)
-        days = max(1.0, (datetime.now(timezone.utc) - last).total_seconds() / 86400 + 1)
+        start = last - timedelta(hours=SETTLE_HOURS)
+        days = max(SETTLE_HOURS / 24.0, (now - start).total_seconds() / 86400)
 
     # WHICH PROVIDER ANSWERS, and it is not always the fast one. Deepening walks
     # BACKWARDS through history, and only the archive provider holds it: Yahoo
@@ -227,15 +236,6 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
         raise ExchangeError(f"{asset.asset_id}: unknown provider '{provider}'")
 
     return bars.merge(path, bars.to_hourly(bars.candles_to_frame(candles)))
-
-
-# How recently a stored bar must have arrived for the top-up to run anyway. The
-# ordinary fetch deliberately asks for a day more than it needs, because the
-# newest stored bar may have been served while its hour was still open and the
-# source will hand back a corrected version later. Skipping on the very next run
-# would keep whatever was stored first. Three hours means the run right after a
-# close still re-asks, and only the quiet hours afterwards are skipped.
-SETTLE_HOURS = 3
 
 
 def nothing_can_have_appeared(asset: Asset, path: str,
