@@ -75,7 +75,10 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
                             tiingo_gone: bool = False,
                             tiingo_skipped: int = 0,
                             tiingo_remaining: str | None = None,
-                            tiingo_trip: str | None = None) -> str:
+                            tiingo_trip: str | None = None,
+                            yahoo_gone: bool = False,
+                            yahoo_skipped: int = 0,
+                            yahoo_trip: str | None = None) -> str:
     """One operational message naming who went dark. Does not switch provider."""
     lines = []
     if dark:
@@ -94,6 +97,13 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
                 "remaining headroom not in the 429")
         lines.append(f"⚠️ <b>Tiingo request budget spent{who}</b>")
         lines.append(f"{head}; {tiingo_skipped} remaining Tiingo instrument(s) skipped.")
+        lines.append("Provider was not switched automatically.")
+    if yahoo_gone:
+        if lines:
+            lines.append("")
+        who = f" after {yahoo_trip}" if yahoo_trip else ""
+        lines.append(f"⚠️ <b>Yahoo rate limit{who}</b>")
+        lines.append(f"{yahoo_skipped} remaining Yahoo instrument(s) skipped.")
         lines.append("Provider was not switched automatically.")
     return "\n".join(lines)
 
@@ -1051,6 +1061,9 @@ def main(argv: list[str] | None = None) -> int:
     tiingo_skipped = 0
     tiingo_trip = None
     tiingo_remaining = None
+    yahoo_gone = False
+    yahoo_skipped = 0
+    yahoo_trip = None
     dark: list[tuple[str, str, str]] = []
     for i, asset in enumerate(instruments):
         path = bars.store_path(args.bars_dir, asset.file_stem)
@@ -1076,6 +1089,10 @@ def main(argv: list[str] | None = None) -> int:
         if tiingo_gone and asset.fetched_from == "tiingo":
             skipped += 1
             tiingo_skipped += 1
+            continue
+        if yahoo_gone and asset.fetched_from == "yahoo":
+            skipped += 1
+            yahoo_skipped += 1
             continue
         try:
             r = backfill_instrument(asset, basket, args.bars_dir, api_key, session,
@@ -1108,6 +1125,12 @@ def main(argv: list[str] | None = None) -> int:
             log.error("Tiingo's request budget is spent - %s", exc)
             log.error("Skipping the remaining Tiingo instruments; the other "
                       "providers continue.")
+        except yahoo.RateLimited as exc:
+            yahoo_gone = True
+            yahoo_trip = asset.asset_id
+            log.error("Yahoo's rate limit is spent - %s", exc)
+            log.error("Skipping the remaining Yahoo instruments; the other "
+                      "providers continue.")
         except Exception as exc:
             failures += 1
             dark.append((asset.asset_id, asset.fetched_from, str(exc)))
@@ -1131,6 +1154,9 @@ def main(argv: list[str] | None = None) -> int:
     if tiingo_gone:
         log.warning("The Tiingo request budget is spent. The hourly bucket "
                     "refills within the hour; the daily one at midnight UTC.")
+    if yahoo_gone:
+        log.warning("Yahoo's rate limit is spent. Remaining Yahoo instruments "
+                    "were skipped; the other providers continue.")
 
     if not args.skip_vix:
         try:
@@ -1151,7 +1177,9 @@ def main(argv: list[str] | None = None) -> int:
 
     text = format_provider_failure(
         dark, tiingo_gone=tiingo_gone, tiingo_skipped=tiingo_skipped,
-        tiingo_remaining=tiingo_remaining, tiingo_trip=tiingo_trip)
+        tiingo_remaining=tiingo_remaining, tiingo_trip=tiingo_trip,
+        yahoo_gone=yahoo_gone, yahoo_skipped=yahoo_skipped,
+        yahoo_trip=yahoo_trip)
     if text:
         send_ops_alert(text)
 

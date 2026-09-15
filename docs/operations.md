@@ -93,7 +93,9 @@ A provider failure now also names the instruments (and their providers) in a
 Telegram message to `TELEGRAM_HEALTH_CHAT_ID`, falling back to `TELEGRAM_CHAT_ID`
 until that secret exists. The product channel is not used for diagnostics once
 the health chat is set. The job still fails; the provider is not switched
-automatically.
+automatically. A Yahoo 429 after retries skips the remaining Yahoo instruments
+the same way a spent Tiingo bucket does, and is named in that ops message; a
+404 stays a per-instrument dark.
 
 **Two independent emails cover failure**, and neither needs code:
 

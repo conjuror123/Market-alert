@@ -93,6 +93,14 @@ def test_a_rate_limit_is_retried(monkeypatch):
     assert len(out) == 1 and len(s.calls) == 2
 
 
+def test_a_rate_limit_after_retries_is_rate_limited(monkeypatch):
+    monkeypatch.setattr(yahoo.time, "sleep", lambda *_: None)
+    s = _Session(*[_Resp({}, status=429, text="too many") for _ in range(3)])
+    with pytest.raises(yahoo.RateLimited, match="status 429"):
+        yahoo.fetch_full_history("SPY", "30min", days=1, session=s)
+    assert len(s.calls) == 3
+
+
 def test_a_lookback_past_what_yahoo_serves_is_refused():
     """Asking beyond the interval's limit returns an EMPTY result, which looks
     exactly like a quiet market - so it is refused before it is sent."""

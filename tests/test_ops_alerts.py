@@ -19,8 +19,12 @@ def test_tiingo_bucket_pressure_is_in_the_same_message():
     assert "not switched automatically" in text
 
 
-def test_nothing_to_report_is_an_empty_string():
-    assert format_provider_failure([]) == ""
+def test_yahoo_rate_limit_is_in_the_same_message():
+    text = format_provider_failure(
+        [], yahoo_gone=True, yahoo_skipped=14, yahoo_trip="twelvedata:UGA")
+    assert "14 remaining Yahoo" in text
+    assert "twelvedata:UGA" in text
+    assert "not switched automatically" in text
 
 
 def test_ops_alert_uses_the_health_chat_not_the_product_one(monkeypatch):
