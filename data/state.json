@@ -31,7 +31,7 @@
       "1789344300": {
         "from": 1789344300,
         "hashes": [
-          "a26028a3f7b49d9d"
+          "fa452fdf27cc3c82"
         ],
         "ids": [
           13
@@ -46,13 +46,7 @@
     "sent": {
       "twelvedata_XLF:1789405200": 1789405200
     },
-    "tracked": {
-      "twelvedata_XLF:1789405200": {
-        "hour_utc": 1789405200,
-        "message_id": 14,
-        "written": []
-      }
-    }
+    "tracked": {}
   },
   "weekly_digest:last_refreshed": "2026-09-15",
   "weekly_digest:last_sent_week": "2026-09-11"
