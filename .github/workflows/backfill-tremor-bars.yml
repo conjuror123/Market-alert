@@ -13,19 +13,17 @@ name: Backfill Tremor Bars
 #
 # The crypto instruments need no key and can be pulled locally instead.
 #
-# Three modes, chosen at dispatch:
+# Modes, chosen at dispatch:
 #   extend-history  deepen the archive backwards to basket.history_since
 #   fill-gaps       re-ask for trading days the NYSE calendar has and the store
 #                   does not; an empty answer confirms the hole is the
 #                   provider's rather than something our fetching skipped
-#   deepen-fx       fill the currency pairs below what Twelve Data's plan
-#                   serves, from FXCM's public archive (needs no key at all)
 #   deepen-dukascopy
-#                   the same but from Dukascopy, which reaches 2003 where FXCM
-#                   stops at 2012 and which also carries USD/CNH. Needs no key.
-#                   Run it ONE PAIR AT A TIME via `instruments`: a pair is a few
-#                   hundred requests, and a failure part way through then costs
-#                   one pair rather than all eight
+#                   fill the currency pairs below what is stored, from
+#                   Dukascopy, which reaches 2003 and also carries USD/CNH.
+#                   Needs no key. Run it ONE PAIR AT A TIME via `instruments`:
+#                   a pair is a few hundred requests, and a failure part way
+#                   through then costs one pair rather than all eight
 #   deepen-etfs     the same for the US-equity instruments, from HF Data's
 #                   consolidated-tape minute bars (needs HFDATA_API_KEY).
 #                   NOT optional for a newly added ETF: Twelve Data's intraday
@@ -34,9 +32,11 @@ name: Backfill Tremor Bars
 #                   where SPY has twenty-three. Run extend-history first, then
 #                   this. It spends no Twelve Data credits.
 #   corporate-actions
-#                   rebuild the ex-date table from the acquisition floor. It
-#                   must reach at least as far back as the bars, or an older
-#                   payout arrives as an unexplained price drop
+#                   rebuild the ex-date table from Tiingo's declared divCash /
+#                   splitFactor (needs TIINGO_API_KEY). It must reach at least
+#                   as far back as the bars, or an older payout arrives as an
+#                   unexplained price drop. Twelve Data remains a labelled
+#                   fallback (`--source twelvedata`) that cannot see splits.
 #   probe-hfdata    print one HF Data ticker's schema and first timestamps and
 #                   stop. Their columns and timezone are undocumented, and
 #                   deepen-etfs refuses to run until the zone has been read off
@@ -58,7 +58,6 @@ on:
         options:
           - extend-history
           - fill-gaps
-          - deepen-fx
           - deepen-dukascopy
           - deepen-etfs
           - probe-hfdata
@@ -98,6 +97,7 @@ jobs:
       - name: Deepen the bar store
         env:
           TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
           HFDATA_API_KEY: ${{ secrets.HFDATA_API_KEY }}
         run: |

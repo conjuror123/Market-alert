@@ -197,7 +197,7 @@ def test_the_range_end_is_exclusive(monkeypatch):
 
 def test_the_month_the_exclusive_end_lands_on_is_not_fetched(monkeypatch):
     # Every row of it would be filtered out again; that is two requests a pair
-    # for nothing, and it is the same trap the FXCM reader has for years.
+    # for nothing, and it is the exclusive-end trap: the 1st contributes no row.
     monkeypatch.setattr(dukascopy.time, "sleep", lambda *_: None)
     rows = [(0, 120000, 120000, 120000, 120000, 1.0)]
     session = _sides(rows, rows)

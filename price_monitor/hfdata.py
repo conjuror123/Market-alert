@@ -2,7 +2,8 @@
 
 Twelve Data's plan stops at 2020-02 for every ETF at once, and no other free
 source found carried US-equity INTRADAY history further back - Dukascopy's ETF
-CFDs are patchy and volume-incompatible, FXCM has no equities at all. This one
+CFDs are patchy and volume-incompatible, and no public FX archive carries
+equities. This one
 does, for all twelve instruments in the basket including SHY, HYG and DBC,
 which nothing else had.
 

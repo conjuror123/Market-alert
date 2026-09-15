@@ -1,8 +1,8 @@
 """Assembly of per-asset metrics (spec §6.1, layer A + layer B).
 
 Runs one instrument through the whole phase 1-2 chain: quality gate -> return
-channels -> winsorization -> EWMA Z-score and adaptive thresholds -> volume
-profile. The result goes into metrics_asset_hour (§6.4).
+channels -> winsorization -> EWMA Z-score and adaptive thresholds. The result
+goes into metrics_asset_hour (§6.4).
 
 THE HOURLY RUN EXTENDS RATHER THAN RECOMPUTES. It used to do the latter: one new
 bar arrived and all 145,000 were put through the chain again, 249 MB of parquet
@@ -27,15 +27,15 @@ from datetime import date
 
 import pandas as pd
 
-from tremor import bars, corporate_actions, quality, returns, sessions, volume, windows, zscore
+from tremor import bars, corporate_actions, quality, returns, sessions, windows, zscore
 from tremor.basket import Asset, Basket, load_basket
 
 log = logging.getLogger("tremor.pipeline")
 
 DEFAULT_METRICS_DIR = os.path.join("data", "tremor", "metrics")
 
-# Exchange timezone by session template - needed by the volume profile, whose
-# norm is taken per local exchange hour.
+# Exchange timezone by session template. bars_per_session counts a trading day
+# in the instrument's own zone, not the basket's New York anchor.
 TEMPLATE_TZ = {
     "us_equity": "America/New_York",
     "fx_continuous": "America/New_York",
@@ -88,10 +88,6 @@ def build_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
     b_asset = bars_per_session(asset, usable, basket.anchor_exchange_tz)
     scored = zscore.compute(winsorised, windows.w_asset(b_asset))
 
-    scored["v_r"] = volume.robust_volume_z(
-        asset, scored, TEMPLATE_TZ[asset.session_template],
-        volume.full_session_days(session_table)
-        if asset.session_template == "us_equity" else None)
     scored["asset_id"] = asset.asset_id
     scored["block"] = asset.block
     scored["tier"] = asset.tier
@@ -102,7 +98,7 @@ METRIC_COLUMNS = [
     "hour_utc", "asset_id", "block", "tier", "close", "volume",
     "r", "r_gap", "r_w", "gap_masked", "is_session_open",
     "sigma_lt", "mad_eff", "z", "sigma_eff", "q95", "q99",
-    "breach_q95", "breach_q99", "v_r",
+    "breach_q95", "breach_q99",
 ]
 
 

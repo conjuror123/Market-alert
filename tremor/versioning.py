@@ -29,7 +29,6 @@ CONFIG_INPUTS = (
     os.path.join("tremor", "windows.py"),
     os.path.join("tremor", "zscore.py"),
     os.path.join("tremor", "returns.py"),
-    os.path.join("tremor", "volume.py"),
     os.path.join("tremor", "quality.py"),
     os.path.join("tremor", "residuals.py"),
     # Added late, and the omission was a real gap rather than a tidy-up:

@@ -124,96 +124,6 @@ def test_a_first_ever_fetch_still_walks_back_from_today(tmp_path, monkeypatch):
     assert seen["end"] is None
 
 
-# --- deepening the FX history from FXCM ------------------------------------
-
-def _stored(path, first_hour, count=4):
-    return bars.merge(str(path), bars.to_hourly(bars.candles_to_frame([
-        Candle(open_time=first_hour + i * HOUR, open=1.0, high=1.0, low=1.0,
-               close=1.0, volume=0.0, close_time=first_hour + (i + 1) * HOUR)
-        for i in range(count)])))
-
-
-def _fx_asset(ticker="EUR/USD"):
-    return Asset(ticker=ticker, source="twelvedata", tier=1, block="FX",
-                 has_volume=False, tick_size=0.00001, session_template="fx",
-                 fetch_interval="1h", label=ticker, in_basket=True)
-
-
-def test_deepening_asks_only_for_the_stretch_below_what_is_stored(tmp_path, monkeypatch):
-    # Twelve Data stays the live source for these pairs. FXCM reaches UNDER
-    # what is stored and stops, so the two never compete for the same hour and
-    # a merge cannot overwrite a live bar with an archived one.
-    from tremor import backfill
-
-    path = tmp_path / "twelvedata_EUR_USD.parquet"
-    oldest = int(datetime(2020, 1, 29, tzinfo=timezone.utc).timestamp())
-    _stored(path, oldest)
-
-    seen = {}
-
-    def fake_history(symbol, start, end, session=None, base_url=None):
-        seen.update(symbol=symbol, start=start, end=end)
-        return []
-
-    monkeypatch.setattr(backfill.fxcm, "fetch_history", fake_history)
-    backfill.deepen_from_fxcm(_fx_asset(), str(path), date(2015, 1, 1), None)
-
-    assert seen["symbol"] == "EURUSD"
-    assert seen["start"] == date(2015, 1, 1)
-    assert seen["end"] == date(2020, 1, 29)      # the oldest stored day, not today
-
-
-def test_deepening_skips_a_pair_the_archive_does_not_carry(tmp_path):
-    from tremor import backfill
-
-    path = tmp_path / "twelvedata_USD_CNY.parquet"
-    _stored(path, int(datetime(2020, 1, 1, tzinfo=timezone.utc).timestamp()))
-    out = backfill.deepen_from_fxcm(_fx_asset("USD/CNY"), str(path),
-                                    date(2015, 1, 1), None)
-    assert out["added"] == 0 and "no FXCM symbol" in out["skipped"]
-
-
-def test_deepening_does_nothing_when_the_store_already_reaches_back(tmp_path):
-    from tremor import backfill
-
-    path = tmp_path / "twelvedata_EUR_USD.parquet"
-    _stored(path, int(datetime(2014, 1, 1, tzinfo=timezone.utc).timestamp()))
-    out = backfill.deepen_from_fxcm(_fx_asset(), str(path), date(2015, 1, 1), None)
-    assert out["added"] == 0 and "far enough" in out["skipped"]
-
-
-def test_deepening_needs_something_to_deepen(tmp_path):
-    # With nothing stored there is no "below" to fill, and the ordinary Twelve
-    # Data backfill is what runs first.
-    from tremor import backfill
-
-    out = backfill.deepen_from_fxcm(_fx_asset(), str(tmp_path / "none.parquet"),
-                                    date(2015, 1, 1), None)
-    assert out["added"] == 0 and "nothing stored" in out["skipped"]
-
-
-def test_deepening_merges_the_archived_bars_into_the_store(tmp_path, monkeypatch):
-    from tremor import backfill
-
-    path = tmp_path / "twelvedata_EUR_USD.parquet"
-    oldest = int(datetime(2020, 1, 29, tzinfo=timezone.utc).timestamp())
-    _stored(path, oldest)
-    older = int(datetime(2019, 6, 1, tzinfo=timezone.utc).timestamp())
-
-    monkeypatch.setattr(backfill.fxcm, "fetch_history",
-                        lambda *a, **k: [Candle(open_time=older + i * HOUR,
-                                                open=1.1, high=1.2, low=1.0,
-                                                close=1.15, volume=0.0,
-                                                close_time=older + (i + 1) * HOUR)
-                                         for i in range(3)])
-    out = backfill.deepen_from_fxcm(_fx_asset(), str(path), date(2015, 1, 1), None)
-
-    assert out["added"] == 3
-    frame = bars.load(str(path))
-    assert int(frame["hour_utc"].min()) == older
-    assert len(frame) == 7          # 4 already there plus 3 reached under them
-
-
 # --- filling sessions the calendar has and the store does not ---------------
 
 def backfill_runs(days):
@@ -505,6 +415,43 @@ def _adjusted(minutes, steps, reference, ratio):
     return out
 
 
+def test_unadjust_factor_round_trips_a_declared_dividend_series():
+    # Prices are built FORWARD from declared cash dividends - multiply every
+    # pre-ex bar by (1 - d), d = cash / previous true close - and only then
+    # un-adjusted. `_adjusted` below is the inverse of unadjust_factor and so
+    # cannot fail; this can.
+    from datetime import date as _date
+
+    from tremor import backfill
+
+    import numpy as np
+    base = int(datetime(2020, 2, 10, tzinfo=timezone.utc).timestamp())
+    rng = np.random.default_rng(23)
+    n = 60 * 24 * 400
+    walk = 300 * np.exp(np.cumsum(rng.standard_normal(n) * 0.0002))
+    truth = _hf_minutes(base, n, walk)
+    stored = bars.to_hourly(truth)
+    days = pd.to_datetime(truth["hour_utc"], unit="s", utc=True).dt.date.to_numpy()
+
+    payouts = [(_date(2020, 3, 20), 1.50), (_date(2020, 6, 19), 1.50),
+               (_date(2020, 9, 18), 1.50), (_date(2020, 12, 18), 1.50)]
+    vendor = truth.copy()
+    steps = []
+    for ex, cash in payouts:
+        prior = truth.loc[days < ex, "close"]
+        prev_close = float(prior.iloc[-1])
+        d = cash / prev_close
+        steps.append((ex, d / (1.0 - d)))
+        factor = np.where(days < ex, 1.0 - d, 1.0)
+        for column in ("open", "high", "low", "close"):
+            vendor[column] = vendor[column].to_numpy() * factor
+
+    fixed, info = backfill.unadjust_to_store(vendor, stored, steps)
+    assert info["calibrated"]
+    check = backfill.verify_alignment(fixed, stored)
+    assert check["ok"] and check["median_bp"] < 1.0, check
+
+
 def test_the_adjustment_is_undone_and_the_result_matches_the_store():
     from datetime import date as _date
 
@@ -728,6 +675,12 @@ def test_the_gap_fill_recovers_hours_inside_a_day_that_is_already_present(
     assert (merged["close_b"] == merged["close_a"]).all()
 
 
+def _fx_asset(ticker="EUR/USD"):
+    return Asset(ticker=ticker, source="twelvedata", tier=1, block="FX",
+                 has_volume=False, tick_size=0.00001, session_template="fx",
+                 fetch_interval="1h", label=ticker, in_basket=True)
+
+
 def _fx_bar(hour, close):
     return Candle(open_time=hour, open=close, high=close, low=close,
                   close=close, volume=0.0, close_time=hour + HOUR)
@@ -879,9 +832,8 @@ def test_an_open_market_is_always_asked_for():
         assert nothing_can_have_appeared(_equity(), path, table, now) is False
 
 
-def test_fx_and_crypto_are_never_skipped():
-    # FX has no session table here, and its Sunday reopen is exactly the edge a
-    # hand-written rule would get wrong.
+def test_fx_is_skipped_when_the_reference_week_is_shut():
+    # Saturday afternoon: the FX week is Sun 17:00 → Fri 17:00 New York.
     from tremor.backfill import nothing_can_have_appeared
     import tempfile, pathlib
     with tempfile.TemporaryDirectory() as tmp:
@@ -889,9 +841,31 @@ def test_fx_and_crypto_are_never_skipped():
         path = _equity_store(pathlib.Path(tmp), stored)
         table = _table([date(2026, 4, 3), date(2026, 4, 6)])
         now = datetime(2026, 4, 4, 15, tzinfo=timezone.utc)
+        assert nothing_can_have_appeared(asset(), path, table, now) is True
+
+
+def test_fx_is_asked_when_the_week_has_reopened():
+    from tremor.backfill import nothing_can_have_appeared
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as tmp:
+        stored = int(datetime(2026, 4, 3, 20, tzinfo=timezone.utc).timestamp())
+        path = _equity_store(pathlib.Path(tmp), stored)
+        table = _table([date(2026, 4, 3), date(2026, 4, 6)])
+        # Sunday 22:00 UTC is 18:00 EDT, after the 17:00 New York reopen.
+        now = datetime(2026, 4, 5, 22, tzinfo=timezone.utc)
         assert nothing_can_have_appeared(asset(), path, table, now) is False
+
+
+def test_crypto_is_never_skipped():
+    from tremor.backfill import nothing_can_have_appeared
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as tmp:
+        stored = int(datetime(2026, 4, 3, 20, tzinfo=timezone.utc).timestamp())
+        path = _equity_store(pathlib.Path(tmp), stored)
+        table = _table([date(2026, 4, 3), date(2026, 4, 6)])
+        now = datetime(2026, 4, 4, 15, tzinfo=timezone.utc)
         assert nothing_can_have_appeared(
-            asset(source="coinbase", session_template="crypto_continuous"),
+            asset(source="coinbase", session_template="crypto_24_7"),
             path, table, now) is False
 
 
@@ -996,3 +970,93 @@ def test_extending_history_still_asks_for_the_whole_archive(monkeypatch, tmp_pat
                            extend_history=True)
 
     assert asked["days"] > 8000
+
+
+# --- VIX skip-if-fresh -------------------------------------------------------
+
+def _vix_basket():
+    from tremor.basket import Basket, VolatilityIndex
+    return Basket(
+        assets=(), outside=(),
+        volatility_index=VolatilityIndex(
+            "VIXCLS", "fred", "1d", "VIX", date(1990, 1, 1)),
+        anchor_exchange_tz="America/New_York",
+        history_since=date(2021, 1, 1), session_templates={},
+    )
+
+
+def _vix_frame(days, close=15.0):
+    from tremor import cboe
+    return pd.DataFrame([
+        {"day": int(datetime(d.year, d.month, d.day, tzinfo=timezone.utc).timestamp()),
+         "close": close, "available_at": cboe.available_at(d)}
+        for d in days
+    ])
+
+
+def test_vix_is_not_fetched_when_the_store_already_covers_what_can_exist(
+        tmp_path, monkeypatch):
+    from tremor import backfill
+
+    calls = []
+    monkeypatch.setattr(backfill.cboe, "fetch_vix_history",
+                        lambda *a, **k: calls.append("cboe") or _vix_frame([]))
+    monkeypatch.setattr(backfill.fred, "fetch_series",
+                        lambda *a, **k: calls.append("fred") or _vix_frame([]))
+
+    frame = _vix_frame([date(2026, 4, 2), date(2026, 4, 3)])
+    frame.to_parquet(tmp_path / "fred_VIXCLS.parquet", index=False)
+    # Saturday 15:00 UTC: CBOE's 22:00 UTC gate for the 4th has not opened, so
+    # the newest day that can exist is the 3rd, which the store already has.
+    now = datetime(2026, 4, 4, 15, tzinfo=timezone.utc)
+    out = backfill.backfill_vix(_vix_basket(), str(tmp_path), "key", None, now=now)
+
+    assert calls == []
+    assert out["sources"] == ["stored"]
+    assert out["rows"] == 2
+
+
+def test_vix_does_not_rewrite_parquet_when_the_merge_equals_the_store(
+        tmp_path, monkeypatch):
+    from tremor import backfill
+
+    stored = _vix_frame([date(2026, 4, 2), date(2026, 4, 3)])
+    path = tmp_path / "fred_VIXCLS.parquet"
+    stored.to_parquet(path, index=False)
+    before = path.read_bytes()
+
+    monkeypatch.setattr(backfill.cboe, "fetch_vix_history",
+                        lambda *a, **k: stored.copy())
+    monkeypatch.setattr(backfill.fred, "fetch_series",
+                        lambda *a, **k: stored.copy())
+
+    # After 22:00 UTC the 4th is available, so the skip-if-fresh path does not
+    # fire and the fetch runs. The merge is identical to what is already stored.
+    now = datetime(2026, 4, 4, 23, tzinfo=timezone.utc)
+    out = backfill.backfill_vix(_vix_basket(), str(tmp_path), "key", None, now=now)
+
+    assert path.read_bytes() == before
+    assert "cboe" in out["sources"]
+
+
+def test_vix_asks_fred_from_a_recent_start_not_from_nineteen_ninety(
+        tmp_path, monkeypatch):
+    from datetime import timedelta
+    from tremor import backfill
+
+    stored = _vix_frame([date(2026, 4, 2), date(2026, 4, 3)])
+    stored.to_parquet(tmp_path / "fred_VIXCLS.parquet", index=False)
+    seen = {}
+
+    monkeypatch.setattr(backfill.cboe, "fetch_vix_history",
+                        lambda *a, **k: stored.copy())
+
+    def fake_fred(series_id, api_key, start, session=None):
+        seen["start"] = start
+        return stored.copy()
+
+    monkeypatch.setattr(backfill.fred, "fetch_series", fake_fred)
+    now = datetime(2026, 4, 4, 23, tzinfo=timezone.utc)
+    backfill.backfill_vix(_vix_basket(), str(tmp_path), "key", None, now=now)
+
+    assert seen["start"] == date(2026, 4, 3) - timedelta(days=21)

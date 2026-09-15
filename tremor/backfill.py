@@ -30,9 +30,10 @@ import requests
 from tremor import bars, cboe, corporate_actions, fred
 from tremor import sessions as _sessions
 from tremor.basket import Asset, Basket, load_basket
-from price_monitor import (candle_store, coinbase, dukascopy, fxcm, hfdata,
+from price_monitor import (candle_store, coinbase, dukascopy, hfdata,
                            tiingo, twelvedata, yahoo)
 from price_monitor.models import ExchangeError
+from price_monitor.notifier import TelegramError, send_telegram_message
 
 log = logging.getLogger("tremor.backfill")
 
@@ -68,6 +69,47 @@ _PROVIDER_REACH = {
 # loop in main() - this is the guard that keeps a batch of newly configured
 # tickers from turning the hourly job into a backfill.
 SEED_PER_RUN = 4
+
+
+def format_provider_failure(dark: list[tuple[str, str, str]],
+                            tiingo_gone: bool = False,
+                            tiingo_skipped: int = 0,
+                            tiingo_remaining: str | None = None,
+                            tiingo_trip: str | None = None) -> str:
+    """One operational message naming who went dark. Does not switch provider."""
+    lines = []
+    if dark:
+        lines.append(
+            f"⚠️ <b>Backfill: {len(dark)} instrument(s) went dark</b>")
+        for asset_id, provider, err in dark[:20]:
+            lines.append(f"• {asset_id} ({provider}): {err}")
+        if len(dark) > 20:
+            lines.append(f"• …and {len(dark) - 20} more")
+    if tiingo_gone:
+        if lines:
+            lines.append("")
+        who = f" after {tiingo_trip}" if tiingo_trip else ""
+        head = (f"remaining headroom {tiingo_remaining}"
+                if tiingo_remaining is not None else
+                "remaining headroom not in the 429")
+        lines.append(f"⚠️ <b>Tiingo request budget spent{who}</b>")
+        lines.append(f"{head}; {tiingo_skipped} remaining Tiingo instrument(s) skipped.")
+        lines.append("Provider was not switched automatically.")
+    return "\n".join(lines)
+
+
+def send_ops_alert(text: str) -> None:
+    """Private Telegram if configured, otherwise the product chat, otherwise log."""
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    chat = (os.environ.get("TELEGRAM_HEALTH_CHAT_ID")
+            or os.environ.get("TELEGRAM_CHAT_ID", ""))
+    if not token or not chat:
+        log.warning("No operational Telegram destination configured")
+        return
+    try:
+        send_telegram_message(token, chat, text)
+    except TelegramError as exc:
+        log.error("Failed to send operational alert: %s", exc)
 
 
 def _days_since(start: date) -> float:
@@ -191,32 +233,31 @@ def nothing_can_have_appeared(asset: Asset, path: str,
                               now: datetime | None = None) -> bool:
     """True when the calendar says no new bar can exist for this instrument yet.
 
-    The free Twelve Data tier allows 800 requests a day and this basket asks for
-    21 of them an hour, so most of the budget was being spent asking for SPY
-    bars at three in the morning. Twelve of the instruments are US equity ETFs
-    that trade six and a half hours a day, five days a week: seventeen and a
-    half hours out of every twenty-four, and all weekend, the answer is known in
-    advance to be empty.
-
     EVERY GUARD HERE IS AGAINST THE SAME MISTAKE - skipping a fetch that would
     have returned something. A missed bar is a hole in the history and a move
     the detector never sees, which is far worse than a wasted request, so each
     condition below refuses to skip unless it is certain:
 
-      - only `us_equity`, the one template with an authoritative calendar. FX
-        and crypto are never skipped: FX has no session table here, and its
-        Sunday reopen is exactly the edge a hand-written rule would get wrong.
+      - crypto_24_7 is never skipped: it genuinely trades every hour.
+      - fx_continuous uses the same Sun 17:00 → Fri 17:00 New York week as the
+        bar walk (`instrument_day_hours`), so the skip cannot disagree with
+        what the walk considers a bar.
+      - us_equity still needs the session table; a missing or short table never
+        causes a skip.
       - never on an empty store, where there is no newest bar to reason from.
-      - never when the calendar does not reach today. A table that stops short
-        would otherwise report "no session" for every day past its end, which
-        reads as a permanent holiday and would silence the instrument for good.
-      - never within SETTLE_HOURS of the newest stored bar, so the correction
-        pass above still happens.
-      - and finally, only when the calendar claims no trading hour at all
-        between the newest stored bar and now.
+      - never within SETTLE_HOURS of the newest stored bar, so a bar served
+        while its hour was still open is re-asked for.
+      - and finally, only when no expected hour at all sits between the newest
+        stored bar and now.
     """
-    if asset.session_template != CALENDAR_TEMPLATE or not table:
+    template = asset.session_template
+    if template == "crypto_24_7":
         return False
+    if template == "us_equity" and not table:
+        return False
+    if template not in ("us_equity", "fx_continuous"):
+        return False
+
     stored = bars.load(path)
     if stored.empty:
         return False
@@ -225,11 +266,15 @@ def nothing_can_have_appeared(asset: Asset, path: str,
     newest = int(stored["hour_utc"].max())
     if now.timestamp() - newest < SETTLE_HOURS * 3600:
         return False
-    if max(table) < now.date():
+    if template == "us_equity" and max(table) < now.date():
         return False
 
     since = datetime.fromtimestamp(newest, tz=timezone.utc).date()
-    expected = _sessions.expected_hours(table, since, now.date())
+    expected: list[int] = []
+    day = since
+    while day <= now.date():
+        expected.extend(_sessions.instrument_day_hours(day, template, table))
+        day += timedelta(days=1)
     return not any(hour > newest for hour in expected)
 
 
@@ -251,8 +296,35 @@ def backfill_instrument(asset: Asset, basket: Basket, bars_dir: str, api_key: st
     }
 
 
+def _vix_day(epoch: int) -> date:
+    return datetime.fromtimestamp(int(epoch), tz=timezone.utc).date()
+
+
+def _latest_vix_day_available(now: datetime) -> date | None:
+    """Newest observation day whose CBOE or FRED gate has already opened."""
+    d = now.date()
+    now_ts = now.timestamp()
+    for _ in range(21):
+        if now_ts >= cboe.available_at(d) or now_ts >= fred.available_at(d):
+            return d
+        d -= timedelta(days=1)
+    return None
+
+
+def _vix_frames_equal(left: pd.DataFrame, right: pd.DataFrame) -> bool:
+    cols = ["day", "close", "available_at"]
+    if left.empty and right.empty:
+        return True
+    if len(left) != len(right) or left.empty or right.empty:
+        return False
+    a = left[cols].sort_values("day").reset_index(drop=True)
+    b = right[cols].sort_values("day").reset_index(drop=True)
+    return a.equals(b)
+
+
 def backfill_vix(basket: Basket, vix_dir: str, api_key: str,
-                 session: requests.Session) -> dict:
+                 session: requests.Session,
+                 now: datetime | None = None) -> dict:
     """The daily VIX series, from both sources that serve it.
 
     CBOE computes the index and posts the close the same evening; FRED
@@ -264,31 +336,65 @@ def backfill_vix(basket: Basket, vix_dir: str, api_key: str,
     Neither is trusted over the other, because measured over the whole record
     they agree to the cent on all 9,270 days they share. They are unioned: CBOE
     carries the newest day, FRED carries 1999-12-31, which CBOE's file omits.
+
+    The series gains at most one value a day. CBOE's endpoint takes no range
+    parameters (~400 KB every time), so the only saving is not calling it.
+    When the store already covers what the availability gates say can exist,
+    both fetches and the parquet write are skipped.
     """
     vix = basket.volatility_index
-    pieces, sources, trouble = [], [], []
+    path = os.path.join(vix_dir, f"{vix.file_stem}.parquet")
+    stored = pd.DataFrame()
+    if os.path.exists(path):
+        stored = pd.read_parquet(path).sort_values("day").reset_index(drop=True)
 
+    now = now or datetime.now(timezone.utc)
+    latest = _latest_vix_day_available(now)
+    if not stored.empty and latest is not None:
+        newest = _vix_day(int(stored["day"].max()))
+        if newest >= latest:
+            log.info("VIX: stored through %s already covers what can exist; not fetched",
+                     newest)
+            return {"asset_id": vix.series_id, "rows": len(stored),
+                    "first": int(stored["day"].min()), "last": int(stored["day"].max()),
+                    "sources": ["stored"], "trouble": []}
+
+    pieces, sources, trouble = [], [], []
     try:
         pieces.append(cboe.fetch_vix_history(vix.history_since, session=session))
         sources.append("cboe")
     except Exception as exc:
         trouble.append(f"cboe: {exc}")
 
+    fred_start = vix.history_since
+    if not stored.empty:
+        newest = _vix_day(int(stored["day"].max()))
+        # Wide enough to span a holiday stretch; empty FRED raises.
+        fred_start = max(vix.history_since, newest - timedelta(days=21))
+
     if api_key:
         try:
             pieces.append(fred.fetch_series(vix.series_id, api_key,
-                                            vix.history_since, session=session))
+                                            fred_start, session=session))
             sources.append("fred")
         except Exception as exc:
             trouble.append(f"fred: {exc}")
     else:
         trouble.append("fred: FRED_API_KEY is not set")
 
+    if not stored.empty:
+        pieces.append(stored)
+
     frame = cboe.merge(*pieces)
     if frame.empty:
         raise RuntimeError("no VIX source answered - " + "; ".join(trouble))
 
-    path = os.path.join(vix_dir, f"{vix.file_stem}.parquet")
+    if _vix_frames_equal(frame, stored):
+        log.info("VIX: merged frame equals the store; parquet not rewritten")
+        return {"asset_id": vix.series_id, "rows": len(frame),
+                "first": int(frame["day"].min()), "last": int(frame["day"].max()),
+                "sources": sources, "trouble": trouble}
+
     os.makedirs(vix_dir, exist_ok=True)
     frame.to_parquet(path, index=False, compression="zstd")
     return {"asset_id": vix.series_id, "rows": len(frame),
@@ -505,8 +611,9 @@ def unadjust_to_store(minutes: "pd.DataFrame", stored: "pd.DataFrame",
     pinning uses the first month of the overlap while the check that follows
     uses all of it, so roughly two years of the test never touched the fit.
 
-    Volume is left alone. Every action in the table is a dividend and none is a
-    split, and a dividend does not restate share counts.
+    Volume is left alone. Splits are recorded in the table but excluded from
+    the steps used here (`load_steps` defaults to dividends); a dividend does
+    not restate share counts, and the store is already split-adjusted.
     """
     import numpy as np
 
@@ -658,48 +765,10 @@ def fill_gaps_from_hfdata(asset: Asset, path: str, table: dict, api_key: str,
             "check": check, "adjustment": adjustment}
 
 
-def deepen_from_fxcm(asset: Asset, path: str, since: date,
-                     session: requests.Session) -> dict:
-    """Fills an FX pair's history BELOW what is already stored, from FXCM.
-
-    Only the stretch older than the oldest stored bar is asked for. Twelve Data
-    stays the live source for these pairs and keeps collecting the recent end;
-    this reaches under it and stops, so the two never compete for the same hour
-    and the merge cannot overwrite a live bar with an archived one.
-
-    Nothing happens for a pair the archive does not carry - USD/CNY - or where
-    the store already reaches back past `since`. Both are ordinary outcomes and
-    are reported as zero rather than raised.
-    """
-    symbol = fxcm.symbol_for(asset.ticker)
-    if symbol is None:
-        return {"skipped": "no FXCM symbol", "added": 0}
-
-    stored = bars.load(path)
-    if stored.empty:
-        # Deepening is defined against something. With nothing stored there is
-        # no "below" to fill, and the ordinary Twelve Data backfill runs first.
-        return {"skipped": "nothing stored yet", "added": 0}
-
-    oldest = datetime.fromtimestamp(int(stored["hour_utc"].min()), tz=timezone.utc)
-    if oldest.date() <= since:
-        return {"skipped": "already reaches back far enough", "added": 0}
-
-    candles = fxcm.fetch_history(symbol, since, oldest.date(), session)
-    if not candles:
-        return {"skipped": "archive returned nothing", "added": 0}
-
-    added = bars.merge(path, bars.to_hourly(bars.candles_to_frame(candles)))
-    return {"skipped": None, "added": added, "fetched": len(candles),
-            "from": since, "to": oldest.date()}
-
-
 # How far ABOVE the oldest stored bar to fetch before writing anything below it.
-# Unlike the FXCM archive, which starts where the store already had bars and had
-# to be spliced blind, Dukascopy covers the whole stored range - so an overlap
-# can be bought for six extra requests a pair and the splice can be gated on it
-# instead of trusted. Three months of a 24/5 pair is about 1500 hours against
-# the 200 the check needs.
+# Dukascopy covers the whole stored range, so an overlap can be bought for six
+# extra requests a pair and the splice can be gated on it instead of trusted.
+# Three months of a 24/5 pair is about 1500 hours against the 200 the check needs.
 DUKASCOPY_OVERLAP_DAYS = 93
 
 
@@ -781,18 +850,12 @@ def main(argv: list[str] | None = None) -> int:
                              "calendar has and the store does not. Whether a "
                              "day is recoverable is the point: an empty answer "
                              "confirms the hole is the provider's.")
-    parser.add_argument("--deepen-fx", action="store_true",
-                        help="fill the FX pairs' history below what is stored "
-                             "from FXCM's public archive, which reaches 2012 "
-                             "where Twelve Data's plan stops at 2020. Needs no "
-                             "key and touches no other instrument.")
     parser.add_argument("--deepen-dukascopy", action="store_true",
                         help="fill the FX pairs' history below what is stored "
                              "from Dukascopy's public archive, which reaches "
-                             "2003 where FXCM's stops at 2012, and which also "
-                             "carries USD/CNH. Needs no key. Unlike the FXCM "
-                             "pass this one overlaps the store and is gated on "
-                             "agreeing with it.")
+                             "2003 and also carries USD/CNH. Needs no key. "
+                             "Overlaps the store and is gated on agreeing with "
+                             "it.")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -931,35 +994,12 @@ def main(argv: list[str] | None = None) -> int:
                  "the source", filled, unfilled)
         return 0
 
-    if args.deepen_fx:
-        # Its own mode rather than a step inside the usual pass: it needs no
-        # API key, spends no Twelve Data credits, and touches only the pairs
-        # the archive carries. Mixing it in would make a run that fails for
-        # want of a key also fail to do the part that never needed one.
-        session = requests.Session()
-        total = 0
-        for asset in instruments:
-            path = bars.store_path(args.bars_dir, asset.file_stem)
-            try:
-                result = deepen_from_fxcm(asset, path, basket.acquire_since, session)
-            except Exception as exc:
-                log.error("%s: FXCM deepening failed - %s", asset.asset_id, exc)
-                continue
-            if result["skipped"]:
-                log.info("%s: skipped (%s)", asset.asset_id, result["skipped"])
-                continue
-            total += result["added"]
-            log.info("%s: +%d bars from FXCM (%s .. %s, %d fetched)",
-                     asset.asset_id, result["added"], result["from"],
-                     result["to"], result["fetched"])
-        log.info("FXCM deepening added %d bars", total)
-        return 0
-
     if args.deepen_dukascopy:
-        # Same reasoning as the FXCM mode for being its own: no key, no credits,
-        # and only the pairs the archive carries. Run per pair from the workflow
-        # - each is a few hundred requests, and a failure part way through then
-        # costs one pair rather than all eight.
+        # Its own mode rather than a step inside the usual pass: it needs no
+        # API key, spends no credits, and touches only the pairs the archive
+        # carries. Run per pair from the workflow - each is a few hundred
+        # requests, and a failure part way through then costs one pair rather
+        # than all eight.
         session = requests.Session()
         total = 0
         for asset in instruments:
@@ -1008,6 +1048,10 @@ def main(argv: list[str] | None = None) -> int:
     seeded = 0
     quota_gone = False
     tiingo_gone = False
+    tiingo_skipped = 0
+    tiingo_trip = None
+    tiingo_remaining = None
+    dark: list[tuple[str, str, str]] = []
     for i, asset in enumerate(instruments):
         path = bars.store_path(args.bars_dir, asset.file_stem)
         if not args.extend_history and bars.load(path).empty:
@@ -1031,6 +1075,7 @@ def main(argv: list[str] | None = None) -> int:
             continue
         if tiingo_gone and asset.fetched_from == "tiingo":
             skipped += 1
+            tiingo_skipped += 1
             continue
         try:
             r = backfill_instrument(asset, basket, args.bars_dir, api_key, session,
@@ -1054,13 +1099,18 @@ def main(argv: list[str] | None = None) -> int:
             # Tiingo's 50-an-hour bucket, or its 1000-a-day one. Neither clears
             # inside a run, so every later Tiingo instrument would spend a
             # round trip to be told the same thing. The others carry on: this
-            # is one provider being out, not the run failing.
+            # is one provider being out, not the run failing. Provider is not
+            # switched automatically - a silent fall back to slower or
+            # different-priced data cannot happen unnoticed.
             tiingo_gone = True
+            tiingo_trip = asset.asset_id
+            tiingo_remaining = getattr(exc, "remaining", None)
             log.error("Tiingo's request budget is spent - %s", exc)
             log.error("Skipping the remaining Tiingo instruments; the other "
                       "providers continue.")
         except Exception as exc:
             failures += 1
+            dark.append((asset.asset_id, asset.fetched_from, str(exc)))
             log.error("%s: failed - %s", asset.asset_id, exc)
         # The 8-requests-per-minute limit is per key, and the running hourly
         # monitor spends it too - the pause is needed between instruments as well.
@@ -1096,7 +1146,14 @@ def main(argv: list[str] | None = None) -> int:
                 log.warning("VIX source unavailable - %s", note)
         except Exception as exc:
             failures += 1
+            dark.append(("VIX", "cboe/fred", str(exc)))
             log.error("VIX: failed - %s", exc)
+
+    text = format_provider_failure(
+        dark, tiingo_gone=tiingo_gone, tiingo_skipped=tiingo_skipped,
+        tiingo_remaining=tiingo_remaining, tiingo_trip=tiingo_trip)
+    if text:
+        send_ops_alert(text)
 
     return 1 if failures else 0
 

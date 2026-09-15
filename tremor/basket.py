@@ -160,9 +160,10 @@ class Basket:
     # How far back to ACQUIRE, which is not the same question as how far back
     # to ANALYSE. history_since is tied to the §7 train period and moving it
     # moves the evaluation window; this only says "take whatever the sources
-    # will still give". Free archives are not permanent - FXCM's stopped
-    # updating in April 2026 - so bars not taken now may not be takeable later,
-    # and there is no cost to holding history the analysis does not yet use.
+    # will still give". Free archives freeze - Dukascopy publishes whole months
+    # only, and a file not taken now may not be takeable later - so bars not
+    # stored now may not be recoverable later, and there is no cost to holding
+    # history the analysis does not yet use.
     #
     # Last and optional so that every hand-built Basket keeps working and falls
     # back to the analysis floor, which is what it meant before this existed.

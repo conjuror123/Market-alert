@@ -37,13 +37,18 @@ It runs entirely on GitHub Actions. Nothing extra needs hosting.
      In that case `chat_id` is simply the channel's `@username`, with no numeric ID
      to hunt for.
 3. Open the repository settings: **Settings → Secrets and variables → Actions →
-   Secrets**. Add `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` there.
-4. Everything except crypto goes through a separate provider,
-   [Twelve Data](https://twelvedata.com/) — equities, rates, credit, commodities and FX,
-   fifty-one of the sixty instruments. Register there (email only, no card) and add the
-   key alongside the others under the name `TWELVEDATA_API_KEY`. Without it the hourly
-   monitoring keeps working on the nine crypto instruments, which need no key, and stays
-   silent on everything else.
+   Secrets**. Add `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` there. Optional:
+   `TELEGRAM_HEALTH_CHAT_ID` for operational messages (health, a named provider
+   failure). If it is unset those go to `TELEGRAM_CHAT_ID`, so behaviour is
+   unchanged until the secret exists. Product pushes always stay on
+   `TELEGRAM_CHAT_ID`.
+4. Hourly bars come from three places. Add `TIINGO_API_KEY` for the 29 liquid
+   US-session funds and the 8 FX pairs (free tier: 50 requests/hour, 1000/day).
+   Yahoo needs no key (15 thin ETFs). Coinbase needs no key (9 crypto). Twelve
+   Data (`TWELVEDATA_API_KEY`) is no longer on the hourly path: it is the archive
+   and gap-fill source, needed to deepen history and to fill holes the NYSE
+   calendar has and the store does not. Without a Tiingo key the hourly run still
+   prices the Yahoo and Coinbase names and stays silent on the rest.
 5. Set up the hourly trigger — this is mandatory, otherwise the bot will never start
    on its own at all, only manually through Run workflow. GitHub Actions' native
    schedule is unreliable on repositories like this one (it can genuinely fire once
@@ -55,7 +60,8 @@ Notification → Run workflow** — it sends a test message and nothing else.
 
 ## Which instruments are tracked
 
-Sixty, in nine blocks. The blocks are not decoration: the detector removes what the
+Sixty in the basket, plus `DBC` (broad commodities) tracked outside it — 61 names
+in nine blocks. The blocks are not decoration: the detector removes what the
 whole market did, and then what the instrument's own block did, before asking whether
 it moved on its own — a block is the group it is compared against.
 
@@ -73,15 +79,18 @@ it moved on its own — a block is the group it is compared against.
 
 The list lives in `config/basket.yaml`, one entry per instrument, with its source,
 tick size and trading calendar. There are no per-instrument thresholds to set — the
-ladder is fitted from each instrument's own history, which is the point.
+ladder is fitted from each instrument's own history, which is the point. `DBC` is
+the 61st tracked name: it has bars and metrics but is not in the cross-section.
 
 **Adding one** means adding the entry and running `python -m tremor.backfill` to
 acquire its history. Three things to know before you do. A rung is the biggest move
 in its own lookback, so a new instrument can only claim one it has actually lived —
 silent at `extreme` until it is six years old, and it grows a rung at a time. The
-Twelve Data free tier is 8 requests a minute and 800 a day, which the current basket
-already uses about 293 of. And for a US-listed equity or ETF that pays dividends,
-`python -m tremor.corporate_actions` needs rerunning too — the pre-2020 deepening in
+hourly providers are Tiingo (50/hour, 1000/day), Yahoo (no published quota) and
+Coinbase (free). Twelve Data's 800/day is for archive work, not the hourly run.
+And for a US-listed equity or ETF that pays dividends,
+`python -m tremor.corporate_actions` needs rerunning too — it now reads Tiingo's
+declared `divCash` / `splitFactor` (`TIINGO_API_KEY`), and the pre-2020 deepening in
 `tremor.backfill` unadjusts HF Data's consolidated tape against these ex-dates before
 trusting it, and without them for the new ticker that check fails and the deepening is
 silently skipped rather than wrong.
@@ -132,7 +141,6 @@ tremor/audit.py        — the data coverage table
 Per instrument
 tremor/returns.py      — returns, the gap channel, winsorization
 tremor/zscore.py       — the out-of-sample adaptive EWMA Z-score
-tremor/volume.py       — a robust volume profile by local exchange hour
 tremor/pipeline.py     — assembles the above into per-asset metrics
 
 Across the basket
@@ -165,7 +173,7 @@ Delivery — price_monitor/
 tremor_delivery.py     — renders and sends; decides nothing, routing is already stamped
 weekly_digest.py       — the economic-calendar forecast, Saturday, just before the note opens
 health.py, notifier.py — failure reporting
-twelvedata.py, coinbase.py, dukascopy.py, fxcm.py, hfdata.py — the source clients
+twelvedata.py, tiingo.py, yahoo.py, coinbase.py, dukascopy.py, hfdata.py — the source clients
                           tremor.backfill fetches through
 
 data/tremor/bars/                  hourly bars, one Parquet per instrument per year   TRACKED
@@ -432,7 +440,9 @@ its end, the command has to be run again.
 pip install -r requirements-dev.txt
 export TELEGRAM_BOT_TOKEN=...
 export TELEGRAM_CHAT_ID=...
-export TWELVEDATA_API_KEY=...  # needed for everything except crypto, see "Quick start"
+export TELEGRAM_HEALTH_CHAT_ID=...  # optional; operational messages only
+export TIINGO_API_KEY=...      # 29 US-session funds and 8 FX, hourly
+export TWELVEDATA_API_KEY=...  # archive / gap-fill / deepening, not the hourly path
 export FRED_API_KEY=...        # for the VIX series only
 
 python -m tremor.backfill      # fetch new bars
@@ -496,13 +506,12 @@ learn what it swallowed.
   alarm clock nothing runs, and nothing says so: the health check reports runs that
   failed, not runs that never happened. That gap is real — the trigger stopped on
   2026-09-01 and it took six days to notice.
-- Twelve Data's free tier is 800 requests a day and 8 a minute. The hourly run uses
-  about 293 of the day's budget (37%), which fits because the fetch skips a US equity
-  or ETF when the NYSE calendar says no bar can have appeared since its newest stored
-  one. FX has no such skip — it has no session table here, and its Sunday reopen is
-  exactly the edge a hand-written rule would get wrong. Crypto is free; Coinbase needs
-  no key. The per-minute ceiling of 8 requests, not the daily one, is what makes a run
-  take minutes rather than seconds.
+- Tiingo's free tier is 50 requests an hour and 1000 a day; that hourly bucket is
+  the binding live limit (37 instruments: 29 US-session funds + 8 FX). US-session
+  names skip when the NYSE calendar says no bar can have appeared; FX skips when
+  the Sun 17:00 → Fri 17:00 New York week is shut. Yahoo (15 thin ETFs) has no
+  published quota. Crypto is free; Coinbase needs no key. Twelve Data's 800/day
+  and 8/minute remain for archive, gap-fill and deepening, not the hourly run.
 - The ladder cannot claim a return period longer than the history it has. A newly
   added instrument says "biggest in a quarter" for years before it can say "biggest
   in six years", and says nothing at all for the first two. Five instruments cannot

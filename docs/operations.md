@@ -23,16 +23,22 @@ one thing to update.
 
 ## What one run costs
 
+Live bars no longer wait on Twelve Data's 8-second pause. The hourly fetch is Tiingo
+(29 US-session funds + 8 FX), Yahoo (15 thin ETFs) and Coinbase (9 crypto). Tiingo
+measured 0.28 s/request with no enforced throttle; its **50 requests/hour** bucket is
+the binding live limit, and a US-session hour asks 37 of those 50. Yahoo has no
+published quota. Coinbase needs no key.
+
+The Tremor pipeline (metrics → events) rebuilds derived parquet in about two minutes.
+A `config_version` mismatch forces a cold rebuild of the same length rather than an
+extend that would keep stale columns.
+
 | | |
 |---|---:|
-| Whole job | **~5m20s** |
-| of which, the Tremor pipeline | ~5m |
-| of which, waiting on the API rate limit | ~2m50s |
+| Live fetch (Tiingo + Yahoo + Coinbase) | seconds, not minutes of sleeping |
+| Tremor pipeline | ~2 min |
 | Our own timeout | 20 min |
 | GitHub's hard cap | 6 hours |
-
-Roughly half the run is the job sleeping eight seconds between Twelve Data calls. Actual
-compute is about two minutes.
 
 ---
 
@@ -40,21 +46,19 @@ compute is about two minutes.
 
 | | Limit | Used |
 |---|---:|---:|
-| **Twelve Data** requests/day | 800 | **293 (37%)** |
-| **Twelve Data** requests/minute | 8 | 7.5 |
+| **Tiingo** | 50/hour, 1000/day | 37 live instruments (29 US-session funds + 8 FX) |
+| **Yahoo** | none published | 15 thin ETFs |
+| **Coinbase** | no key | 9 crypto |
+| **Twelve Data** | 800/day, 8/min | archive, gap-fill, deepening — not the hourly path |
 | GitHub Actions minutes | unlimited (public repo) | — |
-| Repository size | 1 GB warning, ~5 GB cutoff | **418 MB**, +0.36 GB/year |
+| Repository size | 1 GB warning, ~5 GB cutoff | **~730 MB** (GitHub, 2026-09-15) |
 
-The daily budget is 12 US equities at 77/day plus 9 FX pairs at 216/day. The equities
-figure is low because the forward fetch **skips an instrument when the NYSE calendar says
-no bar can have appeared** since its newest stored one — without that it would be 288 and
-the total 504.
+44 US-session funds skip when the NYSE calendar says no bar can have appeared since
+the newest stored one. The 8 FX pairs skip when the Sun 17:00 → Fri 17:00 New York
+week is shut (`tremor.backfill.nothing_can_have_appeared`). Crypto is never skipped.
 
-FX is never skipped: it has no session table here, and its Sunday reopen is exactly the
-edge a hand-written rule would get wrong. Crypto is free — Coinbase needs no key.
-
-The per-minute ceiling is the binding one. Twenty-one instruments at eight seconds apart
-is what makes the run five minutes rather than two.
+Twelve Data remains the source for `--extend-history`, `--fill-gaps` and the
+deepening modes that the live providers do not cover.
 
 ---
 
@@ -63,10 +67,11 @@ is what makes the run five minutes rather than two.
 **Every run:** `data/state.json` (which events have been sent — losing it re-sends them)
 and `data/economic_calendar/`.
 
-**At 04:00 UTC only:** the bar archive and the event tables. Parquet rewrites files
-whole, so hourly commits would add gigabytes a year for no new facts. Nothing is lost by
-waiting: the forward fetch measures its window from each instrument's own newest bar, so
-a day's worth is always recoverable.
+**At 04:00 UTC only:** `data/tremor/bars/` (year-sharded hourly parquet) and
+`data/tremor/vix/`. Event tables are gitignored and rebuilt in the run that needs
+them. Parquet rewrites files whole, so hourly commits would add gigabytes a year for
+no new facts. Nothing is lost by waiting: the forward fetch measures its window from
+each instrument's own newest bar, so a day's worth is always recoverable.
 
 **Never:** `data/tremor/metrics/`, `residuals/`, `events/`. Derived, gitignored, rebuilt
 in the run that needs them.
@@ -82,6 +87,12 @@ to prevent.
 
 If the pipeline fails, the events table is left as it was, and delivery's 48-hour
 staleness rule then sends nothing rather than something wrong.
+
+A provider failure now also names the instruments (and their providers) in a
+Telegram message to `TELEGRAM_HEALTH_CHAT_ID`, falling back to `TELEGRAM_CHAT_ID`
+until that secret exists. The product channel is not used for diagnostics once
+the health chat is set. The job still fails; the provider is not switched
+automatically.
 
 **Two independent emails cover failure**, and neither needs code:
 
@@ -143,7 +154,8 @@ thing to report afterwards, not a thing to steer by.
 To run the whole pass by hand:
 
 ```bash
-export TWELVEDATA_API_KEY=...   # equities and FX
+export TWELVEDATA_API_KEY=...   # archive / gap-fill / deepening, not the hourly path
+export TIINGO_API_KEY=...       # 29 US-session funds and 8 FX, hourly
 export FRED_API_KEY=...         # the VIX series only
 
 python -m tremor.backfill

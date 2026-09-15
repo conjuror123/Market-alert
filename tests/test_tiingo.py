@@ -8,9 +8,10 @@ from price_monitor.models import ExchangeError
 
 
 class _Resp:
-    def __init__(self, payload, status=200, text=""):
+    def __init__(self, payload, status=200, text="", headers=None):
         self._payload, self.status_code = payload, status
         self.text = text or json.dumps(payload) if payload is not None else text
+        self.headers = headers or {}
 
     def json(self):
         if self._payload is None:
@@ -89,8 +90,12 @@ def test_a_rate_limit_stops_rather_than_retrying():
     assert len(s.calls) == 1
 
 
-def test_rate_limited_is_an_exchange_error():
-    assert issubclass(tiingo.RateLimited, ExchangeError)
+def test_a_rate_limit_carries_remaining_headroom_when_the_header_is_present():
+    s = _Session(_Resp(None, status=429, text="too many requests",
+                       headers={"X-RateLimit-Remaining": "0"}))
+    with pytest.raises(tiingo.RateLimited) as caught:
+        tiingo.fetch_full_history("SPY", "30min", days=1, api_key="k", session=s)
+    assert caught.value.remaining == "0"
 
 
 def test_a_missing_key_is_refused_before_the_request():
@@ -118,3 +123,30 @@ def test_fx_ticker_spelling():
     assert tiingo.fx_ticker("EUR/USD") == "eurusd"
     assert tiingo.fx_ticker("USD_JPY") == "usdjpy"
     assert tiingo.is_fx("EUR/USD") and not tiingo.is_fx("SPY")
+
+
+DAILY_ROW = {
+    "date": "2025-12-05T00:00:00.000Z",
+    "close": 145.53,
+    "adjClose": 145.53,
+    "divCash": 0.0,
+    "splitFactor": 2.0,
+}
+
+
+def test_daily_history_uses_the_daily_endpoint_and_does_not_ask_for_columns():
+    from datetime import date
+
+    s = _Session(_Resp([DAILY_ROW]))
+    out = tiingo.fetch_daily_history("XLK", date(2025, 12, 1),
+                                     api_key="k", session=s,
+                                     end=date(2025, 12, 10))
+    assert "/tiingo/daily/XLK/prices" in s.calls[0]["url"]
+    assert "columns" not in s.calls[0]["params"]
+    assert s.calls[0]["params"]["startDate"] == "2025-12-01"
+    assert s.calls[0]["params"]["endDate"] == "2025-12-10"
+    assert len(out) == 1
+    assert out[0].day == date(2025, 12, 5)
+    assert out[0].close == 145.53
+    assert out[0].split_factor == 2.0
+    assert out[0].div_cash == 0.0

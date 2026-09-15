@@ -6,10 +6,11 @@ import pytest
 from price_monitor import __main__ as entry
 
 
-def _cfg(tmp_path):
+def _cfg(tmp_path, health_chat="ops"):
     return SimpleNamespace(
         state_path=str(tmp_path / "state.json"),
         telegram_bot_token="t", telegram_chat_id="c",
+        telegram_health_chat_id=health_chat,
         health_alert_after_failures=2, health_reminder_every_failures=5,
     )
 
@@ -19,7 +20,7 @@ def _quiet(monkeypatch):
     """Nothing in these tests may reach Telegram or the network."""
     sent = []
     monkeypatch.setattr(entry, "send_telegram_message",
-                        lambda token, chat, text: sent.append(text) or 1)
+                        lambda token, chat, text: sent.append((chat, text)) or 1)
     monkeypatch.setattr(entry.weekly_digest, "maybe_send_weekly_digest",
                         lambda *a, **k: 0)
     monkeypatch.setattr(entry.weekly_digest, "maybe_refresh_calendar",
@@ -57,7 +58,8 @@ def test_the_health_alert_waits_for_the_configured_streak(tmp_path, monkeypatch,
     entry.main()
     assert _quiet == []                      # one failure is not yet news
     entry.main()
-    assert len(_quiet) == 1 and "failing for 2" in _quiet[0]
+    assert len(_quiet) == 1 and "failing for 2" in _quiet[0][1]
+    assert _quiet[0][0] == "ops"
 
 
 def test_recovery_is_announced_only_after_a_reported_outage(tmp_path, monkeypatch, _quiet):
@@ -73,7 +75,8 @@ def test_recovery_is_announced_only_after_a_reported_outage(tmp_path, monkeypatc
     _quiet.clear()
     monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", lambda cfg_, state: 0)
     assert entry.main() == 0
-    assert len(_quiet) == 1 and "recovered" in _quiet[0]
+    assert len(_quiet) == 1 and "recovered" in _quiet[0][1]
+    assert _quiet[0][0] == "ops"
 
 
 def test_a_broken_weekly_digest_is_also_carried_into_health(tmp_path, monkeypatch, _quiet):
