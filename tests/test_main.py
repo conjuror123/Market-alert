@@ -79,6 +79,25 @@ def test_recovery_is_announced_only_after_a_reported_outage(tmp_path, monkeypatc
     assert _quiet[0][0] == "ops"
 
 
+def test_a_red_tremor_step_is_not_reported_as_recovered(tmp_path, monkeypatch, _quiet):
+    cfg = _cfg(tmp_path)
+    monkeypatch.setattr(entry, "load_config", lambda: cfg)
+
+    def boom(cfg_, state):
+        raise RuntimeError("no")
+
+    monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", boom)
+    entry.main()
+    entry.main()
+    _quiet.clear()
+    monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", lambda cfg_, state: 0)
+    monkeypatch.setenv("TREMOR_STEP_FAILED", "true")
+    assert entry.main() == 0
+    assert _quiet == []
+    assert entry.load_state(str(tmp_path / "state.json"))[
+        entry.health.STATE_KEY]["consecutive_failures"] == 2
+
+
 def test_a_corrupt_state_file_stops_the_run(tmp_path, monkeypatch, _quiet):
     path = tmp_path / "state.json"
     path.write_text("{not json", encoding="utf-8")

@@ -38,6 +38,7 @@ What is left is a delivery pass. Four things run, none of which decide anything:
 from __future__ import annotations
 
 import logging
+import os
 import sys
 
 import requests
@@ -64,6 +65,17 @@ def format_health_down(streak: int, error_details: list[str]) -> str:
 
 def format_health_recovered(streak: int) -> str:
     return f"✅ Monitoring recovered after {streak} failed run(s) in a row."
+
+
+def tremor_step_failed() -> bool:
+    """True when the Tremor step of this workflow run did not complete.
+
+    continue-on-error lets delivery still run after a red pipeline. Empty
+    events then look like a quiet hour, and recording a success would send
+    'recovered' while GitHub fails the job at the last step.
+    """
+    value = os.environ.get("TREMOR_STEP_FAILED", "").strip().lower()
+    return value in ("1", "true", "yes")
 
 
 def main() -> int:
@@ -121,6 +133,8 @@ def main() -> int:
                 log.info("Monitoring-down alert sent (streak=%d)", streak)
             except TelegramError as exc:
                 log.error("Failed to send monitoring-down alert: %s", exc)
+    elif tremor_step_failed():
+        log.error("Tremor step failed; not recording a clean run")
     else:
         previous_streak = health.record_success(state)
         if previous_streak >= cfg.health_alert_after_failures:

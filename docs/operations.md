@@ -89,7 +89,9 @@ to prevent.
 
 If a fetch fails, pipeline and saed still run on the bars already stored, so
 healthy instruments still get events. The job is failed at the end. Delivery's
-48-hour staleness rule still drops events that did not refresh.
+48-hour staleness rule still drops events that did not refresh. Health does
+not send "recovered" or record a clean run when the Tremor step is red: empty
+events would otherwise look like a quiet hour.
 
 A provider failure now also names the instruments (and their providers) in a
 Telegram message to `TELEGRAM_HEALTH_CHAT_ID`, falling back to `TELEGRAM_CHAT_ID`

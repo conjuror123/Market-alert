@@ -84,6 +84,7 @@ jobs:
           TELEGRAM_HEALTH_CHAT_ID: ${{ secrets.TELEGRAM_HEALTH_CHAT_ID }}
           TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+          TREMOR_STEP_FAILED: ${{ steps.tremor.outputs.failed == 'true' || steps.tremor.outcome == 'failure' }}
         run: python -m price_monitor
 
       # Two different cadences, for two different kinds of file.
