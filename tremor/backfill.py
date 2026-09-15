@@ -233,32 +233,31 @@ def nothing_can_have_appeared(asset: Asset, path: str,
                               now: datetime | None = None) -> bool:
     """True when the calendar says no new bar can exist for this instrument yet.
 
-    The free Twelve Data tier allows 800 requests a day and this basket asks for
-    21 of them an hour, so most of the budget was being spent asking for SPY
-    bars at three in the morning. Twelve of the instruments are US equity ETFs
-    that trade six and a half hours a day, five days a week: seventeen and a
-    half hours out of every twenty-four, and all weekend, the answer is known in
-    advance to be empty.
-
     EVERY GUARD HERE IS AGAINST THE SAME MISTAKE - skipping a fetch that would
     have returned something. A missed bar is a hole in the history and a move
     the detector never sees, which is far worse than a wasted request, so each
     condition below refuses to skip unless it is certain:
 
-      - only `us_equity`, the one template with an authoritative calendar. FX
-        and crypto are never skipped: FX has no session table here, and its
-        Sunday reopen is exactly the edge a hand-written rule would get wrong.
+      - crypto_24_7 is never skipped: it genuinely trades every hour.
+      - fx_continuous uses the same Sun 17:00 → Fri 17:00 New York week as the
+        bar walk (`instrument_day_hours`), so the skip cannot disagree with
+        what the walk considers a bar.
+      - us_equity still needs the session table; a missing or short table never
+        causes a skip.
       - never on an empty store, where there is no newest bar to reason from.
-      - never when the calendar does not reach today. A table that stops short
-        would otherwise report "no session" for every day past its end, which
-        reads as a permanent holiday and would silence the instrument for good.
-      - never within SETTLE_HOURS of the newest stored bar, so the correction
-        pass above still happens.
-      - and finally, only when the calendar claims no trading hour at all
-        between the newest stored bar and now.
+      - never within SETTLE_HOURS of the newest stored bar, so a bar served
+        while its hour was still open is re-asked for.
+      - and finally, only when no expected hour at all sits between the newest
+        stored bar and now.
     """
-    if asset.session_template != CALENDAR_TEMPLATE or not table:
+    template = asset.session_template
+    if template == "crypto_24_7":
         return False
+    if template == "us_equity" and not table:
+        return False
+    if template not in ("us_equity", "fx_continuous"):
+        return False
+
     stored = bars.load(path)
     if stored.empty:
         return False
@@ -267,11 +266,15 @@ def nothing_can_have_appeared(asset: Asset, path: str,
     newest = int(stored["hour_utc"].max())
     if now.timestamp() - newest < SETTLE_HOURS * 3600:
         return False
-    if max(table) < now.date():
+    if template == "us_equity" and max(table) < now.date():
         return False
 
     since = datetime.fromtimestamp(newest, tz=timezone.utc).date()
-    expected = _sessions.expected_hours(table, since, now.date())
+    expected: list[int] = []
+    day = since
+    while day <= now.date():
+        expected.extend(_sessions.instrument_day_hours(day, template, table))
+        day += timedelta(days=1)
     return not any(hour > newest for hour in expected)
 
 

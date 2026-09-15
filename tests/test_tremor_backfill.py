@@ -916,9 +916,8 @@ def test_an_open_market_is_always_asked_for():
         assert nothing_can_have_appeared(_equity(), path, table, now) is False
 
 
-def test_fx_and_crypto_are_never_skipped():
-    # FX has no session table here, and its Sunday reopen is exactly the edge a
-    # hand-written rule would get wrong.
+def test_fx_is_skipped_when_the_reference_week_is_shut():
+    # Saturday afternoon: the FX week is Sun 17:00 → Fri 17:00 New York.
     from tremor.backfill import nothing_can_have_appeared
     import tempfile, pathlib
     with tempfile.TemporaryDirectory() as tmp:
@@ -926,9 +925,31 @@ def test_fx_and_crypto_are_never_skipped():
         path = _equity_store(pathlib.Path(tmp), stored)
         table = _table([date(2026, 4, 3), date(2026, 4, 6)])
         now = datetime(2026, 4, 4, 15, tzinfo=timezone.utc)
+        assert nothing_can_have_appeared(asset(), path, table, now) is True
+
+
+def test_fx_is_asked_when_the_week_has_reopened():
+    from tremor.backfill import nothing_can_have_appeared
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as tmp:
+        stored = int(datetime(2026, 4, 3, 20, tzinfo=timezone.utc).timestamp())
+        path = _equity_store(pathlib.Path(tmp), stored)
+        table = _table([date(2026, 4, 3), date(2026, 4, 6)])
+        # Sunday 22:00 UTC is 18:00 EDT, after the 17:00 New York reopen.
+        now = datetime(2026, 4, 5, 22, tzinfo=timezone.utc)
         assert nothing_can_have_appeared(asset(), path, table, now) is False
+
+
+def test_crypto_is_never_skipped():
+    from tremor.backfill import nothing_can_have_appeared
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as tmp:
+        stored = int(datetime(2026, 4, 3, 20, tzinfo=timezone.utc).timestamp())
+        path = _equity_store(pathlib.Path(tmp), stored)
+        table = _table([date(2026, 4, 3), date(2026, 4, 6)])
+        now = datetime(2026, 4, 4, 15, tzinfo=timezone.utc)
         assert nothing_can_have_appeared(
-            asset(source="coinbase", session_template="crypto_continuous"),
+            asset(source="coinbase", session_template="crypto_24_7"),
             path, table, now) is False
 
 
