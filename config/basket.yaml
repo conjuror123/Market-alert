@@ -168,11 +168,11 @@ sensitivity: 1.0
 # between 9.3 and 20.4 events a year, a 2.2x spread across instruments that
 # differ by far more.
 #
-# Do not guess these. `python -m tremor.feedback --boring 'PFF 2026-09-09 13:00'`
-# records that a message was not worth reading, and the suggestion it prints
-# names the floor that instrument would need and what it costs that instrument
-# alone. Raising the shared number instead silences every quiet instrument at
-# once - point at PFF and lose SHY.
+# Do not guess these. `/floor BKLN 2.5` in a private chat with the bot writes
+# that instrument's floor immediately; `/floor Base metals 2.5` does the same
+# for every instrument in the block. The number is taken as typed, including
+# when it is smaller than the floor already there. Raising the shared number
+# instead silences every quiet instrument at once - point at BKLN and lose SHY.
 #
 # Changing any of them moves config_version, which retires derived data and
 # costs one cold run. That is correct: the events would otherwise be a mix of

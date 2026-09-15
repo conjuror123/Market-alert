@@ -683,12 +683,6 @@ def _block_move_phrase(block: str, move: "float | None") -> str:
 # calendar days behind across a weekend.
 VIX_PATH = os.path.join("data", "tremor", "vix", "fred_VIXCLS.parquet")
 
-# What "a week before" compares against. Seven CALENDAR days, matched to the
-# nearest earlier reading, because the comparison is meant to be legible rather
-# than exact - "up from 17 a week before" is the sentence, and whether that
-# reading was Monday or the Friday before it changes nothing about the point.
-VIX_COMPARE_DAYS = 7
-
 # Below this the two readings are called unchanged rather than given a
 # direction. A tenth is about the daily noise of the index, and "up from 15.9"
 # on a reading of 16.1 is a direction that is not there.
@@ -773,16 +767,13 @@ def vix_context(hour_utc: int) -> str:
              f"calmer than {100 - rank:.0f}% of days since {first}")
     lines = [f"🌡 <b>Fear gauge</b>: VIX {level:.2f} at the {when:%-d %b} close - {place}"]
 
-    earlier = known[known["day"] <= day - VIX_COMPARE_DAYS * 86400]
+    # The previous close the system already had, not a week-ago reading. A
+    # seven-day lookback printed "up from the 7 Sep close" next to a 14 Sep
+    # print and looked like the feed had stalled for a week when Friday's
+    # number was sitting one row back.
+    earlier = known.iloc[:-1]
     if not earlier.empty:
         before = float(earlier["close"].iloc[-1])
-        # DATED like the reading above it, not "a week before". The comparison
-        # takes the most recent reading at least a week back, which lands on a
-        # different day depending on where weekends and holidays fall - so "a
-        # week" was true to the intent and not to the number, and a reader could
-        # not tell nine days from seven. Both halves of the sentence now name
-        # their close, which also makes it obvious at a glance when the feed has
-        # stopped moving.
         was = datetime.fromtimestamp(int(earlier["day"].iloc[-1]), tz=timezone.utc)
         direction = ("up from" if level - before > VIX_FLAT else
                      "down from" if before - level > VIX_FLAT else "level with")
@@ -1493,6 +1484,19 @@ def pending_pings(events: "list[dict]", pinged: dict,
     return out
 
 
+def _ping_message_id(value) -> int:
+    """A ping record is either the Telegram id or `{id, hash}` after restyle."""
+    if isinstance(value, dict):
+        return int(value["id"])
+    return int(value)
+
+
+def _ping_hash(value) -> str:
+    if isinstance(value, dict):
+        return str(value.get("hash") or "")
+    return ""
+
+
 def sweep_pings(cfg: Config, store: dict) -> int:
     """Removes every outstanding ping. Called as the next note opens.
 
@@ -1506,10 +1510,11 @@ def sweep_pings(cfg: Config, store: dict) -> int:
     if not outstanding:
         return 0
     gone = 0
-    for event_id, message_id in list(outstanding.items()):
+    for event_id, value in list(outstanding.items()):
         try:
             if delete_telegram_message(cfg.telegram_bot_token,
-                                       cfg.telegram_chat_id, int(message_id)):
+                                       cfg.telegram_chat_id,
+                                       _ping_message_id(value)):
                 gone += 1
         except TelegramError as exc:
             log.warning("Could not clear ping %s: %s", event_id, exc)
@@ -1519,6 +1524,34 @@ def sweep_pings(cfg: Config, store: dict) -> int:
                  "(a bot may only delete its own message within 48 hours "
                  "outside a channel)", gone, len(outstanding))
     return gone
+
+
+def restyle_pings(cfg: Config, store: dict, events: "list[dict]",
+                  labels: dict[str, str]) -> int:
+    """Re-edits outstanding pings whose rendered text no longer matches."""
+    outstanding: dict = store.get(PINGS) or {}
+    if not outstanding:
+        return 0
+    by_id = {str(e.get("event_id")): e for e in events}
+    edited = 0
+    for event_id, value in list(outstanding.items()):
+        event = by_id.get(str(event_id))
+        if event is None:
+            continue
+        text = format_ping(event, labels)
+        mark = _fingerprint(text)
+        if mark == _ping_hash(value):
+            continue
+        message_id = _ping_message_id(value)
+        try:
+            edit_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
+                                  message_id, text)
+        except TelegramError as exc:
+            log.error("Could not restyle ping %s: %s", event_id, exc)
+            continue
+        outstanding[event_id] = {"id": message_id, "hash": mark}
+        edited += 1
+    return edited
 
 
 def pending(events: "list[dict]", sent: dict, now: datetime) -> "list[dict]":
@@ -1605,7 +1638,8 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
 
     # Corrections to already-sent pushes run on their own schedule - one sent on
     # Monday is edited on Tuesday whether or not Tuesday has news of its own.
-    corrected = follow_up.apply(cfg, state, events, calendar, now)
+    corrected = follow_up.apply(cfg, state, events, calendar, now,
+                               restyle_after=current)
 
     labels = _labels()
     pushed = posted = edited = 0
@@ -1628,7 +1662,8 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         sent[str(event["event_id"])] = int(event["hour_utc"])
         # Remembered so the two-bar, six-bar and settled check-ins can edit
         # this very message rather than sending three more.
-        follow_up.track(store, event, message_id)
+        follow_up.track(store, event, message_id, _fingerprint(
+            format_push(event, labels, calendar, events, now)))
         save_state(cfg.state_path, state)
         label = labels.get(str(event.get("asset_id", ""))) or str(
             event.get("asset_id", "")).split(":")[-1]
@@ -1651,18 +1686,23 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     pings: dict = store.setdefault(PINGS, {})
     buzzed = 0
     for event in pending_pings(events, pings, now):
+        text = format_ping(event, labels)
         try:
             message_id = send_telegram_message(
-                cfg.telegram_bot_token, cfg.telegram_chat_id,
-                format_ping(event, labels))
+                cfg.telegram_bot_token, cfg.telegram_chat_id, text)
         except TelegramError as exc:
             log.error("Failed to send ping %s: %s", event.get("event_id"), exc)
             continue
-        pings[str(event["event_id"])] = int(message_id)
+        pings[str(event["event_id"])] = {"id": int(message_id),
+                                         "hash": _fingerprint(text)}
         save_state(cfg.state_path, state)
         buzzed += 1
     if buzzed:
         log.info("Pings sent: %d", buzzed)
+    restyled = restyle_pings(cfg, store, events, labels)
+    if restyled:
+        save_state(cfg.state_path, state)
+        log.info("Pings restyled: %d", restyled)
 
     for slot in sorted(notes):
         record, rows = notes[slot]
@@ -1700,4 +1740,4 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         log.info("Tremor pushes sent: %d of %d due", pushed, len(pushes))
     store[_SENT] = _prune(sent, now)
     store[DIGEST_STATE] = _prune_digests(digests, now)
-    return pushed + posted + edited + corrected + buzzed
+    return pushed + posted + edited + corrected + buzzed + restyled

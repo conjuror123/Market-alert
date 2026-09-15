@@ -1038,8 +1038,8 @@ def test_vix_is_not_fetched_when_the_store_already_covers_what_can_exist(
 
     frame = _vix_frame([date(2026, 4, 2), date(2026, 4, 3)])
     frame.to_parquet(tmp_path / "fred_VIXCLS.parquet", index=False)
-    # Saturday 15:00 UTC: CBOE's 22:00 UTC gate for the 4th has not opened, so
-    # the newest day that can exist is the 3rd, which the store already has.
+    # Saturday 15:00 UTC: CBOE's 16:30 Eastern gate for the 4th has not opened,
+    # so the newest day that can exist is the 3rd, which the store already has.
     now = datetime(2026, 4, 4, 15, tzinfo=timezone.utc)
     out = backfill.backfill_vix(_vix_basket(), str(tmp_path), "key", None, now=now)
 
@@ -1062,8 +1062,8 @@ def test_vix_does_not_rewrite_parquet_when_the_merge_equals_the_store(
     monkeypatch.setattr(backfill.fred, "fetch_series",
                         lambda *a, **k: stored.copy())
 
-    # After 22:00 UTC the 4th is available, so the skip-if-fresh path does not
-    # fire and the fetch runs. The merge is identical to what is already stored.
+    # After 16:30 Eastern the 4th is available, so the skip-if-fresh path does
+    # not fire and the fetch runs. The merge is identical to what is already stored.
     now = datetime(2026, 4, 4, 23, tzinfo=timezone.utc)
     out = backfill.backfill_vix(_vix_basket(), str(tmp_path), "key", None, now=now)
 

@@ -192,15 +192,13 @@ def suggest(rows: list[dict], events) -> list[str]:
                          f"{m['channel']:<7} {abs(m['r'])*100:6.2f}%")
 
     if not rows:
-        lines.append("  nothing recorded yet - mark a message with --boring or --missed")
+        lines.append("  nothing recorded yet - mark a message with --missed")
     return lines
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Record what a message was worth, and what the knobs imply")
-    parser.add_argument("--boring", metavar="'TICKER 2026-09-09 13:00'",
-                        help="this arrived and was not worth reading")
     parser.add_argument("--missed", metavar="'TICKER 2026-09-09 13:00'",
                         help="this did not arrive and should have")
     parser.add_argument("--events", default=DEFAULT_EVENTS_PATH)
@@ -210,7 +208,7 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     from tremor.basket import load_basket
 
-    for verdict, text in ((BORING, args.boring), (MISSED, args.missed)):
+    for verdict, text in ((MISSED, args.missed),):
         if not text:
             continue
         ticker, _, when = text.strip().partition(" ")

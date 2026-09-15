@@ -52,13 +52,15 @@ TRACKED = "tracked"
 TRACK_HOURS = 240
 
 
-def track(store: dict, event: dict, message_id: int) -> None:
+def track(store: dict, event: dict, message_id: int,
+          text_hash: str = "") -> None:
     """Remember a sent push so its message can be corrected later."""
     tracked: dict = store.setdefault(TRACKED, {})
     tracked[str(event["event_id"])] = {
         "message_id": int(message_id),
         "hour_utc": int(event["hour_utc"]),
         "written": [],
+        "text_hash": str(text_hash or ""),
     }
 
 
@@ -84,12 +86,17 @@ def _prune(tracked: dict, now: datetime) -> dict:
 
 def apply(cfg: Config, state: dict, events: "list[dict]",
           calendar: "list[dict] | None" = None,
-          now: datetime | None = None) -> int:
+          now: datetime | None = None,
+          restyle_after: int | None = None) -> int:
     """Edits every tracked push whose next check-in has arrived.
 
+    Also re-renders pushes whose hour is in the current digest window when the
+    formatted text has changed - a copy tweak should rewrite what is already
+    on the phone on the next run, not wait for a retention check-in.
+
     Returns how many messages were edited. Failures are logged and left in the
-    tracking record, so a Telegram outage means the correction is retried on the
-    next run rather than lost.
+    tracking record, so a Telegram outage means the correction is retried on
+    the next run rather than lost.
     """
     now = now or datetime.now(timezone.utc)
     store = state.setdefault(tremor_delivery.STATE_KEY, {})
@@ -100,6 +107,7 @@ def apply(cfg: Config, state: dict, events: "list[dict]",
     by_id = {str(e.get("event_id")): e for e in events}
     labels = tremor_delivery._labels()
     edited = 0
+    since = None if restyle_after is None else int(restyle_after)
 
     for event_id, record in list(tracked.items()):
         event = by_id.get(event_id)
@@ -110,15 +118,21 @@ def apply(cfg: Config, state: dict, events: "list[dict]",
             continue
 
         landed = _due(record, event, tremor_delivery.FOLLOW_UP_HORIZONS)
-        if not landed:
+        text = tremor_delivery.format_push(
+            event, labels, calendar, events, now)
+        mark = tremor_delivery._fingerprint(text)
+        restyle = (
+            since is not None
+            and int(event.get("hour_utc") or 0) >= since
+            and mark != str(record.get("text_hash") or "")
+        )
+        if not landed and not restyle:
             continue
 
         # Re-rendered whole, which is how the check-in lines get their
         # answers: at the hour a push is sent neither close has happened, so
         # how the move held arrives later and reaches the reader through this
         # edit rather than through a second message.
-        text = tremor_delivery.format_push(
-            event, labels, calendar, events, now)
         try:
             edit_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
                                   int(record["message_id"]), text)
@@ -126,20 +140,24 @@ def apply(cfg: Config, state: dict, events: "list[dict]",
             log.error("Could not update push %s: %s", event_id, exc)
             continue
 
-        # Kept in the horizons' own order rather than sorted. They are not all
-        # the same kind of thing - two and six are bar counts, "settled" is a
-        # moment - and sorting a set holding both raises the moment the third
-        # answer lands on a push whose first two are already written. That is
-        # every push, and the exception would surface inside the hourly
-        # delivery run rather than here.
-        written = set(record.get("written") or []) | set(landed)
-        record["written"] = [h for h in tremor_delivery.FOLLOW_UP_HORIZONS
-                             if h in written]
+        record["text_hash"] = mark
+        if landed:
+            # Kept in the horizons' own order rather than sorted. They are not all
+            # the same kind of thing - two and six are bar counts, "settled" is a
+            # moment - and sorting a set holding both raises the moment the third
+            # answer lands on a push whose first two are already written. That is
+            # every push, and the exception would surface inside the hourly
+            # delivery run rather than here.
+            written = set(record.get("written") or []) | set(landed)
+            record["written"] = [h for h in tremor_delivery.FOLLOW_UP_HORIZONS
+                                 if h in written]
+            log.info("Updated push %s with the %s check-in",
+                     event_id, ", ".join(str(h) for h in landed))
+        else:
+            log.info("Restyled push %s", event_id)
         edited += 1
-        log.info("Updated push %s with the %s check-in",
-                 event_id, ", ".join(str(h) for h in landed))
 
-        if set(record["written"]) >= set(tremor_delivery.FOLLOW_UP_HORIZONS):
+        if set(record.get("written") or []) >= set(tremor_delivery.FOLLOW_UP_HORIZONS):
             tracked.pop(event_id, None)
 
     store[TRACKED] = _prune(tracked, now)

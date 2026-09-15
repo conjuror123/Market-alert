@@ -94,3 +94,4 @@ def test_a_missed_move_that_was_found_is_a_routing_problem():
 
 def test_nothing_recorded_is_said_plainly():
     assert any("nothing recorded yet" in line for line in fb.suggest([], SAMPLE))
+    assert all("--boring" not in line for line in fb.suggest([], SAMPLE))

@@ -41,12 +41,14 @@ def epoch(d: date) -> int:
 # --- when a close may be used -----------------------------------------------
 
 def test_the_close_is_available_the_same_evening():
-    # The whole reason this module exists. VIX settles at 16:15 in Chicago and
+    # The whole reason this module exists. VIX settles at 16:15 Eastern and
     # CBOE posts it minutes later, so Friday's close is Friday's news - where
-    # FRED's mirror does not carry it until Monday.
+    # FRED's mirror does not carry it until Monday. 16:30 Eastern is the gate,
+    # in the market's clock, so a summer print is not held until 22:00 UTC.
     when = at(cboe.available_at(date(2026, 9, 11)))
     assert when.date() == date(2026, 9, 11)
-    assert when.hour == cboe.PUBLICATION_HOUR_UTC
+    eastern = pd.Timestamp(when).tz_convert("America/New_York")
+    assert (eastern.hour, eastern.minute) == (16, 30)
 
 
 def test_the_close_is_not_available_before_it_settles():

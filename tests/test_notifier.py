@@ -2,7 +2,10 @@ import pytest
 import requests
 
 from price_monitor import notifier
-from price_monitor.notifier import TelegramError, edit_telegram_message, send_telegram_message
+from price_monitor.notifier import (
+    TelegramError, edit_telegram_message, fetch_telegram_updates,
+    send_telegram_message,
+)
 
 
 class FakeResponse:
@@ -105,3 +108,27 @@ def test_edit_non_200_status_raises(monkeypatch):
     monkeypatch.setattr(notifier.requests, "post", fake_post)
     with pytest.raises(TelegramError):
         edit_telegram_message("token", "@chan", 99, "text")
+
+
+def test_an_unmodified_edit_is_not_an_error(monkeypatch):
+    def fake_post(url, json, timeout):
+        return FakeResponse(400, {
+            "ok": False,
+            "description": "Bad Request: message is not modified",
+        })
+
+    monkeypatch.setattr(notifier.requests, "post", fake_post)
+    edit_telegram_message("token", "@chan", 99, "same text")
+
+
+def test_fetch_updates_passes_the_offset(monkeypatch):
+    calls = []
+
+    def fake_get(url, params, timeout):
+        calls.append((url, params))
+        return FakeResponse(200, {"ok": True, "result": [{"update_id": 4}]})
+
+    monkeypatch.setattr(notifier.requests, "get", fake_get)
+    assert fetch_telegram_updates("token", offset=5) == [{"update_id": 4}]
+    assert calls[0][0].endswith("/bottoken/getUpdates")
+    assert calls[0][1]["offset"] == 5
