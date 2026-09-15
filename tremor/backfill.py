@@ -33,6 +33,7 @@ from tremor.basket import Asset, Basket, load_basket
 from price_monitor import (candle_store, coinbase, dukascopy, fxcm, hfdata,
                            tiingo, twelvedata, yahoo)
 from price_monitor.models import ExchangeError
+from price_monitor.notifier import TelegramError, send_telegram_message
 
 log = logging.getLogger("tremor.backfill")
 
@@ -68,6 +69,47 @@ _PROVIDER_REACH = {
 # loop in main() - this is the guard that keeps a batch of newly configured
 # tickers from turning the hourly job into a backfill.
 SEED_PER_RUN = 4
+
+
+def format_provider_failure(dark: list[tuple[str, str, str]],
+                            tiingo_gone: bool = False,
+                            tiingo_skipped: int = 0,
+                            tiingo_remaining: str | None = None,
+                            tiingo_trip: str | None = None) -> str:
+    """One operational message naming who went dark. Does not switch provider."""
+    lines = []
+    if dark:
+        lines.append(
+            f"⚠️ <b>Backfill: {len(dark)} instrument(s) went dark</b>")
+        for asset_id, provider, err in dark[:20]:
+            lines.append(f"• {asset_id} ({provider}): {err}")
+        if len(dark) > 20:
+            lines.append(f"• …and {len(dark) - 20} more")
+    if tiingo_gone:
+        if lines:
+            lines.append("")
+        who = f" after {tiingo_trip}" if tiingo_trip else ""
+        head = (f"remaining headroom {tiingo_remaining}"
+                if tiingo_remaining is not None else
+                "remaining headroom not in the 429")
+        lines.append(f"⚠️ <b>Tiingo request budget spent{who}</b>")
+        lines.append(f"{head}; {tiingo_skipped} remaining Tiingo instrument(s) skipped.")
+        lines.append("Provider was not switched automatically.")
+    return "\n".join(lines)
+
+
+def send_ops_alert(text: str) -> None:
+    """Private Telegram if configured, otherwise the product chat, otherwise log."""
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    chat = (os.environ.get("TELEGRAM_HEALTH_CHAT_ID")
+            or os.environ.get("TELEGRAM_CHAT_ID", ""))
+    if not token or not chat:
+        log.warning("No operational Telegram destination configured")
+        return
+    try:
+        send_telegram_message(token, chat, text)
+    except TelegramError as exc:
+        log.error("Failed to send operational alert: %s", exc)
 
 
 def _days_since(start: date) -> float:
@@ -1009,6 +1051,10 @@ def main(argv: list[str] | None = None) -> int:
     seeded = 0
     quota_gone = False
     tiingo_gone = False
+    tiingo_skipped = 0
+    tiingo_trip = None
+    tiingo_remaining = None
+    dark: list[tuple[str, str, str]] = []
     for i, asset in enumerate(instruments):
         path = bars.store_path(args.bars_dir, asset.file_stem)
         if not args.extend_history and bars.load(path).empty:
@@ -1032,6 +1078,7 @@ def main(argv: list[str] | None = None) -> int:
             continue
         if tiingo_gone and asset.fetched_from == "tiingo":
             skipped += 1
+            tiingo_skipped += 1
             continue
         try:
             r = backfill_instrument(asset, basket, args.bars_dir, api_key, session,
@@ -1055,13 +1102,18 @@ def main(argv: list[str] | None = None) -> int:
             # Tiingo's 50-an-hour bucket, or its 1000-a-day one. Neither clears
             # inside a run, so every later Tiingo instrument would spend a
             # round trip to be told the same thing. The others carry on: this
-            # is one provider being out, not the run failing.
+            # is one provider being out, not the run failing. Provider is not
+            # switched automatically - a silent fall back to slower or
+            # different-priced data cannot happen unnoticed.
             tiingo_gone = True
+            tiingo_trip = asset.asset_id
+            tiingo_remaining = getattr(exc, "remaining", None)
             log.error("Tiingo's request budget is spent - %s", exc)
             log.error("Skipping the remaining Tiingo instruments; the other "
                       "providers continue.")
         except Exception as exc:
             failures += 1
+            dark.append((asset.asset_id, asset.fetched_from, str(exc)))
             log.error("%s: failed - %s", asset.asset_id, exc)
         # The 8-requests-per-minute limit is per key, and the running hourly
         # monitor spends it too - the pause is needed between instruments as well.
@@ -1097,7 +1149,14 @@ def main(argv: list[str] | None = None) -> int:
                 log.warning("VIX source unavailable - %s", note)
         except Exception as exc:
             failures += 1
+            dark.append(("VIX", "cboe/fred", str(exc)))
             log.error("VIX: failed - %s", exc)
+
+    text = format_provider_failure(
+        dark, tiingo_gone=tiingo_gone, tiingo_skipped=tiingo_skipped,
+        tiingo_remaining=tiingo_remaining, tiingo_trip=tiingo_trip)
+    if text:
+        send_ops_alert(text)
 
     return 1 if failures else 0
 

@@ -37,7 +37,11 @@ It runs entirely on GitHub Actions. Nothing extra needs hosting.
      In that case `chat_id` is simply the channel's `@username`, with no numeric ID
      to hunt for.
 3. Open the repository settings: **Settings → Secrets and variables → Actions →
-   Secrets**. Add `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` there.
+   Secrets**. Add `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` there. Optional:
+   `TELEGRAM_HEALTH_CHAT_ID` for operational messages (health, a named provider
+   failure). If it is unset those go to `TELEGRAM_CHAT_ID`, so behaviour is
+   unchanged until the secret exists. Product pushes always stay on
+   `TELEGRAM_CHAT_ID`.
 4. Everything except crypto goes through a separate provider,
    [Twelve Data](https://twelvedata.com/) — equities, rates, credit, commodities and FX,
    fifty-one of the sixty instruments. Register there (email only, no card) and add the
@@ -431,6 +435,7 @@ its end, the command has to be run again.
 pip install -r requirements-dev.txt
 export TELEGRAM_BOT_TOKEN=...
 export TELEGRAM_CHAT_ID=...
+export TELEGRAM_HEALTH_CHAT_ID=...  # optional; operational messages only
 export TWELVEDATA_API_KEY=...  # needed for everything except crypto, see "Quick start"
 export FRED_API_KEY=...        # for the VIX series only
 

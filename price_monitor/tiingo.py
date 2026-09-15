@@ -77,6 +77,10 @@ class RateLimited(ExchangeError):
     Data client does with a spent daily budget.
     """
 
+    def __init__(self, message: str, remaining: str | None = None):
+        super().__init__(message)
+        self.remaining = remaining
+
 
 def _interval_code(interval: str) -> str:
     try:
@@ -153,7 +157,10 @@ def _get_json(session, url: str, params: dict, api_key: str, ticker: str):
             last = ExchangeError(f"{ticker}: {exc}")
             continue
         if resp.status_code == 429:
-            raise RateLimited(f"{ticker}: Tiingo request budget spent")
+            remaining = (resp.headers.get("X-RateLimit-Remaining")
+                         or resp.headers.get("X-Ratelimit-Remaining"))
+            raise RateLimited(f"{ticker}: Tiingo request budget spent",
+                              remaining=remaining)
         if resp.status_code in (404, 400):
             raise ExchangeError(
                 f"{ticker}: Tiingo rejected the request ({resp.status_code}): "

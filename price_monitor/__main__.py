@@ -112,7 +112,7 @@ def main() -> int:
         if health.should_alert_down(streak, cfg.health_alert_after_failures,
                                     cfg.health_reminder_every_failures):
             try:
-                send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
+                send_telegram_message(cfg.telegram_bot_token, cfg.telegram_health_chat_id,
                                       format_health_down(streak, error_details))
                 log.info("Monitoring-down alert sent (streak=%d)", streak)
             except TelegramError as exc:
@@ -121,7 +121,7 @@ def main() -> int:
         previous_streak = health.record_success(state)
         if previous_streak >= cfg.health_alert_after_failures:
             try:
-                send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
+                send_telegram_message(cfg.telegram_bot_token, cfg.telegram_health_chat_id,
                                       format_health_recovered(previous_streak))
                 log.info("Monitoring-recovered alert sent")
             except TelegramError as exc:

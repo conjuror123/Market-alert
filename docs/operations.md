@@ -83,6 +83,12 @@ to prevent.
 If the pipeline fails, the events table is left as it was, and delivery's 48-hour
 staleness rule then sends nothing rather than something wrong.
 
+A provider failure now also names the instruments (and their providers) in a
+Telegram message to `TELEGRAM_HEALTH_CHAT_ID`, falling back to `TELEGRAM_CHAT_ID`
+until that secret exists. The product channel is not used for diagnostics once
+the health chat is set. The job still fails; the provider is not switched
+automatically.
+
 **Two independent emails cover failure**, and neither needs code:
 
 - **cron-job.org** emails when it cannot reach GitHub — the HTTP call failed.

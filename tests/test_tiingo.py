@@ -8,9 +8,10 @@ from price_monitor.models import ExchangeError
 
 
 class _Resp:
-    def __init__(self, payload, status=200, text=""):
+    def __init__(self, payload, status=200, text="", headers=None):
         self._payload, self.status_code = payload, status
         self.text = text or json.dumps(payload) if payload is not None else text
+        self.headers = headers or {}
 
     def json(self):
         if self._payload is None:
@@ -89,8 +90,12 @@ def test_a_rate_limit_stops_rather_than_retrying():
     assert len(s.calls) == 1
 
 
-def test_rate_limited_is_an_exchange_error():
-    assert issubclass(tiingo.RateLimited, ExchangeError)
+def test_a_rate_limit_carries_remaining_headroom_when_the_header_is_present():
+    s = _Session(_Resp(None, status=429, text="too many requests",
+                       headers={"X-RateLimit-Remaining": "0"}))
+    with pytest.raises(tiingo.RateLimited) as caught:
+        tiingo.fetch_full_history("SPY", "30min", days=1, api_key="k", session=s)
+    assert caught.value.remaining == "0"
 
 
 def test_a_missing_key_is_refused_before_the_request():
