@@ -27,7 +27,7 @@ from datetime import date, datetime, timedelta, timezone
 import pandas as pd
 import requests
 
-from tremor import bars, cboe, corporate_actions, fred
+from tremor import atomic, bars, cboe, corporate_actions, fred
 from tremor import sessions as _sessions
 from tremor.basket import Asset, Basket, load_basket
 from price_monitor import (candle_store, coinbase, dukascopy, hfdata,
@@ -406,7 +406,7 @@ def backfill_vix(basket: Basket, vix_dir: str, api_key: str,
                 "sources": sources, "trouble": trouble}
 
     os.makedirs(vix_dir, exist_ok=True)
-    frame.to_parquet(path, index=False, compression="zstd")
+    atomic.write_parquet(path, frame)
     return {"asset_id": vix.series_id, "rows": len(frame),
             "first": int(frame["day"].min()), "last": int(frame["day"].max()),
             "sources": sources, "trouble": trouble}

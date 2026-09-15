@@ -33,8 +33,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from tremor import (blocks, persistence, quality, routing, sessions, severity,
-                    windows)
+from tremor import (atomic, blocks, persistence, quality, routing, sessions,
+                    severity, windows)
 from tremor.basket import Asset, Basket, load_tuning
 
 
@@ -551,8 +551,9 @@ def save_residuals(scored: dict[str, pd.DataFrame],
     stems = {a.asset_id: a.file_stem for a in load_basket().instruments}
     for asset_id, frame in scored.items():
         columns = [c for c in RESIDUAL_COLUMNS if c in frame.columns]
-        frame[columns].to_parquet(os.path.join(out_dir, f"{stems[asset_id]}.parquet"),
-                                  index=False, compression="zstd")
+        atomic.write_parquet(
+            os.path.join(out_dir, f"{stems[asset_id]}.parquet"),
+            frame[columns])
 
 
 def load_residuals(basket: Basket,
@@ -808,7 +809,7 @@ def main(argv: list[str] | None = None) -> int:
     for path, frame in ((args.events_out, events),
                         (args.alerts_out, versioning.stamp(alerts, config, run_id))):
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        frame.to_parquet(path, index=False, compression="zstd")
+        atomic.write_parquet(path, frame)
     # RESIDUALS ARE A BACKTEST ARTEFACT, not something the hourly run produces
     # for anyone. Nothing in the delivery path reads them: the only readers are
     # tremor.saed_score and tools/report_card.py, both run by hand. Writing them

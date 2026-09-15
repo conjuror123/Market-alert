@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import os
 
+from tremor import atomic
+
 import pandas as pd
 
 from price_monitor.models import Candle
@@ -123,7 +125,7 @@ def write(store: str, frame: pd.DataFrame) -> None:
     frame = _normalise(frame)
     if store.endswith(".parquet"):
         os.makedirs(os.path.dirname(store) or ".", exist_ok=True)
-        frame.to_parquet(store, index=False, compression="zstd")
+        atomic.write_parquet(store, frame)
         return
 
     os.makedirs(store, exist_ok=True)
@@ -137,7 +139,7 @@ def write(store: str, frame: pd.DataFrame) -> None:
                     continue
             except Exception:                    # pragma: no cover - defensive
                 pass                             # unreadable shard: rewrite it
-        part.to_parquet(path, index=False, compression="zstd")
+        atomic.write_parquet(path, part)
     for name in os.listdir(store):
         # A year that no longer has bars in the frame. Only reachable when a
         # store is rebuilt from a shorter history, but leaving the file behind

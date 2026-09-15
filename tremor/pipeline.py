@@ -27,7 +27,7 @@ from datetime import date
 
 import pandas as pd
 
-from tremor import bars, corporate_actions, quality, returns, sessions, windows, zscore
+from tremor import atomic, bars, corporate_actions, quality, returns, sessions, windows, zscore
 from tremor.basket import Asset, Basket, load_basket
 
 log = logging.getLogger("tremor.pipeline")
@@ -188,8 +188,9 @@ def build_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
             log.warning("%s: no usable bars", asset.asset_id)
             continue
         stored = metrics[[c for c in METRIC_COLUMNS if c in metrics]]
-        versioning.stamp(stored, config, run).to_parquet(
-            metrics_path(metrics_dir, asset.file_stem), index=False, compression="zstd")
+        atomic.write_parquet(
+            metrics_path(metrics_dir, asset.file_stem),
+            versioning.stamp(stored, config, run))
         result[asset.asset_id] = metrics
         log.info("%s: bars %d, Q95 breaches %s, Q99 %s", asset.asset_id, len(metrics),
                  int(metrics["breach_q95"].sum()), int(metrics["breach_q99"].sum()))
@@ -269,7 +270,7 @@ def _pool_one(payload: "tuple[Asset, Basket]") -> "tuple[str, int, int, int, boo
     if extended and metrics is existing:
         return (asset.asset_id, len(metrics), int(metrics["breach_q95"].sum()),
                 int(metrics["breach_q99"].sum()), extended)
-    metrics.to_parquet(path, index=False, compression="zstd")
+    atomic.write_parquet(path, metrics)
     return (asset.asset_id, len(metrics), int(metrics["breach_q95"].sum()),
             int(metrics["breach_q99"].sum()), extended)
 
