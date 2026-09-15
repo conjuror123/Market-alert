@@ -1,0 +1,4 @@
+{
+  "name": "Market Alert (Tremor)",
+  "install": "command -v python >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y python-is-python3; }; sudo python3 -m pip install -r requirements-dev.txt"
+}
