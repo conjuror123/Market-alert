@@ -7,14 +7,14 @@
       "1788858000": {
         "from": 1788858000,
         "hashes": [
-          "74211ba44b3bf403",
-          "3da97cbd0fb2e31a"
+          "e8adfb3c888136c6",
+          "6c8a4e2c1648b469"
         ],
         "ids": [
           7,
           8
         ],
-        "rows": 10,
+        "rows": 8,
         "to": 1789117200
       },
       "1789117200": {
@@ -31,20 +31,30 @@
       "1789344300": {
         "from": 1789344300,
         "hashes": [
-          "c1efbea96aaf4d58"
+          "751726746f4f08e5"
         ],
         "ids": [
           13
         ],
+        "rows": 1,
         "to": 1789776300
       }
     },
-    "pings": {},
-    "sent": {
-      "twelvedata_USD_JPY:1788768000": 1788768000
+    "pings": {
+      "twelvedata_DBB:1789390800": 15
     },
-    "tracked": {}
+    "sent": {
+      "twelvedata_USD_JPY:1788768000": 1788768000,
+      "twelvedata_XLF:1789405200": 1789405200
+    },
+    "tracked": {
+      "twelvedata_XLF:1789405200": {
+        "hour_utc": 1789405200,
+        "message_id": 14,
+        "written": []
+      }
+    }
   },
-  "weekly_digest:last_refreshed": "2026-09-14",
+  "weekly_digest:last_refreshed": "2026-09-15",
   "weekly_digest:last_sent_week": "2026-09-11"
 }
