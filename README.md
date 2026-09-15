@@ -132,7 +132,6 @@ tremor/audit.py        — the data coverage table
 Per instrument
 tremor/returns.py      — returns, the gap channel, winsorization
 tremor/zscore.py       — the out-of-sample adaptive EWMA Z-score
-tremor/volume.py       — a robust volume profile by local exchange hour
 tremor/pipeline.py     — assembles the above into per-asset metrics
 
 Across the basket
