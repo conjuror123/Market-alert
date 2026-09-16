@@ -544,7 +544,7 @@ assets:
     label: "Senior bank loans"
     # 2.0x usual hour was not worth a line. Shared floor is 1.0; this is BKLN
     # only, so SHY and the rest of credit keep speaking.
-    min_move_sigma: 2.1
+    min_move_sigma: 1
   - ticker: PFF
     source: twelvedata
     provider: tiingo

@@ -2,7 +2,8 @@
   "_monitoring_health": {
     "consecutive_failures": 0
   },
-  "telegram_update_offset": 688283214,
+  "floor_pending_replies": [],
+  "telegram_update_offset": 688283215,
   "tremor_delivery": {
     "digests": {
       "1788858000": {
@@ -32,25 +33,43 @@
       "1789344300": {
         "from": 1789344300,
         "hashes": [
-          "be59324e6ff255bf"
+          "a6283c39e0378439"
         ],
         "ids": [
           13
         ],
-        "rows": 1,
+        "rows": 2,
         "to": 1789776300
       }
     },
     "pings": {
+      "twelvedata_BKLN:1789498800": {
+        "hash": "042057364fed2697",
+        "id": 17
+      },
       "twelvedata_DBB:1789390800": {
         "hash": "100952d7817b8676",
         "id": 15
       }
     },
     "sent": {
-      "twelvedata_XLF:1789405200": 1789405200
+      "twelvedata_XLF:1789405200": {
+        "hash": "dea8896940dd5770",
+        "hour": 1789405200,
+        "id": 14
+      }
     },
-    "tracked": {}
+    "tracked": {
+      "twelvedata_XLF:1789405200": {
+        "hour_utc": 1789405200,
+        "message_id": 14,
+        "text_hash": "dea8896940dd5770",
+        "written": [
+          "today",
+          "settled"
+        ]
+      }
+    }
   },
   "weekly_digest:last_refreshed": "2026-09-16",
   "weekly_digest:last_sent_week": "2026-09-11"
