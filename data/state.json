@@ -9,7 +9,7 @@
       "1788858000": {
         "from": 1788858000,
         "hashes": [
-          "9e7e0b9b4d92d262",
+          "4fb9d9199040a36d",
           "6c8a4e2c1648b469"
         ],
         "ids": [
@@ -22,7 +22,7 @@
       "1789117200": {
         "from": 1789117200,
         "hashes": [
-          "2e98010565f95da5"
+          "f6bd4d494f90e87c"
         ],
         "ids": [
           10
@@ -33,7 +33,7 @@
       "1789344300": {
         "from": 1789344300,
         "hashes": [
-          "a6283c39e0378439"
+          "c7b9c4a19672b7b9"
         ],
         "ids": [
           13
@@ -54,7 +54,7 @@
     },
     "sent": {
       "twelvedata_XLF:1789405200": {
-        "hash": "dea8896940dd5770",
+        "hash": "09fb0dd038d63f17",
         "hour": 1789405200,
         "id": 14
       }
@@ -63,7 +63,7 @@
       "twelvedata_XLF:1789405200": {
         "hour_utc": 1789405200,
         "message_id": 14,
-        "text_hash": "dea8896940dd5770",
+        "text_hash": "09fb0dd038d63f17",
         "written": [
           "today",
           "settled"
