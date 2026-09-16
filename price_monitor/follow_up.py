@@ -112,9 +112,10 @@ def apply(cfg: Config, state: dict, events: "list[dict]",
     for event_id, record in list(tracked.items()):
         event = by_id.get(event_id)
         if event is None:
-            # The event left the table - a recompute that no longer produces it.
-            # Nothing to say about it, and nothing to keep.
-            tracked.pop(event_id, None)
+            # Still tracked so a later run can restyle if the row comes back;
+            # dropping the message id is how a /floor change froze old pushes.
+            log.info("Tracked push %s has no row this run; holding the message id",
+                     event_id)
             continue
 
         landed = _due(record, event, tremor_delivery.FOLLOW_UP_HORIZONS)

@@ -1588,6 +1588,51 @@ def sweep_pings(cfg: Config, store: dict) -> int:
     return gone
 
 
+def _event_for_ping(event_id: str, events_by_id: dict,
+                    labels: dict[str, str]) -> dict | None:
+    """The row to re-render a ping from, even if saed no longer emits it.
+
+    `/floor` can drop a digest row from the table while the ping is still on
+    the phone. Looking the event up only in this run's parquet then leaves the
+    old short line forever. The id is `file_stem:hour`; that is enough to
+    rebuild ticker · name, which is what the restyle is for.
+    """
+    found = events_by_id.get(str(event_id))
+    if found is not None:
+        return found
+    raw = str(event_id or "")
+    if ":" not in raw:
+        return None
+    stem, hour_s = raw.rsplit(":", 1)
+    try:
+        hour = int(hour_s)
+    except ValueError:
+        return None
+    from tremor.basket import load_basket
+    from tremor.blocks import is_block
+
+    asset_id = None
+    block = ""
+    try:
+        for asset in load_basket().instruments:
+            if asset.file_stem == stem:
+                asset_id = asset.asset_id
+                block = asset.block
+                break
+    except Exception:                            # pragma: no cover - defensive
+        asset_id = None
+    if asset_id is None and stem.startswith("block_"):
+        block = stem[len("block_"):]
+        asset_id = f"block:{block}"
+    if asset_id is None:
+        return None
+    return {
+        "event_id": raw, "asset_id": asset_id, "block": block,
+        "hour_utc": hour, "tier": "noticeable", "channel": "digest",
+        "r": None, "sigma_lt": None,
+    }
+
+
 def restyle_pings(cfg: Config, store: dict, events: "list[dict]",
                   labels: dict[str, str]) -> int:
     """Re-edits outstanding pings whose rendered text no longer matches."""
@@ -1597,8 +1642,10 @@ def restyle_pings(cfg: Config, store: dict, events: "list[dict]",
     by_id = {str(e.get("event_id")): e for e in events}
     edited = 0
     for event_id, value in list(outstanding.items()):
-        event = by_id.get(str(event_id))
+        event = _event_for_ping(str(event_id), by_id, labels)
         if event is None:
+            log.info("Could not restyle ping %s: no event and id is not a stem:hour",
+                     event_id)
             continue
         text = format_ping(event, labels)
         mark = _fingerprint(text)
@@ -1656,8 +1703,8 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         return 0
 
     events = load_events(cfg)
-    if not events:
-        return 0
+    # An empty table must not skip restyle: /floor can drop the only live row
+    # while its ping is still on the phone.
 
     from price_monitor import follow_up
     from price_monitor.alerts_log import (load_alerts_log, record_sent_alert,
@@ -1701,7 +1748,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     # Corrections to already-sent pushes run on their own schedule - one sent on
     # Monday is edited on Tuesday whether or not Tuesday has news of its own.
     corrected = follow_up.apply(cfg, state, events, calendar, now,
-                               restyle_after=current)
+                               restyle_after=0)
 
     labels = _labels()
     pushed = posted = edited = 0

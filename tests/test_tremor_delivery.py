@@ -1541,8 +1541,7 @@ def test_tidying_leaves_a_healthy_set_of_notes_alone():
 
 def test_a_format_change_rewrites_pushes_and_pings_since_the_open_note(
         monkeypatch, sender, editor):
-    # A copy tweak must land on the next run, not wait for a retention check-in,
-    # and must not rewrite a push from a previous note.
+    # A copy tweak must land on the next run, not wait for a retention check-in.
     live = event(event_id="live", channel="push", retention_settled=None,
                  hour_utc=int(NOW.timestamp()) - HOUR)
     ping = event(event_id="p1", tier="noticeable", channel="digest",
@@ -1570,4 +1569,23 @@ def test_a_format_change_rewrites_pushes_and_pings_since_the_open_note(
     changed = editor.calls[before:]
     assert any(text.startswith("NEWSTYLE") for _, text in changed)
     assert any(text.endswith("\n.") for _, text in changed)
-    assert all(message_id != 99 for message_id, _ in changed)
+    assert any(message_id == 99 for message_id, _ in changed)
+
+
+def test_a_ping_is_restyled_even_after_the_row_leaves_the_table(
+        monkeypatch, sender, editor):
+    # Live: BKLN's ping stayed "Senior bank loans +0.12%" after /floor dropped
+    # the row from saed_events, because restyle looked the id up only in this
+    # run's parquet and skipped it.
+    ping = event(event_id="twelvedata_BKLN:1789498800", tier="noticeable",
+                 channel="digest", asset_id="twelvedata:BKLN",
+                 hour_utc=int(NOW.timestamp()) - HOUR, r=0.0012, sigma_lt=0.001)
+    _, state = deliver(monkeypatch, [ping])
+    assert any("BKLN" in t for t in sender.texts)
+
+    before = len(editor.calls)
+    deliver(monkeypatch, [], state=state)
+    changed = [text for _, text in editor.calls[before:] if "BKLN" in text]
+    assert changed, "the stranded ping must still be rewritten"
+    assert "Added to digest" in changed[-1]
+    assert "BKLN" in changed[-1]
