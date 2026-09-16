@@ -182,8 +182,7 @@ min_move_sigma: 1.0
 
 # Size floor for a block's own messages, in the block's usual hour. Absent, the
 # shared min_move_sigma above is the default. Members are not written here.
-# block_min_move_sigma:
-#   industrial_metals: 2.5
+# `/floor Base metals 2.2` writes `block_min_move_sigma:` with that block's name.
 
 # Session templates are filled in during phase 1 (holiday and half-session
 # calendars); here only the names the assets refer to.
@@ -545,7 +544,7 @@ assets:
     label: "Senior bank loans"
     # 2.0x usual hour was not worth a line. Shared floor is 1.0; this is BKLN
     # only, so SHY and the rest of credit keep speaking.
-    min_move_sigma: 2.5
+    min_move_sigma: 2.2
   - ticker: PFF
     source: twelvedata
     provider: tiingo
