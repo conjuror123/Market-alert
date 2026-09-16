@@ -1663,6 +1663,22 @@ def restyle_pings(cfg: Config, store: dict, events: "list[dict]",
     return edited + dropped
 
 
+def _sent_hour(value) -> float:
+    """A sent record is the hour, or `{hour, id, hash}` after restyle ids landed."""
+    if isinstance(value, dict):
+        return float(value.get("hour") or 0)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _sent_message_id(value) -> "int | None":
+    if isinstance(value, dict) and value.get("id") is not None:
+        return int(value["id"])
+    return None
+
+
 def pending(events: "list[dict]", sent: dict, now: datetime) -> "list[dict]":
     """The pushes that are due and have not gone out.
 
@@ -1686,7 +1702,7 @@ def _prune(sent: dict, now: datetime) -> dict:
     dropped while its event is still deliverable and re-sent as a result.
     """
     cutoff = now.timestamp() - 4 * STALE_AFTER_HOURS * 3600
-    return {k: v for k, v in sent.items() if float(v) >= cutoff}
+    return {k: v for k, v in sent.items() if _sent_hour(v) >= cutoff}
 
 
 def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
@@ -1744,12 +1760,17 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
 
     # The archive is ninety thousand events, so it is read once for the whole
     # run and only when there is something to render with it.
-    calendar = _calendar(cfg) if (pushes or notes) else None
+    calendar = _calendar(cfg) if (
+        pushes or notes or store.get(_SENT) or store.get(follow_up.TRACKED)
+    ) else None
 
     # Corrections to already-sent pushes run on their own schedule - one sent on
     # Monday is edited on Tuesday whether or not Tuesday has news of its own.
     corrected = follow_up.apply(cfg, state, events, calendar, now,
                                restyle_after=0)
+    if corrected:
+        save_state(cfg.state_path, state)
+        log.info("Pushes restyled or corrected: %d", corrected)
 
     labels = _labels()
     pushed = posted = edited = 0
@@ -1769,11 +1790,17 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         except TelegramError as exc:
             log.error("Failed to send Tremor push %s: %s", event.get("event_id"), exc)
             continue
-        sent[str(event["event_id"])] = int(event["hour_utc"])
+        text = format_push(event, labels, calendar, events, now)
+        mark = _fingerprint(text)
+        sent[str(event["event_id"])] = {
+            "hour": int(event["hour_utc"]), "id": int(message_id), "hash": mark,
+        }
         # Remembered so the two-bar, six-bar and settled check-ins can edit
-        # this very message rather than sending three more.
-        follow_up.track(store, event, message_id, _fingerprint(
-            format_push(event, labels, calendar, events, now)))
+        # this very message rather than sending three more. Kept until
+        # TRACK_HOURS even after both check-ins land, so a copy tweak can
+        # still rewrite a finished push (XLF sat on the old template because
+        # tracking was dropped the hour the settled line arrived).
+        follow_up.track(store, event, message_id, mark)
         save_state(cfg.state_path, state)
         label = labels.get(str(event.get("asset_id", ""))) or str(
             event.get("asset_id", "")).split(":")[-1]

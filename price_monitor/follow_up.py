@@ -26,9 +26,10 @@ twice writes the same text twice rather than appending to itself.
 WHY IT CANNOT SPAM. Editing needs the message id Telegram returned when the
 push was sent, so only messages this bot sent in the tracked window can be
 touched at all, and each (event, horizon) pair is recorded once it lands. A
-tracked push is forgotten after the longest horizon has passed and been
-written, or after TRACK_HOURS regardless, so the state file cannot grow without
-bound.
+tracked push is forgotten after TRACK_HOURS, not the moment the last
+check-in lands: dropping it then is how a finished push kept an old template
+after later copy tweaks. Ten days is still the ceiling, so the state file
+cannot grow without bound.
 """
 from __future__ import annotations
 
@@ -84,6 +85,48 @@ def _prune(tracked: dict, now: datetime) -> dict:
             if float(v.get("hour_utc", 0)) >= cutoff}
 
 
+# Pushes whose check-ins completed before `sent` stored the Telegram id.
+# Without this the live XLF message (id 14) cannot be restyled: tracked was
+# emptied the hour the settled line landed.
+_LEGACY_PUSH_IDS = {
+    "twelvedata_XLF:1789405200": 14,
+}
+
+
+def rehydrate(store: dict) -> None:
+    """Puts finished pushes back on the tracked list while they are still editable.
+
+    `sent` used to be a bare hour, so a push that had already checked in had
+    no message id left. New sends store `{hour, id, hash}`; older ones are
+    recovered from that shape, from a leftover tracked row, or from the
+    handful of live ids known before this existed.
+    """
+    from price_monitor import tremor_delivery
+
+    sent: dict = store.setdefault(tremor_delivery._SENT, {})
+    tracked: dict = store.setdefault(TRACKED, {})
+    for event_id, rec in list(sent.items()):
+        mid = tremor_delivery._sent_message_id(rec)
+        hour = tremor_delivery._sent_hour(rec)
+        if mid is None:
+            mid = (tracked.get(event_id) or {}).get("message_id") \
+                or _LEGACY_PUSH_IDS.get(event_id)
+        if not mid or not hour:
+            continue
+        if not isinstance(rec, dict):
+            sent[event_id] = {"hour": int(hour), "id": int(mid), "hash": ""}
+        elif rec.get("id") is None:
+            rec["id"] = int(mid)
+        if event_id in tracked:
+            continue
+        tracked[event_id] = {
+            "message_id": int(mid),
+            "hour_utc": int(hour),
+            "written": [],
+            "text_hash": str((rec or {}).get("hash") if isinstance(rec, dict) else "") or "",
+        }
+
+
 def apply(cfg: Config, state: dict, events: "list[dict]",
           calendar: "list[dict] | None" = None,
           now: datetime | None = None,
@@ -100,6 +143,7 @@ def apply(cfg: Config, state: dict, events: "list[dict]",
     """
     now = now or datetime.now(timezone.utc)
     store = state.setdefault(tremor_delivery.STATE_KEY, {})
+    rehydrate(store)
     tracked: dict = store.setdefault(TRACKED, {})
     if not tracked:
         return 0
@@ -142,6 +186,10 @@ def apply(cfg: Config, state: dict, events: "list[dict]",
             continue
 
         record["text_hash"] = mark
+        sent_rec = store.setdefault(tremor_delivery._SENT, {}).get(event_id)
+        if isinstance(sent_rec, dict):
+            sent_rec["hash"] = mark
+            sent_rec.setdefault("id", int(record["message_id"]))
         if landed:
             # Kept in the horizons' own order rather than sorted. They are not all
             # the same kind of thing - two and six are bar counts, "settled" is a
@@ -157,9 +205,6 @@ def apply(cfg: Config, state: dict, events: "list[dict]",
         else:
             log.info("Restyled push %s", event_id)
         edited += 1
-
-        if set(record.get("written") or []) >= set(tremor_delivery.FOLLOW_UP_HORIZONS):
-            tracked.pop(event_id, None)
 
     store[TRACKED] = _prune(tracked, now)
     return edited

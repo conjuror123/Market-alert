@@ -901,8 +901,9 @@ def test_the_third_check_in_lands_on_a_push_that_already_has_two(monkeypatch, se
                                 retention_settled=0.8)], state=state)
     assert len(editor.calls) == 2
     assert "next day's close - 80% of it still there" in editor.calls[-1][1]
-    # All three written, so the push is no longer tracked.
-    assert not state[md.STATE_KEY][follow_up_module.TRACKED]
+    # All three written, and the push stays tracked so a later copy tweak
+    # can still rewrite the message.
+    assert "e1" in state[md.STATE_KEY][follow_up_module.TRACKED]
 
 
 # --- saying it in terms nobody needs statistics for -------------------------
@@ -1593,6 +1594,33 @@ def test_a_format_change_rewrites_pushes_and_pings_since_the_open_note(
     assert any(text.startswith("NEWSTYLE") for _, text in changed)
     assert any(text.endswith("\n.") for _, text in changed)
     assert any(message_id == 99 for message_id, _ in changed)
+
+
+def test_a_finished_push_is_still_restyled_after_check_ins_landed(
+        monkeypatch, sender, editor):
+    # Live: XLF's settled line arrived, tracking was dropped, and every later
+    # copy tweak left the old fear-gauge message on the phone.
+    live = event(event_id="twelvedata_XLF:1789405200", channel="push",
+                 asset_id="twelvedata:XLF", retention_today=0.39,
+                 retention_settled=0.39, hour_utc=int(NOW.timestamp()) - HOUR)
+    _, state = deliver(monkeypatch, [live])
+    store = state[md.STATE_KEY]
+    mid = store[follow_up_module.TRACKED]["twelvedata_XLF:1789405200"]["message_id"]
+    store[follow_up_module.TRACKED] = {}
+    store[md._SENT]["twelvedata_XLF:1789405200"] = int(live["hour_utc"])
+    monkeypatch.setitem(follow_up_module._LEGACY_PUSH_IDS,
+                        "twelvedata_XLF:1789405200", mid)
+
+    real = md.format_push
+    monkeypatch.setattr(
+        md, "format_push",
+        lambda *a, **k: "NEWSTYLE\n" + real(*a, **k))
+    before = len(editor.calls)
+    deliver(monkeypatch, [live], state=state)
+    changed = editor.calls[before:]
+    assert any(i == mid and t.startswith("NEWSTYLE") for i, t in changed)
+    assert "twelvedata_XLF:1789405200" in store[follow_up_module.TRACKED]
+    assert "Fear gauge" not in changed[-1][1]
 
 
 def test_a_ping_whose_row_left_the_digest_is_deleted(
