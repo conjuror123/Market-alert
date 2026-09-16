@@ -15,9 +15,10 @@ Commands are accepted only in a private chat with the bot (the health chat,
 or the product chat when that is itself private). Channel messages are
 ignored. The yaml edit is surgical: comments and unrelated keys stay put.
 
-The confirmation names what changed and how often a line at this size has
-opened on the stored event table - unique trading days, not raw hours, and
-not a Gaussian "1σ = one hour in 3" table.
+The yaml write lands before saed so the same hour uses the new floor. The
+Telegram reply waits until after saed: the events table is gitignored, so a
+fresh runner has nothing to count until this run scores it. Unique trading
+days, not raw hours, and not a Gaussian "1σ = one hour in 3" table.
 """
 from __future__ import annotations
 
@@ -36,6 +37,7 @@ from tremor.saed import DEFAULT_EVENTS_PATH
 log = logging.getLogger("price_monitor.floor")
 
 OFFSET_KEY = "telegram_update_offset"
+PENDING_KEY = "floor_pending_replies"
 YEAR = 365.25 * 86400
 
 # How a person names a block, including the labels the messages already use.
@@ -319,23 +321,26 @@ def describe_rate(asset_id: str, floor: float,
 
 
 def apply_command(name: str, value: float, path: str = DEFAULT_BASKET_PATH,
-                  basket=None, events_path: str = DEFAULT_EVENTS_PATH) -> str:
+                  basket=None, events_path: str = DEFAULT_EVENTS_PATH) -> dict:
+    """Write the floor. Returns the pending reply payload; Telegram waits for events."""
     if value < 0:
         raise ValueError("min_move_sigma must not be negative")
     kind, label, key = resolve_target(name, basket)
-    basket = basket or load_basket()
     shown = format_sigma(value)
     if kind == "block":
         set_block_floor(key, value, path)
         from tremor.blocks import block_id
 
-        rate = describe_rate(block_id(key), value, events_path, basket)
-        return (f"Floor for {label} is now {shown}x. Member floors are unchanged.\n"
-                f"{rate}")
+        applied = (f"Floor for {label} is now {shown}x. "
+                   f"Member floors are unchanged.")
+        return {"applied": applied, "asset_id": block_id(key), "floor": value}
     ticker = key.split(":")[-1]
     set_floors([ticker], value, path)
-    rate = describe_rate(key, value, events_path, basket)
-    return f"Floor for {label} is now {shown}x.\n{rate}"
+    return {
+        "applied": f"Floor for {label} is now {shown}x.",
+        "asset_id": key,
+        "floor": value,
+    }
 
 
 def process_updates(cfg: Config, state: dict,
@@ -369,27 +374,72 @@ def process_updates(cfg: Config, state: dict,
         reply_chat = str(chat.get("id") or cfg.telegram_health_chat_id
                          or cfg.telegram_chat_id)
         try:
-            reply = apply_command(name, value, path, events_path=events_path)
+            payload = apply_command(name, value, path, events_path=events_path)
+            payload["chat_id"] = reply_chat
+            state.setdefault(PENDING_KEY, []).append(payload)
             applied += 1
-            log.info("%s", reply)
+            log.info("%s (reply after events)", payload["applied"])
         except ValueError as exc:
             reply = f"Could not set the floor: {exc}"
             log.warning("%s", reply)
-        try:
-            send_telegram_message(cfg.telegram_bot_token, reply_chat, reply)
-        except TelegramError as exc:
-            log.error("Could not reply to /floor: %s", exc)
+            try:
+                send_telegram_message(cfg.telegram_bot_token, reply_chat, reply)
+            except TelegramError as send_exc:
+                log.error("Could not reply to /floor: %s", send_exc)
     return applied
 
 
+def send_pending_replies(cfg: Config, state: dict,
+                         events_path: str = DEFAULT_EVENTS_PATH) -> int:
+    """Send queued /floor confirmations once the events table exists.
+
+    Holds the queue if saed has not written the file yet, so a red pipeline
+    does not repeat the empty-table reply. A parse error already went out.
+    """
+    pending = list(state.get(PENDING_KEY) or [])
+    if not pending:
+        return 0
+    if not os.path.exists(events_path):
+        log.info("Holding %d floor reply(ies) until saed writes %s",
+                 len(pending), events_path)
+        return 0
+
+    sent = 0
+    left = []
+    for item in pending:
+        rate = describe_rate(item["asset_id"], float(item["floor"]), events_path)
+        text = f"{item['applied']}\n{rate}"
+        try:
+            send_telegram_message(cfg.telegram_bot_token, str(item["chat_id"]), text)
+        except TelegramError as exc:
+            log.error("Could not reply to /floor: %s", exc)
+            left.append(item)
+            continue
+        sent += 1
+        log.info("%s", text)
+    state[PENDING_KEY] = left
+    return sent
+
+
 def main(argv: list[str] | None = None) -> int:
+    import argparse
+
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    parser = argparse.ArgumentParser(description="Apply /floor, or reply once events exist")
+    parser.add_argument("--reply", action="store_true",
+                        help="send queued confirmations after saed has scored")
+    args = parser.parse_args(argv)
     cfg = load_config()
     try:
         state = load_state(cfg.state_path)
     except CorruptState as exc:
         log.error("Refusing to run with a corrupt sent map: %s", exc)
         return 2
+    if args.reply:
+        n = send_pending_replies(cfg, state)
+        save_state(cfg.state_path, state)
+        log.info("Floor replies sent: %d", n)
+        return 0
     n = process_updates(cfg, state)
     save_state(cfg.state_path, state)
     log.info("Floor commands applied: %d", n)
