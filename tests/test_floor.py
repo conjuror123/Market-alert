@@ -102,14 +102,14 @@ def test_a_block_floor_does_not_copy_onto_members(tmp_path):
     path = tmp_path / "basket.yaml"
     path.write_text(SAMPLE)
     b = basket()
-    events = tmp_path / "events.parquet"
-    reply = fl.apply_command("Base metals", 2.5, str(path), b, str(events))
+    payload = fl.apply_command("Base metals", 2.5, str(path), b)
     raw = yaml.safe_load(path.read_text())
     by_ticker = {a["ticker"]: a for a in raw["assets"]}
     assert "min_move_sigma" not in by_ticker["DBB"]
     assert "min_move_sigma" not in by_ticker["CPER"]
     assert "min_move_sigma" not in by_ticker["BKLN"]
     assert raw["block_min_move_sigma"]["industrial_metals"] == 2.5
+    reply = payload["applied"]
     assert "2.5" in reply and "unchanged" in reply
     assert "DBB" not in reply
 
@@ -136,10 +136,28 @@ def test_process_updates_applies_a_private_command(tmp_path, monkeypatch):
     events = tmp_path / "none.parquet"
     assert fl.process_updates(cfg, state, str(path), str(events)) == 1
     assert state[fl.OFFSET_KEY] == 8
-    assert sent and "BKLN" in sent[0][1]
+    assert sent == []
+    pending = state[fl.PENDING_KEY]
+    assert pending[0]["asset_id"] == "twelvedata:BKLN"
+    assert "2.5" in pending[0]["applied"]
     raw = yaml.safe_load(path.read_text())
     by_ticker = {a["ticker"]: a for a in raw["assets"]}
     assert by_ticker["BKLN"]["min_move_sigma"] == 2.5
+
+    assert fl.send_pending_replies(cfg, state, str(events)) == 0
+    assert state[fl.PENDING_KEY]
+
+    day = 1_700_000_000
+    _events_parquet(events, [
+        {"asset_id": "twelvedata:BKLN", "hour_utc": day, "r": 0.03, "sigma_lt": 0.01},
+        {"asset_id": "twelvedata:BKLN", "hour_utc": day + 400 * 86400, "r": 0.04,
+         "sigma_lt": 0.01},
+    ])
+    assert fl.send_pending_replies(cfg, state, str(events)) == 1
+    assert sent and "BKLN" in sent[0][1] and "2.5" in sent[0][1]
+    assert "stored history" in sent[0][1]
+    assert "No stored events yet" not in sent[0][1]
+    assert not state[fl.PENDING_KEY]
 
 
 def test_a_channel_command_is_ignored(tmp_path, monkeypatch):
