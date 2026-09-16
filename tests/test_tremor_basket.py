@@ -182,12 +182,15 @@ def test_an_instrument_with_an_override_takes_its_own(tmp_path):
 
 
 def test_bkln_is_floored_above_a_two_times_usual_hour():
+    # The live number is whatever `/floor BKLN` last wrote. The product claim
+    # is only that 2.0x is not a line, and that SHY still uses the shared 1.0.
     from tremor.basket import DEFAULT_BASKET_PATH, load_tuning
 
     load_tuning.cache_clear()
     t = load_tuning(DEFAULT_BASKET_PATH)
-    assert t.floor_for("twelvedata:BKLN") == 2.5
+    assert t.floor_for("twelvedata:BKLN") > 2.0
     assert t.min_move_sigma == 1.0
+    assert t.floor_for("twelvedata:SHY") == t.min_move_sigma
 
 
 def test_raising_one_instruments_floor_leaves_every_other_alone(tmp_path):
