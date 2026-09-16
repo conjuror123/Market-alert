@@ -968,6 +968,57 @@ def test_the_hour_is_the_last_line_and_is_bold():
     assert last.startswith(md.TIME_EMOJI)
     stamp = (NOW - timedelta(hours=1)).strftime("%d-%m-%Y %H:%M")
     assert last.endswith("UTC</b>") and f"<b>{stamp}" in last
+    assert "≈" not in text
+
+
+def _history(*rows):
+    return list(rows)
+
+
+def test_describe_puts_this_ticker_and_tier_rate_before_the_timestamp():
+    # Unique days, this asset, this exact tier. Two hours the same day count
+    # once; an extreme row does not inflate a major count.
+    day = 1_700_000_000
+    later = day + 400 * 86400
+    current = event(asset_id="twelvedata:XLF", tier="major", hour_utc=later)
+    history = _history(
+        dict(current, hour_utc=day, event_id="a"),
+        dict(current, hour_utc=day + 3600, event_id="b"),
+        dict(current, hour_utc=later, event_id="c"),
+        dict(current, tier="extreme", hour_utc=later + 86400, event_id="d"),
+        event(asset_id="twelvedata:GLD", tier="major", hour_utc=day),
+    )
+    lines = md.describe(current, {"twelvedata:XLF": "Financials"},
+                        events=history).splitlines()
+    assert lines[-1].startswith(md.TIME_EMOJI)
+    assert lines[-2] == "XLF major ≈ 1.8 times a year (2 events over 1.1 years)"
+    assert lines[-3].startswith("\tnext day's close")
+    assert "extreme" not in lines[-2]
+    assert "GLD" not in lines[-2]
+
+
+def test_a_rare_tier_is_said_as_once_in_years():
+    day = 1_700_000_000
+    current = event(asset_id="twelvedata:XLF", tier="major",
+                    hour_utc=day + 400 * 86400)
+    history = _history(
+        dict(current, hour_utc=day, event_id="a"),
+        dict(current, hour_utc=day + 400 * 86400, event_id="b"),
+        dict(current, tier="noticeable", hour_utc=day - 3 * 365 * 86400,
+             event_id="c"),
+    )
+    line = md.describe(current, {"twelvedata:XLF": "Financials"},
+                       events=history).splitlines()[-2]
+    assert line.startswith("XLF major ≈ once in ")
+    assert "times a year" not in line
+    assert "noticeable" not in line
+
+
+def test_no_stored_pair_omits_the_rate_line():
+    text = md.describe(event(tier="major"), LABELS, events=[
+        event(asset_id="twelvedata:GLD", tier="noticeable"),
+    ])
+    assert "≈" not in text
 
 
 def test_the_footer_names_every_instrument_that_is_tracked():
@@ -1026,6 +1077,17 @@ def test_a_block_move_still_gets_its_two_check_ins():
     assert any("this day's close - kept going, 1.4x the original move" in l for l in lines)
     assert any("next day's close -" in l for l in lines)
 
+
+def test_a_block_rate_uses_the_block_id_and_its_own_tier():
+    day = 1_700_000_000
+    current = block_event(hour_utc=day + 400 * 86400, tier="extreme")
+    history = [
+        dict(current, hour_utc=day, event_id="a"),
+        dict(current, hour_utc=day + 400 * 86400, event_id="b"),
+    ]
+    line = md.describe(current, LABELS, events=history).splitlines()[-2]
+    assert line.startswith("equity extreme ≈ 1.8 times a year")
+    assert "major" not in line
 
 
 def test_a_block_check_in_is_dated_on_its_members_calendar():

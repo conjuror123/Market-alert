@@ -593,6 +593,51 @@ def _closed_the_day(event: dict) -> bool:
     return due is not None and due == int(event["hour_utc"]) + 3600
 
 
+def tier_rate_line(event: dict, history: "list[dict] | None") -> str:
+    """How often this asset has opened at this exact tier, from stored events.
+
+    Unique trading days over the stored span of this asset_id, the same
+    arithmetic `/floor` uses. The count is this tier only - major does not
+    include extreme. No size-floor filter, no Gaussian table. Silent when
+    that pair has no stored rows.
+    """
+    if not history:
+        return ""
+    asset_id = str(event.get("asset_id") or "")
+    tier = str(event.get("tier") or "")
+    if not asset_id or not tier:
+        return ""
+    mine, keep = [], []
+    for row in history:
+        if str(row.get("asset_id") or "") != asset_id:
+            continue
+        hour = row.get("hour_utc")
+        try:
+            hour = int(hour)
+        except (TypeError, ValueError):
+            continue
+        mine.append(hour)
+        if str(row.get("tier") or "") == tier:
+            keep.append(hour)
+    if not keep:
+        return ""
+
+    from price_monitor.floor import YEAR, _day_tz_for, _event_days
+    from tremor.basket import load_basket
+
+    span = max(max(mine) - min(mine), 86400)
+    years = span / YEAR
+    n = _event_days(keep, _day_tz_for(asset_id, load_basket()))
+    if n == 0:
+        return ""
+    per_year = n / years
+    often = (f"{per_year:.1f} times a year" if per_year >= 1
+             else f"once in {1 / per_year:.1f} years")
+    noun = "event" if n == 1 else "events"
+    who = _escape(_ticker(asset_id))
+    return f"{who} {tier} ≈ {often} ({n} {noun} over {years:.1f} years)"
+
+
 def describe(event: dict, labels: dict[str, str],
              now: datetime | None = None,
              events: "list[dict] | None" = None) -> str:
@@ -633,6 +678,9 @@ def describe(event: dict, labels: dict[str, str],
 
     parts.extend(_split_lines(event, label, tier, basis))
     parts.extend(check_in_lines(event, now))
+    rate = tier_rate_line(event, events)
+    if rate:
+        parts.append(rate)
     parts.append(f"{TIME_EMOJI}<b>{format_day(when)} {when:%H:%M} UTC</b>")
     return "\n".join(parts)
 
@@ -846,6 +894,9 @@ def _describe_block(event: dict, headline: str, emoji: str, when: datetime,
         parts.append(f"\tbiggest movers: {_escape(leaders)}{_escape(of)}")
 
     parts.extend(check_in_lines(event, now))
+    rate = tier_rate_line(event, events)
+    if rate:
+        parts.append(rate)
     parts.append(f"{TIME_EMOJI}<b>{format_day(when)} {when:%H:%M} UTC</b>")
     return "\n".join(parts)
 
