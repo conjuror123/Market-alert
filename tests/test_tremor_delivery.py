@@ -293,11 +293,11 @@ def test_a_move_on_the_abnormal_ladder_says_which_ladder_it_is_on():
     # accounted for perfectly - and "of its own" says so without a glossary.
     event = dated()
     assert md._headline(event, "major", "abnormal") == (
-        "the biggest move of its own since 16-03-2020")
+        "the biggest move of its own since 2278 day ago")
     assert md._headline(event, "major", "absolute") == (
-        "the biggest move since 16-03-2020")
+        "the biggest move since 2278 day ago")
     assert md._headline(event, "major", "both") == (
-        "the biggest move since 16-03-2020")
+        "the biggest move since 2278 day ago")
 
 
 def test_the_claim_is_a_record_and_names_the_date():
@@ -307,7 +307,7 @@ def test_the_claim_is_a_record_and_names_the_date():
     # big was 23 days ago". A rung is now literally the biggest move in its own
     # lookback, so the record claim is the true one and it can name the bar.
     assert md._headline(dated(), "noticeable", "absolute") == (
-        "the biggest move since 16-03-2020")
+        "the biggest move since 2278 day ago")
     assert "once in" not in md._headline(dated(), "extreme", "absolute")
 
 
@@ -320,15 +320,17 @@ def test_a_move_bigger_than_anything_on_record_says_so_rather_than_guessing():
         "the biggest move in at least 6 years")
 
 
-def test_a_record_date_is_always_day_month_year():
+def test_a_record_is_how_many_days_ago_not_a_calendar_stamp():
     now = int(datetime(2026, 6, 10, tzinfo=timezone.utc).timestamp())
     day = 86400
+    assert md.record_phrase({"hour_utc": now, "record_since": now - 1 * day}) \
+        == "since 1 day ago"
     assert md.record_phrase({"hour_utc": now, "record_since": now - 10 * day}) \
-        == "since 31-05-2026"
-    assert md.record_phrase({"hour_utc": now, "record_since": now - 120 * day}) \
-        == "since 10-02-2026"
+        == "since 10 day ago"
+    assert md.record_phrase({"hour_utc": now, "record_since": now - 17 * day}) \
+        == "since 17 day ago"
     assert md.record_phrase({"hour_utc": now, "record_since": now - 900 * day}) \
-        == "since 23-12-2023"
+        == "since 900 day ago"
 
 
 def test_no_alert_claims_the_economic_calendar_explained_anything():
@@ -923,9 +925,8 @@ def test_only_one_date_line_and_it_is_the_exact_one():
                 record_since=hour - 400 * 24 * HOUR)
     text = md.format_push(row, LABELS, None, events=history)
 
-    assert "the biggest move since" in text
-    for gone in ("similar move", "ago"):
-        assert gone not in text
+    assert "the biggest move since 400 day ago" in text
+    assert "similar move" not in text
 
 
 def test_a_move_in_the_closing_hour_reports_no_ratio_for_its_own_day():
@@ -957,7 +958,7 @@ def test_the_headline_leads_with_the_rarity_the_ticker_and_the_move():
     # it used to be on the second line.
     text = md.describe(event(asset_id="twelvedata:GLD"), LABELS)
     first = text.split("\n")[0]
-    assert first == md.TIER_EMOJI["major"] + " <b>GLD</b> · Gold · +2.10%"
+    assert first == md.TIER_EMOJI["major"] + " <b>GLD</b> · Gold +2.10%"
 
 
 def test_the_hour_is_the_last_line_and_is_bold():
@@ -1140,7 +1141,7 @@ def test_a_block_ping_carries_the_black_mark_too():
                                       asset_id="block:agriculture", r=-0.0072,
                                       sigma_lt=0.0036), {})
     assert ping == (f"{md.BLOCK_MARK}{md.TIER_EMOJI['noticeable']} "
-                    f"<b>Agriculture</b> · -0.72% (2.0x)\n"
+                    f"<b>Agriculture</b> -0.72% (2.0x)\n"
                     f"Added to digest👆🏻👆🏻")
 
 
@@ -1336,7 +1337,7 @@ def test_a_digest_row_buzzes_once_with_ticker_size_and_a_pointer(monkeypatch, se
     _, state = deliver(monkeypatch, [row])
 
     pings = [t for t in sender.texts if t.startswith("⬜")]
-    assert pings == ["⬜ <b>GLD</b> · Gold · +2.10% (2.0x)\nAdded to digest👆🏻👆🏻"]
+    assert pings == ["⬜ <b>GLD</b> · Gold +2.10% (2.0x)\nAdded to digest👆🏻👆🏻"]
     stored = state[md.STATE_KEY][md.PINGS]["p1"]
     assert md._ping_message_id(stored) == 1
 
@@ -1344,6 +1345,17 @@ def test_a_digest_row_buzzes_once_with_ticker_size_and_a_pointer(monkeypatch, se
     before = len(sender.texts)
     deliver(monkeypatch, [row], state=state)
     assert [t for t in sender.texts[before:] if t.startswith("⬜")] == []
+
+
+def test_a_ticker_ping_puts_percent_and_size_after_the_name():
+    text = md.format_ping(
+        event(event_id="p", tier="noticeable", channel="digest",
+              asset_id="twelvedata:BKLN", r=-0.008, sigma_lt=0.008 / 2.7),
+        {"twelvedata:BKLN": "Senior bank loans"})
+    assert text == (
+        "⬜ <b>BKLN</b> · Senior bank loans -0.80% (2.7x)\n"
+        "Added to digest👆🏻👆🏻")
+    assert " · -0.80%" not in text
 
 
 def test_a_push_tier_never_buzzes_even_while_it_sits_in_the_digest():
@@ -1391,12 +1403,11 @@ def test_the_rarity_is_said_of_the_thing_its_ladder_actually_ranks():
     row = dict(dated(), r=0.0700, e_resid=0.0100, co_block=0.0600, block="equity")
 
     abnormal = md._split_lines(row, "S&P 500", "major", "abnormal")
-    assert "the biggest since 16-03-2020" in abnormal[-1]
-    assert "move on its own" in abnormal[-1]
+    assert abnormal[-1] == "\t+1.00% biggest move on its own since 2278 day ago"
     assert not any("the biggest move since" in line for line in abnormal)
 
     absolute = md._split_lines(row, "S&P 500", "major", "absolute")
-    assert absolute[0] == "the biggest move since 16-03-2020"
+    assert absolute[0] == "the biggest move since 2278 day ago"
     assert "biggest" not in absolute[-1]
 
 
@@ -1406,7 +1417,7 @@ def test_a_row_with_no_split_still_says_how_rare_it_was():
     # move of its own" are different claims and only one is true of a channel.
     lines = md._split_lines(dict(dated(), r=0.02, e_resid=None),
                             "Gold", "extreme", "abnormal")
-    assert lines == ["the biggest move of its own since 16-03-2020"]
+    assert lines == ["the biggest move of its own since 2278 day ago"]
 
 
 def header_for(y, m, d):
@@ -1584,20 +1595,34 @@ def test_a_format_change_rewrites_pushes_and_pings_since_the_open_note(
     assert any(message_id == 99 for message_id, _ in changed)
 
 
-def test_a_ping_is_restyled_even_after_the_row_leaves_the_table(
+def test_a_ping_whose_row_left_the_digest_is_deleted(
         monkeypatch, sender, editor):
-    # Live: BKLN's ping stayed "Senior bank loans +0.12%" after /floor dropped
-    # the row from saed_events, because restyle looked the id up only in this
-    # run's parquet and skipped it.
+    # Live: BKLN's ping still said "Added to digest" after /floor dropped the
+    # row, and restyle invented ticker · name with no size. It was never in
+    # the note, so the ping is deleted rather than rewritten as a lie.
+    killer = Deleted()
+    monkeypatch.setattr("price_monitor.notifier.delete_telegram_message", killer)
     ping = event(event_id="twelvedata_BKLN:1789498800", tier="noticeable",
                  channel="digest", asset_id="twelvedata:BKLN",
-                 hour_utc=int(NOW.timestamp()) - HOUR, r=0.0012, sigma_lt=0.001)
-    _, state = deliver(monkeypatch, [ping])
-    assert any("BKLN" in t for t in sender.texts)
+                 hour_utc=int(NOW.timestamp()) - HOUR, r=-0.0080, sigma_lt=0.003)
+    other = event(event_id="twelvedata_DBB:1", tier="noticeable",
+                  channel="digest", asset_id="twelvedata:DBB",
+                  hour_utc=int(NOW.timestamp()) - HOUR, r=0.0012, sigma_lt=0.001)
+    _, state = deliver(monkeypatch, [ping, other])
+    bkln_id = md._ping_message_id(
+        state[md.STATE_KEY][md.PINGS]["twelvedata_BKLN:1789498800"])
+    deliver(monkeypatch, [other], state=state)
+    assert killer.ids == [bkln_id]
+    assert "twelvedata_BKLN:1789498800" not in state[md.STATE_KEY][md.PINGS]
+    assert "twelvedata_DBB:1" in state[md.STATE_KEY][md.PINGS]
 
-    before = len(editor.calls)
+
+def test_an_empty_events_table_does_not_delete_pings(monkeypatch, sender):
+    killer = Deleted()
+    monkeypatch.setattr("price_monitor.notifier.delete_telegram_message", killer)
+    ping = event(event_id="p1", tier="noticeable", channel="digest",
+                 hour_utc=int(NOW.timestamp()) - HOUR, sigma_lt=0.0105)
+    _, state = deliver(monkeypatch, [ping])
     deliver(monkeypatch, [], state=state)
-    changed = [text for _, text in editor.calls[before:] if "BKLN" in text]
-    assert changed, "the stranded ping must still be rewritten"
-    assert "Added to digest" in changed[-1]
-    assert "BKLN" in changed[-1]
+    assert killer.ids == []
+    assert "p1" in state[md.STATE_KEY][md.PINGS]

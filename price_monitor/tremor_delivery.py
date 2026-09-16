@@ -127,10 +127,10 @@ def format_day(when: datetime) -> str:
     return when.strftime("%d-%m-%Y")
 
 
-# SAID AS A RECORD, AND NAMING THE DATE. "Biggest move since 3 March 2020" is a
+# SAID AS A RECORD, AS ELAPSED DAYS. "Biggest move since 17 days ago" is a
 # fact about the instrument's own history: the reader can check it, it needs no
 # calibration intuition, and it tells them something the rung alone does not -
-# which past episode this one is being measured against.
+# how long it has been since this instrument last moved this far.
 #
 # This reverses an earlier decision, and the reversal is the point. The wording
 # used to be a frequency - "about once in six years" - specifically BECAUSE the
@@ -143,23 +143,33 @@ def format_day(when: datetime) -> str:
 #
 # The estimator is gone (see tremor.severity). A rung is now literally the
 # largest move in its own lookback, so the record claim is the one that is true
-# and the contradiction cannot arise: the date printed here IS the bar the level
+# and the contradiction cannot arise: the span printed here IS the bar the level
 # was measured against. And the frequency claim it replaces was wrong in a way
 # nobody could see - the top rung fired 1.75 times as often as its words
 # promised, and the same level refitted on different six-year windows moved by a
 # factor of three.
+def _days_ago(event: dict) -> "int | None":
+    """How many calendar days sit between this hour and the last matching bar."""
+    since = event.get("record_since")
+    hour = event.get("hour_utc")
+    if since is None or (isinstance(since, float) and not since == since) \
+            or pd.isna(since):
+        return None
+    if hour is None or (isinstance(hour, float) and not hour == hour) \
+            or pd.isna(hour):
+        return None
+    return max(1, int(round((float(hour) - float(since)) / 86400)))
+
+
 def record_phrase(event: dict) -> str:
     """When this instrument last did something this big, as a person says it.
 
-    The DATE rather than an elapsed time, because a date is what a reader can
-    place - "since March 2020" lands somewhere, "in six years and two months"
-    has to be subtracted from today first. Precision falls away with distance
-    for the same reason: within a month the day matters, within a year the month
-    does, and past that the year is all anyone holds.
+    Elapsed days from this event's hour, not a calendar date: "since 17 days
+    ago" is the same shape on every line, and the reader does not have to
+    subtract a stamp from today first.
     """
-    since = event.get("record_since")
-    if since is None or (isinstance(since, float) and not since == since) \
-            or pd.isna(since):
+    days = _days_ago(event)
+    if days is None:
         # Nothing in the archive matched it. On a full run that means exactly
         # what it says; on a warm one the archive was trimmed to the record
         # horizon, so the honest claim is the horizon rather than "ever" - the
@@ -168,8 +178,9 @@ def record_phrase(event: dict) -> str:
 
         years = int(round(RECORD_HORIZON_DAYS / 365.25))
         return f"in at least {years} years"
-    moment = datetime.fromtimestamp(int(since), tz=timezone.utc)
-    return f"since {format_day(moment)}"
+    # Spoken as "day ago" for every span, matching the rest of the copy
+    # ("17 day ago", "1 day ago") rather than switching plural mid-sentence.
+    return f"since {days} day ago"
 
 # WHICH LADDER the tier was measured against, said in the noun rather than in a
 # parenthesis. Two ladders exist and they answer different questions: the
@@ -357,9 +368,10 @@ def _split_lines(event: dict, label: str, tier: str = "",
     if peers:
         line += f" - {_escape(peers)}"
     lines.append(line)
-    own_line = f"\t{own * 100:+.2f}%  move on its own"
     if rarity and not whole_move:
-        own_line += f" - the biggest {rarity}"
+        own_line = f"\t{own * 100:+.2f}% biggest move on its own {rarity}"
+    else:
+        own_line = f"\t{own * 100:+.2f}%  move on its own"
     lines.append(own_line)
     return lines
 
@@ -673,7 +685,7 @@ def describe(event: dict, labels: dict[str, str],
     # The ticker leads. It is what the reader will type into a chart, and it is
     # the only name that is the same everywhere. The move joins it on the same
     # line: it is the first thing anyone wants and it used to be on the second.
-    shown = f" · {move * 100:+.2f}%" if move is not None else ""
+    shown = f" {move * 100:+.2f}%" if move is not None else ""
     parts = [f"{emoji} <b>{_escape(_ticker(asset_id))}</b> · "
              f"{_escape(label)}{shown}"]
 
@@ -1497,7 +1509,7 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
     emoji = TIER_EMOJI.get(tier, "⚪")
     asset_id = str(event.get("asset_id", ""))
     move = _clean(event.get("r"))
-    shown = f" · {move * 100:+.2f}%" if move is not None else ""
+    shown = f" {move * 100:+.2f}%" if move is not None else ""
     ratio = _ratio_short(event)
     extra = f" ({ratio})" if ratio else ""
     if _is_block(event):
@@ -1585,63 +1597,53 @@ def sweep_pings(cfg: Config, store: dict) -> int:
     return gone
 
 
-def _event_for_ping(event_id: str, events_by_id: dict,
-                    labels: dict[str, str]) -> dict | None:
-    """The row to re-render a ping from, even if saed no longer emits it.
+def _still_a_digest_ping(event: dict | None) -> bool:
+    """True only while this run's table still puts the row in the note."""
+    from tremor.routing import PUSH_TIERS
 
-    `/floor` can drop a digest row from the table while the ping is still on
-    the phone. Looking the event up only in this run's parquet then leaves the
-    old short line forever. The id is `file_stem:hour`; that is enough to
-    rebuild ticker · name, which is what the restyle is for.
-    """
-    found = events_by_id.get(str(event_id))
-    if found is not None:
-        return found
-    raw = str(event_id or "")
-    if ":" not in raw:
-        return None
-    stem, hour_s = raw.rsplit(":", 1)
-    try:
-        hour = int(hour_s)
-    except ValueError:
-        return None
-    from tremor.basket import load_basket
+    if event is None:
+        return False
+    return (str(event.get("channel") or "") == "digest"
+            and str(event.get("tier") or "") not in PUSH_TIERS)
 
-    asset_id = None
-    block = ""
+
+def _drop_ping(cfg: Config, outstanding: dict, event_id: str, value) -> bool:
+    """Deletes a ping that is no longer a digest row. Drops the id either way."""
+    from price_monitor.notifier import delete_telegram_message
+
+    gone = False
     try:
-        for asset in load_basket().instruments:
-            if asset.file_stem == stem:
-                asset_id = asset.asset_id
-                block = asset.block
-                break
-    except Exception:                            # pragma: no cover - defensive
-        asset_id = None
-    if asset_id is None and stem.startswith("block_"):
-        block = stem[len("block_"):]
-        asset_id = f"block:{block}"
-    if asset_id is None:
-        return None
-    return {
-        "event_id": raw, "asset_id": asset_id, "block": block,
-        "hour_utc": hour, "tier": "noticeable", "channel": "digest",
-        "r": None, "sigma_lt": None,
-    }
+        gone = bool(delete_telegram_message(
+            cfg.telegram_bot_token, cfg.telegram_chat_id,
+            _ping_message_id(value)))
+    except TelegramError as exc:
+        log.warning("Could not delete stranded ping %s: %s", event_id, exc)
+    outstanding.pop(event_id, None)
+    return gone
 
 
 def restyle_pings(cfg: Config, store: dict, events: "list[dict]",
                   labels: dict[str, str]) -> int:
-    """Re-edits outstanding pings whose rendered text no longer matches."""
+    """Re-edits outstanding pings whose rendered text no longer matches.
+
+    A ping is a claim that the row is in the note. `/floor` (or a recompute)
+    can drop that row while the ping is still on the phone; rewriting it as
+    ticker · name with no size, and still saying "Added to digest", is a lie.
+    Those pings are deleted instead. An empty table is left alone: that is
+    "the pipeline did not run", not "every live row vanished".
+    """
     outstanding: dict = store.get(PINGS) or {}
     if not outstanding:
         return 0
     by_id = {str(e.get("event_id")): e for e in events}
-    edited = 0
+    edited = dropped = 0
     for event_id, value in list(outstanding.items()):
-        event = _event_for_ping(str(event_id), by_id, labels)
-        if event is None:
-            log.info("Could not restyle ping %s: no event and id is not a stem:hour",
-                     event_id)
+        event = by_id.get(str(event_id))
+        if not _still_a_digest_ping(event):
+            if not events:
+                continue
+            _drop_ping(cfg, outstanding, str(event_id), value)
+            dropped += 1
             continue
         text = format_ping(event, labels)
         mark = _fingerprint(text)
@@ -1656,7 +1658,9 @@ def restyle_pings(cfg: Config, store: dict, events: "list[dict]",
             continue
         outstanding[event_id] = {"id": message_id, "hash": mark}
         edited += 1
-    return edited
+    if dropped:
+        log.info("Pings deleted (no longer in the digest): %d", dropped)
+    return edited + dropped
 
 
 def pending(events: "list[dict]", sent: dict, now: datetime) -> "list[dict]":
@@ -1699,8 +1703,9 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         return 0
 
     events = load_events(cfg)
-    # An empty table must not skip restyle: /floor can drop the only live row
-    # while its ping is still on the phone.
+    # An empty table must not mass-delete pings: that is "the pipeline did not
+    # run", not "every live row vanished". A missing row among a live table is
+    # deleted in restyle_pings.
 
     from price_monitor import follow_up
     from price_monitor.alerts_log import (load_alerts_log, record_sent_alert,
@@ -1807,7 +1812,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     restyled = restyle_pings(cfg, store, events, labels)
     if restyled:
         save_state(cfg.state_path, state)
-        log.info("Pings restyled: %d", restyled)
+        log.info("Pings restyled or removed: %d", restyled)
 
     for slot in sorted(notes):
         record, rows = notes[slot]
