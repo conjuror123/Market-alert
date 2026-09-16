@@ -186,7 +186,7 @@ def test_bkln_is_floored_above_a_two_times_usual_hour():
 
     load_tuning.cache_clear()
     t = load_tuning(DEFAULT_BASKET_PATH)
-    assert t.floor_for("twelvedata:BKLN") == 2.2
+    assert t.floor_for("twelvedata:BKLN") == 2.5
     assert t.min_move_sigma == 1.0
 
 
