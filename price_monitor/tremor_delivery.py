@@ -1609,7 +1609,6 @@ def _event_for_ping(event_id: str, events_by_id: dict,
     except ValueError:
         return None
     from tremor.basket import load_basket
-    from tremor.blocks import is_block
 
     asset_id = None
     block = ""
