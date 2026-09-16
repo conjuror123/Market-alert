@@ -1048,6 +1048,47 @@ def test_rate_years_are_the_asset_archive_span_not_the_tier_gap():
         "BKLN extreme or rarer ≈ once in 24.1 years (1 event over 24.1 years)")
 
 
+def test_noticeable_or_rarer_counts_every_higher_tier():
+    # noticeable includes high+major+extreme. Years stay the archive span, not
+    # the gap between noticeable rows. 17 unique days / 24.1 years is below
+    # 1×/year, so the line is "once in" rather than "times a year".
+    first = 1_000_000_000
+    span = int(round(24.1 * 365.25 * 86400))
+    last = first + span
+    current = event(asset_id="twelvedata:DBB", tier="noticeable", hour_utc=last)
+    history = [
+        dict(current, hour_utc=first + i * (span // 16), event_id=f"e{i}",
+             tier=("noticeable", "high", "major", "extreme")[i % 4])
+        for i in range(16)
+    ]
+    history.append(dict(current, event_id="now"))
+    line = md.tier_rate_line(current, history)
+    assert line == (
+        "DBB noticeable or rarer ≈ once in 1.4 years "
+        "(17 events over 24.1 years)")
+
+
+def test_or_rarer_times_a_year_when_at_least_once_per_year():
+    from price_monitor.floor import YEAR
+
+    n, per_year = 17, 14.2
+    span = int(round((n / per_year) * YEAR))
+    last = 1_700_000_000
+    first = last - span
+    current = event(asset_id="twelvedata:DBB", tier="noticeable", hour_utc=last)
+    history = [
+        dict(current, hour_utc=first + i * (span // (n - 1)), event_id=f"e{i}",
+             tier=("noticeable", "high", "major", "extreme")[i % 4])
+        for i in range(n - 1)
+    ]
+    history.append(dict(current, event_id="now"))
+    line = md.tier_rate_line(current, history)
+    assert line == (
+        "DBB noticeable or rarer ≈ 14.2 times a year "
+        "(17 events over 1.2 years)")
+
+
+
 def test_describe_rates_from_the_archive_not_the_warm_table():
     warm = [event(asset_id="twelvedata:DBB", tier="noticeable",
                   hour_utc=1_700_000_000)]

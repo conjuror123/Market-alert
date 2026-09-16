@@ -36,13 +36,18 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Restore gitignored Tremor parquet
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           # metrics/ so `python -m tremor.pipeline` can extend instead of
           # rebuilding every instrument; the events archive so rate lines keep
           # history older than the six-year warm table. Both are gitignored
           # (parquet does not delta). saed_events.parquet is rewritten from
           # this run's warm score and is not cached.
+          #
+          # restore + save (not cache@v4) so a red job still persists: this
+          # workflow fails the run when backfill did, after pipeline/saed have
+          # already written. cache@v4 skips save on failure, and the next hour
+          # would then rebuild every metric — scoring the whole archive.
           path: |
             data/tremor/metrics
             data/tremor/saed_events_archive.parquet
@@ -174,3 +179,12 @@ jobs:
         run: |
           echo "::error::The Tremor pipeline failed; events were not refreshed."
           exit 1
+
+      - name: Persist gitignored Tremor parquet
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            data/tremor/metrics
+            data/tremor/saed_events_archive.parquet
+          key: tremor-derived-${{ github.ref_name }}-${{ github.run_id }}

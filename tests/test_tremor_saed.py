@@ -556,3 +556,19 @@ def test_a_full_write_replaces_the_archive(tmp_path):
     ]), replace=True)
     frame = pd.read_parquet(path)
     assert list(frame["event_id"]) == ["new:2"]
+
+
+def test_hourly_workflow_stays_warm_and_persists_the_archive():
+    from pathlib import Path
+
+    hourly = Path(".github/workflows/price-monitor.yml").read_text()
+    backfill = Path(".github/workflows/backfill-saed-archive.yml").read_text()
+    assert "python -m tremor.pipeline --full" not in hourly
+    assert "python -m tremor.saed --full" not in hourly
+    assert "python -m tremor.pipeline\n" in hourly
+    assert "python -m tremor.saed\n" in hourly
+    assert "saed_events_archive.parquet" in hourly
+    assert "actions/cache/restore@v4" in hourly
+    assert "actions/cache/save@v4" in hourly
+    assert "python -m tremor.saed --full" in backfill
+    assert "python -m tremor.pipeline --full" not in backfill

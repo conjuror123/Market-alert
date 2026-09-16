@@ -36,7 +36,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Restore gitignored Tremor parquet
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: |
             data/tremor/metrics
@@ -49,3 +49,12 @@ jobs:
         run: |
           python -m tremor.pipeline
           python -m tremor.saed --full
+
+      - name: Persist gitignored Tremor parquet
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            data/tremor/metrics
+            data/tremor/saed_events_archive.parquet
+          key: tremor-derived-${{ github.ref_name }}-${{ github.run_id }}
