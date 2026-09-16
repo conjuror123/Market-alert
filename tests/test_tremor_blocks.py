@@ -185,3 +185,16 @@ def test_an_exchange_listed_block_closes_its_day_with_the_exchange():
 
     assert len(blocks.events_frame(blocks.frames(*listed), listed[0], listed[1])) == 1
     assert len(blocks.events_frame(blocks.frames(*around), around[0], around[1])) == 2
+
+
+def test_a_block_size_floor_silences_a_move_that_is_rare_but_small(monkeypatch):
+    # Same idea as an instrument floor: a push-tier hour that is only a couple
+    # of usual hours is not a block line once the floor is raised.
+    from types import SimpleNamespace
+
+    b, panel, sig, _ = _long_block()
+    scored = blocks.frames(b, panel, sig)
+    monkeypatch.setattr("tremor.basket.load_tuning",
+                        lambda *a, **k: SimpleNamespace(floor_for=lambda aid: 50.0))
+    events = blocks.events_frame(scored, b, panel)
+    assert events.empty

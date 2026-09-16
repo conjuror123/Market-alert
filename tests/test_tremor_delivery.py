@@ -967,7 +967,7 @@ def test_the_hour_is_the_last_line_and_is_bold():
     text = md.describe(event(asset_id="twelvedata:GLD"), LABELS)
     last = text.split("\n")[-1]
     assert last.startswith(md.TIME_EMOJI)
-    stamp = (NOW - timedelta(hours=1)).strftime("%Y-%m-%d %H:%M")
+    stamp = (NOW - timedelta(hours=1)).strftime("%d-%m-%Y %H:%M")
     assert last.endswith("UTC</b>") and f"<b>{stamp}" in last
 
 
@@ -1075,9 +1075,11 @@ def test_a_block_ping_carries_the_black_mark_too():
     # that relaxing that filter cannot silently produce an unmarked ping.
     ping = md.format_ping(block_event(tier="noticeable", channel="digest",
                                       block="agriculture",
-                                      asset_id="block:agriculture", r=-0.0072), {})
+                                      asset_id="block:agriculture", r=-0.0072,
+                                      sigma_lt=0.0036), {})
     assert ping == (f"{md.BLOCK_MARK}{md.TIER_EMOJI['noticeable']} "
-                    f"<b>Agriculture</b> -0.72%")
+                    f"<b>Agriculture</b> -0.72% (2.0x)\n"
+                    f"Added to digest👆🏻👆🏻")
 
 
 def test_a_block_routes_on_its_tier_exactly_as_an_instrument_does():
@@ -1119,10 +1121,8 @@ def use_vix(monkeypatch, frame):
 
 
 def test_the_comparison_names_the_close_it_compares_against(monkeypatch):
-    # "a week before" was true to the intent and not to the number: the line
-    # takes the most recent reading at least a week back, which lands on a
-    # different day depending on where weekends and holidays fall, and a reader
-    # could not tell nine days from seven.
+    # The previous available close, not a week-ago reading. A seven-day lookback
+    # sat on 7 Sep next to a 14 Sep print while Friday's number was one row back.
     use_vix(monkeypatch, vix_frame([
         ((2026, 9, 1), (2026, 9, 2, 15), 14.32),
         ((2026, 9, 4), (2026, 9, 7, 15), 15.10),
@@ -1130,8 +1130,8 @@ def test_the_comparison_names_the_close_it_compares_against(monkeypatch):
     ]))
     at = int(datetime(2026, 9, 12, 9, tzinfo=timezone.utc).timestamp())
     line = md.vix_context(at).splitlines()[1]
-    # nine days back, not seven - and it says so instead of rounding to a week
-    assert "up from 14.32 at the 1 Sep close" in line
+    assert "up from 15.10 at the 4 Sep close" in line
+    assert "1 Sep" not in line
 
 
 def test_the_comparison_says_which_way_it_moved(monkeypatch):
@@ -1209,17 +1209,17 @@ def test_a_stress_episode_is_named_while_it_is_running_and_not_after(monkeypatch
     assert "stress episode" not in later         # but the window closed long ago
 
 
-def test_a_push_carries_the_regime_and_so_does_the_note(monkeypatch):
+def test_a_push_does_not_carry_the_regime_the_note_does(monkeypatch):
     use_vix(monkeypatch, vix_frame([((2026, 9, 3), (2026, 9, 4, 15), 14.32)]))
     later = event(hour_utc=int(datetime(2026, 9, 8, 14, tzinfo=timezone.utc).timestamp()))
     push = md.format_push(later, LABELS)
-    assert "Fear gauge" in push and "14.32" in push
+    assert "Fear gauge" not in push
 
     window = (int(datetime(2026, 9, 8, 9, tzinfo=timezone.utc).timestamp()),
               int(datetime(2026, 9, 11, 9, tzinfo=timezone.utc).timestamp()))
     note = md.format_digest([event()], LABELS, window,
                             now=datetime(2026, 9, 9, 12, tzinfo=timezone.utc))
-    assert "Fear gauge" in note[0]
+    assert "Fear gauge" in note[0] and "14.32" in note[0]
 
 
 # --- the throwaway ping ----------------------------------------------------
@@ -1240,14 +1240,16 @@ class Deleted:
         return int(message_id) not in self.refuse
 
 
-def test_a_digest_row_buzzes_once_and_says_almost_nothing(monkeypatch, sender):
+def test_a_digest_row_buzzes_once_with_ticker_size_and_a_pointer(monkeypatch, sender):
     row = event(event_id="p1", tier="noticeable", channel="digest",
-                digest_slot=int(NOW.timestamp()) + 3 * HOUR)
+                digest_slot=int(NOW.timestamp()) + 3 * HOUR,
+                sigma_lt=0.0105)
     _, state = deliver(monkeypatch, [row])
 
     pings = [t for t in sender.texts if t.startswith("⬜")]
-    assert pings == ["⬜ <b>Gold</b> +2.10%"]
-    assert state[md.STATE_KEY][md.PINGS] == {"p1": 1}
+    assert pings == ["⬜ <b>GLD</b> · Gold +2.10% (2.0x)\nAdded to digest👆🏻👆🏻"]
+    stored = state[md.STATE_KEY][md.PINGS]["p1"]
+    assert md._ping_message_id(stored) == 1
 
     # And not again on the next run: the buzz is once per move, not per hour.
     before = len(sender.texts)
@@ -1463,3 +1465,37 @@ def test_tidying_leaves_a_healthy_set_of_notes_alone():
                                "to": routing.next_digest_slot(slots[1])}}
     assert md.tidy_windows(digests) == 0
     assert digests[str(slots[1])]["rows"] == 1      # the guard survives
+
+
+def test_a_format_change_rewrites_pushes_and_pings_since_the_open_note(
+        monkeypatch, sender, editor):
+    # A copy tweak must land on the next run, not wait for a retention check-in,
+    # and must not rewrite a push from a previous note.
+    live = event(event_id="live", channel="push", retention_settled=None,
+                 hour_utc=int(NOW.timestamp()) - HOUR)
+    ping = event(event_id="p1", tier="noticeable", channel="digest",
+                 hour_utc=int(NOW.timestamp()) - HOUR)
+    _, state = deliver(monkeypatch, [live, ping])
+
+    old = event(event_id="old", channel="push", retention_settled=None,
+                hour_utc=SLOT - 10 * 24 * HOUR)
+    state[md.STATE_KEY][follow_up_module.TRACKED]["old"] = {
+        "message_id": 99, "hour_utc": int(old["hour_utc"]), "written": [],
+        "text_hash": "from-last-week",
+    }
+
+    real_push = md.format_push
+    monkeypatch.setattr(
+        md, "format_push",
+        lambda *a, **k: "NEWSTYLE\n" + real_push(*a, **k))
+    real_ping = md.format_ping
+    monkeypatch.setattr(
+        md, "format_ping",
+        lambda *a, **k: real_ping(*a, **k) + "\n.")
+
+    before = len(editor.calls)
+    deliver(monkeypatch, [live, ping, old], state=state)
+    changed = editor.calls[before:]
+    assert any(text.startswith("NEWSTYLE") for _, text in changed)
+    assert any(text.endswith("\n.") for _, text in changed)
+    assert all(message_id != 99 for message_id, _ in changed)

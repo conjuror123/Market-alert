@@ -181,6 +181,15 @@ def test_an_instrument_with_an_override_takes_its_own(tmp_path):
     assert t.floor_for("twelvedata:A") == 1.0        # untouched
 
 
+def test_bkln_is_floored_above_a_two_times_usual_hour():
+    from tremor.basket import DEFAULT_BASKET_PATH, load_tuning
+
+    load_tuning.cache_clear()
+    t = load_tuning(DEFAULT_BASKET_PATH)
+    assert t.floor_for("twelvedata:BKLN") == 2.5
+    assert t.min_move_sigma == 1.0
+
+
 def test_raising_one_instruments_floor_leaves_every_other_alone(tmp_path):
     # The whole reason this is per instrument. Raising the SHARED number high
     # enough to silence the one that annoyed the reader silences every quiet
@@ -216,6 +225,25 @@ def test_a_negative_floor_is_refused(tmp_path):
     raw = MINIMAL | {"assets": [asset("A", "equity", min_move_sigma=-1)]}
     with pytest.raises(BasketConfigError, match="negative"):
         tuning_for(tmp_path, raw)
+
+
+def test_a_block_override_does_not_change_member_floors(tmp_path):
+    raw = MINIMAL | {"min_move_sigma": 1.0,
+                     "block_min_move_sigma": {"industrial_metals": 2.5},
+                     "assets": [
+                         asset("DBB", "industrial_metals", min_move_sigma=1.8),
+                         asset("CPER", "industrial_metals"),
+                     ]}
+    t = tuning_for(tmp_path, raw)
+    assert t.floor_for("block:industrial_metals") == 2.5
+    assert t.floor_for("twelvedata:DBB") == 1.8
+    assert t.floor_for("twelvedata:CPER") == 1.0
+
+
+def test_a_block_without_an_override_takes_the_shared_floor(tmp_path):
+    t = tuning_for(tmp_path, two_block_config(min_move_sigma=1.5))
+    assert t.floor_for("block:equity") == 1.5
+    assert t.floor_for("block:nothing") == 1.5
 
 
 def test_the_tuning_stays_hashable_so_it_can_be_cached(tmp_path):

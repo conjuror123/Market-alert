@@ -198,6 +198,10 @@ def events_frame(scored: "dict[str, pd.DataFrame]", basket: Basket,
     most - and a digest line for it every fortnight would say nothing. The two
     rare tiers are the ones that mean "this whole complex repriced".
 
+    And the same size floor an instrument has: `|r|` must clear
+    `min_move_sigma` times the block's usual hour, with a per-block override
+    that does not copy onto the members. Shared `min_move_sigma` is the default.
+
     ONE ROW PER BLOCK PER TRADING DAY, the same rule an instrument gets, and
     until now blocks had no such rule at all: every qualifying bar became its own
     push, so the day a complex repriced in three legs sent three alerts saying
@@ -210,13 +214,21 @@ def events_frame(scored: "dict[str, pd.DataFrame]", basket: Basket,
     stays with the opening bar so that a push already sent is edited rather than
     repeated.
     """
+    from tremor.basket import load_tuning
     from tremor.routing import PUSH_TIERS
 
     members, _ = cross_section._block_members(panel, basket)
     order = {name: i for i, name in enumerate(severity.TIERS)}
+    tuning = load_tuning()
     rows = []
     for block, frame in scored.items():
-        fired = frame[frame["tier"].isin(PUSH_TIERS)]
+        floor = tuning.floor_for(block_id(block))
+        usual = frame["sigma_lt"] if "sigma_lt" in frame else None
+        sized = pd.Series(True, index=frame.index)
+        if usual is not None and "r" in frame:
+            sized = (frame["r"].abs() >= floor * usual)
+            sized |= usual.isna() | (usual <= 0) | (floor <= 0)
+        fired = frame[frame["tier"].isin(PUSH_TIERS) & sized]
         columns = [c for c in members.get(block, []) if c in panel.columns]
         if fired.empty:
             continue

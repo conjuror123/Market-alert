@@ -369,11 +369,12 @@ Delivery splits by urgency, not by importance:
   day's close too.
 * **A throwaway ping** — a digest row is written the hour its move is found, but a
   note stays silent because Telegram does not notify on an edit. So each row also
-  buzzes once, carrying only the rarity, the name and the move:
+  buzzes once, carrying the ticker, the name, the move and how many usual hours
+  that was, plus a pointer at the note:
 
   ```
-  ⬜ Broad agriculture -0.72%
-  🟨 BTC-USD +4.13%
+  ⬜ BKLN · Senior bank loans +0.12% (2.0x)
+  Added to digest👆🏻👆🏻
   ```
 
   Everything else is in the note, one tap away — a second message competing to be
@@ -478,20 +479,28 @@ an instrument that ticked +0.03% while its block went the other way could be
 reported as a once-a-month event. In units of the instrument's own sigma, so it
 means the same to `SHY` as to `SOL`.
 
-**Neither number is guessable, so there is a way to argue with them.** Point at a
-message that was not worth reading:
+**Neither number is guessable from the data.** A message that was not worth
+reading is turned down in a private chat with the bot, on the next hourly run:
 
-```bash
-python -m tremor.feedback --boring "IEI 2026-09-10 18:00"   # as the message wrote it
-python -m tremor.feedback --missed "GLD 2026-09-11 14:00"   # this should have arrived
-python -m tremor.feedback                                    # what the knobs imply
+```
+/floor BKLN 2.5
+/floor Base metals 2.2
 ```
 
-It keys on the ticker and the hour the message already shows, matches the bar
-the message meant, and reports the smallest floor that would exclude everything
-flagged *and what that would cost elsewhere* — then stops. It does not turn the
-knobs; a loop that retuned itself from a handful of judgements would chase the
-last thing that annoyed anyone. Verdicts live in `data/tremor/feedback.csv`.
+That writes `min_move_sigma` on the instrument, or `block_min_move_sigma` on
+the block's own line, in `config/basket.yaml`, as typed, even when the new
+number is smaller than the floor already there. A block command does not copy
+the number onto the members. Raising the shared number instead silences every
+quiet instrument at once — point at BKLN and lose SHY.
+
+The bot replies in that private chat on the next hourly run with what it set
+and how often a line at that size has opened on the stored event table
+(unique trading days, not raw hours).
+
+`python -m tremor.feedback --missed "GLD 2026-09-11 14:00"` still records a
+move that should have arrived and did not. It keys on the ticker and the hour
+the message already shows, matches the bar the message meant, and reports
+what the knobs imply — then stops. Verdicts live in `data/tremor/feedback.csv`.
 
 The asymmetry is deliberate: you can point at a message that arrived and should
 not have, and cannot point at one that never came. So the system is meant to err

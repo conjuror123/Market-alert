@@ -62,6 +62,7 @@ jobs:
           TELEGRAM_HEALTH_CHAT_ID: ${{ secrets.TELEGRAM_HEALTH_CHAT_ID }}
         run: |
           set +e
+          python -m price_monitor.floor
           python -m tremor.backfill
           bf=$?
           set -e
@@ -121,7 +122,7 @@ jobs:
           # biggest move in its own lookback, which a trailing slice answers in
           # one pass - there is nothing left to carry between runs, and naming a
           # file that no longer exists would fail this step every hour.
-          git add data/state.json data/economic_calendar
+          git add data/state.json data/economic_calendar config/basket.yaml
           if [ "$(date -u +%H)" = "04" ]; then
             git add data/tremor/bars data/tremor/vix 2>/dev/null || true
           fi

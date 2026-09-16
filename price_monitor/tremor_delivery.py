@@ -527,22 +527,24 @@ def _scale_note(event: dict) -> str:
     it made the line twice as long for a number no reader was checking, in a
     message deliberately being cut short so that fewer notes need splitting.
     """
-    move = _clean(event.get("r"))
-    usual = _clean(event.get("sigma_lt"))
-    if move is None or usual is None or usual <= 0:
+    size = _ratio_short(event)
+    if not size:
         return ""
-    ratio = abs(move) / usual
-    # Shown at every size now, where it used to be suppressed below three times
-    # normal. That silence was itself confusing: 21% of events fall under the old
-    # floor, and a reader who has seen the line on one alert reads its absence on
-    # the next as a gap rather than as "this one was only 2.7x". A decimal below
-    # ten, because "3x" for 2.7 looks like a rounding that flatters the alert.
-    size = f"{ratio:.0f}x" if ratio >= 10 else f"{ratio:.1f}x"
     # For a block the yardstick is the median member's usual hour rather than any
     # one instrument's, and saying "its" would invite the reader to look for an
     # instrument that does not exist.
     whose = "a typical member's usual hour" if _is_block(event) else "usual hour"
     return f"{size} {whose}"
+
+
+def _ratio_short(event: dict) -> str:
+    """Just '2.0x' / '10x'. Decimal below ten, because '3x' for 2.7 flatters it."""
+    move = _clean(event.get("r"))
+    usual = _clean(event.get("sigma_lt"))
+    if move is None or usual is None or usual <= 0:
+        return ""
+    ratio = abs(move) / usual
+    return f"{ratio:.0f}x" if ratio >= 10 else f"{ratio:.1f}x"
 
 
 def check_in_lines(event: dict, now: datetime | None = None,
@@ -631,7 +633,7 @@ def describe(event: dict, labels: dict[str, str],
 
     parts.extend(_split_lines(event, label, tier, basis))
     parts.extend(check_in_lines(event, now))
-    parts.append(f"{TIME_EMOJI}<b>{when:%Y-%m-%d %H:%M} UTC</b>")
+    parts.append(f"{TIME_EMOJI}<b>{when:%d-%m-%Y %H:%M} UTC</b>")
     return "\n".join(parts)
 
 
@@ -680,12 +682,6 @@ def _block_move_phrase(block: str, move: "float | None") -> str:
 # exchange posts the close the same evening, so the gauge no longer sits three
 # calendar days behind across a weekend.
 VIX_PATH = os.path.join("data", "tremor", "vix", "fred_VIXCLS.parquet")
-
-# What "a week before" compares against. Seven CALENDAR days, matched to the
-# nearest earlier reading, because the comparison is meant to be legible rather
-# than exact - "up from 17 a week before" is the sentence, and whether that
-# reading was Monday or the Friday before it changes nothing about the point.
-VIX_COMPARE_DAYS = 7
 
 # Below this the two readings are called unchanged rather than given a
 # direction. A tenth is about the daily noise of the index, and "up from 15.9"
@@ -771,16 +767,13 @@ def vix_context(hour_utc: int) -> str:
              f"calmer than {100 - rank:.0f}% of days since {first}")
     lines = [f"🌡 <b>Fear gauge</b>: VIX {level:.2f} at the {when:%-d %b} close - {place}"]
 
-    earlier = known[known["day"] <= day - VIX_COMPARE_DAYS * 86400]
+    # The previous close the system already had, not a week-ago reading. A
+    # seven-day lookback printed "up from the 7 Sep close" next to a 14 Sep
+    # print and looked like the feed had stalled for a week when Friday's
+    # number was sitting one row back.
+    earlier = known.iloc[:-1]
     if not earlier.empty:
         before = float(earlier["close"].iloc[-1])
-        # DATED like the reading above it, not "a week before". The comparison
-        # takes the most recent reading at least a week back, which lands on a
-        # different day depending on where weekends and holidays fall - so "a
-        # week" was true to the intent and not to the number, and a reader could
-        # not tell nine days from seven. Both halves of the sentence now name
-        # their close, which also makes it obvious at a glance when the feed has
-        # stopped moving.
         was = datetime.fromtimestamp(int(earlier["day"].iloc[-1]), tz=timezone.utc)
         direction = ("up from" if level - before > VIX_FLAT else
                      "down from" if before - level > VIX_FLAT else "level with")
@@ -839,7 +832,7 @@ def _describe_block(event: dict, headline: str, emoji: str, when: datetime,
         parts.append(f"\tbiggest movers: {_escape(leaders)}{_escape(of)}")
 
     parts.extend(check_in_lines(event, now))
-    parts.append(f"{TIME_EMOJI}<b>{when:%Y-%m-%d %H:%M} UTC</b>")
+    parts.append(f"{TIME_EMOJI}<b>{when:%d-%m-%Y %H:%M} UTC</b>")
     return "\n".join(parts)
 
 
@@ -1081,26 +1074,21 @@ def format_push(event: dict, labels: dict[str, str],
     """A single interrupting alert.
 
     Ordered so the reader meets one instrument first and the day second: the
-    move written out in full, then the news scheduled around it, then how
-    frightened the market already was when it happened.
+    move written out in full, then the news scheduled around it.
 
     ONE INSTRUMENT, and only one. A push used to speak for every other move of
     its day, because a second push inside the day was folded into it rather than
     sent. Nothing is folded now - a push is final when it arrives - so each one
     is its own story and the day assembles itself out of however many arrive.
+    The fear gauge lives on the digest note, not here: a standalone alert is
+    already one instrument's story, and repeating the regime on every major
+    and every block duplicated a line the running note already carries.
     """
     lines = [describe(event, labels, now, events)]
     context = calendar_context(int(event["hour_utc"]), calendar)
     if context:
         lines.append("")
         lines.append(_escape(context))
-    # After the scheduled news and before the rest of the day: the release says
-    # what happened, the regime says how frightened the market already was when
-    # it did, and both belong above the list of everything else that moved.
-    regime = vix_context(int(event["hour_utc"]))
-    if regime:
-        lines.append("")
-        lines.append(regime)
     # Once at the foot of the message rather than under every instrument: any
     # message that says "its own block" or speaks for a block outright is asking
     # the reader to accept a claim about a group of instruments, and they are
@@ -1441,10 +1429,9 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
 
     A digest row is written the hour its move is found, but the note stays
     silent - Telegram does not notify on an edit - so a reader who wants to know
-    NOW has to keep opening it. This is the buzz, and it is deliberately almost
-    empty: the rarity, what moved, how far. Everything else is already in the
-    note, one tap away, and repeating it here would make two messages competing
-    to be the record.
+    NOW has to keep opening it. This is the buzz: ticker, name, size, and a
+    pointer at the note. The rarity colour, the check-ins and the calendar stay
+    in the note, one tap away.
 
     It is deleted when the next note opens, so what remains is a clean run of
     notes rather than a scroll of pings around them.
@@ -1452,15 +1439,22 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
     tier = str(event.get("tier") or "noticeable")
     emoji = TIER_EMOJI.get(tier, "⚪")
     asset_id = str(event.get("asset_id", ""))
-    name = labels.get(asset_id) or asset_id.split(":")[-1]
     move = _clean(event.get("r"))
-    mark = ""
-    if _is_block(event):
-        name = BLOCK_LABEL.get(str(event.get("block")), name)
-        name = name[:1].upper() + name[1:]
-        mark = BLOCK_MARK
     shown = f" {move * 100:+.2f}%" if move is not None else ""
-    return f"{mark}{emoji} <b>{_escape(name)}</b>{shown}"
+    ratio = _ratio_short(event)
+    extra = f" ({ratio})" if ratio else ""
+    if _is_block(event):
+        name = BLOCK_LABEL.get(str(event.get("block")),
+                               labels.get(asset_id) or asset_id.split(":")[-1])
+        name = name[:1].upper() + name[1:]
+        first = (f"{BLOCK_MARK}{emoji} <b>{_escape(name)}</b>"
+                 f"{shown}{extra}")
+    else:
+        ticker = _ticker(asset_id)
+        label = labels.get(asset_id) or ticker
+        first = (f"{emoji} <b>{_escape(ticker)}</b> · {_escape(label)}"
+                 f"{shown}{extra}")
+    return f"{first}\nAdded to digest👆🏻👆🏻"
 
 
 def pending_pings(events: "list[dict]", pinged: dict,
@@ -1490,6 +1484,19 @@ def pending_pings(events: "list[dict]", pinged: dict,
     return out
 
 
+def _ping_message_id(value) -> int:
+    """A ping record is either the Telegram id or `{id, hash}` after restyle."""
+    if isinstance(value, dict):
+        return int(value["id"])
+    return int(value)
+
+
+def _ping_hash(value) -> str:
+    if isinstance(value, dict):
+        return str(value.get("hash") or "")
+    return ""
+
+
 def sweep_pings(cfg: Config, store: dict) -> int:
     """Removes every outstanding ping. Called as the next note opens.
 
@@ -1503,10 +1510,11 @@ def sweep_pings(cfg: Config, store: dict) -> int:
     if not outstanding:
         return 0
     gone = 0
-    for event_id, message_id in list(outstanding.items()):
+    for event_id, value in list(outstanding.items()):
         try:
             if delete_telegram_message(cfg.telegram_bot_token,
-                                       cfg.telegram_chat_id, int(message_id)):
+                                       cfg.telegram_chat_id,
+                                       _ping_message_id(value)):
                 gone += 1
         except TelegramError as exc:
             log.warning("Could not clear ping %s: %s", event_id, exc)
@@ -1516,6 +1524,34 @@ def sweep_pings(cfg: Config, store: dict) -> int:
                  "(a bot may only delete its own message within 48 hours "
                  "outside a channel)", gone, len(outstanding))
     return gone
+
+
+def restyle_pings(cfg: Config, store: dict, events: "list[dict]",
+                  labels: dict[str, str]) -> int:
+    """Re-edits outstanding pings whose rendered text no longer matches."""
+    outstanding: dict = store.get(PINGS) or {}
+    if not outstanding:
+        return 0
+    by_id = {str(e.get("event_id")): e for e in events}
+    edited = 0
+    for event_id, value in list(outstanding.items()):
+        event = by_id.get(str(event_id))
+        if event is None:
+            continue
+        text = format_ping(event, labels)
+        mark = _fingerprint(text)
+        if mark == _ping_hash(value):
+            continue
+        message_id = _ping_message_id(value)
+        try:
+            edit_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
+                                  message_id, text)
+        except TelegramError as exc:
+            log.error("Could not restyle ping %s: %s", event_id, exc)
+            continue
+        outstanding[event_id] = {"id": message_id, "hash": mark}
+        edited += 1
+    return edited
 
 
 def pending(events: "list[dict]", sent: dict, now: datetime) -> "list[dict]":
@@ -1602,7 +1638,8 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
 
     # Corrections to already-sent pushes run on their own schedule - one sent on
     # Monday is edited on Tuesday whether or not Tuesday has news of its own.
-    corrected = follow_up.apply(cfg, state, events, calendar, now)
+    corrected = follow_up.apply(cfg, state, events, calendar, now,
+                               restyle_after=current)
 
     labels = _labels()
     pushed = posted = edited = 0
@@ -1625,7 +1662,8 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         sent[str(event["event_id"])] = int(event["hour_utc"])
         # Remembered so the two-bar, six-bar and settled check-ins can edit
         # this very message rather than sending three more.
-        follow_up.track(store, event, message_id)
+        follow_up.track(store, event, message_id, _fingerprint(
+            format_push(event, labels, calendar, events, now)))
         save_state(cfg.state_path, state)
         label = labels.get(str(event.get("asset_id", ""))) or str(
             event.get("asset_id", "")).split(":")[-1]
@@ -1648,18 +1686,23 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     pings: dict = store.setdefault(PINGS, {})
     buzzed = 0
     for event in pending_pings(events, pings, now):
+        text = format_ping(event, labels)
         try:
             message_id = send_telegram_message(
-                cfg.telegram_bot_token, cfg.telegram_chat_id,
-                format_ping(event, labels))
+                cfg.telegram_bot_token, cfg.telegram_chat_id, text)
         except TelegramError as exc:
             log.error("Failed to send ping %s: %s", event.get("event_id"), exc)
             continue
-        pings[str(event["event_id"])] = int(message_id)
+        pings[str(event["event_id"])] = {"id": int(message_id),
+                                         "hash": _fingerprint(text)}
         save_state(cfg.state_path, state)
         buzzed += 1
     if buzzed:
         log.info("Pings sent: %d", buzzed)
+    restyled = restyle_pings(cfg, store, events, labels)
+    if restyled:
+        save_state(cfg.state_path, state)
+        log.info("Pings restyled: %d", restyled)
 
     for slot in sorted(notes):
         record, rows = notes[slot]
@@ -1697,4 +1740,4 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         log.info("Tremor pushes sent: %d of %d due", pushed, len(pushes))
     store[_SENT] = _prune(sent, now)
     store[DIGEST_STATE] = _prune_digests(digests, now)
-    return pushed + posted + edited + corrected + buzzed
+    return pushed + posted + edited + corrected + buzzed + restyled

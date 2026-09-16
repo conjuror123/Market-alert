@@ -21,7 +21,8 @@ SAMPLE = events([
 
 
 def test_a_time_is_read_the_way_a_message_writes_it():
-    assert fb.parse_when("2026-09-09 13:00") == fb.parse_when("2026-09-09 13:00 UTC")
+    assert fb.parse_when("14-09-2026 13:00") == fb.parse_when("14-09-2026 13:00 UTC")
+    assert fb.parse_when("2026-09-14 13:00") == fb.parse_when("14-09-2026 13:00")
     assert fb.parse_when("2026-09-09T13:00") == fb.parse_when("2026-09-09 13:00")
     with pytest.raises(ValueError):
         fb.parse_when("last Tuesday")
@@ -93,3 +94,4 @@ def test_a_missed_move_that_was_found_is_a_routing_problem():
 
 def test_nothing_recorded_is_said_plainly():
     assert any("nothing recorded yet" in line for line in fb.suggest([], SAMPLE))
+    assert all("--boring" not in line for line in fb.suggest([], SAMPLE))

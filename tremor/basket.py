@@ -261,6 +261,10 @@ class Tuning:
     also be the thing that separates a loan ETF from Solana. Measured before
     this existed, the whole basket sat inside a 2.2x spread of events per year,
     which is far too flat for instruments that different.
+
+    A block's own line uses the same lever under a `block:` key, and that
+    override does not copy onto the members. Absent either override, the shared
+    `min_move_sigma` is the default.
     """
     sensitivity: float = 1.0
     min_move_sigma: float = 1.0
@@ -277,7 +281,7 @@ class Tuning:
         return severity.BLOCK_SIGMA.get(str(block), severity.DEFAULT_SIGMA)
 
     def floor_for(self, asset_id: str) -> float:
-        """This instrument's floor, or the shared one where it has no override."""
+        """This instrument's or block's floor, or the shared one where it has no override."""
         for name, value in self.floors:
             if name == asset_id:
                 return value
@@ -313,6 +317,22 @@ def load_tuning(path: str = DEFAULT_BASKET_PATH) -> Tuning:
             continue
         asset_id = f"{entry.get('source')}:{entry.get('ticker')}"
         value = entry["min_move_sigma"]
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            raise BasketConfigError(
+                f"{asset_id}: min_move_sigma {value!r} is not a number")
+        if value < 0:
+            raise BasketConfigError(
+                f"{asset_id}: min_move_sigma must not be negative, got {value}")
+        floors.append((asset_id, value))
+
+    mapping = raw.get("block_min_move_sigma") or {}
+    if mapping and not isinstance(mapping, dict):
+        raise BasketConfigError("block_min_move_sigma must be a mapping of block to number")
+    for name, value in mapping.items():
+        block = str(name)
+        asset_id = block if block.startswith("block:") else f"block:{block}"
         try:
             value = float(value)
         except (TypeError, ValueError):

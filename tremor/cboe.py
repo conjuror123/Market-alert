@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import io
 from datetime import date, datetime, time, timezone
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import requests
@@ -33,13 +34,16 @@ HISTORY_URL = ("https://cdn.cboe.com/api/global/us_indices/daily_prices/"
                "VIX_History.csv")
 
 # When the day's close may be used. CBOE disseminates VIX until 16:15 EASTERN -
-# the exchange is in Chicago but the index keeps the New York clock - which is
-# 20:15 UTC in summer and 21:15 in winter, and the file follows within minutes.
-# 22:00 clears the later of the two by three quarters of an hour. Same-day rather
-# than next-business-day: the FRED lag is a property of the mirror, not of what
-# the market knew. The gate still matters, because the file may be fetched at any
-# hour and a row read before settlement would be a value nobody had.
-PUBLICATION_HOUR_UTC = 22
+# the exchange is in Chicago but the index keeps the New York clock - and the
+# daily file follows within minutes. 16:30 Eastern is a quarter of an hour after
+# the print, in the market's own clock, so a summer evening is not held until
+# 22:00 UTC and a winter one is not released before the index has actually
+# stopped. Same-day rather than next-business-day: the FRED lag is a property of
+# the mirror, not of what the market knew. The gate still matters, because the
+# file may be fetched at any hour and a row read before settlement would be a
+# value nobody had.
+_EASTERN = ZoneInfo("America/New_York")
+_POSTED = time(16, 30)
 
 
 class CboeError(RuntimeError):
@@ -48,8 +52,8 @@ class CboeError(RuntimeError):
 
 def available_at(observation_day: date) -> int:
     """The moment (epoch, UTC) from which the day's close may be used."""
-    return int(datetime.combine(observation_day, time(PUBLICATION_HOUR_UTC),
-                                tzinfo=timezone.utc).timestamp())
+    posted = datetime.combine(observation_day, _POSTED, tzinfo=_EASTERN)
+    return int(posted.astimezone(timezone.utc).timestamp())
 
 
 def fetch_vix_history(start: date, session: requests.Session | None = None,
