@@ -1,9 +1,10 @@
-"""Set an instrument's size floor from a private Telegram command.
+"""Set a size floor from a private Telegram command.
 
 `/floor BKLN 2.5` writes `min_move_sigma: 2.5` on that instrument's entry in
-`config/basket.yaml`. `/floor Base metals 2.5` does the same for every
-instrument in the block. The number is taken as typed, including when it is
-smaller than the floor already there.
+`config/basket.yaml`. `/floor Base metals 2.5` writes the same number on the
+block's OWN line only (`block_min_move_sigma`); members keep their own floors.
+The number is taken as typed, including when it is smaller than the floor
+already there.
 
 WHY THIS EXISTS. The old `--boring` path recorded a verdict and printed a
 suggestion; someone still had to edit the yaml. The person being interrupted
@@ -13,10 +14,15 @@ runs in the same hour or the command would only affect tomorrow.
 Commands are accepted only in a private chat with the bot (the health chat,
 or the product chat when that is itself private). Channel messages are
 ignored. The yaml edit is surgical: comments and unrelated keys stay put.
+
+The confirmation names what changed and how often a line at this size has
+opened on the stored event table - unique trading days, not raw hours, and
+not a Gaussian "1σ = one hour in 3" table.
 """
 from __future__ import annotations
 
 import logging
+import os
 import re
 import sys
 
@@ -25,10 +31,12 @@ from price_monitor.notifier import TelegramError, fetch_telegram_updates, send_t
 from price_monitor.state import CorruptState, load_state, save_state
 from price_monitor.tremor_delivery import BLOCK_LABEL
 from tremor.basket import DEFAULT_BASKET_PATH, load_basket, load_tuning
+from tremor.saed import DEFAULT_EVENTS_PATH
 
 log = logging.getLogger("price_monitor.floor")
 
 OFFSET_KEY = "telegram_update_offset"
+YEAR = 365.25 * 86400
 
 # How a person names a block, including the labels the messages already use.
 # "Base metals" is the industrial-metals block as the reader says it, not DBB's
@@ -55,6 +63,9 @@ COMMAND = re.compile(
 TICKER_LINE = re.compile(r"^  - ticker: (\S+)\s*(?:#.*)?$")
 FLOOR_LINE = re.compile(r"^(    min_move_sigma:\s*)([0-9]+(?:\.[0-9]+)?)(.*)$")
 TOP_LEVEL = re.compile(r"^[A-Za-z0-9_]+:")
+SECTION_HEAD = re.compile(r"^block_min_move_sigma:\s*(?:#.*)?$")
+BLOCK_ENTRY = re.compile(r"^  ([A-Za-z0-9_]+):\s*")
+SHARED_FLOOR = re.compile(r"^min_move_sigma:\s*")
 
 
 def _norm(name: str) -> str:
@@ -69,10 +80,11 @@ def _block_names() -> dict[str, str]:
     return names
 
 
-def resolve_target(name: str, basket=None) -> tuple[str, str, list[str]]:
-    """Map a typed name to (kind, label, asset_ids).
+def resolve_target(name: str, basket=None) -> tuple[str, str, str]:
+    """Map a typed name to (kind, label, key).
 
-    kind is `instrument` or `block`. Raises ValueError if nothing matches.
+    kind is `instrument` or `block`. key is an asset_id or a block name.
+    Raises ValueError if nothing matches.
     """
     basket = basket or load_basket()
     raw = name.strip()
@@ -81,17 +93,16 @@ def resolve_target(name: str, basket=None) -> tuple[str, str, list[str]]:
     squashed = raw.upper().replace("/", "")
     for asset in basket.instruments:
         if asset.ticker.upper() == raw.upper() or asset.asset_id.upper() == raw.upper():
-            return "instrument", asset.ticker, [asset.asset_id]
+            return "instrument", asset.ticker, asset.asset_id
         if asset.ticker.upper().replace("/", "") == squashed:
-            return "instrument", asset.ticker, [asset.asset_id]
+            return "instrument", asset.ticker, asset.asset_id
 
     want = _norm(raw)
     block = _block_names().get(want)
     if block is not None:
-        ids = [a.asset_id for a in basket.instruments if a.block == block]
-        if not ids:
+        if not any(a.block == block for a in basket.instruments):
             raise ValueError(f"{raw!r} is a block with no instruments")
-        return "block", BLOCK_LABEL.get(block, block), ids
+        return "block", BLOCK_LABEL.get(block, block), block
 
     labelled = []
     for asset in basket.instruments:
@@ -100,7 +111,7 @@ def resolve_target(name: str, basket=None) -> tuple[str, str, list[str]]:
             labelled.append(asset)
     if len(labelled) == 1:
         asset = labelled[0]
-        return "instrument", asset.ticker, [asset.asset_id]
+        return "instrument", asset.ticker, asset.asset_id
     if len(labelled) > 1:
         tickers = ", ".join(a.ticker for a in labelled)
         raise ValueError(f"{raw!r} matches more than one instrument ({tickers})")
@@ -129,12 +140,20 @@ def _entry_spans(lines: list[str]) -> list[tuple[str, int, int]]:
     return spans
 
 
+def _write_yaml(path: str, lines: list[str], ended: bool) -> None:
+    out = "\n".join(lines)
+    if ended:
+        out += "\n"
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(out)
+    load_tuning.cache_clear()
+
+
 def set_floors(tickers: list[str], value: float,
                path: str = DEFAULT_BASKET_PATH) -> list[str]:
     """Write `min_move_sigma` on each ticker's yaml entry. Returns those edited."""
     with open(path, "r", encoding="utf-8") as handle:
         text = handle.read()
-    newline = "\n"
     ended = text.endswith("\n")
     lines = text.splitlines()
     remaining = {t.upper() for t in tickers}
@@ -164,13 +183,41 @@ def set_floors(tickers: list[str], value: float,
         written.append(ticker)
         remaining.discard(ticker_key)
 
-    out = newline.join(lines)
-    if ended:
-        out += newline
-    with open(path, "w", encoding="utf-8") as handle:
-        handle.write(out)
-    load_tuning.cache_clear()
+    _write_yaml(path, lines, ended)
     return written
+
+
+def set_block_floor(block: str, value: float,
+                    path: str = DEFAULT_BASKET_PATH) -> None:
+    """Write `block_min_move_sigma` for this block. Members are not touched."""
+    with open(path, "r", encoding="utf-8") as handle:
+        text = handle.read()
+    ended = text.endswith("\n")
+    lines = text.splitlines()
+    shown = format_sigma(value)
+    head = next((i for i, line in enumerate(lines) if SECTION_HEAD.match(line)), None)
+    if head is None:
+        anchor = next((i for i, line in enumerate(lines) if SHARED_FLOOR.match(line)), None)
+        if anchor is None:
+            raise ValueError("basket.yaml has no min_move_sigma to hang a block floor on")
+        lines[anchor + 1:anchor + 1] = [
+            "block_min_move_sigma:",
+            f"  {block}: {shown}",
+        ]
+    else:
+        end = next((j for j in range(head + 1, len(lines))
+                    if TOP_LEVEL.match(lines[j])), len(lines))
+        replaced = False
+        for i in range(head + 1, end):
+            match = BLOCK_ENTRY.match(lines[i])
+            if match and match.group(1) == block:
+                comment = re.search(r"\s+#.*$", lines[i])
+                lines[i] = f"  {block}: {shown}" + (comment.group(0) if comment else "")
+                replaced = True
+                break
+        if not replaced:
+            lines.insert(end, f"  {block}: {shown}")
+    _write_yaml(path, lines, ended)
 
 
 def parse_command(text: str) -> tuple[str, float] | None:
@@ -194,27 +241,106 @@ def _allowed_chat(chat: dict, cfg: Config) -> bool:
     return cid in allowed
 
 
-def apply_command(name: str, value: float, path: str = DEFAULT_BASKET_PATH,
+def _day_tz_for(asset_id: str, basket) -> "str | None":
+    from tremor import blocks, sessions
+
+    if blocks.is_block(asset_id):
+        name = blocks.block_name(asset_id)
+        templates = {a.session_template for a in basket.assets if a.block == name}
+        return sessions.day_tz(templates.pop()) if len(templates) == 1 else None
+    for asset in basket.instruments:
+        if asset.asset_id == asset_id:
+            return sessions.day_tz(asset.session_template)
+    return None
+
+
+def _event_days(hours, tz_name: "str | None") -> int:
+    import pandas as pd
+
+    ts = pd.to_datetime(list(hours), unit="s", utc=True)
+    if tz_name:
+        ts = ts.tz_convert(tz_name)
+    return int(ts.normalize().nunique())
+
+
+def describe_rate(asset_id: str, floor: float,
+                  events_path: str = DEFAULT_EVENTS_PATH,
                   basket=None) -> str:
+    """How often a line at this size has opened, from stored events.
+
+    Unique trading days, not raw hours. The stored table already keeps one row
+    per day; collapsing again is what makes two legs on the same day count as
+    one event if a recompute ever left both. Not a Gaussian table, and not
+    called pushes unless the rows being counted are push-tier only.
+    """
+    import pandas as pd
+
+    from tremor import blocks
+
+    line = "a block line" if blocks.is_block(asset_id) else "a line"
+    if not os.path.exists(events_path):
+        return "No stored events yet, so a rate is not computed."
+    try:
+        events = pd.read_parquet(events_path)
+    except Exception as exc:                     # pragma: no cover - defensive
+        log.warning("Could not read events for a floor rate: %s", exc)
+        return "Stored events could not be read, so a rate is not computed."
+    if events.empty or "asset_id" not in events.columns:
+        return "No stored events yet, so a rate is not computed."
+
+    mine = events[events["asset_id"].astype(str) == str(asset_id)]
+    if mine.empty:
+        who = "this block" if blocks.is_block(asset_id) else asset_id.split(":")[-1]
+        return f"No stored events for {who} yet, so a rate is not computed."
+
+    if "r" in mine.columns and "sigma_lt" in mine.columns:
+        usual = pd.to_numeric(mine["sigma_lt"], errors="coerce")
+        move = pd.to_numeric(mine["r"], errors="coerce").abs()
+        keep = mine[move.ge(floor * usual) | usual.isna() | (usual <= 0) | (floor <= 0)]
+    else:
+        keep = mine
+
+    basket = basket or load_basket()
+    tz_name = _day_tz_for(asset_id, basket)
+    span = max(int(mine["hour_utc"].max()) - int(mine["hour_utc"].min()), 86400)
+    years = span / YEAR
+    n = _event_days(keep["hour_utc"], tz_name) if not keep.empty else 0
+    if n == 0:
+        return (f"No {line} in {years:.1f} years of stored history would have "
+                f"opened at this floor.")
+    per_year = n / years
+    if per_year >= 1:
+        often = f"about {per_year:.1f} times a year"
+    else:
+        often = f"about once every {1 / per_year:.1f} years"
+    noun = "event" if n == 1 else "events"
+    return (f"At this size, {line} has opened {often} "
+            f"({n} {noun} over {years:.1f} years of stored history).")
+
+
+def apply_command(name: str, value: float, path: str = DEFAULT_BASKET_PATH,
+                  basket=None, events_path: str = DEFAULT_EVENTS_PATH) -> str:
     if value < 0:
         raise ValueError("min_move_sigma must not be negative")
-    kind, label, asset_ids = resolve_target(name, basket)
+    kind, label, key = resolve_target(name, basket)
     basket = basket or load_basket()
-    tickers = []
-    by_id = {a.asset_id: a for a in basket.instruments}
-    for asset_id in asset_ids:
-        tickers.append(by_id[asset_id].ticker)
-    set_floors(tickers, value, path)
     shown = format_sigma(value)
     if kind == "block":
-        listed = ", ".join(tickers)
-        return (f"Floor for {label} is now {shown}x "
-                f"({listed}).")
-    return f"Floor for {label} is now {shown}x."
+        set_block_floor(key, value, path)
+        from tremor.blocks import block_id
+
+        rate = describe_rate(block_id(key), value, events_path, basket)
+        return (f"Floor for {label} is now {shown}x. Member floors are unchanged.\n"
+                f"{rate}")
+    ticker = key.split(":")[-1]
+    set_floors([ticker], value, path)
+    rate = describe_rate(key, value, events_path, basket)
+    return f"Floor for {label} is now {shown}x.\n{rate}"
 
 
 def process_updates(cfg: Config, state: dict,
-                    path: str = DEFAULT_BASKET_PATH) -> int:
+                    path: str = DEFAULT_BASKET_PATH,
+                    events_path: str = DEFAULT_EVENTS_PATH) -> int:
     """Read private /floor commands and write them. Returns how many applied."""
     if not cfg.telegram_bot_token:
         return 0
@@ -243,7 +369,7 @@ def process_updates(cfg: Config, state: dict,
         reply_chat = str(chat.get("id") or cfg.telegram_health_chat_id
                          or cfg.telegram_chat_id)
         try:
-            reply = apply_command(name, value, path)
+            reply = apply_command(name, value, path, events_path=events_path)
             applied += 1
             log.info("%s", reply)
         except ValueError as exc:

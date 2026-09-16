@@ -69,16 +69,15 @@ def test_a_floor_command_is_parsed_as_typed():
 
 def test_a_ticker_and_a_block_name_both_resolve(monkeypatch):
     b = basket()
-    kind, label, ids = fl.resolve_target("BKLN", b)
+    kind, label, key = fl.resolve_target("BKLN", b)
     assert kind == "instrument" and label == "BKLN"
-    assert ids == ["twelvedata:BKLN"]
+    assert key == "twelvedata:BKLN"
 
-    kind, label, ids = fl.resolve_target("Base metals", b)
-    assert kind == "block"
-    assert set(ids) == {"twelvedata:DBB", "twelvedata:CPER"}
+    kind, label, key = fl.resolve_target("Base metals", b)
+    assert kind == "block" and key == "industrial_metals"
 
-    kind, _, ids = fl.resolve_target("industrial metals", b)
-    assert kind == "block" and len(ids) == 2
+    kind, _, key = fl.resolve_target("industrial metals", b)
+    assert kind == "block" and key == "industrial_metals"
 
     with pytest.raises(ValueError):
         fl.resolve_target("NOPE", b)
@@ -99,17 +98,20 @@ def test_yaml_inserts_or_replaces_without_touching_neighbours(tmp_path):
     assert "min_move_sigma" not in by_ticker["DBB"]
 
 
-def test_a_block_floor_is_written_on_every_member(tmp_path):
+def test_a_block_floor_does_not_copy_onto_members(tmp_path):
     path = tmp_path / "basket.yaml"
     path.write_text(SAMPLE)
     b = basket()
-    reply = fl.apply_command("Base metals", 2.5, str(path), b)
+    events = tmp_path / "events.parquet"
+    reply = fl.apply_command("Base metals", 2.5, str(path), b, str(events))
     raw = yaml.safe_load(path.read_text())
     by_ticker = {a["ticker"]: a for a in raw["assets"]}
-    assert by_ticker["DBB"]["min_move_sigma"] == 2.5
-    assert by_ticker["CPER"]["min_move_sigma"] == 2.5
+    assert "min_move_sigma" not in by_ticker["DBB"]
+    assert "min_move_sigma" not in by_ticker["CPER"]
     assert "min_move_sigma" not in by_ticker["BKLN"]
-    assert "2.5" in reply and "DBB" in reply
+    assert raw["block_min_move_sigma"]["industrial_metals"] == 2.5
+    assert "2.5" in reply and "unchanged" in reply
+    assert "DBB" not in reply
 
 
 def test_process_updates_applies_a_private_command(tmp_path, monkeypatch):
@@ -131,7 +133,8 @@ def test_process_updates_applies_a_private_command(tmp_path, monkeypatch):
                         lambda token, chat, text: sent.append((chat, text)) or 1)
     monkeypatch.setattr(fl, "load_basket", basket)
     state = {}
-    assert fl.process_updates(cfg, state, str(path)) == 1
+    events = tmp_path / "none.parquet"
+    assert fl.process_updates(cfg, state, str(path), str(events)) == 1
     assert state[fl.OFFSET_KEY] == 8
     assert sent and "BKLN" in sent[0][1]
     raw = yaml.safe_load(path.read_text())
@@ -159,3 +162,54 @@ def test_a_channel_command_is_ignored(tmp_path, monkeypatch):
     assert fl.process_updates(cfg, state, str(path)) == 0
     assert "min_move_sigma: 9" not in path.read_text()
     assert state[fl.OFFSET_KEY] == 4
+
+
+def _events_parquet(path, rows):
+    import pandas as pd
+
+    frame = pd.DataFrame(rows)
+    frame.to_parquet(path, index=False)
+    return str(path)
+
+
+def test_the_reply_counts_unique_days_not_hours(tmp_path):
+    # Two hours the same UTC day, one a year later: that is two events, not three.
+    path = tmp_path / "events.parquet"
+    day = 1_700_000_000
+    _events_parquet(path, [
+        {"asset_id": "twelvedata:BKLN", "hour_utc": day, "r": 0.03, "sigma_lt": 0.01},
+        {"asset_id": "twelvedata:BKLN", "hour_utc": day + 3600, "r": 0.04, "sigma_lt": 0.01},
+        {"asset_id": "twelvedata:BKLN", "hour_utc": day + 365 * 86400, "r": 0.03,
+         "sigma_lt": 0.01},
+    ])
+    text = fl.describe_rate("twelvedata:BKLN", 2.5, str(path), basket())
+    assert "2 events" in text
+    assert "pushes" not in text
+    assert "block line" not in text
+
+
+def test_a_block_rate_ignores_member_rows_and_hours_below_the_floor(tmp_path):
+    path = tmp_path / "events.parquet"
+    day = 1_700_000_000
+    _events_parquet(path, [
+        {"asset_id": "block:industrial_metals", "hour_utc": day,
+         "r": 0.03, "sigma_lt": 0.01},          # 3x, kept
+        {"asset_id": "block:industrial_metals", "hour_utc": day + 400 * 86400,
+         "r": 0.02, "sigma_lt": 0.01},          # 2x, dropped at 2.5
+        {"asset_id": "twelvedata:DBB", "hour_utc": day, "r": 0.05, "sigma_lt": 0.01},
+    ])
+    text = fl.describe_rate("block:industrial_metals", 2.5, str(path), basket())
+    assert "1 event" in text
+    assert "block line" in text
+    assert "pushes" not in text
+
+
+def test_a_lower_block_floor_replaces_the_yaml_value(tmp_path):
+    path = tmp_path / "basket.yaml"
+    path.write_text(SAMPLE)
+    fl.set_block_floor("industrial_metals", 2.5, str(path))
+    fl.set_block_floor("industrial_metals", 2.2, str(path))
+    raw = yaml.safe_load(path.read_text())
+    assert raw["block_min_move_sigma"]["industrial_metals"] == 2.2
+    by_ticker = {a["ticker"]: a for a in raw["assets"]}
+    assert "min_move_sigma" not in by_ticker["DBB"]

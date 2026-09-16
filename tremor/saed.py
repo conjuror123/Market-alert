@@ -238,7 +238,9 @@ def triggers(frame: pd.DataFrame) -> pd.Series:
     9.3 and 20.4 events a year - a 2.2x spread across instruments that differ by
     far more than that. An instrument that keeps producing lines the reader does
     not want has its own floor raised (`/floor BKLN 2.5` in a private chat with
-    the bot); the rest are untouched, which a shared knob cannot do.
+    the bot); a block line is floored the same way without copying onto the
+    members (`/floor Base metals 2.5`). The rest are untouched, which a shared
+    knob cannot do.
     """
     if "tier" not in frame:
         raise KeyError("severity.annotate must run before triggers")

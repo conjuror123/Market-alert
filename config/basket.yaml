@@ -169,15 +169,21 @@ sensitivity: 1.0
 # differ by far more.
 #
 # Do not guess these. `/floor BKLN 2.5` in a private chat with the bot writes
-# that instrument's floor immediately; `/floor Base metals 2.5` does the same
-# for every instrument in the block. The number is taken as typed, including
-# when it is smaller than the floor already there. Raising the shared number
-# instead silences every quiet instrument at once - point at BKLN and lose SHY.
+# that instrument's floor immediately. `/floor Base metals 2.5` writes a floor
+# for the block's OWN line only; members keep whatever they already have. The
+# number is taken as typed, including when it is smaller than the floor already
+# there. Raising the shared number instead silences every quiet instrument at
+# once - point at BKLN and lose SHY.
 #
 # Changing any of them moves config_version, which retires derived data and
 # costs one cold run. That is correct: the events would otherwise be a mix of
 # two rules.
 min_move_sigma: 1.0
+
+# Size floor for a block's own messages, in the block's usual hour. Absent, the
+# shared min_move_sigma above is the default. Members are not written here.
+# block_min_move_sigma:
+#   industrial_metals: 2.5
 
 # Session templates are filled in during phase 1 (holiday and half-session
 # calendars); here only the names the assets refer to.

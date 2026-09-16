@@ -487,10 +487,15 @@ reading is turned down in a private chat with the bot, on the next hourly run:
 /floor Base metals 2.2
 ```
 
-That writes `min_move_sigma` on the instrument (or on every instrument in the
-block) in `config/basket.yaml`, as typed, even when the new number is smaller
-than the floor already there. Raising the shared number instead silences every
+That writes `min_move_sigma` on the instrument, or `block_min_move_sigma` on
+the block's own line, in `config/basket.yaml`, as typed, even when the new
+number is smaller than the floor already there. A block command does not copy
+the number onto the members. Raising the shared number instead silences every
 quiet instrument at once — point at BKLN and lose SHY.
+
+The bot replies in that private chat on the next hourly run with what it set
+and how often a line at that size has opened on the stored event table
+(unique trading days, not raw hours).
 
 `python -m tremor.feedback --missed "GLD 2026-09-11 14:00"` still records a
 move that should have arrived and did not. It keys on the ticker and the hour

@@ -227,6 +227,25 @@ def test_a_negative_floor_is_refused(tmp_path):
         tuning_for(tmp_path, raw)
 
 
+def test_a_block_override_does_not_change_member_floors(tmp_path):
+    raw = MINIMAL | {"min_move_sigma": 1.0,
+                     "block_min_move_sigma": {"industrial_metals": 2.5},
+                     "assets": [
+                         asset("DBB", "industrial_metals", min_move_sigma=1.8),
+                         asset("CPER", "industrial_metals"),
+                     ]}
+    t = tuning_for(tmp_path, raw)
+    assert t.floor_for("block:industrial_metals") == 2.5
+    assert t.floor_for("twelvedata:DBB") == 1.8
+    assert t.floor_for("twelvedata:CPER") == 1.0
+
+
+def test_a_block_without_an_override_takes_the_shared_floor(tmp_path):
+    t = tuning_for(tmp_path, two_block_config(min_move_sigma=1.5))
+    assert t.floor_for("block:equity") == 1.5
+    assert t.floor_for("block:nothing") == 1.5
+
+
 def test_the_tuning_stays_hashable_so_it_can_be_cached(tmp_path):
     # load_tuning is lru_cached and Tuning is frozen. A dict field would quietly
     # stop it being either, and the failure would be a TypeError deep in a run.
