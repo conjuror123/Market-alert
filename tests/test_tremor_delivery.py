@@ -293,11 +293,11 @@ def test_a_move_on_the_abnormal_ladder_says_which_ladder_it_is_on():
     # accounted for perfectly - and "of its own" says so without a glossary.
     event = dated()
     assert md._headline(event, "major", "abnormal") == (
-        "the biggest move of its own since March 2020")
+        "the biggest move of its own since 16-03-2020")
     assert md._headline(event, "major", "absolute") == (
-        "the biggest move since March 2020")
+        "the biggest move since 16-03-2020")
     assert md._headline(event, "major", "both") == (
-        "the biggest move since March 2020")
+        "the biggest move since 16-03-2020")
 
 
 def test_the_claim_is_a_record_and_names_the_date():
@@ -307,7 +307,7 @@ def test_the_claim_is_a_record_and_names_the_date():
     # big was 23 days ago". A rung is now literally the biggest move in its own
     # lookback, so the record claim is the true one and it can name the bar.
     assert md._headline(dated(), "noticeable", "absolute") == (
-        "the biggest move since March 2020")
+        "the biggest move since 16-03-2020")
     assert "once in" not in md._headline(dated(), "extreme", "absolute")
 
 
@@ -320,16 +320,15 @@ def test_a_move_bigger_than_anything_on_record_says_so_rather_than_guessing():
         "the biggest move in at least 6 years")
 
 
-def test_the_date_gets_coarser_the_further_back_it_is():
-    # Within a month the day is what places it; past a year only the year is.
+def test_a_record_date_is_always_day_month_year():
     now = int(datetime(2026, 6, 10, tzinfo=timezone.utc).timestamp())
     day = 86400
     assert md.record_phrase({"hour_utc": now, "record_since": now - 10 * day}) \
-        == "since 31 May"
+        == "since 31-05-2026"
     assert md.record_phrase({"hour_utc": now, "record_since": now - 120 * day}) \
-        == "since February"
+        == "since 10-02-2026"
     assert md.record_phrase({"hour_utc": now, "record_since": now - 900 * day}) \
-        == "since December 2023"
+        == "since 23-12-2023"
 
 
 def test_no_alert_claims_the_economic_calendar_explained_anything():
@@ -846,7 +845,7 @@ def test_the_carried_note_says_which_period_it_covers(monkeypatch, sender):
     ends = datetime.fromtimestamp(routing.next_digest_slot(int(opens.timestamp())),
                                   tz=timezone.utc)
     last = ends - timedelta(hours=1)      # the last day it can hold an hour of
-    assert f"{covers:%a %-d} to {last:%a %-d %B}" in notes(sender)[0]
+    assert f"{md.format_day(covers)} to {md.format_day(last)}" in notes(sender)[0]
     assert (ends - covers).days > (ends - opens).days
 
 
@@ -859,7 +858,7 @@ def test_an_ordinary_note_covers_only_its_own_period(monkeypatch, sender):
     ends = datetime.fromtimestamp(routing.next_digest_slot(int(later.timestamp())),
                                   tz=timezone.utc) - timedelta(hours=1)
     # Only its own stretch, because the note before it did open.
-    assert f"{later:%a %-d} to {ends:%a %-d %B}" in notes(sender)[1]
+    assert f"{md.format_day(later)} to {md.format_day(ends)}" in notes(sender)[1]
 
 
 def test_a_note_whose_first_post_failed_does_not_cover_its_period(monkeypatch):
@@ -1011,7 +1010,7 @@ def test_a_block_move_is_told_as_a_block_and_not_as_an_instrument():
                            + " <b>US and global equities</b> · ")
     assert "of that move" not in text
     assert "whole block moved together" in text.lower()
-    assert "the typical member moved -2.41%" in text
+    assert " · -2.41%" in text.splitlines()[0]
     assert "4.2x a typical member's usual hour" in text
     assert "biggest movers: XLE -6.20%, XLF -5.80%" in text
     assert "(of 16 trading that hour)" in text
@@ -1078,7 +1077,7 @@ def test_a_block_ping_carries_the_black_mark_too():
                                       asset_id="block:agriculture", r=-0.0072,
                                       sigma_lt=0.0036), {})
     assert ping == (f"{md.BLOCK_MARK}{md.TIER_EMOJI['noticeable']} "
-                    f"<b>Agriculture</b> -0.72% (2.0x)\n"
+                    f"<b>Agriculture</b> · -0.72% (2.0x)\n"
                     f"Added to digest👆🏻👆🏻")
 
 
@@ -1130,8 +1129,10 @@ def test_the_comparison_names_the_close_it_compares_against(monkeypatch):
     ]))
     at = int(datetime(2026, 9, 12, 9, tzinfo=timezone.utc).timestamp())
     line = md.vix_context(at).splitlines()[1]
-    assert "up from 15.10 at the 4 Sep close" in line
-    assert "1 Sep" not in line
+    text = md.vix_context(at)
+    assert "up from 15.10 at the 04-09-2026 close" in line
+    assert "14.32 at the 01-09-2026 close" in text
+    assert "7 Sep" not in text
 
 
 def test_the_comparison_says_which_way_it_moved(monkeypatch):
@@ -1139,11 +1140,11 @@ def test_the_comparison_says_which_way_it_moved(monkeypatch):
             ((2026, 9, 10), (2026, 9, 11, 15), 14.00)]
     use_vix(monkeypatch, vix_frame(rows))
     at = int(datetime(2026, 9, 12, 9, tzinfo=timezone.utc).timestamp())
-    assert "down from 20.00 at the 1 Sep close" in md.vix_context(at)
+    assert "down from 20.00 at the 01-09-2026 close" in md.vix_context(at)
 
     rows[1] = ((2026, 9, 10), (2026, 9, 11, 15), 20.05)   # inside VIX_FLAT
     use_vix(monkeypatch, vix_frame(rows))
-    assert "level with 20.00 at the 1 Sep close" in md.vix_context(at)
+    assert "level with 20.00 at the 01-09-2026 close" in md.vix_context(at)
 
 
 def test_the_gauge_moves_on_as_soon_as_a_reading_is_published(monkeypatch):
@@ -1156,8 +1157,8 @@ def test_the_gauge_moves_on_as_soon_as_a_reading_is_published(monkeypatch):
     ]))
     before = int(datetime(2026, 9, 11, 10, tzinfo=timezone.utc).timestamp())
     after = int(datetime(2026, 9, 11, 16, tzinfo=timezone.utc).timestamp())
-    assert "16.46 at the 9 Sep close" in md.vix_context(before)
-    assert "17.84 at the 10 Sep close" in md.vix_context(after)
+    assert "16.46 at the 09-09-2026 close" in md.vix_context(before)
+    assert "17.84 at the 10-09-2026 close" in md.vix_context(after)
 
 
 def test_the_regime_line_never_quotes_a_reading_that_did_not_exist_yet(monkeypatch):
@@ -1172,7 +1173,7 @@ def test_the_regime_line_never_quotes_a_reading_that_did_not_exist_yet(monkeypat
     ]))
     text = md.vix_context(int(datetime(2020, 3, 12, 19, tzinfo=timezone.utc).timestamp()))
 
-    assert "53.90" in text and "11 Mar" in text
+    assert "53.90" in text and "11-03-2020" in text
     assert "75.47" not in text
 
 
@@ -1202,7 +1203,7 @@ def test_a_stress_episode_is_named_while_it_is_running_and_not_after(monkeypatch
     ], spikes=(1,)))
 
     inside = md.vix_context(int(datetime(2020, 2, 28, 18, tzinfo=timezone.utc).timestamp()))
-    assert "stress episode" in inside and "28 Feb" in inside
+    assert "stress episode" in inside and "28-02-2020" in inside
 
     later = md.vix_context(int(datetime(2020, 3, 20, 18, tzinfo=timezone.utc).timestamp()))
     assert "39.16" in later                      # still the latest known reading
@@ -1220,6 +1221,20 @@ def test_a_push_does_not_carry_the_regime_the_note_does(monkeypatch):
     note = md.format_digest([event()], LABELS, window,
                             now=datetime(2026, 9, 9, 12, tzinfo=timezone.utc))
     assert "Fear gauge" in note[0] and "14.32" in note[0]
+
+
+def test_a_block_standalone_matches_an_instrument_lead_and_omits_the_gauge(
+        monkeypatch):
+    use_vix(monkeypatch, vix_frame([((2026, 9, 3), (2026, 9, 4, 15), 14.32)]))
+    text = md.format_push(block_event(), LABELS)
+    first = text.splitlines()[0]
+    assert first.startswith(md.BLOCK_MARK + md.TIER_EMOJI["extreme"]
+                            + " <b>US and global equities</b> · -2.41%")
+    assert "4.2x a typical member's usual hour" in text
+    assert "this day's close" in text
+    assert "08-09-2026" in text
+    assert "Fear gauge" not in text
+    assert "Added to digest" not in text
 
 
 # --- the throwaway ping ----------------------------------------------------
@@ -1247,7 +1262,7 @@ def test_a_digest_row_buzzes_once_with_ticker_size_and_a_pointer(monkeypatch, se
     _, state = deliver(monkeypatch, [row])
 
     pings = [t for t in sender.texts if t.startswith("⬜")]
-    assert pings == ["⬜ <b>GLD</b> · Gold +2.10% (2.0x)\nAdded to digest👆🏻👆🏻"]
+    assert pings == ["⬜ <b>GLD</b> · Gold · +2.10% (2.0x)\nAdded to digest👆🏻👆🏻"]
     stored = state[md.STATE_KEY][md.PINGS]["p1"]
     assert md._ping_message_id(stored) == 1
 
@@ -1302,12 +1317,12 @@ def test_the_rarity_is_said_of_the_thing_its_ladder_actually_ranks():
     row = dict(dated(), r=0.0700, e_resid=0.0100, co_block=0.0600, block="equity")
 
     abnormal = md._split_lines(row, "S&P 500", "major", "abnormal")
-    assert "the biggest since March 2020" in abnormal[-1]
+    assert "the biggest since 16-03-2020" in abnormal[-1]
     assert "move on its own" in abnormal[-1]
     assert not any("the biggest move since" in line for line in abnormal)
 
     absolute = md._split_lines(row, "S&P 500", "major", "absolute")
-    assert absolute[0] == "the biggest move since March 2020"
+    assert absolute[0] == "the biggest move since 16-03-2020"
     assert "biggest" not in absolute[-1]
 
 
@@ -1317,7 +1332,7 @@ def test_a_row_with_no_split_still_says_how_rare_it_was():
     # move of its own" are different claims and only one is true of a channel.
     lines = md._split_lines(dict(dated(), r=0.02, e_resid=None),
                             "Gold", "extreme", "abnormal")
-    assert lines == ["the biggest move of its own since March 2020"]
+    assert lines == ["the biggest move of its own since 16-03-2020"]
 
 
 def header_for(y, m, d):
@@ -1331,21 +1346,16 @@ def test_the_header_names_the_last_day_the_note_can_hold_an_hour_of():
     # so the workweek note reaches into Saturday by five minutes and was headed
     # "Mon 14 to Sat 19", handing Saturday to a note that carries none of it.
     # The note is a list of hourly bars: a five-minute sliver cannot hold one.
-    assert "Mon 14 to Fri 18 September" in header_for(2026, 9, 14)
-    assert "Sat 19 to Sun 20 September" in header_for(2026, 9, 19)
+    assert "14-09-2026 to 18-09-2026" in header_for(2026, 9, 14)
+    assert "19-09-2026 to 20-09-2026" in header_for(2026, 9, 19)
 
 
-def test_the_note_names_the_month_only_when_it_crosses_one():
-    # A workweek note falls inside one month five times in six, and naming it
-    # twice in five words is noise. The sixth is the one that matters: a header
-    # reading "Mon 27 to Fri 1 November" would leave the reader to work out
-    # which month the 27th was, and the answer is the other one.
+def test_the_note_header_uses_day_month_year_on_both_ends():
     inside = header_for(2026, 3, 9)
-    assert "Mon 9 to Fri 13 March" in inside
-    assert inside.count("March") == 1
+    assert "09-03-2026 to 13-03-2026" in inside
 
     across = header_for(2026, 3, 30)     # Monday 30 March into April
-    assert "Mon 30 March to Fri 3 April" in across
+    assert "30-03-2026 to 03-04-2026" in across
 
 
 def test_the_note_runs_in_time_order_across_all_its_parts():

@@ -121,6 +121,12 @@ BLOCK_MARK = "\u2b1b"
 # is what happened, and this is when.
 TIME_EMOJI = "\U0001f550 "
 
+
+def format_day(when: datetime) -> str:
+    """A calendar day as 14-09-2026. The same shape on every line that names one."""
+    return when.strftime("%d-%m-%Y")
+
+
 # SAID AS A RECORD, AND NAMING THE DATE. "Biggest move since 3 March 2020" is a
 # fact about the instrument's own history: the reader can check it, it needs no
 # calibration intuition, and it tells them something the rung alone does not -
@@ -163,13 +169,7 @@ def record_phrase(event: dict) -> str:
         years = int(round(RECORD_HORIZON_DAYS / 365.25))
         return f"in at least {years} years"
     moment = datetime.fromtimestamp(int(since), tz=timezone.utc)
-    now = datetime.fromtimestamp(int(event["hour_utc"]), tz=timezone.utc)
-    days = (now - moment).total_seconds() / 86400.0
-    if days < 45:
-        return f"since {moment:%-d %B}"
-    if days < 330:
-        return f"since {moment:%B}"
-    return f"since {moment:%B %Y}"
+    return f"since {format_day(moment)}"
 
 # WHICH LADDER the tier was measured against, said in the noun rather than in a
 # parenthesis. Two ladders exist and they answer different questions: the
@@ -633,7 +633,7 @@ def describe(event: dict, labels: dict[str, str],
 
     parts.extend(_split_lines(event, label, tier, basis))
     parts.extend(check_in_lines(event, now))
-    parts.append(f"{TIME_EMOJI}<b>{when:%d-%m-%Y %H:%M} UTC</b>")
+    parts.append(f"{TIME_EMOJI}<b>{format_day(when)} {when:%H:%M} UTC</b>")
     return "\n".join(parts)
 
 
@@ -765,26 +765,39 @@ def vix_context(hour_utc: int) -> str:
     place = (f"the highest it has been since {first}" if rank >= 99.995 else
              f"higher than {rank:.0f}% of days since {first}" if rank >= 50 else
              f"calmer than {100 - rank:.0f}% of days since {first}")
-    lines = [f"🌡 <b>Fear gauge</b>: VIX {level:.2f} at the {when:%-d %b} close - {place}"]
+    lines = [f"🌡 <b>Fear gauge</b>: VIX {level:.2f} at the {format_day(when)} close - {place}"]
 
-    # The previous close the system already had, not a week-ago reading. A
-    # seven-day lookback printed "up from the 7 Sep close" next to a 14 Sep
-    # print and looked like the feed had stalled for a week when Friday's
-    # number was sitting one row back.
+    # Yesterday's close (the previous print the system already had) and the
+    # close from a week earlier. A seven-day lookback alone used to replace
+    # yesterday and looked stalled; yesterday alone hid the week move.
     earlier = known.iloc[:-1]
     if not earlier.empty:
         before = float(earlier["close"].iloc[-1])
         was = datetime.fromtimestamp(int(earlier["day"].iloc[-1]), tz=timezone.utc)
         direction = ("up from" if level - before > VIX_FLAT else
                      "down from" if before - level > VIX_FLAT else "level with")
-        lines.append(f"     {direction} {before:.2f} at the {was:%-d %b} close")
+        lines.append(f"     {direction} {before:.2f} at the {format_day(was)} close")
+        week = _vix_close_days_before(known, day, 7)
+        if week is not None and int(week["day"]) != int(earlier["day"].iloc[-1]):
+            week_when = datetime.fromtimestamp(int(week["day"]), tz=timezone.utc)
+            week_level = float(week["close"])
+            lines.append(f"     {week_level:.2f} at the {format_day(week_when)} close")
 
     since = _stress_open_since(scored, hour_utc)
     if since is not None:
         began = datetime.fromtimestamp(int(since), tz=timezone.utc)
         lines.append("     a jump that large counts as a stress episode - this one "
-                     f"has been running since {began:%-d %b}")
+                     f"has been running since {format_day(began)}")
     return "\n".join(lines)
+
+
+def _vix_close_days_before(known: "pd.DataFrame", latest_day: int, days: int):
+    """The last close whose observation day is at least `days` before `latest_day`."""
+    cutoff = int(latest_day) - int(days) * 86400
+    older = known[known["day"] <= cutoff]
+    if older.empty:
+        return None
+    return older.iloc[-1]
 
 
 def _vix_since(known: "pd.DataFrame") -> int:
@@ -794,29 +807,30 @@ def _vix_since(known: "pd.DataFrame") -> int:
 
 def _describe_block(event: dict, headline: str, emoji: str, when: datetime,
                     now: "datetime | None", events: "list[dict] | None") -> str:
-    """A block's own move, as it appears in a push or a digest row.
+    """A block's own move. Same shape as an instrument standalone: lead, size,
+    rarity, check-ins, date. Blocks are push-only, so this is the whole message,
+    not a digest ping.
 
-    Deliberately NOT the instrument block with a different name at the top. A
-    block has no ticker to chart, no price level, and no split into "its block
-    and itself" - it IS the block - so the three lines that would say those
-    things are replaced by the two a reader actually needs: what a typical member
-    did, and which members did most of it.
-
-    "The typical member moved -2.41%" rather than "the block moved -2.41%",
-    because the figure is a median across instruments whose usual hours differ by
-    a factor of twenty-five, and stating it as the block's own return would be
-    claiming a precision the construction does not have.
+    A block has no ticker to chart and no split into "its block and itself" -
+    it IS the block. The lead is still rarity, name and percent, the same three
+    facts an instrument lead carries. FX names the dollar instead of a signed
+    percent, because the figure is oriented and the members under it are not.
     """
     block = str(event.get("block") or "")
     named = BLOCK_LABEL.get(block, block or "a block")
     move = _clean(event.get("r"))
+    title = _escape(named[:1].upper() + named[1:])
+    if move is None:
+        shown = ""
+    elif block == "FX":
+        shown = f" · {_block_move_phrase(block, move).strip()}"
+    else:
+        shown = f" · {move * 100:+.2f}%"
     # BLACK IN FRONT OF THE RARITY, not instead of it. A block is the same four
     # rarities read at a different level of the market, so dropping the colour
     # to mark it would trade the thing every line is sorted and skimmed by for
     # the thing one line in twenty needs.
-    parts = [f"{BLOCK_MARK}{emoji} <b>"
-             f"{_escape(named[:1].upper() + named[1:])}</b>"
-             f"{f' · {_block_move_phrase(block, move).strip()}' if move is not None else ''}"]
+    parts = [f"{BLOCK_MARK}{emoji} <b>{title}</b>{shown}"]
 
     context = _scale_note(event)
     if context:
@@ -832,7 +846,7 @@ def _describe_block(event: dict, headline: str, emoji: str, when: datetime,
         parts.append(f"\tbiggest movers: {_escape(leaders)}{_escape(of)}")
 
     parts.extend(check_in_lines(event, now))
-    parts.append(f"{TIME_EMOJI}<b>{when:%d-%m-%Y %H:%M} UTC</b>")
+    parts.append(f"{TIME_EMOJI}<b>{format_day(when)} {when:%H:%M} UTC</b>")
     return "\n".join(parts)
 
 
@@ -1063,7 +1077,7 @@ def _due_in(event: dict, horizon, now: datetime | None = None) -> str:
     # not edited every hour to count it down.
     moment = datetime.fromtimestamp(due, tz=timezone.utc)
     ended = datetime.fromtimestamp(due - 1, tz=timezone.utc)
-    day = f"{ended:%A}" if left <= _WEEKDAY_LIMIT_HOURS else f"{ended:%-d %B}"
+    day = f"{ended:%A}" if left <= _WEEKDAY_LIMIT_HOURS else format_day(ended)
     return f"coming at {day}'s close ({moment:%H:%M} UTC)"
 
 
@@ -1316,12 +1330,7 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
     # stretch shorter than an hour cannot contain one, and naming that day claims
     # something the note is unable to have.
     last = closes - timedelta(hours=1)
-    # The month is named on the opening date too WHEN THE NOTE CROSSES ONE, and
-    # only then. "Mon 27 to Sat 1 November" left the reader to work out which
-    # month the 27th belonged to, and the answer was the other one. Naming it
-    # every time would instead put the same word twice in five words.
-    opened_fmt = "%a %-d %B" if opened.month != last.month else "%a %-d"
-    header = (f"📋 <b>Digest</b> - {opened:{opened_fmt}} to {last:%a %-d %B}\n"
+    header = (f"📋 <b>Digest</b> - {format_day(opened)} to {format_day(last)}\n"
               + count + (" - this message is updated as moves are found" if live else ""))
     # The regime the whole period sits in, read at the note's latest edit rather
     # than at its opening: a note is re-rendered every time a row is added, so
@@ -1440,10 +1449,12 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
     emoji = TIER_EMOJI.get(tier, "⚪")
     asset_id = str(event.get("asset_id", ""))
     move = _clean(event.get("r"))
-    shown = f" {move * 100:+.2f}%" if move is not None else ""
+    shown = f" · {move * 100:+.2f}%" if move is not None else ""
     ratio = _ratio_short(event)
     extra = f" ({ratio})" if ratio else ""
     if _is_block(event):
+        # Blocks are not written into the note, so this path is only reached if
+        # that filter is relaxed. Same lead as a standalone: rarity, name, size.
         name = BLOCK_LABEL.get(str(event.get("block")),
                                labels.get(asset_id) or asset_id.split(":")[-1])
         name = name[:1].upper() + name[1:]
