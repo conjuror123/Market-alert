@@ -206,20 +206,21 @@ def test_the_reply_counts_unique_days_not_hours(tmp_path):
     assert "block line" not in text
 
 
-def test_a_block_rate_ignores_member_rows_and_hours_below_the_floor(tmp_path):
+def test_a_block_rate_ignores_member_rows_and_does_not_apply_a_size_floor(tmp_path):
     path = tmp_path / "events.parquet"
     day = 1_700_000_000
     _events_parquet(path, [
         {"asset_id": "block:industrial_metals", "hour_utc": day,
-         "r": 0.03, "sigma_lt": 0.01},          # 3x, kept
+         "r": 0.03, "sigma_lt": 0.01},          # 3x
         {"asset_id": "block:industrial_metals", "hour_utc": day + 400 * 86400,
-         "r": 0.02, "sigma_lt": 0.01},          # 2x, dropped at 2.5
+         "r": 0.02, "sigma_lt": 0.01},          # 2x, still counted
         {"asset_id": "twelvedata:DBB", "hour_utc": day, "r": 0.05, "sigma_lt": 0.01},
     ])
     text = fl.describe_rate("block:industrial_metals", 2.5, str(path), basket())
-    assert "1 event" in text
+    assert "2 events" in text
     assert "block line" in text
     assert "pushes" not in text
+    assert "24.1 years" not in text
 
 
 def test_a_lower_block_floor_replaces_the_yaml_value(tmp_path):

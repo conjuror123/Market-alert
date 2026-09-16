@@ -35,6 +35,21 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Restore gitignored Tremor parquet
+        uses: actions/cache@v4
+        with:
+          # metrics/ so `python -m tremor.pipeline` can extend instead of
+          # rebuilding every instrument; the events archive so rate lines keep
+          # history older than the six-year warm table. Both are gitignored
+          # (parquet does not delta). saed_events.parquet is rewritten from
+          # this run's warm score and is not cached.
+          path: |
+            data/tremor/metrics
+            data/tremor/saed_events_archive.parquet
+          key: tremor-derived-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            tremor-derived-${{ github.ref_name }}-
+
       # Two steps feed the third: backfill brings the bars up to date and
       # pipeline turns them into per-asset metrics, which is what saed reads.
       #

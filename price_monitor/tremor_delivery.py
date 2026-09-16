@@ -605,14 +605,28 @@ def _closed_the_day(event: dict) -> bool:
     return due is not None and due == int(event["hour_utc"]) + 3600
 
 
-def tier_rate_line(event: dict, history: "list[dict] | None") -> str:
-    """How often this asset has opened at this exact tier, from stored events.
+def _as_rare_as(row_tier: str, floor_tier: str) -> bool:
+    """True when row_tier is floor_tier or rarer (extreme is rarest)."""
+    from tremor.severity import TIERS
 
-    Unique trading days over the stored span of this asset_id, the same
-    arithmetic `/floor` uses. The count is this tier only - major does not
-    include extreme. The event being written always counts, so a digest row,
-    a major, an extreme and a block all get the line. No size-floor filter,
-    no Gaussian table.
+    order = {name: i for i, name in enumerate(TIERS)}
+    return order.get(str(row_tier), -1) >= order.get(str(floor_tier), 999)
+
+
+def load_rate_history(path: str | None = None) -> list[dict]:
+    """Unique-day rates read this file, never the trimmed hourly events table."""
+    from tremor.saed import DEFAULT_ARCHIVE_PATH, load_events_archive
+
+    return load_events_archive(path or DEFAULT_ARCHIVE_PATH)
+
+
+def tier_rate_line(event: dict, history: "list[dict] | None") -> str:
+    """How often this asset has opened at this tier or rarer, from the archive.
+
+    Unique trading days over the stored span of this asset_id — first hour to
+    last hour of EVERY row for it in `history`, not the gap between hits of
+    this one tier, and not the six-year warm window. noticeable includes
+    high/major/extreme; extreme is itself. No size-floor filter, no Gaussian.
     """
     asset_id = str(event.get("asset_id") or "")
     tier = str(event.get("tier") or "")
@@ -631,19 +645,18 @@ def tier_rate_line(event: dict, history: "list[dict] | None") -> str:
         except (TypeError, ValueError):
             continue
         mine.append(hour)
-        if str(row.get("tier") or "") == tier:
+        if _as_rare_as(str(row.get("tier") or ""), tier):
             keep.append(hour)
-    if not keep:
+    if not keep or not mine:
+        return ""
+    span = max(mine) - min(mine)
+    if span <= 0:
         return ""
 
     from price_monitor.floor import YEAR, _day_tz_for, _event_days
     from tremor.basket import load_basket
-    from tremor.severity import RECORD_HORIZON_DAYS
 
-    if len(set(mine)) >= 2:
-        years = max(max(mine) - min(mine), 86400) / YEAR
-    else:
-        years = RECORD_HORIZON_DAYS / 365.25
+    years = span / YEAR
     n = _event_days(keep, _day_tz_for(asset_id, load_basket()))
     if n == 0:
         return ""
@@ -652,12 +665,14 @@ def tier_rate_line(event: dict, history: "list[dict] | None") -> str:
              else f"once in {1 / per_year:.1f} years")
     noun = "event" if n == 1 else "events"
     who = _escape(_ticker(asset_id))
-    return f"{who} {tier} ≈ {often} ({n} {noun} over {years:.1f} years)"
+    return (f"{who} {tier} or rarer ≈ {often} "
+            f"({n} {noun} over {years:.1f} years)")
 
 
 def describe(event: dict, labels: dict[str, str],
              now: datetime | None = None,
-             events: "list[dict] | None" = None) -> str:
+             events: "list[dict] | None" = None,
+             rate_history: "list[dict] | None" = None) -> str:
     """One instrument's whole story, as it appears in a push or a digest row.
 
     THE SAME BLOCK EVERYWHERE. A pushed move, an instrument folded into that
@@ -677,7 +692,8 @@ def describe(event: dict, labels: dict[str, str],
     basis = str(event.get("basis") or "")
     headline = _headline(event, tier, basis)
     if _is_block(event):
-        return _describe_block(event, headline, emoji, when, now, events)
+        return _describe_block(event, headline, emoji, when, now, events,
+                               rate_history)
 
     asset_id = str(event.get("asset_id", ""))
     label = labels.get(asset_id) or asset_id.split(":")[-1]
@@ -695,7 +711,8 @@ def describe(event: dict, labels: dict[str, str],
 
     parts.extend(_split_lines(event, label, tier, basis))
     parts.extend(check_in_lines(event, now))
-    rate = tier_rate_line(event, events)
+    rate = tier_rate_line(
+        event, rate_history if rate_history is not None else events)
     if rate:
         parts.append(rate)
     parts.append(f"{TIME_EMOJI}<b>{format_day(when)} {when:%H:%M} UTC</b>")
@@ -863,7 +880,8 @@ def _vix_since(known: "pd.DataFrame") -> int:
 
 
 def _describe_block(event: dict, headline: str, emoji: str, when: datetime,
-                    now: "datetime | None", events: "list[dict] | None") -> str:
+                    now: "datetime | None", events: "list[dict] | None",
+                    rate_history: "list[dict] | None" = None) -> str:
     """A block's own move. Same shape as an instrument standalone: lead, size,
     rarity, check-ins, date. Blocks are push-only, so this is the whole message,
     not a digest ping.
@@ -903,7 +921,8 @@ def _describe_block(event: dict, headline: str, emoji: str, when: datetime,
         parts.append(f"\tbiggest movers: {_escape(leaders)}{_escape(of)}")
 
     parts.extend(check_in_lines(event, now))
-    rate = tier_rate_line(event, events)
+    rate = tier_rate_line(
+        event, rate_history if rate_history is not None else events)
     if rate:
         parts.append(rate)
     parts.append(f"{TIME_EMOJI}<b>{format_day(when)} {when:%H:%M} UTC</b>")
@@ -1144,7 +1163,8 @@ def _due_in(event: dict, horizon, now: datetime | None = None) -> str:
 def format_push(event: dict, labels: dict[str, str],
                 calendar: "list[dict] | None" = None,
                 events: "list[dict] | None" = None,
-                now: datetime | None = None) -> str:
+                now: datetime | None = None,
+                rate_history: "list[dict] | None" = None) -> str:
     """A single interrupting alert.
 
     Ordered so the reader meets one instrument first and the day second: the
@@ -1158,7 +1178,7 @@ def format_push(event: dict, labels: dict[str, str],
     already one instrument's story, and repeating the regime on every major
     and every block duplicated a line the running note already carries.
     """
-    lines = [describe(event, labels, now, events)]
+    lines = [describe(event, labels, now, events, rate_history)]
     context = calendar_context(int(event["hour_utc"]), calendar)
     if context:
         lines.append("")
@@ -1342,7 +1362,8 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
                   window: "tuple[int, int]",
                   calendar: "list[dict] | None" = None,
                   now: datetime | None = None,
-                  all_events: "list[dict] | None" = None) -> "list[str]":
+                  all_events: "list[dict] | None" = None,
+                  rate_history: "list[dict] | None" = None) -> "list[str]":
     """One note, whole, split into parts Telegram will accept.
 
     ORDERED BY TIME, and by rarity only inside an hour. The note used to lead
@@ -1401,7 +1422,9 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
         header += "\n" + regime
 
     def row(event: dict) -> str:
-        line = describe(event, labels, now, all_events if all_events is not None else events)
+        history = (rate_history if rate_history is not None
+                   else all_events if all_events is not None else events)
+        line = describe(event, labels, now, events, history)
         context = calendar_context(int(event["hour_utc"]), calendar)
         return f"{line}\n     {_escape(context)}" if context else line
 
@@ -1763,11 +1786,12 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     calendar = _calendar(cfg) if (
         pushes or notes or store.get(_SENT) or store.get(follow_up.TRACKED)
     ) else None
+    rate_history = load_rate_history()
 
     # Corrections to already-sent pushes run on their own schedule - one sent on
     # Monday is edited on Tuesday whether or not Tuesday has news of its own.
     corrected = follow_up.apply(cfg, state, events, calendar, now,
-                               restyle_after=0)
+                               restyle_after=0, rate_history=rate_history)
     if corrected:
         save_state(cfg.state_path, state)
         log.info("Pushes restyled or corrected: %d", corrected)
@@ -1786,11 +1810,12 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         try:
             message_id = send_telegram_message(
                 cfg.telegram_bot_token, cfg.telegram_chat_id,
-                format_push(event, labels, calendar, events, now))
+                format_push(event, labels, calendar, events, now,
+                            rate_history))
         except TelegramError as exc:
             log.error("Failed to send Tremor push %s: %s", event.get("event_id"), exc)
             continue
-        text = format_push(event, labels, calendar, events, now)
+        text = format_push(event, labels, calendar, events, now, rate_history)
         mark = _fingerprint(text)
         sent[str(event["event_id"])] = {
             "hour": int(event["hour_utc"]), "id": int(message_id), "hash": mark,
@@ -1808,7 +1833,8 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         record_sent_alert(
             alerts_log, chat_id=cfg.telegram_chat_id, message_id=message_id,
             symbol=label,
-            message_text=format_push(event, labels, calendar, events, now),
+            message_text=format_push(event, labels, calendar, events, now,
+                                     rate_history),
             last_close=float(_clean(event.get("close")) or 0.0),
             last_return_pct=float((move or 0.0) * 100),
             ewma_z=float(_clean(event.get("z_resid")) or 0.0),
@@ -1861,7 +1887,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
                      "already published", slot, record["rows"])
             continue
         texts = format_digest(rows, labels, note_window(slot, record), calendar,
-                              now, events)
+                              now, events, rate_history)
         made, changed = _write_digest(cfg, slot, record, texts, state)
         posted += made
         edited += changed

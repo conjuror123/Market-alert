@@ -118,12 +118,12 @@ def catalog(monkeypatch) -> dict[str, str]:
         "block_fx": md.format_push(fx, labels, None, _history(fx), digest_now),
         "floor_ticker": (
             "Floor for BKLN is now 2.1x.\n"
-            "At this size, a line has opened about 1.8 times a year "
+            "A line has opened about 1.8 times a year "
             "(11 events over 5.9 years of stored history)."),
         "floor_block": (
             "Floor for US and global equities is now 2.5x. "
             "Member floors are unchanged.\n"
-            "At this size, a block line has opened about once every 1.4 years "
+            "A block line has opened about once every 1.4 years "
             "(4 events over 5.9 years of stored history)."),
     }
 
@@ -141,7 +141,7 @@ def test_every_message_shape_follows_the_copy_rules(monkeypatch, tmp_path):
     assert "2 days ago" in digest
     assert "7 days ago" in digest
     assert "Added to digest" not in digest
-    assert "DBB noticeable ≈" in digest
+    assert "DBB noticeable or rarer ≈" in digest
     assert " · -0.80%" not in digest.split("DBB", 1)[-1].split("\n", 1)[0]
     assert "biggest move on its own since" in digest
 
@@ -156,7 +156,7 @@ def test_every_message_shape_follows_the_copy_rules(monkeypatch, tmp_path):
     push = samples["push_major_settled"]
     assert "Fear gauge" not in push
     assert "Added to digest" not in push
-    assert "XLF major ≈" in push
+    assert "XLF major or rarer ≈" in push
     assert "biggest move on its own since 17 day ago" in push
     assert "14-09-2026 17:00 UTC" in push
     assert "2026-09-14" not in push

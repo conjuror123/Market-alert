@@ -130,7 +130,8 @@ def rehydrate(store: dict) -> None:
 def apply(cfg: Config, state: dict, events: "list[dict]",
           calendar: "list[dict] | None" = None,
           now: datetime | None = None,
-          restyle_after: int | None = None) -> int:
+          restyle_after: int | None = None,
+          rate_history: "list[dict] | None" = None) -> int:
     """Edits every tracked push whose next check-in has arrived.
 
     Also re-renders pushes whose hour is in the current digest window when the
@@ -152,6 +153,8 @@ def apply(cfg: Config, state: dict, events: "list[dict]",
     labels = tremor_delivery._labels()
     edited = 0
     since = None if restyle_after is None else int(restyle_after)
+    if rate_history is None:
+        rate_history = tremor_delivery.load_rate_history()
 
     for event_id, record in list(tracked.items()):
         event = by_id.get(event_id)
@@ -164,7 +167,7 @@ def apply(cfg: Config, state: dict, events: "list[dict]",
 
         landed = _due(record, event, tremor_delivery.FOLLOW_UP_HORIZONS)
         text = tremor_delivery.format_push(
-            event, labels, calendar, events, now)
+            event, labels, calendar, events, now, rate_history)
         mark = tremor_delivery._fingerprint(text)
         restyle = (
             since is not None

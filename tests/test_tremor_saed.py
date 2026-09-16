@@ -518,3 +518,41 @@ def test_a_frame_with_no_asset_id_falls_back_to_the_shared_floor(tmp_path, monke
     frame = scored([5]).assign(r=0.02, sigma_lt=0.01)
     assert "asset_id" not in frame
     assert saed.triggers(frame).fillna(False).sum() == 0    # 2x under the shared 3x
+
+
+def test_a_warm_merge_keeps_hours_the_trailing_window_no_longer_holds():
+    old = pd.DataFrame([
+        {"event_id": "twelvedata_BKLN:100", "asset_id": "twelvedata:BKLN",
+         "hour_utc": 100, "tier": "noticeable"},
+    ])
+    warm = pd.DataFrame([
+        {"event_id": "twelvedata_BKLN:200", "asset_id": "twelvedata:BKLN",
+         "hour_utc": 200, "tier": "major"},
+        {"event_id": "twelvedata_BKLN:100", "asset_id": "twelvedata:BKLN",
+         "hour_utc": 100, "tier": "high"},
+    ])
+    out = saed.merge_archive(old, warm)
+    by_id = out.set_index("event_id")
+    assert set(by_id.index) == {"twelvedata_BKLN:100", "twelvedata_BKLN:200"}
+    assert by_id.loc["twelvedata_BKLN:100", "tier"] == "high"
+
+
+def test_an_empty_warm_write_does_not_wipe_the_archive(tmp_path):
+    path = tmp_path / "saed_events_archive.parquet"
+    saed.write_events_archive(str(path), pd.DataFrame([
+        {"event_id": "a:1", "asset_id": "a", "hour_utc": 1, "tier": "major"},
+    ]), replace=True)
+    saed.write_events_archive(str(path), pd.DataFrame(), replace=False)
+    assert len(pd.read_parquet(path)) == 1
+
+
+def test_a_full_write_replaces_the_archive(tmp_path):
+    path = tmp_path / "saed_events_archive.parquet"
+    saed.write_events_archive(str(path), pd.DataFrame([
+        {"event_id": "old:1", "asset_id": "a", "hour_utc": 1, "tier": "noticeable"},
+    ]), replace=True)
+    saed.write_events_archive(str(path), pd.DataFrame([
+        {"event_id": "new:2", "asset_id": "a", "hour_utc": 2, "tier": "extreme"},
+    ]), replace=True)
+    frame = pd.read_parquet(path)
+    assert list(frame["event_id"]) == ["new:2"]
