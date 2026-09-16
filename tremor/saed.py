@@ -28,6 +28,7 @@ module writes.
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 
 import numpy as np
@@ -521,6 +522,11 @@ def link_alerts(events: pd.DataFrame, alerts: pd.DataFrame) -> pd.DataFrame:
 DEFAULT_EVENTS_PATH = "data/tremor/saed_events.parquet"
 DEFAULT_ALERTS_PATH = "data/tremor/saed_block_alerts.parquet"
 DEFAULT_RESIDUALS_DIR = "data/tremor/residuals"
+# Full-history events for message rates only. Detection still reads the
+# six-year table at DEFAULT_EVENTS_PATH. A warm hourly run appends; --full
+# replaces. Gitignored and restored the same way metrics parquet is.
+DEFAULT_ARCHIVE_PATH = "data/tremor/saed_events_archive.parquet"
+ARCHIVE_COLUMNS = ("event_id", "asset_id", "hour_utc", "tier")
 
 # Residual series that are written to disk. They can be recomputed from the
 # metrics, but that means a full run of the regressions over the whole history -
@@ -541,6 +547,95 @@ RESIDUAL_COLUMNS = ("hour_utc", "asset_id", "beta_block", "e_resid",
                     "tier_absolute") + severity.LEVEL_COLUMNS \
                   + severity.level_columns(ABSOLUTE_LEVEL_PREFIX) \
                   + persistence.RETENTION_COLUMNS
+
+
+def archive_frame(events: pd.DataFrame) -> pd.DataFrame:
+    """The slim columns a rate line needs, one row per event_id."""
+    if events is None or events.empty:
+        return pd.DataFrame(columns=list(ARCHIVE_COLUMNS))
+    out = events.copy()
+    if "event_id" not in out.columns:
+        out["event_id"] = (
+            out["asset_id"].astype(str) + ":" + out["hour_utc"].astype("int64").astype(str)
+        )
+    keep = [c for c in ARCHIVE_COLUMNS if c in out.columns]
+    slim = out[keep].copy()
+    if "hour_utc" in slim.columns:
+        slim["hour_utc"] = pd.to_numeric(slim["hour_utc"], errors="coerce")
+    if "tier" in slim.columns:
+        slim["tier"] = slim["tier"].astype("string")
+    if "asset_id" in slim.columns:
+        slim["asset_id"] = slim["asset_id"].astype("string")
+    if "event_id" in slim.columns:
+        slim["event_id"] = slim["event_id"].astype("string")
+    return slim.dropna(subset=["event_id"]).drop_duplicates(
+        subset=["event_id"], keep="last").reset_index(drop=True)
+
+
+def merge_archive(existing: pd.DataFrame | None,
+                  incoming: pd.DataFrame) -> pd.DataFrame:
+    """Keeps older hours and refreshes overlapping event_ids from this run.
+
+    A warm table only holds six years. Concatenating it onto the durable file
+    must not drop 2002 just because 2020-2026 arrived again.
+    """
+    new = archive_frame(incoming)
+    if existing is None or existing.empty:
+        return new
+    old = archive_frame(existing)
+    if new.empty:
+        return old
+    return archive_frame(pd.concat([old, new], ignore_index=True))
+
+
+def load_events_archive(path: str = DEFAULT_ARCHIVE_PATH) -> list[dict]:
+    """Rows for rate lines. Empty if the file is missing or unreadable."""
+    if not os.path.exists(path):
+        return []
+    try:
+        frame = pd.read_parquet(path)
+    except Exception:                            # pragma: no cover - defensive
+        return []
+    if frame.empty:
+        return []
+    return archive_frame(frame).to_dict("records")
+
+
+def write_events_archive(path: str, incoming: pd.DataFrame, *,
+                         replace: bool = False) -> int:
+    """Writes the durable rate archive. Returns how many rows it now holds.
+
+    `replace` is the --full path: the incoming table IS the history.
+    Otherwise this run's rows are merged onto whatever is already stored.
+    An empty incoming warm table does not wipe a populated archive.
+    """
+    if replace:
+        if incoming is None or incoming.empty:
+            if os.path.exists(path):
+                try:
+                    return len(pd.read_parquet(path))
+                except Exception:                # pragma: no cover - defensive
+                    return 0
+            return 0
+        frame = archive_frame(incoming)
+    elif incoming is None or incoming.empty:
+        if not os.path.exists(path):
+            return 0
+        try:
+            return len(pd.read_parquet(path))
+        except Exception:                        # pragma: no cover - defensive
+            return 0
+    else:
+        existing = None
+        if os.path.exists(path):
+            try:
+                existing = pd.read_parquet(path)
+            except Exception:                    # pragma: no cover - defensive
+                existing = None
+        frame = merge_archive(existing, incoming)
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    atomic.write_parquet(path, frame)
+    return len(frame)
 
 
 def save_residuals(scored: dict[str, pd.DataFrame],
@@ -751,6 +846,8 @@ def main(argv: list[str] | None = None) -> int:
                              "where it covers only the trailing window")
     parser.add_argument("--full", action="store_true",
                         help="score on all history rather than the trailing window")
+    parser.add_argument("--archive-out", default=DEFAULT_ARCHIVE_PATH,
+                        help="durable events archive for message rates")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -792,6 +889,12 @@ def main(argv: list[str] | None = None) -> int:
 
     events, alerts, scored = build_for_basket(
         basket, frames, block_factors, panel, sigma_panel)
+
+    # Rate lines read the durable archive, not the six-year delivery table.
+    # --full replaces it with this run's complete history; a warm run merges
+    # so hours older than the trailing window stay put.
+    archived = write_events_archive(args.archive_out, events, replace=args.full)
+    log.info("rate archive %s: %d event(s)", args.archive_out, archived)
 
     if warm and not events.empty:
         # A warm run publishes only the span it is exact over. Beyond it the

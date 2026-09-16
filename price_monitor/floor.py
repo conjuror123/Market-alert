@@ -32,7 +32,7 @@ from price_monitor.notifier import TelegramError, fetch_telegram_updates, send_t
 from price_monitor.state import CorruptState, load_state, save_state
 from price_monitor.tremor_delivery import BLOCK_LABEL
 from tremor.basket import DEFAULT_BASKET_PATH, load_basket, load_tuning
-from tremor.saed import DEFAULT_EVENTS_PATH
+from tremor.saed import DEFAULT_ARCHIVE_PATH, DEFAULT_EVENTS_PATH
 
 log = logging.getLogger("price_monitor.floor")
 
@@ -266,14 +266,13 @@ def _event_days(hours, tz_name: "str | None") -> int:
 
 
 def describe_rate(asset_id: str, floor: float,
-                  events_path: str = DEFAULT_EVENTS_PATH,
+                  events_path: str = DEFAULT_ARCHIVE_PATH,
                   basket=None) -> str:
-    """How often a line at this size has opened, from stored events.
+    """How often a line has opened, from the durable events archive.
 
-    Unique trading days, not raw hours. The stored table already keeps one row
-    per day; collapsing again is what makes two legs on the same day count as
-    one event if a recompute ever left both. Not a Gaussian table, and not
-    called pushes unless the rows being counted are push-tier only.
+    Unique trading days, not raw hours. Years are (last hour − first hour) of
+    every stored row for this asset_id, not the six-year warm table and not
+    a size-floor slice. `floor` is unused: the count is every stored event.
     """
     import pandas as pd
 
@@ -295,28 +294,28 @@ def describe_rate(asset_id: str, floor: float,
         who = "this block" if blocks.is_block(asset_id) else asset_id.split(":")[-1]
         return f"No stored events for {who} yet, so a rate is not computed."
 
-    if "r" in mine.columns and "sigma_lt" in mine.columns:
-        usual = pd.to_numeric(mine["sigma_lt"], errors="coerce")
-        move = pd.to_numeric(mine["r"], errors="coerce").abs()
-        keep = mine[move.ge(floor * usual) | usual.isna() | (usual <= 0) | (floor <= 0)]
-    else:
-        keep = mine
-
     basket = basket or load_basket()
     tz_name = _day_tz_for(asset_id, basket)
-    span = max(int(mine["hour_utc"].max()) - int(mine["hour_utc"].min()), 86400)
+    hours = pd.to_numeric(mine["hour_utc"], errors="coerce").dropna()
+    if hours.empty:
+        return f"No stored events for {asset_id.split(':')[-1]} yet, so a rate is not computed."
+    span = int(hours.max()) - int(hours.min())
+    if span <= 0:
+        return (f"No {line} in stored history would have opened "
+                f"(1 event over a span the archive does not contain).")
     years = span / YEAR
-    n = _event_days(keep["hour_utc"], tz_name) if not keep.empty else 0
+    n = _event_days(hours, tz_name)
     if n == 0:
         return (f"No {line} in {years:.1f} years of stored history would have "
-                f"opened at this floor.")
+                f"opened.")
     per_year = n / years
     if per_year >= 1:
         often = f"about {per_year:.1f} times a year"
     else:
         often = f"about once every {1 / per_year:.1f} years"
     noun = "event" if n == 1 else "events"
-    return (f"At this size, {line} has opened {often} "
+    shown = line[:1].upper() + line[1:]
+    return (f"{shown} has opened {often} "
             f"({n} {noun} over {years:.1f} years of stored history).")
 
 
@@ -390,11 +389,11 @@ def process_updates(cfg: Config, state: dict,
 
 
 def send_pending_replies(cfg: Config, state: dict,
-                         events_path: str = DEFAULT_EVENTS_PATH) -> int:
-    """Send queued /floor confirmations once the events table exists.
+                         events_path: str = DEFAULT_ARCHIVE_PATH) -> int:
+    """Send queued /floor confirmations once the rate archive exists.
 
-    Holds the queue if saed has not written the file yet, so a red pipeline
-    does not repeat the empty-table reply. A parse error already went out.
+    Holds the queue if saed has not written the durable archive yet, so a red
+    pipeline does not repeat the empty-table reply.
     """
     pending = list(state.get(PENDING_KEY) or [])
     if not pending:

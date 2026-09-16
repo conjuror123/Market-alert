@@ -1,0 +1,60 @@
+name: Backfill SAED rate archive
+
+# One-off: score the whole metrics history and replace
+# data/tremor/saed_events_archive.parquet. Hourly price-monitor.yml stays warm
+# (`python -m tremor.pipeline` extend, `python -m tremor.saed` without --full)
+# and only appends new hours onto this file.
+#
+# Run after deepening bars, or once when the archive does not exist yet.
+# Same cache key prefix as price-monitor.yml so the next hourly run sees it.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: price-monitor
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore gitignored Tremor parquet
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            data/tremor/metrics
+            data/tremor/saed_events_archive.parquet
+          key: tremor-derived-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            tremor-derived-${{ github.ref_name }}-
+
+      - name: Score all history into the rate archive
+        run: |
+          python -m tremor.pipeline
+          python -m tremor.saed --full
+
+      - name: Persist gitignored Tremor parquet
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            data/tremor/metrics
+            data/tremor/saed_events_archive.parquet
+          key: tremor-derived-${{ github.ref_name }}-${{ github.run_id }}

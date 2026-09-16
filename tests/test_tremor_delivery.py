@@ -970,7 +970,10 @@ def test_the_hour_is_the_last_line_and_is_bold():
     assert last.startswith(md.TIME_EMOJI)
     stamp = (NOW - timedelta(hours=1)).strftime("%d-%m-%Y %H:%M")
     assert last.endswith("UTC</b>") and f"<b>{stamp}" in last
-    assert "GLD major ≈" in text
+    assert "GLD major or rarer ≈" in md.describe(
+        event(asset_id="twelvedata:GLD"), LABELS,
+        events=[event(asset_id="twelvedata:GLD",
+                      hour_utc=int(NOW.timestamp()) - 400 * 86400)])
 
 
 def _history(*rows):
@@ -978,8 +981,9 @@ def _history(*rows):
 
 
 def test_describe_puts_this_ticker_and_tier_rate_before_the_timestamp():
-    # Unique days, this asset, this exact tier. Two hours the same day count
-    # once; an extreme row does not inflate a major count.
+    # Unique days, this asset, this tier or rarer. Two hours the same day count
+    # once; an extreme row inflates a major count. Years are first-to-last of
+    # every stored row for the asset, including quieter tiers.
     day = 1_700_000_000
     later = day + 400 * 86400
     current = event(asset_id="twelvedata:XLF", tier="major", hour_utc=later)
@@ -988,14 +992,15 @@ def test_describe_puts_this_ticker_and_tier_rate_before_the_timestamp():
         dict(current, hour_utc=day + 3600, event_id="b"),
         dict(current, hour_utc=later, event_id="c"),
         dict(current, tier="extreme", hour_utc=later + 86400, event_id="d"),
+        dict(current, tier="noticeable", hour_utc=day - 200 * 86400, event_id="e"),
         event(asset_id="twelvedata:GLD", tier="major", hour_utc=day),
     )
     lines = md.describe(current, {"twelvedata:XLF": "Financials"},
                         events=history).splitlines()
     assert lines[-1].startswith(md.TIME_EMOJI)
-    assert lines[-2] == "XLF major ≈ 1.8 times a year (2 events over 1.1 years)"
+    assert lines[-2] == (
+        "XLF major or rarer ≈ 1.8 times a year (3 events over 1.6 years)")
     assert lines[-3].startswith("\tnext day's close")
-    assert "extreme" not in lines[-2]
     assert "GLD" not in lines[-2]
 
 
@@ -1011,20 +1016,92 @@ def test_a_rare_tier_is_said_as_once_in_years():
     )
     line = md.describe(current, {"twelvedata:XLF": "Financials"},
                        events=history).splitlines()[-2]
-    assert line.startswith("XLF major ≈ once in ")
+    assert line.startswith("XLF major or rarer ≈ once in ")
     assert "times a year" not in line
-    assert "noticeable" not in line
+    assert "(2 events over " in line
 
 
 def test_no_other_asset_or_tier_is_mixed_into_this_line():
-    text = md.describe(event(tier="major"), LABELS, events=[
-        event(asset_id="twelvedata:GLD", tier="noticeable"),
+    current = event(tier="major", hour_utc=2_000_000_000)
+    text = md.describe(current, LABELS, events=[
+        event(asset_id="twelvedata:GLD", tier="noticeable",
+              hour_utc=2_000_000_000 - 400 * 86400),
+        event(asset_id="twelvedata:XLF", tier="extreme",
+              hour_utc=2_000_000_000 - 200 * 86400),
     ])
-    assert "GLD major ≈" in text
-    assert "noticeable" not in [l for l in text.splitlines() if "≈" in l][0]
+    assert "GLD major or rarer ≈" in text
+    line = [l for l in text.splitlines() if "≈" in l][0]
+    assert "XLF" not in line
 
 
-def test_the_footer_names_every_instrument_that_is_tracked():
+def test_rate_years_are_the_asset_archive_span_not_the_tier_gap():
+    # BKLN scored from 2002: z is ~24 years even when this line is extreme-only.
+    first = 1_000_000_000
+    last = first + int(round(24.1 * 365.25 * 86400))
+    current = event(asset_id="twelvedata:BKLN", tier="extreme", hour_utc=last)
+    history = [
+        dict(current, tier="noticeable", hour_utc=first, event_id="old"),
+        dict(current, event_id="now"),
+    ]
+    line = md.tier_rate_line(current, history)
+    assert line == (
+        "BKLN extreme or rarer ≈ once in 24.1 years (1 event over 24.1 years)")
+
+
+def test_noticeable_or_rarer_counts_every_higher_tier():
+    # noticeable includes high+major+extreme. Years stay the archive span, not
+    # the gap between noticeable rows. 17 unique days / 24.1 years is below
+    # 1×/year, so the line is "once in" rather than "times a year".
+    first = 1_000_000_000
+    span = int(round(24.1 * 365.25 * 86400))
+    last = first + span
+    current = event(asset_id="twelvedata:DBB", tier="noticeable", hour_utc=last)
+    history = [
+        dict(current, hour_utc=first + i * (span // 16), event_id=f"e{i}",
+             tier=("noticeable", "high", "major", "extreme")[i % 4])
+        for i in range(16)
+    ]
+    history.append(dict(current, event_id="now"))
+    line = md.tier_rate_line(current, history)
+    assert line == (
+        "DBB noticeable or rarer ≈ once in 1.4 years "
+        "(17 events over 24.1 years)")
+
+
+def test_or_rarer_times_a_year_when_at_least_once_per_year():
+    from price_monitor.floor import YEAR
+
+    n, per_year = 17, 14.2
+    span = int(round((n / per_year) * YEAR))
+    last = 1_700_000_000
+    first = last - span
+    current = event(asset_id="twelvedata:DBB", tier="noticeable", hour_utc=last)
+    history = [
+        dict(current, hour_utc=first + i * (span // (n - 1)), event_id=f"e{i}",
+             tier=("noticeable", "high", "major", "extreme")[i % 4])
+        for i in range(n - 1)
+    ]
+    history.append(dict(current, event_id="now"))
+    line = md.tier_rate_line(current, history)
+    assert line == (
+        "DBB noticeable or rarer ≈ 14.2 times a year "
+        "(17 events over 1.2 years)")
+
+
+
+def test_describe_rates_from_the_archive_not_the_warm_table():
+    warm = [event(asset_id="twelvedata:DBB", tier="noticeable",
+                  hour_utc=1_700_000_000)]
+    archive = [
+        dict(warm[0], hour_utc=1_700_000_000 - int(24.1 * 365.25 * 86400),
+             event_id="old", tier="high"),
+        dict(warm[0], event_id="now"),
+    ]
+    line = [l for l in md.describe(warm[0], LABELS, events=warm,
+                                   rate_history=archive).splitlines()
+            if "≈" in l][0]
+    assert "24.1 years" in line
+    assert "noticeable or rarer" in line
     # A reader told "its own block moved" is entitled to know which instruments
     # that block holds, and the honest form is a list.
     footer = md.basket_footer()
@@ -1081,16 +1158,18 @@ def test_a_block_move_still_gets_its_two_check_ins():
     assert any("next day's close -" in l for l in lines)
 
 
-def test_a_block_rate_uses_the_block_id_and_its_own_tier():
+def test_a_block_rate_uses_the_block_id_and_counts_rarer_tiers():
     day = 1_700_000_000
-    current = block_event(hour_utc=day + 400 * 86400, tier="extreme")
+    current = block_event(hour_utc=day + 400 * 86400, tier="major")
     history = [
-        dict(current, hour_utc=day, event_id="a"),
-        dict(current, hour_utc=day + 400 * 86400, event_id="b"),
+        dict(current, hour_utc=day, event_id="a", tier="major"),
+        dict(current, hour_utc=day + 400 * 86400, event_id="b", tier="major"),
+        dict(current, hour_utc=day + 401 * 86400, event_id="c", tier="extreme"),
     ]
     line = md.describe(current, LABELS, events=history).splitlines()[-2]
-    assert line.startswith("equity extreme ≈ 1.8 times a year")
-    assert "major" not in line
+    assert line.startswith("equity major or rarer ≈")
+    assert "3 events" in line
+    assert "extreme" not in line.split("≈")[0]
 
 
 def test_a_block_check_in_is_dated_on_its_members_calendar():
@@ -1302,15 +1381,21 @@ def test_a_block_standalone_matches_an_instrument_lead_and_omits_the_gauge(
     assert "08-09-2026" in text
     assert "Fear gauge" not in text
     assert "Added to digest" not in text
-    assert "equity extreme ≈" in text
+    assert "equity extreme or rarer ≈" in md.format_push(
+        block_event(), LABELS, events=[
+            dict(block_event(), hour_utc=block_event()["hour_utc"] - 400 * 86400,
+                 event_id="older")])
 
 
 def test_a_digest_row_carries_the_same_rate_line():
     window = (int(datetime(2026, 9, 8, 9, tzinfo=timezone.utc).timestamp()),
               int(datetime(2026, 9, 11, 9, tzinfo=timezone.utc).timestamp()))
-    note = md.format_digest([event(tier="noticeable", channel="digest")],
-                            LABELS, window, now=NOW)[0]
-    assert "GLD noticeable ≈" in note
+    row = event(tier="noticeable", channel="digest")
+    older = dict(row, event_id="old",
+                 hour_utc=int(row["hour_utc"]) - 400 * 86400)
+    note = md.format_digest([row], LABELS, window, now=NOW,
+                            rate_history=[older, row])[0]
+    assert "GLD noticeable or rarer ≈" in note
 
 
 # --- the throwaway ping ----------------------------------------------------
