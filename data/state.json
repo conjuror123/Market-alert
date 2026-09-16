@@ -2,12 +2,13 @@
   "_monitoring_health": {
     "consecutive_failures": 0
   },
+  "telegram_update_offset": 688283214,
   "tremor_delivery": {
     "digests": {
       "1788858000": {
         "from": 1788858000,
         "hashes": [
-          "e8adfb3c888136c6",
+          "897b5e566d58cff5",
           "6c8a4e2c1648b469"
         ],
         "ids": [
@@ -20,7 +21,7 @@
       "1789117200": {
         "from": 1789117200,
         "hashes": [
-          "4b2dab8432df0df4"
+          "653b67784897530c"
         ],
         "ids": [
           10
@@ -31,18 +32,21 @@
       "1789344300": {
         "from": 1789344300,
         "hashes": [
-          "2e714283540b4883"
+          "f164c0237c328cbf"
         ],
         "ids": [
           13
         ],
-        "rows": 2,
+        "rows": 1,
         "to": 1789776300
       }
     },
     "pings": {
       "twelvedata_BKLN:1789498800": 16,
-      "twelvedata_DBB:1789390800": 15
+      "twelvedata_DBB:1789390800": {
+        "hash": "100952d7817b8676",
+        "id": 15
+      }
     },
     "sent": {
       "twelvedata_XLF:1789405200": 1789405200
