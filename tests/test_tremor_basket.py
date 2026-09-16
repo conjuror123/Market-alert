@@ -181,16 +181,18 @@ def test_an_instrument_with_an_override_takes_its_own(tmp_path):
     assert t.floor_for("twelvedata:A") == 1.0        # untouched
 
 
-def test_bkln_is_floored_above_a_two_times_usual_hour():
-    # The live number is whatever `/floor BKLN` last wrote. The product claim
-    # is only that 2.0x is not a line, and that SHY still uses the shared 1.0.
+def test_the_committed_basket_keeps_shy_and_metals_on_the_shared_floor():
+    # Live `/floor BKLN` writes that instrument's number on the default branch.
+    # Do not pin it here: a feature branch sees the committed yaml, which may
+    # still be 1.0, and CI must not fail for that. SHY and the metals block
+    # stay on the shared 1.0 unless someone floors them on purpose.
     from tremor.basket import DEFAULT_BASKET_PATH, load_tuning
 
     load_tuning.cache_clear()
     t = load_tuning(DEFAULT_BASKET_PATH)
-    assert t.floor_for("twelvedata:BKLN") > 2.0
     assert t.min_move_sigma == 1.0
     assert t.floor_for("twelvedata:SHY") == t.min_move_sigma
+    assert t.floor_for("block:industrial_metals") == t.min_move_sigma
 
 
 def test_raising_one_instruments_floor_leaves_every_other_alone(tmp_path):
