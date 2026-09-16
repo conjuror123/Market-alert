@@ -968,7 +968,7 @@ def test_the_hour_is_the_last_line_and_is_bold():
     assert last.startswith(md.TIME_EMOJI)
     stamp = (NOW - timedelta(hours=1)).strftime("%d-%m-%Y %H:%M")
     assert last.endswith("UTC</b>") and f"<b>{stamp}" in last
-    assert "≈" not in text
+    assert "GLD major ≈" in text
 
 
 def _history(*rows):
@@ -1014,11 +1014,12 @@ def test_a_rare_tier_is_said_as_once_in_years():
     assert "noticeable" not in line
 
 
-def test_no_stored_pair_omits_the_rate_line():
+def test_no_other_asset_or_tier_is_mixed_into_this_line():
     text = md.describe(event(tier="major"), LABELS, events=[
         event(asset_id="twelvedata:GLD", tier="noticeable"),
     ])
-    assert "≈" not in text
+    assert "GLD major ≈" in text
+    assert "noticeable" not in [l for l in text.splitlines() if "≈" in l][0]
 
 
 def test_the_footer_names_every_instrument_that_is_tracked():
@@ -1181,32 +1182,34 @@ def use_vix(monkeypatch, frame):
     monkeypatch.setattr(md, "_vix_scored", lambda: frame)
 
 
-def test_the_comparison_names_the_close_it_compares_against(monkeypatch):
-    # The previous available close, not a week-ago reading. A seven-day lookback
-    # sat on 7 Sep next to a 14 Sep print while Friday's number was one row back.
+def test_the_comparison_names_yesterday_and_a_week_ago(monkeypatch):
     use_vix(monkeypatch, vix_frame([
         ((2026, 9, 1), (2026, 9, 2, 15), 14.32),
         ((2026, 9, 4), (2026, 9, 7, 15), 15.10),
         ((2026, 9, 10), (2026, 9, 11, 15), 17.84),
     ]))
     at = int(datetime(2026, 9, 12, 9, tzinfo=timezone.utc).timestamp())
-    line = md.vix_context(at).splitlines()[1]
     text = md.vix_context(at)
-    assert "up from 15.10 at the 04-09-2026 close" in line
-    assert "14.32 at the 01-09-2026 close" in text
+    assert "Fear gauge VIX" in text
+    assert "17.84 1 day ago" in text
+    assert "15.10 2 days ago" in text
+    assert "14.32 7 days ago" in text
+    assert "close" not in text
     assert "7 Sep" not in text
 
 
-def test_the_comparison_says_which_way_it_moved(monkeypatch):
+def test_the_comparison_still_prints_the_previous_close_when_it_is_flat(monkeypatch):
     rows = [((2026, 9, 1), (2026, 9, 2, 15), 20.00),
             ((2026, 9, 10), (2026, 9, 11, 15), 14.00)]
     use_vix(monkeypatch, vix_frame(rows))
     at = int(datetime(2026, 9, 12, 9, tzinfo=timezone.utc).timestamp())
-    assert "down from 20.00 at the 01-09-2026 close" in md.vix_context(at)
+    assert "14.00 1 day ago" in md.vix_context(at)
+    assert "20.00 2 days ago" in md.vix_context(at)
 
-    rows[1] = ((2026, 9, 10), (2026, 9, 11, 15), 20.05)   # inside VIX_FLAT
+    rows[1] = ((2026, 9, 10), (2026, 9, 11, 15), 20.05)
     use_vix(monkeypatch, vix_frame(rows))
-    assert "level with 20.00 at the 01-09-2026 close" in md.vix_context(at)
+    assert "20.05 1 day ago" in md.vix_context(at)
+    assert "20.00 2 days ago" in md.vix_context(at)
 
 
 def test_the_gauge_moves_on_as_soon_as_a_reading_is_published(monkeypatch):
@@ -1219,8 +1222,8 @@ def test_the_gauge_moves_on_as_soon_as_a_reading_is_published(monkeypatch):
     ]))
     before = int(datetime(2026, 9, 11, 10, tzinfo=timezone.utc).timestamp())
     after = int(datetime(2026, 9, 11, 16, tzinfo=timezone.utc).timestamp())
-    assert "16.46 at the 09-09-2026 close" in md.vix_context(before)
-    assert "17.84 at the 10-09-2026 close" in md.vix_context(after)
+    assert "16.46 1 day ago" in md.vix_context(before)
+    assert "17.84 1 day ago" in md.vix_context(after)
 
 
 def test_the_regime_line_never_quotes_a_reading_that_did_not_exist_yet(monkeypatch):
@@ -1235,7 +1238,7 @@ def test_the_regime_line_never_quotes_a_reading_that_did_not_exist_yet(monkeypat
     ]))
     text = md.vix_context(int(datetime(2020, 3, 12, 19, tzinfo=timezone.utc).timestamp()))
 
-    assert "53.90" in text and "11-03-2020" in text
+    assert "53.90" in text and "1 day ago" in text
     assert "75.47" not in text
 
 
@@ -1297,6 +1300,15 @@ def test_a_block_standalone_matches_an_instrument_lead_and_omits_the_gauge(
     assert "08-09-2026" in text
     assert "Fear gauge" not in text
     assert "Added to digest" not in text
+    assert "equity extreme ≈" in text
+
+
+def test_a_digest_row_carries_the_same_rate_line():
+    window = (int(datetime(2026, 9, 8, 9, tzinfo=timezone.utc).timestamp()),
+              int(datetime(2026, 9, 11, 9, tzinfo=timezone.utc).timestamp()))
+    note = md.format_digest([event(tier="noticeable", channel="digest")],
+                            LABELS, window, now=NOW)[0]
+    assert "GLD noticeable ≈" in note
 
 
 # --- the throwaway ping ----------------------------------------------------
@@ -1541,8 +1553,7 @@ def test_tidying_leaves_a_healthy_set_of_notes_alone():
 
 def test_a_format_change_rewrites_pushes_and_pings_since_the_open_note(
         monkeypatch, sender, editor):
-    # A copy tweak must land on the next run, not wait for a retention check-in,
-    # and must not rewrite a push from a previous note.
+    # A copy tweak must land on the next run, not wait for a retention check-in.
     live = event(event_id="live", channel="push", retention_settled=None,
                  hour_utc=int(NOW.timestamp()) - HOUR)
     ping = event(event_id="p1", tier="noticeable", channel="digest",
@@ -1570,4 +1581,23 @@ def test_a_format_change_rewrites_pushes_and_pings_since_the_open_note(
     changed = editor.calls[before:]
     assert any(text.startswith("NEWSTYLE") for _, text in changed)
     assert any(text.endswith("\n.") for _, text in changed)
-    assert all(message_id != 99 for message_id, _ in changed)
+    assert any(message_id == 99 for message_id, _ in changed)
+
+
+def test_a_ping_is_restyled_even_after_the_row_leaves_the_table(
+        monkeypatch, sender, editor):
+    # Live: BKLN's ping stayed "Senior bank loans +0.12%" after /floor dropped
+    # the row from saed_events, because restyle looked the id up only in this
+    # run's parquet and skipped it.
+    ping = event(event_id="twelvedata_BKLN:1789498800", tier="noticeable",
+                 channel="digest", asset_id="twelvedata:BKLN",
+                 hour_utc=int(NOW.timestamp()) - HOUR, r=0.0012, sigma_lt=0.001)
+    _, state = deliver(monkeypatch, [ping])
+    assert any("BKLN" in t for t in sender.texts)
+
+    before = len(editor.calls)
+    deliver(monkeypatch, [], state=state)
+    changed = [text for _, text in editor.calls[before:] if "BKLN" in text]
+    assert changed, "the stranded ping must still be rewritten"
+    assert "Added to digest" in changed[-1]
+    assert "BKLN" in changed[-1]

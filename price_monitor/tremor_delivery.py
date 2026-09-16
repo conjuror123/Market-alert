@@ -598,17 +598,19 @@ def tier_rate_line(event: dict, history: "list[dict] | None") -> str:
 
     Unique trading days over the stored span of this asset_id, the same
     arithmetic `/floor` uses. The count is this tier only - major does not
-    include extreme. No size-floor filter, no Gaussian table. Silent when
-    that pair has no stored rows.
+    include extreme. The event being written always counts, so a digest row,
+    a major, an extreme and a block all get the line. No size-floor filter,
+    no Gaussian table.
     """
-    if not history:
-        return ""
     asset_id = str(event.get("asset_id") or "")
     tier = str(event.get("tier") or "")
     if not asset_id or not tier:
         return ""
+    rows = list(history or [])
+    rows.append(event)
+
     mine, keep = [], []
-    for row in history:
+    for row in rows:
         if str(row.get("asset_id") or "") != asset_id:
             continue
         hour = row.get("hour_utc")
@@ -624,9 +626,12 @@ def tier_rate_line(event: dict, history: "list[dict] | None") -> str:
 
     from price_monitor.floor import YEAR, _day_tz_for, _event_days
     from tremor.basket import load_basket
+    from tremor.severity import RECORD_HORIZON_DAYS
 
-    span = max(max(mine) - min(mine), 86400)
-    years = span / YEAR
+    if len(set(mine)) >= 2:
+        years = max(max(mine) - min(mine), 86400) / YEAR
+    else:
+        years = RECORD_HORIZON_DAYS / 365.25
     n = _event_days(keep, _day_tz_for(asset_id, load_basket()))
     if n == 0:
         return ""
@@ -734,6 +739,7 @@ VIX_PATH = os.path.join("data", "tremor", "vix", "fred_VIXCLS.parquet")
 # Below this the two readings are called unchanged rather than given a
 # direction. A tenth is about the daily noise of the index, and "up from 15.9"
 # on a reading of 16.1 is a direction that is not there.
+# Below this the two readings used to be called unchanged.
 VIX_FLAT = 0.10
 
 
@@ -801,7 +807,6 @@ def vix_context(hour_utc: int) -> str:
 
     latest = known.iloc[-1]
     level, day = float(latest["close"]), int(latest["day"])
-    when = datetime.fromtimestamp(day, tz=timezone.utc)
 
     # Where the level sits in its own history, which is the only form of this
     # number a reader can do anything with: 16 and 54 are both just numbers
@@ -813,23 +818,15 @@ def vix_context(hour_utc: int) -> str:
     place = (f"the highest it has been since {first}" if rank >= 99.995 else
              f"higher than {rank:.0f}% of days since {first}" if rank >= 50 else
              f"calmer than {100 - rank:.0f}% of days since {first}")
-    lines = [f"🌡 <b>Fear gauge</b>: VIX {level:.2f} at the {format_day(when)} close - {place}"]
+    lines = [f"🌡 <b>Fear gauge VIX</b>: {level:.2f} 1 day ago - {place}"]
 
-    # Yesterday's close (the previous print the system already had) and the
-    # close from a week earlier. A seven-day lookback alone used to replace
-    # yesterday and looked stalled; yesterday alone hid the week move.
     earlier = known.iloc[:-1]
     if not earlier.empty:
         before = float(earlier["close"].iloc[-1])
-        was = datetime.fromtimestamp(int(earlier["day"].iloc[-1]), tz=timezone.utc)
-        direction = ("up from" if level - before > VIX_FLAT else
-                     "down from" if before - level > VIX_FLAT else "level with")
-        lines.append(f"     {direction} {before:.2f} at the {format_day(was)} close")
+        lines.append(f"     {before:.2f} 2 days ago")
         week = _vix_close_days_before(known, day, 7)
         if week is not None and int(week["day"]) != int(earlier["day"].iloc[-1]):
-            week_when = datetime.fromtimestamp(int(week["day"]), tz=timezone.utc)
-            week_level = float(week["close"])
-            lines.append(f"     {week_level:.2f} at the {format_day(week_when)} close")
+            lines.append(f"     {float(week['close']):.2f} 7 days ago")
 
     since = _stress_open_since(scored, hour_utc)
     if since is not None:
@@ -1391,13 +1388,13 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
     if regime:
         header += "\n" + regime
 
-    def block(event: dict) -> str:
-        line = describe(event, labels, now, all_events)
+    def row(event: dict) -> str:
+        line = describe(event, labels, now, all_events if all_events is not None else events)
         context = calendar_context(int(event["hour_utc"]), calendar)
         return f"{line}\n     {_escape(context)}" if context else line
 
     messages, current = [], header
-    for text in [block(e) for e in ordered]:
+    for text in [row(e) for e in ordered]:
         candidate = f"{current}\n\n{text}"
         if len(candidate) > _MESSAGE_LIMIT and current != header:
             messages.append(current)
@@ -1588,6 +1585,50 @@ def sweep_pings(cfg: Config, store: dict) -> int:
     return gone
 
 
+def _event_for_ping(event_id: str, events_by_id: dict,
+                    labels: dict[str, str]) -> dict | None:
+    """The row to re-render a ping from, even if saed no longer emits it.
+
+    `/floor` can drop a digest row from the table while the ping is still on
+    the phone. Looking the event up only in this run's parquet then leaves the
+    old short line forever. The id is `file_stem:hour`; that is enough to
+    rebuild ticker · name, which is what the restyle is for.
+    """
+    found = events_by_id.get(str(event_id))
+    if found is not None:
+        return found
+    raw = str(event_id or "")
+    if ":" not in raw:
+        return None
+    stem, hour_s = raw.rsplit(":", 1)
+    try:
+        hour = int(hour_s)
+    except ValueError:
+        return None
+    from tremor.basket import load_basket
+
+    asset_id = None
+    block = ""
+    try:
+        for asset in load_basket().instruments:
+            if asset.file_stem == stem:
+                asset_id = asset.asset_id
+                block = asset.block
+                break
+    except Exception:                            # pragma: no cover - defensive
+        asset_id = None
+    if asset_id is None and stem.startswith("block_"):
+        block = stem[len("block_"):]
+        asset_id = f"block:{block}"
+    if asset_id is None:
+        return None
+    return {
+        "event_id": raw, "asset_id": asset_id, "block": block,
+        "hour_utc": hour, "tier": "noticeable", "channel": "digest",
+        "r": None, "sigma_lt": None,
+    }
+
+
 def restyle_pings(cfg: Config, store: dict, events: "list[dict]",
                   labels: dict[str, str]) -> int:
     """Re-edits outstanding pings whose rendered text no longer matches."""
@@ -1597,8 +1638,10 @@ def restyle_pings(cfg: Config, store: dict, events: "list[dict]",
     by_id = {str(e.get("event_id")): e for e in events}
     edited = 0
     for event_id, value in list(outstanding.items()):
-        event = by_id.get(str(event_id))
+        event = _event_for_ping(str(event_id), by_id, labels)
         if event is None:
+            log.info("Could not restyle ping %s: no event and id is not a stem:hour",
+                     event_id)
             continue
         text = format_ping(event, labels)
         mark = _fingerprint(text)
@@ -1656,8 +1699,8 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         return 0
 
     events = load_events(cfg)
-    if not events:
-        return 0
+    # An empty table must not skip restyle: /floor can drop the only live row
+    # while its ping is still on the phone.
 
     from price_monitor import follow_up
     from price_monitor.alerts_log import (load_alerts_log, record_sent_alert,
@@ -1701,7 +1744,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     # Corrections to already-sent pushes run on their own schedule - one sent on
     # Monday is edited on Tuesday whether or not Tuesday has news of its own.
     corrected = follow_up.apply(cfg, state, events, calendar, now,
-                               restyle_after=current)
+                               restyle_after=0)
 
     labels = _labels()
     pushed = posted = edited = 0
