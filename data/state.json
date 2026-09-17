@@ -9,7 +9,7 @@
       "1788858000": {
         "from": 1788858000,
         "hashes": [
-          "4e6b161301b38797",
+          "34ab95552fa45258",
           "6c8a4e2c1648b469"
         ],
         "ids": [
@@ -57,6 +57,11 @@
       }
     },
     "sent": {
+      "twelvedata_GBP_USD:1789642800": {
+        "hash": "ead81fcff492d93a",
+        "hour": 1789642800,
+        "id": 19
+      },
       "twelvedata_XLF:1789405200": {
         "hash": "09fb0dd038d63f17",
         "hour": 1789405200,
@@ -64,6 +69,12 @@
       }
     },
     "tracked": {
+      "twelvedata_GBP_USD:1789642800": {
+        "hour_utc": 1789642800,
+        "message_id": 19,
+        "text_hash": "ead81fcff492d93a",
+        "written": []
+      },
       "twelvedata_XLF:1789405200": {
         "hour_utc": 1789405200,
         "message_id": 14,
