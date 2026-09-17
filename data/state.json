@@ -33,12 +33,12 @@
       "1789344300": {
         "from": 1789344300,
         "hashes": [
-          "2ecfd929be233763"
+          "aadaac40f9a4ec77"
         ],
         "ids": [
           13
         ],
-        "rows": 3,
+        "rows": 4,
         "to": 1789776300
       }
     },
@@ -54,6 +54,10 @@
       "twelvedata_TLT:1789581600": {
         "hash": "6e0132919d7fd891",
         "id": 18
+      },
+      "twelvedata_XLC:1789650000": {
+        "hash": "ba9fef6a0305abc3",
+        "id": 20
       }
     },
     "sent": {
