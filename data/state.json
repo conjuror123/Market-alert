@@ -82,7 +82,9 @@
         "hour_utc": 1789747200,
         "message_id": 22,
         "text_hash": "795ac25dcf52dabc",
-        "written": []
+        "written": [
+          "today"
+        ]
       },
       "twelvedata_XLF:1789405200": {
         "hour_utc": 1789405200,
