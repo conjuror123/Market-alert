@@ -62,7 +62,7 @@
     },
     "sent": {
       "twelvedata_GBP_USD:1789642800": {
-        "hash": "ead81fcff492d93a",
+        "hash": "4b56914adeef60ca",
         "hour": 1789642800,
         "id": 19
       },
@@ -76,9 +76,10 @@
       "twelvedata_GBP_USD:1789642800": {
         "hour_utc": 1789642800,
         "message_id": 19,
-        "text_hash": "ead81fcff492d93a",
+        "text_hash": "4b56914adeef60ca",
         "written": [
-          "today"
+          "today",
+          "settled"
         ]
       },
       "twelvedata_XLF:1789405200": {
@@ -92,6 +93,6 @@
       }
     }
   },
-  "weekly_digest:last_refreshed": "2026-09-17",
+  "weekly_digest:last_refreshed": "2026-09-18",
   "weekly_digest:last_sent_week": "2026-09-11"
 }
