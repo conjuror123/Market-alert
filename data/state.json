@@ -57,6 +57,11 @@
         "hour": 1789642800,
         "id": 19
       },
+      "twelvedata_UGA:1789747200": {
+        "hash": "795ac25dcf52dabc",
+        "hour": 1789747200,
+        "id": 22
+      },
       "twelvedata_XLF:1789405200": {
         "hash": "09fb0dd038d63f17",
         "hour": 1789405200,
@@ -72,6 +77,12 @@
           "today",
           "settled"
         ]
+      },
+      "twelvedata_UGA:1789747200": {
+        "hour_utc": 1789747200,
+        "message_id": 22,
+        "text_hash": "795ac25dcf52dabc",
+        "written": []
       },
       "twelvedata_XLF:1789405200": {
         "hour_utc": 1789405200,
