@@ -1781,3 +1781,42 @@ def test_no_open_note_means_no_ping(monkeypatch, sender):
     the stretch is carried into the next note, which buzzes it then."""
     row = event(event_id="p1", tier="noticeable", channel="digest")
     assert md.pending_pings([row], {}, NOW, None) == []
+
+
+def test_a_ping_left_behind_by_a_closed_period_is_deleted(monkeypatch, sender):
+    """The other half of the 19 September bug.
+
+    Bounding `pending_pings` stops a closed period's row buzzing AGAIN, but it
+    does nothing about the two that already went out. They sat in the ledger
+    pointing at a note whose window cannot contain them, and `sweep_pings` had
+    already run this period - so nothing would have removed them until the next
+    note opened two days later. A ping exists only while the note beneath it
+    shows its row, so it goes as soon as that stops being true.
+
+    The note here is ALREADY open, which is the whole point: this is every run
+    after the one that created the mess, where no sweep is due.
+    """
+    killer = Deleted()
+    monkeypatch.setattr("price_monitor.notifier.delete_telegram_message", killer)
+    from tremor import routing
+
+    opens = routing.digest_slot(int(NOW.timestamp()))
+    previous = routing.digest_slot(opens - 1)
+    stranded = event(event_id="stranded", tier="noticeable", channel="digest",
+                     hour_utc=opens - 6 * HOUR)
+    state = {md.STATE_KEY: {
+        md.DIGEST_STATE: {
+            str(previous): {"ids": [13], "hashes": ["x"], "from": previous,
+                            "to": opens, "rows": 1},
+            # already open, so sweep_pings is not what removes the ping
+            str(opens): {"ids": [26], "hashes": ["y"], "from": opens,
+                         "to": routing.next_digest_slot(opens)}},
+        md.PINGS: {"stranded": {"id": 24, "hash": "whatever"}}}}
+
+    now = datetime.fromtimestamp(opens + 2 * HOUR, tz=timezone.utc)
+    _, state = deliver(monkeypatch, [stranded], state=state, now=now)
+
+    assert 24 in killer.ids, "the stranded ping must be deleted from Telegram"
+    assert "stranded" not in state[md.STATE_KEY][md.PINGS]
+    # and it must not come straight back
+    assert not any("Added to digest" in t for t in sender.texts)

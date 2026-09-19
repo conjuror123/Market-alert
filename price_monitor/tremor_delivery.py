@@ -1665,14 +1665,25 @@ def _drop_ping(cfg: Config, outstanding: dict, event_id: str, value) -> bool:
 
 
 def restyle_pings(cfg: Config, store: dict, events: "list[dict]",
-                  labels: dict[str, str]) -> int:
-    """Re-edits outstanding pings whose rendered text no longer matches.
+                  labels: dict[str, str],
+                  window: "tuple[int, int] | None" = None) -> int:
+    """Re-edits outstanding pings whose rendered text no longer matches, and
+    deletes the ones with nothing left to point at.
 
-    A ping is a claim that the row is in the note. `/floor` (or a recompute)
-    can drop that row while the ping is still on the phone; rewriting it as
-    ticker · name with no size, and still saying "Added to digest", is a lie.
-    Those pings are deleted instead. An empty table is left alone: that is
-    "the pipeline did not run", not "every live row vanished".
+    A ping is a claim that the row is in the note below it. `/floor` (or a
+    recompute) can drop that row while the ping is still on the phone;
+    rewriting it as ticker · name with no size, and still saying "Added to
+    digest", is a lie. Those pings are deleted instead. An empty table is left
+    alone: that is "the pipeline did not run", not "every live row vanished".
+
+    A ping can also be orphaned by TIME rather than by a recompute: its event
+    belongs to a period that has closed, so the note now on screen does not
+    show it and never will. `sweep_pings` clears the ledger as a note opens,
+    which covers the ordinary case - but a ping created after that sweep, in
+    the same run, is left pointing at a note that cannot contain it. That is
+    how messages 24 and 25 survived the 19 September run. Any ping outside the
+    open note's window is deleted here, so the invariant holds in both
+    directions: a ping exists only while the note beneath it shows its row.
     """
     outstanding: dict = store.get(PINGS) or {}
     if not outstanding:
@@ -1681,6 +1692,12 @@ def restyle_pings(cfg: Config, store: dict, events: "list[dict]",
     edited = dropped = 0
     for event_id, value in list(outstanding.items()):
         event = by_id.get(str(event_id))
+        if window is not None and event is not None:
+            hour = float(event.get("hour_utc", 0))
+            if not window[0] <= hour < window[1]:
+                _drop_ping(cfg, outstanding, str(event_id), value)
+                dropped += 1
+                continue
         if not _still_a_digest_ping(event):
             if not events:
                 continue
@@ -1701,7 +1718,7 @@ def restyle_pings(cfg: Config, store: dict, events: "list[dict]",
         outstanding[event_id] = {"id": message_id, "hash": mark}
         edited += 1
     if dropped:
-        log.info("Pings deleted (no longer in the digest): %d", dropped)
+        log.info("Pings deleted (no longer in the open note): %d", dropped)
     return edited + dropped
 
 
@@ -1865,7 +1882,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         buzzed += 1
     if buzzed:
         log.info("Pings sent: %d", buzzed)
-    restyled = restyle_pings(cfg, store, events, labels)
+    restyled = restyle_pings(cfg, store, events, labels, open_window)
     if restyled:
         save_state(cfg.state_path, state)
         log.info("Pings restyled or removed: %d", restyled)
