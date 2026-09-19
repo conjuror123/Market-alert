@@ -200,3 +200,20 @@ It lives in the repository rather than on the scheduler's side deliberately: *"w
 deliberately silent"* is a state of the project and has to be visible where the code is. A
 cron job switched off on someone else's website is indistinguishable from a breakage a
 month later.
+
+### Regenerating the report card
+
+`tools/dashboard.py` emits the whole payload the report-card page renders itself from, so
+"is the dashboard still true?" is answered by re-running it rather than by reading it. It
+takes the **full** backtest, not the warm table the hourly run writes — the two are scored
+against hours drawn from the whole archive, so mixing them reports most of history as
+missed:
+
+```bash
+python -m tremor.saed --full --events-out /tmp/ev.parquet --residuals-out /tmp/res
+PYTHONPATH=. python tools/dashboard.py --events /tmp/ev.parquet --residuals /tmp/res \
+  --out /tmp/payload.json
+```
+
+Run health comes from the Actions API and is passed in with `--ops`; the four sample
+messages are rendered by the delivery code. Everything else is derived from the store.
