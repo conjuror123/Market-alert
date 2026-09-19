@@ -24,12 +24,11 @@ in how long they wait. Nothing is held back:
 
 Both kinds of message are then corrected in place as the market answers: at the
 close of the day the move happened and at the close of the next day the
-instrument trades, for a push and for a digest line alike. That is where the
-retention check went. It used to decide whether an event was sent at all - a
-move that gave everything back took no line - and the price of that was silence
-for as long as the answer took to arrive. It now decides what the sent message SAYS, which costs nothing and
-hides nothing: a move that reverted is still shown, with the fact that it
-reverted written on it.
+instrument trades, for a push and for a digest line alike. That is what the
+retention check decides - what the sent message SAYS, not whether it is sent.
+Gating on it would buy silence for as long as the answer took to arrive; this
+way a move that reverted is still shown, with the fact that it reverted written
+on it.
 
 There is deliberately no cap on how many pushes a week may contain. A detector
 that counts its own alerts and goes quiet on the third one is answering a
@@ -64,12 +63,10 @@ SETTLED_HORIZON = persistence.SETTLED        # the next trading close
 # Saturday and runs to Monday. So a note is never half trading week and half
 # weekend, which is what a Tuesday/Friday pair could not avoid.
 #
-# UTC AND NOT THE READER'S CLOCK, which is the reverse of the old rule and for
-# a reason that has since changed. A note used to be the thing that buzzed, so
-# it had to land at a civilised local hour; the ping does that now, and the
-# note is a record. A record wants the boundary the market uses - 00:05 UTC sits
-# between the American close and the Asian open, the quietest hour there is, and
-# it does not drift by an hour twice a year.
+# UTC AND NOT THE READER'S CLOCK. The ping is what buzzes; the note is a record,
+# and a record wants the boundary the market uses. 00:05 UTC sits between the
+# American close and the Asian open, the quietest hour there is, and it does not
+# drift by an hour twice a year.
 #
 # Five past rather than on the hour: the hourly job runs at :05, so a note opens
 # on the first run of its period instead of waiting fifty-five minutes.
@@ -80,14 +77,12 @@ DIGEST_TZ = timezone.utc
 
 
 def channel(events: pd.DataFrame) -> pd.Series:
-    """The delivery channel for each event, before the collapse.
+    """The delivery channel for each event.
 
-    Tier alone, and deliberately nothing else. Retention used to enter here -
-    an event whose move had fully reverted was dropped rather than digested -
-    and the cost was that the digest could only be written once every one of
-    its events had been answered, which is what made it a report three days
-    after the fact. The answer is now written onto the line instead, and the
-    line goes up straight away.
+    Tier alone, and deliberately nothing else. Letting retention in here would
+    mean a note could only be written once every one of its events had been
+    answered - a report three days after the fact. The answer is written onto
+    the line instead, and the line goes up straight away.
     """
     if events.empty:
         return pd.Series(dtype="string")
@@ -98,30 +93,21 @@ def channel(events: pd.DataFrame) -> pd.Series:
 
 
 # A PUSH IS FINAL WHEN IT ARRIVES, and nothing here moves an event between
-# channels after the fact. There used to be a collapse: a second push inside the
-# same UTC day was folded under the first, on the argument that 2008-11-20's six
-# pushes and 2020-03-12's five were each one market event delivered five or six
-# times.
-#
-# The argument was about message count and the count is not what this is for. Six
-# messages on the day the market breaks is the bot working; the same six spread
-# over six quiet days would not be. Folding also cost the thing a push is for -
-# it is an alert, it goes out first and is analysed afterwards - and it produced
-# the one behaviour that made the routing hard to reason about: an event whose
-# channel depended on what else happened that day, so a push tier could sit in
-# the digest and a digest row could turn into a push later. Measured on the
-# record, that was 199 of 9,069 events living in a channel their tier did not
-# choose.
+# channels after the fact. Folding a second push of the day under the first
+# would be an argument about message count, and the count is not what this is
+# for: six messages on the day the market breaks is the bot working, where the
+# same six spread over six quiet days would not be. It also makes an event's
+# channel depend on what else happened that day - a push tier sitting in the
+# digest, a digest row turning into a push later, 199 of 9,069 events in a
+# channel their tier did not choose.
 #
 # So: tier decides, once, and that is the whole rule.
 def digest_slot(hour_utc: int) -> int:
     """WHICH digest note this hour belongs to: the one opened at or before it.
 
     The note is opened at the start of the period it covers and edited as
-    events are found, so the slot an event carries is a name for a message
-    that already exists rather than a time to wait for. Under the old
-    end-of-period digest this returned the next slot AFTER the hour, and the
-    difference is the whole change: an event now joins a live note instead of
+    events are found, so the slot an event carries names a message that already
+    exists rather than a time to wait for: an event joins a live note instead of
     queueing for one.
 
     Kept as a zone lookup rather than arithmetic on the timestamp even though
@@ -167,7 +153,7 @@ def route(events: pd.DataFrame) -> pd.DataFrame:
     One line of logic on purpose. An event's channel is a function of its tier
     and of nothing else - not of what else moved that day, not of how the move
     later held - so it is decided once, when the event is built, and never
-    revised. See the note above the digest slots for what used to be here.
+    revised.
     """
     if events.empty:
         return events.assign(channel=pd.Series(dtype="string"),

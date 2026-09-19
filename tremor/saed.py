@@ -1,30 +1,25 @@
-"""Single-asset event module, SAED (spec §8).
+"""Single-asset event detection, SAED (spec §8).
 
-Catches moves that an instrument's own peers do not explain. It runs alongside
-the cluster detector and is now independent of it in both directions: SAED builds
-the block factors it needs from the per-asset metrics itself, and has no effect
-on the SI-Index, the cluster gate or the cluster cooldown. It used to read the
-basket factor out of metrics_basket_hour, which meant a cross_section failure
-took the events down with it; that factor is gone (see config/basket.yaml) and
-so is the dependency.
+Catches moves an instrument's own peers do not explain, and moves that are large
+for the instrument whatever the peers did. It builds the block factors it needs
+from the per-asset metrics itself, so it depends on nothing `cross_section`
+writes to disk.
 
-Three things that are easy to miss and that the spec addresses separately.
+Three rules worth knowing before changing anything here.
 
-An instrument speaks ONCE PER TRADING DAY, and the day is the instrument's own -
-the exchange's local day for a listed fund, the UTC day for everything else. It
-replaces a twelve-bar pause, which was a window nobody could picture and which
-let sixty pairs of pushes through on one instrument inside forty-eight hours.
+AN INSTRUMENT SPEAKS ONCE PER TRADING DAY, and the day is its own: the exchange's
+local day for a listed fund, the UTC day for everything else. A later firing the
+same day does not open a second event and does not cancel the first - it merges
+into it, raising the tier if it is rarer and incrementing repeat_count. "The move
+stopped" and "the move continues, and we have already reported it" are different
+things.
 
-The day does not cancel an event, it merges into the current one: every later
-firing that day increments repeat_count. These are different things - "the move
-stopped" and "the move continues, but we have already reported it".
+BLOCKS ARE THEIR OWN EVENTS. A block is ranked on its own median series against
+its own ladder, one alert per block per day. Three instruments of one block
+jerking in the same hour is one observation about the block, not three messages.
 
-The notification goes out per BLOCK alert, not per asset. If three instruments of
-one block jerked in the same hour, that is one observation about the block, not
-three identical messages.
-
-Versioning (config_version, run_version) is stamped here, on the table this
-module writes.
+VERSIONING IS STAMPED HERE, on the table this module writes: config_version and
+run_version go on every row.
 """
 from __future__ import annotations
 
@@ -39,22 +34,21 @@ from tremor import (atomic, blocks, persistence, quality, routing, sessions,
 from tremor.basket import Asset, Basket, load_tuning
 
 
-# The two questions worth asking of one instrument's hour, and the column each
-# is asked of. "Was this explained by the market" and "was this a big move" are
+# The two questions worth asking of one instrument's hour, and the column each is
+# asked of. "Was this explained by its peers" and "was this a big move" are
 # different events, and a detector that asks only the first is blind to exactly
-# the days when everything moves together - which is what a macro event is.
+# the days when everything moves together - which is what a macro event is. On
+# the SVB collapse, the August 2024 yen unwind and the 2024 US election the
+# abnormal channel finds nothing at all; the absolute channel finds 11, 17 and 9.
 #
-# Measured on this basket, that blindness was total: on the SVB collapse, the
-# August 2024 yen unwind and the 2024 US election, the abnormal channel pushed
-# nothing at all. The absolute channel finds 11, 17 and 9 events on those days.
-# It is also the only one of the two that breathes with the market: month to
-# month the abnormal channel varies 1.8x and the absolute one 33x, because the
-# abnormal score has the market's volatility divided out of it twice - once by
-# the instrument's own rolling sigma and once by the peer spread (BMP).
+# The absolute channel is also the only one of the two that breathes with the
+# market: month to month it varies 33x against the abnormal channel's 1.8x,
+# because the abnormal score has the market's volatility divided out of it twice
+# - once by the instrument's own rolling sigma and once by the peer spread (BMP).
 #
-# The raw return is used rather than the winsorized one on purpose: winsorizing
-# caps the series at 0.096 where the raw reaches 0.199, which is precisely the
-# population this channel exists to find.
+# It reads the RAW return, not the winsorized one: winsorizing caps the series at
+# 0.096 where the raw reaches 0.199, which is precisely the population this
+# channel exists to find.
 TIER_SOURCES = {"abnormal": "tier_abnormal", "absolute": "tier_absolute"}
 ABSOLUTE_COLUMN = "r"
 ABSOLUTE_LEVEL_PREFIX = "abs_level"
@@ -154,29 +148,25 @@ def withdraw_unconfirmed(frame: pd.DataFrame,
                          sources: dict[str, str] = TIER_SOURCES) -> pd.DataFrame:
     """Drops an abnormal-only claim the non-parametric rank test contradicts.
 
-    Practical significance beside statistical significance, which is what every
-    monitoring and A/B-testing shop does and what this was missing: a result can
-    be significant and still be nothing. The abnormal channel is a t-statistic,
-    so it says "large RELATIVE TO the peers this hour" - and when the peers were
-    asleep that ratio is large for a move of six basis points. Measured, 67 of
-    581 pushes fired on a move below the instrument's OWN median hour, and 65 of
-    the 67 were abnormal-only.
+    Practical significance beside statistical significance. The abnormal channel
+    is a t-statistic, so it says "large RELATIVE TO the peers this hour" - and
+    when the peers are asleep that ratio is large for a move of six basis points.
+    67 of 581 pushes fired on a move below the instrument's own median hour, and
+    65 of those 67 were abnormal-only.
 
     Corrado's rank test is the right second opinion because it shares none of
     that machinery: it ranks this bar against the instrument's own recent bars
     and never estimates a variance, which is exactly the quantity thin trading
-    distorts (Campbell & Wasley 1993 - a high frequency of near-zero returns
-    corrupts the variance estimate the standardised test needs). So an
-    abnormal-only hour that the ranks put outside the top 1% of its own window
-    has its abnormal claim withdrawn and is re-combined; if the absolute channel
-    also fired, the hour was never abnormal-only and this does not touch it.
+    distorts (Campbell & Wasley 1993). So an abnormal-only hour that the ranks
+    put outside the top 1% of its own window has its abnormal claim withdrawn
+    and is re-combined; if the absolute channel also fired, the hour was never
+    abnormal-only and this does not touch it.
 
-    That last clause is what keeps the rule safe in a crisis. The rank test is
-    itself misspecified when variance jumps - which is precisely when the
-    absolute channel fires - so the gate lifts exactly where the rank test stops
-    being trustworthy. Measured over the record: of 24 pushes in October 2008 it
-    removes one, of 15 in March 2020 it removes none, and it silences none of
-    the 1,256 events in the top 0.1% of any instrument's own hours.
+    THAT LAST CLAUSE KEEPS THE RULE SAFE IN A CRISIS. The rank test is itself
+    misspecified when variance jumps - precisely when the absolute channel fires
+    - so the gate lifts exactly where the rank test stops being trustworthy. Of
+    24 pushes in October 2008 it removes one, of 15 in March 2020 none, and it
+    silences none of the 1,256 events in the top 0.1% of any instrument's hours.
 
     An hour whose rank window has not filled has NOT disagreed - `rank_confirms`
     is NA there, and NA is not a contradiction.
@@ -209,39 +199,28 @@ def triggers(frame: pd.DataFrame) -> pd.Series:
     INSTRUMENT, and what comes out with it is how rare it actually was, which
     is what decides whether the message interrupts anyone (see tremor.severity).
 
-    THERE IS A SECOND FILTER ON RAW MAGNITUDE, and there did not use to be. The
-    argument against one was that the standardisation IS the test, which the
-    event-study literature says and which is true of the question that
-    literature asks. It is not true of the question a person asks. The abnormal
-    channel measures whether a move was UNEXPLAINED, never whether it was
-    LARGE, and those come apart at the bottom: an instrument that ticked +0.03%
-    while its block went the other way has a residual its own history finds
-    remarkable, and a reader does not. Measured over the whole record, every
-    single event below one times its own usual hour was abnormal-only - 240 of
-    9,069, about eleven a year - and each one reads as the system failing to
-    understand its own units.
+    THERE IS A SECOND FILTER ON RAW MAGNITUDE. The abnormal channel measures
+    whether a move was UNEXPLAINED, never whether it was LARGE, and the two come
+    apart at the bottom: an instrument that ticked +0.03% while its block went
+    the other way has a residual its own history finds remarkable, and a reader
+    does not. Every event below one times its own usual hour is abnormal-only -
+    240 of 9,069, about eleven a year.
 
     So a move must also clear `min_move_sigma` times the instrument's own
-    sigma_LT - separate from `sensitivity`, because turning rarity down to
-    silence these would silence genuinely small instruments too. A bar with no
-    sigma_LT yet is not filtered: it has not failed the test, it has not taken
-    it.
+    sigma_LT. This is separate from `sensitivity` on purpose: turning rarity down
+    far enough to silence these would silence genuinely small instruments too. A
+    bar with no sigma_LT yet is not filtered - it has not failed the test, it has
+    not taken it.
 
-    AND THE FLOOR IS PER INSTRUMENT, which it did not use to be. The old note
-    here argued one shared number "means the same thing to SHY as to SOL and
-    needs no per-asset table", and in its own units that is true - but it made
-    the floor the one thing in the system that could NOT tell them apart, and by
-    then it was the only thing left that could. A rung is the biggest move in
-    its own lookback, so every instrument clears one about once per lookback
-    whatever its market does; that is what makes the word mean one thing across
-    a digest, and it also means the rungs cannot be what separates a loan ETF
-    from Solana. Measured with one shared floor, the whole basket sat between
-    9.3 and 20.4 events a year - a 2.2x spread across instruments that differ by
-    far more than that. An instrument that keeps producing lines the reader does
-    not want has its own floor raised (`/floor BKLN 2.5` in a private chat with
-    the bot); a block line is floored the same way without copying onto the
-    members (`/floor Base metals 2.5`). The rest are untouched, which a shared
-    knob cannot do.
+    THE FLOOR IS PER INSTRUMENT, and has to be. A rung is the biggest move in its
+    own lookback, so every instrument clears one about once per lookback whatever
+    its market does - that is what makes the word mean one thing across a digest,
+    and it is also why the rungs cannot be what separates a loan ETF from Solana.
+    Under one shared floor the whole basket sits between 9.3 and 20.4 events a
+    year, a 2.2x spread across instruments that differ by far more. An instrument
+    producing lines the reader does not want has its own floor raised (`/floor
+    BKLN 2.5` in a private chat with the bot); a block line is floored the same
+    way without copying onto its members (`/floor Base metals 2.5`).
     """
     if "tier" not in frame:
         raise KeyError("severity.annotate must run before triggers")
@@ -881,10 +860,8 @@ def main(argv: list[str] | None = None) -> int:
     log.info("%s run: %d of %d bars (%.0f%%)",
              "warm" if warm else "cold", kept, whole, 100 * kept / max(whole, 1))
 
-    # No longer reads metrics_basket_hour at all. It used to, for the basket
-    # factor; with that gone SAED depends on nothing cross_section produces, so
-    # the two can run in either order and a cross_section failure can no longer
-    # take the events down with it.
+    # Built here from the per-asset panel, so SAED depends on nothing
+    # cross_section writes to disk and the two can run in either order.
     block_factors = cross_section.block_factors(panel, basket, sigma_panel)
 
     events, alerts, scored = build_for_basket(

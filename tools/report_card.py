@@ -64,10 +64,8 @@ def _asset_for(stem: str, ids) -> str | None:
 def load_events() -> pd.DataFrame:
     """The events as delivered. The channel is read off the table, not recomputed.
 
-    It used to call routing.collapse, which no longer exists - a push is final
-    when it arrives, so nothing moves an event between channels after the fact
-    and the column the pipeline wrote IS the answer. The call had outlived the
-    function and took this tool down with it.
+    A push is final when it arrives, so nothing moves an event between channels
+    after the fact and the column the pipeline wrote IS the answer.
     """
     events = pd.read_parquet(EVENTS_PATH)
     if "channel" in events:
@@ -79,10 +77,8 @@ def per_asset(events: pd.DataFrame):
     """For each instrument: its hours, |r|, coverage, firings and ladder state."""
     day_of = {a.asset_id: sessions.day_tz(a.session_template)
               for a in load_basket().instruments}
-    # One DIRECTORY per instrument, partitioned by year. It used to be one file,
-    # and this tool was still globbing for files: it matched nothing, yielded
-    # nothing, and the caller divided the totals by a zero it had no reason to
-    # expect.
+    # One DIRECTORY per instrument, partitioned by year - globbing for files
+    # here matches nothing and silently yields nothing to divide by.
     for path in sorted(p for p in BARS_DIR.iterdir() if p.is_dir()):
         asset_id = _asset_for(path.name, events["asset_id"].unique())
         if asset_id is None:

@@ -4,14 +4,13 @@ Runs one instrument through the whole phase 1-2 chain: quality gate -> return
 channels -> winsorization -> EWMA Z-score and adaptive thresholds. The result
 goes into metrics_asset_hour (§6.4).
 
-THE HOURLY RUN EXTENDS RATHER THAN RECOMPUTES. It used to do the latter: one new
-bar arrived and all 145,000 were put through the chain again, 249 MB of parquet
-rewritten to add an hour. Every window here is bounded - the longest is sigma_lt
-at windows.SIGMA_LT_BARS, with the EWMA under it converging inside four w_asset -
-so windows.warm_bars of lead-in is enough for the new rows to come out exactly as
-a full run would have them. Measured on SPY, EUR/USD and BTC-USD the largest
-relative difference in any column was 1.8e-14, which is float64 accumulation
-order rather than a disagreement, and the chain runs 5 to 12 times faster.
+THE HOURLY RUN EXTENDS RATHER THAN RECOMPUTES. Every window here is bounded -
+the longest is sigma_lt at windows.SIGMA_LT_BARS, with the EWMA under it
+converging inside four w_asset - so windows.warm_bars of lead-in is enough for
+the new rows to come out exactly as a full run would have them. On SPY, EUR/USD
+and BTC-USD the largest relative difference in any column is 1.8e-14, which is
+float64 accumulation order rather than a disagreement, and the chain runs 5 to 12
+times faster than putting all 145,000 bars through it again.
 
 See extend_asset_metrics for when that is NOT safe and the whole thing is rebuilt
 instead - a changed configuration, a store that does not reach back far enough,

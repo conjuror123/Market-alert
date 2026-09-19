@@ -27,17 +27,13 @@ before the week it forecasts, with a weekend to read it in. A calendar of the
 coming week delivered one minute past the start of that week is a schedule
 handed out after the meeting began.
 
-It used to go out on Friday, and before that on Saturday-or-Sunday by way of a
-test on the feed. That whole apparatus is gone. The old digest was built from the
-LIVE WEEKLY FEED, which serves "this week" without saying where its week starts,
-so the send day had to be one the feed could be expected to have rolled over on -
-and even then it had to be checked and deferred when it had not.
-
-It is built from THE ARCHIVE instead, over a window this module states outright:
-the next whole calendar week, Monday 00:00 UTC to the following Monday 00:00
-UTC. The archive reaches weeks into the future because ForexFactory's monthly
-pages are read into it (see refresh_months), so the coming week is simply looked
-up rather than hoped for, and the window no longer depends on a boundary nobody
+IT IS BUILT FROM THE ARCHIVE, over a window this module states outright: the
+next whole calendar week, Monday 00:00 UTC to the following Monday 00:00 UTC.
+The live weekly feed serves "this week" without saying where its week starts, so
+building from it would tie the send day to a rollover that has to be tested for
+and deferred on. The archive reaches weeks into the future because ForexFactory's
+monthly pages are read into it (see refresh_months), so the coming week is looked
+up rather than hoped for, and the window does not depend on a boundary nobody
 can see. Consecutive windows ABUT EXACTLY: nothing is listed twice and no hour
 of the calendar falls between two digests.
 

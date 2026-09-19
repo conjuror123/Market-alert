@@ -1,19 +1,29 @@
-"""Phase 0: filling the store with hourly bars from 2021 (spec §2.1).
+"""Fetching hourly bars into the store (spec §2.1).
 
-A one-off tool, not part of the hourly run.
+Runs every hour as the second step of the pass, and carries the deepening modes
+that are run by hand.
 
-Two thirds of the basket need not be downloaded again: the currency pairs and
-crypto already sit in data/candle_history/ - the existing monitor accumulated
-them from 2021-01-01. They are imported from NDJSON and only the missing tail is
-fetched; the only instruments pulled from the network in full are the ETFs, which
-the old basket did not contain.
+THE HOURLY PATH asks each instrument only for what it can be missing: the walk
+starts at its newest stored bar minus three hours, and an instrument whose market
+has been shut since that bar is not asked at all (see nothing_can_have_appeared).
+Providers are chosen per instrument by `provider` in config/basket.yaml - Tiingo,
+Yahoo and Coinbase - and only Twelve Data is paced, because only its free tier
+enforces one.
 
-The ETFs are requested as HALF-HOURLY bars and folded into hourly ones on the
-round UTC hour boundary (see bars.to_hourly): their own hourly grid runs on the
-:30 and would not line up with the currency pairs and crypto. This costs no
-credits - the Twelve Data plan counts requests, not rows - but it does require a
-larger window per request: an ETF has about 13 half-hourly bars per trading day,
-so a single 5000-row answer holds more than a year.
+US EQUITY ETFs ARE REQUESTED AS HALF-HOURLY BARS and folded onto the round UTC
+hour (see bars.to_hourly): their own grid runs on the :30 and would not line up
+with the currency pairs and crypto, which would make "the same hour" mean two
+different things in the cross-section. It costs nothing extra - the providers
+count requests, not rows.
+
+THE DEEPENING MODES (--extend-history, --deepen-etfs, --deepen-fx,
+--deepen-dukascopy, --fill-gaps) reach back past what the live providers serve,
+and are routed to `source` rather than `provider`: Yahoo serves 55 days of
+half-hourly bars and Tiingo caps a response at 10000 rows, so only the archive
+provider can answer a walk backwards. An import from HF Data is un-adjusted
+against the declared ex-dates first and then gated on agreeing with the bars
+already stored (see verify_alignment), so a series on a different adjustment
+basis is refused rather than spliced.
 """
 from __future__ import annotations
 
@@ -169,15 +179,12 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
     now = now or datetime.now(timezone.utc)
     end: datetime | None = None
     if stored.empty:
-        # A never-seen instrument. The ordinary hourly run takes ONE chunk of it
-        # - a single credit - and leaves the archive to the deepening workflow.
-        # Asking for the whole history here is what an empty store used to mean,
-        # and at the acquisition floor of 2002 that is about thirty chunks paced
-        # eight seconds apart: four minutes and thirty credits per instrument,
-        # which for a batch of new tickers is hours of wall clock and more than
-        # a day's free-tier budget spent inside a job that is supposed to take
-        # ninety seconds. One chunk gets the instrument producing bars now; depth
-        # is a separate, deliberate act.
+        # A never-seen instrument gets ONE chunk here and leaves the archive to
+        # the deepening workflow. Walking to the 2002 floor is about thirty
+        # chunks paced eight seconds apart - four minutes and thirty credits per
+        # instrument, which for a batch of new tickers is hours of wall clock
+        # inside a job meant to take ninety seconds. One chunk gets the
+        # instrument producing bars now; depth is a separate, deliberate act.
         days = float(CHUNK_DAYS[asset.fetch_interval]) if not extend_history \
             else _days_since(since)
     elif extend_history:
@@ -884,10 +891,10 @@ def main(argv: list[str] | None = None) -> int:
             log.error("HFDATA_API_KEY is not set")
             return 2
         session = requests.Session()
-        # Both versions in one dispatch. "clean" turned out to carry a
-        # cumulative dividend factor - 0.733x of SPY's actual close in 2005 -
-        # and whether "raw" does too is the whole question, so asking one at a
-        # time would just cost a round trip to learn half the answer.
+        # Both versions in one dispatch. "clean" carries a cumulative dividend
+        # factor - 0.733x of SPY's actual close in 2005 - and whether "raw" does
+        # too is the whole question, so asking one at a time would cost a round
+        # trip to learn half the answer.
         for version in ("clean", "raw"):
             try:
                 payload = hfdata.fetch_parquet(args.probe_hfdata, key, session,

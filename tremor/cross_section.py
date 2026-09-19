@@ -141,13 +141,11 @@ def block_factors(panel: pd.DataFrame, basket: Basket,
                   sigma_panel: pd.DataFrame | None = None) -> pd.DataFrame:
     """The own-block factor for each instrument, EXCLUDING the instrument itself.
 
-    THIS IS NOW THE ONLY REGRESSOR. It used to be the second of two, beside a
-    weighted median of the whole basket; that one is gone, because a median
-    cannot carry a factor whose members respond with opposite signs and the
-    equity-rates sign is not even stable across the record. See basket.yaml.
+    THE ONLY REGRESSOR. There is no basket-wide factor beside it: a median
+    cannot carry a factor whose members respond with opposite signs, and the
+    equity-rates sign is not stable across the record. See basket.yaml.
 
-    Why a block factor works where a basket factor did not is the same argument
-    read forwards: in hours when four or more currency pairs fire, 97% of the
+    A block factor works because its members do agree. In hours when four or more currency pairs fire, 97% of the
     time they all agree on the direction of the dollar, and for crypto the
     agreement on residual sign is 100% at the median. Those are not independent
     idiosyncratic moves but one block move, and a module meant to catch
@@ -299,7 +297,7 @@ def _scale_row(sigma_panel: "pd.DataFrame | None", columns: list[str],
     """The per-member scale the block median is taken in, as a 2-D array.
 
     Ones when there is no sigma panel, which reduces the whole construction to
-    the plain median of raw returns it used to be. A sigma that is missing, zero
+    a plain median of raw returns. A sigma that is missing, zero
     or negative becomes NaN rather than one: dividing by a scale we do not have
     would put that member into the median at its raw size, which is the very
     thing standardising is meant to stop.

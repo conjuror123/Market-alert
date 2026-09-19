@@ -96,10 +96,9 @@ _LEGACY_PUSH_IDS = {
 def rehydrate(store: dict) -> None:
     """Puts finished pushes back on the tracked list while they are still editable.
 
-    `sent` used to be a bare hour, so a push that had already checked in had
-    no message id left. New sends store `{hour, id, hash}`; older ones are
-    recovered from that shape, from a leftover tracked row, or from the
-    handful of live ids known before this existed.
+    A send stores `{hour, id, hash}`. A record left in the older bare-hour shape
+    carries no message id, and is recovered from a leftover tracked row or from
+    the handful of live ids known at the time.
     """
     from price_monitor import tremor_delivery
 

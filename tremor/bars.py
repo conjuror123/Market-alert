@@ -48,13 +48,12 @@ SCHEMA = {
 def store_path(base_dir: str, file_stem: str) -> str:
     """Where one instrument's bars live: a DIRECTORY of per-year shards.
 
-    It used to be a single file, and the reason it is not any more is git.
-    Parquet rewrites a file whole, so a one-megabyte store re-commits a whole
-    megabyte to say that one hour arrived; the archive is committed daily, and at
-    sixty-two instruments that was ninety megabytes of new objects a day, about
-    thirty gigabytes a year against a repository already at half a gigabyte and a
-    five-gigabyte soft limit. Sharded by year, only the current year's file
-    changes, and the daily commit is a few hundred kilobytes.
+    Sharded rather than one file per instrument, because of git. Parquet
+    rewrites a file whole, so a one-megabyte store re-commits a whole megabyte to
+    say one hour arrived - at sixty-two instruments committed daily that is about
+    thirty gigabytes a year, against a five-gigabyte soft limit. Sharded by year
+    only the current year's file changes, and the daily commit is a few hundred
+    kilobytes.
 
     The path is still handed around as one string, so nothing above this module
     has to know. `load` also reads the legacy single file where one is still

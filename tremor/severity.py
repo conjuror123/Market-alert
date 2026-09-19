@@ -1,17 +1,12 @@
 """How big is big: severity tiers expressed as return periods.
 
-The detector used to answer one question - did this hour exceed the critical
-value - and every event it produced looked alike. That is the wrong shape for
-the thing being built. A move worth interrupting someone for and a move worth
-a line in Friday's digest are both "significant" against the same null
-hypothesis; they differ in RARITY, and rarity is what the recipient actually
-reasons about.
-
-So the output is no longer a boolean, it is a tier, and the tiers are return
-periods: how long you would ordinarily wait to see a move this large in THIS
-instrument. "The largest idiosyncratic move in BTC since March 2023" needs no
-calibration intuition to read. A 1-to-100 importance score does, and nobody
-ever builds it.
+The output is a tier, and the tiers are return periods: how long you would
+ordinarily wait to see a move this large in THIS instrument. A move worth
+interrupting someone for and a move worth a line in the weekly note are both
+"significant" against the same null hypothesis; what separates them is RARITY,
+which is what the recipient actually reasons about. "The largest idiosyncratic
+move in BTC since March 2023" needs no calibration intuition to read; a 1-to-100
+importance score does.
 
 Return periods also solve the comparison problem for free. A 1.5% day is
 unremarkable for SOL and a once-a-year event for SHY; the same percentage
@@ -20,8 +15,7 @@ everywhere. That is the whole reason the hydrology and insurance literature
 states extremes this way rather than in raw units.
 
 THE RUNG IS A SIZE; THE MESSAGE IS A DATE. Two different questions, answered
-separately, and conflating them is what the last two versions of this file each
-got wrong in their own way.
+separately - conflating them produces a message that contradicts itself.
 
   the rung   how big was this move, in the instrument's own terms - |r| over its
              own long-run sigma, against a threshold set per BLOCK. Monotone by

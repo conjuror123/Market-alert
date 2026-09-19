@@ -1,15 +1,9 @@
 """Configuration: YAML file defaults, overridable by environment variable.
 
-This used to be a large file. It carried a list of sixteen assets and, for each
-of them, its own dial on every threshold the old per-asset detector had - one
-global compromise being no use when an equity-index future's volume seasonality
-and a currency pair's stale-quote noise are not the same problem with the same
-fix. That detector is gone (see price_monitor/__main__.py) and Tremor keeps its
-own basket in config/basket.yaml, per instrument, in a form that does not need a
-threshold typed in by hand at all.
-
-What is left is what the delivery pass needs: who to message, where the state
-and the event tables live, and the two mutes.
+Deliberately small. The basket lives in config/basket.yaml, per instrument, in
+a form that needs no threshold typed in by hand; what is here is what the
+delivery pass needs and nothing else - who to message, where the state and event
+tables live, and the two mutes.
 """
 from __future__ import annotations
 

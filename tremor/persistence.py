@@ -21,20 +21,19 @@ abnormal return on the event bar itself:
 
 so 1.0 means the move held exactly, 0.0 means it gave everything back, above
 1.0 means it kept going, and below 0.0 means it overshot the way back. Nothing
-is being predicted here - it is measured after the fact, and that is why it no
-longer decides anything. It used to gate the tiers that were not urgent: a move
-that gave everything back took no line. The cost was silence for as long as the
-answer took to arrive, so every message now goes out at once and this is written
-onto it afterwards as an edit (see tremor.routing and price_monitor.follow_up).
-It reports; it does not suppress.
+is being predicted here - it is measured after the fact, which is why it decides
+nothing. Gating on it would buy silence for as long as the answer took to
+arrive; instead every message goes out at once and this is written onto it
+afterwards as an edit (see tremor.routing and price_monitor.follow_up). It
+reports; it does not suppress.
 
-Two check-ins, and neither is a number of hours. Both are moments on the
+TWO CHECK-INS, AND NEITHER IS A NUMBER OF HOURS. Both are moments on the
 instrument's own trading calendar: the close of the day the move happened, and
-the close of the next day it trades. Bar counts were tried and dropped - see the
-comment on HORIZONS - because a closed market cannot revert, and because six
-bars is most of a session in an ETF and a quarter of a day in crypto. The event
-automaton counts days off the same calendar, and the first check-in therefore
-lands exactly when the instrument becomes eligible to fire again.
+the close of the next day it trades. A closed market cannot revert, and a bar
+count asks a different question of each instrument - six bars is most of a
+session in an ETF and a quarter of a day in crypto. The event automaton counts
+days off the same calendar, so the first check-in lands exactly when the
+instrument becomes eligible to fire again.
 
 Abnormal and raw are both recorded because they answer different questions.
 The abnormal one is the honest test of what the detector claimed: it fired on
@@ -48,13 +47,10 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-# TWO CHECK-INS, AND NEITHER IS A NUMBER OF BARS. They used to be: two bars,
-# six bars, and a settled reading. A bar count asks a different question of each
-# instrument - six bars is most of a session in an ETF and a quarter of a day in
-# crypto - and it gives the reader an appointment they cannot picture. Both are
-# now moments on the instrument's own calendar, and both are sentences anyone
-# can hold: how the move stood when THIS day closed, and how it stood when the
-# NEXT one did.
+# Both are moments on the instrument's own calendar, and both are sentences
+# anyone can hold: how the move stood when THIS day closed, and how it stood when
+# the NEXT one did. A bar count would give the reader an appointment they cannot
+# picture.
 TODAY = "today"
 SETTLED = "settled"
 HORIZONS: tuple = (TODAY, SETTLED)

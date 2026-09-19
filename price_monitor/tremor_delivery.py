@@ -15,12 +15,12 @@ new message and stays silent on an edit, so the whole arrangement costs exactly
 two interruptions a week: one when each note opens.
 
 EVERY MESSAGE IS CORRECTED IN PLACE. Neither kind waits for the market to
-answer, so both say what they are waiting for: a push carries the two-bar,
-six-bar and settled check-ins with the moment each is due, a digest row carries
-the settled one. When an answer lands the message is edited (see follow_up.py
-for pushes, _write_digest here for notes), which is why a move that fully
-reverted is no longer hidden - by the time that is known it is already on the
-reader's phone, and unsending is not a thing Telegram can do.
+answer, so both say what they are waiting for: a push carries both check-ins -
+this day's close and the next day's - with the moment each is due, a digest row
+carries the settled one. When an answer lands the message is edited (see
+follow_up.py for pushes, _write_digest here for notes). A move that fully
+reverted is therefore reported rather than hidden: by the time that is known it
+is already on the reader's phone, and unsending is not a thing Telegram can do.
 
 NOTHING IS REMEMBERED ABOUT A NOTE EXCEPT ITS MESSAGE IDS. It is rendered whole
 from the events table every run and edited only when the text actually changed,
@@ -132,22 +132,11 @@ def format_day(when: datetime) -> str:
 # calibration intuition, and it tells them something the rung alone does not -
 # how long it has been since this instrument last moved this far.
 #
-# This reverses an earlier decision, and the reversal is the point. The wording
-# used to be a frequency - "about once in six years" - specifically BECAUSE the
-# ladder could not support a record claim: it was a Generalised Pareto tail
-# extrapolated to the rung, so it said a move this size was expected about once
-# in six years on average, and a record claim over the top of that flatly
-# contradicted the line beneath it ("biggest move in about three years" over
-# "the last one this big was 23 days ago"). The frequency was the honest reading
-# of that estimator.
-#
-# The estimator is gone (see tremor.severity). A rung is now literally the
-# largest move in its own lookback, so the record claim is the one that is true
-# and the contradiction cannot arise: the span printed here IS the bar the level
-# was measured against. And the frequency claim it replaces was wrong in a way
-# nobody could see - the top rung fired 1.75 times as often as its words
-# promised, and the same level refitted on different six-year windows moved by a
-# factor of three.
+# NOT A FREQUENCY. A rung is literally the largest move in its own lookback (see
+# tremor.severity), so the span printed here IS the bar the level was measured
+# against. A rate would also contradict the line beneath it: "about once in six
+# years" sitting over "the last one this big was 23 days ago" asks the reader to
+# believe both.
 def _days_ago(event: dict) -> "int | None":
     """How many calendar days sit between this hour and the last matching bar."""
     since = event.get("record_since")
@@ -190,10 +179,8 @@ def record_phrase(event: dict) -> str:
 # the market accounted for perfectly - so the second says "biggest move OF ITS
 # OWN in about a year", which needs no glossary.
 #
-# It replaces "(not explained by the rest of the market)", and then "(more than
-# the market explains)", both of which asked the reader to hold an idea nobody
-# had defined for them. The idea is now shown instead of named, one line down,
-# in the units they are already reading: see _market_share_note.
+# The idea is shown rather than named, one line down, in the units the reader is
+# already reading: see _market_share_note.
 BASIS_NOUN = {
     "abnormal": "the biggest move of its own",
     "absolute": "the biggest move",
@@ -332,7 +319,7 @@ def _split_lines(event: dict, label: str, tier: str = "",
     largest it was usually just a proxy for the block anyway. What replaced it is
     not "nothing" but narrower, more honest blocks: eleven sectors where there
     was one equity bucket, credit separated from Treasuries, and four commodity
-    blocks where gold and crude used to share one median.
+    blocks, because gold and crude cannot share one median.
     """
     move = _clean(event.get("r"))
     own = _clean(event.get("e_resid"))
@@ -477,11 +464,6 @@ def load_events(cfg: Config) -> "list[dict]":
     Returns an empty list rather than raising when the parquet file is absent.
     It is produced by python -m tremor.saed, and the hourly monitoring run must
     not fall over because a pipeline step has not been run yet.
-
-    A second path used to be read here, for a market-wide channel that
-    tremor.market produced. It was never wired into the hourly run, so the file
-    never existed and this always loaded one table; the module and the basis it
-    carried are gone.
     """
     paths = [cfg.tremor_events_path]
     if not any(os.path.exists(p) for p in paths):
@@ -698,9 +680,9 @@ def describe(event: dict, labels: dict[str, str],
     asset_id = str(event.get("asset_id", ""))
     label = labels.get(asset_id) or asset_id.split(":")[-1]
     move = _clean(event.get("r"))
-    # The ticker leads. It is what the reader will type into a chart, and it is
-    # the only name that is the same everywhere. The move joins it on the same
-    # line: it is the first thing anyone wants and it used to be on the second.
+    # The ticker leads: it is what the reader types into a chart and the only
+    # name that is the same everywhere. The move shares that line, because it is
+    # the first thing anyone wants.
     shown = f" {move * 100:+.2f}%" if move is not None else ""
     parts = [f"{emoji} <b>{_escape(_ticker(asset_id))}</b> · "
              f"{_escape(label)}{shown}"]
@@ -752,23 +734,21 @@ def _block_move_phrase(block: str, move: "float | None") -> str:
 # This is where it becomes a line in a message.
 #
 # WHY THE DAILY INDEX AND NOT AN HOURLY PRODUCT. Twelve Data does not carry the
-# VIX index at all, and the tradable futures ETF that tracks it was tried as an
-# instrument and removed - see config/basket.yaml for the measurements. What a
-# reader wants here is the regime, and a regime is slow: an index that updates
+# VIX index at all, and the tradable futures ETF that tracks it does not stand in
+# for it - see config/basket.yaml for the measurements. What a reader wants here
+# is the regime, and a regime is slow: an index that updates
 # once a day and reaches back to 1990 describes it better than a decaying
 # futures product that starts in 2011.
 #
-# Daily is not the same as late, and the two were confused here for a while. The
-# file is still named for FRED because that is where its history came from, but
-# it is now the union of FRED and CBOE's own daily file (see tremor.cboe): the
-# exchange posts the close the same evening, so the gauge no longer sits three
-# calendar days behind across a weekend.
+# The file is named for FRED because that is where its history came from; it
+# holds the union of FRED and CBOE's own daily file (see tremor.cboe). CBOE
+# posts the close the same evening, which is what keeps the gauge from sitting
+# three calendar days behind across a weekend.
 VIX_PATH = os.path.join("data", "tremor", "vix", "fred_VIXCLS.parquet")
 
 # Below this the two readings are called unchanged rather than given a
 # direction. A tenth is about the daily noise of the index, and "up from 15.9"
 # on a reading of 16.1 is a direction that is not there.
-# Below this the two readings used to be called unchanged.
 VIX_FLAT = 0.10
 
 
@@ -936,9 +916,9 @@ def _describe_block(event: dict, headline: str, emoji: str, when: datetime,
 # zero high-impact events and three at the ninetieth percentile, so the line
 # stays readable.
 CALENDAR_LOOKBACK_HOURS = 2
-# And an hour AFTER. A release five minutes after the hour closed is a cause,
-# not a coincidence, and the window used to end exactly where the move did,
-# which excluded precisely the releases a reader would blame first.
+# And an hour AFTER: a release five minutes after the hour closed is a cause,
+# not a coincidence, and a window ending where the move does excludes precisely
+# the releases a reader would blame first.
 #
 # This costs no waiting. The archive is a SCHEDULE, not a log: it carries the
 # releases announced ahead of time, currently a few hundred of them reaching
@@ -952,13 +932,10 @@ CALENDAR_LOOKAHEAD_HOURS = 1
 # bank holidays and minor prints, and naming those would turn the most important
 # line of the most important message into noise.
 #
-# Adding Medium was measured before it was done. Over every event in the record
-# that the archive covers, the three-hour window holds a median of two
-# High-or-Medium releases against one High, six at the ninetieth percentile
-# against four, and fourteen at the very worst against twelve - so the line
-# roughly doubles from short to short, and 24% of events still have nothing
-# scheduled around them at all, which is the more interesting half of the
-# answer.
+# Medium earns its place without flooding the line: over the record the
+# three-hour window holds a median of two High-or-Medium releases against one
+# High alone, six at the ninetieth percentile against four, and fourteen at the
+# worst against twelve. 24% of events still have nothing scheduled around them.
 #
 # All of them are listed rather than capped: "and two more" would hide the tail
 # of a busy morning, which on a busy morning is the half worth reading.
@@ -969,15 +946,11 @@ def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
     """What was scheduled around the move - before it and just after.
 
     Naming the release tells the reader the move has a known cause and they can
-    stop looking for one. NOTHING IS PRINTED WHEN NOTHING WAS SCHEDULED, which
-    reverses an earlier rule and is worth saying why. The old line read "none
-    scheduled", on the argument that the absence is the more interesting half -
-    55% of pushes in the record have no Medium or High release in the window,
-    and an unexplained move is exactly what this system exists to find. That is
-    true of the STATISTIC and false of the MESSAGE: on more than half of all
-    messages it was a line that said nothing had happened, and a line that
-    usually says nothing stops being read, taking the half that does say
-    something with it. Silence carries the same fact in no space at all.
+    stop looking for one. NOTHING IS PRINTED WHEN NOTHING WAS SCHEDULED. 55% of
+    pushes have no Medium or High release in the window, so a "none scheduled"
+    line would appear on more than half of all messages - and a line that usually
+    says nothing stops being read, taking the half that does say something with
+    it. Silence carries the same fact in no space at all.
     """
     # An empty archive is not evidence of a quiet three hours: it cannot tell
     # "nothing was scheduled" from "nothing was loaded", and only one of those
@@ -1170,13 +1143,11 @@ def format_push(event: dict, labels: dict[str, str],
     Ordered so the reader meets one instrument first and the day second: the
     move written out in full, then the news scheduled around it.
 
-    ONE INSTRUMENT, and only one. A push used to speak for every other move of
-    its day, because a second push inside the day was folded into it rather than
-    sent. Nothing is folded now - a push is final when it arrives - so each one
-    is its own story and the day assembles itself out of however many arrive.
-    The fear gauge lives on the digest note, not here: a standalone alert is
-    already one instrument's story, and repeating the regime on every major
-    and every block duplicated a line the running note already carries.
+    ONE INSTRUMENT, and only one. A push is final when it arrives - nothing is
+    folded into it - so each is its own story and the day assembles itself out
+    of however many arrive. The fear gauge lives on the digest note rather than
+    here: a standalone alert is already one instrument's story, and the running
+    note carries the regime once for all of them.
     """
     lines = [describe(event, labels, now, events, rate_history)]
     context = calendar_context(int(event["hour_utc"]), calendar)
@@ -1366,13 +1337,11 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
                   rate_history: "list[dict] | None" = None) -> "list[str]":
     """One note, whole, split into parts Telegram will accept.
 
-    ORDERED BY TIME, and by rarity only inside an hour. The note used to lead
-    with its rarest row wherever it fell, on the argument that a notification
-    preview should show the most important line - but the note does not notify,
-    the ping does, so that argument was buying nothing and costing the thing a
-    record is for. A period read top to bottom now runs in the order it
-    happened, and two moves in the same hour are the one case where time cannot
-    separate them, so the rarer goes first.
+    ORDERED BY TIME, and by rarity only inside an hour. A note is a record, so a
+    period read top to bottom runs in the order it happened; leading with the
+    rarest row would buy nothing, because the note does not notify - the ping
+    does. Two moves in the same hour are the one case time cannot separate, and
+    there the rarer goes first.
 
     The order runs ACROSS the parts, not within each. A long note is cut into
     several messages, and sorting each part on its own would restart the clock
@@ -1850,11 +1819,9 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         sent[str(event["event_id"])] = {
             "hour": int(event["hour_utc"]), "id": int(message_id), "hash": mark,
         }
-        # Remembered so the two-bar, six-bar and settled check-ins can edit
-        # this very message rather than sending three more. Kept until
-        # TRACK_HOURS even after both check-ins land, so a copy tweak can
-        # still rewrite a finished push (XLF sat on the old template because
-        # tracking was dropped the hour the settled line arrived).
+        # Remembered so both check-ins edit this very message rather than
+        # sending more. Kept until TRACK_HOURS even after both have landed, so a
+        # copy change can still rewrite a finished push.
         follow_up.track(store, event, message_id, mark)
         save_state(cfg.state_path, state)
         pushed += 1
@@ -1890,18 +1857,16 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     for slot in sorted(notes):
         record, rows = notes[slot]
         # A NOTE NEVER UN-SAYS SOMETHING. It is rendered whole from the events
-        # table every run, which is what lets a late event simply appear and a
-        # recomputed-away one simply go - and that is right for one row among
-        # several. It is not right for ALL of them: a change to what qualifies
-        # (a retuned ladder, a moved threshold) can empty a note the reader has
-        # already read and already been pinged about, which reads as the bot
-        # forgetting rather than correcting. Measured once, live: a note showing
-        # two moves went back to "Nothing so far" the run after the rungs
-        # changed.
+        # table every run, which is what lets a late event appear and a
+        # recomputed-away one go - right for one row among several, wrong for
+        # all of them at once. A change to what qualifies (a retuned ladder, a
+        # moved floor) can otherwise empty a note the reader has already read
+        # and been pinged about, which reads as forgetting rather than
+        # correcting.
         #
         # So a note that has had rows keeps them until its period closes. A
-        # genuine recompute that drops one row of three still shows, because the
-        # note is not empty; only the all-or-nothing case is held.
+        # recompute dropping one row of three still shows; only the
+        # all-or-nothing case is held.
         if not rows and record.get("rows"):
             log.info("Digest %s: recomputed to nothing, keeping the %d row(s) "
                      "already published", slot, record["rows"])

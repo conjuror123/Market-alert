@@ -1,16 +1,6 @@
 """One hourly pass: deliver what Tremor found, and say so if something broke.
 
-This module used to be the detector. It fetched sixteen assets, scored each one
-against its own recent history with a pair of z-scores, and messaged when either
-crossed a threshold. Tremor replaced that - not refined it, replaced it - and the
-old signals were switched off long before they were removed, so their absence
-here is the end of a migration rather than a loss of function. What they did
-badly is on the record in docs/decisions.md: one threshold shared by
-every instrument, so a 1.5% hour meant the same thing in SHY as in SOL; nothing
-to say how rare a move was once it fired; and no way to tell an instrument moving
-on its own from the whole market moving together.
-
-What is left is a delivery pass. Four things run, none of which decide anything:
+Detection lives in `tremor`; this module decides nothing. Four things run:
 
   a daily top-up of the economic-calendar archive from the live weekly feed.
   Not for the digest, which refreshes the archive itself when it sends, but for

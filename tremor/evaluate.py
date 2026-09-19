@@ -1,17 +1,8 @@
 """Scoring helpers, and the report on the detector that is actually delivered.
 
-WHAT LEFT THIS FILE. It used to be the evaluation of the SI-Index cluster
-detector: episode labelling from tremor.truth, a per-block precision/recall
-table, a diagnostics section on the basket's own derived columns, and a
-walk-forward comparison against baselines. Every one of those described a
-detector whose output no module ever read - see the deletion that removed
-tremor.cluster and tremor.si_index - so the report was a careful measurement
-of something nobody received.
-
-WHAT STAYED. Two things. The episode and cooldown helpers below, which are
-about how you score ANY detector of bursty events and are used by the scorer
-for the live one; and the entry point, which now renders that scorer's report
-and nothing else.
+Two things live here: the episode and cooldown helpers below, which are about
+how you score ANY detector of bursty events and are used by the scorer for the
+live one, and the entry point, which renders that scorer's report.
 
 RECALL IS PER EPISODE, NOT PER HOUR, and that is the reason these helpers are
 worth keeping. A detector holds a cooldown after it fires, so per-hour recall

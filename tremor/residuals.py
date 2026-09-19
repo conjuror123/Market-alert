@@ -14,21 +14,18 @@ and only the residual e goes forward. Beta is estimated on a rolling window and
 strictly on data BEFORE the current bar - otherwise the very move we are trying
 to detect would adjust the coefficient and partly subtract itself from itself.
 
-ONE FACTOR, NOT TWO. There used to be a second regressor in front of this one, a
-weighted median of the whole basket meant to carry the "everything de-risks at
-once" move. It is gone. A median cannot carry that factor, because that factor
-has signs - equities down, Treasuries up, gold up - and a median stands for a
-common move only where its members share one. On the days the cross-asset factor
-was strongest, stocks and bonds cancelled inside it and it read near zero; and
-the stock-bond sign is not a constant that could be hard-coded, having run -0.66
-in 2002 and flipped to +0.43 by 2026. The whole argument, with the measurements,
-is in config/basket.yaml.
+ONE FACTOR, NOT TWO. There is no basket-wide regressor in front of the block
+factor, and a weighted median cannot be one: the "everything de-risks at once"
+move has SIGNS - equities down, Treasuries up, gold up - and a median stands for
+a common move only where its members share one. On the days that factor is
+strongest, stocks and bonds cancel inside it and it reads near zero. Nor can the
+stock-bond sign be hard-coded: it ran -0.66 in 2002 and +0.43 by 2026. The
+measurements are in config/basket.yaml.
 
-What replaced it is not "nothing" but narrower blocks: eleven GICS sectors where
-there was one equity block, a credit block that finally holds credit, four
-commodity blocks where there was one. A block factor only has to represent the
-instruments inside it, which is a claim the composition can be chosen to make
-true.
+Narrower blocks carry it instead: eleven GICS sectors where there was one equity
+block, a credit block that holds credit, four commodity blocks. A block factor
+only has to represent the instruments inside it, which is a claim the composition
+can be chosen to make true.
 
 The residual is processed by the same §3.1 machinery as the price, but with
 entirely ITS OWN states: its own EWMA, its own long-term sigma, its own smoothed

@@ -14,27 +14,21 @@ ForexFactory itself, through its monthly pages (fetch_forexfactory_month). One
 source for the whole history - and that is its main property, more important than
 completeness.
 
-Third-party sources were all tried and all dropped. First three ready-made
-ForexFactory dumps from GitHub and Hugging Face: in the archive assembled from
-them a quarter of the High and Medium events turned out to be duplicates of the
-same event within a day, with a dominant shift of exactly seven hours - the dumps
-had been collected under different timezone conventions. Then the "Global
-Economic Calendar" dataset on Kaggle: its times were fine, but its TAXONOMY was
-not. It handed out the Medium label nine times more freely than ForexFactory
-itself: 96.9 events a week against 11.3 over the same period, while High matched
-for both (13.0 and 13.4). An archive built from two sources acquired a seam
-exactly where one gave way to the other: the Tremor calendar multiplier (§4.3) was
-on in 90.7% of hours across the Kaggle half and 53.2% across the ForexFactory
-half.
+ONE SOURCE FOR THE WHOLE HISTORY, which matters more than completeness. Mixing
+feeds puts a seam in the archive exactly where one gives way to the other, and
+two kinds of seam are easy to acquire. Ready-made ForexFactory dumps are
+collected under different timezone conventions, which leaves a quarter of the
+High and Medium events as same-day duplicates shifted by seven hours. And
+taxonomies disagree: the Kaggle "Global Economic Calendar" hands out the Medium
+label nine times more freely than ForexFactory (96.9 events a week against 11.3)
+while agreeing on High (13.0 against 13.4), so an archive spanning both is
+generous in one half and frugal in the other.
 
-For calibration that is worse than gaps. The §7 train period would lie entirely
-in the generous half while the work would run on the frugal one - the thresholds
-would settle on one regime and be applied in another, with nothing in the metrics
-to reveal it.
+For calibration (§7) that is worse than gaps - thresholds settle on one regime
+and are applied in another, with nothing in the metrics to reveal it.
 
-The price of a single source is losing Low events: ForexFactory has an order of
-magnitude fewer of them than Kaggle had. In substance that price is zero: the
-§4.3 multiplier uses only High and Medium, and Low takes no part in it at all.
+The price of a single source is Low events, of which ForexFactory has an order of
+magnitude fewer. That price is zero in substance: only High and Medium are used.
 """
 from __future__ import annotations
 
@@ -58,9 +52,8 @@ CALENDAR_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 
 # The whole point of the archive is giving backtests calendar context around
 # price moves, so the floor follows the price history rather than leading it:
-# an event with no bars to sit beside is dead weight. It has moved twice for
-# that reason, and this is the second - the Tremor bar store now reaches 2002
-# for the ETFs and 2003 for the currency pairs, where it used to start in 2015.
+# an event with no bars to sit beside is dead weight. The bar store reaches 2002
+# for the ETFs and 2003 for the currency pairs, so the floor follows that.
 #
 # It stops at 2007-01 rather than following the bars all the way down because
 # that is where FOREXFACTORY stops: probed month by month, 2006 returns nothing
@@ -170,9 +163,8 @@ def fetch_calendar(session: requests.Session | None = None, timeout: int = 15) -
                 "title": item["title"],
                 "country": item["country"],
                 # Normalised to UTC, like both historical branches: the feed
-                # serves a fixed -04:00 offset, and keeping two records of the
-                # same moment in different packaging would create exactly the
-                # shifted copy that got the old archive thrown away.
+                # serves a fixed -04:00 offset, and two records of the same
+                # moment in different packaging are two events to the dedup key.
                 "date": parse_event_time(item["date"]).isoformat(),
                 "impact": _normalize_impact(item["impact"]),
                 "forecast": item.get("forecast", ""),
@@ -221,10 +213,8 @@ def _event_key(event: dict) -> tuple:
 
     The moment, not the date string. Sources record one and the same moment
     differently: the weekly feed serves "2026-09-03T08:30:00-04:00", the monthly
-    pages and the dataset "2026-09-03T12:30:00+00:00". By string those are two
-    different events, and the archive would collect every release twice - exactly
-    the breakage that forced the old archive to be thrown away entirely (see the
-    module docstring).
+    pages "2026-09-03T12:30:00+00:00". By string those are two different events,
+    and the archive would collect every release twice.
     """
     return (event["country"], event["title"],
             parse_event_time(event["date"]).timestamp())
@@ -304,8 +294,7 @@ def _request(url: str, timeout: int, session: requests.Session | None = None,
 
 # ForexFactory serves a whole month at an address of the form ?month=mar.2026,
 # and the data sits right inside the page as ready JSON. The times in it are unix
-# timestamps, that is, unambiguous: the very ambiguity that ruined the old archive
-# is absent here by construction.
+# timestamps - unambiguous by construction, which is what the dedup key needs.
 #
 # The market-calendar-tool library is no good for this: it first hits the internal
 # /calendar/apply-settings to set the display timezone, and that answers 403. The
@@ -436,8 +425,8 @@ def main() -> int:
     session = requests.Session()
 
     if args.rebuild:
-        # The old archive is thrown away whole rather than added to: mixing the
-        # taxonomies of two sources is exactly what this rebuild exists to escape.
+        # Thrown away whole rather than added to: a rebuild exists to escape a
+        # mixed-taxonomy archive, and merging into one would preserve it.
         if os.path.exists(path):
             os.remove(path)
             log.info("Old archive removed")

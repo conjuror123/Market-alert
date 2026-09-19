@@ -184,12 +184,11 @@ def day_tz(template: str, tz_name: str = EXCHANGE_TZ) -> "str | None":
     when an instrument becomes eligible to fire again, and where a block's day
     ends, and those three drifting apart would be invisible.
 
-    A CURRENCY PAIR TAKES THE UTC DAY TOO, and that is a measured choice rather
-    than an oversight. The FX day properly rolls at 17:00 in New York - the bars
-    themselves keep that week, Sunday 17:00 through Friday 16:00 - so the
-    convention was tried. It is no better and it is worse where it fails. Over
-    the whole record each rule leaves exactly two currency repeats inside
-    thirteen hours; the UTC day splits an overnight story at midnight (the
+    A CURRENCY PAIR TAKES THE UTC DAY TOO, which is a measured choice rather
+    than an oversight. The FX day properly rolls at 17:00 in New York, and the
+    bars themselves keep that week (Sunday 17:00 through Friday 16:00) - but
+    that boundary is no better here and worse where it fails. Over the whole
+    record each rule leaves exactly two currency repeats inside thirteen hours; the UTC day splits an overnight story at midnight (the
     referendum result reached the market at 21:00 UTC on 23 June 2016 and
     sterling was still falling at 01:00), and the 17:00 roll splits USD/CNH
     between two CONSECUTIVE bars, because 17:00 in New York is not the quiet

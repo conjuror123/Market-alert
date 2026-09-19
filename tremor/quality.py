@@ -10,11 +10,10 @@ question "does this bar take part in the calculations":
   asset's trading session are excluded from EWMA, volume, CSV, PCA and the
   cluster shift.
 
-The second turned out not to be a formality. The source keeps serving bars after
-a half session closes: on 26 November 2021 the exchange closed at 13:00 New York
-time, yet bars for 14:00 and 15:00 arrived anyway - with zero volume and a
-creeping price. Without the session filter those hours would have entered the
-EWMA state and the volume profile as genuine trading.
+The second is not a formality. Sources keep serving bars after a half session
+closes - on 26 November 2021 the exchange shut at 13:00 New York time and bars
+for 14:00 and 15:00 arrived anyway, with zero volume and a creeping price.
+Without the session filter those hours enter the EWMA state as genuine trading.
 """
 from __future__ import annotations
 

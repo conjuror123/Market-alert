@@ -162,11 +162,11 @@ def _request(
                     high=float(v["high"]),
                     low=float(v["low"]),
                     close=float(v["close"]),
-                    # Spot FX arrives without volume (no provider has a
-                    # consolidated exchange volume for it), while ETFs arrive with
-                    # the real thing. This used to be a hard-coded zero: correct
-                    # for currency pairs, but for ETFs it silently discarded real
-                    # data on which the §3.5 volume profile is built.
+                    # Spot FX arrives without volume - no provider has a
+                    # consolidated exchange volume for it - while ETFs arrive
+                    # with the real thing. Defaulting to zero rather than
+                    # hard-coding it keeps the ETF figure the §3.5 volume profile
+                    # is built on.
                     volume=float(v.get("volume") or 0.0),
                     close_time=int(_parse_datetime(v["datetime"]).timestamp()) + granularity_seconds,
                 )
@@ -280,12 +280,11 @@ def fetch_full_history(
             # and nothing further back can exist either - so stop asking.
             break
         except ExchangeError as exc:
-            # Anything else: keep what the earlier chunks already cost. This
-            # used to propagate, and the whole dict went with it - a walk from
-            # 2026 back to 2015 that succeeded for five years and then hit one
-            # bad chunk returned NOTHING, discarding every candle fetched and
-            # every credit spent on them. A short history is recoverable on the
-            # next run; a spent daily quota is not.
+            # Anything else: keep what the earlier chunks already cost. A walk
+            # from 2026 back to 2015 that succeeds for five years and then hits
+            # one bad chunk must not discard every candle fetched and every
+            # credit spent on them. A short history is recoverable on the next
+            # run; a spent daily quota is not.
             log.warning("%s: stopping the history walk at %s: %s",
                         symbol, chunk_start.date(), exc)
             break
