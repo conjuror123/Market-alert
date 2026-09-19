@@ -1,0 +1,105 @@
+# Bring Telegram back into line with the events table, by hand.
+#
+# Delivery keeps the two in step going forward; it cannot undo what an earlier
+# version of the detector already sent. A scoring fix changes the past, and
+# messages stay on the phone claiming things the table no longer says. This
+# deletes the pushes among them - see price_monitor/reconcile.py for what
+# qualifies and why a note is left alone.
+#
+# DRY RUN BY DEFAULT. Deleting a Telegram message cannot be undone, so the
+# default prints the plan and changes nothing. Run it once to read the plan,
+# then again with apply ticked.
+name: Reconcile Telegram with the events table
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Actually delete (unticked = print the plan and stop)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+# The same group as the hourly run: this edits data/state.json, and two writers
+# would lose one of the two sets of edits.
+concurrency:
+  group: price-monitor
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore gitignored Tremor parquet
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            data/tremor/metrics
+            data/tremor/saed_events_archive.parquet
+          key: tremor-derived-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            tremor-derived-${{ github.ref_name }}-
+
+      # The events table is gitignored, so it has to be rebuilt here before
+      # anything can be compared against it.
+      #
+      # BACKFILL FIRST, and it is load-bearing rather than tidy. The bars are
+      # committed weekly, so a checkout mid-week is up to seven days behind;
+      # rebuilding from it would produce a table with the last few days missing,
+      # and every push in those days would look like an event that had vanished.
+      # This deletes messages - judging them against a stale table would delete
+      # perfectly good ones.
+      - name: Bring the bars up to date and rebuild the events table
+        env:
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: |
+          python -m tremor.backfill
+          python -m tremor.pipeline
+          python -m tremor.saed
+
+      - name: Reconcile
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_HEALTH_CHAT_ID: ${{ secrets.TELEGRAM_HEALTH_CHAT_ID }}
+        run: |
+          python -m price_monitor.reconcile ${{ inputs.apply && '--apply' || '' }}
+
+      - name: Commit the state it changed
+        if: ${{ inputs.apply }}
+        run: |
+          git config user.name "price-monitor-bot"
+          git config user.email "actions@github.com"
+          git add data/state.json
+          if git diff --cached --quiet; then
+            echo "Nothing was deleted, so there is no state to commit."
+          else
+            git commit -m "chore: reconcile telegram with the events table [skip ci]"
+            for attempt in 1 2 3 4 5; do
+              if git push origin "HEAD:${{ github.ref_name }}"; then
+                echo "pushed on attempt $attempt"
+                exit 0
+              fi
+              git pull --rebase origin "${{ github.ref_name }}" || exit 1
+              sleep $((attempt * 3))
+            done
+            echo "::error::could not push the reconciled state after 5 attempts"
+            exit 1
+          fi

@@ -118,6 +118,23 @@ in the same message; a 404 stays a per-instrument dark.
 can increment one. If the trigger stops, nothing in the repository will say so; the
 cron-job.org email is the only thing that would. A watchdog is designed and not built.
 
+### After a scoring fix: reconciling what was already sent
+
+Delivery keeps Telegram and the events table in step going forward. It cannot undo what an
+earlier version of the detector sent, and a fix to the scoring changes the past — so
+messages stay on the phone claiming things the table no longer says.
+
+`python -m price_monitor.reconcile` prints what disagrees. It deletes a **push** in two
+cases: the event is gone from the table, or it is still there but is no longer a push, in
+which case the note for its period already carries it and the reader has it twice. Nothing
+is lost either way. Notes are only reported on, never rewritten — a note re-renders from
+the table on every run and is edited in place, silently, so it converges by itself.
+
+Dry run by default; `--apply` carries it out, and the **Reconcile Telegram with the events
+table** workflow runs it with the bot token. Deleting is best-effort: in a private chat a
+bot may only delete its own message within 48 hours, so an older one stays and is reported
+rather than silently declared handled.
+
 ---
 
 ## Silence is the normal state

@@ -1420,8 +1420,17 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
         messages[-1] += "\n\n" + basket_footer()
 
     if len(messages) > 1:
+        # THE PART MARKER NAMES ITS NOTE. Only the first part carries the
+        # header, so a later part read on its own is a wall of event lines
+        # ending in "part 2 of 3" with nothing saying of what. That is not
+        # hypothetical: when a closed note gained parts they landed BELOW the
+        # note that had already replaced it, and the reader got two orphans
+        # under the wrong week. The bound in maybe_deliver stops a note growing
+        # once it is closed; this makes any part that does get split legible on
+        # its own, wherever it ends up in the scroll.
         total = len(messages)
-        messages = [f"{m}\n\n<i>part {i} of {total}</i>"
+        period = f"{format_day(opened)} to {format_day(last)}"
+        messages = [f"{m}\n\n<i>part {i} of {total} - {period}</i>"
                     for i, m in enumerate(messages, 1)]
     return messages
 

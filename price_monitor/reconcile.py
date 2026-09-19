@@ -1,0 +1,186 @@
+"""Bring what is on Telegram back into line with what the events table says.
+
+A REPAIR, RUN BY HAND, not part of the hourly pass. Delivery keeps the two in
+step going forward; it cannot undo what an earlier version of the detector
+already sent. When a scoring fix changes the past - and the partial-bar fix
+changed it a great deal, because every hour had been judged on its first five
+minutes - messages stay on the phone claiming things the table no longer says.
+
+WHAT IT REPAIRS. A push is a standalone message and an interruption, so it is
+wrong in two ways that a note is not:
+
+  * the event is gone from the table. The move did not qualify once the hour was
+    scored from its complete bar, so the alert is about nothing.
+  * the event is still there but is no longer a push. It belongs in the note for
+    its period, the note already carries it, and the reader has it twice - once
+    as an interruption that should never have happened.
+
+Both are deleted. Nothing is lost by deleting either: the first was not an
+event, and the second is a row in a note that is already on the phone.
+
+WHAT IT DOES NOT TOUCH. A note. A note is re-rendered from the table on every
+run and edited in place, silently, so it converges by itself - and its rows are
+real whenever they were found. This only reports on notes, so a disagreement
+that cannot fix itself is at least visible.
+
+DRY RUN UNLESS TOLD OTHERWISE. Deleting a Telegram message cannot be undone, so
+the default prints the plan and changes nothing. --apply carries it out.
+"""
+from __future__ import annotations
+
+import argparse
+import logging
+import sys
+
+from price_monitor import follow_up, tremor_delivery
+from price_monitor.config import Config, load_config
+from price_monitor.notifier import TelegramError, delete_telegram_message
+from price_monitor.state import CorruptState, load_state, save_state
+
+log = logging.getLogger("price_monitor.reconcile")
+
+
+def plan(events: "list[dict]", state: dict) -> "list[dict]":
+    """Every push on the phone that the table no longer supports.
+
+    Returns one record per message to remove, with the reason, so the caller can
+    print the plan before doing anything irreversible.
+    """
+    store = state.get(tremor_delivery.STATE_KEY, {})
+    tracked = store.get(follow_up.TRACKED, {})
+    sent = store.get(tremor_delivery._SENT, {})
+
+    by_id = {str(e.get("event_id")): e for e in events}
+    out = []
+    for event_id, record in tracked.items():
+        message_id = record.get("message_id")
+        if message_id is None:
+            continue
+        event = by_id.get(str(event_id))
+        if event is None:
+            reason = "no longer an event at all"
+        elif str(event.get("channel") or "") != "push":
+            reason = (f"no longer a push - it is a {event.get('channel')} row, "
+                      "and the note already carries it")
+        else:
+            continue
+        out.append({"event_id": str(event_id), "message_id": int(message_id),
+                    "hour_utc": record.get("hour_utc"), "reason": reason,
+                    "in_sent": str(event_id) in sent})
+    return out
+
+
+def notes(events: "list[dict]", state: dict, now) -> "list[dict]":
+    """What each tracked note claims to have published, against the table now."""
+    from price_monitor.tremor_delivery import digest_rows, note_window
+
+    store = state.get(tremor_delivery.STATE_KEY, {})
+    out = []
+    for slot, record in sorted(store.get(tremor_delivery.DIGEST_STATE, {}).items(),
+                               key=lambda kv: int(kv[0])):
+        window = note_window(int(slot), record)
+        rows = digest_rows(events, window, now)
+        out.append({"slot": int(slot), "ids": list(record.get("ids") or []),
+                    "published": record.get("rows"), "now": len(rows),
+                    "window": window})
+    return out
+
+
+def apply(cfg: Config, state: dict, actions: "list[dict]") -> int:
+    """Deletes each planned message. Returns how many are actually gone.
+
+    State is only forgotten for a message Telegram confirms it removed. A delete
+    it refuses - the 48-hour rule on a private chat - leaves the record alone, so
+    the next run still knows the message is there and the plan still reports it
+    rather than quietly declaring it handled.
+    """
+    store = state.setdefault(tremor_delivery.STATE_KEY, {})
+    tracked = store.setdefault(follow_up.TRACKED, {})
+    sent = store.setdefault(tremor_delivery._SENT, {})
+
+    gone = 0
+    for action in actions:
+        try:
+            removed = delete_telegram_message(
+                cfg.telegram_bot_token, cfg.telegram_chat_id, action["message_id"])
+        except TelegramError as exc:
+            log.error("message %s: %s", action["message_id"], exc)
+            continue
+        if not removed:
+            log.warning("message %s could not be deleted - Telegram refused it, "
+                        "which for a private chat means it is over 48 hours old",
+                        action["message_id"])
+            continue
+        tracked.pop(action["event_id"], None)
+        sent.pop(action["event_id"], None)
+        gone += 1
+        log.info("deleted message %s (%s)", action["message_id"], action["reason"])
+        save_state(cfg.state_path, state)
+    return gone
+
+
+def main(argv: "list[str] | None" = None) -> int:
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s %(levelname)s %(message)s")
+    parser = argparse.ArgumentParser(
+        description="Delete pushes the events table no longer supports")
+    parser.add_argument("--apply", action="store_true",
+                        help="carry the plan out; without it nothing is changed")
+    args = parser.parse_args(argv)
+
+    cfg = load_config()
+    try:
+        state = load_state(cfg.state_path)
+    except CorruptState as exc:
+        log.error("Refusing to run against a corrupt sent map: %s", exc)
+        return 2
+
+    events = tremor_delivery.load_events(cfg)
+    if not events:
+        # The same rule delivery works to: an empty table is "the pipeline did
+        # not run", not "every event vanished", and only one of those is safe to
+        # act on. Deleting on the other reading would clear the phone.
+        log.error("The events table is empty. That is a pipeline that has not "
+                  "run, not a history that has emptied - refusing to delete.")
+        return 2
+
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+
+    # WHAT THE PLAN IS JUDGED AGAINST, printed before the plan. Every deletion
+    # below rests on this table being current; a table rebuilt from stale bars
+    # would show recent pushes as events that had vanished. The workflow
+    # backfills first for exactly that reason, and this is how a reader checks
+    # that it worked before ticking apply.
+    newest = max(int(e.get("hour_utc", 0)) for e in events)
+    log.info("judging against %d events, newest hour %s UTC", len(events),
+             datetime.fromtimestamp(newest, tz=timezone.utc).strftime("%Y-%m-%d %H:%M"))
+
+    for note in notes(events, state, now):
+        state_of = ("agrees" if note["published"] in (None, note["now"])
+                    else f"DISAGREES - state says {note['published']}")
+        log.info("note %s: %d part(s) %s, %d row(s) in the table now, %s",
+                 note["slot"], len(note["ids"]), note["ids"], note["now"], state_of)
+
+    actions = plan(events, state)
+    if not actions:
+        log.info("Nothing to delete: every push on the phone is still a push.")
+        return 0
+
+    for action in actions:
+        log.info("message %s (event %s): %s",
+                 action["message_id"], action["event_id"], action["reason"])
+
+    if not args.apply:
+        log.info("%d message(s) would be deleted. Re-run with --apply to do it.",
+                 len(actions))
+        return 0
+
+    gone = apply(cfg, state, actions)
+    save_state(cfg.state_path, state)
+    log.info("Deleted %d of %d.", gone, len(actions))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))
