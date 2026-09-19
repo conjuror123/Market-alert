@@ -1,0 +1,764 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Tremor Report Card</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@600;700;900&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+:root{
+  --paper:#E9EEF3; --panel:#F7FAFC; --sink:#DCE4EC; --lift:#FFFFFF;
+  --ink:#0B141D; --body:#33434F; --muted:#64798A; --hair:#C3D0DC; --hair2:#D6DFE8;
+  --sig:#4A44D8; --sig-soft:#4A44D814;
+  --ok:#146B4C; --ok-soft:#146B4C16;
+  --bad:#A8322A; --bad-soft:#A8322A16;
+  --warn:#8F5C0D; --warn-soft:#8F5C0D16;
+  --t1:#8C9BA9; --t2:#C08E22; --t3:#C05E2A; --t4:#AC2E26;
+  --shadow:0 1px 2px #0b141d0d, 0 8px 24px -12px #0b141d1f;
+  --col:68ch; --wide:1240px;
+  --s1:.375rem; --s2:.75rem; --s3:1.25rem; --s4:2rem; --s5:3.25rem; --s6:5rem;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#0A1018; --panel:#111A24; --sink:#060B11; --lift:#18232F;
+    --ink:#E7EEF4; --body:#AABCC9; --muted:#7D93A2; --hair:#1E2B37; --hair2:#182430;
+    --sig:#8E8AFF; --sig-soft:#8E8AFF1F;
+    --ok:#4FC08D; --ok-soft:#4FC08D1C;
+    --bad:#E8685C; --bad-soft:#E8685C1C;
+    --warn:#D9A03C; --warn-soft:#D9A03C1C;
+    --t1:#6E8595; --t2:#D9AC45; --t3:#E07D45; --t4:#DC5A4C;
+    --shadow:0 1px 2px #0000004d, 0 10px 30px -14px #00000080;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0A1018; --panel:#111A24; --sink:#060B11; --lift:#18232F;
+  --ink:#E7EEF4; --body:#AABCC9; --muted:#7D93A2; --hair:#1E2B37; --hair2:#182430;
+  --sig:#8E8AFF; --sig-soft:#8E8AFF1F;
+  --ok:#4FC08D; --ok-soft:#4FC08D1C;
+  --bad:#E8685C; --bad-soft:#E8685C1C;
+  --warn:#D9A03C; --warn-soft:#D9A03C1C;
+  --t1:#6E8595; --t2:#D9AC45; --t3:#E07D45; --t4:#DC5A4C;
+  --shadow:0 1px 2px #0000004d, 0 10px 30px -14px #00000080;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+body{margin:0;background:var(--paper);color:var(--body);
+  font-family:"Hanken Grotesk",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:var(--wide);margin:0 auto;padding-inline:20px}
+.col{max-width:var(--col)}
+h1,h2,h3,h4{font-family:Chivo,"Helvetica Neue",Arial,sans-serif;color:var(--ink);text-wrap:balance;margin:0}
+h1{font-size:clamp(2rem,5vw,3.1rem);line-height:1.02;font-weight:900;letter-spacing:-.035em}
+h2{font-size:clamp(1.35rem,2.6vw,1.8rem);line-height:1.15;font-weight:700;letter-spacing:-.022em}
+h3{font-size:1.02rem;font-weight:700;letter-spacing:-.008em}
+h4{font-size:.82rem;font-weight:700;letter-spacing:.02em}
+p{margin:0}
+a{color:var(--sig);text-underline-offset:3px}
+strong{color:var(--ink);font-weight:700}
+.mono,td.n,th.n,.v,.tag{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,monospace;font-variant-numeric:tabular-nums}
+.eyebrow{font-family:"JetBrains Mono",monospace;font-size:.68rem;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--sig)}
+.lede{font-size:1.03rem;line-height:1.62;color:var(--body)}
+.note{font-size:.86rem;line-height:1.55;color:var(--muted)}
+:focus-visible{outline:2px solid var(--sig);outline-offset:2px;border-radius:2px}
+.mast{padding-block:var(--s5) var(--s4);border-bottom:1px solid var(--hair)}
+.brandrow{display:flex;gap:var(--s2);align-items:baseline;flex-wrap:wrap;margin-bottom:var(--s3)}
+.brand{font-family:Chivo,sans-serif;font-weight:900;font-size:.9rem;letter-spacing:.14em;color:var(--ink)}
+.brandrow .m{font-family:"JetBrains Mono",monospace;font-size:.72rem;color:var(--muted)}
+.mast .sub{margin-top:var(--s3);max-width:64ch;font-size:1.06rem;line-height:1.6}
+nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:40;background:color-mix(in srgb,var(--paper) 88%,transparent);
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--hair)}
+nav .inner{display:flex;gap:var(--s3);overflow-x:auto;padding-block:var(--s2);scrollbar-width:none}
+nav .inner::-webkit-scrollbar{display:none}
+nav a{font-family:"JetBrains Mono",monospace;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);text-decoration:none;white-space:nowrap;padding-block:2px;border-bottom:2px solid transparent}
+nav a:hover{color:var(--ink)}
+nav a.on{color:var(--ink);border-bottom-color:var(--sig)}
+.verdicts{display:grid;gap:1px;background:var(--hair);border:1px solid var(--hair);
+  grid-template-columns:repeat(auto-fit,minmax(184px,1fr));margin-top:var(--s4)}
+.vt{background:var(--panel);padding:var(--s3);display:flex;flex-direction:column;gap:2px}
+.vt .v{font-family:Chivo,sans-serif;font-weight:900;font-size:1.95rem;line-height:1.05;letter-spacing:-.035em;color:var(--ink);font-variant-numeric:tabular-nums}
+.vt .v u{text-decoration:none;font-size:.92rem;font-weight:700;color:var(--muted);letter-spacing:0}
+.vt .k{font-family:"JetBrains Mono",monospace;font-size:.64rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:var(--s1)}
+.vt .w{font-size:.8rem;color:var(--muted);line-height:1.4}
+.vt.good .v{color:var(--ok)} .vt.bad .v{color:var(--bad)} .vt.warn .v{color:var(--warn)}
+section{padding-block:var(--s6) 0;scroll-margin-top:60px}
+.head{display:flex;flex-direction:column;gap:var(--s2);margin-bottom:var(--s4)}
+.panel{background:var(--panel);border:1px solid var(--hair);padding:var(--s3)}
+.grid2{display:grid;gap:var(--s3);grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.grid3{display:grid;gap:var(--s3);grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.trace{margin-top:var(--s3)}
+.tracebox{position:relative;height:210px;border-bottom:1.5px solid var(--ink)}
+.gl{position:absolute;top:0;bottom:0;width:1px;background:var(--hair2)}
+.tk{position:absolute;bottom:0;width:2px;margin-left:-1px;border-radius:1px 1px 0 0;background:var(--tk);cursor:crosshair;transition:opacity .12s}
+.tk:hover{width:4px;margin-left:-2px}
+.tracebox.dim .tk:not(.hi){opacity:.13}
+.taxis{position:relative;height:1.1rem;margin-top:var(--s1)}
+.taxis span{position:absolute;transform:translateX(-50%);font-family:"JetBrains Mono",monospace;font-size:.62rem;color:var(--muted);white-space:nowrap}
+.legend{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:center;margin-top:var(--s2)}
+.chip{display:inline-flex;gap:6px;align-items:center;font-family:"JetBrains Mono",monospace;font-size:.68rem;
+  letter-spacing:.06em;color:var(--muted);background:none;border:0;cursor:pointer;padding:2px 0}
+.chip i{width:9px;height:9px;background:var(--c);display:block;border-radius:1px}
+.chip[aria-pressed="true"]{color:var(--ink)}
+.chip[aria-pressed="false"]{opacity:.42}
+#tip{position:fixed;z-index:60;pointer-events:none;background:var(--lift);border:1px solid var(--hair);
+  box-shadow:var(--shadow);padding:8px 10px;font-family:"JetBrains Mono",monospace;font-size:.7rem;
+  color:var(--ink);white-space:nowrap;opacity:0;transition:opacity .1s}
+.tablebox{overflow-x:auto;border:1px solid var(--hair);background:var(--panel)}
+table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:520px}
+th,td{text-align:left;padding:.5rem .7rem;border-bottom:1px solid var(--hair2);white-space:nowrap}
+thead th{position:sticky;top:0;background:var(--panel);font-family:"JetBrains Mono",monospace;font-size:.62rem;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:500;border-bottom:1px solid var(--hair);z-index:2}
+th.s{cursor:pointer;user-select:none}
+th.s:hover{color:var(--ink)}
+th.s[data-dir]::after{content:"↓";margin-left:4px;color:var(--sig)}
+th.s[data-dir="1"]::after{content:"↑"}
+td.n,th.n{text-align:right}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--sig-soft)}
+td.name{color:var(--ink);font-weight:600}
+caption{caption-side:bottom;text-align:left;padding:var(--s2) var(--s3);font-size:.8rem;color:var(--muted);border-top:1px solid var(--hair)}
+.bad{color:var(--bad);font-weight:700} .ok{color:var(--ok);font-weight:700}
+.tag{font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;border:1px solid var(--hair);color:var(--muted);border-radius:2px}
+.ctl{display:flex;gap:var(--s2);flex-wrap:wrap;align-items:center;margin-bottom:var(--s2)}
+.ctl input,.ctl select{font-family:"JetBrains Mono",monospace;font-size:.74rem;padding:6px 9px;
+  background:var(--panel);color:var(--ink);border:1px solid var(--hair);border-radius:2px}
+.ctl input{min-width:8rem}
+.count{font-family:"JetBrains Mono",monospace;font-size:.68rem;color:var(--muted);margin-left:auto}
+.rows{display:flex;flex-direction:column;gap:6px}
+.row{display:grid;grid-template-columns:8.5rem 1fr 4.2rem;gap:var(--s2);align-items:center}
+.row .lab{font-size:.82rem;color:var(--body)}
+.row .track{height:15px;background:var(--sink);position:relative}
+.row .fill{height:100%;background:var(--sig)}
+.row .fill.warn{background:var(--warn)} .row .fill.bad{background:var(--bad)} .row .fill.ok{background:var(--ok)}
+.row .n{font-family:"JetBrains Mono",monospace;font-size:.74rem;color:var(--muted);text-align:right}
+@media (max-width:520px){.row{grid-template-columns:6.5rem 1fr 3.4rem}}
+.cols{display:grid;gap:2px;align-items:end;height:150px;border-bottom:1.5px solid var(--ink)}
+.cols .c{background:var(--sig);min-height:2px;position:relative;border-radius:1px 1px 0 0}
+.cols .c.hot{background:var(--bad)}
+.cols .c span{position:absolute;top:-1.15rem;left:50%;transform:translateX(-50%);
+  font-family:"JetBrains Mono",monospace;font-size:.6rem;color:var(--ink)}
+.colx{display:grid;gap:2px;margin-top:4px}
+.colx span{font-family:"JetBrains Mono",monospace;font-size:.56rem;color:var(--muted);text-align:center}
+.msg{background:var(--panel);border:1px solid var(--hair);border-left:3px solid var(--tier);padding:var(--s3)}
+.msg .when{display:flex;justify-content:space-between;gap:var(--s2);flex-wrap:wrap;
+  font-family:"JetBrains Mono",monospace;font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:var(--s2)}
+.msg .when b{color:var(--tier)}
+.msg .why{font-size:.84rem;color:var(--muted);margin-bottom:var(--s2)}
+.msg pre{margin:0;font-family:"JetBrains Mono",monospace;font-size:.76rem;line-height:1.62;
+  color:var(--ink);white-space:pre-wrap;word-break:break-word}
+.msg pre b{font-weight:700}
+.call{border-top:2px solid var(--sig);padding-top:var(--s2);display:flex;flex-direction:column;gap:var(--s1)}
+.call.bad{border-top-color:var(--bad)} .call.warn{border-top-color:var(--warn)} .call.ok{border-top-color:var(--ok)}
+.call p{font-size:.88rem;color:var(--muted)}
+.flag{background:var(--ok-soft);border:1px solid var(--ok);padding:var(--s3);display:flex;flex-direction:column;gap:var(--s2)}
+.flag h3{color:var(--ok)}
+.flag.warn{background:var(--warn-soft);border-color:var(--warn)} .flag.warn h3{color:var(--warn)}
+.ba{display:grid;gap:1px;background:var(--hair);border:1px solid var(--hair);grid-template-columns:repeat(3,1fr)}
+@media (max-width:900px){.ba{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:560px){.ba{grid-template-columns:1fr}}
+.ba .cell{background:var(--panel);padding:var(--s3);display:flex;flex-direction:column;gap:var(--s1)}
+.ba .k{font-family:"JetBrains Mono",monospace;font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.ba .pair{display:flex;align-items:baseline;gap:var(--s2);flex-wrap:wrap}
+.ba .was{font-family:"JetBrains Mono",monospace;font-size:1rem;color:var(--muted);text-decoration:line-through}
+.ba .now{font-family:Chivo,sans-serif;font-weight:900;font-size:1.7rem;letter-spacing:-.03em;color:var(--ok);font-variant-numeric:tabular-nums}
+.ba .now.flat{color:var(--ink)}
+.ba .w{font-size:.82rem;color:var(--muted);line-height:1.45}
+footer{margin-top:var(--s6);padding-block:var(--s4) var(--s6);border-top:1px solid var(--hair);color:var(--muted);font-size:.84rem}
+.stack{display:flex;flex-direction:column;gap:var(--s3)}
+.stack-sm{display:flex;flex-direction:column;gap:var(--s2)}
+</style>
+
+<div class="wrap">
+<header class="mast">
+  <div class="brandrow">
+    <span class="brand">TREMOR</span><span class="m">report card</span><span class="m">·</span>
+    <span class="m" id="m-window"></span><span class="m">·</span><span class="m" id="m-scope"></span>
+    <span class="m">·</span><span class="m" id="m-asof"></span>
+  </div>
+  <h1>What it would<br>have sent.</h1>
+  <p class="sub lede">A snapshot, not a live page. Every figure below was measured once, on the
+  date and commit above &mdash; a cold pass over the whole archive, the delivery code rendering its
+  own messages, and run health read from the Actions API. Nothing was written by hand and the bot
+  reads none of it back, but nothing here updates itself either: rebuild it with
+  <span class="mono">tools/dashboard.py</span> and the numbers move or they do not.</p>
+  <div class="verdicts" id="verdicts"></div>
+</header>
+</div>
+
+<nav><div class="wrap inner">
+  <a href="#trace">Trace</a><a href="#changed">What changed</a><a href="#quality">Detection</a>
+  <a href="#inbox">Inbox</a><a href="#stick">Retention</a><a href="#sources">Sources</a>
+  <a href="#ops">Operations</a><a href="#says">Messages</a><a href="#limits">Limits</a>
+</div></nav>
+
+<div class="wrap">
+
+<section id="trace">
+  <div class="head col">
+    <p class="eyebrow">Every interrupting alert, end to end</p>
+    <h2 id="t-title"></h2>
+    <p class="lede">One mark per push. Height is how far the move ran past that instrument's own
+    usual hour &mdash; the multiple the message itself quotes. Click a tier to isolate it; hover a
+    mark for the instrument.</p>
+  </div>
+  <div class="trace">
+    <div class="tracebox" id="tracebox"></div>
+    <div class="taxis" id="taxis"></div>
+    <div class="legend" id="legend"></div>
+  </div>
+  <p class="note" style="margin-top:1rem;max-width:80ch">Median push runs <b id="mult-med"></b>&times;
+  the instrument's usual hour; the largest, <b id="mult-max"></b>&times;, is preferred shares in
+  August 2015. The archive starts in 2003 but only the longest-lived funds reach that far &mdash;
+  the ladder says nothing about an instrument until it has enough of its own history, so the early
+  years are thin by design rather than by accident.</p>
+</section>
+
+<section id="changed">
+  <div class="head col">
+    <p class="eyebrow">Since the last report card</p>
+    <h2>The detector was reading the first five minutes of every hour</h2>
+    <p class="lede">Of everything found since the previous card, one fault stands out &mdash; not
+    because it was subtle, but because <em>this page could not see it</em>. Every figure below is measured on a
+    cold pass over complete bars. The bot was running on something else.</p>
+  </div>
+  <div class="ba" id="ba"></div>
+  <div class="grid2" style="margin-top:var(--s4)">
+    <div class="flag warn">
+      <h3>Every hour was judged on its opening minutes</h3>
+      <p class="note">The hourly job fires five minutes past the hour and stored a bar for the hour
+      it was standing in &mdash; measured on the committed store, <strong>2&ndash;13% of that
+      hour's volume</strong>. The bars healed on the next fetch; the metrics did not, because the
+      incremental path only ever computed hours newer than the last one it had. The complete bar
+      arrived to find its hour already written.
+      <br><br>So the damage landed exactly where it hurts: on a quiet hour a fifth of the move and
+      the whole move both fail to be records, and nothing changes. On a news hour they differ by
+      enough to cross the threshold. <strong>16 September, 18:00 UTC</strong> &mdash; the FOMC
+      statement &mdash; went into the store as SHY <span class="mono">+0.02%</span> when the hour
+      had closed at <span class="mono">-0.19%</span>, six sigma. Thirteen instruments' events went
+      with it: bonds, gold and the dollar all moving together, and not one of them reached the
+      phone that day.</p>
+    </div>
+    <div class="flag">
+      <h3>None of the numbers on this page moved</h3>
+      <p class="note">That is the uncomfortable part, and worth stating plainly: recall
+      <b id="c-rec"></b>, false alarms <b id="c-fa"></b>, <b id="c-push"></b> pushes over
+      <b id="c-yrs"></b> years. Identical to the last report card, because a backtest is a cold
+      pass over complete bars &mdash; which is precisely what the fix restores. <strong>The
+      backtest was measuring a detector better than the one that was running</strong>, and nothing
+      compared the two.
+      <br><br>A dashboard that reads 97.2% while the live bot misses an FOMC hour is not wrong
+      about the detector; it is answering a question nobody should have been satisfied with. The
+      gap between "what the code would do over history" and "what the deployed thing did last
+      Wednesday" had no measurement at all. It still does not &mdash; that is the honest state, and
+      the next thing worth building.</p>
+    </div>
+  </div>
+</section>
+
+<section id="quality">
+  <div class="head col">
+    <p class="eyebrow">Detection quality</p>
+    <h2>Did it catch the obvious, did it stay quiet on the rest</h2>
+    <p class="lede">Two tests, neither with a threshold anyone can argue about. The bucket is each
+    instrument's own return percentile, not a shared percentage, so the ladder is not grading its
+    own homework.</p>
+  </div>
+  <div class="grid2">
+    <div class="panel stack-sm">
+      <h4 class="eyebrow">Test 1 &mdash; the obviously big hours</h4>
+      <p class="note">Top 0.01% of each instrument's own hours. Crypto is excluded from the
+      headline because one coin contributes thousands of 2% hours.</p>
+      <div class="rows" id="q-recall"></div>
+    </div>
+    <div class="panel stack-sm">
+      <h4 class="eyebrow">Test 2 &mdash; the obviously ordinary hours</h4>
+      <p class="note">Every hour below that instrument's median move. Wants to be zero.</p>
+      <div class="rows" id="q-false"></div>
+      <p class="note" id="q-false-note"></p>
+    </div>
+  </div>
+  <div class="panel" style="margin-top:var(--s3);border-left:3px solid var(--ok)">
+    <h4 class="eyebrow" style="color:var(--ok)">The once-a-day rule holds exactly</h4>
+    <p class="note" style="margin-top:var(--s1)">An instrument may open one event per trading day
+    and no more &mdash; end of session for the funds, end of the UTC day for crypto. Across
+    <b id="dr-days"></b> asset-days in the archive, the number carrying more than one event is
+    <b id="dr-multi" class="ok"></b>. Nothing is folded or suppressed after the fact; the automaton
+    simply will not open a second.</p>
+  </div>
+  <div style="margin-top:var(--s4)">
+    <div class="head col"><h3>Per instrument</h3>
+    <p class="note"><b>Silent</b> is the count of that instrument's most obvious hours that produced
+    no message at all &mdash; the column to watch. <b>Feed</b> is the provider configured for its bars at this snapshot.</p></div>
+    <div class="ctl">
+      <input id="f-search" type="search" placeholder="filter by ticker or name" aria-label="Filter instruments">
+      <select id="f-block" aria-label="Filter by block"><option value="">all blocks</option></select>
+      <select id="f-prov" aria-label="Filter by provider"><option value="">all feeds</option></select>
+      <span class="count" id="f-count"></span>
+    </div>
+    <div class="tablebox"><table id="t-inst">
+      <thead><tr>
+        <th class="s" data-k="ticker">Instrument</th><th class="s" data-k="block">Block</th>
+        <th class="s" data-k="provider">Feed</th><th class="s n" data-k="years">Yrs</th>
+        <th class="s n" data-k="median_hour">Usual hr</th><th class="s n" data-k="pushes">Pushes</th>
+        <th class="s n" data-k="push_per_year">/yr</th><th class="s n" data-k="events">Events</th>
+        <th class="s n" data-k="top">Obvious hrs</th><th class="s n" data-k="silent">Silent</th>
+        <th class="s n" data-k="quiet_fired">False</th>
+      </tr></thead><tbody></tbody>
+      <caption>Usual hour is the instrument's median absolute hourly move, in percent. False is the
+      count of below-median hours that opened an event.</caption>
+    </table></div>
+  </div>
+</section>
+
+<section id="inbox">
+  <div class="head col">
+    <p class="eyebrow">Inbox economics</p>
+    <h2 id="i-title"></h2>
+    <p class="lede">The alert count is the wrong unit &mdash; what you actually experience is
+    <em>days interrupted</em>. The volume roughly doubled when the market-adjusted ladder started
+    working, which is the trade you asked for: better a few too many, marked boring, than a move
+    you never heard about.</p>
+  </div>
+  <div class="grid3" id="inbox-tiles"></div>
+  <div class="grid2" style="margin-top:var(--s4)">
+    <div class="panel stack-sm">
+      <h4 class="eyebrow">Gap to the next interrupted day</h4>
+      <div class="rows" id="i-gaps"></div>
+      <p class="note" id="i-gaps-note"></p>
+    </div>
+    <div class="panel stack-sm">
+      <h4 class="eyebrow">How many arrive on one day</h4>
+      <div class="rows" id="i-clust"></div>
+      <p class="note" id="i-clust-note"></p>
+    </div>
+  </div>
+  <div style="margin-top:var(--s4)">
+    <h3>Pushes per year</h3>
+    <p class="note" style="margin-bottom:1rem">No quota. The system cannot see its own alert count,
+    so a violent year is louder rather than the same budget rationed differently.</p>
+    <div class="cols" id="c-year"></div><div class="colx" id="cx-year"></div>
+  </div>
+  <div class="grid2" style="margin-top:var(--s5)">
+    <div>
+      <h3>By block</h3>
+      <p class="note" style="margin-bottom:.75rem">Including the block's own pushes &mdash; the
+      alert that fires when a whole complex moves and no single member looks abnormal.</p>
+      <div class="tablebox"><table id="t-block">
+        <thead><tr><th class="s" data-k="block">Block</th><th class="s n" data-k="members">Members</th>
+        <th class="s n" data-k="pushes">Pushes</th><th class="s n" data-k="per_year">/yr</th>
+        <th class="s n" data-k="block_level">Block-level</th><th class="s n" data-k="extreme">Extreme</th>
+        </tr></thead><tbody></tbody></table></div>
+    </div>
+    <div>
+      <h3>The two ladders</h3>
+      <p class="note" style="margin-bottom:.75rem">Every hour is asked twice: was the move big in
+      the instrument's own terms, and was it big <em>after</em> subtracting what its block did.</p>
+      <div class="tablebox"><table id="t-basis">
+        <thead><tr><th>Ladder</th><th class="n">Events</th><th class="n">Pushes</th><th>What it means</th></tr></thead>
+        <tbody></tbody></table></div>
+    </div>
+  </div>
+</section>
+
+<section id="stick">
+  <div class="head col">
+    <p class="eyebrow">Retention</p>
+    <h2>Do the flagged moves stick?</h2>
+    <p class="lede">Measured after the fact and written back into the message that already went out:
+    the move accumulated since the alert, divided by the move that fired it. 1.0 held exactly,
+    0 gave it all back, above 1 kept going. It reports; it does not decide what is sent.</p>
+  </div>
+  <div class="grid2">
+    <div class="panel stack-sm"><h4 class="eyebrow">At the close of the day it happened</h4>
+      <div class="rows" id="r-today"></div></div>
+    <div class="panel stack-sm"><h4 class="eyebrow">At the next trading close</h4>
+      <div class="rows" id="r-settled"></div></div>
+  </div>
+  <div style="margin-top:var(--s4)">
+    <h3>Which alerts hold up best</h3>
+    <p class="note" style="margin-bottom:.75rem">Share still standing at the next close, by tier and
+    by which ladder found it.</p>
+    <div class="tablebox"><table id="t-ret">
+      <thead><tr><th>Slice</th><th class="n">Pushes</th><th class="n">Answered</th><th class="n">Held</th><th class="n">Median</th></tr></thead>
+      <tbody></tbody>
+      <caption>A move is &ldquo;held&rdquo; at half or more of the original. Unanswered are the newest
+      events whose horizon has not elapsed &mdash; not a failure, a test not yet taken.</caption>
+    </table></div>
+  </div>
+</section>
+
+<section id="sources">
+  <div class="head col">
+    <p class="eyebrow">Where the bars come from</p>
+    <h2>Three feeds, chosen per instrument by measurement</h2>
+    <p class="lede">The basket used to come from one provider whose free tier forces an eight-second
+    pause between symbols. That pause <em>was</em> the run. Two faster feeds replaced it &mdash; but
+    only where each was shown to price the instrument the same way, hour by hour, against the bars
+    already stored.</p>
+  </div>
+  <div class="grid3" id="src-tiles"></div>
+  <div class="grid2" style="margin-top:var(--s4)">
+    <div class="panel stack-sm">
+      <h4 class="eyebrow">Disagreement with the stored bars, in basis points</h4>
+      <p class="note">Median difference on the hourly close over the same 62 hours. One sigma of an
+      hourly move is 20&ndash;40 bps for these instruments, so 2 bps is under a tenth of a sigma and
+      invisible; 10 bps starts to move the ladder on its own.</p>
+      <div class="rows" id="s-bps"></div>
+    </div>
+    <div class="panel stack-sm">
+      <h4 class="eyebrow">Why the thin funds did not move</h4>
+      <p class="note">One provider serves a single exchange holding about 5.5% of consolidated
+      volume. On liquid funds that is the same price to a fifth of a basis point. On thin
+      single-commodity funds it is a different price &mdash; and a different price is an alert for a
+      move that never happened, which is the one failure worth paying to avoid. Those fifteen stayed
+      on a consolidated feed.</p>
+      <div class="rows" id="s-thin"></div>
+    </div>
+  </div>
+  <p class="note" style="margin-top:var(--s3);max-width:80ch">The archive provider remained
+  configured and still held the history: neither fast feed can reach back &mdash; one serves 55
+  days of half-hourly bars, the other caps a response at 10,000 rows. The identity of an instrument
+  never moved with its feed, so no stored bar, no recorded verdict and no exported event was
+  orphaned by the change.</p>
+</section>
+
+<section id="ops">
+  <div class="head col">
+    <p class="eyebrow">Operations</p>
+    <h2 id="o-title"></h2>
+    <p class="lede">Two report cards ago this section led the page, because one hourly run in seven
+    was being killed on the job timeout and delivering nothing. Over the hundred runs immediately
+    before this snapshot, none were lost.</p>
+  </div>
+  <div class="grid2">
+    <div class="panel stack-sm">
+      <h4 class="eyebrow">Runs lost, by day</h4>
+      <p class="note">Share of that day's hourly runs that were cancelled or failed. Cancelled means
+      killed on the twenty-minute timeout &mdash; the delivery step never ran.</p>
+      <div class="rows" id="o-days"></div>
+    </div>
+    <div class="panel stack-sm">
+      <h4 class="eyebrow">How long a successful run takes</h4>
+      <div class="rows" id="o-dur"></div>
+      <p class="note" id="o-dur-note"></p>
+    </div>
+  </div>
+  <div style="margin-top:var(--s4)">
+    <h3>Archive depth</h3>
+    <p class="note" style="margin-bottom:.75rem">How far back each instrument actually reaches. The
+    ladder needs history before it will speak, so a short archive is a quiet instrument.</p>
+    <div class="tablebox"><table id="t-cov">
+      <thead><tr><th class="s" data-k="ticker">Instrument</th><th class="s" data-k="block">Block</th>
+      <th class="s" data-k="provider">Feed</th><th class="s n" data-k="years">Years</th>
+      <th class="s n" data-k="bars">Bars</th><th class="s" data-k="first">From</th>
+      <th class="s" data-k="last">To</th></tr></thead><tbody></tbody></table></div>
+  </div>
+</section>
+
+<section id="says">
+  <div class="head col">
+    <p class="eyebrow">What it says</p>
+    <h2>Four real messages</h2>
+    <p class="lede">Rendered by the live delivery code from real event rows, not written for this
+    page. This is exactly what the phone would have shown.</p>
+  </div>
+  <div class="stack" id="msgs"></div>
+</section>
+
+<section id="limits">
+  <div class="head col">
+    <p class="eyebrow">Limits</p>
+    <h2>What it could not do, as of this snapshot</h2>
+    <p class="lede">Open at the date above. Unlike everything else on the page these are not
+    measured, so they are the first thing to go stale &mdash; check them against
+    <span class="mono">docs/operations.md</span> before relying on one.</p>
+  </div>
+  <div class="grid3">
+    <div class="call bad"><h3>Nothing notices a silence</h3>
+      <p>The health check counts consecutive failures, and only a run that executes can increment
+      one. When the trigger stopped for six days, nothing in the repository could say so. A watchdog
+      is designed and not yet built.</p></div>
+    <div class="call warn"><h3>Thirteen instruments stop at 2020</h3>
+      <p>A provider plan limit, not a fault. The dividend fix removes the blocker on five of them;
+      the deepening run itself has not been done. XLP reaches only 2022 for a reason nobody has
+      established.</p></div>
+    <div class="call warn"><h3>One feed is undocumented</h3>
+      <p>The consolidated feed serving fifteen thin funds is an unversioned endpoint with no support
+      channel. It can change shape without notice. That is why the basket is split across two
+      providers rather than sent to one.</p></div>
+    <div class="call warn"><h3>The feed test is one week long</h3>
+      <p>Sixty-two overlapping hours decided which provider serves what. A volatile week could read
+      differently. The comparison re-runs in forty-four requests and should, periodically.</p></div>
+    <div class="call"><h3>It does not predict</h3>
+      <p>And does not claim to. Every number here is about a move that already happened; the tier
+      says how unusual it was, not what comes next.</p></div>
+    <div class="call"><h3>Retention is a note, not a gate</h3>
+      <p>A move that fully reverts still interrupted you. <b id="l-rev"></b> of pushes had given
+      everything back by the next close &mdash; the message says so afterwards, which is all it
+      can do.</p></div>
+  </div>
+</section>
+
+<footer>
+  <p class="col">Cold pass over <span id="f-bars"></span> hourly bars across
+  <span id="f-scope2"></span>, measured <span id="f-when"></span> on commit
+  <span class="mono" id="f-commit"></span>. Detection figures
+  from <span class="mono">tools/report_card.py</span>; retention, ladders and the day rule from the
+  event table; the messages from <span class="mono">price_monitor.tremor_delivery</span>; feed
+  agreement from <span class="mono">tools/tiingo_compare.py</span>; run health from the GitHub
+  Actions API over the last <span id="f-runs"></span> hourly jobs. The bot reads none of it.</p>
+</footer>
+</div>
+<div id="tip" role="status" aria-live="polite"></div>
+<script id="payload" type="application/json">__PAYLOAD__</script>
+<script>
+const D=JSON.parse(document.getElementById('payload').textContent);
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const TIERS=['noticeable','high','major','extreme'], TC={noticeable:'--t1',high:'--t2',major:'--t3',extreme:'--t4'};
+const fmt=n=>n.toLocaleString('en-US'), pc=n=>n.toFixed(1)+'%';
+const el=(t,c,x)=>{const e=document.createElement(t); if(c)e.className=c; if(x!=null)e.textContent=x; return e;};
+
+/* masthead */
+$('#m-window').textContent=D.meta.first+' — '+D.meta.last;
+$('#m-scope').textContent=D.meta.instruments+' instruments · '+D.meta.blocks+' blocks';
+$('#m-asof').textContent='measured '+(D.meta.generated_at||D.meta.generated)+' · '+(D.meta.commit||'commit unrecorded');
+$('#t-title').textContent=fmt(D.meta.pushes)+' pushes in '+D.meta.years+' years';
+$('#i-title').textContent=D.inbox.days_per_year.toFixed(0)+' interrupted days a year';
+$('#o-title').textContent='The runs stopped being killed';
+$('#mult-med').textContent=D.mult.median; $('#mult-max').textContent=D.mult.max;
+$('#f-bars').textContent=fmt(D.meta.bars); $('#f-scope2').textContent=D.meta.instruments+' instruments';
+$('#f-when').textContent=D.meta.generated_at||D.meta.generated;
+$('#f-commit').textContent=D.meta.commit||'unrecorded'; $('#f-runs').textContent=D.ops.runs;
+$('#dr-days').textContent=fmt(D.dayrule.asset_days); $('#dr-multi').textContent=D.dayrule.multi;
+$('#l-rev').textContent=pc(D.retention.settled.reverted_pct);
+
+const V=[['reached the phone',pc(D.quality.reached_pct),'of the '+D.quality.fitted+' most obvious hours','good'],
+ ['false alarms',D.quality.quiet_pct.toFixed(3)+'%','of '+fmt(D.quality.quiet_hours)+' quiet hours','good'],
+ ['days interrupted',D.inbox.days_per_year.toFixed(0),'a year, from '+D.inbox.per_year.toFixed(0)+' pushes',''],
+ ['still standing',pc(D.retention.settled.held_pct),'at the next close','good'],
+ ['runs lost','0%','of the last '+D.ops.runs+' runs; was 58% on 9 Sep','good']];
+const vw=$('#verdicts');
+V.forEach(([k,v,w,cls])=>{const d=el('div','vt '+cls); d.append(el('div','v',v),el('div','k',k),el('div','w',w)); vw.append(d);});
+
+/* before / after */
+const BA=[['hours judged on five minutes','every hour','none','The run fires at :05 and stored a bar for the hour it was standing in. Metrics for that hour were never recomputed once it closed.'],
+ ['the FOMC hour, 16 Sep','missed','caught','Thirteen instruments moved together on the statement. Live, the detector saw 2–13% of that hour and said nothing.'],
+ ['a closed note could regrow','10 days','never','It re-rendered from a table that keeps changing, so it could rewrite itself into a record of moves it never sent.'],
+ ['git spent recording a year of bars','955 MiB','~12 MiB','A year of bars is 5.2 MiB of fact. Month shards and weekly commits stopped git storing 183× that.'],
+ ['cache uploaded per day','5.4 GiB','when it changes','232 MiB went up every hour to restate what the last run already said.'],
+ ['hourly runs lost','38–58%','0%','Over the last '+D.ops.runs+' runs, none. Median '+D.ops.duration.median+'s, slowest '+D.ops.duration.max+'s.']];
+const baw=$('#ba');
+BA.forEach(([k,was,now,w])=>{const c=el('div','cell');
+  c.append(el('div','k',k));
+  const p=el('div','pair'); p.append(el('span','was',was)); const n=el('span','now',now);
+  p.append(n); c.append(p,el('div','w',w)); baw.append(c);});
+$('#c-rec').textContent=D.quality.reached_pct+'%';
+$('#c-fa').textContent=D.quality.quiet_pct+'%';
+$('#c-push').textContent=fmt(D.meta.pushes);
+$('#c-yrs').textContent=D.meta.years;
+
+/* seismogram */
+(function(){
+  const box=$('#tracebox'), ticks=D.ticks;
+  const t0=ticks[0].t, t1=ticks[ticks.length-1].t, span=t1-t0;
+  const ymax=Math.max(...ticks.map(t=>t.y));
+  const sc=v=>Math.sqrt(v/ymax);
+  const y0=new Date(t0*1000).getUTCFullYear(), y1=new Date(t1*1000).getUTCFullYear();
+  const ax=$('#taxis');
+  for(let y=Math.ceil(y0/2)*2;y<=y1;y+=2){
+    const t=Date.UTC(y,0,1)/1000; if(t<t0||t>t1)continue;
+    const l=(t-t0)/span*100;
+    const g=el('div','gl'); g.style.left=l+'%'; box.append(g);
+    const s=el('span',null,y); s.style.left=l+'%'; ax.append(s);
+  }
+  const frag=document.createDocumentFragment();
+  ticks.forEach(t=>{
+    const b=el('button','tk'); b.style.left=((t.t-t0)/span*100)+'%';
+    b.style.height=Math.max(2,sc(t.y)*100)+'%';
+    b.style.setProperty('--tk','var('+TC[t.k]+')');
+    b.dataset.k=t.k; b.type='button';
+    b.setAttribute('aria-label',t.a+' '+t.y+'× on '+new Date(t.t*1000).toISOString().slice(0,10));
+    b.addEventListener('mouseenter',e=>{const tip=$('#tip');
+      tip.textContent=t.a+' · '+t.y+'× · '+t.k+' · '+new Date(t.t*1000).toISOString().slice(0,10);
+      tip.style.opacity=1; const r=e.target.getBoundingClientRect();
+      tip.style.left=Math.min(window.innerWidth-tip.offsetWidth-8,Math.max(8,r.left-40))+'px';
+      tip.style.top=(r.top-34)+'px';});
+    b.addEventListener('mouseleave',()=>{$('#tip').style.opacity=0});
+    frag.append(b);
+  });
+  box.append(frag);
+  const lg=$('#legend'); const on=new Set();
+  const present=TIERS.filter(k=>ticks.some(t=>t.k===k));
+  present.forEach(k=>on.add(k));
+  present.forEach(k=>{
+    const n=ticks.filter(t=>t.k===k).length;
+    const b=el('button','chip'); b.type='button'; b.setAttribute('aria-pressed','true');
+    b.style.setProperty('--c','var('+TC[k]+')');
+    b.append(el('i'),document.createTextNode(k+' '+n));
+    b.addEventListener('click',()=>{
+      if(on.has(k)&&on.size===present.length){on.clear();on.add(k);}
+      else if(on.has(k)){on.delete(k); if(!on.size)present.forEach(x=>on.add(x));}
+      else on.add(k);
+      $$('.chip',lg).forEach((c,i)=>c.setAttribute('aria-pressed',on.has(present[i])?'true':'false'));
+      const all=on.size===present.length;
+      box.classList.toggle('dim',!all);
+      $$('.tk',box).forEach(t=>t.classList.toggle('hi',on.has(t.dataset.k)));
+    });
+    lg.append(b);
+  });
+})();
+
+/* bar-row helper */
+function rows(host,items,max,cls){
+  const h=$(host); h.textContent='';
+  const m=max||Math.max(...items.map(i=>i.v),1);
+  items.forEach(i=>{
+    const r=el('div','row'); r.append(el('div','lab',i.k));
+    const tr=el('div','track'); const f=el('div','fill'+(i.cls?' '+i.cls:(cls?' '+cls:'')));
+    f.style.width=Math.max(0,Math.min(100,i.v/m*100))+'%'; tr.append(f);
+    r.append(tr,el('div','n',i.t)); h.append(r);
+  });
+}
+const Q=D.quality;
+rows('#q-recall',[{k:'as a push',v:Q.push,t:Q.push+' · '+pc(Q.push_pct),cls:'ok'},
+ {k:'in the digest',v:Q.digest,t:Q.digest+' · '+pc(Q.digest_pct)},
+ {k:'silent',v:Q.silent,t:Q.silent+' · '+pc(Q.silent_pct),cls:'bad'}]);
+rows('#q-false',[{k:'fired',v:Q.quiet_fired,t:fmt(Q.quiet_fired),cls:'warn'},
+ {k:'stayed quiet',v:Q.quiet_hours-Q.quiet_fired,t:fmt(Q.quiet_hours-Q.quiet_fired),cls:'ok'}]);
+$('#q-false-note').textContent=Q.quiet_fired+' of '+fmt(Q.quiet_hours)+' below-median hours opened an event — '+Q.quiet_pct.toFixed(3)+'%.';
+
+/* inbox */
+const IT=[['pushes a year',D.inbox.per_year.toFixed(0),'across '+D.meta.instruments+' instruments'],
+ ['days interrupted',D.inbox.days_per_year.toFixed(0),'a year — most days carry one'],
+ ['median gap',D.inbox.median_gap_days+'d','between interrupted days'],
+ ['longest quiet',D.inbox.longest_quiet_days+'d','the archive record'],
+ ['worst single day',D.inbox.worst_day,D.inbox.worst_day_when],
+ ['digest items',D.inbox.digest_rows_per_note,'per quiet-hours note']];
+const itw=$('#inbox-tiles');
+itw.className='verdicts'; itw.style.marginTop='0';
+IT.forEach(([k,v,w])=>{const d=el('div','vt'); d.append(el('div','v',v),el('div','k',k),el('div','w',w)); itw.append(d);});
+rows('#i-gaps',D.gaps.map(g=>({k:g.label,v:g.count,t:g.count})));
+$('#i-gaps-note').textContent='Median '+D.inbox.median_gap_days+' days between days that interrupt you; the longest quiet stretch is '+D.inbox.longest_quiet_days+' days.';
+rows('#i-clust',D.clusters.map(c=>({k:c.label+(c.label==='1'?' push':' pushes'),v:c.count,t:c.count})));
+const one=D.clusters[0].count, tot=D.clusters.reduce((a,c)=>a+c.count,0);
+$('#i-clust-note').textContent=Math.round(one/tot*100)+'% of interrupted days carry exactly one push.';
+
+(function(){
+  const host=$('#c-year'), ax=$('#cx-year'), ys=D.by_year;
+  const m=Math.max(...ys.map(y=>y.pushes),1);
+  host.style.gridTemplateColumns='repeat('+ys.length+',1fr)';
+  ax.style.gridTemplateColumns='repeat('+ys.length+',1fr)';
+  ys.forEach(y=>{
+    const c=el('div','c'+(y.pushes>=m*0.6?' hot':'')); c.style.height=Math.max(2,y.pushes/m*100)+'%';
+    if(y.pushes>=m*0.35)c.append(el('span',null,y.pushes));
+    c.title=y.year+': '+y.pushes+' pushes, '+y.events+' events'; host.append(c);
+    ax.append(el('span',null,String(y.year).slice(2)));
+  });
+})();
+
+/* tables */
+function table(sel,data,cols,fmtr){
+  const tb=$(sel+' tbody'); let dir=-1,key=null;
+  function draw(rowsIn){
+    tb.textContent='';
+    rowsIn.forEach(r=>{const tr=el('tr');
+      cols.forEach((c,i)=>{const td=el('td',(i===0?'name':'')+(c.n?' n':''));
+        td.textContent=fmtr?fmtr(c.k,r):r[c.k]; if(c.cls)td.classList.add(...c.cls(r).split(' ').filter(Boolean));
+        tr.append(td);});
+      tb.append(tr);});
+  }
+  draw(data);
+  $$(sel+' th.s').forEach(th=>th.addEventListener('click',()=>{
+    const k=th.dataset.k; dir=(key===k)?-dir:-1; key=k;
+    $$(sel+' th.s').forEach(o=>o.removeAttribute('data-dir'));
+    th.dataset.dir=dir>0?'1':'0';
+    draw([...data].sort((a,b)=>{const x=a[k],y=b[k];
+      return (typeof x==='number'?x-y:String(x).localeCompare(String(y)))*dir;}));
+  }));
+  return draw;
+}
+const INST=D.instruments;
+const icols=[{k:'ticker'},{k:'block'},{k:'provider'},{k:'years',n:1},{k:'median_hour',n:1},
+ {k:'pushes',n:1},{k:'push_per_year',n:1},{k:'events',n:1},{k:'top',n:1},
+ {k:'silent',n:1,cls:r=>r.silent>0?'bad':''},{k:'quiet_fired',n:1,cls:r=>r.quiet_fired>0?'warn':''}];
+const drawInst=table('#t-inst',INST,icols,(k,r)=>k==='median_hour'?r[k].toFixed(3)+'%':r[k]);
+[...new Set(INST.map(r=>r.block))].sort().forEach(b=>$('#f-block').append(new Option(b,b)));
+[...new Set(INST.map(r=>r.provider))].sort().forEach(p=>$('#f-prov').append(new Option(p,p)));
+function filt(){
+  const q=$('#f-search').value.toLowerCase(), b=$('#f-block').value, p=$('#f-prov').value;
+  const out=INST.filter(r=>(!b||r.block===b)&&(!p||r.provider===p)&&
+    (!q||r.ticker.toLowerCase().includes(q)||r.label.toLowerCase().includes(q)));
+  drawInst(out); $('#f-count').textContent=out.length+' of '+INST.length;
+}
+['#f-search','#f-block','#f-prov'].forEach(s=>$(s).addEventListener('input',filt));
+filt();
+table('#t-block',D.blocks,[{k:'block'},{k:'members',n:1},{k:'pushes',n:1},{k:'per_year',n:1},
+ {k:'block_level',n:1},{k:'extreme',n:1}]);
+const MEAN={absolute:'big for this instrument, market or not',
+ abnormal:'big once its block is subtracted',both:'both channels agreed',
+ block:'the whole block moved together'};
+const btb=$('#t-basis tbody');
+D.basis.forEach(b=>{const tr=el('tr');
+  tr.append(el('td','name',b.basis),el('td','n',fmt(b.events)),el('td','n',fmt(b.pushes)),el('td',null,MEAN[b.basis]));
+  btb.append(tr);});
+table('#t-cov',D.coverage,[{k:'ticker'},{k:'block'},{k:'provider'},{k:'years',n:1},
+ {k:'bars',n:1},{k:'first'},{k:'last'}],(k,r)=>k==='bars'?fmt(r[k]):r[k]);
+
+/* retention */
+function retRows(host,r){
+  rows(host,[{k:'kept going',v:r.kept_going,t:pc(r.kept_going_pct),cls:'ok'},
+   {k:'held (≥50%)',v:r.held,t:pc(r.held_pct),cls:'ok'},
+   {k:'gave it all back',v:r.reverted,t:pc(r.reverted_pct),cls:'bad'},
+   {k:'not yet answered',v:r.of-r.answered,t:fmt(r.of-r.answered)}],r.of);
+}
+retRows('#r-today',D.retention.today); retRows('#r-settled',D.retention.settled);
+const rtb=$('#t-ret tbody');
+D.retention_by.forEach(r=>{const tr=el('tr');
+  tr.append(el('td','name',r.key),el('td','n',fmt(r.n)),el('td','n',fmt(r.answered)),
+    el('td','n '+(r.held_pct>=75?'ok':''),pc(r.held_pct)),el('td','n',r.median));
+  rtb.append(tr);});
+
+/* sources */
+const provN={}; D.coverage.forEach(c=>provN[c.provider]=(provN[c.provider]||0)+1);
+const SRC=[['tiingo',provN.tiingo||0,'8 currency pairs + the ETFs whose single-exchange price matches the tape'],
+ ['yahoo',provN.yahoo||0,'the thin funds where one exchange is not the same price'],
+ ['coinbase',provN.coinbase||0,'crypto, unchanged'],
+ ['twelvedata',provN.twelvedata||0,'archive, gap-filling and deepening only']];
+const stw=$('#src-tiles'); stw.className='verdicts'; stw.style.marginTop='0';
+SRC.forEach(([k,v,w])=>{const d=el('div','vt'); d.append(el('div','v',String(v)),el('div','k',k+' · instruments'),el('div','w',w)); stw.append(d);});
+rows('#s-bps',[{k:'8 liquid ETFs',v:0.02,t:'0.00',cls:'ok'},{k:'26 more ETFs',v:0.52,t:'0.52',cls:'ok'},
+ {k:'8 currency pairs',v:0.72,t:'0.72',cls:'ok'},{k:'thin funds (rejected)',v:7.97,t:'7.97',cls:'bad'}],8);
+rows('#s-thin',[{k:'UGA worst hour',v:76.8,t:'77 bps',cls:'bad'},{k:'SOYB median',v:7.2,t:'7.2',cls:'bad'},
+ {k:'WEAT median',v:3.9,t:'3.9',cls:'warn'},{k:'liquid median',v:0.2,t:'0.2',cls:'ok'}],80);
+
+/* ops */
+rows('#o-days',D.ops.days.map(d=>({k:d.day.slice(5),v:d.lost_pct,
+  t:d.lost_pct+'%',cls:d.lost_pct===0?'ok':(d.lost_pct>30?'bad':'warn')})),100);
+rows('#o-dur',[{k:'before, median',v:D.ops.before.median,t:D.ops.before.median+'s',cls:'warn'},
+ {k:'before, p90',v:D.ops.before.p90,t:D.ops.before.p90+'s',cls:'bad'},
+ {k:'now, median',v:D.ops.after.median,t:D.ops.after.median+'s',cls:'ok'},
+ {k:'now, p90',v:D.ops.after.p90,t:D.ops.after.p90+'s',cls:'ok'}],D.ops.before.p90);
+$('#o-dur-note').textContent='Job timeout is 20 minutes. '+D.ops.before.n+' runs before the feed change, '+D.ops.after.n+' since.';
+
+/* messages */
+const mw=$('#msgs');
+D.messages.forEach(m=>{
+  const d=el('div','msg'); d.style.setProperty('--tier','var('+(TC[m.tier]||'--t3')+')');
+  const w=el('div','when');
+  const b=el('b',null,m.tier+' · '+m.basis); w.append(b,el('span',null,m.when));
+  d.append(w,el('div','why',m.note));
+  const pre=el('pre'); pre.innerHTML=m.text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/&lt;b&gt;/g,'<b>').replace(/&lt;\/b&gt;/g,'</b>');
+  d.append(pre); mw.append(d);
+});
+
+/* nav highlight */
+const secs=$$('section[id]');
+const io=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){
+  $$('nav a').forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id));}});},
+  {rootMargin:'-20% 0px -70% 0px'});
+secs.forEach(s=>io.observe(s));
+</script>
+
+</body></html>

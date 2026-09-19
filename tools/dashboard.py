@@ -10,9 +10,17 @@ That distinction is not cosmetic: the warm table covers the trailing six years,
 while the hours it is scored against come from the whole archive, so mixing them
 reports most of history as missed. Pass --events from a `tremor.saed --full` run.
 
-Run health is the one thing not derived here - it comes from the Actions API,
-which needs a token this has no business holding. Pass it in with --ops, or
-leave it out and the page keeps the section it already had.
+TWO THINGS ARE NOT DERIVED HERE and are passed in instead: run health, which
+comes from the Actions API and needs a token this has no business holding, and
+the four sample messages, which the delivery code renders. Everything else on
+the page is measured from the store by this file, so a figure that has drifted
+shows up as a different number rather than as nothing at all.
+
+THE PAGE IT FILLS IS report_card.html, committed beside this with a __PAYLOAD__
+placeholder where the numbers go. The page is a SNAPSHOT and says so: it carries
+the date, the time and the commit it was measured on, because it stops being
+recomputed the moment it is written and a reader cannot otherwise tell a figure
+that still holds from one that stopped holding weeks ago.
 """
 from __future__ import annotations
 
@@ -286,18 +294,40 @@ def main(argv=None) -> int:
                         help="events table from `tremor.saed --full`")
     parser.add_argument("--residuals", default=None,
                         help="residual directory from the same run")
-    parser.add_argument("--ops", default=None, help="run-health JSON")
-    parser.add_argument("--out", required=True)
+    parser.add_argument("--ops", default=None,
+                        help="run-health JSON, from the Actions API")
+    parser.add_argument("--messages", default=None,
+                        help="the sample messages, rendered by the delivery code")
+    parser.add_argument("--out", required=True,
+                        help="where to write; .html renders the page, .json the "
+                             "payload on its own")
+    parser.add_argument("--template", default=str(Path(__file__).with_name("report_card.html")),
+                        help="the page to inject the payload into")
     args = parser.parse_args(argv)
 
     if args.residuals:
         report_card.RESIDUALS_DIR = Path(args.residuals)
     ops = json.loads(Path(args.ops).read_text()) if args.ops else None
     payload = build(pd.read_parquet(args.events), ops)
-    Path(args.out).write_text(json.dumps(payload, separators=(",", ":")))
+    if args.messages:
+        payload["messages"] = json.loads(Path(args.messages).read_text())
+    blob = json.dumps(payload, separators=(",", ":"))
+    out = Path(args.out)
+    if out.suffix == ".html":
+        # The template carries the page and a placeholder; the payload is the
+        # only thing that changes between snapshots, which is why it is kept out
+        # of the committed file - a hundred kilobytes of numbers rewritten on
+        # every rebuild is the same mistake as committing the parquet.
+        template = Path(args.template).read_text()
+        if "__PAYLOAD__" not in template:
+            raise SystemExit(f"{args.template} has no __PAYLOAD__ placeholder")
+        out.write_text(template.replace("__PAYLOAD__", blob))
+    else:
+        out.write_text(blob)
     m = payload["meta"]
     print(f"{m['events']} events, {m['pushes']} pushes, {m['instruments']} "
-          f"instruments, {m['bars']} bars -> {args.out}")
+          f"instruments, {m['bars']} bars, measured {m['generated_at']} on "
+          f"{m['commit']} -> {args.out}")
     return 0
 
 

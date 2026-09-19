@@ -212,8 +212,22 @@ missed:
 ```bash
 python -m tremor.saed --full --events-out /tmp/ev.parquet --residuals-out /tmp/res
 PYTHONPATH=. python tools/dashboard.py --events /tmp/ev.parquet --residuals /tmp/res \
-  --out /tmp/payload.json
+  --ops ops.json --messages messages.json --out card.html
 ```
 
-Run health comes from the Actions API and is passed in with `--ops`; the four sample
-messages are rendered by the delivery code. Everything else is derived from the store.
+An `.html` output fills `tools/report_card.html`, which is the page with a `__PAYLOAD__`
+placeholder where the numbers go; a `.json` output writes the payload alone. The page is
+kept in the repository and the payload is not, for the same reason the derived parquet is
+not: a hundred kilobytes of numbers rewritten on every rebuild is churn git cannot delta.
+
+Two inputs are not derived. Run health comes from the Actions API, which needs a token this
+has no business holding, and the four sample messages are rendered by the delivery code.
+Everything else is measured from the store, so a figure that has drifted shows up as a
+different number rather than as nothing at all.
+
+**The page is a snapshot and says so.** It carries the date, the time and the commit it was
+measured on — including whether the tree was dirty — because it stops being recomputed the
+moment it is written, and a reader cannot otherwise tell a figure that still holds from one
+that stopped holding weeks ago. The one section that is *not* measured is Limits: it is
+hand-written prose about the present, so it goes stale first and the page warns that it
+does.
