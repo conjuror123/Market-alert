@@ -50,12 +50,23 @@ Break one of these and the system is wrong rather than merely broken.
    afterwards. End of session for the funds, end of the UTC day for crypto.
 5. **A ping exists only while the note beneath it shows its row.** `pending_pings` and
    `restyle_pings` both bound on the open note's window; they must not diverge.
-6. **Tables are written through a temp file and `os.replace`** (`tremor/atomic.py`), so a
+6. **A note interrupts only while its period is open.** Every note inside
+   `DIGEST_TRACK_HOURS` is re-rendered from the events table each run, so it stays
+   correctable — but an edit is silent and a new part is a notification. Past
+   `DIGEST_GROW_AFTER_CLOSE_HOURS` beyond its window, a note may be corrected and may
+   not grow. Two interruptions a week, and no third.
+7. **An hour is scored from the bar it ends with, not the bar it starts with.** The run
+   fires at :05 and stores the hour it is standing in — a few per cent of its volume.
+   The bars heal on the next fetch, so the metrics must too: `extend_asset_metrics`
+   re-scores its last `RECOMPUTE_TAIL_BARS` rows instead of trusting them.
+8. **Tables are written through a temp file and `os.replace`** (`tremor/atomic.py`), so a
    killed run cannot truncate one in place.
-7. **Secrets never enter the repository.** The repo is public. `config.yaml` may name a
+9. **Secrets never enter the repository.** The repo is public. `config.yaml` may name a
    secret; it may never hold one.
-8. **A change to a formula moves `config_version`**, and `pipeline` then rebuilds cold
-   instead of extending. The first run after such a change is slow by design.
+10. **A change to a formula moves `config_version`**, and `pipeline` then rebuilds cold
+    instead of extending. The first run after such a change is slow by design. A comment
+    does not: the inputs are hashed as parsed code, docstrings stripped, so rewriting
+    prose cannot force a rebuild or move an event's stamp.
 
 ## Working locally
 

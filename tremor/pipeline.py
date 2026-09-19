@@ -24,6 +24,7 @@ import logging
 import os
 from datetime import date
 
+import numpy as np
 import pandas as pd
 
 from tremor import atomic, bars, corporate_actions, quality, returns, sessions, windows, zscore
@@ -105,6 +106,52 @@ def metrics_path(base_dir: str, file_stem: str) -> str:
     return os.path.join(base_dir, f"{file_stem}.parquet")
 
 
+# How much of the tail of the stored metrics is recomputed rather than trusted.
+#
+# THE HOURLY RUN SCORES AN HOUR THAT HAS NOT FINISHED. It fires five minutes
+# past the hour and stores a bar for the hour it is standing in - measured on
+# the committed store, two to thirteen per cent of that hour's volume. Whatever
+# the metric chain makes of those five minutes is what the store then holds.
+#
+# The bars heal by themselves: the next fetch returns the complete hour and
+# bars.merge lets the incoming row win. The metrics did not, because an
+# extension only ever computed hours NEWER than the store's last one, so the
+# complete bar arrived to find its hour already written and was never scored.
+# Every hour was therefore judged on its first five minutes, permanently, which
+# understates every move and misses exactly the news-driven hours the system
+# exists to catch: 2026-09-16 18:00, the FOMC statement, went into the store as
+# SHY +0.02% when the hour closed at -0.19%, and thirteen instruments' events
+# went missing with it.
+#
+# Two days of bars, so a stretch of runs can be missed and the hours they got
+# wrong are still re-scored when the next one lands. The cost is nothing: the
+# chain already recomputes windows.warm_bars rows of lead to be exact, and this
+# only keeps more of what it computed.
+RECOMPUTE_TAIL_BARS = 48
+
+
+def _unchanged(new_rows: pd.DataFrame, old_rows: pd.DataFrame) -> bool:
+    """Whether re-scoring these rows said the same thing as the store already did.
+
+    A tolerance rather than equality. Recomputing from a slice of lead-in
+    reorders float accumulation, so the answer agrees to about 1e-13 and never
+    to the bit - the same accuracy the extension claim itself rests on. What
+    this has to separate is that from a real correction, and a real one is not
+    subtle: the hour this was written for went from +0.02% to -0.19%.
+    """
+    if list(new_rows.columns) != list(old_rows.columns):
+        return False
+    for column in new_rows.columns:
+        left, right = new_rows[column], old_rows[column]
+        if pd.api.types.is_float_dtype(left) and pd.api.types.is_float_dtype(right):
+            if not np.allclose(left.to_numpy(float), right.to_numpy(float),
+                               rtol=1e-9, atol=1e-12, equal_nan=True):
+                return False
+        elif not left.reset_index(drop=True).equals(right.reset_index(drop=True)):
+            return False
+    return True
+
+
 def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
                          session_table: dict[date, sessions.Session],
                          action_days: "set[date] | None",
@@ -126,12 +173,17 @@ def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
     EUR/USD and BTC-USD, the largest relative difference in any column was
     1.8e-14, which is float64 accumulation order and not a disagreement.
 
-    WHAT IT CANNOT SEE is a revision to a bar older than the window. The
-    provider does correct history occasionally, and a correction to a bar from
-    three years ago would leave the stored metrics saying what they said. That
-    is what config_version guards half of - a change to the CALCULATION forces a
-    cold build - and what `--full` is for on the other half. Anything longer
-    than the window is a scheduled rebuild's job, not an hourly run's.
+    THE LAST RECOMPUTE_TAIL_BARS ROWS ARE NEVER TRUSTED, only the ones behind
+    them. The newest rows were written by runs that scored an hour before it had
+    finished, and a bar that has since been completed or corrected has to be
+    able to replace what they said.
+
+    WHAT IT CANNOT SEE is a revision to a bar older than that tail. The provider
+    does correct history occasionally, and a correction to a bar from three
+    years ago would leave the stored metrics saying what they said. That is what
+    config_version guards half of - a change to the CALCULATION forces a cold
+    build - and what `--full` is for on the other half. Anything older than the
+    tail is a scheduled rebuild's job, not an hourly run's.
     """
     if stored is None or stored.empty or "hour_utc" not in stored:
         return None
@@ -145,10 +197,18 @@ def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
     if len(seen) != 1 or str(seen[0]) != str(config_version):
         return None
 
-    newest = int(stored["hour_utc"].max())
+    # Everything the store says that is old enough to be settled. The tail it
+    # drops is recomputed below along with whatever is new.
+    settled = stored.sort_values("hour_utc")
+    if len(settled) <= RECOMPUTE_TAIL_BARS:
+        return None            # all tail and no trunk; compute the whole thing
+    if RECOMPUTE_TAIL_BARS:    # 0 would mean iloc[:-0], which is the empty frame
+        settled = settled.iloc[:-RECOMPUTE_TAIL_BARS]
+
+    newest = int(settled["hour_utc"].max())
     fresh = frame[frame["hour_utc"] > newest]
     if fresh.empty:
-        return stored          # nothing new; the store already is the answer
+        return stored          # the bars do not even reach the store; leave it
 
     bars_per = bars_per_session(asset, frame, basket.anchor_exchange_tz)
     window = windows.warm_bars(windows.w_asset(bars_per))
@@ -166,14 +226,28 @@ def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
         return stored
     from tremor import versioning
     stamp_run = run_version
-    if stamp_run is None and "run_version" in stored.columns:
-        stamp_run = str(stored["run_version"].iloc[-1])
+    if stamp_run is None and "run_version" in settled.columns:
+        stamp_run = str(settled["run_version"].iloc[-1])
     if stamp_run is None:
         added = added.assign(config_version=config_version)
     else:
         added = versioning.stamp(added, config_version, stamp_run)
-    keep = [c for c in stored.columns if c in added.columns]
-    return pd.concat([stored, added[keep]], ignore_index=True)
+    keep = [c for c in settled.columns if c in added.columns]
+    rebuilt = pd.concat([settled, added[keep]], ignore_index=True)
+
+    # Identity when nothing moved: the caller skips the parquet write on `is`,
+    # which is what stops the seventeen hours a day a US fund is closed costing
+    # a quarter of a gigabyte each. Re-scoring the tail means "no new bars" is
+    # no longer the question - the tail can be re-scored to the same numbers -
+    # so what is stored and what was just computed are compared. Only the last
+    # RECOMPUTE_TAIL_BARS rows can differ; everything before them is the same
+    # rows, untouched.
+    ordered = stored.sort_values("hour_utc").reset_index(drop=True)
+    if len(rebuilt) == len(ordered) and _unchanged(
+            rebuilt.iloc[-RECOMPUTE_TAIL_BARS:].reset_index(drop=True),
+            ordered.iloc[-RECOMPUTE_TAIL_BARS:].reset_index(drop=True)):
+        return stored
+    return rebuilt
 
 
 def build_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,

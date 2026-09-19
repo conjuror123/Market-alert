@@ -146,7 +146,8 @@ skipping) · `sessions` (NYSE calendar and the FX reference week) · `corporate_
 
 **Per instrument**
 `returns` (returns, gap channel, winsorization) · `zscore` (adaptive EWMA) · `pipeline`
-(assembles the above, extending stored metrics rather than rebuilding them)
+(assembles the above, extending stored metrics rather than rebuilding them, and
+re-scoring the last two days in case a bar has been completed or corrected since)
 
 **The detector**
 `cross_section` (quorum, the leave-one-out block factor, dispersion) · `basket` + `blocks`
@@ -155,7 +156,7 @@ rank test) · `severity` (the ladder) · `saed` (events, the once-a-day rule, th
 `persistence` (did the move hold) · `routing` (channel and digest slot)
 
 **Bookkeeping**
-`versioning` (config and run hashes over content) · `windows` (every window and constant,
+`versioning` (config and run hashes; the code, parsed, not the bytes) · `windows` (every window and constant,
 in one file) · `evaluate` + `saed_score` (after-the-fact scoring) · `feedback` (recorded
 verdicts)
 

@@ -155,6 +155,15 @@ unpegged is exactly the week a budget starts silencing things, because that is t
 records cluster. Volume is controlled where it is generated — by the ladder, by
 `sensitivity`, and by the size floor.
 
+**A closed note is a record, not a feed.** Every note still being tracked is re-rendered
+from the events table on each run, which is what lets a late event appear and a
+recomputed-away one go. Editing is silent in Telegram; posting a part is not. So a note
+keeps being corrected for as long as it is tracked, and stops being able to grow a few
+hours after its period ends. Without that bound anything that changes the events table
+changes closed notes too, and what they gain arrives as new messages: one cold rebuild
+grew a note that had closed two days earlier from 5 rows to 19 and posted the difference
+as two alerts at breakfast. The rows were right. The interruption was not.
+
 **Say what the move was big compared with.** 45% of pushes carry a number under 1%, and
 "+0.13%, biggest move in about three years" reads as a bug. Short Treasuries move 0.024%
 in a usual hour, so it really is six times normal. Both numbers are shown, so the claim
@@ -198,6 +207,19 @@ split-adjusted price then reports every earlier step at twice its true size.
 Splits are recorded in the table and **excluded** from the un-adjustment used when
 deepening history: the store is already split-adjusted, so applying a split factor would
 manufacture the error it is meant to remove.
+
+**The newest rows of the metrics store are never trusted.** The run fires five minutes
+past the hour and stores a bar for the hour it is standing in — two to thirteen per cent
+of that hour's volume, measured on the committed store. The bars heal by themselves, since
+the next fetch returns the complete hour and the incoming row wins the merge. The metrics
+did not: an extension computed only hours newer than the store's last one, so the complete
+bar arrived to find its hour already written and was never scored. Every hour was judged
+on its first five minutes, which understates every move and misses precisely the
+news-driven hours the system exists to catch — 2026-09-16 18:00, the FOMC statement, went
+into the store as SHY +0.02% when the hour had closed at -0.19%, and thirteen instruments'
+events went with it. `extend_asset_metrics` now re-scores its last two days of bars rather
+than trusting them, which costs nothing: the chain already recomputes `warm_bars` of
+lead-in to be exact, and this keeps more of what it computed.
 
 **A day is not a unit of completeness.** Gap detection asks about hours, not days: a day
 present with three of its seven hours is a hole the calendar can see and a day-level check

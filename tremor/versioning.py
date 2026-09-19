@@ -18,12 +18,13 @@ changes and the recomputation gets a new version automatically.
 """
 from __future__ import annotations
 
+import ast
 import hashlib
 import os
 
 # Everything that affects the result of the calculation. The list is deliberately
-# explicit: a silent "hash the whole package" would break the version on a comment
-# edit, while hashing only the configuration would miss a change of formula.
+# explicit: hashing the whole package would drag in files that cannot change a
+# number, while hashing only the configuration would miss a change of formula.
 CONFIG_INPUTS = (
     os.path.join("config", "basket.yaml"),
     os.path.join("tremor", "windows.py"),
@@ -73,6 +74,44 @@ VERSION_LENGTH = 12
 CHUNK = 1 << 20
 
 
+def _code(source: bytes) -> bytes:
+    """A Python source file reduced to the code it runs.
+
+    config_version must move when a formula moves and stay put otherwise, so what
+    is hashed is the parsed tree with the docstrings taken out - not the bytes.
+    Hashing the bytes makes every comment a formula change: it forces a cold
+    rebuild of all 61 instruments, and the recomputed table can differ from the
+    extended one it replaces, which reaches the reader as a burst of alerts for
+    hours that were scored days ago.
+
+    The tree is normalised by the running interpreter, so a Python upgrade can
+    move the version by itself. That costs one cold rebuild and no wrong number,
+    which is the right side of the trade to be on.
+    """
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Module, ast.ClassDef,
+                                 ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        first = node.body[0] if node.body else None
+        if (isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant)
+                and isinstance(first.value.value, str)):
+            node.body = node.body[1:]
+    return ast.dump(tree).encode("utf-8")
+
+
+def _content(path: str) -> bytes:
+    """What a configuration input contributes to the hash.
+
+    Python is hashed as code (see _code); anything else - config/basket.yaml -
+    as its bytes, because a comment there sits beside the values it describes
+    and there is no parse that separates the two cheaply.
+    """
+    with open(path, "rb") as f:
+        raw = f.read()
+    return _code(raw) if path.endswith(".py") else raw
+
+
 def _digest(chunks) -> str:
     accumulator = hashlib.sha256()
     for chunk in chunks:
@@ -93,8 +132,7 @@ def config_version(root: str = ".", inputs=CONFIG_INPUTS) -> str:
         chunks.append(relative.encode("utf-8"))
         path = os.path.join(root, relative)
         if os.path.exists(path):
-            with open(path, "rb") as f:
-                chunks.append(f.read())
+            chunks.append(_content(path))
         else:
             chunks.append(b"<absent>")
     return _digest(chunks)

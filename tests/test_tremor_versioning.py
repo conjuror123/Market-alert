@@ -156,3 +156,58 @@ def test_an_unreadable_previous_table_does_not_stop_the_run(tmp_path):
     broken = tmp_path / "broken.parquet"
     broken.write_text("not a parquet file", encoding="utf-8")
     assert versioning.previous_table(str(broken)) is None
+
+
+def test_a_comment_does_not_change_the_version(tmp_path):
+    # THE ONE THAT WENT WRONG. A commit that only rewrote comments moved
+    # config_version, which forced a cold rebuild of all 61 instruments; the
+    # recomputed table differed from the extended one it replaced, and the rows
+    # it gained were posted to a note that had closed seven hours earlier. A
+    # comment cannot change a number, so it must not change the version.
+    inputs = ("severity.py",)
+    write(tmp_path, "severity.py", '"""Tiers."""\n# how rare is rare\nMAJOR = 3.0\n')
+    before = versioning.config_version(str(tmp_path), inputs)
+
+    write(tmp_path, "severity.py",
+          '"""Tiers, and why these four.\n\n    At length.\n    """\nMAJOR = 3.0\n')
+    assert versioning.config_version(str(tmp_path), inputs) == before
+
+
+def test_a_formula_still_changes_the_version_when_the_comment_stays(tmp_path):
+    # The other half of the same guard: ignoring comments must not make the
+    # version ignore the edit sitting next to one.
+    inputs = ("severity.py",)
+    write(tmp_path, "severity.py", '"""Tiers."""\nMAJOR = 3.0\n')
+    before = versioning.config_version(str(tmp_path), inputs)
+    write(tmp_path, "severity.py", '"""Tiers."""\nMAJOR = 3.5\n')
+    assert versioning.config_version(str(tmp_path), inputs) != before
+
+
+def test_a_string_the_code_uses_is_not_a_docstring(tmp_path):
+    # Only the leading string of a module, class or function is dropped. A
+    # string that is assigned, returned or compared is a value like any other.
+    inputs = ("severity.py",)
+    write(tmp_path, "severity.py", 'TIER = "major"\n')
+    before = versioning.config_version(str(tmp_path), inputs)
+    write(tmp_path, "severity.py", 'TIER = "extreme"\n')
+    assert versioning.config_version(str(tmp_path), inputs) != before
+
+
+def test_a_comment_in_the_basket_still_changes_the_version(tmp_path):
+    # basket.yaml is hashed as bytes: there is no cheap parse that separates a
+    # comment from the value beside it, and erring towards a needless rebuild is
+    # the safe direction for the file that lists what is watched at all.
+    inputs = ("config/basket.yaml",)
+    write(tmp_path, "config/basket.yaml", "assets: []\n")
+    before = versioning.config_version(str(tmp_path), inputs)
+    write(tmp_path, "config/basket.yaml", "# sixty-one instruments\nassets: []\n")
+    assert versioning.config_version(str(tmp_path), inputs) != before
+
+
+def test_every_python_configuration_input_can_be_parsed():
+    # config_version now parses each .py input, so a file it cannot parse would
+    # fail the whole run rather than one hash. They all import at test time, but
+    # this states the dependency where the list lives.
+    for relative in versioning.CONFIG_INPUTS:
+        if relative.endswith(".py"):
+            assert versioning._content(relative)

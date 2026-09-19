@@ -188,7 +188,7 @@ tremor/routing.py          channel and digest slot
 tremor/blocks.py           block-level events
 
 Bookkeeping
-tremor/versioning.py       config_version and run_version, hashes over content
+tremor/versioning.py       config_version and run_version; hashes the parsed code
 tremor/windows.py          every window and constant, in one file
 tremor/atomic.py           write-through-temp-file, so a killed run cannot truncate
 tremor/evaluate.py, saed_score.py   after-the-fact scoring

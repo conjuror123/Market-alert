@@ -1196,6 +1196,15 @@ DIGEST_OPEN_WITHIN_HOURS = 4
 # once - the buzz is always at noon, and no move is silently dropped for want of
 # a scheduler.
 
+# How long after its period ends a note may still POST a part, as opposed to
+# edit one. It needs a little: the last hour of a period is scored by the run
+# after that period has closed, so a note that froze exactly on its boundary
+# would drop its own final hour. It must not have much, because a new message is
+# an interruption and the whole point of a note is that it interrupts twice a
+# week. The same four hours the opening rule allows, for the same reason - the
+# trigger is an external service and one failed run must not cost the tail.
+DIGEST_GROW_AFTER_CLOSE_HOURS = DIGEST_OPEN_WITHIN_HOURS
+
 # How long a note stays editable after it opens. Its own window is at most three
 # and a half days, and the last event inside it then needs until the close of
 # the next trading day to be answered - over a holiday weekend, another four.
@@ -1421,7 +1430,8 @@ _EMPTIED_PART = "<i>(this part is no longer needed - the note above is complete)
 
 
 def _write_digest(cfg: Config, slot: int, record: dict,
-                  texts: "list[str]", state: dict | None = None) -> "tuple[int, int]":
+                  texts: "list[str]", state: dict | None = None,
+                  may_grow: bool = True) -> "tuple[int, int]":
     """Posts a note's parts, or edits the ones already posted.
 
     Returns (posted, edited). Whether the note may exist at all was decided
@@ -1432,6 +1442,11 @@ def _write_digest(cfg: Config, slot: int, record: dict,
     new message and everything before it is an edit. A failed post stops the
     loop rather than skipping a part, because the parts are numbered and a gap
     would be worse than a retry on the next run.
+
+    may_grow=False renders into the parts the note already has and stops there.
+    It is how a closed note stays correctable without becoming loud: an edit is
+    silent, a new part is a notification, and a period that ended days ago has
+    no business notifying anybody. The caller decides; see maybe_deliver.
     """
     ids, hashes = record["ids"], record["hashes"]
     if len(texts) < len(ids):
@@ -1458,6 +1473,8 @@ def _write_digest(cfg: Config, slot: int, record: dict,
             if state is not None:
                 save_state(cfg.state_path, state)
         else:
+            if not may_grow:
+                break
             try:
                 message_id = send_telegram_message(
                     cfg.telegram_bot_token, cfg.telegram_chat_id, text)
@@ -1871,9 +1888,32 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
             log.info("Digest %s: recomputed to nothing, keeping the %d row(s) "
                      "already published", slot, record["rows"])
             continue
-        texts = format_digest(rows, labels, note_window(slot, record), calendar,
+        window = note_window(slot, record)
+        # A NOTE INTERRUPTS ONLY WHILE ITS PERIOD IS OPEN, and for the short
+        # grace that lets its own last hour land. After that it is a record: it
+        # is still rendered and still corrected in place, silently, but it never
+        # grows a new part again.
+        #
+        # Every note here is re-rendered from the events table on every run for
+        # as long as DIGEST_TRACK_HOURS keeps it, which is ten days. Without
+        # this bound, anything that changes the table changes closed notes too,
+        # and the rows they gain go out as new messages - a burst of alerts,
+        # now, for hours that were scored days ago. That is not a hypothetical:
+        # a cold rebuild grew the note for Mon 14 -> Sat 19 from 5 rows to 19
+        # seven hours after it had closed, and posted the fourteen it gained as
+        # two new messages. The rows were right; the interruption was not.
+        #
+        # A note that has never posted at all is exempt. It is not a closed note
+        # gaining a row, it is a first post that failed and is being retried,
+        # and refusing it would lose the only copy of that period.
+        may_grow = (not record["ids"]
+                    or now.timestamp() < window[1]
+                    + DIGEST_GROW_AFTER_CLOSE_HOURS * 3600)
+        texts = format_digest(rows, labels, window, calendar,
                               now, events, rate_history)
-        made, changed = _write_digest(cfg, slot, record, texts, state)
+        held = max(0, len(texts) - len(record["ids"])) if not may_grow else 0
+        made, changed = _write_digest(cfg, slot, record, texts, state,
+                                      may_grow=may_grow)
         posted += made
         edited += changed
         if rows:
@@ -1881,6 +1921,9 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         if made or changed:
             log.info("Digest %s: %d part(s) posted, %d edited (%d event(s))",
                      slot, made, changed, len(rows))
+        if held:
+            log.info("Digest %s: closed, so %d late part(s) were not posted",
+                     slot, held)
 
     if pushes:
         log.info("Tremor pushes sent: %d of %d due", pushed, len(pushes))

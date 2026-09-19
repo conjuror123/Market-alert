@@ -1820,3 +1820,80 @@ def test_a_ping_left_behind_by_a_closed_period_is_deleted(monkeypatch, sender):
     assert "stranded" not in state[md.STATE_KEY][md.PINGS]
     # and it must not come straight back
     assert not any("Added to digest" in t for t in sender.texts)
+
+
+# --- a closed note is a record, not a live feed -------------------------------
+#
+# Every note still inside DIGEST_TRACK_HOURS is re-rendered from the events
+# table on every run, for ten days. That is what lets a late event appear and a
+# recomputed-away one go. What it must not do is INTERRUPT: a new part is a
+# Telegram notification, and a period that ended days ago has nothing to notify
+# anybody about.
+
+LATER = NOW + timedelta(hours=6)        # past SLOT's opening window, so nothing new opens
+
+
+def _crowded(window, count=200):
+    """Enough digest rows inside `window` to need more parts than one."""
+    start = window[0]
+    return [event(event_id=f"d{i}", channel="digest", tier="noticeable",
+                  hour_utc=start + HOUR, digest_slot=None)
+            for i in range(count)]
+
+
+def _one_note(to):
+    """A note with a single part already posted, covering up to `to`."""
+    slot = to - 3 * 24 * HOUR
+    return slot, {md.STATE_KEY: {md.DIGEST_STATE: {
+        str(slot): {"ids": [13], "hashes": ["stale"], "rows": 1,
+                    "from": slot, "to": to}}}}
+
+
+def test_a_closed_note_is_corrected_but_never_posts_another_part(
+        monkeypatch, sender, editor):
+    # THE ONE THAT WENT WRONG. A cold rebuild grew the note for Mon 14 -> Sat 19
+    # from 5 rows to 19, seven hours after that period had closed, and the
+    # fourteen it gained went out as two new messages: a burst of alerts, at
+    # 10:06, for moves that happened two days earlier.
+    to = int(LATER.timestamp()) - (md.DIGEST_GROW_AFTER_CLOSE_HOURS + 1) * HOUR
+    slot, state = _one_note(to)
+    rows = _crowded((slot, to))
+
+    deliver(monkeypatch, rows, state=state, now=LATER)
+
+    assert notes(sender) == [], "a closed note must not send a new message"
+    assert state[md.STATE_KEY][md.DIGEST_STATE][str(slot)]["ids"] == [13]
+    # It is still a record kept true: the part that exists was rewritten.
+    assert [call for call in editor.calls if call[0] == 13], \
+        "a closed note is still corrected in place, silently"
+
+
+def test_a_note_still_posts_the_tail_of_the_period_it_just_closed(
+        monkeypatch, sender, editor):
+    # The other half of the same bound, and the reason it is not simply "closed
+    # means frozen": the last hour of a period is scored by the run AFTER that
+    # period ends, so a note that froze on its own boundary would drop it.
+    to = int(LATER.timestamp()) - (md.DIGEST_GROW_AFTER_CLOSE_HOURS - 1) * HOUR
+    slot, state = _one_note(to)
+    rows = _crowded((slot, to))
+
+    deliver(monkeypatch, rows, state=state, now=LATER)
+
+    assert notes(sender), "a note just past its boundary must still post its tail"
+    assert len(state[md.STATE_KEY][md.DIGEST_STATE][str(slot)]["ids"]) > 1
+
+
+def test_a_note_whose_first_post_failed_is_still_retried_after_it_closes(
+        monkeypatch, sender):
+    # A note with no message behind it is not a closed note gaining a row, it is
+    # a post that never landed. Refusing it would lose the only copy of that
+    # period - carried_from already treats it this way when it decides where the
+    # next note starts covering.
+    to = int(LATER.timestamp()) - (md.DIGEST_GROW_AFTER_CLOSE_HOURS + 1) * HOUR
+    slot = to - 3 * 24 * HOUR
+    state = {md.STATE_KEY: {md.DIGEST_STATE: {
+        str(slot): {"ids": [], "hashes": [], "from": slot, "to": to}}}}
+
+    deliver(monkeypatch, _crowded((slot, to), count=2), state=state, now=LATER)
+
+    assert notes(sender), "a note that never posted must still be retried"
