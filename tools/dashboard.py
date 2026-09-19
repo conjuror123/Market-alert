@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -32,6 +33,27 @@ from tremor import bars as bars_mod                                 # noqa: E402
 from tremor.basket import load_basket                               # noqa: E402
 
 PUSH_TIERS = ("major", "extreme")
+
+
+def _commit() -> str:
+    """The commit the figures were measured on.
+
+    A published page is a SNAPSHOT: it stops being recomputed the moment it is
+    written, and a reader has no way to tell a figure that still holds from one
+    that stopped holding weeks ago. A date says when; the commit says what from,
+    which is the half that lets somebody check.
+    """
+    try:
+        out = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                             capture_output=True, text=True, timeout=10)
+        dirty = subprocess.run(["git", "status", "--porcelain"],
+                               capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):       # pragma: no cover
+        return "unknown"
+    if out.returncode:                                   # pragma: no cover
+        return "unknown"
+    return out.stdout.strip() + (" (with uncommitted changes)"
+                                 if dirty.stdout.strip() else "")
 
 
 def _coverage(basket) -> list[dict]:
@@ -209,6 +231,8 @@ def build(events: pd.DataFrame, ops: dict | None) -> dict:
     payload = {
         "meta": {
             "generated": str(pd.Timestamp.utcnow().date()),
+            "generated_at": pd.Timestamp.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+            "commit": _commit(),
             "first": str(pd.to_datetime(first, unit="s").date()),
             "last": str(pd.to_datetime(last, unit="s").date()),
             "years": round(years, 1), "instruments": len(basket.instruments),
