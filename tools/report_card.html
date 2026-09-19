@@ -88,7 +88,11 @@ section{padding-block:var(--s6) 0;scroll-margin-top:60px}
 .trace{margin-top:var(--s3)}
 .tracebox{position:relative;height:210px;border-bottom:1.5px solid var(--ink)}
 .gl{position:absolute;top:0;bottom:0;width:1px;background:var(--hair2)}
-.tk{position:absolute;bottom:0;width:2px;margin-left:-1px;border-radius:1px 1px 0 0;background:var(--tk);cursor:crosshair;transition:opacity .12s}
+.tk{position:absolute;bottom:0;width:2px;margin-left:-1px;border-radius:1px 1px 0 0;background:var(--tk);cursor:crosshair;transition:opacity .12s;
+  /* a <button>: without these the UA's own padding and border win against a
+     2px width under border-box, every mark renders 16px wide, and the 4px
+     hover state is narrower than the resting one. */
+  padding:0;border:0;appearance:none;-webkit-appearance:none;font:inherit}
 .tk:hover{width:4px;margin-left:-2px}
 .tracebox.dim .tk:not(.hi){opacity:.13}
 .taxis{position:relative;height:1.1rem;margin-top:var(--s1)}
@@ -176,103 +180,98 @@ footer{margin-top:var(--s6);padding-block:var(--s4) var(--s6);border-top:1px sol
     <span class="m">·</span><span class="m" id="m-asof"></span>
   </div>
   <h1>What it would<br>have sent.</h1>
-  <p class="sub lede">A snapshot, not a live page. Every figure below was measured once, on the
-  date and commit above &mdash; a cold pass over the whole archive, the delivery code rendering its
-  own messages, and run health read from the Actions API. Nothing was written by hand and the bot
-  reads none of it back, but nothing here updates itself either: rebuild it with
-  <span class="mono">tools/dashboard.py</span> and the numbers move or they do not.</p>
+  <p class="sub lede">Tremor is a bot that watches 61 markets &mdash; index funds, government bonds,
+  currencies, gold, oil, crypto &mdash; and sends a message when one of them does something unusual.
+  Not <em>&ldquo;moved more than 2%&rdquo;</em>, which is a dull afternoon in Solana and a
+  once-in-years event in short-dated Treasuries, but unusual <strong>for that instrument</strong>,
+  judged against its own history.</p>
+  <p class="sub lede" style="margin-top:var(--s2)">This page is the backtest: every message it would
+  have sent since 2003, and how often it would have been right.</p>
   <div class="verdicts" id="verdicts"></div>
 </header>
 </div>
 
 <nav><div class="wrap inner">
-  <a href="#trace">Trace</a><a href="#changed">What changed</a><a href="#quality">Detection</a>
-  <a href="#inbox">Inbox</a><a href="#stick">Retention</a><a href="#sources">Sources</a>
-  <a href="#ops">Operations</a><a href="#says">Messages</a><a href="#limits">Limits</a>
+  <a href="#how">How it decides</a><a href="#says">A message</a><a href="#quality">Does it work</a>
+  <a href="#inbox">How often</a><a href="#stick">Do moves stick</a><a href="#trace">23 years</a>
+  <a href="#sources">The data</a><a href="#ops">Reliability</a><a href="#limits">What it can't do</a>
 </div></nav>
 
 <div class="wrap">
 
-<section id="trace">
+<section id="how">
   <div class="head col">
-    <p class="eyebrow">Every interrupting alert, end to end</p>
-    <h2 id="t-title"></h2>
-    <p class="lede">One mark per push. Height is how far the move ran past that instrument's own
-    usual hour &mdash; the multiple the message itself quotes. Click a tier to isolate it; hover a
-    mark for the instrument.</p>
+    <p class="eyebrow">How it decides</p>
+    <h2>One question, asked of every instrument, every hour</h2>
+    <p class="lede">Has this just moved more than it normally does &mdash; and more than it has in a
+    long time? Everything else follows from how that is measured.</p>
   </div>
-  <div class="trace">
-    <div class="tracebox" id="tracebox"></div>
-    <div class="taxis" id="taxis"></div>
-    <div class="legend" id="legend"></div>
+  <div class="grid3">
+    <div class="panel stack-sm">
+      <h4 class="eyebrow">Its own yardstick</h4>
+      <p class="note">Each instrument is ranked against <em>its own</em> past hours, never a shared
+      percentage. Short Treasuries move 0.024% in a usual hour and Dogecoin 0.40% &mdash; one
+      threshold would either drown you in crypto or never mention a bond. A move is rated by how far
+      back you would have to go to find a bigger one in that same instrument.</p>
+    </div>
+    <div class="panel stack-sm">
+      <h4 class="eyebrow">Four ratings</h4>
+      <p class="note">How rare the move is, for that instrument:
+      <b style="color:var(--t1)">noticeable</b> about monthly,
+      <b style="color:var(--t2)">high</b> about quarterly,
+      <b style="color:var(--t3)">major</b> about every three years,
+      <b style="color:var(--t4)">extreme</b> about every six. The last two interrupt you; the first
+      two are collected quietly.</p>
+    </div>
+    <div class="panel stack-sm">
+      <h4 class="eyebrow">Two kinds of message</h4>
+      <p class="note">A <strong>push</strong> is its own message and arrives the hour the move is
+      found. That is the interruption, and there are about 56 a year. Everything milder becomes a
+      line in a <strong>running note</strong> posted twice a week, edited in place as things happen,
+      which never notifies.</p>
+    </div>
   </div>
-  <p class="note" style="margin-top:1rem;max-width:80ch">Median push runs <b id="mult-med"></b>&times;
-  the instrument's usual hour; the largest, <b id="mult-max"></b>&times;, is preferred shares in
-  August 2015. The archive starts in 2003 but only the longest-lived funds reach that far &mdash;
-  the ladder says nothing about an instrument until it has enough of its own history, so the early
-  years are thin by design rather than by accident.</p>
+  <div class="panel" style="margin-top:var(--s3);border-left:3px solid var(--sig)">
+    <h4 class="eyebrow" style="color:var(--sig)">And two ways to be unusual</h4>
+    <p class="note" style="margin-top:var(--s1)">Every hour is asked twice: was the move big in the
+    instrument's own terms, and was it still big <em>after subtracting what its whole sector did</em>?
+    The second catches a fund that broke ranks with its market on an otherwise ordinary day, which is
+    often the more interesting of the two. When twenty members of one complex all move together that
+    is one observation, and it is reported once rather than twenty times.</p>
+  </div>
 </section>
 
-<section id="changed">
+<section id="says">
   <div class="head col">
-    <p class="eyebrow">Since the last report card</p>
-    <h2>The detector was reading the first five minutes of every hour</h2>
-    <p class="lede">Of everything found since the previous card, one fault stands out &mdash; not
-    because it was subtle, but because <em>this page could not see it</em>. Every figure below is measured on a
-    cold pass over complete bars. The bot was running on something else.</p>
+    <p class="eyebrow">What a message looks like</p>
+    <h2>Four real ones</h2>
+    <p class="lede">Not mock-ups. These are rendered by the same code that sends them, from real rows
+    in the archive. Each one says what moved, how far, how unusual that is <em>for that
+    instrument</em>, and what it is still waiting to find out.</p>
   </div>
-  <div class="ba" id="ba"></div>
-  <div class="grid2" style="margin-top:var(--s4)">
-    <div class="flag warn">
-      <h3>Every hour was judged on its opening minutes</h3>
-      <p class="note">The hourly job fires five minutes past the hour and stored a bar for the hour
-      it was standing in &mdash; measured on the committed store, <strong>2&ndash;13% of that
-      hour's volume</strong>. The bars healed on the next fetch; the metrics did not, because the
-      incremental path only ever computed hours newer than the last one it had. The complete bar
-      arrived to find its hour already written.
-      <br><br>So the damage landed exactly where it hurts: on a quiet hour a fifth of the move and
-      the whole move both fail to be records, and nothing changes. On a news hour they differ by
-      enough to cross the threshold. <strong>16 September, 18:00 UTC</strong> &mdash; the FOMC
-      statement &mdash; went into the store as SHY <span class="mono">+0.02%</span> when the hour
-      had closed at <span class="mono">-0.19%</span>, six sigma. Thirteen instruments' events went
-      with it: bonds, gold and the dollar all moving together, and not one of them reached the
-      phone that day.</p>
-    </div>
-    <div class="flag">
-      <h3>None of the numbers on this page moved</h3>
-      <p class="note">That is the uncomfortable part, and worth stating plainly: recall
-      <b id="c-rec"></b>, false alarms <b id="c-fa"></b>, <b id="c-push"></b> pushes over
-      <b id="c-yrs"></b> years. Identical to the last report card, because a backtest is a cold
-      pass over complete bars &mdash; which is precisely what the fix restores. <strong>The
-      backtest was measuring a detector better than the one that was running</strong>, and nothing
-      compared the two.
-      <br><br>A dashboard that reads 97.2% while the live bot misses an FOMC hour is not wrong
-      about the detector; it is answering a question nobody should have been satisfied with. The
-      gap between "what the code would do over history" and "what the deployed thing did last
-      Wednesday" had no measurement at all. It still does not &mdash; that is the honest state, and
-      the next thing worth building.</p>
-    </div>
-  </div>
+  <div class="stack" id="msgs"></div>
 </section>
 
 <section id="quality">
   <div class="head col">
-    <p class="eyebrow">Detection quality</p>
-    <h2>Did it catch the obvious, did it stay quiet on the rest</h2>
-    <p class="lede">Two tests, neither with a threshold anyone can argue about. The bucket is each
-    instrument's own return percentile, not a shared percentage, so the ladder is not grading its
-    own homework.</p>
+    <p class="eyebrow">Does it work</p>
+    <h2>Two questions worth asking of any alert</h2>
+    <p class="lede">Does it catch what you would obviously want to hear about, and does it stay quiet
+    the rest of the time? Both are measured against each instrument's own ranked history rather than
+    a number somebody picked, so the system is not marking its own homework.</p>
   </div>
   <div class="grid2">
     <div class="panel stack-sm">
-      <h4 class="eyebrow">Test 1 &mdash; the obviously big hours</h4>
-      <p class="note">Top 0.01% of each instrument's own hours. Crypto is excluded from the
-      headline because one coin contributes thousands of 2% hours.</p>
+      <h4 class="eyebrow">The hours you would not want to miss</h4>
+      <p class="note">The biggest 0.01% of hours each instrument has ever had &mdash; 216 of them
+      across 23 years. How many produced a message of any kind? Crypto is left out of this headline:
+      one coin contributes thousands of 2% hours and would flatter the result.</p>
       <div class="rows" id="q-recall"></div>
     </div>
     <div class="panel stack-sm">
-      <h4 class="eyebrow">Test 2 &mdash; the obviously ordinary hours</h4>
-      <p class="note">Every hour below that instrument's median move. Wants to be zero.</p>
+      <h4 class="eyebrow">The hours that were nothing at all</h4>
+      <p class="note">Every hour in which an instrument moved less than it usually does &mdash; 1.17
+      million of them. How many produced a message? This one wants to be zero.</p>
       <div class="rows" id="q-false"></div>
       <p class="note" id="q-false-note"></p>
     </div>
@@ -314,10 +313,9 @@ footer{margin-top:var(--s6);padding-block:var(--s4) var(--s6);border-top:1px sol
   <div class="head col">
     <p class="eyebrow">Inbox economics</p>
     <h2 id="i-title"></h2>
-    <p class="lede">The alert count is the wrong unit &mdash; what you actually experience is
-    <em>days interrupted</em>. The volume roughly doubled when the market-adjusted ladder started
-    working, which is the trade you asked for: better a few too many, marked boring, than a move
-    you never heard about.</p>
+    <p class="lede">Alerts per year is the number everyone quotes and the least useful of the three.
+    What you live with is <em>days interrupted</em>, and whether they arrive spread out or all at
+    once &mdash; which they do not, because the weeks that break records tend to break several.</p>
   </div>
   <div class="grid3" id="inbox-tiles"></div>
   <div class="grid2" style="margin-top:var(--s4)">
@@ -362,11 +360,12 @@ footer{margin-top:var(--s6);padding-block:var(--s4) var(--s6);border-top:1px sol
 
 <section id="stick">
   <div class="head col">
-    <p class="eyebrow">Retention</p>
-    <h2>Do the flagged moves stick?</h2>
-    <p class="lede">Measured after the fact and written back into the message that already went out:
-    the move accumulated since the alert, divided by the move that fired it. 1.0 held exactly,
-    0 gave it all back, above 1 kept going. It reports; it does not decide what is sent.</p>
+    <p class="eyebrow">Do the moves stick</p>
+    <h2>Was it news, or somebody's large order?</h2>
+    <p class="lede">A move given straight back was liquidity, not information. So every alert is
+    checked afterwards &mdash; at that day's close and the next &mdash; and the answer is written
+    back into the message that already went out. Nothing is held while it waits: a once-in-three-years
+    move that arrives six hours late is worth less than one that arrives now and is corrected.</p>
   </div>
   <div class="grid2">
     <div class="panel stack-sm"><h4 class="eyebrow">At the close of the day it happened</h4>
@@ -387,14 +386,34 @@ footer{margin-top:var(--s6);padding-block:var(--s4) var(--s6);border-top:1px sol
   </div>
 </section>
 
+<section id="trace">
+  <div class="head col">
+    <p class="eyebrow">Every interrupting alert, end to end</p>
+    <h2 id="t-title"></h2>
+    <p class="lede">One mark per push. Height is how far the move ran past that instrument's own
+    usual hour &mdash; the multiple the message itself quotes. Click a tier to isolate it; hover a
+    mark for the instrument.</p>
+  </div>
+  <div class="trace">
+    <div class="tracebox" id="tracebox"></div>
+    <div class="taxis" id="taxis"></div>
+    <div class="legend" id="legend"></div>
+  </div>
+  <p class="note" style="margin-top:1rem;max-width:80ch">Median push runs <b id="mult-med"></b>&times;
+  the instrument's usual hour; the largest, <b id="mult-max"></b>&times;, is preferred shares in
+  August 2015. The archive starts in 2003 but only the longest-lived funds reach that far &mdash;
+  the ladder says nothing about an instrument until it has enough of its own history, so the early
+  years are thin by design rather than by accident.</p>
+</section>
+
 <section id="sources">
   <div class="head col">
-    <p class="eyebrow">Where the bars come from</p>
-    <h2>Three feeds, chosen per instrument by measurement</h2>
-    <p class="lede">The basket used to come from one provider whose free tier forces an eight-second
-    pause between symbols. That pause <em>was</em> the run. Two faster feeds replaced it &mdash; but
-    only where each was shown to price the instrument the same way, hour by hour, against the bars
-    already stored.</p>
+    <p class="eyebrow">The data</p>
+    <h2>Free feeds, checked against each other</h2>
+    <p class="lede">All of this runs on free market-data tiers, so the prices are verified rather
+    than trusted. Each instrument is served by whichever feed was shown to price it the same way,
+    hour by hour, against bars already stored &mdash; because a feed that disagrees by enough is an
+    alert for a move that never happened.</p>
   </div>
   <div class="grid3" id="src-tiles"></div>
   <div class="grid2" style="margin-top:var(--s4)">
@@ -424,11 +443,11 @@ footer{margin-top:var(--s6);padding-block:var(--s4) var(--s6);border-top:1px sol
 
 <section id="ops">
   <div class="head col">
-    <p class="eyebrow">Operations</p>
+    <p class="eyebrow">Reliability</p>
     <h2 id="o-title"></h2>
-    <p class="lede">Two report cards ago this section led the page, because one hourly run in seven
-    was being killed on the job timeout and delivering nothing. Over the hundred runs immediately
-    before this snapshot, none were lost.</p>
+    <p class="lede">It runs once an hour, for free, on GitHub's shared runners &mdash; so the question
+    worth asking is how often it simply fails to run at all. Earlier this month one hourly run in
+    seven was being killed on a timeout and delivering nothing.</p>
   </div>
   <div class="grid2">
     <div class="panel stack-sm">
@@ -455,40 +474,36 @@ footer{margin-top:var(--s6);padding-block:var(--s4) var(--s6);border-top:1px sol
   </div>
 </section>
 
-<section id="says">
-  <div class="head col">
-    <p class="eyebrow">What it says</p>
-    <h2>Four real messages</h2>
-    <p class="lede">Rendered by the live delivery code from real event rows, not written for this
-    page. This is exactly what the phone would have shown.</p>
-  </div>
-  <div class="stack" id="msgs"></div>
-</section>
-
 <section id="limits">
   <div class="head col">
     <p class="eyebrow">Limits</p>
-    <h2>What it could not do, as of this snapshot</h2>
-    <p class="lede">Open at the date above. Unlike everything else on the page these are not
-    measured, so they are the first thing to go stale &mdash; check them against
-    <span class="mono">docs/operations.md</span> before relying on one.</p>
+    <h2>What it can't do</h2>
+    <p class="lede">Every other number on this page is measured. These are not &mdash; they are the
+    honest list of what was still open when it was written, and the part most likely to have changed
+    since.</p>
   </div>
   <div class="grid3">
+    <div class="call bad" style="grid-column:1/-1"><h3>It was reading five minutes and calling it an hour</h3>
+      <p>Found and fixed this week, and worth telling on a page like this. The job runs five minutes
+      past each hour and was scoring the hour it stood in &mdash; a fraction of the trading that
+      would eventually happen &mdash; then never looking again once the hour closed. It missed the
+      Fed's statement on 16 September: thirteen instruments moved together and none reached the
+      phone. Every figure here is a fresh pass over complete hours, so it reflects the fix.</p></div>
     <div class="call bad"><h3>Nothing notices a silence</h3>
       <p>The health check counts consecutive failures, and only a run that executes can increment
       one. When the trigger stopped for six days, nothing in the repository could say so. A watchdog
       is designed and not yet built.</p></div>
-    <div class="call warn"><h3>Thirteen instruments stop at 2020</h3>
-      <p>A provider plan limit, not a fault. The dividend fix removes the blocker on five of them;
-      the deepening run itself has not been done. XLP reaches only 2022 for a reason nobody has
-      established.</p></div>
+    <div class="call warn"><h3>Some histories are short</h3>
+      <p>Thirteen instruments only reach back to 2020, and one to 2022, because the free data tier
+      stops there. A short history means a quiet instrument: the system will not rate a move it has
+      no yardstick for, so those thirteen say less than the rest.</p></div>
     <div class="call warn"><h3>One feed is undocumented</h3>
       <p>The consolidated feed serving fifteen thin funds is an unversioned endpoint with no support
       channel. It can change shape without notice. That is why the basket is split across two
       providers rather than sent to one.</p></div>
-    <div class="call warn"><h3>The feed test is one week long</h3>
-      <p>Sixty-two overlapping hours decided which provider serves what. A volatile week could read
-      differently. The comparison re-runs in forty-four requests and should, periodically.</p></div>
+    <div class="call warn"><h3>The feed comparison is one week long</h3>
+      <p>Sixty-two overlapping hours decided which provider serves which instrument. A more volatile
+      week might have read differently, and the comparison has not been repeated since.</p></div>
     <div class="call"><h3>It does not predict</h3>
       <p>And does not claim to. Every number here is about a move that already happened; the tier
       says how unusual it was, not what comes next.</p></div>
@@ -498,6 +513,7 @@ footer{margin-top:var(--s6);padding-block:var(--s4) var(--s6);border-top:1px sol
       can do.</p></div>
   </div>
 </section>
+
 
 <footer>
   <p class="col">Cold pass over <span id="f-bars"></span> hourly bars across
@@ -521,7 +537,7 @@ const el=(t,c,x)=>{const e=document.createElement(t); if(c)e.className=c; if(x!=
 /* masthead */
 $('#m-window').textContent=D.meta.first+' — '+D.meta.last;
 $('#m-scope').textContent=D.meta.instruments+' instruments · '+D.meta.blocks+' blocks';
-$('#m-asof').textContent='measured '+(D.meta.generated_at||D.meta.generated)+' · '+(D.meta.commit||'commit unrecorded');
+$('#m-asof').textContent='measured '+D.meta.generated;
 $('#t-title').textContent=fmt(D.meta.pushes)+' pushes in '+D.meta.years+' years';
 $('#i-title').textContent=D.inbox.days_per_year.toFixed(0)+' interrupted days a year';
 $('#o-title').textContent='The runs stopped being killed';
@@ -539,23 +555,6 @@ const V=[['reached the phone',pc(D.quality.reached_pct),'of the '+D.quality.fitt
  ['runs lost','0%','of the last '+D.ops.runs+' runs; was 58% on 9 Sep','good']];
 const vw=$('#verdicts');
 V.forEach(([k,v,w,cls])=>{const d=el('div','vt '+cls); d.append(el('div','v',v),el('div','k',k),el('div','w',w)); vw.append(d);});
-
-/* before / after */
-const BA=[['hours judged on five minutes','every hour','none','The run fires at :05 and stored a bar for the hour it was standing in. Metrics for that hour were never recomputed once it closed.'],
- ['the FOMC hour, 16 Sep','missed','caught','Thirteen instruments moved together on the statement. Live, the detector saw 2–13% of that hour and said nothing.'],
- ['a closed note could regrow','10 days','never','It re-rendered from a table that keeps changing, so it could rewrite itself into a record of moves it never sent.'],
- ['git spent recording a year of bars','955 MiB','~12 MiB','A year of bars is 5.2 MiB of fact. Month shards and weekly commits stopped git storing 183× that.'],
- ['cache uploaded per day','5.4 GiB','when it changes','232 MiB went up every hour to restate what the last run already said.'],
- ['hourly runs lost','38–58%','0%','Over the last '+D.ops.runs+' runs, none. Median '+D.ops.duration.median+'s, slowest '+D.ops.duration.max+'s.']];
-const baw=$('#ba');
-BA.forEach(([k,was,now,w])=>{const c=el('div','cell');
-  c.append(el('div','k',k));
-  const p=el('div','pair'); p.append(el('span','was',was)); const n=el('span','now',now);
-  p.append(n); c.append(p,el('div','w',w)); baw.append(c);});
-$('#c-rec').textContent=D.quality.reached_pct+'%';
-$('#c-fa').textContent=D.quality.quiet_pct+'%';
-$('#c-push').textContent=fmt(D.meta.pushes);
-$('#c-yrs').textContent=D.meta.years;
 
 /* seismogram */
 (function(){

@@ -173,9 +173,14 @@ def build(events: pd.DataFrame, ops: dict | None) -> dict:
         quiet_n += stat["quiet_hours"]
         quiet_fired += stat["quiet_fired"]
 
+    # SORTED BY TIME, and the page depends on it: it takes the first and last
+    # tick as the ends of the axis and places every mark as a percentage
+    # between them. Unsorted, those two are whichever rows happened to come
+    # first, and marks outside that span land past 100% - off the chart and
+    # wide enough to scroll the whole page sideways on a phone.
     ticks = []
     med = {i["id"]: (i["median_hour"] or 0) / 100 for i in instruments}
-    for r in push.itertuples():
+    for r in push.sort_values("hour_utc").itertuples():
         m = med.get(r.asset_id) or 0
         ticks.append({"t": int(r.hour_utc),
                       "y": round(abs(float(r.r)) / m, 2) if m else 0,
