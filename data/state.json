@@ -39,16 +39,7 @@
         "to": 1789949100
       }
     },
-    "pings": {
-      "twelvedata_JNK:1789736400": {
-        "hash": "2e50363e381b74b5",
-        "id": 25
-      },
-      "twelvedata_XLC:1789650000": {
-        "hash": "ba9fef6a0305abc3",
-        "id": 24
-      }
-    },
+    "pings": {},
     "sent": {
       "twelvedata_GBP_USD:1789642800": {
         "hash": "4b56914adeef60ca",
