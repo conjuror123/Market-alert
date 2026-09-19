@@ -18,18 +18,21 @@
         "to": 1789344300
       },
       "1789344300": {
+        "events": [
+          "twelvedata_DBB:1789390800",
+          "twelvedata_BKLN:1789498800",
+          "twelvedata_XLC:1789650000",
+          "coinbase_BCH-USD:1789653600",
+          "coinbase_BTC-USD:1789736400"
+        ],
         "from": 1789344300,
         "hashes": [
-          "a50269eee28376cb",
-          "8a7be6d36342a6bf",
-          "4c19410d65d08456"
+          "a50269eee28376cb"
         ],
         "ids": [
-          13,
-          27,
-          28
+          13
         ],
-        "rows": 19,
+        "rows": 5,
         "to": 1789776300
       },
       "1789776300": {
@@ -50,11 +53,6 @@
         "hour": 1789642800,
         "id": 19
       },
-      "twelvedata_UGA:1789747200": {
-        "hash": "795ac25dcf52dabc",
-        "hour": 1789747200,
-        "id": 22
-      },
       "twelvedata_XLF:1789405200": {
         "hash": "09fb0dd038d63f17",
         "hour": 1789405200,
@@ -69,14 +67,6 @@
         "written": [
           "today",
           "settled"
-        ]
-      },
-      "twelvedata_UGA:1789747200": {
-        "hour_utc": 1789747200,
-        "message_id": 22,
-        "text_hash": "795ac25dcf52dabc",
-        "written": [
-          "today"
         ]
       },
       "twelvedata_XLF:1789405200": {
