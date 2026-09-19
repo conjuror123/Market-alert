@@ -21,8 +21,8 @@ price to a fifth of a basis point. For thin ones it is a different price: over
 the same window SOYB drifts 7.2 bps, UGA 7.97 with a worst hour of 76.8, which
 is roughly two sigma of pure feed disagreement and would be delivered as a move
 that never happened. Those go to Yahoo, which serves the consolidated tape.
-config/basket.yaml records the split; docs/tiingo-findings.md records the
-measurement behind it.
+config/basket.yaml records the split; docs/architecture.md records how it was
+chosen.
 
 VOLUME MUST BE ASKED FOR BY NAME. The intraday response carries no volume field
 at all unless `columns` names it - not zero, absent. Callers that forget get

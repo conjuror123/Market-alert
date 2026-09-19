@@ -42,8 +42,8 @@ TIERS = (1, 2)
 # recorded against it.
 #
 # `provider` is who actually answers the request, and that CAN change: see
-# docs/tiingo-findings.md for the measurement behind the current split. It
-# defaults to `source`, which is why the crypto rows need no provider line.
+# docs/architecture.md for the current split and how it was chosen. It defaults
+# to `source`, which is why the crypto rows need no provider line.
 SOURCES = ("twelvedata", "coinbase")
 
 # Who can be asked for bars. Wider than SOURCES because a provider may serve an

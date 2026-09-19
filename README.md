@@ -28,6 +28,9 @@ sensitivity happen to produce. Widening the basket raises it, and that is not a 
 
 It runs entirely on GitHub Actions. Nothing extra needs hosting.
 
+Working on the code? Start with `CLAUDE.md` — the pipeline order, the invariants and the
+map of these documents.
+
 ## Quick start
 
 1. Create a Telegram bot through [@BotFather](https://t.me/BotFather) and get a token.
@@ -126,24 +129,23 @@ different messages.
 Six commands, in this order, and the order is load-bearing.
 
 ```
-price_monitor.floor        apply any /floor command before anything is scored
-tremor.backfill            fetch new bars into data/tremor/bars/
-tremor.pipeline            per-instrument metrics: returns, volatility, quality gate
-tremor.saed                residuals, the ladder, events, routing   <- the product
+price_monitor.floor          apply any /floor command before anything is scored
+tremor.backfill              fetch new bars into data/tremor/bars/
+tremor.pipeline              per-instrument metrics: returns, volatility, quality gate
+tremor.saed                  residuals, the ladder, events, routing   <- the product
 price_monitor.floor --reply  answer /floor once this run has scored it
-price_monitor              deliver whatever is due to Telegram
+price_monitor                deliver whatever is due to Telegram
 ```
 
-`saed` reads what `pipeline` wrote and builds its cross-section in memory.
-`price_monitor` runs last because delivery reads `saed_events.parquet` off disk and must
-read the file this run just wrote. Everything between the bars and the events is derived
-and gitignored; it rebuilds from the bars in about two minutes, which the job does anyway.
+Everything between the bars and the events is derived and gitignored; it rebuilds from the
+bars in about two minutes, which the job does anyway. `docs/architecture.md` explains what
+each step depends on.
 
 ## Where the bars come from
 
 Chosen per instrument by measurement, not by preference — each candidate was compared
-against the stored bars hour by hour, in basis points. `docs/tiingo-findings.md` has the
-table.
+against the stored bars hour by hour, in basis points, against a yardstick of 20-40 bps
+for one sigma of an hourly move. `docs/architecture.md` has the detail.
 
 | provider | names | why |
 |---|---|---|
@@ -152,12 +154,9 @@ table.
 | Coinbase | 9 | crypto |
 | Twelve Data | — | archive, gap-fill, deepening. Not on the hourly path |
 
-Twelve Data's free tier forces an eight-second pause between symbols, and for 52 symbols
-that pause *was* the run. Moving off it took a hourly job from ~350s to ~125s.
-
-`source` in the basket names the store — the asset id and the file on disk are built
-from it, so it never changes when the fetch moves. `provider` is who is asked, and that
-can change freely.
+In `config/basket.yaml`, `source` names the store — the asset id and the file on disk
+are built from it, so it never changes when the fetch moves. `provider` is who is asked,
+and that can change freely.
 
 ## The repository
 
@@ -211,25 +210,17 @@ data/tremor/vix/                   the daily VIX series                         
 data/tremor/metrics/, residuals/   gitignored — rebuilt from the bars in ~2 minutes
 data/tremor/saed_events.parquet    gitignored — Parquet git cannot delta
 
+CLAUDE.md                  orientation for an agent: the pass, the invariants, the map
 docs/architecture.md       how it works, the hourly pass in order
 docs/decisions.md          why, with the measurement that settled each choice
 docs/operations.md         running it, quotas, what breaks and how you would know
 docs/working-agreement.md  the rules an agent changing this repository works under
-docs/tiingo-findings.md    the provider comparison, measured
 docs/TZ_MEALS_v5.1.txt     the original specification: what every "§4.3" points at
 ```
 
-**The specification is superseded.** It is kept because the code cites its section
-numbers 234 times across 35 files, but where it and the measurements disagree, the
-measurements win. It is deliberately **not** in `versioning.CONFIG_INPUTS`: a typo in
-its prose must not change `config_version`.
-
-The system was called MEALS until September 2026. The spec keeps the old name in its
-filename, because renaming a document somebody else wrote is a different thing from
-renaming a program. It was written in Russian and is kept in translation with the
-section numbering, formulas and constants untouched; the Russian original is commit
-`8b2fb5a` (`git show 8b2fb5a:docs/TZ_MEALS_v5.1.txt`) and stays the authority if a
-translated sentence ever reads two ways.
+`docs/TZ_MEALS_v5.1.txt` is the original design document, superseded but kept: the code
+cites its section numbers (`§4.3`) 234 times. Where it and the code disagree, the code is
+right. See `CLAUDE.md`.
 
 ## Running locally
 
@@ -304,8 +295,9 @@ swallowed.
 
 - **Nothing notices silence.** The health check counts consecutive *failures*, and only
   a run that executes can increment one. `price-monitor.yml` has no schedule of its own,
-  so if the external trigger stops, nothing says so — it stopped on 2026-09-01 and took
-  six days to notice. A watchdog is designed and not yet built.
+  so if the external trigger stops, nothing in the repository will say so. The
+  cron-job.org failure email is the only thing that would. A watchdog is designed and not
+  yet built.
 - **The ladder cannot claim a return period longer than its history.** A newly added
   instrument says "biggest in a quarter" for years before it can say "biggest in six",
   and says nothing at all for the first two. Five instruments cannot reach the top rung

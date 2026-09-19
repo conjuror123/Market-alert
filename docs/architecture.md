@@ -1,140 +1,137 @@
 # How Tremor works
 
-Sixty instruments in the basket, plus `DBC` tracked outside it (61 names), one hourly
-pass, and a message only when one of them moves unusually **for itself**. This is the
-map: what runs, in what order, and why each piece exists. For *why* particular choices
-were made, see `decisions.md`. For running it, see `operations.md`.
+Sixty instruments in the basket plus `DBC` tracked outside it (61 names), one hourly
+pass, and a message only when one of them moves unusually **for itself**. This is what
+runs, in what order, and why each piece exists. For the reasoning behind the choices, see
+`decisions.md`; for running it, `operations.md`.
 
 ---
 
-## The idea in one paragraph
+## The idea
 
-A 1.5% hour is nothing in Solana and a once-a-year event in short Treasuries, so a
-single percentage threshold across a basket says almost nothing. Tremor measures every
-instrument against **its own history** and reports a **return period** — "the biggest
-move in about three years" — which means the same thing everywhere. Before asking how
-unusual a move is, it subtracts what the whole market did, so that "gold moved" and
+A 1.5% hour is nothing in Solana and a once-a-year event in short Treasuries, so a single
+percentage threshold across a basket says almost nothing. Every instrument is measured
+against **its own history**, and the result is a **return period** — "the biggest move in
+about three years" — which means the same thing everywhere. Before asking how unusual a
+move is, the system subtracts what the instrument's block did, so that "gold moved" and
 "everything moved, gold included" are different messages.
 
 ---
 
 ## The hourly pass
 
-Six commands, in this order, and the order is load-bearing.
+Six commands, and the order is load-bearing.
 
 ```
 price_monitor.floor          apply any /floor command before anything is scored
 tremor.backfill              fetch new bars from the sources into data/tremor/bars/
 tremor.pipeline              per-instrument metrics: returns, volatility, quality gate
 tremor.saed                  residuals, the ladder, events, routing   <- the product
-price_monitor.floor --reply  answer /floor once this run has scored it
+price_monitor.floor --reply  answer /floor now this run has scored it
 price_monitor                deliver whatever is due to Telegram
 ```
 
-`saed` reads what `pipeline` wrote and builds its cross-section in memory — that is why
-`cross_section` is a module and not a step. `floor` runs twice for one reason: the yaml
-edit has to land before `saed` so the same hour uses the new number, and the reply has to
-wait until after it, because the events table is gitignored and a fresh runner has
-nothing to count until this run writes it. `price_monitor` runs last because delivery
-reads `saed_events.parquet` off disk and must read the file this run just wrote.
+`saed` reads what `pipeline` wrote and builds its cross-section in memory — which is why
+`cross_section` is a module and not a step. `floor` runs twice: the yaml edit has to land
+before `saed` scores the hour, and the reply has to wait until after it, because the
+events table it counts from is gitignored and this run writes it. `price_monitor` is last
+because delivery reads `saed_events.parquet` off disk.
 
-Everything between the bars and the events is derived and gitignored. It rebuilds from
-the bars in about two minutes, which the hourly job does anyway.
+Everything between the bars and the events is derived and gitignored; it rebuilds from the
+bars in about two minutes.
 
 ---
 
 ## From a bar to a message
 
-**1. The return.** `r = ln(close / open)` — inside the hour. The overnight gap is a
-separate channel (`r_gap`) and is deliberately excluded: a gap is not something the
-detector claims to see, and an ex-dividend drop lands there rather than in `r`.
+**1. The return.** `r = ln(close / open)`, inside the hour. The overnight gap is a
+separate channel and deliberately excluded: a gap is not something the detector claims to
+see, and an ex-dividend drop lands there rather than in `r`.
 
-**2. Remove the market.** `r = alpha + beta·F + e`, a rolling regression on the basket
-factor and the instrument's own block factor, fitted on the previous 500 bars ending
-three bars before the one being judged. The residual `e` is what the rest of the market
-did not explain. This is the **market model** of the event-study literature; the
-estimation gap keeps a move from leaking into the estimate of normal.
+**2. Remove the block.** `r = alpha + beta·F + e`, a rolling 500-bar regression on the
+instrument's own block factor, ending three bars before the bar being judged. The residual
+`e` is what the block did not explain; the estimation gap keeps the move itself out of the
+estimate of normal.
 
 **3. Standardise across the hour.** The residual is divided by the spread of *the other
-instruments'* standardised residuals that same hour — the BMP statistic, leave-one-out
-so a genuine single-asset move cannot inflate the bar it is measured against. With few
-peers this is a t rather than a z, so it goes through a normalising transform before
-anything reads it as a z-score.
+instruments'* standardised residuals that same hour — the BMP statistic, leave-one-out, so
+a genuine single-asset move cannot inflate the bar it is measured against. With few peers
+this is a t rather than a z, and a normalising transform maps it to z for the degrees of
+freedom actually present.
 
-**4. Rank it against its own history.** Two ladders run in parallel, both fitted per
-instrument on an expanding window and applied only forward:
+**4. Rank it against its own history.** Two ladders run in parallel, both per instrument
+on an expanding window applied only forward:
 
 | | |
 |---|---|
-| **abnormal** | how rare is this *residual*, for this instrument |
 | **absolute** | how rare is this *raw move*, for this instrument |
+| **abnormal** | how rare is this *residual*, for this instrument |
 
-Each yields a tier by return period: `routine` (a fortnight), `notable` (two months),
-`major` (a year), `extreme` (three years). An hour clearing both is reported at its
-rarest tier and marked `both`. A level is simply the biggest move in that rung's own
-lookback — nothing fitted, nothing extrapolated — so clearing it means exactly what the
-message says: *the biggest move since 3 March 2020*.
+Four rungs — `noticeable`, `high`, `major`, `extreme` — at about a month, a quarter,
+three years and six years. A rung is the biggest move in its own lookback, so clearing it
+means exactly what the message says: *the biggest move since 3 March 2020*. An hour
+clearing both ladders is reported at its rarer tier and marked `both`.
 
-**5. Sanity gates.** A move smaller than two ticks is not a small event but an
-unobserved one, and is dropped. An hour claimed by the abnormal channel *alone* that
-Corrado's rank test contradicts has that claim withdrawn — the rank test estimates no
-variance, which is the quantity thin trading corrupts.
+Blocks are ranked the same way on their own median series, so a whole sector moving
+together is its own event with its own ladder.
 
-**6. One event, not many.** A cooldown of twelve bars folds repeats into one event,
-which keeps the highest tier and the biggest bar it saw.
+**5. Gates.** A move smaller than two ticks is unobserved rather than small, and is
+dropped. A per-instrument or per-block size floor (`min_move_sigma`) drops moves that are
+unexplained but trivial. An hour claimed by the abnormal channel *alone* that Corrado's
+rank test contradicts has that claim withdrawn.
 
-**7. Route it.** `major` and `extreme` interrupt at once; everything else goes into the
-running digest note. Nothing waits and nothing is dropped — retention no longer decides
-whether an event is sent, only what the sent message says about it. Pushes belonging to
-one episode collapse into the first of them, unless a later one is rarer.
+**6. One event per instrument per trading day.** End of session for the funds, end of the
+UTC day for crypto. An instrument that moves again the same day updates the event it
+already has — keeping the higher tier and that bar's numbers — rather than opening a
+second.
 
-Every alert then splits the move into the three things it can be, adding back to the move
-exactly: the whole basket drifting, the instrument's own block, and the instrument itself.
-The word *market* is deliberately absent — for the S&P 500 the market *is* the S&P 500, and
-there is no index being followed. The block is split out because two parts was sometimes
-wrong: on 2008-11-20 the financial sector's basket beta was negative and its +10.50% came
-almost entirely from the equity block. Each line names the instruments it is talking about:
-the block line lists the peers the factor is a leave-one-out median of, and a footer lists
-all sixty-one tracked instruments by block. Measured across the record the basket carries
-a median **13%** of the three-way spread against the block's **37%** — smallest of the
-three, but not nothing, and it ranges from 10% on the S&P 500 to 32% on high-yield credit,
-whose own block explains almost nothing about it. Beside it the alert gives the size against
-the instrument's usual hour and **the date it was last this rare**. The frequency wording
-("about once every three years") was removed: a lookback ladder can support a record
-claim and cannot support a rate, and `saed_score` no longer scores that rate. The
-0.45× / 1.75× table in `data/tremor/evaluation.md` is a frozen artifact of the old
-wording; see `docs/decisions.md`.
+**7. Route it.** `major` and `extreme` interrupt at once. `noticeable` and `high` go into
+the running digest note. Nothing waits and nothing is dropped: retention decides what the
+sent message says, not whether it is sent.
 
-**8. Deliver.** A push the hour it is found, speaking for its whole episode: a move folded
-into it does not buzz again and takes no row of its own anywhere — the push lists it with
-its size, which matters because a folded companion moved *more* than the push that spoke
-for it 49% of the time. A digest row into the note for its period,
-also the hour it is found — the note is *opened* Monday and Saturday at 00:05 UTC and
-edited in place for the rest of the period. The edit is silent, so each row also sends a
-throwaway ping that is deleted when the next note opens. A note may only be opened in its
-own hour or the three after it; a period that misses that window is picked up by the next
-note, so the boundaries hold and no move is dropped. Both kinds of message are then corrected
-as the market answers: a push at this day's close and the next day's close, a digest row at
-the next day's close. A push older than 48 hours is never sent.
+**8. Deliver.** A push goes out the hour it is found and is final when it arrives. A
+digest row goes into the note for its period, also the hour it is found — the note is
+*opened* Monday and Saturday at 00:05 UTC and edited in place for the rest of the period.
+Telegram does not notify on an edit, so each row also sends a throwaway ping pointing at
+the note; a ping exists only while the note beneath it shows its row, and is deleted
+otherwise. A note may only be opened in its own hour or the three after; a period that
+misses that window is carried into the next note, so no move is dropped. Messages are then
+corrected as the market answers: a push at this day's close and the next day's close, a
+digest row at the next day's close. Nothing older than 48 hours is sent.
+
+Each alert splits the move into the two things it can be, adding back to it exactly: the
+instrument's own block, and the instrument itself. Each line names what it is talking
+about — the block line lists the peers its factor is a leave-one-out median of. Beside it
+the alert gives the size against the instrument's usual hour and the date it was last
+this rare.
 
 ---
 
-## One detector, and the two that were removed
+## Where the bars come from
 
-`saed.py` is the product and the only detector that runs. Two others were built,
-measured and deleted rather than left switched off:
+Chosen per instrument by measurement: each candidate was compared against the stored bars
+hour by hour in basis points, against a yardstick of 20–40 bps for one sigma of an hourly
+move.
 
-- **SI-Index** asked whether the whole basket was moving together. It ran hourly for
-  months and no module ever read its output — not delivery, not the digest. Deleted.
-- **A volatility-regime forecast** asked whether tomorrow would be turbulent. The
-  original specification wanted "something extraordinary is about to happen to one of
-  these blocks"; measured walk-forward that question scores an R² of **0.02** — very
-  nearly no forecastable structure at this horizon. The same machinery predicting
-  *basket* volatility scores 0.20 against a naive 0.10, but nothing consumed it either.
-  Deleted.
+| provider | names | role |
+|---|---|---|
+| Tiingo | 37 | 8 FX pairs + the funds whose single-exchange price matches the consolidated tape |
+| Yahoo | 15 | the thin funds where one exchange is *not* the same price |
+| Coinbase | 9 | crypto |
+| Twelve Data | — | archive, gap-fill and deepening; not on the hourly path |
+| Dukascopy, HF Data | — | history below what the live providers reach |
 
-Both findings are kept in `decisions.md`; the code is in git history. What survives of
-the block-level idea is block events in `blocks.py`, which are delivered.
+The liquid funds agree with the stored bars to under a basis point. The thin
+single-commodity funds do not — on one exchange's prints they drift by several, and at 20–40
+bps to the sigma that is a source of alerts for moves that did not happen. Those fifteen
+stay on a consolidated feed.
+
+Twelve Data's free tier forces an eight-second pause between symbols; for 52 symbols that
+pause was the run, which is why nothing live sits on it any more.
+
+`source` in `config/basket.yaml` names the store — `asset_id` and the file on disk are
+built from it, so it never changes when the fetch moves. `provider` is who is asked, and
+changes freely.
 
 ---
 
@@ -143,52 +140,51 @@ the block-level idea is block events in `blocks.py`, which are delivered.
 **Data in**
 `bars` (Parquet store, sharded by year) · `backfill` (fetch and merge, session-aware
 skipping) · `sessions` (NYSE calendar and the FX reference week) · `corporate_actions`
-(declared ex-dates and splits) · `cboe` + `fred` + `vix` (the VIX series) · `quality`
-(data gate, tick resolvability) · `audit` (coverage table) · `atomic` (write through a
-temp file, so a killed run cannot truncate a table in place)
+(declared ex-dates and splits) · `cboe` + `fred` + `vix` (the daily VIX series) ·
+`quality` (bar quality gate, tick resolvability) · `audit` (coverage table) · `atomic`
+(write through a temp file, so a killed run cannot truncate a table in place)
 
 **Per instrument**
-`returns` (returns, gap channel, winsorization) · `zscore` (adaptive EWMA) ·
-`pipeline` (assembles the above, and extends stored metrics rather than rebuilding)
+`returns` (returns, gap channel, winsorization) · `zscore` (adaptive EWMA) · `pipeline`
+(assembles the above, extending stored metrics rather than rebuilding them)
 
 **The detector**
-`cross_section` (quorum, the leave-one-out block factor, dispersion) · `basket` +
-`blocks` (configuration, block membership, block-level events) · `residuals` (market
-model, BMP, rank test) · `severity` (the ladder) · `saed` (events, the once-a-day rule,
-the gates) · `persistence` (did it hold) · `routing` (channel and digest slot)
+`cross_section` (quorum, the leave-one-out block factor, dispersion) · `basket` + `blocks`
+(configuration, block membership, block-level events) · `residuals` (market model, BMP,
+rank test) · `severity` (the ladder) · `saed` (events, the once-a-day rule, the gates) ·
+`persistence` (did the move hold) · `routing` (channel and digest slot)
 
 **Bookkeeping**
-`versioning` (config and run hashes over content) · `windows` (every window and
-constant, in one file) · `evaluate` + `saed_score` (after-the-fact scoring) ·
-`feedback` (recorded verdicts)
+`versioning` (config and run hashes over content) · `windows` (every window and constant,
+in one file) · `evaluate` + `saed_score` (after-the-fact scoring) · `feedback` (recorded
+verdicts)
 
-**Delivery** lives in `price_monitor/`: `tremor_delivery` (messages), `weekly_digest`
-(the economic-calendar forecast, and the daily top-up of the archive the pushes read),
-`floor` (the /floor command), `follow_up` (the check-ins that edit a push already
-sent), `health`, `notifier`, and the source clients
-(`tiingo`, `yahoo`, `coinbase`, `twelvedata`, `dukascopy`, `hfdata`) that `tremor.backfill`
-fetches through. Product pushes go to `TELEGRAM_CHAT_ID`. Health and named provider
-failures go to `TELEGRAM_HEALTH_CHAT_ID`, falling back to the product chat until that
-secret exists. Hourly bars are Tiingo / Yahoo / Coinbase; Twelve Data is archive and
-gaps; Dukascopy and HF Data deepen history. Corporate actions are declared
-`divCash` / `splitFactor` from Tiingo, not inferred from an adjusted/raw ratio.
+**Delivery** lives in `price_monitor/`: `tremor_delivery` (renders and sends; decides
+nothing, routing is already stamped), `floor` (the `/floor` command), `follow_up` (the
+check-ins that edit a push already sent), `weekly_digest` (the economic-calendar forecast),
+`health`, `notifier`, and the source clients (`tiingo`, `yahoo`, `coinbase`, `twelvedata`,
+`dukascopy`, `hfdata`) that `backfill` fetches through.
+
+Product pushes go to `TELEGRAM_CHAT_ID`. Health and named provider failures go to
+`TELEGRAM_HEALTH_CHAT_ID`, falling back to the product chat until that secret exists.
 
 ---
 
 ## Where the data lives
 
 ```
-data/tremor/bars/          hourly bars, one Parquet per instrument per year   TRACKED
-data/tremor/vix/           daily VIX close                                    TRACKED
-data/tremor/corporate_actions.csv  declared ex-dates and splits               TRACKED
-data/tremor/metrics/       per-instrument metrics                    gitignored
-data/tremor/residuals/     residuals, ladders, tiers                 gitignored
-data/tremor/saed_events.parquet    routed events — what delivery reads   gitignored
-data/tremor/saed_block_alerts.parquet  block-level events              gitignored
-config/basket.yaml         the instruments
-config/config.yaml         the mute and the health thresholds
+data/tremor/bars/                  hourly bars, one Parquet per instrument per year  TRACKED
+data/tremor/vix/                   daily VIX close                                   TRACKED
+data/tremor/corporate_actions.csv  declared ex-dates and splits                      TRACKED
+data/tremor/sessions/              the NYSE schedule                                 TRACKED
+data/tremor/feedback.csv           recorded verdicts                                 TRACKED
+data/state.json                    what has been sent, and the open note             TRACKED
+data/tremor/metrics/, residuals/   per-instrument metrics and ladders         gitignored
+data/tremor/saed_events.parquet    routed events — what delivery reads        gitignored
+config/basket.yaml                 the instruments, blocks, tick sizes and floors
+config/config.yaml                 the mute and the health thresholds
 ```
 
-The bar archive is the only thing here that cannot be rebuilt: it reaches 2003 for FX,
-assembled from Dukascopy because no free plan serves that history. Everything else is a
-function of it.
+The bar archive is the only thing here that cannot be rebuilt. It reaches 2003 for FX,
+assembled from Dukascopy because no free plan serves that history. Everything else is
+derived from it.
