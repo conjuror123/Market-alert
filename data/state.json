@@ -20,35 +20,33 @@
       "1789344300": {
         "from": 1789344300,
         "hashes": [
-          "2ad6684a4ad76a0e"
+          "7ae4c74da2358d63"
         ],
         "ids": [
           13
         ],
         "rows": 5,
         "to": 1789776300
+      },
+      "1789776300": {
+        "from": 1789776300,
+        "hashes": [
+          "ff4ce794209c22a5"
+        ],
+        "ids": [
+          26
+        ],
+        "to": 1789949100
       }
     },
     "pings": {
-      "twelvedata_BKLN:1789498800": {
-        "hash": "042057364fed2697",
-        "id": 17
-      },
-      "twelvedata_DBB:1789390800": {
-        "hash": "100952d7817b8676",
-        "id": 15
-      },
       "twelvedata_JNK:1789736400": {
         "hash": "2e50363e381b74b5",
-        "id": 21
-      },
-      "twelvedata_TLT:1789581600": {
-        "hash": "6e0132919d7fd891",
-        "id": 18
+        "id": 25
       },
       "twelvedata_XLC:1789650000": {
         "hash": "ba9fef6a0305abc3",
-        "id": 20
+        "id": 24
       }
     },
     "sent": {
@@ -97,6 +95,6 @@
       }
     }
   },
-  "weekly_digest:last_refreshed": "2026-09-18",
-  "weekly_digest:last_sent_week": "2026-09-11"
+  "weekly_digest:last_refreshed": "2026-09-19",
+  "weekly_digest:last_sent_week": "1789776300"
 }
