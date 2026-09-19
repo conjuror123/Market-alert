@@ -1551,9 +1551,9 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
     return f"{first}\nAdded to digest👆🏻👆🏻"
 
 
-def pending_pings(events: "list[dict]", pinged: dict,
-                  now: datetime) -> "list[dict]":
-    """Digest rows that have appeared and not yet been announced.
+def pending_pings(events: "list[dict]", pinged: dict, now: datetime,
+                  window: "tuple[int, int] | None" = None) -> "list[dict]":
+    """Digest rows that have appeared in the OPEN note and not yet been announced.
 
     Keyed on the TIER and not merely on where the event sits right now. An event
     stays open for the rest of its trading day, so a row found at the noticeable
@@ -1565,14 +1565,33 @@ def pending_pings(events: "list[dict]", pinged: dict,
     The same freshness rule as a push, and for the same reason: without it the
     first run after the mute comes off would buzz once for every row in the
     history rather than for what just happened.
+
+    AND THE SAME WINDOW THE NOTE ITSELF USES, which is what stops the ping and
+    the note disagreeing. A ping says "a row just appeared in the note below";
+    it is the interim signal that exists only because Telegram does not notify
+    on an edit. Once a note's period closes, its rows have been said properly
+    and its pings are swept - so an event from a CLOSED period must never buzz
+    again. Without this bound it did: `sweep_pings` clears the ledger as the
+    next note opens, and `pending_pings` ran straight down the same event table
+    and re-announced everything still inside the 48-hour freshness rule. Seen
+    live on 19 Sep 2026 - the note for 19-21 Sep opened empty and correct, and
+    two rows from the 17th and 18th, already published by the note that had
+    just closed, buzzed again beside it.
+
+    No open note means no ping. Nothing is lost: the next note to open carries
+    the stretch through `carried_from`, and the rows buzz when it does.
     """
     from tremor.routing import PUSH_TIERS
 
+    if window is None:
+        return []
+    start, end = window
     out = [e for e in events
            if str(e.get("channel") or "") == "digest"
            and str(e.get("tier") or "") not in PUSH_TIERS
            and str(e.get("event_id", ""))
            and str(e.get("event_id", "")) not in pinged
+           and start <= float(e.get("hour_utc", 0)) < end
            and _fresh(e, now)]
     out.sort(key=lambda e: int(e["hour_utc"]))
     return out
@@ -1848,7 +1867,11 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     # throwaway line second.
     pings: dict = store.setdefault(PINGS, {})
     buzzed = 0
-    for event in pending_pings(events, pings, now):
+    # The window of the note that is open right now, so a ping cannot announce
+    # a row the note beneath it does not show.
+    open_note = digests.get(str(current))
+    open_window = note_window(current, open_note) if open_note else None
+    for event in pending_pings(events, pings, now, open_window):
         text = format_ping(event, labels)
         try:
             message_id = send_telegram_message(

@@ -1739,3 +1739,49 @@ def test_an_empty_events_table_does_not_delete_pings(monkeypatch, sender):
     deliver(monkeypatch, [], state=state)
     assert killer.ids == []
     assert "p1" in state[md.STATE_KEY][md.PINGS]
+
+
+def test_a_row_from_the_closed_period_does_not_buzz_again(monkeypatch, sender):
+    """The 19 September 2026 bug, in one test.
+
+    `sweep_pings` clears the ledger as the next note opens, and `pending_pings`
+    used to read straight down the events table afterwards - so every digest row
+    still inside the 48-hour freshness rule buzzed a second time, beside a new
+    note that correctly showed none of them because they belong to the period
+    that just closed. Live, two rows from the 17th and 18th re-announced
+    themselves next to an empty note for the 19th-21st.
+    """
+    monkeypatch.setattr("price_monitor.notifier.delete_telegram_message",
+                        Deleted())
+    from tremor import routing
+
+    opens = routing.digest_slot(int(NOW.timestamp()))
+    previous = routing.digest_slot(opens - 1)
+    # The note that just closed, with a message behind it - so the new note
+    # starts exactly where it stopped rather than reaching back over it. This
+    # is what production looked like: a note for 14-19 Sep with five rows in it,
+    # then the note for 19-21 Sep opening beside it.
+    state = {md.STATE_KEY: {md.DIGEST_STATE: {
+        str(previous): {"ids": [13], "hashes": ["x"], "from": previous,
+                        "to": opens, "rows": 5}}}}
+    # A row from BEFORE this note's period: already published by the note that
+    # closed, and already swept.
+    old = event(event_id="closed", tier="noticeable", channel="digest",
+                hour_utc=opens - 6 * HOUR)
+    # And one inside it, which must still buzz.
+    fresh = event(event_id="open", tier="noticeable", channel="digest",
+                  asset_id="twelvedata:BKLN", hour_utc=opens + HOUR)
+
+    now = datetime.fromtimestamp(opens + 2 * HOUR, tz=timezone.utc)
+    _, state = deliver(monkeypatch, [old, fresh], state=state, now=now)
+
+    buzzed = set(state[md.STATE_KEY][md.PINGS])
+    assert buzzed == {"open"}, "a closed period's row must not buzz again"
+    assert not any("GLD" in t and "Added to digest" in t for t in sender.texts)
+
+
+def test_no_open_note_means_no_ping(monkeypatch, sender):
+    """A ping points at a note. With none open there is nothing to point at, and
+    the stretch is carried into the next note, which buzzes it then."""
+    row = event(event_id="p1", tier="noticeable", channel="digest")
+    assert md.pending_pings([row], {}, NOW, None) == []
