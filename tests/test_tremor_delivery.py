@@ -40,24 +40,20 @@ def alerts(sender):
 # the repository's real alerts log, which is how ninety-six imaginary Gold
 # alerts came to be committed. The sent map is the same: a successful send
 # now writes state.json immediately, so the tests must not touch data/state.json.
-_LOG_PATH = ""
 _STATE_PATH = ""
 
 
 @pytest.fixture(autouse=True)
-def alerts_log_path(tmp_path):
-    global _LOG_PATH, _STATE_PATH
-    _LOG_PATH = str(tmp_path / "alerts_log.json")
+def state_path(tmp_path):
+    global _STATE_PATH
     _STATE_PATH = str(tmp_path / "state.json")
     yield
-    _LOG_PATH = ""
     _STATE_PATH = ""
 
 
 def cfg(**over):
     base = dict(telegram_bot_token="t", telegram_chat_id="c",
-                tremor_alerts_muted=False, alerts_log_path=_LOG_PATH,
-                state_path=_STATE_PATH)
+                tremor_alerts_muted=False, state_path=_STATE_PATH)
     return Config(**(base | over))
 
 

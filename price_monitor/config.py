@@ -44,17 +44,13 @@ class Config:
     telegram_health_chat_id: str = ""
     state_path: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(__file__), "..", "data", "state.json"))
-    # What a sent push looked like, so "explain alerts" can find it by the
-    # message id printed in its footer and edit that message in place.
-    alerts_log_path: str = field(default_factory=lambda: os.path.join(
-        os.path.dirname(__file__), "..", "data", "alerts_log.json"))
     # Local store for economic_calendar.py / weekly_digest.py - see README.
     calendar_dir: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(__file__), "..", "data", "economic_calendar"))
-    # Routed Tremor events, written by python -m tremor.saed and
-    # python -m tremor.market and read by tremor_delivery.py. Both carry the
-    # channel and digest slot the detector decided on; the delivery layer
-    # decides nothing except what it has already sent.
+    # Routed Tremor events, written by python -m tremor.saed and read by
+    # tremor_delivery.py. Each row carries the channel and digest slot the
+    # detector decided on; the delivery layer decides nothing except what it
+    # has already sent.
     tremor_events_path: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(__file__), "..", "data", "tremor", "saed_events.parquet"))
     # Kept because tremor/backfill.py fetches through these clients.
@@ -63,21 +59,6 @@ class Config:
     # Free key from twelvedata.com. Never read from config.yaml; it comes from
     # the TWELVEDATA_API_KEY secret only, so that it cannot be committed.
     twelvedata_api_key: str = ""
-    # The LLM behind the manually-triggered "explain alerts" step - see
-    # price_monitor/explain.py. Any provider with an OpenAI-compatible
-    # /chat/completions endpoint works; switching means these values plus which
-    # secret LLM_API_KEY maps to in the workflow, and no code change.
-    llm_base_url: str = "https://api.deepseek.com"
-    # DeepSeek charges half price off-peak, so the peak model is the cheaper and
-    # faster one and the off-peak model the stronger. Set both the same for a
-    # provider with no such split.
-    llm_model_peak: str = "deepseek-v4-flash"
-    llm_model_offpeak: str = "deepseek-v4-pro"
-    llm_api_key: str = ""
-    # How old an alert must be before it is explained. The news search covers
-    # [alert+6h, alert+12h], so running earlier would search a window that has
-    # not fully happened yet.
-    explain_min_age_hours: float = 12.0
 
 
 def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
@@ -109,12 +90,4 @@ def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
             os.environ.get("TELEGRAM_HEALTH_CHAT_ID")
             or os.environ.get("TELEGRAM_CHAT_ID", "")),
         twelvedata_api_key=os.environ.get("TWELVEDATA_API_KEY", ""),
-        llm_base_url=os.environ.get("LLM_BASE_URL", raw.get("llm_base_url", "https://api.deepseek.com")),
-        llm_model_peak=os.environ.get("LLM_MODEL_PEAK", raw.get("llm_model_peak", "deepseek-v4-flash")),
-        llm_model_offpeak=os.environ.get("LLM_MODEL_OFFPEAK", raw.get("llm_model_offpeak", "deepseek-v4-pro")),
-        llm_api_key=os.environ.get("LLM_API_KEY", ""),
-        explain_min_age_hours=float(os.environ.get("EXPLAIN_MIN_AGE_HOURS")
-                                    or raw.get("explain_min_age_hours", 12.0)),
-        alerts_log_path=os.environ.get("ALERTS_LOG_PATH") or os.path.join(
-            os.path.dirname(__file__), "..", "data", "alerts_log.json"),
     )

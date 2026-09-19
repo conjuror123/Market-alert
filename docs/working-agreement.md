@@ -77,8 +77,9 @@ And when you are wrong, correct it in one plain sentence and move on. No ceremon
 
 ## Numbers
 
-**Quote the measurement and its window.** "22 pushes a year" is a number; "not many
-alerts" is not.
+**Quote the measurement and its window.** "56 pushes a year over 23 years of hourly
+bars" is a number; "not many alerts" is not. And re-derive it rather than copying it
+forward: that figure was 22 before the residual ladder was repaired.
 
 **A percentage across instruments is almost always meaningless here.** 5% is a quiet
 hour in SOL and an apocalypse in SHY. Per-instrument or nothing — this is the whole
@@ -103,14 +104,20 @@ flatters a system nobody can run.
 
 ## Consistency across a change
 
-**The pipeline order is load-bearing.** `cross_section` reads what `pipeline` wrote,
-`saed` reads the basket factor, and `cluster` writes eighteen columns *into*
-`metrics_basket_hour.parquet` — so running a stage alone can leave a file stripped rather
-than merely stale. That trap has been hit twice.
+**The pipeline order is load-bearing.** `saed` reads what `pipeline` wrote, `floor`
+must edit the yaml before `saed` scores the hour and answer after it, and delivery reads
+the events table off disk — so it has to run last, on the file this run wrote. Running a
+stage alone can leave the next one reading yesterday.
 
-**A change to the maths invalidates the committed derived data.** Re-run the whole
-sequence before committing, and check the diff is what you expect: if only
-`config_version` and `run_version` moved, the change was exact.
+**A change to the maths invalidates the stored metrics.** `config_version` is a hash
+over the modules that carry formulas, and `pipeline` rebuilds cold rather than extending
+when it moves — so the first run after such a change is a slow one, and that is the
+guard working, not a fault. Re-run the sequence before committing and check the diff is
+what you expect.
+
+**Tables are written through a temp file and `os.replace`.** A killed run must not
+truncate a table in place; `tremor/atomic.py` is the only way parquet and the
+corporate-actions CSV are written.
 
 **Tests are the guard on anything that must be identical.** A rewrite claiming to be
 exact should be checked against the implementation it replaces, on real data, not

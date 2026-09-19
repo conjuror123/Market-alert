@@ -167,16 +167,17 @@ export TWELVEDATA_API_KEY=...   # archive / gap-fill / deepening, not the hourly
 export TIINGO_API_KEY=...       # 29 US-session funds and 8 FX, hourly
 export FRED_API_KEY=...         # the VIX series only
 
+python -m price_monitor.floor     # apply /floor before anything is scored
 python -m tremor.backfill
 python -m tremor.pipeline
-python -m tremor.cross_section
 python -m tremor.saed
-python -m tremor.cluster
+python -m price_monitor.floor --reply
 python -m price_monitor
 ```
 
-Skipping `tremor.cluster` does not merely omit a step: it leaves
-`metrics_basket_hour.parquet` stripped of the eighteen columns `cluster` writes into it.
+The order is the whole trick. `floor` edits the yaml before `saed` reads it and answers
+after, because the events table it counts from is gitignored and this run writes it.
+`price_monitor` reads `saed_events.parquet` off disk, so it must run after the write.
 
 ---
 

@@ -20,22 +20,23 @@ unusual a move is, it subtracts what the whole market did, so that "gold moved" 
 
 ## The hourly pass
 
-Five commands, in this order, and the order is load-bearing.
+Six commands, in this order, and the order is load-bearing.
 
 ```
-tremor.backfill       fetch new bars from the sources into data/tremor/bars/
-tremor.pipeline       per-instrument metrics: returns, volatility, quality gate
-tremor.cross_section  what the basket did this hour: the factor every residual removes
-tremor.saed           residuals, the ladder, events, routing        <- the product
-tremor.cluster        SI-Index; also ENRICHES metrics_basket_hour.parquet
-price_monitor         deliver whatever is due to Telegram
+price_monitor.floor          apply any /floor command before anything is scored
+tremor.backfill              fetch new bars from the sources into data/tremor/bars/
+tremor.pipeline              per-instrument metrics: returns, volatility, quality gate
+tremor.saed                  residuals, the ladder, events, routing   <- the product
+price_monitor.floor --reply  answer /floor once this run has scored it
+price_monitor                deliver whatever is due to Telegram
 ```
 
-`cross_section` reads what `pipeline` wrote. `saed` reads the basket factor.
-`cluster` does not merely follow `saed` — it writes eighteen columns *into*
-`metrics_basket_hour.parquet`, so skipping it leaves that file stripped rather than
-merely stale. And `price_monitor` runs last because the delivery layer reads
-`saed_events.parquet` off disk: it must read the file this run just wrote.
+`saed` reads what `pipeline` wrote and builds its cross-section in memory — that is why
+`cross_section` is a module and not a step. `floor` runs twice for one reason: the yaml
+edit has to land before `saed` so the same hour uses the new number, and the reply has to
+wait until after it, because the events table is gitignored and a fresh runner has
+nothing to count until this run writes it. `price_monitor` runs last because delivery
+reads `saed_events.parquet` off disk and must read the file this run just wrote.
 
 Everything between the bars and the events is derived and gitignored. It rebuilds from
 the bars in about two minutes, which the hourly job does anyway.
@@ -118,60 +119,53 @@ the next day's close. A push older than 48 hours is never sent.
 
 ---
 
-## The three detectors, and which one is live
+## One detector, and the two that were removed
 
-| | What it asks | Status |
-|---|---|---|
-| **SAED** (`saed.py`) | did one instrument move unusually for itself | **live** — the product |
-| **SI-Index** (`cluster.py`, `si_index.py`) | is the whole basket moving together | runs hourly; **not delivered** |
-| **Volatility regime** (`detector.py`, `forecast.py`) | is tomorrow likely to be turbulent | built and measured; **not wired** |
+`saed.py` is the product and the only detector that runs. Two others were built,
+measured and deleted rather than left switched off:
 
-The third is worth explaining. The original specification asked for "something
-extraordinary is about to happen to one of these blocks". Measured walk-forward, that
-question has an R² of **0.02** — very nearly no forecastable structure at this horizon.
-The same machinery predicting *basket volatility* scores **0.20** against a naive
-benchmark's 0.10. So the honest product is the smaller claim, and it exists in
-`tremor/features.py`, `forecast.py`, `threshold.py` and `detector.py`.
+- **SI-Index** asked whether the whole basket was moving together. It ran hourly for
+  months and no module ever read its output — not delivery, not the digest. Deleted.
+- **A volatility-regime forecast** asked whether tomorrow would be turbulent. The
+  original specification wanted "something extraordinary is about to happen to one of
+  these blocks"; measured walk-forward that question scores an R² of **0.02** — very
+  nearly no forecastable structure at this horizon. The same machinery predicting
+  *basket* volatility scores 0.20 against a naive 0.10, but nothing consumed it either.
+  Deleted.
 
-It is **not run by any workflow**. `market_events.parquet` is read by the delivery layer
-and written by nothing, so that channel is frozen at whatever was last committed. That is
-a deliberate pause, not a bug — turning it on means a new kind of alert — but it is the
-one wire left hanging.
+Both findings are kept in `decisions.md`; the code is in git history. What survives of
+the block-level idea is block events in `blocks.py`, which are delivered.
 
 ---
 
 ## The modules
 
 **Data in**
-`bars` (Parquet store) · `backfill` (fetch and merge, session-aware skipping) ·
-`sessions` (NYSE calendar) · `corporate_actions` (ex-dates from adjusted/unadjusted
-ratios) · `fred` + `vix` (the VIX series) · `quality` (data gate, tick resolvability) ·
-`audit` (coverage table)
+`bars` (Parquet store, sharded by year) · `backfill` (fetch and merge, session-aware
+skipping) · `sessions` (NYSE calendar and the FX reference week) · `corporate_actions`
+(declared ex-dates and splits) · `cboe` + `fred` + `vix` (the VIX series) · `quality`
+(data gate, tick resolvability) · `audit` (coverage table) · `atomic` (write through a
+temp file, so a killed run cannot truncate a table in place)
 
 **Per instrument**
 `returns` (returns, gap channel, winsorization) · `zscore` (adaptive EWMA) ·
-`volume` (robust profile) · `pipeline` (assembles the above)
-
-**Across the basket**
-`cross_section` (quorum, factor, CSV, PCA) · `basket` (configuration and blocks)
+`pipeline` (assembles the above, and extends stored metrics rather than rebuilding)
 
 **The detector**
-`residuals` (market model, BMP, rank test, OU fit) · `severity` (the ladder, GPD fit) ·
-`saed` (events, cooldown, gates) · `persistence` (did it hold) · `routing` (channel,
-collapse, digest slot)
-
-**The other two**
-`si_index` + `cluster` (basket-wide) · `features` + `forecast` + `threshold` +
-`detector` + `market` (volatility regime)
+`cross_section` (quorum, the leave-one-out block factor, dispersion) · `basket` +
+`blocks` (configuration, block membership, block-level events) · `residuals` (market
+model, BMP, rank test) · `severity` (the ladder) · `saed` (events, the once-a-day rule,
+the gates) · `persistence` (did it hold) · `routing` (channel and digest slot)
 
 **Bookkeeping**
-`versioning` (config and run hashes over content) · `journal` (decision log) ·
-`export` (JSON under a fixed schema) · `truth` + `evaluate` + `calibrate` (scoring) ·
-`windows` (every window and constant, in one file)
+`versioning` (config and run hashes over content) · `windows` (every window and
+constant, in one file) · `evaluate` + `saed_score` (after-the-fact scoring) ·
+`feedback` (recorded verdicts)
 
 **Delivery** lives in `price_monitor/`: `tremor_delivery` (messages), `weekly_digest`
 (the economic-calendar forecast, and the daily top-up of the archive the pushes read),
-`health`, `notifier`, and the source clients
+`floor` (the /floor command), `follow_up` (the check-ins that edit a push already
+sent), `health`, `notifier`, and the source clients
 (`tiingo`, `yahoo`, `coinbase`, `twelvedata`, `dukascopy`, `hfdata`) that `tremor.backfill`
 fetches through. Product pushes go to `TELEGRAM_CHAT_ID`. Health and named provider
 failures go to `TELEGRAM_HEALTH_CHAT_ID`, falling back to the product chat until that
@@ -189,9 +183,8 @@ data/tremor/vix/           daily VIX close                                    TR
 data/tremor/corporate_actions.csv  declared ex-dates and splits               TRACKED
 data/tremor/metrics/       per-instrument metrics                    gitignored
 data/tremor/residuals/     residuals, ladders, tiers                 gitignored
-data/tremor/events/        JSON export                               gitignored
-data/tremor/saed_events.parquet    routed events — what delivery reads
-data/tremor/metrics_basket_hour.parquet   basket aggregates + cluster's columns
+data/tremor/saed_events.parquet    routed events — what delivery reads   gitignored
+data/tremor/saed_block_alerts.parquet  block-level events              gitignored
 config/basket.yaml         the instruments
 config/config.yaml         the mute and the health thresholds
 ```

@@ -6,7 +6,7 @@
 # hand-typed threshold at all. See price_monitor/__main__.py.
 #
 # Secrets are NOT here and must never be. The repository is public; the Telegram
-# token, the chat id and the Twelve Data key are read from the environment, which
+# token and chat ids and every provider key are read from the environment, which
 # in the workflow means GitHub Actions secrets.
 
 # --- Muting ------------------------------------------------------------------

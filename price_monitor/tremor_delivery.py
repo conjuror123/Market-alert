@@ -1766,8 +1766,6 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     # deleted in restyle_pings.
 
     from price_monitor import follow_up
-    from price_monitor.alerts_log import (load_alerts_log, record_sent_alert,
-                                          save_alerts_log)
     from tremor import routing
 
     store = state.setdefault(STATE_KEY, {})
@@ -1818,10 +1816,6 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     labels = _labels()
     pushed = posted = edited = 0
 
-    # The record "explain alerts" reads: it looks a push up by the message id
-    # printed in its footer and edits that message in place.
-    alerts_log = load_alerts_log(cfg.alerts_log_path) if pushes else []
-
     for event in pushes:
         # What this push speaks for. Usually nothing: only a fifth of pushes
         # have a companion, and at the hour one is sent the window it collapses
@@ -1846,20 +1840,6 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         # tracking was dropped the hour the settled line arrived).
         follow_up.track(store, event, message_id, mark)
         save_state(cfg.state_path, state)
-        label = labels.get(str(event.get("asset_id", ""))) or str(
-            event.get("asset_id", "")).split(":")[-1]
-        move = _clean(event.get("r"))
-        record_sent_alert(
-            alerts_log, chat_id=cfg.telegram_chat_id, message_id=message_id,
-            symbol=label,
-            message_text=format_push(event, labels, calendar, events, now,
-                                     rate_history),
-            last_close=float(_clean(event.get("close")) or 0.0),
-            last_return_pct=float((move or 0.0) * 100),
-            ewma_z=float(_clean(event.get("z_resid")) or 0.0),
-            robust_z=float(_clean(event.get("z_resid")) or 0.0),
-            volume_z=0.0, signal_type=str(event.get("tier") or "push"),
-            now=datetime.fromtimestamp(int(event["hour_utc"]), tz=timezone.utc))
         pushed += 1
 
     # The buzz for a digest row. Sent after the pushes so that on an hour
@@ -1920,8 +1900,6 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
             log.info("Digest %s: %d part(s) posted, %d edited (%d event(s))",
                      slot, made, changed, len(rows))
 
-    if pushed:
-        save_alerts_log(cfg.alerts_log_path, alerts_log)
     if pushes:
         log.info("Tremor pushes sent: %d of %d due", pushed, len(pushes))
     store[_SENT] = _prune(sent, now)
