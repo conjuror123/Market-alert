@@ -1897,3 +1897,63 @@ def test_a_note_whose_first_post_failed_is_still_retried_after_it_closes(
     deliver(monkeypatch, _crowded((slot, to), count=2), state=state, now=LATER)
 
     assert notes(sender), "a note that never posted must still be retried"
+
+
+# --- a closed note shows what it showed ---------------------------------------
+
+def _closed(events_published=None):
+    """A note whose period ended well before LATER, with one part posted."""
+    to = int(LATER.timestamp()) - (md.DIGEST_GROW_AFTER_CLOSE_HOURS + 1) * HOUR
+    slot = to - 3 * 24 * HOUR
+    record = {"ids": [13], "hashes": ["stale"], "from": slot, "to": to}
+    if events_published is not None:
+        record["events"] = events_published
+    return slot, record, (slot, to)
+
+
+def test_a_closed_note_shows_only_what_it_published(monkeypatch, sender, editor):
+    # THE ONE THAT WENT WRONG, and the deeper half of it. Scoring was fixed so an
+    # hour is judged on its whole bar rather than its first five minutes, and
+    # fourteen moves it had missed appeared inside a note for a week that was
+    # already over - which then claimed to have reported nineteen moves that week
+    # when it had reported five.
+    slot, record, window = _closed(events_published=["kept"])
+    rows = [event(event_id="kept", channel="digest", hour_utc=window[0] + HOUR),
+            event(event_id="late", channel="digest", hour_utc=window[0] + 2 * HOUR)]
+
+    shown = md.published_only(record, rows, window, LATER)
+
+    assert [e["event_id"] for e in shown] == ["kept"]
+
+
+def test_a_note_that_can_still_grow_shows_everything(monkeypatch):
+    # While the period is open a late row appearing IS the feature - that is how
+    # a move found at 10:00 reaches a note opened at 00:05.
+    to = int(LATER.timestamp()) + 24 * HOUR
+    record = {"ids": [13], "hashes": ["h"], "from": to - 3 * 24 * HOUR, "to": to,
+              "events": ["kept"]}
+    rows = [event(event_id="kept", channel="digest"),
+            event(event_id="new", channel="digest")]
+
+    shown = md.published_only(record, rows, (record["from"], to), LATER)
+
+    assert [e["event_id"] for e in shown] == ["kept", "new"]
+
+
+def test_a_note_from_before_this_existed_is_left_alone():
+    # No record of what it published, and no way to work it out afterwards -
+    # the table has already changed, which is the whole problem. Reconcile can
+    # state it by hand; guessing here would drop real rows.
+    slot, record, window = _closed(events_published=None)
+    rows = [event(event_id="a", channel="digest"), event(event_id="b", channel="digest")]
+
+    assert md.published_only(record, rows, window, LATER) == rows
+
+
+def test_an_open_note_records_the_rows_it_is_showing(monkeypatch, sender):
+    rows = [event(event_id="d1", channel="digest", tier="noticeable",
+                  hour_utc=int(NOW.timestamp()) - HOUR, digest_slot=SLOT)]
+    _, state = deliver(monkeypatch, rows)
+
+    record = state[md.STATE_KEY][md.DIGEST_STATE][str(SLOT)]
+    assert record["events"] == ["d1"], "a note must remember what it has said"

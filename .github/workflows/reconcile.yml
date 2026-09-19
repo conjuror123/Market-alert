@@ -18,6 +18,12 @@ on:
         description: 'Actually delete (unticked = print the plan and stop)'
         type: boolean
         default: false
+      freeze:
+        description: >-
+          Declare what a closed note published, as SLOT=id,id,... - only needed
+          for a note that closed before the system began recording this itself.
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -80,7 +86,11 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_HEALTH_CHAT_ID: ${{ secrets.TELEGRAM_HEALTH_CHAT_ID }}
         run: |
-          python -m price_monitor.reconcile ${{ inputs.apply && '--apply' || '' }}
+          args=""
+          if [ -n "${{ inputs.freeze }}" ]; then
+            args="--freeze ${{ inputs.freeze }}"
+          fi
+          python -m price_monitor.reconcile ${{ inputs.apply && '--apply' || '' }} $args
 
       - name: Commit the state it changed
         if: ${{ inputs.apply }}

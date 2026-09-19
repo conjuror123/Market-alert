@@ -1313,6 +1313,35 @@ def tidy_windows(records: dict) -> int:
     return fixed
 
 
+def published_only(record: dict, rows: "list[dict]",
+                   window: "tuple[int, int]", now: datetime) -> "list[dict]":
+    """A closed note shows what it showed, not what the table says now.
+
+    A note is re-rendered from the events table on every run, which is what lets
+    a late row appear while the period is open. Once the period is over that
+    stops being a feature and becomes a lie: the table keeps changing - a
+    recompute, a retuned threshold, a fixed detector - and the note silently
+    rewrites itself into a record of moves it never reported.
+
+    That is not hypothetical. Scoring was fixed so that an hour is judged on its
+    whole bar rather than on the first five minutes of it, and fourteen moves it
+    had missed appeared at once inside a note for a week that had already ended -
+    which then claimed to have reported nineteen moves that week when it had
+    reported five. The reader is owed the five.
+
+    So while a note can still grow it records the ids it is showing, and once it
+    cannot it shows only those. A note from before this existed has nothing
+    recorded and is left alone; reconcile can set the list for one by hand.
+    """
+    kept = record.get("events")
+    if kept is None:
+        return rows
+    if now.timestamp() < window[1] + DIGEST_GROW_AFTER_CLOSE_HOURS * 3600:
+        return rows
+    allowed = set(kept)
+    return [e for e in rows if str(e.get("event_id")) in allowed]
+
+
 def digest_rows(events: "list[dict]", window: "tuple[int, int]",
                 now: datetime) -> "list[dict]":
     """Every event one note speaks for. Recomputed from the table each run.
@@ -1898,6 +1927,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
                      "already published", slot, record["rows"])
             continue
         window = note_window(slot, record)
+        rows = published_only(record, rows, window, now)
         # A NOTE INTERRUPTS ONLY WHILE ITS PERIOD IS OPEN, and for the short
         # grace that lets its own last hour land. After that it is a record: it
         # is still rendered and still corrected in place, silently, but it never
@@ -1925,6 +1955,10 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
                                       may_grow=may_grow)
         posted += made
         edited += changed
+        if may_grow:
+            # WHAT THIS NOTE HAS ACTUALLY SAID, kept while it can still say more
+            # and frozen the moment it cannot. See published_only.
+            record["events"] = [str(e.get("event_id")) for e in rows]
         if rows:
             record["rows"] = len(rows)
         if made or changed:

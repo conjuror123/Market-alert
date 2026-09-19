@@ -60,14 +60,35 @@ def plan(events: "list[dict]", state: dict) -> "list[dict]":
         if event is None:
             reason = "no longer an event at all"
         elif str(event.get("channel") or "") != "push":
-            reason = (f"no longer a push - it is a {event.get('channel')} row, "
-                      "and the note already carries it")
+            # Whether the note for its period actually shows it depends on what
+            # that note published - a frozen one may predate the row existing at
+            # all. Saying which is the difference between "you have this twice"
+            # and "this is going away", and the reader deserves to know which.
+            where = ("the note for its period already carries it"
+                     if _in_a_note(state, event) else
+                     "and no note carries it - the move leaves the channel")
+            reason = f"no longer a push - it is a {event.get('channel')} row, {where}"
         else:
             continue
         out.append({"event_id": str(event_id), "message_id": int(message_id),
                     "hour_utc": record.get("hour_utc"), "reason": reason,
                     "in_sent": str(event_id) in sent})
     return out
+
+
+def _in_a_note(state: dict, event: dict) -> bool:
+    """Whether some note's published set holds this event."""
+    store = state.get(tremor_delivery.STATE_KEY, {})
+    for record in store.get(tremor_delivery.DIGEST_STATE, {}).values():
+        kept = record.get("events")
+        if kept is None:
+            start = int(record.get("from", 0))
+            end = int(record.get("to", 0))
+            if start <= float(event.get("hour_utc", 0)) < end:
+                return True          # not frozen: it renders from the table
+        elif str(event.get("event_id")) in set(kept):
+            return True
+    return False
 
 
 def notes(events: "list[dict]", state: dict, now) -> "list[dict]":
@@ -84,6 +105,89 @@ def notes(events: "list[dict]", state: dict, now) -> "list[dict]":
                     "published": record.get("rows"), "now": len(rows),
                     "window": window})
     return out
+
+
+def freeze(state: dict, slot: int, event_ids: "list[str]") -> None:
+    """Declare by hand what a closed note actually published.
+
+    A note records that for itself now (tremor_delivery.published_only), but one
+    that closed before it did has nothing recorded, and there is no way to work
+    it out afterwards - the table has already changed, which is the whole
+    problem. So it is stated, from whatever evidence there is, and the note
+    renders from it thereafter.
+    """
+    store = state.setdefault(tremor_delivery.STATE_KEY, {})
+    digests = store.setdefault(tremor_delivery.DIGEST_STATE, {})
+    record = digests.get(str(slot))
+    if record is None:
+        raise KeyError(f"no note at {slot}")
+    record["events"] = [str(e) for e in event_ids]
+    record["rows"] = len(record["events"])
+
+
+def surplus(cfg: Config, events: "list[dict]", state: dict, now) -> "list[dict]":
+    """Parts of a closed note that its published set no longer fills.
+
+    Rendering the note from what it really published can leave messages behind -
+    fourteen rows removed is two messages of three. They are deleted rather than
+    emptied: an emptied part is still a message on the phone, and the point is a
+    channel that reads as though nothing went wrong.
+    """
+    from price_monitor.tremor_delivery import (digest_rows, format_digest,
+                                               note_window, published_only)
+
+    store = state.get(tremor_delivery.STATE_KEY, {})
+    labels = tremor_delivery._labels()
+    rate_history = tremor_delivery.load_rate_history()
+    out = []
+    for slot, record in store.get(tremor_delivery.DIGEST_STATE, {}).items():
+        ids = list(record.get("ids") or [])
+        if record.get("events") is None or not ids:
+            continue
+        window = note_window(int(slot), record)
+        rows = published_only(record, digest_rows(events, window, now), window, now)
+        texts = format_digest(rows, labels, window, None, now, events, rate_history)
+        for index, message_id in enumerate(ids[len(texts):], start=len(texts)):
+            out.append({"slot": str(slot), "index": index,
+                        "message_id": int(message_id),
+                        "reason": f"part {index + 1} of a note that now needs "
+                                  f"{len(texts)}"})
+    return out
+
+
+def shed(cfg: Config, state: dict, extra: "list[dict]") -> int:
+    """Deletes the surplus parts and forgets them, newest first.
+
+    Newest first so the ids and hashes stay a prefix of the note however many
+    deletes Telegram refuses: dropping a middle part would renumber the ones
+    after it and the note would edit the wrong messages from then on.
+    """
+    store = state.setdefault(tremor_delivery.STATE_KEY, {})
+    digests = store.setdefault(tremor_delivery.DIGEST_STATE, {})
+    gone = 0
+    for action in sorted(extra, key=lambda a: a["index"], reverse=True):
+        record = digests.get(action["slot"])
+        if record is None or action["index"] != len(record.get("ids", [])) - 1:
+            log.warning("part %s is no longer the last of its note; leaving it",
+                        action["message_id"])
+            continue
+        try:
+            removed = delete_telegram_message(
+                cfg.telegram_bot_token, cfg.telegram_chat_id, action["message_id"])
+        except TelegramError as exc:
+            log.error("message %s: %s", action["message_id"], exc)
+            continue
+        if not removed:
+            log.warning("message %s could not be deleted - Telegram refused it, "
+                        "which for a private chat means it is over 48 hours old",
+                        action["message_id"])
+            continue
+        record["ids"].pop()
+        record["hashes"].pop()
+        gone += 1
+        log.info("deleted message %s (%s)", action["message_id"], action["reason"])
+        save_state(cfg.state_path, state)
+    return gone
 
 
 def apply(cfg: Config, state: dict, actions: "list[dict]") -> int:
@@ -126,6 +230,10 @@ def main(argv: "list[str] | None" = None) -> int:
         description="Delete pushes the events table no longer supports")
     parser.add_argument("--apply", action="store_true",
                         help="carry the plan out; without it nothing is changed")
+    parser.add_argument("--freeze", action="append", default=[], metavar="SLOT=IDS",
+                        help="state what a closed note published, as a slot and a "
+                             "comma-separated list of event ids. For a note that "
+                             "closed before the system recorded this for itself.")
     args = parser.parse_args(argv)
 
     cfg = load_config()
@@ -162,23 +270,36 @@ def main(argv: "list[str] | None" = None) -> int:
         log.info("note %s: %d part(s) %s, %d row(s) in the table now, %s",
                  note["slot"], len(note["ids"]), note["ids"], note["now"], state_of)
 
-    actions = plan(events, state)
-    if not actions:
-        log.info("Nothing to delete: every push on the phone is still a push.")
-        return 0
+    for spec in args.freeze:
+        slot, _, ids = spec.partition("=")
+        wanted = [i for i in ids.split(",") if i]
+        freeze(state, int(slot), wanted)
+        log.info("note %s: declared as having published %d row(s)",
+                 slot, len(wanted))
 
+    extra = surplus(cfg, events, state, now)
+    actions = plan(events, state)
+    for action in extra:
+        log.info("message %s: %s", action["message_id"], action["reason"])
     for action in actions:
         log.info("message %s (event %s): %s",
                  action["message_id"], action["event_id"], action["reason"])
 
-    if not args.apply:
-        log.info("%d message(s) would be deleted. Re-run with --apply to do it.",
-                 len(actions))
+    if not extra and not actions:
+        log.info("Nothing to delete: the channel already matches the table.")
         return 0
 
-    gone = apply(cfg, state, actions)
+    if not args.apply:
+        log.info("%d message(s) would be deleted. Re-run with --apply to do it.",
+                 len(extra) + len(actions))
+        return 0
+
+    # Surplus parts first: a note whose extra messages are gone is coherent even
+    # if a push delete is then refused, whereas the reverse leaves the note
+    # claiming parts that are not there.
+    gone = shed(cfg, state, extra) + apply(cfg, state, actions)
     save_state(cfg.state_path, state)
-    log.info("Deleted %d of %d.", gone, len(actions))
+    log.info("Deleted %d of %d.", gone, len(extra) + len(actions))
     return 0
 
 
