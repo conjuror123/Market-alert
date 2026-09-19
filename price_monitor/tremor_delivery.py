@@ -1970,6 +1970,16 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
 
     if pushes:
         log.info("Tremor pushes sent: %d of %d due", pushed, len(pushes))
+
+    # AND WHAT SHOULD NO LONGER BE THERE. Everything above asks what to add or
+    # correct; this asks the same question about what is already on the channel,
+    # so a message an older detector sent does not outlive the reason for it.
+    # Conservative by construction - see reconcile.sweep.
+    from price_monitor import reconcile
+    swept = reconcile.sweep(cfg, state, events, now)
+    if swept:
+        save_state(cfg.state_path, state)
+
     store[_SENT] = _prune(sent, now)
     store[DIGEST_STATE] = _prune_digests(digests, now)
-    return pushed + posted + edited + corrected + buzzed + restyled
+    return pushed + posted + edited + corrected + buzzed + restyled + swept

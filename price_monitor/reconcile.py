@@ -40,11 +40,21 @@ from price_monitor.state import CorruptState, load_state, save_state
 log = logging.getLogger("price_monitor.reconcile")
 
 
-def plan(events: "list[dict]", state: dict) -> "list[dict]":
-    """Every push on the phone that the table no longer supports.
+def plan(events: "list[dict]", state: dict,
+         conservative: bool = False) -> "list[dict]":
+    """Every push on the channel that the table no longer supports.
 
     Returns one record per message to remove, with the reason, so the caller can
     print the plan before doing anything irreversible.
+
+    CONSERVATIVE IS FOR THE HOURLY SWEEP. A push that is no longer an event at
+    all can always go: there is nothing left to say. A push that has merely been
+    DEMOTED to a digest row is different - the row belongs in the note for its
+    period, and if that note is closed and frozen it does not carry it. Deleting
+    the alert would then take the move off the channel altogether, which is a
+    worse answer than leaving one message louder than it should have been. So
+    the sweep only deletes a demoted push a note actually carries, and a hand
+    run can be told to drop the rest.
     """
     store = state.get(tremor_delivery.STATE_KEY, {})
     tracked = store.get(follow_up.TRACKED, {})
@@ -60,12 +70,18 @@ def plan(events: "list[dict]", state: dict) -> "list[dict]":
         if event is None:
             reason = "no longer an event at all"
         elif str(event.get("channel") or "") != "push":
-            # Whether the note for its period actually shows it depends on what
-            # that note published - a frozen one may predate the row existing at
-            # all. Saying which is the difference between "you have this twice"
-            # and "this is going away", and the reader deserves to know which.
-            where = ("the note for its period already carries it"
-                     if _in_a_note(state, event) else
+            # Whether the note for its period actually shows it decides both the
+            # wording and, for the sweep, whether it goes at all: a frozen note
+            # may predate the row existing. "You have this twice" and "this is
+            # leaving the channel" are different things to be told before
+            # something is deleted irreversibly.
+            carried = _in_a_note(state, event)
+            if conservative and not carried:
+                log.info("message %s is a %s row now but no note carries it; "
+                         "keeping it rather than taking the move off the channel",
+                         message_id, event.get("channel"))
+                continue
+            where = ("the note for its period already carries it" if carried else
                      "and no note carries it - the move leaves the channel")
             reason = f"no longer a push - it is a {event.get('channel')} row, {where}"
         else:
@@ -105,6 +121,30 @@ def notes(events: "list[dict]", state: dict, now) -> "list[dict]":
                     "published": record.get("rows"), "now": len(rows),
                     "window": window})
     return out
+
+
+def sweep(cfg: Config, state: dict, events: "list[dict]", now) -> int:
+    """The hourly pass's own reconciliation. Returns how many messages went.
+
+    THREE STAGES, and they are the same three every run: work out what the
+    channel should hold, compare it with what state says is there, and change
+    what differs. Delivery has always done the first two for what it ADDS; this
+    is the same question asked about what should no longer be there.
+
+    Deliberately conservative - see plan. An empty events table does nothing at
+    all, because empty means "the pipeline did not run" and acting on the other
+    reading would clear the channel.
+    """
+    if not events:
+        return 0
+    extra = surplus(cfg, events, state, now)
+    actions = plan(events, state, conservative=True)
+    if not extra and not actions:
+        return 0
+    gone = shed(cfg, state, extra) + apply(cfg, state, actions)
+    if gone:
+        log.info("Reconciled: %d message(s) the table no longer supports", gone)
+    return gone
 
 
 def freeze(state: dict, slot: int, event_ids: "list[str]") -> None:
@@ -230,6 +270,9 @@ def main(argv: "list[str] | None" = None) -> int:
         description="Delete pushes the events table no longer supports")
     parser.add_argument("--apply", action="store_true",
                         help="carry the plan out; without it nothing is changed")
+    parser.add_argument("--drop-orphans", action="store_true",
+                        help="also delete a demoted push that no note carries, "
+                             "which takes that move off the channel entirely")
     parser.add_argument("--freeze", action="append", default=[], metavar="SLOT=IDS",
                         help="state what a closed note published, as a slot and a "
                              "comma-separated list of event ids. For a note that "
@@ -278,7 +321,7 @@ def main(argv: "list[str] | None" = None) -> int:
                  slot, len(wanted))
 
     extra = surplus(cfg, events, state, now)
-    actions = plan(events, state)
+    actions = plan(events, state, conservative=not args.drop_orphans)
     for action in extra:
         log.info("message %s: %s", action["message_id"], action["reason"])
     for action in actions:

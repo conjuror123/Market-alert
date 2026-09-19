@@ -1,9 +1,12 @@
 """Telegram notification sender."""
 from __future__ import annotations
 
+import logging
 import re
 
 import requests
+
+log = logging.getLogger("price_monitor.notifier")
 
 
 class TelegramError(RuntimeError):
@@ -121,6 +124,12 @@ def delete_telegram_message(
     channel and best-effort for one in a private chat, where a ping sent more
     than two days before the next note simply stays. That is a Telegram limit
     and not something a retry can get around - see the README.
+
+    WHICH OF THOSE IT WAS IS LOGGED, because the refusals look identical from
+    here and do not mean the same thing: too old cannot be retried, but missing
+    admin rights is a setting somebody can change. Guessing between them once
+    put "it is over 48 hours old" against a message in a public channel, where
+    that rule does not even apply.
     """
     if not bot_token or not chat_id:
         raise TelegramError("TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID are not configured")
@@ -138,5 +147,11 @@ def delete_telegram_message(
         return True
     # Already deleted, too old, or never ours: all mean "stop tracking it".
     if resp.status_code in (400, 403):
+        try:
+            why = resp.json().get("description", resp.text[:200])
+        except ValueError:                       # pragma: no cover - defensive
+            why = resp.text[:200]
+        log.warning("Telegram would not delete message %s: %s",
+                    message_id, redact_secrets(str(why)))
         return False
     raise TelegramError(f"Telegram API error {resp.status_code}: {resp.text[:300]}")
