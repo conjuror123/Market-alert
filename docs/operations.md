@@ -60,14 +60,35 @@ and `data/economic_calendar/`. The push rebases and retries if the branch moved,
 rejected push is the same as losing the sent map. A truncated `state.json` fails the run
 rather than being read as a cold start.
 
-**At 04:00 UTC only:** `data/tremor/bars/` and `data/tremor/vix/`. Parquet rewrites files
-whole, so hourly commits would add gigabytes a year for no new facts. Nothing is lost by
-waiting: the forward fetch starts at each instrument's newest bar minus three hours, so a
-day's worth is always recoverable. VIX is in that commit so the skip-if-fresh check can
-see the latest close and avoid re-fetching CBOE's full 1990 file.
+**Saturday 04:00 UTC only:** `data/tremor/bars/` and `data/tremor/vix/`. Git cannot delta
+parquet, so a commit stores every byte of whatever shard changed and the frequency is the
+whole cost. Nothing is lost by waiting: the forward fetch starts at each instrument's
+newest **stored** bar, so a week-old checkout is simply a week-wide request, and a week is
+far inside every provider's reach — Tiingo serves 365 days, Yahoo 55 at thirty minutes.
+Saturday because every market that keeps a session is shut, so the week written down is a
+whole one. A missed Saturday is not a loss either — the next one re-fetches and commits the
+whole fortnight — and the margin before anything is unrecoverable is about seven
+consecutive misses, set by Yahoo's 55 days at thirty minutes, the shortest reach in the
+basket. VIX rides the same commit so the skip-if-fresh check can see the latest close
+and avoid re-fetching CBOE's full 1990 file.
 
 **Never:** `data/tremor/metrics/`, `residuals/`, `saed_events.parquet`. Derived,
 gitignored, rebuilt in the run that needs them.
+
+**The Actions cache** (`metrics/` and the events archive, 232 MiB) is uploaded only when
+the run actually changed it, plus once a day regardless so a quiet stretch cannot let the
+entry age out — GitHub drops a cache nothing has touched for a week, and a cold start
+costs every instrument a full rebuild.
+
+### What the store costs
+
+A commit stores the whole shard that changed, so the only number that matters is how much
+history shares a shard with the new hour. Settled years get one shard each; the year being
+written gets twelve, one per month (`tremor/bars.store_path`). Measured on the real store,
+that cuts the bytes rewritten per append from 6.89 MiB to 0.61 MiB — **11.4x** — and
+weekly rather than daily commits divide the remainder by seven again. One complete year of
+bars for all 61 instruments is 5.2 MiB; recording it costs about 12 MiB of git a year,
+against 955 MiB under daily commits of year-sized shards.
 
 ---
 

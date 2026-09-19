@@ -1,5 +1,4 @@
-"""Tremor hourly bar store: Parquet, one directory of per-year shards per
-instrument.
+"""Tremor hourly bar store: Parquet, one directory of shards per instrument.
 
 Why Parquet rather than the NDJSON of the existing monitor: there a file is only
 appended one row per hour and grows slowly, whereas here sixty-two instruments
@@ -7,10 +6,10 @@ back to 2003 amount to several million bars, and they must be read in full on
 every run of the PCA and the regressions. A typed columnar format reads an order
 of magnitude faster and takes several times less space.
 
-Why sharded by year rather than one file per instrument: parquet rewrites a file
-whole, so a settled year re-commits itself every time the current hour arrives.
-The archive is committed daily and cannot be re-fetched from the free tier, so
-dropping it from git is not an option - sharding is. See store_path.
+Why sharded rather than one file per instrument: parquet rewrites a file whole,
+so an unsharded store re-commits its entire history every time the current hour
+arrives. The archive is committed and cannot be re-fetched from the free tier,
+so dropping it from git is not an option - sharding is. See store_path.
 
 The time convention comes from §1.2 of the spec: hour_utc stores the bar's
 OPENING moment, and the closing moment is t = hour_utc + 1 hour. This is the same
@@ -46,14 +45,27 @@ SCHEMA = {
 
 
 def store_path(base_dir: str, file_stem: str) -> str:
-    """Where one instrument's bars live: a DIRECTORY of per-year shards.
+    """Where one instrument's bars live: a DIRECTORY of shards.
 
-    Sharded rather than one file per instrument, because of git. Parquet
-    rewrites a file whole, so a one-megabyte store re-commits a whole megabyte to
-    say one hour arrived - at sixty-two instruments committed daily that is about
-    thirty gigabytes a year, against a five-gigabyte soft limit. Sharded by year
-    only the current year's file changes, and the daily commit is a few hundred
-    kilobytes.
+    Sharded because of git. Parquet rewrites a file whole and git cannot delta
+    the result, so a commit stores every byte of whatever file changed. What
+    that costs is set by how much history shares a shard with the hour being
+    added, so the only number that matters is the size of the shard currently
+    being appended to.
+
+    SETTLED YEARS GET ONE SHARD EACH, THE YEAR BEING WRITTEN GETS TWELVE. A
+    year-only scheme still re-commits the whole year to date on every write, and
+    because that shard grows all year the annual cost is not 365 daily deltas
+    but 183 times one complete year - 955 MiB to record the 5.2 MiB of bars a
+    year actually contains. Splitting the live year by month divides that by
+    twelve, and costs nothing anywhere else: an instrument holds at most
+    twenty-odd yearly shards plus twelve monthly ones, so `load` still opens a
+    few dozen files rather than a few hundred.
+
+    Which year is "live" is read off the DATA, not off the clock: the newest
+    year present is the one being appended to. So the first write of January
+    folds the previous year's twelve months back into one shard by itself, and
+    there is no January-only code path to get wrong once a year.
 
     The path is still handed around as one string, so nothing above this module
     has to know. `load` also reads the legacy single file where one is still
@@ -72,8 +84,34 @@ def _legacy_path(store: str) -> str:
     return f"{store}.parquet"
 
 
-def _year_of(hours: pd.Series) -> pd.Series:
-    return pd.to_datetime(hours, unit="s", utc=True).dt.year
+def _shard_of(hours: pd.Series) -> pd.Series:
+    """Which shard each bar belongs in: "2019", or "2026-09" for the live year."""
+    if hours.empty:
+        return pd.Series(dtype="object")
+    when = pd.to_datetime(hours, unit="s", utc=True)
+    year, month = when.dt.year, when.dt.month
+    live = int(year.max())
+    return year.astype(str).where(
+        year != live, year.astype(str) + "-" + month.map("{:02d}".format))
+
+
+def _shard_key(path: str) -> "tuple[int, int]":
+    """Chronological order, with a year's own shard BEFORE its months.
+
+    The ordering is what makes `load`'s keep="last" pick the right copy. A
+    yearly and a monthly shard for the same year coexist only if a write died
+    between laying the months down and removing the year they replace, and in
+    that case the months are the newer truth - so they must be read second.
+    Sorting the names as strings gets this backwards, because "-" sorts before
+    ".".
+    """
+    stem = os.path.basename(path)
+    stem = stem[:-len(".parquet")] if stem.endswith(".parquet") else stem
+    year, _, month = stem.partition("-")
+    try:
+        return (int(year), int(month) if month else 0)
+    except ValueError:                       # pragma: no cover - defensive
+        return (1 << 30, 0)                  # something else entirely: read last
 
 
 def _shards(store: str) -> list[str]:
@@ -90,8 +128,8 @@ def _shards(store: str) -> list[str]:
     if os.path.exists(legacy):
         found.append(legacy)
     if os.path.isdir(store):
-        found.extend(sorted(os.path.join(store, name) for name in os.listdir(store)
-                            if name.endswith(".parquet")))
+        found.extend(sorted((os.path.join(store, name) for name in os.listdir(store)
+                             if name.endswith(".parquet")), key=_shard_key))
     return found
 
 
@@ -128,10 +166,10 @@ def write(store: str, frame: pd.DataFrame) -> None:
         return
 
     os.makedirs(store, exist_ok=True)
-    wanted = {str(year): part.reset_index(drop=True)
-              for year, part in frame.groupby(_year_of(frame["hour_utc"]))}
-    for year, part in wanted.items():
-        path = os.path.join(store, f"{year}.parquet")
+    wanted = {str(shard): part.reset_index(drop=True)
+              for shard, part in frame.groupby(_shard_of(frame["hour_utc"]))}
+    for shard, part in wanted.items():
+        path = os.path.join(store, f"{shard}.parquet")
         if os.path.exists(path):
             try:
                 if _normalise(pd.read_parquet(path)).equals(part):
@@ -140,8 +178,9 @@ def write(store: str, frame: pd.DataFrame) -> None:
                 pass                             # unreadable shard: rewrite it
         atomic.write_parquet(path, part)
     for name in os.listdir(store):
-        # A year that no longer has bars in the frame. Only reachable when a
-        # store is rebuilt from a shorter history, but leaving the file behind
+        # A shard that no longer has bars in the frame: a year rebuilt from a
+        # shorter history, or - every January - the twelve months of the year
+        # that has just stopped being the live one. Leaving the file behind
         # would make load() return rows write() was told to drop.
         if name.endswith(".parquet") and name[:-len(".parquet")] not in wanted:
             os.remove(os.path.join(store, name))

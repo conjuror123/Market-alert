@@ -221,6 +221,19 @@ events went with it. `extend_asset_metrics` now re-scores its last two days of b
 than trusting them, which costs nothing: the chain already recomputes `warm_bars` of
 lead-in to be exact, and this keeps more of what it computed.
 
+**The shard being appended to is the only one whose size matters.** Git cannot delta
+parquet: a commit stores every byte of whatever file changed, so the cost of recording one
+hour is the size of the shard that hour lands in. Sharding by year looks like it solves
+this and does not, because the live year's shard grows all year — the annual bill is not
+365 daily deltas but 183 times one complete year, 955 MiB to record the 5.2 MiB of bars a
+year actually contains. Settled years therefore keep one shard each and the live year is
+split by month, which divides that by twelve and costs nothing elsewhere: an instrument
+holds a couple of dozen yearly shards plus twelve monthly ones, so a load still opens a few
+dozen files rather than a few hundred. Which year is live is read off the data, not the
+clock — the newest year present is the one being appended to — so the first write of
+January folds the previous year's months back into one shard with no calendar branch to get
+wrong once a year.
+
 **A day is not a unit of completeness.** Gap detection asks about hours, not days: a day
 present with three of its seven hours is a hole the calendar can see and a day-level check
 cannot.

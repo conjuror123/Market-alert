@@ -152,13 +152,15 @@ def _rows(hours):
     })
 
 
-def test_a_write_lands_one_file_per_year(tmp_path):
+def test_a_settled_year_lands_in_one_file_and_the_live_one_in_months(tmp_path):
     store = bars.store_path(str(tmp_path), "twelvedata_SPY")
-    bars.write(store, _rows([_hour(2003), _hour(2003, 6), _hour(2004), _hour(2026)]))
+    bars.write(store, _rows([_hour(2003), _hour(2003, 6), _hour(2004),
+                             _hour(2026, 1), _hour(2026, 9)]))
 
     import os
-    assert sorted(os.listdir(store)) == ["2003.parquet", "2004.parquet", "2026.parquet"]
-    assert len(bars.load(store)) == 4
+    assert sorted(os.listdir(store)) == [
+        "2003.parquet", "2004.parquet", "2026-01.parquet", "2026-09.parquet"]
+    assert len(bars.load(store)) == 5
     assert not any(name.endswith(".tmp") for name in os.listdir(store))
 
 
@@ -195,7 +197,8 @@ def test_a_legacy_single_file_is_read_and_then_folded_in(tmp_path):
     bars.merge(store, _rows([_hour(2026)]))
 
     assert not os.path.exists(legacy)
-    assert sorted(os.listdir(store)) == ["2003.parquet", "2004.parquet", "2026.parquet"]
+    assert sorted(os.listdir(store)) == [
+        "2003.parquet", "2004.parquet", "2026-01.parquet"]
     assert sorted(bars.load(store)["hour_utc"]) == [_hour(2003), _hour(2004), _hour(2026)]
 
 
@@ -218,4 +221,68 @@ def test_a_year_that_lost_its_bars_loses_its_shard(tmp_path):
     bars.write(store, _rows([_hour(2003), _hour(2026)]))
     bars.write(store, _rows([_hour(2026)]))
 
-    assert os.listdir(store) == ["2026.parquet"]
+    assert os.listdir(store) == ["2026-01.parquet"]
+
+
+def test_appending_an_hour_rewrites_only_the_month_it_lands_in(tmp_path):
+    # THE WHOLE POINT OF THE SHARD SIZE. Git cannot delta parquet, so a commit
+    # stores every byte of whatever file changed, and the only number that
+    # matters is how much history shares a shard with the new hour. A year-only
+    # scheme re-commits the whole year to date on every write; because that
+    # shard grows all year the annual cost is 183 times one complete year, not
+    # 365 daily deltas. Measured on the real store, month shards cut the bytes
+    # rewritten per append by 11.4x.
+    import os
+
+    store = bars.store_path(str(tmp_path), "twelvedata_SPY")
+    bars.write(store, _rows([_hour(2025, 6), _hour(2026, 1), _hour(2026, 6),
+                             _hour(2026, 9)]))
+    stamps = {name: os.stat(os.path.join(store, name)).st_mtime_ns
+              for name in os.listdir(store)}
+
+    bars.merge(store, _rows([_hour(2026, 9, 2)]))
+
+    touched = {name for name in os.listdir(store)
+               if stamps.get(name) != os.stat(os.path.join(store, name)).st_mtime_ns}
+    assert touched == {"2026-09.parquet"}
+
+
+def test_the_first_bar_of_a_new_year_folds_the_old_one_back_into_one_shard(tmp_path):
+    # The compaction has no code path of its own and no calendar check: the live
+    # year is whichever is newest IN THE DATA, so a year stops being live the
+    # moment a later bar arrives and its months collapse on that write. A
+    # January-only branch would run once a year and be wrong the first time.
+    import os
+
+    store = bars.store_path(str(tmp_path), "twelvedata_SPY")
+    bars.write(store, _rows([_hour(2025, 6), _hour(2026, 1), _hour(2026, 6),
+                             _hour(2026, 11)]))
+    assert sorted(os.listdir(store)) == [
+        "2025.parquet", "2026-01.parquet", "2026-06.parquet", "2026-11.parquet"]
+
+    bars.merge(store, _rows([_hour(2027, 1, 1, 9)]))
+
+    assert sorted(os.listdir(store)) == [
+        "2025.parquet", "2026.parquet", "2027-01.parquet"]
+    assert sorted(bars.load(store)["hour_utc"]) == [
+        _hour(2025, 6), _hour(2026, 1), _hour(2026, 6), _hour(2026, 11),
+        _hour(2027, 1, 1, 9)]
+
+
+def test_a_month_shard_outranks_the_year_it_replaces(tmp_path):
+    # Both exist only if a write died between laying the months down and
+    # removing the year they supersede. load() keeps the LAST copy of an hour,
+    # so the months have to be read second - and sorting the names as strings
+    # puts them first, because "-" sorts before ".".
+    import os
+
+    store = bars.store_path(str(tmp_path), "twelvedata_SPY")
+    os.makedirs(store)
+    stale = _rows([_hour(2026, 3)])
+    stale.loc[0, "close"] = 11.0
+    bars.write(os.path.join(store, "2026.parquet"), stale)
+    fresh = _rows([_hour(2026, 3)])
+    fresh.loc[0, "close"] = 22.0
+    bars.write(os.path.join(store, "2026-03.parquet"), fresh)
+
+    assert bars.load(store)["close"].tolist() == [22.0]
