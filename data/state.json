@@ -20,12 +20,16 @@
       "1789344300": {
         "from": 1789344300,
         "hashes": [
-          "edd2e23083c5d4a8"
+          "a50269eee28376cb",
+          "8a7be6d36342a6bf",
+          "4c19410d65d08456"
         ],
         "ids": [
-          13
+          13,
+          27,
+          28
         ],
-        "rows": 5,
+        "rows": 19,
         "to": 1789776300
       },
       "1789776300": {
@@ -42,7 +46,7 @@
     "pings": {},
     "sent": {
       "twelvedata_GBP_USD:1789642800": {
-        "hash": "4b56914adeef60ca",
+        "hash": "1651063cf987a96f",
         "hour": 1789642800,
         "id": 19
       },
@@ -61,7 +65,7 @@
       "twelvedata_GBP_USD:1789642800": {
         "hour_utc": 1789642800,
         "message_id": 19,
-        "text_hash": "4b56914adeef60ca",
+        "text_hash": "1651063cf987a96f",
         "written": [
           "today",
           "settled"
