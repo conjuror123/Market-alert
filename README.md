@@ -215,12 +215,11 @@ docs/architecture.md       how it works, the hourly pass in order
 docs/decisions.md          why, with the measurement that settled each choice
 docs/operations.md         running it, quotas, what breaks and how you would know
 docs/working-agreement.md  the rules an agent changing this repository works under
-docs/TZ_MEALS_v5.1.txt     the original specification: what every "§4.3" points at
 ```
 
-`docs/TZ_MEALS_v5.1.txt` is the original design document, superseded but kept: the code
-cites its section numbers (`§4.3`) 234 times. Where it and the code disagree, the code is
-right. See `CLAUDE.md`.
+Comments throughout the code cite section numbers — `§4.3` and the like — of an original
+design document that has been deleted. They are historical markers and there is nothing
+to look them up in; the code is the specification. See `CLAUDE.md`.
 
 ## Running locally
 

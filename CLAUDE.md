@@ -82,9 +82,12 @@ To exercise the real pipeline you need `TIINGO_API_KEY` (hourly bars), plus
 `data/tremor/metrics/`, `residuals/` and `saed_events.parquet` is gitignored and rebuilds
 from the committed bars in about two minutes.
 
-## The specification
+## The `§4.3` citations point at nothing
 
-`docs/TZ_MEALS_v5.1.txt` is the original design document. It is superseded — where it and
-the code disagree, the code is right — but it is kept because the code cites its section
-numbers (`§4.3`) 234 times across 35 files. It is deliberately **not** in
-`versioning.CONFIG_INPUTS`: a typo in its prose must not change `config_version`.
+There was an original design document, `docs/TZ_MEALS_v5.1.txt`, and it is gone — written
+before the system was understood and not trustworthy on any point. The code still carries
+248 citations of its section numbers across 39 files. **Treat every one of them as a
+historical marker, not a reference.** Nothing can be looked up; where a comment says what
+`§3.1` required, the comment is the record and the code is the authority. Do not add new
+ones, and do not go looking for the file — `git log -- docs/TZ_MEALS_v5.1.txt` will find
+it in the history if you ever need to see what was once claimed.
