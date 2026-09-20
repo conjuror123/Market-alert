@@ -41,7 +41,7 @@
         ],
         "from": 1789776300,
         "hashes": [
-          "e4f249a5d912bcaf"
+          "b3ddaae42fad2562"
         ],
         "ids": [
           26
@@ -52,7 +52,7 @@
     },
     "pings": {
       "coinbase_AVAX-USD:1789866000": {
-        "hash": "d45529bc87ca286f",
+        "hash": "48b8def38a201c65",
         "id": 29
       }
     },
