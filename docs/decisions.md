@@ -167,6 +167,42 @@ construction. That was printed as "this day's close - the move was in the closin
 hour", which answers a question the reader did not ask in the place they look for how
 the move did. The line is now omitted; the settled check-in carries the story.
 
+**The sigma window is a dial, not an estimate, and 5,000 bars is far from any
+statistical optimum.** `tools/sigma_window.py` sweeps it per instrument against three
+criteria. Scoring it as a *forecast* of the next bar's variance sends every instrument
+to the shortest window offered — a correct answer to the wrong question, since
+`sigma_eff` already is the fast estimator and `sigma_LT` is deliberately the slow one.
+Scoring it against a centred, hindsight estimate of local volatility gives an answer
+that moves with the bandwidth chosen for "local" — 250-400 bars at ±30 days, 600-2,500
+at ±180 — so that criterion measures the choice rather than settling it. The two that
+do not have a free parameter disagree, and they disagree because they are the same
+quantity with the sign flipped: how much the estimate lags the market.
+
+| median over the basket | 250 | 720 | 2,000 | **5,000** | 8,000 | 20,000 |
+|---|---|---|---|---|---|---|
+| era drift, crypto (lower better) | 0.043 | 0.051 | 0.089 | **0.122** | 0.117 | 0.187 |
+| era drift, equity | 0.074 | 0.125 | 0.208 | **0.284** | 0.351 | — |
+| alerts in the worst 5% of weeks, crypto | 13% | 19% | 30% | **42%** | 42% | 42% |
+| alerts in the worst 5% of weeks, equity | 25% | 38% | 49% | **58%** | 62% | 65% |
+
+A short window makes the multiple mean the same thing in every era — the 99th percentile
+of `|r| / sigma` stops drifting between 2017 and 2026 — and it goes quiet in a crisis,
+because it absorbs the crisis into its own denominator within days. A long window is the
+reverse. 5,000 sits above every window any accuracy criterion picks, which makes it a
+choice for the second property. That choice is the right one here (a detector that
+silences itself in a crash is the one failure this system will not accept) but it was
+never made: it was inherited from the deleted specification. It is made now.
+
+**Crypto's window is not extended to match the ETFs' calendar span**, though the case for
+it is real: volatility half-lives are ~97 days for crypto, 122 for equity and 134 for FX,
+so a flat bar count gives the ETFs eight half-lives of memory and crypto two, purely
+because one trades round the clock. Measured, the cure is worse. Crypto's storm coverage
+saturates at 5,000 (42% at 5,000, 8,000, 13,000 and 20,000 alike), so the one property
+length buys is already bought — and era drift gets WORSE for seven of the nine coins,
+which is the very thing a longer window was meant to fix. Crypto's volatility level has
+more than halved since 2017, and a window reaching further back carries more of that
+decline into today's reading, not less.
+
 **The system does not count its own alerts.** There is no weekly cap. A detector that
 goes quiet on the third alert of the week answers a question about the reader's patience
 with an instrument's price history, and it fails adversarially: the week the franc is
