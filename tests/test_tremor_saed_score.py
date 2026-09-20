@@ -164,8 +164,8 @@ def test_a_large_move_the_block_explains_is_not_counted_as_an_unexplained_miss()
 # --- the section as a whole ---------------------------------------------------
 
 def test_a_missing_residuals_directory_costs_the_section_and_not_the_report(tmp_path):
-    # It runs inside tremor.evaluate. A directory that is not there must not
-    # take down the report that is.
+    # This is one section of a report run by hand. A directory that is not
+    # there must not take down the sections that are.
     assert saed_score.build(events_path=str(tmp_path / "nope.parquet")) == ""
 
 

@@ -33,10 +33,11 @@ What is left is the pair of questions a person actually has.
    rebuilt to get: a flat threshold gave 47x between the quietest and loudest
    instrument, per-block thresholds give about 7x.
 
-2. WHAT IT MISSED, per EPISODE rather than per hour, for the reason
-   tremor.evaluate already gives: one shock spans several bars, the detector
-   reports the peak and suppresses the repeats, and per-hour recall would mostly
-   measure the debounce.
+2. WHAT IT MISSED, per EPISODE rather than per hour. One shock spans several
+   bars, the detector reports the peak and suppresses the repeats, so per-hour
+   recall would mostly measure the debounce rather than the detector. Contiguous
+   significant hours are collapsed into one episode by _episodes below, and an
+   episode counts as caught if any alert lands in it.
 
    Reported twice, because the plain number is not the honest one. Recall against
    every large raw move counts as misses the moves an instrument's own block

@@ -181,11 +181,17 @@ EWMA_BURN_IN_BARS = 500
 # --- cross-sectional windows, in reference-calendar hours -----------------
 
 W_PCA = 120           # PCA window, one trading week
-W_CS = 1200           # window for CSV_norm, PC1_ratio, sigma_M, k_t (3.3, 5.2)
-CLUSTER_COOLDOWN = 72  # cluster-event cooldown
-VIX_WINDOW = 24        # VIX multiplier window
-ESCALATION_DEBOUNCE = 24  # escalation debounce window
-TRUTH_HORIZON = 24     # horizon for truth labelling and baseline
+W_CS = 1200           # window for CSV_norm, PC1_ratio, sigma_M, k_t
+
+# THREE OF THE FOUR BELOW HAVE NO CALLER, marked where they stand rather than
+# removed: this file is a config input hashed as parsed code, so deleting three
+# unread names - or even reordering them - moves config_version and rebuilds
+# every metric cold, for no change in behaviour. Do not read a dead one as live
+# tuning, and do not tune one expecting an effect.
+CLUSTER_COOLDOWN = 72  # DEAD: the cluster detector's cooldown
+VIX_WINDOW = 24        # VIX multiplier window - live, read by vix and delivery
+ESCALATION_DEBOUNCE = 24  # DEAD: escalation debounce
+TRUTH_HORIZON = 24     # DEAD: horizon of the retired truth-labelling protocol
 
 # The percentile the basket's coherence must clear for the single-factor trigger.
 # A starting value, calibrated on the training period: 0.90 fires in 1.12% of

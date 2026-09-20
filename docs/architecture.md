@@ -158,7 +158,7 @@ rank test) · `severity` (the ladder) · `saed` (events, the once-a-day rule, th
 
 **Bookkeeping**
 `versioning` (config and run hashes; the code, parsed, not the bytes) · `windows` (every window and constant,
-in one file) · `evaluate` + `saed_score` (after-the-fact scoring) · `feedback` (recorded
+in one file) · `saed_score` (after-the-fact scoring, run by hand) · `feedback` (recorded
 verdicts)
 
 **Delivery** lives in `price_monitor/`: `tremor_delivery` (renders and sends; decides

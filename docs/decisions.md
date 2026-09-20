@@ -267,8 +267,10 @@ Raised, dealt with, and not to be raised again.
 - **Health messages in the product channel** — fixed. `TELEGRAM_HEALTH_CHAT_ID`.
 - **`data/tremor/evaluation.md` and its entry point** — deleted. It scored the SI-Index
   cluster channel, not the delivered detector, against a forecasting label neither claims
-  to answer. The episode and cooldown helpers in `tremor/evaluate.py` stay as a library
-  the tests pin, not as a live path: `saed_score` carries its own episode helper.
+  to answer. `tremor/evaluate.py` went with it: its episode and cooldown helpers had no
+  caller outside their own tests, because `saed_score` carries its own. Three constants
+  in `tremor/windows.py` are now unreferenced and stay there, marked — removing them
+  moves `config_version` and rebuilds every metric cold for no change in behaviour.
 - **`schema/event_export.schema.json`** — deleted, with its `jsonschema` dependency.
   Nothing produced the export and no test validated it, despite a comment saying one did.
 - **299 citations of the deleted specification** — removed across 46 files.
