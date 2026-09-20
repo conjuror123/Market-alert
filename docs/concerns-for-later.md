@@ -118,14 +118,6 @@ This was deliberate — changing the estimator and the ladder in the same step w
 left neither measurable — but it is a deferral, not a decision. The rungs are a
 preference the reader owns, so re-seeding them is a question for the reader, not a fix.
 
-**Related, and in the same area:** events found by **both** routes at once — larger than
-the instrument's own history explains *and* larger than its sector accounts for — hold up
-markedly better than either route alone (80.2% still standing at the next close, against
-72.6% abnormal and 63.6% absolute). `PUSH_TIERS` keys on tier alone, so a `major` found
-both ways and a `major` found one way are treated identically. There is a real quality
-gain available here at no extra volume, and it has not been taken because it changes what
-reaches the phone.
-
 ---
 
 ## 6. Comments and prose that have drifted

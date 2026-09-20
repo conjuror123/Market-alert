@@ -277,3 +277,20 @@ Raised, dealt with, and not to be raised again.
 - **Run health measured by a throwaway script** — replaced by `tools/run_health.py`, which
   counts hourly slots with no successful run rather than failed runs, because an outage
   produces none of the latter.
+- **Routing on anything but the tier** — measured on the whole archive, then refused. The
+  claim was that events found by both ladders at once hold up better and could be routed
+  on for free. The effect is real (79.5% still standing against 71.0% and 69.3%, and it
+  survives conditioning on tier), and the standardised residual `|z_resid|` is a better
+  ranker still — at today's 43 pushes a year it holds 81.2% against the tier rule's
+  75.6%, in every era. It was refused because of what pays for it. Re-cutting the rungs
+  on `|z_resid|` drops the median record a push announces from 1.03 years to 0.27, and
+  that sentence — *the biggest move since 3 March 2020* — is the product. Keeping the
+  rungs and gating `major` on the residual holds the record at 1.06 years and 79.4%, but
+  costs a third of the messages. Nothing recovers both.
+
+  Two findings from that work are worth more than the verdict. **Retention is flat across
+  the three lower rungs** — 70.3%, 73.0%, 71.6%, then 83.8% at `extreme` — so the ladder
+  separates on size, as designed, and size barely predicts holding until the top rung.
+  And **raw size in sigma predicts holding no better than chance** (71.8% against a 71.4%
+  base rate) while the residual predicts it well. Big moves do not hold; unexplained ones
+  do.
