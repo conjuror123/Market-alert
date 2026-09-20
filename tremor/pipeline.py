@@ -211,7 +211,8 @@ def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
         return stored          # the bars do not even reach the store; leave it
 
     bars_per = bars_per_session(asset, frame, basket.anchor_exchange_tz)
-    window = windows.warm_bars(windows.w_asset(bars_per))
+    window = windows.warm_bars(windows.w_asset(bars_per),
+                               template=asset.session_template)
     lead = frame[frame["hour_utc"] <= newest].tail(window)
     if len(lead) < window:
         return None            # not enough history behind the new bars to be exact

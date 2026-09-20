@@ -24,7 +24,7 @@ def test_w_asset_rejects_a_nonpositive_session():
 
 def test_sigma_lt_takes_all_history_until_the_cap():
     assert windows.sigma_lt_bars(1000) == 1000
-    assert windows.sigma_lt_bars(9000) == windows.SIGMA_LT_BARS
+    assert windows.sigma_lt_bars(9000, "us_equity") == windows.sigma_lt_span("us_equity")
 
 
 def test_sigma_lt_is_undefined_below_the_minimum():

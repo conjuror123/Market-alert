@@ -208,11 +208,35 @@ have been since RiskMetrics quoted a decay rate instead of a window; Foster and 
 Measured here at MATCHED loudness — so that the comparison is of shape and not of
 reach — the exponential form holds the multiple steadier from era to era on 82% of
 equity settings and 65% of crypto ones, cutting era drift 16% and 10%. FX is a wash
-(58%, 1%). The half-life that reproduces the old box's behaviour is 1,400 bars for
-equity, 2,000 for crypto and 3,000 for FX; 1,400 is taken for all three, as one number
-with a measurement behind it, and costs about 10% of the alert rate basket-wide. The
-rungs are left where they are: changing the estimator and the ladder in one step would
-leave neither measurable, and the rungs are a preference the reader owns.
+(58%, 1%). The rungs are left where they are: changing the estimator and the ladder in
+one step would leave neither measurable, and the rungs are a preference the reader owns.
+
+**And the half-life is set per trading calendar, not per bar count.** One bar count is
+not one amount of history: 5,000 bars was 290 calendar days of memory for an ETF and 58
+for a coin, a five-fold spread that fell out of exchange hours rather than out of any
+choice. The volatility literature settles on 120–240 DAILY observations, and these are
+that band read in each instrument's own bars — 600 for `us_equity`, 1,400 for
+`fx_continuous`, 2,000 for `crypto_24_7`, 83 for a daily series like the VIX, which come
+to 86, 82, 83 and 83 trading days respectively.
+
+| | equity | crypto |
+|---|---|---|
+| era drift (lower better) | 0.265 → **0.187** | 0.092 → 0.104 |
+| worst-year spread of the rarest-1% marker | 3.02x → **2.00x** | 1.29x → 1.37x |
+| alerts landing in the worst 5% of weeks | 50% → 46% | 32% → **38%** |
+| messages per instrument-year | 6.8 → 7.1 | 6.8 → 6.5 |
+| bars read per run, basket | 856,080 → **695,280** | |
+
+Equity buys stability: the multiple that marks an instrument's rarest 1% of hours used
+to take a 6.1x move in 2020 and a 1.6x move in 2009, and now varies half as much.
+Crypto buys the opposite, six points of coverage during its own worst weeks, because
+its drift was already small enough to spend. Message volume barely moves either way,
+and the printed multiple does not move at all — AVAX's 8.3x became 8.1x.
+
+**The floor cannot outrun the span.** `SIGMA_LT_MIN_BARS` was written for a 5,000-bar
+box. The VIX's span is 498, so demanding 720 observations inside it left its sigma NaN
+on every bar and silently took the fear gauge's spike flag out of the digest. Caught by
+a test, not in production; the minimum is now `min(floor, span)`.
 
 **It is still cut off, at six half-lives.** An unbounded EWMA depends on every bar ever
 recorded, and the hourly run reproduces a cold pass over the whole archive precisely

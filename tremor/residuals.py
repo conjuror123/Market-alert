@@ -313,7 +313,7 @@ def residuals(asset: Asset, frame: pd.DataFrame,
     out["rank_confirms"] = ranks["rank_confirms"].to_numpy()
 
     # The residual's own long-term sigma, on data strictly before the current bar.
-    out["sigma_lt_resid"] = ewma.sigma_lt(out["e_resid"])
+    out["sigma_lt_resid"] = ewma.sigma_lt(out["e_resid"], asset.session_template)
 
     # Winsorization of the residual per §2.5 - with its own MAD and its own floor.
     # The floor takes the same half-tick return: a residual is never finer than

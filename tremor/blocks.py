@@ -145,7 +145,8 @@ def frames(basket: Basket, panel: pd.DataFrame,
         # The denominator floor the retention check applies wants the series'
         # own long-run spread, on data strictly before the bar like everything
         # else here.
-        frame["sigma_lt_resid"] = ewma.sigma_lt(frame["e_resid"])
+        frame["sigma_lt_resid"] = ewma.sigma_lt(
+            frame["e_resid"], _template(basket, columns) or "us_equity")
         # A block's move is already a median of member moves each divided by its
         # own sigma, so it arrives standardised and takes no divisor. It gets
         # BLOCK_MOVE_SIGMA rather than the member table: a median of sixteen
@@ -162,6 +163,18 @@ def frames(basket: Basket, panel: pd.DataFrame,
     return out
 
 
+def _template(basket: Basket, columns: "list[str]") -> "str | None":
+    """The session template a block's members share, or None where they differ.
+
+    A block is not an instrument and has no calendar of its own, so everything
+    that needs one - which day it belongs to, how far its sigma reaches - reads
+    it off the members. Mixed blocks do not occur: the configuration groups by
+    what a thing IS, and what a thing is decides where it trades.
+    """
+    shared = {a.session_template for a in basket.assets if a.asset_id in columns}
+    return shared.pop() if len(shared) == 1 else None
+
+
 def _last_day_closed(basket: Basket, columns: "list[str]",
                      frame: pd.DataFrame) -> bool:
     """Whether a block's newest day has finished, on its members' calendar.
@@ -172,11 +185,9 @@ def _last_day_closed(basket: Basket, columns: "list[str]",
     cannot answer, the block's newest day is treated as open: a block row's
     check-in then reads as due, which is what it is.
     """
-    templates = {a.session_template for a in basket.assets
-                 if a.asset_id in columns}
-    if len(templates) != 1 or frame.empty:
+    template = _template(basket, columns)
+    if template is None or frame.empty:
         return False
-    template = templates.pop()
     table = None
     if template == "us_equity":
         try:
@@ -197,9 +208,8 @@ def _day_tz(basket: Basket, columns: "list[str]") -> "str | None":
     answer. A block whose members somehow disagreed falls back to the UTC day,
     the only boundary that means something to all of them.
     """
-    templates = {a.session_template for a in basket.assets
-                 if a.asset_id in columns}
-    return sessions.day_tz(templates.pop()) if len(templates) == 1 else None
+    template = _template(basket, columns)
+    return sessions.day_tz(template) if template else None
 
 
 def _by_day(positions: np.ndarray, day: np.ndarray) -> "list[np.ndarray]":

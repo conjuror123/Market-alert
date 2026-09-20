@@ -684,7 +684,8 @@ def plan_frames(basket: Basket, metrics: "dict[str, pd.DataFrame]"
             continue
         bars_per = pipeline.bars_per_session(asset, frame, basket.anchor_exchange_tz)
         keep = windows.warm_bars(windows.w_asset(bars_per),
-                                 severity.bar_rate(frame["hour_utc"]))
+                                 severity.bar_rate(frame["hour_utc"]),
+                                 template=asset.session_template)
         if len(frame) <= keep:
             # Short enough that the whole history IS the window.
             trimmed[asset.asset_id] = frame

@@ -31,25 +31,67 @@ MAD_WINDOW = 24
 LAMBDA_Q = 2 / (120 + 1)
 
 # Long-term sigma (§2.5, §3.1). Exponentially weighted, not a box - see
-# tremor/ewma.py for why, and tools/sigma_window.py for the measurement.
+# tremor/ewma.py for the shape, tools/sigma_window.py for the measurement.
 #
-# THE HALF-LIFE IS THE SETTING; THE SPAN IS A CONSEQUENCE. Weights halve every
-# 1,400 bars, which is the decay that reproduces the behaviour of the 5,000-bar
-# box this replaced - the box was never chosen, it was inherited, and changing
-# the SHAPE of the estimator and its REACH in one step would have left neither
-# measurable. What the shape buys, at that matched behaviour, is a multiple that
-# drifts 16% less from era to era for the equity block and 10% less for crypto.
+# THE HALF-LIFE IS THE SETTING; THE SPAN IS A CONSEQUENCE. And it is set PER
+# TRADING CALENDAR, because a bar is not a unit of anything until you say how
+# many of them a day holds. The volatility-forecasting literature settles on
+# 120-240 DAILY observations - short enough to follow the regime, long enough
+# that the estimate is not mostly noise - and these are that band read in each
+# instrument's own bars:
 #
+#   us_equity      600 bars =  86 trading days   (7 bars a day)
+#   fx_continuous  1,400    =  82 trading days   (17)
+#   crypto_24_7    2,000    =  83 calendar days  (24, and every one of them)
+#   a daily series    83    =  83 trading days
+#
+# Which is the point: one number of BARS meant 290 calendar days of memory for
+# an ETF and 58 for a coin, a five-fold spread nobody chose - it fell out of
+# exchange hours. Three numbers, each the same span of market, is the honest
+# way to write "the same amount of recent history" down.
+#
+# Measured, against the flat 5,000-bar box this replaced: the multiple that
+# marks an instrument's rarest 1% of hours varied 3.0x between calendar years
+# for the equity block and now varies 2.0x; crypto gains six points of coverage
+# during its worst weeks. Message volume moves by under half a message per
+# instrument-year, and the printed multiple does not move at all - this setting
+# decides WHEN you hear, not how often.
+DAILY_SERIES = "daily"          # one bar a day: the VIX, not an instrument
+SIGMA_LT_HALFLIFE_BARS: "dict[str, int]" = {
+    "us_equity": 600,
+    "fx_continuous": 1400,
+    "crypto_24_7": 2000,
+    DAILY_SERIES: 83,
+}
 # Six half-lives of span because that is where the measurement stops improving:
 # at four the gain is a third of what it could be, at eight and twelve it is no
 # better than at six. The oldest bar in the window then carries one sixty-fourth
 # of the newest one's weight, against the box window's one.
-SIGMA_LT_HALFLIFE_BARS = 1400
 SIGMA_LT_SPAN_HALFLIVES = 6
-# Still named SIGMA_LT_BARS because it is still what it always was: how far back
-# this quantity reaches, and therefore what warm_bars below must cover.
-SIGMA_LT_BARS = SIGMA_LT_HALFLIFE_BARS * SIGMA_LT_SPAN_HALFLIVES
 SIGMA_LT_MIN_BARS = 720
+
+
+def sigma_lt_halflife(template: str) -> int:
+    """Bars over which the long-run sigma's weights halve, for this calendar."""
+    try:
+        return SIGMA_LT_HALFLIFE_BARS[template]
+    except KeyError:
+        raise ValueError(
+            f"No sigma_LT half-life for session template '{template}'. It is a "
+            "formula input, so guessing one would put an unexplained number "
+            "under every alert that instrument sends.") from None
+
+
+def sigma_lt_span(template: "str | None" = None) -> int:
+    """How far back the long-run sigma reaches, in bars.
+
+    None means "whatever the longest is". A caller that does not know which
+    instrument it is loading history for should load MORE than it needs, never
+    less: extra lead-in costs a read, and missing lead-in costs exactness.
+    """
+    if template is None:
+        return SIGMA_LT_SPAN_HALFLIVES * max(SIGMA_LT_HALFLIFE_BARS.values())
+    return SIGMA_LT_SPAN_HALFLIVES * sigma_lt_halflife(template)
 
 # Volume profile (§3.5) - 20 FULL trading days per local exchange hour; half
 # sessions and holidays are excluded from the profile.
@@ -122,8 +164,9 @@ def trusted_bars(rate: float) -> int:
     return int(RECORD_HORIZON_DAYS * 24 * rate)
 
 
-def warm_bars(w_asset_bars: int, rate: float | None = None) -> int:
-    window = SIGMA_LT_BARS + 4 * int(w_asset_bars)
+def warm_bars(w_asset_bars: int, rate: float | None = None,
+              template: "str | None" = None) -> int:
+    window = sigma_lt_span(template) + 4 * int(w_asset_bars)
     return window + trusted_bars(rate) if rate else window
 
 
@@ -199,18 +242,19 @@ def w_asset(bars_per_session: float) -> int:
     return max(int(120 * bars_per_session), 720)
 
 
-def sigma_lt_bars(available_bars: int) -> int:
-    """How many bars to take for the long-term sigma (§2.7).
+def sigma_lt_bars(available_bars: int, template: "str | None" = None) -> int:
+    """How many bars the long-run sigma reaches over, given what exists.
 
-    The spec's wording - "5000 bars or the whole history, but no fewer than
-    720" - means that on a young series the whole available history is used, and
-    that the value is undefined at all while there are fewer than 720 bars.
+    On a young series the whole available history is used, and the value is
+    undefined at all below 720 bars - the rule the box window kept, and one the
+    exponential form needs just as much: XLP holds 7,246 bars against an equity
+    span of 3,600, but there are thinner series than XLP.
     """
     if available_bars < SIGMA_LT_MIN_BARS:
         raise ValueError(
             f"Not enough history for sigma_LT: {available_bars} bars "
             f"against a minimum of {SIGMA_LT_MIN_BARS}")
-    return min(SIGMA_LT_BARS, available_bars)
+    return min(sigma_lt_span(template), available_bars)
 
 
 # --- absolute legs of the hybrid significance condition (§3.1) -----------

@@ -107,15 +107,56 @@ def test_an_empty_or_one_bar_series_answers_without_raising():
     assert ewma.long_run_sigma(pd.Series([0.01]), 10, 20, 1).isna().all()
 
 
-def test_the_settings_are_the_ones_the_registry_holds():
-    x = noise(n=12000)
-    assert ewma.sigma_lt(x).equals(ewma.long_run_sigma(
-        x, windows.SIGMA_LT_HALFLIFE_BARS, windows.SIGMA_LT_BARS,
-        windows.SIGMA_LT_MIN_BARS))
+def test_the_settings_are_the_ones_the_registry_holds_for_that_calendar():
+    x = noise(n=15000)
+    for template in ("us_equity", "crypto_24_7", windows.DAILY_SERIES):
+        span = windows.sigma_lt_span(template)
+        assert ewma.sigma_lt(x, template).equals(ewma.long_run_sigma(
+            x, windows.sigma_lt_halflife(template), span,
+            min(windows.SIGMA_LT_MIN_BARS, span)))
+
+
+def test_each_calendar_gets_the_same_span_of_market_not_the_same_bars():
+    # The point of the whole setting. An ETF trades 7 hours a day and a coin 24,
+    # so ONE bar count meant five times the memory for one as for the other -
+    # a spread that fell out of exchange hours rather than out of any choice.
+    # These are the 120-240 DAILY observations the literature settles on, read
+    # in each instrument's own bars, and they land within 5% of each other.
+    bars_a_day = {"us_equity": 7, "fx_continuous": 17, "crypto_24_7": 24}
+    days = {t: windows.sigma_lt_halflife(t) / n for t, n in bars_a_day.items()}
+    assert all(80 <= d <= 90 for d in days.values()), days
+    assert max(days.values()) / min(days.values()) < 1.05
+    # And the VIX, which really does have one bar a day, gets the same span.
+    assert 80 <= windows.sigma_lt_halflife(windows.DAILY_SERIES) <= 90
 
 
 def test_the_span_reaches_six_half_lives():
     # Not a style preference: at four half-lives the measured gain is a third of
     # what it could be, and past six it stops improving (tools/sigma_window.py).
-    assert windows.SIGMA_LT_BARS == 6 * windows.SIGMA_LT_HALFLIFE_BARS
-    assert windows.warm_bars(840) > windows.SIGMA_LT_BARS
+    for template in windows.SIGMA_LT_HALFLIFE_BARS:
+        assert windows.sigma_lt_span(template) == 6 * windows.sigma_lt_halflife(template)
+    assert windows.warm_bars(840, template="us_equity") > windows.sigma_lt_span("us_equity")
+
+
+def test_an_unknown_calendar_is_refused_rather_than_guessed():
+    # A defaulted half-life would put an unexplained number under every alert
+    # that instrument sent, and nothing would say which one it was.
+    with pytest.raises(ValueError, match="half-life"):
+        windows.sigma_lt_halflife("lunar_continuous")
+
+
+def test_a_caller_that_does_not_know_the_calendar_loads_more_not_less():
+    # warm_bars without a template is used where the instrument is not in hand.
+    # Too much lead-in costs a read; too little costs exactness.
+    assert windows.warm_bars(840) >= max(
+        windows.warm_bars(840, template=t) for t in windows.SIGMA_LT_HALFLIFE_BARS)
+
+
+def test_the_floor_never_outruns_the_span():
+    # A minimum higher than the window it is counted inside is not a slow start,
+    # it is silence: the count can never reach it. The VIX found this - a daily
+    # series with a span of 498 against a floor of 720 - and its sigma was NaN
+    # on every bar, which took its spike flag out of the digest entirely.
+    for template in windows.SIGMA_LT_HALFLIFE_BARS:
+        x = noise(n=3 * windows.sigma_lt_span(template) + 100)
+        assert ewma.sigma_lt(x, template).notna().any(), template

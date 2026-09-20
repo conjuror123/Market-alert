@@ -101,9 +101,23 @@ def long_run_sigma(values: pd.Series, half_life: int, span: int,
     return pd.Series(np.sqrt(out), index=values.index, dtype="float64")
 
 
-def sigma_lt(values: pd.Series) -> pd.Series:
-    """long_run_sigma at the settings in tremor.windows - the one callers want."""
+def sigma_lt(values: pd.Series, template: str) -> pd.Series:
+    """long_run_sigma at the settings in tremor.windows, for this calendar.
+
+    `template` is required rather than defaulted because the half-life is set
+    per trading calendar: an ETF's 600 bars and a coin's 2,000 are the same 85
+    days of market, and a default would silently give one of them the other's.
+    Pass windows.DAILY_SERIES for a series of one bar a day.
+    """
     from tremor import windows
 
-    return long_run_sigma(values, windows.SIGMA_LT_HALFLIFE_BARS,
-                          windows.SIGMA_LT_BARS, windows.SIGMA_LT_MIN_BARS)
+    span = windows.sigma_lt_span(template)
+    # The floor cannot be higher than the span, or the count inside the window
+    # can never reach it and sigma is undefined forever rather than merely at
+    # the start. That is not hypothetical: the VIX is a daily series, its
+    # half-life is 83 bars and its span 498, against a floor written for a
+    # 5,000-bar box. 498 daily observations is two years - amply enough to
+    # measure a spread with - so the span is the binding answer where it is the
+    # smaller one.
+    return long_run_sigma(values, windows.sigma_lt_halflife(template), span,
+                          min(windows.SIGMA_LT_MIN_BARS, span))

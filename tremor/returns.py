@@ -178,7 +178,7 @@ def winsorize(asset: Asset, frame: pd.DataFrame) -> pd.DataFrame:
     # sigma_LT is computed on data strictly before the current bar - the same
     # out-of-sample discipline as everything else in §3.1. The shift lives
     # inside ewma.long_run_sigma, where it cannot be left out by a caller.
-    sigma_lt = ewma.sigma_lt(returns)
+    sigma_lt = ewma.sigma_lt(returns, asset.session_template)
 
     half_tick_return = np.log1p(asset.tick_size / 2 / out["close"])
     # fmax, not maximum: while there are fewer than 720 bars of history sigma_LT

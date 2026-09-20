@@ -60,7 +60,7 @@ def score(series: pd.DataFrame, window: int = windows.SIGMA_LT_MIN_BARS) -> pd.D
     """
     out = series.copy()
     out["r"] = np.log(out["close"] / out["close"].shift(1))
-    out["sigma_lt"] = ewma.sigma_lt(out["r"])
+    out["sigma_lt"] = ewma.sigma_lt(out["r"], windows.DAILY_SERIES)
 
     from tremor.returns import _rolling_mad
 

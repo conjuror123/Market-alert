@@ -197,7 +197,7 @@ def test_added_rows_are_stamped_before_they_are_concatenated(monkeypatch):
     monkeypatch.setattr(pl, "RECOMPUTE_TAIL_BARS", 1)
     monkeypatch.setattr(pl, "bars_per_session", lambda *a, **k: 1)
     monkeypatch.setattr(pl.windows, "w_asset", lambda *_: 1)
-    monkeypatch.setattr(pl.windows, "warm_bars", lambda *_: 1)
+    monkeypatch.setattr(pl.windows, "warm_bars", lambda *_, **__: 1)
     monkeypatch.setattr(
         pl, "build_asset_metrics",
         lambda *a, **k: pd.DataFrame({"hour_utc": [200, 300], "r": [0.02, 0.1]}))
