@@ -7,9 +7,9 @@ response for price-monitor.yml. Feed OUT.json to tools/dashboard.py --ops.
 
 WHAT "LOST" MEANS HERE, AND WHY IT IS NOT "FAILED". The obvious measure is the
 share of the day's runs that ended in failure, and it is worthless for this
-system: the worst outage in the record - six days in early September 2026, when
-the schedule trigger stopped - produced no failed runs at all, because it
-produced no runs at all. By that measure those six days score a perfect zero.
+system: an outage produces no failed runs, because it produces no runs. The
+worst stretch in the record - six days in early September 2026 - would score a
+perfect zero by that measure.
 
 So a day is scored by how many of its 24 hourly slots carried a SUCCESSFUL run.
 A slot is lost whether the run failed, was killed on the twenty-minute timeout,

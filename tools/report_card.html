@@ -455,7 +455,7 @@ footer{margin-top:var(--s6);padding-block:var(--s4) var(--s6);border-top:1px sol
       <p class="note">Share of the day's twenty-four hourly slots that carried no successful run
       &mdash; whether it failed, was killed on the twenty-minute timeout, or never started at all.
       That last one is what the six days at 100% were: the schedule had quietly stopped, so there
-      were no failed runs to count, and nothing in the repository could say so.</p>
+      were no failed runs to count at all.</p>
       <div class="rows" id="o-days"></div>
     </div>
     <div class="panel stack-sm">
@@ -491,10 +491,6 @@ footer{margin-top:var(--s6);padding-block:var(--s4) var(--s6);border-top:1px sol
       would eventually happen &mdash; then never looking again once the hour closed. It missed the
       Fed's statement on 16 September: thirteen instruments moved together and none reached the
       phone. Every figure here is a fresh pass over complete hours, so it reflects the fix.</p></div>
-    <div class="call bad"><h3>Nothing notices a silence</h3>
-      <p>The health check counts consecutive failures, and only a run that executes can increment
-      one. When the trigger stopped for six days, nothing in the repository could say so. A watchdog
-      is designed and not yet built.</p></div>
     <div class="call warn"><h3>Some histories are short</h3>
       <p>Thirteen instruments only reach back to 2020, and one to 2022, because the free data tier
       stops there. A short history means a quiet instrument: the system will not rate a move it has

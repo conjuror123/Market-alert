@@ -17,6 +17,16 @@ issue — gating on retention would buy silence for as long as the answer took t
 and a once-in-three-years move that arrives six hours late is a worse product than one
 that arrives now and is corrected. This is the intended design, not a gap in it.
 
+**"Nothing notices a silence."** Raised as the one open gap that had actually cost
+messages: the health check counts consecutive *failures*, and only a run that executes
+can increment one, so the six-day trigger outage in September went unreported. A watchdog
+inside the repository was designed and never built. Closed as **not this repository's
+job** — the trigger is cron-job.org's call to make, so it is the party that knows the
+call stopped being made, and it emails when it cannot get through. Anything living inside
+the run shares a failure mode with the run. `docs/operations.md` now describes the three
+watchers and the division between them; every trace of the pending-watchdog framing is
+gone from the code, the config, the docs and the report card.
+
 ---
 
 ## Fixed
@@ -77,6 +87,17 @@ run.
 **The citations to the deleted specification are gone.** 299 references to section
 numbers of a document that no longer exists, across 46 files, plus the prose that pointed
 at it and the nineteen in the published event schema.
+
+**The gap channel is gone.** `r_gap` — the overnight jump between one session's close
+and the next session's open — was computed on every bar, written into every metrics
+table, and read by nothing. So was `gap_masked`, the flag marking ex-dates so the gap
+channel's distribution would not be skewed by dividend steps. Behind them sat
+`corporate_actions.load_actions()`, fetched and threaded through four levels of
+`pipeline.py` for the sole purpose of feeding a flag on a column nobody read; it is
+deleted too. **The split itself stays** and is what matters: the first bar of a session is
+measured from its own open, so an overnight jump — dividend, news, another venue — is
+never a return. `load_steps()` is untouched: un-adjustment is a different question and a
+live one.
 
 **Run health is measured by a tool, and the page says what it measures.** The report
 card's reliability figures came from a throwaway script, and its caption described a

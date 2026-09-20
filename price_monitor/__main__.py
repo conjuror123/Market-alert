@@ -21,9 +21,9 @@ Detection lives in `tremor`; this module decides nothing. Four things run:
   already closed - send nothing, which is the safe direction.
 
   the health report - whether the previous runs failed, and a message when that
-  changes. It reports runs that FAILED. It cannot report runs that never
-  happened, and that gap is real: the external trigger stopped on 2026-09-01 and
-  nothing noticed for six days.
+  changes. It reports runs that FAILED, which is all a check living inside the
+  run can report: a run that never happened increments nothing. Runs that never
+  happen are the trigger's own to notice - see docs/operations.md.
 """
 from __future__ import annotations
 

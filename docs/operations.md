@@ -109,14 +109,20 @@ A provider failure names the instruments and their providers in a message to
 rate limit that survives retries skips that provider's remaining instruments and is named
 in the same message; a 404 stays a per-instrument dark.
 
-**Two independent emails cover failure**, neither needing code:
+**Three things watch, and none of them needs code here:**
 
 - **cron-job.org** emails when it cannot reach GitHub — the HTTP call failed.
 - **GitHub** emails on a failed workflow run — the call succeeded, the job did not.
+- **the health check** counts consecutive failed runs and says so in
+  `TELEGRAM_HEALTH_CHAT_ID`.
 
-**Open gap:** the health check counts consecutive *failures*, and only a run that executes
-can increment one. If the trigger stops, nothing in the repository will say so; the
-cron-job.org email is the only thing that would. A watchdog is designed and not built.
+The three cover different things, and the division is deliberate. The health check can
+only report runs that FAILED: it lives inside the run, so a run that never happened
+cannot increment anything. **That case belongs to cron-job.org**, which is the only party
+positioned to notice it — the trigger is its call to make, so it is the one that knows
+the call stopped being made, and it emails when it cannot get through. Nothing inside
+this repository can do better, because anything that lives in the run shares a failure
+mode with the run.
 
 ### After a scoring fix: reconciling what was already sent
 

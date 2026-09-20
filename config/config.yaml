@@ -25,8 +25,9 @@ tremor_alerts_muted: false
 # --- Health ------------------------------------------------------------------
 #
 # How many consecutive failed runs before the bot says so, and how often it
-# repeats itself afterwards. It reports runs that FAILED; it cannot report runs
-# that never happened, which is a real gap - the external trigger stopped on
-# 2026-09-01 and nothing noticed for six days.
+# repeats itself afterwards. It reports runs that FAILED, which is all a check
+# living inside the run can report: a run that never happened increments
+# nothing. Runs that never happen are cron-job.org's to notice, since the
+# trigger is its call to make - see docs/operations.md.
 health_alert_after_failures: 3
 health_reminder_every_failures: 24

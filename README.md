@@ -288,11 +288,6 @@ swallowed.
 
 ## Limitations
 
-- **Nothing notices silence.** The health check counts consecutive *failures*, and only
-  a run that executes can increment one. `price-monitor.yml` has no schedule of its own,
-  so if the external trigger stops, nothing in the repository will say so. The
-  cron-job.org failure email is the only thing that would. A watchdog is designed and not
-  yet built.
 - **The ladder cannot claim a return period longer than its history.** A newly added
   instrument says "biggest in a quarter" for years before it can say "biggest in six",
   and says nothing at all for the first two. Five instruments cannot reach the top rung
