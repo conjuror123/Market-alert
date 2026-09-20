@@ -9,7 +9,7 @@
       "1789117200": {
         "from": 1789117200,
         "hashes": [
-          "383ce316961c8968"
+          "9172a200bd409a4a"
         ],
         "ids": [
           10
@@ -27,7 +27,7 @@
         ],
         "from": 1789344300,
         "hashes": [
-          "43ffa6fa381c154f"
+          "4cc661b7580f798d"
         ],
         "ids": [
           13
@@ -41,7 +41,7 @@
         ],
         "from": 1789776300,
         "hashes": [
-          "e69feeeaef6276ff"
+          "e4f249a5d912bcaf"
         ],
         "ids": [
           26
@@ -52,7 +52,7 @@
     },
     "pings": {
       "coinbase_AVAX-USD:1789866000": {
-        "hash": "c9a95b00b5505afe",
+        "hash": "d45529bc87ca286f",
         "id": 29
       }
     },
@@ -63,7 +63,7 @@
         "id": 19
       },
       "twelvedata_XLF:1789405200": {
-        "hash": "a2d76e0efc01e9df",
+        "hash": "b17b392f291caf3c",
         "hour": 1789405200,
         "id": 14
       }
@@ -81,7 +81,7 @@
       "twelvedata_XLF:1789405200": {
         "hour_utc": 1789405200,
         "message_id": 14,
-        "text_hash": "a2d76e0efc01e9df",
+        "text_hash": "b17b392f291caf3c",
         "written": [
           "today",
           "settled"
