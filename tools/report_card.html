@@ -452,8 +452,10 @@ footer{margin-top:var(--s6);padding-block:var(--s4) var(--s6);border-top:1px sol
   <div class="grid2">
     <div class="panel stack-sm">
       <h4 class="eyebrow">Runs lost, by day</h4>
-      <p class="note">Share of that day's hourly runs that were cancelled or failed. Cancelled means
-      killed on the twenty-minute timeout &mdash; the delivery step never ran.</p>
+      <p class="note">Share of the day's twenty-four hourly slots that carried no successful run
+      &mdash; whether it failed, was killed on the twenty-minute timeout, or never started at all.
+      That last one is what the six days at 100% were: the schedule had quietly stopped, so there
+      were no failed runs to count, and nothing in the repository could say so.</p>
       <div class="rows" id="o-days"></div>
     </div>
     <div class="panel stack-sm">
