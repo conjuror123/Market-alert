@@ -46,7 +46,7 @@ the map of these documents.
    | secret | needed for |
    |---|---|
    | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | required — where pushes go |
-   | `TELEGRAM_HEALTH_CHAT_ID` | optional — health and provider failures; falls back to the product chat. `/floor` is read here |
+   | `TELEGRAM_HEALTH_CHAT_ID` | optional — health and provider failures; falls back to the product chat |
    | `TIINGO_API_KEY` | 29 US-session funds + 8 FX pairs (free: 50/hour, 1000/day) |
    | `TWELVEDATA_API_KEY` | archive, gap-fill and deepening — **not** the hourly path |
    | `FRED_API_KEY` | the VIX series only |
@@ -80,27 +80,19 @@ times. That spread is the point of a return period, not a fault to normalise awa
 ticked +0.03% while its block went the other way could be reported as a once-a-month
 event. In units of the instrument's own sigma, so it means the same to `SHY` as to `SOL`.
 
-**Neither number is guessable from the data.** A message that was not worth reading is
-turned down from a private chat with the bot, effective on the next hourly run:
+**Neither number is guessable from the data**, and nothing in the system tries. Both are
+edited by hand in `config/basket.yaml` and take effect on the next hourly run.
+`min_move_sigma` is written per instrument, `block_min_move_sigma` on a block's own line
+without copying onto its members.
 
-```
-/floor BKLN 2.5
-/floor Base metals 2.2
-```
-
-That writes `min_move_sigma` on the instrument, or `block_min_move_sigma` on the block's
-own line, as typed — even when the new number is smaller than the floor already there.
-A block command does not copy the number onto its members. The bot replies with what it
-set and how often a line at that size has opened on the stored events (unique trading
-days, not raw hours).
-
-`python -m tremor.feedback --missed "GLD 2026-09-11 14:00"` records a move that should
-have arrived and did not. Verdicts live in `data/tremor/feedback.csv`.
-
-The asymmetry is deliberate: you can point at a message that arrived and should not
-have, and cannot point at one that never came. So the system errs loud and is turned
-down from recorded judgements, rather than erring quiet and never learning what it
-swallowed.
+There was a Telegram command for this — `/floor BKLN 2.5` — and a recorder for verdicts
+on messages that were or were not worth reading. Both are gone. In the project's life the
+command never changed a number and the recorder held one row, while between them they
+cost two of the six steps in the hourly pass. **So nothing now records whether a message
+was worth reading.** That is a real thing given up: a reader can point at a message that
+arrived and should not have, and cannot point at one that never came, so judgement was
+the only evidence the loud side was too loud. The knobs are turned by reading the messages
+and editing the yaml.
 
 ## Where to look next
 

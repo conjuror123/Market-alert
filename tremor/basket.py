@@ -34,7 +34,7 @@ BLOCKS = ("equity", "rates", "credit", "energy", "precious_metals",
 TIERS = (1, 2)
 # WHAT `source` IS, AND WHAT IT IS NOT. It names the store, not the server.
 # `asset_id` and `file_stem` are both built from it, so every bar on disk, every
-# row of feedback.csv and every event ever exported is keyed by it - which makes
+# event ever exported is keyed by it - which makes
 # it an identity, and identities cannot be edited to follow an implementation
 # detail. Moving XLK from Twelve Data to Yahoo by rewriting `source` would point
 # the fetch at an empty store and orphan six years of history and every verdict

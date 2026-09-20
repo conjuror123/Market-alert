@@ -1085,7 +1085,7 @@ def test_noticeable_or_rarer_counts_every_higher_tier():
 
 
 def test_or_rarer_times_a_year_when_at_least_once_per_year():
-    from price_monitor.floor import YEAR
+    from price_monitor.tremor_delivery import YEAR
 
     n, per_year = 17, 14.2
     span = int(round((n / per_year) * YEAR))
@@ -1726,7 +1726,7 @@ def test_a_finished_push_is_still_restyled_after_check_ins_landed(
 
 def test_a_ping_whose_row_left_the_digest_is_deleted(
         monkeypatch, sender, editor):
-    # Live: BKLN's ping still said "Added to digest" after /floor dropped the
+    # Live: BKLN's ping still said "Added to digest" after a floor raise dropped the
     # row, and restyle invented ticker · name with no size. It was never in
     # the note, so the ping is deleted rather than rewritten as a lie.
     killer = Deleted()

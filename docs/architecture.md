@@ -162,7 +162,7 @@ in one file) · `saed_score` (after-the-fact scoring, run by hand) · `feedback`
 verdicts)
 
 **Delivery** lives in `price_monitor/`: `tremor_delivery` (renders and sends; decides
-nothing, routing is already stamped), `floor` (the `/floor` command), `follow_up` (the
+nothing, routing is already stamped), `follow_up` (the
 check-ins that edit a push already sent), `weekly_digest` (the economic-calendar forecast),
 `health`, `notifier`, and the source clients (`tiingo`, `yahoo`, `coinbase`, `twelvedata`,
 `dukascopy`, `hfdata`) that `backfill` fetches through.
@@ -179,7 +179,6 @@ data/tremor/bars/                  hourly bars, one Parquet per instrument per y
 data/tremor/vix/                   daily VIX close                                   TRACKED
 data/tremor/corporate_actions.csv  declared ex-dates and splits                      TRACKED
 data/tremor/sessions/              the NYSE schedule                                 TRACKED
-data/tremor/feedback.csv           recorded verdicts                                 TRACKED
 data/state.json                    what has been sent, and the open note             TRACKED
 data/tremor/metrics/, residuals/   per-instrument metrics and ladders         gitignored
 data/tremor/saed_events.parquet    routed events — what delivery reads        gitignored

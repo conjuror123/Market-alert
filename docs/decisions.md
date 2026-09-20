@@ -271,12 +271,33 @@ Raised, dealt with, and not to be raised again.
   caller outside their own tests, because `saed_score` carries its own. Three constants
   in `tremor/windows.py` are now unreferenced and stay there, marked — removing them
   moves `config_version` and rebuilds every metric cold for no change in behaviour.
+- **The block-alert aggregator** — deleted. It grouped events by block and hour, wrote
+  `saed_block_alerts.parquet` and stamped `aggregate_alert_id` on every event, and nothing
+  read either one in the repository's whole history. Its one real use would be folding
+  simultaneous pushes into one message, which is not wanted — each push should ring
+  separately. Tested as a detector signal instead and it carries nothing: block-mate
+  corroboration predicts holding at 71.2 / 70.2 / 73.1 / 71.2% (flat), abnormal co-firing
+  contradicted the block model three times in twenty-three years, and it does not flag a
+  bad print (4.3% against a 4.2% base rate).
+- **`/floor` and the feedback recorder** — deleted. The command never changed a number in
+  the project's life and the recorder collected one verdict, while between them they cost
+  two of the six steps in the hourly pass, which is why that part of the order was
+  load-bearing. The pass is four commands now. The `min_move_sigma` gate stays and is
+  edited by hand: it suppresses about eleven events a year, all abnormal-only moves
+  smaller than one times the instrument's usual hour, and deleting a working gate because
+  its setter was unused would be the wrong trade. What is genuinely given up is that
+  nothing records whether a message was worth reading.
 - **`schema/event_export.schema.json`** — deleted, with its `jsonschema` dependency.
   Nothing produced the export and no test validated it, despite a comment saying one did.
 - **299 citations of the deleted specification** — removed across 46 files.
 - **Run health measured by a throwaway script** — replaced by `tools/run_health.py`, which
   counts hourly slots with no successful run rather than failed runs, because an outage
   produces none of the latter.
+- **What the shallowest rung is for** — restated. It was described as "near ten messages
+  per instrument-year", which is how it was seeded and not something a reader can see.
+  What it decides is the length of the weekly note: 7.3 digest rows a week across two
+  notes, and three quarters of them are `noticeable`, so the first column sets the note's
+  length almost alone and the three above it only decide which row carries which word.
 - **Re-seeding the rungs after the sigma estimator changed** — checked, nothing to do. The
   ladder was seeded against one measurable criterion, near ten messages per
   instrument-year at the shallowest rung, and under the EWMA estimator the blocks run 8.1
@@ -285,6 +306,14 @@ Raised, dealt with, and not to be raised again.
   9.7x in Mar 2020), which was the one failure a faster-adapting sigma could have caused.
   What is left is the preference about what each word means, and a preference does not go
   stale when an estimator changes.
+- **Spacing the rungs the way a magnitude scale is spaced** — recorded, not adopted. Bottom
+  rate, top rate and step size fix each other: pick two and the third follows. The bottom
+  and top fire 288 and 15.3 times a year basket-wide, a ratio of 18.9x, which is 1.28
+  magnitude units — so at the seismologist's one-unit step (10x rarer per class) there is
+  room for **two** categories, not four. Four names at a 10x step would put `extreme` at
+  0.29/yr across all 61 instruments, one every three and a half years. The ladder keeps
+  four names by stepping 0.43 units instead. Changing that is a question about what the
+  words should mean, and it has not been asked yet.
 - **Routing on anything but the tier** — measured on the whole archive, then refused. The
   claim was that events found by both ladders at once hold up better and could be routed
   on for free. The effect is real (79.5% still standing against 71.0% and 69.3%, and it

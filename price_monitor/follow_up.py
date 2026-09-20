@@ -159,7 +159,7 @@ def apply(cfg: Config, state: dict, events: "list[dict]",
         event = by_id.get(event_id)
         if event is None:
             # Still tracked so a later run can restyle if the row comes back;
-            # dropping the message id is how a /floor change froze old pushes.
+            # dropping the message id is how a floor change once froze old pushes.
             log.info("Tracked push %s has no row this run; holding the message id",
                      event_id)
             continue

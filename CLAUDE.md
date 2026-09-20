@@ -24,21 +24,16 @@ Read this file first, then the one doc that covers your task:
 
 ## The hourly pass
 
-Six commands. **The order is load-bearing.**
+Four commands. **The order is load-bearing.**
 
 ```
-price_monitor.floor          apply any /floor command before anything is scored
-tremor.backfill              fetch new bars into data/tremor/bars/
-tremor.pipeline              per-instrument metrics
-tremor.saed                  residuals, ladder, events, routing      <- the product
-price_monitor.floor --reply  answer /floor now this run has scored it
-price_monitor                deliver what is due to Telegram
+tremor.backfill   fetch new bars into data/tremor/bars/
+tremor.pipeline   per-instrument metrics
+tremor.saed       residuals, ladder, events, routing      <- the product
+price_monitor     deliver what is due to Telegram
 ```
 
 - `saed` reads what `pipeline` wrote and builds its cross-section in memory.
-- `floor` runs twice because the yaml edit must land *before* `saed` scores the hour,
-  and the reply must wait *after* it — the events table it counts from is gitignored,
-  so a fresh runner has nothing to count until this run writes it.
 - `price_monitor` is last: delivery reads `saed_events.parquet` off disk.
 
 ## Invariants

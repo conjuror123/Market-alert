@@ -84,12 +84,19 @@ import pandas as pd
 # rungs and twice it at the two that interrupt. See docs/decisions.md: the
 # frequency guarantee belonged to the rank rule this table replaced.
 #
+# WHAT THE FIRST COLUMN ACTUALLY DECIDES IS THE LENGTH OF THE WEEKLY NOTE. The
+# digest carries noticeable and high, 7.3 rows a week across two notes - about
+# 3.6 rows a note - and THREE QUARTERS OF THEM ARE `noticeable`. So the shallowest
+# rung sets how much there is to read on a Saturday almost by itself, and the
+# three above it only decide which of those rows carries which word. That is the
+# question to ask when moving the first column, because it is the one a person
+# can answer by reading a note: too much, too little, about right. "Ten messages
+# per instrument-year" is how the column was seeded, not what it is for.
+#
 # THESE ARE PREFERENCES, NOT ESTIMATES, which is why they are written down rather
-# than fitted. They were seeded from a measurement - the value that puts each
-# block near ten messages per instrument-year at the shallowest rung - and then
-# they stay put until a person moves them. A number that refits itself is a
-# number nobody can reason about, and it was refitting that produced the two
-# failures this file records above.
+# than fitted. They stay put until a person moves them. A number that refits
+# itself is a number nobody can reason about, and it was refitting that produced
+# the two failures this file records above.
 #
 # The spacing between rungs is geometric and shared: each is about 1.5x the one
 # below. What separates blocks is where the ladder STARTS, not how it climbs.

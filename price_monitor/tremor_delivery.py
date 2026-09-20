@@ -604,6 +604,45 @@ def load_rate_history(path: str | None = None) -> list[dict]:
     return load_events_archive(path or DEFAULT_ARCHIVE_PATH)
 
 
+# Seconds in a year, and the two helpers the rate line needs. They lived in
+# price_monitor/floor.py, which existed to serve the /floor command; the command
+# is gone and these are the only part of it anything still used.
+YEAR = 365.25 * 86400
+
+
+def _day_tz_for(asset_id: str, basket) -> "str | None":
+    """The timezone whose calendar day this asset's events are counted in.
+
+    A block answers for its members only when they all share one session
+    template; otherwise None, and the count falls back to UTC days rather than
+    pretending a mixed block has one clock.
+    """
+    from tremor import blocks, sessions
+
+    if blocks.is_block(asset_id):
+        name = blocks.block_name(asset_id)
+        templates = {a.session_template for a in basket.assets if a.block == name}
+        return sessions.day_tz(templates.pop()) if len(templates) == 1 else None
+    for asset in basket.instruments:
+        if asset.asset_id == asset_id:
+            return sessions.day_tz(asset.session_template)
+    return None
+
+
+def _event_days(hours, tz_name: "str | None") -> int:
+    """Unique trading days among these hours - not raw hours.
+
+    Two events in one session are one day the instrument spoke, which is what
+    the rate line claims.
+    """
+    import pandas as pd
+
+    ts = pd.to_datetime(list(hours), unit="s", utc=True)
+    if tz_name:
+        ts = ts.tz_convert(tz_name)
+    return int(ts.normalize().nunique())
+
+
 def tier_rate_line(event: dict, history: "list[dict] | None") -> str:
     """How often this asset has opened at this tier or rarer, from the archive.
 
@@ -637,7 +676,6 @@ def tier_rate_line(event: dict, history: "list[dict] | None") -> str:
     if span <= 0:
         return ""
 
-    from price_monitor.floor import YEAR, _day_tz_for, _event_days
     from tremor.basket import load_basket
 
     years = span / YEAR
@@ -1696,8 +1734,8 @@ def restyle_pings(cfg: Config, store: dict, events: "list[dict]",
     """Re-edits outstanding pings whose rendered text no longer matches, and
     deletes the ones with nothing left to point at.
 
-    A ping is a claim that the row is in the note below it. `/floor` (or a
-    recompute) can drop that row while the ping is still on the phone;
+    A ping is a claim that the row is in the note below it. A recompute, or a
+    raised floor, can drop that row while the ping is still on the phone;
     rewriting it as ticker · name with no size, and still saying "Added to
     digest", is a lie. Those pings are deleted instead. An empty table is left
     alone: that is "the pipeline did not run", not "every live row vanished".

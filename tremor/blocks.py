@@ -24,10 +24,12 @@ volatilities differ by a factor of twenty-five. For the message it is converted
 back with the median member's sigma, so the reported figure means "the typical
 member moved this much", and the members that actually led are named beside it.
 
-WHAT IT IS NOT. It is not an aggregation of member alerts - that already exists
-in saed.aggregate_block_alerts and answers a different question ("several
-members fired at once"). This fires on the block's own move whether or not any
-member cleared its own threshold, which is exactly the case that was silent.
+WHAT IT IS NOT. It is not an aggregation of member events, which would answer a
+different question ("several members fired at once") and was tried: counting how
+many members of a block fired in the same hour predicts nothing about whether the
+move held, never once contradicted the block model in twenty-three years, and does
+not flag a bad print. This fires on the block's own move whether or not any member
+cleared its own threshold, which is exactly the case that was silent.
 """
 from __future__ import annotations
 

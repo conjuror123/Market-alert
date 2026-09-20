@@ -59,7 +59,6 @@ data/tremor/metrics/
 data/tremor/metrics_basket_hour.parquet
 data/tremor/decision_log.parquet
 data/tremor/saed_events.parquet
-data/tremor/saed_block_alerts.parquet
 # Durable events for message rates. A warm hourly run only scores six years, so
 # this file is restored from Actions cache (same as metrics/) rather than
 # committed: like the other derived parquet it does not delta in git.

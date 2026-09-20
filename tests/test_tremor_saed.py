@@ -201,63 +201,10 @@ def test_no_events_without_triggers():
     assert saed.build_events(asset(), scored([])) == []
 
 
-def test_block_alert_aggregates_the_same_hour():
-    # Simultaneous events of assets in one block are one observation about
-    # the block, not three identical messages.
-    events = pd.DataFrame({
-        "event_id": ["a", "b", "c"],
-        "asset_id": ["twelvedata:SPY", "twelvedata:QQQ", "twelvedata:TLT"],
-        "block": ["equity", "equity", "rates"],
-        "hour_utc": [HOUR, HOUR, HOUR],
-        "z_resid": [5.0, -8.0, 4.0],
-        "e_resid": [0.05, -0.06, 0.04],
-        "r": [0.01, 0.02, 0.03], "beta": [1.0, 1.0, 1.0], "repeat_count": [0, 0, 0],
-        "tier": ["noticeable", "major", "high"],
-        "channel": ["digest", "push", "dropped"],
-    })
-    alerts = saed.aggregate_block_alerts(events)
-
-    equity = alerts[alerts["block"] == "equity"].iloc[0]
-    assert equity["n_assets"] == 2
-    assert equity["max_abs_z_resid"] == 8.0
-    assert "twelvedata:QQQ" in equity["assets"]
-    # The block is delivered at the severity of its worst member, not its
-    # first, and on its most urgent member's channel.
-    assert equity["tier"] == "major"
-    assert equity["channel"] == "push"
-    assert len(alerts) == 2   # equity and rates are different alerts
-
-
-def test_different_hours_are_different_alerts():
-    events = pd.DataFrame({
-        "event_id": ["a", "b"], "asset_id": ["x", "y"], "block": ["FX", "FX"],
-        "hour_utc": [HOUR, 2 * HOUR], "z_resid": [5.0, 6.0],
-        "e_resid": [0.05, 0.06], "r": [0.01, 0.01], "beta": [1.0, 1.0],
-        "repeat_count": [0, 0], "tier": ["noticeable", "noticeable"],
-    })
-    assert len(saed.aggregate_block_alerts(events)) == 2
-
-
-def test_events_link_back_to_their_alert():
-    events = pd.DataFrame({
-        "event_id": ["a", "b"], "asset_id": ["x", "y"], "block": ["FX", "FX"],
-        "hour_utc": [HOUR, HOUR], "z_resid": [5.0, 6.0], "e_resid": [0.05, 0.06],
-        "r": [0.01, 0.01], "beta": [1.0, 1.0], "repeat_count": [0, 0],
-        "tier": ["noticeable", "noticeable"],
-    })
-    alerts = saed.aggregate_block_alerts(events)
-    linked = saed.link_alerts(events, alerts)
-
-    assert linked["aggregate_alert_id"].nunique() == 1
-    assert linked["aggregate_alert_id"].iloc[0] == alerts["alert_id"].iloc[0]
-
-
 def test_empty_inputs_keep_the_schema():
     empty = saed.events_frame([])
-    alerts = saed.aggregate_block_alerts(empty)
-    assert empty.empty and alerts.empty
+    assert empty.empty
     assert "repeat_count" in empty.columns
-    assert "max_abs_z_resid" in alerts.columns
 
 
 def test_an_escalated_event_reports_the_move_that_earned_its_tier():

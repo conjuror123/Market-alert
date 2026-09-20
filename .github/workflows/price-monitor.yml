@@ -87,16 +87,11 @@ jobs:
           TELEGRAM_HEALTH_CHAT_ID: ${{ secrets.TELEGRAM_HEALTH_CHAT_ID }}
         run: |
           set +e
-          python -m price_monitor.floor
           python -m tremor.backfill
           bf=$?
           set -e
           python -m tremor.pipeline
           python -m tremor.saed
-          # After saed: the events table is gitignored, so the /floor rate has
-          # to wait for this run to write it. Apply still ran first so the new
-          # floor is what saed just scored.
-          python -m price_monitor.floor --reply
           if [ "$bf" -ne 0 ]; then
             echo "failed=true" >> "$GITHUB_OUTPUT"
           else

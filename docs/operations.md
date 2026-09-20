@@ -192,11 +192,9 @@ export TIINGO_API_KEY=...       # hourly bars
 export TWELVEDATA_API_KEY=...   # archive / gap-fill / deepening
 export FRED_API_KEY=...         # the VIX series only
 
-python -m price_monitor.floor     # apply /floor before anything is scored
 python -m tremor.backfill
 python -m tremor.pipeline
 python -m tremor.saed
-python -m price_monitor.floor --reply
 python -m price_monitor
 ```
 

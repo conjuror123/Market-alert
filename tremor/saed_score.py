@@ -47,8 +47,9 @@ What is left is the pair of questions a person actually has.
    are the misses with nothing to be said for them.
 
 WHAT IS NOT SCORED HERE. Whether the reader wanted the message. No statistic can
-answer that and none here pretends to: the feedback loop in tremor.feedback is
-where that lives.
+answer that and none here pretends to. There was a recorder for that judgement and
+it is gone, having collected one verdict; nothing replaces it, so the question is
+answered by reading the messages and editing the floors in config/basket.yaml.
 """
 from __future__ import annotations
 

@@ -182,7 +182,7 @@ def test_an_instrument_with_an_override_takes_its_own(tmp_path):
 
 
 def test_the_committed_basket_keeps_shy_and_metals_on_the_shared_floor():
-    # Live `/floor BKLN` writes that instrument's number on the default branch.
+    # Live: BKLN's own number is written on its entry on the default branch.
     # Do not pin it here: a feature branch sees the committed yaml, which may
     # still be 1.0, and CI must not fail for that. SHY and the metals block
     # stay on the shared 1.0 unless someone floors them on purpose.

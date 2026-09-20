@@ -219,9 +219,9 @@ def triggers(frame: pd.DataFrame) -> pd.Series:
     and it is also why the rungs cannot be what separates a loan ETF from Solana.
     Under one shared floor the whole basket sits between 9.3 and 20.4 events a
     year, a 2.2x spread across instruments that differ by far more. An instrument
-    producing lines the reader does not want has its own floor raised (`/floor
-    BKLN 2.5` in a private chat with the bot); a block line is floored the same
-    way without copying onto its members (`/floor Base metals 2.5`).
+    producing lines the reader does not want has its own floor raised on its entry
+    in config/basket.yaml; a block line is floored the same way under
+    `block_min_move_sigma`, without copying onto its members.
     """
     if "tier" not in frame:
         raise KeyError("severity.annotate must run before triggers")
@@ -449,58 +449,7 @@ def events_frame(events: list[SaedEvent]) -> pd.DataFrame:
     return pd.DataFrame([e.__dict__ for e in events])[columns]
 
 
-def aggregate_block_alerts(events: pd.DataFrame) -> pd.DataFrame:
-    """Block aggregation: simultaneous events of assets in one block
-    combine into a single alert.
-
-    Basket and non-basket instruments of the same block aggregate together - for
-    the recipient this is one observation about the block, and splitting it by
-    "does the instrument count towards quorum" would be splitting on an unrelated
-    criterion.
-    """
-    if events.empty:
-        return pd.DataFrame({"alert_id": [], "block": [], "hour_utc": [],
-                             "assets": [], "max_abs_z_resid": [], "n_assets": [],
-                             "tier": [], "channel": []})
-
-    grouped = events.groupby(["block", "hour_utc"], sort=True)
-    order = {name: i for i, name in enumerate(severity.TIERS)}
-    alerts = grouped.agg(
-        assets=("asset_id", lambda s: ",".join(sorted(s))),
-        max_abs_z_resid=("z_resid", lambda s: float(s.abs().max())),
-        n_assets=("asset_id", "nunique"),
-        # The block alert is delivered at the severity of its worst member. A
-        # block carrying one major move and three noticeable ones is a major
-        # alert; averaging or taking the first would bury the reason it is
-        # being sent at all.
-        tier=("tier", lambda s: max(s, key=lambda t: order.get(t, -1))),
-    ).reset_index()
-    if "channel" in events:
-        # The block is delivered on its most urgent member's channel, for the
-        # same reason it carries its worst member's tier: one instrument's
-        # once-in-three-years move does not become a digest line because the
-        # two that moved with it were ordinary.
-        urgency = {routing.PUSH: 2, routing.DIGEST: 1}
-        alerts = alerts.merge(
-            grouped["channel"].agg(lambda s: max(s, key=lambda c: urgency.get(c, -1)))
-            .reset_index(), on=["block", "hour_utc"], how="left")
-    alerts["alert_id"] = alerts["block"] + ":" + alerts["hour_utc"].astype(str)
-    columns = ["alert_id", "block", "hour_utc", "assets", "max_abs_z_resid",
-               "n_assets", "tier"]
-    return alerts[columns + [c for c in ("channel",) if c in alerts]]
-
-
-def link_alerts(events: pd.DataFrame, alerts: pd.DataFrame) -> pd.DataFrame:
-    """Attaches the block-alert reference to each event (aggregate_alert_id)."""
-    if events.empty:
-        return events.assign(aggregate_alert_id=pd.Series(dtype="object"))
-    keys = alerts.set_index(["block", "hour_utc"])["alert_id"]
-    index = pd.MultiIndex.from_frame(events[["block", "hour_utc"]])
-    return events.assign(aggregate_alert_id=keys.reindex(index).to_numpy())
-
-
 DEFAULT_EVENTS_PATH = "data/tremor/saed_events.parquet"
-DEFAULT_ALERTS_PATH = "data/tremor/saed_block_alerts.parquet"
 DEFAULT_RESIDUALS_DIR = "data/tremor/residuals"
 # Full-history events for message rates only. Detection still reads the
 # six-year table at DEFAULT_EVENTS_PATH. A warm hourly run appends; --full
@@ -702,7 +651,7 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
                      block_factors: pd.DataFrame | None = None,
                      panel: pd.DataFrame | None = None,
                      sigma_panel: pd.DataFrame | None = None
-                     ) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, pd.DataFrame]]:
+                     ) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
     """Computes residuals and events for every instrument, non-basket ones included.
 
     Non-basket instruments are modelled the same way and on the same
@@ -810,12 +759,7 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
     retention_from = dict(scored)
     retention_from.update({blocks.block_id(name): f for name, f in block_scored.items()})
 
-    events = routing.route(persistence.attach(frame, retention_from))
-    # Block rows stay out of the member aggregation: it answers "several members
-    # of this block fired at once", and a block row is not one of its members.
-    alerts = aggregate_block_alerts(
-        events[~events["asset_id"].map(blocks.is_block)] if not events.empty else events)
-    return link_alerts(events, alerts), alerts, scored
+    return routing.route(persistence.attach(frame, retention_from)), scored
 
 
 def _last_day_closed(frame: "pd.DataFrame | None", template: str) -> bool:
@@ -854,7 +798,6 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="SAED events")
     parser.add_argument("--metrics-dir", default=pipeline.DEFAULT_METRICS_DIR)
     parser.add_argument("--events-out", default=DEFAULT_EVENTS_PATH)
-    parser.add_argument("--alerts-out", default=DEFAULT_ALERTS_PATH)
     parser.add_argument("--residuals-out", default=DEFAULT_RESIDUALS_DIR)
     parser.add_argument("--residuals-always", action="store_true",
                         help="write the residual series even on a warm run, "
@@ -900,7 +843,7 @@ def main(argv: list[str] | None = None) -> int:
     # cross_section writes to disk and the two can run in either order.
     block_factors = cross_section.block_factors(panel, basket, sigma_panel)
 
-    events, alerts, scored = build_for_basket(
+    events, scored = build_for_basket(
         basket, frames, block_factors, panel, sigma_panel)
 
     # Rate lines read the durable archive, not the six-year delivery table.
@@ -924,10 +867,8 @@ def main(argv: list[str] | None = None) -> int:
                  len(events), before, int(RECORD_HORIZON_DAYS))
 
     events = versioning.stamp(events, config, run_id)
-    for path, frame in ((args.events_out, events),
-                        (args.alerts_out, versioning.stamp(alerts, config, run_id))):
-        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        atomic.write_parquet(path, frame)
+    os.makedirs(os.path.dirname(args.events_out) or ".", exist_ok=True)
+    atomic.write_parquet(args.events_out, events)
     # RESIDUALS ARE A BACKTEST ARTEFACT, not something the hourly run produces
     # for anyone. Nothing in the delivery path reads them: the only readers are
     # tremor.saed_score and tools/report_card.py, both run by hand. Writing them
@@ -945,12 +886,9 @@ def main(argv: list[str] | None = None) -> int:
     else:
         save_residuals(scored, args.residuals_out)
 
-    log.info("events %d, block alerts %d, later firings merged into their day %d",
-             len(events), len(alerts),
+    log.info("events %d, later firings merged into their day %d",
+             len(events),
              int(events["repeat_count"].sum()) if not events.empty else 0)
-    if not alerts.empty:
-        log.info("alerts by block: %s",
-                 alerts["block"].value_counts().to_dict())
     if not events.empty:
         span = (events["hour_utc"].max() - events["hour_utc"].min()) / (3600 * 24 * 365.25)
         counts = events["tier"].value_counts()

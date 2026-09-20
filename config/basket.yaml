@@ -168,12 +168,11 @@ sensitivity: 1.0
 # between 9.3 and 20.4 events a year, a 2.2x spread across instruments that
 # differ by far more.
 #
-# Do not guess these. `/floor BKLN 2.5` in a private chat with the bot writes
-# that instrument's floor immediately. `/floor Base metals 2.5` writes a floor
-# for the block's OWN line only; members keep whatever they already have. The
-# number is taken as typed, including when it is smaller than the floor already
-# there. Raising the shared number instead silences every quiet instrument at
-# once - point at BKLN and lose SHY.
+# Do not guess these. Write the number on the instrument's own entry, or on a
+# block's own line below; members keep whatever they already have. Raising the
+# shared number instead silences every quiet instrument at once - point at BKLN
+# and lose SHY. There was a Telegram command that wrote these; in the project's
+# life it never changed a number, and it is gone.
 #
 # Changing any of them moves config_version, which retires derived data and
 # costs one cold run. That is correct: the events would otherwise be a mix of
@@ -181,8 +180,8 @@ sensitivity: 1.0
 min_move_sigma: 1.0
 
 # Size floor for a block's own messages, in the block's usual hour. Absent, the
-# shared min_move_sigma above is the default. Members are not written here.
-# `/floor Base metals 2.2` writes `block_min_move_sigma:` with that block's name.
+# shared min_move_sigma above is the default. Members are not written here: the
+# key is `block_min_move_sigma:` with the block's name under it.
 
 # Session templates are filled in during phase 1 (holiday and half-session
 # calendars); here only the names the assets refer to.
@@ -229,7 +228,7 @@ session_templates:
 #
 # SOURCE IS THE STORE; PROVIDER IS THE SERVER. `source` names the identity: both
 # the asset_id and the file on disk are built from it, so every bar ever stored,
-# every row of feedback.csv and every exported event is keyed by it. It is not
+# every exported event is keyed by it. It is not
 # edited when the fetch moves. `provider` says who is actually asked, and it can
 # change freely - the bars land in the same place either way.
 #
