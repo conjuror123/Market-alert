@@ -27,7 +27,7 @@ from datetime import date
 import numpy as np
 import pandas as pd
 
-from tremor import atomic, bars, corporate_actions, quality, returns, sessions, windows, zscore
+from tremor import atomic, bars, quality, returns, sessions, windows, zscore
 from tremor.basket import Asset, Basket, load_basket
 
 log = logging.getLogger("tremor.pipeline")
@@ -73,16 +73,14 @@ def bars_per_session(asset: Asset, usable: pd.DataFrame,
 
 
 def build_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
-                        session_table: dict[date, sessions.Session],
-                        action_days: set[date] | None) -> pd.DataFrame:
+                        session_table: dict[date, sessions.Session]) -> pd.DataFrame:
     """The full metric chain for one instrument."""
     gated = quality.apply_gate(asset, frame, session_table, basket.anchor_exchange_tz)
     usable = gated[gated["is_usable"]].reset_index(drop=True)
     if usable.empty:
         return usable
 
-    channels = returns.split_channels(asset, usable, action_days,
-                                      basket.anchor_exchange_tz)
+    channels = returns.split_channels(asset, usable, basket.anchor_exchange_tz)
     winsorised = returns.winsorize(asset, channels)
 
     b_asset = bars_per_session(asset, usable, basket.anchor_exchange_tz)
@@ -96,7 +94,7 @@ def build_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
 
 METRIC_COLUMNS = [
     "hour_utc", "asset_id", "block", "tier", "close", "volume",
-    "r", "r_gap", "r_w", "gap_masked", "is_session_open",
+    "r", "r_w", "is_session_open",
     "sigma_lt", "mad_eff", "z", "sigma_eff", "q95", "q99",
     "breach_q95", "breach_q99",
 ]
@@ -154,7 +152,6 @@ def _unchanged(new_rows: pd.DataFrame, old_rows: pd.DataFrame) -> bool:
 
 def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
                          session_table: dict[date, sessions.Session],
-                         action_days: "set[date] | None",
                          stored: pd.DataFrame,
                          config_version: str,
                          run_version: str | None = None) -> "pd.DataFrame | None":
@@ -219,7 +216,7 @@ def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
 
     recomputed = build_asset_metrics(asset, basket,
                                      pd.concat([lead, fresh], ignore_index=True),
-                                     session_table, action_days)
+                                     session_table)
     if recomputed.empty:
         return stored
     added = recomputed[recomputed["hour_utc"] > newest]
@@ -257,7 +254,6 @@ def build_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
     from tremor import versioning
 
     session_table = sessions.load_sessions()
-    actions = corporate_actions.load_actions()
     os.makedirs(metrics_dir, exist_ok=True)
 
     # The versions belong in the metrics too, not only in the events. The
@@ -268,8 +264,7 @@ def build_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
     result = {}
     for asset in basket.instruments:
         frame = bars.load(bars.store_path(bars_dir, asset.file_stem))
-        metrics = build_asset_metrics(asset, basket, frame, session_table,
-                                      actions.get(asset.ticker))
+        metrics = build_asset_metrics(asset, basket, frame, session_table)
         if metrics.empty:
             log.warning("%s: no usable bars", asset.asset_id)
             continue
@@ -311,7 +306,6 @@ def _pool_init(bars_dir: str, metrics_dir: str, versions: tuple[str, str],
     _POOL_STATE.update(
         bars_dir=bars_dir, metrics_dir=metrics_dir, versions=versions, full=full,
         session_table=sessions.load_sessions(),
-        actions=corporate_actions.load_actions(),
     )
 
 
@@ -322,7 +316,6 @@ def _pool_one(payload: "tuple[Asset, Basket]") -> "tuple[str, int, int, int, boo
     config, run = _POOL_STATE["versions"]
     path = metrics_path(_POOL_STATE["metrics_dir"], asset.file_stem)
     frame = bars.load(bars.store_path(_POOL_STATE["bars_dir"], asset.file_stem))
-    actions = _POOL_STATE["actions"].get(asset.ticker)
 
     # EXTEND WHERE POSSIBLE. The hourly run adds one bar to an archive of up to
     # 145,000 and used to recompute every one of them: measured, the metric
@@ -336,12 +329,12 @@ def _pool_one(payload: "tuple[Asset, Basket]") -> "tuple[str, int, int, int, boo
         except Exception:                        # a truncated write from a killed run
             existing = None
     metrics = extend_asset_metrics(asset, basket, frame,
-                                   _POOL_STATE["session_table"], actions,
+                                   _POOL_STATE["session_table"],
                                    existing, config, run) if existing is not None else None
     extended = metrics is not None
     if not extended:
         computed = build_asset_metrics(asset, basket, frame,
-                                       _POOL_STATE["session_table"], actions)
+                                       _POOL_STATE["session_table"])
         if computed.empty:
             return None
         metrics = versioning.stamp(

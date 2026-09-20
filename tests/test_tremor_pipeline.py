@@ -126,10 +126,10 @@ def test_a_store_too_short_to_lead_in_is_rebuilt_rather_than_extended():
     asset = small.instruments[0]
     frame = bars.load(bars.store_path(bars.DEFAULT_BARS_DIR, asset.file_stem))
     table = sessions.load_sessions()
-    full = pl.build_asset_metrics(asset, small, frame, table, None)
+    full = pl.build_asset_metrics(asset, small, frame, table)
     # a store that stops 200 bars in: far less lead-in than warm_bars needs
     stumpy = full.head(200).assign(config_version="cfg")
-    assert pl.extend_asset_metrics(asset, small, frame, table, None,
+    assert pl.extend_asset_metrics(asset, small, frame, table,
                                    stumpy, "cfg") is None
 
 
@@ -140,18 +140,17 @@ def test_nothing_new_returns_the_store_itself_so_the_write_is_skipped():
     # A real store rather than a one-row stub, because the tail is re-scored now
     # and "nothing new" is no longer the same question as "no new bars" - the
     # tail has to come back unchanged as well.
-    from tremor import corporate_actions, pipeline as pl, sessions
+    from tremor import pipeline as pl, sessions
 
     small = _small_basket(("SPY",))
     asset = small.instruments[0]
     table = sessions.load_sessions()
-    actions = corporate_actions.load_actions().get(asset.ticker)
     frame = bars.load(bars.store_path(bars.DEFAULT_BARS_DIR, asset.file_stem))
-    built = pl.build_asset_metrics(asset, small, frame, table, actions)
+    built = pl.build_asset_metrics(asset, small, frame, table)
     stored = built[[c for c in pl.METRIC_COLUMNS if c in built]].assign(
         config_version="cfg", run_version="run")
 
-    assert pl.extend_asset_metrics(asset, small, frame, table, actions,
+    assert pl.extend_asset_metrics(asset, small, frame, table,
                                    stored, "cfg", "run") is stored
 
 
@@ -161,8 +160,8 @@ def test_an_empty_or_absent_store_is_rebuilt():
     small = _small_basket(("SPY",))
     asset = small.instruments[0]
     frame = bars.load(bars.store_path(bars.DEFAULT_BARS_DIR, asset.file_stem))
-    assert pl.extend_asset_metrics(asset, small, frame, {}, None, None, "cfg") is None
-    assert pl.extend_asset_metrics(asset, small, frame, {}, None,
+    assert pl.extend_asset_metrics(asset, small, frame, {}, None, "cfg") is None
+    assert pl.extend_asset_metrics(asset, small, frame, {},
                                    pd.DataFrame(), "cfg") is None
 
 
@@ -173,7 +172,7 @@ def test_a_store_without_a_version_stamp_is_rebuilt():
     asset = small.instruments[0]
     frame = bars.load(bars.store_path(bars.DEFAULT_BARS_DIR, asset.file_stem))
     stored = pd.DataFrame({"hour_utc": [int(frame["hour_utc"].max())]})
-    assert pl.extend_asset_metrics(asset, small, frame, {}, None, stored, "cfg") is None
+    assert pl.extend_asset_metrics(asset, small, frame, {}, stored, "cfg") is None
 
 
 def test_added_rows_are_stamped_before_they_are_concatenated(monkeypatch):
@@ -201,7 +200,7 @@ def test_added_rows_are_stamped_before_they_are_concatenated(monkeypatch):
     monkeypatch.setattr(
         pl, "build_asset_metrics",
         lambda *a, **k: pd.DataFrame({"hour_utc": [200, 300], "r": [0.02, 0.1]}))
-    out = pl.extend_asset_metrics(asset, small, frame, {}, None, stored, "cfg", "new")
+    out = pl.extend_asset_metrics(asset, small, frame, {}, stored, "cfg", "new")
     assert list(out["hour_utc"]) == [100, 200, 300]
     assert list(out["config_version"]) == ["cfg", "cfg", "cfg"]
     assert list(out["run_version"]) == ["old", "new", "new"]
@@ -219,15 +218,14 @@ def test_an_hour_first_scored_part_way_through_is_rescored_when_it_closes():
     # Live: 2026-09-16 18:00 UTC, the FOMC statement. SHY closed the hour at
     # -0.19%, a six-sigma move; the store held the +0.02% it had made of the
     # first five minutes, and thirteen instruments' events went missing.
-    from tremor import corporate_actions, pipeline as pl, sessions
+    from tremor import pipeline as pl, sessions
 
     small = _small_basket(("SPY",))
     asset = small.instruments[0]
     table = sessions.load_sessions()
-    actions = corporate_actions.load_actions().get(asset.ticker)
     frame = bars.load(bars.store_path(bars.DEFAULT_BARS_DIR, asset.file_stem))
 
-    truth = pl.build_asset_metrics(asset, small, frame, table, actions)
+    truth = pl.build_asset_metrics(asset, small, frame, table)
     hour = int(truth["hour_utc"].iloc[-1])
     settled = float(truth.loc[truth.hour_utc == hour, "r"].iloc[0])
 
@@ -240,14 +238,14 @@ def test_an_hour_first_scored_part_way_through_is_rescored_when_it_closes():
 
     # What the run at :05 wrote, and what every run after it extended from.
     early = pl.build_asset_metrics(asset, small, partway[partway.hour_utc <= hour],
-                                   table, actions)
+                                   table)
     stored = early[[c for c in pl.METRIC_COLUMNS if c in early]].assign(
         config_version="cfg", run_version="run")
     provisional = float(stored.loc[stored.hour_utc == hour, "r"].iloc[0])
     assert provisional != pytest.approx(settled), \
         "the fixture must actually differ, or this test proves nothing"
 
-    out = pl.extend_asset_metrics(asset, small, frame, table, actions,
+    out = pl.extend_asset_metrics(asset, small, frame, table,
                                   stored, "cfg", "run")
     assert out is not None
     after = float(out.loc[out.hour_utc == hour, "r"].iloc[0])
@@ -259,19 +257,18 @@ def test_the_recomputed_tail_does_not_duplicate_or_lose_an_hour():
     # Re-scoring the tail means dropping rows from the store and putting them
     # back. An off-by-one here would either double an hour or drop one, and
     # every window downstream is computed by position.
-    from tremor import corporate_actions, pipeline as pl, sessions
+    from tremor import pipeline as pl, sessions
 
     small = _small_basket(("SPY",))
     asset = small.instruments[0]
     table = sessions.load_sessions()
-    actions = corporate_actions.load_actions().get(asset.ticker)
     frame = bars.load(bars.store_path(bars.DEFAULT_BARS_DIR, asset.file_stem))
 
-    truth = pl.build_asset_metrics(asset, small, frame, table, actions)
+    truth = pl.build_asset_metrics(asset, small, frame, table)
     stored = truth[[c for c in pl.METRIC_COLUMNS if c in truth]].assign(
         config_version="cfg", run_version="run")
 
-    out = pl.extend_asset_metrics(asset, small, frame, table, actions,
+    out = pl.extend_asset_metrics(asset, small, frame, table,
                                   stored, "cfg", "run")
     hours = out["hour_utc"].tolist()
     assert hours == sorted(hours)

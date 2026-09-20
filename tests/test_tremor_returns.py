@@ -37,42 +37,52 @@ def two_days():
     ])
 
 
-def test_overnight_move_goes_to_the_gap_channel_not_to_the_return():
+def test_the_overnight_jump_never_reaches_the_return():
     # Between sessions the price moved from 101 to 105. Had that jump landed in
-    # r, every morning would look like an anomaly.
+    # r, every morning would look like an anomaly. The first bar of a session is
+    # measured from its OWN open, so the jump is not a return at all.
     out = returns.split_channels(asset(), two_days())
     opening = out.iloc[2]
 
     assert opening["is_session_open"]
-    assert opening["r_gap"] == pytest.approx(math.log(105.0 / 101.0))
     assert opening["r"] == pytest.approx(math.log(106.0 / 105.0))
+    # And emphatically not the close-to-close figure, which is what an ordinary
+    # return would have given and is four per cent of nothing.
+    assert opening["r"] != pytest.approx(math.log(106.0 / 101.0))
 
 
-def test_ordinary_bar_is_close_to_close_and_has_no_gap():
+def test_an_ordinary_bar_is_close_to_close():
     out = returns.split_channels(asset(), two_days())
     ordinary = out.iloc[1]
 
     assert not ordinary["is_session_open"]
     assert ordinary["r"] == pytest.approx(math.log(101.0 / 100.5))
-    assert np.isnan(ordinary["r_gap"])
 
 
-def test_the_very_first_bar_has_neither_channel():
-    # There is no previous close - both quantities are undefined, not zero.
+def test_the_very_first_bar_of_history_has_no_return():
+    # Its own open is the start of the record rather than a continuation of
+    # anything: undefined, not zero.
     out = returns.split_channels(asset(), two_days())
     assert np.isnan(out.iloc[0]["r"])
-    assert np.isnan(out.iloc[0]["r_gap"])
 
 
-def test_ex_dividend_gap_is_masked_but_the_intraday_return_survives():
-    # The price drop on the ex-date is mechanical. Only the gap is masked: the
-    # intra-hour return has nothing to do with the payout.
-    out = returns.split_channels(asset(), two_days(), action_days={date(2021, 3, 2)})
-    opening = out.iloc[2]
+def test_an_ex_dividend_drop_cannot_reach_the_return():
+    # The price drop on an ex-date is mechanical, not a market move, and it
+    # happens between sessions. It used to be excluded by flagging the ex-dates
+    # from the corporate-actions table; it is now excluded by construction,
+    # because nothing that happens between sessions is a return here. The test
+    # is the same either way: whatever the price did overnight, r is measured
+    # from the session's own open.
+    day_two_opens_far_below = frame([
+        (et(2021, 3, 1, 10), 100.0, 101.0, 99.5, 100.5, 1.0, 2),
+        (et(2021, 3, 1, 11), 100.5, 101.5, 100.0, 101.0, 1.0, 2),
+        (et(2021, 3, 2, 10), 90.0, 91.0, 89.0, 90.9, 1.0, 2),
+    ])
+    opening = returns.split_channels(asset(), day_two_opens_far_below).iloc[2]
 
-    assert opening["gap_masked"]
-    assert np.isnan(opening["r_gap"])
-    assert opening["r"] == pytest.approx(math.log(106.0 / 105.0))
+    assert opening["is_session_open"]
+    assert opening["r"] == pytest.approx(math.log(90.9 / 90.0))   # +1%, not -10%
+    assert opening["r"] > 0
 
 
 def test_crypto_has_no_session_boundaries():
@@ -82,7 +92,6 @@ def test_crypto_has_no_session_boundaries():
 
     # Only the very first bar of history opens a session; after that the series is continuous.
     assert int(out["is_session_open"].sum()) == 1
-    assert out["r_gap"].isna().all()
 
 
 def test_forex_week_is_one_session():
@@ -99,9 +108,10 @@ def test_forex_week_is_one_session():
     ])
     out = returns.split_channels(fx, data)
 
-    # There is no break inside the week, and Monday opens a new one.
+    # There is no break inside the week, and Monday opens a new one - so Monday
+    # is measured from its own open, not across the weekend.
     assert list(out["is_session_open"]) == [True, False, True]
-    assert out.iloc[2]["r_gap"] == pytest.approx(math.log(1.08 / 1.06))
+    assert out.iloc[2]["r"] == pytest.approx(math.log(1.09 / 1.08))
 
 
 def test_winsorization_clips_only_the_state_input():
@@ -146,7 +156,7 @@ def test_winsorization_leaves_returns_alone_before_the_window_fills():
 def test_empty_input_keeps_the_columns():
     out = returns.winsorize(asset(), returns.split_channels(asset(), bars.empty_frame()))
     assert out.empty
-    assert "r_w" in out.columns and "r_gap" in out.columns
+    assert "r_w" in out.columns
 
 
 def test_the_vectorised_mad_matches_a_per_window_median_exactly():

@@ -140,10 +140,9 @@ def derive_actions_tiingo(ticker: str, rows: list[DailyRow]) -> list[CorporateAc
     compounds is d/(1-d), not d. Using adjClose as the denominator would
     reintroduce the 2x pre-split error plus a second time-varying one.
 
-    Splits are recorded with factor_step 1.0 for provenance and for
-    split_channels' ex-date masking. They are excluded at load_steps: the
-    store is already split-adjusted, and feeding a 2.0 into the cumprod would
-    manufacture a 100% error on every older bar.
+    Splits are recorded with factor_step 1.0 for provenance. They are excluded
+    at load_steps: the store is already split-adjusted, and feeding a 2.0 into
+    the cumprod would manufacture a 100% error on every older bar.
     """
     ordered = sorted(rows, key=lambda r: r.day)
     actions: list[CorporateAction] = []
@@ -180,27 +179,14 @@ def write_actions(path: str, actions: list[CorporateAction]) -> None:
     atomic.write_replacing(path, _write)
 
 
-def load_actions(path: str = DEFAULT_ACTIONS_PATH) -> dict[str, set[date]]:
-    """Corporate-action dates by ticker. An empty dict if there is no table: its
-    absence must not break the hourly run - it merely means ex-date gaps are not
-    being flagged yet."""
-    if not os.path.exists(path):
-        return {}
-    by_ticker: dict[str, set[date]] = {}
-    with open(path, "r", encoding="utf-8", newline="") as f:
-        for row in csv.DictReader(f):
-            by_ticker.setdefault(row["ticker"], set()).add(date.fromisoformat(row["date"]))
-    return by_ticker
-
-
 def load_steps(path: str = DEFAULT_ACTIONS_PATH,
                kinds: tuple[str, ...] = UNADJUST_KINDS) -> dict[str, list[tuple[date, float]]]:
     """Ex-dates WITH their sizes, oldest first, for undoing a vendor's adjustment.
 
     Default `kinds` is dividends only. The store is unadjusted for dividends and
     already split-adjusted; a split row in the cumprod would double (or halve)
-    every older bar. `load_actions` still returns every date, including splits,
-    because the gap channel wants the ex-date regardless of kind.
+    every older bar. Split rows stay in the table for provenance - what the
+    table RECORDS and what un-adjustment USES are different questions.
 
     The `kinds` argument is defaulted so existing zero-arg callers - including
     test monkeypatches of `lambda: {}` - keep working.

@@ -125,8 +125,8 @@ def test_load_steps_excludes_splits_by_default(tmp_path):
     ])
     steps = ca.load_steps(str(path))
     assert steps["XLK"] == [(date(2024, 6, 24), 0.001751)]
-    dates = ca.load_actions(str(path))
-    assert dates["XLK"] == {date(2024, 6, 24), date(2025, 12, 5)}
+    # The split is still IN the table - what is recorded and what is used for
+    # un-adjustment are different questions - it is just not loaded by default.
     both = ca.load_steps(str(path), kinds=("dividend", "split"))
     assert [k for k, _ in both["XLK"]] == [date(2024, 6, 24), date(2025, 12, 5)]
     assert not (tmp_path / "actions.csv.tmp").exists()

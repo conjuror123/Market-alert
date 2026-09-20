@@ -1,28 +1,38 @@
-"""Returns, the gap channel and winsorization.
+"""Returns and winsorization.
 
-The central idea is to separate two movements that an ordinary return
-merges into one. Between the previous session's close and the next session's
-open the price changes without trading: news comes out, a dividend goes
-ex, trading happens on another venue. Add that jump to the intra-hour move and
-every morning would look like an anomaly.
+The central idea is to separate two movements that an ordinary return merges
+into one. Between the previous session's close and the next session's open the
+price changes without trading: news comes out, a dividend goes ex, trading
+happens on another venue. Add that jump to the intra-hour move and every morning
+would look like an anomaly.
 
-So the first bar of a session is split into two channels:
-    gap channel:  r_gap = ln(open_of_first / close_of_last of prior session)
-    intra-hour:   r_t   = ln(close_of_first / open_of_first)
-and ONLY r_t is fed into the Z-score, CSV, PCA and SAED. The gap channel is kept
-separately, logged, and awards no SI-Index points.
+So the first bar of a session is measured from its OWN open rather than from the
+previous session's close:
 
-This also solves the unadjusted-series problem. ETFs arrive from the source
+    first bar of a session:  r_t = ln(close_of_first / open_of_first)
+    every other bar:         r_t = ln(close_t / close_{t-1})
+
+The overnight jump is simply not a return here. It is not stored either - see
+below.
+
+This also disposes of the unadjusted-series problem. ETFs arrive from the source
 without a dividend adjustment, and on the ex-date the price mechanically drops by
-the payout. But the drop happens between sessions, that is, it lands in the gap
-channel and not in r_t. On top of that such dates are flagged from the
-corporate-actions table and their gap is excluded - otherwise the distribution of
-the gap channel itself would be skewed by regular dividend steps.
+the payout. That drop happens between sessions, so it falls in the jump this
+module discards and never reaches r_t.
+
+WHAT WAS HERE AND IS NOT. The jump used to be kept as a second channel, r_gap,
+alongside a gap_masked flag marking the ex-dates the corporate-actions table
+knows about, so that the distribution of the gap channel would not be skewed by
+regular dividend steps. Both were computed on every bar, written into every
+metrics table, and read by nothing - the channel awarded no points and no message
+ever quoted it. They are gone, and with them the corporate-actions lookup that
+existed only to feed the flag. tremor.corporate_actions is still used for
+un-adjustment, which is a different question and a live one.
 """
 from __future__ import annotations
 
 import math
-from datetime import date, datetime
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import numpy as np
@@ -65,9 +75,8 @@ def session_ids(asset: Asset, hours: pd.Series, anchor_tz: str = "America/New_Yo
 
 
 def split_channels(asset: Asset, usable: pd.DataFrame,
-                   action_days: set[date] | None = None,
                    anchor_tz: str = "America/New_York") -> pd.DataFrame:
-    """Computes r and r_gap.
+    """Computes r, and marks which bars open a session.
 
     The input is ONLY usable bars (those that passed the quality gate and lie inside
     a session): a return computed across an invalid or after-hours bar is
@@ -77,12 +86,15 @@ def split_channels(asset: Asset, usable: pd.DataFrame,
     forward-fill for returns. The return is simply taken from the last valid
     close, so it spans two hours instead of one; that is more honest than
     inventing a close that never existed.
+
+    Still named split_channels because the split is still what it does: the
+    overnight jump is separated from the intra-hour move and then dropped, rather
+    than never being separated at all.
     """
     out = usable.copy().sort_values("hour_utc").reset_index(drop=True)
     if out.empty:
-        return out.assign(r=pd.Series(dtype="float64"), r_gap=pd.Series(dtype="float64"),
-                          is_session_open=pd.Series(dtype=bool),
-                          gap_masked=pd.Series(dtype=bool))
+        return out.assign(r=pd.Series(dtype="float64"),
+                          is_session_open=pd.Series(dtype=bool))
 
     session = session_ids(asset, out["hour_utc"], anchor_tz)
     is_open = session != session.shift(1)
@@ -92,25 +104,11 @@ def split_channels(asset: Asset, usable: pd.DataFrame,
     out["r"] = np.where(is_open,
                         np.log(out["close"] / out["open"]),
                         np.log(out["close"] / prev_close))
-    out["r_gap"] = np.where(is_open, np.log(out["open"] / prev_close), np.nan)
-    # The very first bar of history has no previous close for either channel -
-    # both quantities are undefined, not zero.
-    out.loc[0, "r_gap"] = np.nan
+    # The very first bar of history has no previous close, and its own open is
+    # the start of the record rather than a continuation of anything: undefined,
+    # not zero.
     out.loc[0, "r"] = np.nan
     out["is_session_open"] = is_open
-
-    # The gap on a corporate-action day reflects the payout, not a market move.
-    # Only the gap is masked: the first bar's intra-hour return has nothing to do
-    # with the ex-date, and discarding it along with the gap would throw away
-    # sound data.
-    if action_days:
-        local_day = pd.to_datetime(out["hour_utc"], unit="s", utc=True)
-        local_day = local_day.dt.tz_convert(NYSE_TZ).dt.date
-        masked = is_open & local_day.isin(action_days)
-        out["gap_masked"] = masked
-        out.loc[masked, "r_gap"] = np.nan
-    else:
-        out["gap_masked"] = False
     return out
 
 
