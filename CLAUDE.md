@@ -13,6 +13,8 @@ Read this file first, then the one doc that covers your task:
 | why it is built this way, and what not to re-litigate | `docs/decisions.md` |
 | quotas, failure modes, what is committed when | `docs/operations.md` |
 | the rules you work under here | `docs/working-agreement.md` |
+| what is known, open, and deliberately not being worked on | `docs/concerns-for-later.md` |
+| what was open and is not any more | `docs/completed-work.md` |
 
 ## The hourly pass
 
