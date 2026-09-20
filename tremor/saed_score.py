@@ -1,7 +1,7 @@
 """Scores the detector that is actually delivered.
 
-WHY THIS EXISTS AND WHAT IT REPLACES. tremor.evaluate scores the SI-Index
-cluster channel against the calibration yardstick, and that number has been read for a
+WHY THIS EXISTS AND WHAT IT REPLACES. The report this replaced scored the
+SI-Index cluster channel against the calibration yardstick, and that number was read for a
 long time as "how good is the bot". It is not. price_monitor reads
 saed_events.parquet: the 8,838 single-instrument and block events are what
 reaches a phone, and the 139 cluster events are a channel that is computed,
@@ -336,8 +336,9 @@ def build(events_path: str = DEFAULT_EVENTS_PATH,
           metrics_dir: str = DEFAULT_METRICS_DIR) -> str:
     """The whole section, or an empty string if the inputs are not there.
 
-    Empty rather than an exception: this runs inside tremor.evaluate, and a
-    missing residuals directory must not cost the report that does exist.
+    Empty rather than an exception: this is one section of a report run by
+    hand, and a missing residuals directory must not cost the sections that do
+    exist.
     """
     if not os.path.exists(events_path):
         log.warning("no SAED events - section skipped")

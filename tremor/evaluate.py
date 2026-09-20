@@ -1,8 +1,12 @@
-"""Scoring helpers, and the report on the detector that is actually delivered.
+"""Scoring helpers for a detector of bursty events.
 
-Two things live here: the episode and cooldown helpers below, which are about
-how you score ANY detector of bursty events and are used by the scorer for the
-live one, and the entry point, which renders that scorer's report.
+NOTHING IN THE PIPELINE CALLS THESE TODAY. There was an entry point here that
+rendered a report to data/tremor/evaluation.md; it is gone, because that report
+scored the SI-Index cluster channel rather than the detector that is delivered,
+against a forecasting label neither of them claims to answer. tremor.saed_score
+scores the live detector and carries its own episode helper. These are kept
+because the reasoning below is the part that was hard to get right, and the
+tests pin it; they are a library, not a live path.
 
 RECALL IS PER EPISODE, NOT PER HOUR, and that is the reason these helpers are
 worth keeping. A detector holds a cooldown after it fires, so per-hour recall
@@ -11,14 +15,9 @@ into one episode and an episode counts as caught if any alert lands in it.
 """
 from __future__ import annotations
 
-import logging
-import os
-
 import numpy as np
 
-from tremor import saed_score, windows
-
-DEFAULT_REPORT_PATH = os.path.join("data", "tremor", "evaluation.md")
+from tremor import windows
 
 # How far AHEAD of an episode an alert may land and still be credited with it,
 # in reference-calendar hours. It was tremor.truth.HORIZON, which was the
@@ -95,43 +94,3 @@ def score(detections: np.ndarray, runs: list[tuple[int, int]],
         "median_lead": float(np.median(leads)) if leads else np.nan,
         "ahead": int(sum(1 for lead in leads if lead > 0)),
     }
-
-
-def main(argv: list[str] | None = None) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="Report on the delivered detector (spec section 7). "
-                    "data/tremor/evaluation.md is a frozen artifact; this "
-                    "entry point refuses to overwrite it unless --force.")
-    parser.add_argument("--out", default=DEFAULT_REPORT_PATH)
-    parser.add_argument("--force", action="store_true",
-                        help="overwrite the frozen tracked report. That file "
-                             "records a frequency claim the live detector no "
-                             "longer makes (docs/decisions.md).")
-    args = parser.parse_args(argv)
-
-    logging.basicConfig(level=logging.INFO,
-                        format="%(asctime)s %(levelname)s %(message)s")
-    log = logging.getLogger("tremor.evaluate")
-
-    if (os.path.abspath(args.out) == os.path.abspath(DEFAULT_REPORT_PATH)
-            and not args.force):
-        log.error("%s is a frozen artifact of a frequency claim the live "
-                  "detector no longer makes (see docs/decisions.md). Pass "
-                  "--force to overwrite it, or --out elsewhere.", args.out)
-        return 2
-
-    report = saed_score.build()
-    if not report:
-        log.error("No SAED events to score - run python -m tremor.saed first")
-        return 2
-    os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
-    with open(args.out, "w") as handle:
-        handle.write("# Tremor evaluation\n\n" + report + "\n")
-    log.info("Wrote %s", args.out)
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

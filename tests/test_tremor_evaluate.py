@@ -104,15 +104,3 @@ def test_a_detector_that_never_fires_has_no_precision_but_zero_recall():
 def test_f1_is_undefined_only_when_nothing_fired():
     silent = evaluate.score(np.array([], dtype=int), [(0, 2)], lead_max=24)
     assert silent["f1"] != silent["f1"]      # NaN: there is no precision to take
-
-
-def test_evaluate_refuses_the_frozen_default_path(monkeypatch):
-    monkeypatch.setattr(evaluate.saed_score, "build", lambda: "should not run")
-    assert evaluate.main([]) == 2
-
-
-def test_evaluate_writes_elsewhere_without_force(tmp_path, monkeypatch):
-    monkeypatch.setattr(evaluate.saed_score, "build", lambda: "hello")
-    out = tmp_path / "report.md"
-    assert evaluate.main(["--out", str(out)]) == 0
-    assert "hello" in out.read_text()

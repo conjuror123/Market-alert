@@ -6,8 +6,3 @@ pytest>=8.0,<9
 # means not dragging a calendar library and its dependencies into production, and
 # not risking an update to it silently changing the historical schedule.
 exchange-calendars>=4.13,<5
-
-# Validating the event export against the published schema
-# schema/event_export.schema.json. Not needed in production: the schema is a
-# contract for the export's consumer, and a test validates it, not the hourly run.
-jsonschema>=4.21,<5
