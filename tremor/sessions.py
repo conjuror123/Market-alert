@@ -273,7 +273,8 @@ def today_close_after(hour_utc: int, template: str,
 
     The moment the first check-in becomes measurable. Equal to the end of the
     bar itself when the move happened in the closing hour, which is not a
-    failure: there is no day left to hold through, and the message says so.
+    failure: there is no day left to hold through, and the message leaves the
+    line out rather than reporting a ratio that is one by construction.
     """
     day = instrument_day(hour_utc, template, tz_name)
     hours = instrument_day_hours(day, template, table, tz_name)

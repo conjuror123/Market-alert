@@ -926,17 +926,23 @@ def test_only_one_date_line_and_it_is_the_exact_one():
     assert "similar move" not in text
 
 
-def test_a_move_in_the_closing_hour_reports_no_ratio_for_its_own_day():
+def test_a_move_in_the_closing_hour_gets_no_line_for_its_own_day():
     # 6% of moves are made in the last hour their instrument trades that day.
     # There is nothing left of the day to hold through, so the ratio is one by
-    # construction and "still there" would be reporting arithmetic as news.
+    # construction and "still there" would be reporting arithmetic as news. The
+    # line was once kept and answered in words; it is now left out, because a
+    # reader who did not ask about this day's close does not need to be told
+    # why it has no answer.
     closing = spy(retention_today=1.0)          # Friday's last ETF bar
     lines = md.check_in_lines(closing, now=NOW)
-    assert lines[0] == "\tthis day's close - the move was in the closing hour"
+    assert not any("this day's close" in line for line in lines)
+    assert lines == ["\tnext day's close - coming with the next update"]
+    assert "closing hour" not in md.format_push(closing, LABELS, now=NOW)
 
     midday = spy(hour_utc=int(datetime(2026, 9, 8, 14, tzinfo=timezone.utc).timestamp()),
                  retention_today=1.0)
-    assert "still there" in md.check_in_lines(midday, now=NOW)[0]
+    lines = md.check_in_lines(midday, now=NOW)
+    assert lines[0] == "\tthis day's close - still there"
 
 
 def test_the_block_line_names_the_instrument_s_peers():

@@ -548,7 +548,9 @@ def check_in_lines(event: dict, now: datetime | None = None,
     Both horizons are listed from the first message onward, so the reader can
     see what is still coming rather than wondering whether the bot forgot. One
     whose answer has not arrived yet says when it is due; the message is edited
-    in place as each lands (see follow_up.py).
+    in place as each lands (see follow_up.py). The exception is a move made in
+    its instrument's closing hour, which has no day left to hold through: that
+    line is not written at all.
 
     Carried by EVERY instrument in a message now, not only the one in the
     headline. A push speaks for a whole day's episode and each instrument in it
@@ -564,19 +566,19 @@ def check_in_lines(event: dict, now: datetime | None = None,
     raw_basis = str(event.get("basis") or "") == "absolute"
     lines = []
     for h in horizons or FOLLOW_UP_HORIZONS:
+        # 6% of moves are made in the last hour their instrument trades that
+        # day. There is nothing left of the day to hold through, so the ratio is
+        # one by construction - the line is about the calendar rather than about
+        # the move, and it is left out entirely. Saying it in words
+        # ("the move was in the closing hour") was no better: a reader who did
+        # not ask about this day's close does not need to be told why it has no
+        # answer. The settled check-in still lands, and carries the whole story.
+        if h == "today" and _closed_the_day(event):
+            continue
         key = f"retention_raw_{h}" if raw_basis else f"retention_{h}"
         value = _clean(event.get(key))
         label = _HORIZON_LABEL.get(h, str(h))
-        if h == "today" and _closed_the_day(event):
-            # 6% of moves are made in the last hour their instrument trades that
-            # day. There is nothing left of the day to hold through, so the
-            # ratio is one by construction and saying "still there" would be
-            # reporting arithmetic as news.
-            answer = "the move was in the closing hour"
-        elif value is not None:
-            answer = _retention_word(value)
-        else:
-            answer = _due_in(event, h, now)
+        answer = _retention_word(value) if value is not None else _due_in(event, h, now)
         lines.append(f"\t{label} - {answer}")
     return lines
 
