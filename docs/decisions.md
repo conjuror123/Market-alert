@@ -277,6 +277,14 @@ Raised, dealt with, and not to be raised again.
 - **Run health measured by a throwaway script** — replaced by `tools/run_health.py`, which
   counts hourly slots with no successful run rather than failed runs, because an outage
   produces none of the latter.
+- **Re-seeding the rungs after the sigma estimator changed** — checked, nothing to do. The
+  ladder was seeded against one measurable criterion, near ten messages per
+  instrument-year at the shallowest rung, and under the EWMA estimator the blocks run 8.1
+  to 12.2. Spread across the basket is 3.8x, recall on large-and-unexplained episodes
+  90.7%, and the detector fires harder in a crisis rather than quieter (4.9x in Oct 2008,
+  9.7x in Mar 2020), which was the one failure a faster-adapting sigma could have caused.
+  What is left is the preference about what each word means, and a preference does not go
+  stale when an estimator changes.
 - **Routing on anything but the tier** — measured on the whole archive, then refused. The
   claim was that events found by both ladders at once hold up better and could be routed
   on for free. The effect is real (79.5% still standing against 71.0% and 69.3%, and it

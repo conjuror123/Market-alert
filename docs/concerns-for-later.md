@@ -104,23 +104,7 @@ change.
 
 ---
 
-## 5. The rungs have not been re-seeded since the sigma estimator changed
-
-`sigma_LT` became an exponentially weighted estimate with a per-calendar half-life
-(`docs/decisions.md`). The ladder in `tremor/severity.py` is written in multiples of
-`sigma_LT`, and those multiples were seeded against the flat 5,000-bar box that estimator
-replaced.
-
-Measured consequence: the alert rate fell about 10% across the basket, and backtest
-recall went from 97.2% to 94.4% of the most obvious hours.
-
-This was deliberate — changing the estimator and the ladder in the same step would have
-left neither measurable — but it is a deferral, not a decision. The rungs are a
-preference the reader owns, so re-seeding them is a question for the reader, not a fix.
-
----
-
-## 6. Comments and prose that have drifted
+## 5. Comments and prose that have drifted
 
 Small, cosmetic, and worth a pass rather than a project. Nothing specific is currently
 listed here — the prose drift that was on this list turned out to be one substantive
