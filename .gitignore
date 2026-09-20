@@ -14,9 +14,9 @@ data/calibration_review/
 # worth revisiting. Every one of them is restored by re-running the pipeline from
 # the bars, which is what the hourly job does anyway before it reads them.
 #
-#   events/    - the event export. The schema lives in
-#                schema/event_export.schema.json and is versioned; the export
-#                itself is produced by python -m tremor.export.
+#   events/    - JSON left behind by the cluster detector, which is deleted. Nothing
+#                writes here any more; the rule stays so a working copy that still
+#                holds the files cannot commit them by accident.
 #   residuals/ - the SAED residual series, from python -m tremor.saed.
 #   metrics/   - the per-asset metrics, from python -m tremor.pipeline. These
 #                used to be tracked, on the reasoning that they cost a full

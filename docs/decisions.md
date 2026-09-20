@@ -1,329 +1,194 @@
 # Why it is built this way
 
-The reasoning behind the choices that are easy to second-guess, so they are not
-re-litigated. Each one is settled by measurement; where a number appears, it is the
-number that settled it.
+> **Holds** the choices that are easy to second-guess, so they are not re-litigated:
+> the rule now in force, and the number that settled it.
+> **Does not hold** how it works (`architecture.md`), how to run it (`operations.md`),
+> or what is still open (`concerns-for-later.md`).
+> **Add an entry when** evidence settles a choice. State the rule, then one line of what
+> was measured. Not the alternatives, not the story.
 
 ---
 
 ## The ladder
 
 **A rarity, not a score.** "The biggest move since March 2020" needs no calibration
-intuition; a 1-to-100 importance score does. It also solves comparison for free: 1.5% is
-unremarkable in SOL and enormous in SHY, but "the biggest since" means the same thing
-everywhere. The rung is a SIZE and the message is a DATE — two different questions,
-answered separately, because conflating them produces a message that contradicts itself.
+intuition; a 1-to-100 importance score does. The rung is a SIZE and the message is a
+DATE — two questions, answered separately, because conflating them produces a message
+that contradicts itself.
 
-**A size, not a fit — and no longer a rank.** A fitted tail cannot work at this sample
-size: the same instrument fitted with the same code on different six-year windows put
-SPY's once-in-six-years level anywhere from 2.22% to 6.78%, a factor of three decided
-purely by which six years the window held. So the rung is not fitted. It is a multiple
-of the instrument's own long-run sigma, set per block (`tremor/severity.py`).
+**A size, not a fit.** Fitting a tail at this sample size does not work: the same
+instrument, same code, different six-year windows put SPY's once-in-six-years level
+anywhere from 2.22% to 6.78%. A rung is instead a multiple of the instrument's own
+long-run sigma, set per block (`tremor/severity.py`).
 
-**THE FREQUENCY GUARANTEE WENT WITH THE RANK RULE, AND THIS SECTION USED TO CLAIM
-OTHERWISE.** Between the fitted ladder and the present one there was a third: a rung was
-literally the biggest move in its own lookback. That rule *is* exactly calibrated by
-construction — for any distribution whatever, the probability that the newest of N
-observations is the largest of those N is 1/N, so "the largest in the trailing six years"
-happens about once in six years because there is no model to be wrong. Measured then:
-1.21 per six years, 29 records against 23.8 expected, and 0.73 / 1.09 / 1.05 / 1.18
-across the four rungs.
+**The rungs are a preference, and the rate is an output.** There was once a frequency
+guarantee — a rung was literally the biggest move in its own lookback, which is exactly
+calibrated because the newest of N observations is the largest with probability 1/N. It
+was retired because a rank is relative to a window: after a crash nothing can reach the
+top rung until that crash rolls out, and 395 moves larger than a typical `extreme` went
+out as something milder, dated March 2020, October 2008 and the 2015 yuan devaluation.
+Size is monotone and cannot do that. It also has no 1/N argument, so the frequencies are
+measured rather than promised — per instrument, every 2 months, 6 months, 17 months and
+2.9 years. The two rungs that interrupt fire about twice as often as the old wording said.
 
-It was retired anyway, because a rank is relative to a window and a move therefore sits
-in the shadow of any bigger one still inside it: after a crash nothing can reach the top
-rung until that crash rolls out, however violent the market gets. Measured, 395 moves
-LARGER than the typical `extreme` went out as something milder, and the dates were March
-2020, October 2008 and the 2015 yuan devaluation — the rule demoted precisely the
-episodes it exists for.
-
-Size has neither failure, and it is monotone, so the shadow cannot happen. **What it does
-not have is the 1/N argument.** The rungs are a trader's reading of what each word should
-mean, and `tremor/severity.py` says so in as many words: the resulting rate per year is an
-output worth watching and has never been an input. Measured over the whole archive, per
-instrument:
-
-| rung | the word used to promise | measured |
-|---|---|---|
-| noticeable | monthly | every 2 months |
-| high | quarterly | every 6 months |
-| major | every 3 years | **every 17 months** |
-| extreme | every 6 years | **every 2.9 years** |
-
-The two quiet rungs fire about half as often as the old wording said; **the two that
-interrupt fire about twice as often.** That is the cost of trading the rank rule's
-calibration for its monotonicity, and it was paid without being written down. The report
-card now reads these rates out of the event table instead of repeating the adjectives,
-and `README.md` and `docs/architecture.md` describe the rungs as what they are.
-
-**Fitted per instrument, never pooled.** Pooling puts SHY and SOL back on one yardstick,
+**Set per instrument, never pooled.** Pooling puts SHY and SOL back on one yardstick,
 which is the thing the ladder exists to avoid.
 
 **An instrument cannot overclaim.** It cannot be "the biggest in six years" until it has
-six years, because the answer is a lookback into a record that does not exist yet. No
-extrapolation limit is needed; it is the shape of the arithmetic.
+six years. No extrapolation limit is needed; it is the shape of the arithmetic.
 
-**The top rung is six years** because six is inside the five-to-ten the recipient asked
-for. It is not tuned to the archive: setting the boundary to fit how much history happens
-to be downloaded would mean deepening an instrument quietly renames moves already sent.
+**The top rung is six years** — inside the five-to-ten the recipient asked for, and not
+tuned to the archive, because fitting the boundary to whatever history happens to be
+downloaded would let deepening an instrument quietly rename moves already sent.
 
-**Read the two ladders separately, never their union.** Each makes its own claim and each
-is separately calibrated. A message takes whichever rung is rarer, so the *rate* of
-messages is roughly the sum of the two — 2.03× at `extreme`. That is a volume figure, and
-volume is what `sensitivity` turns. It is not a miscalibrated rung.
+**Read the two ladders separately, never their union.** Each makes its own claim. A
+message takes whichever rung is rarer, so the message *rate* is roughly the sum — 2.03x
+at `extreme`. That is volume, which `sensitivity` turns, not a miscalibrated rung.
 
-**Known limit — when an instrument's shocks happened.** The six-year rung fires about
-2.4× too often for the currency pairs and 0.34× for equity and credit. This is not an
-estimator fault: it tracks *where in its own life* each instrument's worst moves fell.
-Taking the median position of each instrument's twenty largest moves, 0 being the start of
-its history and 1 the end:
-
-    FX        0.74   fires 2.43×
-    energy    0.70          1.35×
-    rates     0.53          1.36×
-    equity    0.42          0.34×
-    credit    0.37          0.34×
-
-Correlation 0.543. FX's worst hours — the 2015 franc unpeg, Brexit, the 2022 yen — are
-all in the last quarter of its history, so every fit before them was set on a market that
-had not yet shown what it could do. Equity and credit carry 2008 in their first half. No
-fit that refuses to look forward can know which of the two it is in, and refusing to look
-forward is worth the cost.
+**Known limit — when an instrument's shocks happened.** The six-year rung fires 2.4x too
+often for FX and 0.34x for equity and credit. It tracks *where in its own life* each
+instrument's worst moves fell (correlation 0.543 with the median position of its twenty
+largest): FX's worst hours — the franc unpeg, Brexit, the 2022 yen — are all in the last
+quarter of its history, while equity and credit carry 2008 in their first half. No causal
+fit can know which it is in, and refusing to look forward is worth the cost.
 
 **What a record gives up.** It says a move beat everything in six years, not by how far,
-so ordering within a tier needs the magnitude alongside — which is why the message carries
-both. And records cluster: a crisis produces several in a week. That is a property of
-markets, not an artefact.
+so the message carries the magnitude alongside. Records also cluster in a crisis — a
+property of markets, not an artefact.
 
 ---
 
 ## The residual
 
-**The market model, with an estimation gap.** `r = alpha + beta·F + e`, a rolling
-500-bar regression ending three bars before the bar being judged. Three bars because the
-leak the field worries about is short, and three of five hundred does not measurably move
-the coefficients.
+**The market model, with an estimation gap.** `r = alpha + beta*F + e`, a rolling 500-bar
+regression ending three bars before the bar being judged. Three bars because the leak is
+short and three of five hundred does not measurably move the coefficients.
 
-**The regressor is the instrument's own block factor**, oriented by sign. Orientation
-matters: within FX the dollar-quoted and dollar-based pairs otherwise cancel and the
-factor reads near zero. A basket-wide factor was tried and dropped — it does not scale to
-sixty instruments the way a block factor does.
+**The regressor is the instrument's own block factor**, oriented by sign — within FX the
+dollar-quoted and dollar-based pairs otherwise cancel and the factor reads near zero. A
+basket-wide factor does not scale to sixty instruments the way a block factor does.
 
-**Leave-one-out in the BMP denominator**, which the published form does not do. In an
-ordinary event study every firm shares one event date and the statistic is about their
-average. Here each instrument is tested individually against its peers, so without
-leave-one-out a genuine single-asset move inflates the very spread it is measured
-against — the instrument raises its own bar and hides itself.
+**Leave-one-out in the BMP denominator**, which the published form does not do. Each
+instrument is tested against its peers individually, so without it a genuine single-asset
+move inflates the spread it is measured against and hides itself.
 
-**It is a t, not a z.** Dividing by a *sample* spread over as few as five peers makes a
-t. Wallace's normalising transform maps it to z for the degrees of freedom actually
-present; a floor on the denominator would not have been correct.
+**It is a t, not a z.** Dividing by a sample spread over as few as five peers makes a t;
+Wallace's transform maps it to z for the degrees of freedom actually present.
 
-**The rank-test gate.** BMP predicts the cross-sectional spread S ≈ 1, and over all
-scored hours its median is 0.963. In 0.9% of hours it falls below 0.3 — the whole block
-asleep, every residual an order of magnitude smaller than its own sigma predicted — and
-dividing by 0.05 turns a raw z of 0.86 into 4.05. The event-study literature names this
-failure: Campbell & Wasley found the standardised test misspecified for thin trading,
-because near-zero returns corrupt the variance estimate, and recommend a non-parametric
-rank test that estimates no variance at all.
+**The rank-test gate.** BMP predicts a cross-sectional spread S near 1 and its median is
+0.963, but in 0.9% of hours it falls below 0.3 — the whole block asleep — and dividing by
+0.05 turns a raw z of 0.86 into 4.05. So an hour claimed by the **abnormal channel alone**
+that Corrado's rank test contradicts has that claim withdrawn. "Alone" is load-bearing:
+the rank test is itself misspecified when variance jumps, which is when the absolute
+channel fires. Of 24 pushes in October 2008 it removes one; of 15 in March 2020, none.
 
-So an hour claimed by the **abnormal channel alone** that Corrado's rank test contradicts
-has that claim withdrawn. The "alone" is load-bearing: the rank test is itself
-misspecified when variance jumps, which is exactly when the absolute channel fires, so the
-gate lifts precisely where the rank test stops being trustworthy. Of 24 pushes in October
-2008 it removes one; of 15 in March 2020, none.
-
-**Peer count is not the discriminator.** Fewer than ten peers is 37.5% of all scored
-hours — the shape of a 24-hour basket whose equities trade six and a half, not an
-anomaly. The thin hours hold the best calls: the SNB unpegging the franc, the yuan
-devaluation, Brexit, post-Fukushima, the 2024 yen intervention, all with nine peers or
-fewer and all with a spread well above 1. What matters is whether the peers were *moving*.
+**Peer count is not the discriminator.** Fewer than ten peers is 37.5% of scored hours —
+the shape of a 24-hour basket whose equities trade six and a half. The thin hours hold the
+best calls (the franc unpeg, Brexit, post-Fukushima), all with nine peers or fewer. What
+matters is whether the peers were *moving*.
 
 ---
 
 ## What counts as an event
 
 **A one-cent move is unobserved, not small.** At a $0.01 tick a 0.025% move in SHY is one
-tick of jitter. Anything under two ticks is dropped.
+tick of jitter. Under two ticks is dropped.
 
-**An event carries one bar's numbers.** When an event escalates inside its day it keeps
-the higher tier *and* that bar's move — reporting the opening bar's magnitude beside a
-later bar's tier produced pushes reading "biggest move in 3 years, +0.01%".
+**An event carries one bar's numbers.** Escalating inside its day keeps the higher tier
+*and* that bar's move — otherwise a push reads "biggest move in 3 years, +0.01%".
 
 **The peak moves at the same tier.** `extreme` is the top of the ladder, so a
-strictly-higher rule can never fire for it. On 2015-01-15 USD/CHF opened `extreme` at
-−3.5% and did −10.5% an hour later; the peak now also moves on a bigger move at the same
-tier, ranked by exceedance so the two channels stay comparable.
+strictly-higher rule can never fire for it: USD/CHF opened `extreme` at -3.5% on
+2015-01-15 and did -10.5% an hour later.
 
 ---
 
 ## Who gets interrupted
 
-**Rarity and urgency are different questions.** Rarity is a property of the instrument
-and means the same whether five instruments are watched or fifty. How often someone is
-willing to be interrupted is a property of the person and does not grow with the
-watchlist. Keeping them apart is what stops the alert rate tripling the day three
-instruments are added.
+**Rarity and urgency are different questions.** Rarity belongs to the instrument and means
+the same whether five are watched or fifty; willingness to be interrupted belongs to the
+person and does not grow with the watchlist. Keeping them apart is what stops the alert
+rate tripling the day three instruments are added.
 
-**One event, one interruption, one day.** An instrument may open one event per trading
-day. A calendar day rather than a rolling window, so the reader can say when the next one
-can come; the UTC boundary because 00:00 UTC is about the quietest hour there is, where a
-local midnight lands at 21:00 UTC in the middle of the American session.
+**One event, one interruption, one day.** A calendar day rather than a rolling window, so
+the reader can say when the next one can come. The UTC boundary because 00:00 UTC is the
+quietest hour there is; a local midnight lands mid-American-session.
 
-**Both push tiers go out immediately, and are edited afterwards.** A move given back
-within hours is not news, and there is a cheap way to know: wait and look. Of events still
-standing at their own day's close, 80% were still standing at the next day's close,
-against 26% of those that had already given it back. But a once-in-three-years move that
-arrives six hours late is a worse product than one that arrives now — so the message goes
-at once and is edited in place at this day's close and the next day's close with how the
-move actually held. Retention decides what the message *says*, not whether it is sent.
+**Both push tiers go out immediately, and are edited afterwards.** Of events still standing
+at their own day's close, 80% were still standing at the next, against 26% of those that
+had already given it back — so waiting is informative, but a once-in-three-years move that
+arrives six hours late is worse than one that arrives now and is corrected. Retention
+decides what a message *says*, not whether it is sent.
 
-**A close reading waits for the close.** Retention is the move divided into what the
-move had become by a named moment, and "this day's close" is the last bar the
-instrument trades that day. That last bar was read off the bars present, which is
-right for every day in the archive and wrong for the one the run is standing in: a
-live store always ends mid-day, so the newest day's "close" was whatever hour had
-just been fetched. AVAX-USD fell 5.84% at 01:00 UTC on a Sunday and the note said
-"this day's close - still there" at 03:06, of a day with twenty-one hours left in it.
-The frame cannot tell a finished day from a three-hour-old one - only the trading
-calendar can - so `sessions.day_is_closed` is asked, and `persistence` refuses both
-readings until it says yes. It defaults to refusing. The cost is that the settled
-reading also waits for its day to end rather than for the next bar after it, which is
-the same guarantee said twice.
+**A close reading waits for the close.** "This day's close" is the last bar the instrument
+trades that day, and a live store always ends mid-day — so the reading was taken from
+whatever bar had just been fetched, and AVAX-USD read "still there" three hours into a day
+with twenty-one hours left. The frame cannot tell a finished day from a three-hour-old one;
+`sessions.day_is_closed` can, and both readings wait for it.
 
-**A line about the calendar is not a check-in.** A move made in its instrument's
-closing hour has no day left to hold through, so its today-close ratio is one by
-construction. That was printed as "this day's close - the move was in the closing
-hour", which answers a question the reader did not ask in the place they look for how
-the move did. The line is now omitted; the settled check-in carries the story.
+**A line about the calendar is not a check-in.** A move made in its closing hour has no day
+left to hold through, so its ratio is one by construction. The line is omitted rather than
+answered in words.
 
-**The sigma window is a dial, not an estimate, and its reach is far from any
-statistical optimum.** (The numbers below are for the 5,000-bar box this replaced;
-the exponential form that succeeded it is calibrated to the same behaviour, so they
-still describe where the dial sits.) `tools/sigma_window.py` sweeps it per instrument against three
-criteria. Scoring it as a *forecast* of the next bar's variance sends every instrument
-to the shortest window offered — a correct answer to the wrong question, since
-`sigma_eff` already is the fast estimator and `sigma_LT` is deliberately the slow one.
-Scoring it against a centred, hindsight estimate of local volatility gives an answer
-that moves with the bandwidth chosen for "local" — 250-400 bars at ±30 days, 600-2,500
-at ±180 — so that criterion measures the choice rather than settling it. The two that
-do not have a free parameter disagree, and they disagree because they are the same
-quantity with the sign flipped: how much the estimate lags the market.
+**The sigma window is a dial between accuracy and crisis loudness, not an estimate.**
+Scored as a forecast, every instrument wants the shortest window offered — the wrong
+question, since `sigma_eff` is already the fast estimator. Scored against a centred
+hindsight estimate, the optimum moves with the bandwidth chosen for "local", so it measures
+the choice. The two criteria left disagree because they are one quantity with the sign
+flipped: a short window keeps the multiple comparable across eras and goes quiet in a
+crash, a long one is the reverse. The setting sits on the loud side, which is the right
+choice here and had never been made.
 
-| median over the basket | 250 | 720 | 2,000 | **5,000** | 8,000 | 20,000 |
-|---|---|---|---|---|---|---|
-| era drift, crypto (lower better) | 0.043 | 0.051 | 0.089 | **0.122** | 0.117 | 0.187 |
-| era drift, equity | 0.074 | 0.125 | 0.208 | **0.284** | 0.351 | — |
-| alerts in the worst 5% of weeks, crypto | 13% | 19% | 30% | **42%** | 42% | 42% |
-| alerts in the worst 5% of weeks, equity | 25% | 38% | 49% | **58%** | 62% | 65% |
+**Exponential weights, not a box.** A box counts a bar from two years ago as much as this
+morning's and one an hour older not at all; that edge travels through the data and stepped
+the yardstick 16.8% on a twenty-sigma bar. At matched loudness the exponential form holds
+the multiple steadier era to era on 82% of equity settings and 65% of crypto ones. It is
+cut off at six half-lives, where the measurement stops improving, and normalised by the
+weights actually used — so a warm run still reproduces a cold one exactly.
 
-A short window makes the multiple mean the same thing in every era — the 99th percentile
-of `|r| / sigma` stops drifting between 2017 and 2026 — and it goes quiet in a crisis,
-because it absorbs the crisis into its own denominator within days. A long window is the
-reverse. 5,000 sits above every window any accuracy criterion picks, which makes it a
-choice for the second property. That choice is the right one here (a detector that
-silences itself in a crash is the one failure this system will not accept) but it was
-never made: it was inherited, with nothing recorded about why. It is made now.
+**The half-life is per trading calendar.** One bar count meant 290 calendar days of memory
+for an ETF and 58 for a coin, a five-fold spread that fell out of exchange hours. 600 bars
+for `us_equity`, 1,400 for `fx_continuous`, 2,000 for `crypto_24_7`, 83 for a daily series
+— 86, 82, 83 and 83 trading days, the band the volatility literature settles on. Equity's
+worst-year spread of the rarest-1% marker goes 3.02x to 2.00x; crypto gains six points of
+coverage in its own worst weeks. The floor cannot exceed the span, or the count inside the
+window never reaches it.
 
-**The weights inside the window are exponential, not flat.** The reach is one
-question and the SHAPE is another, and only the first had ever been asked. A box says
-that a bar from two years ago describes today's normal exactly as well as this morning
-does, and that a bar an hour older describes it not at all. Neither is a claim anyone
-would make out loud, and the second is not harmless: the edge travels through the data,
-so a violent week falls out of the window on a particular day and the yardstick steps —
-16.8% on a twenty-sigma bar, measured. Exponential weights are the standard answer and
-have been since RiskMetrics quoted a decay rate instead of a window; Foster and Nelson
-(1996) and the rolling-sample literature after it find them dominating flat weights.
+**Crypto's window is not extended to match the ETFs' calendar span.** Volatility half-lives
+are ~97 days for crypto and 122 for equity, so a flat bar count does give the ETFs more
+memory — but crypto's storm coverage saturates at the current span (42% at 5,000, 8,000,
+13,000 and 20,000 alike) and era drift gets *worse* for seven of the nine coins, which is
+the thing a longer window was meant to fix.
 
-Measured here at MATCHED loudness — so that the comparison is of shape and not of
-reach — the exponential form holds the multiple steadier from era to era on 82% of
-equity settings and 65% of crypto ones, cutting era drift 16% and 10%. FX is a wash
-(58%, 1%). The rungs are left where they are: changing the estimator and the ladder in
-one step would leave neither measurable, and the rungs are a preference the reader owns.
+**The system does not count its own alerts.** No weekly cap. A detector that goes quiet on
+the third alert of the week fails adversarially: the week the franc is unpegged is exactly
+the week records cluster. Volume is controlled where it is generated.
 
-**And the half-life is set per trading calendar, not per bar count.** One bar count is
-not one amount of history: 5,000 bars was 290 calendar days of memory for an ETF and 58
-for a coin, a five-fold spread that fell out of exchange hours rather than out of any
-choice. The volatility literature settles on 120–240 DAILY observations, and these are
-that band read in each instrument's own bars — 600 for `us_equity`, 1,400 for
-`fx_continuous`, 2,000 for `crypto_24_7`, 83 for a daily series like the VIX, which come
-to 86, 82, 83 and 83 trading days respectively.
-
-| | equity | crypto |
-|---|---|---|
-| era drift (lower better) | 0.265 → **0.187** | 0.092 → 0.104 |
-| worst-year spread of the rarest-1% marker | 3.02x → **2.00x** | 1.29x → 1.37x |
-| alerts landing in the worst 5% of weeks | 50% → 46% | 32% → **38%** |
-| messages per instrument-year | 6.8 → 7.1 | 6.8 → 6.5 |
-| bars read per run, basket | 856,080 → **695,280** | |
-
-Equity buys stability: the multiple that marks an instrument's rarest 1% of hours used
-to take a 6.1x move in 2020 and a 1.6x move in 2009, and now varies half as much.
-Crypto buys the opposite, six points of coverage during its own worst weeks, because
-its drift was already small enough to spend. Message volume barely moves either way,
-and the printed multiple does not move at all — AVAX's 8.3x became 8.1x.
-
-**The floor cannot outrun the span.** `SIGMA_LT_MIN_BARS` was written for a 5,000-bar
-box. The VIX's span is 498, so demanding 720 observations inside it left its sigma NaN
-on every bar and silently took the fear gauge's spike flag out of the digest. Caught by
-a test, not in production; the minimum is now `min(floor, span)`.
-
-**It is still cut off, at six half-lives.** An unbounded EWMA depends on every bar ever
-recorded, and the hourly run reproduces a cold pass over the whole archive precisely
-because every quantity depends on a bounded stretch of the past. So the weights stop at
-`windows.SIGMA_LT_BARS`, the estimator is normalised by the weights it actually used —
-which makes the cut part of the definition rather than an error in it — and the bar at
-the edge carries a sixty-fourth of the newest one's weight instead of all of it. Six
-half-lives because that is where the measurement stops improving: at four the gain is a
-third of what it could be, at eight and twelve it is no better than at six. The warm
-window grows with it, 8,360 to 11,760 bars for an ETF.
-
-**Crypto's window is not extended to match the ETFs' calendar span**, though the case for
-it is real: volatility half-lives are ~97 days for crypto, 122 for equity and 134 for FX,
-so a flat bar count gives the ETFs eight half-lives of memory and crypto two, purely
-because one trades round the clock. Measured, the cure is worse. Crypto's storm coverage
-saturates at 5,000 (42% at 5,000, 8,000, 13,000 and 20,000 alike), so the one property
-length buys is already bought — and era drift gets WORSE for seven of the nine coins,
-which is the very thing a longer window was meant to fix. Crypto's volatility level has
-more than halved since 2017, and a window reaching further back carries more of that
-decline into today's reading, not less.
-
-**The system does not count its own alerts.** There is no weekly cap. A detector that
-goes quiet on the third alert of the week answers a question about the reader's patience
-with an instrument's price history, and it fails adversarially: the week the franc is
-unpegged is exactly the week a budget starts silencing things, because that is the week
-records cluster. Volume is controlled where it is generated — by the ladder, by
-`sensitivity`, and by the size floor.
-
-**A closed note is a record, not a feed.** Every note still being tracked is re-rendered
-from the events table on each run, which is what lets a late event appear and a
-recomputed-away one go. Editing is silent in Telegram; posting a part is not. So a note
-keeps being corrected for as long as it is tracked, and stops being able to grow a few
-hours after its period ends. Without that bound anything that changes the events table
-changes closed notes too, and what they gain arrives as new messages: one cold rebuild
-grew a note that had closed two days earlier from 5 rows to 19 and posted the difference
-as two alerts at breakfast. The rows were right. The interruption was not.
+**A closed note is a record, not a feed.** Every tracked note is re-rendered each run, so a
+late event can appear — but past `DIGEST_GROW_AFTER_CLOSE_HOURS` it may be corrected and
+may not grow. Without that bound one cold rebuild grew a note that had closed two days
+earlier from 5 rows to 19 and posted the difference as two alerts at breakfast. The rows
+were right; the interruption was not.
 
 **Say what the move was big compared with.** 45% of pushes carry a number under 1%, and
-"+0.13%, biggest move in about three years" reads as a bug. Short Treasuries move 0.024%
-in a usual hour, so it really is six times normal. Both numbers are shown, so the claim
-is checkable.
+"+0.13%, biggest move in about three years" reads as a bug — short Treasuries move 0.024%
+in a usual hour. Both numbers are shown, so the claim is checkable.
 
 ---
 
 ## How it is scored
 
-**Precision is the wrong yardstick.** Delaying every alert by six hours *raises*
-precision, from 52.0% to 56.0%. No predictive measure can behave that way — precision
-here credits coincidence as much as prediction.
+**Precision is the wrong yardstick.** Delaying every alert by six hours *raises* it, from
+52.0% to 56.0%. No predictive measure can behave that way.
 
 **Recall on the obvious is the right one.** Of the hours in the top 0.01% of an
-instrument's *own* distribution, how many reached the reader? It should be 100%. The
-counterpart — how often a below-median hour fires — should be 0%. Neither needs episode
-labels or a threshold anyone can argue about. Current figures are in `README.md`.
+instrument's own distribution, how many reached the reader? Its counterpart — how often a
+below-median hour fires — should be 0%. Neither needs episode labels or an arguable
+threshold. Current figures are in `README.md`.
 
 **Judge each event on the quantity its own ladder scores.** `absolute` against the raw
-return, `abnormal` against the standardised residual. Swapping the two yardsticks scores
-them at 3.5% and 1.1% and means nothing except that they were swapped.
+return, `abnormal` against the standardised residual. Swapping them scores 3.5% and 1.1%
+and means only that they were swapped.
 
 **Recall is per episode, not per hour.** One shock spans several bars and the detector
 reports the peak, so a per-hour figure would mostly measure the debounce.
@@ -332,69 +197,81 @@ reports the peak, so a per-hour figure would mostly measure the debounce.
 
 ## The data
 
-**The store is unadjusted, with ex-dates flagged.** Adjusted series are recomputed
-retroactively on every dividend, so a stored history built from them changes underneath
-the record the ladder is made of. Ex-dividend drops land in the gap channel rather than in
-`r`.
+**The store is unadjusted, with ex-dates recorded.** Adjusted series are recomputed
+retroactively on every dividend, so a history built from them changes underneath the record
+the ladder is made of. The ex-dividend drop happens between sessions, and nothing between
+sessions is a return here.
 
 **Corporate actions are declared, not inferred.** `divCash` and `splitFactor` come from
-Tiingo's daily endpoint. Inferring a dividend step from the ratio of an adjusted to an
-unadjusted series cannot see a share split at all — both series are split-adjusted, so
-the split cancels — and a vendor that divides a nominal pre-split dividend by a
-split-adjusted price then reports every earlier step at twice its true size.
+Tiingo's daily endpoint. Inferring a step from the ratio of adjusted to unadjusted cannot
+see a split at all — both series are split-adjusted, so it cancels — and a vendor dividing
+a nominal pre-split dividend by a split-adjusted price reports every earlier step at twice
+its size. Splits are recorded but **excluded** from un-adjustment: the store is already
+split-adjusted.
 
-Splits are recorded in the table and **excluded** from the un-adjustment used when
-deepening history: the store is already split-adjusted, so applying a split factor would
-manufacture the error it is meant to remove.
-
-**The newest rows of the metrics store are never trusted.** The run fires five minutes
-past the hour and stores a bar for the hour it is standing in — two to thirteen per cent
-of that hour's volume, measured on the committed store. The bars heal by themselves, since
-the next fetch returns the complete hour and the incoming row wins the merge. The metrics
-did not: an extension computed only hours newer than the store's last one, so the complete
-bar arrived to find its hour already written and was never scored. Every hour was judged
-on its first five minutes, which understates every move and misses precisely the
-news-driven hours the system exists to catch — 2026-09-16 18:00, the FOMC statement, went
-into the store as SHY +0.02% when the hour had closed at -0.19%, and thirteen instruments'
-events went with it. `extend_asset_metrics` now re-scores its last two days of bars rather
-than trusting them, which costs nothing: the chain already recomputes `warm_bars` of
-lead-in to be exact, and this keeps more of what it computed.
+**The newest rows of the metrics store are never trusted.** The run fires five minutes past
+the hour and stores two to thirteen per cent of that hour's volume. Bars heal on the next
+fetch; metrics did not, so every hour was judged on its first five minutes — 2026-09-16
+18:00, the FOMC statement, went in as SHY +0.02% when the hour closed at -0.19%, taking
+thirteen instruments' events with it. `extend_asset_metrics` re-scores its last two days
+rather than trusting them, which costs nothing.
 
 **The shard being appended to is the only one whose size matters.** Git cannot delta
-parquet: a commit stores every byte of whatever file changed, so the cost of recording one
-hour is the size of the shard that hour lands in. Sharding by year looks like it solves
-this and does not, because the live year's shard grows all year — the annual bill is not
-365 daily deltas but 183 times one complete year, 955 MiB to record the 5.2 MiB of bars a
-year actually contains. Settled years therefore keep one shard each and the live year is
-split by month, which divides that by twelve and costs nothing elsewhere: an instrument
-holds a couple of dozen yearly shards plus twelve monthly ones, so a load still opens a few
-dozen files rather than a few hundred. Which year is live is read off the data, not the
-clock — the newest year present is the one being appended to — so the first write of
-January folds the previous year's months back into one shard with no calendar branch to get
-wrong once a year.
+parquet, so recording one hour costs the size of the shard it lands in. Sharding by year
+does not fix it — the live year's shard grows all year, making the annual bill 183 times
+one complete year: 955 MiB to record 5.2 MiB of bars. Settled years keep one shard each and
+the live year is split by month. Which year is live is read off the data, not the clock.
 
-**A day is not a unit of completeness.** Gap detection asks about hours, not days: a day
-present with three of its seven hours is a hole the calendar can see and a day-level check
-cannot.
+**A day is not a unit of completeness.** Gap detection asks about hours: a day present with
+three of its seven hours is a hole a day-level check cannot see.
 
-**One provider per instrument, chosen by measurement.** Each candidate was compared
-against the stored bars hour by hour, in basis points, with one sigma of an hourly move
-(20–40 bps for these instruments) as the yardstick. A feed that disagrees by a few basis
-points on a thin fund is not a cheaper feed — it is a source of alerts for moves that did
-not happen. `docs/architecture.md` has the resulting split.
+**One provider per instrument, chosen by measurement.** Each candidate was compared against
+the stored bars hour by hour in basis points, against one sigma of an hourly move (20-40
+bps). A feed disagreeing by a few basis points on a thin fund is not a cheaper feed — it is
+a source of alerts for moves that did not happen.
 
 ---
 
 ## The shape of the repository
 
-**Derived data is not tracked.** Metrics, residuals and the event table are several
-hundred megabytes rewritten in full on every run, and they rebuild from the bars in about
-two minutes — which the hourly job does anyway.
+**Derived data is not tracked.** Metrics, residuals and the event table are several hundred
+megabytes rewritten every run and rebuild from the bars in about two minutes, which the
+hourly job does anyway.
 
-**Bars and the tables that delta well commit once a day, not hourly.** Appending to
-Parquet leaves the earlier row groups byte-identical, so a day of new bars across all
-files costs about 1 MB. Hourly commits would be twenty-four times that for the same
-information.
+**Bars commit once a day, not hourly.** Appending to Parquet leaves earlier row groups
+byte-identical, so a day of new bars costs about 1 MB; hourly commits would be twenty-four
+times that for the same information.
 
-**Two stores, not one.** Parquet for the columnar history, JSON for state where a
-whole-file rewrite is the point. Nothing here needs a server.
+**Two stores, not one.** Parquet for columnar history, JSON for state where a whole-file
+rewrite is the point. Nothing here needs a server.
+
+---
+
+## Settled and closed
+
+Raised, dealt with, and not to be raised again.
+
+- **Retention as a gate** — refused. Gating buys silence for as long as the answer takes.
+- **A watchdog for the trigger's silence** — not this repository's job. cron-job.org makes
+  the call, so it is the party that knows the call stopped; anything inside the run shares
+  a failure mode with the run.
+- **`price_monitor/fxcm.py`** — deleted. Covered seven of eight pairs and spliced history
+  blind where Dukascopy gates on a measured overlap.
+- **`tremor/volume.py` and the `v_r` column** — deleted. Computed in every metrics build
+  and read by nothing.
+- **The gap channel, `r_gap` and `gap_masked`** — deleted, with the `load_actions()` lookup
+  that existed only to feed the flag. The split stays; keeping the discarded half did not.
+- **VIX refetched from 1990 every run** — fixed. The stored parquet is read first.
+- **FX fetched into a closed market** — fixed. The skip guard takes its expectation from
+  the same session walk the bar loop uses.
+- **Health messages in the product channel** — fixed. `TELEGRAM_HEALTH_CHAT_ID`.
+- **`data/tremor/evaluation.md` and its entry point** — deleted. It scored the SI-Index
+  cluster channel, not the delivered detector, against a forecasting label neither claims
+  to answer. The episode and cooldown helpers in `tremor/evaluate.py` stay as a library
+  the tests pin, not as a live path: `saed_score` carries its own episode helper.
+- **`schema/event_export.schema.json`** — deleted, with its `jsonschema` dependency.
+  Nothing produced the export and no test validated it, despite a comment saying one did.
+- **299 citations of the deleted specification** — removed across 46 files.
+- **Run health measured by a throwaway script** — replaced by `tools/run_health.py`, which
+  counts hourly slots with no successful run rather than failed runs, because an outage
+  produces none of the latter.

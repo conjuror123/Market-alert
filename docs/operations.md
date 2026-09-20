@@ -1,5 +1,11 @@
 # Running it
 
+> **Holds** how to run it: the trigger, quotas, what is committed when, and what to do
+> when it breaks.
+> **Does not hold** how it works (`architecture.md`) or why (`decisions.md`).
+> **Keep it current.** Every number here is a live operational fact; a stale one sends
+> somebody the wrong way at the worst moment.
+
 What the live system does, what it costs, and what to look at when something is wrong.
 
 ---
@@ -44,9 +50,9 @@ guard working, not a fault.
 | **Coinbase** | no key | 9 crypto |
 | **Twelve Data** | 800/day, 8/min | archive, gap-fill, deepening — not the hourly path |
 | GitHub Actions minutes | unlimited (public repo) | — |
-| Repository size | 1 GB warning, ~5 GB cutoff | ~730 MB |
+| Repository size | 1 GB warning, ~5 GB cutoff | 565 MiB packed |
 
-Tiingo's hourly bucket is the binding live limit. The 44 US-session funds skip when the
+Tiingo's hourly bucket is the binding live limit. The 29 US-session funds skip when the
 NYSE calendar says no bar can have appeared since the newest stored one; the 8 FX pairs
 skip when the Sun 17:00 → Fri 17:00 New York week is shut
 (`tremor.backfill.nothing_can_have_appeared`). Crypto is never skipped.

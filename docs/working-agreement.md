@@ -1,5 +1,12 @@
 # Working agreement
 
+> **Holds** the rules an agent works under here: boundaries, scope, what cannot be
+> self-reported.
+> **Does not hold** anything about the system itself — that is `CLAUDE.md` and the
+> documents it maps.
+> **Add a rule when** a way of working has gone wrong and the fix is a habit rather than
+> a code change.
+
 Rules for anyone — person or agent — changing this repository. `CLAUDE.md` is the shorter
 orientation; this is what you work under.
 
@@ -77,25 +84,23 @@ hit or a stage was skipped, say so in the same breath as the result.
 exactly one place — the digest slot, because the reader reads it locally — and is resolved
 through `ZoneInfo` so it tracks daylight saving.
 
-**Rolling windows end before the bar being judged.** Every one of them. A full-sample fit
-labels a 2016 move with the knowledge that 2020 was coming, and the backtest then flatters
-a system nobody can run.
+**Never let a window see past the bar it judges** (invariant 2). A full-sample fit labels
+a 2016 move knowing 2020 is coming, and the backtest then flatters a system nobody can
+run. This is the easiest rule to break by accident and the hardest to notice afterwards.
 
 ---
 
 ## Consistency across a change
 
-**The pipeline order is load-bearing.** `saed` reads what `pipeline` wrote; `floor` edits
-the yaml before `saed` scores the hour and answers after it; delivery reads the events
-table off disk and so runs last. Running a stage alone can leave the next one reading
-yesterday.
+The invariants themselves are in `CLAUDE.md` and are not repeated here. What belongs here
+is what to *do* about them.
 
-**A change to a formula moves `config_version`,** and `pipeline` then rebuilds cold
-instead of extending. The first run after such a change is slow by design. Re-run the
-sequence before committing and check the diff is what you expect.
+**Run the whole sequence, not one stage** (invariant: the order is load-bearing). Running
+a stage alone can leave the next one reading yesterday.
 
-**Tables are written through a temp file and `os.replace`** (`tremor/atomic.py`). A killed
-run must not truncate a table in place.
+**After a formula change, expect a cold rebuild and check it** (invariant 10). The first
+run is slow by design; re-run the sequence before committing and confirm the diff is what
+you expected rather than assuming it.
 
 **Tests are the guard on anything that must be identical.** A rewrite claiming to be exact
 should be checked against the implementation it replaces, on real data, not asserted in a

@@ -1,35 +1,37 @@
 # Market Alert
 
-Once an hour the bot looks at a basket of sixty instruments — equities, credit,
-rates, precious and industrial metals, energy, agriculture, FX and crypto — and
-writes to Telegram when one of them moves in a way that is unusual **for that
-instrument**.
+> **Holds** what this is, how to set it up, and how to turn it up or down.
+> **Does not hold** how it works (`docs/architecture.md`), why (`docs/decisions.md`),
+> or how to run it (`docs/operations.md`).
+> **Keep it short.** A visitor should be able to read the whole thing.
 
-That last part is the whole design. A 1.5% hour is nothing in SOL and a
-once-a-year event in short Treasuries, so a single percentage threshold shared
-across a basket says almost nothing. Each instrument is measured against its own
-history, and what comes out is a return period — "the biggest move in about six
-years" — which means the same thing everywhere and needs no calibration intuition
-to read.
+Once an hour the bot looks at 61 instruments — equities, credit, rates, precious and
+industrial metals, energy, agriculture, FX and crypto — and writes to Telegram when one
+of them moves in a way that is unusual **for that instrument**.
 
-Measured over 23 years of hourly history (2.9M bars, cold pass on the current code):
+That last part is the whole design. A 1.5% hour is nothing in SOL and enormous in short
+Treasuries, so one percentage threshold shared across a basket says almost nothing. Each
+instrument is measured against its own history, and the message is a date: *the biggest
+move since 3 March 2020*, which needs no calibration intuition to read.
+
+Measured over 23.3 years of hourly history, 2.9M bars, a cold pass on the current code:
 
 | | |
 |---|---|
-| pushes | 1,297 — about **56 a year**, on 35 interrupted days |
-| reached you | **97.2%** of the 216 hours that were unmistakably large for their own instrument; 6 silent |
-| false alarms | **0.008%** — 93 of 1.17M hours below their instrument's median move |
-| held up | **72%** of pushes still standing at the next close |
+| pushes | 1,100 — about **47 a year**, on 33 interrupted days |
+| reached you | **94.4%** of the 216 hours that were unmistakably large for their own instrument; 12 silent |
+| false alarms | **0.008%** — 98 of 1.17M hours below their instrument's median move |
+| held up | **74.6%** of pushes still standing at the next close |
 
-That rate is an OUTPUT, watched rather than aimed at. Nothing caps it, and the
-rungs are not tuned against it: they are tuned against what each word should mean
-for a single instrument, so the yearly total is whatever sixty instruments of that
-sensitivity happen to produce. Widening the basket raises it, and that is not a fault.
+That rate is an OUTPUT, watched rather than aimed at. Nothing caps it and the rungs are
+not tuned against it: they are tuned against what each word should mean for a single
+instrument, so the yearly total is whatever 61 instruments of that sensitivity happen to
+produce. Widening the basket raises it, and that is not a fault.
 
 It runs entirely on GitHub Actions. Nothing extra needs hosting.
 
-Working on the code? Start with `CLAUDE.md` — the pipeline order, the invariants and the
-map of these documents.
+**Working on the code?** Start with `CLAUDE.md` — the pipeline order, the invariants, and
+the map of these documents.
 
 ## Quick start
 
@@ -58,195 +60,6 @@ map of these documents.
 
 To check the setup without waiting for a signal: **Actions → Test Telegram
 Notification → Run workflow**.
-
-## Which instruments are tracked
-
-Sixty in the basket plus `DBC` (broad commodities) tracked outside it — 61 names in
-nine blocks. A block is the group an instrument is compared against: the detector
-removes what the block did before asking whether the instrument moved on its own.
-
-| Block | Instruments |
-|---|---|
-| FX | Euro / dollar, Dollar / yen, Pound / dollar, Australian dollar / dollar, New Zealand dollar / dollar, Dollar / franc, Dollar / Canadian dollar, Dollar / offshore yuan |
-| equity | The eleven GICS sector funds; S&P 500, Nasdaq 100, Russell 2000, developed markets ex-US, emerging markets |
-| rates | Treasuries 1-3y, 3-7y, 7-10y, 10-20y, 20+y, inflation-protected Treasuries, mortgage-backed securities |
-| credit | Investment-grade and high-yield corporates (two indices), EM dollar sovereigns, senior bank loans, preferred shares |
-| crypto | Bitcoin, Ethereum, Solana, Litecoin, Bitcoin Cash, Chainlink, Cardano, Dogecoin, Avalanche |
-| energy | WTI crude, Brent crude, gasoline, natural gas |
-| precious_metals | Gold, Silver, Platinum, Palladium |
-| industrial_metals | Base metals, Copper |
-| agriculture | Broad agriculture, Corn, Wheat, Soybeans |
-
-The list is `config/basket.yaml`, one entry per instrument with its source, provider,
-tick size and trading calendar. There are no per-instrument thresholds to set — the
-ladder is fitted from each instrument's own history, which is the point.
-
-**Adding one** means adding the entry and running `python -m tremor.backfill`. Three
-things to know first. A rung is the biggest move in its own lookback, so a new
-instrument can only claim one it has lived — silent at `extreme` until it is six years
-old, growing a rung at a time. The hourly providers are Tiingo, Yahoo and Coinbase;
-Twelve Data's 800/day is archive work. And for a US-listed fund that pays dividends,
-`python -m tremor.corporate_actions` needs rerunning: pre-2020 deepening unadjusts HF
-Data's consolidated tape against those ex-dates, and without them the check fails and
-the deepening is skipped rather than wrong.
-
-## How it decides
-
-**1. The return.** `r = ln(close / open)` — inside the hour. The overnight gap is a
-separate channel and deliberately excluded: a gap is not something the detector claims
-to see, and an ex-dividend drop lands there rather than in `r`.
-
-**2. Remove the market.** `r = alpha + beta·F + e`, a rolling regression on the
-instrument's own block factor, fitted on the previous 500 bars ending three bars before
-the one being judged. The residual `e` is what the block did not explain. The estimation
-gap keeps the move itself from leaking into the estimate of normal.
-
-**3. Standardise across the hour.** The residual is divided by the spread of *the other
-instruments'* standardised residuals that same hour — the BMP statistic, leave-one-out,
-so a genuine single-asset move cannot inflate the bar it is measured against.
-
-**4. Place it on the ladder.** A rung is literally the biggest move in its own lookback
-— nothing fitted, nothing extrapolated — so the claim "biggest in about three years" is
-exactly true of the archive rather than an estimate from a tail model.
-
-**5. Route it.** Four rungs — noticeable, high, major, extreme — each a multiple of the
-instrument's own long-run sigma, set per block. `major` and `extreme` interrupt; the other
-two collect in a digest. One event per instrument per trading day, and no more. Measured
-over the archive, one instrument reaches them about every 2 months, 6 months, 17 months
-and 2.9 years respectively; those are outputs, not targets, and the report card reads them
-out of the event table.
-
-Two channels ask different questions, on the same ladder:
-
-| channel | asks |
-|---|---|
-| **absolute** | was this simply a big move for this instrument |
-| **abnormal** | was it big *after* subtracting what its block did |
-
-Both run at block level too: did a whole sector move together, cleaned of the rest of
-the market. That is why "gold moved" and "everything moved, gold included" are
-different messages.
-
-## The hourly pass
-
-Six commands, in this order, and the order is load-bearing.
-
-```
-price_monitor.floor          apply any /floor command before anything is scored
-tremor.backfill              fetch new bars into data/tremor/bars/
-tremor.pipeline              per-instrument metrics: returns, volatility, quality gate
-tremor.saed                  residuals, the ladder, events, routing   <- the product
-price_monitor.floor --reply  answer /floor once this run has scored it
-price_monitor                deliver whatever is due to Telegram
-```
-
-Everything between the bars and the events is derived and gitignored; it rebuilds from the
-bars in about two minutes, which the job does anyway. `docs/architecture.md` explains what
-each step depends on.
-
-## Where the bars come from
-
-Chosen per instrument by measurement, not by preference — each candidate was compared
-against the stored bars hour by hour, in basis points, against a yardstick of 20-40 bps
-for one sigma of an hourly move. `docs/architecture.md` has the detail.
-
-| provider | names | why |
-|---|---|---|
-| Tiingo | 37 | 8 FX pairs + the funds whose single-exchange price matches the tape |
-| Yahoo | 15 | the thin funds where one exchange is *not* the same price |
-| Coinbase | 9 | crypto |
-| Twelve Data | — | archive, gap-fill, deepening. Not on the hourly path |
-
-In `config/basket.yaml`, `source` names the store — the asset id and the file on disk
-are built from it, so it never changes when the fetch moves. `provider` is who is asked,
-and that can change freely.
-
-## The repository
-
-```
-config/basket.yaml         basket composition: 61 names, 9 blocks, tiers, price steps,
-                           per-instrument and per-block size floors
-
-Data in
-tremor/bars.py             the hourly bar store, Parquet sharded by year
-tremor/backfill.py         fetch and merge from every source, session-aware skipping
-tremor/sessions.py         the NYSE calendar and the basket's reference week
-tremor/corporate_actions.py  ex-dates and splits, from Tiingo's declared amounts
-tremor/cboe.py, fred.py, vix.py   the daily VIX series
-tremor/quality.py          the bar quality gate, tick resolvability
-tremor/audit.py            the data coverage table
-
-Per instrument
-tremor/returns.py          returns, the gap channel, winsorization
-tremor/zscore.py           the out-of-sample adaptive EWMA Z-score
-tremor/pipeline.py         assembles the above into per-instrument metrics
-
-The detector
-tremor/cross_section.py    quorum, the leave-one-out block factor, dispersion
-tremor/residuals.py        the market model on the block factor
-tremor/severity.py         the rarity ladder: a rung is the biggest move in its lookback
-tremor/saed.py             events, the once-a-day rule, the gates
-tremor/persistence.py      did the move hold at the next close
-tremor/routing.py          channel and digest slot
-tremor/blocks.py           block-level events
-
-Bookkeeping
-tremor/versioning.py       config_version and run_version; hashes the parsed code
-tremor/windows.py          every window and constant, in one file
-tremor/atomic.py           write-through-temp-file, so a killed run cannot truncate
-tremor/evaluate.py, saed_score.py   after-the-fact scoring
-tremor/feedback.py         recorded verdicts
-
-Delivery — price_monitor/
-tremor_delivery.py         renders and sends; decides nothing, routing is already stamped
-floor.py                   the /floor command: reads Telegram, edits basket.yaml
-follow_up.py               the check-ins that edit a push already sent
-weekly_digest.py           the economic-calendar forecast, Saturday
-health.py, notifier.py     failure reporting
-tiingo.py, yahoo.py, coinbase.py, twelvedata.py, dukascopy.py, hfdata.py
-                           the source clients tremor.backfill fetches through
-
-data/tremor/bars/                  hourly bars, one Parquet per instrument per year  TRACKED
-data/tremor/corporate_actions.csv  ex-dates and splits                               TRACKED
-data/tremor/sessions/              the NYSE schedule                                 TRACKED
-data/tremor/vix/                   the daily VIX series                              TRACKED
-data/tremor/metrics/, residuals/   gitignored — rebuilt from the bars in ~2 minutes
-data/tremor/saed_events.parquet    gitignored — Parquet git cannot delta
-
-CLAUDE.md                  orientation for an agent: the pass, the invariants, the map
-docs/architecture.md       how it works, the hourly pass in order
-docs/decisions.md          why, with the measurement that settled each choice
-docs/operations.md         running it, quotas, what breaks and how you would know
-docs/working-agreement.md  the rules an agent changing this repository works under
-```
-
-## Running locally
-
-```bash
-pip install -r requirements-dev.txt
-export TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=...
-export TIINGO_API_KEY=...      # hourly bars
-export TWELVEDATA_API_KEY=...  # archive / gap-fill / deepening
-export FRED_API_KEY=...        # the VIX series only
-
-python -m tremor.backfill            # fetch new bars
-python -m tremor.pipeline            # per-instrument metrics
-python -m tremor.saed                # events
-python -m price_monitor              # deliver whatever is due
-```
-
-Occasional maintenance, not part of the hourly run:
-
-```bash
-python -m tremor.audit               # the coverage table
-python -m tremor.sessions            # regenerate the NYSE schedule
-python -m tremor.corporate_actions   # rebuild the ex-dividend / split table
-python -m tremor.evaluate            # score the detector (refuses to overwrite
-                                     # the tracked report without --force)
-python -m price_monitor.economic_calendar --rebuild
-```
-
-Tests: `pytest -q`.
 
 ## Turning it up or down
 
@@ -289,16 +102,12 @@ have, and cannot point at one that never came. So the system errs loud and is tu
 down from recorded judgements, rather than erring quiet and never learning what it
 swallowed.
 
-## Limitations
+## Where to look next
 
-- **The ladder cannot claim a return period longer than its history.** A newly added
-  instrument says "biggest in a quarter" for years before it can say "biggest in six",
-  and says nothing at all for the first two. Five instruments cannot reach the top rung
-  today for that reason; thirteen stop at 2020 on a provider plan limit.
-- **Tiingo's hourly bucket is the binding live limit** — 50 requests an hour against 37
-  instruments. US-session names skip when the NYSE calendar says no bar can have
-  appeared; FX skips when the Sun 17:00 → Fri 17:00 New York week is shut.
-- **Yahoo is an undocumented endpoint.** No SLA; it can change shape without notice.
-  That is why the funds are split across two providers rather than sent to one.
-- **It does not predict, and does not claim to.** Every number is about a move that
-  already happened; the tier says how unusual it was, not what comes next.
+| you want | read |
+|---|---|
+| how a bar becomes a message | `docs/architecture.md` |
+| why it is built this way | `docs/decisions.md` |
+| quotas, failure modes, what is committed when | `docs/operations.md` |
+| what is known and deliberately not being worked on | `docs/concerns-for-later.md` |
+| which instruments, in which blocks | `config/basket.yaml` — the source of truth |

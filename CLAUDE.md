@@ -1,5 +1,11 @@
 # Tremor — orientation for an agent
 
+> **Holds** what an agent needs in the first minute: the command order, the invariants,
+> the map, and how to run the tests. It is loaded automatically, so it stays short.
+> **Does not hold** anything explained elsewhere. It is the canonical copy of the hourly
+> pass and of local setup; everything else here is a pointer.
+> **Add to it only** what would cause a wrong change if it were not known immediately.
+
 An hourly Telegram bot. It watches 61 market instruments and writes when one moves
 unusually **for itself**, measured against its own history rather than a shared
 percentage. It runs entirely on GitHub Actions.
@@ -8,13 +14,13 @@ Read this file first, then the one doc that covers your task:
 
 | you need | read |
 |---|---|
-| what it does, how to run it, how to tune it | `README.md` |
+| what it does, how to set it up, how to tune it | `README.md` |
 | how a bar becomes a message, module by module | `docs/architecture.md` |
 | why it is built this way, and what not to re-litigate | `docs/decisions.md` |
 | quotas, failure modes, what is committed when | `docs/operations.md` |
 | the rules you work under here | `docs/working-agreement.md` |
 | what is known, open, and deliberately not being worked on | `docs/concerns-for-later.md` |
-| what was open and is not any more | `docs/completed-work.md` |
+| which instruments, in which blocks | `config/basket.yaml` — the source of truth |
 
 ## The hourly pass
 

@@ -1,11 +1,19 @@
 # Concerns for later
 
-Things that are known, measured where possible, and deliberately not being worked on
-yet. Nothing here is a bug in the sense of producing a wrong message today. They are
-listed so that nobody has to rediscover them, and so that a decision to leave them alone
-stays a decision rather than an oversight.
+> **Holds** what is known, measured where possible, and deliberately not being worked on.
+> **Does not hold** settled questions (`decisions.md`) or operational limits that are
+> simply how it works (`operations.md`).
+> **Add an entry when** something is found and left alone. Say what it is, what it costs,
+> and what acting on it would mean — so that leaving it stays a decision rather than an
+> oversight.
 
-`docs/decisions.md` holds settled questions. This file holds unsettled ones.
+Nothing here is a bug in the sense of producing a wrong message today.
+
+**Two standing limits that will not change.** It does not predict, and does not claim to:
+every number is about a move that already happened, and the tier says how unusual it was,
+not what comes next. And the ladder cannot claim a return period longer than an
+instrument's own history — a newly added name says "biggest in a quarter" for years before
+it can say "biggest in six", and nothing at all for the first two.
 
 ---
 
@@ -16,10 +24,9 @@ none before 2022-08-01. Everything else reaches 2002–2007, and the currency pa
 2003.
 
 The wall is a provider plan limit, not a bug. The consequence is that those instruments
-are **quieter than the rest by design**: a rung is the biggest move in its own lookback,
-so an instrument with six years of history cannot say "the biggest since 2008", and for
-its first two years it says nothing at all. Five instruments cannot reach the top rung
-today for this reason.
+are **quieter than the rest by design**: an instrument with six years of history cannot
+say "the biggest since 2008". **Five instruments cannot reach the top rung at all today**
+for this reason.
 
 XLP at 2022-08-01 is separate and unexplained — 7,246 bars against XLK's 11,572, from the
 same provider on the same plan. Nothing in the repository accounts for the difference.
@@ -52,7 +59,7 @@ instrument is assigned to the feed that was shown to price *it* correctly:
 | provider | instruments | what it is |
 |---|---|---|
 | `tiingo` | 37 | IEX — a single exchange |
-| `yahoo` | 15 | a consolidated feed, undocumented |
+| `yahoo` | 15 | a consolidated feed — an undocumented endpoint with no SLA, which can change shape without notice. That is why the funds are split across two providers rather than sent to one |
 | `coinbase` | 9 | the exchange itself, for crypto |
 
 **Why the assignment needed measuring at all.** IEX is one exchange holding roughly 5.5%
@@ -124,10 +131,8 @@ reaches the phone.
 ## 6. Comments and prose that have drifted
 
 Small, cosmetic, and worth a pass rather than a project. Nothing specific is currently
-listed here — the prose drift that was on this list (the rungs described as return
-periods, and `severity.py` announcing a table of calendar days above a table of sigma
-multiples) turned out to be one substantive error rather than a cosmetic one, and is in
-`docs/completed-work.md`.
+listed here — the prose drift that was on this list turned out to be one substantive
+error rather than a cosmetic one, and is closed in `docs/decisions.md`.
 
 The standing rule is the useful part: **a comment that describes a mechanism is a claim,
 and claims go stale silently.** Prose that merely reads awkwardly can wait. Prose that

@@ -1,52 +1,47 @@
 # How Tremor works
 
-Sixty instruments in the basket plus `DBC` tracked outside it (61 names), one hourly
-pass, and a message only when one of them moves unusually **for itself**. This is what
-runs, in what order, and why each piece exists. For the reasoning behind the choices, see
-`decisions.md`; for running it, `operations.md`.
+> **Holds** how a bar becomes a message: the mechanism, the modules, the data layout.
+> **Does not hold** why a choice was made (`decisions.md`), how to run it
+> (`operations.md`), or the command order (`CLAUDE.md`, which is canonical).
+> **Describe what runs.** If a paragraph argues for something, it belongs in
+> `decisions.md`.
+
+61 instruments — 60 in the basket plus `DBC` tracked outside it — one hourly pass, and a
+message only when one of them moves unusually **for itself**. This is what runs and what
+each piece does.
 
 ---
 
 ## The idea
 
-A 1.5% hour is nothing in Solana and a once-a-year event in short Treasuries, so a single
+A 1.5% hour is nothing in Solana and enormous in short Treasuries, so a single
 percentage threshold across a basket says almost nothing. Every instrument is measured
-against **its own history**, and the result is a **return period** — "the biggest move in
-about three years" — which means the same thing everywhere. Before asking how unusual a
-move is, the system subtracts what the instrument's block did, so that "gold moved" and
-"everything moved, gold included" are different messages.
+against **its own history**, and the message carries a date — *the biggest move since 3
+March 2020* — which means the same thing everywhere. Before asking how unusual a move is,
+the system subtracts what the instrument's block did, so that "gold moved" and "everything
+moved, gold included" are different messages.
 
 ---
 
 ## The hourly pass
 
-Six commands, and the order is load-bearing.
+**Six commands, and the order is load-bearing — `CLAUDE.md` lists them and is the only
+copy.** It is there rather than here because an agent is handed that file automatically,
+and a second copy of a load-bearing order is a second copy that can drift.
 
-```
-price_monitor.floor          apply any /floor command before anything is scored
-tremor.backfill              fetch new bars from the sources into data/tremor/bars/
-tremor.pipeline              per-instrument metrics: returns, volatility, quality gate
-tremor.saed                  residuals, the ladder, events, routing   <- the product
-price_monitor.floor --reply  answer /floor now this run has scored it
-price_monitor                deliver whatever is due to Telegram
-```
-
-`saed` reads what `pipeline` wrote and builds its cross-section in memory — which is why
-`cross_section` is a module and not a step. `floor` runs twice: the yaml edit has to land
-before `saed` scores the hour, and the reply has to wait until after it, because the
-events table it counts from is gitignored and this run writes it. `price_monitor` is last
-because delivery reads `saed_events.parquet` off disk.
-
-Everything between the bars and the events is derived and gitignored; it rebuilds from the
-bars in about two minutes.
+What matters for reading the rest of this document: `saed` reads what `pipeline` wrote and
+builds its cross-section in memory, which is why `cross_section` is a module and not a
+step. Everything between the bars and the events is derived and gitignored; it rebuilds
+from the bars in about two minutes.
 
 ---
 
 ## From a bar to a message
 
-**1. The return.** `r = ln(close / open)`, inside the hour. The overnight gap is a
-separate channel and deliberately excluded: a gap is not something the detector claims to
-see, and an ex-dividend drop lands there rather than in `r`.
+**1. The return.** Inside the hour. The first bar of a session is measured from its own
+open, `r = ln(close / open)`; every other bar is close to close. So the overnight jump is
+not a return at all — a gap is not something the detector claims to see, and an
+ex-dividend drop falls in the jump rather than in `r`.
 
 **2. Remove the block.** `r = alpha + beta·F + e`, a rolling 500-bar regression on the
 instrument's own block factor, ending three bars before the bar being judged. The residual
@@ -150,7 +145,8 @@ skipping) · `sessions` (NYSE calendar and the FX reference week) · `corporate_
 (write through a temp file, so a killed run cannot truncate a table in place)
 
 **Per instrument**
-`returns` (returns, gap channel, winsorization) · `zscore` (adaptive EWMA) · `pipeline`
+`returns` (returns, winsorization) · `ewma` (the long-run sigma, exponentially weighted
+over a bounded window) · `zscore` (adaptive EWMA) · `pipeline`
 (assembles the above, extending stored metrics rather than rebuilding them, and
 re-scoring the last two days in case a bar has been completed or corrected since)
 
