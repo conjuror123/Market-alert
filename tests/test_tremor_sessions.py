@@ -289,3 +289,29 @@ def test_next_close_after_is_the_end_of_the_following_session():
     assert datetime.fromtimestamp(next_close_after(hour, "us_equity", table),
                                   tz=timezone.utc) == datetime(
         2026, 9, 9, 20, 0, tzinfo=timezone.utc)
+
+
+# --- is that day over? ------------------------------------------------------
+
+def test_a_day_is_closed_only_on_its_last_bar():
+    # What decides whether a close reading may be taken at all. A store ends
+    # with the hour the run is standing in, so asking this of the newest bar is
+    # asking whether the newest day is finished.
+    friday = int(datetime(2026, 9, 4, 23, tzinfo=timezone.utc).timestamp())
+    assert sessions.day_is_closed(friday, "crypto_24_7")
+    assert not sessions.day_is_closed(friday - 3600, "crypto_24_7")
+
+
+def test_an_exchange_day_is_closed_on_its_last_session_bar():
+    table = sessions.cached_sessions()
+    # 15:00 New York is the last bar of an ordinary session; 14:00 is not.
+    last = int(datetime(2026, 9, 4, 19, tzinfo=timezone.utc).timestamp())
+    assert sessions.day_is_closed(last, "us_equity", table)
+    assert not sessions.day_is_closed(last - 3600, "us_equity", table)
+
+
+def test_no_calendar_means_no_day_can_be_called_closed():
+    # The safe direction: a check-in shown as still due is recoverable, a number
+    # the reader believes is not.
+    last = int(datetime(2026, 9, 4, 19, tzinfo=timezone.utc).timestamp())
+    assert not sessions.day_is_closed(last, "us_equity", {})

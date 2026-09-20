@@ -159,8 +159,36 @@ def frames(basket: Basket, panel: pd.DataFrame,
                                   ladder=severity.BLOCK_OWN)
         frame["basis"] = pd.Series(BLOCK_BASIS, index=frame.index,
                                    dtype="string").where(frame["tier"].notna())
-        out[block] = persistence.annotate(frame, _day_tz(basket, columns))
+        out[block] = persistence.annotate(frame, _day_tz(basket, columns),
+                                          _last_day_closed(basket, columns, frame))
     return out
+
+
+def _last_day_closed(basket: Basket, columns: "list[str]",
+                     frame: pd.DataFrame) -> bool:
+    """Whether a block's newest day has finished, on its members' calendar.
+
+    A block is not an instrument and has no session table of its own, so the
+    question is asked of the template its members share - the same one _day_tz
+    reads the block's day off. Where they do not share one, or the calendar
+    cannot answer, the block's newest day is treated as open: a block row's
+    check-in then reads as due, which is what it is.
+    """
+    templates = {a.session_template for a in basket.assets
+                 if a.asset_id in columns}
+    if len(templates) != 1 or frame.empty:
+        return False
+    template = templates.pop()
+    table = None
+    if template == "us_equity":
+        try:
+            table = sessions.cached_sessions()
+        except Exception:                        # pragma: no cover - defensive
+            return False
+    try:
+        return sessions.day_is_closed(int(frame["hour_utc"].max()), template, table)
+    except ValueError:                           # pragma: no cover - defensive
+        return False
 
 
 def _day_tz(basket: Basket, columns: "list[str]") -> "str | None":

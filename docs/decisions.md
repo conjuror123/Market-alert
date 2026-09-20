@@ -148,6 +148,25 @@ arrives six hours late is a worse product than one that arrives now — so the m
 at once and is edited in place at this day's close and the next day's close with how the
 move actually held. Retention decides what the message *says*, not whether it is sent.
 
+**A close reading waits for the close.** Retention is the move divided into what the
+move had become by a named moment, and "this day's close" is the last bar the
+instrument trades that day. That last bar was read off the bars present, which is
+right for every day in the archive and wrong for the one the run is standing in: a
+live store always ends mid-day, so the newest day's "close" was whatever hour had
+just been fetched. AVAX-USD fell 5.84% at 01:00 UTC on a Sunday and the note said
+"this day's close - still there" at 03:06, of a day with twenty-one hours left in it.
+The frame cannot tell a finished day from a three-hour-old one - only the trading
+calendar can - so `sessions.day_is_closed` is asked, and `persistence` refuses both
+readings until it says yes. It defaults to refusing. The cost is that the settled
+reading also waits for its day to end rather than for the next bar after it, which is
+the same guarantee said twice.
+
+**A line about the calendar is not a check-in.** A move made in its instrument's
+closing hour has no day left to hold through, so its today-close ratio is one by
+construction. That was printed as "this day's close - the move was in the closing
+hour", which answers a question the reader did not ask in the place they look for how
+the move did. The line is now omitted; the settled check-in carries the story.
+
 **The system does not count its own alerts.** There is no weekly cap. A detector that
 goes quiet on the third alert of the week answers a question about the reader's patience
 with an instrument's price history, and it fails adversarially: the week the franc is

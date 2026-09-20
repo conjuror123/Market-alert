@@ -117,20 +117,37 @@ def day_codes(frame: pd.DataFrame, tz_name: str | None = None) -> np.ndarray:
     return codes
 
 
-def today_close_offsets(frame: pd.DataFrame, tz_name: str | None = None) -> np.ndarray:
+def today_close_offsets(frame: pd.DataFrame, tz_name: str | None = None,
+                        last_day_closed: bool = False) -> np.ndarray:
     """Bars from each bar to the LAST bar of its own day.
 
     Zero on the closing bar itself, which is not a failure: a move made in the
     last hour of the day has nothing left of that day to hold through, and the
-    message says so rather than reporting a ratio of one and calling it news.
+    message leaves the line out rather than reporting a ratio of one.
+
+    `last_day_closed` IS NOT OPTIONAL INFORMATION, which is why it defaults to
+    the cautious answer. The last bar of each day is read off the bars present,
+    and for the newest day in a live store that is simply the hour the run is
+    standing in - so a move found at 01:00 was being measured against 03:00 and
+    the answer written under "this day's close" while the day had twenty-one
+    hours left in it. Nothing in the frame can tell the two apart: a complete
+    day and a day three hours old look identical from here. The caller knows,
+    because the caller has the trading calendar (see sessions.day_is_closed).
+
+    -1 where the day is still open, which is the same "no answer yet" the last
+    day of history has always given the settled reading.
     """
     if frame.empty:
         return np.zeros(0, dtype="int64")
     codes, last = _day_bounds(frame, tz_name)
-    return last[codes] - np.arange(len(codes), dtype="int64")
+    out = last[codes] - np.arange(len(codes), dtype="int64")
+    if not last_day_closed:
+        out = np.where(codes == len(last) - 1, -1, out)
+    return out
 
 
-def next_close_offsets(frame: pd.DataFrame, tz_name: str | None = None) -> np.ndarray:
+def next_close_offsets(frame: pd.DataFrame, tz_name: str | None = None,
+                       last_day_closed: bool = False) -> np.ndarray:
     """Bars from each bar to the LAST bar of the next day the instrument trades.
 
     "Next day" is the exchange's local day where there is an authoritative
@@ -140,7 +157,9 @@ def next_close_offsets(frame: pd.DataFrame, tz_name: str | None = None) -> np.nd
     weekend simply is not a day: the next one is whatever traded next.
 
     The final day of history gets -1, meaning no answer yet, which is the same
-    thing the fixed-horizon path says by running off the end of the array.
+    thing the fixed-horizon path says by running off the end of the array. So
+    does the day before it while the final day is still open: its close is the
+    reading being asked for, and a day that has not finished has not got one.
     """
     if frame.empty:
         return np.zeros(0, dtype="int64")
@@ -148,7 +167,7 @@ def next_close_offsets(frame: pd.DataFrame, tz_name: str | None = None) -> np.nd
     positions = np.arange(len(codes), dtype="int64")
     out = np.full(len(codes), -1, dtype="int64")
     following = codes + 1
-    known = following < len(last)
+    known = following < (len(last) if last_day_closed else len(last) - 1)
     out[known] = last[following[known]] - positions[known]
     return out
 
@@ -167,7 +186,8 @@ def forward_car_variable(abnormal: np.ndarray, offsets: np.ndarray) -> np.ndarra
 
 
 def retention(frame: pd.DataFrame, horizon, column: str = "e_resid",
-              tz_name: str | None = None) -> pd.Series:
+              tz_name: str | None = None,
+              last_day_closed: bool = False) -> pd.Series:
     """The share of the bar's move still standing `horizon` bars later.
 
     Undefined where the move being divided by is too small to be a move. That
@@ -176,10 +196,8 @@ def retention(frame: pd.DataFrame, horizon, column: str = "e_resid",
     dividing by it would report a retention of forty rather than a reversal.
     """
     values = frame[column].to_numpy(dtype="float64")
-    if horizon == SETTLED:
-        car = forward_car_variable(values, next_close_offsets(frame, tz_name))
-    else:
-        car = forward_car_variable(values, today_close_offsets(frame, tz_name))
+    offsets = next_close_offsets if horizon == SETTLED else today_close_offsets
+    car = forward_car_variable(values, offsets(frame, tz_name, last_day_closed))
     floor = MIN_DENOMINATOR_SIGMAS * frame["sigma_lt_resid"].to_numpy(dtype="float64") \
         if "sigma_lt_resid" in frame else np.zeros(values.size)
     usable = np.isfinite(values) & (np.abs(values) > np.maximum(floor, 1e-12))
@@ -188,18 +206,26 @@ def retention(frame: pd.DataFrame, horizon, column: str = "e_resid",
                      index=frame.index)
 
 
-def annotate(frame: pd.DataFrame, tz_name: str | None = None) -> pd.DataFrame:
+def annotate(frame: pd.DataFrame, tz_name: str | None = None,
+             last_day_closed: bool = False) -> pd.DataFrame:
     """Adds retention at every horizon, abnormal and raw, to one asset's frame.
 
     `tz_name` comes from sessions.day_tz, which is the only place that decides
     where an instrument's day ends. None - the default - is the round-the-clock
     answer, the UTC day.
+
+    `last_day_closed` comes from sessions.day_is_closed, and the default says
+    no: a frame is assumed to end in the middle of a day unless the caller can
+    show otherwise, because that is what a live store does every hour of the
+    day but one.
     """
     out = frame.copy()
     for horizon in HORIZONS:
-        out[f"retention_{horizon}"] = retention(frame, horizon, "e_resid", tz_name)
+        out[f"retention_{horizon}"] = retention(
+            frame, horizon, "e_resid", tz_name, last_day_closed)
         if "r" in frame:
-            out[f"retention_raw_{horizon}"] = retention(frame, horizon, "r", tz_name)
+            out[f"retention_raw_{horizon}"] = retention(
+                frame, horizon, "r", tz_name, last_day_closed)
     return out
 
 

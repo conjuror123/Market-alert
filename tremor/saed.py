@@ -23,6 +23,7 @@ run_version go on every row.
 """
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 
@@ -775,7 +776,16 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
     # with an authoritative calendar behind it.
     day_of = {a.asset_id: sessions.day_tz(a.session_template)
               for a in basket.instruments}
-    scored = {aid: persistence.annotate(frame, day_of.get(aid))
+    # And whether the newest day in each frame has finished, which only the
+    # calendar can say. The store ends with the hour this run is standing in, so
+    # for twenty-three hours out of twenty-four that day is half a day - and a
+    # close reading taken from it would divide by whatever bar happened to be
+    # newest and print the answer under "this day's close".
+    closed_of = {a.asset_id: _last_day_closed(scored.get(a.asset_id),
+                                              a.session_template)
+                 for a in basket.instruments}
+    scored = {aid: persistence.annotate(frame, day_of.get(aid),
+                                        closed_of.get(aid, False))
               for aid, frame in scored.items()}
 
     all_events: list[SaedEvent] = []
@@ -805,6 +815,31 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
     alerts = aggregate_block_alerts(
         events[~events["asset_id"].map(blocks.is_block)] if not events.empty else events)
     return link_alerts(events, alerts), alerts, scored
+
+
+def _last_day_closed(frame: "pd.DataFrame | None", template: str) -> bool:
+    """Whether a scored frame ends on the closing bar of its instrument's day.
+
+    False whenever the calendar cannot answer - no session table, a template it
+    does not know, an empty frame - because withholding a check-in shows it as
+    still due, and that is recoverable in a way that a published number is not.
+    """
+    if frame is None or frame.empty:
+        return False
+    table = None
+    if template == "us_equity":
+        try:
+            table = sessions.cached_sessions()
+        except Exception as exc:                 # pragma: no cover - defensive
+            logging.getLogger("tremor.saed").warning(
+                "No session table, so no day can be called closed: %s", exc)
+            return False
+    try:
+        return sessions.day_is_closed(int(frame["hour_utc"].max()), template, table)
+    except ValueError as exc:                    # pragma: no cover - defensive
+        logging.getLogger("tremor.saed").warning(
+            "Cannot tell whether %s's day has closed: %s", template, exc)
+        return False
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -572,3 +572,31 @@ def test_hourly_workflow_stays_warm_and_persists_the_archive():
     assert "actions/cache/save@v4" in hourly
     assert "python -m tremor.saed --full" in backfill
     assert "python -m tremor.pipeline --full" not in backfill
+
+
+# --- only a finished day may be read as a close -----------------------------
+
+def test_a_frame_ending_mid_day_is_not_a_closed_day():
+    # The gate that stops tremor.persistence reading a close off the newest bar
+    # in the store. The run fires at :05 and stores the hour it is standing in,
+    # so for twenty-three hours out of twenty-four the answer here is no.
+    hours = [int(datetime(2026, 9, 20, h, tzinfo=timezone.utc).timestamp())
+             for h in (0, 1, 2, 3)]
+    frame = pd.DataFrame({"hour_utc": hours})
+    assert not saed._last_day_closed(frame, "crypto_24_7")
+
+    frame = pd.DataFrame({"hour_utc": hours + [
+        int(datetime(2026, 9, 20, h, tzinfo=timezone.utc).timestamp())
+        for h in range(4, 24)]})
+    assert saed._last_day_closed(frame, "crypto_24_7")
+
+
+def test_an_empty_or_unreadable_frame_closes_no_day():
+    assert not saed._last_day_closed(None, "crypto_24_7")
+    assert not saed._last_day_closed(pd.DataFrame({"hour_utc": []}), "crypto_24_7")
+
+
+def test_a_template_the_calendar_does_not_know_closes_no_day():
+    hours = [int(datetime(2026, 9, 20, h, tzinfo=timezone.utc).timestamp())
+             for h in range(24)]
+    assert not saed._last_day_closed(pd.DataFrame({"hour_utc": hours}), "lunar")

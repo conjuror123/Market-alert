@@ -926,6 +926,20 @@ def test_only_one_date_line_and_it_is_the_exact_one():
     assert "similar move" not in text
 
 
+def test_an_unfinished_day_reads_as_an_appointment_not_an_answer():
+    # What the reader saw instead: AVAX-USD fell 5.84% in the 01:00 UTC hour of
+    # Sunday 20 September, and three hours later the note said "this day's close
+    # - still there" of a day with twenty-one hours left in it. The number came
+    # from tremor.persistence, which took the newest bar in the store for the
+    # day's last; with that fixed the column is empty here, and an empty column
+    # is what this line turns into an appointment.
+    avax = {"asset_id": "coinbase:AVAX-USD", "basis": "abnormal",
+            "hour_utc": int(datetime(2026, 9, 20, 1, tzinfo=timezone.utc).timestamp())}
+    now = datetime(2026, 9, 20, 3, 6, tzinfo=timezone.utc)
+    assert md.check_in_lines(avax, now=now)[0] == (
+        "\tthis day's close - coming at Sunday's close (00:00 UTC)")
+
+
 def test_a_move_in_the_closing_hour_gets_no_line_for_its_own_day():
     # 6% of moves are made in the last hour their instrument trades that day.
     # There is nothing left of the day to hold through, so the ratio is one by

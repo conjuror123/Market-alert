@@ -282,6 +282,24 @@ def today_close_after(hour_utc: int, template: str,
     return (later[-1] + HOUR) if later else None
 
 
+def day_is_closed(hour_utc: int, template: str,
+                  table: "dict[date, Session] | None" = None,
+                  tz_name: str = EXCHANGE_TZ) -> bool:
+    """Whether `hour_utc` is the LAST bar its instrument trades that day.
+
+    The question anything reading "at this day's close" has to answer first. A
+    store ends with the hour the run is standing in, so its newest day is
+    usually half a day - and a reading taken to the newest bar available is a
+    reading to nowhere in particular, whatever it is labelled.
+
+    False where the calendar cannot say, which is the safe direction: an answer
+    withheld is a check-in still shown as due, and an answer invented is a
+    number the reader believes.
+    """
+    close = today_close_after(hour_utc, template, table, tz_name)
+    return close is not None and close <= int(hour_utc) + HOUR
+
+
 def next_close_after(hour_utc: int, template: str,
                      table: "dict[date, Session] | None" = None,
                      tz_name: str = EXCHANGE_TZ) -> "int | None":
