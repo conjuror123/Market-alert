@@ -27,7 +27,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from tremor import windows, zscore
+from tremor import ewma, windows, zscore
 
 # Multiplier size and window length. Both starred in the spec.
 M_VIX = 1.3
@@ -60,9 +60,7 @@ def score(series: pd.DataFrame, window: int = windows.SIGMA_LT_MIN_BARS) -> pd.D
     """
     out = series.copy()
     out["r"] = np.log(out["close"] / out["close"].shift(1))
-    out["sigma_lt"] = (out["r"].shift(1)
-                       .rolling(windows.SIGMA_LT_BARS,
-                                min_periods=windows.SIGMA_LT_MIN_BARS).std(ddof=1))
+    out["sigma_lt"] = ewma.sigma_lt(out["r"])
 
     from tremor.returns import _rolling_mad
 

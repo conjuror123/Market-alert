@@ -167,8 +167,10 @@ construction. That was printed as "this day's close - the move was in the closin
 hour", which answers a question the reader did not ask in the place they look for how
 the move did. The line is now omitted; the settled check-in carries the story.
 
-**The sigma window is a dial, not an estimate, and 5,000 bars is far from any
-statistical optimum.** `tools/sigma_window.py` sweeps it per instrument against three
+**The sigma window is a dial, not an estimate, and its reach is far from any
+statistical optimum.** (The numbers below are for the 5,000-bar box this replaced;
+the exponential form that succeeded it is calibrated to the same behaviour, so they
+still describe where the dial sits.) `tools/sigma_window.py` sweeps it per instrument against three
 criteria. Scoring it as a *forecast* of the next bar's variance sends every instrument
 to the shortest window offered — a correct answer to the wrong question, since
 `sigma_eff` already is the fast estimator and `sigma_LT` is deliberately the slow one.
@@ -192,6 +194,35 @@ reverse. 5,000 sits above every window any accuracy criterion picks, which makes
 choice for the second property. That choice is the right one here (a detector that
 silences itself in a crash is the one failure this system will not accept) but it was
 never made: it was inherited from the deleted specification. It is made now.
+
+**The weights inside the window are exponential, not flat.** The reach is one
+question and the SHAPE is another, and only the first had ever been asked. A box says
+that a bar from two years ago describes today's normal exactly as well as this morning
+does, and that a bar an hour older describes it not at all. Neither is a claim anyone
+would make out loud, and the second is not harmless: the edge travels through the data,
+so a violent week falls out of the window on a particular day and the yardstick steps —
+16.8% on a twenty-sigma bar, measured. Exponential weights are the standard answer and
+have been since RiskMetrics quoted a decay rate instead of a window; Foster and Nelson
+(1996) and the rolling-sample literature after it find them dominating flat weights.
+
+Measured here at MATCHED loudness — so that the comparison is of shape and not of
+reach — the exponential form holds the multiple steadier from era to era on 82% of
+equity settings and 65% of crypto ones, cutting era drift 16% and 10%. FX is a wash
+(58%, 1%). The half-life that reproduces the old box's behaviour is 1,400 bars for
+equity, 2,000 for crypto and 3,000 for FX; 1,400 is taken for all three, as one number
+with a measurement behind it, and costs about 10% of the alert rate basket-wide. The
+rungs are left where they are: changing the estimator and the ladder in one step would
+leave neither measurable, and the rungs are a preference the reader owns.
+
+**It is still cut off, at six half-lives.** An unbounded EWMA depends on every bar ever
+recorded, and the hourly run reproduces a cold pass over the whole archive precisely
+because every quantity depends on a bounded stretch of the past. So the weights stop at
+`windows.SIGMA_LT_BARS`, the estimator is normalised by the weights it actually used —
+which makes the cut part of the definition rather than an error in it — and the bar at
+the edge carries a sixty-fourth of the newest one's weight instead of all of it. Six
+half-lives because that is where the measurement stops improving: at four the gain is a
+third of what it could be, at eight and twelve it is no better than at six. The warm
+window grows with it, 8,360 to 11,760 bars for an ETF.
 
 **Crypto's window is not extended to match the ETFs' calendar span**, though the case for
 it is real: volatility half-lives are ~97 days for crypto, 122 for equity and 134 for FX,

@@ -30,6 +30,9 @@ CONFIG_INPUTS = (
     os.path.join("tremor", "windows.py"),
     os.path.join("tremor", "zscore.py"),
     os.path.join("tremor", "returns.py"),
+    # The long-run sigma's estimator. Every tier is a multiple of what this
+    # returns, so its shape is as much a formula as the ladder's own.
+    os.path.join("tremor", "ewma.py"),
     os.path.join("tremor", "quality.py"),
     os.path.join("tremor", "residuals.py"),
     # Added late, and the omission was a real gap rather than a tidy-up:

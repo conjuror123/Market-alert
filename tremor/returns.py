@@ -28,7 +28,7 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 
-from tremor import windows
+from tremor import ewma, windows
 from tremor.basket import Asset
 
 HOUR = 3600
@@ -176,10 +176,9 @@ def winsorize(asset: Asset, frame: pd.DataFrame) -> pd.DataFrame:
     mad_24 = _rolling_mad(returns, windows.MAD_WINDOW)
 
     # sigma_LT is computed on data strictly before the current bar - the same
-    # out-of-sample discipline as everything else in §3.1.
-    sigma_lt = (returns.shift(1)
-                .rolling(windows.SIGMA_LT_BARS, min_periods=windows.SIGMA_LT_MIN_BARS)
-                .std(ddof=1))
+    # out-of-sample discipline as everything else in §3.1. The shift lives
+    # inside ewma.long_run_sigma, where it cannot be left out by a caller.
+    sigma_lt = ewma.sigma_lt(returns)
 
     half_tick_return = np.log1p(asset.tick_size / 2 / out["close"])
     # fmax, not maximum: while there are fewer than 720 bars of history sigma_LT

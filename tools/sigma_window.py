@@ -64,6 +64,23 @@ import pandas as pd
 GRID = (250, 400, 600, 720, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6500,
         8000, 10000, 13000, 16000, 20000, 25000)
 
+# Half-lives for the exponentially weighted estimator, in bars. A flat window
+# of N has a centre of mass at N/2; an exponential one with half-life h has its
+# at h/ln2, so h around 1,700 is the closest thing to today's 5,000-bar box.
+# The grid reaches either side of that.
+HALF_LIVES = (60, 120, 250, 400, 600, 900, 1400, 2000, 3000, 4500, 7000)
+
+# How far the exponential estimator reaches before it is cut off, in half-lives.
+# It has to be cut off somewhere: an untruncated EWMA depends on every bar ever
+# recorded, and the hourly run reproduces a cold pass precisely BECAUSE every
+# quantity depends on a bounded stretch of the past (windows.warm_bars). Four
+# half-lives leaves the oldest bar in the window one sixteenth of the newest
+# one's weight - an edge an eighth the height of the box window's, which drops
+# a bar carrying full weight - and the estimator is normalised by the weights
+# it actually used, so the cut is part of the definition rather than an error
+# in it.
+SPAN_HALF_LIVES = 4
+
 # 720 is the system's own floor (windows.SIGMA_LT_MIN_BARS), below which it
 # refuses to compute sigma at all. The grid reaches under it so that a
 # criterion wanting something shorter says so rather than piling up on the
@@ -104,6 +121,51 @@ def load(asset) -> "pd.DataFrame | None":
     return R.split_channels(asset, frame)
 
 
+def flat_sigma(returns: pd.Series, n: int) -> np.ndarray:
+    """Today's estimator: an equally weighted box over the last n bars."""
+    return (returns.shift(1).rolling(n, min_periods=n).std(ddof=1)
+                   .to_numpy(dtype="float64"))
+
+
+def exp_sigma(returns: pd.Series, half_life: int, span: int) -> np.ndarray:
+    """Exponentially weighted, in the shape RiskMetrics made standard.
+
+    sigma^2_t is a weighted mean of r^2 over the `span` bars before t, weights
+    halving every `half_life` bars. Squared returns rather than deviations from
+    a rolling mean: the mean of an hourly return is three orders of magnitude
+    below its standard deviation, so estimating it spends a degree of freedom
+    to subtract nothing. That is the RiskMetrics convention, and the reason a
+    decay rate is quoted there rather than a window.
+
+    Why this shape. A box window has an edge: a bar counts fully at 4,999 bars
+    old and not at all at 5,001, and every bar inside counts exactly as much as
+    yesterday's. Both are claims about the market that nobody would make out
+    loud. Foster and Nelson (1996), and the rolling-sample literature after it,
+    find exponential weights dominate flat ones for that reason.
+
+    Exact in O(n) through  S_t = x_{t-1} + lam*S_{t-1} - lam^span * x_{t-1-span},
+    which is the box window's own trick of adding one and dropping one, with
+    the dropped one discounted by how far it has decayed.
+    """
+    x = returns.pow(2).to_numpy(dtype="float64")
+    x = np.where(np.isfinite(x), x, 0.0)
+    lam = 0.5 ** (1.0 / half_life)
+    n = len(x)
+    out = np.full(n, np.nan)
+    if n <= span:
+        return out
+    weight = (1.0 - lam ** span) / (1.0 - lam)
+    tail = lam ** span
+    total = 0.0
+    for i in range(span):                          # Horner, oldest bar first
+        total = x[i] + lam * total
+    out[span] = total / weight
+    for t in range(span + 1, n):
+        total = x[t - 1] + lam * total - tail * x[t - 1 - span]
+        out[t] = total / weight
+    return np.sqrt(out)
+
+
 def local_truth(returns: pd.Series, half_width: int) -> pd.Series:
     """Volatility around each bar, measured with hindsight.
 
@@ -135,10 +197,12 @@ def curves(frame: pd.DataFrame, template: str, rung: float, grid) -> dict:
     if base.sum() < 2000:
         return {}
 
+    shapes = [(f"flat{n}", flat_sigma(r, n)) for n in grid]
+    shapes += [(f"exp{h}", exp_sigma(r, h, SPAN_HALF_LIVES * h))
+               for h in HALF_LIVES if SPAN_HALF_LIVES * h <= max(grid)]
+
     out = {}
-    for n in grid:
-        sigma = (r.shift(1).rolling(n, min_periods=n).std(ddof=1)
-                  .to_numpy(dtype="float64"))
+    for name, sigma in shapes:
         ok = base & np.isfinite(sigma) & (sigma > 0)
         if ok.sum() < 2000:
             continue
@@ -167,19 +231,46 @@ def curves(frame: pd.DataFrame, template: str, rung: float, grid) -> dict:
         loud = (float(np.isin(here[fired], worst).mean()) if fired.any()
                 else float("nan"))
 
-        out[n] = {"era": era, "loud": 100 * loud, "rate": float(fired.sum()),
-                  **{f"track{d}": v for d, v in track.items()}}
+        out[name] = {"era": era, "loud": 100 * loud, "rate": float(fired.sum()),
+                     **{f"track{d}": v for d, v in track.items()}}
     return out
 
 
-def pick(curve: dict, key: str) -> tuple:
-    vals = {n: c[key] for n, c in curve.items() if np.isfinite(c[key])}
+def pick(curve: dict, key: str, kind: str = "flat") -> tuple:
+    """Best setting of one shape, and the range indistinguishable from it."""
+    vals = {int(n[len(kind):]): c[key] for n, c in curve.items()
+            if n.startswith(kind) and np.isfinite(c[key])}
     if not vals:
         return (np.nan, np.nan, np.nan)
     best = min(vals, key=vals.get)
-    floor = vals[best]
-    near = [n for n, v in vals.items() if v <= floor * (1 + FLAT)]
+    near = [n for n, v in vals.items() if v <= vals[best] * (1 + FLAT)]
     return best, min(near), max(near)
+
+
+def matched(curve: dict) -> "list[dict]":
+    """Each flat window against the exponential one that is as loud as it is.
+
+    Matching on storm coverage is what makes the comparison strict. The two
+    criteria that survive disagree along one axis - how far the estimate lags
+    the market - so comparing two shapes at different points on that axis would
+    only rediscover the axis. Held at the same loudness, any difference left in
+    era drift belongs to the SHAPE.
+    """
+    flats = {n: c for n, c in curve.items() if n.startswith("flat")}
+    exps = {n: c for n, c in curve.items() if n.startswith("exp")}
+    if not exps:
+        return []
+    rows = []
+    for name, c in flats.items():
+        if not np.isfinite(c["loud"]) or not np.isfinite(c["era"]):
+            continue
+        near = min(exps.items(), key=lambda kv: abs(kv[1]["loud"] - c["loud"]))
+        if not np.isfinite(near[1]["era"]):
+            continue
+        rows.append({"flat": int(name[4:]), "exp": int(near[0][3:]),
+                     "loud_flat": c["loud"], "loud_exp": near[1]["loud"],
+                     "era_flat": c["era"], "era_exp": near[1]["era"]})
+    return rows
 
 
 def main(argv=None) -> int:
@@ -188,8 +279,11 @@ def main(argv=None) -> int:
 
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--quick", action="store_true")
+    p.add_argument("--span", type=int, default=SPAN_HALF_LIVES,
+                   help="how many half-lives the exponential window reaches")
     p.add_argument("--out", default="")
     args = p.parse_args(argv)
+    globals()["SPAN_HALF_LIVES"] = args.span
 
     basket = load_basket()
     chosen = basket.instruments
@@ -210,8 +304,9 @@ def main(argv=None) -> int:
             continue
         tb, tlo, thi = pick(curve, f"track{TRUTH_DAYS[0]}")
         wb, wlo, whi = pick(curve, f"track{TRUTH_DAYS[1]}")
+        pairs = matched(curve)
         eb, elo, ehi = pick(curve, "era")
-        here = curve.get(5000, {})
+        here = curve.get("flat5000", {})
         rows.append({
             "asset": asset.asset_id.split(":")[-1], "block": asset.block,
             "template": asset.session_template, "history": len(frame),
@@ -219,16 +314,17 @@ def main(argv=None) -> int:
             "wide_best": wb, "wide_from": wlo, "wide_to": whi,
             "era_best": eb, "era_from": elo, "era_to": ehi,
             "track_5000": here.get(f"track{TRUTH_DAYS[0]}", np.nan),
-            "track_floor": min(c[f"track{TRUTH_DAYS[0]}"] for c in curve.values()),
+            "pairs": pairs,
             "loud_5000": here.get("loud", np.nan),
-            "loud_720": curve.get(720, {}).get("loud", np.nan),
-            "loud_best_track": curve.get(tb, {}).get("loud", np.nan),
-            "curve": {int(n): {k: round(float(v), 5) for k, v in c.items()}
+            "loud_720": curve.get("flat720", {}).get("loud", np.nan),
+            "exp_best_era": pick(curve, "era", "exp")[0],
+            "curve": {n: {k: round(float(v), 5) for k, v in c.items()}
                       for n, c in curve.items()},
         })
-        print(f"  {rows[-1]['asset']:<10} track30 {tb:>6,}  track180 {wb:>6,}"
-              f"  era {eb:>6,}  loud@5000 {here.get('loud', float('nan')):.0f}%",
-              flush=True)
+        wins = sum(1 for p in pairs if p["era_exp"] < p["era_flat"])
+        print(f"  {rows[-1]['asset']:<10} flat-era {eb:>6,}  exp-era "
+              f"{pick(curve, 'era', 'exp')[0]:>6,}  exponential wins "
+              f"{wins}/{len(pairs)} matched pairs", flush=True)
 
     t = pd.DataFrame(rows)
     if args.out:
@@ -254,13 +350,33 @@ def main(argv=None) -> int:
     for tpl, g in t.groupby("template"):
         line = f"  {tpl:<16}"
         for n in show:
-            vals = [r["curve"].get(str(n), r["curve"].get(n, {})).get("loud", np.nan)
+            vals = [r["curve"].get(f"flat{n}", {}).get("loud", np.nan)
                     for _, r in g.iterrows()]
             vals = [v for v in vals if v == v]
             line += f"{np.median(vals):>8.0f}%" if vals else f"{'-':>9}"
         print(line)
     print("\nWhere 5,000 sits: above every window any estimation criterion picks,")
     print("and chosen - by this measurement - for storm coverage rather than accuracy.")
+
+    print("\n" + "=" * 78)
+    print("D. SHAPE: flat box against exponential decay, HELD AT THE SAME LOUDNESS.")
+    print("   Any difference left is the shape, not the length.\n")
+    print(f"  {'':<16}{'pairs':>7}{'exp better':>12}{'median era flat':>18}"
+          f"{'exp':>8}{'improvement':>13}")
+    for tpl, g in t.groupby("template"):
+        pairs = [p for _, r in g.iterrows() for p in r["pairs"]]
+        if not pairs:
+            continue
+        ef = np.array([p["era_flat"] for p in pairs])
+        ex = np.array([p["era_exp"] for p in pairs])
+        print(f"  {tpl:<16}{len(pairs):>7}{100*np.mean(ex < ef):>11.0f}%"
+              f"{np.median(ef):>18.3f}{np.median(ex):>8.3f}"
+              f"{100*(1 - np.median(ex)/np.median(ef)):>12.0f}%")
+    print("\n  And the exponential half-life that matches today's 5,000-bar box:")
+    for tpl, g in t.groupby("template"):
+        hs = [p["exp"] for _, r in g.iterrows() for p in r["pairs"] if p["flat"] == 5000]
+        if hs:
+            print(f"  {tpl:<16} half-life {np.median(hs):>6,.0f} bars")
     return 0
 
 

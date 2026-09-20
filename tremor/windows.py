@@ -30,9 +30,25 @@ MAD_WINDOW = 24
 # Smoothing of the Q95/Q99 thresholds (§3.1). Period 120 bars.
 LAMBDA_Q = 2 / (120 + 1)
 
-# Long-term sigma (§2.5, §3.1): 5000 bars or the whole history, but no fewer
-# than 720.
-SIGMA_LT_BARS = 5000
+# Long-term sigma (§2.5, §3.1). Exponentially weighted, not a box - see
+# tremor/ewma.py for why, and tools/sigma_window.py for the measurement.
+#
+# THE HALF-LIFE IS THE SETTING; THE SPAN IS A CONSEQUENCE. Weights halve every
+# 1,400 bars, which is the decay that reproduces the behaviour of the 5,000-bar
+# box this replaced - the box was never chosen, it was inherited, and changing
+# the SHAPE of the estimator and its REACH in one step would have left neither
+# measurable. What the shape buys, at that matched behaviour, is a multiple that
+# drifts 16% less from era to era for the equity block and 10% less for crypto.
+#
+# Six half-lives of span because that is where the measurement stops improving:
+# at four the gain is a third of what it could be, at eight and twelve it is no
+# better than at six. The oldest bar in the window then carries one sixty-fourth
+# of the newest one's weight, against the box window's one.
+SIGMA_LT_HALFLIFE_BARS = 1400
+SIGMA_LT_SPAN_HALFLIVES = 6
+# Still named SIGMA_LT_BARS because it is still what it always was: how far back
+# this quantity reaches, and therefore what warm_bars below must cover.
+SIGMA_LT_BARS = SIGMA_LT_HALFLIFE_BARS * SIGMA_LT_SPAN_HALFLIVES
 SIGMA_LT_MIN_BARS = 720
 
 # Volume profile (§3.5) - 20 FULL trading days per local exchange hour; half

@@ -34,7 +34,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from tremor import cross_section, persistence, sessions, severity, windows
+from tremor import (cross_section, ewma, persistence, sessions, severity,
+                    windows)
 from tremor.basket import Basket
 
 # The asset_id a block event carries. Prefixed rather than bare so that nothing
@@ -144,10 +145,7 @@ def frames(basket: Basket, panel: pd.DataFrame,
         # The denominator floor the retention check applies wants the series'
         # own long-run spread, on data strictly before the bar like everything
         # else here.
-        frame["sigma_lt_resid"] = (frame["e_resid"].shift(1)
-                                   .rolling(windows.SIGMA_LT_BARS,
-                                            min_periods=windows.SIGMA_LT_MIN_BARS)
-                                   .std(ddof=1))
+        frame["sigma_lt_resid"] = ewma.sigma_lt(frame["e_resid"])
         # A block's move is already a median of member moves each divided by its
         # own sigma, so it arrives standardised and takes no divisor. It gets
         # BLOCK_MOVE_SIGMA rather than the member table: a median of sixteen

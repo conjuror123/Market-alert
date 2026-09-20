@@ -37,7 +37,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from tremor import windows
+from tremor import ewma, windows
 from tremor.basket import Asset
 
 
@@ -313,10 +313,7 @@ def residuals(asset: Asset, frame: pd.DataFrame,
     out["rank_confirms"] = ranks["rank_confirms"].to_numpy()
 
     # The residual's own long-term sigma, on data strictly before the current bar.
-    out["sigma_lt_resid"] = (out["e_resid"].shift(1)
-                             .rolling(windows.SIGMA_LT_BARS,
-                                      min_periods=windows.SIGMA_LT_MIN_BARS)
-                             .std(ddof=1))
+    out["sigma_lt_resid"] = ewma.sigma_lt(out["e_resid"])
 
     # Winsorization of the residual per §2.5 - with its own MAD and its own floor.
     # The floor takes the same half-tick return: a residual is never finer than
