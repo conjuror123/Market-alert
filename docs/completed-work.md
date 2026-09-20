@@ -99,6 +99,26 @@ measured from its own open, so an overnight jump — dividend, news, another ven
 never a return. `load_steps()` is untouched: un-adjustment is a different question and a
 live one.
 
+**The tier frequencies are measured, not asserted — and the argument behind them was
+retracted.** `README.md`, `docs/architecture.md`, `docs/decisions.md` and the report card
+all described the four rungs as return periods: monthly, quarterly, every three years,
+every six. `docs/decisions.md` went further and explained *why* that was exact, using the
+1/N argument — the probability that the newest of N observations is the largest of those
+N is 1/N, so "the largest in the trailing six years" happens about once in six years
+because there is no model to be wrong.
+
+That argument is sound, and it belonged to the **rank rule**, which was retired in favour
+of size in sigma — monotone, so a crash cannot put later moves in its shadow, but *not*
+frequency-calibrated by construction. The docs were defending a mechanism that had
+stopped running. Measured over the archive, per instrument: every 2 months, 6 months, 17
+months and 2.9 years — the two quiet rungs about half as often as the wording promised,
+**the two that interrupt about twice as often.**
+
+`tools/dashboard.py` now derives the rate per instrument-year, with each instrument's own
+span as the denominator rather than the whole archive (half the basket is younger than
+the archive), and the report card reads it out of the event table instead of repeating
+the adjectives. The other three documents describe the rungs as what they are.
+
 **Run health is measured by a tool, and the page says what it measures.** The report
 card's reliability figures came from a throwaway script, and its caption described a
 measure — "share of that day's runs that failed" — that scored the worst outage in the

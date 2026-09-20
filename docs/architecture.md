@@ -67,10 +67,15 @@ on an expanding window applied only forward:
 | **absolute** | how rare is this *raw move*, for this instrument |
 | **abnormal** | how rare is this *residual*, for this instrument |
 
-Four rungs — `noticeable`, `high`, `major`, `extreme` — at about a month, a quarter,
-three years and six years. A rung is the biggest move in its own lookback, so clearing it
-means exactly what the message says: *the biggest move since 3 March 2020*. An hour
-clearing both ladders is reported at its rarer tier and marked `both`.
+Four rungs — `noticeable`, `high`, `major`, `extreme` — each a multiple of the
+instrument's own long-run sigma, set per block, and spaced about 1.5x apart. The rung is
+a size; the DATE in the message is read off the record separately, which is why clearing
+a rung means exactly what the message says: *the biggest move since 3 March 2020*. An
+hour clearing both ladders is reported at its rarer tier and marked `both`.
+
+The rungs are a preference rather than a frequency target — see `docs/decisions.md` for
+what that costs. Measured over the archive, one instrument reaches them about every 2
+months, 6 months, 17 months and 2.9 years.
 
 Blocks are ranked the same way on their own median series, so a whole sector moving
 together is its own event with its own ladder.

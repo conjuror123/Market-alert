@@ -127,6 +127,20 @@ def build(events: pd.DataFrame, ops: dict | None) -> dict:
     coverage = _coverage(basket)
     bars_total = sum(c["bars"] for c in coverage)
 
+    # How often a tier fires FOR ONE INSTRUMENT, which is the number a reader is
+    # actually asking about when they ask how often they will hear from it.
+    #
+    # The denominator is the sum of every instrument's own span, not the span of
+    # the archive times the headcount: half the basket is younger than the
+    # archive - crypto starts in 2015 at the earliest and XLP in 2022 - and
+    # dividing by 61 full spans would report every tier as rarer than it is.
+    #
+    # Block rows are excluded from the numerator. A block is not an instrument;
+    # counting its events here would attribute a whole complex's move to each of
+    # the members that did not individually move.
+    instrument_years = sum(c["years"] for c in coverage) or 1.0
+    block_ids = {b for b in events.asset_id.unique() if str(b).startswith("block:")}
+
     # Per-instrument recall, straight from the report card so the page and the
     # command line cannot drift apart - same function, same constant.
     per = {}
@@ -256,6 +270,9 @@ def build(events: pd.DataFrame, ops: dict | None) -> dict:
         "coverage": coverage,
         "tiers": [{"tier": t, "events": int((events.tier == t).sum()),
                    "per_year": round(float((events.tier == t).sum() / years), 1),
+                   "per_instrument_year": round(
+                       float((events[~events.asset_id.isin(block_ids)].tier == t).sum()
+                             / instrument_years), 2),
                    "channel": "push" if t in PUSH_TIERS else "digest"}
                   for t in ("noticeable", "high", "major", "extreme")],
         "basis": [{"basis": b, "events": int((events.basis == b).sum()),

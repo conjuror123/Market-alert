@@ -123,16 +123,12 @@ reaches the phone.
 
 ## 6. Comments and prose that have drifted
 
-Small, cosmetic, and worth a pass rather than a project:
+Small, cosmetic, and worth a pass rather than a project. Nothing specific is currently
+listed here — the prose drift that was on this list (the rungs described as return
+periods, and `severity.py` announcing a table of calendar days above a table of sigma
+multiples) turned out to be one substantive error rather than a cosmetic one, and is in
+`docs/completed-work.md`.
 
-- `tremor/severity.py` opens the ladder table with "The ladder, in calendar days". The
-  table beneath it is in sigma multiples. The comment is two rewrites stale.
-- `README.md`, `docs/architecture.md` and `docs/decisions.md` all describe the rungs as
-  return periods — "at about a month, a quarter, three years and six years" — and
-  `docs/decisions.md` explains *why* that is exactly calibrated, using the **rank rule**
-  ("the biggest move in the trailing six years happens about once every six years because
-  there is no model to be wrong"). That mechanism was replaced: `tremor/severity.py`
-  records the rank rule being retired in favour of size in sigma, which is monotone but
-  is **not** frequency-calibrated by construction. The explanation still standing in the
-  docs is an argument for a system that is no longer running. See the "now" work on the
-  report card, which is the same problem where a reader can see it.
+The standing rule is the useful part: **a comment that describes a mechanism is a claim,
+and claims go stale silently.** Prose that merely reads awkwardly can wait. Prose that
+asserts how something works cannot, because the next reader will believe it.

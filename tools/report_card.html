@@ -135,6 +135,9 @@ caption{caption-side:bottom;text-align:left;padding:var(--s2) var(--s3);font-siz
 .row .fill.warn{background:var(--warn)} .row .fill.bad{background:var(--bad)} .row .fill.ok{background:var(--ok)}
 .row .n{font-family:"JetBrains Mono",monospace;font-size:.74rem;color:var(--muted);text-align:right}
 @media (max-width:520px){.row{grid-template-columns:6.5rem 1fr 3.4rem}}
+/* the rating list states an interval rather than a number, which needs the room */
+#how-rates .row{grid-template-columns:5.5rem 1fr 7.5rem}
+@media (max-width:520px){#how-rates .row{grid-template-columns:5rem 1fr 7rem}}
 .cols{display:grid;gap:2px;align-items:end;height:150px;border-bottom:1.5px solid var(--ink)}
 .cols .c{background:var(--sig);min-height:2px;position:relative;border-radius:1px 1px 0 0}
 .cols .c.hot{background:var(--bad)}
@@ -216,12 +219,12 @@ footer{margin-top:var(--s6);padding-block:var(--s4) var(--s6);border-top:1px sol
     </div>
     <div class="panel stack-sm">
       <h4 class="eyebrow">Four ratings</h4>
-      <p class="note">How rare the move is, for that instrument:
-      <b style="color:var(--t1)">noticeable</b> about monthly,
-      <b style="color:var(--t2)">high</b> about quarterly,
-      <b style="color:var(--t3)">major</b> about every three years,
-      <b style="color:var(--t4)">extreme</b> about every six. The last two interrupt you; the first
-      two are collected quietly.</p>
+      <p class="note">How big the move is in that instrument's own units, on a ladder set per
+      sector. <b style="color:var(--t3)">major</b> and <b style="color:var(--t4)">extreme</b>
+      interrupt you; the other two are collected quietly. How often each one actually fired, for
+      one instrument, over the whole archive:</p>
+      <div class="rows" id="how-rates" style="margin-top:var(--s2)"></div>
+      <p class="note" id="how-rates-note"></p>
     </div>
     <div class="panel stack-sm">
       <h4 class="eyebrow">Two kinds of message</h4>
@@ -736,6 +739,25 @@ rows('#o-dur',[{k:'before, median',v:D.ops.before.median,t:D.ops.before.median+'
  {k:'now, median',v:D.ops.after.median,t:D.ops.after.median+'s',cls:'ok'},
  {k:'now, p90',v:D.ops.after.p90,t:D.ops.after.p90+'s',cls:'ok'}],D.ops.before.p90);
 $('#o-dur-note').textContent='Job timeout is 20 minutes. '+D.ops.before.n+' runs before the feed change, '+D.ops.after.n+' since.';
+
+/* four ratings: how often each one FIRED, per instrument, measured - not the
+   frequency the words used to promise. A rate is stated as the interval a
+   reader waits, because "0.71 a year" is arithmetic and "about every 17
+   months" is an answer. */
+const every=r=>{
+  if(!r) return 'never';
+  const m=12/r;
+  if(m<1.5) return 'every '+Math.round(m*4.345)+' weeks';
+  if(m<24)  return 'every '+Math.round(m)+' months';
+  return 'every '+(m/12).toFixed(1).replace(/\.0$/,'')+' years';
+};
+rows('#how-rates', D.tiers.map(t=>({
+  k:t.tier, v:t.per_instrument_year, t:every(t.per_instrument_year),
+  cls:{noticeable:'',high:'warn',major:'warn',extreme:'bad'}[t.tier]})));
+$('#how-rates-note').textContent =
+  'Averages over '+D.meta.years+' years, per instrument. The denominator is each '
+  +'instrument\'s own span rather than the whole archive, because half the basket '
+  +'is younger than the archive is.';
 
 /* messages */
 const mw=$('#msgs');

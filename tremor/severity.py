@@ -69,17 +69,20 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-# The ladder, in calendar days. These are the recipient's categories, not the
-# statistician's: how often a person is willing to hear from the system at each
-# level of seriousness. Everything rarer than the top tier is still the top
-# tier - there is no fifth box, because at that point the message is the same.
+# The ladder, in multiples of the instrument's own long-run sigma, per block.
+# These are the recipient's categories, not the statistician's: how serious a
+# move has to be before a person wants to hear about it. Everything rarer than
+# the top tier is still the top tier - there is no fifth box, because at that
+# point the message is the same.
 #
 # The values are a TRADER'S reading of what each word should mean, not a target
 # alert count. They were set by the person who receives the messages, asked what
 # he would expect each rung to mean for one instrument; the resulting rate per
-# year is an output worth watching and has never been an input.
-#
-# The ladder, in multiples of the instrument's own long-run sigma, per block.
+# year is an output worth watching and has never been an input. Measured over
+# the whole archive it is about every 2 months, 6 months, 17 months and 2.9
+# years per instrument - roughly half the old wording's promise at the two quiet
+# rungs and twice it at the two that interrupt. See docs/decisions.md: the
+# frequency guarantee belonged to the rank rule this table replaced.
 #
 # THESE ARE PREFERENCES, NOT ESTIMATES, which is why they are written down rather
 # than fitted. They were seeded from a measurement - the value that puts each

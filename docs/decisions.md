@@ -8,23 +8,52 @@ number that settled it.
 
 ## The ladder
 
-**A return period, not a score.** "The largest move in about three years" needs no
-calibration intuition; a 1-to-100 importance score does. It also solves comparison for
-free: 1.5% is unremarkable in SOL and a once-a-year event in SHY, but "once a year" means
-the same thing everywhere.
+**A rarity, not a score.** "The biggest move since March 2020" needs no calibration
+intuition; a 1-to-100 importance score does. It also solves comparison for free: 1.5% is
+unremarkable in SOL and enormous in SHY, but "the biggest since" means the same thing
+everywhere. The rung is a SIZE and the message is a DATE — two different questions,
+answered separately, because conflating them produces a message that contradicts itself.
 
-**A record, not a fit.** A rung is literally the biggest move in its own lookback, so
-the claim is a fact about the instrument's record rather than an estimate from a tail
-model. This is exactly calibrated by construction: for any distribution whatever, the
-probability that the newest of N observations is the largest of those N is 1/N, so "the
-largest in the trailing six years" happens about once every six years because there is no
-model to be wrong. Measured on the archive: 1.21 per six years, 29 records against 23.8
-expected — within Poisson noise. Across the four rungs the absolute ladder reads
-0.73 / 1.09 / 1.05 / 1.18.
+**A size, not a fit — and no longer a rank.** A fitted tail cannot work at this sample
+size: the same instrument fitted with the same code on different six-year windows put
+SPY's once-in-six-years level anywhere from 2.22% to 6.78%, a factor of three decided
+purely by which six years the window held. So the rung is not fitted. It is a multiple
+of the instrument's own long-run sigma, set per block (`tremor/severity.py`).
 
-A fitted tail cannot do this at our sample size. The same instrument fitted with the same
-code on different six-year windows put SPY's once-in-six-years level anywhere from 2.22%
-to 6.78% — a factor of three, decided purely by which six years the window held.
+**THE FREQUENCY GUARANTEE WENT WITH THE RANK RULE, AND THIS SECTION USED TO CLAIM
+OTHERWISE.** Between the fitted ladder and the present one there was a third: a rung was
+literally the biggest move in its own lookback. That rule *is* exactly calibrated by
+construction — for any distribution whatever, the probability that the newest of N
+observations is the largest of those N is 1/N, so "the largest in the trailing six years"
+happens about once in six years because there is no model to be wrong. Measured then:
+1.21 per six years, 29 records against 23.8 expected, and 0.73 / 1.09 / 1.05 / 1.18
+across the four rungs.
+
+It was retired anyway, because a rank is relative to a window and a move therefore sits
+in the shadow of any bigger one still inside it: after a crash nothing can reach the top
+rung until that crash rolls out, however violent the market gets. Measured, 395 moves
+LARGER than the typical `extreme` went out as something milder, and the dates were March
+2020, October 2008 and the 2015 yuan devaluation — the rule demoted precisely the
+episodes it exists for.
+
+Size has neither failure, and it is monotone, so the shadow cannot happen. **What it does
+not have is the 1/N argument.** The rungs are a trader's reading of what each word should
+mean, and `tremor/severity.py` says so in as many words: the resulting rate per year is an
+output worth watching and has never been an input. Measured over the whole archive, per
+instrument:
+
+| rung | the word used to promise | measured |
+|---|---|---|
+| noticeable | monthly | every 2 months |
+| high | quarterly | every 6 months |
+| major | every 3 years | **every 17 months** |
+| extreme | every 6 years | **every 2.9 years** |
+
+The two quiet rungs fire about half as often as the old wording said; **the two that
+interrupt fire about twice as often.** That is the cost of trading the rank rule's
+calibration for its monotonicity, and it was paid without being written down. The report
+card now reads these rates out of the event table instead of repeating the adjectives,
+and `README.md` and `docs/architecture.md` describe the rungs as what they are.
 
 **Fitted per instrument, never pooled.** Pooling puts SHY and SOL back on one yardstick,
 which is the thing the ladder exists to avoid.

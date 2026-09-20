@@ -109,9 +109,12 @@ so a genuine single-asset move cannot inflate the bar it is measured against.
 — nothing fitted, nothing extrapolated — so the claim "biggest in about three years" is
 exactly true of the archive rather than an estimate from a tail model.
 
-**5. Route it.** Four rungs — noticeable, high, major, extreme, at a month, a quarter,
-three years, six years. `major` and `extreme` interrupt; the other two collect in a
-digest. One event per instrument per trading day, and no more.
+**5. Route it.** Four rungs — noticeable, high, major, extreme — each a multiple of the
+instrument's own long-run sigma, set per block. `major` and `extreme` interrupt; the other
+two collect in a digest. One event per instrument per trading day, and no more. Measured
+over the archive, one instrument reaches them about every 2 months, 6 months, 17 months
+and 2.9 years respectively; those are outputs, not targets, and the report card reads them
+out of the event table.
 
 Two channels ask different questions, on the same ladder:
 
