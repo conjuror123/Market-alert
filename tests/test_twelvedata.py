@@ -159,7 +159,7 @@ def test_chunk_days_controls_the_request_window():
 
 
 def test_parses_volume_when_the_source_provides_it():
-    # ETFs serve real hourly volume - §3.5 builds the volume profile on it, and
+    # ETFs serve real hourly volume - the volume profile is built on it, and
     # losing it is not an option.
     payload = {"status": "ok", "values": [{
         "datetime": "2026-08-17 15:30:00", "open": "1", "high": "2",

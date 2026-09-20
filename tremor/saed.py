@@ -1,4 +1,4 @@
-"""Single-asset event detection, SAED (spec §8).
+"""Single-asset event detection, SAED.
 
 Catches moves an instrument's own peers do not explain, and moves that are large
 for the instrument whatever the peers did. It builds the block factors it needs
@@ -298,7 +298,7 @@ def _exceedance(frame: pd.DataFrame, tier: np.ndarray) -> np.ndarray:
 
 def build_events(asset: Asset, frame: pd.DataFrame,
                  day_tz: "str | None" = _DERIVE) -> list[SaedEvent]:
-    """Runs the event automaton over the asset's bars (§8.3).
+    """Runs the event automaton over the asset's bars.
 
     ONE EVENT PER INSTRUMENT PER TRADING DAY. Every firing after the first joins
     the open event - escalating it, if it is worse - until the instrument's day
@@ -317,7 +317,7 @@ def build_events(asset: Asset, frame: pd.DataFrame,
     deliberately: the today-close reading lands exactly when the instrument
     becomes eligible to fire again.
 
-    The sequential pass is layer B of §6.1: whether a firing joins the current
+    The sequential pass is layer B: whether a firing joins the current
     event or opens a new one is a path-dependent decision.
     """
     fired = triggers(frame).fillna(False).to_numpy(dtype=bool)
@@ -450,7 +450,7 @@ def events_frame(events: list[SaedEvent]) -> pd.DataFrame:
 
 
 def aggregate_block_alerts(events: pd.DataFrame) -> pd.DataFrame:
-    """Block aggregation per §8.4: simultaneous events of assets in one block
+    """Block aggregation: simultaneous events of assets in one block
     combine into a single alert.
 
     Basket and non-basket instruments of the same block aggregate together - for
@@ -491,7 +491,7 @@ def aggregate_block_alerts(events: pd.DataFrame) -> pd.DataFrame:
 
 
 def link_alerts(events: pd.DataFrame, alerts: pd.DataFrame) -> pd.DataFrame:
-    """Attaches the block-alert reference to each event (aggregate_alert_id, §8.5)."""
+    """Attaches the block-alert reference to each event (aggregate_alert_id)."""
     if events.empty:
         return events.assign(aggregate_alert_id=pd.Series(dtype="object"))
     keys = alerts.set_index(["block", "hour_utc"])["alert_id"]
@@ -510,11 +510,11 @@ ARCHIVE_COLUMNS = ("event_id", "asset_id", "hour_utc", "tier")
 
 # Residual series that are written to disk. They can be recomputed from the
 # metrics, but that means a full run of the regressions over the whole history -
-# minutes instead of seconds - and both the decision journal (§6.1) and the event
-# export (§6.5) need them.
+# minutes instead of seconds - and both the decision journal and the event
+# export need them.
 #
 # Intermediate states are not stored: the winsorized residual and sigma_eff are
-# recovered unambiguously from e_resid and sigma_LT by the same §2.5 machinery,
+# recovered unambiguously from e_resid and sigma_LT by the same winsorization,
 # yet they take as much space as everything else put together - they are series
 # of random numbers, and nothing compresses them.
 RESIDUAL_COLUMNS = ("hour_utc", "asset_id", "beta_block", "e_resid",
@@ -851,7 +851,7 @@ def main(argv: list[str] | None = None) -> int:
     from tremor import cross_section, pipeline, sessions
     from tremor.basket import load_basket
 
-    parser = argparse.ArgumentParser(description="SAED events (§3.6, §8)")
+    parser = argparse.ArgumentParser(description="SAED events")
     parser.add_argument("--metrics-dir", default=pipeline.DEFAULT_METRICS_DIR)
     parser.add_argument("--events-out", default=DEFAULT_EVENTS_PATH)
     parser.add_argument("--alerts-out", default=DEFAULT_ALERTS_PATH)

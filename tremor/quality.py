@@ -1,12 +1,12 @@
-"""Data-quality gate and session membership of an hour (spec §2.2, §2.6).
+"""Data-quality gate and session membership of an hour.
 
 Two different things, convenient to compute together because both answer the
 question "does this bar take part in the calculations":
 
 - VALIDITY is a property of the bar itself: prices positive, OHLC consistent,
   volume non-negative, timestamp not repeated. An invalid bar takes part in
-  nothing and updates no state (§2.6).
-- SESSION MEMBERSHIP is a property of the hour: per §2.2, hours outside an
+  nothing and updates no state.
+- SESSION MEMBERSHIP is a property of the hour: hours outside an
   asset's trading session are excluded from EWMA, volume, CSV, PCA and the
   cluster shift.
 
@@ -31,7 +31,7 @@ NYSE_TZ = ZoneInfo("America/New_York")
 
 def _session_bounds_utc(day: date, session: sessions_mod.Session) -> tuple[int, int]:
     """Session bounds in epoch UTC. They are stored in the exchange's local time
-    and converted on the fly - §2.2 forbids storing them as UTC."""
+    and converted on the fly - storing them as UTC is forbidden."""
     def at(hhmm: str) -> int:
         hour, minute = (int(x) for x in hhmm.split(":"))
         return int(datetime.combine(day, time(hour, minute), tzinfo=NYSE_TZ).timestamp())
@@ -41,7 +41,7 @@ def _session_bounds_utc(day: date, session: sessions_mod.Session) -> tuple[int, 
 def in_session(asset: Asset, hours: pd.Series,
                session_table: dict[date, sessions_mod.Session] | None = None,
                anchor_tz: str = "America/New_York") -> pd.Series:
-    """Whether an hour (by the bar's OPENING moment, §1.2) falls in the asset's session.
+    """Whether an hour (by the bar's OPENING moment) falls in the asset's session.
 
     An hour counts as trading if the interval [h, h+1) overlaps the session under
     a HALF-OPEN rule: h < close and h + hour > open. The closing auction is not
@@ -54,7 +54,7 @@ def in_session(asset: Asset, hours: pd.Series,
 
     if asset.session_template == "fx_continuous":
         # Spot FX trades continuously from Sun 17:00 to Fri 17:00 in the anchor
-        # exchange's time - exactly the basket's reference week from §2.2.
+        # exchange's time - exactly the basket's reference week.
         return sessions_mod.reference_hours_mask(hours, anchor_tz)
 
     if asset.session_template != "us_equity":
@@ -77,7 +77,7 @@ def in_session(asset: Asset, hours: pd.Series,
 
 
 def invalid_reasons(asset: Asset, frame: pd.DataFrame) -> pd.Series:
-    """Reason each bar is invalid, empty string for sound ones (§2.6).
+    """Reason each bar is invalid, empty string for sound ones.
 
     A string rather than a flag: when a bar is dropped from the calculations you
     need to be able to say why without reopening the data.
@@ -109,7 +109,7 @@ def expected_hours(asset: Asset, first_hour: int, last_hour: int,
                    session_table: dict[date, sessions_mod.Session] | None = None,
                    anchor_tz: str = "America/New_York") -> list[int]:
     """Hours the asset SHOULD have in the range - that is, every hour of its
-    session. The difference from what actually arrived is is_missing (§2.4)."""
+    session. The difference from what actually arrived is is_missing."""
     hours = pd.Series(range(first_hour - first_hour % HOUR, last_hour + HOUR, HOUR))
     mask = in_session(asset, hours, session_table, anchor_tz)
     return [int(h) for h in hours[mask]]
@@ -141,7 +141,7 @@ def resolvable(close, r, tick_size: float,
     rather than of the price grid.
 
     This is NOT a second filter on magnitude, and the distinction is the whole
-    of its justification. §8.3's trigger deliberately has no such filter: a
+    of its justification. The event trigger deliberately has no such filter: a
     single-asset move is grounds in itself and how much it matters is carried
     by the tier. But that presumes the move was observed at all. Below two
     ticks it was not - what varied was the rounding, and the instrument cannot
@@ -160,7 +160,7 @@ def resolvable(close, r, tick_size: float,
     That is how a one-cent move on IEF came to be reported as the biggest in
     three years.
 
-    The same reasoning already lives in §2.5's winsorization, whose eps_MAD
+    The same reasoning already lives in the winsorization, whose eps_MAD
     floor includes the return on half a tick so that MAD cannot collapse to
     zero in quiet hours. This extends it from the scale to the event.
     """

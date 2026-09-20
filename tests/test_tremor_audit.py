@@ -41,8 +41,8 @@ def test_empty_store_is_reported_not_crashed():
 
 
 def test_declared_volume_that_is_actually_empty_is_flagged():
-    # Exactly what §2.1 is meant to catch: hourly volume is declared but the
-    # source does not actually have it. Per §3.5 such an asset must be
+    # Exactly what the audit is meant to catch: hourly volume is declared but the
+    # source does not actually have it. Such an asset must be
     # has_volume = false, or the volume trigger silently never fires.
     row = audit_instrument(asset(), healthy(volume=0.0))
     assert row["has_volume_actual"] is False
@@ -63,7 +63,7 @@ def test_ohlc_violation_is_counted():
 
 
 def test_nonpositive_price_is_counted():
-    # Protection against ln(0) in the return calculation (§2.6).
+    # Protection against ln(0) in the return calculation.
     row = audit_instrument(asset(), frame([(HOUR, 1.0, 2.0, 0.0, 1.5, 1.0, 1)]))
     assert row["nonpositive_prices"] == 1
     assert "prices<=0" in _flag(row)
@@ -110,7 +110,7 @@ def test_precision_of_an_empty_series_is_unknown():
 
 def test_tick_finer_than_the_source_precision_is_flagged():
     # The configuration promises a resolution the data does not have, and
-    # half_tick_return in §2.5 would be computed against a step that does not exist.
+    # half_tick_return would be computed against a step that does not exist.
     row = audit_instrument(asset(tick_size=1e-9), healthy())
     assert "finer than source precision" in _flag(row)
 

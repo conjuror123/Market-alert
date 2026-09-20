@@ -217,10 +217,6 @@ docs/operations.md         running it, quotas, what breaks and how you would kno
 docs/working-agreement.md  the rules an agent changing this repository works under
 ```
 
-Comments throughout the code cite section numbers — `§4.3` and the like — of an original
-design document that has been deleted. They are historical markers and there is nothing
-to look them up in; the code is the specification. See `CLAUDE.md`.
-
 ## Running locally
 
 ```bash

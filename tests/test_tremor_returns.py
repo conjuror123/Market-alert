@@ -106,7 +106,7 @@ def test_forex_week_is_one_session():
 
 def test_winsorization_clips_only_the_state_input():
     # r_w goes into the EWMA update, r stays untouched: clipping the very thing
-    # we want to detect is pointless (§2.5).
+    # we want to detect is pointless.
     calm = [(i * HOUR, 100.0, 100.1, 99.9, 100.0 + (i % 2) * 0.01, 1.0, 2)
             for i in range(1, 40)]
     spike = [(40 * HOUR, 100.0, 130.0, 99.9, 130.0, 1.0, 2)]

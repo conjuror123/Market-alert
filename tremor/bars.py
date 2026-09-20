@@ -11,8 +11,9 @@ so an unsharded store re-commits its entire history every time the current hour
 arrives. The archive is committed and cannot be re-fetched from the free tier,
 so dropping it from git is not an option - sharding is. See store_path.
 
-The time convention comes from §1.2 of the spec: hour_utc stores the bar's
-OPENING moment, and the closing moment is t = hour_utc + 1 hour. This is the same
+The time convention is the one thing here that cannot be changed later:
+hour_utc stores the bar's OPENING moment, and the closing moment is
+t = hour_utc + 1 hour. This is the same
 convention already used by the existing monitor's candle_store (open_time), so
 the accumulated history imports without a shift.
 """
@@ -31,7 +32,7 @@ HOUR = 3600
 # n_src - how many source bars folded into this hourly bar.
 # Needed from phase 1 onward: for ETFs the first half hour of a session produces
 # an hourly bar out of a single half-hourly one, and that is precisely the "first
-# bar of the session" that §2.4 splits into the gap channel and the intra-hour
+# bar of the session" that tremor.returns splits into the gap channel and the intra-hour
 # return. Without this field it could not be told apart from a full hour.
 SCHEMA = {
     "hour_utc": "int64",

@@ -193,7 +193,7 @@ because it absorbs the crisis into its own denominator within days. A long windo
 reverse. 5,000 sits above every window any accuracy criterion picks, which makes it a
 choice for the second property. That choice is the right one here (a detector that
 silences itself in a crash is the one failure this system will not accept) but it was
-never made: it was inherited from the deleted specification. It is made now.
+never made: it was inherited, with nothing recorded about why. It is made now.
 
 **The weights inside the window are exponential, not flat.** The reach is one
 question and the SHAPE is another, and only the first had ever been asked. A box says

@@ -1,6 +1,6 @@
-"""Configuration and run versions (spec §6.2, §6.3).
+"""Configuration and run versions.
 
-§6.3 forbids changing parameters retroactively without recomputing the history
+Changing parameters retroactively without recomputing the history is forbidden
 under a new version. The prohibition is enforced not by discipline but by
 construction: config_version is a hash of the content of everything that affects
 the result. Change a threshold, a window, the basket composition or a formula and
@@ -8,7 +8,7 @@ the version changes by itself, while the old events already carry a different
 one. A manual counter is useless here: it gets forgotten precisely when it
 matters most.
 
-run_version works differently. Per §6.2 a repeat run of the same hour under the
+run_version works differently. A repeat run of the same hour under the
 same version must not create duplicates, while late or revised data MUST enter
 the recomputation under a NEW version. One and the same construction satisfies
 both: run_version is a hash of config_version and a fingerprint of the input
@@ -59,7 +59,7 @@ CONFIG_INPUTS = (
 # residuals - are NOT included here, and that is essential. The basket metrics are
 # both input and output for the cluster run: include them in the fingerprint and a
 # repeat run over the same data would get a new run_version simply because the
-# previous run rewrote the file. The idempotency of §6.2 rests on exactly this:
+# previous run rewrote the file. Idempotency rests on exactly this:
 # the version depends only on the raw data and the configuration, and everything
 # else is a function of those.
 RAW_INPUTS = (
@@ -164,7 +164,7 @@ def data_fingerprint(paths=RAW_INPUTS) -> str:
     Size and modification time would be cheaper but are wrong in both directions.
     A backfill run rewrites a file with the same bars - same size, new time - and a
     recomputation over unchanged data would get a new version, meaning the
-    idempotency of §6.2 would not exist at all. Conversely, a bar corrected by the
+    idempotency would not exist at all. Conversely, a bar corrected by the
     vendor to the same length would leave the size unchanged, and the edit could
     slip through unnoticed if the file was rewritten within the same second.
 
@@ -189,7 +189,7 @@ def data_fingerprint(paths=RAW_INPUTS) -> str:
 
 def run_version(config: str, fingerprint: str) -> str:
     """Run version. Identical input and configuration give an identical version -
-    hence the idempotency of §6.2."""
+    hence idempotency."""
     return _digest([config.encode("utf-8"), fingerprint.encode("utf-8")])
 
 
@@ -198,7 +198,7 @@ def stamps(data_paths=RAW_INPUTS, root: str = ".") -> tuple[str, str, str]:
 
     The fingerprint is returned rather than thrown away because run_version
     cannot be taken apart again: it is a hash of the configuration AND the data,
-    so a row carrying only run_version cannot say WHICH of the two moved. §6.2
+    so a row carrying only run_version cannot say WHICH of the two moved. The rule
     attaches recalculated to revised data specifically, and telling that from an
     edited threshold needs the two kept separately.
     """
@@ -216,7 +216,7 @@ def versions_for(data_paths=RAW_INPUTS, root: str = ".") -> tuple[str, str]:
 
 VERSION_COLUMNS = ("config_version", "run_version")
 
-# Provenance of a row per §6.2 and §6.4: which raw data produced it, whether it
+# Provenance of a row: which raw data produced it, whether it
 # has since been recomputed, and when it first appeared.
 PROVENANCE_COLUMNS = ("data_fingerprint", "recalculated", "created_at")
 
@@ -224,7 +224,7 @@ PROVENANCE_COLUMNS = ("data_fingerprint", "recalculated", "created_at")
 def stamp(frame, config: str, run: str):
     """Writes both versions into every row.
 
-    Per §6.3 the versions belong in each event, in the metrics and in the
+    The versions belong in each event, in the metrics and in the
     decision journal - not in a file name. Events of different versions may be
     compared only with the versions stated explicitly, and a reader who has one
     table in front of them cannot state what is not in it.
@@ -234,16 +234,16 @@ def stamp(frame, config: str, run: str):
 
 def provenance(frame, previous, fingerprint: str, key: str = "event_id",
                now: int | None = None):
-    """data_fingerprint, recalculated and created_at (§6.2, §6.4).
+    """data_fingerprint, recalculated and created_at.
 
     created_at is the moment a row FIRST appeared, not the moment of the latest
     write. Taking the clock on every run would be easier and would be wrong twice
-    over: it destroys the idempotency of §6.2 - a rerun over unchanged data would
+    over: it destroys idempotency - a rerun over unchanged data would
     produce a different table byte for byte - and it answers a question
     run_version already answers better, since run_version says WHICH inputs
     produced the row while created_at is meant to say WHEN it first existed.
 
-    recalculated is judged on the RAW-DATA fingerprint, not on run_version. §6.2
+    recalculated is judged on the RAW-DATA fingerprint, not on run_version. The rule
     raises the flag for one situation - a bar arriving late or revised by the
     vendor - and run_version also moves when a threshold or a comment in the code
     changes, which is not that situation. Judging on run_version would raise the

@@ -75,7 +75,7 @@ def test_trigger_fires_in_both_directions():
 
 
 def test_trigger_is_null_where_the_score_is_unknown():
-    # §1.2: an unassessed hour is NULL, not False. Without enough assets in
+    # An unassessed hour is NULL, not False. Without enough assets in
     # session there is no peer spread to standardise against.
     frame = scored([0])
     frame.loc[0, "z_resid_bmp"] = np.nan
@@ -129,7 +129,7 @@ def test_trigger_needs_severity_to_have_run():
 
 
 def test_every_later_firing_that_day_joins_the_open_event():
-    # §8.3: repeat firings inside the instrument's day create no events but are
+    # Repeat firings inside the instrument's day create no events but are
     # logged as a continuation of the current one.
     events = saed.build_events(asset(), scored([5, 8, 10]))
 
@@ -202,7 +202,7 @@ def test_no_events_without_triggers():
 
 
 def test_block_alert_aggregates_the_same_hour():
-    # §8.4: simultaneous events of assets in one block are one observation about
+    # Simultaneous events of assets in one block are one observation about
     # the block, not three identical messages.
     events = pd.DataFrame({
         "event_id": ["a", "b", "c"],

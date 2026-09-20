@@ -1,6 +1,6 @@
-"""Returns, the gap channel and winsorization (spec §2.4, §2.5).
+"""Returns, the gap channel and winsorization.
 
-The central idea of §2.4 is to separate two movements that an ordinary return
+The central idea is to separate two movements that an ordinary return
 merges into one. Between the previous session's close and the next session's
 open the price changes without trading: news comes out, a dividend goes
 ex, trading happens on another venue. Add that jump to the intra-hour move and
@@ -67,13 +67,13 @@ def session_ids(asset: Asset, hours: pd.Series, anchor_tz: str = "America/New_Yo
 def split_channels(asset: Asset, usable: pd.DataFrame,
                    action_days: set[date] | None = None,
                    anchor_tz: str = "America/New_York") -> pd.DataFrame:
-    """Computes r and r_gap under the rules of §2.4.
+    """Computes r and r_gap.
 
-    The input is ONLY usable bars (those that passed the §2.6 gate and lie inside
+    The input is ONLY usable bars (those that passed the quality gate and lie inside
     a session): a return computed across an invalid or after-hours bar is
     meaningless.
 
-    A missing bar inside a session is not forward-filled - §2.4 forbids
+    A missing bar inside a session is not forward-filled - that is forbidden,
     forward-fill for returns. The return is simply taken from the last valid
     close, so it spans two hours instead of one; that is more honest than
     inventing a close that never existed.
@@ -124,7 +124,7 @@ _MAD_CHUNK = 100_000
 
 def _rolling_mad(series: pd.Series, window: int) -> pd.Series:
     """Median absolute deviation on a rolling window, EXCLUDING the current bar -
-    the window ends on the previous one (§2.5).
+    the window ends on the previous one.
 
     Vectorised over the whole series rather than called back per window, which
     is not a micro-optimisation: this was 54% of the entire pipeline. The window
@@ -153,7 +153,7 @@ def _rolling_mad(series: pd.Series, window: int) -> pd.Series:
 
 
 def winsorize(asset: Asset, frame: pd.DataFrame) -> pd.DataFrame:
-    """Winsorization of returns per §2.5.
+    """Winsorization of returns.
 
     The point is WHAT exactly gets capped. The EWMA state update is fed the
     clipped r_w: one extreme hour must not inflate the estimate of normal for
@@ -176,7 +176,7 @@ def winsorize(asset: Asset, frame: pd.DataFrame) -> pd.DataFrame:
     mad_24 = _rolling_mad(returns, windows.MAD_WINDOW)
 
     # sigma_LT is computed on data strictly before the current bar - the same
-    # out-of-sample discipline as everything else in §3.1. The shift lives
+    # out-of-sample discipline as everything else here. The shift lives
     # inside ewma.long_run_sigma, where it cannot be left out by a caller.
     sigma_lt = ewma.sigma_lt(returns, asset.session_template)
 

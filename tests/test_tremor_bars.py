@@ -29,7 +29,7 @@ def test_to_hourly_folds_half_hour_bars_onto_the_round_hour():
     assert full["volume"] == 50.0
     assert full["n_src"] == 2
     # An hour assembled from a single half-hourly bar is the first bar of the
-    # session (§2.4). It can only be told apart by n_src.
+    # session. It can only be told apart by n_src.
     assert out.iloc[0]["n_src"] == 1
 
 
@@ -99,7 +99,7 @@ def test_load_missing_file_returns_typed_empty_frame(tmp_path):
 
 
 def test_candles_to_frame_preserves_the_open_time_convention():
-    # hour_utc is the bar's OPENING moment (§1.2), the same convention as
+    # hour_utc is the bar's OPENING moment, the same convention as
     # open_time in candle_store, so the import needs no shift.
     candles = [Candle(open_time=HOUR, open=1.0, high=2.0, low=0.5, close=1.5,
                       volume=3.0, close_time=2 * HOUR)]

@@ -45,7 +45,7 @@ def episodes(significant: np.ndarray) -> list[tuple[int, int]]:
 
 def apply_cooldown(positions: np.ndarray, cooldown: int = windows.CLUSTER_COOLDOWN
                    ) -> np.ndarray:
-    """Thins firings the way §5.1 thins events: keep one, then stay quiet.
+    """Thins firings the way the cluster detector thins events: keep one, then stay quiet.
 
     Used on the baselines so their alert count is comparable with the detector's.
     """

@@ -1,4 +1,4 @@
-"""Fetching hourly bars into the store (spec §2.1).
+"""Fetching hourly bars into the store.
 
 Runs every hour as the second step of the pass, and carries the deepening modes
 that are run by hand.

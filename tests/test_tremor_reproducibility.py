@@ -1,4 +1,4 @@
-"""Run reproducibility test (spec §6.7).
+"""Run reproducibility test.
 
 The requirement sounds simple: a repeat run of the same period under the same
 config_version must give an IDENTICAL set of events. It has to be checked on the
@@ -74,7 +74,7 @@ def test_the_same_data_yields_the_same_run_version(tmp_path):
 
 
 def test_a_revised_bar_yields_a_new_run_version(tmp_path):
-    # §6.2: late or revised data must enter the recomputation under a NEW
+    # Late or revised data must enter the recomputation under a NEW
     # version - otherwise a corrected bar quietly mixes with the old decisions.
     directory = tmp_path / "bars"
     directory.mkdir()
@@ -89,7 +89,7 @@ def test_rewriting_a_file_with_the_same_bytes_keeps_the_version(tmp_path):
     # A backfill rewrites the file with the same bars. A fingerprint based on
     # modification time would declare that new data, and a recomputation over an
     # unchanged history would get a new run_version every time - meaning the
-    # idempotency of §6.2 would not exist at all.
+    # idempotency would not exist at all.
     directory = tmp_path / "bars"
     directory.mkdir()
     bar = directory / "spy.parquet"

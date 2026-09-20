@@ -33,7 +33,7 @@ def two_block_config(**extra):
 
 def test_weights_follow_the_equal_weight_rule(tmp_path):
     # Three assets in equity against one in FX: the blocks still weigh the same,
-    # and within a block the assets split the block's weight between them (§2.3).
+    # and within a block the assets split the block's weight between them.
     raw = MINIMAL | {"assets": [
         asset("A", "equity"), asset("B", "equity", tier=2), asset("C", "equity", tier=2),
         asset("D", "FX"), asset("E", "FX", tier=2),
@@ -50,7 +50,7 @@ def test_weights_follow_the_equal_weight_rule(tmp_path):
 
 
 def test_weight_is_not_readable_from_the_file(tmp_path):
-    # Per §2.3 the weight is derived. Even if it is written into the
+    # The weight is derived. Even if it is written into the
     # configuration, the system must compute by the rule rather than trust the
     # stored number.
     raw = two_block_config()
@@ -113,7 +113,7 @@ def test_real_basket_config_is_valid():
     assert set(basket.by_block()) == {
         "equity", "rates", "credit", "energy", "precious_metals",
         "industrial_metals", "agriculture", "FX", "crypto"}
-    # Every block needs two members or it can never be active (§4.2's
+    # Every block needs two members or it can never be active (the
     # BLOCK_ACTIVE_MIN), and a block that can never be active contributes exactly
     # nothing to the quorum - measured: one crypto asset instead of two takes the
     # share of hours passing quorum from 70.6% to 19.9%, losing every overnight
@@ -124,14 +124,14 @@ def test_real_basket_config_is_valid():
         assert len(members) >= 2, block
     assert sum(basket.weights().values()) == pytest.approx(1.0)
     # At night only FX and crypto remain in session - together they must make the
-    # §2.3 quorum, or the system is blind outside the US session.
+    # quorum, or the system is blind outside the US session.
     night = [a for a in basket.assets if a.block in ("FX", "crypto")]
     assert len(night) >= 8
     assert sum(1 for a in night if a.tier == 1) >= 2
 
 
 def test_rejects_a_nonpositive_tick_size(tmp_path):
-    # The price step feeds the §2.5 floor; zero or a negative value would make the
+    # The price step feeds the winsorization floor; zero or a negative value would make the
     # floor meaningless rather than strict.
     raw = two_block_config()
     raw["assets"][0]["tick_size"] = 0

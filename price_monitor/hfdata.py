@@ -16,7 +16,7 @@ THE PART THAT MATTERS MOST. The library changes source in March 2022:
 Their own note puts it plainly: daily volume for a stock like AAPL on IEX may
 be 2-5 million shares against 50-80 million on the full tape. Splicing across
 that boundary would drop every ETF's volume by ~97% on a fixed date, and the
-volume profile of §3.5 is built on exactly that series - it would read the
+volume profile is built on exactly that series - it would read the
 change of vendor as the largest liquidity event in the basket's history.
 
 We do not need to go near it: Twelve Data already holds everything from

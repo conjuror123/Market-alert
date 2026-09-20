@@ -24,7 +24,7 @@ def test_z_is_measured_against_the_previous_bar_state():
 
 
 def test_variance_update_uses_the_previous_mean():
-    # The spec spells this out in its own line: the variance is fed the ewma_mean
+    # The variance is fed the ewma_mean
     # of the PREVIOUS bar. Both forms look natural but give different numbers, and
     # diverging here means quietly computing the wrong thing.
     r = np.array([0.01, 0.02, -0.03])
@@ -121,7 +121,7 @@ def test_q95_leg_is_looser_than_q99():
 
 
 def test_unevaluated_breach_is_null_not_false():
-    # §1.2: NULL and False are different things. "The threshold does not exist
+    # NULL and False are different things. "The threshold does not exist
     # yet" cannot be written down as "the threshold was not exceeded".
     abs_z = pd.Series([5.0, 5.0])
     abs_r = pd.Series([0.1, 0.1])
@@ -136,7 +136,7 @@ def test_unevaluated_breach_is_null_not_false():
 def test_compute_drops_z_while_sigma_lt_is_unknown():
     # During the burn-in the denominator has no floor, and on frozen quotes Z
     # comes out meaningless. Such values must not enter the percentile window -
-    # per §6.6 an hour before first_valid_hour takes no part in the statistics.
+    # an hour before first_valid_hour takes no part in the statistics.
     frame = pd.DataFrame({
         "r": [0.0, 0.0, 0.0, 0.01, 0.01],
         "r_w": [0.0, 0.0, 0.0, 0.01, 0.01],

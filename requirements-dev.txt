@@ -7,7 +7,7 @@ pytest>=8.0,<9
 # not risking an update to it silently changing the historical schedule.
 exchange-calendars>=4.13,<5
 
-# Validating the event export (§6.5) against the published schema
+# Validating the event export against the published schema
 # schema/event_export.schema.json. Not needed in production: the schema is a
 # contract for the export's consumer, and a test validates it, not the hourly run.
 jsonschema>=4.21,<5

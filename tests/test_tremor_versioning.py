@@ -21,7 +21,7 @@ def test_config_version_is_stable_for_identical_input(tmp_path):
 
 
 def test_changing_a_threshold_changes_the_version(tmp_path):
-    # §6.3: changing parameters retroactively without a recomputation is
+    # Changing parameters retroactively without a recomputation is
     # forbidden. The version must notice the edit by itself - a manual counter,
     # which people forget to increment, cannot be relied on.
     inputs = ("windows.py",)
@@ -46,7 +46,7 @@ def test_file_order_does_not_matter(tmp_path):
 
 
 def test_run_version_is_idempotent_for_unchanged_data(tmp_path):
-    # §6.2: a repeat run of the same hour under the same version creates no duplicates.
+    # A repeat run of the same hour under the same version creates no duplicates.
     data = write(tmp_path, "bars.parquet", "x" * 100)
     first = versioning.run_version("cfg", versioning.data_fingerprint([str(data)]))
     second = versioning.run_version("cfg", versioning.data_fingerprint([str(data)]))
@@ -93,7 +93,7 @@ def written(events, config="cfg", data="data1", previous=None, now=1000):
 
 
 def test_created_at_survives_a_rerun_over_unchanged_data():
-    # §6.2: a rerun with the same version must be idempotent. Taking the clock
+    # A rerun with the same version must be idempotent. Taking the clock
     # again would make the table differ byte for byte between two identical runs.
     first = written(["a"], now=1000)
     again = written(["a"], previous=first, now=2000)
@@ -111,7 +111,7 @@ def test_revised_data_marks_the_row_recalculated():
 
 
 def test_an_edit_to_the_code_alone_does_not_mark_the_row_recalculated():
-    # §6.2 raises the flag for late or revised DATA. A moved threshold or a
+    # The flag is raised for late or revised DATA. A moved threshold or a
     # reworded comment moves config_version and with it run_version, and during
     # calibration that happens on every iteration - a flag that stood at True on
     # every row would say nothing at all.

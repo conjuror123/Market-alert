@@ -34,6 +34,8 @@ def test_sigma_lt_is_undefined_below_the_minimum():
         windows.sigma_lt_bars(719)
 
 
-def test_ewma_periods_match_the_specification():
+def test_the_ewma_periods_are_the_periods_they_are_named_for():
+    # lambda = 2 / (period + 1), so a period of 24 bars and one of 120. Written
+    # as the arithmetic rather than as 0.08 and 0.0165, which say nothing.
     assert windows.LAMBDA == pytest.approx(2 / 25)
     assert windows.LAMBDA_Q == pytest.approx(2 / 121)

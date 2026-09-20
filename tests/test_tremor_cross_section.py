@@ -101,7 +101,7 @@ def test_quorum_needs_two_tier1_assets():
 
 
 def test_panel_keeps_gaps_as_gaps():
-    # §3.3 forbids filling gaps with zeros: a zero asserts "the asset did not
+    # Filling gaps with zeros is forbidden: a zero asserts "the asset did not
     # move", while a gap means "we do not know".
     metrics = {
         "a": pd.DataFrame({"hour_utc": [HOUR, 2 * HOUR], "r": [0.01, 0.02]}),
@@ -190,7 +190,7 @@ def test_pc1_ratio_skips_incomplete_columns():
 
 
 def test_single_factor_falls_back_to_compression_when_pca_is_null():
-    # §3.4: an hour that passed quorum must receive a definite trigger value, or
+    # An hour that passed quorum must receive a definite trigger value, or
     # it contributes no term to the SI-Index.
     compression = pd.Series([True, False, pd.NA], dtype="boolean")
     sync = pd.Series([pd.NA, pd.NA, pd.NA], dtype="boolean")
@@ -211,7 +211,7 @@ def test_single_factor_is_an_or():
 
 def test_subcondition_correlation_is_undefined_when_one_never_fires():
     # Exactly what happened on real data: compression fired once in five years,
-    # and never inside the overlap with synchrony. In that case the §3.4
+    # and never inside the overlap with synchrony. In that case the
     # correlation cannot be computed from anything, and pretending it is zero is
     # not on.
     frame = pd.DataFrame({
@@ -247,7 +247,7 @@ def test_block_factor_excludes_the_asset_itself():
 
 
 def test_block_factor_is_a_plain_median_because_weights_are_equal():
-    # Under the equality rule of §2.3 weights within a block are equal, so a
+    # Under the equality rule weights within a block are equal, so a
     # block's weighted median coincides with the plain one.
     basket = four_by_two()
     weights = basket.weights()
@@ -256,7 +256,7 @@ def test_block_factor_is_a_plain_median_because_weights_are_equal():
 
 
 def test_outside_basket_instrument_uses_the_whole_block():
-    # A non-basket instrument does not enter the factor (§8.1); nothing to exclude.
+    # A non-basket instrument does not enter the factor; nothing to exclude.
     basket = Basket(
         assets=(make_asset("A", "FX"), make_asset("B", "FX", 2),
                 make_asset("C", "crypto"), make_asset("D", "crypto", 2)),
@@ -304,7 +304,7 @@ def test_coherence_is_undefined_when_the_assets_do_not_vary_at_all():
 
 
 def test_compression_needs_the_basket_to_have_moved_as_well():
-    # The second leg is unchanged from §3.2: agreement about nothing much is not
+    # The second leg is unchanged: agreement about nothing much is not
     # an event.
     n = 2500
     hours = pd.Index([(i + 1) * HOUR for i in range(n)])
@@ -318,7 +318,7 @@ def test_compression_needs_the_basket_to_have_moved_as_well():
 
 def test_the_specs_own_compression_is_kept_and_still_computed():
     # It fires nowhere on this basket, and the empty column is the evidence -
-    # §3.4 wants both sub-conditions logged separately.
+    # Both sub-conditions are logged separately.
     n = 2500
     hours = pd.Index([(i + 1) * HOUR for i in range(n)])
     csv_norm = pd.Series(np.linspace(1.0, 2.0, n), index=hours)

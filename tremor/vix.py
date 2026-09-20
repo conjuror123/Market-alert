@@ -1,4 +1,4 @@
-"""VIX stress multiplier (spec §4.4).
+"""VIX stress multiplier.
 
 The condition is one-sided, and that is the point: fear and relief are not
 symmetric states of the market. A sharp rise in VIX means participants are
@@ -12,7 +12,7 @@ multiplier on for weeks, and it would stop distinguishing an acute moment from
 the general background. Repeats inside a window are counted and logged, but they
 do not move the window.
 
-A departure from the letter of §4.4, recorded in docs/decisions.md: the
+A departure recorded in docs/decisions.md: the
 series is daily, because no available source offers intraday VIX, and the window
 starts at the moment the value became KNOWN to the system, not at the
 observation date. FRED publishes the value on the next business day, and
@@ -29,11 +29,11 @@ import pandas as pd
 
 from tremor import ewma, windows, zscore
 
-# Multiplier size and window length. Both starred in the spec.
+# Multiplier size and window length. Both starting values.
 M_VIX = 1.3
 WINDOW_HOURS = windows.VIX_WINDOW
 
-# Absolute-leg threshold for the VIX series (§4.4): 1.5 * sigma_LT.
+# Absolute-leg threshold for the VIX series: 1.5 * sigma_LT.
 ABS_LEG = windows.ABS_LEG_Q95
 
 
@@ -52,9 +52,9 @@ def load_series(path: str) -> pd.DataFrame:
 
 
 def score(series: pd.DataFrame, window: int = windows.SIGMA_LT_MIN_BARS) -> pd.DataFrame:
-    """Runs the VIX series through the §3.1 machinery with its own states.
+    """Runs the VIX series through the z-score machinery with its own states.
 
-    The threshold window for a daily series is 720 bars: §2.7 gives
+    The threshold window for a daily series is 720 bars: the rule gives
     max(120 * B_asset, 720), and a daily series has one bar per day, so the
     floor is what applies.
     """

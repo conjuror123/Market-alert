@@ -1,4 +1,4 @@
-"""Cross-section of the basket: quorum, M_t, CSV, PCA (spec §2.3, §3.2-3.4).
+"""Cross-section of the basket: quorum, M_t, CSV, PCA.
 
 This is where the system stops looking at assets one by one and starts measuring
 the thing it exists for: HOW COHERENTLY the market as a whole is moving. A single
@@ -8,16 +8,16 @@ series simultaneously.
 
 Two independent ways of catching the same coherence:
 
-- COMPRESSION of dispersion (§3.2). Normally assets disagree: each has its own
+- COMPRESSION of dispersion. Normally assets disagree: each has its own
   news, its own order flow. When a common macro factor arrives, the dispersion
   between them collapses - everyone moves the same way by about the same amount -
   and the basket itself shifts noticeably. A narrow spread together with a large
   common move is the signature of a common factor.
-- SYNCHRONY via PCA (§3.3). The same thing from the other side: if the first
+- SYNCHRONY via PCA. The same thing from the other side: if the first
   principal component explains an unusually large share of the variance, then one
   common cause is driving every asset.
 
-Per §3.4 they are combined with OR and logged separately - and the backtest must
+They are combined with OR and logged separately - and the backtest must
 check the correlation of their firings: above 0.7, one of the sub-conditions is
 dropped from the production configuration as redundant.
 """
@@ -32,25 +32,25 @@ import pandas as pd
 from tremor import atomic, windows
 from tremor.basket import Basket
 
-# Quorum of an hour (§2.3).
+# Quorum of an hour.
 QUORUM_MIN_ASSETS = 8
 QUORUM_MIN_TIER1 = 2
 QUORUM_MIN_BLOCKS = 2
 QUORUM_MIN_PER_BLOCK = 2
 
-# PCA conditioning requirements (§3.3).
+# PCA conditioning requirements.
 PCA_MIN_ASSETS = 3
 PCA_MIN_ROWS = 60
 PCA_ROWS_PER_ASSET = 3
 CONSTANT_COLUMN_STD = 1e-12
 
-# Margin added to the median in the synchrony threshold (§3.3).
+# Margin added to the median in the synchrony threshold.
 PCA_SYNC_MARGIN = 0.05
 
 # How many defined values of PC1_ratio must fall inside the W_cs window for the
 # percentile threshold to mean anything.
 #
-# The spec's window is 1200 reference-calendar hours, and it must not change:
+# The window is 1200 reference-calendar hours, and it must not change:
 # that is the calendar span of the statistic, ten trading weeks. But PC1_ratio
 # exists only in full-regime hours, and those are about 28% - a 1200-hour window
 # contains roughly 335 values. Demanding 1200 OBSERVATIONS inside 1200 HOURS is
@@ -66,7 +66,7 @@ def weighted_median(values: np.ndarray, weights: np.ndarray) -> float:
 
     A median, not a mean, because M_t must describe the basket AS A WHOLE and not
     yield to one asset that took off today. Weighted, because an asset's weight
-    is set by the block-equality rule (§2.3), and without weights a block of six
+    is set by the block-equality rule, and without weights a block of six
     currency pairs would outvote a block of three crypto assets purely by
     headcount.
     """
@@ -85,7 +85,7 @@ def weighted_median(values: np.ndarray, weights: np.ndarray) -> float:
 def build_panel(metrics: dict[str, pd.DataFrame], column: str = "r") -> pd.DataFrame:
     """Wide panel: rows are hours, columns are assets, values are `column`.
 
-    Gaps stay gaps. §3.3 FORBIDS filling them with zeros: a zero asserts "the
+    Gaps stay gaps. FILLING THEM WITH ZEROS IS FORBIDDEN: a zero asserts "the
     asset did not move", while its absence means "we do not know", and swapping
     one for the other inflates the basket's coherence exactly where there is no
     data.
@@ -95,7 +95,7 @@ def build_panel(metrics: dict[str, pd.DataFrame], column: str = "r") -> pd.DataF
 
 
 def quorum(panel: pd.DataFrame, basket: Basket) -> pd.DataFrame:
-    """Quorum of an hour per §2.3: whether there are enough assets, tiers and
+    """Quorum of an hour: whether there are enough assets, tiers and
     blocks for the hour to be worth assessing at all."""
     present = panel.notna()
     blocks = {a.asset_id: a.block for a in basket.assets}
@@ -123,7 +123,7 @@ def quorum(panel: pd.DataFrame, basket: Basket) -> pd.DataFrame:
 
 
 def basket_median(panel: pd.DataFrame, basket: Basket) -> pd.Series:
-    """M_t - the weighted median return of the basket (§2.3)."""
+    """M_t - the weighted median return of the basket."""
     weights = basket.weights()
     columns = [c for c in panel.columns if c in weights]
     w = np.array([weights[c] for c in columns])
@@ -311,7 +311,7 @@ def _scale_row(sigma_panel: "pd.DataFrame | None", columns: list[str],
 
 def cross_sectional_volatility(panel: pd.DataFrame, sigma_panel: pd.DataFrame,
                                basket: Basket) -> pd.DataFrame:
-    """CSV and CSV_norm per §3.2.
+    """CSV and CSV_norm.
 
     CSV is the dispersion of asset returns WITHIN an hour. It is normalised by
     the mean own volatility of those same assets, otherwise the quantity would
@@ -320,7 +320,7 @@ def cross_sectional_volatility(panel: pd.DataFrame, sigma_panel: pd.DataFrame,
     """
     columns = [c for c in panel.columns if c in {a.asset_id for a in basket.assets}]
     values = panel[columns]
-    csv = values.std(axis=1, ddof=1)  # ddof=1 per §1.2
+    csv = values.std(axis=1, ddof=1)  # ddof=1: the sample standard deviation, not the population one
     ewma_volatility = sigma_panel[columns].where(values.notna()).mean(axis=1)
     return pd.DataFrame({
         "csv": csv,
@@ -331,7 +331,7 @@ def cross_sectional_volatility(panel: pd.DataFrame, sigma_panel: pd.DataFrame,
 
 def csv_compression(csv_norm: pd.Series, m: pd.Series,
                     window: int = windows.W_CS) -> pd.Series:
-    """The compression sub-condition exactly as §3.2 writes it.
+    """The compression sub-condition, exactly as it was originally defined.
 
     Kept, computed and logged, but no longer part of the single-factor trigger:
     on this basket it fires in ZERO hours out of 29,532, and that is structural
@@ -340,7 +340,7 @@ def csv_compression(csv_norm: pd.Series, m: pd.Series,
     quiet hours; "|M_t| above two sigma" means they moved a great deal. The
     condition asks for an hour that is simultaneously violent and becalmed.
 
-    It is left in place because §3.4 requires both sub-conditions to be logged
+    It is left in place because both sub-conditions must be logged
     separately, and because an empty column is itself the evidence. What replaced
     it is `coherence` below. See docs/decisions.md.
     """
@@ -362,7 +362,7 @@ def coherence(panel: pd.DataFrame, quorum_ok: pd.Series) -> pd.Series:
     On Z-scores rather than returns, and that is the point. The basket's assets
     differ in scale by a factor of forty - Solana moves 49 basis points in a
     typical hour where SHY moves one - so a spread taken on raw returns is
-    dominated by whichever crypto asset is loudest: measured, the CSV of §3.2
+    dominated by whichever crypto asset is loudest: measured, the plain CSV
     correlates 0.904 with Solana's own |r|. It is a Solana volatility gauge
     wearing the name of a cross-sectional statistic. On Z-scores that correlation
     falls to 0.365, because each asset is first expressed in units of its own
@@ -375,9 +375,9 @@ def coherence(panel: pd.DataFrame, quorum_ok: pd.Series) -> pd.Series:
 
 def coherence_compression(coherence_series: pd.Series, m: pd.Series,
                           window: int = windows.W_CS) -> tuple[pd.Series, pd.Series]:
-    """The single-factor sub-condition that replaces §3.2's compression.
+    """The single-factor sub-condition that replaces compression.
 
-    Same second leg as the spec - the basket must actually have shifted, since
+    Same second leg as the condition it replaces - the basket must actually have shifted, since
     assets agreeing on nothing much is not an event - and the same shape: an
     adaptive percentile of the quantity's own recent history, so it tracks the
     regime rather than a fixed number. Only the first leg changes, from "the
@@ -392,7 +392,7 @@ def coherence_compression(coherence_series: pd.Series, m: pd.Series,
 
 
 def cluster_sigma_m(m: pd.Series, window: int) -> pd.Series:
-    """sigma_M on the §5.2 definition, needed here before cluster runs."""
+    """sigma_M as the cluster detector defines it, needed here before it runs."""
     return m.shift(1).rolling(window, min_periods=window).std(ddof=1)
 
 
@@ -401,7 +401,7 @@ def sustained_move(m: pd.Series, sigma_m: pd.Series,
                    window: int = windows.W_CS) -> tuple[pd.Series, pd.Series]:
     """The basket's move accumulated over the trailing `horizon` hours, in sigmas.
 
-    Every trigger of §4.2 is a one-hour statistic, and §7 asks what the market
+    Every trigger is a one-hour statistic, and calibration asks what the market
     does over the following twenty-four. Volatility clusters, so a one-hour shock
     carries some information about the day ahead - but it is the wrong instrument
     for the question, and measurably so: the same basket move read over 24
@@ -438,7 +438,7 @@ def full_basket_regime(quorum_frame: pd.DataFrame, basket: Basket) -> pd.Series:
 def pc1_ratio(panel: pd.DataFrame, quorum_ok: pd.Series, basket: Basket,
               window: int = windows.W_PCA,
               regime: pd.Series | None = None) -> pd.Series:
-    """Share of variance explained by the first principal component (§3.3).
+    """Share of variance explained by the first principal component.
 
     Computed on the CORRELATION matrix, not the covariance matrix: otherwise the
     most volatile asset alone would define the first component, and the quantity
@@ -448,8 +448,8 @@ def pc1_ratio(panel: pd.DataFrame, quorum_ok: pd.Series, basket: Basket,
     incomplete column would make pairwise correlations incomparable, each computed
     on a different subset of time.
 
-    From this follows a limitation §3.3 does not anticipate, because it assumes
-    every asset shares one session. We have two. Any 120-hour window touches the
+    From this follows a limitation nobody saw coming, because the rule was written
+    for a basket where every asset shares one session. We have two. Any 120-hour window touches the
     night, when the ETFs are closed, so the completeness requirement throws ALL
     the ETFs out of the matrix - verified on real data: what remains is exactly
     six currency pairs and three crypto assets, in every single window. The
@@ -459,8 +459,8 @@ def pc1_ratio(panel: pd.DataFrame, quorum_ok: pd.Series, basket: Basket,
     So the window is assembled from hours of ONE regime - those in which the whole
     basket trades. Then every asset is complete, the correlations are comparable,
     and PC1_ratio measures what it should: how common the movement is across all
-    blocks. At night the value stays NULL, and per §3.4 the single-factor trigger
-    rests on compression alone - a case the specification addresses directly.
+    blocks. At night the value stays NULL, and the single-factor trigger
+    rests on compression alone, which is the intended fallback.
 
     Mixing regimes in one series would be worse than not computing it at all: the
     synchrony threshold is a rolling percentile of PC1_ratio itself, and on a
@@ -475,7 +475,7 @@ def pc1_ratio(panel: pd.DataFrame, quorum_ok: pd.Series, basket: Basket,
     eligible = values[mask]
 
     out = pd.Series(np.nan, index=panel.index)
-    # The mean pairwise correlation (§6.5) is computed right here: the
+    # The mean pairwise correlation is computed right here: the
     # correlation matrix for it has already been built, and a separate pass over
     # the same windows would cost as much as the whole PCA.
     mean_corr = pd.Series(np.nan, index=panel.index)
@@ -516,7 +516,7 @@ def pc1_ratio(panel: pd.DataFrame, quorum_ok: pd.Series, basket: Basket,
 
 
 def pca_sync(ratio: pd.Series, window: int = windows.W_CS) -> pd.Series:
-    """The synchrony sub-condition (§3.3). The threshold is the maximum of the
+    """The synchrony sub-condition. The threshold is the maximum of the
     percentile and the median plus a margin: the percentile alone is not enough,
     because in a prolonged period of high connectedness it drifts upward and stops
     cutting anything off."""
@@ -528,10 +528,10 @@ def pca_sync(ratio: pd.Series, window: int = windows.W_CS) -> pd.Series:
 
 
 def single_factor(compression: pd.Series, sync: pd.Series) -> pd.Series:
-    """The single-factor trigger (§3.4): compression OR synchrony.
+    """The single-factor trigger: compression OR synchrony.
 
     If PC1_ratio was not assessed, synchrony is logged as NULL and the trigger's
-    value equals compression alone - per §3.4 an hour that passed quorum must
+    value equals compression alone - an hour that passed quorum must
     receive a definite value, or it contributes no term to the SI-Index.
     """
     filled_sync = sync.fillna(False).astype(bool)
@@ -543,7 +543,7 @@ def single_factor(compression: pd.Series, sync: pd.Series) -> pd.Series:
 
 def build_basket_metrics(metrics: dict[str, pd.DataFrame], basket: Basket,
                          reference_hours: pd.Index | None = None) -> pd.DataFrame:
-    """Assembles metrics_basket_hour (§6.4): quorum, M_t, CSV, PCA and the
+    """Assembles metrics_basket_hour: quorum, M_t, CSV, PCA and the
     single-factor trigger on a shared hourly grid."""
     panel = build_panel(metrics, "r")
     sigma_panel = build_panel(metrics, "sigma_eff")
@@ -559,11 +559,11 @@ def build_basket_metrics(metrics: dict[str, pd.DataFrame], basket: Basket,
     regime = full_basket_regime(quorum_frame, basket)
     ratio, mean_corr = pc1_ratio(panel, ok, basket, regime=regime)
 
-    # An hour without quorum is not assessed at all: per §2.3 every cluster
+    # An hour without quorum is not assessed at all: every cluster
     # trigger gets NULL, not False.
     compression, compression_threshold = csv_compression(csv_frame["csv_norm"], m)
     compression = compression.where(ok, pd.NA)
-    # Basket assets only: an instrument outside the basket has a block (§8.1) but
+    # Basket assets only: an instrument outside the basket has a block but
     # takes no part in any basket aggregate.
     in_basket = {a.asset_id for a in basket.assets}
     z_panel = build_panel({aid: frame for aid, frame in metrics.items()
@@ -598,12 +598,12 @@ def build_basket_metrics(metrics: dict[str, pd.DataFrame], basket: Basket,
 
 
 def subcondition_correlation(frame: pd.DataFrame) -> float:
-    """Correlation between the firings of compression and synchrony (§3.4).
+    """Correlation between the firings of compression and synchrony.
 
     The check is mandatory in the backtest: if the sub-conditions almost always
     fire together, the second adds no information and merely doubles the weight of
-    one and the same observation in the SI-Index. Per the spec, above 0.7 one of
-    them is dropped from the production configuration.
+    one and the same observation in the SI-Index. Above 0.7 one of them is
+    dropped from the production configuration.
 
     Computed only over hours where BOTH were assessed - where PC1_ratio is
     undefined there is nothing to compare against.
@@ -625,7 +625,7 @@ def main(argv: list[str] | None = None) -> int:
     from tremor import pipeline, sessions, versioning
     from tremor.basket import load_basket
 
-    parser = argparse.ArgumentParser(description="Hourly basket metrics (§3.2-3.4)")
+    parser = argparse.ArgumentParser(description="Hourly basket metrics")
     parser.add_argument("--metrics-dir", default=pipeline.DEFAULT_METRICS_DIR)
     parser.add_argument("--out", default=DEFAULT_BASKET_METRICS_PATH)
     args = parser.parse_args(argv)
@@ -644,7 +644,7 @@ def main(argv: list[str] | None = None) -> int:
         pd.Series(panel_hours), basket.anchor_exchange_tz).to_numpy()]
     frame = build_basket_metrics(metrics, basket, reference)
 
-    # §6.3: the versions go into the metrics as well. cluster then rewrites this
+    # The versions go into the metrics as well. cluster then rewrites this
     # same file with its own derived columns and re-stamps it - whoever wrote the
     # file last is who the stamp has to describe.
     config, run_id = versioning.versions_for()
@@ -657,7 +657,7 @@ def main(argv: list[str] | None = None) -> int:
              len(frame), int(frame["quorum_ok"].sum()),
              int(frame["csv_compression"].sum()), int(frame["pca_sync"].sum()),
              int(frame["single_factor"].sum()))
-    log.info("sub-condition correlation (§3.4): %s",
+    log.info("sub-condition correlation: %s",
              f"{correlation:.4f}" if correlation == correlation
              else "undefined - one of the sub-conditions never fired")
     return 0

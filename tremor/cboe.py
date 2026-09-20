@@ -1,4 +1,4 @@
-"""CBOE client for the daily VIX history (spec §4.4).
+"""CBOE client for the daily VIX history.
 
 The same series tremor.fred already fetches, from the exchange that computes it
 rather than from a mirror. Kept alongside FRED rather than replacing it, because

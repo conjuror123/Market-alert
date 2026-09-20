@@ -1,8 +1,8 @@
-"""Assembly of per-asset metrics (spec §6.1, layer A + layer B).
+"""Assembly of per-asset metrics: layer A + layer B.
 
 Runs one instrument through the whole phase 1-2 chain: quality gate -> return
 channels -> winsorization -> EWMA Z-score and adaptive thresholds. The result
-goes into metrics_asset_hour (§6.4).
+goes into metrics_asset_hour.
 
 THE HOURLY RUN EXTENDS RATHER THAN RECOMPUTES. Every window here is bounded -
 the longest is sigma_lt at windows.SIGMA_LT_BARS, with the EWMA under it
@@ -45,7 +45,7 @@ TEMPLATE_TZ = {
 
 def bars_per_session(asset: Asset, usable: pd.DataFrame,
                      anchor_tz: str = "America/New_York") -> float:
-    """B_asset from §2.7: the median number of valid bars in the asset's TRADING DAY.
+    """B_asset: the median number of valid bars in the asset's TRADING DAY.
 
     It is measured, not declared: W_asset, the adaptive-threshold window, is
     computed from it, and an error here would mean a window of the wrong length
@@ -260,7 +260,7 @@ def build_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
     actions = corporate_actions.load_actions()
     os.makedirs(metrics_dir, exist_ok=True)
 
-    # §6.3 requires the versions in the metrics too, not only in the events. The
+    # The versions belong in the metrics too, not only in the events. The
     # stamp goes on what is WRITTEN, not on what is returned: downstream modules
     # get the frame in memory and take their own stamp at their own write.
     config, run = versioning.versions_for() if versions is None else versions
@@ -417,7 +417,7 @@ def load_all(basket: Basket, metrics_dir: str = DEFAULT_METRICS_DIR) -> dict[str
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(description="Recompute per-asset metrics (§6.1)")
+    parser = argparse.ArgumentParser(description="Recompute per-asset metrics")
     parser.add_argument("--bars-dir", default=bars.DEFAULT_BARS_DIR)
     parser.add_argument("--metrics-dir", default=DEFAULT_METRICS_DIR)
     parser.add_argument("--workers", type=int, default=None,

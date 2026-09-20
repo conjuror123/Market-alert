@@ -51,7 +51,7 @@ def test_holiday_is_a_weekday_absent_from_the_table():
 
 
 def test_reference_week_is_exactly_120_hours():
-    # §2.2: the reference-calendar week is exactly 120 hours long, and holidays
+    # The reference-calendar week is exactly 120 hours long, and holidays
     # are not subtracted from it.
     opened, closed = sessions.reference_week_bounds(
         datetime(2026, 8, 26, 12, tzinfo=timezone.utc), ANCHOR)
@@ -60,7 +60,7 @@ def test_reference_week_is_exactly_120_hours():
 
 def test_reference_week_bounds_shift_with_daylight_saving():
     # The bounds are given in the exchange's local time, so in UTC they differ
-    # between summer and winter: 21:00 and 22:00. §2.2 forbids storing them as UTC
+    # between summer and winter: 21:00 and 22:00. Storing them as UTC is forbidden
     # - daylight saving would otherwise shift the week relative to the market.
     summer, _ = sessions.reference_week_bounds(
         datetime(2026, 7, 15, 12, tzinfo=timezone.utc), ANCHOR)

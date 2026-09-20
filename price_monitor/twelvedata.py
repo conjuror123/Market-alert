@@ -165,7 +165,7 @@ def _request(
                     # Spot FX arrives without volume - no provider has a
                     # consolidated exchange volume for it - while ETFs arrive
                     # with the real thing. Defaulting to zero rather than
-                    # hard-coding it keeps the ETF figure the §3.5 volume profile
+                    # hard-coding it keeps the ETF figure the volume profile
                     # is built on.
                     volume=float(v.get("volume") or 0.0),
                     close_time=int(_parse_datetime(v["datetime"]).timestamp()) + granularity_seconds,

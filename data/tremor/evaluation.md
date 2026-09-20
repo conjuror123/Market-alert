@@ -66,11 +66,11 @@ Per episode, not per hour: one shock spans several bars and the detector reports
 
 ---
 
-# Against the §7 yardstick
+# Against the original calibration yardstick
 
-Scored window 2023-06-21 .. 2026-09-10 — from the hour the whole basket is warm (§6.6). Recall is per episode, not per hour, and the baselines carry the same 72-hour cooldown as the detector; see the module docstring for why.
+Scored window 2023-06-21 .. 2026-09-10 — from the hour the whole basket is warm. Recall is per episode, not per hour, and the baselines carry the same 72-hour cooldown as the detector; see the module docstring for why.
 
-THE DETECTOR SCORED BELOW IS NOT THE ONE DELIVERED. It is the SI-Index cluster channel; `price_monitor` reads `saed_events.parquet`. The §7 label also asks a forecasting question — did a big move follow in the next 24 hours — which is not what either detector claims to answer. Both tables are kept because the comparison against the SPY baseline is worth having; neither is a verdict on the product.
+THE DETECTOR SCORED BELOW IS NOT THE ONE DELIVERED. It is the SI-Index cluster channel; `price_monitor` reads `saed_events.parquet`. That label also asks a forecasting question — did a big move follow in the next 24 hours — which is not what either detector claims to answer. Both tables are kept because the comparison against the SPY baseline is worth having; neither is a verdict on the product.
 
 ## Detectors
 
@@ -79,19 +79,19 @@ THE DETECTOR SCORED BELOW IS NOT THE ONE DELIVERED. It is the SI-Index cluster c
 | SI-Index cluster events | 77 | 91 | 14 | 13.0% | 15.4% | 14.1% | 12 |
 | SPY trailing 24h (runnable) | 19 | 91 | 11 | 42.1% | 12.1% | 18.8% | 16 |
 | SPY trailing 24h (runnable), no cooldown | 295 | 91 | 17 | 59.0% | 18.7% | 28.4% | 20 |
-| SPY forward 24h (§7 as written) | 19 | 91 | 8 | 36.8% | 8.8% | 14.2% | -0 |
-| SPY forward 24h (§7 as written), no cooldown | 295 | 91 | 21 | 68.8% | 23.1% | 34.6% | 18 |
+| SPY forward 24h (original label) | 19 | 91 | 8 | 36.8% | 8.8% | 14.2% | -0 |
+| SPY forward 24h (original label), no cooldown | 295 | 91 | 21 | 68.8% | 23.1% | 34.6% | 18 |
 
 ## Against a softened label
 
-§7 cuts truth at a block's 99th percentile, and an alert before a move reaching 0.99 of that line scores as a total failure. The same detector, same alerts, against a label at 0.75 of the threshold:
+The original label cuts truth at a block's 99th percentile, and an alert before a move reaching 0.99 of that line scores as a total failure. The same detector, same alerts, against a label at 0.75 of the threshold:
 
 | Label | Episodes | Caught | Precision | Recall | F1 |
 |---|---:|---:|---:|---:|---:|
-| §7 as written | 91 | 14 | 13.0% | 15.4% | 14.1% |
+| original label | 91 | 14 | 13.0% | 15.4% | 14.1% |
 | at 0.75 of the threshold | 217 | 29 | 31.2% | 13.4% | 18.7% |
 
-## Train and test (§7)
+## Train and test
 
 Calibration happens on train alone; test is reported so the gap is visible, not so it can be tuned against.
 
@@ -114,7 +114,7 @@ Calibration happens on train alone; test is reported so the gap is visible, not 
 | precious_metals | 0.0324 | 33 | 3 | 3.9% | 9.1% | -7 |
 | rates | 0.0086 | 12 | 1 | 1.3% | 8.3% | 20 |
 
-## Diagnostics (§7)
+## Diagnostics
 
 | Quantity | Value |
 |---|---|
@@ -124,8 +124,8 @@ Calibration happens on train alone; test is reported so the gap is visible, not 
 | Early breaks refused by the debounce | 0 |
 | basket_coherence fires | 0.3% |
 | pca_sync fires | 0.0% |
-| Correlation of the two (§3.4, drop one above 0.7) | — |
-| csv_compression fires (retired, §21) | 0.0% |
+| Correlation of the two (drop one above 0.7) | — |
+| csv_compression fires (retired) | 0.0% |
 | Calendar multiplier above 1, all hours | 17.3% |
 | Calendar multiplier above 1, at events | 59.7% |
 | Escalations inside a calendar window | 90.0% |

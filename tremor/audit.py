@@ -1,13 +1,13 @@
-"""Phase 0: the data-coverage table (spec §2.1).
+"""Phase 0: the data-coverage table.
 
-Per §2.1 the basket composition is not approved without this table, and that is
-no formality: almost every window parameter in §2.7 is expressed in an asset's
+The basket composition is not approved without this table, and that is
+no formality: almost every window parameter is expressed in an asset's
 VALID TRADING BARS rather than in calendar time. How many bars an instrument has
 in a day is exactly the B_asset from which W_asset = max(120 * B_asset, 720) is
 computed - the window of the adaptive Q95/Q99 thresholds. Without measuring it on
 real data, the window size would have to be guessed.
 
-The report answers the three questions of §2.1 - depth of history, presence and
+The report answers three questions - depth of history, presence and
 comparability of hourly volume, integrity of the series - and prints them as
 Markdown so it can be attached to the decision about the basket composition.
 """
@@ -82,7 +82,7 @@ def audit_instrument(asset: Asset, frame: pd.DataFrame) -> dict:
     volume = frame["volume"].astype("float64")
     zero_pct = float((volume == 0).mean() * 100)
 
-    # OHLC consistency (§2.6) - with a half-tick tolerance. The source rounds a
+    # OHLC consistency - with a half-tick tolerance. The source rounds a
     # bar's fields independently and inconsistently: TLT shows close 92.42 against
     # high 92.415, EUR/USD open 1.0886 against low 1.08862. That is a difference
     # smaller than one tick, a rounding artefact rather than a broken bar, and a
@@ -140,7 +140,7 @@ def _flag(row: dict) -> str:
         if row[field]:
             notes.append(f"{label}: {row[field]}")
     # A price step finer than anything the source can emit: half_tick_return in
-    # §2.5 would then be computed against a resolution that does not exist.
+    # The winsorization floor would then be computed against a resolution that does not exist.
     if row["precision"] and row["tick_size"] < row["precision"]:
         notes.append(f"step {row['tick_size']:g} finer than source precision {row['precision']:g}")
     return ", ".join(notes)
@@ -149,7 +149,7 @@ def _flag(row: dict) -> str:
 def render(rows: list[dict], vix: dict | None) -> str:
     out = ["# Tremor data coverage table", "",
            f"Compiled {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC. "
-           "Required by spec §2.1: without it the basket composition is not approved.", ""]
+           "The basket composition is not approved without this table.", ""]
 
     for in_basket, title in ((True, "Basket"), (False, "Outside the basket (SAED only)")):
         subset = [r for r in rows if r["in_basket"] == in_basket]
@@ -169,7 +169,7 @@ def render(rows: list[dict], vix: dict | None) -> str:
                 out.append(head + " — | — | — | — | "
                            f"{r['tick_size']:g} | — | — | — | {_flag(r)} |")
                 continue
-            # W_asset from §2.7 - the adaptive-threshold window, a direct
+            # W_asset - the adaptive-threshold window, a direct
             # consequence of the bars-per-trading-day figure measured here.
             w_asset = max(int(120 * r["bars_per_day"]), 720)
             out.append(
@@ -186,7 +186,7 @@ def render(rows: list[dict], vix: dict | None) -> str:
                 f"`{vix['series_id']}`: {vix['rows']:,} daily values, "
                 f"{vix['first']} .. {vix['last']}. Median publication lag — "
                 f"{vix['median_lag_hours']:.0f} h from midnight of the observation day "
-                "(§4.4, the departure is recorded in basket.yaml).", ""]
+                "(the departure is recorded in basket.yaml).", ""]
 
     total = sum(r["rows"] for r in rows)
     out += ["## Totals", "",

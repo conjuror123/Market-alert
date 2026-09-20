@@ -14,7 +14,7 @@ data/calibration_review/
 # worth revisiting. Every one of them is restored by re-running the pipeline from
 # the bars, which is what the hourly job does anyway before it reads them.
 #
-#   events/    - the event export of §6.5. The schema lives in
+#   events/    - the event export. The schema lives in
 #                schema/event_export.schema.json and is versioned; the export
 #                itself is produced by python -m tremor.export.
 #   residuals/ - the SAED residual series, from python -m tremor.saed.

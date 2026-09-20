@@ -1,8 +1,8 @@
-"""Registry of windows and constants (spec §2.7).
+"""Registry of windows and constants.
 
-All in one place, because the main hazard here is mixing units. The
-specification divides windows into three incompatible kinds, and confusing them
-does not raise an error - it silently changes what the calculation means:
+All in one place, because the main hazard here is mixing units. Windows come in
+three incompatible kinds, and confusing them does not raise an error - it
+silently changes what the calculation means:
 
 - per-asset windows are counted in VALID TRADING BARS of that asset. For a US
   ETF that is 7 bars a day, for a currency pair 24, so "120 bars" means 17
@@ -13,24 +13,25 @@ does not raise an error - it silently changes what the calculation means:
   measured in CALENDAR hours and are not shortened even when they cross a
   market close or a weekend.
 
-Constant names deliberately mirror the notation of the spec: that way they can
-be checked against it by eye, without holding a rename table in your head.
+Constant names deliberately mirror the notation used in the formulas they feed,
+so the two can be checked against each other by eye without holding a rename
+table in your head.
 """
 from __future__ import annotations
 
 # --- per-asset windows, in valid trading bars -----------------------------
 
-# EWMA of returns (§3.1). Period 24 bars.
+# EWMA of returns. Period 24 bars.
 LAMBDA = 2 / (24 + 1)
 
-# Winsorization window (§2.5): median absolute deviation over the last 24 valid
+# Winsorization window: median absolute deviation over the last 24 valid
 # bars, EXCLUDING the current one.
 MAD_WINDOW = 24
 
-# Smoothing of the Q95/Q99 thresholds (§3.1). Period 120 bars.
+# Smoothing of the Q95/Q99 thresholds. Period 120 bars.
 LAMBDA_Q = 2 / (120 + 1)
 
-# Long-term sigma (§2.5, §3.1). Exponentially weighted, not a box - see
+# Long-term sigma. Exponentially weighted, not a box - see
 # tremor/ewma.py for the shape, tools/sigma_window.py for the measurement.
 #
 # THE HALF-LIFE IS THE SETTING; THE SPAN IS A CONSEQUENCE. And it is set PER
@@ -93,11 +94,11 @@ def sigma_lt_span(template: "str | None" = None) -> int:
         return SIGMA_LT_SPAN_HALFLIVES * max(SIGMA_LT_HALFLIFE_BARS.values())
     return SIGMA_LT_SPAN_HALFLIVES * sigma_lt_halflife(template)
 
-# Volume profile (§3.5) - 20 FULL trading days per local exchange hour; half
+# Volume profile - 20 FULL trading days per local exchange hour; half
 # sessions and holidays are excluded from the profile.
 VOLUME_PROFILE_DAYS = 20
 
-# Regression window on the block factor (§3.6) - in bars where the instrument
+# Regression window on the block factor - in bars where the instrument
 # and the factor are BOTH valid.
 REGRESSION_WINDOW = 500
 REGRESSION_MIN = 200
@@ -170,29 +171,29 @@ def warm_bars(w_asset_bars: int, rate: float | None = None,
     return window + trusted_bars(rate) if rate else window
 
 
-# THE PER-ASSET COOLDOWN IS NOT A NUMBER AND SO IS NOT HERE. §8.3's twelve bars
+# THE PER-ASSET COOLDOWN IS NOT A NUMBER AND SO IS NOT HERE. The twelve bars
 # are gone: an instrument and a block each report once per THEIR OWN TRADING DAY,
 # which is a rule with no window to tune. See tremor.saed.build_events.
 
-# Burn-in of an asset's EWMA state (§6.6).
+# Burn-in of an asset's EWMA state.
 EWMA_BURN_IN_BARS = 500
 
 # --- cross-sectional windows, in reference-calendar hours -----------------
 
-W_PCA = 120           # PCA window, one trading week (§3.3)
-W_CS = 1200           # window for CSV_norm, PC1_ratio, sigma_M, k_t (§3.2, 3.3, 5.2)
-CLUSTER_COOLDOWN = 72  # cluster-event cooldown (§5.1)
-VIX_WINDOW = 24        # VIX multiplier window (§4.4)
-ESCALATION_DEBOUNCE = 24  # escalation debounce window (§5.2)
-TRUTH_HORIZON = 24     # horizon for truth labelling and baseline (§7)
+W_PCA = 120           # PCA window, one trading week
+W_CS = 1200           # window for CSV_norm, PC1_ratio, sigma_M, k_t (3.3, 5.2)
+CLUSTER_COOLDOWN = 72  # cluster-event cooldown
+VIX_WINDOW = 24        # VIX multiplier window
+ESCALATION_DEBOUNCE = 24  # escalation debounce window
+TRUTH_HORIZON = 24     # horizon for truth labelling and baseline
 
-# The percentile the basket's coherence must clear for the single-factor trigger
-# (§3.4). Starred: §7 calibrates it. 0.90 fires in 1.12% of hours once the second
-# leg - the basket must actually have shifted - is applied.
+# The percentile the basket's coherence must clear for the single-factor trigger.
+# A starting value, calibrated on the training period: 0.90 fires in 1.12% of
+# hours once the second leg - the basket must actually have shifted - is applied.
 COHERENCE_QUANTILE = 0.90
 
-# The matched-horizon channel (deviation §24). §4.2's triggers are all one-hour
-# statistics, while §7 asks what happens over the following 24 hours; the same
+# The matched-horizon channel (deviation). The triggers are all one-hour
+# statistics, while calibration asks what happens over the following 24 hours; the same
 # basket move accumulated over 24 reference hours is three times more precise
 # than its one-hour form (80% against 25% on train). These two say how far past
 # its own recent history that accumulation and the single-asset event count must
@@ -200,20 +201,20 @@ COHERENCE_QUANTILE = 0.90
 SUSTAINED_WINDOW = 24
 SUSTAINED_QUANTILE = 0.99
 SAED_BREADTH_QUANTILE = 0.98
-REVERSAL_DELAY = 3     # delay before the vector-reversal branch (§5.2)
+REVERSAL_DELAY = 3     # delay before the vector-reversal branch
 
-# Floor under k_t in §5.2: the empirical percentile alone would sink so low in a
-# prolonged lull that any wobble would read as a reversal. Starred - §7 lists k_t
+# Floor under the cluster detector's k_t: the empirical percentile alone would sink so low in a
+# prolonged lull that any wobble would read as a reversal. A starting value; k_t
 # among the parameters calibrated on train.
 REVERSAL_K_MIN = 1.5
-EXPORT_HALF_WINDOW = 12  # event export window around T0 (§6.5)
+EXPORT_HALF_WINDOW = 12  # event export window around T0
 
-# --- calendar hours: the single exception (§2.7, §4.3) --------------------
+# --- calendar hours: the single exception --------------------
 
-# Hours before and after a release, by (tier, importance). All starred: §7
+# Hours before and after a release, by (tier, importance). All starting values:
 # calibrates the multiplier's parameters on train.
 #
-# The spec's own numbers were 6/3 for High and 4/2 for Medium with no tiering,
+# The first numbers tried were 6/3 for High and 4/2 for Medium with no tiering,
 # and on this calendar they do not discriminate. ForexFactory labels impact PER
 # COUNTRY, which yields 823 High-impact releases a year; at a nine-hour window
 # each that is 84.5% of the clock before Medium is counted at all, and the
@@ -229,7 +230,7 @@ CALENDAR_WINDOWS = {
 
 
 def w_asset(bars_per_session: float) -> int:
-    """Window for an asset's Q95/Q99 thresholds: max(120 * B_asset, 720) bars (§2.7).
+    """Window for an asset's Q95/Q99 thresholds: max(120 * B_asset, 720) bars.
 
     B_asset is the median number of valid bars in that asset's session. It
     cannot be a constant: a US ETF session yields 7 hourly bars, a currency pair
@@ -257,9 +258,9 @@ def sigma_lt_bars(available_bars: int, template: "str | None" = None) -> int:
     return min(sigma_lt_span(template), available_bars)
 
 
-# --- absolute legs of the hybrid significance condition (§3.1) -----------
+# --- absolute legs of the hybrid significance condition -----------
 #
-# Starred in the spec: starting values, calibrated on train (§7).
+# Starting values, calibrated on the training period.
 # The point of the second, absolute leg is that the relative one is misleading
 # on its own. In a very quiet stretch an asset's own volatility collapses, and a
 # move that is negligible in absolute terms honestly clears its percentile. The
@@ -267,12 +268,12 @@ def sigma_lt_bars(available_bars: int, template: "str | None" = None) -> int:
 # available history.
 ABS_LEG_Q99 = 6.0   # |r_t| >= 6.0 * sigma_LT  (*) calibrated on train, spec 3.0
 
-# §8.2's absolute leg for the RESIDUAL series. The spec states it separately from
-# §3.1's and both start at 3.0; this implementation shared one constant for both,
+# The absolute leg for the RESIDUAL series. It was always a separate number from
+# the price series' leg, and both start at 3.0; this implementation shared one constant for both,
 # which meant calibrating the price leg silently moved SAED's sensitivity too -
 # and now that the SAED count feeds the cluster score, the search would have been
 # optimising against a channel it was also disturbing without modelling it.
-# Separate constants, as §3.1 and §8.2 have them. Starred.
+# Separate constants, one per series. Starting values.
 # Critical value for a standardised abnormal return, two-sided 1%. This is how
 # event studies decide: one standardised statistic against one critical value.
 # The standardisation IS the test - weighting by precision is where the power
@@ -294,8 +295,8 @@ ABS_LEG_Q99 = 6.0   # |r_t| >= 6.0 * sigma_LT  (*) calibrated on train, spec 3.0
 ABS_LEG_RESID = 3.0   # retired from the trigger; kept for the older reports
 ABS_LEG_Q95 = 1.5   # |r_t| >= 1.5 * sigma_LT
 
-# Volume confirmation threshold (§3.5), also a starting value.
+# Volume confirmation threshold, also a starting value.
 VOLUME_CONFIRM = 2.5
 
-# Below this the scaled volume MAD counts as degenerate (§3.5).
+# Below this the scaled volume MAD counts as degenerate.
 VOLUME_MAD_FLOOR = 1e-6

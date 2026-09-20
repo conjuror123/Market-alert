@@ -130,8 +130,8 @@ def test_residual_winsorisation_clips_only_the_state_input():
 
 
 def test_q95_resid_is_computed_but_unused():
-    # §3.6: Q95_resid is computed and stored PURELY for diagnostics; it takes
-    # part in no condition in the document - §8.2 works on Q99.
+    # Q95_resid is computed and stored PURELY for diagnostics; it takes
+    # part in no condition at all - the residual leg works on Q99.
     rng = np.random.default_rng(6)
     factor_values = rng.normal(0, 0.01, 1200)
     frame = frame_with(list(rng.normal(0, 0.02, 1200)))

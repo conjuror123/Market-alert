@@ -1,7 +1,7 @@
 """Scores the detector that is actually delivered.
 
 WHY THIS EXISTS AND WHAT IT REPLACES. tremor.evaluate scores the SI-Index
-cluster channel against the §7 yardstick, and that number has been read for a
+cluster channel against the calibration yardstick, and that number has been read for a
 long time as "how good is the bot". It is not. price_monitor reads
 saed_events.parquet: the 8,838 single-instrument and block events are what
 reaches a phone, and the 139 cluster events are a channel that is computed,
@@ -9,7 +9,7 @@ written, and delivered to nobody. Every judgement made about this project on the
 strength of "we barely beat the SPY rule" was made about a component the reader
 has never seen.
 
-WHAT A FAIR YARDSTICK IS HERE, which is the whole difficulty. §7 asks whether a
+WHAT A FAIR YARDSTICK IS HERE, which is the whole difficulty. That yardstick asks whether a
 big move followed in the next 24 hours - a FORECASTING question. SAED does not
 forecast. It says "what just happened in this instrument was unusual for this
 instrument", which is a claim about the present and about a distribution, and

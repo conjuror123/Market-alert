@@ -1,12 +1,12 @@
-"""Basket configuration: assets, blocks, tiers, derived weights (spec §2.3).
+"""Basket configuration: assets, blocks, tiers, derived weights.
 
 The key difference from the existing monitor's config.yaml: here an asset has no
 thresholds of its own, and cannot have any. Thresholds in Tremor are adaptive -
-percentiles of an asset's own |Z| distribution (§3.1) - so the configuration
+percentiles of an asset's own |Z| distribution - so the configuration
 describes only the COMPOSITION and the PROPERTIES of the instruments, not the
 sensitivity to them.
 
-The weight is not a configuration field either. Per §2.3 it is derived:
+The weight is not a configuration field either. It is derived:
     weight_i = 1 / (N_blocks * N_assets_block)
 and if a stored weight diverges from the rule, the configuration counts as
 invalid. The only reliable way never to diverge is not to store the weight at all
@@ -67,7 +67,7 @@ class Asset:
     fetch_interval: str
     label: str
     in_basket: bool
-    # The source's quote step. Needed by the §2.5 winsorization: the eps_MAD
+    # The source's quote step. Needed by the winsorization: the eps_MAD
     # floor includes the return on half a tick, without which, in quiet hours when
     # the price stands still, MAD collapses to zero and an ordinary move looks
     # extreme. It is measured against real data (tremor.audit) rather than taken
@@ -132,7 +132,7 @@ class Asset:
 
 @dataclass(frozen=True)
 class VolatilityIndex:
-    """External stress indicator (§4.4). Not part of the basket."""
+    """External stress indicator. Not part of the basket."""
     series_id: str
     source: str
     interval: str
@@ -157,7 +157,7 @@ class Basket:
     history_since: date
     session_templates: dict
     # How far back to ACQUIRE, which is not the same question as how far back
-    # to ANALYSE. history_since is tied to the §7 train period and moving it
+    # to ANALYSE. history_since is tied to the training period and moving it
     # moves the evaluation window; this only says "take whatever the sources
     # will still give". Free archives freeze - Dukascopy publishes whole months
     # only, and a file not taken now may not be takeable later - so bars not
@@ -185,7 +185,7 @@ class Basket:
         return blocks
 
     def weights(self) -> dict[str, float]:
-        """Weights under the equality rule of §2.3: blocks are equal to one
+        """Weights under the equality rule: blocks are equal to one
         another, and assets within a block are equal to one another.
 
         Computed over the whole basket composition. When active_from / active_to
@@ -389,7 +389,7 @@ def load_basket(path: str = DEFAULT_BASKET_PATH) -> Basket:
                 f"{a.ticker}: session template '{a.session_template}' is not "
                 f"described in session_templates")
 
-    # The hourly quorum (§2.3) requires at least two blocks of two assets each. A
+    # The hourly quorum requires at least two blocks of two assets each. A
     # basket where that is unreachable in any hour is pointless: its cluster
     # triggers will never fire, not merely "rarely".
     populated = [b for b, members in Basket(
@@ -403,7 +403,7 @@ def load_basket(path: str = DEFAULT_BASKET_PATH) -> Basket:
 
     vix_raw = raw.get("volatility_index") or {}
     if not vix_raw.get("series_id"):
-        raise BasketConfigError("volatility_index.series_id is not set (§4.4)")
+        raise BasketConfigError("volatility_index.series_id is not set")
 
     since = raw.get("history_since")
     history_since = _as_date(since)

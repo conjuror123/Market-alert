@@ -1,4 +1,4 @@
-"""Idiosyncratic residual: the input of the SAED module (spec §3.6).
+"""Idiosyncratic residual: the input of the SAED module.
 
 The whole construction answers one question: is this asset's move its own, or is
 it simply drifting along with the market? A raw return cannot answer that. On a
@@ -27,7 +27,7 @@ block, a credit block that holds credit, four commodity blocks. A block factor
 only has to represent the instruments inside it, which is a claim the composition
 can be chosen to make true.
 
-The residual is processed by the same §3.1 machinery as the price, but with
+The residual is processed by the same machinery as the price, but with
 entirely ITS OWN states: its own EWMA, its own long-term sigma, its own smoothed
 thresholds. Mixing them with the price ones is not allowed - the residual has a
 different scale and a different distribution.
@@ -44,7 +44,7 @@ from tremor.basket import Asset
 def rolling_beta(returns: pd.Series, factor: pd.Series,
                  window: int = windows.REGRESSION_WINDOW,
                  minimum: int = windows.REGRESSION_MIN) -> pd.DataFrame:
-    """Rolling regression of r on F over bars where BOTH are valid (§2.7).
+    """Rolling regression of r on F over bars where BOTH are valid.
 
     The window is measured in bars where both quantities are defined, not in
     calendar hours: for an ETF the block factor exists only during the US
@@ -250,7 +250,7 @@ def ou_fit(residual: pd.Series, window: int = OU_WINDOW, minimum: int = OU_MIN,
 
 def residuals(asset: Asset, frame: pd.DataFrame,
               block_factor: pd.Series | None = None) -> pd.DataFrame:
-    """The residual e and everything the §3.1 machinery needs to process it."""
+    """The residual e and everything the z-score machinery needs to process it."""
     out = frame.copy()
     if out.empty:
         return out.assign(alpha=pd.Series(dtype="float64"),
@@ -315,7 +315,7 @@ def residuals(asset: Asset, frame: pd.DataFrame,
     # The residual's own long-term sigma, on data strictly before the current bar.
     out["sigma_lt_resid"] = ewma.sigma_lt(out["e_resid"], asset.session_template)
 
-    # Winsorization of the residual per §2.5 - with its own MAD and its own floor.
+    # Winsorization of the residual - with its own MAD and its own floor.
     # The floor takes the same half-tick return: a residual is never finer than
     # the price step anyway.
     from tremor.returns import _rolling_mad
@@ -332,11 +332,11 @@ def residuals(asset: Asset, frame: pd.DataFrame,
 
 
 def score_residuals(frame: pd.DataFrame, w_asset: int) -> pd.DataFrame:
-    """Runs the residual series through the §3.1 machinery with its own states.
+    """Runs the residual series through the z-score machinery with its own states.
 
-    Per §3.6, Q95_resid is computed, stored and exported PURELY for diagnostics:
-    it takes part in no condition anywhere in the document. Only Q99_resid works
-    in the event-generation condition (§8.2).
+    Q95_resid is computed, stored and exported PURELY for diagnostics:
+    it takes part in no condition anywhere. Only Q99_resid works
+    in the event-generation condition.
     """
     from tremor import zscore
 
@@ -370,7 +370,7 @@ def score_residuals(frame: pd.DataFrame, w_asset: int) -> pd.DataFrame:
 
 # Minimum number of assets in session before a cross-sectional spread means
 # anything. Below this the standardisation is not attempted and the hour's value
-# is NULL - per §1.2 that is "not assessed", not "not an event".
+# is NULL - that is "not assessed", not "not an event".
 BMP_MIN_ASSETS = 5
 
 
@@ -512,7 +512,7 @@ def rescore_thresholds(frame: pd.DataFrame, w_asset: int,
                        column: str = "z_resid_bmp") -> pd.DataFrame:
     """Recomputes the adaptive Q95/Q99 on whichever score the trigger will use.
 
-    The thresholds of §3.1 are percentiles of the series' own recent history, so
+    The thresholds are percentiles of the series' own recent history, so
     changing the series means the thresholds have to follow it. Keeping the old
     ones would compare a standardised score against an unstandardised yardstick.
     """

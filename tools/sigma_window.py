@@ -2,8 +2,7 @@
 
 sigma_LT is the denominator of every claim this system makes: "8.3x its usual
 hour" is one number divided by it. The window was inherited as a flat 5,000
-bars from a design document that no longer exists and that gave no reason. This
-measures one - or rather, it measures that the question has THREE answers and
+bars, inherited with no reason attached to it. This measures one - or rather, it measures that the question has THREE answers and
 says what each one costs.
 
 WHAT THIS IS NOT. The obvious experiment is to score each window by how well it

@@ -24,7 +24,7 @@ label nine times more freely than ForexFactory (96.9 events a week against 11.3)
 while agreeing on High (13.0 against 13.4), so an archive spanning both is
 generous in one half and frugal in the other.
 
-For calibration (§7) that is worse than gaps - thresholds settle on one regime
+For calibration that is worse than gaps - thresholds settle on one regime
 and are applied in another, with nothing in the metrics to reveal it.
 
 The price of a single source is Low events, of which ForexFactory has an order of

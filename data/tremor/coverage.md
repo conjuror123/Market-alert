@@ -1,6 +1,6 @@
-# MEALS data coverage table
+# Tremor data coverage table
 
-Compiled 2026-09-06 13:54 UTC. Required by spec §2.1: without it the basket composition is not approved.
+Compiled 2026-09-06 13:54 UTC. The basket composition is not approved without this table.
 
 ## Basket
 
@@ -38,7 +38,7 @@ Compiled 2026-09-06 13:54 UTC. Required by spec §2.1: without it the basket com
 
 ## External stress indicator
 
-`VIXCLS`: 9,266 daily values, 1990-01-02 .. 2026-09-03. Median publication lag — 39 h from midnight of the observation day (§4.4, the departure is recorded in basket.yaml).
+`VIXCLS`: 9,266 daily values, 1990-01-02 .. 2026-09-03. Median publication lag — 39 h from midnight of the observation day (the departure is recorded in basket.yaml).
 
 ## Totals
 

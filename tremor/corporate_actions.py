@@ -1,4 +1,4 @@
-"""Corporate-actions table (spec §2.4, §6.4).
+"""Corporate-actions table.
 
 The store is unadjusted for dividends: adjusted series are recomputed
 retroactively on every payout, so in a store appended hour by hour the old bars
@@ -321,7 +321,7 @@ def main(argv: list[str] | None = None) -> int:
     from tremor.basket import load_basket
 
     parser = argparse.ArgumentParser(
-        description="Corporate-actions table (§2.4). "
+        description="Corporate-actions table. "
                     "tiingo (default) uses declared divCash/splitFactor. "
                     "twelvedata infers from the adjusted/raw ratio and cannot see splits.")
     parser.add_argument("--out", default=DEFAULT_ACTIONS_PATH)

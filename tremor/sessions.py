@@ -1,15 +1,15 @@
-"""Session calendar and the basket's reference calendar (spec §2.2).
+"""Session calendar and the basket's reference calendar.
 
 The NYSE schedule comes from the exchange_calendars library, but NOT on every
 run: the library acts as a generator, and the result of its work lives in the
 repository as a table committed alongside the code. There are three reasons.
 
-1. Reproducibility (§6.2). A test must yield an identical set of events on a
+1. Reproducibility. A test must yield an identical set of events on a
    repeat run of the same period under the same config_version. If the schedule
    is computed by the library at launch time, an update to it can move historical
    sessions - and a past backtest stops reproducing, although not a single
    configuration parameter was touched.
-2. The §6.4 schema explicitly requires holidays and half_sessions tables - that
+2. The export schema explicitly requires holidays and half_sessions tables - that
    is, data, not a function call.
 3. The hourly run then needs no calendar library at all, only a ready CSV. Fewer
    dependencies in production, faster installs.
@@ -34,10 +34,9 @@ from functools import lru_cache
 HOUR = 3600
 DEFAULT_SESSIONS_PATH = os.path.join("data", "tremor", "sessions", "nyse.csv")
 
-# The basket's reference calendar (§2.2): the continuous trading week of the
+# The basket's reference calendar: the continuous trading week of the
 # anchor exchange, from Sun 17:00 to Fri 17:00 of its LOCAL time. Exactly 120
-# hours; holidays are not subtracted from the week - §2.2 says so in as many
-# words.
+# hours; holidays are not subtracted from the week.
 REFERENCE_WEEK_HOURS = 120
 REFERENCE_OPEN_HOUR = 17   # Sunday, anchor exchange local time
 REFERENCE_CLOSE_HOUR = 17  # Friday
@@ -328,7 +327,7 @@ def reference_week_bounds(any_moment: datetime, anchor_tz: str) -> tuple[int, in
     (open, close) in epoch UTC.
 
     The bounds are given in the anchor exchange's local time and converted to UTC
-    on the fly - §2.2 forbids storing them as UTC, because the switch to daylight
+    on the fly - storing them as UTC is forbidden, because the switch to daylight
     saving would shift them relative to the market.
     """
     from zoneinfo import ZoneInfo
@@ -398,10 +397,10 @@ def reference_hours_mask(hours_utc, anchor_tz: str) -> "pd.Series":
 
 
 def is_reference_hour(hour_utc: int, anchor_tz: str) -> bool:
-    """Whether an hour (by the bar's OPENING moment, §1.2) falls in the reference
+    """Whether an hour (by the bar's OPENING moment) falls in the reference
     calendar.
 
-    Holidays are not excluded: per §2.2 the week is exactly 120 hours long and
+    Holidays are not excluded: the week is exactly 120 hours long and
     holidays are not subtracted from it. The reference calendar is the basket's
     hours, not the schedule of any particular exchange.
     """
@@ -414,7 +413,7 @@ def main(argv: list[str] | None = None) -> int:
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Generate the NYSE session table (spec §2.2)")
+        description="Generate the NYSE session table")
     parser.add_argument("--start", default="2021-01-01")
     parser.add_argument("--end", default="2028-12-31")
     parser.add_argument("--out", default=DEFAULT_SESSIONS_PATH)

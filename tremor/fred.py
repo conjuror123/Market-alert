@@ -1,4 +1,4 @@
-"""FRED client for the daily VIX series (spec §4.4).
+"""FRED client for the daily VIX series.
 
 ONE OF TWO SOURCES for that series, and the slower one - see tremor.cboe, which
 takes the same numbers from the exchange that computes them, the same evening
@@ -9,11 +9,11 @@ of failure. tremor.backfill unions them.
 Why either of these rather than an ETF on VIX futures: this is the real index
 going back to 1990 from the official source, without the contango drift that
 afflicts any futures ETF. The price of that choice is two peculiarities, both recorded as
-departures from the letter of §4.4:
+departures worth recording:
 
 1. The series is DAILY. FRED has no intraday VIX in any series - verified by
    searching every CBOE volatility series, all of them "Daily, Close". So a VIX
-   spike is identified by the §3.1 machinery on daily bars, not hourly ones.
+   spike is identified by the z-score machinery on daily bars, not hourly ones.
 
 2. The value is published on the next business day, in the morning Chicago time.
    FRED's realtime_start field for this series is backdated (it equals the

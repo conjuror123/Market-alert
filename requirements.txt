@@ -1,7 +1,7 @@
 requests>=2.31,<3
 PyYAML>=6.0,<7
-# Tremor: the vectorised layer for computing metrics and the columnar bar store
-# (spec 5.1 §6.1). No separate linear-algebra library is needed at this size -
+# Tremor: the vectorised layer for computing metrics and the columnar bar store.
+# No separate linear-algebra library is needed at this size -
 # numpy solves the basket's matrices faster than scikit-learn would take to
 # validate the input.
 pandas>=2.2,<3
