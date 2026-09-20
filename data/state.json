@@ -36,18 +36,26 @@
         "to": 1789776300
       },
       "1789776300": {
-        "events": [],
+        "events": [
+          "coinbase_AVAX-USD:1789866000"
+        ],
         "from": 1789776300,
         "hashes": [
-          "33323e97f290cba3"
+          "32a309506b8a7b9a"
         ],
         "ids": [
           26
         ],
+        "rows": 1,
         "to": 1789949100
       }
     },
-    "pings": {},
+    "pings": {
+      "coinbase_AVAX-USD:1789866000": {
+        "hash": "da524c17d076e6fd",
+        "id": 29
+      }
+    },
     "sent": {
       "twelvedata_GBP_USD:1789642800": {
         "hash": "1651063cf987a96f",
