@@ -27,12 +27,12 @@
         ],
         "from": 1789344300,
         "hashes": [
-          "4cc661b7580f798d"
+          "89ff74cf2ec121d5"
         ],
         "ids": [
           13
         ],
-        "rows": 5,
+        "rows": 2,
         "to": 1789776300
       },
       "1789776300": {
@@ -69,7 +69,7 @@
         "id": 19
       },
       "twelvedata_XLF:1789405200": {
-        "hash": "b17b392f291caf3c",
+        "hash": "3c2035888dea7e52",
         "hour": 1789405200,
         "id": 14
       }
@@ -87,7 +87,7 @@
       "twelvedata_XLF:1789405200": {
         "hour_utc": 1789405200,
         "message_id": 14,
-        "text_hash": "b17b392f291caf3c",
+        "text_hash": "3c2035888dea7e52",
         "written": [
           "today",
           "settled"
