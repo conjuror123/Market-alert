@@ -44,20 +44,25 @@
           "twelvedata_XLC:1789995600",
           "twelvedata_EEM:1789995600",
           "twelvedata_MBB:1789995600",
-          "twelvedata_USO:1789995600"
+          "twelvedata_USO:1789995600",
+          "coinbase_DOGE-USD:1790002800"
         ],
         "from": 1789949100,
         "hashes": [
-          "afbeb56f51cd34dd"
+          "714c4234e5090b27"
         ],
         "ids": [
           30
         ],
-        "rows": 5,
+        "rows": 6,
         "to": 1790381100
       }
     },
     "pings": {
+      "coinbase_DOGE-USD:1790002800": {
+        "hash": "0c3d4d0d5c80835b",
+        "id": 36
+      },
       "twelvedata_EEM:1789995600": {
         "hash": "fd7d4913f9595064",
         "id": 33
