@@ -104,7 +104,32 @@ change.
 
 ---
 
-## 5. Comments and prose that have drifted
+## 5. The rungs are evenly spaced in crossings, not in delivered events
+
+`tools/ladder.py` cuts each rung so it crosses 3.162x less often than the one below, and
+on bar crossings it achieves that: every block lands between 2.88x and 3.29x, against
+2.96x to 7.00x under the old uniform size step.
+
+A delivered event is not a crossing. `severity.combine` takes the maximum of the absolute
+and abnormal tiers, and the maximum of two evenly spaced ladders is not evenly spaced — it
+concentrates mass upward. The once-a-day rule then collapses a day's crossings to their
+peak tier and concentrates it again. Pooled over the archive, events step **2.65x, 2.47x
+and 1.95x** rather than 3.162x, so the ladder is more compressed at the top than it reads.
+
+Nothing is wrong in the sense of a wrong message: every rung still means "this size for
+this instrument", and the cross-block spread this re-cut was for did fall from 7.1x to
+4.2x. What is off is the claim that one step is one fixed amount of rarer.
+
+**What acting on it would mean:** deriving against event rates rather than crossing rates.
+There is no closed form, because the max-of-two and the daily collapse both depend on the
+levels being chosen — so it is an iteration: derive, cold-run `saed`, measure the event
+ratios, adjust the step, repeat. Three or four runs at about seven minutes each. Cheap in
+compute, and it moves the published rates again, which is the reason to do it deliberately
+rather than in passing.
+
+---
+
+## 6. Comments and prose that have drifted
 
 Small, cosmetic, and worth a pass rather than a project. Nothing specific is currently
 listed here — the prose drift that was on this list turned out to be one substantive

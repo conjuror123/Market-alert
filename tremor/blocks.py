@@ -233,8 +233,13 @@ def events_frame(scored: "dict[str, pd.DataFrame]", basket: Basket,
 
     Only the push tiers. A block moving at the noticeable or high level is the
     ordinary background of a market - some block is always the one that moved
-    most - and a digest line for it every fortnight would say nothing. The two
-    rare tiers are the ones that mean "this whole complex repriced".
+    most - and the two rare tiers are the ones that mean "this whole complex
+    repriced". Measured, letting the lower two through would add 52.7 block rows
+    a year, about one a week on a note that carries seven, and more than half of
+    it would be energy and equity alone. (An earlier version of this paragraph
+    said "every fortnight", which was wrong by half and made the filter look
+    better founded than it is. The filter stands on what those rows would SAY,
+    not on how few of them there would be.)
 
     And the same size floor an instrument has: `|r|` must clear
     `min_move_sigma` times the block's usual hour, with a per-block override

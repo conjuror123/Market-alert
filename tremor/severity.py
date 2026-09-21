@@ -79,14 +79,13 @@ import pandas as pd
 # alert count. They were set by the person who receives the messages, asked what
 # he would expect each rung to mean for one instrument; the resulting rate per
 # year is an output worth watching and has never been an input. Measured over
-# the whole archive it is about every 2 months, 6 months, 17 months and 2.9
-# years per instrument - roughly half the old wording's promise at the two quiet
-# rungs and twice it at the two that interrupt. See docs/decisions.md: the
-# frequency guarantee belonged to the rank rule this table replaced.
+# the whole archive it is about every 2 months, 5 months, 14 months and 2.3
+# years per instrument. See docs/decisions.md: the frequency guarantee belonged
+# to the rank rule this table replaced.
 #
 # WHAT THE FIRST COLUMN ACTUALLY DECIDES IS THE LENGTH OF THE WEEKLY NOTE. The
-# digest carries noticeable and high, 7.3 rows a week across two notes - about
-# 3.6 rows a note - and THREE QUARTERS OF THEM ARE `noticeable`. So the shallowest
+# digest carries noticeable and high, 6.7 rows a week across two notes - about
+# 3.3 rows a note - and THREE QUARTERS OF THEM ARE `noticeable`. So the shallowest
 # rung sets how much there is to read on a Saturday almost by itself, and the
 # three above it only decide which of those rows carries which word. That is the
 # question to ask when moving the first column, because it is the one a person
@@ -98,22 +97,58 @@ import pandas as pd
 # itself is a number nobody can reason about, and it was refitting that produced
 # the two failures this file records above.
 #
-# The spacing between rungs is geometric and shared: each is about 1.5x the one
-# below. What separates blocks is where the ladder STARTS, not how it climbs.
+# THE SPACING IS A FREQUENCY, NOT A SIZE, and that is the correction. The rungs
+# used to climb a uniform 1.47x in size in every block, and how much RARER that
+# made a rung depended on the block's tail, which differs: measured over the
+# archive the tail exponent runs 2.75 in credit to 3.71 in energy, so one step
+# was 2.96x rarer in credit and 4.64x in energy. It compounded - `extreme` cost
+# 2.5 `noticeable` events on EMB and 18.1 on XLI, 7.1x apart, and the tail
+# exponent predicted which (correlation +0.77).
+#
+# So the frequency step is what is held constant: EACH RUNG IS 3.162x RARER THAN
+# THE ONE BELOW - half a magnitude unit, the Gutenberg-Richter construction - and
+# the size that delivers that is read off each block's own history. Realised, the
+# steps now sit between 2.88x and 3.29x across all nine blocks, against 2.96x to
+# 7.00x before.
+#
+# The bottom rung is UNCHANGED from the hand-set table. It is the one rung a
+# reader can check, because three quarters of the weekly note's rows are
+# `noticeable` and it therefore sets how long the note is; everything above it is
+# derived from it. See tools/ladder.py, which prints this table and the two below
+# it, and docs/decisions.md for why a quantile beats extrapolating from the
+# exponent.
+#
+# WHAT IT ACTUALLY BOUGHT, because the next reader will measure and should not
+# conclude the table is broken. Across instruments, `extreme` now costs between
+# 4.7 and 19.6 `noticeable` events - 4.2x apart, against 7.1x before - and every
+# other published number held: 7.6 to 11.7 events per instrument-year (was 8.1 to
+# 12.2), 3.8x between the quietest and loudest name, 94.4% of the obvious hours
+# reached, 74.3% still standing at the next close.
+#
+# BUT THE 3.162x IS TRUE OF CROSSINGS, NOT OF DELIVERED EVENTS, and the gap is
+# real: pooled, the event counts step 2.65x, 2.47x and 1.95x. The rungs are spaced
+# correctly on the series they were derived against; a delivered event is a
+# different object, because `combine` takes the MAX of the absolute and abnormal
+# tiers - the maximum of two evenly spaced ladders is not evenly spaced, it
+# concentrates upward - and the once-a-day rule then keeps each day's PEAK tier
+# and concentrates it again. Closing that gap means deriving against event rates,
+# which is an iteration rather than a formula. It is open, in
+# docs/concerns-for-later.md.
 BLOCK_SIGMA: dict[str, tuple[float, float, float, float]] = {
-    "crypto":            (7.2, 10.8, 15.9, 23.1),
-    "FX":                (6.3,  9.4, 13.8, 20.0),
-    "precious_metals":   (4.4,  6.6,  9.6, 14.0),
-    "credit":            (4.3,  6.4,  9.4, 13.7),
-    "energy":            (4.3,  6.4,  9.4, 13.7),
-    "equity":            (4.2,  6.2,  9.1, 13.3),
-    "rates":             (4.1,  6.2,  9.1, 13.2),
-    "agriculture":       (3.8,  5.8,  8.4, 12.3),
-    "industrial_metals": (3.8,  5.7,  8.4, 12.2),
+    "crypto":            (7.2, 9.9, 13.2, 18.3),
+    "FX":                (6.3, 8.6, 11.1, 15.1),
+    "precious_metals":   (4.4, 6.1,  7.8,  9.9),
+    "credit":            (4.3, 6.5,  9.6, 13.5),
+    "energy":            (4.3, 5.8,  7.9, 10.4),
+    "equity":            (4.2, 5.7,  7.5, 10.2),
+    "rates":             (4.1, 5.7,  7.7, 10.5),
+    "agriculture":       (3.8, 5.5,  7.6, 10.6),
+    "industrial_metals": (3.8, 5.5,  8.0, 10.0),
 }
 
-# What an unlisted block falls back to.
-DEFAULT_SIGMA: tuple[float, float, float, float] = (4.2, 6.2, 9.1, 13.3)
+# What an unlisted block falls back to: the element-wise median of the nine
+# above, a typical ladder rather than an extrapolation from a tail nobody has.
+DEFAULT_SIGMA: tuple[float, float, float, float] = (4.3, 5.8, 7.9, 10.5)
 
 # And the ladder for a BLOCK'S OWN move, which is a different series and needs
 # different numbers. A block move is the median across its members of each
@@ -129,8 +164,20 @@ DEFAULT_SIGMA: tuple[float, float, float, float] = (4.2, 6.2, 9.1, 13.3)
 # days the whole complex repriced, and a table that silences equity gives that
 # back for the block a reader cares about most.
 #
-# Seeded the same way as the member table: the value putting each block near one
-# `major` every two years and one `extreme` every seven.
+# Anchored on `major`, NOT on the bottom rung, and the reason is that its bottom
+# two rungs cannot fire: blocks.events_frame filters block events to the push
+# tiers, so a block at `noticeable` or `high` computes a tier and produces
+# nothing. Anchoring on a rung that cannot fire would be anchoring on nothing, so
+# `major` is held where it was - about 3.7 block events a year - and the rest
+# derived from it at the same 3.162x step the member table uses.
+#
+# AND IT DIVIDES BY A DIFFERENT SIGMA, which is easy to miss and silently wrong
+# if it is. The member table scores |r| / sigma_LT, the long-run yardstick. This
+# series is a median of r / sigma_eff - saed builds its sigma panel from the
+# `sigma_eff` column - so it runs hotter in a calm stretch. Deriving it against
+# sigma_lt by mistake put three blocks' top rung above anything their series had
+# ever reached, while the live run has those blocks firing at `extreme` four
+# times each.
 # THE THIRD TABLE, and the one whose absence made a whole channel silent. The
 # abnormal ladder scores z_resid_bmp, which is a BMP standardised residual - a
 # t-statistic - and it was given the member table above. Those numbers were
@@ -152,30 +199,30 @@ DEFAULT_SIGMA: tuple[float, float, float, float] = (4.2, 6.2, 9.1, 13.3)
 # own |z_resid_bmp| that fires as often as the same rung on the absolute ladder,
 # so "major" means the same rarity whichever question found it.
 BLOCK_RESID_SIGMA: dict[str, tuple[float, float, float, float]] = {
-    "crypto":            (5.1, 6.6, 7.7, 10.6),
-    "FX":                (4.3, 5.3, 6.5,  7.3),
-    "industrial_metals": (3.2, 4.4, 6.1,  6.6),
-    "agriculture":       (3.4, 4.6, 5.6,  6.4),
-    "energy":            (3.6, 4.6, 5.4,  6.4),
-    "precious_metals":   (3.2, 4.2, 5.0,  6.1),
-    "rates":             (3.1, 3.8, 4.6,  5.8),
-    "equity":            (3.1, 3.8, 4.5,  5.2),
-    "credit":            (3.2, 3.7, 4.0,  4.5),
+    "crypto":            (5.3, 6.5, 7.5, 9.5),
+    "FX":                (4.4, 5.1, 5.9, 6.9),
+    "industrial_metals": (3.3, 4.4, 5.7, 6.9),
+    "agriculture":       (3.4, 4.5, 5.5, 6.3),
+    "energy":            (3.8, 4.7, 5.5, 6.3),
+    "precious_metals":   (3.4, 4.2, 4.8, 5.7),
+    "rates":             (3.3, 3.9, 4.7, 5.6),
+    "equity":            (3.2, 3.9, 4.5, 5.2),
+    "credit":            (3.3, 4.0, 4.7, 5.6),
 }
-DEFAULT_RESID_SIGMA = (3.2, 4.4, 5.4, 6.4)
+DEFAULT_RESID_SIGMA = (3.4, 4.4, 5.5, 6.3)
 
 BLOCK_MOVE_SIGMA: dict[str, tuple[float, float, float, float]] = {
-    "crypto":            (7.1, 10.5, 15.5, 19.3),
-    "FX":                (5.7,  8.4, 12.3, 14.7),
-    "industrial_metals": (4.6,  6.8, 10.0, 18.0),
-    "precious_metals":   (4.4,  6.5,  9.5, 10.8),
-    "agriculture":       (4.0,  6.0,  8.8, 12.9),
-    "rates":             (4.0,  5.8,  8.6, 12.0),
-    "credit":            (3.6,  5.4,  7.9, 10.2),
-    "energy":            (3.1,  4.6,  6.8,  8.4),
-    "equity":            (2.9,  4.3,  6.3,  7.8),
+    "crypto":            (8.1, 11.6, 15.5, 18.7),
+    "FX":                (6.3,  9.2, 12.3, 14.3),
+    "industrial_metals": (5.1,  7.2, 10.0, 16.3),
+    "precious_metals":   (5.9,  7.5,  9.5, 10.8),
+    "agriculture":       (4.0,  5.5,  8.8, 12.2),
+    "rates":             (4.7,  6.5,  8.6, 11.3),
+    "credit":            (3.7,  5.0,  7.9,  9.9),
+    "energy":            (4.7,  6.1,  6.8,  7.8),
+    "equity":            (3.6,  4.7,  6.3,  7.7),
 }
-DEFAULT_BLOCK_MOVE_SIGMA: tuple[float, float, float, float] = (4.0, 5.8, 8.6, 12.0)
+DEFAULT_BLOCK_MOVE_SIGMA: tuple[float, float, float, float] = (4.7, 6.5, 8.8, 11.3)
 
 TIERS: tuple[str, ...] = ("noticeable", "high", "major", "extreme")
 
@@ -217,6 +264,14 @@ def tier_sigma(block: str | None = None, ladder: str = MEMBER) -> dict[str, floa
         rungs = tuning.sigma_for(block) if block else DEFAULT_SIGMA
     else:
         raise ValueError(f"unknown ladder {ladder!r}")
+    if len(rungs) != len(TIERS):
+        # zip() would truncate here and hand back a short dict, and the caller
+        # would either KeyError deep inside sigma_levels or - worse - quietly
+        # lose the top rung. A table and the names it is zipped against are two
+        # halves of one thing; say so rather than limp on.
+        raise ValueError(
+            f"{ladder} ladder for block {block!r}: {len(rungs)} rungs against "
+            f"{len(TIERS)} tiers {TIERS}")
     return {name: value * tuning.sensitivity
             for name, value in zip(TIERS, rungs)}
 

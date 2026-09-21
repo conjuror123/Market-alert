@@ -28,8 +28,14 @@ was retired because a rank is relative to a window: after a crash nothing can re
 top rung until that crash rolls out, and 395 moves larger than a typical `extreme` went
 out as something milder, dated March 2020, October 2008 and the 2015 yuan devaluation.
 Size is monotone and cannot do that. It also has no 1/N argument, so the frequencies are
-measured rather than promised — per instrument, every 2 months, 6 months, 17 months and
-2.9 years. The two rungs that interrupt fire about twice as often as the old wording said.
+measured rather than promised — per instrument, every 2 months, 5 months, 14 months and
+2.3 years.
+
+**The SPACING between rungs is a frequency, though, and that part is constructed.** Each
+rung is cut to cross about 3.16x less often than the one below — half a magnitude unit,
+the Gutenberg-Richter construction — with the size that delivers it read off each block's
+own history. What the rungs are a preference about is where the ladder STARTS and what
+the words mean; how it climbs is derived. See the entry below.
 
 **Set per instrument, never pooled.** Pooling puts SHY and SOL back on one yardstick,
 which is the thing the ladder exists to avoid.
@@ -44,6 +50,38 @@ downloaded would let deepening an instrument quietly rename moves already sent.
 **Read the two ladders separately, never their union.** Each makes its own claim. A
 message takes whichever rung is rarer, so the message *rate* is roughly the sum — 2.03x
 at `extreme`. That is volume, which `sensitivity` turns, not a miscalibrated rung.
+
+**Re-cut on a frequency step, not a size step.** The rungs used to climb a uniform 1.47x
+in size in every block. How much rarer that made a rung depended on the block's tail, and
+the tails differ — the exponent runs 2.75 in credit to 3.71 in energy — so one step was
+2.96x rarer in credit and 4.64x in energy. It compounded: `extreme` cost 2.5 `noticeable`
+events on EMB and 18.1 on XLI, **7.1x apart**, and the tail exponent predicted which
+(correlation +0.77). Now each rung is cut to cross 3.162x less often than the one below,
+measured on each block's own history. `tools/ladder.py` derives all three tables and
+prints them; they are pasted by hand, because a number that refits itself is a number
+nobody can reason about.
+
+**The level is an empirical quantile, not an extrapolation from the exponent.** Placing
+rung *i* at `anchor * step**(i/alpha)` is the obvious method and was tried: it lands
+between 2.93x and 5.29x against a 3.162x target, because a return tail is not a clean
+power law and the error grows the further the extrapolation reaches — which is exactly at
+the top rung. Taking the rate as the target and reading the level off the data instead
+lands every block between 2.88x and 3.29x.
+
+**What the re-cut bought, and the one thing it did not.** The cross-instrument spread fell
+from 7.1x to **4.2x**, and everything else held: 7.6 to 11.7 events per instrument-year
+(was 8.1 to 12.2), 3.8x between the quietest and loudest name, 94.4% of the obvious hours
+reached, 74.3% still standing at the next close. Pushes went from 47 to 58 a year and the
+weekly note from 7.3 rows to 6.7, both consequences of lower `major`/`extreme` rungs and a
+rate-matched abnormal floor.
+
+**The 3.162x is true of crossings and not of delivered events, and that was a verification
+error worth recording.** The target was checked against bar crossings, where it holds
+exactly. An event is a different object: `combine` takes the MAX of the absolute and
+abnormal tiers, and the maximum of two evenly spaced ladders concentrates upward; the
+once-a-day rule then keeps each day's peak tier and concentrates it again. Pooled, events
+step 2.65x, 2.47x and 1.95x. Closing the gap means deriving against event rates, which is
+an iteration rather than a formula — open in `docs/concerns-for-later.md`.
 
 **Known limit — when an instrument's shocks happened.** The six-year rung fires 2.4x too
 often for FX and 0.34x for equity and credit. It tracks *where in its own life* each

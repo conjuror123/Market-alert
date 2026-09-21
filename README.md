@@ -18,10 +18,10 @@ Measured over 23.3 years of hourly history, 2.9M bars, a cold pass on the curren
 
 | | |
 |---|---|
-| pushes | 1,100 — about **47 a year**, on 33 interrupted days |
+| pushes | 1,352 — about **58 a year**, on 37 interrupted days |
 | reached you | **94.4%** of the 216 hours that were unmistakably large for their own instrument; 12 silent |
-| false alarms | **0.008%** — 98 of 1.17M hours below their instrument's median move |
-| held up | **74.6%** of pushes still standing at the next close |
+| false alarms | **0.007%** — 85 of 1.17M hours below their instrument's median move |
+| held up | **74.3%** of pushes still standing at the next close |
 
 That rate is an OUTPUT, watched rather than aimed at. Nothing caps it and the rungs are
 not tuned against it: they are tuned against what each word should mean for a single

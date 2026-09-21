@@ -111,8 +111,9 @@ fetch_since: "2002-01-01"
 #
 # It does NOT equalise instruments, and must not: the rungs are in units of each
 # instrument's own sigma, and how often a market crosses them is a fact about
-# that market. Measured, the basket spans about 7x between its quietest and
-# loudest instrument, which is the dispersion the ladder was rebuilt to get.
+# that market. Measured, the basket spans about 3.8x between its quietest and
+# loudest instrument - a flat threshold gave 47x - which is the dispersion the
+# ladder was rebuilt to get.
 #
 # Changing it moves config_version, which retires derived data and costs one
 # cold run. That is correct: the events would otherwise be a mix of two rules.
@@ -123,10 +124,13 @@ sensitivity: 1.0
 # tremor/severity.py (BLOCK_SIGMA) because it is the shape of the ladder rather
 # than a deployment setting, and only the blocks named here override it.
 #
-# Four numbers, increasing: noticeable, high, major, extreme.
+# Four numbers, increasing: noticeable, high, major, extreme. They are derived
+# rather than chosen - each rung crosses about 3.16x less often than the one
+# below - so an override here replaces that spacing with whatever is typed. Run
+# `python tools/ladder.py` to see what the derivation gives before overriding it.
 #
 #   block_sigma:
-#     crypto: [7.2, 10.8, 15.9, 23.1]
+#     crypto: [7.2, 9.9, 13.2, 18.3]
 #
 # WHY PER BLOCK. A single threshold across the basket claims that 5 sigma means
 # the same thing in Solana and in utilities, and it does not: flat, crypto ran at
