@@ -1,6 +1,8 @@
 import pytest
+import requests
 
-from price_monitor.coinbase import MAX_CANDLES_PER_REQUEST, fetch_klines
+from price_monitor.coinbase import (MAX_CANDLES_PER_REQUEST, fetch_full_history,
+                                    fetch_klines)
 from price_monitor.models import ExchangeError
 
 
@@ -19,7 +21,12 @@ def make_row(t, price):
 
 
 class FakeSession:
-    """Records every call and answers with rows built from `open_time_by_call`."""
+    """Records every call and answers with rows built from `open_time_by_call`.
+
+    A queued response may be an exception instead of a (status, rows) pair, in
+    which case the call raises it - which is what a dropped socket looks like
+    from here.
+    """
 
     def __init__(self, responses):
         self.responses = list(responses)
@@ -27,8 +34,16 @@ class FakeSession:
 
     def get(self, url, params, timeout, headers):
         self.calls.append(dict(params))
-        status, rows = self.responses.pop(0)
+        answer = self.responses.pop(0)
+        if isinstance(answer, Exception):
+            raise answer
+        status, rows = answer
         return FakeResponse(status, rows)
+
+
+def dropped_connection():
+    return requests.exceptions.ConnectionError(
+        "('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))")
 
 
 def test_single_request_when_limit_within_cap():
@@ -78,3 +93,35 @@ def test_non_200_status_raises_after_retries():
     with pytest.raises(ExchangeError):
         fetch_klines("BTC-USD", "1h", limit=5, base_url="https://x",
                      session=sess, retries=3, backoff_seconds=0)
+
+
+# --- fetch_full_history: the path the hourly run actually takes --------------
+#
+# It was written with a bare request while everything else in the client went
+# through the retrying helper, on the strength of a docstring saying only the
+# backtester came this way. It was not true, and on 2026-09-21 one reset on
+# BTC-USD took an hourly run red.
+
+
+def test_full_history_retries_a_dropped_connection():
+    rows = [make_row(t, 100.0) for t in range(0, 5 * 3600, 3600)]
+    sess = FakeSession([dropped_connection(), (200, rows)])
+
+    candles = fetch_full_history("BTC-USD", "1h", days=0.5, base_url="https://x",
+                                 session=sess, request_delay_seconds=0,
+                                 backoff_seconds=0)
+
+    # One window, asked twice: the reset cost a retry rather than the instrument.
+    assert len(sess.calls) == 2
+    assert [c.open_time for c in candles] == list(range(0, 5 * 3600, 3600))
+
+
+def test_full_history_retries_a_bad_status_before_giving_up():
+    sess = FakeSession([(500, "boom"), (500, "boom"), (500, "boom")])
+
+    with pytest.raises(ExchangeError):
+        fetch_full_history("BTC-USD", "1h", days=0.5, base_url="https://x",
+                           session=sess, request_delay_seconds=0,
+                           backoff_seconds=0)
+
+    assert len(sess.calls) == 3

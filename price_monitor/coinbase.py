@@ -128,11 +128,20 @@ def fetch_full_history(
     base_url: str,
     session: requests.Session | None = None,
     request_delay_seconds: float = 0.3,
+    retries: int = 3,
+    backoff_seconds: float = 2.0,
 ) -> list[Candle]:
     """Page through Coinbase's 300-candle-per-request cap with explicit start/end
-    windows to build up to `days` of history. Only meant for offline backtesting,
-    which wants "N days" rather than "N candles" - the production monitor uses
-    `fetch_klines` (which paginates the same way, just keyed by candle count).
+    windows to build up to `days` of history.
+
+    THE HOURLY RUN COMES THROUGH HERE, not through `fetch_klines`. This docstring
+    used to say the opposite - "only meant for offline backtesting" - and that
+    claim is why the one request in this function was written bare while every
+    other call in this file goes through `_request_candles`. On 2026-09-21 a
+    single connection reset from Coinbase on BTC-USD propagated out of it, turned
+    the hourly run red and left that instrument an hour behind until the next
+    run healed it. `tremor.backfill.fetch_missing` asks every provider for the
+    days since its newest stored bar, so "N days" IS the production shape here.
     """
     granularity = _granularity_seconds(interval)
     sess = session or requests
@@ -150,15 +159,9 @@ def fetch_full_history(
             "start": chunk_start.isoformat(),
             "end": chunk_end.isoformat(),
         }
-        resp = sess.get(url, params=params, timeout=15, headers={"User-Agent": "market-alert-bot"})
-        if resp.status_code != 200:
-            raise ExchangeError(f"{symbol}: unexpected status {resp.status_code}: {resp.text[:200]}")
-        for row in resp.json():
-            t = int(row[0])
-            by_time[t] = Candle(
-                open_time=t, low=float(row[1]), high=float(row[2]), open=float(row[3]),
-                close=float(row[4]), volume=float(row[5]), close_time=t + granularity,
-            )
+        for c in _request_candles(sess, url, params, granularity, retries,
+                                  backoff_seconds, symbol):
+            by_time[c.open_time] = c
         chunk_end = chunk_start
         if chunk_end > start_bound:
             time.sleep(request_delay_seconds)

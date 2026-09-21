@@ -3,6 +3,7 @@ from datetime import date, datetime, timezone
 
 import pandas as pd
 import pytest
+import requests
 
 from tremor import bars
 from tremor.backfill import import_legacy
@@ -18,6 +19,18 @@ def asset(**over):
                 has_volume=False, tick_size=0.00001, session_template="fx_continuous",
                 fetch_interval="1h", label="Euro / dollar", in_basket=True)
     return Asset(**(base | over))
+
+
+class _CoinbaseRows:
+    """What Coinbase's candles endpoint looks like to the client: status and json."""
+
+    def __init__(self, rows):
+        self.status_code = 200
+        self._rows = rows
+        self.text = str(rows)
+
+    def json(self):
+        return self._rows
 
 
 def candle(hour, close=1.5):
@@ -154,6 +167,56 @@ def test_a_forward_fetch_asks_from_the_settle_window_not_an_extra_day(
     assert asked["days"] == pytest.approx(
         (5 + backfill.SETTLE_HOURS) / 24.0, abs=1e-9)
     assert asked["days"] < 1.0
+
+
+def test_the_hourly_crypto_fetch_survives_one_dropped_connection(
+        tmp_path, monkeypatch):
+    """A reset mid-fetch costs a retry, not the instrument.
+
+    Nothing below fetch_missing is faked on purpose: the bug was the wiring.
+    Crypto reaches Coinbase through coinbase.fetch_full_history, whose docstring
+    said only the backtester came that way, so its one request was written
+    without the retry the rest of that client has. On 2026-09-21 a single
+    'Connection reset by peer' on BTC-USD escaped it, turned the hourly run red
+    and left that instrument an hour behind until the next run healed it.
+    """
+    from tremor import backfill
+    from price_monitor import coinbase
+
+    newest = datetime(2026, 9, 21, 1, tzinfo=timezone.utc)
+    now = datetime(2026, 9, 21, 2, tzinfo=timezone.utc)
+    path = tmp_path / "coinbase_BTC-USD.parquet"
+    bars.merge(str(path), bars.to_hourly(bars.candles_to_frame([
+        Candle(open_time=int(newest.timestamp()), open=1.0, high=1.0, low=1.0,
+               close=1.0, volume=0.0,
+               close_time=int(newest.timestamp()) + HOUR)])))
+
+    fresh = int(now.timestamp())
+    calls = []
+
+    class Socket:
+        """The real client, a faked wire: the first call is reset, the retry answers."""
+
+        def get(self, url, params, timeout, headers):
+            calls.append(dict(params))
+            if len(calls) == 1:
+                raise requests.exceptions.ConnectionError(
+                    "('Connection aborted.', "
+                    "ConnectionResetError(104, 'Connection reset by peer'))")
+            return _CoinbaseRows([[fresh, 1.0, 2.0, 1.5, 1.8, 3.0]])
+
+    monkeypatch.setattr(coinbase.time, "sleep", lambda *_: None)
+    crypto = Asset(ticker="BTC-USD", source="coinbase", tier=1, block="crypto",
+                   has_volume=True, tick_size=0.01,
+                   session_template="crypto_24_7", fetch_interval="1h",
+                   label="Bitcoin", in_basket=True)
+
+    added = backfill.fetch_missing(crypto, str(path), date(2020, 1, 1), "key",
+                                   Socket(), now=now)
+
+    assert len(calls) == 2
+    assert added == 1
+    assert fresh in set(bars.load(str(path))["hour_utc"])
 
 
 # --- filling sessions the calendar has and the store does not ---------------

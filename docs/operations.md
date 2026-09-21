@@ -115,6 +115,14 @@ A provider failure names the instruments and their providers in a message to
 rate limit that survives retries skips that provider's remaining instruments and is named
 in the same message; a 404 stays a per-instrument dark.
 
+**A fetch is retried three times before it counts as a failure** — two seconds of backoff
+then four, inside each provider's client. That holds for all three providers on the
+hourly path: Tiingo, Yahoo and Coinbase. A dropped connection therefore costs six seconds
+rather than a red run, against a twenty-minute job timeout, and a failure that reaches the
+health message is one that survived all three attempts. Twelve Data waits 8 and 16
+instead, because a retry there spends a credit against an 8-a-minute plan; it answers
+deepening and gap-fill runs rather than the hourly one.
+
 **Three things watch, and none of them needs code here:**
 
 - **cron-job.org** emails when it cannot reach GitHub — the HTTP call failed.
