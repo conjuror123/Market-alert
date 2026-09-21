@@ -6,17 +6,6 @@
   "telegram_update_offset": 688283215,
   "tremor_delivery": {
     "digests": {
-      "1789117200": {
-        "from": 1789117200,
-        "hashes": [
-          "9172a200bd409a4a"
-        ],
-        "ids": [
-          10
-        ],
-        "rows": 1,
-        "to": 1789344300
-      },
       "1789344300": {
         "events": [
           "twelvedata_DBB:1789390800",
