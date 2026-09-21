@@ -25,8 +25,14 @@ none before 2022-08-01. Everything else reaches 2002–2007, and the currency pa
 
 The wall is a provider plan limit, not a bug. The consequence is that those instruments
 are **quieter than the rest by design**: an instrument with six years of history cannot
-say "the biggest since 2008". **Five instruments cannot reach the top rung at all today**
-for this reason.
+say "the biggest since 2008".
+
+This entry used to add that five instruments could not reach the top rung at all, and
+blamed the wall for it. **Four of those five were the ladder, not the history.** Under the
+re-cut table only SOL-USD never reaches `extreme`; LINK-USD, XLP and XLU now do, and
+EUR/USD — which was on the list with twenty-three years and 145,000 bars — was never a
+history problem at all. What is left is the true version of the claim: a short history
+caps the DATE a message can quote, not the rung it can reach.
 
 XLP at 2022-08-01 is separate and unexplained — 7,246 bars against XLK's 11,572, from the
 same provider on the same plan. Nothing in the repository accounts for the difference.
@@ -117,8 +123,10 @@ peak tier and concentrates it again. Pooled over the archive, events step **2.65
 and 1.95x** rather than 3.162x, so the ladder is more compressed at the top than it reads.
 
 Nothing is wrong in the sense of a wrong message: every rung still means "this size for
-this instrument", and the cross-block spread this re-cut was for did fall from 7.1x to
-4.2x. What is off is the claim that one step is one fixed amount of rarer.
+this instrument", and the spread this re-cut was for did fall — pooled per block,
+`noticeable`-per-`extreme` went from 5.5–44.5 to 11.8–17.1, 8.2x to 1.4x, and the block's
+tail exponent stopped predicting which block was harsher (+0.67 to +0.01). What is off is
+the claim that one step is one fixed amount of rarer.
 
 **What acting on it would mean:** deriving against event rates rather than crossing rates.
 There is no closed form, because the max-of-two and the daily collapse both depend on the

@@ -13,9 +13,12 @@ WHAT WAS WRONG WITH THE OLD SPACING. The rungs were a uniform 1.47x apart in
 size, in every block. How much RARER that makes a rung depends on the block's
 tail, and the tails differ: measured over the archive the exponent runs from 2.78
 in credit to 3.96 in equity, so one step was 2.92x rarer in credit and 4.60x in
-equity. The effect compounds up the ladder - among the instruments with enough
-top-rung events to measure, `extreme` cost 2.5 `noticeable` events on EMB and
-18.1 on XLI, and the tail exponent predicted which (correlation +0.77).
+equity. The effect compounds up the ladder - among the ten instruments with
+at least ten top-rung events, enough for the ratio to mean anything, `extreme`
+cost 2.5 `noticeable` events on EMB and 18.3 on USD/CAD, and the tail exponent
+predicted which (correlation +0.83). Keep that restriction attached to the
+number: the median instrument reaches the top rung six times in twenty-three
+years, so unrestricted the ratio is mostly counting error.
 
 THE CONSTRUCTION IS GUTENBERG-RICHTER'S. A magnitude scale is spaced so that each
 class is a fixed factor rarer than the one below, and the size step that achieves

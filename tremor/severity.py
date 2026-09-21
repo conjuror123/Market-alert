@@ -101,9 +101,10 @@ import pandas as pd
 # used to climb a uniform 1.47x in size in every block, and how much RARER that
 # made a rung depended on the block's tail, which differs: measured over the
 # archive the tail exponent runs 2.75 in credit to 3.71 in energy, so one step
-# was 2.96x rarer in credit and 4.64x in energy. It compounded - `extreme` cost
-# 2.5 `noticeable` events on EMB and 18.1 on XLI, 7.1x apart, and the tail
-# exponent predicted which (correlation +0.77).
+# was 2.96x rarer in credit and 4.64x in energy. It compounded - among the ten
+# instruments with at least ten top-rung events, enough for the ratio to mean
+# anything, `extreme` cost 2.5 `noticeable` events on EMB and 18.3 on USD/CAD,
+# 7.2x apart, and the tail exponent predicted which (correlation +0.83).
 #
 # So the frequency step is what is held constant: EACH RUNG IS 3.162x RARER THAN
 # THE ONE BELOW - half a magnitude unit, the Gutenberg-Richter construction - and
@@ -119,11 +120,27 @@ import pandas as pd
 # exponent.
 #
 # WHAT IT ACTUALLY BOUGHT, because the next reader will measure and should not
-# conclude the table is broken. Across instruments, `extreme` now costs between
-# 4.7 and 19.6 `noticeable` events - 4.2x apart, against 7.1x before - and every
-# other published number held: 7.6 to 11.7 events per instrument-year (was 8.1 to
-# 12.2), 3.8x between the quietest and loudest name, 94.4% of the obvious hours
-# reached, 74.3% still standing at the next close.
+# conclude the table is broken. Two cold passes over the whole archive, the old
+# table against this one:
+#
+#   per block, pooled             5.5 .. 44.5  ->  11.8 .. 17.1    8.2x -> 1.4x
+#   does the block's tail predict it   +0.67   ->        +0.01
+#   per instrument, >=10 extreme   2.5 .. 18.3 ->   3.6 .. 14.1    7.2x -> 3.9x
+#   names that never reach the top rung    5   ->            1
+#
+# THAT RESTRICTION ON THE THIRD LINE IS LOAD-BEARING, and an earlier version of
+# this comment lost it - which is how it came to publish "4.7 to 19.6, 4.2x
+# apart", two endpoints taken from a different set than the one they were
+# compared against. The median instrument records SIX top-rung events in
+# twenty-three years, so its noticeable-per-extreme ratio has a denominator of
+# six: across all sixty names that reach the rung at all it runs 3.6 to 50.3, and
+# that 14.0x is mostly counting error rather than disagreement about what the
+# word means - the spread falls monotonically as the minimum count rises, which
+# is the signature. Quote the pooled line, or name the restriction.
+#
+# Every other published number held: 7.6 to 11.7 events per instrument-year (was
+# 8.1 to 12.2), 3.8x between the quietest and loudest name, 94.4% of the obvious
+# hours reached, 74.3% still standing at the next close.
 #
 # BUT THE 3.162x IS TRUE OF CROSSINGS, NOT OF DELIVERED EVENTS, and the gap is
 # real: pooled, the event counts step 2.65x, 2.47x and 1.95x. The rungs are spaced

@@ -54,9 +54,10 @@ at `extreme`. That is volume, which `sensitivity` turns, not a miscalibrated run
 **Re-cut on a frequency step, not a size step.** The rungs used to climb a uniform 1.47x
 in size in every block. How much rarer that made a rung depended on the block's tail, and
 the tails differ — the exponent runs 2.75 in credit to 3.71 in energy — so one step was
-2.96x rarer in credit and 4.64x in energy. It compounded: `extreme` cost 2.5 `noticeable`
-events on EMB and 18.1 on XLI, **7.1x apart**, and the tail exponent predicted which
-(correlation +0.77). Now each rung is cut to cross 3.162x less often than the one below,
+2.96x rarer in credit and 4.64x in energy. It compounded: among the ten instruments with
+at least ten top-rung events — enough for the ratio to mean anything — `extreme` cost 2.5
+`noticeable` events on EMB and 18.3 on USD/CAD, **7.2x apart**, and the tail exponent
+predicted which (correlation +0.83). Now each rung is cut to cross 3.162x less often than the one below,
 measured on each block's own history. `tools/ladder.py` derives all three tables and
 prints them; they are pasted by hand, because a number that refits itself is a number
 nobody can reason about.
@@ -68,12 +69,45 @@ power law and the error grows the further the extrapolation reaches — which is
 the top rung. Taking the rate as the target and reading the level off the data instead
 lands every block between 2.88x and 3.29x.
 
-**What the re-cut bought, and the one thing it did not.** The cross-instrument spread fell
-from 7.1x to **4.2x**, and everything else held: 7.6 to 11.7 events per instrument-year
-(was 8.1 to 12.2), 3.8x between the quietest and loudest name, 94.4% of the obvious hours
-reached, 74.3% still standing at the next close. Pushes went from 47 to 58 a year and the
-weekly note from 7.3 rows to 6.7, both consequences of lower `major`/`extreme` rungs and a
-rate-matched abnormal floor.
+**What the re-cut bought, and the one thing it did not.** Measured on two cold passes over
+the whole archive, the old table against the new:
+
+| | before | after |
+|---|---|---|
+| `noticeable` per `extreme`, pooled per block | 5.5 – 44.5 (**8.2x**) | 11.8 – 17.1 (**1.4x**) |
+| does the block's tail exponent predict it | +0.67 | +0.01 |
+| same ratio per instrument, ≥10 top-rung events | 2.5 – 18.3 (7.2x) | 3.6 – 14.1 (**3.9x**) |
+| names that never reach the top rung | 5 | **1** |
+
+Everything else held: 7.6 to 11.7 events per instrument-year (was 8.1 to 12.2), 3.8x
+between the quietest and loudest name, 94.4% of the obvious hours reached, 74.3% still
+standing at the next close. Pushes went from 47 to 58 a year and the weekly note from 7.3
+rows to 6.7, both consequences of lower `major`/`extreme` rungs and a rate-matched
+abnormal floor.
+
+**Quoting that spread without its restriction is how it was got wrong.** This entry said
+"7.1x to 4.2x" for a while, and the two ends were measured over different sets of
+instruments — the before over names with ten or more top-rung events, the after over
+something wider. The median instrument records **six** top-rung events in twenty-three
+years, so per-instrument `noticeable`-per-`extreme` is a ratio with a denominator of six:
+unrestricted it runs 3.6 to 50.3, a 14.0x spread that shrinks monotonically as the minimum
+count rises (8.9x at ≥5, 3.9x at ≥10, 1.6x at ≥20). That monotone shrinkage is the
+signature of counting error, not of the word meaning different things. The pooled-per-block
+line is the robust one; a per-instrument line has to carry its restriction.
+
+**Inside a block, per-instrument dispersion is not measurable, so the ladder stays per
+block.** The obvious question after the re-cut is whether `extreme` still means different
+amounts of rare for two names in the same block: EUR/USD spends 50 `noticeable` events per
+`extreme` and CORN 3.6, both inside a table that is only set per block. It does not — as
+far as twenty-three years can say. Take the null in which every instrument shares one true
+ratio and only the counts are Poisson, and the expected max-over-min spread is **35.1x**
+across all sixty names that reach the rung, 9.5x among the thirty-seven with five or more
+top-rung events, and 4.1x among the sixteen with ten or more. Observed: 14.0x, 8.9x, 3.9x
+— at or below the null median every time (p = 0.98, 0.60, 0.54). The visible spread *is*
+the counting error, and it shrinks as the minimum count rises for the same reason. Fitting
+a table per instrument would be fitting sixty numbers to a signal that is not there, in a
+file whose standing rule is that a number which refits itself is a number nobody can reason
+about. The block remains the right unit.
 
 **The 3.162x is true of crossings and not of delivered events, and that was a verification
 error worth recording.** The target was checked against bar crossings, where it holds
