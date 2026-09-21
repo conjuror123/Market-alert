@@ -39,18 +39,46 @@
         "to": 1789949100
       },
       "1789949100": {
-        "events": [],
+        "events": [
+          "twelvedata_XLE:1789995600",
+          "twelvedata_XLC:1789995600",
+          "twelvedata_EEM:1789995600",
+          "twelvedata_MBB:1789995600",
+          "twelvedata_USO:1789995600"
+        ],
         "from": 1789949100,
         "hashes": [
-          "4dfef20cedfb88dc"
+          "afbeb56f51cd34dd"
         ],
         "ids": [
           30
         ],
+        "rows": 5,
         "to": 1790381100
       }
     },
-    "pings": {},
+    "pings": {
+      "twelvedata_EEM:1789995600": {
+        "hash": "fd7d4913f9595064",
+        "id": 33
+      },
+      "twelvedata_MBB:1789995600": {
+        "hash": "0208d4a70409deca",
+        "id": 34
+      },
+      "twelvedata_USO:1789995600": {
+        "hash": "59dd49d647687109",
+        "id": 35
+      },
+      "twelvedata_XLC:1789995600": {
+        "hash": "ae327741ea05ea88",
+        "id": 32
+      },
+      "twelvedata_XLE:1789995600": {
+        "hash": "fe1f60cd9e9325ab",
+        "id": 31
+      }
+    },
     "sent": {
       "twelvedata_GBP_USD:1789642800": {
         "hash": "9a454a4b5e09fedf",
