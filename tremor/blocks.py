@@ -55,6 +55,21 @@ BLOCK_BASIS = "block"
 # needs one before it can be scored at all.
 MIN_BARS = windows.SIGMA_LT_MIN_BARS
 
+# WHICH OF A BLOCK'S OWN TIERS ARE WORTH DELIVERING. Not the bottom one. There
+# are nine blocks and in any hour one of them is the one that moved most, so a
+# block at `noticeable` is the ordinary background of a market rather than news
+# - 32.2 rows a year, five a week between them, and the sentence each one
+# carries is "energy moved a bit more than the others".
+#
+# `high` is a different quantity and was measured separately: 11.4 rows a year,
+# about one a month, spread evenly over the nine blocks at 1.0 to 1.6 each
+# rather than piling into energy and equity the way the bottom rung does. It
+# goes to the digest, not to a push, so it costs a line in the Saturday note and
+# never a phone call. The filter used to be the two push tiers alone, on a
+# measurement that pooled `noticeable` and `high` into one number - 52.7 rows a
+# year - and so answered a question nobody had asked: whether to take BOTH.
+BLOCK_TIERS = ("high", "major", "extreme")
+
 
 def block_id(block: str) -> str:
     return f"{BLOCK_PREFIX}{block}"
@@ -231,15 +246,9 @@ def events_frame(scored: "dict[str, pd.DataFrame]", basket: Basket,
                  panel: pd.DataFrame) -> pd.DataFrame:
     """The block events, in the same columns an asset event carries.
 
-    Only the push tiers. A block moving at the noticeable or high level is the
-    ordinary background of a market - some block is always the one that moved
-    most - and the two rare tiers are the ones that mean "this whole complex
-    repriced". Measured, letting the lower two through would add 52.7 block rows
-    a year, about one a week on a note that carries seven, and more than half of
-    it would be energy and equity alone. (An earlier version of this paragraph
-    said "every fortnight", which was wrong by half and made the filter look
-    better founded than it is. The filter stands on what those rows would SAY,
-    not on how few of them there would be.)
+    Everything above the bottom rung - see BLOCK_TIERS for what that costs and
+    why `noticeable` is the one that is dropped. `major` and `extreme` push;
+    `high` goes into the note like any other digest row.
 
     And the same size floor an instrument has: `|r|` must clear
     `min_move_sigma` times the block's usual hour, with a per-block override
@@ -258,7 +267,6 @@ def events_frame(scored: "dict[str, pd.DataFrame]", basket: Basket,
     repeated.
     """
     from tremor.basket import load_tuning
-    from tremor.routing import PUSH_TIERS
 
     members, _ = cross_section._block_members(panel, basket)
     order = {name: i for i, name in enumerate(severity.TIERS)}
@@ -271,7 +279,7 @@ def events_frame(scored: "dict[str, pd.DataFrame]", basket: Basket,
         if usual is not None and "r" in frame:
             sized = (frame["r"].abs() >= floor * usual)
             sized |= usual.isna() | (usual <= 0) | (floor <= 0)
-        fired = frame[frame["tier"].isin(PUSH_TIERS) & sized]
+        fired = frame[frame["tier"].isin(BLOCK_TIERS) & sized]
         columns = [c for c in members.get(block, []) if c in panel.columns]
         if fired.empty:
             continue

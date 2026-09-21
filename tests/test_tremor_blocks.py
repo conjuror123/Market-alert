@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tremor import blocks, cross_section, severity, windows
+from tremor import blocks, cross_section, routing, severity, windows
 from tremor.basket import Asset, Basket, VolatilityIndex
 from datetime import date
 
@@ -114,12 +114,33 @@ def test_a_block_that_repriced_produces_an_event_no_member_would_have():
     assert row["n_members"] == 3
 
 
-def test_only_the_push_tiers_become_block_events():
-    # Some block is always the one that moved most; a fortnightly digest line
-    # saying so would carry nothing.
-    b, panel, sig, _ = _long_block()
+def test_a_block_at_high_becomes_a_digest_row():
+    # It used to become nothing: the filter was the two PUSH tiers, on a
+    # measurement that pooled `noticeable` and `high` into one 52.7-a-year
+    # figure and so priced a choice nobody was making. Measured apart, `high`
+    # is 11.4 rows a year - about one a month, 1.0 to 1.6 per block - and it
+    # goes into the note rather than onto the phone.
+    b, panel, sig, spike_at = _long_block(spike=0.13)
     events = blocks.events_frame(blocks.frames(b, panel, sig), b, panel)
-    assert set(events["tier"]) <= {"major", "extreme"}
+
+    assert len(events) == 1
+    row = events.iloc[0]
+    assert row["tier"] == "high"
+    assert row["asset_id"] == "block:crypto"
+    assert row["hour_utc"] == (spike_at + 1) * HOUR
+    # and the note is where it goes - a block never buzzes below `major`.
+    assert routing.channel(events).iloc[0] == routing.DIGEST
+
+
+def test_a_block_at_noticeable_is_still_dropped():
+    # The rung that stays out. Nine blocks, and in any hour one of them is the
+    # one that moved most, so the bottom rung is the ordinary background of a
+    # market - 32.2 rows a year saying "energy moved a bit more than the rest".
+    b, panel, sig, _ = _long_block(spike=0.10)
+    scored = blocks.frames(b, panel, sig)
+
+    assert set(scored["crypto"]["tier"].dropna()) == {"noticeable"}
+    assert blocks.events_frame(scored, b, panel).empty
 
 
 def test_the_event_names_the_members_that_led():

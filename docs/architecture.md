@@ -76,7 +76,10 @@ what that costs. Measured over the archive, one instrument reaches them about ev
 months, 5 months, 14 months and 2.3 years.
 
 Blocks are ranked the same way on their own median series, so a whole sector moving
-together is its own event with its own ladder.
+together is its own event with its own ladder — **built from the members' prices, never
+from the members' events.** A block is silent at the bottom rung, because with nine
+blocks one of them is always the one that moved most; from `high` up it is delivered like
+anything else.
 
 **5. Gates.** A move smaller than two ticks is unobserved rather than small, and is
 dropped. A per-instrument or per-block size floor (`min_move_sigma`) drops moves that are
@@ -88,8 +91,9 @@ UTC day for crypto. An instrument that moves again the same day updates the even
 already has — keeping the higher tier and that bar's numbers — rather than opening a
 second.
 
-**7. Route it.** `major` and `extreme` interrupt at once. `noticeable` and `high` go into
-the running digest note. Nothing waits and nothing is dropped: retention decides what the
+**7. Route it.** `major` and `extreme` interrupt at once — for a block as for an
+instrument. `noticeable` and `high` go into the running digest note, except that a block
+has no `noticeable`. Nothing waits and nothing is dropped: retention decides what the
 sent message says, not whether it is sent.
 
 **8. Deliver.** A push goes out the hour it is found and is final when it arrives. A

@@ -95,6 +95,25 @@ count rises (8.9x at ≥5, 3.9x at ≥10, 1.6x at ≥20). That monotone shrinkag
 signature of counting error, not of the word meaning different things. The pooled-per-block
 line is the robust one; a per-instrument line has to carry its restriction.
 
+**A block is silent at `noticeable` and speaks from `high` up.** A block event is built
+from its members' PRICES — the median of each member's return over that member's own usual
+hour — and never from its members' events; aggregating member events was tried and
+predicts nothing. What was in question is which of a block's own tiers are worth
+delivering. `noticeable` is not: there are nine blocks and in any hour one of them is the
+one that moved most, so the bottom rung is the ordinary background of a market, 32.2 rows
+a year saying "energy moved a bit more than the rest". `high` is, and it was never
+measured on its own — the filter was set against a pooled 52.7-a-year figure for both
+rungs, which priced a choice nobody was making. Measured apart, `high` costs **7.8 block
+rows a year** on the real pipeline, about one every seven weeks, spread evenly across the
+nine blocks rather than piling into energy and equity. It goes to the digest, so pushes
+are unchanged at 1,352.
+
+What it buys is legibility on exactly the hours the note is worst at. On 2026-09-16 at
+18:00 six dollar pairs fired separately — two at `high`, four at `noticeable` — and the
+note read as six unrelated currency alerts. The block row says it once: *the dollar gained
+0.55% against the typical pair, 11x a typical member's usual hour, the biggest since 390
+days ago.* That is the observation no member event can make.
+
 **Inside a block, per-instrument dispersion is not measurable, so the ladder stays per
 block.** The obvious question after the re-cut is whether `extreme` still means different
 amounts of rare for two names in the same block: EUR/USD spends 50 `noticeable` events per

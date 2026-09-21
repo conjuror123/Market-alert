@@ -903,8 +903,10 @@ def _describe_block(event: dict, headline: str, emoji: str, when: datetime,
                     now: "datetime | None", events: "list[dict] | None",
                     rate_history: "list[dict] | None" = None) -> str:
     """A block's own move. Same shape as an instrument standalone: lead, size,
-    rarity, check-ins, date. Blocks are push-only, so this is the whole message,
-    not a digest ping.
+    rarity, check-ins, date. The same body serves a block's push and a block's
+    note row - `major` and `extreme` interrupt, `high` goes into the note - so
+    this is the whole message either way. The digest PING beside it is separate
+    and short (see _digest_ping).
 
     A block has no ticker to chart and no split into "its block and itself" -
     it IS the block. The lead is still rarity, name and percent, the same three
@@ -1600,8 +1602,8 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
     ratio = _ratio_short(event)
     extra = f" ({ratio})" if ratio else ""
     if _is_block(event):
-        # Blocks are not written into the note, so this path is only reached if
-        # that filter is relaxed. Same lead as a standalone: rarity, name, size.
+        # Reached by a block at `high`, which goes into the note rather than
+        # onto the phone. Same lead as a standalone: rarity, name, size.
         name = BLOCK_LABEL.get(str(event.get("block")),
                                labels.get(asset_id) or asset_id.split(":")[-1])
         name = name[:1].upper() + name[1:]

@@ -181,12 +181,17 @@ DEFAULT_SIGMA: tuple[float, float, float, float] = (4.3, 5.8, 7.9, 10.5)
 # days the whole complex repriced, and a table that silences equity gives that
 # back for the block a reader cares about most.
 #
-# Anchored on `major`, NOT on the bottom rung, and the reason is that its bottom
-# two rungs cannot fire: blocks.events_frame filters block events to the push
-# tiers, so a block at `noticeable` or `high` computes a tier and produces
-# nothing. Anchoring on a rung that cannot fire would be anchoring on nothing, so
-# `major` is held where it was - about 3.7 block events a year - and the rest
+# Anchored on `major`, NOT on the bottom rung, because the bottom rung cannot
+# fire: blocks.BLOCK_TIERS drops a block at `noticeable`, so that rung computes a
+# tier and produces nothing, and anchoring on it would be anchoring on nothing.
+# `major` is held where it was - about 3.7 block events a year - and the rest is
 # derived from it at the same 3.162x step the member table uses.
+#
+# `high` DOES fire now, into the note rather than onto the phone, so its rung has
+# stopped being invisible: it is worth about 7.8 block rows a year and a reader
+# can see each one. It is still derived rather than held, which is the honest
+# state of it - nobody has yet read a season of notes and said whether that rung
+# lands where a block row should start.
 #
 # AND IT DIVIDES BY A DIFFERENT SIGMA, which is easy to miss and silently wrong
 # if it is. The member table scores |r| / sigma_LT, the long-run yardstick. This
