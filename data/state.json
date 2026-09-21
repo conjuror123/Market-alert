@@ -41,24 +41,30 @@
         ],
         "from": 1789776300,
         "hashes": [
-          "44376c5faaa17bda"
+          "b915e9a90ddea739"
         ],
         "ids": [
           26
         ],
         "rows": 1,
         "to": 1789949100
+      },
+      "1789949100": {
+        "events": [],
+        "from": 1789949100,
+        "hashes": [
+          "4dfef20cedfb88dc"
+        ],
+        "ids": [
+          30
+        ],
+        "to": 1790381100
       }
     },
-    "pings": {
-      "coinbase_AVAX-USD:1789866000": {
-        "hash": "48b8def38a201c65",
-        "id": 29
-      }
-    },
+    "pings": {},
     "sent": {
       "twelvedata_GBP_USD:1789642800": {
-        "hash": "d30e600349066cb2",
+        "hash": "9a454a4b5e09fedf",
         "hour": 1789642800,
         "id": 19
       },
@@ -72,7 +78,7 @@
       "twelvedata_GBP_USD:1789642800": {
         "hour_utc": 1789642800,
         "message_id": 19,
-        "text_hash": "d30e600349066cb2",
+        "text_hash": "9a454a4b5e09fedf",
         "written": [
           "today",
           "settled"
@@ -89,6 +95,6 @@
       }
     }
   },
-  "weekly_digest:last_refreshed": "2026-09-20",
+  "weekly_digest:last_refreshed": "2026-09-21",
   "weekly_digest:last_sent_week": "1789776300"
 }
