@@ -34,7 +34,9 @@ def test_an_already_standardised_score_is_not_divided_again():
 
 
 def test_levels_do_not_decrease_across_the_ladder():
-    for block in list(sv.BLOCK_SIGMA) + ["not-a-block"]:
+    # None rather than a made-up name for the default row: an unknown block now
+    # raises, and the default is reached by naming no block at all.
+    for block in list(sv.BLOCK_SIGMA) + [None]:
         rungs = [sv.tier_sigma(block)[name] for name in sv.TIERS]
         assert rungs == sorted(rungs), block
 
@@ -67,8 +69,25 @@ def test_a_block_with_fatter_tails_is_held_to_a_higher_bar():
     assert sv.tier_sigma("FX")["extreme"] > sv.tier_sigma("agriculture")["extreme"]
 
 
-def test_an_unlisted_block_falls_back_rather_than_going_silent():
-    assert sv.tier_sigma("a block nobody has added yet") == sv.tier_sigma(None)
+def test_a_block_missing_from_a_ladder_table_raises():
+    # It used to take DEFAULT_SIGMA silently, which is the worst shape this
+    # failure can have: the levels come out, the tiers come out, every message
+    # reads normally, and only a count over twenty years says one complex has
+    # been calibrated on another's tail. All three tables are checked, because
+    # forgetting exactly one of them is the likely mistake.
+    unknown = "a block nobody has added yet"
+    for ladder, table in ((sv.MEMBER, "BLOCK_SIGMA"),
+                          (sv.RESIDUAL, "BLOCK_RESID_SIGMA"),
+                          (sv.BLOCK_OWN, "BLOCK_MOVE_SIGMA")):
+        with pytest.raises(KeyError, match=table):
+            sv.tier_sigma(unknown, ladder)
+
+
+def test_naming_no_block_at_all_still_takes_the_default():
+    # Distinct from the case above: "no block was named" is a different statement
+    # from "a block I have never heard of". Nothing on the live path passes None
+    # - saed resolves every asset_id through basket.instruments, which is assets
+    # plus outside - so this is for ad-hoc use rather than production.
     assert tuple(sv.tier_sigma(None).values()) == sv.DEFAULT_SIGMA
 
 

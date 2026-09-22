@@ -31,6 +31,23 @@ DEFAULT_BASKET_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "b
 # basket.yaml for the composition argument.
 BLOCKS = ("equity", "rates", "credit", "energy", "precious_metals",
           "industrial_metals", "agriculture", "FX", "crypto")
+
+# The hard floor on a block's size, and it is the arithmetic rather than a
+# preference: the block factor is a leave-one-out median, so a one-member block
+# has nothing left to take a median OF. It matches
+# cross_section.BLOCK_MOVE_MIN_MEMBERS, which is the same rule applied per hour
+# rather than per config.
+#
+# THE USEFUL FLOOR IS HIGHER AND IS NOT ENFORCED HERE. Measured on this basket -
+# mean |correlation between members' residuals|, which is the thing a block
+# exists to remove - a block of 2 leaves 0.43 to 0.74 of it, a block of 4 about
+# 0.32, of 6 about 0.25, and 8 or more about 0.23 and flat thereafter. Leftover
+# correlation is the detector firing several times for one event. So 8 members
+# is where a block stops costing anything and 6 is the point below which it
+# degrades quickly. Four of the nine blocks are under 6 today; that is a known
+# state recorded in the tests, not something to warn about on every load.
+BLOCK_MIN_MEMBERS = 2
+BLOCK_ADVISED_MEMBERS = 8
 TIERS = (1, 2)
 # WHAT `source` IS, AND WHAT IT IS NOT. It names the store, not the server.
 # `asset_id` and `file_stem` are both built from it, so every bar on disk, every
@@ -271,13 +288,19 @@ class Tuning:
     ladders: "tuple[tuple[str, tuple[float, float, float, float]], ...]" = ()
 
     def sigma_for(self, block: "str | None") -> "tuple[float, float, float, float]":
-        """This block's rungs, or the shared fallback for one not listed."""
+        """This block's rungs: the YAML override, else the table, else raise.
+
+        A named block absent from BLOCK_SIGMA raises rather than borrowing the
+        default - see severity.rungs_for for why silence is the dangerous answer
+        here.
+        """
         from tremor import severity
 
         for name, values in self.ladders:
             if name == block:
                 return values
-        return severity.BLOCK_SIGMA.get(str(block), severity.DEFAULT_SIGMA)
+        return severity.rungs_for(severity.BLOCK_SIGMA, block,
+                                  severity.DEFAULT_SIGMA, "BLOCK_SIGMA")
 
     def floor_for(self, asset_id: str) -> float:
         """This instrument's or block's floor, or the shared one where it has no override."""
@@ -392,10 +415,29 @@ def load_basket(path: str = DEFAULT_BASKET_PATH) -> Basket:
     # The hourly quorum requires at least two blocks of two assets each. A
     # basket where that is unreachable in any hour is pointless: its cluster
     # triggers will never fire, not merely "rarely".
-    populated = [b for b, members in Basket(
+    by_block = Basket(
         assets, outside, VolatilityIndex("", "", "", "", date.today()), "",
         date.today(), templates
-    ).by_block().items() if len(members) >= 2]
+    ).by_block()
+
+    # A BLOCK BELOW THE FLOOR CANNOT BE A BLOCK. The factor is a leave-one-out
+    # median of the other members, so one member leaves nothing to take a median
+    # of: cross_section produces NaN and blocks produces no move at all
+    # (BLOCK_MOVE_MIN_MEMBERS). Until now this was asserted only in the tests, so
+    # a hand-edited config could load a one-member block and simply go quiet
+    # where it should have shouted. It is a config error, and it is raised here.
+    short = {b: len(m) for b, m in by_block.items() if len(m) < BLOCK_MIN_MEMBERS}
+    if short:
+        listed = ", ".join(f"{b} ({n})" for b, n in sorted(short.items()))
+        raise BasketConfigError(
+            f"Block below the minimum of {BLOCK_MIN_MEMBERS} members: {listed}. "
+            "A block's factor is a leave-one-out median of its other members, so "
+            "one member has nothing to be measured against.")
+
+    # The hourly quorum requires at least two blocks of two assets each. A
+    # basket where that is unreachable in any hour is pointless: its cluster
+    # triggers will never fire, not merely "rarely".
+    populated = [b for b, members in by_block.items() if len(members) >= 2]
     if len(populated) < 2:
         raise BasketConfigError(
             "Quorum unreachable: at least two blocks of no fewer than two assets "

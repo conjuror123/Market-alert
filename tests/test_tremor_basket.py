@@ -81,13 +81,26 @@ def test_rejects_unknown_session_template(tmp_path):
 
 
 def test_rejects_basket_where_quorum_is_unreachable(tmp_path):
-    # One block with two assets and three blocks with one each: the hourly quorum
-    # requires two blocks of two, so the cluster triggers will never fire.
+    # The hourly quorum requires two blocks of two. With the per-block floor in
+    # front of it, the only way left to reach this check is a basket that holds
+    # ONE block - a thinner arrangement is rejected earlier, and by a message
+    # that names the block rather than the quorum.
+    raw = MINIMAL | {"assets": [
+        asset("A", "equity"), asset("B", "equity", tier=2),
+        asset("C", "equity", tier=2),
+    ]}
+    with pytest.raises(BasketConfigError, match="Quorum unreachable"):
+        load_basket(write(tmp_path, raw))
+
+
+def test_a_thin_block_is_rejected_by_size_before_quorum(tmp_path):
+    # Same config the quorum test used to carry. It is still refused; the message
+    # is just the more specific one now.
     raw = MINIMAL | {"assets": [
         asset("A", "equity"), asset("B", "equity", tier=2),
         asset("C", "FX"), asset("D", "rates"), asset("E", "credit"),
     ]}
-    with pytest.raises(BasketConfigError, match="Quorum unreachable"):
+    with pytest.raises(BasketConfigError, match="below the minimum"):
         load_basket(write(tmp_path, raw))
 
 
@@ -106,6 +119,33 @@ def test_file_stem_is_filesystem_safe(tmp_path):
     pair = next(a for a in basket.assets if a.ticker == "EUR/USD")
     assert pair.file_stem == "twelvedata_EUR_USD"
     assert pair.asset_id == "twelvedata:EUR/USD"
+
+
+def test_a_one_member_block_does_not_load(tmp_path):
+    # The floor was asserted below, against the REAL config, and nowhere else -
+    # so a hand-edited basket could load a one-member block and go quiet exactly
+    # where it should have shouted. A block's factor is a leave-one-out median of
+    # its other members; with one member there is nothing to take a median of.
+    raw = two_block_config()
+    raw["assets"].append(asset("Z", "crypto"))
+    with pytest.raises(BasketConfigError, match="crypto"):
+        load_basket(write(tmp_path, raw))
+
+
+def test_the_thin_blocks_are_the_ones_we_know_about():
+    # Not a floor - a tripwire. Measured on this basket, mean |correlation
+    # between members' residuals|, which is the thing a block exists to remove,
+    # runs about 0.43-0.74 at two members, 0.32 at four, 0.25 at six and 0.23 at
+    # eight and above, flat thereafter. So a block under six degrades quickly and
+    # a block under eight is leaving something on the table.
+    #
+    # Four blocks are under six today and that is a known, deliberate state, not
+    # a warning worth printing on every load. This test fails when the set
+    # changes in EITHER direction: adding a new thin block, or fixing one of
+    # these and forgetting to say so here.
+    basket = load_basket()
+    thin = {b for b, m in basket.by_block().items() if len(m) < 6}
+    assert thin == {"industrial_metals", "energy", "precious_metals", "agriculture"}
 
 
 def test_real_basket_config_is_valid():

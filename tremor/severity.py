@@ -268,6 +268,35 @@ BLOCK_OWN = "block"        # a block's own median series, already standardised
 RESIDUAL = "residual"      # z_resid_bmp, the market-adjusted t-statistic
 
 
+def rungs_for(table: dict, block: "str | None", default: tuple,
+              table_name: str) -> tuple:
+    """This block's rungs from one ladder table, or the default for no block.
+
+    A NAMED block absent from the table used to take the default silently. That
+    is the worst shape a failure can have here: the levels come out, the tiers
+    come out, every message reads normally, and only a count over twenty years
+    says one complex has been calibrated on another's tail. BLOCKS, basket.yaml
+    and the three tables are four halves of one thing, and this is what catches
+    them coming apart - which is exactly what happens when a block is added and
+    one of the tables is forgotten.
+
+    `None` still takes the default, because "no block was named" is a different
+    statement from "a block I have never heard of". Nothing on the live path
+    passes it: saed resolves every asset_id through basket.instruments, which is
+    assets + outside, so every scored instrument carries a real block.
+    """
+    if block is None:
+        return default
+    name = str(block)
+    if name not in table:
+        raise KeyError(
+            f"block {name!r} has no rungs in severity.{table_name}. Every block "
+            f"in tremor.basket.BLOCKS needs an entry in all three ladder tables "
+            f"(BLOCK_SIGMA, BLOCK_RESID_SIGMA, BLOCK_MOVE_SIGMA); derive them "
+            f"with tools/ladder.py rather than writing them by hand.")
+    return table[name]
+
+
 def tier_sigma(block: str | None = None, ladder: str = MEMBER) -> dict[str, float]:
     """The rungs for this block on this ladder, after the sensitivity knob.
 
@@ -279,9 +308,11 @@ def tier_sigma(block: str | None = None, ladder: str = MEMBER) -> dict[str, floa
 
     tuning = load_tuning()
     if ladder == BLOCK_OWN:
-        rungs = BLOCK_MOVE_SIGMA.get(str(block), DEFAULT_BLOCK_MOVE_SIGMA)
+        rungs = rungs_for(BLOCK_MOVE_SIGMA, block, DEFAULT_BLOCK_MOVE_SIGMA,
+                          "BLOCK_MOVE_SIGMA")
     elif ladder == RESIDUAL:
-        rungs = BLOCK_RESID_SIGMA.get(str(block), DEFAULT_RESID_SIGMA)
+        rungs = rungs_for(BLOCK_RESID_SIGMA, block, DEFAULT_RESID_SIGMA,
+                          "BLOCK_RESID_SIGMA")
     elif ladder == MEMBER:
         rungs = tuning.sigma_for(block) if block else DEFAULT_SIGMA
     else:

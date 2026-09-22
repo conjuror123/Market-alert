@@ -1977,3 +1977,17 @@ def test_an_open_note_records_the_rows_it_is_showing(monkeypatch, sender):
 
     record = state[md.STATE_KEY][md.DIGEST_STATE][str(SLOT)]
     assert record["events"] == ["d1"], "a note must remember what it has said"
+
+
+def test_every_block_has_a_reader_facing_label():
+    # BLOCK_LABEL is read with .get(block, block) in four places, so a block
+    # nobody labelled does not fail - it prints its own internal name inside an
+    # English sentence: "industrial_metals moved", "equity_us_tech moved". The
+    # block name is a Python identifier and the message is prose; they are not
+    # the same register, and the gap only shows up in a sent message.
+    from tremor.basket import BLOCKS
+
+    missing = [b for b in BLOCKS if b not in md.BLOCK_LABEL]
+    assert not missing, f"no BLOCK_LABEL for: {', '.join(missing)}"
+    for block, label in md.BLOCK_LABEL.items():
+        assert "_" not in label, f"{block}: {label!r} reads as an identifier"
