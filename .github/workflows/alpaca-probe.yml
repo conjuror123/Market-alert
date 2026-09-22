@@ -22,6 +22,14 @@ on:
         description: 'How many days back to compare'
         type: string
         default: '30'
+      probe:
+        description: 'Probe coverage, depth, freshness and FX'
+        type: boolean
+        default: true
+      compare:
+        description: 'Compare against the stored bars in basis points'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -43,11 +51,24 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # Needs the checked-out bar store as well as the keys: the whole point is
-      # to compare Alpaca's hours against the ones already held, instrument by
-      # instrument. Nothing is written - this job has read-only contents
-      # permission and no commit step.
+      # What Alpaca can serve at all: depth per feed, which candidate tickers
+      # exist, where the freshness line really falls, and whether the forex
+      # endpoint answers. Needs no stored bars - it asks the provider about
+      # itself.
+      - name: Probe what Alpaca covers
+        if: inputs.probe
+        env:
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          ALPACA_FEEDS: ${{ inputs.feeds }}
+        run: python -m tools.alpaca_probe
+
+      # This one DOES need the checked-out bar store as well as the keys: the
+      # whole point is to compare Alpaca's hours against the ones already held,
+      # instrument by instrument. Nothing is written - read-only contents
+      # permission, no commit step.
       - name: Compare Alpaca against the stored bars
+        if: inputs.compare
         env:
           ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
