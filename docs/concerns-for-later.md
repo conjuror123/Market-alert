@@ -99,6 +99,26 @@ ideally more volatile window, and recording the sample size as a limit next to t
 result. Cheap. It is on this list rather than the other one only because nothing is
 visibly broken.
 
+**The 2026-09-22 Alpaca probe is a second, independent measurement of the same thing, and
+it confirms the split.** `tools/alpaca_compare.py` put Alpaca's two feeds against the
+stored bars over 30 days, all 44 US-listed instruments:
+
+| | agrees with the store | median disagreement | volume share |
+|---|---|---|---|
+| Alpaca **SIP** (consolidated) | 44 of 44 | **0.00 bps** | 119.6% |
+| Alpaca **IEX** (one exchange) | 30 of 44 | 0.86 bps | 7.5% |
+
+The fourteen IEX disagrees with are *exactly* the thin commodity funds — BNO CORN CPER
+DBA DBB DBC PALL PPLT SLV SOYB UGA UNG USO WEAT — and the size is not marginal: **UGA
+disagrees by 15.09 bps at the median and 60.17 at the ninetieth percentile**, which
+against an hourly sigma of 20–40 bps is one and a half to three sigma. That is a
+`noticeable` event manufactured by the feed. The decision to keep fifteen thin funds off
+a single-exchange feed was right, and is now supported by a second provider rather than
+by one 62-hour sample.
+
+It also raises the confidence in the stored bars themselves: an independent consolidated
+tape agrees with them to the cent on the median hour.
+
 ---
 
 ## 4. Better and deeper data
@@ -137,7 +157,57 @@ rather than in passing.
 
 ---
 
-## 6. Comments and prose that have drifted
+## 6. A wider basket still has no live feed, and that is the whole blocker
+
+The plan to widen the basket needs a provider for roughly 63 new US-listed instruments
+plus 7 EM currency pairs. Measured on 2026-09-22, here is what is and is not covered.
+
+**History is not the problem.** Twelve Data already reaches past the 2020-02-10 floor
+these instruments would be held to, and seeding them is about 630 requests against an
+800-a-day budget — roughly 90 minutes of wall clock, not the multi-day job it was once
+described as. Alpaca's free SIP reaches 2016 and would be faster, but it duplicates
+something that already works.
+
+**The live hourly fetch is the problem, and nothing found so far moves it.** Tiingo's
+50-an-hour bucket has about 13 free slots against 37 used. Yahoo publishes no limit but
+is an undocumented endpoint with no SLA, so putting sixty instruments behind it
+concentrates most of the basket on the one feed this document already worries about.
+
+**Alpaca cannot help here, and the reason is measured rather than assumed.** On the free
+plan its SIP feed refuses any query ending less than 15 minutes ago — 403, *"subscription
+does not permit querying recent SIP data"*, confirmed at 2, 5 and 10 minutes and served
+at 15, 20 and 30. The hourly run fires at :05 and needs the bar that closed at :00. Two
+remedies exist and both were declined: move the run to :20, or pay for the unrestricted
+tier.
+
+Also established about Alpaca, so the next reader does not re-derive it:
+
+- Its **IEX** feed only reaches about 2021, so it is shallow as well as wrong on thin
+  names.
+- It serves **63 of the 70** candidate instruments. The seven it does not are `JO NIB BAL
+  COW JJC JJN JJU` — coffee, cocoa, cotton, livestock and three base-metal ETNs.
+- Its **forex endpoint is not on the free plan at all**: 403, *"forbidden: insufficient
+  grants"*. EM FX gets nothing from it.
+
+**The four questions any future candidate has to answer**, in this order, because the
+cheapest disqualifier comes first:
+
+1. **Freshness.** Will it serve a bar five minutes old? If not, it cannot be the live
+   feed, whatever else it does well.
+2. **Headroom.** Requests per hour against 63 more instruments.
+3. **Agreement.** Median and p90 disagreement in bps against the stored bars, on the THIN
+   names — the liquid ones agree with everything. `tools/alpaca_compare.py` is the shape
+   to copy; the line is median ≤ 2 bps and p90 ≤ 5.
+4. **Coverage and depth.** Which tickers exist, and do they reach 2020-02-10.
+
+**What acting on it would mean:** finding a provider that answers question 1. Until one
+does, the widening is capped at the ~13 Tiingo slots, or accepts Yahoo concentration as a
+deliberate risk. `tools/alpaca_probe.py` and `tools/alpaca_compare.py` are written and
+generalise to the next candidate with a change of endpoint.
+
+---
+
+## 7. Comments and prose that have drifted
 
 Small, cosmetic, and worth a pass rather than a project. Nothing specific is currently
 listed here — the prose drift that was on this list turned out to be one substantive
