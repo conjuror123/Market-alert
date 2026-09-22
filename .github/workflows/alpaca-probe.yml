@@ -1,0 +1,57 @@
+# Runs tools/alpaca_compare.py, which is the only place the Alpaca keys can be
+# exercised: they are repository secrets, so a laptop or a sandbox cannot reach
+# them. Read-only - it fetches and measures, and writes nothing.
+#
+# Manual only. The question it answers is a one-off - which Alpaca feed, if
+# either, prices this basket the way the stored bars do - and the answer only
+# changes when the plan or the provider does.
+name: Alpaca Probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: 'Comma-separated ETFs to compare (blank = all 44)'
+        type: string
+        default: ''
+      feeds:
+        description: 'Which feeds to measure: iex, sip, or both'
+        type: string
+        default: 'iex,sip'
+      days:
+        description: 'How many days back to compare'
+        type: string
+        default: '30'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Needs the checked-out bar store as well as the keys: the whole point is
+      # to compare Alpaca's hours against the ones already held, instrument by
+      # instrument. Nothing is written - this job has read-only contents
+      # permission and no commit step.
+      - name: Compare Alpaca against the stored bars
+        env:
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          ALPACA_TICKERS: ${{ inputs.tickers }}
+          ALPACA_FEEDS: ${{ inputs.feeds }}
+          ALPACA_DAYS: ${{ inputs.days }}
+        run: python -m tools.alpaca_compare
