@@ -44,16 +44,17 @@
           "twelvedata_XLC:1789995600",
           "twelvedata_EEM:1789995600",
           "twelvedata_MBB:1789995600",
-          "twelvedata_USO:1789995600"
+          "twelvedata_USO:1789995600",
+          "twelvedata_NZD_USD:1790042400"
         ],
         "from": 1789949100,
         "hashes": [
-          "799f8fb5f7bf9f02"
+          "fccdcb38c4b7efbe"
         ],
         "ids": [
           30
         ],
-        "rows": 5,
+        "rows": 6,
         "to": 1790381100
       }
     },
@@ -65,6 +66,10 @@
       "twelvedata_MBB:1789995600": {
         "hash": "0208d4a70409deca",
         "id": 34
+      },
+      "twelvedata_NZD_USD:1790042400": {
+        "hash": "7d8a0addf1935087",
+        "id": 37
       },
       "twelvedata_USO:1789995600": {
         "hash": "59dd49d647687109",
