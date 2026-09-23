@@ -48,7 +48,7 @@
         ],
         "from": 1789949100,
         "hashes": [
-          "8a1641466640b248"
+          "192ed6691a04b535"
         ],
         "ids": [
           30
@@ -81,7 +81,7 @@
     },
     "sent": {
       "coinbase_BCH-USD:1790078400": {
-        "hash": "7ce0e9c50badd586",
+        "hash": "ea4ce39ef16e6095",
         "hour": 1790078400,
         "id": 38
       },
@@ -95,9 +95,10 @@
       "coinbase_BCH-USD:1790078400": {
         "hour_utc": 1790078400,
         "message_id": 38,
-        "text_hash": "7ce0e9c50badd586",
+        "text_hash": "ea4ce39ef16e6095",
         "written": [
-          "today"
+          "today",
+          "settled"
         ]
       },
       "twelvedata_GBP_USD:1789642800": {
