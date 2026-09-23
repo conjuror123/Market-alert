@@ -40,23 +40,43 @@
       },
       "1789949100": {
         "events": [
+          "twelvedata_SHY:1790168400",
+          "twelvedata_IEI:1790168400",
+          "twelvedata_IEF:1790168400",
+          "twelvedata_LQD:1790168400",
           "twelvedata_NZD_USD:1790042400"
         ],
         "from": 1789949100,
         "hashes": [
-          "649ac1f39883b6e8"
+          "f323f0dd88bd4b2a"
         ],
         "ids": [
           30
         ],
-        "rows": 1,
+        "rows": 5,
         "to": 1790381100
       }
     },
     "pings": {
+      "twelvedata_IEF:1790168400": {
+        "hash": "a0f15adad05e3ef5",
+        "id": 41
+      },
+      "twelvedata_IEI:1790168400": {
+        "hash": "1d4f55bf39e1adb3",
+        "id": 40
+      },
+      "twelvedata_LQD:1790168400": {
+        "hash": "05867e280e5849b3",
+        "id": 42
+      },
       "twelvedata_NZD_USD:1790042400": {
         "hash": "7d8a0addf1935087",
         "id": 37
+      },
+      "twelvedata_SHY:1790168400": {
+        "hash": "a92306d6b0e26588",
+        "id": 39
       }
     },
     "sent": {
