@@ -206,24 +206,45 @@ def _overnight(event: dict) -> bool:
         return bool(flag)
 
 
-def _weekend(event: dict) -> bool:
+def _weekly(event: dict) -> bool:
     """A currency pair's gap is the WEEKEND - Friday 17:00 to Sunday 17:00 New
     York - and saying "overnight" or "the open" of it would send the reader to
     the wrong chart."""
     return str(event.get("block") or "") == "FX"
 
 
+def _gap_kind(event: dict) -> str:
+    """What kind of close came before a gap: "night", "weekend" or "holiday".
+
+    Carried on the row by tremor.gaps, because the usual gap quoted beside it is
+    the usual gap of THAT kind - a Monday is judged against other Mondays. A row
+    written before the kind was carried falls back to what it must have been.
+    """
+    kind = event.get("gap_kind")
+    if isinstance(kind, str) and kind:
+        return kind
+    return "weekend" if _weekly(event) else "night"
+
+
 def _open_words(event: dict) -> "tuple[str, str]":
     """(when it opened, what kind of gap) - in the reader's words."""
-    if _weekend(event):
+    if _weekly(event):
         return "at the weekly open", "weekend gap"
+    kind = _gap_kind(event)
+    if kind == "weekend":
+        return "at the open after the weekend", "weekend gap"
+    if kind == "holiday":
+        return "at the open after the holiday", "holiday gap"
     return "at the open", "overnight gap"
 
 
 def _headline(event: dict, tier: str, basis: str) -> str:
     record = record_phrase(event)
     if _overnight(event):
-        kind = "weekend gap" if _weekend(event) else "opening gap"
+        # "Opening", not the kind, for a fund: the record is the last gap of ANY
+        # kind this unusual for its own kind, so "the biggest weekend gap since"
+        # would name a date that may have been a Tuesday.
+        kind = "weekend gap" if _weekly(event) else "opening gap"
         if basis == "block":
             return f"the whole block opened together, the biggest {kind} {record}"
         own = " of its own" if basis == "abnormal" else ""

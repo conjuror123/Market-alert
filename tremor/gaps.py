@@ -42,6 +42,15 @@ years and fourteen years, so a gap pass inheriting the fund's template would
 learn "normal" from a decade and a half and could never be exact on a warm run.
 It runs on windows.DAILY_SERIES instead, the 83-day memory the VIX already uses.
 
+EACH KIND OF CLOSE HAS ITS OWN USUAL SIZE. A fund's gap follows a weeknight, a
+weekend or a holiday, and a Monday's is typically 1.17x a Tuesday's; one pooled
+yardstick would make every Monday a little more unusual than it is. So each row
+carries its `gap_kind`, and both readings are judged against their kind: the
+raw gap's `sigma_lt` is the pooled level times this kind's long-run share of it
+(residuals.kind_scale), and the residual takes the same ratio of its own into
+its divisor. See windows.GAP_KIND_MEMORY_SESSIONS. A pair's gap is always the
+weekend, so for FX the ratio is one.
+
 AND IT IS NEVER WARM. The whole morning history is some six thousand rows per
 fund and a quarter of a million in total, which scores from scratch in about a
 second. So this reads the UNTRIMMED metrics every run (saed.main hands them over
@@ -82,7 +91,7 @@ W_GAP = windows.w_asset(1)
 # events sums over, which is why the overlay is applied to a copy of the frame.
 OVERLAID = (("r", "sigma_lt", "e_resid", "co_block", "beta_block", "z_resid",
              "z_resid_bmp", "tier", "basis", "rank_confirms", "ou_reverts",
-             "n_members", f"{severity.LEVEL_PREFIX}_since")
+             "n_members", f"{severity.LEVEL_PREFIX}_since", "gap_kind")
             + severity.LEVEL_COLUMNS
             + severity.level_columns("abs_level") + ("abs_level_since",))
 
@@ -100,8 +109,10 @@ def mornings(basket: Basket, metrics: "dict[str, pd.DataFrame]"
     instrument's frame. Crypto never closes and has none.
 
     `r` is the gap, so the residual machinery reads it without knowing, and
-    `sigma_lt` is the fund's long-run spread of gaps, causal like every other
-    sigma here (ewma.long_run_sigma shifts inside).
+    `sigma_lt` is the fund's long-run spread of gaps OF THIS KIND - the pooled
+    spread times `gap_scale`, this kind's share of it - causal like every other
+    sigma here (ewma.long_run_sigma shifts inside). `gap_kind` says what kind
+    of close came before: "night", "weekend" or "holiday".
     """
     out: dict[str, pd.DataFrame] = {}
     for asset in basket.instruments:
@@ -110,14 +121,52 @@ def mornings(basket: Basket, metrics: "dict[str, pd.DataFrame]"
         frame = metrics.get(asset.asset_id)
         if frame is None or frame.empty or "gap" not in frame:
             continue
-        rows = frame.loc[frame["gap"].notna(), ["hour_utc", "close", "gap"]]
-        if rows.empty:
+        scored = frame["gap"].notna().to_numpy()
+        if not scored.any():
             continue
+        # The bar before a scored gap is the last bar of the previous session -
+        # returns.overnight_gaps leaves the gap unscored where it is not - so
+        # its date is the date the market last closed.
+        before = frame["hour_utc"].shift(1).to_numpy()[scored]
+        rows = frame.loc[scored, ["hour_utc", "close", "gap"]]
         rows = rows.rename(columns={"gap": "r"}).reset_index(drop=True)
-        rows["sigma_lt"] = ewma.sigma_lt(rows["r"], TEMPLATE).to_numpy()
+        rows["gap_kind"] = (gap_kinds(rows["hour_utc"].to_numpy(), before)
+                            if asset.session_template == "us_equity"
+                            else "weekend")
+        rows["gap_scale"] = residuals.kind_scale(rows["r"],
+                                                 kind_groups(rows["gap_kind"]))
+        rows["sigma_lt"] = (ewma.sigma_lt(rows["r"], TEMPLATE).to_numpy()
+                            * rows["gap_scale"].to_numpy())
         rows["asset_id"] = asset.asset_id
         out[asset.asset_id] = rows
     return out
+
+
+def gap_kinds(hours, before) -> np.ndarray:
+    """What kind of close each gap followed, from the New York dates of the
+    session's first bar and of the bar before it: "night" when the sessions are
+    consecutive days, "weekend" when a Saturday lies between (a long weekend
+    too), "holiday" for any other longer close - Thanksgiving's Friday, a
+    Wednesday Fourth of July."""
+    def dates(values):
+        return (pd.to_datetime(pd.Series(values, dtype="float64"), unit="s", utc=True)
+                .dt.tz_convert("America/New_York").dt.tz_localize(None)
+                .dt.normalize())
+
+    today, last = dates(hours), dates(before)
+    days = (today - last).dt.days.to_numpy()
+    # Days from the last close to the next Saturday, and whether that lands
+    # strictly before today.
+    to_saturday = (5 - last.dt.weekday.to_numpy()) % 7
+    weekend = (to_saturday >= 1) & (to_saturday < days)
+    return np.where(days <= 1, "night", np.where(weekend, "weekend", "holiday"))
+
+
+def kind_groups(kinds) -> np.ndarray:
+    """The kinds the yardstick is learned over: a weeknight, and any longer
+    close. Holidays are too few to have a ratio of their own - see
+    windows.GAP_KIND_MEMORY_SESSIONS."""
+    return np.where(np.asarray(kinds, dtype=object) == "night", "night", "closed")
 
 
 def score(basket: Basket, metrics: "dict[str, pd.DataFrame]", tiers) -> GapPass:
@@ -143,7 +192,8 @@ def score(basket: Basket, metrics: "dict[str, pd.DataFrame]", tiers) -> GapPass:
         if asset_id in factors and factors[asset_id].notna().any():
             own = factors[asset_id]
         with_residuals = residuals.residuals(by_id[asset_id], frame, own,
-                                             template=TEMPLATE)
+                                             template=TEMPLATE,
+                                             kinds=kind_groups(frame["gap_kind"]))
         scored[asset_id] = residuals.score_residuals(with_residuals, W_GAP)
     scored = residuals.standardise_cross_section(scored)
     scored = tiers(scored, {a.asset_id: a.block for a in basket.instruments})
@@ -154,8 +204,16 @@ def score(basket: Basket, metrics: "dict[str, pd.DataFrame]", tiers) -> GapPass:
                                                     dtype="boolean"))
               for aid, frame in scored.items()}
 
+    # A block's move is a median of member gaps each over its member's usual gap
+    # of the kind, so it arrives already judged by kind; it only needs the kind
+    # itself, for the message. Every member shares the calendar, so the hour says it.
     block_scored = blocks.frames(basket, panel, sigma_panel, template=TEMPLATE,
                                  retention=False)
+    kind_at = pd.concat([f.set_index("hour_utc")["gap_kind"] for f in morning.values()])
+    kind_at = kind_at[~kind_at.index.duplicated()]
+    block_scored = {name: frame.assign(gap_kind=kind_at.reindex(
+                        frame["hour_utc"]).to_numpy(dtype=object))
+                    for name, frame in block_scored.items()}
     log.info("overnight gaps: %d instruments, %d sessions scored in %.1fs",
              len(scored), sum(len(f) for f in scored.values()),
              time.monotonic() - started)
@@ -178,6 +236,7 @@ def overlay(frame: pd.DataFrame, gap: "pd.DataFrame | None",
     """
     out = frame.copy()
     out["overnight"] = False
+    out["gap_kind"] = pd.array([pd.NA] * len(out), dtype="string")
     if gap is None or gap.empty or frame.empty or "tier" not in gap:
         return out
     fired = gap[gap["tier"].notna()].set_index("hour_utc")

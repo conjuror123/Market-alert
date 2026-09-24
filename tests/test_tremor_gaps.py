@@ -39,9 +39,10 @@ def hourly(n=40, tiers=None):
     return frame
 
 
-def gap_row(hour, tier, r=-0.04, e=-0.03, sigma=0.008):
+def gap_row(hour, tier, r=-0.04, e=-0.03, sigma=0.008, kind="night"):
     frame = pd.DataFrame({
         "hour_utc": [hour], "r": [r], "e_resid": [e], "z_resid": [9.0],
+        "gap_kind": [kind],
         "z_resid_bmp": [9.0], "co_block": [r - e], "beta_block": [1.0],
         "sigma_lt": [sigma], "sigma_lt_resid": [0.005],
         "tier": pd.array([tier], dtype="string"),
@@ -103,6 +104,115 @@ def test_mornings_take_only_scored_gaps_of_us_funds():
     assert out[spy.asset_id]["hour_utc"].tolist() == [2]
 
 
+# --- the kind of close --------------------------------------------------------
+
+def _utc(stamp):
+    return int(pd.Timestamp(stamp, tz="America/New_York").tz_convert("UTC").timestamp())
+
+
+def test_a_gap_knows_what_kind_of_close_came_before_it():
+    cases = [
+        ("2026-09-22 09:30", "2026-09-21 15:30", "night"),      # Tuesday
+        ("2026-09-21 09:30", "2026-09-18 15:30", "weekend"),    # Monday
+        ("2026-09-08 09:30", "2026-09-04 15:30", "weekend"),    # after Labor Day
+        ("2025-11-28 09:30", "2025-11-26 15:30", "holiday"),    # after Thanksgiving
+        ("2024-07-05 09:30", "2024-07-03 15:30", "holiday"),    # after the Fourth
+    ]
+    hours = [_utc(today) for today, _, _ in cases]
+    before = [_utc(last) for _, last, _ in cases]
+    assert gaps.gap_kinds(np.array(hours), np.array(before)).tolist() == [
+        kind for _, _, kind in cases]
+    assert gaps.kind_groups(["night", "weekend", "holiday"]).tolist() == [
+        "night", "closed", "closed"]
+
+
+def test_the_kind_scale_is_one_where_there_is_one_kind():
+    values = pd.Series(np.random.default_rng(4).normal(0, 0.01, 3000))
+    out = residuals.kind_scale(values, np.full(3000, "closed"))
+    assert (out == 1.0).all()
+
+
+def test_the_kind_scale_learns_each_kind_s_share_causally():
+    # Every fifth row is twice the size of the rest: the scale must find the
+    # two-to-one shape, and must not read the row it is scaling.
+    rng = np.random.default_rng(5)
+    n = 4000
+    kinds = np.where(np.arange(n) % 5 == 0, "closed", "night")
+    values = rng.normal(0, 0.01, n) * np.where(kinds == "closed", 2.0, 1.0)
+    out = residuals.kind_scale(pd.Series(values), kinds)
+
+    late = np.arange(n) > 3000
+    ratio = out[late & (kinds == "closed")].mean() / out[late & (kinds == "night")].mean()
+    assert ratio == pytest.approx(2.0, rel=0.1)
+    # Too few closes of a kind yet: judged as it always was.
+    assert (out[:windows.GAP_KIND_MIN_SAME_KIND] == 1.0).all()
+    # Causal: a huge last row does not move its own scale.
+    bumped = values.copy()
+    bumped[-1] *= 50
+    assert residuals.kind_scale(pd.Series(bumped), kinds)[-1] == out[-1]
+
+
+def _sessions(n, monday_size=1.5, fund=True):
+    """A metrics frame of `n` business days, one closing bar and one opening bar
+    each, the gap on the opening bar - Mondays' `monday_size` times the rest."""
+    days = pd.bdate_range("2010-01-04", periods=n)
+    rng = np.random.default_rng(6)
+    rows = []
+    for i, day in enumerate(days):
+        opened = _utc(f"{day.date()} 09:30")
+        gap = np.nan if i == 0 else rng.normal(0, 0.005) * (
+            monday_size if day.weekday() == 0 else 1.0)
+        rows.append((opened, gap))
+        rows.append((_utc(f"{day.date()} 15:30"), np.nan))
+    frame = pd.DataFrame(rows, columns=["hour_utc", "gap"])
+    frame["close"] = 100.0
+    return frame
+
+
+def test_a_monday_is_judged_against_other_mondays():
+    spy = asset()
+
+    class Basket:
+        instruments = (spy,)
+
+    out = gaps.mornings(Basket(), {spy.asset_id: _sessions(3000)})[spy.asset_id]
+    late = out.iloc[2000:]
+    monday = late["gap_kind"] == "weekend"
+    assert set(late["gap_kind"]) == {"night", "weekend"}
+    # The usual gap on a Monday is about 1.5x the usual weeknight one...
+    ratio = late.loc[monday, "sigma_lt"].mean() / late.loc[~monday, "sigma_lt"].mean()
+    assert ratio == pytest.approx(1.5, rel=0.1)
+    # ...so a Monday no bigger than Mondays usually are scores like any night.
+    z = (late["r"] / late["sigma_lt"]).abs()
+    assert z[monday].mean() == pytest.approx(z[~monday].mean(), rel=0.1)
+
+
+def test_a_currency_pair_s_gap_is_always_the_weekend_and_unscaled():
+    pair = asset(ticker="USD/CAD", block="FX", session_template="fx_continuous")
+
+    class Basket:
+        instruments = (pair,)
+
+    out = gaps.mornings(Basket(), {pair.asset_id: _sessions(1500)})[pair.asset_id]
+    assert (out["gap_kind"] == "weekend").all()
+    assert (out["gap_scale"] == 1.0).all()
+
+
+def test_the_residual_is_divided_by_its_own_kind_scale():
+    frame = pd.DataFrame({"hour_utc": np.arange(1500) * 86400,
+                          "r": np.random.default_rng(7).normal(0, 0.01, 1500),
+                          "close": 100.0})
+    kinds = np.where(np.arange(1500) % 5 == 0, "closed", "night")
+    plain = residuals.residuals(asset(), frame, template=windows.DAILY_SERIES)
+    kinded = residuals.residuals(asset(), frame, template=windows.DAILY_SERIES,
+                                 kinds=kinds)
+    assert "kind_scale" not in plain
+    np.testing.assert_allclose(kinded["patell_scale"],
+                               plain["patell_scale"] * kinded["kind_scale"])
+    # The residual itself stays the size the price moved.
+    np.testing.assert_allclose(kinded["e_resid"], plain["e_resid"])
+
+
 # --- the overlay -------------------------------------------------------------
 
 def test_a_gap_that_out_ranks_the_first_bar_claims_it():
@@ -114,6 +224,7 @@ def test_a_gap_that_out_ranks_the_first_bar_claims_it():
     assert row["tier"] == "major"
     assert row["r"] == pytest.approx(-0.04)       # the gap, as a price move
     assert row["sigma_lt"] == pytest.approx(0.008)  # the fund's usual gap
+    assert row["gap_kind"] == "night"
     # Every other row untouched, and the input not mutated.
     assert out["overnight"].sum() == 1
     assert frame["tier"].isna().all()
@@ -145,11 +256,13 @@ def test_a_gap_event_and_a_first_hour_event_the_same_day_are_one_event():
     # The gap claims the 09:00 row; an hour later the day fires again. One day,
     # one event - enforced by the automaton, not filtered afterwards.
     frame = hourly(tiers={7: "noticeable"})
-    out = gaps.overlay(frame, gap_row(6 * HOUR, "major"))
+    out = gaps.overlay(frame, gap_row(6 * HOUR, "major", kind="weekend"))
     events = saed.build_events(asset(), out, day_tz=None)
 
     assert len(events) == 1
     assert events[0].overnight
+    assert events[0].gap_kind == "weekend"
+    assert saed.events_frame(events)["gap_kind"].tolist() == ["weekend"]
     assert events[0].tier == "major"
     assert events[0].repeat_count == 1
 
@@ -159,6 +272,7 @@ def test_no_gap_pass_means_no_overnight_column_change():
     assert gaps.overlay(frame, None)["overnight"].eq(False).all()
     events = saed.build_events(asset(), hourly(tiers={5: "high"}), day_tz=None)
     assert len(events) == 1 and not events[0].overnight
+    assert events[0].gap_kind is None
 
 
 # --- never trimmed -----------------------------------------------------------

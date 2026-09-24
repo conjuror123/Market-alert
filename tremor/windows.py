@@ -215,6 +215,32 @@ HOUR_SCALE_BARS_PER_SESSION = 7
 HOUR_SCALE_MIN_SAME_HOUR = 100
 
 
+# --- what kind of close came before a gap, for tremor.gaps ------------------
+#
+# A US fund's opening gap follows a weeknight, a weekend or a holiday, and they
+# are not the same size. Measured on the stored bars across the 44 funds, the
+# typical gap after a weekend is 1.17x a weeknight's (0.95x TIP to 1.60x UNG),
+# after a holiday or a long weekend larger still - where one pooled yardstick
+# makes every Monday look a little more unusual than it is and every weeknight
+# a little less. Not three nights' worth of news, which would be 1.7x: most of
+# what moves a price over a weekend is the same few headlines a weeknight has.
+#
+# So the gap is judged against the usual gap of ITS KIND of close, the same way
+# a fund's opening hour is judged against other openings: the level from every
+# gap, the shape - this kind's spread over all kinds' - learned per fund over a
+# long memory, because the shape is a property of the calendar and not of the
+# month. Two kinds, a weeknight and any longer close: some 1,000 weekends per
+# fund steady the ratio, the 200-odd holidays alone would not, and a holiday
+# gap behaves like a weekend one in having more than a night behind it. The
+# memory is counted in sessions on the calendar every kind shares, so the
+# weeknight and the weekend spread forget at the same pace; 100 closes of a
+# kind - about two years - before that kind's ratio is used, and a ratio of one
+# until then. A currency pair's gap is always the weekend, so its ratio is one
+# by construction.
+GAP_KIND_MEMORY_SESSIONS = 500
+GAP_KIND_MIN_SAME_KIND = 100
+
+
 def hour_scale_chain(template: "str | None") -> int:
     """Bars of history the hour scale needs behind the first bar it must get
     exactly right: the regression that makes the residual, then the scale's

@@ -280,9 +280,39 @@ def hour_scale(frame: pd.DataFrame,
     return out
 
 
+def kind_scale(values: pd.Series, kinds,
+               memory: int = windows.GAP_KIND_MEMORY_SESSIONS,
+               minimum: int = windows.GAP_KIND_MIN_SAME_KIND) -> np.ndarray:
+    """Per row: how big this KIND of row usually is, against all rows.
+
+    hour_scale's question asked of a series whose rows come in kinds rather
+    than hours - an overnight gap after a weeknight or after a longer close.
+    Both spreads are causal (ewma.long_run_sigma shifts inside) and decay by
+    POSITION, the other kinds' rows held as missing rather than dropped, so
+    each kind forgets at the pace of the calendar they share and not of its own
+    count. One where either is not yet measured, and one everywhere when there
+    is only one kind. See windows.GAP_KIND_MEMORY_SESSIONS.
+    """
+    v = pd.Series(values).reset_index(drop=True).astype("float64")
+    kinds = np.asarray(kinds, dtype=object)
+    out = np.ones(len(v))
+    if v.empty:
+        return out
+    level = ewma.long_run_sigma(v, memory, 6 * memory, minimum).to_numpy()
+    for kind in pd.unique(kinds):
+        rows = kinds == kind
+        own = ewma.long_run_sigma(v.where(rows), memory, 6 * memory,
+                                  minimum).to_numpy()
+        with np.errstate(invalid="ignore", divide="ignore"):
+            ratio = own[rows] / level[rows]
+        out[rows] = np.where(np.isfinite(ratio) & (ratio > 0), ratio, 1.0)
+    return out
+
+
 def residuals(asset: Asset, frame: pd.DataFrame,
               block_factor: pd.Series | None = None,
-              template: "str | None" = None) -> pd.DataFrame:
+              template: "str | None" = None,
+              kinds=None) -> pd.DataFrame:
     """The residual e and everything the z-score machinery needs to process it.
 
     `template` overrides the calendar the residual's long-run sigma is read on,
@@ -290,6 +320,10 @@ def residuals(asset: Asset, frame: pd.DataFrame,
     Left to the asset's own `us_equity` it would remember 600 sessions and reach
     back 3,600 - fourteen years of mornings - where the hourly series means 86
     days by the same numbers. windows.DAILY_SERIES is the same memory in days.
+
+    `kinds` is for the same caller: per row, what kind of close came before the
+    gap, and the residual is then judged against the usual residual of its kind
+    (kind_scale) the way an hour is judged against its own hour.
     """
     out = frame.copy()
     if out.empty:
@@ -353,6 +387,12 @@ def residuals(asset: Asset, frame: pd.DataFrame,
                          and asset.session_template in windows.HOUR_SCALE_TEMPLATES
                          else 1.0)
     out["patell_scale"] = out["patell_scale"] * out["hour_scale"]
+    # The gap pass's counterpart: a Monday's residual against other Mondays'.
+    # The same divisor, for the same reason - the residual stays the size the
+    # price moved.
+    if kinds is not None:
+        out["kind_scale"] = kind_scale(out["e_resid"], kinds)
+        out["patell_scale"] = out["patell_scale"] * out["kind_scale"]
 
     ou = ou_fit(out["e_resid"])
     for column in ("ou_reversion_bars", "s_score", "ou_reverts"):

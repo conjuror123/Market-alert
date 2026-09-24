@@ -219,3 +219,19 @@ def test_a_block_size_floor_silences_a_move_that_is_rare_but_small(monkeypatch):
                         lambda *a, **k: SimpleNamespace(floor_for=lambda aid: 50.0))
     events = blocks.events_frame(scored, b, panel)
     assert events.empty
+
+
+def test_a_block_row_the_gap_claimed_carries_the_kind_of_close():
+    # The message quotes "a typical member's usual weekend gap", so the row has
+    # to say which kind of close its yardstick was learned on.
+    b, panel, sig, spike_at = _long_block()
+    scored = blocks.frames(b, panel, sig)
+    at = scored["crypto"]["hour_utc"] == (spike_at + 1) * HOUR
+    scored["crypto"]["overnight"] = at.to_numpy()
+    scored["crypto"]["gap_kind"] = pd.Series(np.where(at, "weekend", None),
+                                             index=scored["crypto"].index)
+    events = blocks.events_frame(scored, b, panel)
+
+    row = events[events["hour_utc"] == (spike_at + 1) * HOUR].iloc[0]
+    assert row["overnight"] and row["gap_kind"] == "weekend"
+    assert events.loc[~events["overnight"].astype(bool), "gap_kind"].isna().all()

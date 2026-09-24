@@ -335,6 +335,8 @@ def events_frame(scored: "dict[str, pd.DataFrame]", basket: Basket,
                 "leaders": _leaders(gap_panel if overnight and gap_panel is not None
                                     else panel, columns, int(row.hour_utc)),
                 "overnight": overnight,
+                "gap_kind": (str(row.get("gap_kind")) if overnight
+                             and pd.notna(row.get("gap_kind")) else None),
                 # What the block move actually beat. A block has one ladder, so
                 # there is no basis to choose between: the date is simply when
                 # this complex last moved together this hard.
@@ -353,7 +355,7 @@ def events_frame(scored: "dict[str, pd.DataFrame]", basket: Basket,
             "event_id", "asset_id", "block", "hour_utc", "peak_hour_utc",
             "z_resid", "e_resid", "co_block", "r", "beta_block", "repeat_count",
             "tier", "basis", "sigma_lt", "close", "n_members", "leaders",
-            "overnight", "record_since", "rank_confirms", "ou_reverts"])
+            "overnight", "gap_kind", "record_since", "rank_confirms", "ou_reverts"])
     # Stable, and tie-broken by name. Pandas sorts with quicksort by default,
     # so two blocks firing in the same hour came out in an arbitrary order that
     # depended on the length of the input - and the collapse then took whichever

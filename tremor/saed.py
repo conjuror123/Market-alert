@@ -104,6 +104,9 @@ class SaedEvent:
     # then the gap as a price move, `sigma_lt` the fund's usual gap and the
     # record date the last gap this big. See tremor.gaps.
     overnight: bool = False
+    # And what kind of close came before it - "night", "weekend", "holiday" -
+    # which is what that usual gap was the usual size of. None for an hour.
+    gap_kind: "str | None" = None
 
 
 # "work the instrument's own day out from its session template", as distinct
@@ -356,6 +359,8 @@ def build_events(asset: Asset, frame: pd.DataFrame,
         else np.full(len(frame), "abnormal", dtype=object)
     overnight = (frame["overnight"].fillna(False).to_numpy(dtype=bool)
                  if "overnight" in frame else np.zeros(len(frame), dtype=bool))
+    kind = (frame["gap_kind"].to_numpy(dtype=object) if "gap_kind" in frame
+            else np.full(len(frame), None, dtype=object))
     # One lookback per ladder, picked per bar by the basis that claimed it. A
     # bar claimed on `both` is dated by the raw move, which is the one the reader
     # can see on a chart.
@@ -421,7 +426,9 @@ def build_events(asset: Asset, frame: pd.DataFrame,
                                           "sigma_lt": float(usual[i]),
                                           "close": float(level[i]),
                                           "record_since": _opt_int(since[i]),
-                                          "overnight": bool(overnight[i])})
+                                          "overnight": bool(overnight[i]),
+                                          "gap_kind": _gap_kind(overnight[i],
+                                                                kind[i])})
             continue
         open_at = i
         events.append(SaedEvent(
@@ -435,6 +442,7 @@ def build_events(asset: Asset, frame: pd.DataFrame,
             basis=str(basis[i]), sigma_lt=float(usual[i]),
             close=float(level[i]), record_since=_opt_int(since[i]),
             overnight=bool(overnight[i]),
+            gap_kind=_gap_kind(overnight[i], kind[i]),
         ))
         counts.append(0)
         _peak_at.append(i)
@@ -443,16 +451,23 @@ def build_events(asset: Asset, frame: pd.DataFrame,
             for event, count in zip(events, counts)]
 
 
+def _gap_kind(overnight, kind) -> "str | None":
+    """The kind of close behind a gap-claimed row, None on any other."""
+    if not overnight or kind is None or pd.isna(kind):
+        return None
+    return str(kind)
+
+
 def events_frame(events: list[SaedEvent]) -> pd.DataFrame:
     columns = ["event_id", "asset_id", "block", "hour_utc", "peak_hour_utc",
                "z_resid", "e_resid", "co_block",
                "r", "beta_block", "repeat_count", "tier", "basis",
                "sigma_lt", "close", "record_since",
-               "rank_confirms", "ou_reverts", "overnight"]
+               "rank_confirms", "ou_reverts", "overnight", "gap_kind"]
     if not events:
         return pd.DataFrame({c: pd.Series(dtype="object" if c in
                                           ("event_id", "asset_id", "block",
-                                           "tier", "basis")
+                                           "tier", "basis", "gap_kind")
                                           else "bool" if c == "overnight"
                                           else "float64") for c in columns})
     return pd.DataFrame([e.__dict__ for e in events])[columns]
