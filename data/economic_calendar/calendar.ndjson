@@ -91516,13 +91516,15 @@
 {"actual": "", "country": "GBP", "date": "2026-09-23T08:30:00+00:00", "forecast": "51.5", "impact": "Medium", "previous": "51.5", "title": "Flash Manufacturing PMI"}
 {"actual": "", "country": "GBP", "date": "2026-09-23T08:30:00+00:00", "forecast": "52.0", "impact": "Medium", "previous": "52.8", "title": "Flash Services PMI"}
 {"actual": "", "country": "EUR", "date": "2026-09-23T09:34:00+00:00", "forecast": "", "impact": "Low", "previous": "3.90|2.4", "title": "German 30-y Bond Auction"}
+{"actual": "", "country": "EUR", "date": "2026-09-23T09:35:00+00:00", "forecast": "", "impact": "Low", "previous": "3.90|2.4", "title": "German 30-y Bond Auction"}
 {"actual": "", "country": "USD", "date": "2026-09-23T13:45:00+00:00", "forecast": "53.6", "impact": "Low", "previous": "53.2", "title": "Flash Manufacturing PMI"}
 {"actual": "", "country": "USD", "date": "2026-09-23T13:45:00+00:00", "forecast": "55.8", "impact": "Low", "previous": "56.8", "title": "Flash Services PMI"}
 {"actual": "", "country": "USD", "date": "2026-09-23T14:05:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Barr Speaks"}
-{"actual": "", "country": "USD", "date": "2026-09-23T14:30:00+00:00", "forecast": "-0.6M", "impact": "Low", "previous": "-0.6M", "title": "Crude Oil Inventories"}
+{"actual": "", "country": "USD", "date": "2026-09-23T14:30:00+00:00", "forecast": "-0.7M", "impact": "Low", "previous": "-0.6M", "title": "Crude Oil Inventories"}
+{"actual": "", "country": "USD", "date": "2026-09-23T16:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Goolsbee Speaks"}
 {"actual": "", "country": "JPY", "date": "2026-09-24T00:30:00+00:00", "forecast": "55.0", "impact": "Low", "previous": "55.1", "title": "Flash Manufacturing PMI"}
 {"actual": "", "country": "AUD", "date": "2026-09-24T00:35:00+00:00", "forecast": "", "impact": "Low", "previous": "-19", "title": "NAB Quarterly Business Confidence"}
-{"actual": "", "country": "AUD", "date": "2026-09-24T01:30:00+00:00", "forecast": "22.5K", "impact": "High", "previous": "-15.8K", "title": "Employment Change"}
+{"actual": "", "country": "AUD", "date": "2026-09-24T01:30:00+00:00", "forecast": "21.5K", "impact": "High", "previous": "-15.8K", "title": "Employment Change"}
 {"actual": "", "country": "AUD", "date": "2026-09-24T01:30:00+00:00", "forecast": "4.5%", "impact": "High", "previous": "4.5%", "title": "Unemployment Rate"}
 {"actual": "", "country": "CHF", "date": "2026-09-24T07:30:00+00:00", "forecast": "", "impact": "High", "previous": "", "title": "SNB Monetary Policy Assessment"}
 {"actual": "", "country": "CHF", "date": "2026-09-24T07:30:00+00:00", "forecast": "0.00%", "impact": "High", "previous": "0.00%", "title": "SNB Policy Rate"}
@@ -91545,7 +91547,7 @@
 {"actual": "", "country": "USD", "date": "2026-09-24T14:00:00+00:00", "forecast": "615K", "impact": "Low", "previous": "607K", "title": "New Home Sales"}
 {"actual": "", "country": "GBP", "date": "2026-09-24T14:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "MPC Member Lombardelli Speaks"}
 {"actual": "", "country": "USD", "date": "2026-09-24T14:10:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Paulson Speaks"}
-{"actual": "", "country": "USD", "date": "2026-09-24T14:30:00+00:00", "forecast": "52B", "impact": "Low", "previous": "44B", "title": "Natural Gas Storage"}
+{"actual": "", "country": "USD", "date": "2026-09-24T14:30:00+00:00", "forecast": "50B", "impact": "Low", "previous": "44B", "title": "Natural Gas Storage"}
 {"actual": "", "country": "CNY", "date": "2026-09-24T23:01:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Bank Holiday"}
 {"actual": "", "country": "GBP", "date": "2026-09-24T23:01:00+00:00", "forecast": "-16", "impact": "Low", "previous": "-14", "title": "GfK Consumer Confidence"}
 {"actual": "", "country": "JPY", "date": "2026-09-25T05:00:00+00:00", "forecast": "1.5%", "impact": "Low", "previous": "1.6%", "title": "BOJ Core CPI y/y"}
@@ -91556,6 +91558,7 @@
 {"actual": "", "country": "USD", "date": "2026-09-25T09:15:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Williams Speaks"}
 {"actual": "", "country": "USD", "date": "2026-09-25T12:30:00+00:00", "forecast": "0.6%", "impact": "Low", "previous": "0.4%", "title": "Core Durable Goods Orders m/m"}
 {"actual": "", "country": "USD", "date": "2026-09-25T12:30:00+00:00", "forecast": "-0.3%", "impact": "Low", "previous": "1.1%", "title": "Durable Goods Orders m/m"}
+{"actual": "", "country": "USD", "date": "2026-09-25T13:20:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Schmid Speaks"}
 {"actual": "", "country": "USD", "date": "2026-09-25T14:00:00+00:00", "forecast": "47.4", "impact": "Medium", "previous": "47.8", "title": "Revised UoM Consumer Sentiment"}
 {"actual": "", "country": "USD", "date": "2026-09-25T14:00:00+00:00", "forecast": "", "impact": "Medium", "previous": "4.6%", "title": "Revised UoM Inflation Expectations"}
 {"actual": "", "country": "USD", "date": "2026-09-25T18:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Hammack Speaks"}
