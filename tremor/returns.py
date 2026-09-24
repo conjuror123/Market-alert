@@ -12,15 +12,16 @@ previous session's close:
     first bar of a session:  r_t = ln(close_of_first / open_of_first)
     every other bar:         r_t = ln(close_t / close_{t-1})
 
-The overnight jump is simply not a return here. It is not stored either - see
-below.
+The overnight jump is not a return here: r stays the move inside the hour, and
+the first bar is not disturbed. It is KEPT beside it, though, as its own column
+`gap` - see overnight_gaps, and tremor.gaps for how it is scored.
 
 This also disposes of the unadjusted-series problem. ETFs arrive from the source
 without a dividend adjustment, and on the ex-date the price mechanically drops by
 the payout. That drop happens between sessions, so it falls in the jump this
 module discards and never reaches r_t.
 
-WHAT WAS HERE AND IS NOT. The jump used to be kept as a second channel, r_gap,
+WHAT WAS HERE, WENT, AND CAME BACK. The jump used to be kept as a second channel, r_gap,
 alongside a gap_masked flag marking the ex-dates the corporate-actions table
 knows about, so that the distribution of the gap channel would not be skewed by
 regular dividend steps. Both were computed on every bar, written into every
@@ -28,9 +29,18 @@ metrics table, and read by nothing - the channel awarded no points and no messag
 ever quoted it. They are gone, and with them the corporate-actions lookup that
 existed only to feed the flag. tremor.corporate_actions is still used for
 un-adjustment, which is a different question and a live one.
+
+It came back because dropping it was measured and found expensive: across the
+US funds a median 43% of day-to-day price variance happens between the close
+and the next open - 25% for XLU, 70% for CPER - and SPY's largest opening gaps
+are 2020-03-16, 2008-10-24, 2015-08-24 and 2024-08-05. Those days the detector
+saw only what happened after the first print. This time the gap is scored, not
+merely stored: tremor.gaps judges it against the fund's own history of gaps,
+and it can claim the first bar's event.
 """
 from __future__ import annotations
 
+import logging
 import math
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -43,6 +53,16 @@ from tremor.basket import Asset
 
 HOUR = 3600
 NYSE_TZ = ZoneInfo("America/New_York")
+
+log = logging.getLogger("tremor.returns")
+
+# Share-count changes a fund can make, as the price ratio they leave overnight.
+# The store is split-adjusted - checked across the five SPDR splits of
+# 2025-12-05, whose opening gaps were +0.47%, -0.20% and +0.01% - but a split the
+# provider has not back-adjusted yet would arrive as a -69% "gap", so a gap this
+# close to one of these is refused rather than scored as the crash of a century.
+SPLIT_RATIOS = (2.0, 3.0, 4.0, 5.0, 10.0, 1.5)
+SPLIT_TOLERANCE = 0.01
 
 
 def session_ids(asset: Asset, hours: pd.Series, anchor_tz: str = "America/New_York") -> pd.Series:
@@ -75,7 +95,8 @@ def session_ids(asset: Asset, hours: pd.Series, anchor_tz: str = "America/New_Yo
 
 
 def split_channels(asset: Asset, usable: pd.DataFrame,
-                   anchor_tz: str = "America/New_York") -> pd.DataFrame:
+                   anchor_tz: str = "America/New_York",
+                   dividends=None) -> pd.DataFrame:
     """Computes r, and marks which bars open a session.
 
     The input is ONLY usable bars (those that passed the quality gate and lie inside
@@ -94,7 +115,8 @@ def split_channels(asset: Asset, usable: pd.DataFrame,
     out = usable.copy().sort_values("hour_utc").reset_index(drop=True)
     if out.empty:
         return out.assign(r=pd.Series(dtype="float64"),
-                          is_session_open=pd.Series(dtype=bool))
+                          is_session_open=pd.Series(dtype=bool),
+                          gap=pd.Series(dtype="float64"))
 
     session = session_ids(asset, out["hour_utc"], anchor_tz)
     is_open = session != session.shift(1)
@@ -109,7 +131,67 @@ def split_channels(asset: Asset, usable: pd.DataFrame,
     # not zero.
     out.loc[0, "r"] = np.nan
     out["is_session_open"] = is_open
+    out["gap"] = (overnight_gaps(asset, out, session, dividends)
+                  if dividends is not None else np.nan)
     return out
+
+
+def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
+                   dividends) -> np.ndarray:
+    """ln(open / previous close) on the first bar of each US session, else NaN.
+
+    The dividend comes out, because an ex-date drop is the payout leaving the
+    price rather than anything happening to the market. The table's step is
+    d/(1-d) with d the payout over the previous close, so ln(1 + step) is
+    exactly -ln(1 - d), the log of the drop - see
+    corporate_actions.derive_actions_tiingo for why that form and not d.
+
+    NaN, not scored, wherever the answer could be the table's ignorance rather
+    than the market:
+      - on a date past the fund's checked-through date, because a payout the
+        table has not heard of yet reads as a gap the size of the dividend;
+      - on a declared split date, and on any gap within SPLIT_TOLERANCE of a
+        split ratio, because the store is split-adjusted and a gap that looks
+        like a split is a provider that has not adjusted yet;
+      - on the first bar of the record, which has no previous close.
+
+    US sessions only. FX's one gap is the weekend - 2% of its variance and
+    fifty-two a year, too few to learn a scale from inside a decade - and crypto
+    has none.
+    """
+    n = len(frame)
+    if asset.session_template != "us_equity" or n == 0:
+        return np.full(n, np.nan)
+
+    is_open = frame["is_session_open"].to_numpy(dtype=bool).copy()
+    is_open[0] = False
+    day = session.to_numpy(dtype=object)
+    prev_close = frame["close"].shift(1).to_numpy(dtype="float64")
+    raw = np.log(frame["open"].to_numpy(dtype="float64") / prev_close)
+
+    steps = dividends.steps.get(asset.ticker, {})
+    step = np.array([steps.get(d, 0.0) for d in day], dtype="float64") \
+        if steps else np.zeros(n)
+    gap = raw + np.log1p(step)
+
+    checked = dividends.checked_through.get(asset.ticker)
+    known = (day <= checked) if checked else np.zeros(n, dtype=bool)
+
+    splits = dividends.splits.get(asset.ticker, frozenset())
+    declared = np.array([d in splits for d in day], dtype=bool) if splits \
+        else np.zeros(n, dtype=bool)
+    ratios = np.log(np.array(SPLIT_RATIOS))
+    looks_split = np.zeros(n, dtype=bool)
+    for ratio in np.concatenate([ratios, -ratios]):
+        looks_split |= np.abs(gap - ratio) < SPLIT_TOLERANCE
+    looks_split &= is_open
+    for position in np.flatnonzero(looks_split & ~declared & known):
+        log.warning("%s: %s opened %+.1f%% from the previous close - a split "
+                    "ratio, not scored", asset.ticker, day[position],
+                    100 * (math.exp(gap[position]) - 1))
+
+    usable = is_open & known & ~declared & ~looks_split & np.isfinite(gap)
+    return np.where(usable, gap, np.nan)
 
 
 # Rows per pass of the vectorised MAD. The sliding view itself is free - it is a

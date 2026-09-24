@@ -33,11 +33,12 @@ import os
 import sys
 import time
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import requests
 
-from tremor import atomic, bars, cboe, corporate_actions, fred
+from tremor import atomic, bars, cboe, corporate_actions, fred, quality
 from tremor import sessions as _sessions
 from tremor.basket import Asset, Basket, load_basket
 from price_monitor import (candle_store, coinbase, dukascopy, hfdata,
@@ -243,6 +244,83 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
         raise ExchangeError(f"{asset.asset_id}: unknown provider '{provider}'")
 
     return bars.merge(path, bars.to_hourly(bars.candles_to_frame(candles)))
+
+
+# A fund whose dividend record has not been confirmed for this long is worth a
+# line on the health chat: its overnight gap has been unscored all that time,
+# and nothing else would say so. Five calendar days is a long weekend plus a
+# failed morning, not one bad hour.
+DIVIDEND_CHECK_STALE_DAYS = 5
+
+
+def check_dividends(funds: "list[Asset]", table: "dict | None",
+                    session: requests.Session, now: datetime | None = None,
+                    actions_path: str = corporate_actions.DEFAULT_ACTIONS_PATH,
+                    checks_path: str = corporate_actions.DEFAULT_CHECKS_PATH) -> dict:
+    """Confirms each fund's payouts through today, once a session, after the open.
+
+    THE OVERNIGHT GAP DEPENDS ON THIS. An ex-date drop the table has not heard
+    of reads as a gap the size of the dividend - about eighteen false events a
+    year across the basket, seven of them BKLN's - so a gap is scored only on a
+    date its fund has been checked through (returns.overnight_gaps). The manual
+    Tiingo refresh cannot do that job: it runs when someone runs it, and
+    Tiingo's row for an ex-date lands only after that session closes.
+
+    Yahoo, because it is already a provider here, needs no key, and answers
+    payouts and daily closes in one request. After the open because the answer
+    has to cover TODAY's ex-date, and on trading days only because no gap exists
+    on any other. Payouts are appended before the checked-through dates move, so
+    a run killed between the two writes leaves a fund unchecked rather than
+    vouched for without its dividend.
+
+    A failed fund keeps its old date and is asked again next hour; its gap stays
+    unscored meanwhile, which is the safe direction.
+    """
+    now = now or datetime.now(timezone.utc)
+    zone = ZoneInfo("America/New_York")
+    today = now.astimezone(zone).date()
+    if not table or today not in table:
+        return {"skipped": "not a trading day", "checked": 0, "added": 0, "failed": []}
+    opened, _ = quality._session_bounds_utc(today, table[today])
+    if now.timestamp() < opened:
+        return {"skipped": "before the open", "checked": 0, "added": 0, "failed": []}
+
+    checks = corporate_actions.load_checks(checks_path)
+    due = [a for a in funds if checks.get(a.ticker, "") < today.isoformat()]
+    found: list[corporate_actions.CorporateAction] = []
+    failed: list[str] = []
+    checked = 0
+    for position, asset in enumerate(due):
+        since = (date.fromisoformat(checks[asset.ticker]) + timedelta(days=1)
+                 if asset.ticker in checks else today - timedelta(days=30))
+        try:
+            pairs = yahoo.fetch_dividends(asset.ticker, since, session=session,
+                                          now=now)
+        except yahoo.RateLimited as exc:
+            log.warning("dividend check: Yahoo rate-limited at %s - %s",
+                        asset.ticker, exc)
+            failed.extend(a.ticker for a in due[position:])
+            break
+        except Exception as exc:
+            log.warning("dividend check: %s failed - %s", asset.ticker, exc)
+            failed.append(asset.ticker)
+            continue
+        found.extend(corporate_actions.CorporateAction(
+            ticker=asset.ticker, day=day, kind="dividend", factor_step=step)
+            for day, step in pairs)
+        checks[asset.ticker] = today.isoformat()
+        checked += 1
+
+    added = corporate_actions.merge_actions(found, actions_path) if found else 0
+    if checked:
+        corporate_actions.write_checks(checks, checks_path)
+    # Named once a day - on the first run after the open - rather than every
+    # hour a fund stays behind, so a broken check is one line and not a stream.
+    first_run = now.timestamp() < opened + 3600
+    horizon = (today - timedelta(days=DIVIDEND_CHECK_STALE_DAYS)).isoformat()
+    return {"skipped": None, "checked": checked, "added": added, "failed": failed,
+            "stale": sorted(a.ticker for a in funds
+                            if checks.get(a.ticker, "") < horizon) if first_run else []}
 
 
 def nothing_can_have_appeared(asset: Asset, path: str,
@@ -1164,6 +1242,27 @@ def main(argv: list[str] | None = None) -> int:
     if yahoo_gone:
         log.warning("Yahoo's rate limit is spent. Remaining Yahoo instruments "
                     "were skipped; the other providers continue.")
+
+    # Only on the ordinary hourly pass over the whole basket, and never once
+    # Yahoo has said stop: a rate limit is not a reason to spend it again.
+    if session_table and not args.instruments and not yahoo_gone:
+        try:
+            r = check_dividends(corporate_actions._funds(basket), session_table,
+                                session)
+            if r["skipped"] is None:
+                log.info("dividend check: %d fund(s) confirmed, %d payout(s) added%s",
+                         r["checked"], r["added"],
+                         f", failed: {' '.join(r['failed'])}" if r["failed"] else "")
+            if r.get("stale"):
+                send_ops_alert(
+                    "⚠️ <b>Dividend check behind</b>\n"
+                    f"No confirmed payout record for {DIVIDEND_CHECK_STALE_DAYS}+ days: "
+                    f"{', '.join(r['stale'])}. Their overnight gaps are unscored "
+                    "until it catches up.")
+        except Exception as exc:
+            # Warned, not failed: the cost is gaps left unscored, which is what
+            # the check exists to guarantee rather than a breakage.
+            log.warning("dividend check failed - %s", exc)
 
     if not args.skip_vix:
         try:

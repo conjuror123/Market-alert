@@ -30,8 +30,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from tremor import (atomic, blocks, persistence, quality, routing, sessions,
-                    severity, windows)
+from tremor import (atomic, blocks, cross_section, gaps, persistence, quality,
+                    routing, sessions, severity, windows)
 from tremor.basket import Asset, Basket, load_tuning
 
 
@@ -100,6 +100,10 @@ class SaedEvent:
     # where nothing in the archive matches it: the move is the largest on record,
     # and the message says so rather than inventing a date.
     record_since: "int | None"
+    # The overnight gap claimed this event rather than any hour's move: `r` is
+    # then the gap as a price move, `sigma_lt` the fund's usual gap and the
+    # record date the last gap this big. See tremor.gaps.
+    overnight: bool = False
 
 
 # "work the instrument's own day out from its session template", as distinct
@@ -350,6 +354,8 @@ def build_events(asset: Asset, frame: pd.DataFrame,
                if "ou_reverts" in frame else np.full(len(frame), None))
     basis = frame["basis"].to_numpy(dtype=object) if "basis" in frame \
         else np.full(len(frame), "abnormal", dtype=object)
+    overnight = (frame["overnight"].fillna(False).to_numpy(dtype=bool)
+                 if "overnight" in frame else np.zeros(len(frame), dtype=bool))
     # One lookback per ladder, picked per bar by the basis that claimed it. A
     # bar claimed on `both` is dated by the raw move, which is the one the reader
     # can see on a chart.
@@ -414,7 +420,8 @@ def build_events(asset: Asset, frame: pd.DataFrame,
                                           "beta_block": float(beta[i]),
                                           "sigma_lt": float(usual[i]),
                                           "close": float(level[i]),
-                                          "record_since": _opt_int(since[i])})
+                                          "record_since": _opt_int(since[i]),
+                                          "overnight": bool(overnight[i])})
             continue
         open_at = i
         events.append(SaedEvent(
@@ -427,6 +434,7 @@ def build_events(asset: Asset, frame: pd.DataFrame,
             beta_block=float(beta[i]), repeat_count=0, tier=str(tier[i]),
             basis=str(basis[i]), sigma_lt=float(usual[i]),
             close=float(level[i]), record_since=_opt_int(since[i]),
+            overnight=bool(overnight[i]),
         ))
         counts.append(0)
         _peak_at.append(i)
@@ -440,11 +448,12 @@ def events_frame(events: list[SaedEvent]) -> pd.DataFrame:
                "z_resid", "e_resid", "co_block",
                "r", "beta_block", "repeat_count", "tier", "basis",
                "sigma_lt", "close", "record_since",
-               "rank_confirms", "ou_reverts"]
+               "rank_confirms", "ou_reverts", "overnight"]
     if not events:
         return pd.DataFrame({c: pd.Series(dtype="object" if c in
                                           ("event_id", "asset_id", "block",
                                            "tier", "basis")
+                                          else "bool" if c == "overnight"
                                           else "float64") for c in columns})
     return pd.DataFrame([e.__dict__ for e in events])[columns]
 
@@ -647,16 +656,63 @@ def plan_frames(basket: Basket, metrics: "dict[str, pd.DataFrame]"
     return (trimmed, warm) if warm else (dict(metrics), False)
 
 
+def score_tiers(scored: "dict[str, pd.DataFrame]",
+                blocks_of: "dict[str, str]") -> "dict[str, pd.DataFrame]":
+    """Both ladders, combined, with the rank test's veto - for any scored series.
+
+    Its own function because two series go through it: every instrument's hours,
+    and every US fund's overnight gaps (tremor.gaps). A gap is put to exactly the
+    questions an hour is, and one chain is how that stays true.
+    """
+    # Severity is fitted per instrument on its own standardised score, after the
+    # cross-sectional pass because that is the score the trigger reads. It is
+    # deliberately NOT pooled across the basket: the whole point of a return
+    # period is that it is the instrument's own history that says what is rare
+    # for it, and pooling would put SHY and SOL back on one yardstick.
+    #
+    # A rung is a size: the move over the instrument's own long-run sigma,
+    # against a threshold set per block. The abnormal channel scores the BMP
+    # residual, which is ALREADY a t-statistic, so it takes no divisor - passing
+    # sigma there would apply the normalisation twice.
+    #
+    # And it takes its OWN table, which is the other half of that sentence and
+    # was missing for a long time. Not squaring the normalisation is not the same
+    # as being on the same scale: a t-statistic has had its tail removed by
+    # construction and tops out near 15 where the raw ratio reaches 113, so the
+    # member rungs were not strict here but unreachable. See BLOCK_RESID_SIGMA.
+    scored = {aid: severity.annotate(frame, tier_column=TIER_SOURCES["abnormal"],
+                                     block=blocks_of.get(aid),
+                                     ladder=severity.RESIDUAL)
+              for aid, frame in scored.items()}
+    scored = {aid: severity.annotate(frame, column=ABSOLUTE_COLUMN,
+                                     prefix=ABSOLUTE_LEVEL_PREFIX,
+                                     tier_column=TIER_SOURCES["absolute"],
+                                     fallback=None, scale_column="sigma_lt",
+                                     block=blocks_of.get(aid))
+              for aid, frame in scored.items()}
+    scored = {aid: severity.combine(frame, TIER_SOURCES)
+              for aid, frame in scored.items()}
+    return {aid: withdraw_unconfirmed(frame) for aid, frame in scored.items()}
+
+
 def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
                      block_factors: pd.DataFrame | None = None,
                      panel: pd.DataFrame | None = None,
-                     sigma_panel: pd.DataFrame | None = None
+                     sigma_panel: pd.DataFrame | None = None,
+                     full_metrics: "dict[str, pd.DataFrame] | None" = None
                      ) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
     """Computes residuals and events for every instrument, non-basket ones included.
 
     Non-basket instruments are modelled the same way and on the same
     beta-estimation scheme: they do not enter their block's factor, but they are
     explained by it just like the rest.
+
+    `full_metrics` is the UNTRIMMED metrics, and passing it switches on the
+    overnight gap (tremor.gaps). Separate from `metrics` because a warm run
+    trims the hourly series to its trailing window and the gap pass must not be
+    trimmed with it - it always scores the whole morning history, which is small
+    enough to, and is exact only because it does. None leaves every event exactly
+    as it was before the gap existed.
     """
     from tremor import pipeline, residuals, windows as w
 
@@ -690,36 +746,7 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
     scored = {aid: residuals.rescore_thresholds(frame, windows_by_asset[aid])
               for aid, frame in scored.items()}
 
-    # Severity is fitted per instrument on its own standardised score, after the
-    # cross-sectional pass because that is the score the trigger reads. It is
-    # deliberately NOT pooled across the basket: the whole point of a return
-    # period is that it is the instrument's own history that says what is rare
-    # for it, and pooling would put SHY and SOL back on one yardstick.
-    #
-    # A rung is a size: the move over the instrument's own long-run sigma,
-    # against a threshold set per block. The abnormal channel scores the BMP
-    # residual, which is ALREADY a t-statistic, so it takes no divisor - passing
-    # sigma there would apply the normalisation twice.
-    #
-    # And it takes its OWN table, which is the other half of that sentence and
-    # was missing for a long time. Not squaring the normalisation is not the same
-    # as being on the same scale: a t-statistic has had its tail removed by
-    # construction and tops out near 15 where the raw ratio reaches 113, so the
-    # member rungs were not strict here but unreachable. See BLOCK_RESID_SIGMA.
-    blocks_of = {a.asset_id: a.block for a in basket.instruments}
-    scored = {aid: severity.annotate(frame, tier_column=TIER_SOURCES["abnormal"],
-                                     block=blocks_of.get(aid),
-                                     ladder=severity.RESIDUAL)
-              for aid, frame in scored.items()}
-    scored = {aid: severity.annotate(frame, column=ABSOLUTE_COLUMN,
-                                     prefix=ABSOLUTE_LEVEL_PREFIX,
-                                     tier_column=TIER_SOURCES["absolute"],
-                                     fallback=None, scale_column="sigma_lt",
-                                     block=blocks_of.get(aid))
-              for aid, frame in scored.items()}
-    scored = {aid: severity.combine(frame, TIER_SOURCES)
-              for aid, frame in scored.items()}
-    scored = {aid: withdraw_unconfirmed(frame) for aid, frame in scored.items()}
+    scored = score_tiers(scored, {a.asset_id: a.block for a in basket.instruments})
     # The settled retention lands at the close of the next trading day, so an
     # instrument whose day is a SESSION is measured in its exchange's local day
     # and a round-the-clock one in the UTC day. us_equity is the only template
@@ -738,10 +765,22 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
                                         closed_of.get(aid, False))
               for aid, frame in scored.items()}
 
+    # The overnight gap, written onto a COPY of each frame - the first bar of a
+    # session, where the gap out-ranks it, and nowhere else. `scored` itself is
+    # what the residual store is written from and what every other event's
+    # retention was summed over above, and neither may see the night.
+    gap_pass = gaps.score(basket, full_metrics, score_tiers) \
+        if full_metrics is not None else None
+    judged = scored
+    if gap_pass is not None:
+        judged = {aid: gaps.overlay(frame, gap_pass.assets.get(aid),
+                                    day_of.get(aid), closed_of.get(aid, False))
+                  for aid, frame in scored.items()}
+
     all_events: list[SaedEvent] = []
     for asset in basket.instruments:
-        if asset.asset_id in scored:
-            all_events.extend(build_events(asset, scored[asset.asset_id]))
+        if asset.asset_id in judged:
+            all_events.extend(build_events(asset, judged[asset.asset_id]))
 
     # The blocks themselves, as rows in the same table. Widening the blocks made
     # every member's residual smaller on the days the whole block moves - which
@@ -751,12 +790,22 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
     block_rows = pd.DataFrame()
     if panel is not None and sigma_panel is not None:
         block_scored = blocks.frames(basket, panel, sigma_panel)
-        block_rows = blocks.events_frame(block_scored, basket, panel)
+        if gap_pass is not None:
+            members, _ = cross_section._block_members(panel, basket)
+            block_scored = {
+                name: gaps.overlay(
+                    frame, gap_pass.blocks.get(name),
+                    blocks._day_tz(basket, members.get(name, [])),
+                    blocks._last_day_closed(basket, members.get(name, []), frame))
+                for name, frame in block_scored.items()}
+        block_rows = blocks.events_frame(
+            block_scored, basket, panel,
+            gap_pass.panel if gap_pass is not None else None)
 
     frame = events_frame(all_events)
     if not block_rows.empty:
         frame = pd.concat([frame, block_rows], ignore_index=True)
-    retention_from = dict(scored)
+    retention_from = dict(judged)
     retention_from.update({blocks.block_id(name): f for name, f in block_scored.items()})
 
     return routing.route(persistence.attach(frame, retention_from)), scored
@@ -844,7 +893,7 @@ def main(argv: list[str] | None = None) -> int:
     block_factors = cross_section.block_factors(panel, basket, sigma_panel)
 
     events, scored = build_for_basket(
-        basket, frames, block_factors, panel, sigma_panel)
+        basket, frames, block_factors, panel, sigma_panel, full_metrics=metrics)
 
     # Rate lines read the durable archive, not the six-year delivery table.
     # --full replaces it with this run's complete history; a warm run merges

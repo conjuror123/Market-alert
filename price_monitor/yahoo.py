@@ -38,7 +38,8 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -141,7 +142,8 @@ def _parse(payload: dict, granularity: int, symbol: str) -> list[Candle]:
 
 
 def _request(session, url: str, params: dict, granularity: int,
-             symbol: str) -> list[Candle]:
+             symbol: str, parse=None):
+    parse = parse or (lambda payload: _parse(payload, granularity, symbol))
     sess = session or requests
     last: Exception | None = None
     for attempt in range(MAX_ATTEMPTS):
@@ -170,7 +172,7 @@ def _request(session, url: str, params: dict, granularity: int,
         except ValueError as exc:
             last = ExchangeError(f"{symbol}: response was not JSON ({exc})")
             continue
-        return _parse(payload, granularity, symbol)
+        return parse(payload)
     raise last or ExchangeError(f"{symbol}: no response")
 
 
@@ -207,3 +209,62 @@ def fetch_full_history(
     # those are real bars, and bars.merge takes the union, so discarding them
     # would throw away data that was already paid for.
     return _request(session, url, params, granularity, symbol)
+
+
+def _parse_dividends(payload: dict, symbol: str) -> "list[tuple[date, float]]":
+    """(ex-date, step) pairs, the step in the corporate-actions table's form.
+
+    The table stores d / (1 - d) with d the payout over the PREVIOUS close (see
+    tremor.corporate_actions.derive_actions_tiingo), so that is what this
+    returns. Yahoo's daily closes are split-adjusted and so are its payouts, so
+    the ratio is the same one the raw Tiingo figures give.
+    """
+    try:
+        result = payload["chart"]["result"][0]
+    except (KeyError, IndexError, TypeError) as exc:
+        error = (payload.get("chart") or {}).get("error") if isinstance(payload, dict) else None
+        raise ExchangeError(f"{symbol}: malformed chart response ({error or exc})") from exc
+    zone = ZoneInfo(result.get("meta", {}).get("exchangeTimezoneName")
+                    or "America/New_York")
+    stamps = result.get("timestamp") or []
+    closes = (((result.get("indicators") or {}).get("quote") or [{}])[0]
+              .get("close") or [])
+    days = [datetime.fromtimestamp(int(t), zone).date() for t in stamps]
+    out: list[tuple[date, float]] = []
+    for item in ((result.get("events") or {}).get("dividends") or {}).values():
+        try:
+            amount = float(item["amount"])
+            ex_day = datetime.fromtimestamp(int(item["date"]), zone).date()
+        except (KeyError, TypeError, ValueError):
+            continue
+        before = [c for d, c in zip(days, closes) if d < ex_day and c]
+        if not before or amount <= 0:
+            continue
+        d = amount / float(before[-1])
+        if 0.0 < d < 1.0:
+            out.append((ex_day, d / (1.0 - d)))
+    return sorted(out)
+
+
+def fetch_dividends(symbol: str, since: date, base_url: str = BASE_URL,
+                    session: requests.Session | None = None,
+                    now: datetime | None = None) -> "list[tuple[date, float]]":
+    """Every payout from `since` to today, as (ex-date, step).
+
+    For the overnight gap, which may only be scored on a day whose payout is
+    known (tremor.backfill.check_dividends). Daily bars come back with the
+    events so the previous close is in the same answer; the window starts a
+    week before `since` so an ex-date on `since` still has a close before it.
+    Raises on a failed request - an empty list means "asked, and none", which
+    is the only answer that may advance a fund's checked-through date.
+    """
+    now = now or datetime.now(timezone.utc)
+    start = datetime.combine(since, datetime.min.time(), tzinfo=timezone.utc) \
+        - timedelta(days=7)
+    url = f"{base_url}{CHART_ENDPOINT.format(symbol=symbol)}"
+    params = {"interval": "1d", "events": "div",
+              "period1": int(start.timestamp()),
+              "period2": int(now.timestamp()) + 86400}
+    found = _request(session, url, params, 86400, symbol,
+                     parse=lambda payload: _parse_dividends(payload, symbol))
+    return [(day, step) for day, step in found if day >= since]

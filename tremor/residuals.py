@@ -249,8 +249,16 @@ def ou_fit(residual: pd.Series, window: int = OU_WINDOW, minimum: int = OU_MIN,
 
 
 def residuals(asset: Asset, frame: pd.DataFrame,
-              block_factor: pd.Series | None = None) -> pd.DataFrame:
-    """The residual e and everything the z-score machinery needs to process it."""
+              block_factor: pd.Series | None = None,
+              template: "str | None" = None) -> pd.DataFrame:
+    """The residual e and everything the z-score machinery needs to process it.
+
+    `template` overrides the calendar the residual's long-run sigma is read on,
+    and exists for one caller: tremor.gaps, whose series has one row per SESSION.
+    Left to the asset's own `us_equity` it would remember 600 sessions and reach
+    back 3,600 - fourteen years of mornings - where the hourly series means 86
+    days by the same numbers. windows.DAILY_SERIES is the same memory in days.
+    """
     out = frame.copy()
     if out.empty:
         return out.assign(alpha=pd.Series(dtype="float64"),
@@ -313,7 +321,8 @@ def residuals(asset: Asset, frame: pd.DataFrame,
     out["rank_confirms"] = ranks["rank_confirms"].to_numpy()
 
     # The residual's own long-term sigma, on data strictly before the current bar.
-    out["sigma_lt_resid"] = ewma.sigma_lt(out["e_resid"], asset.session_template)
+    out["sigma_lt_resid"] = ewma.sigma_lt(out["e_resid"],
+                                          template or asset.session_template)
 
     # Winsorization of the residual - with its own MAD and its own floor.
     # The floor takes the same half-tick return: a residual is never finer than

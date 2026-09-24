@@ -192,8 +192,27 @@ BASIS_NOUN = {
 }
 
 
+def _overnight(event: dict) -> bool:
+    """Whether the overnight gap claimed this event rather than an hour's move.
+
+    Then `r` is the gap - last close to first print - and `sigma_lt` the
+    instrument's usual gap, and every sentence that says "hour" would be false.
+    See tremor.gaps.
+    """
+    flag = event.get("overnight")
+    try:
+        return bool(flag) and not pd.isna(flag)
+    except (TypeError, ValueError):
+        return bool(flag)
+
+
 def _headline(event: dict, tier: str, basis: str) -> str:
     record = record_phrase(event)
+    if _overnight(event):
+        if basis == "block":
+            return f"the whole block opened together, the biggest gap {record}"
+        own = " of its own" if basis == "abnormal" else ""
+        return f"the biggest opening gap{own} {record}"
     if basis == "block":
         return f"the whole block moved together, the biggest {record}"
     return f"{BASIS_NOUN.get(basis, 'the biggest move')} {record}"
@@ -351,14 +370,17 @@ def _split_lines(event: dict, label: str, tier: str = "",
     lines = []
     if whole_move and tier:
         lines.append(_headline(event, tier, basis))
-    line = f"\t{block * 100:+.2f}%  block moving, [{_escape(named)}]"
+    line = (f"\t{block * 100:+.2f}%  block opening, [{_escape(named)}]"
+            if _overnight(event) else
+            f"\t{block * 100:+.2f}%  block moving, [{_escape(named)}]")
     if peers:
         line += f" - {_escape(peers)}"
     lines.append(line)
+    noun = "gap" if _overnight(event) else "move"
     if rarity and not whole_move:
-        own_line = f"\t{own * 100:+.2f}% biggest move on its own {rarity}"
+        own_line = f"\t{own * 100:+.2f}% biggest {noun} on its own {rarity}"
     else:
-        own_line = f"\t{own * 100:+.2f}%  move on its own"
+        own_line = f"\t{own * 100:+.2f}%  {noun} on its own"
     lines.append(own_line)
     return lines
 
@@ -527,7 +549,8 @@ def _scale_note(event: dict) -> str:
     # For a block the yardstick is the median member's usual hour rather than any
     # one instrument's, and saying "its" would invite the reader to look for an
     # instrument that does not exist.
-    whose = "a typical member's usual hour" if _is_block(event) else "usual hour"
+    unit = "usual overnight gap" if _overnight(event) else "usual hour"
+    whose = f"a typical member's {unit}" if _is_block(event) else unit
     return f"{size} {whose}"
 
 
@@ -724,6 +747,10 @@ def describe(event: dict, labels: dict[str, str],
     # name that is the same everywhere. The move shares that line, because it is
     # the first thing anyone wants.
     shown = f" {move * 100:+.2f}%" if move is not None else ""
+    if shown and _overnight(event):
+        # The gap is a price move from the last close to the first print, and
+        # it is said as one - never as the hour it was scored alongside.
+        shown += " at the open"
     parts = [f"{emoji} <b>{_escape(_ticker(asset_id))}</b> · "
              f"{_escape(label)}{shown}"]
 
@@ -923,6 +950,8 @@ def _describe_block(event: dict, headline: str, emoji: str, when: datetime,
         shown = f" · {_block_move_phrase(block, move).strip()}"
     else:
         shown = f" · {move * 100:+.2f}%"
+    if shown and _overnight(event):
+        shown += " at the open"
     # BLACK IN FRONT OF THE RARITY, not instead of it. A block is the same four
     # rarities read at a different level of the market, so dropping the colour
     # to mark it would trade the thing every line is sorted and skimmed by for
@@ -939,8 +968,12 @@ def _describe_block(event: dict, headline: str, emoji: str, when: datetime,
     leaders = str(event.get("leaders") or "")
     if leaders:
         count = _clean(event.get("n_members"))
-        of = f" (of {int(count)} trading that hour)" if count else ""
-        parts.append(f"\tbiggest movers: {_escape(leaders)}{_escape(of)}")
+        if _overnight(event):
+            of = f" (of {int(count)} that opened)" if count else ""
+            parts.append(f"\tbiggest gaps: {_escape(leaders)}{_escape(of)}")
+        else:
+            of = f" (of {int(count)} trading that hour)" if count else ""
+            parts.append(f"\tbiggest movers: {_escape(leaders)}{_escape(of)}")
 
     parts.extend(check_in_lines(event, now))
     rate = tier_rate_line(

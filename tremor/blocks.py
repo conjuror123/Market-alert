@@ -127,12 +127,19 @@ def hours_by_block(basket: Basket, panel: pd.DataFrame,
 
 
 def frames(basket: Basket, panel: pd.DataFrame,
-           sigma_panel: pd.DataFrame) -> "dict[str, pd.DataFrame]":
+           sigma_panel: pd.DataFrame, template: "str | None" = None,
+           retention: bool = True) -> "dict[str, pd.DataFrame]":
     """One scored frame per block, shaped like an instrument's.
 
     Shaped like an instrument's on purpose: it then goes through the same
     severity ladder, the same retention check and the same routing as everything
     else, and the delivery layer has one kind of row to render rather than two.
+
+    `template` and `retention` are for tremor.gaps, which runs this over a panel
+    of overnight gaps - one row per session. Its sigma has to be read in days
+    (windows.DAILY_SERIES) rather than on the members' hourly calendar, and its
+    retention is measured on the HOURLY block series the gap is overlaid onto,
+    not on the next morning's gap.
     """
     moves = cross_section.block_moves(panel, basket, sigma_panel)
     members, _ = cross_section._block_members(panel, basket)
@@ -163,7 +170,7 @@ def frames(basket: Basket, panel: pd.DataFrame,
         # own long-run spread, on data strictly before the bar like everything
         # else here.
         frame["sigma_lt_resid"] = ewma.sigma_lt(
-            frame["e_resid"], _template(basket, columns) or "us_equity")
+            frame["e_resid"], template or _template(basket, columns) or "us_equity")
         # A block's move is already a median of member moves each divided by its
         # own sigma, so it arrives standardised and takes no divisor. It gets
         # BLOCK_MOVE_SIGMA rather than the member table: a median of sixteen
@@ -175,8 +182,9 @@ def frames(basket: Basket, panel: pd.DataFrame,
                                   ladder=severity.BLOCK_OWN)
         frame["basis"] = pd.Series(BLOCK_BASIS, index=frame.index,
                                    dtype="string").where(frame["tier"].notna())
-        out[block] = persistence.annotate(frame, _day_tz(basket, columns),
-                                          _last_day_closed(basket, columns, frame))
+        out[block] = (persistence.annotate(frame, _day_tz(basket, columns),
+                                           _last_day_closed(basket, columns, frame))
+                      if retention else frame)
     return out
 
 
@@ -243,7 +251,8 @@ def _by_day(positions: np.ndarray, day: np.ndarray) -> "list[np.ndarray]":
 
 
 def events_frame(scored: "dict[str, pd.DataFrame]", basket: Basket,
-                 panel: pd.DataFrame) -> pd.DataFrame:
+                 panel: pd.DataFrame,
+                 gap_panel: "pd.DataFrame | None" = None) -> pd.DataFrame:
     """The block events, in the same columns an asset event carries.
 
     Everything above the bottom rung - see BLOCK_TIERS for what that costs and
@@ -265,6 +274,10 @@ def events_frame(scored: "dict[str, pd.DataFrame]", basket: Basket,
     moved far, so the opening bar is typically the smallest of the run. Identity
     stays with the opening bar so that a push already sent is edited rather than
     repeated.
+
+    A row the overnight gap claimed (tremor.gaps, the `overnight` column) names
+    its leaders from `gap_panel` - who opened furthest from their close - since
+    the first hour's own moves are not what earned it.
     """
     from tremor.basket import load_tuning
 
@@ -298,6 +311,8 @@ def events_frame(scored: "dict[str, pd.DataFrame]", basket: Basket,
                 if here > there or (here == there and size[i] > size[peak]):
                     peak = i
             row = frame.iloc[peak]
+            flag = row.get("overnight", False)
+            overnight = bool(flag) if pd.notna(flag) else False
             rows.append({
                 "event_id": f"{block_id(block).replace(':', '_')}:"
                             f"{int(frame['hour_utc'].iat[positions[0]])}",
@@ -314,7 +329,9 @@ def events_frame(scored: "dict[str, pd.DataFrame]", basket: Basket,
                 # delivery layer reads the events table and nothing else, and a
                 # block's own figure is a median, so it names nobody. The
                 # reader's next question is always which members did it.
-                "leaders": _leaders(panel, columns, int(row.hour_utc)),
+                "leaders": _leaders(gap_panel if overnight and gap_panel is not None
+                                    else panel, columns, int(row.hour_utc)),
+                "overnight": overnight,
                 # What the block move actually beat. A block has one ladder, so
                 # there is no basis to choose between: the date is simply when
                 # this complex last moved together this hard.
@@ -333,7 +350,7 @@ def events_frame(scored: "dict[str, pd.DataFrame]", basket: Basket,
             "event_id", "asset_id", "block", "hour_utc", "peak_hour_utc",
             "z_resid", "e_resid", "co_block", "r", "beta_block", "repeat_count",
             "tier", "basis", "sigma_lt", "close", "n_members", "leaders",
-            "record_since", "rank_confirms", "ou_reverts"])
+            "overnight", "record_since", "rank_confirms", "ou_reverts"])
     # Stable, and tie-broken by name. Pandas sorts with quicksort by default,
     # so two blocks firing in the same hour came out in an arbitrary order that
     # depended on the length of the input - and the collapse then took whichever

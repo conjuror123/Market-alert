@@ -25,7 +25,7 @@ import os
 import time
 import urllib.parse
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 
 import requests
 
@@ -34,6 +34,16 @@ from price_monitor import tiingo
 from price_monitor.tiingo import DailyRow
 
 DEFAULT_ACTIONS_PATH = os.path.join("data", "tremor", "corporate_actions.csv")
+
+# How far each fund's dividend record is KNOWN to be complete, one date per
+# ticker. The overnight gap needs this and nothing else in the system did: a
+# payout the table does not know about yet is a price drop the size of the
+# dividend, and on a monthly payer that is a once-a-month fabricated move -
+# measured, about eighteen false events a year across the basket, seven of them
+# BKLN's. So a gap is scored only on a date its fund has been checked through
+# (tremor.returns.overnight_gaps). Written by the manual Tiingo refresh and by
+# the morning Yahoo check in tremor.backfill; committed every run with the state.
+DEFAULT_CHECKS_PATH = os.path.join("data", "tremor", "dividend_checks.csv")
 TIME_SERIES_URL = "https://api.twelvedata.com/time_series"
 
 # Threshold below which a step counts as rounding noise. The observed noise is
@@ -66,6 +76,19 @@ class CorporateAction:
     day: date          # ex-date: the first day the price trades without the payout
     kind: str          # "dividend" or "split"
     factor_step: float  # fraction of price by which the coefficient moved
+
+
+@dataclass(frozen=True)
+class Dividends:
+    """What the overnight gap needs to know about payouts, keyed by ISO date.
+
+    ISO strings rather than dates because the gap is computed per session and a
+    US session's id is already its local date as "YYYY-MM-DD" (returns.session_ids),
+    so the lookup is a map over a column rather than a conversion per bar.
+    """
+    steps: "dict[str, dict[str, float]]"      # ticker -> ex-date -> step d/(1-d)
+    splits: "dict[str, frozenset[str]]"       # ticker -> split dates
+    checked_through: "dict[str, str]"         # ticker -> last date known complete
 
 
 class CorporateActionsError(RuntimeError):
@@ -208,6 +231,76 @@ def load_steps(path: str = DEFAULT_ACTIONS_PATH,
     for steps in by_ticker.values():
         steps.sort()
     return by_ticker
+
+
+def load_checks(path: str = DEFAULT_CHECKS_PATH) -> "dict[str, str]":
+    """ticker -> the last date its dividend record is known to be complete."""
+    if not os.path.exists(path):
+        return {}
+    with open(path, "r", encoding="utf-8", newline="") as f:
+        return {row["ticker"]: row["checked_through"]
+                for row in csv.DictReader(f)
+                if row.get("ticker") and row.get("checked_through")}
+
+
+def write_checks(checks: "dict[str, str]", path: str = DEFAULT_CHECKS_PATH) -> None:
+    def _write(tmp: str) -> None:
+        with open(tmp, "w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f, lineterminator="\n")
+            writer.writerow(["ticker", "checked_through"])
+            for ticker in sorted(checks):
+                writer.writerow([ticker, checks[ticker]])
+
+    atomic.write_replacing(path, _write)
+
+
+def load_dividends(actions_path: str = DEFAULT_ACTIONS_PATH,
+                   checks_path: str = DEFAULT_CHECKS_PATH) -> Dividends:
+    """Payout steps, split dates and checked-through dates, for the gap."""
+    steps: dict[str, dict[str, float]] = {}
+    splits: dict[str, set[str]] = {}
+    if os.path.exists(actions_path):
+        with open(actions_path, "r", encoding="utf-8", newline="") as f:
+            for row in csv.DictReader(f):
+                ticker, day = row.get("ticker"), row.get("date")
+                if not ticker or not day:
+                    continue
+                if (row.get("kind") or "dividend") == "split":
+                    splits.setdefault(ticker, set()).add(day)
+                    continue
+                try:
+                    steps.setdefault(ticker, {})[day] = float(row["factor_step"])
+                except (TypeError, ValueError):
+                    continue
+    return Dividends(steps=steps,
+                     splits={t: frozenset(d) for t, d in splits.items()},
+                     checked_through=load_checks(checks_path))
+
+
+def merge_actions(new: "list[CorporateAction]",
+                  path: str = DEFAULT_ACTIONS_PATH) -> int:
+    """Adds payouts the table does not hold yet; returns how many were added.
+
+    Keyed on (ticker, date, kind) and never overwriting: a row already in the
+    table came from the declared Tiingo figures, which are the reference, and a
+    second source disagreeing in the fifth decimal is not a reason to rewrite it.
+    """
+    existing: list[CorporateAction] = []
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8", newline="") as f:
+            for row in csv.DictReader(f):
+                try:
+                    existing.append(CorporateAction(
+                        ticker=row["ticker"], day=date.fromisoformat(row["date"]),
+                        kind=row.get("kind") or "dividend",
+                        factor_step=float(row["factor_step"])))
+                except (KeyError, TypeError, ValueError):
+                    continue
+    seen = {(a.ticker, a.day, a.kind) for a in existing}
+    added = [a for a in new if (a.ticker, a.day, a.kind) not in seen]
+    if added:
+        write_actions(path, existing + added)
+    return len(added)
 
 
 def unadjust_factor(steps: list[tuple[date, float]], moments,
@@ -359,6 +452,15 @@ def main(argv: list[str] | None = None) -> int:
 
     write_actions(args.out, actions)
     log.info("%s: records %d", args.out, len(actions))
+    if args.out == DEFAULT_ACTIONS_PATH and args.source == "tiingo":
+        # A full declared refresh vouches for every fund through YESTERDAY, not
+        # today: Tiingo's daily row for an ex-date lands after that session
+        # closes, so a refresh run mid-session cannot know today's payout.
+        through = (date.today() - timedelta(days=1)).isoformat()
+        checks = load_checks()
+        checks.update({a.ticker: max(checks.get(a.ticker, through), through)
+                       for a in funds})
+        write_checks(checks)
     return 0
 
 

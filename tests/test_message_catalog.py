@@ -92,6 +92,17 @@ def catalog(monkeypatch) -> dict[str, str]:
         tier="major", r=0.0088, e_resid=0.0088, sigma_lt=0.0008,
         hour_utc=hour, record_since=hour - 90 * 86400,
         leaders="USD/CHF +1.31%, EUR/USD -1.22%", n_members=7)
+    spy_open = event(
+        event_id="twelvedata_SPY:open", asset_id="twelvedata:SPY",
+        block="equity", tier="major", channel="push", basis="absolute",
+        r=-0.0421, e_resid=-0.0169, co_block=-0.0252, sigma_lt=0.0047,
+        hour_utc=hour, record_since=hour - 1595 * 86400, overnight=True,
+        retention_today=0.70, retention_settled=None)
+    equity_open = block_event(
+        event_id="block_equity:open", hour_utc=hour, r=-0.0341, e_resid=-0.0341,
+        sigma_lt=0.0064, record_since=hour - 1603 * 86400, overnight=True,
+        tier="high", leaders="XLK -6.90%, IWM -5.92%, QQQ -5.50%, XLY -5.31%",
+        retention_today=None, retention_settled=None)
     window = routing.digest_window(SLOT)
     digest_now = datetime(2026, 9, 16, 10, tzinfo=timezone.utc)
     dbb_hist = _history(dbb)
@@ -116,6 +127,10 @@ def catalog(monkeypatch) -> dict[str, str]:
         "block_metals": md.format_push(
             metals, labels, None, _history(metals), digest_now),
         "block_fx": md.format_push(fx, labels, None, _history(fx), digest_now),
+        "push_overnight_gap": md.format_push(
+            spy_open, labels, None, _history(spy_open), digest_now),
+        "block_overnight_gap": md.format_push(
+            equity_open, labels, None, _history(equity_open), digest_now),
         "floor_ticker": (
             "Floor for BKLN is now 2.1x.\n"
             "A line has opened about 1.8 times a year "
@@ -162,6 +177,21 @@ def test_every_message_shape_follows_the_copy_rules(monkeypatch, tmp_path):
     assert "2026-09-14" not in push
     assert " · Financial sector -0.88%" in push
     assert " · -0.88%" not in push.splitlines()[0]
+
+    # The overnight gap is said as what it is - a move from the last close to
+    # the first print - and never as an hour: "at the open", the usual GAP as
+    # the yardstick, and a record that is the last gap this big.
+    gap = samples["push_overnight_gap"]
+    assert "SPY -4.21% at the open" in gap
+    assert "usual overnight gap" in gap and "usual hour" not in gap
+    assert "the biggest opening gap since" in gap
+    assert "gap on its own" in gap and "block opening" in gap
+    block_gap = samples["block_overnight_gap"]
+    assert "· -3.41% at the open" in block_gap
+    assert "a typical member's usual overnight gap" in block_gap
+    assert "the whole block opened together" in block_gap.lower()
+    assert "biggest gaps: XLK -6.90%" in block_gap
+    assert "trading that hour" not in block_gap
 
     for name, text in samples.items():
         if name == "digest":

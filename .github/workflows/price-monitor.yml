@@ -147,6 +147,12 @@ jobs:
           # one pass - there is nothing left to carry between runs, and naming a
           # file that no longer exists would fail this step every hour.
           git add data/state.json data/economic_calendar config/basket.yaml
+          # Every run, and small: which payouts are known and how far each
+          # fund's record is confirmed. An overnight gap is scored only on a
+          # date its fund has been checked through, and a runner is thrown
+          # away after each run - so an uncommitted check is one that never
+          # happened, and the next morning would ask again from the old date.
+          git add data/tremor/corporate_actions.csv data/tremor/dividend_checks.csv
           # THE BARS GO IN ONCE A WEEK. Git cannot delta parquet, so a commit
           # stores every byte of whatever shard changed, and committing daily
           # spends seven times the bytes to record the same week. Nothing is
