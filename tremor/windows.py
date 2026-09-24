@@ -178,6 +178,45 @@ def warm_bars(w_asset_bars: int, rate: float | None = None,
 # Burn-in of an asset's EWMA state.
 EWMA_BURN_IN_BARS = 500
 
+# --- time of day, for the abnormal channel of a US fund ---------------------
+#
+# A fund's opening half-hour is not one of its ordinary hours, and the abnormal
+# channel used to treat it as one. Its short yardstick (sigma_eff, a day or so
+# of memory) is the same at every hour, so the 09:30 residual - about twice the
+# midday one - was judged against yesterday's quiet afternoon. Measured: the
+# abnormal rung was crossed on 0.61% of opening bars against 0.14-0.23% of
+# every other hour, 36x for XLI and 29x for XLV, while the absolute channel
+# found the open no busier than 10:00 (0.74% against 0.73%). "Unusual for this
+# fund" had become "usual for this fund's opening".
+#
+# So the residual is scaled by the hour's own usual size relative to all hours
+# (residuals.hour_scale) before it is standardised. The level still comes from
+# every hour; only the SHAPE is per hour, and the shape is steady - XLI's
+# opening ran 2.0-2.8x its other hours every year since 2008 - so it is learned
+# over a long memory rather than cut to a seventh of the data. Three memories
+# were measured: 86, 250 and 500 sessions all predict the next half-year's
+# opening to within 14-15%, and differ in how much they wobble month to month
+# (4.0%, 1.9%, 1.3%). 500 is the steadiest, and its cost - a longer warm slice,
+# about ten seconds a run - was judged not to matter.
+#
+# US funds only. FX has a time-of-day pattern too, a 10x spread, but it peaks
+# at the hour US data is released - there the busy hour IS the news.
+HOUR_SCALE_TEMPLATES = ("us_equity",)
+HOUR_SCALE_MEMORY_SESSIONS = 500
+HOUR_SCALE_BARS_PER_SESSION = 7
+HOUR_SCALE_MIN_SAME_HOUR = 100
+
+
+def hour_scale_chain(template: "str | None") -> int:
+    """Bars of history the hour scale needs behind the first bar it must get
+    exactly right: the regression that makes the residual, then the scale's
+    own reach over that residual, then the EWMA state it feeds. Zero for a
+    template it does not apply to."""
+    if template not in HOUR_SCALE_TEMPLATES:
+        return 0
+    span = 6 * HOUR_SCALE_MEMORY_SESSIONS * HOUR_SCALE_BARS_PER_SESSION
+    return REGRESSION_WINDOW + REGRESSION_GAP_BARS + span + EWMA_BURN_IN_BARS
+
 # --- cross-sectional windows, in reference-calendar hours -----------------
 
 W_PCA = 120           # PCA window, one trading week

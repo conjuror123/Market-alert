@@ -477,7 +477,8 @@ ARCHIVE_COLUMNS = ("event_id", "asset_id", "hour_utc", "tier")
 # of random numbers, and nothing compresses them.
 RESIDUAL_COLUMNS = ("hour_utc", "asset_id", "beta_block", "e_resid",
                     "co_block",
-                    "sigma_lt_resid", "patell_scale", "t_rank", "rank_pct",
+                    "sigma_lt_resid", "patell_scale", "hour_scale", "t_rank",
+                    "rank_pct",
                     "rank_confirms", "ou_reversion_bars", "s_score", "ou_reverts",
                     "z_resid", "bmp_scale", "bmp_dof",
                     "t_resid", "z_resid_bmp",
@@ -644,6 +645,12 @@ def plan_frames(basket: Basket, metrics: "dict[str, pd.DataFrame]"
         keep = windows.warm_bars(windows.w_asset(bars_per),
                                  severity.bar_rate(frame["hour_utc"]),
                                  template=asset.session_template)
+        # The hour scale reaches further back than anything warm_bars counts
+        # (windows.hour_scale_chain), so its chain sets the lead where it is
+        # the longer of the two - 22,003 bars against 6,960 for a US fund.
+        lead = windows.warm_bars(windows.w_asset(bars_per),
+                                 template=asset.session_template)
+        keep += max(0, windows.hour_scale_chain(asset.session_template) - lead)
         if len(frame) <= keep:
             # Short enough that the whole history IS the window.
             trimmed[asset.asset_id] = frame

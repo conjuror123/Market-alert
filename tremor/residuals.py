@@ -248,6 +248,38 @@ def ou_fit(residual: pd.Series, window: int = OU_WINDOW, minimum: int = OU_MIN,
     })
 
 
+def hour_scale(frame: pd.DataFrame,
+               memory: int = windows.HOUR_SCALE_MEMORY_SESSIONS,
+               bars_per_session: int = windows.HOUR_SCALE_BARS_PER_SESSION,
+               minimum: int = windows.HOUR_SCALE_MIN_SAME_HOUR) -> np.ndarray:
+    """Per bar: how big this hour's residual usually is, against all hours.
+
+    The ratio of two long-run spreads, both causal (ewma.long_run_sigma shifts
+    inside): the residual over earlier bars of the SAME New York hour, and over
+    all earlier bars, on the same calendar memory. One where either is not yet
+    measured - an hour with too little history is judged as it always was.
+    See windows.HOUR_SCALE_MEMORY_SESSIONS for why the shape and not a seventh
+    of the history.
+    """
+    e = frame["e_resid"].reset_index(drop=True)
+    out = np.ones(len(e))
+    if e.empty:
+        return out
+    hour = pd.to_datetime(frame["hour_utc"], unit="s", utc=True).dt.tz_convert(
+        "America/New_York").dt.hour.to_numpy()
+    level = ewma.long_run_sigma(e, bars_per_session * memory,
+                                6 * bars_per_session * memory,
+                                minimum * bars_per_session).to_numpy()
+    for h in np.unique(hour):
+        rows = np.flatnonzero(hour == h)
+        own = ewma.long_run_sigma(e.iloc[rows].reset_index(drop=True), memory,
+                                  6 * memory, minimum).to_numpy()
+        with np.errstate(invalid="ignore", divide="ignore"):
+            ratio = own / level[rows]
+        out[rows] = np.where(np.isfinite(ratio) & (ratio > 0), ratio, 1.0)
+    return out
+
+
 def residuals(asset: Asset, frame: pd.DataFrame,
               block_factor: pd.Series | None = None,
               template: "str | None" = None) -> pd.DataFrame:
@@ -310,6 +342,17 @@ def residuals(asset: Asset, frame: pd.DataFrame,
     # moved. Only the STANDARDISATION divides by it.
     est = estimates.set_axis(out.index)
     out["patell_scale"] = patell_scale(est, block_series).to_numpy()
+    # And the hour's own usual size, for a US fund: the opening half-hour is
+    # judged against other openings, not against yesterday's afternoon. Folded
+    # into the same divisor as Patell's, so it too touches the STANDARDISATION
+    # only - the residual the message splits and retention sums stays the size
+    # the price moved. Not for the gap pass (`template` set), whose rows are
+    # one a session and have no hour to speak of.
+    out["hour_scale"] = (hour_scale(out)
+                         if template is None
+                         and asset.session_template in windows.HOUR_SCALE_TEMPLATES
+                         else 1.0)
+    out["patell_scale"] = out["patell_scale"] * out["hour_scale"]
 
     ou = ou_fit(out["e_resid"])
     for column in ("ou_reversion_bars", "s_score", "ou_reverts"):
