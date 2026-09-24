@@ -206,13 +206,28 @@ def _overnight(event: dict) -> bool:
         return bool(flag)
 
 
+def _weekend(event: dict) -> bool:
+    """A currency pair's gap is the WEEKEND - Friday 17:00 to Sunday 17:00 New
+    York - and saying "overnight" or "the open" of it would send the reader to
+    the wrong chart."""
+    return str(event.get("block") or "") == "FX"
+
+
+def _open_words(event: dict) -> "tuple[str, str]":
+    """(when it opened, what kind of gap) - in the reader's words."""
+    if _weekend(event):
+        return "at the weekly open", "weekend gap"
+    return "at the open", "overnight gap"
+
+
 def _headline(event: dict, tier: str, basis: str) -> str:
     record = record_phrase(event)
     if _overnight(event):
+        kind = "weekend gap" if _weekend(event) else "opening gap"
         if basis == "block":
-            return f"the whole block opened together, the biggest gap {record}"
+            return f"the whole block opened together, the biggest {kind} {record}"
         own = " of its own" if basis == "abnormal" else ""
-        return f"the biggest opening gap{own} {record}"
+        return f"the biggest {kind}{own} {record}"
     if basis == "block":
         return f"the whole block moved together, the biggest {record}"
     return f"{BASIS_NOUN.get(basis, 'the biggest move')} {record}"
@@ -549,7 +564,7 @@ def _scale_note(event: dict) -> str:
     # For a block the yardstick is the median member's usual hour rather than any
     # one instrument's, and saying "its" would invite the reader to look for an
     # instrument that does not exist.
-    unit = "usual overnight gap" if _overnight(event) else "usual hour"
+    unit = f"usual {_open_words(event)[1]}" if _overnight(event) else "usual hour"
     whose = f"a typical member's {unit}" if _is_block(event) else unit
     return f"{size} {whose}"
 
@@ -750,7 +765,7 @@ def describe(event: dict, labels: dict[str, str],
     if shown and _overnight(event):
         # The gap is a price move from the last close to the first print, and
         # it is said as one - never as the hour it was scored alongside.
-        shown += " at the open"
+        shown += f" {_open_words(event)[0]}"
     parts = [f"{emoji} <b>{_escape(_ticker(asset_id))}</b> · "
              f"{_escape(label)}{shown}"]
 
@@ -951,7 +966,7 @@ def _describe_block(event: dict, headline: str, emoji: str, when: datetime,
     else:
         shown = f" · {move * 100:+.2f}%"
     if shown and _overnight(event):
-        shown += " at the open"
+        shown += f" {_open_words(event)[0]}"
     # BLACK IN FRONT OF THE RARITY, not instead of it. A block is the same four
     # rarities read at a different level of the market, so dropping the colour
     # to mark it would trade the thing every line is sorted and skimmed by for

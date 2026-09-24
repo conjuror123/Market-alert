@@ -202,6 +202,16 @@ def test_the_vectorised_mad_spans_more_than_one_chunk():
 # --- the overnight gap, kept beside r ----------------------------------------
 
 from tremor.corporate_actions import Dividends
+from tremor.sessions import Session
+
+# two_days() ends its first session on the 11:00 bar, so that day closes at
+# 12:00 here - the calendar has to agree that the stored bar reached the close.
+TABLE = {
+    date(2021, 2, 26): Session(date(2021, 2, 26), "09:30", "16:00", False),
+    date(2021, 3, 1): Session(date(2021, 3, 1), "09:30", "12:00", True),
+    date(2021, 3, 2): Session(date(2021, 3, 2), "09:30", "16:00", False),
+    date(2021, 3, 3): Session(date(2021, 3, 3), "09:30", "16:00", False),
+}
 
 
 def dividends(steps=None, splits=None, through="2021-12-31", ticker="SPY"):
@@ -211,7 +221,7 @@ def dividends(steps=None, splits=None, through="2021-12-31", ticker="SPY"):
 
 
 def test_the_gap_is_open_over_previous_close_on_the_first_bar_only():
-    out = returns.split_channels(asset(), two_days(), dividends=dividends())
+    out = returns.split_channels(asset(), two_days(), session_table=TABLE, dividends=dividends())
 
     assert out.iloc[2]["gap"] == pytest.approx(math.log(105.0 / 101.0))
     # Nowhere else: not on an ordinary bar, and not on the first bar of the
@@ -227,7 +237,7 @@ def test_the_payout_comes_out_of_the_gap():
     d = 0.01
     out = returns.split_channels(
         asset(), two_days(),
-        dividends=dividends(steps={"2021-03-02": d / (1 - d)}))
+        session_table=TABLE, dividends=dividends(steps={"2021-03-02": d / (1 - d)}))
 
     assert out.iloc[2]["gap"] == pytest.approx(math.log(105.0 / 101.0) - math.log(1 - d))
 
@@ -236,10 +246,10 @@ def test_a_date_past_the_checked_through_date_is_not_scored():
     # A payout the table has not heard of yet reads as a gap the size of the
     # dividend. Not knowing is not the same as knowing there was none.
     out = returns.split_channels(asset(), two_days(),
-                                 dividends=dividends(through="2021-03-01"))
+                                 session_table=TABLE, dividends=dividends(through="2021-03-01"))
     assert out["gap"].isna().all()
 
-    never = returns.split_channels(asset(), two_days(), dividends=dividends(through=None))
+    never = returns.split_channels(asset(), two_days(), session_table=TABLE, dividends=dividends(through=None))
     assert never["gap"].isna().all()
 
 
@@ -251,12 +261,12 @@ def test_a_split_is_not_a_gap():
     ])
     # Undeclared: a -69% print half the previous close is a provider that has
     # not adjusted yet, not the crash of the century.
-    out = returns.split_channels(asset(), split_overnight, dividends=dividends())
+    out = returns.split_channels(asset(), split_overnight, session_table=TABLE, dividends=dividends())
     assert out["gap"].isna().all()
 
     # Declared in the table: refused on that date whatever its size.
     declared = returns.split_channels(asset(), two_days(),
-                                      dividends=dividends(splits={"2021-03-02"}))
+                                      session_table=TABLE, dividends=dividends(splits={"2021-03-02"}))
     assert declared["gap"].isna().all()
 
 
@@ -267,9 +277,73 @@ def test_no_dividend_table_means_no_gap_at_all():
     assert "gap" in out and out["gap"].isna().all()
 
 
-def test_only_us_sessions_carry_a_gap():
-    fx = asset(ticker="EUR/USD", source="twelvedata", block="FX",
-               session_template="fx_continuous", fetch_interval="1h")
-    out = returns.split_channels(fx, two_days(),
-                                 dividends=dividends(ticker="EUR/USD"))
+def test_a_missing_day_is_not_an_overnight_gap():
+    # The store lost 2 March. The 3 March open against the 1 March close is two
+    # days of market, not a night - the calendar says the previous session was
+    # the 2nd, and the previous stored bar is not in it.
+    hole = frame([
+        (et(2021, 3, 1, 10), 100.0, 101.0, 99.0, 100.5, 1.0, 2),
+        (et(2021, 3, 1, 11), 100.5, 102.0, 100.0, 101.0, 1.0, 2),
+        (et(2021, 3, 3, 10), 108.0, 109.0, 107.0, 108.5, 1.0, 2),
+    ])
+    out = returns.split_channels(asset(), hole, session_table=TABLE,
+                                 dividends=dividends())
+    assert out["gap"].isna().all()
+
+
+def test_a_session_that_lost_its_closing_bar_has_no_gap_after_it():
+    # 2 March closes at 16:00 and the store stops at the 11:00 bar.
+    lost_afternoon = frame([
+        (et(2021, 3, 2, 10), 100.0, 101.0, 99.0, 100.5, 1.0, 2),
+        (et(2021, 3, 2, 11), 100.5, 102.0, 100.0, 101.0, 1.0, 2),
+        (et(2021, 3, 3, 10), 105.0, 106.0, 104.0, 106.0, 1.0, 2),
+    ])
+    out = returns.split_channels(asset(), lost_afternoon, session_table=TABLE,
+                                 dividends=dividends())
+    assert out["gap"].isna().all()
+
+
+def test_no_calendar_means_no_fund_gap():
+    out = returns.split_channels(asset(), two_days(), dividends=dividends())
+    assert out["gap"].isna().all()
+
+
+def fx_pair():
+    return asset(ticker="EUR/USD", source="twelvedata", block="FX",
+                 session_template="fx_continuous", fetch_interval="1h")
+
+
+def weekend(friday_last_hour):
+    # Friday afternoon, then the Sunday 17:00 New York open.
+    return frame([
+        (et(2021, 3, 5, 14), 1.2000, 1.2010, 1.1990, 1.2005, 0.0, 2),
+        (et(2021, 3, 5, friday_last_hour), 1.2005, 1.2010, 1.1990, 1.2000, 0.0, 2),
+        (et(2021, 3, 7, 17), 1.2120, 1.2130, 1.2110, 1.2125, 0.0, 2),
+    ])
+
+
+def test_a_currency_pair_has_a_weekend_gap_and_no_dividend_rule():
+    # No corporate actions exist for a currency, so nothing needs checking.
+    out = returns.split_channels(fx_pair(), weekend(16),
+                                 dividends=dividends(ticker="SPY"))
+    assert out.iloc[2]["is_session_open"]
+    assert out.iloc[2]["gap"] == pytest.approx(math.log(1.2120 / 1.2000))
+    assert out["gap"].notna().sum() == 1
+
+
+def test_a_weekend_missing_its_friday_close_is_not_scored():
+    # The store's last Friday bar is 14:00 - the week's close is not in it,
+    # so this is not the weekend's gap. 2015-01-02 was a whole missing day.
+    out = returns.split_channels(fx_pair(), frame([
+        (et(2021, 3, 5, 13), 1.2000, 1.2010, 1.1990, 1.2000, 0.0, 2),
+        (et(2021, 3, 7, 17), 1.2120, 1.2130, 1.2110, 1.2125, 0.0, 2),
+    ]), dividends=dividends(ticker="SPY"))
+    assert out["gap"].isna().all()
+
+
+def test_crypto_has_no_gap():
+    coin = asset(ticker="BTC-USD", source="coinbase", block="crypto",
+                 session_template="crypto_24_7", fetch_interval="1h")
+    out = returns.split_channels(coin, two_days(),
+                                 dividends=dividends(ticker="BTC-USD"))
     assert out["gap"].isna().all()

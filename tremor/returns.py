@@ -40,6 +40,7 @@ and it can claim the first bar's event.
 """
 from __future__ import annotations
 
+import bisect
 import logging
 import math
 from datetime import datetime
@@ -63,6 +64,11 @@ log = logging.getLogger("tremor.returns")
 # close to one of these is refused rather than scored as the crash of a century.
 SPLIT_RATIOS = (2.0, 3.0, 4.0, 5.0, 10.0, 1.5)
 SPLIT_TOLERANCE = 0.01
+
+# How far the Friday close may sit behind a currency pair's Sunday open: the
+# 16:00 New York bar to the 17:00 one is 49 hours, and the clocks may change in
+# between. Anything longer means the store lost the end of the week.
+FX_WEEKEND_MAX_SECONDS = 50 * HOUR
 
 
 def session_ids(asset: Asset, hours: pd.Series, anchor_tz: str = "America/New_York") -> pd.Series:
@@ -96,7 +102,7 @@ def session_ids(asset: Asset, hours: pd.Series, anchor_tz: str = "America/New_Yo
 
 def split_channels(asset: Asset, usable: pd.DataFrame,
                    anchor_tz: str = "America/New_York",
-                   dividends=None) -> pd.DataFrame:
+                   dividends=None, session_table=None) -> pd.DataFrame:
     """Computes r, and marks which bars open a session.
 
     The input is ONLY usable bars (those that passed the quality gate and lie inside
@@ -131,48 +137,68 @@ def split_channels(asset: Asset, usable: pd.DataFrame,
     # not zero.
     out.loc[0, "r"] = np.nan
     out["is_session_open"] = is_open
-    out["gap"] = (overnight_gaps(asset, out, session, dividends)
+    out["gap"] = (overnight_gaps(asset, out, session, dividends, session_table)
                   if dividends is not None else np.nan)
     return out
 
 
 def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
-                   dividends) -> np.ndarray:
-    """ln(open / previous close) on the first bar of each US session, else NaN.
+                   dividends, session_table=None) -> np.ndarray:
+    """ln(open / previous close) on the first bar of each session, else NaN.
 
-    The dividend comes out, because an ex-date drop is the payout leaving the
-    price rather than anything happening to the market. The table's step is
-    d/(1-d) with d the payout over the previous close, so ln(1 + step) is
-    exactly -ln(1 - d), the log of the drop - see
+    Two calendars have a gap. A US fund's is every night, 16:00 to 09:30. A
+    currency pair trades Sunday 17:00 to Friday 17:00 New York time, so its one
+    gap is the weekend - small most weeks (2% of its variance) and not small on
+    the weekends that matter: 2025-02-02, the Canada tariffs, USD/CAD +1.44%;
+    2020-03-15, the Sunday Fed cut; 2017-04-23, the French first round. Crypto
+    never closes and has none.
+
+    For a fund the dividend comes out, because an ex-date drop is the payout
+    leaving the price rather than anything happening to the market. The table's
+    step is d/(1-d) with d the payout over the previous close, so ln(1 + step)
+    is exactly -ln(1 - d), the log of the drop - see
     corporate_actions.derive_actions_tiingo for why that form and not d.
 
-    NaN, not scored, wherever the answer could be the table's ignorance rather
-    than the market:
-      - on a date past the fund's checked-through date, because a payout the
-        table has not heard of yet reads as a gap the size of the dividend;
-      - on a declared split date, and on any gap within SPLIT_TOLERANCE of a
-        split ratio, because the store is split-adjusted and a gap that looks
-        like a split is a provider that has not adjusted yet;
+    NaN, not scored, wherever the answer could be something other than the
+    market:
+      - when the previous stored bar is not the LAST bar before the close. A
+        store missing a whole day turns "overnight" into "since three days
+        ago": 2015-01-02 is absent from the FX store, and the Sunday open
+        after it read as a 1.2-1.8% weekend gap on three pairs at once. For a
+        fund that is checked against the NYSE calendar (`session_table`, and
+        without one no fund gap is scored at all); for a pair, the previous bar
+        must be the Friday afternoon one, at most FX_WEEKEND_MAX_SECONDS before;
+      - for a fund, on a date past its checked-through date, because a payout
+        the table has not heard of yet reads as a gap the size of the dividend;
+      - for a fund, on a declared split date, and on any gap within
+        SPLIT_TOLERANCE of a split ratio, because the store is split-adjusted
+        and a gap that looks like a split is a provider that has not adjusted;
       - on the first bar of the record, which has no previous close.
-
-    US sessions only. FX's one gap is the weekend - 2% of its variance and
-    fifty-two a year, too few to learn a scale from inside a decade - and crypto
-    has none.
     """
     n = len(frame)
-    if asset.session_template != "us_equity" or n == 0:
+    template = asset.session_template
+    if template not in ("us_equity", "fx_continuous") or n == 0:
         return np.full(n, np.nan)
 
     is_open = frame["is_session_open"].to_numpy(dtype=bool).copy()
     is_open[0] = False
-    day = session.to_numpy(dtype=object)
+    hours = frame["hour_utc"].to_numpy(dtype="int64")
+    prev_hour = np.concatenate([[0], hours[:-1]])
     prev_close = frame["close"].shift(1).to_numpy(dtype="float64")
-    raw = np.log(frame["open"].to_numpy(dtype="float64") / prev_close)
+    gap = np.log(frame["open"].to_numpy(dtype="float64") / prev_close)
+
+    if template == "fx_continuous":
+        complete = (hours - prev_hour) <= FX_WEEKEND_MAX_SECONDS
+        usable = is_open & complete & np.isfinite(gap)
+        return np.where(usable, gap, np.nan)
+
+    day = session.to_numpy(dtype=object)
+    complete = _closed_on_the_last_bar(day, prev_hour, is_open, session_table)
 
     steps = dividends.steps.get(asset.ticker, {})
     step = np.array([steps.get(d, 0.0) for d in day], dtype="float64") \
         if steps else np.zeros(n)
-    gap = raw + np.log1p(step)
+    gap = gap + np.log1p(step)
 
     checked = dividends.checked_through.get(asset.ticker)
     known = (day <= checked) if checked else np.zeros(n, dtype=bool)
@@ -190,8 +216,39 @@ def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
                     "ratio, not scored", asset.ticker, day[position],
                     100 * (math.exp(gap[position]) - 1))
 
-    usable = is_open & known & ~declared & ~looks_split & np.isfinite(gap)
+    usable = (is_open & complete & known & ~declared & ~looks_split
+              & np.isfinite(gap))
     return np.where(usable, gap, np.nan)
+
+
+def _closed_on_the_last_bar(day: np.ndarray, prev_hour: np.ndarray,
+                            is_open: np.ndarray, session_table) -> np.ndarray:
+    """Per bar: is the previous stored bar the closing bar of the previous session?
+
+    The previous session is the calendar's, not the store's - otherwise a
+    missing day is invisible, which is the whole point. And the previous bar must
+    reach the close (a 30-minute fund folded to hours ends on the 15:00 bar for
+    a 16:00 close), so a store that lost the afternoon is refused too.
+    """
+    out = np.zeros(len(day), dtype=bool)
+    if not session_table:
+        return out
+    from datetime import date as _date
+
+    from tremor import quality
+
+    calendar = sorted(session_table)
+    for position in np.flatnonzero(is_open):
+        today = _date.fromisoformat(day[position])
+        at = bisect.bisect_left(calendar, today)
+        if at == 0:
+            continue
+        previous = calendar[at - 1]
+        _, closed = quality._session_bounds_utc(previous, session_table[previous])
+        prev_day = datetime.fromtimestamp(int(prev_hour[position]), NYSE_TZ).date()
+        out[position] = (prev_day == previous
+                         and int(prev_hour[position]) + HOUR >= closed)
+    return out
 
 
 # Rows per pass of the vectorised MAD. The sliding view itself is free - it is a

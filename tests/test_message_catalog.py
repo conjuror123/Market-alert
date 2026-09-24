@@ -103,6 +103,12 @@ def catalog(monkeypatch) -> dict[str, str]:
         sigma_lt=0.0064, record_since=hour - 1603 * 86400, overnight=True,
         tier="high", leaders="XLK -6.90%, IWM -5.92%, QQQ -5.50%, XLY -5.31%",
         retention_today=None, retention_settled=None)
+    cad_weekend = event(
+        event_id="twelvedata_USD_CAD:open", asset_id="twelvedata:USD/CAD",
+        block="FX", tier="major", channel="push", basis="absolute",
+        r=0.0144, e_resid=0.0080, co_block=0.0064, sigma_lt=0.0011,
+        hour_utc=hour, record_since=hour - 3680 * 86400, overnight=True,
+        retention_today=None, retention_settled=None)
     window = routing.digest_window(SLOT)
     digest_now = datetime(2026, 9, 16, 10, tzinfo=timezone.utc)
     dbb_hist = _history(dbb)
@@ -129,6 +135,8 @@ def catalog(monkeypatch) -> dict[str, str]:
         "block_fx": md.format_push(fx, labels, None, _history(fx), digest_now),
         "push_overnight_gap": md.format_push(
             spy_open, labels, None, _history(spy_open), digest_now),
+        "push_weekend_gap": md.format_push(
+            cad_weekend, labels, None, _history(cad_weekend), digest_now),
         "block_overnight_gap": md.format_push(
             equity_open, labels, None, _history(equity_open), digest_now),
         "floor_ticker": (
@@ -192,6 +200,13 @@ def test_every_message_shape_follows_the_copy_rules(monkeypatch, tmp_path):
     assert "the whole block opened together" in block_gap.lower()
     assert "biggest gaps: XLK -6.90%" in block_gap
     assert "trading that hour" not in block_gap
+
+    # A currency pair's gap is the weekend, and is called that.
+    fx_gap = samples["push_weekend_gap"]
+    assert "+1.44% at the weekly open" in fx_gap
+    assert "usual weekend gap" in fx_gap
+    assert "the biggest weekend gap since" in fx_gap
+    assert "overnight" not in fx_gap
 
     for name, text in samples.items():
         if name == "digest":

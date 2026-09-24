@@ -9,6 +9,14 @@ the US funds happens overnight, from 25% for XLU to 70% for CPER, and SPY's
 biggest opening gaps are 2020-03-16, 2008-10-24, 2015-08-24 and 2024-08-05:
 real events, mostly over before the first bar existed.
 
+A currency pair has the same thing once a week: it trades from Sunday 17:00 to
+Friday 17:00 New York time, and the weekend is its gap. Small most weeks and
+not on the weekends that matter - 2025-02-02, the Canada tariffs, USD/CAD
++1.44%; 2020-03-15, the Sunday Fed cut; 2017-04-23, the French first round.
+With history from 2003 each pair has some 1,200 of them, and on the daily
+calendar below its scale exists from 2012-13 (USD/CNH, younger, from 2022).
+Crypto never closes and has no gap to score.
+
 WHY NOT FOLD IT INTO THE FIRST BAR'S r. The 09:00 New York bar already carries
 31% of the US funds' events and 39% of their pushes. Any single number built
 from the gap and the first hour together reshapes the busiest hour in the system,
@@ -22,8 +30,9 @@ per session per fund:
   - its own scale: the gap over this fund's own long-run sigma of gaps. A night
     is worth anything from 1.6 trading hours (XLU) to 18.8 (DBB), median 6.2,
     so no shared divisor could stand in for this;
-  - its own block factor, because every US fund opens at the same instant, so
-    "did its peers gap too" is as clean a question at 09:30 as at any hour;
+  - its own block factor, because every US fund opens at the same instant and
+    every pair on the same Sunday evening, so "did its peers gap too" is as
+    clean a question then as at any hour;
   - the same residual, BMP standardisation and ladders an hour gets.
 
 THE CALENDAR IS DAYS, AND THAT IS NOT A DETAIL. Every per-asset window is
@@ -87,7 +96,8 @@ class GapPass:
 
 def mornings(basket: Basket, metrics: "dict[str, pd.DataFrame]"
              ) -> "dict[str, pd.DataFrame]":
-    """One row per scored gap per US fund, shaped like an instrument's frame.
+    """One row per scored gap per fund or currency pair, shaped like an
+    instrument's frame. Crypto never closes and has none.
 
     `r` is the gap, so the residual machinery reads it without knowing, and
     `sigma_lt` is the fund's long-run spread of gaps, causal like every other
@@ -95,7 +105,7 @@ def mornings(basket: Basket, metrics: "dict[str, pd.DataFrame]"
     """
     out: dict[str, pd.DataFrame] = {}
     for asset in basket.instruments:
-        if asset.session_template != "us_equity":
+        if asset.session_template not in ("us_equity", "fx_continuous"):
             continue
         frame = metrics.get(asset.asset_id)
         if frame is None or frame.empty or "gap" not in frame:
@@ -146,7 +156,7 @@ def score(basket: Basket, metrics: "dict[str, pd.DataFrame]", tiers) -> GapPass:
 
     block_scored = blocks.frames(basket, panel, sigma_panel, template=TEMPLATE,
                                  retention=False)
-    log.info("overnight gaps: %d funds, %d mornings scored in %.1fs",
+    log.info("overnight gaps: %d instruments, %d sessions scored in %.1fs",
              len(scored), sum(len(f) for f in scored.values()),
              time.monotonic() - started)
     return GapPass(scored, block_scored, panel)

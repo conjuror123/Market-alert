@@ -89,7 +89,7 @@ def build_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
         return usable
 
     channels = returns.split_channels(asset, usable, basket.anchor_exchange_tz,
-                                      dividends)
+                                      dividends, session_table)
     winsorised = returns.winsorize(asset, channels)
 
     b_asset = bars_per_session(asset, usable, basket.anchor_exchange_tz)
