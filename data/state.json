@@ -134,15 +134,6 @@
         "message_id": 44,
         "text_hash": "b5974fdaf1ac103c",
         "written": []
-      },
-      "twelvedata_XLF:1789405200": {
-        "hour_utc": 1789405200,
-        "message_id": 14,
-        "text_hash": "99c198a0d28ef9a5",
-        "written": [
-          "today",
-          "settled"
-        ]
       }
     }
   },
