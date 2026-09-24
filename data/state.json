@@ -26,20 +26,25 @@
           "twelvedata_IEI:1790168400",
           "twelvedata_IEF:1790168400",
           "twelvedata_LQD:1790168400",
-          "twelvedata_NZD_USD:1790042400"
+          "twelvedata_NZD_USD:1790042400",
+          "coinbase_LTC-USD:1790215200"
         ],
         "from": 1789949100,
         "hashes": [
-          "2504badba4408e4c"
+          "ec828f7ec67b45d4"
         ],
         "ids": [
           30
         ],
-        "rows": 5,
+        "rows": 6,
         "to": 1790381100
       }
     },
     "pings": {
+      "coinbase_LTC-USD:1790215200": {
+        "hash": "f9c99d98266650ac",
+        "id": 43
+      },
       "twelvedata_IEF:1790168400": {
         "hash": "a0f15adad05e3ef5",
         "id": 41
