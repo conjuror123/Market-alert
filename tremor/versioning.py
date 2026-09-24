@@ -48,6 +48,10 @@ CONFIG_INPUTS = (
     os.path.join("tremor", "blocks.py"),
     os.path.join("tremor", "cross_section.py"),
     os.path.join("tremor", "saed.py"),
+    # The overnight gap's own scoring. It never runs warm, so nothing is
+    # extended across a change to it - but every gap-claimed event carries the
+    # stamp, and a stamp that did not move with the formula would vouch for it.
+    os.path.join("tremor", "gaps.py"),
     # si_index.py, cluster.py and calendar_multiplier.py were here until the
     # cluster detector was deleted. vix.py stays: it no longer feeds a stress
     # multiplier, but it is still the fear gauge printed on the digest note.
