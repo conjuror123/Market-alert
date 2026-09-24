@@ -32,22 +32,27 @@
           "twelvedata_LQD:1790168400",
           "twelvedata_UNG:1790258400",
           "twelvedata_NZD_USD:1790042400",
-          "coinbase_LTC-USD:1790215200"
+          "coinbase_LTC-USD:1790215200",
+          "coinbase_LINK-USD:1790272800"
         ],
         "from": 1789949100,
         "hashes": [
-          "bf04839a964da920",
-          "3dc76bba796c73a8"
+          "6e1aa10b2b71bfb2",
+          "230376e862c9a9a6"
         ],
         "ids": [
           30,
           50
         ],
-        "rows": 11,
+        "rows": 12,
         "to": 1790381100
       }
     },
     "pings": {
+      "coinbase_LINK-USD:1790272800": {
+        "hash": "f89ba746bab14bb8",
+        "id": 51
+      },
       "coinbase_LTC-USD:1790215200": {
         "hash": "f11322982b4466b6",
         "id": 43
