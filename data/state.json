@@ -37,8 +37,8 @@
         ],
         "from": 1789949100,
         "hashes": [
-          "6e1aa10b2b71bfb2",
-          "230376e862c9a9a6"
+          "3683ffd7292ff073",
+          "594890ca1f4a358d"
         ],
         "ids": [
           30,
@@ -100,17 +100,17 @@
     },
     "sent": {
       "coinbase_BCH-USD:1790078400": {
-        "hash": "ea4ce39ef16e6095",
+        "hash": "da051ad91f6a6cdd",
         "hour": 1790078400,
         "id": 38
       },
       "twelvedata_GBP_USD:1789642800": {
-        "hash": "9a454a4b5e09fedf",
+        "hash": "600fbe83ad46256c",
         "hour": 1789642800,
         "id": 19
       },
       "twelvedata_USD_CHF:1790233200": {
-        "hash": "b5974fdaf1ac103c",
+        "hash": "be0f39532d646714",
         "hour": 1790233200,
         "id": 44
       }
@@ -119,7 +119,7 @@
       "coinbase_BCH-USD:1790078400": {
         "hour_utc": 1790078400,
         "message_id": 38,
-        "text_hash": "ea4ce39ef16e6095",
+        "text_hash": "da051ad91f6a6cdd",
         "written": [
           "today",
           "settled"
@@ -128,7 +128,7 @@
       "twelvedata_GBP_USD:1789642800": {
         "hour_utc": 1789642800,
         "message_id": 19,
-        "text_hash": "9a454a4b5e09fedf",
+        "text_hash": "600fbe83ad46256c",
         "written": [
           "today",
           "settled"
@@ -137,7 +137,7 @@
       "twelvedata_USD_CHF:1790233200": {
         "hour_utc": 1790233200,
         "message_id": 44,
-        "text_hash": "b5974fdaf1ac103c",
+        "text_hash": "be0f39532d646714",
         "written": []
       }
     }
