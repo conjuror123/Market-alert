@@ -31,7 +31,7 @@
         ],
         "from": 1789949100,
         "hashes": [
-          "b4a9777e5e0e5cf4"
+          "78a65af1d3eb08c7"
         ],
         "ids": [
           30
@@ -42,7 +42,7 @@
     },
     "pings": {
       "coinbase_LTC-USD:1790215200": {
-        "hash": "f9c99d98266650ac",
+        "hash": "f11322982b4466b6",
         "id": 43
       },
       "twelvedata_IEF:1790168400": {
