@@ -31,7 +31,7 @@
         ],
         "from": 1789949100,
         "hashes": [
-          "c939f66d063adac5"
+          "b4a9777e5e0e5cf4"
         ],
         "ids": [
           30
@@ -76,6 +76,11 @@
         "hash": "9a454a4b5e09fedf",
         "hour": 1789642800,
         "id": 19
+      },
+      "twelvedata_USD_CHF:1790233200": {
+        "hash": "b5974fdaf1ac103c",
+        "hour": 1790233200,
+        "id": 44
       }
     },
     "tracked": {
@@ -97,10 +102,16 @@
           "settled"
         ]
       },
+      "twelvedata_USD_CHF:1790233200": {
+        "hour_utc": 1790233200,
+        "message_id": 44,
+        "text_hash": "b5974fdaf1ac103c",
+        "written": []
+      },
       "twelvedata_XLF:1789405200": {
         "hour_utc": 1789405200,
         "message_id": 14,
-        "text_hash": "3c2035888dea7e52",
+        "text_hash": "99c198a0d28ef9a5",
         "written": [
           "today",
           "settled"
