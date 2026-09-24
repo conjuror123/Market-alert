@@ -51,6 +51,7 @@ jobs:
           path: |
             data/tremor/metrics
             data/tremor/saed_events_archive.parquet
+            data/tremor/record_book.parquet
           key: tremor-derived-${{ github.ref_name }}-${{ github.run_id }}
           restore-keys: |
             tremor-derived-${{ github.ref_name }}-
@@ -207,6 +208,10 @@ jobs:
         id: derived
         if: always()
         run: |
+          # Not the record book: it is rewritten every run, so counting it would
+          # upload the whole cache every hour. It rides along with the metrics,
+          # which change whenever a bar does, and an older book is still valid -
+          # its checkpoint is earlier and the next warm slice a little longer.
           changed=$(find data/tremor/metrics data/tremor/saed_events_archive.parquet \
                       -newer /tmp/cache-restored -type f -print -quit 2>/dev/null || true)
           # Once a day whatever happened, so a long quiet stretch cannot let the
@@ -227,4 +232,5 @@ jobs:
           path: |
             data/tremor/metrics
             data/tremor/saed_events_archive.parquet
+            data/tremor/record_book.parquet
           key: tremor-derived-${{ github.ref_name }}-${{ github.run_id }}

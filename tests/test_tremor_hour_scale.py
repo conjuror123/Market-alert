@@ -102,12 +102,7 @@ def test_a_warm_slice_reaches_back_far_enough_for_the_hour_scale():
         instruments = (fund,)
         anchor_exchange_tz = "America/New_York"
 
-    from tremor import pipeline
     import tremor.saed as s
-    trimmed, _ = s.plan_frames(Basket(), metrics)
-    kept = len(trimmed[fund.asset_id])
-    from tremor import severity
-    base = windows.warm_bars(windows.w_asset(
-        pipeline.bars_per_session(fund, metrics[fund.asset_id])),
-        severity.bar_rate(pd.Series(hours)), template="us_equity")
-    assert kept == base + windows.hour_scale_chain("us_equity") - lead
+    after = int(hours[-100])                              # 99 bars after it
+    kept = len(s.plan_frames(Basket(), metrics, after)[fund.asset_id])
+    assert kept == windows.hour_scale_chain("us_equity") + 99

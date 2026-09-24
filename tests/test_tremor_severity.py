@@ -302,3 +302,45 @@ def test_every_block_has_rungs_on_every_ladder():
     from tremor import severity as sv
 
     assert set(sv.BLOCK_RESID_SIGMA) == set(sv.BLOCK_SIGMA) == set(sv.BLOCK_MOVE_SIGMA)
+
+
+# --- the record book: "biggest since" carried between runs --------------------
+
+def _series(n=3000, seed=4):
+    rng = np.random.default_rng(seed)
+    score = pd.Series(rng.standard_t(3, n))
+    hours = pd.Series(np.arange(n, dtype="int64") * 3600)
+    return score, hours
+
+
+def test_a_seeded_lookup_answers_exactly_what_the_whole_history_would():
+    # The run that saved the book read everything up to the checkpoint; the
+    # next one reads only what came after it, and must not be able to tell.
+    score, hours = _series()
+    whole = sv.record_since(score, hours)
+
+    checkpoint = int(hours.iloc[1999])
+    first = sv.RecordState(snapshot_at=checkpoint)
+    sv.record_since(score.iloc[:2500], hours.iloc[:2500], state=first)
+
+    later = sv.RecordState(first.snapshot, checkpoint)
+    seeded = sv.record_since(score, hours, state=later)
+    pd.testing.assert_series_equal(seeded.iloc[2000:], whole.iloc[2000:])
+    # The bars the book already covered are not answered for again.
+    assert seeded.iloc[:2000].isna().all()
+
+
+def test_the_book_is_small():
+    # A few dozen entries after thousands of bars: that is the whole saving.
+    score, hours = _series(20000)
+    state = sv.RecordState(snapshot_at=int(hours.iloc[-1]))
+    sv.record_since(score, hours, state=state)
+    assert 0 < len(state.snapshot) < 60
+    mags = [m for _, m in state.snapshot]
+    assert mags == sorted(mags, reverse=True)
+
+
+def test_without_a_state_nothing_changes():
+    score, hours = _series(500)
+    plain = sv.record_since(score, hours)
+    assert sv.record_since(score, hours, state=None).equals(plain)

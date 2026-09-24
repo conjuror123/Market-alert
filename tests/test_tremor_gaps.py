@@ -176,9 +176,11 @@ def test_saed_hands_the_gap_pass_the_untrimmed_metrics(monkeypatch, tmp_path):
         "instruments": (), "anchor_exchange_tz": "America/New_York"})())
     from tremor import pipeline
     monkeypatch.setattr(pipeline, "load_all", lambda basket, d: full)
-    monkeypatch.setattr(saed, "plan_frames", lambda basket, metrics: (trimmed, True))
+    monkeypatch.setattr(saed, "plan_frames", lambda basket, metrics, after: trimmed)
+    monkeypatch.setattr(saed, "load_record_book", lambda path, config: ({}, 50))
 
-    def fake_build(basket, frames, factors, panel, sigma, full_metrics=None):
+    def fake_build(basket, frames, factors, panel, sigma, full_metrics=None,
+                   records=None):
         seen["frames"], seen["full"] = frames, full_metrics
         raise SystemExit(0)
 

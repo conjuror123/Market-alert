@@ -147,6 +147,14 @@ REGRESSION_GAP_BARS = 3
 # it are not wrong in an interesting way, they are simply not finished, and
 # nothing downstream should look at them.
 #
+# NO CALLER PASSES `rate` ANY MORE, and the paragraph below is history. Since the
+# record book (saed.RecordBook) a warm events run keeps each series' "biggest
+# since" lookup between runs and publishes only the fortnight after its
+# checkpoint, so its slice is the warm-up alone plus that fortnight - the
+# drift measured below lived in the published years that were still inside the
+# warm-up, and nothing is published from there now. The function keeps the
+# argument because removing it would move config_version for no change.
+#
 # The usable span is how far back the run must still be RIGHT. A push says "the
 # last one this big was 23 days ago", read off the event table, so the table has
 # to be correct at least as far back as the deepest rung claims - six years -

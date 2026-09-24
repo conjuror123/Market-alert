@@ -391,8 +391,37 @@ def sigma_levels(scale: "pd.Series | None", index, block: str | None = None,
     return frame
 
 
+class RecordState:
+    """What one series' record lookup carries from one run to the next.
+
+    WHY THIS EXISTS. "The biggest since March 2020" is the last bar at least
+    this big, and finding it used to mean holding six years of bars in every
+    warm run - the whole reason a warm events slice was warm-up PLUS six years.
+    But the answer for every future bar depends on only a handful of past bars:
+    the ones nothing at least as big has come after since. That is the monotonic
+    stack record_since already keeps, and at any moment it is a few dozen
+    entries even over twenty years. So a run hands its stack, as of a checkpoint
+    hour, to the next run (tremor.saed's record book), and the next run needs
+    only the bars after the checkpoint - not six years of them.
+
+      seed         the stack as of `after`, oldest first: (hour, magnitude)
+      after        bars at or before this hour are already folded into `seed`
+                   and are not read again; None means start from nothing
+      snapshot_at  the hour to take the stack at for the next run
+      snapshot     filled in: the stack as of `snapshot_at`
+    """
+
+    def __init__(self, seed=(), after: "int | None" = None,
+                 snapshot_at: "int | None" = None):
+        self.seed = [(int(h), float(m)) for h, m in seed]
+        self.after = after
+        self.snapshot_at = snapshot_at
+        self.snapshot: "list[tuple[int, float]] | None" = None
+
+
 def record_since(score: pd.Series, hour_utc: pd.Series,
-                 two_sided: bool = True) -> pd.Series:
+                 two_sided: bool = True,
+                 state: "RecordState | None" = None) -> pd.Series:
     """For each bar, the hour of the last bar that was at least as big.
 
     This is the whole message: the difference between a bar's own hour and this
@@ -406,19 +435,31 @@ def record_since(score: pd.Series, hour_utc: pd.Series,
     between them and now - and every bar is pushed and popped at most once.
     Computing it as four separate lookbacks would be four passes and would still
     only answer to the nearest rung.
+
+    With a `state`, the stack starts from the one a previous run saved, bars it
+    already covers are skipped (their answer is NA here - they are not the
+    bars this run is answering for), and the stack is snapshotted for the next
+    run. See RecordState.
     """
     magnitude = magnitudes(score, two_sided).to_numpy(dtype="float64")
     hours = np.asarray(hour_utc, dtype="int64")
     out = np.full(len(magnitude), -1, dtype="int64")
-    stack: list[int] = []
+    stack: list[tuple[int, float]] = list(state.seed) if state is not None else []
+    after = state.after if state is not None else None
+    snap_at = state.snapshot_at if state is not None else None
+    snapped = False
     for i, value in enumerate(magnitude):
-        if not np.isfinite(value):
+        if snap_at is not None and not snapped and hours[i] > snap_at:
+            state.snapshot, snapped = list(stack), True
+        if not np.isfinite(value) or (after is not None and hours[i] <= after):
             continue
-        while stack and magnitude[stack[-1]] < value:
+        while stack and stack[-1][1] < value:
             stack.pop()
         if stack:
-            out[i] = hours[stack[-1]]
-        stack.append(i)
+            out[i] = stack[-1][0]
+        stack.append((int(hours[i]), float(value)))
+    if state is not None and snap_at is not None and not snapped:
+        state.snapshot = list(stack)
     return pd.Series(pd.array(np.where(out >= 0, out, None), dtype="Int64"),
                      index=score.index)
 
@@ -460,7 +501,8 @@ def annotate(frame: pd.DataFrame, column: str = "z_resid_bmp",
              scale_column: "str | None" = None,
              block: "str | None" = None,
              ladder: str = MEMBER,
-             levels: "pd.DataFrame | None" = None) -> pd.DataFrame:
+             levels: "pd.DataFrame | None" = None,
+             record_state: "RecordState | None" = None) -> pd.DataFrame:
     """Adds the four levels, the resulting tier, and what the move beat.
 
     The column is a parameter because the same question - how big is this, for
@@ -507,7 +549,8 @@ def annotate(frame: pd.DataFrame, column: str = "z_resid_bmp",
         out[f"{prefix}_{name}"] = levels[name].to_numpy()
     out[tier_column] = assign(score, levels, two_sided).to_numpy()
     if hours is not None:
-        out[f"{prefix}_since"] = record_since(score, hours, two_sided).to_numpy()
+        out[f"{prefix}_since"] = record_since(score, hours, two_sided,
+                                              record_state).to_numpy()
     return out
 
 

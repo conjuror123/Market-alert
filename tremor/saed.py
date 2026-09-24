@@ -460,9 +460,10 @@ def events_frame(events: list[SaedEvent]) -> pd.DataFrame:
 
 DEFAULT_EVENTS_PATH = "data/tremor/saed_events.parquet"
 DEFAULT_RESIDUALS_DIR = "data/tremor/residuals"
-# Full-history events for message rates only. Detection still reads the
-# six-year table at DEFAULT_EVENTS_PATH. A warm hourly run appends; --full
-# replaces. Gitignored and restored the same way metrics parquet is.
+# Full-history events for message rates only. Delivery reads the table at
+# DEFAULT_EVENTS_PATH, which a warm run fills with the fortnight after the
+# record checkpoint and a cold run with everything. A warm hourly run appends
+# here; --full replaces. Gitignored and restored the same way metrics parquet is.
 DEFAULT_ARCHIVE_PATH = "data/tremor/saed_events_archive.parquet"
 ARCHIVE_COLUMNS = ("event_id", "asset_id", "hour_utc", "tier")
 
@@ -486,6 +487,99 @@ RESIDUAL_COLUMNS = ("hour_utc", "asset_id", "beta_block", "e_resid",
                     "tier_absolute") + severity.LEVEL_COLUMNS \
                   + severity.level_columns(ABSOLUTE_LEVEL_PREFIX) \
                   + persistence.RETENTION_COLUMNS
+
+
+# The record book: each series' "biggest since" lookup as of a checkpoint, so a
+# warm run needs the bars after the checkpoint rather than six years of them.
+# See severity.RecordState. Derived and gitignored like the metrics, and cached
+# with them between hourly runs.
+DEFAULT_RECORDS_PATH = "data/tremor/record_book.parquet"
+RECORD_COLUMNS = ("series", "prefix", "hour_utc", "magnitude", "after",
+                  "config_version")
+
+# How far behind the newest bar the checkpoint sits. It is also how deep the
+# warm events table is, so it must cover everything delivery reads back: a
+# note stays correctable for ten days (tremor_delivery.DIGEST_TRACK_HOURS) and a
+# push is re-sent inside 48 hours. Fourteen days holds both with room over.
+RECORD_CHECKPOINT_DAYS = 14
+
+# The ladders a series' records are kept on, by the prefix annotate writes.
+RECORD_PREFIXES = (severity.LEVEL_PREFIX, ABSOLUTE_LEVEL_PREFIX)
+
+
+class RecordBook:
+    """The saved record lookups, and the states one run reads and writes.
+
+    `seeds` is None for a run with no usable book - it then starts every series
+    from nothing, which is only right when it also reads every series from its
+    first bar (saed.main makes that run cold). Otherwise every state starts
+    from its seed and skips the bars at or before `after`.
+    """
+
+    def __init__(self, seeds: "dict | None", after: "int | None",
+                 snapshot_at: int):
+        self.seeds, self.after, self.snapshot_at = seeds, after, snapshot_at
+        self.states: dict = {}
+        self.missing: "set[tuple[str, str]]" = set()
+
+    def state(self, series: str, prefix: str) -> severity.RecordState:
+        key = (str(series), str(prefix))
+        if key not in self.states:
+            if self.seeds is None:
+                self.states[key] = severity.RecordState(
+                    snapshot_at=self.snapshot_at)
+            elif key in self.seeds:
+                self.states[key] = severity.RecordState(
+                    self.seeds[key], self.after, self.snapshot_at)
+            else:
+                # A series the book never saw - a block that only now has
+                # enough history. Its records are read from the slice alone
+                # this once, and the book is not written: the next run finds
+                # none and goes cold, which is what enters the new series with
+                # its whole history rather than a truncated stack.
+                self.missing.add(key)
+                import logging
+
+                logging.getLogger("tremor.saed").warning(
+                    "%s/%s is not in the record book; its record dates this "
+                    "run reach only as far as its slice", series, prefix)
+                self.states[key] = severity.RecordState()
+        return self.states[key]
+
+    def frame(self, config_version: str) -> pd.DataFrame:
+        rows = []
+        for (series, prefix), state in self.states.items():
+            if state.snapshot is None:
+                continue
+            # An empty stack is still a row, so "this series has no records
+            # yet" is told apart from "this series is not in the book".
+            entries = state.snapshot or [(-1, float("nan"))]
+            for hour, magnitude in entries:
+                rows.append((series, prefix, int(hour), float(magnitude),
+                             int(self.snapshot_at), str(config_version)))
+        return pd.DataFrame(rows, columns=list(RECORD_COLUMNS))
+
+
+def load_record_book(path: str, config_version: str
+                     ) -> "tuple[dict, int] | None":
+    """(seeds, after) from a saved book, or None where it cannot be trusted."""
+    if not os.path.exists(path):
+        return None
+    try:
+        frame = pd.read_parquet(path)
+    except Exception:                            # a truncated write
+        return None
+    if frame.empty or set(frame["config_version"].astype(str)) != {str(config_version)}:
+        return None
+    afters = frame["after"].unique()
+    if len(afters) != 1:
+        return None
+    seeds: dict = {}
+    for (series, prefix), rows in frame.groupby(["series", "prefix"], sort=False):
+        rows = rows[rows["hour_utc"] >= 0]
+        seeds[(str(series), str(prefix))] = list(
+            zip(rows["hour_utc"].astype("int64"), rows["magnitude"].astype(float)))
+    return seeds, int(afters[0])
 
 
 def archive_frame(events: pd.DataFrame) -> pd.DataFrame:
@@ -515,8 +609,9 @@ def merge_archive(existing: pd.DataFrame | None,
                   incoming: pd.DataFrame) -> pd.DataFrame:
     """Keeps older hours and refreshes overlapping event_ids from this run.
 
-    A warm table only holds six years. Concatenating it onto the durable file
-    must not drop 2002 just because 2020-2026 arrived again.
+    A warm table only holds the fortnight after the record checkpoint.
+    Concatenating it onto the durable file must not drop 2002 just because the
+    last two weeks arrived again.
     """
     new = archive_frame(incoming)
     if existing is None or existing.empty:
@@ -608,63 +703,46 @@ def load_residuals(basket: Basket,
 LADDERS = (("abnormal", severity.LEVEL_PREFIX), ("absolute", ABSOLUTE_LEVEL_PREFIX))
 
 
-def plan_frames(basket: Basket, metrics: "dict[str, pd.DataFrame]"
-                ) -> "tuple[dict[str, pd.DataFrame], bool]":
-    """Trim each instrument to a trailing window, or say that the run must be cold.
+def plan_frames(basket: Basket, metrics: "dict[str, pd.DataFrame]",
+                after: int) -> "dict[str, pd.DataFrame]":
+    """Each instrument cut to its warm-up plus every bar after `after`.
 
-    Every per-bar quantity here rebuilds exactly from a bounded slice of the past
-    (see windows.warm_bars). The RUNG needs no history at all beyond the sigma it
-    divides by - it is a size, not a lookback - but the DATE the message prints
-    does: "the biggest since March 2020" is a statement about the instrument's
-    record, and a trimmed slice can only speak for the part it holds. So the
-    slice must still reach back past RECORD_HORIZON_DAYS, and a warm run
-    publishes only the stretch it is exact over.
+    `after` is the record book's checkpoint (see RecordBook): everything the
+    run must answer for lies after it, and everything before it that the answer
+    depends on is either in the book - the record dates - or inside the warm-up.
+    The warm-up is what makes a bar exact (windows.warm_bars without the record
+    horizon), and for a fund also the hour scale's longer reach
+    (windows.hour_scale_chain).
 
-    ALL OR NOTHING still, on purpose. A run in which half the basket is trimmed
-    and half is not has a cross-section built from two different amounts of
-    history, which is harder to reason about than doing the whole run cold. In
-    practice every instrument clears the check - the warm window is already
-    around eight to eleven years and the deepest rung is six - so this is a guard
-    against a shortened archive rather than a routine cost: the warm window is
-    already eight to eleven years and the record horizon is six.
-
-    The first bar is checked from the UNTRIMMED frame because that is the only
-    place it is still visible: once an instrument is cut to its slice, nothing in
-    what remains records how far the archive really reaches.
+    THE SIX YEARS ARE GONE FROM HERE. The slice used to be warm-up PLUS six years,
+    and the six years were there for one reason: "the biggest since March 2020"
+    was read off the slice, so the slice had to hold the record. The book holds
+    it instead - a few dozen bars a series - and the slice shrinks to what the
+    arithmetic needs.
     """
     from tremor import pipeline
 
-    deepest = severity.RECORD_HORIZON_DAYS * severity.SECONDS_PER_DAY
     trimmed: dict[str, pd.DataFrame] = {}
-    warm = True
     for asset in basket.instruments:
         frame = metrics.get(asset.asset_id)
         if frame is None or frame.empty:
             continue
         bars_per = pipeline.bars_per_session(asset, frame, basket.anchor_exchange_tz)
-        keep = windows.warm_bars(windows.w_asset(bars_per),
-                                 severity.bar_rate(frame["hour_utc"]),
-                                 template=asset.session_template)
-        # The hour scale reaches further back than anything warm_bars counts
-        # (windows.hour_scale_chain), so its chain sets the lead where it is
-        # the longer of the two - 22,003 bars against 6,960 for a US fund.
         lead = windows.warm_bars(windows.w_asset(bars_per),
                                  template=asset.session_template)
-        keep += max(0, windows.hour_scale_chain(asset.session_template) - lead)
-        if len(frame) <= keep:
-            # Short enough that the whole history IS the window.
-            trimmed[asset.asset_id] = frame
-            continue
-        tail = frame.tail(keep).reset_index(drop=True)
-        trimmed[asset.asset_id] = tail
-        span = int(tail["hour_utc"].iloc[-1]) - int(tail["hour_utc"].iloc[0])
-        if span < deepest:
-            warm = False
-    return (trimmed, warm) if warm else (dict(metrics), False)
+        # The hour scale reaches further back than anything warm_bars counts,
+        # so its chain sets the lead where it is the longer of the two - 22,003
+        # bars against 6,960 for a US fund.
+        lead = max(lead, windows.hour_scale_chain(asset.session_template))
+        keep = lead + int((frame["hour_utc"] > after).sum())
+        trimmed[asset.asset_id] = (frame if len(frame) <= keep
+                                   else frame.tail(keep).reset_index(drop=True))
+    return trimmed
 
 
 def score_tiers(scored: "dict[str, pd.DataFrame]",
-                blocks_of: "dict[str, str]") -> "dict[str, pd.DataFrame]":
+                blocks_of: "dict[str, str]",
+                records: "RecordBook | None" = None) -> "dict[str, pd.DataFrame]":
     """Both ladders, combined, with the rank test's veto - for any scored series.
 
     Its own function because two series go through it: every instrument's hours,
@@ -687,15 +765,20 @@ def score_tiers(scored: "dict[str, pd.DataFrame]",
     # as being on the same scale: a t-statistic has had its tail removed by
     # construction and tops out near 15 where the raw ratio reaches 113, so the
     # member rungs were not strict here but unreachable. See BLOCK_RESID_SIGMA.
+    def book(aid, prefix):
+        return records.state(aid, prefix) if records is not None else None
+
     scored = {aid: severity.annotate(frame, tier_column=TIER_SOURCES["abnormal"],
                                      block=blocks_of.get(aid),
-                                     ladder=severity.RESIDUAL)
+                                     ladder=severity.RESIDUAL,
+                                     record_state=book(aid, severity.LEVEL_PREFIX))
               for aid, frame in scored.items()}
     scored = {aid: severity.annotate(frame, column=ABSOLUTE_COLUMN,
                                      prefix=ABSOLUTE_LEVEL_PREFIX,
                                      tier_column=TIER_SOURCES["absolute"],
                                      fallback=None, scale_column="sigma_lt",
-                                     block=blocks_of.get(aid))
+                                     block=blocks_of.get(aid),
+                                     record_state=book(aid, ABSOLUTE_LEVEL_PREFIX))
               for aid, frame in scored.items()}
     scored = {aid: severity.combine(frame, TIER_SOURCES)
               for aid, frame in scored.items()}
@@ -706,7 +789,8 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
                      block_factors: pd.DataFrame | None = None,
                      panel: pd.DataFrame | None = None,
                      sigma_panel: pd.DataFrame | None = None,
-                     full_metrics: "dict[str, pd.DataFrame] | None" = None
+                     full_metrics: "dict[str, pd.DataFrame] | None" = None,
+                     records: "RecordBook | None" = None
                      ) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
     """Computes residuals and events for every instrument, non-basket ones included.
 
@@ -753,7 +837,8 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
     scored = {aid: residuals.rescore_thresholds(frame, windows_by_asset[aid])
               for aid, frame in scored.items()}
 
-    scored = score_tiers(scored, {a.asset_id: a.block for a in basket.instruments})
+    scored = score_tiers(scored, {a.asset_id: a.block for a in basket.instruments},
+                         records)
     # The settled retention lands at the close of the next trading day, so an
     # instrument whose day is a SESSION is measured in its exchange's local day
     # and a round-the-clock one in the UTC day. us_equity is the only template
@@ -796,7 +881,7 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
     block_scored: dict[str, pd.DataFrame] = {}
     block_rows = pd.DataFrame()
     if panel is not None and sigma_panel is not None:
-        block_scored = blocks.frames(basket, panel, sigma_panel)
+        block_scored = blocks.frames(basket, panel, sigma_panel, records=records)
         if gap_pass is not None:
             members, _ = cross_section._block_members(panel, basket)
             block_scored = {
@@ -862,6 +947,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="score on all history rather than the trailing window")
     parser.add_argument("--archive-out", default=DEFAULT_ARCHIVE_PATH,
                         help="durable events archive for message rates")
+    parser.add_argument("--records", default=DEFAULT_RECORDS_PATH,
+                        help="the record book a warm run starts from")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -876,7 +963,21 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     config, run_id = versioning.versions_for()
-    frames, warm = (dict(metrics), False) if args.full else plan_frames(basket, metrics)
+    # WARM WHEN THE RECORD BOOK CAN BE TRUSTED, COLD WHEN IT CANNOT. A book from
+    # another configuration, or none at all - a fresh runner, a cache miss, the
+    # first run after a formula change - means this run reads every series from
+    # its first bar and writes the book the next run starts from. That is the
+    # one slow run a change costs, the same as the metrics' cold rebuild.
+    newest = max(int(f["hour_utc"].max()) for f in metrics.values() if not f.empty)
+    cut = newest - RECORD_CHECKPOINT_DAYS * 86400
+    book = None if args.full else load_record_book(args.records, config)
+    if book is None:
+        frames, warm = dict(metrics), False
+        records = RecordBook(None, None, cut)
+    else:
+        seeds, after = book
+        frames, warm = plan_frames(basket, metrics, after), True
+        records = RecordBook(seeds, after, cut)
 
     def panels(source):
         panel = cross_section.build_panel(source, "r")
@@ -887,8 +988,7 @@ def main(argv: list[str] | None = None) -> int:
 
     panel, sigma_panel = panels(frames)
     # Blocks need no separate check: a block's series is built from the member
-    # frames, so it reaches back exactly as far as they do, and plan_frames has
-    # already refused any slice shorter than the deepest rung.
+    # frames, so it reaches back exactly as far as they do.
 
     kept = sum(len(f) for f in frames.values())
     whole = sum(len(f) for f in metrics.values())
@@ -900,27 +1000,32 @@ def main(argv: list[str] | None = None) -> int:
     block_factors = cross_section.block_factors(panel, basket, sigma_panel)
 
     events, scored = build_for_basket(
-        basket, frames, block_factors, panel, sigma_panel, full_metrics=metrics)
+        basket, frames, block_factors, panel, sigma_panel, full_metrics=metrics,
+        records=records)
 
-    # Rate lines read the durable archive, not the six-year delivery table.
+    # Rate lines read the durable archive, not the delivery table.
     # --full replaces it with this run's complete history; a warm run merges
     # so hours older than the trailing window stay put.
     archived = write_events_archive(args.archive_out, events, replace=args.full)
     log.info("rate archive %s: %d event(s)", args.archive_out, archived)
 
     if warm and not events.empty:
-        # A warm run publishes only the span it is exact over. Beyond it the
-        # trailing window is still warming up, and those rows differ from a full
-        # run - not by much, but the event table is where "the last one this big
-        # was" is read from, and a tier that is nearly right there names the
-        # wrong date.
-        from tremor.severity import RECORD_HORIZON_DAYS
-
-        floor = int(events["hour_utc"].max()) - int(RECORD_HORIZON_DAYS * 86400)
+        # A warm run publishes only what it answered for: the events after the
+        # book's checkpoint. Before it the slice is warm-up, whose tiers are not
+        # yet exact and whose record dates the book, not the slice, holds.
         before = len(events)
-        events = events[events["hour_utc"] >= floor].reset_index(drop=True)
-        log.info("warm run publishes %d of %d events - the %d days it is exact over",
-                 len(events), before, int(RECORD_HORIZON_DAYS))
+        events = events[events["hour_utc"] > records.after].reset_index(drop=True)
+        log.info("warm run publishes %d of %d events - those after the record "
+                 "checkpoint", len(events), before)
+
+    if records.missing:
+        if os.path.exists(args.records):
+            os.remove(args.records)
+        log.warning("record book dropped: %d series were not in it, so the next "
+                    "run goes cold and enters them", len(records.missing))
+    else:
+        os.makedirs(os.path.dirname(args.records) or ".", exist_ok=True)
+        atomic.write_parquet(args.records, records.frame(config))
 
     events = versioning.stamp(events, config, run_id)
     os.makedirs(os.path.dirname(args.events_out) or ".", exist_ok=True)

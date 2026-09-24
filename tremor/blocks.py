@@ -128,7 +128,7 @@ def hours_by_block(basket: Basket, panel: pd.DataFrame,
 
 def frames(basket: Basket, panel: pd.DataFrame,
            sigma_panel: pd.DataFrame, template: "str | None" = None,
-           retention: bool = True) -> "dict[str, pd.DataFrame]":
+           retention: bool = True, records=None) -> "dict[str, pd.DataFrame]":
     """One scored frame per block, shaped like an instrument's.
 
     Shaped like an instrument's on purpose: it then goes through the same
@@ -179,7 +179,10 @@ def frames(basket: Basket, panel: pd.DataFrame,
         # US equity complex firing once in twenty-five years.
         frame = severity.annotate(frame, column="z_resid", fallback=None,
                                   tier_column="tier", block=block,
-                                  ladder=severity.BLOCK_OWN)
+                                  ladder=severity.BLOCK_OWN,
+                                  record_state=(records.state(
+                                      block_id(block), severity.LEVEL_PREFIX)
+                                      if records is not None else None))
         frame["basis"] = pd.Series(BLOCK_BASIS, index=frame.index,
                                    dtype="string").where(frame["tier"].notna())
         out[block] = (persistence.annotate(frame, _day_tz(basket, columns),

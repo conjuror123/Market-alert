@@ -63,3 +63,6 @@ data/tremor/saed_events.parquet
 # this file is restored from Actions cache (same as metrics/) rather than
 # committed: like the other derived parquet it does not delta in git.
 data/tremor/saed_events_archive.parquet
+# The record book: each series' "biggest since" lookup at a checkpoint,
+# rebuilt by any cold saed run. Cached with the metrics, never committed.
+data/tremor/record_book.parquet
