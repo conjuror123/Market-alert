@@ -91526,6 +91526,7 @@
 {"actual": "", "country": "AUD", "date": "2026-09-24T00:35:00+00:00", "forecast": "", "impact": "Low", "previous": "-19", "title": "NAB Quarterly Business Confidence"}
 {"actual": "", "country": "AUD", "date": "2026-09-24T01:30:00+00:00", "forecast": "21.5K", "impact": "High", "previous": "-15.8K", "title": "Employment Change"}
 {"actual": "", "country": "AUD", "date": "2026-09-24T01:30:00+00:00", "forecast": "4.5%", "impact": "High", "previous": "4.5%", "title": "Unemployment Rate"}
+{"actual": "", "country": "AUD", "date": "2026-09-24T01:30:00+00:00", "forecast": "", "impact": "Low", "previous": "-19", "title": "NAB Quarterly Business Confidence"}
 {"actual": "", "country": "CHF", "date": "2026-09-24T07:30:00+00:00", "forecast": "", "impact": "High", "previous": "", "title": "SNB Monetary Policy Assessment"}
 {"actual": "", "country": "CHF", "date": "2026-09-24T07:30:00+00:00", "forecast": "0.00%", "impact": "High", "previous": "0.00%", "title": "SNB Policy Rate"}
 {"actual": "", "country": "CHF", "date": "2026-09-24T08:00:00+00:00", "forecast": "", "impact": "High", "previous": "", "title": "SNB Press Conference"}
@@ -91547,9 +91548,11 @@
 {"actual": "", "country": "USD", "date": "2026-09-24T14:00:00+00:00", "forecast": "615K", "impact": "Low", "previous": "607K", "title": "New Home Sales"}
 {"actual": "", "country": "GBP", "date": "2026-09-24T14:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "MPC Member Lombardelli Speaks"}
 {"actual": "", "country": "USD", "date": "2026-09-24T14:10:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Paulson Speaks"}
+{"actual": "", "country": "USD", "date": "2026-09-24T14:15:00+00:00", "forecast": "", "impact": "Medium", "previous": "", "title": "President Trump Speaks"}
 {"actual": "", "country": "USD", "date": "2026-09-24T14:30:00+00:00", "forecast": "50B", "impact": "Low", "previous": "44B", "title": "Natural Gas Storage"}
 {"actual": "", "country": "CNY", "date": "2026-09-24T23:01:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Bank Holiday"}
 {"actual": "", "country": "GBP", "date": "2026-09-24T23:01:00+00:00", "forecast": "-16", "impact": "Low", "previous": "-14", "title": "GfK Consumer Confidence"}
+{"actual": "", "country": "USD", "date": "2026-09-24T23:55:00+00:00", "forecast": "", "impact": "Medium", "previous": "", "title": "President Trump Speaks"}
 {"actual": "", "country": "JPY", "date": "2026-09-25T05:00:00+00:00", "forecast": "1.5%", "impact": "Low", "previous": "1.6%", "title": "BOJ Core CPI y/y"}
 {"actual": "", "country": "EUR", "date": "2026-09-25T06:00:00+00:00", "forecast": "-27.1", "impact": "Low", "previous": "-26.6", "title": "German GfK Consumer Climate"}
 {"actual": "", "country": "EUR", "date": "2026-09-25T08:00:00+00:00", "forecast": "3.5%", "impact": "Low", "previous": "3.4%", "title": "M3 Money Supply y/y"}
