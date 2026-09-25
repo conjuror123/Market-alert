@@ -115,8 +115,8 @@ def test_a_gap_knows_what_kind_of_close_came_before_it():
         ("2026-09-22 09:30", "2026-09-21 15:30", "night"),      # Tuesday
         ("2026-09-21 09:30", "2026-09-18 15:30", "weekend"),    # Monday
         ("2026-09-08 09:30", "2026-09-04 15:30", "weekend"),    # after Labor Day
-        ("2025-11-28 09:30", "2025-11-26 15:30", "holiday"),    # after Thanksgiving
-        ("2024-07-05 09:30", "2024-07-03 15:30", "holiday"),    # after the Fourth
+        ("2025-11-28 09:30", "2025-11-26 15:30", "night"),      # after Thanksgiving
+        ("2024-07-05 09:30", "2024-07-03 15:30", "night"),      # after the Fourth
     ]
     hours = [_utc(today) for today, _, _ in cases]
     before = [_utc(last) for _, last, _ in cases]
@@ -185,10 +185,9 @@ def test_a_monday_is_judged_against_other_mondays():
     assert z[monday].mean() == pytest.approx(z[~monday].mean(), rel=0.1)
 
 
-def test_a_gap_after_a_midweek_holiday_is_not_scored():
-    # Two or three a year: too few to know what one usually is, so the gap is
-    # left out - of the scoring and of every yardstick - and that morning's
-    # first hour is judged as it always was.
+def test_a_gap_after_a_midweek_holiday_is_scored_as_a_weeknight():
+    # Two or three a year: too few to know what one usually is, and one missed
+    # session is closer to a night than to a weekend.
     spy = asset()
 
     class Basket:
@@ -202,10 +201,9 @@ def test_a_gap_after_a_midweek_holiday_is_not_scored():
     assert wednesday.sum() == 2
     out = gaps.mornings(Basket(), {spy.asset_id: frame[~wednesday]})[spy.asset_id]
 
-    assert thursday not in set(out["hour_utc"])
+    row = out.loc[out["hour_utc"] == thursday]
+    assert len(row) == 1 and row["gap_kind"].iat[0] == "night"
     assert set(out["gap_kind"]) == {"night", "weekend"}
-    kept = gaps.mornings(Basket(), {spy.asset_id: frame})[spy.asset_id]
-    assert thursday in set(kept["hour_utc"])
 
 
 def test_a_currency_pair_s_gap_is_always_the_weekend_and_unscaled():

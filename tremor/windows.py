@@ -229,8 +229,8 @@ HOUR_SCALE_MIN_SAME_HOUR = 100
 # gap, the shape - this kind's spread over all kinds' - learned per fund over a
 # long memory, because the shape is a property of the calendar and not of the
 # month. Some 1,000 weekends per fund steady the ratio. A midweek holiday comes
-# two or three times a year - far too few to learn its own - so its gap is not
-# scored at all (tremor.gaps); a long weekend counts as a weekend. The
+# two or three times a year - far too few to learn its own - so its gap counts
+# as a weeknight (tremor.gaps); a long weekend counts as a weekend. The
 # memory is counted in sessions on the calendar every kind shares, so the
 # weeknight and the weekend spread forget at the same pace; 100 closes of a
 # kind - about two years - before that kind's ratio is used, and a ratio of one

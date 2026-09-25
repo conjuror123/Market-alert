@@ -51,10 +51,10 @@ its `gap_kind`, and both readings are judged against their kind: the raw gap's
 its divisor. See windows.GAP_KIND_MEMORY_SESSIONS. A pair's gap is always the
 weekend, so for FX the ratio is one.
 
-A gap after a midweek holiday is not scored at all. There are two or three a
+A gap after a midweek holiday counts as a weeknight. There are two or three a
 year, too few to learn what one usually is, and borrowing the weekend's
-yardstick made them fire three times their share. That morning's first hour is
-judged as it always was.
+yardstick made them fire three times their share; one missed session is
+closer to a night than to a weekend.
 
 AND IT IS NEVER WARM. The whole morning history is some six thousand rows per
 fund and a quarter of a million in total, which scores from scratch in about a
@@ -117,8 +117,8 @@ def mornings(basket: Basket, metrics: "dict[str, pd.DataFrame]"
     `sigma_lt` is the fund's long-run spread of gaps OF THIS KIND - the pooled
     spread times `gap_scale`, this kind's share of it - causal like every other
     sigma here (ewma.long_run_sigma shifts inside). `gap_kind` says what kind
-    of close came before: "night" or "weekend". A gap after a holiday is left
-    out - see the module docstring.
+    of close came before: "night" or "weekend", a midweek holiday counting as
+    a night - see the module docstring.
     """
     out: dict[str, pd.DataFrame] = {}
     for asset in basket.instruments:
@@ -139,9 +139,6 @@ def mornings(basket: Basket, metrics: "dict[str, pd.DataFrame]"
         rows["gap_kind"] = (gap_kinds(rows["hour_utc"].to_numpy(), before)
                             if asset.session_template == "us_equity"
                             else "weekend")
-        rows = rows[rows["gap_kind"] != "holiday"].reset_index(drop=True)
-        if rows.empty:
-            continue
         rows["gap_scale"] = residuals.kind_scale(rows["r"], rows["gap_kind"])
         rows["sigma_lt"] = (ewma.sigma_lt(rows["r"], TEMPLATE).to_numpy()
                             * rows["gap_scale"].to_numpy())
@@ -152,10 +149,9 @@ def mornings(basket: Basket, metrics: "dict[str, pd.DataFrame]"
 
 def gap_kinds(hours, before) -> np.ndarray:
     """What kind of close each gap followed, from the New York dates of the
-    session's first bar and of the bar before it: "night" when the sessions are
-    consecutive days, "weekend" when a Saturday lies between (a long weekend
-    too), "holiday" for any other longer close - Thanksgiving's Friday, a
-    Wednesday Fourth of July. The last are not scored; see mornings."""
+    session's first bar and of the bar before it: "weekend" when a Saturday lies
+    between (a long weekend too), otherwise "night" - including a midweek
+    holiday, Thanksgiving's Friday or a Wednesday Fourth of July."""
     def dates(values):
         return (pd.to_datetime(pd.Series(values, dtype="float64"), unit="s", utc=True)
                 .dt.tz_convert("America/New_York").dt.tz_localize(None)
@@ -167,7 +163,7 @@ def gap_kinds(hours, before) -> np.ndarray:
     # strictly before today.
     to_saturday = (5 - last.dt.weekday.to_numpy()) % 7
     weekend = (to_saturday >= 1) & (to_saturday < days)
-    return np.where(days <= 1, "night", np.where(weekend, "weekend", "holiday"))
+    return np.where(weekend, "weekend", "night")
 
 
 def score(basket: Basket, metrics: "dict[str, pd.DataFrame]", tiers) -> GapPass:
