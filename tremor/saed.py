@@ -872,22 +872,10 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
                                         closed_of.get(aid, False))
               for aid, frame in scored.items()}
 
-    # The overnight gap, written onto a COPY of each frame - the first bar of a
-    # session, where the gap out-ranks it, and nowhere else. `scored` itself is
-    # what the residual store is written from and what every other event's
-    # retention was summed over above, and neither may see the night.
-    gap_pass = gaps.score(basket, full_metrics, score_tiers) \
-        if full_metrics is not None else None
-    judged = scored
-    if gap_pass is not None:
-        judged = {aid: gaps.overlay(frame, gap_pass.assets.get(aid),
-                                    day_of.get(aid), closed_of.get(aid, False))
-                  for aid, frame in scored.items()}
-
     all_events: list[SaedEvent] = []
     for asset in basket.instruments:
-        if asset.asset_id in judged:
-            all_events.extend(build_events(asset, judged[asset.asset_id]))
+        if asset.asset_id in scored:
+            all_events.extend(build_events(asset, scored[asset.asset_id]))
 
     # The blocks themselves, as rows in the same table. Widening the blocks made
     # every member's residual smaller on the days the whole block moves - which
@@ -895,27 +883,143 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
     # because then no member is abnormal. See tremor.blocks.
     block_scored: dict[str, pd.DataFrame] = {}
     block_rows = pd.DataFrame()
+    members: "dict[str, list[str]]" = {}
     if panel is not None and sigma_panel is not None:
         block_scored = blocks.frames(basket, panel, sigma_panel, records=records)
-        if gap_pass is not None:
-            members, _ = cross_section._block_members(panel, basket)
-            block_scored = {
-                name: gaps.overlay(
-                    frame, gap_pass.blocks.get(name),
-                    blocks._day_tz(basket, members.get(name, [])),
-                    blocks._last_day_closed(basket, members.get(name, []), frame))
-                for name, frame in block_scored.items()}
-        block_rows = blocks.events_frame(
-            block_scored, basket, panel,
-            gap_pass.panel if gap_pass is not None else None)
+        block_rows = blocks.events_frame(block_scored, basket, panel)
+        members, _ = cross_section._block_members(panel, basket)
 
     frame = events_frame(all_events)
     if not block_rows.empty:
         frame = pd.concat([frame, block_rows], ignore_index=True)
-    retention_from = dict(judged)
+    retention_from = dict(scored)
     retention_from.update({blocks.block_id(name): f for name, f in block_scored.items()})
+    frame = persistence.attach(frame, retention_from)
 
-    return routing.route(persistence.attach(frame, retention_from)), scored
+    # The overnight gap, on a path of its own (tremor.gaps). Everything above is
+    # exactly what it was before the gap existed; the gap's events are built
+    # from the gap series alone, and the two meet only in merge_days.
+    gap_pass = gaps.score(basket, full_metrics, score_tiers) \
+        if full_metrics is not None else None
+    if gap_pass is not None:
+        by_id = {a.asset_id: a for a in basket.instruments}
+        gap_frames: dict[str, pd.DataFrame] = {}
+        gap_events: list[SaedEvent] = []
+        for aid, gap in gap_pass.assets.items():
+            ready = gaps.for_events(gap, scored.get(aid), day_of.get(aid),
+                                    closed_of.get(aid, False))
+            if ready is not None and aid in by_id:
+                gap_frames[aid] = ready
+                gap_events.extend(build_events(by_id[aid], ready))
+        gap_blocks: dict[str, pd.DataFrame] = {}
+        for name, gap in gap_pass.blocks.items():
+            columns = members.get(name, [])
+            ready = gaps.for_events(
+                gap, block_scored.get(name), blocks._day_tz(basket, columns),
+                blocks._last_day_closed(basket, columns, block_scored[name])
+                if name in block_scored else False)
+            if ready is not None:
+                gap_blocks[name] = ready
+        gap_frame = events_frame(gap_events)
+        gap_block_rows = (blocks.events_frame(gap_blocks, basket, gap_pass.panel,
+                                              gap_pass.panel)
+                          if gap_blocks else pd.DataFrame())
+        if not gap_block_rows.empty:
+            gap_frame = pd.concat([gap_frame, gap_block_rows], ignore_index=True)
+        gap_retention = dict(gap_frames)
+        gap_retention.update({blocks.block_id(name): f for name, f in gap_blocks.items()})
+        gap_frame = persistence.attach(gap_frame, gap_retention)
+
+        tz_of = dict(day_of)
+        tz_of.update({blocks.block_id(name): blocks._day_tz(basket, columns)
+                      for name, columns in members.items()})
+        frame = merge_days(_with_strength(frame, scored),
+                           _with_strength(gap_frame, gap_frames), tz_of)
+
+    return routing.route(frame), scored
+
+
+def _with_strength(events: pd.DataFrame,
+                   frames: "dict[str, pd.DataFrame]") -> pd.DataFrame:
+    """Each event with how far past its rung its peak bar went (`_exceedance`),
+    read off the frame that built it. A block row has no ladder of that shape,
+    and its own day rule compares the move in members' sigmas - its z_resid."""
+    if events.empty:
+        return events.assign(_strength=pd.Series(dtype="float64"))
+    strength = np.abs(pd.to_numeric(events["z_resid"], errors="coerce")
+                      .to_numpy(dtype="float64"))
+    for aid in events["asset_id"].unique():
+        frame = frames.get(aid)
+        if frame is None:
+            continue
+        mine = (events["asset_id"] == aid).to_numpy()
+        past = pd.Series(_exceedance(frame, frame["tier"].to_numpy(dtype=object)),
+                         index=frame["hour_utc"].to_numpy(dtype="int64"))
+        strength[mine] = past.reindex(
+            events.loc[mine, "peak_hour_utc"].to_numpy(dtype="int64")).to_numpy()
+    return events.assign(_strength=np.nan_to_num(strength))
+
+
+def merge_days(hourly: pd.DataFrame, gap: pd.DataFrame,
+               tz_of: "dict[str, str | None]") -> pd.DataFrame:
+    """The hourly events and the gap events, one per instrument (and per block)
+    per trading day.
+
+    The two paths never read each other; this is the one place they meet, and
+    it asks exactly what the event automaton asks within a day. The gap is the
+    day's first reading, so where both fired, the event keeps the gap's identity
+    - a push already sent is edited, not repeated - and is DESCRIBED by the rarer
+    of the two: the higher tier, or at the same tier the one further past its
+    rung, the gap keeping it on an exact tie as the automaton's earlier bar does.
+    Every other day passes through untouched.
+    """
+    if gap.empty:
+        return hourly.drop(columns=["_strength"], errors="ignore")
+    both = pd.concat([hourly.assign(_path=0), gap.assign(_path=1)],
+                     ignore_index=True)
+    day = np.zeros(len(both), dtype="int64")
+    for aid in both["asset_id"].unique():
+        mine = (both["asset_id"] == aid).to_numpy()
+        stamps = pd.to_datetime(both.loc[mine, "hour_utc"].astype("int64"),
+                                unit="s", utc=True)
+        tz = tz_of.get(aid)
+        if tz:
+            stamps = stamps.dt.tz_convert(tz)
+        day[mine] = stamps.dt.normalize().dt.tz_localize(None).astype("int64")
+    both["_day"] = day
+    both["_rank"] = severity.rank(both["tier"].astype("string")).fillna(0).astype(int)
+    both["_order"] = np.arange(len(both))
+
+    key = ["asset_id", "_day"]
+    winners = both.sort_values(key + ["_rank", "_strength", "_path"],
+                               ascending=[True, True, False, False, False],
+                               kind="mergesort").drop_duplicates(key)
+    openers = both.sort_values(key + ["hour_utc", "_path"],
+                               ascending=[True, True, True, False],
+                               kind="mergesort").drop_duplicates(key)
+    grouped = both.groupby(key, sort=False)
+    counts = (grouped["repeat_count"].sum() + grouped.size() - 1).rename("_count")
+
+    out = winners.merge(openers[key + ["event_id", "hour_utc", "_order"]]
+                        .rename(columns={"event_id": "_id", "hour_utc": "_open",
+                                         "_order": "_first"}), on=key)
+    out = out.merge(counts.reset_index(), on=key)
+    out["event_id"] = out["_id"]
+    out["hour_utc"] = out["_open"].astype("int64")
+    out["repeat_count"] = out["_count"].astype("int64")
+    # The order the hourly table had, a gap-only day slotted in where its
+    # opener falls: instruments first by the order they were built, blocks after.
+    out["_block"] = out["asset_id"].astype(str).str.startswith("block:")
+    out = out.sort_values(["_block", "_first"], kind="mergesort")
+    blocks_part = out[out["_block"]].sort_values(["hour_utc", "asset_id"],
+                                                 kind="mergesort")
+    assets_part = out[~out["_block"]]
+    assets_part = assets_part.assign(_pos=assets_part["asset_id"].map(
+        {aid: i for i, aid in enumerate(dict.fromkeys(both["asset_id"]))})
+    ).sort_values(["_pos", "hour_utc"], kind="mergesort")
+    out = pd.concat([assets_part, blocks_part], ignore_index=True)
+    return out.drop(columns=[c for c in out.columns if c.startswith("_")])
+
 
 
 def _last_day_closed(frame: "pd.DataFrame | None", template: str) -> bool:

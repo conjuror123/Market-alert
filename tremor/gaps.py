@@ -21,8 +21,11 @@ WHY NOT FOLD IT INTO THE FIRST BAR'S r. The 09:00 New York bar already carries
 31% of the US funds' events and 39% of their pushes. Any single number built
 from the gap and the first hour together reshapes the busiest hour in the system,
 and a first hour that undoes the gap cancels it. So the first bar is left exactly
-as it was, and the gap is a SECOND reading on the same row: it may claim that
-row's event when it is the rarer of the two, and otherwise changes nothing.
+as it was, and the gap is a SEPARATE reading on a path of its own: its own
+series, its own scale, its own rungs and its own events. Nothing hourly reads
+it. The two paths meet once, at the very end (saed.merge_days): one event per
+instrument per day, so on a day both fired, the day keeps the rarer - the same
+rule a later hour of the day already follows.
 
 HOW IT IS SCORED - the same machinery as everything else, on a series of one row
 per session per fund:
@@ -62,7 +65,7 @@ second. So this reads the UNTRIMMED metrics every run (saed.main hands them over
 before plan_frames cuts the hourly series down) and is exact by construction:
 there is no slice of it to keep in step with anything.
 
-WHAT A GAP-CLAIMED EVENT SAYS. Its `r` is the gap as a price move, its
+WHAT A GAP EVENT SAYS. Its `r` is the gap as a price move, its
 `sigma_lt` the fund's usual gap, its record date the last gap at least this big
 - all read by the delivery layer through the `overnight` flag, never by
 pretending the night was an hour. Its retention is the event study's own
@@ -79,7 +82,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from tremor import blocks, cross_section, ewma, persistence, residuals, severity, windows
+from tremor import blocks, cross_section, ewma, persistence, residuals, windows
 from tremor.basket import Basket
 
 log = logging.getLogger("tremor.gaps")
@@ -90,16 +93,6 @@ TEMPLATE = windows.DAILY_SERIES
 # The adaptive thresholds are computed by score_residuals whatever it is given
 # and read by nothing that decides an event. One trading day per row.
 W_GAP = windows.w_asset(1)
-
-# What a gap-claimed row takes from the gap reading. Everything the event
-# automaton and the message read off a bar - and nothing the retention of OTHER
-# events sums over, which is why the overlay is applied to a copy of the frame.
-OVERLAID = (("r", "sigma_lt", "e_resid", "co_block", "beta_block", "z_resid",
-             "z_resid_bmp", "tier", "basis", "rank_confirms", "ou_reverts",
-             "n_members", f"{severity.LEVEL_PREFIX}_since", "gap_kind")
-            + severity.LEVEL_COLUMNS
-            + severity.level_columns("abs_level") + ("abs_level_since",))
-
 
 @dataclass(frozen=True)
 class GapPass:
@@ -217,68 +210,51 @@ def score(basket: Basket, metrics: "dict[str, pd.DataFrame]", tiers) -> GapPass:
     return GapPass(scored, block_scored, panel)
 
 
-def overlay(frame: pd.DataFrame, gap: "pd.DataFrame | None",
-            tz_name: "str | None" = None,
-            last_day_closed: bool = False) -> pd.DataFrame:
-    """The hourly frame with each gap that out-ranks its first bar written onto it.
+def for_events(gap: "pd.DataFrame | None", hourly: "pd.DataFrame | None",
+               tz_name: "str | None" = None,
+               last_day_closed: bool = False) -> "pd.DataFrame | None":
+    """The scored gap rows, ready for the event automaton on their own.
 
-    Out-ranks: a higher tier takes the row. At the SAME tier the bigger price
-    move takes it - the gap as a move from the last close to the first print,
-    the hour as its own move - because that is the one the reader would call
-    what happened that morning; on an exact tie the first hour keeps it. Every
-    other row is untouched, and so is every row when the gap fired nothing.
+    A copy of the gap series and never of the hourly one: the hourly frame is
+    READ here and nothing is written to it. Only mornings the hourly frame also
+    holds are kept, so a warm run - whose hourly series is a slice - builds gap
+    events over the same days it builds hourly ones.
 
-    Retention on a claimed row is (gap + CAR over the hourly bars from the first
-    one to the horizon) / gap - the night is interval zero. Raw on `r`, abnormal
-    on `e_resid`, with the same too-small-to-divide floor, measured against the
-    gap's own residual spread.
+    Retention is the event study's own definition with the night as interval
+    zero: (gap + the hourly moves from the first bar to the horizon) / gap.
+    Raw on `r`, abnormal on `e_resid`, with the same too-small-to-divide floor,
+    measured against the gap's own residual spread.
     """
-    out = frame.copy()
-    out["overnight"] = False
-    out["gap_kind"] = pd.array([pd.NA] * len(out), dtype="string")
-    if gap is None or gap.empty or frame.empty or "tier" not in gap:
-        return out
-    fired = gap[gap["tier"].notna()].set_index("hour_utc")
-    if fired.empty:
-        return out
-
-    hours = frame["hour_utc"].to_numpy(dtype="int64")
-    here = np.flatnonzero(np.isin(hours, fired.index.to_numpy(dtype="int64")))
-    if not here.size:
-        return out
-    claim = fired.reindex(hours[here])
-    own = severity.rank(frame["tier"].iloc[here].reset_index(drop=True)).fillna(0)
-    theirs = severity.rank(claim["tier"].reset_index(drop=True)).fillna(0)
-    bigger = (np.abs(claim["r"].to_numpy(dtype="float64"))
-              > np.abs(frame["r"].to_numpy(dtype="float64")[here]))
-    wins = ((theirs > own) | ((theirs == own) & (own > 0) & bigger)).to_numpy(dtype=bool)
-    if not wins.any():
-        return out
-    rows = here[wins]
-    labels = frame.index[rows]
-    claim = claim.iloc[wins]
-
-    for column in OVERLAID:
-        if column in claim and column in out:
-            out.loc[labels, column] = claim[column].to_numpy()
-    out.loc[labels, "overnight"] = True
+    if gap is None or gap.empty or hourly is None or hourly.empty \
+            or "tier" not in gap:
+        return None
+    hours = hourly["hour_utc"].to_numpy(dtype="int64")
+    kept = np.isin(gap["hour_utc"].to_numpy(dtype="int64"), hours)
+    out = gap.loc[kept].reset_index(drop=True)
+    if out.empty:
+        return None
+    out["overnight"] = True
+    if "gap_kind" not in out:
+        out["gap_kind"] = pd.NA
+    rows = pd.Index(hours).get_indexer(out["hour_utc"].to_numpy(dtype="int64"))
 
     for horizon in persistence.HORIZONS:
         offsets = (persistence.next_close_offsets if horizon == persistence.SETTLED
-                   else persistence.today_close_offsets)(frame, tz_name, last_day_closed)
-        for column, gap_column, name in (("e_resid", "e_resid", f"retention_{horizon}"),
-                                         ("r", "r", f"retention_raw_{horizon}")):
-            if column not in frame or gap_column not in claim:
+                   else persistence.today_close_offsets)(hourly, tz_name,
+                                                         last_day_closed)
+        for column, name in (("e_resid", f"retention_{horizon}"),
+                             ("r", f"retention_raw_{horizon}")):
+            out[name] = np.nan
+            if column not in hourly or column not in out:
                 continue
             car = persistence.forward_car_variable(
-                frame[column].to_numpy(dtype="float64"), offsets)[rows]
-            night = claim[gap_column].to_numpy(dtype="float64")
+                hourly[column].to_numpy(dtype="float64"), offsets)[rows]
+            night = out[column].to_numpy(dtype="float64")
             floor = (persistence.MIN_DENOMINATOR_SIGMAS
-                     * claim["sigma_lt_resid"].to_numpy(dtype="float64")
-                     if "sigma_lt_resid" in claim else np.zeros(len(rows)))
+                     * out["sigma_lt_resid"].to_numpy(dtype="float64")
+                     if "sigma_lt_resid" in out else np.zeros(len(out)))
             usable = (np.isfinite(night) & np.isfinite(car)
                       & (np.abs(night) > np.fmax(np.nan_to_num(floor), 1e-12)))
-            out.loc[labels, name] = np.divide(night + car, night,
-                                              out=np.full(len(rows), np.nan),
-                                              where=usable)
+            out[name] = np.divide(night + car, night, out=np.full(len(out), np.nan),
+                                  where=usable)
     return out

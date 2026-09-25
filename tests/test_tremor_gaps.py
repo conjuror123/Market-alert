@@ -232,76 +232,82 @@ def test_the_residual_is_divided_by_its_own_kind_scale():
     np.testing.assert_allclose(kinded["e_resid"], plain["e_resid"])
 
 
-# --- the overlay -------------------------------------------------------------
+# --- its own path ------------------------------------------------------------
 
-def test_a_gap_that_out_ranks_the_first_bar_claims_it():
-    frame = hourly()
-    out = gaps.overlay(frame, gap_row(6 * HOUR, "major"))
-
-    row = out.loc[out["hour_utc"] == 6 * HOUR].iloc[0]
-    assert row["overnight"]
-    assert row["tier"] == "major"
-    assert row["r"] == pytest.approx(-0.04)       # the gap, as a price move
-    assert row["sigma_lt"] == pytest.approx(0.008)  # the fund's usual gap
-    assert row["gap_kind"] == "night"
-    # Every other row untouched, and the input not mutated.
-    assert out["overnight"].sum() == 1
-    assert frame["tier"].isna().all()
-    assert out.drop(index=row.name)["r"].eq(0.001).all()
-
-
-def test_the_first_hour_keeps_a_row_it_ranks_above():
-    frame = hourly(tiers={5: "major"})
-    out = gaps.overlay(frame, gap_row(6 * HOUR, "high", r=-0.20))
-    assert not out["overnight"].any()
-    assert out.loc[5, "r"] == pytest.approx(0.05)
-
-
-def test_at_the_same_tier_the_bigger_move_takes_the_row():
-    # The first hour moved 5%. A gap of 4% at the same tier leaves it the
-    # hour's; a gap of 6% takes it; an exact tie stays with the hour.
-    frame = hourly(tiers={5: "major"})
-    smaller = gaps.overlay(frame, gap_row(6 * HOUR, "major", r=-0.04))
-    bigger = gaps.overlay(frame, gap_row(6 * HOUR, "major", r=-0.06))
-    tied = gaps.overlay(frame, gap_row(6 * HOUR, "major", r=-0.05))
-    assert not smaller["overnight"].any() and not tied["overnight"].any()
-    assert bigger.loc[5, "overnight"]
-    assert bigger.loc[5, "r"] == pytest.approx(-0.06)
-
-
-def test_retention_counts_the_night_as_interval_zero():
+def test_the_gap_path_reads_the_hourly_frame_and_writes_nothing_to_it():
     # Gap -4%, then the day gives back 1% of price over its bars: at the close
     # the move is -3% of the -4% - three quarters held.
     frame = hourly(n=10)
     frame["r"] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.004, 0.003, 0.003, 0.0, 0.0]
     frame["hour_utc"] = [(10 + i) * HOUR for i in range(10)]   # one UTC day
-    out = gaps.overlay(frame, gap_row(15 * HOUR, "major", r=-0.04),
-                       tz_name=None, last_day_closed=True)
-    row = out.loc[out["hour_utc"] == 15 * HOUR].iloc[0]
-    assert row["retention_raw_today"] == pytest.approx((-0.04 + 0.01) / -0.04)
+    before = frame.copy()
+    gap = pd.concat([gap_row(15 * HOUR, "major", r=-0.04),
+                     gap_row(99 * HOUR, "major")], ignore_index=True)
+    ready = gaps.for_events(gap, frame, tz_name=None, last_day_closed=True)
+
+    pd.testing.assert_frame_equal(frame, before)
+    # Only mornings the hourly series also holds - a warm slice builds gap
+    # events over the days it builds hourly ones.
+    assert ready["hour_utc"].tolist() == [15 * HOUR]
+    assert ready["overnight"].all()
+    assert ready["retention_raw_today"].iat[0] == pytest.approx((-0.04 + 0.01) / -0.04)
 
 
-def test_a_gap_event_and_a_first_hour_event_the_same_day_are_one_event():
-    # The gap claims the 09:00 row; an hour later the day fires again. One day,
-    # one event - enforced by the automaton, not filtered afterwards.
-    frame = hourly(tiers={7: "noticeable"})
-    out = gaps.overlay(frame, gap_row(6 * HOUR, "major", kind="weekend"))
-    events = saed.build_events(asset(), out, day_tz=None)
+def _one_day(hourly_tiers, gap_tier, hourly_z=None):
+    """The hourly events and the gap events of one instrument, merged."""
+    spy = asset()
+    frame = hourly(tiers=hourly_tiers)
+    for i, z in (hourly_z or {}).items():
+        frame.loc[i, "z_resid_bmp"] = z
+    gap = gaps.for_events(gap_row(6 * HOUR, gap_tier), frame)
+    hourly_events = saed.events_frame(saed.build_events(spy, frame, day_tz=None))
+    gap_events = saed.events_frame(saed.build_events(spy, gap, day_tz=None))
+    return saed.merge_days(
+        saed._with_strength(hourly_events, {spy.asset_id: frame}),
+        saed._with_strength(gap_events, {spy.asset_id: gap}),
+        {spy.asset_id: None})
 
-    assert len(events) == 1
-    assert events[0].overnight
-    assert events[0].gap_kind == "weekend"
-    assert saed.events_frame(events)["gap_kind"].tolist() == ["weekend"]
-    assert events[0].tier == "major"
-    assert events[0].repeat_count == 1
+
+def test_a_rarer_gap_describes_the_day():
+    out = _one_day({7: "noticeable"}, "major")
+    assert len(out) == 1
+    row = out.iloc[0]
+    assert row["overnight"] and row["tier"] == "major"
+    assert row["r"] == pytest.approx(-0.04)
+    assert row["event_id"].endswith(f":{6 * HOUR}")
+    assert row["repeat_count"] == 1
 
 
-def test_no_gap_pass_means_no_overnight_column_change():
+def test_a_rarer_hour_describes_the_day_under_the_gap_s_identity():
+    # The gap is the day's first reading, so a push it sent is edited when the
+    # 08:00 hour turns out rarer - never repeated.
+    out = _one_day({7: "major"}, "high")
+    assert len(out) == 1
+    row = out.iloc[0]
+    assert not row["overnight"] and row["tier"] == "major"
+    assert row["peak_hour_utc"] == 8 * HOUR
+    assert row["hour_utc"] == 6 * HOUR and row["event_id"].endswith(f":{6 * HOUR}")
+
+
+def test_at_the_same_tier_the_one_further_past_its_rung_describes_the_day():
+    # The gap cleared `major` at 9 against a rung of 7; the hour at 0.5, then 20.
+    assert _one_day({7: "major"}, "major").iloc[0]["overnight"]
+    hour_wins = _one_day({7: "major"}, "major", hourly_z={7: 20.0})
+    assert not hour_wins.iloc[0]["overnight"]
+    assert hour_wins.iloc[0]["peak_hour_utc"] == 8 * HOUR
+
+
+def test_different_days_are_two_events_and_no_gap_changes_nothing():
+    out = _one_day({30: "major"}, "high")        # hour 31 is the next UTC day
+    assert len(out) == 2 and out["overnight"].tolist() == [True, False]
+
+    spy = asset()
     frame = hourly(tiers={5: "high"})
-    assert gaps.overlay(frame, None)["overnight"].eq(False).all()
-    events = saed.build_events(asset(), hourly(tiers={5: "high"}), day_tz=None)
-    assert len(events) == 1 and not events[0].overnight
-    assert events[0].gap_kind is None
+    events = saed.events_frame(saed.build_events(spy, frame, day_tz=None))
+    empty = saed.events_frame([])
+    merged = saed.merge_days(saed._with_strength(events, {spy.asset_id: frame}),
+                             saed._with_strength(empty, {}), {spy.asset_id: None})
+    pd.testing.assert_frame_equal(merged, events)
 
 
 # --- never trimmed -----------------------------------------------------------
