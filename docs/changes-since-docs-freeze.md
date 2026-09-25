@@ -13,6 +13,30 @@ Newest first.
 
 ---
 
+## 7. At the same rarity rung, the bigger move takes the morning
+
+**Commit:** `7f21387`. **Changes alerts:** yes, which bar describes an event; not which events exist.
+
+**What.** The overnight gap used to take a morning's event only when it reached a strictly
+higher rarity rung than the first hour. At the same rung the first hour kept the event, whatever
+the sizes. Now a second rule applies: **at the same rung, the bigger price move takes it.** That
+compares the gap (last close to first price) with the first hour's own move, in %. An exact tie
+stays with the first hour. A higher rung still always wins. It applies to instruments and
+blocks alike.
+
+**Measured** (cold pass, whole history):
+- Same events, same channels: 9,690 events, 1,315 pushes, 56.5 a year, 94.4% reached.
+- 44 mornings (35 digest rows, 9 pushes) now describe the gap instead of the first hour. None
+  went the other way.
+- Held up at the next close: 74.2% → 73.8%, because those 44 are now measured from the previous
+  close through the night.
+
+**Belongs in:**
+- `architecture.md` "1. The return": the drafted text below now includes it.
+- `README.md`: the numbers table.
+
+---
+
 ## 6. A gap is judged against gaps after the same kind of close
 
 **Commits:** `1548418`, `0f43598`, `71a3440`. **Changes alerts:** yes.
@@ -277,7 +301,7 @@ the "before" column.
 | pushes | 1,352, 58.1 a year, on 36.6 days a year | 1,315, **56.5 a year**, on 33.2 days a year |
 | reached you | 94.4% of 216 obvious hours, 12 silent | **94.4%** of 216, 12 silent |
 | false alarms | 85 (0.007%) | 238 (0.020%) as printed; see below |
-| held up at the next close | 74.3% | **74.2%** |
+| held up at the next close | 74.3% | **73.8%** |
 
 **The false-alarm figure is misread by the tool, not by the detector.** `tools/report_card.py`
 judges an event by the size of the hour it sits on. An overnight-gap event sits on the first
@@ -306,10 +330,10 @@ the report card to judge an overnight event by its gap against the usual gap.
 > goes through the same checks and rarity rungs as an hour. A fund's gap is compared with its
 > usual gap after the *same kind of close*, a Monday with other Mondays, because a weekend's
 > gap is typically about a sixth bigger than a weeknight's. A gap after a midweek holiday is
-> judged as a weeknight's. If the gap is the rarer of the two
-> readings, it becomes that day's event and the message says so ("−4.21% at the open", "at the
-> open after the weekend", or "at the weekly open" for a currency). Otherwise the first hour keeps the event, and there is
-> still only one event per instrument per day. A gap is left unscored whenever it might not be
+> judged as a weeknight's. If the gap is the rarer of the two readings, or equally rare and the
+> bigger move, it becomes that day's event and the message says so ("−4.21% at the open", "at
+> the open after the weekend", or "at the weekly open" for a currency). Otherwise the first hour
+> keeps the event, and there is still only one event per instrument per day. A gap is left unscored whenever it might not be
 > a real market move: when the fund's dividends for that day have not been confirmed, on a
 > stock split, or when the stored data is missing the last bar before the close. Crypto never
 > closes, so it has no gap.
@@ -345,7 +369,7 @@ the report card to judge an overnight event by its gap against the usual gap.
 - `architecture.md`, `CLAUDE.md`, `decisions.md` and `operations.md` all say a rebuild takes
   "about two minutes". A cold run of all four stages is now about 2.5–3 minutes locally, and
   longer on GitHub's runners.
-- `CLAUDE.md` says "~820 tests, about four minutes". It is now 885 tests, about six minutes.
+- `CLAUDE.md` says "~820 tests, about four minutes". It is now 886 tests, about six minutes.
 - `CLAUDE.md`'s table of documents does not list this file, so an agent starting fresh will not
   know to read it.
 
