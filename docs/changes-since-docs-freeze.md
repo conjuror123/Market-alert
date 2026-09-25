@@ -58,6 +58,14 @@ of 72%, 48 s instead of 74 s. With no book, an invalid one or a new series, the 
 **Belongs in:** `architecture.md` (derived data, warm runs); `operations.md` (cache);
 `CLAUDE.md` "Working locally".
 
+## No alpha in the block rule
+
+`r = beta·F + e`: the fit is through zero, with no drift term. 500 hours can't measure a drift
+of about 0.004% an hour, so subtracting it only added noise. An instrument with no peers keeps
+its whole move as its own. Events 9,690 → 9,704, pushes unchanged (13 borderline in, 13 out).
+
+**Belongs in:** `architecture.md` "2." (draft below).
+
 ## Numbers
 
 | | at the freeze | now |
@@ -84,6 +92,15 @@ own move. Left out, the count is about 96. **Open:** judge them by the gap.
 > A gap is left unscored when it might not be the market (an unconfirmed dividend, a split, a
 > missing bar before the close). Crypto never closes, so it has no gap.
 
+**`architecture.md`, "2.":**
+
+> **2. Separate the block's move.** Each hour, the system asks what the rest of the block did
+> (`F`, the typical move of the other members) and how strongly this instrument usually
+> follows it (`beta`), and splits the move in two: `r = beta·F + e`. `beta` is re-learned every
+> hour from the previous 500 hours, which stop 3 hours before the hour being judged, so the
+> move being judged can never teach the system what normal is. `beta·F` is the block's share;
+> `e` is the instrument's own move, the part the block did not explain.
+
 **`architecture.md`, derived data:**
 
 > Only the bars are committed. Everything computed from them (metrics, residuals, the events
@@ -106,7 +123,7 @@ own move. Left out, the count is about 96. **Open:** judge them by the gap.
 
 - `architecture.md` says "Six commands"; `CLAUDE.md` lists four.
 - "About two minutes" for a rebuild (four docs): now 2.5–3 minutes locally.
-- `CLAUDE.md`: "~820 tests, about four minutes" is now 885 tests, about six minutes; its table of
+- `CLAUDE.md`: "~820 tests, about four minutes" is now 886 tests, about six minutes; its table of
   documents doesn't list this file.
 
 ## To watch
