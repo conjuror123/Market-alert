@@ -15,7 +15,7 @@ Newest first.
 
 ## 7. At the same rarity rung, the bigger move takes the morning
 
-**Commit:** `7f21387`. **Changes alerts:** yes, which bar describes an event; not which events exist.
+**Commit:** `8b3ca8d`. **Changes alerts:** yes, which bar describes an event; not which events exist.
 
 **What.** The overnight gap used to take a morning's event only when it reached a strictly
 higher rarity rung than the first hour. At the same rung the first hour kept the event, whatever
