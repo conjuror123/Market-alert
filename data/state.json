@@ -30,7 +30,6 @@
           "twelvedata_TLT:1790258400",
           "twelvedata_MBB:1790258400",
           "twelvedata_LQD:1790168400",
-          "twelvedata_HYG:1789995600",
           "twelvedata_UNG:1790258400",
           "twelvedata_NZD_USD:1790042400",
           "coinbase_LTC-USD:1790215200",
@@ -38,14 +37,14 @@
         ],
         "from": 1789949100,
         "hashes": [
-          "d698d4e11264ccbf",
-          "2bb83ba87c6abb25"
+          "9a372ab2bb836327",
+          "51fafa86f340419d"
         ],
         "ids": [
           30,
           50
         ],
-        "rows": 13,
+        "rows": 12,
         "to": 1790381100
       }
     },
@@ -106,7 +105,7 @@
         "id": 38
       },
       "twelvedata_USD_CHF:1790233200": {
-        "hash": "4439dc0ff02dec77",
+        "hash": "a7c8cebbac4d4254",
         "hour": 1790233200,
         "id": 44
       }
@@ -133,7 +132,7 @@
       "twelvedata_USD_CHF:1790233200": {
         "hour_utc": 1790233200,
         "message_id": 44,
-        "text_hash": "4439dc0ff02dec77",
+        "text_hash": "a7c8cebbac4d4254",
         "written": [
           "today"
         ]
