@@ -222,9 +222,11 @@ def overlay(frame: pd.DataFrame, gap: "pd.DataFrame | None",
             last_day_closed: bool = False) -> pd.DataFrame:
     """The hourly frame with each gap that out-ranks its first bar written onto it.
 
-    Strictly out-ranks: at the same tier the first hour keeps the row, so a
-    morning the hourly series already reported is not re-described. Every other
-    row is untouched, and so is every row when the gap fired nothing.
+    Out-ranks: a higher tier takes the row. At the SAME tier the bigger price
+    move takes it - the gap as a move from the last close to the first print,
+    the hour as its own move - because that is the one the reader would call
+    what happened that morning; on an exact tie the first hour keeps it. Every
+    other row is untouched, and so is every row when the gap fired nothing.
 
     Retention on a claimed row is (gap + CAR over the hourly bars from the first
     one to the horizon) / gap - the night is interval zero. Raw on `r`, abnormal
@@ -247,7 +249,9 @@ def overlay(frame: pd.DataFrame, gap: "pd.DataFrame | None",
     claim = fired.reindex(hours[here])
     own = severity.rank(frame["tier"].iloc[here].reset_index(drop=True)).fillna(0)
     theirs = severity.rank(claim["tier"].reset_index(drop=True)).fillna(0)
-    wins = (theirs > own).to_numpy(dtype=bool)
+    bigger = (np.abs(claim["r"].to_numpy(dtype="float64"))
+              > np.abs(frame["r"].to_numpy(dtype="float64")[here]))
+    wins = ((theirs > own) | ((theirs == own) & (own > 0) & bigger)).to_numpy(dtype=bool)
     if not wins.any():
         return out
     rows = here[wins]

@@ -250,13 +250,23 @@ def test_a_gap_that_out_ranks_the_first_bar_claims_it():
     assert out.drop(index=row.name)["r"].eq(0.001).all()
 
 
-def test_the_first_hour_keeps_a_row_it_ranks_at_or_above():
+def test_the_first_hour_keeps_a_row_it_ranks_above():
     frame = hourly(tiers={5: "major"})
-    same = gaps.overlay(frame, gap_row(6 * HOUR, "major"))
-    below = gaps.overlay(frame, gap_row(6 * HOUR, "high"))
-    for out in (same, below):
-        assert not out["overnight"].any()
-        assert out.loc[5, "r"] == pytest.approx(0.05)
+    out = gaps.overlay(frame, gap_row(6 * HOUR, "high", r=-0.20))
+    assert not out["overnight"].any()
+    assert out.loc[5, "r"] == pytest.approx(0.05)
+
+
+def test_at_the_same_tier_the_bigger_move_takes_the_row():
+    # The first hour moved 5%. A gap of 4% at the same tier leaves it the
+    # hour's; a gap of 6% takes it; an exact tie stays with the hour.
+    frame = hourly(tiers={5: "major"})
+    smaller = gaps.overlay(frame, gap_row(6 * HOUR, "major", r=-0.04))
+    bigger = gaps.overlay(frame, gap_row(6 * HOUR, "major", r=-0.06))
+    tied = gaps.overlay(frame, gap_row(6 * HOUR, "major", r=-0.05))
+    assert not smaller["overnight"].any() and not tied["overnight"].any()
+    assert bigger.loc[5, "overnight"]
+    assert bigger.loc[5, "r"] == pytest.approx(-0.06)
 
 
 def test_retention_counts_the_night_as_interval_zero():
