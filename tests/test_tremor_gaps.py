@@ -122,13 +122,11 @@ def test_a_gap_knows_what_kind_of_close_came_before_it():
     before = [_utc(last) for _, last, _ in cases]
     assert gaps.gap_kinds(np.array(hours), np.array(before)).tolist() == [
         kind for _, _, kind in cases]
-    assert gaps.kind_groups(["night", "weekend", "holiday"]).tolist() == [
-        "night", "closed", "closed"]
 
 
 def test_the_kind_scale_is_one_where_there_is_one_kind():
     values = pd.Series(np.random.default_rng(4).normal(0, 0.01, 3000))
-    out = residuals.kind_scale(values, np.full(3000, "closed"))
+    out = residuals.kind_scale(values, np.full(3000, "weekend"))
     assert (out == 1.0).all()
 
 
@@ -137,12 +135,12 @@ def test_the_kind_scale_learns_each_kind_s_share_causally():
     # two-to-one shape, and must not read the row it is scaling.
     rng = np.random.default_rng(5)
     n = 4000
-    kinds = np.where(np.arange(n) % 5 == 0, "closed", "night")
-    values = rng.normal(0, 0.01, n) * np.where(kinds == "closed", 2.0, 1.0)
+    kinds = np.where(np.arange(n) % 5 == 0, "weekend", "night")
+    values = rng.normal(0, 0.01, n) * np.where(kinds == "weekend", 2.0, 1.0)
     out = residuals.kind_scale(pd.Series(values), kinds)
 
     late = np.arange(n) > 3000
-    ratio = out[late & (kinds == "closed")].mean() / out[late & (kinds == "night")].mean()
+    ratio = out[late & (kinds == "weekend")].mean() / out[late & (kinds == "night")].mean()
     assert ratio == pytest.approx(2.0, rel=0.1)
     # Too few closes of a kind yet: judged as it always was.
     assert (out[:windows.GAP_KIND_MIN_SAME_KIND] == 1.0).all()
@@ -187,6 +185,29 @@ def test_a_monday_is_judged_against_other_mondays():
     assert z[monday].mean() == pytest.approx(z[~monday].mean(), rel=0.1)
 
 
+def test_a_gap_after_a_midweek_holiday_is_not_scored():
+    # Two or three a year: too few to know what one usually is, so the gap is
+    # left out - of the scoring and of every yardstick - and that morning's
+    # first hour is judged as it always was.
+    spy = asset()
+
+    class Basket:
+        instruments = (spy,)
+
+    frame = _sessions(1500)
+    days = pd.to_datetime(frame["hour_utc"], unit="s", utc=True).dt.tz_convert(
+        "America/New_York")
+    wednesday = days.dt.date == pd.Timestamp("2014-07-02").date()
+    thursday = _utc("2014-07-03 09:30")
+    assert wednesday.sum() == 2
+    out = gaps.mornings(Basket(), {spy.asset_id: frame[~wednesday]})[spy.asset_id]
+
+    assert thursday not in set(out["hour_utc"])
+    assert set(out["gap_kind"]) == {"night", "weekend"}
+    kept = gaps.mornings(Basket(), {spy.asset_id: frame})[spy.asset_id]
+    assert thursday in set(kept["hour_utc"])
+
+
 def test_a_currency_pair_s_gap_is_always_the_weekend_and_unscaled():
     pair = asset(ticker="USD/CAD", block="FX", session_template="fx_continuous")
 
@@ -202,7 +223,7 @@ def test_the_residual_is_divided_by_its_own_kind_scale():
     frame = pd.DataFrame({"hour_utc": np.arange(1500) * 86400,
                           "r": np.random.default_rng(7).normal(0, 0.01, 1500),
                           "close": 100.0})
-    kinds = np.where(np.arange(1500) % 5 == 0, "closed", "night")
+    kinds = np.where(np.arange(1500) % 5 == 0, "weekend", "night")
     plain = residuals.residuals(asset(), frame, template=windows.DAILY_SERIES)
     kinded = residuals.residuals(asset(), frame, template=windows.DAILY_SERIES,
                                  kinds=kinds)

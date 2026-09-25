@@ -214,7 +214,7 @@ def _weekly(event: dict) -> bool:
 
 
 def _gap_kind(event: dict) -> str:
-    """What kind of close came before a gap: "night", "weekend" or "holiday".
+    """What kind of close came before a gap: "night" or "weekend".
 
     Carried on the row by tremor.gaps, because the usual gap quoted beside it is
     the usual gap of THAT kind - a Monday is judged against other Mondays. A row
@@ -233,8 +233,6 @@ def _open_words(event: dict) -> "tuple[str, str]":
     kind = _gap_kind(event)
     if kind == "weekend":
         return "at the open after the weekend", "weekend gap"
-    if kind == "holiday":
-        return "at the open after the holiday", "holiday gap"
     return "at the open", "overnight gap"
 
 

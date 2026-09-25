@@ -42,14 +42,19 @@ years and fourteen years, so a gap pass inheriting the fund's template would
 learn "normal" from a decade and a half and could never be exact on a warm run.
 It runs on windows.DAILY_SERIES instead, the 83-day memory the VIX already uses.
 
-EACH KIND OF CLOSE HAS ITS OWN USUAL SIZE. A fund's gap follows a weeknight, a
-weekend or a holiday, and a Monday's is typically 1.17x a Tuesday's; one pooled
-yardstick would make every Monday a little more unusual than it is. So each row
-carries its `gap_kind`, and both readings are judged against their kind: the
-raw gap's `sigma_lt` is the pooled level times this kind's long-run share of it
+EACH KIND OF CLOSE HAS ITS OWN USUAL SIZE. A fund's gap follows a weeknight or
+a weekend, and a Monday's is typically 1.17x a Tuesday's; one pooled yardstick
+would make every Monday a little more unusual than it is. So each row carries
+its `gap_kind`, and both readings are judged against their kind: the raw gap's
+`sigma_lt` is the pooled level times this kind's long-run share of it
 (residuals.kind_scale), and the residual takes the same ratio of its own into
 its divisor. See windows.GAP_KIND_MEMORY_SESSIONS. A pair's gap is always the
 weekend, so for FX the ratio is one.
+
+A gap after a midweek holiday is not scored at all. There are two or three a
+year, too few to learn what one usually is, and borrowing the weekend's
+yardstick made them fire three times their share. That morning's first hour is
+judged as it always was.
 
 AND IT IS NEVER WARM. The whole morning history is some six thousand rows per
 fund and a quarter of a million in total, which scores from scratch in about a
@@ -112,7 +117,8 @@ def mornings(basket: Basket, metrics: "dict[str, pd.DataFrame]"
     `sigma_lt` is the fund's long-run spread of gaps OF THIS KIND - the pooled
     spread times `gap_scale`, this kind's share of it - causal like every other
     sigma here (ewma.long_run_sigma shifts inside). `gap_kind` says what kind
-    of close came before: "night", "weekend" or "holiday".
+    of close came before: "night" or "weekend". A gap after a holiday is left
+    out - see the module docstring.
     """
     out: dict[str, pd.DataFrame] = {}
     for asset in basket.instruments:
@@ -133,8 +139,10 @@ def mornings(basket: Basket, metrics: "dict[str, pd.DataFrame]"
         rows["gap_kind"] = (gap_kinds(rows["hour_utc"].to_numpy(), before)
                             if asset.session_template == "us_equity"
                             else "weekend")
-        rows["gap_scale"] = residuals.kind_scale(rows["r"],
-                                                 kind_groups(rows["gap_kind"]))
+        rows = rows[rows["gap_kind"] != "holiday"].reset_index(drop=True)
+        if rows.empty:
+            continue
+        rows["gap_scale"] = residuals.kind_scale(rows["r"], rows["gap_kind"])
         rows["sigma_lt"] = (ewma.sigma_lt(rows["r"], TEMPLATE).to_numpy()
                             * rows["gap_scale"].to_numpy())
         rows["asset_id"] = asset.asset_id
@@ -147,7 +155,7 @@ def gap_kinds(hours, before) -> np.ndarray:
     session's first bar and of the bar before it: "night" when the sessions are
     consecutive days, "weekend" when a Saturday lies between (a long weekend
     too), "holiday" for any other longer close - Thanksgiving's Friday, a
-    Wednesday Fourth of July."""
+    Wednesday Fourth of July. The last are not scored; see mornings."""
     def dates(values):
         return (pd.to_datetime(pd.Series(values, dtype="float64"), unit="s", utc=True)
                 .dt.tz_convert("America/New_York").dt.tz_localize(None)
@@ -160,13 +168,6 @@ def gap_kinds(hours, before) -> np.ndarray:
     to_saturday = (5 - last.dt.weekday.to_numpy()) % 7
     weekend = (to_saturday >= 1) & (to_saturday < days)
     return np.where(days <= 1, "night", np.where(weekend, "weekend", "holiday"))
-
-
-def kind_groups(kinds) -> np.ndarray:
-    """The kinds the yardstick is learned over: a weeknight, and any longer
-    close. Holidays are too few to have a ratio of their own - see
-    windows.GAP_KIND_MEMORY_SESSIONS."""
-    return np.where(np.asarray(kinds, dtype=object) == "night", "night", "closed")
 
 
 def score(basket: Basket, metrics: "dict[str, pd.DataFrame]", tiers) -> GapPass:
@@ -193,7 +194,7 @@ def score(basket: Basket, metrics: "dict[str, pd.DataFrame]", tiers) -> GapPass:
             own = factors[asset_id]
         with_residuals = residuals.residuals(by_id[asset_id], frame, own,
                                              template=TEMPLATE,
-                                             kinds=kind_groups(frame["gap_kind"]))
+                                             kinds=frame["gap_kind"].to_numpy())
         scored[asset_id] = residuals.score_residuals(with_residuals, W_GAP)
     scored = residuals.standardise_cross_section(scored)
     scored = tiers(scored, {a.asset_id: a.block for a in basket.instruments})

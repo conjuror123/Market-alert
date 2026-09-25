@@ -217,21 +217,20 @@ HOUR_SCALE_MIN_SAME_HOUR = 100
 
 # --- what kind of close came before a gap, for tremor.gaps ------------------
 #
-# A US fund's opening gap follows a weeknight, a weekend or a holiday, and they
-# are not the same size. Measured on the stored bars across the 44 funds, the
-# typical gap after a weekend is 1.17x a weeknight's (0.95x TIP to 1.60x UNG),
-# after a holiday or a long weekend larger still - where one pooled yardstick
-# makes every Monday look a little more unusual than it is and every weeknight
-# a little less. Not three nights' worth of news, which would be 1.7x: most of
+# A US fund's opening gap follows a weeknight or a weekend, and they are not the
+# same size. Measured on the stored bars across the 44 funds, the typical gap
+# after a weekend is 1.17x a weeknight's (0.95x TIP to 1.60x UNG) - where one
+# pooled yardstick makes every Monday look a little more unusual than it is and
+# every weeknight a little less. Not three nights' worth of news, which would be 1.7x: most of
 # what moves a price over a weekend is the same few headlines a weeknight has.
 #
 # So the gap is judged against the usual gap of ITS KIND of close, the same way
 # a fund's opening hour is judged against other openings: the level from every
 # gap, the shape - this kind's spread over all kinds' - learned per fund over a
 # long memory, because the shape is a property of the calendar and not of the
-# month. Two kinds, a weeknight and any longer close: some 1,000 weekends per
-# fund steady the ratio, the 200-odd holidays alone would not, and a holiday
-# gap behaves like a weekend one in having more than a night behind it. The
+# month. Some 1,000 weekends per fund steady the ratio. A midweek holiday comes
+# two or three times a year - far too few to learn its own - so its gap is not
+# scored at all (tremor.gaps); a long weekend counts as a weekend. The
 # memory is counted in sessions on the calendar every kind shares, so the
 # weeknight and the weekend spread forget at the same pace; 100 closes of a
 # kind - about two years - before that kind's ratio is used, and a ratio of one

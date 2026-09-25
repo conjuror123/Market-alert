@@ -105,8 +105,8 @@ def catalog(monkeypatch) -> dict[str, str]:
         retention_today=None, retention_settled=None)
     spy_monday = dict(spy_open, event_id="twelvedata_SPY:monday",
                       gap_kind="weekend")
-    equity_holiday = dict(equity_open, event_id="block_equity:holiday",
-                          gap_kind="holiday")
+    equity_weekend = dict(equity_open, event_id="block_equity:weekend",
+                          gap_kind="weekend")
     cad_weekend = event(
         event_id="twelvedata_USD_CAD:open", asset_id="twelvedata:USD/CAD",
         block="FX", tier="major", channel="push", basis="absolute",
@@ -145,8 +145,8 @@ def catalog(monkeypatch) -> dict[str, str]:
             equity_open, labels, None, _history(equity_open), digest_now),
         "push_monday_gap": md.format_push(
             spy_monday, labels, None, _history(spy_monday), digest_now),
-        "block_holiday_gap": md.format_push(
-            equity_holiday, labels, None, _history(equity_holiday), digest_now),
+        "block_weekend_gap": md.format_push(
+            equity_weekend, labels, None, _history(equity_weekend), digest_now),
         "floor_ticker": (
             "Floor for BKLN is now 2.1x.\n"
             "A line has opened about 1.8 times a year "
@@ -216,17 +216,17 @@ def test_every_message_shape_follows_the_copy_rules(monkeypatch, tmp_path):
     assert "the biggest weekend gap since" in fx_gap
     assert "overnight" not in fx_gap
 
-    # A fund's gap after a weekend or a holiday is judged against gaps of that
+    # A fund's gap after a weekend is judged against gaps of that
     # kind, and the yardstick says so; the record stays "opening", since it is
     # the last gap of any kind this unusual.
     monday = samples["push_monday_gap"]
     assert "SPY -4.21% at the open after the weekend" in monday
     assert "usual weekend gap" in monday and "overnight" not in monday
     assert "the biggest opening gap since" in monday
-    holiday = samples["block_holiday_gap"]
-    assert "· -3.41% at the open after the holiday" in holiday
-    assert "a typical member's usual holiday gap" in holiday
-    assert "overnight" not in holiday
+    block_weekend = samples["block_weekend_gap"]
+    assert "· -3.41% at the open after the weekend" in block_weekend
+    assert "a typical member's usual weekend gap" in block_weekend
+    assert "overnight" not in block_weekend
 
     for name, text in samples.items():
         if name == "digest":
