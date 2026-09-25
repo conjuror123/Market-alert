@@ -15,7 +15,7 @@ Newest first.
 
 ## 6. A gap is judged against gaps after the same kind of close
 
-**Commit:** `4088a07`. **Changes alerts:** yes.
+**Commits:** `4088a07`, `d9e5af3`. **Changes alerts:** yes.
 
 **What.** A US fund's opening gap follows a weeknight, a weekend or a holiday, and all three
 were scored against one "usual gap". A gap after a weekend is typically 1.17× a weeknight's
@@ -23,27 +23,52 @@ were scored against one "usual gap". A gap after a weekend is typically 1.17× a
 a price over a weekend is the same few headlines a weeknight has. With one yardstick, Mondays
 fired too often and weeknights too rarely.
 
-- Each morning now carries its kind: **night**, **weekend** (a Saturday lies between, so a long
-  weekend counts too) or **holiday** (any other longer close: Thanksgiving's Friday, a midweek
-  Fourth of July).
+- Each morning now carries its kind: **night**, or **weekend** (a Saturday lies between, so a
+  long weekend counts too).
 - The usual gap is the fund's recent level of gaps × this kind's long-run share of it, learned
-  per fund over 500 sessions: the same idea as the time-of-day scale for the first hour. Two
-  groups: weeknight, and any longer close. Holidays alone are too few (about 200 per fund) for
-  a ratio of their own. Until a fund has seen 100 longer closes (about two years), its ratio is
-  1. Both readings use it: the gap against the usual gap of its kind, and the "compared with its
-  block" residual against the usual residual of its kind.
+  per fund over 500 sessions: the same idea as the time-of-day scale for the first hour. Until
+  a fund has seen 100 weekends (about two years), its ratio is 1. Both readings use it: the gap
+  against the usual gap of its kind, and the "compared with its block" residual against the
+  usual residual of its kind.
+- **A gap after a midweek holiday is not scored at all** (the Friday after Thanksgiving, a
+  midweek Fourth of July): about 1% of mornings, two or three a year. That's too few to learn
+  what one usually is, and borrowing the weekend's yardstick made them fire 3× their share.
+  They are left out of the scoring and of every yardstick. That morning's first hour is judged
+  as it always was.
 - Currency pairs: the gap is always the weekend, so the ratio is exactly 1 and nothing changed.
   Measured: identical FX gap events.
-- It is still always computed over the full history. The gap pass takes 7 s instead of 6 s.
-- **Messages** for a fund: "−4.21% at the open after the weekend", "9.0× usual weekend gap";
-  after a holiday, "at the open after the holiday" and "usual holiday gap". The record line
-  stays "the biggest opening gap since…", because the record is the last gap of any kind that
-  was this unusual for its own kind. The event table has a new column, `gap_kind`.
+- It is still always computed over the full history. The gap pass takes 7–8 s instead of 6 s.
+- **Messages** for a fund after a weekend: "−4.21% at the open after the weekend", "9.0× usual
+  weekend gap". The record line stays "the biggest opening gap since…". The record is the last
+  opening gap of any kind that was at least this unusual for its own kind, so it reaches back
+  through the whole history, not only through other Mondays. The event table has a new column,
+  `gap_kind`.
 
-**Measured** (cold pass, whole history):
+**Measured** (cold pass, whole history, US funds):
 
 | gap events | before | after | share of mornings |
 |---|---|---|---|
+| after a weeknight | 382 (60%) | 502 (76%) | 78% |
+| after a weekend | 217 (34%) | 162 (24%) | 21% |
+| after a midweek holiday | 29 (4.5%) | not scored | 1% |
+| pushes: weeknight / weekend / holiday | 44 / 50 / 3 | 57 / 39 / – | |
+
+- Each kind's share of gap events now matches its share of mornings.
+- Totals barely move: events 9,638 → 9,662, pushes 1,313 → 1,311 (56.4 → 56.3 a year).
+- Removing holidays reshuffled a few borderline rungs (holiday gaps had fed the fund's rungs and
+  weekend yardstick). SPY's 2024-08-05 gap drops from major (push) to high (digest). XLK and QQQ
+  still push that morning.
+- Hourly events are untouched except on the mornings where the gap now takes or gives back the
+  day's event.
+- The 44 funds' learned weekend ratios end at a median 1.17, matching the direct measurement
+  on the bars.
+
+**Belongs in:**
+- `architecture.md` "1. The return": the drafted text below now includes it.
+- `decisions.md`: why holidays are not scored, and why the record line stays "opening gap".
+- `README.md`: the numbers table.
+
+---|---|---|---|
 | after a weeknight | 382 (60%) | 497 (74%) | 78% |
 | after a weekend | 217 (34%) | 160 (24%) | 21% |
 | after a holiday | 29 (4.5%) | 20 (3%) | 1% |
@@ -247,17 +272,18 @@ the "before" column.
 
 | | before (freeze) | now |
 |---|---|---|
-| pushes | 1,352, 58.1 a year, on 36.6 days a year | 1,314, **56.4 a year**, on 33.2 days a year |
+| pushes | 1,352, 58.1 a year, on 36.6 days a year | 1,311, **56.3 a year**, on 33.2 days a year |
 | reached you | 94.4% of 216 obvious hours, 12 silent | **94.4%** of 216, 12 silent |
-| false alarms | 85 (0.007%) | 234 (0.020%) as printed; see below |
+| false alarms | 85 (0.007%) | 232 (0.020%) as printed; see below |
 | held up at the next close | 74.3% | **74.3%** |
 
 **The false-alarm figure is misread by the tool, not by the detector.** `tools/report_card.py`
 judges an event by the size of the hour it sits on. An overnight-gap event sits on the first
-bar, whose own in-hour move is often small, because the gap was the move. 138 of the 234 are
-exactly that. Counted like-for-like (overnight events left out) it is 96, against 85 before.
-The time-of-day change made no difference to it (221 both before and after). The gap-kind
-change moved it 221 → 234, all of it overnight events (like-for-like 97 → 96). **Open:** teach
+bar, whose own in-hour move is often small, because the gap was the move. Most of the 232 are
+exactly that: counted like-for-like (overnight events left out) it was 96 after the gap-kind
+change, against 85 before the gap existed. The time-of-day change made no difference to it
+(221 both before and after). The gap-kind change moved it to 234, all of it overnight events
+(like-for-like 97 → 96); leaving holidays unscored brought it to 232. **Open:** teach
 the report card to judge an overnight event by its gap against the usual gap.
 
 ---
@@ -277,7 +303,8 @@ the report card to judge an overnight event by its gap against the usual gap.
 > fund have very different nights, and a currency's weekend is different again. The gap then
 > goes through the same checks and rarity rungs as an hour. A fund's gap is compared with its
 > usual gap after the *same kind of close*, a Monday with other Mondays, because a weekend's
-> gap is typically about a sixth bigger than a weeknight's. If the gap is the rarer of the two
+> gap is typically about a sixth bigger than a weeknight's. A gap after a midweek holiday is
+> not scored: there are too few of them to know what one usually is. If the gap is the rarer of the two
 > readings, it becomes that day's event and the message says so ("−4.21% at the open", "at the
 > open after the weekend", or "at the weekly open" for a currency). Otherwise the first hour keeps the event, and there is
 > still only one event per instrument per day. A gap is left unscored whenever it might not be
@@ -316,7 +343,7 @@ the report card to judge an overnight event by its gap against the usual gap.
 - `architecture.md`, `CLAUDE.md`, `decisions.md` and `operations.md` all say a rebuild takes
   "about two minutes". A cold run of all four stages is now about 2.5–3 minutes locally, and
   longer on GitHub's runners.
-- `CLAUDE.md` says "~820 tests, about four minutes". It is now 884 tests, about six minutes.
+- `CLAUDE.md` says "~820 tests, about four minutes". It is now 885 tests, about six minutes.
 - `CLAUDE.md`'s table of documents does not list this file, so an agent starting fresh will not
   know to read it.
 
