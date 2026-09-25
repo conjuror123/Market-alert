@@ -37,8 +37,8 @@
         ],
         "from": 1789949100,
         "hashes": [
-          "ece78547e8f686a2",
-          "579f6b365445b669"
+          "c6f963499600142b",
+          "5fbd6853c9785b36"
         ],
         "ids": [
           30,
@@ -110,7 +110,7 @@
         "id": 19
       },
       "twelvedata_USD_CHF:1790233200": {
-        "hash": "0db4402e118dde70",
+        "hash": "209219dd4d4aff09",
         "hour": 1790233200,
         "id": 44
       }
@@ -137,7 +137,7 @@
       "twelvedata_USD_CHF:1790233200": {
         "hour_utc": 1790233200,
         "message_id": 44,
-        "text_hash": "0db4402e118dde70",
+        "text_hash": "209219dd4d4aff09",
         "written": [
           "today"
         ]
