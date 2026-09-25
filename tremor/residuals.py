@@ -8,7 +8,7 @@ same event - which is exactly how the current bot's hourly signal behaves.
 
 So the move of the instrument's own block is subtracted from the return:
 
-    r = alpha + beta_block * B + e
+    r = beta_block * B + e
 
 and only the residual e goes forward. Beta is estimated on a rolling window and
 strictly on data BEFORE the current bar - otherwise the very move we are trying
@@ -53,29 +53,27 @@ def rolling_beta(returns: pd.Series, factor: pd.Series,
 
     The coefficients are shifted forward by one bar - the estimate available AT
     moment t is built on data up to and including the previous bar.
+
+    NO INTERCEPT. The fit is through zero: beta = sum(r*F) / sum(F^2). An
+    intercept here would be the instrument's average hourly move the block does
+    not explain, and 500 hours cannot measure it - a fund's real drift is about
+    0.004% an hour, the error of its estimate 0.005-0.01%. Subtracting it added
+    a small random wobble to every residual and removed nothing real.
     """
     joint = pd.DataFrame({"r": returns, "f": factor}).dropna()
     if len(joint) < minimum:
-        return pd.DataFrame({"alpha": np.nan, "beta": np.nan}, index=returns.index)
+        return pd.DataFrame({"beta": np.nan}, index=returns.index)
 
-    rolling = joint.rolling(window, min_periods=minimum)
-    mean_r = rolling["r"].mean()
-    mean_f = rolling["f"].mean()
-    var_f = rolling["f"].var(ddof=1)
-    cov = rolling.cov().unstack()[("r", "f")]
+    def rolling_sum(values: pd.Series) -> pd.Series:
+        return values.rolling(window, min_periods=minimum).sum()
 
-    beta = (cov / var_f).where(var_f > 0)
-    alpha = mean_r - beta * mean_f
-    # The estimation-window moments travel with the coefficients: Patell's
-    # inflation needs the window's size and the factor's spread within it, and
-    # they must come from the SAME window the coefficients did.
-    count = rolling["f"].count()
+    sum_rf = rolling_sum(joint["r"] * joint["f"])
+    sum_ff = rolling_sum(joint["f"] ** 2)
+    beta = (sum_rf / sum_ff).where(sum_ff > 0)
+    # The factor's spread within the window travels with the coefficient:
+    # Patell's inflation needs it, and it must come from the SAME window.
     gap = windows.REGRESSION_GAP_BARS
-    estimates = pd.DataFrame({
-        "alpha": alpha.shift(gap), "beta": beta.shift(gap),
-        "n_est": count.shift(gap),
-        "f_mean": mean_f.shift(gap), "f_var": var_f.shift(gap),
-    })
+    estimates = pd.DataFrame({"beta": beta.shift(gap), "f_ss": sum_ff.shift(gap)})
     return estimates.reindex(returns.index)
 
 
@@ -88,24 +86,21 @@ def patell_scale(estimates: pd.DataFrame, factor: pd.Series) -> pd.Series:
     by an in-sample sigma therefore understates the scale and overstates the
     score. Patell's correction is the ratio of the two:
 
-        Var(forecast error) = s^2 * [ 1 + 1/L + h_t ]
+        Var(forecast error) = s^2 * [ 1 + h_t ],   h_t = F_t^2 / sum(F^2)
 
-    with L the estimation window's size and h_t the LEVERAGE of the current
-    factor values - how far they sit from the window's own centre, in units of
-    the window's spread. The leverage term is the one that matters here, and it
+    for a fit through zero, with h_t the LEVERAGE of the current factor value -
+    how far it sits from zero, against the window's own spread. The leverage term is the one that matters here, and it
     matters most exactly when the system is most likely to fire: on a violent
     hour the factor is far from its average, the fitted beta is extrapolating,
     and the residual is genuinely noisier than usual. Not correcting for it
     inflates the score precisely on the days the detector is asked about.
 
     """
-    n = estimates.get("n_est")
-    if n is None or "f_var" not in estimates:
+    if "f_ss" not in estimates:
         return pd.Series(1.0, index=factor.index)
 
-    df = factor - estimates["f_mean"]
-    leverage = df ** 2 / ((n - 1) * estimates["f_var"])
-    inflation = 1.0 + 1.0 / n + leverage
+    leverage = factor ** 2 / estimates["f_ss"]
+    inflation = 1.0 + leverage
     # Never smaller than one: the forecast error cannot be tighter than the
     # in-sample residual, and a negative leverage means the window was
     # degenerate rather than that the bar was easy to predict.
@@ -327,25 +322,23 @@ def residuals(asset: Asset, frame: pd.DataFrame,
     """
     out = frame.copy()
     if out.empty:
-        return out.assign(alpha=pd.Series(dtype="float64"),
-                          beta_block=pd.Series(dtype="float64"),
+        return out.assign(beta_block=pd.Series(dtype="float64"),
                           e_resid=pd.Series(dtype="float64"),
                           e_resid_w=pd.Series(dtype="float64"),
                           sigma_lt_resid=pd.Series(dtype="float64"))
 
     if block_factor is None:
-        # No peers, so no factor and no slope to fit: the model collapses to a
-        # drift constant and the residual is the return less that drift. This is
-        # not a failure mode to guard against - it is what an instrument with an
-        # empty block is entitled to, and it makes its abnormal channel agree
-        # with its absolute one, which is the honest answer when there is nothing
-        # to compare it with.
+        # No peers, so no factor and no slope to fit: the residual is the return
+        # itself. This is not a failure mode to guard against - it is what an
+        # instrument with an empty block is entitled to, and it makes its
+        # abnormal channel agree with its absolute one, which is the honest
+        # answer when there is nothing to compare it with. The same burn-in as a
+        # fitted beta, so an instrument is not scored from its first bar.
         block_series = pd.Series(np.nan, index=out.index)
+        known = out["r"].shift(1).rolling(windows.REGRESSION_WINDOW,
+                                          min_periods=windows.REGRESSION_MIN).count()
         estimates = pd.DataFrame({
-            "alpha": out["r"].shift(1).rolling(
-                windows.REGRESSION_WINDOW,
-                min_periods=windows.REGRESSION_MIN).mean(),
-            "beta_block": 0.0, "n_est": np.nan, "f_mean": np.nan, "f_var": np.nan,
+            "beta_block": np.where(known >= windows.REGRESSION_MIN, 0.0, np.nan),
         }, index=out.index)
     else:
         block_series = pd.Series(block_factor.reindex(out["hour_utc"]).to_numpy(),
@@ -353,21 +346,17 @@ def residuals(asset: Asset, frame: pd.DataFrame,
         estimates = rolling_beta(out["r"], block_series).rename(
             columns={"beta": "beta_block"})
 
-    out["alpha"] = estimates["alpha"].to_numpy()
     out["beta_block"] = estimates["beta_block"].to_numpy()
     # The move, split into the two things it can be, adding back exactly to r.
     # Carried as columns rather than recomputed later because the message shows
     # them: "of that move, this much was its block moving and this much was the
     # instrument itself" is the only form of this idea a reader has ever been
     # able to act on, and it cannot be reconstructed downstream - the factor
-    # series lives only here.
-    #
-    # Alpha rides with the block part. It is a drift constant of a few tenths of
-    # a basis point, it belongs with "the general background" rather than with
-    # the instrument's own move, and folding it in is what makes the two parts
-    # sum to the return with nothing left over.
-    out["co_block"] = (out["alpha"] + out["beta_block"] * block_series).fillna(
-        out["alpha"])
+    # series lives only here. An hour whose block has no reading (too few peers
+    # trading) credits the block with nothing; an hour with no beta yet has no
+    # split at all.
+    out["co_block"] = (out["beta_block"] * block_series).where(
+        block_series.notna(), 0.0).where(out["beta_block"].notna())
     out["e_resid"] = out["r"] - out["co_block"]
 
     # Patell's inflation, carried as a column rather than folded into e_resid:

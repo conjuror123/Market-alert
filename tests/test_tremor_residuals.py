@@ -187,12 +187,12 @@ def test_block_beta_is_recovered():
     assert out["beta_block"].dropna().iloc[-1] == pytest.approx(2.5, abs=0.01)
 
 
-def test_an_instrument_with_no_peers_is_left_with_its_own_drift():
+def test_an_instrument_with_no_peers_is_left_with_its_own_move():
     # A block of one has no leave-one-out median, so there is no factor to fit.
-    # That is not an error state: the model collapses to a drift constant, the
-    # residual is the return less that drift, and the abnormal channel agrees
-    # with the absolute one - which is the honest answer when there is nothing
-    # to compare the instrument with.
+    # That is not an error state: the residual is the return itself, and the
+    # abnormal channel agrees with the absolute one - the honest answer when
+    # there is nothing to compare the instrument with. Not from the first bar,
+    # though: the same burn-in as a fitted beta.
     rng = np.random.default_rng(15)
     moves = rng.normal(0.001, 0.02, 900)
     frame = frame_with(list(moves))
@@ -201,9 +201,26 @@ def test_an_instrument_with_no_peers_is_left_with_its_own_drift():
     settled = out.dropna(subset=["e_resid"])
 
     assert (settled["beta_block"] == 0.0).all()
-    assert settled["alpha"].iloc[-1] == pytest.approx(0.001, abs=0.002)
-    assert settled["e_resid"].iloc[-1] == pytest.approx(
-        moves[-1] - settled["alpha"].iloc[-1], abs=1e-12)
+    assert "alpha" not in out
+    np.testing.assert_allclose(settled["e_resid"], settled["r"])
+    assert out["e_resid"].iloc[:windows.REGRESSION_MIN].isna().all()
+
+
+def test_the_block_rule_has_no_drift_term():
+    # An instrument that is its block times 1.5 plus a steady drift: the fit
+    # through zero finds the 1.5, and the drift stays in the instrument's own
+    # move rather than being estimated - badly - and subtracted.
+    rng = np.random.default_rng(17)
+    block_move = rng.normal(0, 0.01, 900)
+    frame = frame_with(list(1.5 * block_move + 0.0002))
+    block = pd.Series(block_move, index=frame["hour_utc"])
+
+    out = residuals.residuals(asset(), frame, block)
+    settled = out.dropna(subset=["e_resid"])
+    assert settled["beta_block"].iloc[-1] == pytest.approx(1.5, abs=0.05)
+    np.testing.assert_allclose(settled["co_block"],
+                               settled["beta_block"] * block.to_numpy()[settled.index])
+    assert settled["e_resid"].mean() == pytest.approx(0.0002, abs=0.0002)
 
 
 def test_the_two_parts_of_the_move_add_back_to_it():

@@ -114,10 +114,9 @@ def test_an_asset_with_no_peers_in_the_panel_is_null_not_zero():
 
 # --- Patell's prediction-error inflation -----------------------------------
 
-def _est(n=200, f_mean=0.0, f_var=1e-4, index=None):
+def _est(f_ss=200 * 1e-4, index=None):
     index = range(3) if index is None else index
-    return pd.DataFrame({"n_est": float(n), "f_mean": f_mean, "f_var": f_var},
-                        index=index)
+    return pd.DataFrame({"f_ss": f_ss}, index=index)
 
 
 def test_the_inflation_is_never_below_one():
@@ -128,47 +127,41 @@ def test_the_inflation_is_never_below_one():
     assert (out >= 1.0).all()
 
 
-def test_a_factor_at_its_average_costs_only_the_estimation_term():
-    # At the window's centre the leverage vanishes and all that is left is
-    # 1 + 1/L, the cost of having estimated the mean at all.
-    factor = pd.Series([0.0, 0.0, 0.0])
-    out = residuals.patell_scale(_est(n=200), factor)
-    assert out.iloc[0] == pytest.approx(np.sqrt(1 + 1 / 200), rel=1e-9)
+def test_a_quiet_factor_costs_nothing():
+    # Through zero there is no mean to estimate: at a factor of zero the
+    # forecast error is exactly as wide as the in-sample residual.
+    out = residuals.patell_scale(_est(), pd.Series([0.0, 0.0, 0.0]))
+    assert out.iloc[0] == pytest.approx(1.0)
 
 
 def test_an_extreme_factor_value_inflates_the_scale():
-    # The term the plan says matters most: on a violent hour the factor is far
-    # from its estimation-window average, the beta extrapolates, and the
-    # residual is genuinely noisier than the in-sample sigma suggests.
+    # On a violent hour the factor is far from anything in its window, the
+    # beta extrapolates, and the residual is genuinely noisier than the
+    # in-sample sigma suggests.
     quiet = residuals.patell_scale(_est(), pd.Series([0.0, 0.0, 0.0]))
     wild = residuals.patell_scale(_est(), pd.Series([0.10, 0.10, 0.10]))
     assert wild.iloc[0] > quiet.iloc[0]
 
 
 def test_the_inflation_matches_the_textbook_formula():
-    n, f_var, value = 250.0, 4e-4, 0.05
-    out = residuals.patell_scale(_est(n=n, f_var=f_var), pd.Series([value] * 3))
-    expected = np.sqrt(1 + 1 / n + value ** 2 / ((n - 1) * f_var))
-    assert out.iloc[0] == pytest.approx(expected, rel=1e-12)
+    # Var(forecast error) = s^2 (1 + F^2 / sum F^2) for a fit through zero.
+    f_ss, value = 250 * 4e-4, 0.05
+    out = residuals.patell_scale(_est(f_ss=f_ss), pd.Series([value] * 3))
+    assert out.iloc[0] == pytest.approx(np.sqrt(1 + value ** 2 / f_ss), rel=1e-12)
 
 
-def test_leverage_grows_with_distance_from_the_window_centre():
-    # The whole point of the correction: a bar judged where the factor sits far
-    # from its estimation window's average is a bar where the fitted beta is
-    # extrapolating, and its forecast error is genuinely wider than an in-sample
-    # residual. Not correcting inflates the score exactly on the violent hours
-    # the detector is asked about.
+def test_leverage_grows_with_distance_from_zero():
     index = range(1)
-    est = pd.DataFrame({"n_est": 200.0, "f_mean": 0.0, "f_var": 1e-4}, index=index)
+    est = _est(f_ss=200 * 1e-4, index=index)
     near = residuals.patell_scale(est, pd.Series([0.002], index=index)).iloc[0]
     far = residuals.patell_scale(est, pd.Series([0.02], index=index)).iloc[0]
 
     assert far > near > 1.0
-    assert far == pytest.approx(np.sqrt(1 + 1 / 200 + 0.02 ** 2 / (199 * 1e-4)))
+    assert far == pytest.approx(np.sqrt(1 + 0.02 ** 2 / (200 * 1e-4)))
 
 
 def test_a_frame_without_the_moments_is_left_alone():
-    # Older residual frames carry no n_est; they must not blow up, and an
+    # Older residual frames carry no f_ss; they must not blow up, and an
     # uncorrected scale of one is the honest fallback.
     factor = pd.Series([0.01, 0.02])
     out = residuals.patell_scale(pd.DataFrame(index=factor.index), factor)
