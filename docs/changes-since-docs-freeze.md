@@ -15,7 +15,7 @@ Newest first.
 
 ## 6. A gap is judged against gaps after the same kind of close
 
-**Commits:** `4088a07`, `d9e5af3`, `e876cd4`. **Changes alerts:** yes.
+**Commits:** `1548418`, `0f43598`, `71a3440`. **Changes alerts:** yes.
 
 **What.** A US fund's opening gap follows a weeknight, a weekend or a holiday, and all three
 were scored against one "usual gap". A gap after a weekend is typically 1.17× a weeknight's
@@ -33,7 +33,7 @@ fired too often and weeknights too rarely.
 - **A gap after a midweek holiday counts as a weeknight** (the Friday after Thanksgiving, a
   midweek Fourth of July): about 1% of mornings, two or three a year. That's too few to learn a
   yardstick of their own. On the weekend's yardstick they fired 3× their share. One missed
-  session is closer to a night than to a weekend. (Briefly, in `d9e5af3`, they were left
+  session is closer to a night than to a weekend. (Briefly, in `0f43598`, they were left
   unscored instead. That lost real mornings such as 2014-11-28, when OPEC declined to cut and
   USO, BNO and the energy block pushed, so it was reverted.)
 - Currency pairs: the gap is always the weekend, so the ratio is exactly 1 and nothing changed.
