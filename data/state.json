@@ -38,7 +38,7 @@
         ],
         "from": 1789949100,
         "hashes": [
-          "b8b17eeda30b5b0b",
+          "9612acc05ee9239e",
           "a6164917cdeb388e"
         ],
         "ids": [
@@ -47,62 +47,20 @@
         ],
         "rows": 13,
         "to": 1790381100
+      },
+      "1790381100": {
+        "events": [],
+        "from": 1790381100,
+        "hashes": [
+          "99a0915bdcd5a7d6"
+        ],
+        "ids": [
+          54
+        ],
+        "to": 1790553900
       }
     },
-    "pings": {
-      "coinbase_LINK-USD:1790272800": {
-        "hash": "f89ba746bab14bb8",
-        "id": 51
-      },
-      "coinbase_LTC-USD:1790215200": {
-        "hash": "f11322982b4466b6",
-        "id": 43
-      },
-      "twelvedata_BKLN:1790348400": {
-        "hash": "da554c1bde4f8c8a",
-        "id": 52
-      },
-      "twelvedata_IEF:1790168400": {
-        "hash": "a0f15adad05e3ef5",
-        "id": 41
-      },
-      "twelvedata_IEF:1790258400": {
-        "hash": "3085129b2596d6ff",
-        "id": 45
-      },
-      "twelvedata_IEI:1790168400": {
-        "hash": "1d4f55bf39e1adb3",
-        "id": 40
-      },
-      "twelvedata_LQD:1790168400": {
-        "hash": "05867e280e5849b3",
-        "id": 42
-      },
-      "twelvedata_MBB:1790258400": {
-        "hash": "e9e2bfa67573eb79",
-        "id": 48
-      },
-      "twelvedata_NZD_USD:1790042400": {
-        "hash": "7d8a0addf1935087",
-        "id": 37
-      },
-      "twelvedata_SHY:1790168400": {
-        "hash": "a92306d6b0e26588",
-        "id": 39
-      },
-      "twelvedata_TLH:1790258400": {
-        "hash": "6b905ef003d65efc",
-        "id": 46
-      },
-      "twelvedata_TLT:1790258400": {
-        "hash": "efe4496030ff5b1e",
-        "id": 47
-      },
-      "twelvedata_UNG:1790258400": {
-        "hash": "118f2e2005df3f41",
-        "id": 49
-      }
-    },
+    "pings": {},
     "sent": {
       "coinbase_BCH-USD:1790078400": {
         "hash": "defa61dd4ff88ec8",
@@ -145,6 +103,6 @@
       }
     }
   },
-  "weekly_digest:last_refreshed": "2026-09-25",
-  "weekly_digest:last_sent_week": "1789776300"
+  "weekly_digest:last_refreshed": "2026-09-26",
+  "weekly_digest:last_sent_week": "1790381100"
 }
