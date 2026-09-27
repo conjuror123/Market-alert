@@ -1,16 +1,13 @@
 """Assembly of per-asset metrics: layer A + layer B.
 
 Runs one instrument through the whole phase 1-2 chain: quality gate -> return
-channels -> winsorization -> EWMA Z-score and adaptive thresholds. The result
-goes into metrics_asset_hour.
+channels -> winsorization -> the long-run sigma and the short-memory EWMA state.
+The result goes into metrics_asset_hour.
 
 THE HOURLY RUN EXTENDS RATHER THAN RECOMPUTES. Every window here is bounded -
-the longest is sigma_lt at windows.SIGMA_LT_BARS, with the EWMA under it
-converging inside four w_asset - so windows.warm_bars of lead-in is enough for
-the new rows to come out exactly as a full run would have them. On SPY, EUR/USD
-and BTC-USD the largest relative difference in any column is 1.8e-14, which is
-float64 accumulation order rather than a disagreement, and the chain runs 5 to 12
-times faster than putting all 145,000 bars through it again.
+the longest is the long-run sigma's span, with the EWMA state under it
+converging inside its burn-in - so windows.warm_bars of lead-in is enough for
+the new rows to come out exactly as a full run would have them.
 
 See extend_asset_metrics for when that is NOT safe and the whole thing is rebuilt
 instead - a changed configuration, a store that does not reach back far enough,
@@ -35,44 +32,6 @@ log = logging.getLogger("tremor.pipeline")
 
 DEFAULT_METRICS_DIR = os.path.join("data", "tremor", "metrics")
 
-# Exchange timezone by session template. bars_per_session counts a trading day
-# in the instrument's own zone, not the basket's New York anchor.
-TEMPLATE_TZ = {
-    "us_equity": "America/New_York",
-    "fx_continuous": "America/New_York",
-    "crypto_24_7": "UTC",
-}
-
-
-def bars_per_session(asset: Asset, usable: pd.DataFrame,
-                     anchor_tz: str = "America/New_York") -> float:
-    """B_asset: the median number of valid bars in the asset's TRADING DAY.
-
-    It is measured, not declared: W_asset, the adaptive-threshold window, is
-    computed from it, and an error here would mean a window of the wrong length
-    for every threshold at once.
-
-    Counted over the exchange's calendar days, NOT over the continuous sessions of
-    returns.session_ids. These are two different notions, and confusing them is
-    expensive. For the gap channel a session is a stretch of uninterrupted
-    trading: for a currency pair a whole week, for round-the-clock crypto the
-    entire history in one piece. Substitute that length here and crypto gets a
-    B_asset near fifty thousand and a threshold window of six million bars - it
-    never fills, the thresholds stay undefined, and no breaches occur at all.
-    Exactly that happened: zero breaches across 49632 Bitcoin bars.
-
-    What is needed here is a day: 120 * B_asset means "one hundred and twenty
-    trading days", which is 7 bars a day for an ETF and 24 for a currency pair or
-    crypto.
-    """
-    if usable.empty:
-        return 0.0
-    tz = TEMPLATE_TZ[asset.session_template]
-    local_days = pd.to_datetime(usable["hour_utc"], unit="s", utc=True).dt.tz_convert(
-        tz).dt.date
-    return float(local_days.value_counts().median())
-
-
 def build_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
                         session_table: dict[date, sessions.Session],
                         dividends=None) -> pd.DataFrame:
@@ -91,9 +50,7 @@ def build_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
     channels = returns.split_channels(asset, usable, basket.anchor_exchange_tz,
                                       dividends, session_table)
     winsorised = returns.winsorize(asset, channels)
-
-    b_asset = bars_per_session(asset, usable, basket.anchor_exchange_tz)
-    scored = zscore.compute(winsorised, windows.w_asset(b_asset))
+    scored = zscore.compute(winsorised)
 
     scored["asset_id"] = asset.asset_id
     scored["block"] = asset.block
@@ -104,8 +61,7 @@ def build_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
 METRIC_COLUMNS = [
     "hour_utc", "asset_id", "block", "tier", "close", "volume",
     "r", "r_w", "is_session_open", "gap",
-    "sigma_lt", "mad_eff", "z", "sigma_eff", "q95", "q99",
-    "breach_q95", "breach_q99",
+    "sigma_lt", "mad_eff", "sigma_eff",
 ]
 
 
@@ -172,13 +128,11 @@ def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
     window. Every caller must handle it, because a wrong extension is silent.
 
     WHY THIS IS EXACT rather than merely close. Every window in the chain is
-    bounded: the longest is sigma_lt at windows.SIGMA_LT_BARS, and the EWMA
-    underneath it converges inside four w_asset. windows.warm_bars is the sum,
-    and it is the same function saed already uses to decide how far back its own
-    run must reach. Recomputing the last warm_bars bars and keeping only what is
-    newer than the store therefore reproduces a full run - measured on SPY,
-    EUR/USD and BTC-USD, the largest relative difference in any column was
-    1.8e-14, which is float64 accumulation order and not a disagreement.
+    bounded: the longest is the long-run sigma's span, and the EWMA state
+    underneath it converges inside its burn-in. windows.warm_bars covers both,
+    and it is the same function saed uses to decide how far back its own run
+    must reach. Recomputing the last warm_bars bars and keeping only what is
+    newer than the store therefore reproduces a full run.
 
     THE LAST RECOMPUTE_TAIL_BARS ROWS ARE NEVER TRUSTED, only the ones behind
     them. The newest rows were written by runs that scored an hour before it had
@@ -217,9 +171,7 @@ def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
     if fresh.empty:
         return stored          # the bars do not even reach the store; leave it
 
-    bars_per = bars_per_session(asset, frame, basket.anchor_exchange_tz)
-    window = windows.warm_bars(windows.w_asset(bars_per),
-                               template=asset.session_template)
+    window = windows.warm_bars(asset.session_template)
     lead = frame[frame["hour_utc"] <= newest].tail(window)
     if len(lead) < window:
         return None            # not enough history behind the new bars to be exact
@@ -285,8 +237,7 @@ def build_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
             metrics_path(metrics_dir, asset.file_stem),
             versioning.stamp(stored, config, run))
         result[asset.asset_id] = metrics
-        log.info("%s: bars %d, Q95 breaches %s, Q99 %s", asset.asset_id, len(metrics),
-                 int(metrics["breach_q95"].sum()), int(metrics["breach_q99"].sum()))
+        log.info("%s: bars %d", asset.asset_id, len(metrics))
     return result
 
 
@@ -322,7 +273,7 @@ def _pool_init(bars_dir: str, metrics_dir: str, versions: tuple[str, str],
     )
 
 
-def _pool_one(payload: "tuple[Asset, Basket]") -> "tuple[str, int, int, int, bool] | None":
+def _pool_one(payload: "tuple[Asset, Basket]") -> "tuple[str, int, bool] | None":
     asset, basket = payload
     from tremor import versioning
 
@@ -363,11 +314,9 @@ def _pool_one(payload: "tuple[Asset, Basket]") -> "tuple[str, int, int, int, boo
     # saying the same thing. `is not existing` rather than a row count, so this
     # cannot skip a write that changed the rows without adding any.
     if extended and metrics is existing:
-        return (asset.asset_id, len(metrics), int(metrics["breach_q95"].sum()),
-                int(metrics["breach_q99"].sum()), extended)
+        return (asset.asset_id, len(metrics), extended)
     atomic.write_parquet(path, metrics)
-    return (asset.asset_id, len(metrics), int(metrics["breach_q95"].sum()),
-            int(metrics["breach_q99"].sum()), extended)
+    return (asset.asset_id, len(metrics), extended)
 
 
 def write_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
@@ -405,10 +354,10 @@ def write_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
         for outcome in pool.map(_pool_one, payloads):
             if outcome is None:
                 continue
-            asset_id, rows, q95, q99, was_extended = outcome
+            asset_id, rows, was_extended = outcome
             written += 1
             extended += bool(was_extended)
-            log.info("%s: bars %d, Q95 breaches %s, Q99 %s%s", asset_id, rows, q95, q99,
+            log.info("%s: bars %d%s", asset_id, rows,
                      "" if was_extended else "  (rebuilt whole)")
     log.info("%d of %d instruments extended from the stored metrics", extended, written)
     return written

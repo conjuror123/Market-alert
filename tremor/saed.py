@@ -62,13 +62,6 @@ class SaedEvent:
     block: str
     hour_utc: int          # T0_single - the hour of the first firing
     peak_hour_utc: int     # the hour the event reached the tier it is reported at
-    # Whether the non-parametric rank test agrees that the bar is extreme. A
-    # separate axis from `basis`, which says which channel CLAIMED the event:
-    # this says whether a test sharing none of their assumptions concurs.
-    rank_confirms: "bool | None"
-    # Whether the residual mean-reverts fast enough for the move to be read as
-    # idiosyncratic rather than as a factor the model does not have.
-    ou_reverts: "bool | None"
     z_resid: float
     e_resid: float
     # The move, split into the two things it can be, summing back to r exactly
@@ -146,56 +139,6 @@ def _record_since(frame: pd.DataFrame, basis) -> np.ndarray:
     return abnormal.mask(whole_move, absolute).to_numpy(dtype=object)
 
 
-def _flag(value) -> "bool | None":
-    """pandas boolean NA is not False - an hour whose rank window has not filled
-    has not disagreed, it has not spoken."""
-    return None if value is None or value is pd.NA else bool(value)
-
-
-def withdraw_unconfirmed(frame: pd.DataFrame,
-                         sources: dict[str, str] = TIER_SOURCES) -> pd.DataFrame:
-    """Drops an abnormal-only claim the non-parametric rank test contradicts.
-
-    Practical significance beside statistical significance. The abnormal channel
-    is a t-statistic, so it says "large RELATIVE TO the peers this hour" - and
-    when the peers are asleep that ratio is large for a move of six basis points.
-    67 of 581 pushes fired on a move below the instrument's own median hour, and
-    65 of those 67 were abnormal-only.
-
-    Corrado's rank test is the right second opinion because it shares none of
-    that machinery: it ranks this bar against the instrument's own recent bars
-    and never estimates a variance, which is exactly the quantity thin trading
-    distorts (Campbell & Wasley 1993). So an abnormal-only hour that the ranks
-    put outside the top 1% of its own window has its abnormal claim withdrawn
-    and is re-combined; if the absolute channel also fired, the hour was never
-    abnormal-only and this does not touch it.
-
-    THAT LAST CLAUSE KEEPS THE RULE SAFE IN A CRISIS. The rank test is itself
-    misspecified when variance jumps - precisely when the absolute channel fires
-    - so the gate lifts exactly where the rank test stops being trustworthy. Of
-    24 pushes in October 2008 it removes one, of 15 in March 2020 none, and it
-    silences none of the 1,256 events in the top 0.1% of any instrument's hours.
-
-    An hour whose rank window has not filled has NOT disagreed - `rank_confirms`
-    is NA there, and NA is not a contradiction.
-    """
-    if "rank_confirms" not in frame or "basis" not in frame:
-        return frame
-    abnormal = sources.get("abnormal")
-    if abnormal not in frame:
-        return frame
-
-    disagrees = frame["rank_confirms"].eq(False).fillna(False).to_numpy(dtype=bool)
-    alone = frame["basis"].eq("abnormal").fillna(False).to_numpy(dtype=bool)
-    withdraw = disagrees & alone
-    if not withdraw.any():
-        return frame
-
-    out = frame.copy()
-    out[abnormal] = out[abnormal].mask(withdraw, pd.NA)
-    return severity.combine(out, sources)
-
-
 def triggers(frame: pd.DataFrame) -> pd.Series:
     """The event-generation condition: the move cleared its own noticeable return level.
 
@@ -211,14 +154,21 @@ def triggers(frame: pd.DataFrame) -> pd.Series:
     whether a move was UNEXPLAINED, never whether it was LARGE, and the two come
     apart at the bottom: an instrument that ticked +0.03% while its block went
     the other way has a residual its own history finds remarkable, and a reader
-    does not. Every event below one times its own usual hour is abnormal-only -
-    240 of 9,069, about eleven a year.
+    does not.
 
     So a move must also clear `min_move_sigma` times the instrument's own
-    sigma_LT. This is separate from `sensitivity` on purpose: turning rarity down
-    far enough to silence these would silence genuinely small instruments too. A
-    bar with no sigma_LT yet is not filtered - it has not failed the test, it has
-    not taken it.
+    sigma_LT - two usual hours by default. A raw-ladder rung is several usual
+    hours already, so in practice this filters the abnormal channel alone. It
+    used to be one usual hour with Corrado's rank test behind it, and the two
+    did one job twice: with the rank test on, the floor caught five events a
+    year; with the floor on, the rank test removed about 120 more, mid-sized
+    ones (1.7 usual hours typically) that held 64% of the time against 70% for
+    those kept. One floor at two usual hours gives the same result - 97% of
+    pushes identical, held 73.9% against 74.2% - with one number instead of a
+    rolling rank. This is separate from `sensitivity` on purpose: turning rarity
+    down far enough to silence these would silence genuinely small instruments
+    too. A bar with no sigma_LT yet is not filtered - it has not failed the
+    test, it has not taken it.
 
     THE FLOOR IS PER INSTRUMENT, and has to be. A rung is the biggest move in its
     own lookback, so every instrument clears one about once per lookback whatever
@@ -351,10 +301,6 @@ def build_events(asset: Asset, frame: pd.DataFrame,
     usual = (frame["sigma_lt"].to_numpy() if "sigma_lt" in frame
              else np.full(len(frame), np.nan))
     tier = frame["tier"].to_numpy(dtype=object)
-    confirms = (frame["rank_confirms"].to_numpy(dtype=object)
-                if "rank_confirms" in frame else np.full(len(frame), None))
-    reverts = (frame["ou_reverts"].to_numpy(dtype=object)
-               if "ou_reverts" in frame else np.full(len(frame), None))
     basis = frame["basis"].to_numpy(dtype=object) if "basis" in frame \
         else np.full(len(frame), "abnormal", dtype=object)
     overnight = (frame["overnight"].fillna(False).to_numpy(dtype=bool)
@@ -416,8 +362,6 @@ def build_events(asset: Asset, frame: pd.DataFrame,
                 events[-1] = SaedEvent(**{**events[-1].__dict__,
                                           "tier": tier[i], "basis": str(basis[i]),
                                           "peak_hour_utc": int(hours[i]),
-                                          "rank_confirms": _flag(confirms[i]),
-                                          "ou_reverts": _flag(reverts[i]),
                                           "z_resid": float(z[i]),
                                           "e_resid": float(e[i]),
                                           "co_block": float(block_part[i]),
@@ -434,8 +378,7 @@ def build_events(asset: Asset, frame: pd.DataFrame,
         events.append(SaedEvent(
             event_id=f"{asset.file_stem}:{int(hours[i])}",
             asset_id=asset.asset_id, block=asset.block, hour_utc=int(hours[i]),
-            peak_hour_utc=int(hours[i]), rank_confirms=_flag(confirms[i]),
-            ou_reverts=_flag(reverts[i]),
+            peak_hour_utc=int(hours[i]),
             z_resid=float(z[i]), e_resid=float(e[i]),
             co_block=float(block_part[i]), r=float(r[i]),
             beta_block=float(beta[i]), repeat_count=0, tier=str(tier[i]),
@@ -463,7 +406,7 @@ def events_frame(events: list[SaedEvent]) -> pd.DataFrame:
                "z_resid", "e_resid", "co_block",
                "r", "beta_block", "repeat_count", "tier", "basis",
                "sigma_lt", "close", "record_since",
-               "rank_confirms", "ou_reverts", "overnight", "gap_kind"]
+               "overnight", "gap_kind"]
     if not events:
         return pd.DataFrame({c: pd.Series(dtype="object" if c in
                                           ("event_id", "asset_id", "block",
@@ -493,12 +436,10 @@ ARCHIVE_COLUMNS = ("event_id", "asset_id", "hour_utc", "tier")
 # of random numbers, and nothing compresses them.
 RESIDUAL_COLUMNS = ("hour_utc", "asset_id", "beta_block", "e_resid",
                     "co_block",
-                    "sigma_lt_resid", "patell_scale", "hour_scale", "t_rank",
-                    "rank_pct",
-                    "rank_confirms", "ou_reversion_bars", "s_score", "ou_reverts",
+                    "sigma_lt_resid", "patell_scale", "hour_scale",
                     "z_resid", "bmp_scale", "bmp_dof",
                     "t_resid", "z_resid_bmp",
-                    "q95_resid", "q99_resid", "tier", "basis", "tier_abnormal",
+                    "tier", "basis", "tier_abnormal",
                     "tier_absolute") + severity.LEVEL_COLUMNS \
                   + severity.level_columns(ABSOLUTE_LEVEL_PREFIX) \
                   + persistence.RETENTION_COLUMNS
@@ -725,9 +666,8 @@ def plan_frames(basket: Basket, metrics: "dict[str, pd.DataFrame]",
     `after` is the record book's checkpoint (see RecordBook): everything the
     run must answer for lies after it, and everything before it that the answer
     depends on is either in the book - the record dates - or inside the warm-up.
-    The warm-up is what makes a bar exact (windows.warm_bars without the record
-    horizon), and for a fund also the hour scale's longer reach
-    (windows.hour_scale_chain).
+    The warm-up is what makes a bar exact (windows.warm_bars), and for a fund
+    also the hour scale's longer reach (windows.hour_scale_chain).
 
     THE SIX YEARS ARE GONE FROM HERE. The slice used to be warm-up PLUS six years,
     and the six years were there for one reason: "the biggest since March 2020"
@@ -735,20 +675,16 @@ def plan_frames(basket: Basket, metrics: "dict[str, pd.DataFrame]",
     it instead - a few dozen bars a series - and the slice shrinks to what the
     arithmetic needs.
     """
-    from tremor import pipeline
-
     trimmed: dict[str, pd.DataFrame] = {}
     for asset in basket.instruments:
         frame = metrics.get(asset.asset_id)
         if frame is None or frame.empty:
             continue
-        bars_per = pipeline.bars_per_session(asset, frame, basket.anchor_exchange_tz)
-        lead = windows.warm_bars(windows.w_asset(bars_per),
-                                 template=asset.session_template)
         # The hour scale reaches further back than anything warm_bars counts,
         # so its chain sets the lead where it is the longer of the two - 22,003
-        # bars against 6,960 for a US fund.
-        lead = max(lead, windows.hour_scale_chain(asset.session_template))
+        # bars against 4,603 for a US fund.
+        lead = max(windows.warm_bars(asset.session_template),
+                   windows.hour_scale_chain(asset.session_template))
         keep = lead + int((frame["hour_utc"] > after).sum())
         trimmed[asset.asset_id] = (frame if len(frame) <= keep
                                    else frame.tail(keep).reset_index(drop=True))
@@ -758,7 +694,7 @@ def plan_frames(basket: Basket, metrics: "dict[str, pd.DataFrame]",
 def score_tiers(scored: "dict[str, pd.DataFrame]",
                 blocks_of: "dict[str, str]",
                 records: "RecordBook | None" = None) -> "dict[str, pd.DataFrame]":
-    """Both ladders, combined, with the rank test's veto - for any scored series.
+    """Both ladders, combined - for any scored series.
 
     Its own function because two series go through it: every instrument's hours,
     and every US fund's overnight gaps (tremor.gaps). A gap is put to exactly the
@@ -795,9 +731,8 @@ def score_tiers(scored: "dict[str, pd.DataFrame]",
                                      block=blocks_of.get(aid),
                                      record_state=book(aid, ABSOLUTE_LEVEL_PREFIX))
               for aid, frame in scored.items()}
-    scored = {aid: severity.combine(frame, TIER_SOURCES)
-              for aid, frame in scored.items()}
-    return {aid: withdraw_unconfirmed(frame) for aid, frame in scored.items()}
+    return {aid: severity.combine(frame, TIER_SOURCES)
+            for aid, frame in scored.items()}
 
 
 def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
@@ -820,10 +755,9 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
     enough to, and is exact only because it does. None leaves every event exactly
     as it was before the gap existed.
     """
-    from tremor import pipeline, residuals, windows as w
+    from tremor import residuals
 
     scored: dict[str, pd.DataFrame] = {}
-    windows_by_asset: dict[str, int] = {}
     for asset in basket.instruments:
         frame = metrics.get(asset.asset_id)
         if frame is None or frame.empty:
@@ -839,18 +773,11 @@ def build_for_basket(basket: Basket, metrics: dict[str, pd.DataFrame],
             column = block_factors[asset.asset_id]
             own_block = column if column.notna().any() else None
         with_residuals = residuals.residuals(asset, frame, own_block)
-        b_asset = pipeline.bars_per_session(asset, frame, basket.anchor_exchange_tz)
-        windows_by_asset[asset.asset_id] = w.w_asset(b_asset)
-        scored[asset.asset_id] = residuals.score_residuals(
-            with_residuals, windows_by_asset[asset.asset_id])
+        scored[asset.asset_id] = residuals.score_residuals(with_residuals)
 
     # The cross-sectional pass needs every asset's Z at once, so it can only run
-    # after the loop - and the thresholds have to be recomputed on the score the
-    # trigger will actually read, or a standardised score would be compared
-    # against an unstandardised yardstick.
+    # after the loop.
     scored = residuals.standardise_cross_section(scored)
-    scored = {aid: residuals.rescore_thresholds(frame, windows_by_asset[aid])
-              for aid, frame in scored.items()}
 
     scored = score_tiers(scored, {a.asset_id: a.block for a in basket.instruments},
                          records)

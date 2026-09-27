@@ -90,10 +90,6 @@ log = logging.getLogger("tremor.gaps")
 # One row a session. See the module docstring for why this and not the fund's own.
 TEMPLATE = windows.DAILY_SERIES
 
-# The adaptive thresholds are computed by score_residuals whatever it is given
-# and read by nothing that decides an event. One trading day per row.
-W_GAP = windows.w_asset(1)
-
 @dataclass(frozen=True)
 class GapPass:
     assets: "dict[str, pd.DataFrame]"   # asset_id -> scored gap rows
@@ -162,9 +158,9 @@ def gap_kinds(hours, before) -> np.ndarray:
 def score(basket: Basket, metrics: "dict[str, pd.DataFrame]", tiers) -> GapPass:
     """The whole morning history, scored from scratch.
 
-    `tiers` is saed's own ladder chain (abnormal and absolute, combined, with the
-    rank test's veto), passed in rather than imported so the two cannot drift:
-    a gap is put to exactly the questions an hour is.
+    `tiers` is saed's own ladder chain (abnormal and absolute, combined), passed
+    in rather than imported so the two cannot drift: a gap is put to exactly the
+    questions an hour is.
     """
     started = time.monotonic()
     morning = mornings(basket, metrics)
@@ -184,15 +180,9 @@ def score(basket: Basket, metrics: "dict[str, pd.DataFrame]", tiers) -> GapPass:
         with_residuals = residuals.residuals(by_id[asset_id], frame, own,
                                              template=TEMPLATE,
                                              kinds=frame["gap_kind"].to_numpy())
-        scored[asset_id] = residuals.score_residuals(with_residuals, W_GAP)
+        scored[asset_id] = residuals.score_residuals(with_residuals)
     scored = residuals.standardise_cross_section(scored)
     scored = tiers(scored, {a.asset_id: a.block for a in basket.instruments})
-    # The OU fit asks whether a residual reverts within a few BARS, and its
-    # windows are written for an hourly series. On one row a session it would
-    # answer a different question under the same name, so it says nothing.
-    scored = {aid: frame.assign(ou_reverts=pd.array([pd.NA] * len(frame),
-                                                    dtype="boolean"))
-              for aid, frame in scored.items()}
 
     # A block's move is a median of member gaps each over its member's usual gap
     # of the kind, so it arrives already judged by kind; it only needs the kind

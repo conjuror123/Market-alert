@@ -3,25 +3,6 @@ import pytest
 from tremor import windows
 
 
-def test_w_asset_scales_with_the_session_length():
-    # A US ETF: 7 bars in a session -> 840. A currency pair: 24 -> 2880. The same
-    # number of bars covers a different stretch of history for each, which is why
-    # the window is derived from B_asset rather than set as a constant.
-    assert windows.w_asset(7) == 840
-    assert windows.w_asset(24) == 2880
-
-
-def test_w_asset_has_a_floor():
-    # On an instrument with a very short session the window must not collapse.
-    assert windows.w_asset(1) == 720
-    assert windows.w_asset(6) == 720
-
-
-def test_w_asset_rejects_a_nonpositive_session():
-    with pytest.raises(ValueError):
-        windows.w_asset(0)
-
-
 def test_sigma_lt_takes_all_history_until_the_cap():
     assert windows.sigma_lt_bars(1000) == 1000
     assert windows.sigma_lt_bars(9000, "us_equity") == windows.sigma_lt_span("us_equity")
@@ -39,3 +20,14 @@ def test_the_ewma_periods_are_the_periods_they_are_named_for():
     # as the arithmetic rather than as 0.08 and 0.0165, which say nothing.
     assert windows.LAMBDA == pytest.approx(2 / 25)
     assert windows.LAMBDA_Q == pytest.approx(2 / 121)
+
+
+def test_the_warm_lead_is_the_chain_the_remaining_stages_need():
+    # The long-run sigma's span, the block regression behind each residual, and
+    # the short-memory burn-in after it - and nothing for the Q95/Q99
+    # thresholds, which were removed with the four windows they added.
+    for template in ("us_equity", "fx_continuous", "crypto_24_7"):
+        assert windows.warm_bars(template) == (
+            windows.sigma_lt_span(template) + windows.REGRESSION_WINDOW
+            + windows.REGRESSION_GAP_BARS + windows.EWMA_BURN_IN_BARS)
+    assert not hasattr(windows, "w_asset")

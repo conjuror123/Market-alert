@@ -41,7 +41,6 @@ def scored(hits, n=40, sigma=0.01, tier="noticeable"):
     frame = pd.DataFrame({
         "hour_utc": [(i + 1) * HOUR for i in range(n)],
         "z_resid": z, "z_resid_bmp": z, "e_resid": e,
-        "q99_resid": [3.0] * n,
         "sigma_lt_resid": [sigma] * n,
         "r": [0.01] * n,
         "beta": [1.0] * n,
@@ -324,52 +323,6 @@ def test_an_instrument_without_a_price_column_is_not_gated():
     assert len(saed.build_events(asset(), frame)) == 1
 
 
-def _rank_frame(basis, confirms, tier="major"):
-    n = len(basis)
-    frame = pd.DataFrame({
-        "hour_utc": [(i + 1) * HOUR for i in range(n)],
-        "tier_abnormal": pd.array([tier] * n, dtype="string"),
-        "tier_absolute": pd.array([pd.NA] * n, dtype="string"),
-        "basis": pd.array(basis, dtype="string"),
-        "rank_confirms": pd.array(confirms, dtype="boolean"),
-    })
-    return frame
-
-
-def _combined(frame):
-    """As the pipeline hands it over: combine() has already set tier and basis."""
-    return severity.combine(frame, saed.TIER_SOURCES)
-
-
-def test_an_abnormal_only_hour_the_ranks_contradict_is_withdrawn():
-    # The abnormal channel is a t-statistic - "large relative to the peers this
-    # hour" - so an asleep block makes six basis points look extreme. The rank
-    # test shares none of that machinery and never estimates a variance, which
-    # is the quantity thin trading corrupts.
-    out = saed.withdraw_unconfirmed(_combined(
-        _rank_frame(["abnormal"] * 4, [True, False, None, True])))
-    assert list(out["tier"].isna()) == [False, True, False, False]
-
-
-def test_the_ranks_do_not_withdraw_an_hour_the_absolute_channel_also_claimed():
-    # If the price itself moved, the hour was never abnormal-only and the whole
-    # objection does not apply - and this is what keeps the rule safe in a
-    # crisis, when the rank test is itself misspecified.
-    frame = _rank_frame(["both"] * 2, [False, False])
-    frame["tier_absolute"] = pd.array(["extreme"] * 2, dtype="string")
-    out = saed.withdraw_unconfirmed(_combined(frame))
-    assert not out["tier"].isna().any()
-    assert list(out["tier"]) == ["extreme", "extreme"]
-
-
-def test_a_rank_window_that_has_not_filled_has_not_disagreed():
-    # pandas NA is not False. An hour whose rank window is still warming up has
-    # said nothing, and silence is not a contradiction.
-    out = saed.withdraw_unconfirmed(_combined(
-        _rank_frame(["abnormal"] * 3, [None, None, None])))
-    assert not out["tier"].isna().any()
-
-
 def test_a_move_smaller_than_its_own_usual_hour_is_not_an_event():
     # The IEI case, found by a reader rather than by a test: +0.03% at half the
     # instrument's usual hour, reported as a once-a-month event because the
@@ -386,6 +339,27 @@ def test_a_move_smaller_than_its_own_usual_hour_is_not_an_event():
     })
     fired = saed.triggers(frame).fillna(False).tolist()
     assert fired == [False, True, False]
+
+
+def test_the_floor_is_two_usual_hours_and_needs_no_rank_test_behind_it():
+    # One floor at two usual hours replaced a floor at one plus Corrado's rank
+    # test: a move of 1.5 usual hours that its residual calls remarkable is not
+    # an event, one of 2.5 is. Read through the committed config, so moving the
+    # number without meaning to fails here.
+    from tremor.basket import load_tuning
+
+    load_tuning.cache_clear()
+    assert load_tuning().min_move_sigma == 2.0
+    frame = pd.DataFrame({
+        "hour_utc": [0, 3600, 7200],
+        "r":        [0.0090, 0.0150, 0.0060],   # 1.5, 2.5 and 1.0 usual hours
+        "sigma_lt": [0.0060, 0.0060, 0.0060],
+        "z_resid_bmp": [9.0, 9.0, 9.0],
+        "level_noticeable": [1.0, 1.0, 1.0],
+        "abs_level_noticeable": [1.0, 1.0, 1.0],
+        "tier": ["high", "high", "high"],
+    })
+    assert saed.triggers(frame).fillna(False).tolist() == [False, True, False]
 
 
 def test_an_instrument_with_no_usual_hour_yet_is_not_filtered_out():

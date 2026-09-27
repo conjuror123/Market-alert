@@ -91,64 +91,22 @@ def test_thresholds_are_smoothed_by_the_specified_recurrence():
     assert q95.iloc[-1] < raw.iloc[-1]
 
 
-def test_breach_needs_both_legs():
-    abs_z = pd.Series([5.0, 5.0, 1.0])
-    abs_r = pd.Series([0.10, 0.001, 0.10])
-    sigma_lt = pd.Series([0.01, 0.01, 0.01])
-    q95 = pd.Series([2.0, 2.0, 2.0])
-    q99 = pd.Series([3.0, 3.0, 3.0])
-
-    out = zscore.breaches(abs_z, abs_r, sigma_lt, q95, q99)
-
-    # Both legs: |Z| > Q99 and |r| >= 3 * sigma_LT.
-    assert bool(out["breach_q99"].iloc[0])
-    # The relative leg passed, the absolute one did not - the move is negligible
-    # by the standards of the whole history, however rare it is for the current
-    # lull.
-    assert not bool(out["breach_q99"].iloc[1])
-    # The absolute leg passed, the relative one did not.
-    assert not bool(out["breach_q99"].iloc[2])
-
-
-def test_q95_leg_is_looser_than_q99():
-    abs_z = pd.Series([2.5])
-    abs_r = pd.Series([0.02])
-    sigma_lt = pd.Series([0.01])
-    out = zscore.breaches(abs_z, abs_r, sigma_lt, pd.Series([2.0]), pd.Series([3.0]))
-
-    assert bool(out["breach_q95"].iloc[0])
-    assert not bool(out["breach_q99"].iloc[0])
-
-
-def test_unevaluated_breach_is_null_not_false():
-    # NULL and False are different things. "The threshold does not exist
-    # yet" cannot be written down as "the threshold was not exceeded".
-    abs_z = pd.Series([5.0, 5.0])
-    abs_r = pd.Series([0.1, 0.1])
-    sigma_lt = pd.Series([np.nan, 0.01])
-    out = zscore.breaches(abs_z, abs_r, sigma_lt, pd.Series([2.0, 2.0]),
-                          pd.Series([3.0, 3.0]))
-
-    assert pd.isna(out["breach_q99"].iloc[0])
-    assert out["breach_q99"].iloc[1] is np.True_ or bool(out["breach_q99"].iloc[1])
-
-
-def test_compute_drops_z_while_sigma_lt_is_unknown():
-    # During the burn-in the denominator has no floor, and on frozen quotes Z
-    # comes out meaningless. Such values must not enter the percentile window -
-    # an hour before first_valid_hour takes no part in the statistics.
+def test_compute_gives_no_scale_while_sigma_lt_is_unknown():
+    # During the burn-in the denominator has no floor, so the state is not
+    # given out at all.
     frame = pd.DataFrame({
         "r": [0.0, 0.0, 0.0, 0.01, 0.01],
         "r_w": [0.0, 0.0, 0.0, 0.01, 0.01],
         "sigma_lt": [np.nan, np.nan, np.nan, 0.01, 0.01],
     })
-    out = zscore.compute(frame, w_asset=2)
+    out = zscore.compute(frame)
+    assert out["sigma_eff"].iloc[:3].isna().all()
+    assert out["sigma_eff"].iloc[3:].notna().all()
 
-    assert out["z"].iloc[:3].isna().all()
-    assert out["z"].iloc[3:].notna().all()
 
-
-def test_compute_on_empty_input_keeps_columns():
-    out = zscore.compute(pd.DataFrame({"r": [], "r_w": [], "sigma_lt": []}), w_asset=10)
-    assert out.empty
-    assert {"z", "q95", "q99", "breach_q95", "breach_q99"} <= set(out.columns)
+def test_compute_keeps_only_what_the_blocks_read():
+    # The price z-score, the Q95/Q99 thresholds and the breach flags fed no
+    # decision and are gone; sigma_eff is what the blocks read.
+    out = zscore.compute(pd.DataFrame({"r": [], "r_w": [], "sigma_lt": []}))
+    assert out.empty and "sigma_eff" in out.columns
+    assert not {"z", "q95", "q99", "breach_q95", "breach_q99"} & set(out.columns)

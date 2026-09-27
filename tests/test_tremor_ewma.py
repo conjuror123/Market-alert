@@ -135,7 +135,7 @@ def test_the_span_reaches_six_half_lives():
     # what it could be, and past six it stops improving (tools/sigma_window.py).
     for template in windows.SIGMA_LT_HALFLIFE_BARS:
         assert windows.sigma_lt_span(template) == 6 * windows.sigma_lt_halflife(template)
-    assert windows.warm_bars(840, template="us_equity") > windows.sigma_lt_span("us_equity")
+    assert windows.warm_bars("us_equity") > windows.sigma_lt_span("us_equity")
 
 
 def test_an_unknown_calendar_is_refused_rather_than_guessed():
@@ -148,8 +148,8 @@ def test_an_unknown_calendar_is_refused_rather_than_guessed():
 def test_a_caller_that_does_not_know_the_calendar_loads_more_not_less():
     # warm_bars without a template is used where the instrument is not in hand.
     # Too much lead-in costs a read; too little costs exactness.
-    assert windows.warm_bars(840) >= max(
-        windows.warm_bars(840, template=t) for t in windows.SIGMA_LT_HALFLIFE_BARS)
+    assert windows.warm_bars() >= max(
+        windows.warm_bars(t) for t in windows.SIGMA_LT_HALFLIFE_BARS)
 
 
 def test_the_floor_never_outruns_the_span():

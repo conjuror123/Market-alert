@@ -28,7 +28,8 @@ LAMBDA = 2 / (24 + 1)
 # bars, EXCLUDING the current one.
 MAD_WINDOW = 24
 
-# Smoothing of the Q95/Q99 thresholds. Period 120 bars.
+# Smoothing of the VIX spike threshold (tremor.vix, the fear-gauge line on the
+# digest note). Period 120 bars.
 LAMBDA_Q = 2 / (120 + 1)
 
 # Long-term sigma. Exponentially weighted, not a box - see
@@ -94,10 +95,6 @@ def sigma_lt_span(template: "str | None" = None) -> int:
         return SIGMA_LT_SPAN_HALFLIVES * max(SIGMA_LT_HALFLIFE_BARS.values())
     return SIGMA_LT_SPAN_HALFLIVES * sigma_lt_halflife(template)
 
-# Volume profile - 20 FULL trading days per local exchange hour; half
-# sessions and holidays are excluded from the profile.
-VOLUME_PROFILE_DAYS = 20
-
 # Regression window on the block factor - in bars where the instrument
 # and the factor are BOTH valid.
 REGRESSION_WINDOW = 500
@@ -116,67 +113,21 @@ REGRESSION_GAP_BARS = 3
 # How much trailing history reproduces a recent bar EXACTLY, so that the hourly
 # run does not have to recompute twenty-three years to learn about one hour.
 #
-# Every per-bar quantity here depends on a bounded stretch of the past. The two
-# that bind are the long-run sigma at SIGMA_LT_BARS, and the adaptive thresholds,
-# whose window is w_asset counted over DEFINED values - which for the residual
-# series, present only on reference hours, spans considerably more rows than
-# that - followed by an EWMA smoother with its own tail.
+# Every per-bar quantity depends on a bounded stretch of the past, and the
+# longest chain is: the block regression (REGRESSION_WINDOW + REGRESSION_GAP_BARS
+# bars behind each residual), then the long-run sigma of that residual (its span
+# of residuals), then the short-memory state fed by it (EWMA_BURN_IN_BARS, after
+# which the starting value weighs about 1e-18). The price metrics need a subset
+# of the same chain - the span and the burn-in - so one number serves both.
 #
-# The multiplier is measured rather than reasoned. Taking the smallest trailing
-# window whose last two hundred bars agree with a full run to one part in a
-# billion:
-#
-#     SPY      41,573 bars   w_asset   840    8,000
-#     XLF      41,558 bars   w_asset   840    6,000
-#     HYG      33,979 bars   w_asset   840    8,000
-#     GLD      38,241 bars   w_asset   840    6,000
-#     BTC-USD  97,585 bars   w_asset 2,880   10,000
-#     ETH-USD  90,176 bars   w_asset 2,880   10,000
-#     EUR/USD 147,083 bars   w_asset 2,880   12,000
-#     USD/JPY 147,031 bars   w_asset 2,880   12,000
-#
-# which is SIGMA_LT_BARS plus about two and a half w_asset. Four is used here,
-# so an ETF takes 8,360 and a currency pair 16,520 - between a third and a half
-# again more than anything measured needed. The cost of being generous is a few
-# seconds; the cost of being tight is a bar that disagrees with the archive.
-# The window is warm-up PLUS a usable span, and the two are kept apart because
-# they answer different questions.
-#
-# The warm-up is what it costs to make a bar exact: the long-run sigma and four
-# times the adaptive-threshold window, per the measurements above. Bars inside
-# it are not wrong in an interesting way, they are simply not finished, and
-# nothing downstream should look at them.
-#
-# NO CALLER PASSES `rate` ANY MORE, and the paragraph below is history. Since the
-# record book (saed.RecordBook) a warm events run keeps each series' "biggest
-# since" lookup between runs and publishes only the fortnight after its
-# checkpoint, so its slice is the warm-up alone plus that fortnight - the
-# drift measured below lived in the published years that were still inside the
-# warm-up, and nothing is published from there now. The function keeps the
-# argument because removing it would move config_version for no change.
-#
-# The usable span is how far back the run must still be RIGHT. A push says "the
-# last one this big was 23 days ago", read off the event table, so the table has
-# to be correct at least as far back as the deepest rung claims - six years -
-# or a once-in-six-years move would name the wrong predecessor or none. It
-# follows severity.RECORD_HORIZON_DAYS rather than a constant, so moving the
-# horizon moves this with it: at six years an ETF must stay exact over 10,519
-# bars where three asked for 5,259, and a warm run costs that much more of the
-# archive. Sizing
-# the window at warm-up alone was measured and rejected: tiers matched exactly
-# within a year and then drifted, 50 of them across the whole window, with 31
-# events appearing that a full run does not produce.
-def trusted_bars(rate: float) -> int:
-    """How many bars back a run must still be exact, at this instrument's rate."""
-    from tremor.severity import RECORD_HORIZON_DAYS
-
-    return int(RECORD_HORIZON_DAYS * 24 * rate)
-
-
-def warm_bars(w_asset_bars: int, rate: float | None = None,
-              template: "str | None" = None) -> int:
-    window = sigma_lt_span(template) + 4 * int(w_asset_bars)
-    return window + trusted_bars(rate) if rate else window
+# It used to add four windows of the Q95/Q99 thresholds, the one piece that
+# needed more; those thresholds fed no decision and were removed, and the lead
+# shrank with them - by more than half for a currency pair or a coin. A US fund's
+# events slice is set by the longer hour-scale chain instead (hour_scale_chain).
+def warm_bars(template: "str | None" = None) -> int:
+    """Bars of lead-in that make every quantity of the newest bar exact."""
+    return (sigma_lt_span(template) + REGRESSION_WINDOW + REGRESSION_GAP_BARS
+            + EWMA_BURN_IN_BARS)
 
 
 # THE PER-ASSET COOLDOWN IS NOT A NUMBER AND SO IS NOT HERE. The twelve bars
@@ -250,75 +201,9 @@ def hour_scale_chain(template: "str | None") -> int:
     span = 6 * HOUR_SCALE_MEMORY_SESSIONS * HOUR_SCALE_BARS_PER_SESSION
     return REGRESSION_WINDOW + REGRESSION_GAP_BARS + span + EWMA_BURN_IN_BARS
 
-# --- cross-sectional windows, in reference-calendar hours -----------------
-
-W_PCA = 120           # PCA window, one trading week
-W_CS = 1200           # window for CSV_norm, PC1_ratio, sigma_M, k_t
-
-# THREE OF THE FOUR BELOW HAVE NO CALLER, marked where they stand rather than
-# removed: this file is a config input hashed as parsed code, so deleting three
-# unread names - or even reordering them - moves config_version and rebuilds
-# every metric cold, for no change in behaviour. Do not read a dead one as live
-# tuning, and do not tune one expecting an effect.
-CLUSTER_COOLDOWN = 72  # DEAD: the cluster detector's cooldown
-VIX_WINDOW = 24        # VIX multiplier window - live, read by vix and delivery
-ESCALATION_DEBOUNCE = 24  # DEAD: escalation debounce
-TRUTH_HORIZON = 24     # DEAD: horizon of the retired truth-labelling protocol
-
-# The percentile the basket's coherence must clear for the single-factor trigger.
-# A starting value, calibrated on the training period: 0.90 fires in 1.12% of
-# hours once the second leg - the basket must actually have shifted - is applied.
-COHERENCE_QUANTILE = 0.90
-
-# The matched-horizon channel (deviation). The triggers are all one-hour
-# statistics, while calibration asks what happens over the following 24 hours; the same
-# basket move accumulated over 24 reference hours is three times more precise
-# than its one-hour form (80% against 25% on train). These two say how far past
-# its own recent history that accumulation and the single-asset event count must
-# reach. Both starred.
-SUSTAINED_WINDOW = 24
-SUSTAINED_QUANTILE = 0.99
-SAED_BREADTH_QUANTILE = 0.98
-REVERSAL_DELAY = 3     # delay before the vector-reversal branch
-
-# Floor under the cluster detector's k_t: the empirical percentile alone would sink so low in a
-# prolonged lull that any wobble would read as a reversal. A starting value; k_t
-# among the parameters calibrated on train.
-REVERSAL_K_MIN = 1.5
-EXPORT_HALF_WINDOW = 12  # event export window around T0
-
-# --- calendar hours: the single exception --------------------
-
-# Hours before and after a release, by (tier, importance). All starting values:
-# calibrates the multiplier's parameters on train.
-#
-# The first numbers tried were 6/3 for High and 4/2 for Medium with no tiering,
-# and on this calendar they do not discriminate. ForexFactory labels impact PER
-# COUNTRY, which yields 823 High-impact releases a year; at a nine-hour window
-# each that is 84.5% of the clock before Medium is counted at all, and the
-# multiplier measured little beyond "a weekday, business hours, somewhere".
-# Splitting by tier and shortening the windows takes the multiplier from covering
-# 59.5% of hours to 17.4%. See docs/decisions.md.
-CALENDAR_WINDOWS = {
-    ("core", "High"): (2.0, 1.0),
-    ("core", "Medium"): (1.0, 0.5),
-    ("other", "High"): (1.0, 0.5),
-    ("other", "Medium"): (0.5, 0.5),
-}
-
-
-def w_asset(bars_per_session: float) -> int:
-    """Window for an asset's Q95/Q99 thresholds: max(120 * B_asset, 720) bars.
-
-    B_asset is the median number of valid bars in that asset's session. It
-    cannot be a constant: a US ETF session yields 7 hourly bars, a currency pair
-    24, and the same window expressed in bars would cover a different stretch of
-    history for each. The floor of 720 bars keeps the window from collapsing on
-    an instrument with a short session.
-    """
-    if bars_per_session <= 0:
-        raise ValueError("B_asset must be positive")
-    return max(int(120 * bars_per_session), 720)
+# How long a VIX spike keeps the fear-gauge line's "stress episode" open, in
+# reference hours - read by tremor.vix and the delivery layer.
+VIX_WINDOW = 24
 
 
 def sigma_lt_bars(available_bars: int, template: "str | None" = None) -> int:
@@ -336,45 +221,9 @@ def sigma_lt_bars(available_bars: int, template: "str | None" = None) -> int:
     return min(sigma_lt_span(template), available_bars)
 
 
-# --- absolute legs of the hybrid significance condition -----------
+# --- the VIX spike test ----------------------------------------------------
 #
-# Starting values, calibrated on the training period.
-# The point of the second, absolute leg is that the relative one is misleading
-# on its own. In a very quiet stretch an asset's own volatility collapses, and a
-# move that is negligible in absolute terms honestly clears its percentile. The
-# absolute leg demands that the move also be large by the standards of the whole
-# available history.
-ABS_LEG_Q99 = 6.0   # |r_t| >= 6.0 * sigma_LT  (*) calibrated on train, spec 3.0
-
-# The absolute leg for the RESIDUAL series. It was always a separate number from
-# the price series' leg, and both start at 3.0; this implementation shared one constant for both,
-# which meant calibrating the price leg silently moved SAED's sensitivity too -
-# and now that the SAED count feeds the cluster score, the search would have been
-# optimising against a channel it was also disturbing without modelling it.
-# Separate constants, one per series. Starting values.
-# Critical value for a standardised abnormal return, two-sided 1%. This is how
-# event studies decide: one standardised statistic against one critical value.
-# The standardisation IS the test - weighting by precision is where the power
-# comes from (Patell 1976, Boehmer et al. 1991) - and no second raw-magnitude
-# filter is part of the standard procedure.
-#
-# We had one, and it was the whole remaining problem. Measured: the relative leg
-# passed 2.3x more often in the widest fifth of hours than the calmest, the raw
-# absolute leg 139.9x. A floor against a slow long-term sigma is no floor at all
-# when the market is loud.
-# The critical value itself has now gone the same way, and for a related reason.
-# One value shared by every instrument answers "is this distinguishable from
-# noise", which is a question about the null hypothesis rather than about the
-# recipient: it made a once-a-decade move in SHY and a Tuesday in SOL come out
-# looking identical. What replaced it is a return level fitted per instrument on
-# its own history - see tremor.severity - so the threshold is no longer a
-# constant and does not live here.
-
-ABS_LEG_RESID = 3.0   # retired from the trigger; kept for the older reports
+# A VIX rise counts as a spike only if it is also large against the series' own
+# long-run sigma, not merely above its recent percentile: in a quiet stretch the
+# percentile sinks and a negligible rise would clear it.
 ABS_LEG_Q95 = 1.5   # |r_t| >= 1.5 * sigma_LT
-
-# Volume confirmation threshold, also a starting value.
-VOLUME_CONFIRM = 2.5
-
-# Below this the scaled volume MAD counts as degenerate.
-VOLUME_MAD_FLOOR = 1e-6

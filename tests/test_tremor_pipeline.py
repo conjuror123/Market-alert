@@ -88,7 +88,7 @@ def test_extending_gives_the_same_answer_as_recomputing_everything(tmp_path):
         b = pd.read_parquet(pl.metrics_path(str(part), asset.file_stem))
         assert a.shape == b.shape, asset.ticker
         assert a["hour_utc"].tolist() == b["hour_utc"].tolist(), asset.ticker
-        for column in ("r", "sigma_lt", "z", "sigma_eff", "q99"):
+        for column in ("r", "sigma_lt", "sigma_eff", "r_w", "mad_eff"):
             x, y = a[column].to_numpy(float), b[column].to_numpy(float)
             ok = np.isfinite(x) & np.isfinite(y)
             worst = np.abs(x[ok] - y[ok]) / np.maximum(np.abs(x[ok]), 1e-12)
@@ -194,8 +194,6 @@ def test_added_rows_are_stamped_before_they_are_concatenated(monkeypatch):
     })
     frame = pd.DataFrame({"hour_utc": [100, 200, 300]})
     monkeypatch.setattr(pl, "RECOMPUTE_TAIL_BARS", 1)
-    monkeypatch.setattr(pl, "bars_per_session", lambda *a, **k: 1)
-    monkeypatch.setattr(pl.windows, "w_asset", lambda *_: 1)
     monkeypatch.setattr(pl.windows, "warm_bars", lambda *_, **__: 1)
     monkeypatch.setattr(
         pl, "build_asset_metrics",

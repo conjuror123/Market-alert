@@ -2,10 +2,8 @@
 
 The basket composition is not approved without this table, and that is
 no formality: almost every window parameter is expressed in an asset's
-VALID TRADING BARS rather than in calendar time. How many bars an instrument has
-in a day is exactly the B_asset from which W_asset = max(120 * B_asset, 720) is
-computed - the window of the adaptive Q95/Q99 thresholds. Without measuring it on
-real data, the window size would have to be guessed.
+VALID TRADING BARS rather than in calendar time, so how many bars an instrument
+has in a day decides how much history each window really covers.
 
 The report answers three questions - depth of history, presence and
 comparability of hourly volume, integrity of the series - and prints them as
@@ -157,25 +155,22 @@ def render(rows: list[dict], vix: dict | None) -> str:
             continue
         out += [f"## {title}", "",
                 "| Instrument | Block | Tier | Interval | Bars | Period | Days | "
-                "Bars per day | W_asset | Price step | Source precision | "
+                "Bars per day | Price step | Source precision | "
                 "Volume=0 | Max gap, h | Notes |",
-                "|---|---|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---|"]
+                "|---|---|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---|"]
         for r in sorted(subset, key=lambda x: (x["block"], -x["tier"], x["ticker"])):
             head = (f"| `{r['ticker']}` | {r['block']} | {r['tier']} | {r['interval']} | "
                     f"{r['rows']:,} |")
             if not r["rows"]:
                 # An instrument without a single bar is a result in itself, not
                 # a reason to crash the report on formatting empty numbers.
-                out.append(head + " — | — | — | — | "
+                out.append(head + " — | — | — | "
                            f"{r['tick_size']:g} | — | — | — | {_flag(r)} |")
                 continue
-            # W_asset - the adaptive-threshold window, a direct
-            # consequence of the bars-per-trading-day figure measured here.
-            w_asset = max(int(120 * r["bars_per_day"]), 720)
             out.append(
                 head +
                 f" {r['first']} .. {r['last']} | {r['days']:,} | "
-                f"{r['bars_per_day']:.0f} | {w_asset:,} | "
+                f"{r['bars_per_day']:.0f} | "
                 f"{r['tick_size']:g} | {r['precision']:g} | "
                 f"{r['zero_volume_pct']:.0f}% | {r['max_gap_hours']} | {_flag(r) or '—'} |"
             )

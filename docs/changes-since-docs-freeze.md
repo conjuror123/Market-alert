@@ -52,8 +52,8 @@ FX); `concerns-for-later.md` (the remaining 2×).
 
 The "biggest since" lookup is saved between runs in `data/tremor/record_book.parquet`
 (gitignored, kept in the Actions cache), as of a checkpoint 14 days back. A warm run reads its
-warm-up plus the bars after the checkpoint and publishes events after it: 40% of bars instead
-of 72%, 48 s instead of 74 s. With no book, an invalid one or a new series, the run goes cold.
+warm-up plus the bars after the checkpoint and publishes events after it: 34% of bars instead
+of 72%, 25 s instead of 74 s. With no book, an invalid one or a new series, the run goes cold.
 
 **Belongs in:** `architecture.md` (derived data, warm runs); `operations.md` (cache);
 `CLAUDE.md` "Working locally".
@@ -66,16 +66,43 @@ its whole move as its own. Events 9,690 → 9,704, pushes unchanged (13 borderli
 
 **Belongs in:** `architecture.md` "2." (draft below).
 
+## Unused stages removed
+
+Computed every run, read by nothing that decides or says anything (removing them gave identical
+events): the reversion ("OU") fit, the instrument and own-move Q95/Q99 thresholds and breach
+flags, the price z-score, and the basket statistics built on it (quorum, basket median,
+dispersion, coherence, PCA sync, the single-factor trigger, `cross_section.main`), plus the
+constants nothing read (`w_asset`, the cluster, volume and calendar settings). Metrics lose
+`z`, `q95`, `q99`, `breach_q95`, `breach_q99`; events lose `ou_reverts`. The VIX keeps its own
+spike threshold, which the fear-gauge line uses.
+
+The warm lead is now what the remaining stages need: long-run sigma span + block regression +
+short-memory burn-in (4,603 bars for a fund, 9,403 for FX, 13,003 for crypto, where it was
+6,960 / 19,920 / 23,520). A fund's events slice is still set by the opening-hour scale (22,003).
+Rebuild from the bars: metrics 12 s, events 87 s (was about 2m15s), locally.
+
+**Belongs in:** `architecture.md` (module list, `cross_section` description, warm runs);
+`CLAUDE.md` invariant 7 / "Working locally" (times).
+
+## One size floor at 2× the usual hour
+
+`min_move_sigma: 2.0` replaces a floor of 1.0 plus Corrado's rank test, which did the same job
+twice. Same messages: 97% of pushes identical, held 73.9% against 74.2%. BKLN's own override
+(1.0) is gone. Events lose `rank_confirms`.
+
+**Belongs in:** `architecture.md` "4." (the filters); `decisions.md` (why one floor, not a rank
+test); `README.md` (the knobs).
+
 ## Numbers
 
 | | at the freeze | now |
 |---|---|---|
-| pushes a year | 58.1 | 56.5 |
+| pushes a year | 58.1 | 57.3 |
 | reached | 94.4% | 94.4% |
-| held at the next close | 74.3% | 74.2% |
-| false alarms (as printed) | 85 | 238 |
+| held at the next close | 74.3% | 73.9% |
+| false alarms (as printed) | 85 | 257 |
 
-Most of the 238 are overnight events, which `tools/report_card.py` judges by the first hour's
+Most of the 257 are overnight events, which `tools/report_card.py` judges by the first hour's
 own move. Left out, the count is about 96. **Open:** judge them by the gap.
 
 ## Drafts
@@ -122,8 +149,8 @@ own move. Left out, the count is about 96. **Open:** judge them by the gap.
 ## Found while reading
 
 - `architecture.md` says "Six commands"; `CLAUDE.md` lists four.
-- "About two minutes" for a rebuild (four docs): now 2.5–3 minutes locally.
-- `CLAUDE.md`: "~820 tests, about four minutes" is now 886 tests, about six minutes; its table of
+- "About two minutes" for a rebuild (four docs): now about 1.5 minutes locally.
+- `CLAUDE.md`: "~820 tests, about four minutes" is now 845 tests, about five minutes; its table of
   documents doesn't list this file.
 
 ## To watch

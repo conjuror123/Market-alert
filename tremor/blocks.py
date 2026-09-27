@@ -342,20 +342,13 @@ def events_frame(scored: "dict[str, pd.DataFrame]", basket: Basket,
                 # this complex last moved together this hard.
                 "record_since": (None if pd.isna(getattr(row, "level_since", None))
                                  else int(row.level_since)),
-                # A block move is not put to the two confirmations an asset move
-                # is. Corrado's rank test and the OU fit both ask whether ONE
-                # instrument's residual behaves idiosyncratically, and a block
-                # factor is the thing they measure idiosyncrasy against - asking
-                # them here would be asking whether the yardstick is unusual by
-                # its own yardstick.
-                "rank_confirms": None, "ou_reverts": None,
             })
     if not rows:
         return pd.DataFrame(columns=[
             "event_id", "asset_id", "block", "hour_utc", "peak_hour_utc",
             "z_resid", "e_resid", "co_block", "r", "beta_block", "repeat_count",
             "tier", "basis", "sigma_lt", "close", "n_members", "leaders",
-            "overnight", "gap_kind", "record_since", "rank_confirms", "ou_reverts"])
+            "overnight", "gap_kind", "record_since"])
     # Stable, and tie-broken by name. Pandas sorts with quicksort by default,
     # so two blocks firing in the same hour came out in an arbitrary order that
     # depended on the length of the input - and the collapse then took whichever

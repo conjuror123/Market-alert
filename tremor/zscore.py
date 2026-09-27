@@ -1,4 +1,4 @@
-"""Adaptive EWMA Z-score and adaptive thresholds.
+"""The short-memory EWMA state, and the adaptive threshold the VIX test uses.
 
 The order of operations here is not an implementation detail - it is the method.
 
@@ -74,25 +74,13 @@ def ewma_state(returns: np.ndarray, winsorized: np.ndarray, sigma_lt: np.ndarray
 
 def adaptive_thresholds(abs_z: pd.Series, window: int,
                         lam_q: float = windows.LAMBDA_Q) -> tuple[pd.Series, pd.Series]:
-    """Smoothed Q95 and Q99 thresholds.
+    """Smoothed Q95 and Q99 thresholds of |Z| - read only by the VIX spike test.
 
     The percentiles are computed on a rolling window of |Z| EXCLUDING the current
     bar: a threshold that contains the observation being judged adjusts towards
-    it and thereby understates its own breach.
-
-    Smoothing is mandatory. Without it the threshold jerks around
-    depending on which values happened to enter and leave the window, and the
-    same move can be significant or not purely because of something that happened
-    840 bars ago.
-
-    The window is counted over DEFINED values of Z, not over rows. The rule literally
-    says "a rolling window W_asset of absolute values of Z", and the difference
-    shows wherever the Z series has holes beyond the burn-in. For the residual
-    series that happens every week: crypto trades at weekends, but the basket
-    factor does not exist in those hours because the reference calendar excludes
-    them. A window of 2880 consecutive rows would never accumulate 2880 values -
-    Bitcoin's residual thresholds would never be computed at all, and the SAED
-    module would stay silent across the whole crypto block.
+    it and thereby understates its own breach. The window is counted over
+    DEFINED values of Z, not over rows. Smoothing is mandatory: without it the
+    threshold jerks with whatever happened to enter and leave the window.
     """
     defined = abs_z.dropna()
     raw = defined.shift(1).rolling(window, min_periods=window)
@@ -105,65 +93,25 @@ def adaptive_thresholds(abs_z: pd.Series, window: int,
     return q95.reindex(abs_z.index), q99.reindex(abs_z.index)
 
 
-def breaches(abs_z: pd.Series, abs_r: pd.Series, sigma_lt: pd.Series,
-             q95: pd.Series, q99: pd.Series,
-             abs_leg_q95: float | None = None,
-             abs_leg_q99: float | None = None) -> pd.DataFrame:
-    """The hybrid significance condition: the relative AND the absolute
-    leg at once.
+def compute(frame: pd.DataFrame) -> pd.DataFrame:
+    """The short-memory scale of one price series: `sigma_eff`.
 
-    Returns NULL (pd.NA) rather than False wherever the condition was not
-    assessed - the thresholds have not filled yet, or there is no long-term
-    sigma. These are different things: "did not clear the threshold" and
-    "the threshold does not exist yet".
-    """
-    # The legs are arguments so that calibration can search them without recomputing the
-    # Z-scores: only the comparison moves, and the whole series above it stays.
-    leg95 = windows.ABS_LEG_Q95 if abs_leg_q95 is None else abs_leg_q95
-    leg99 = windows.ABS_LEG_Q99 if abs_leg_q99 is None else abs_leg_q99
-
-    known = q95.notna() & q99.notna() & sigma_lt.notna() & abs_z.notna()
-    q99_hit = (abs_z > q99) & (abs_r >= leg99 * sigma_lt)
-    q95_hit = (abs_z > q95) & (abs_r >= leg95 * sigma_lt)
-    return pd.DataFrame({
-        "breach_q99": q99_hit.where(known, pd.NA).astype("boolean"),
-        "breach_q95": q95_hit.where(known, pd.NA).astype("boolean"),
-    })
-
-
-def compute(frame: pd.DataFrame, w_asset: int) -> pd.DataFrame:
-    """Assembles Z, the thresholds and the breach flags for one series.
-
-    The input is a frame after winsorize: with columns r, r_w and sigma_lt. The
-    same machinery is applied to the SAED residual series and to the VIX
-    series - they have their own states and their own thresholds, but the
-    formulas are identical, so this function does not know whose series it is
-    processing.
+    The input is a frame after winsorize, with columns r, r_w and sigma_lt. The
+    blocks read sigma_eff - a block's move is the median of its members' moves
+    each over its own sigma_eff (tremor.cross_section) - and nothing else reads
+    this state for a price series. Its Z-score, and the Q95/Q99 thresholds and
+    breach flags built on it, fed no decision and were removed.
     """
     out = frame.copy()
     if out.empty:
-        return out.assign(z=pd.Series(dtype="float64"), q95=pd.Series(dtype="float64"),
-                          q99=pd.Series(dtype="float64"),
-                          breach_q95=pd.Series(dtype="boolean"),
-                          breach_q99=pd.Series(dtype="boolean"))
+        return out.assign(sigma_eff=pd.Series(dtype="float64"))
 
-    z, sigma_eff = ewma_state(out["r"].to_numpy(dtype="float64"),
+    _, sigma_eff = ewma_state(out["r"].to_numpy(dtype="float64"),
                               out["r_w"].to_numpy(dtype="float64"),
                               out["sigma_lt"].to_numpy(dtype="float64"))
-    out["z"] = z
     out["sigma_eff"] = sigma_eff
-
     # Until sigma_LT has filled, the denominator has no floor - the very floor
-    # that keeps the EWMA variance from collapsing. On frozen quotes this yields
-    # nonsense: on EUR/USD, 1 January 2021, after four hours of a standing price,
-    # one ordinary half-percent move produced a Z of 224. That is harmless in
-    # itself - breaches there are NULL anyway - but such Z values entered the
-    # percentile window and shifted the thresholds thousands of bars forward.
-    # An hour before first_valid_hour takes no part in the statistics at
-    # all, so Z during the burn-in is not merely unused, it does not exist.
-    out.loc[out["sigma_lt"].isna(), ["z", "sigma_eff"]] = np.nan
-
-    abs_z = out["z"].abs()
-    q95, q99 = adaptive_thresholds(abs_z, w_asset)
-    out["q95"], out["q99"] = q95, q99
-    return out.join(breaches(abs_z, out["r"].abs(), out["sigma_lt"], q95, q99))
+    # that keeps the EWMA variance from collapsing - so the state is not given
+    # out there at all.
+    out.loc[out["sigma_lt"].isna(), "sigma_eff"] = np.nan
+    return out

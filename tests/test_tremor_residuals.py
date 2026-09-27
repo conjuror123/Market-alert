@@ -129,19 +129,6 @@ def test_residual_winsorisation_clips_only_the_state_input():
     assert abs(spike["e_resid"]) > abs(spike["e_resid_w"])
 
 
-def test_q95_resid_is_computed_but_unused():
-    # Q95_resid is computed and stored PURELY for diagnostics; it takes
-    # part in no condition at all - the residual leg works on Q99.
-    rng = np.random.default_rng(6)
-    factor_values = rng.normal(0, 0.01, 1200)
-    frame = frame_with(list(rng.normal(0, 0.02, 1200)))
-    factor = pd.Series(factor_values, index=frame["hour_utc"])
-
-    out = residuals.score_residuals(residuals.residuals(asset(), frame, factor), 100)
-    assert "q95_resid" in out
-    assert "q99_resid" in out
-
-
 def test_empty_input_keeps_columns():
     empty = pd.DataFrame({"hour_utc": [], "close": [], "r": []})
     out = residuals.residuals(asset(), empty, pd.Series(dtype="float64"))

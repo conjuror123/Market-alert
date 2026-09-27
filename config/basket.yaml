@@ -149,9 +149,15 @@ sensitivity: 1.0
 # went without for too long: the abnormal channel asks whether a move was
 # unexplained, not whether it was large, so an instrument that ticked +0.03%
 # while its block went the other way could be reported as a once-a-month event.
-# Measured on the record, every event below one times its own usual hour was
-# abnormal-only - 240 of 9,069, about eleven a year - and they are the ones
-# that read as noise.
+#
+# TWO usual hours, and it replaced a rank test. At one usual hour the floor sat
+# behind Corrado's rank test and the two did one job twice: with the rank test
+# on, the floor caught five events a year; with the floor on, the rank test
+# removed about 120 more, mid-sized ones. One floor at two usual hours gives the
+# same messages - 97% of pushes identical, 57.3 pushes a year against 56.5,
+# held at the next close 73.9% against 74.2% - with one number instead of a
+# rolling rank. A raw-ladder rung is several usual hours already, so in
+# practice this floor filters the "unexplained" channel alone.
 #
 # In units of the instrument's own sigma_LT, so the number means the same thing
 # to SHY and to SOL. 0 disables it.
@@ -181,7 +187,7 @@ sensitivity: 1.0
 # Changing any of them moves config_version, which retires derived data and
 # costs one cold run. That is correct: the events would otherwise be a mix of
 # two rules.
-min_move_sigma: 1.0
+min_move_sigma: 2.0
 
 # Size floor for a block's own messages, in the block's usual hour. Absent, the
 # shared min_move_sigma above is the default. Members are not written here: the
@@ -545,9 +551,6 @@ assets:
     session_template: us_equity
     fetch_interval: 30min
     label: "Senior bank loans"
-    # 2.0x usual hour was not worth a line. Shared floor is 1.0; this is BKLN
-    # only, so SHY and the rest of credit keep speaking.
-    min_move_sigma: 1
   - ticker: PFF
     source: twelvedata
     provider: tiingo

@@ -222,15 +222,14 @@ def test_an_instrument_with_an_override_takes_its_own(tmp_path):
 
 
 def test_the_committed_basket_keeps_shy_and_metals_on_the_shared_floor():
-    # Live: BKLN's own number is written on its entry on the default branch.
-    # Do not pin it here: a feature branch sees the committed yaml, which may
-    # still be 1.0, and CI must not fail for that. SHY and the metals block
-    # stay on the shared 1.0 unless someone floors them on purpose.
+    # The shared floor is two usual hours (it replaced a floor of one plus a
+    # rank test). SHY and the metals block stay on it unless someone floors
+    # them on purpose.
     from tremor.basket import DEFAULT_BASKET_PATH, load_tuning
 
     load_tuning.cache_clear()
     t = load_tuning(DEFAULT_BASKET_PATH)
-    assert t.min_move_sigma == 1.0
+    assert t.min_move_sigma == 2.0
     assert t.floor_for("twelvedata:SHY") == t.min_move_sigma
     assert t.floor_for("block:industrial_metals") == t.min_move_sigma
 

@@ -154,17 +154,6 @@ def test_the_event_names_the_members_that_led():
     assert "A +25" in row["leaders"] and "C +24" in row["leaders"]
 
 
-def test_a_block_move_is_not_put_to_the_single_asset_confirmations():
-    # Corrado's rank test and the OU fit ask whether ONE instrument's residual
-    # behaves idiosyncratically, and the block factor is what they measure that
-    # against - asking them here is asking whether the yardstick is unusual by
-    # its own yardstick.
-    b, panel, sig, _ = _long_block()
-    events = blocks.events_frame(blocks.frames(b, panel, sig), b, panel)
-    assert events["rank_confirms"].isna().all()
-    assert events["ou_reverts"].isna().all()
-
-
 def _two_spikes(first, second, sizes=(0.25, 0.30), n=30000, template="crypto_24_7"):
     """The same long block, moving hard twice."""
     rng = np.random.default_rng(2)

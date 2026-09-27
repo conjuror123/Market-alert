@@ -107,142 +107,6 @@ def patell_scale(estimates: pd.DataFrame, factor: pd.Series) -> pd.Series:
     return np.sqrt(inflation.clip(lower=1.0)).fillna(1.0)
 
 
-# Corrado's rank test needs a pooled window to rank within, and the regression
-# window is the natural one: it is the stretch already treated as "normal" for
-# this instrument, and reusing it means the two tests disagree about the bar
-# rather than about which history to judge it against.
-RANK_WINDOW = windows.REGRESSION_WINDOW
-RANK_MIN = windows.REGRESSION_MIN
-
-# A bar confirms when it is among the most extreme one percent of its window.
-# Not a taste threshold: the noticeable tier is a once-a-month event, which at
-# this basket's bar rates is between one bar in 94 and one in 720, so the top
-# percent of a five-hundred-bar window is if anything freer than the mildest
-# tier's own floor. A rank test that confirmed more freely than the ladder's
-# own floor would agree with everything and carry no information.
-RANK_CONFIRM_QUANTILE = 0.99
-
-
-def rank_statistic(residual: pd.Series, window: int = RANK_WINDOW,
-                   minimum: int = RANK_MIN) -> pd.DataFrame:
-    """Corrado's rank test, as the non-parametric third opinion.
-
-    Both existing channels are parametric: one standardises the residual by an
-    estimated scale, the other ranks a raw return against a fitted tail. Returns
-    are fat-tailed, so both are optimistic in the same direction, and two tests
-    that share an assumption cannot check each other on it. A rank test assumes
-    no distribution at all and is immune to outliers by construction - the most
-    extreme bar and the fifth most extreme differ by 0.028 in its statistic.
-
-    THAT BOUND IS WHY IT DOES NOT FEED THE LADDER. Corrado's statistic is a
-    rescaled rank, so it saturates: with a five-hundred-bar window it cannot
-    exceed 1.729 however violent the bar. It can say "this is the most extreme
-    hour in five hundred" and it cannot say how much more extreme, which makes
-    it a confirmation and never a tier.
-
-    ONE DEPARTURE from the published form. Corrado ranks the SIGNED abnormal
-    return and measures departure from the middle of the ranking. Here the
-    magnitude is ranked instead, because the two channels it is meant to agree
-    or disagree with are both two-sided magnitude tests - agreement is only
-    meaningful between tests asking the same question, and a signed rank would
-    have been answering a different one.
-    """
-    magnitude = residual.abs()
-    rolling = magnitude.rolling(window, min_periods=minimum)
-    k = rolling.rank()
-    n = rolling.count()
-    fraction = (k / n).where(n >= minimum)
-    # The published statistic: the rank's departure from the middle, in units of
-    # the standard deviation of a uniform rank.
-    statistic = ((k - (n + 1) / 2) / n) / np.sqrt(1.0 / 12.0)
-    return pd.DataFrame({
-        "t_rank": statistic,
-        "rank_pct": fraction,
-        "rank_confirms": (fraction >= RANK_CONFIRM_QUANTILE).where(fraction.notna()),
-    })
-
-
-# Avellaneda and Lee refuse a signal whose residual reverts more slowly than
-# about half the estimation window - beyond that the fit is describing a drift
-# it cannot see the end of. Same rule, same window.
-OU_WINDOW = windows.REGRESSION_WINDOW
-OU_MIN = windows.REGRESSION_MIN
-OU_MAX_REVERSION_BARS = OU_WINDOW / 2.0
-
-
-def ou_fit(residual: pd.Series, window: int = OU_WINDOW, minimum: int = OU_MIN,
-           gap: int | None = None) -> pd.DataFrame:
-    """Fits an Ornstein-Uhlenbeck process to the CUMULATIVE residual.
-
-    Avellaneda and Lee's construction: the residual return is noise, but its
-    running sum is a level that a genuinely idiosyncratic move pulls away from
-    equilibrium and then returns to. Fit AR(1) to that level and the OU
-    parameters fall out - a reversion speed, an equilibrium, and the distance
-    from it in units of its own spread, which they call the s-score.
-
-    WHAT IT ADDS THAT THE EWMA CANNOT. The scale we standardise by today is an
-    exponentially weighted variance, and the event contaminates it: a large bar
-    enters the very quantity used to judge the bars after it. The OU equilibrium
-    is a property of the fitted process rather than a running average of the
-    data being judged, so a single violent hour moves it far less.
-
-    THE REVERSION SPEED IS THE POINT. A residual that drifts instead of
-    reverting is not idiosyncratic noise - it is a factor the model does not
-    have, showing up in the part of the return the model could not explain.
-    Avellaneda and Lee will not trade such a signal. Whether an ALERTING system
-    should refuse it is a different question, and not one to answer by analogy:
-    they want reversion because they trade it, and a move that matters may well
-    be a move that keeps going. The flag is computed; what uses it is decided
-    on measurement.
-
-    THE ROLLING FIT IS CHEAP. Their X starts at zero at each window's start, but
-    the AR(1) slope is invariant to that offset - shifting both sides by a
-    constant moves only the intercept - and so are the reversion speed and the
-    s-score that follow from it. So the fit runs on the global cumulative sum
-    and stays vectorised, verified against a windowed computation.
-    """
-    gap = windows.REGRESSION_GAP_BARS if gap is None else gap
-    level = residual.fillna(0.0).cumsum()
-    lead = level.shift(-1)
-
-    joint = pd.DataFrame({"x": level, "y": lead})
-    rolling = joint.rolling(window, min_periods=minimum)
-    mean_x, mean_y = rolling["x"].mean(), rolling["y"].mean()
-    var_x, var_y = rolling["x"].var(ddof=1), rolling["y"].var(ddof=1)
-    cov = rolling.cov().unstack()[("x", "y")]
-
-    b = (cov / var_x).where(var_x > 0)
-    intercept = mean_y - b * mean_x
-    # Residual variance of the AR(1) fit, from the same moments.
-    var_noise = (var_y - b * cov).clip(lower=0.0)
-
-    # The parameters are estimated on a window that ends before the bar being
-    # scored, exactly as the market-model coefficients are - and shifted by one
-    # MORE than the gap, because the AR(1) pairing already looks a bar ahead:
-    # the window ending at w has its last y at X_{w+1}. Shifting by the gap
-    # alone leaves an effective gap of gap-1, which a test caught by spiking a
-    # bar and finding it in the parameters two bars later.
-    lead_shift = gap + 1
-    b = b.shift(lead_shift)
-    intercept = intercept.shift(lead_shift)
-    var_noise = var_noise.shift(lead_shift)
-
-    reverting = (b > 0) & (b < 1)
-    equilibrium = (intercept / (1 - b)).where(reverting)
-    sigma_eq = np.sqrt((var_noise / (1 - b ** 2)).where(reverting))
-    # Reversion time in bars: kappa = -log(b) per bar, and 1/kappa is the time
-    # constant. b near one is a slow drift, b near zero an instant snap back.
-    reversion_bars = (-1.0 / np.log(b.where(reverting))).where(reverting)
-
-    s_score = ((level - equilibrium) / sigma_eq).where(sigma_eq > 0)
-    reverts = (reverting & (reversion_bars <= OU_MAX_REVERSION_BARS)
-               ).where(b.notna())
-    return pd.DataFrame({
-        "ou_b": b, "ou_reversion_bars": reversion_bars,
-        "ou_sigma_eq": sigma_eq, "s_score": s_score, "ou_reverts": reverts,
-    })
-
-
 def hour_scale(frame: pd.DataFrame,
                memory: int = windows.HOUR_SCALE_MEMORY_SESSIONS,
                bars_per_session: int = windows.HOUR_SCALE_BARS_PER_SESSION,
@@ -383,15 +247,6 @@ def residuals(asset: Asset, frame: pd.DataFrame,
         out["kind_scale"] = kind_scale(out["e_resid"], kinds)
         out["patell_scale"] = out["patell_scale"] * out["kind_scale"]
 
-    ou = ou_fit(out["e_resid"])
-    for column in ("ou_reversion_bars", "s_score", "ou_reverts"):
-        out[column] = ou[column].to_numpy()
-
-    ranks = rank_statistic(out["e_resid"])
-    out["t_rank"] = ranks["t_rank"].to_numpy()
-    out["rank_pct"] = ranks["rank_pct"].to_numpy()
-    out["rank_confirms"] = ranks["rank_confirms"].to_numpy()
-
     # The residual's own long-term sigma, on data strictly before the current bar.
     out["sigma_lt_resid"] = ewma.sigma_lt(out["e_resid"],
                                           template or asset.session_template)
@@ -412,20 +267,14 @@ def residuals(asset: Asset, frame: pd.DataFrame,
     return out
 
 
-def score_residuals(frame: pd.DataFrame, w_asset: int) -> pd.DataFrame:
-    """Runs the residual series through the z-score machinery with its own states.
-
-    Q95_resid is computed, stored and exported PURELY for diagnostics:
-    it takes part in no condition anywhere. Only Q99_resid works
-    in the event-generation condition.
-    """
+def score_residuals(frame: pd.DataFrame) -> pd.DataFrame:
+    """Runs the residual series through the short-memory state of its own:
+    z_resid, the residual against its last day or so of own movement."""
     from tremor import zscore
 
     out = frame.copy()
     if out.empty:
-        return out.assign(z_resid=pd.Series(dtype="float64"),
-                          q95_resid=pd.Series(dtype="float64"),
-                          q99_resid=pd.Series(dtype="float64"))
+        return out.assign(z_resid=pd.Series(dtype="float64"))
 
     # The score is Patell's standardised residual: the forecast error divided by
     # the scale a forecast error actually has, not by the scale an in-sample one
@@ -440,12 +289,8 @@ def score_residuals(frame: pd.DataFrame, w_asset: int) -> pd.DataFrame:
     out["z_resid"] = z
     out["sigma_eff_resid"] = sigma_eff
     # Same reason as for the price series: without the floor, which does not
-    # exist until sigma_LT appears, Z during the burn-in is meaningless and
-    # spoils the percentiles.
+    # exist until sigma_LT appears, Z during the burn-in is meaningless.
     out.loc[out["sigma_lt_resid"].isna(), ["z_resid", "sigma_eff_resid"]] = np.nan
-
-    q95, q99 = zscore.adaptive_thresholds(out["z_resid"].abs(), w_asset)
-    out["q95_resid"], out["q99_resid"] = q95, q99
     return out
 
 
@@ -587,19 +432,3 @@ def standardise_cross_section(scored: dict[str, pd.DataFrame],
             t_resid=ratio,
             z_resid_bmp=normalise_t(ratio, own_dof))
     return out
-
-
-def rescore_thresholds(frame: pd.DataFrame, w_asset: int,
-                       column: str = "z_resid_bmp") -> pd.DataFrame:
-    """Recomputes the adaptive Q95/Q99 on whichever score the trigger will use.
-
-    The thresholds are percentiles of the series' own recent history, so
-    changing the series means the thresholds have to follow it. Keeping the old
-    ones would compare a standardised score against an unstandardised yardstick.
-    """
-    from tremor import zscore
-
-    if frame.empty or column not in frame:
-        return frame
-    q95, q99 = zscore.adaptive_thresholds(frame[column].abs(), w_asset)
-    return frame.assign(q95_resid=q95, q99_resid=q99)

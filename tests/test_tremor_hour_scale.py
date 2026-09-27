@@ -90,7 +90,7 @@ def test_only_a_us_fund_gets_it_and_only_in_the_divisor():
 
 def test_a_warm_slice_reaches_back_far_enough_for_the_hour_scale():
     # The scale's chain is longer than anything warm_bars counts for a fund.
-    lead = windows.warm_bars(windows.w_asset(7), template="us_equity")
+    lead = windows.warm_bars("us_equity")
     assert windows.hour_scale_chain("us_equity") > lead
     assert windows.hour_scale_chain("fx_continuous") == 0
 
