@@ -38,8 +38,8 @@
         ],
         "from": 1789949100,
         "hashes": [
-          "0bb155dda52d1129",
-          "a6164917cdeb388e"
+          "625cf700e858c3ca",
+          "4ff15bc95c1b084c"
         ],
         "ids": [
           30,
@@ -68,7 +68,7 @@
         "id": 38
       },
       "twelvedata_USD_CHF:1790233200": {
-        "hash": "e760c08166ffa599",
+        "hash": "2905005d2ad46e33",
         "hour": 1790233200,
         "id": 44
       }
@@ -86,7 +86,7 @@
       "twelvedata_GBP_USD:1789642800": {
         "hour_utc": 1789642800,
         "message_id": 19,
-        "text_hash": "42a3384f48365821",
+        "text_hash": "81c6f581b057bd1a",
         "written": [
           "today",
           "settled"
@@ -95,7 +95,7 @@
       "twelvedata_USD_CHF:1790233200": {
         "hour_utc": 1790233200,
         "message_id": 44,
-        "text_hash": "e760c08166ffa599",
+        "text_hash": "2905005d2ad46e33",
         "written": [
           "today",
           "settled"
