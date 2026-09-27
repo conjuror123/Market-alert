@@ -226,8 +226,8 @@ def test_the_residual_is_divided_by_its_own_kind_scale():
     kinded = residuals.residuals(asset(), frame, template=windows.DAILY_SERIES,
                                  kinds=kinds)
     assert "kind_scale" not in plain
-    np.testing.assert_allclose(kinded["patell_scale"],
-                               plain["patell_scale"] * kinded["kind_scale"])
+    np.testing.assert_allclose(kinded["resid_scale"],
+                               plain["resid_scale"] * kinded["kind_scale"])
     # The residual itself stays the size the price moved.
     np.testing.assert_allclose(kinded["e_resid"], plain["e_resid"])
 

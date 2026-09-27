@@ -84,8 +84,8 @@ def test_only_a_us_fund_gets_it_and_only_in_the_divisor():
     # The residual itself - what the message splits and retention sums - is
     # untouched; the scale lives in the standardisation's divisor only.
     np.testing.assert_allclose(us["e_resid"], fx["e_resid"])
-    np.testing.assert_allclose(us["patell_scale"],
-                               fx["patell_scale"] * us["hour_scale"])
+    np.testing.assert_allclose(us["resid_scale"],
+                               fx["resid_scale"] * us["hour_scale"])
 
 
 def test_a_warm_slice_reaches_back_far_enough_for_the_hour_scale():

@@ -70,41 +70,8 @@ def rolling_beta(returns: pd.Series, factor: pd.Series,
     sum_rf = rolling_sum(joint["r"] * joint["f"])
     sum_ff = rolling_sum(joint["f"] ** 2)
     beta = (sum_rf / sum_ff).where(sum_ff > 0)
-    # The factor's spread within the window travels with the coefficient:
-    # Patell's inflation needs it, and it must come from the SAME window.
-    gap = windows.REGRESSION_GAP_BARS
-    estimates = pd.DataFrame({"beta": beta.shift(gap), "f_ss": sum_ff.shift(gap)})
+    estimates = pd.DataFrame({"beta": beta.shift(windows.REGRESSION_GAP_BARS)})
     return estimates.reindex(returns.index)
-
-
-def patell_scale(estimates: pd.DataFrame, factor: pd.Series) -> pd.Series:
-    """How much wider a forecast error is than an in-sample residual.
-
-    The residual here is an OUT-OF-SAMPLE forecast error: the coefficients come
-    from a window that ends before the bar being judged, so the error carries
-    the estimation error of those coefficients on top of the noise. Dividing it
-    by an in-sample sigma therefore understates the scale and overstates the
-    score. Patell's correction is the ratio of the two:
-
-        Var(forecast error) = s^2 * [ 1 + h_t ],   h_t = F_t^2 / sum(F^2)
-
-    for a fit through zero, with h_t the LEVERAGE of the current factor value -
-    how far it sits from zero, against the window's own spread. The leverage term is the one that matters here, and it
-    matters most exactly when the system is most likely to fire: on a violent
-    hour the factor is far from its average, the fitted beta is extrapolating,
-    and the residual is genuinely noisier than usual. Not correcting for it
-    inflates the score precisely on the days the detector is asked about.
-
-    """
-    if "f_ss" not in estimates:
-        return pd.Series(1.0, index=factor.index)
-
-    leverage = factor ** 2 / estimates["f_ss"]
-    inflation = 1.0 + leverage
-    # Never smaller than one: the forecast error cannot be tighter than the
-    # in-sample residual, and a negative leverage means the window was
-    # degenerate rather than that the bar was easy to predict.
-    return np.sqrt(inflation.clip(lower=1.0)).fillna(1.0)
 
 
 def hour_scale(frame: pd.DataFrame,
@@ -223,29 +190,27 @@ def residuals(asset: Asset, frame: pd.DataFrame,
         block_series.notna(), 0.0).where(out["beta_block"].notna())
     out["e_resid"] = out["r"] - out["co_block"]
 
-    # Patell's inflation, carried as a column rather than folded into e_resid:
-    # the raw residual is what the absolute channel, the retention check and
-    # the event export all read, and it should stay the size the price actually
-    # moved. Only the STANDARDISATION divides by it.
-    est = estimates.set_axis(out.index)
-    out["patell_scale"] = patell_scale(est, block_series).to_numpy()
-    # And the hour's own usual size, for a US fund: the opening half-hour is
-    # judged against other openings, not against yesterday's afternoon. Folded
-    # into the same divisor as Patell's, so it too touches the STANDARDISATION
-    # only - the residual the message splits and retention sums stays the size
-    # the price moved. Not for the gap pass (`template` set), whose rows are
-    # one a session and have no hour to speak of.
+    # The hour's own usual size, for a US fund: the opening half-hour is judged
+    # against other openings, not against yesterday's afternoon. Carried as a
+    # divisor (`resid_scale`) rather than folded into e_resid: the residual is
+    # what the message splits and retention sums, and it should stay the size
+    # the price actually moved - only the STANDARDISATION divides by it. Not for
+    # the gap pass (`template` set), whose rows are one a session and have no
+    # hour to speak of.
+    #
+    # There used to be a second factor here, Patell's forecast-error inflation
+    # (1 + F^2 / sum F^2). Removing it and re-matching the rungs left 99.4% of
+    # pushes identical and nothing else measurably different, so it went.
     out["hour_scale"] = (hour_scale(out)
                          if template is None
                          and asset.session_template in windows.HOUR_SCALE_TEMPLATES
                          else 1.0)
-    out["patell_scale"] = out["patell_scale"] * out["hour_scale"]
+    out["resid_scale"] = out["hour_scale"]
     # The gap pass's counterpart: a Monday's residual against other Mondays'.
-    # The same divisor, for the same reason - the residual stays the size the
-    # price moved.
+    # The same divisor, for the same reason.
     if kinds is not None:
         out["kind_scale"] = kind_scale(out["e_resid"], kinds)
-        out["patell_scale"] = out["patell_scale"] * out["kind_scale"]
+        out["resid_scale"] = out["resid_scale"] * out["kind_scale"]
 
     # The residual's own long-term sigma, on data strictly before the current bar.
     out["sigma_lt_resid"] = ewma.sigma_lt(out["e_resid"],
@@ -276,12 +241,11 @@ def score_residuals(frame: pd.DataFrame) -> pd.DataFrame:
     if out.empty:
         return out.assign(z_resid=pd.Series(dtype="float64"))
 
-    # The score is Patell's standardised residual: the forecast error divided by
-    # the scale a forecast error actually has, not by the scale an in-sample one
-    # would have had. Both the value and the winsorized value are divided, so
-    # the winsorization still bites on the same relative sizes.
-    scale = (out["patell_scale"].to_numpy(dtype="float64")
-             if "patell_scale" in out else np.ones(len(out)))
+    # Divided by the hour's (or the gap kind's) own usual size first. Both the
+    # value and the winsorized value are divided, so the winsorization still
+    # bites on the same relative sizes.
+    scale = (out["resid_scale"].to_numpy(dtype="float64")
+             if "resid_scale" in out else np.ones(len(out)))
     z, sigma_eff = zscore.ewma_state(
         out["e_resid"].to_numpy(dtype="float64") / scale,
         out["e_resid_w"].to_numpy(dtype="float64") / scale,

@@ -30,7 +30,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from tremor import (atomic, blocks, cross_section, gaps, persistence, quality,
+from tremor import (atomic, blocks, cross_section, gaps, persistence,
                     routing, sessions, severity, windows)
 from tremor.basket import Asset, Basket, load_tuning
 
@@ -278,13 +278,6 @@ def build_events(asset: Asset, frame: pd.DataFrame,
     event or opens a new one is a path-dependent decision.
     """
     fired = triggers(frame).fillna(False).to_numpy(dtype=bool)
-    # An hour whose price moved less than the instrument can resolve is not a
-    # small event, it is an unobserved one - see quality.resolvable. Applied
-    # here rather than inside triggers() because it needs the instrument's tick
-    # size, and triggers() deliberately reads nothing but the frame.
-    if "close" in frame and getattr(asset, "tick_size", 0):
-        fired &= quality.resolvable(frame["close"].to_numpy(),
-                                    frame["r"].to_numpy(), asset.tick_size)
     if not fired.any():
         return []
 
@@ -436,7 +429,7 @@ ARCHIVE_COLUMNS = ("event_id", "asset_id", "hour_utc", "tier")
 # of random numbers, and nothing compresses them.
 RESIDUAL_COLUMNS = ("hour_utc", "asset_id", "beta_block", "e_resid",
                     "co_block",
-                    "sigma_lt_resid", "patell_scale", "hour_scale",
+                    "sigma_lt_resid", "resid_scale", "hour_scale",
                     "z_resid", "bmp_scale", "bmp_dof",
                     "t_resid", "z_resid_bmp",
                     "tier", "basis", "tier_abnormal",

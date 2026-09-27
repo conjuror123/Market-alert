@@ -76,6 +76,11 @@ constants nothing read (`w_asset`, the cluster, volume and calendar settings). M
 `z`, `q95`, `q99`, `breach_q95`, `breach_q99`; events lose `ou_reverts`. The VIX keeps its own
 spike threshold, which the fear-gauge line uses.
 
+Also removed, as measured to change nothing: Patell's correction on the block regression
+(residual column `patell_scale` is now `resid_scale`: the opening-hour or gap-kind divisor
+alone) and the two-tick check, which the 2× floor now covers. Events 10,241 → 10,246, pushes
+1,334 → 1,336, 99.7% of pushes identical.
+
 The warm lead is now what the remaining stages need: long-run sigma span + block regression +
 short-memory burn-in (4,603 bars for a fund, 9,403 for FX, 13,003 for crypto, where it was
 6,960 / 19,920 / 23,520). A fund's events slice is still set by the opening-hour scale (22,003).
@@ -97,12 +102,12 @@ test); `README.md` (the knobs).
 
 | | at the freeze | now |
 |---|---|---|
-| pushes a year | 58.1 | 57.3 |
+| pushes a year | 58.1 | 57.4 |
 | reached | 94.4% | 94.4% |
 | held at the next close | 74.3% | 73.9% |
-| false alarms (as printed) | 85 | 257 |
+| false alarms (as printed) | 85 | 258 |
 
-Most of the 257 are overnight events, which `tools/report_card.py` judges by the first hour's
+Most of the 258 are overnight events, which `tools/report_card.py` judges by the first hour's
 own move. Left out, the count is about 96. **Open:** judge them by the gap.
 
 ## Drafts
@@ -150,7 +155,7 @@ own move. Left out, the count is about 96. **Open:** judge them by the gap.
 
 - `architecture.md` says "Six commands"; `CLAUDE.md` lists four.
 - "About two minutes" for a rebuild (four docs): now about 1.5 minutes locally.
-- `CLAUDE.md`: "~820 tests, about four minutes" is now 845 tests, about five minutes; its table of
+- `CLAUDE.md`: "~820 tests, about four minutes" is now 835 tests, about six minutes; its table of
   documents doesn't list this file.
 
 ## To watch
