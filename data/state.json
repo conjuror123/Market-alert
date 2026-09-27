@@ -83,15 +83,6 @@
           "settled"
         ]
       },
-      "twelvedata_GBP_USD:1789642800": {
-        "hour_utc": 1789642800,
-        "message_id": 19,
-        "text_hash": "81c6f581b057bd1a",
-        "written": [
-          "today",
-          "settled"
-        ]
-      },
       "twelvedata_USD_CHF:1790233200": {
         "hour_utc": 1790233200,
         "message_id": 44,
