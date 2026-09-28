@@ -39,7 +39,7 @@
         "from": 1789949100,
         "hashes": [
           "23620cec44d2641f",
-          "55a99a7da1121fcf"
+          "51b88a1881710bf5"
         ],
         "ids": [
           30,
@@ -72,7 +72,7 @@
         ],
         "from": 1790553900,
         "hashes": [
-          "4f5650146a44dda4"
+          "1b8635c71f19d48a"
         ],
         "ids": [
           55
@@ -122,7 +122,7 @@
         "id": 38
       },
       "twelvedata_EMB:1790600400": {
-        "hash": "c9e6f0cb6ae257f5",
+        "hash": "c8a6d309bba8bd43",
         "hour": 1790600400,
         "id": 56
       },
@@ -145,8 +145,10 @@
       "twelvedata_EMB:1790600400": {
         "hour_utc": 1790600400,
         "message_id": 56,
-        "text_hash": "c9e6f0cb6ae257f5",
-        "written": []
+        "text_hash": "c8a6d309bba8bd43",
+        "written": [
+          "today"
+        ]
       },
       "twelvedata_USD_CHF:1790233200": {
         "hour_utc": 1790233200,
