@@ -78,6 +78,11 @@
         "hour": 1790078400,
         "id": 38
       },
+      "twelvedata_EMB:1790600400": {
+        "hash": "c9e6f0cb6ae257f5",
+        "hour": 1790600400,
+        "id": 56
+      },
       "twelvedata_USD_CHF:1790233200": {
         "hash": "2905005d2ad46e33",
         "hour": 1790233200,
@@ -93,6 +98,12 @@
           "today",
           "settled"
         ]
+      },
+      "twelvedata_EMB:1790600400": {
+        "hour_utc": 1790600400,
+        "message_id": 56,
+        "text_hash": "c9e6f0cb6ae257f5",
+        "written": []
       },
       "twelvedata_USD_CHF:1790233200": {
         "hour_utc": 1790233200,
