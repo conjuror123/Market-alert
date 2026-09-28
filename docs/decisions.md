@@ -9,151 +9,83 @@
 
 ---
 
-## The ladder
+## The jump detector (replacing the ladder, in stages)
 
-**A rarity, not a score.** "The biggest move since March 2020" needs no calibration
-intuition; a 1-to-100 importance score does. The rung is a SIZE and the message is a
-DATE — two questions, answered separately, because conflating them produces a message
-that contradicts itself.
+**Copy an established detector rather than design one.** The hand-made ladder asked its
+reader too many questions — three tables of rungs, a rate per rung, a sensitivity — none of
+which could be answered from anything but taste. The problem this bot solves already has a
+standard answer: the intraday jump test of Lee & Mykland (2008, *Review of Financial
+Studies* 21:6), with the time-of-day correction of Boudt, Croux & Laurent (2011) and the
+group ("co-jump") test of Bollerslev, Law & Tauchen (2008). It is built in stages, each
+with its source and a measured before/after, so what a message means can be followed.
 
-**A size, not a fit.** Fitting a tail at this sample size does not work: the same
-instrument, same code, different six-year windows put SPY's once-in-six-years level
-anywhere from 2.22% to 6.78%. A rung is instead a multiple of the instrument's own
-long-run sigma, set per block (`tremor/severity.py`).
+**Stage 0 is two rules and nothing else.** The hour's move over the instrument's bipower
+volatility, and a word from the size of that ratio. One-a-day, channels, the date, the held
+check, the time-of-day scale, the gap, blocks, the own move and the floor all come back as
+their own stages.
 
-**The rungs are a preference, and the rate is an output.** There was once a frequency
-guarantee — a rung was literally the biggest move in its own lookback, which is exactly
-calibrated because the newest of N observations is the largest with probability 1/N. It
-was retired because a rank is relative to a window: after a crash nothing can reach the
-top rung until that crash rolls out, and 395 moves larger than a typical `extreme` went
-out as something milder, dated March 2020, October 2008 and the 2015 yuan devaluation.
-Size is monotone and cannot do that. It also has no 1/N argument, so the frequencies are
-measured rather than promised — per instrument, every 2 months, 5 months, 14 months and
-2.3 years.
+**Bipower, not a standard deviation.** Lee & Mykland's eq. 8 averages products of
+neighbouring moves, so a jump inside the window pairs with ordinary moves on either side
+and never with itself; with squares, one 0.05 jump among 0.001 moves inflates the yardstick
+more than 1.5x (pinned in `tests/test_tremor_jumps.py`).
 
-**The SPACING between rungs is a frequency, though, and that part is constructed.** Each
-rung is cut to cross about 3.16x less often than the one below — half a magnitude unit,
-the Gutenberg-Richter construction — with the size that delivers it read off each block's
-own history. What the rungs are a preference about is where the ladder STARTS and what
-the words mean; how it climbs is derived. See the entry below.
+**Half a year of calendar time, the same for every instrument.** The paper's valid window
+runs from √(252·n) to 252·n bars (n bars a day): a volatility estimate must hold enough
+bars that one jump inside it barely moves it, and stay small enough to be local. The paper
+picks the smallest valid value only because, in its simulations, a larger one "only
+elevates the computational burden". What the window has to follow is the volatility
+regime, which runs on the world's calendar rather than on a market's opening hours, so the
+same calendar span is used everywhere; half a year gives a fund about 880 bars, a currency
+pair 3,130 and a coin 4,380, all inside the range. Measured, a longer window cuts flags
+modestly (about 10% at 30 days against the minimum) and the choice of 3 or 6 days changes
+little.
 
-**Set per instrument, never pooled.** Pooling puts SHY and SOL back on one yardstick,
-which is the thing the ladder exists to avoid.
+**A young series is scored from the paper's minimum, not after a half-year warm-up.**
+Thirteen funds' records begin on 2020-02-10; a strict warm-up would have left them blind
+through March 2020. Scoring starts at 42 bars (a fund) or 78 (a 24-hour market) and the
+window grows; those rows are marked `young` and reported apart.
 
-**An instrument cannot overclaim.** It cannot be "the biggest in six years" until it has
-six years. No extrapolation limit is needed; it is the shape of the arithmetic.
+**The words are √2 apart, half an earthquake magnitude.** Measured on the basket, doubling
+a move's size (in half-year sigmas) makes it about ten times rarer — a Gutenberg–Richter
+law with a slope near one — so a √2 step makes each word about three times rarer than the
+one below. The bottom is 3.9σ for now; the exact 99% level is 3.2σ for a fund's day and
+3.5σ for a 24-hour day, and the choice between them is the last stage, once the flags mean
+what they should.
 
-**The top rung is six years** — inside the five-to-ten the recipient asked for, and not
-tuned to the archive, because fitting the boundary to whatever history happens to be
-downloaded would let deepening an instrument quietly rename moves already sent.
+**What the papers say about using what we know of an asset.** Model known repeating
+patterns — the time of day (Boudt, Croux & Laurent find it recovers small jumps in quiet
+hours and removes false ones in busy hours; without it, half or more of detected jumps can
+be spurious). Do not filter news: about a third of FX jumps coincide with US data releases
+(Lahaye, Laurent & Neely), and they are the real thing — label them. Fat tails are what a
+jump test detects, so a per-asset tail shape is a risk-management idea, kept as an
+optional later stage.
 
-**Read the two ladders separately, never their union.** Each makes its own claim. A
-message takes whichever rung is rarer, so the message *rate* is roughly the sum — 2.03x
-at `extreme`. That is volume, which `sensitivity` turns, not a miscalibrated rung.
+**The gap is researched before it is built.** A night is 17.5 hours and a weekend 65, yet
+a weekend's gap is only slightly bigger than a night's (French & Roll 1986: prices move far
+less while markets are shut; 1.17x on our funds), and half a year holds only 26 weekends,
+so the yardstick itself is uncertain by about ±16%. How to score it is an open question in
+`concerns-for-later.md`.
 
-**Re-cut on a frequency step, not a size step.** The rungs used to climb a uniform 1.47x
-in size in every block. How much rarer that made a rung depended on the block's tail, and
-the tails differ — the exponent runs 2.75 in credit to 3.71 in energy — so one step was
-2.96x rarer in credit and 4.64x in energy. It compounded: among the ten instruments with
-at least ten top-rung events — enough for the ratio to mean anything — `extreme` cost 2.5
-`noticeable` events on EMB and 18.3 on USD/CAD, **7.2x apart**, and the tail exponent
-predicted which (correlation +0.83). Now each rung is cut to cross 3.162x less often than the one below,
-measured on each block's own history. `tools/ladder.py` derives all three tables and
-prints them; they are pasted by hand, because a number that refits itself is a number
-nobody can reason about.
-
-**The level is an empirical quantile, not an extrapolation from the exponent.** Placing
-rung *i* at `anchor * step**(i/alpha)` is the obvious method and was tried: it lands
-between 2.93x and 5.29x against a 3.162x target, because a return tail is not a clean
-power law and the error grows the further the extrapolation reaches — which is exactly at
-the top rung. Taking the rate as the target and reading the level off the data instead
-lands every block between 2.88x and 3.29x.
-
-**What the re-cut bought, and the one thing it did not.** Measured on two cold passes over
-the whole archive, the old table against the new:
-
-| | before | after |
-|---|---|---|
-| `noticeable` per `extreme`, pooled per block | 5.5 – 44.5 (**8.2x**) | 11.8 – 17.1 (**1.4x**) |
-| does the block's tail exponent predict it | +0.67 | +0.01 |
-| same ratio per instrument, ≥10 top-rung events | 2.5 – 18.3 (7.2x) | 3.6 – 14.1 (**3.9x**) |
-| names that never reach the top rung | 5 | **1** |
-
-Everything else held: 7.6 to 11.7 events per instrument-year (was 8.1 to 12.2), 3.8x
-between the quietest and loudest name, 94.4% of the obvious hours reached, 74.3% still
-standing at the next close. Pushes went from 47 to 58 a year and the weekly note from 7.3
-rows to 6.7, both consequences of lower `major`/`extreme` rungs and a rate-matched
-abnormal floor.
-
-**Quoting that spread without its restriction is how it was got wrong.** This entry said
-"7.1x to 4.2x" for a while, and the two ends were measured over different sets of
-instruments — the before over names with ten or more top-rung events, the after over
-something wider. The median instrument records **six** top-rung events in twenty-three
-years, so per-instrument `noticeable`-per-`extreme` is a ratio with a denominator of six:
-unrestricted it runs 3.6 to 50.3, a 14.0x spread that shrinks monotonically as the minimum
-count rises (8.9x at ≥5, 3.9x at ≥10, 1.6x at ≥20). That monotone shrinkage is the
-signature of counting error, not of the word meaning different things. The pooled-per-block
-line is the robust one; a per-instrument line has to carry its restriction.
-
-**A block is silent at `noticeable` and speaks from `high` up.** A block event is built
-from its members' PRICES — the median of each member's return over that member's own usual
-hour — and never from its members' events; aggregating member events was tried and
-predicts nothing. What was in question is which of a block's own tiers are worth
-delivering. `noticeable` is not: there are nine blocks and in any hour one of them is the
-one that moved most, so the bottom rung is the ordinary background of a market, 32.2 rows
-a year saying "energy moved a bit more than the rest". `high` is, and it was never
-measured on its own — the filter was set against a pooled 52.7-a-year figure for both
-rungs, which priced a choice nobody was making. Measured apart, `high` costs **7.8 block
-rows a year** on the real pipeline, about one every seven weeks, spread evenly across the
-nine blocks rather than piling into energy and equity. It goes to the digest, so pushes
-are unchanged at 1,352.
-
-What it buys is legibility on exactly the hours the note is worst at. On 2026-09-16 at
-18:00 six dollar pairs fired separately — two at `high`, four at `noticeable` — and the
-note read as six unrelated currency alerts. The block row says it once: *the dollar gained
-0.55% against the typical pair, 11x a typical member's usual hour, the biggest since 390
-days ago.* That is the observation no member event can make.
-
-**Inside a block, per-instrument dispersion is not measurable, so the ladder stays per
-block.** The obvious question after the re-cut is whether `extreme` still means different
-amounts of rare for two names in the same block: EUR/USD spends 50 `noticeable` events per
-`extreme` and CORN 3.6, both inside a table that is only set per block. It does not — as
-far as twenty-three years can say. Take the null in which every instrument shares one true
-ratio and only the counts are Poisson, and the expected max-over-min spread is **35.1x**
-across all sixty names that reach the rung, 9.5x among the thirty-seven with five or more
-top-rung events, and 4.1x among the sixteen with ten or more. Observed: 14.0x, 8.9x, 3.9x
-— at or below the null median every time (p = 0.98, 0.60, 0.54). The visible spread *is*
-the counting error, and it shrinks as the minimum count rises for the same reason. Fitting
-a table per instrument would be fitting sixty numbers to a signal that is not there, in a
-file whose standing rule is that a number which refits itself is a number nobody can reason
-about. The block remains the right unit.
-
-**The 3.162x is true of crossings and not of delivered events, and that was a verification
-error worth recording.** The target was checked against bar crossings, where it holds
-exactly. An event is a different object: `combine` takes the MAX of the absolute and
-abnormal tiers, and the maximum of two evenly spaced ladders concentrates upward; the
-once-a-day rule then keeps each day's peak tier and concentrates it again. Pooled, events
-step 2.65x, 2.47x and 1.95x. Closing the gap means deriving against event rates, which is
-an iteration rather than a formula — open in `docs/concerns-for-later.md`.
-
-**Known limit — when an instrument's shocks happened.** The six-year rung fires 2.4x too
-often for FX and 0.34x for equity and credit. It tracks *where in its own life* each
-instrument's worst moves fell (correlation 0.543 with the median position of its twenty
-largest): FX's worst hours — the franc unpeg, Brexit, the 2022 yen — are all in the last
-quarter of its history, while equity and credit carry 2008 in their first half. No causal
-fit can know which it is in, and refusing to look forward is worth the cost.
-
-**What a record gives up.** It says a move beat everything in six years, not by how far,
-so the message carries the magnitude alongside. Records also cluster in a crisis — a
-property of markets, not an artefact.
+**What the jump detector replaces.** The ladder of the running detector: three per-block
+tables of rungs (`BLOCK_SIGMA`, `BLOCK_RESID_SIGMA`, `BLOCK_MOVE_SIGMA`) and a
+`sensitivity` multiplier. Before that the rungs were ranks within a six-year window, retired
+because after a crash nothing could reach the top rung until the crash rolled out (395
+moves larger than a typical `extreme` went out milder); before that, fitted tails, which
+put SPY's once-in-six-years level anywhere from 2.22% to 6.78% on different windows. A
+per-instrument "N times a year" rung was built and rejected: it equalised rates but let
+the biggest crisis hours go out as digest rows (70.8% → 61.6% of the biggest hours pushed),
+and its settings were still choices rather than derivations. The tables stay in the code
+only until the switch, because the running detector reads them.
 
 ---
 
 ## The residual
 
-**The market model, with an estimation gap.** `r = alpha + beta*F + e`, a rolling 500-bar
-regression ending three bars before the bar being judged. Three bars because the leak is
-short and three of five hundred does not measurably move the coefficients.
+**The market model, with an estimation gap, through zero.** `r = beta*F + e`, a rolling
+500-bar regression ending three bars before the bar being judged. Three bars because the
+leak is short and three of five hundred does not measurably move the coefficients. No
+intercept: 500 hours cannot measure a drift of about 0.004% an hour, so subtracting one only
+added noise (events 9,690 → 9,704, pushes unchanged).
 
 **The regressor is the instrument's own block factor**, oriented by sign — within FX the
 dollar-quoted and dollar-based pairs otherwise cancel and the factor reads near zero. A
@@ -166,12 +98,17 @@ move inflates the spread it is measured against and hides itself.
 **It is a t, not a z.** Dividing by a sample spread over as few as five peers makes a t;
 Wallace's transform maps it to z for the degrees of freedom actually present.
 
-**The rank-test gate.** BMP predicts a cross-sectional spread S near 1 and its median is
-0.963, but in 0.9% of hours it falls below 0.3 — the whole block asleep — and dividing by
-0.05 turns a raw z of 0.86 into 4.05. So an hour claimed by the **abnormal channel alone**
-that Corrado's rank test contradicts has that claim withdrawn. "Alone" is load-bearing:
-the rank test is itself misspecified when variance jumps, which is when the absolute
-channel fires. Of 24 pushes in October 2008 it removes one; of 15 in March 2020, none.
+**One size floor, not a rank test.** An unexplained move can be tiny — a residual its
+own history finds remarkable in an instrument that ticked +0.03%. The raw move must be at
+least twice the instrument's usual hour (`min_move_sigma: 2.0`). It replaced a one-hour
+floor plus Corrado's rank test, which did the same job twice: the same messages, 97% of
+pushes identical, held 73.9% against 74.2%. The two-tick check went with it (it fired once
+in 25 years, and the floor covers it), and so did Patell's correction on the regression
+(99.4% of pushes identical).
+
+**The opening is judged against openings.** A US fund's residual is divided by that hour's
+usual size relative to all hours, learned per fund over 500 sessions; the opening's
+crossing rate fell from 0.61% to 0.35%. Not for FX, whose busy hour is the news itself.
 
 **Peer count is not the discriminator.** Fewer than ten peers is 37.5% of scored hours —
 the shape of a 24-hour basket whose equities trade six and a half. The thin hours hold the
@@ -181,9 +118,6 @@ matters is whether the peers were *moving*.
 ---
 
 ## What counts as an event
-
-**A one-cent move is unobserved, not small.** At a $0.01 tick a 0.025% move in SHY is one
-tick of jitter. Under two ticks is dropped.
 
 **An event carries one bar's numbers.** Escalating inside its day keeps the higher tier
 *and* that bar's move — otherwise a push reads "biggest move in 3 years, +0.01%".
@@ -325,9 +259,9 @@ a source of alerts for moves that did not happen.
 
 ## The shape of the repository
 
-**Derived data is not tracked.** Metrics, residuals and the event table are several hundred
-megabytes rewritten every run and rebuild from the bars in about two minutes, which the
-hourly job does anyway.
+**Derived data is not tracked.** Metrics, residuals, the event table and the record book
+are several hundred megabytes rewritten every run and rebuild from the bars in about a
+minute and a half.
 
 **Bars commit once a day, not hourly.** Appending to Parquet leaves earlier row groups
 byte-identical, so a day of new bars costs about 1 MB; hourly commits would be twenty-four
@@ -350,8 +284,13 @@ Raised, dealt with, and not to be raised again.
   blind where Dukascopy gates on a measured overlap.
 - **`tremor/volume.py` and the `v_r` column** — deleted. Computed in every metrics build
   and read by nothing.
-- **The gap channel, `r_gap` and `gap_masked`** — deleted, with the `load_actions()` lookup
-  that existed only to feed the flag. The split stays; keeping the discarded half did not.
+- **The overnight gap** — scored again, on a path of its own (`tremor/gaps.py`), against
+  the usual gap after the same kind of close; a midweek holiday counts as a weeknight,
+  because two or three a year are too few to learn their own size and borrowing the
+  weekend's made them fire three times their share. Unscored when the day's dividend isn't
+  confirmed, which is why `tremor.backfill` asks Yahoo for payouts each morning.
+- **Stages nothing read** — deleted: the reversion fit, the Q95/Q99 thresholds, the price
+  z-score and the basket statistics built on it. Removing them left the events identical.
 - **VIX refetched from 1990 every run** — fixed. The stored parquet is read first.
 - **FX fetched into a closed market** — fixed. The skip guard takes its expectation from
   the same session walk the bar loop uses.
@@ -374,9 +313,8 @@ Raised, dealt with, and not to be raised again.
   the project's life and the recorder collected one verdict, while between them they cost
   two of the six steps in the hourly pass, which is why that part of the order was
   load-bearing. The pass is four commands now. The `min_move_sigma` gate stays and is
-  edited by hand: it suppresses about eleven events a year, all abnormal-only moves
-  smaller than one times the instrument's usual hour, and deleting a working gate because
-  its setter was unused would be the wrong trade. What is genuinely given up is that
+  edited by hand (now at two usual hours, see "One size floor"); deleting a working gate
+  because its setter was unused would be the wrong trade. What is genuinely given up is that
   nothing records whether a message was worth reading.
 - **`schema/event_export.schema.json`** — deleted, with its `jsonschema` dependency.
   Nothing produced the export and no test validated it, despite a comment saying one did.
