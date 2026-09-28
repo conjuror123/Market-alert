@@ -29,15 +29,17 @@ fire is worse than none — its silence is indistinguishable from a quiet market
 | | |
 |---|---:|
 | Live fetch (Tiingo + Yahoo + Coinbase) | seconds |
-| Metrics and events | ~2 min |
+| Metrics and events, warm run | ~30 s |
+| Metrics and events, cold rebuild | ~1.5 min |
 | Whole job, median | ~2 min |
 | Our own timeout | 20 min |
 | GitHub's hard cap | 6 hours |
 
 No live fetch waits on a rate limit. Tiingo answers in about 0.28 s with no enforced
 throttle; Yahoo and Coinbase have no pacing requirement. A `config_version` mismatch
-forces a cold rebuild of the derived data, which takes the same two minutes — that is the
-guard working, not a fault.
+forces a cold rebuild of the derived data (about a minute and a half locally) — that is
+the guard working, not a fault. A warm run reads each series' warm-up plus the bars after
+the record book's checkpoint, about a third of the bars.
 
 ---
 
@@ -61,8 +63,13 @@ skip when the Sun 17:00 → Fri 17:00 New York week is shut
 
 ## What gets committed, and when
 
-**Every run:** `data/state.json` (which events have been sent — losing it re-sends them)
-and `data/economic_calendar/`. The push rebases and retries if the branch moved, because a
+**Every run:** `data/state.json` (which events have been sent — losing it re-sends them),
+`data/economic_calendar/`, and the dividend record: `data/tremor/corporate_actions.csv`
+and `data/tremor/dividend_checks.csv`. On the first run after 09:30 New York,
+`tremor.backfill` asks Yahoo for each paying fund's payouts; new ones go to
+`corporate_actions.csv`, and `dividend_checks.csv` records how far each fund is confirmed.
+A fund's overnight gap is not scored on a day its dividend is unconfirmed. When a fund is
+five or more days behind, one line a day goes to the health chat. The push rebases and retries if the branch moved, because a
 rejected push is the same as losing the sent map. A truncated `state.json` fails the run
 rather than being read as a cold start.
 
@@ -78,10 +85,13 @@ consecutive misses, set by Yahoo's 55 days at thirty minutes, the shortest reach
 basket. VIX rides the same commit so the skip-if-fresh check can see the latest close
 and avoid re-fetching CBOE's full 1990 file.
 
-**Never:** `data/tremor/metrics/`, `residuals/`, `saed_events.parquet`. Derived,
-gitignored, rebuilt in the run that needs them.
+**Never:** `data/tremor/metrics/`, `residuals/`, `saed_events.parquet`,
+`record_book.parquet`, `jumps.parquet`. Derived, gitignored, rebuilt in the run that needs
+them.
 
-**The Actions cache** (`metrics/` and the events archive, 232 MiB) is uploaded only when
+**The Actions cache** (`metrics/`, the events archive and the record book, 232 MiB) holds
+what a warm run extends; the record book is the "biggest since" lookup as of a checkpoint
+14 days back, and without it the run goes cold. It is uploaded only when
 the run actually changed it, plus once a day regardless so a quiet stretch cannot let the
 entry age out — GitHub drops a cache nothing has touched for a week, and a cold start
 costs every instrument a full rebuild.

@@ -10,6 +10,11 @@ An hourly Telegram bot. It watches 61 market instruments and writes when one mov
 unusually **for itself**, measured against its own history rather than a shared
 percentage. It runs entirely on GitHub Actions.
 
+**The detector is being replaced.** Production runs the detector below; its replacement, a
+jump detector copied from Lee & Mykland (2008), is built stage by stage in `tremor/jumps.py`
+on the branch `claude/youthful-pascal-u0rx7u`. Each stage is reviewed before the next;
+`docs/architecture.md` has the stage list and `docs/decisions.md` the reasons.
+
 Read this file first, then the one doc that covers your task:
 
 | you need | read |
@@ -49,8 +54,8 @@ Break one of these and the system is wrong rather than merely broken.
 3. **Everything internal is UTC seconds, named `hour_utc`.** Local time appears in one
    place only — the digest slot, because the reader reads it locally — resolved through
    `ZoneInfo`.
-4. **One event per instrument per trading day.** Enforced in `saed`, not by filtering
-   afterwards. End of session for the funds, end of the UTC day for crypto.
+4. **One event per instrument per trading day.** Enforced in `saed` (and, for a day both
+   the gap and an hour fired, in `saed.merge_days`), not by filtering afterwards. End of session for the funds, end of the UTC day for crypto.
 5. **A ping exists only while the note beneath it shows its row.** `pending_pings` and
    `restyle_pings` both bound on the open note's window; they must not diverge.
 6. **A note interrupts only while its period is open.** Every note inside
@@ -75,7 +80,7 @@ Break one of these and the system is wrong rather than merely broken.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q                     # ~820 tests, about four minutes
+pytest -q                     # ~850 tests, about five minutes
 ```
 
 Run the tests alone — several load large parquet files, and concurrent runs thrash.
@@ -83,5 +88,5 @@ Run the tests alone — several load large parquet files, and concurrent runs th
 To exercise the real pipeline you need `TIINGO_API_KEY` (hourly bars), plus
 `TWELVEDATA_API_KEY` and `FRED_API_KEY` for archive work. Derived data under
 `data/tremor/metrics/`, `residuals/` and `saed_events.parquet` is gitignored and rebuilds
-from the committed bars in about two minutes.
+from the committed bars in about a minute and a half.
 

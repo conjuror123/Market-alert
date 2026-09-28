@@ -107,6 +107,15 @@ should be checked against the implementation it replaces, on real data, not asse
 commit message. A regression test must be shown to fail without the fix — one that passes
 either way is worse than none, because it looks like cover.
 
+**Keep the docs current with the code, in the same change.** The detector is being rebuilt
+in stages; each stage updates `architecture.md` (what it does now) and `decisions.md` (its
+source, its logic, what was measured) in the commit that makes it. A reader must be able to
+say what a message means from the docs alone. (A temporary freeze on editing the docs, with
+changes logged in a side file, ended with the switch to the jump detector.)
+
+**Each stage of the jump detector is built only after the previous one was reviewed.** It
+has a named source, a stated logic and a measured before/after (`tools/stage_report.py`).
+
 ---
 
 ## What cannot be self-reported

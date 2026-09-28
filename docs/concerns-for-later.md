@@ -10,10 +10,9 @@
 Nothing here is a bug in the sense of producing a wrong message today.
 
 **Two standing limits that will not change.** It does not predict, and does not claim to:
-every number is about a move that already happened, and the tier says how unusual it was,
-not what comes next. And the ladder cannot claim a return period longer than an
-instrument's own history — a newly added name says "biggest in a quarter" for years before
-it can say "biggest in six", and nothing at all for the first two.
+every number is about a move that already happened, and the word says how unusual it was,
+not what comes next. And no record can be longer than an instrument's own history — a
+newly added name says "biggest in a quarter" for years before it can say "biggest in six".
 
 ---
 
@@ -130,30 +129,25 @@ change.
 
 ---
 
-## 5. The rungs are evenly spaced in crossings, not in delivered events
+## 5. How the jump detector should score the overnight gap
 
-`tools/ladder.py` cuts each rung so it crosses 3.162x less often than the one below, and
-on bar crossings it achieves that: every block lands between 2.88x and 3.29x, against
-2.96x to 7.00x under the old uniform size step.
+The jump detector (stage 0) scores hours only. The gap — a fund's night and weekend, a
+currency pair's weekend — is where whatever happens while a market is shut arrives, so the
+half-year calendar window is only complete with it. How Lee & Mykland's test applies to it
+is not settled:
 
-A delivered event is not a crossing. `severity.combine` takes the maximum of the absolute
-and abnormal tiers, and the maximum of two evenly spaced ladders is not evenly spaced — it
-concentrates mass upward. The once-a-day rule then collapses a day's crossings to their
-peak tier and concentrates it again. Pooled over the archive, events step **2.65x, 2.47x
-and 1.95x** rather than 3.162x, so the ladder is more compressed at the top than it reads.
+- **Few readings.** Half a year holds about 100 nights but only 26 weekends, so the usual
+  weekend gap is itself uncertain by about ±16%, and noise crosses 3.9σ roughly six times
+  as often as with a known yardstick.
+- **Uneven length, even information.** A weekend is 65 hours and a night 17.5, yet a
+  weekend's gap is only about 1.17x a night's on our funds (French & Roll 1986: prices
+  move far less while markets are shut), so dividing by clock time would be wrong.
 
-Nothing is wrong in the sense of a wrong message: every rung still means "this size for
-this instrument", and the spread this re-cut was for did fall — pooled per block,
-`noticeable`-per-`extreme` went from 5.5–44.5 to 11.8–17.1, 8.2x to 1.4x, and the block's
-tail exponent stopped predicting which block was harsher (+0.67 to +0.01). What is off is
-the claim that one step is one fixed amount of rarer.
-
-**What acting on it would mean:** deriving against event rates rather than crossing rates.
-There is no closed form, because the max-of-two and the daily collapse both depend on the
-levels being chosen — so it is an iteration: derive, cold-run `saed`, measure the event
-ratios, adjust the step, repeat. Three or four runs at about seven minutes each. Cheap in
-compute, and it moves the published rates again, which is the reason to do it deliberately
-rather than in passing.
+**What acting on it means:** research how the jump-test literature scores overnight and
+weekend returns — pooling nights and weekends with a measured ratio, the window, and a
+threshold that allows for a yardstick estimated from few readings — then measure the
+candidates on our data and build the one agreed. The running detector's gap path
+(`tremor/gaps.py`) is untouched meanwhile.
 
 ---
 
@@ -204,6 +198,28 @@ cheapest disqualifier comes first:
 does, the widening is capped at the ~13 Tiingo slots, or accepts Yahoo concentration as a
 deliberate risk. `tools/alpaca_probe.py` and `tools/alpaca_compare.py` are written and
 generalise to the next candidate with a change of endpoint.
+
+---
+
+## 8. Smaller things, found and left alone
+
+- **The report card judges overnight events by their first hour.** `tools/report_card.py`
+  counts an event on a below-median hour as a false alarm, and for a gap event it reads the
+  first hour's own move rather than the gap: 258 printed, about 96 without them. Acting on
+  it means judging a gap event by the gap.
+- **A hole inside a session makes a two-hour move.** When a bar is missing mid-session, the
+  next bar's return spans both hours and is judged as one. Rare; acting on it means
+  dividing by the elapsed time or leaving that bar unscored.
+- **Warm and cold differ by a hair for US funds.** Up to 0.28% on the running detector's
+  own-move score, through the hour scale's reach; no rung has ever changed because of it.
+- **One instrument's timeout turns the whole run red.** A single provider read timeout in
+  backfill fails the job and sends the "Failed" email even though every other instrument
+  ran.
+- **To watch on 2026-10-01:** the monthly payers go ex-dividend; check that Yahoo lists
+  them by the 10:05 New York run, or their gaps stay unscored that day.
+- **The running detector's opening still fires about twice as often** as its other hours
+  after the opening-hour scale, from extreme outliers at the open. The jump detector's
+  time-of-day stage is where this is answered.
 
 ---
 

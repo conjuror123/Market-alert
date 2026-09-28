@@ -14,19 +14,17 @@ Treasuries, so one percentage threshold shared across a basket says almost nothi
 instrument is measured against its own history, and the message is a date: *the biggest
 move since 3 March 2020*, which needs no calibration intuition to read.
 
-Measured over 23.3 years of hourly history, 2.9M bars, a cold pass on the current code:
+The running detector, measured over 23.3 years of hourly history, 2.9M bars, a cold pass:
 
 | | |
 |---|---|
-| pushes | 1,352 — about **58 a year**, on 37 interrupted days |
-| reached you | **94.4%** of the 216 hours that were unmistakably large for their own instrument; 12 silent |
-| false alarms | **0.007%** — 85 of 1.17M hours below their instrument's median move |
-| held up | **74.3%** of pushes still standing at the next close |
+| pushes | 1,336 — about **57 a year** |
+| reached you | **94.4%** of the hours that were unmistakably large for their own instrument |
+| held up | **73.9%** of pushes still standing at the next close |
 
-That rate is an OUTPUT, watched rather than aimed at. Nothing caps it and the rungs are
-not tuned against it: they are tuned against what each word should mean for a single
-instrument, so the yearly total is whatever 61 instruments of that sensitivity happen to
-produce. Widening the basket raises it, and that is not a fault.
+The report card also prints 258 "false alarms" (events on hours below the instrument's
+median move); most are overnight-gap events, which it still judges by their first hour.
+Left out, the count is about 96. That rate is an output, watched rather than aimed at.
 
 It runs entirely on GitHub Actions. Nothing extra needs hosting.
 
@@ -54,6 +52,11 @@ the map of these documents.
 
    Yahoo (15 thin ETFs) and Coinbase (9 crypto) need no key. Without a Tiingo key the
    hourly run still prices the Yahoo and Coinbase names and stays silent on the rest.
+   Which providers you need is decided by `config/basket.yaml`: each instrument names its
+   `provider`, and a missing key costs you those instruments and nothing else. **To add a
+   provider:** a client module in `price_monitor/` exposing `fetch_full_history(...)`, its
+   name in `PROVIDERS` in `tremor/basket.py`, a branch in `tremor/backfill.py`, and the
+   secret in the workflows' `env:`. `source` is identity and never follows a provider change.
 4. **Set up the hourly trigger — mandatory.** GitHub's own `schedule:` was measured
    firing about once every ten hours on this repository, so an external free cron
    service calls `workflow_dispatch` through the API instead. See `docs/operations.md`.
@@ -63,36 +66,30 @@ Notification → Run workflow**.
 
 ## Turning it up or down
 
-Two knobs in `config/basket.yaml`, answering different questions:
+**The detector is being replaced.** Production still runs the running detector described
+below; its replacement, a jump detector copied from Lee & Mykland (2008), is built stage by
+stage on the branch `claude/youthful-pascal-u0rx7u` (see `docs/architecture.md`). Stage 0
+scores each hour against the instrument's half-year bipower volatility and words it at
+3.9 / 5.5 / 7.8 / 11.0σ; over 23 years that flags about 16 hours per instrument a year
+(median), before any of the stages that turn flags into messages. Its settings sit under
+`detector:` in `config/basket.yaml`.
+
+**The running detector** has two knobs in `config/basket.yaml`:
 
 ```yaml
-sensitivity: 1.0      # how RARE must a move be before it is worth a line
-min_move_sigma: 1.0   # how BIG must it be, in its own terms, whatever the rarity
+sensitivity: 1.0      # how RARE must a move be: scales all four rungs together
+min_move_sigma: 2.0   # how BIG must it be: two of the instrument's usual hours
 ```
 
-`sensitivity` scales all four rungs together: `2.0` makes every rung twice as rare and
-the messages roughly half as many. It does **not** equalise instruments — each is still
-judged against its own history, so `SHY` may speak once a year and `SOL` a hundred
-times. That spread is the point of a return period, not a fault to normalise away.
+`sensitivity` scales every rung at once; pushes move with roughly its 4.6th power, so a
+10% turn roughly halves or doubles them. `min_move_sigma` is the size floor: the abnormal
+channel asks whether a move was *unexplained*, never whether it was *large*, and without a
+floor an instrument that ticked +0.03% could be reported. It is written per instrument, or
+under `block_min_move_sigma` on a block's own line. Both take effect on the next hourly run
+(after one cold rebuild).
 
-`min_move_sigma` is the size floor. The abnormal channel asks whether a move was
-*unexplained*, never whether it was *large*, so without a floor an instrument that
-ticked +0.03% while its block went the other way could be reported as a once-a-month
-event. In units of the instrument's own sigma, so it means the same to `SHY` as to `SOL`.
-
-**Neither number is guessable from the data**, and nothing in the system tries. Both are
-edited by hand in `config/basket.yaml` and take effect on the next hourly run.
-`min_move_sigma` is written per instrument, `block_min_move_sigma` on a block's own line
-without copying onto its members.
-
-There was a Telegram command for this — `/floor BKLN 2.5` — and a recorder for verdicts
-on messages that were or were not worth reading. Both are gone. In the project's life the
-command never changed a number and the recorder held one row, while between them they
-cost two of the six steps in the hourly pass. **So nothing now records whether a message
-was worth reading.** That is a real thing given up: a reader can point at a message that
-arrived and should not have, and cannot point at one that never came, so judgement was
-the only evidence the loud side was too loud. The knobs are turned by reading the messages
-and editing the yaml.
+Nothing records whether a message was worth reading; the knobs are turned by reading the
+messages and editing the yaml.
 
 ## Where to look next
 

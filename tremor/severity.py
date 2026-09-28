@@ -115,7 +115,8 @@ import pandas as pd
 # The bottom rung is UNCHANGED from the hand-set table. It is the one rung a
 # reader can check, because three quarters of the weekly note's rows are
 # `noticeable` and it therefore sets how long the note is; everything above it is
-# derived from it. See tools/ladder.py, which prints this table and the two below
+# derived from it. The three tables were derived once by a tool since deleted; the jump
+# detector (tremor/jumps.py) replaces them at the switch. The two below
 # it, and docs/decisions.md for why a quantile beats extrapolating from the
 # exponent.
 #
@@ -293,7 +294,7 @@ def rungs_for(table: dict, block: "str | None", default: tuple,
             f"block {name!r} has no rungs in severity.{table_name}. Every block "
             f"in tremor.basket.BLOCKS needs an entry in all three ladder tables "
             f"(BLOCK_SIGMA, BLOCK_RESID_SIGMA, BLOCK_MOVE_SIGMA); derive them "
-            f"with tools/ladder.py rather than writing them by hand.")
+            f"the way docs/decisions.md describes, not by hand.")
     return table[name]
 
 
