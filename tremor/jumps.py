@@ -43,7 +43,16 @@ holiday is a night. The yardstick for weekends is the noisiest, 26 readings a
 half-year, against the paper's minimum of 7 for once-a-week data; measured, it
 is no worse than pooling them with the nights (see docs/decisions.md).
 
-WHAT IS NOT HERE YET, deliberately: no one-event-a-day rule, no channels, no
+ONE EVENT PER INSTRUMENT PER DAY (stage 1), unless the day grows. The first flagged
+reading of an instrument's day - its gap or an hour - opens the day. A later reading
+the same day is kept only if it reaches a HIGHER word than anything kept before it
+that day: a day that starts `noticeable` and turns `high` says so, and a second
+`noticeable` - or a `high` after a `major` - is dropped. So a day holds at most four
+events, each rarer than the last. The day is the fund's New York session date and
+the UTC date for currency pairs and coins (sessions.day_tz, the same day the
+running detector uses).
+
+WHAT IS NOT HERE YET, deliberately: no channels, no
 "biggest since" date, no held check, no time-of-day scale, no block or own-move
 reading, no size floor. Each comes back as its own stage with its own logic.
 The output is a table of every reading that reached `noticeable`.
@@ -65,7 +74,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
-from tremor import atomic
+from tremor import atomic, sessions
 from tremor.basket import DEFAULT_BASKET_PATH, load_basket
 
 log = logging.getLogger("tremor.jumps")
@@ -212,9 +221,44 @@ def score_gaps(frame: pd.DataFrame, window_days: float = WINDOW_DAYS,
                          "young": young})[columns]
 
 
+def day_keys(hour_utc, tz_name: "str | None") -> np.ndarray:
+    """The trading day each reading belongs to, as a sortable integer
+    (days since 1970 in `tz_name`, or in UTC for None)."""
+    moments = pd.to_datetime(np.asarray(hour_utc, dtype="int64"), unit="s", utc=True)
+    if tz_name:
+        moments = moments.tz_convert(tz_name)
+    return (moments.tz_localize(None).normalize()
+            - pd.Timestamp("1970-01-01")).days.to_numpy()
+
+
+def one_a_day(flagged: pd.DataFrame, tz_name: "str | None") -> pd.DataFrame:
+    """One instrument's flagged readings, cut to one event a day unless the day
+    grows: a reading is kept only if its word is rarer than every reading kept
+    before it that day. A gap is taken before the hour that shares its
+    timestamp - the night happened first. Adds `day` and `escalation` (False
+    for the day's first event, True for one that raised it)."""
+    if flagged.empty:
+        return flagged.assign(day=pd.Series(dtype="int64"),
+                              escalation=pd.Series(dtype="bool"))
+    order = flagged.assign(_after=(flagged["reading"] == HOUR).astype(int))
+    order = order.sort_values(["hour_utc", "_after"]).drop(columns="_after")
+    rank = order["word"].map({w: i for i, w in enumerate(WORDS)}).to_numpy()
+    days = day_keys(order["hour_utc"], tz_name)
+    keep = np.zeros(len(order), dtype=bool)
+    escalation = np.zeros(len(order), dtype=bool)
+    best, today = -1, None
+    for i, (day, r) in enumerate(zip(days, rank)):
+        if day != today:
+            today, best = day, -1
+        if r > best:
+            keep[i], escalation[i], best = True, best >= 0, r
+    return order.assign(day=days, escalation=escalation)[keep].reset_index(drop=True)
+
+
 def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKET_PATH
         ) -> pd.DataFrame:
-    """Every flagged reading - hour, night or weekend - of every instrument."""
+    """Every instrument's events: its flagged readings - hour, night or
+    weekend - cut to one a day unless the day grows (one_a_day)."""
     basket = load_basket(basket_path)
     window, bottom, step = settings(basket_path)
     parts = []
@@ -227,7 +271,8 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
         readings = [score(metrics, asset.session_template, window, bottom, step),
                     score_gaps(metrics, window, bottom, step)]
         scored = pd.concat([f for f in readings if not f.empty], ignore_index=True)
-        flagged = scored[scored["word"].notna()].copy()
+        flagged = one_a_day(scored[scored["word"].notna()],
+                            sessions.day_tz(asset.session_template))
         flagged.insert(1, "asset_id", asset.asset_id)
         flagged.insert(2, "ticker", asset.ticker)
         flagged.insert(3, "block", asset.block)
@@ -246,7 +291,8 @@ def main(argv: "list[str] | None" = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     flagged = run(args.metrics_dir)
     atomic.write_parquet(args.out, flagged, index=False)
-    log.info("%d flagged readings -> %s", len(flagged), args.out)
+    log.info("%d events (%d of them escalations) -> %s", len(flagged),
+             int(flagged["escalation"].sum()) if not flagged.empty else 0, args.out)
     if not flagged.empty:
         log.info("by reading: %s", flagged["reading"].value_counts().to_dict())
         log.info("by word: %s", flagged["word"].value_counts().to_dict())

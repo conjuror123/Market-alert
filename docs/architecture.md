@@ -45,8 +45,16 @@ paper's minimum for once-a-day and once-a-week data. The gap value is the pipeli
 `gap`: corrected for dividends, and left out on a split, an unconfirmed dividend or a
 missing bar before the close.
 
-The output is a table, not messages: `data/tremor/jumps.parquet`, every reading — hour,
-night or weekend — that reached `noticeable`. `tools/stage_report.py` prints what it flags:
+**Stage 1, one event per instrument per day — built.** The first flagged reading of an
+instrument's day, its gap or an hour, opens the day. A later reading that day is kept only
+if it reaches a *rarer* word than anything kept before it: a day that starts `noticeable`
+and turns `high` says so, while a second `noticeable`, or a `high` after a `major`, is
+dropped. A day therefore holds at most four events, each rarer than the last. A gap goes
+before the hour that shares its timestamp. The day is the fund's New York date and the UTC
+date for currency pairs and coins (`sessions.day_tz`, the running detector's day).
+
+The output is a table, not messages: `data/tremor/jumps.parquet`, every instrument's events
+— hour, night or weekend — with `escalation` marking the ones that raised their day. `tools/stage_report.py` prints what it flags:
 per week, per instrument and block, the gaps by kind, and how the biggest hours of each
 record were worded.
 
@@ -54,7 +62,6 @@ record were worded.
 
 | | stage | source |
 |---|---|---|
-| 1 | one event per instrument per day | — |
 | 2 | channels (push or note) and delivery to Telegram | — |
 | 3 | the "biggest since …" date | — |
 | 4 | the held-at-next-close check | — |

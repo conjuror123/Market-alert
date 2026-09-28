@@ -81,6 +81,12 @@ data is 7) leave that yardstick uncertain by about ±16%, so weekend words near 
 are the least certain. Borrowing from the trading hours loses everywhere: the night does
 not follow the day's mood closely enough.
 
+**One event a day, unless the day grows.** A storm of hours is one story, so an instrument's
+day keeps its first event and then only readings that reach a rarer word; the same or a
+milder word the same day is dropped. A rise is kept because it is new information — a day
+that opens `noticeable` and turns `major` is a different day from one that stays
+`noticeable`. Over the record this cuts 28,095 flags to 22,168 events, 1,422 of them rises.
+
 **What the jump detector replaces.** The ladder of the running detector: three per-block
 tables of rungs (`BLOCK_SIGMA`, `BLOCK_RESID_SIGMA`, `BLOCK_MOVE_SIGMA`) and a
 `sensitivity` multiplier. Before that the rungs were ranks within a six-year window, retired

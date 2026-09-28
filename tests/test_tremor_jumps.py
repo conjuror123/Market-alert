@@ -144,3 +144,35 @@ def test_weekends_are_scored_from_seven():
     weekends = scored[scored["reading"] == "weekend"]
     first = int(np.flatnonzero(np.isfinite(weekends["sigma"].to_numpy(dtype=float)))[0])
     assert first == jumps.GAP_MIN_COUNT["weekend"] + 1
+
+
+def _flags(rows):
+    return pd.DataFrame([{"hour_utc": int(pd.Timestamp(t, tz="UTC").timestamp()),
+                          "reading": reading, "word": word} for t, reading, word in rows])
+
+
+def test_a_day_keeps_its_first_event_and_every_rise_and_nothing_else():
+    flags = _flags([("2024-01-02 10:00", "hour", "noticeable"),
+                    ("2024-01-02 11:00", "hour", "noticeable"),   # same word: dropped
+                    ("2024-01-02 12:00", "hour", "high"),         # rarer: kept
+                    ("2024-01-02 13:00", "hour", "noticeable"),   # milder: dropped
+                    ("2024-01-02 14:00", "hour", "high"),         # not rarer: dropped
+                    ("2024-01-02 15:00", "hour", "extreme"),      # rarer: kept
+                    ("2024-01-03 10:00", "hour", "noticeable")])  # a new day starts over
+    events = jumps.one_a_day(flags, None)
+    assert list(events["word"]) == ["noticeable", "high", "extreme", "noticeable"]
+    assert list(events["escalation"]) == [False, True, True, False]
+
+
+def test_the_gap_comes_before_the_hour_it_shares_a_timestamp_with():
+    flags = _flags([("2024-01-02 14:00", "hour", "noticeable"),
+                    ("2024-01-02 14:00", "night", "noticeable")])
+    events = jumps.one_a_day(flags, "America/New_York")
+    assert list(events["reading"]) == ["night"]
+
+
+def test_a_funds_day_is_its_new_york_date_and_a_coins_the_utc_date():
+    flags = _flags([("2024-01-02 20:00", "hour", "noticeable"),    # 15:00 New York
+                    ("2024-01-03 01:00", "hour", "noticeable")])   # 20:00 New York, next UTC day
+    assert len(jumps.one_a_day(flags, "America/New_York")) == 1
+    assert len(jumps.one_a_day(flags, None)) == 2

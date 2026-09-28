@@ -10,6 +10,8 @@ prints, as Markdown:
   - the biggest hours of each instrument's record (its top 0.01% of |move|):
     how many were flagged, and at which word;
   - the gaps (nights and weekends) by kind: per instrument a year and by word;
+  - the events once flags are cut to one per instrument per day unless the day
+    grows (tremor.jumps.one_a_day);
   - ten flagged hours picked at random, for a sanity read.
 
 Rates count only SETTLED hours - those whose window already spans the full
@@ -72,7 +74,42 @@ def gap_section(scored: pd.DataFrame) -> "list[str]":
     return lines + [""]
 
 
+def event_section(scored: pd.DataFrame) -> "list[str]":
+    """Flags cut to one event per instrument per day unless the day grows."""
+    from tremor import sessions
+    settled = scored[~scored["young"].astype(bool)]
+    spans = settled.groupby("ticker")["hour_utc"].agg(lambda h: (h.max() - h.min()) / YEAR)
+    parts = []
+    for ticker, rows in settled[settled["word"].notna()].groupby("ticker"):
+        tz = sessions.day_tz(rows["template"].iloc[0])
+        parts.append(jumps.one_a_day(rows, tz))
+    events = pd.concat(parts, ignore_index=True)
+    flags = int(settled["word"].notna().sum())
+    lines = ["## Events: one per instrument per day, unless the day grows", "",
+             f"{flags:,} flags become {len(events):,} events; "
+             f"{int(events['escalation'].sum()):,} of them are a later, rarer reading the "
+             f"same day.", "",
+             "| word | events | a year, today's basket | a week, today's basket |",
+             "|---|---|---|---|"]
+    total = 0.0
+    for word in jumps.WORDS:
+        mine = events[events["word"] == word]
+        rate = (mine.groupby("ticker").size().reindex(spans.index, fill_value=0) / spans).sum()
+        total += rate
+        lines.append(f"| {word} | {len(mine):,} | {rate:,.0f} | {rate / 52.18:,.1f} |")
+    lines.append(f"| **all** | {len(events):,} | {total:,.0f} | {total / 52.18:,.1f} |")
+    per = events.groupby("ticker").size().reindex(spans.index, fill_value=0) / spans
+    block_of = settled.groupby("ticker")["block"].first()
+    lines += ["", "| block | events per instrument a year (median) | 10–90% |", "|---|---|---|"]
+    for block, names in block_of.groupby(block_of):
+        v = per[names.index]
+        lines.append(f"| {block} | {v.median():.1f} | {v.quantile(.1):.1f}–{v.quantile(.9):.1f} |")
+    lines.append(f"| **all** | {per.median():.1f} | {per.quantile(.1):.1f}–{per.quantile(.9):.1f} |")
+    return lines + [""]
+
+
 def report(scored: pd.DataFrame, seed: int = 0) -> str:
+    events = event_section(scored)
     gaps = gap_section(scored)
     scored = scored[scored["reading"] == jumps.HOUR]
     lines = []
@@ -132,6 +169,7 @@ def report(scored: pd.DataFrame, seed: int = 0) -> str:
     lines.append("")
 
     lines += gaps
+    lines += events
     sample = flagged.sample(min(10, len(flagged)), random_state=seed).sort_values("hour_utc")
     lines += ["## Ten flagged hours, at random", "",
               "| hour (UTC) | instrument | move | half-year σ | z | word |",
