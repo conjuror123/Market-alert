@@ -263,20 +263,38 @@ def one_a_day(flagged: pd.DataFrame, tz_name: "str | None") -> pd.DataFrame:
 BASIS = "jump"
 
 
+def event_ids(asset_id, reading, hour_utc) -> pd.Series:
+    """jump:<asset_id>:<reading>:<hour> - the same id for the same reading on
+    every run, whatever else changed."""
+    return pd.Series("jump:" + pd.Series(asset_id).astype(str).to_numpy() + ":"
+                     + pd.Series(reading).astype(str).to_numpy() + ":"
+                     + pd.Series(hour_utc).astype("int64").astype(str).to_numpy(),
+                     index=getattr(asset_id, "index", None))
+
+
 def for_delivery(events: pd.DataFrame) -> pd.DataFrame:
     """The columns the delivery layer reads, added to an events table.
 
     `tier` is the word and `sigma_lt` the half-year sigma, so the message says
     "N×σ" with N = |z|. The "biggest since" date and the held check are absent
     until their stages exist.
+
+    `superseded_by` names, on every event of a day that later grew, the day's
+    rarest event: once that one is delivered, the lower ones leave the channel
+    (price_monitor.follow_up). Empty on the day's rarest event itself.
     """
     from tremor import routing
 
     if events.empty:
         return events
     out = events.copy()
-    out["event_id"] = ("jump:" + out["asset_id"].astype(str) + ":" + out["reading"].astype(str)
-                       + ":" + out["hour_utc"].astype("int64").astype(str))
+    out["event_id"] = event_ids(out["asset_id"], out["reading"], out["hour_utc"])
+    rank = out["word"].map({w: i for i, w in enumerate(WORDS)})
+    top = (out.assign(_rank=rank).sort_values("_rank")
+           .groupby(["asset_id", "day"])["event_id"].last())
+    tops = pd.Series([top.get((a, d)) for a, d in zip(out["asset_id"], out["day"])],
+                     index=out.index, dtype="string")
+    out["superseded_by"] = tops.where(tops != out["event_id"])
     out["tier"] = out["word"].astype("string")
     out["basis"] = BASIS
     out["sigma_lt"] = out["sigma"]
@@ -308,6 +326,8 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
         readings = [score(metrics, asset.session_template, window, bottom, step),
                     score_gaps(metrics, window, bottom, step)]
         scored = pd.concat([f for f in readings if not f.empty], ignore_index=True)
+        if scored.empty:
+            continue
         flagged = one_a_day(scored[scored["word"].notna()],
                             sessions.day_tz(asset.session_template))
         flagged.insert(1, "asset_id", asset.asset_id)

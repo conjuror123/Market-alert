@@ -145,22 +145,24 @@ the call stopped being made, and it emails when it cannot get through. Nothing i
 this repository can do better, because anything that lives in the run shares a failure
 mode with the run.
 
-### After a scoring fix: reconciling what was already sent
+### What is deleted, and what is corrected
 
-Delivery keeps Telegram and the events table in step going forward. It cannot undo what an
-earlier version of the detector sent, and a fix to the scoring changes the past — so
-messages stay on the phone claiming things the table no longer says.
+The bot posts to a **public channel** and is an administrator there: it can edit its own
+messages at any age and delete any message. Delivery deletes two kinds of message and no
+others, every run:
 
-`python -m price_monitor.reconcile` prints what disagrees. It deletes a **push** in two
-cases: the event is gone from the table, or it is still there but is no longer a push, in
-which case the note for its period already carries it and the reader has it twice. Nothing
-is lost either way. Notes are only reported on, never rewritten — a note re-renders from
-the table on every run and is edited in place, silently, so it converges by itself.
+- **pings** — when the next note opens, and as soon as the note stops showing the ping's
+  row (the row left the table, its day grew into a push, or it fell outside the open note);
+- **a day's lower messages** — once an instrument's day has grown and its rarer message is
+  on the channel, the lower push of that day is deleted, and a lower note row leaves the
+  note (an edit) with its ping.
 
-Dry run by default; `--apply` carries it out, and the **Reconcile Telegram with the events
-table** workflow runs it with the bot token. Deleting is best-effort: in a private chat a
-bot may only delete its own message within 48 hours, so an older one stays and is reported
-rather than silently declared handled.
+Everything else is corrected in place by an edit: a push whose bar healed and whose numbers
+moved; a push whose word fell to `noticeable`
+(it stays the one message for that move, and the note does not list it too); a note that
+shrank (its surplus parts are emptied). A push whose event has left the table, with nothing
+else of its day on the channel, stays as it was sent. A delete Telegram refuses is struck through by an
+edit instead, and Telegram's reason is logged.
 
 ---
 

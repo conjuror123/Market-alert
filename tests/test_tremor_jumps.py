@@ -178,11 +178,25 @@ def test_a_funds_day_is_its_new_york_date_and_a_coins_the_utc_date():
     assert len(jumps.one_a_day(flags, None)) == 2
 
 
-def _events(words, reading="hour"):
+def _events(words, reading="hour", days=None):
     base = pd.Timestamp("2026-09-15 14:00", tz="UTC")
-    return pd.DataFrame([{"asset_id": "twelvedata:GLD", "hour_utc": int((base + pd.Timedelta(hours=i)).timestamp()),
-                          "reading": reading, "word": w, "r": 0.02, "sigma": 0.002, "z": 10.0}
-                         for i, w in enumerate(words)])
+    days = days or [20711] * len(words)
+    return pd.DataFrame([{"asset_id": "twelvedata:GLD",
+                          "hour_utc": int((base + pd.Timedelta(hours=i)).timestamp()),
+                          "reading": reading, "word": w, "r": 0.02, "sigma": 0.002,
+                          "z": 10.0, "day": d}
+                         for i, (w, d) in enumerate(zip(words, days))])
+
+
+def test_a_day_that_grew_names_its_rarest_event_on_the_lower_ones():
+    # The lower messages of a day leave the channel once its rarest is
+    # delivered; the event table says which one that is.
+    out = jumps.for_delivery(_events(["noticeable", "high", "major", "high"],
+                                     days=[1, 1, 1, 2]))
+    top = out["event_id"].iloc[2]
+    assert list(out["superseded_by"].iloc[:2]) == [top, top]
+    assert pd.isna(out["superseded_by"].iloc[2])          # the day's rarest
+    assert pd.isna(out["superseded_by"].iloc[3])          # a new day starts over
 
 
 def test_high_and_up_push_and_noticeable_goes_into_the_weekly_note():

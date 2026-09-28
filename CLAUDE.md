@@ -17,6 +17,12 @@ will run live. Production still runs the previous detector from
 — read it there when a stage needs a piece of it. Each stage is reviewed before the next;
 `docs/architecture.md` has the stage list and `docs/decisions.md` the reasons.
 
+**Where it posts: a PUBLIC Telegram channel, not a private chat.** Anyone can join it. The
+bot is an administrator there. A bot can edit its own messages at any age, and as a
+channel admin with "Delete messages" (`can_delete_messages`) it can delete any message
+there — the Bot API's 48-hour delete limit does not bind it. Never reason, write or log as
+if this were a private chat.
+
 Read this file first, then the one doc that covers your task:
 
 | you need | read |
@@ -62,6 +68,10 @@ Break one of these and the system is wrong rather than merely broken.
    UTC date for currency pairs and crypto.
 5. **A ping exists only while the note beneath it shows its row.** `pending_pings` and
    `restyle_pings` both bound on the open note's window; they must not diverge.
+   **Delivery deletes two kinds of message and no others:** pings, and a day's lower
+   messages once the day's rarer one is on the channel (`follow_up`). Everything else
+   that changes is corrected in place by an edit; a delete Telegram refuses is struck
+   through by an edit instead.
 6. **A note interrupts only while its period is open.** Every note inside
    `DIGEST_TRACK_HOURS` is re-rendered from the events table each run, so it stays
    correctable — but an edit is silent and a new part is a notification. Past

@@ -120,7 +120,7 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
 
 
 def send_ops_alert(text: str) -> None:
-    """Private Telegram if configured, otherwise the product chat, otherwise log."""
+    """The health chat if configured, otherwise the product channel, otherwise log."""
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     chat = (os.environ.get("TELEGRAM_HEALTH_CHAT_ID")
             or os.environ.get("TELEGRAM_CHAT_ID", ""))

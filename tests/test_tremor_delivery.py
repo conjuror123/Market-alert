@@ -51,8 +51,10 @@ def offline(monkeypatch):
     A test that cares about either puts its own stand-in over these."""
     monkeypatch.setattr("price_monitor.notifier.delete_telegram_message",
                         lambda *a, **k: False)
-    monkeypatch.setattr("price_monitor.reconcile.delete_telegram_message",
+    monkeypatch.setattr(follow_up_module, "delete_telegram_message",
                         lambda *a, **k: False)
+    monkeypatch.setattr(md, "edit_telegram_message", lambda *a, **k: None)
+    monkeypatch.setattr(follow_up_module, "edit_telegram_message", lambda *a, **k: None)
     monkeypatch.setattr(md, "_calendar", lambda cfg: None)
 
 
@@ -803,14 +805,16 @@ def test_the_pings_are_cleared_as_the_next_note_opens(monkeypatch, sender):
     assert store[md.PINGS] == {}
 
 
-def test_a_ping_telegram_refuses_to_delete_is_dropped_anyway(monkeypatch):
-    # Outside a channel a bot may only delete its own message for 48 hours. One
-    # it will not delete now it will not delete later, and retrying it every
-    # hour for ever is a leak wearing the clothes of diligence.
+def test_a_ping_telegram_refuses_to_delete_is_struck_through(monkeypatch, editor):
+    # The bot is an admin of a public channel and can delete any message there;
+    # should Telegram refuse anyway, the ping must not go on claiming a row, and
+    # the bot can always edit its own message.
     killer = Deleted(refuse=[12])
     monkeypatch.setattr("price_monitor.notifier.delete_telegram_message", killer)
-    store = {md.PINGS: {"a": 11, "b": 12}}
-    assert md.sweep_pings(cfg(), store) == 1
+    text = "⬜ <b>GLD</b> · Gold +1.00% · 4.0×σ\nAdded to digest👆🏻👆🏻"
+    store = {md.PINGS: {"a": 11, "b": {"id": 12, "hash": "h", "text": text}}}
+    assert md.sweep_pings(cfg(), store) == 2
+    assert editor.calls == [(12, "<s>⬜ <b>GLD</b> · Gold +1.00% · 4.0×σ</s>")]
     assert store[md.PINGS] == {}
 
 
@@ -1312,3 +1316,119 @@ def test_a_gap_jump_names_no_yardstick_either():
     text = md.format_push(jump(overnight=True, gap_kind="weekend"), LABELS)
     assert text.splitlines()[0].endswith(" · 6.0×σ")
     assert "usual" not in text
+
+
+# --- the sweep: what is deleted, and what is corrected instead ----------------
+#
+# Delivery deletes pings, and a day's lower messages once the day's rarer one is
+# on the channel. Nothing else: every other change is an edit.
+
+def _killer(monkeypatch, refuse=()):
+    killer = Deleted(refuse=refuse)
+    monkeypatch.setattr(follow_up_module, "delete_telegram_message", killer)
+    monkeypatch.setattr("price_monitor.notifier.delete_telegram_message", killer)
+    return killer
+
+
+def test_a_day_that_grew_deletes_its_lower_push_once_the_rarer_one_is_out(
+        monkeypatch, sender, editor):
+    killer = _killer(monkeypatch)
+    early = event(event_id="high", tier="high", hour_utc=int(NOW.timestamp()) - 5 * HOUR)
+    _, state = deliver(monkeypatch, [early])
+    store = state[md.STATE_KEY]
+    lower_id = store[follow_up_module.TRACKED]["high"]["message_id"]
+
+    later = event(event_id="major", tier="major", r=0.03)
+    deliver(monkeypatch, [early | {"superseded_by": "major"}, later], state=state)
+    assert killer.ids == [lower_id]
+    assert "high" not in store[follow_up_module.TRACKED]
+    assert store[md._SENT]["high"]["gone"] is True
+
+    # and it is neither sent again nor deleted twice
+    before = len(sender.texts)
+    deliver(monkeypatch, [early | {"superseded_by": "major"}, later], state=state)
+    assert sender.texts[before:] == [] and killer.ids == [lower_id]
+
+
+def test_a_lower_push_telegram_will_not_delete_is_struck_through(
+        monkeypatch, sender, editor):
+    early = event(event_id="high", tier="high", hour_utc=int(NOW.timestamp()) - 5 * HOUR)
+    _, state = deliver(monkeypatch, [early])
+    lower_id = state[md.STATE_KEY][follow_up_module.TRACKED]["high"]["message_id"]
+    _killer(monkeypatch, refuse=[lower_id])
+
+    deliver(monkeypatch, [early | {"superseded_by": "major"},
+                          event(event_id="major", tier="major")], state=state)
+    struck = [t for i, t in editor.calls if i == lower_id]
+    assert struck and struck[0].startswith("<s>🟨 <b>GLD</b> · Gold +2.10% · 7.0×σ</s>")
+    assert "the day grew" in struck[0]
+
+
+def test_a_lower_push_is_never_sent_once_its_day_grew(monkeypatch, sender, editor):
+    _killer(monkeypatch)
+    early = event(event_id="high", tier="high", superseded_by="major",
+                  hour_utc=int(NOW.timestamp()) - 5 * HOUR)
+    deliver(monkeypatch, [early, event(event_id="major", tier="major")])
+    assert len([t for t in sender.texts if "GLD" in t]) == 1
+
+
+def test_a_day_that_grew_takes_its_note_row_and_its_ping_with_it(
+        monkeypatch, sender, editor):
+    killer = _killer(monkeypatch)
+    row = digest_row(hour_utc=int(NOW.timestamp()) - 2 * HOUR)    # inside the open note
+    _, state = deliver(monkeypatch, [row])
+    ping_id = md._ping_message_id(state[md.STATE_KEY][md.PINGS]["d1"])
+    assert "Gold" in notes(sender)[0]
+
+    pushed = event(event_id="major", tier="major")
+    deliver(monkeypatch, [row | {"superseded_by": "major"}, pushed], state=state)
+    assert killer.ids == [ping_id]
+    note_edits = [t for _, t in editor.calls if "Digest" in t]
+    assert note_edits and "Gold" not in note_edits[-1]      # an edit, not a delete
+
+
+def test_a_push_whose_event_is_gone_stays_as_sent(monkeypatch, sender, editor):
+    # Nothing else of its day is on the channel: it is not a lower message, and
+    # a push is never deleted for anything else.
+    killer = _killer(monkeypatch)
+    live = event(event_id="e1", day=7)
+    _, state = deliver(monkeypatch, [live])
+    mid = state[md.STATE_KEY][follow_up_module.TRACKED]["e1"]["message_id"]
+    other = event(event_id="other", asset_id="coinbase:BTC-USD", channel="digest",
+                  tier="noticeable", day=7)
+    deliver(monkeypatch, [other], state=state)
+    assert killer.ids == []
+    assert all(i != mid for i, _ in editor.calls)
+
+
+def test_a_push_whose_word_fell_stays_the_one_message_for_its_move(
+        monkeypatch, sender, editor):
+    killer = _killer(monkeypatch)
+    live = event(event_id="e1", tier="high")
+    _, state = deliver(monkeypatch, [live])
+    mid = state[md.STATE_KEY][follow_up_module.TRACKED]["e1"]["message_id"]
+
+    fallen = live | {"tier": "noticeable", "channel": "digest", "r": 0.012,
+                     "digest_slot": SLOT}
+    deliver(monkeypatch, [fallen], state=state)
+    assert killer.ids == []
+    assert not any("Added to digest" in t for t in sender.texts)   # no ping
+    assert all("Gold" not in t for t in notes(sender))             # not in the note
+    assert all("Gold" not in t for _, t in editor.calls if "Digest" in t)
+    assert any(i == mid and t.startswith("⬜ <b>GLD</b> · Gold +1.20% · 4.0×σ")
+               for i, t in editor.calls)                          # the push, corrected
+
+
+def test_a_push_whose_day_now_has_another_message_on_the_channel_goes(
+        monkeypatch, sender, editor):
+    # The bar healed and an EARLIER hour of the same day became as rare: that one
+    # is now the day's event, and this push is a lower message of the same day.
+    killer = _killer(monkeypatch)
+    late = event(event_id="late", tier="high", day=7)
+    _, state = deliver(monkeypatch, [late])
+    mid = state[md.STATE_KEY][follow_up_module.TRACKED]["late"]["message_id"]
+
+    early = event(event_id="early", tier="high", day=7,
+                  hour_utc=int(NOW.timestamp()) - 3 * HOUR)
+    deliver(monkeypatch, [early], state=state)
+    assert killer.ids == [mid]

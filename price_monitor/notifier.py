@@ -117,19 +117,13 @@ def delete_telegram_message(
     sweeping a list and one message it may no longer delete must not stop it
     clearing the rest.
 
-    THE 48-HOUR RULE decides how far this can be relied on. A bot may delete its
-    own message in a PRIVATE CHAT only within 48 hours of sending it; in a
-    channel where it is an administrator with can_delete_messages there is no
-    such limit. So the self-clearing ping is dependable for a reader on a
-    channel and best-effort for one in a private chat, where a ping sent more
-    than two days before the next note simply stays. That is a Telegram limit
-    and not something a retry can get around - see the README.
-
-    WHICH OF THOSE IT WAS IS LOGGED, because the refusals look identical from
-    here and do not mean the same thing: too old cannot be retried, but missing
-    admin rights is a setting somebody can change. Guessing between them once
-    put "it is over 48 hours old" against a message in a public channel, where
-    that rule does not even apply.
+    The bot posts to a PUBLIC CHANNEL where it is an administrator with
+    "Delete messages" (can_delete_messages), and there it can delete any
+    message, whatever its age. A refusal therefore means something else - the
+    message is already gone, or the admin right was taken away - and Telegram's
+    own reason is logged rather than guessed at. The caller does not depend on
+    the delete landing: a refused delete is struck through by an edit instead
+    (price_monitor.follow_up, tremor_delivery.sweep_pings).
     """
     if not bot_token or not chat_id:
         raise TelegramError("TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID are not configured")

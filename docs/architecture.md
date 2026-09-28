@@ -123,8 +123,13 @@ the VIX line (the fear gauge, `tremor.vix`). Since Telegram does not notify on a
 row gets a small ping pointing at the note; a ping exists only while the note beneath it
 shows its row, and all are deleted as the next note opens.
 
-**What no longer fits** is swept each run (`reconcile.sweep`): a push whose event has gone,
-a surplus part of a note that shrank.
+**The sweep** deletes two kinds of message and no others: pings, and a day's lower
+messages once the day has grown and its rarer message is on the channel (each event of such
+a day carries `superseded_by`, the day's rarest). Everything else that changes is corrected
+in place by an edit (`follow_up`): a push whose bar healed and whose numbers moved, and a
+push whose word fell to `noticeable`, which stays
+the one message for its move. The bot is an administrator of a public channel; a delete it
+is refused anyway is struck through by an edit.
 
 ---
 
@@ -178,8 +183,8 @@ pipeline's warm lead and the VIX line's settings) · `ewma` + `zscore` (the VIX 
 long-run sigma and short-memory state)
 
 **Delivery** lives in `price_monitor/`: `tremor_delivery` (renders and sends; decides
-nothing, routing is already stamped), `follow_up` (re-renders a push already sent),
-`reconcile` (sweeps what no longer fits), `weekly_digest` (the economic calendar, sent just
+nothing, routing is already stamped), `follow_up` (corrects a push already sent, and
+deletes a day's lower push), `weekly_digest` (the economic calendar, sent just
 before the weekly note opens), `health`, `notifier`, and the source clients (`tiingo`,
 `yahoo`, `coinbase`, `twelvedata`, `dukascopy`, `hfdata`) that `backfill` fetches through.
 

@@ -140,6 +140,13 @@ may not grow. Without that bound one cold rebuild grew a note that had closed tw
 earlier from 5 rows to 19 and posted the difference as two alerts at breakfast. The rows
 were right; the interruption was not.
 
+**Delete pings and a day's lower messages; correct everything else.** The reader's rule. A
+ping is a throwaway pointer at the note, and a day that grew has one story, told by its
+rarest message — so those go. Any other message that turns out wrong is corrected where it
+stands, by an edit: a deleted alert looks to a reader like one that never happened, and an
+edited one says what really happened. The channel is public and the bot an admin, so
+Telegram lets it do either at any age.
+
 **The size is said in σ, and the word is the colour.** `|move| / σ` over the instrument's own
 half-year, to one decimal, at the end of the first line — `11.0×σ` — in the push and the
 ping alike. A bare percentage says nothing across a basket where short Treasuries move
