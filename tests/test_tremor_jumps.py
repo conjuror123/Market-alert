@@ -98,3 +98,49 @@ def test_the_young_stretch_is_marked():
     boundary = int(jumps.WINDOW_DAYS * DAY)
     assert scored.loc[scored["hour_utc"] < boundary, "young"].all()
     assert not scored.loc[scored["hour_utc"] >= boundary, "young"].any()
+
+
+def test_a_gap_of_48_hours_or_more_is_a_weekend():
+    kinds = jumps.gap_kinds([17.5, 41.5, 48.0, 65.5, 89.5])
+    assert list(kinds) == ["night", "night", "weekend", "weekend", "weekend"]
+
+
+def _sessions(days=400):
+    """A fund-like calendar: one bar per weekday, a gap on each, weekends quiet
+    at one size and nights at another, so each kind's yardstick is known."""
+    rows, t = [], 0
+    rng = np.random.default_rng(4)
+    day = pd.Timestamp("2021-01-04 14:30", tz="UTC")
+    for i in range(days):
+        d = day + pd.Timedelta(days=i)
+        if d.weekday() >= 5:
+            continue
+        monday = d.weekday() == 0
+        rows.append({"hour_utc": int(d.timestamp()), "r": rng.normal(0, 0.001),
+                     "gap": rng.normal(0, 0.010 if monday else 0.002)})
+    return pd.DataFrame(rows)
+
+
+def test_a_weekend_is_judged_only_against_weekends():
+    scored = jumps.score_gaps(_sessions())
+    settled = scored[~scored["young"]]
+    weekend = settled[settled["reading"] == "weekend"]["sigma"].median()
+    night = settled[settled["reading"] == "night"]["sigma"].median()
+    # Weekends were drawn five times bigger than nights; each kind's yardstick
+    # must follow its own kind, not the pool.
+    assert 3.5 < weekend / night < 7
+
+
+def test_a_gap_left_unscored_is_not_a_reading():
+    frame = _sessions()
+    frame.loc[frame.index[200], "gap"] = np.nan
+    scored = jumps.score_gaps(frame)
+    assert frame.loc[frame.index[200], "hour_utc"] not in set(scored["hour_utc"])
+    assert len(scored) == frame["gap"].notna().sum() - 1   # the first bar has no gap before it
+
+
+def test_weekends_are_scored_from_seven():
+    scored = jumps.score_gaps(_sessions())
+    weekends = scored[scored["reading"] == "weekend"]
+    first = int(np.flatnonzero(np.isfinite(weekends["sigma"].to_numpy(dtype=float)))[0])
+    assert first == jumps.GAP_MIN_COUNT["weekend"] + 1

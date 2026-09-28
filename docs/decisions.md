@@ -60,11 +60,26 @@ be spurious). Do not filter news: about a third of FX jumps coincide with US dat
 jump test detects, so a per-asset tail shape is a risk-management idea, kept as an
 optional later stage.
 
-**The gap is researched before it is built.** A night is 17.5 hours and a weekend 65, yet
-a weekend's gap is only slightly bigger than a night's (French & Roll 1986: prices move far
-less while markets are shut; 1.17x on our funds), and half a year holds only 26 weekends,
-so the yardstick itself is uncertain by about ±16%. How to score it is an open question in
-`concerns-for-later.md`.
+**The gap: each kind against its own kind, over the same half-year.** Every reading of an
+instrument — hours, nights, weekends — is read against the same half-year of the world's
+events. Not by clock time: a weekend is 65 hours and a night 17.5, yet a weekend's gap is
+only slightly bigger (French & Roll 1986; 1.17x on our funds), because prices move far less
+while markets are shut. Measured on our history, each candidate yardstick predicting the
+next gap (QLIKE, lower is better):
+
+| | own kind, half-year | nights and weekends pooled | hourly σ × a measured ratio | own kind, 2 years |
+|---|---|---|---|---|
+| fund nights | **1.65** | **1.63** | 1.95 | 1.78 |
+| fund weekends | 2.10 | 1.94 | 2.34 | 1.99 |
+| FX weekends | 3.90 | — | 5.59 | 2.96 |
+
+Pooling nights with weekends and longer weekend windows score a little better; separate
+kinds were kept anyway, because a currency pair has only weekends and so needs a weekend
+yardstick of its own regardless, and one rule for both calendars reads more simply than a
+small gain. The price is precision: 26 weekends a half-year (the paper's minimum for weekly
+data is 7) leave that yardstick uncertain by about ±16%, so weekend words near a boundary
+are the least certain. Borrowing from the trading hours loses everywhere: the night does
+not follow the day's mood closely enough.
 
 **What the jump detector replaces.** The ladder of the running detector: three per-block
 tables of rungs (`BLOCK_SIGMA`, `BLOCK_RESID_SIGMA`, `BLOCK_MOVE_SIGMA`) and a

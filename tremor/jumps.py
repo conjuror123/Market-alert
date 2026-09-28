@@ -32,10 +32,21 @@ paper's smallest valid count - the smallest integer above sqrt(252 n) - and the
 window grows with the history until it is half a year long. Rows scored before
 then are marked `young`, so a report can keep them apart.
 
-WHAT STAGE 0 DOES NOT DO, deliberately: no one-event-a-day rule, no channels, no
-"biggest since" date, no held check, no time-of-day scale, no overnight gap, no
-block or own-move reading, no size floor. Each comes back as its own stage with
-its own logic. The output is a table of every hour that reached `noticeable`.
+THE GAP (stage 1b) is scored by the same two rules on its own readings. What
+happens while a market is shut arrives as the jump from the last price before
+the close to the first after it: a fund's night and weekend, a currency pair's
+weekend. A night is judged against the nights of the half-year before it, a
+weekend against the weekends: every reading of an instrument - hours, nights,
+weekends - is read against the same half-year of the world's events. A weekend
+is any gap spanning 48 hours or more (a long weekend included); a midweek
+holiday is a night. The yardstick for weekends is the noisiest, 26 readings a
+half-year, against the paper's minimum of 7 for once-a-week data; measured, it
+is no worse than pooling them with the nights (see docs/decisions.md).
+
+WHAT IS NOT HERE YET, deliberately: no one-event-a-day rule, no channels, no
+"biggest since" date, no held check, no time-of-day scale, no block or own-move
+reading, no size floor. Each comes back as its own stage with its own logic.
+The output is a table of every reading that reached `noticeable`.
 
     python -m tremor.jumps            reads data/tremor/metrics, writes
                                       data/tremor/jumps.parquet
@@ -71,6 +82,13 @@ STEP = math.sqrt(2)          # each word this many times bigger than the one bel
 
 # Bars a day, per calendar, for the paper's minimum window.
 BARS_PER_DAY: "dict[str, int]" = {"us_equity": 7, "fx_continuous": 24, "crypto_24_7": 24}
+
+# The three readings, and each gap kind's minimum window from the paper's rule
+# at one reading a day (nights: sqrt(252) -> 16) or a week (weekends: 7, their
+# own recommendation for weekly data).
+HOUR, NIGHT, WEEKEND = "hour", "night", "weekend"
+GAP_MIN_COUNT: "dict[str, int]" = {NIGHT: 16, WEEKEND: 7}
+WEEKEND_HOURS = 48.0     # a gap this long or longer spans a weekend
 
 SECONDS_PER_DAY = 86400.0
 
@@ -150,14 +168,53 @@ def score(frame: pd.DataFrame, template: str, window_days: float = WINDOW_DAYS,
     finite = np.isfinite(r)
     first = hours[finite][0] if finite.any() else 0
     young = (hours - first) < window_days * SECONDS_PER_DAY
-    return pd.DataFrame({"hour_utc": hours, "r": r, "sigma": sigma, "z": z,
-                         "word": pd.array(word_of(z, bottom, step), dtype="string"),
+    return pd.DataFrame({"hour_utc": hours, "reading": HOUR, "r": r, "sigma": sigma,
+                         "z": z, "word": pd.array(word_of(z, bottom, step), dtype="string"),
                          "young": young})
+
+
+def gap_kinds(elapsed_hours) -> np.ndarray:
+    """`weekend` for a gap spanning WEEKEND_HOURS or more, else `night`. A long
+    weekend is a weekend; a midweek holiday (about 41.5 hours) is a night."""
+    return np.where(np.asarray(elapsed_hours, dtype="float64") >= WEEKEND_HOURS,
+                    WEEKEND, NIGHT)
+
+
+def score_gaps(frame: pd.DataFrame, window_days: float = WINDOW_DAYS,
+               bottom: float = NOTICEABLE_SIGMA, step: float = STEP) -> pd.DataFrame:
+    """Every gap of one instrument, each judged against the earlier gaps of its
+    own kind within `window_days`. `frame` holds the metrics' `hour_utc` and
+    `gap`: the gap sits on the first bar after a close, NaN everywhere else and
+    where it was left unscored (an unconfirmed dividend, a split, a missing bar
+    before the close)."""
+    frame = frame.sort_values("hour_utc").reset_index(drop=True)
+    hours = frame["hour_utc"].to_numpy(dtype="int64")
+    gap = frame["gap"].to_numpy(dtype="float64")
+    at = np.flatnonzero(np.isfinite(gap))
+    at = at[at > 0]
+    columns = ["hour_utc", "reading", "r", "sigma", "z", "word", "young"]
+    if not len(at):
+        return pd.DataFrame(columns=columns)
+    when, move = hours[at], gap[at]
+    kind = gap_kinds((hours[at] - hours[at - 1]) / 3600.0)
+    sigma = np.full(len(at), np.nan)
+    young = np.zeros(len(at), dtype=bool)
+    for name, minimum in GAP_MIN_COUNT.items():
+        mine = kind == name
+        if not mine.any():
+            continue
+        sigma[mine] = half_year_sigma(when[mine], move[mine], window_days, minimum)
+        young[mine] = (when[mine] - when[mine][0]) < window_days * SECONDS_PER_DAY
+    with np.errstate(divide="ignore", invalid="ignore"):
+        z = np.where(sigma > 0, move / sigma, np.nan)
+    return pd.DataFrame({"hour_utc": when, "reading": kind, "r": move, "sigma": sigma,
+                         "z": z, "word": pd.array(word_of(z, bottom, step), dtype="string"),
+                         "young": young})[columns]
 
 
 def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKET_PATH
         ) -> pd.DataFrame:
-    """Every flagged hour of every instrument."""
+    """Every flagged reading - hour, night or weekend - of every instrument."""
     basket = load_basket(basket_path)
     window, bottom, step = settings(basket_path)
     parts = []
@@ -166,8 +223,10 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
         if not os.path.exists(path):
             log.warning("no metrics for %s", asset.asset_id)
             continue
-        metrics = pd.read_parquet(path, columns=["hour_utc", "r"])
-        scored = score(metrics, asset.session_template, window, bottom, step)
+        metrics = pd.read_parquet(path, columns=["hour_utc", "r", "gap"])
+        readings = [score(metrics, asset.session_template, window, bottom, step),
+                    score_gaps(metrics, window, bottom, step)]
+        scored = pd.concat([f for f in readings if not f.empty], ignore_index=True)
         flagged = scored[scored["word"].notna()].copy()
         flagged.insert(1, "asset_id", asset.asset_id)
         flagged.insert(2, "ticker", asset.ticker)
@@ -187,8 +246,9 @@ def main(argv: "list[str] | None" = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     flagged = run(args.metrics_dir)
     atomic.write_parquet(args.out, flagged, index=False)
-    log.info("%d flagged hours -> %s", len(flagged), args.out)
+    log.info("%d flagged readings -> %s", len(flagged), args.out)
     if not flagged.empty:
+        log.info("by reading: %s", flagged["reading"].value_counts().to_dict())
         log.info("by word: %s", flagged["word"].value_counts().to_dict())
     return 0
 

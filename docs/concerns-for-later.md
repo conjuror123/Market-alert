@@ -129,25 +129,17 @@ change.
 
 ---
 
-## 5. How the jump detector should score the overnight gap
+## 5. The weekend yardstick is the noisiest in the jump detector
 
-The jump detector (stage 0) scores hours only. The gap — a fund's night and weekend, a
-currency pair's weekend — is where whatever happens while a market is shut arrives, so the
-half-year calendar window is only complete with it. How Lee & Mykland's test applies to it
-is not settled:
+A weekend gap is judged against the 26 weekends of the half-year before it, so its yardstick
+is uncertain by about ±16% (a fund's hours: ±3%, its nights: ±8%). Measured, pooling
+weekends with nights would predict the next weekend a little better (1.94 against 2.10), and
+a 2-year window better still for currency pairs (2.96 against 3.90). Separate kinds on one
+half-year were kept for one rule across both calendars (`docs/decisions.md`).
 
-- **Few readings.** Half a year holds about 100 nights but only 26 weekends, so the usual
-  weekend gap is itself uncertain by about ±16%, and noise crosses 3.9σ roughly six times
-  as often as with a known yardstick.
-- **Uneven length, even information.** A weekend is 65 hours and a night 17.5, yet a
-  weekend's gap is only about 1.17x a night's on our funds (French & Roll 1986: prices
-  move far less while markets are shut), so dividing by clock time would be wrong.
-
-**What acting on it means:** research how the jump-test literature scores overnight and
-weekend returns — pooling nights and weekends with a measured ratio, the window, and a
-threshold that allows for a yardstick estimated from few readings — then measure the
-candidates on our data and build the one agreed. The running detector's gap path
-(`tremor/gaps.py`) is untouched meanwhile.
+**What acting on it would mean:** pooling a fund's weekends with its nights, or a longer
+window for weekends only — each a one-line change in `tremor/jumps.py` and a re-run of
+`tools/stage_report.py`.
 
 ---
 

@@ -9,6 +9,7 @@ prints, as Markdown:
   - per instrument a year, by block: median and the 10-90% range;
   - the biggest hours of each instrument's record (its top 0.01% of |move|):
     how many were flagged, and at which word;
+  - the gaps (nights and weekends) by kind: per instrument a year and by word;
   - ten flagged hours picked at random, for a sanity read.
 
 Rates count only SETTLED hours - those whose window already spans the full
@@ -38,16 +39,42 @@ def scored_basket(metrics_dir: str) -> pd.DataFrame:
         path = os.path.join(metrics_dir, f"{asset.file_stem}.parquet")
         if not os.path.exists(path):
             continue
-        frame = jumps.score(pd.read_parquet(path, columns=["hour_utc", "r"]),
-                            asset.session_template, window, bottom, step)
-        frame = frame[np.isfinite(frame["z"])]
+        metrics = pd.read_parquet(path, columns=["hour_utc", "r", "gap"])
+        parts_one = [jumps.score(metrics, asset.session_template, window, bottom, step),
+                     jumps.score_gaps(metrics, window, bottom, step)]
+        frame = pd.concat([f for f in parts_one if not f.empty], ignore_index=True)
+        frame = frame[np.isfinite(frame["z"].astype("float64"))]
+        frame.insert(2, "template", asset.session_template)
         frame.insert(0, "ticker", asset.ticker)
         frame.insert(1, "block", asset.block)
         parts.append(frame)
     return pd.concat(parts, ignore_index=True)
 
 
+def gap_section(scored: pd.DataFrame) -> "list[str]":
+    """The gaps: a fund's nights and weekends, a currency pair's weekends."""
+    lines = ["## The gaps", "",
+             "Each gap judged against the earlier gaps of its own kind over the half-year "
+             "before it. Settled readings only.", "",
+             "| instruments | reading | per instrument a year (median) | noticeable | high | "
+             "major | extreme | whole basket a week |", "|---|---|---|---|---|---|---|---|"]
+    gaps = scored[(scored["reading"] != jumps.HOUR) & ~scored["young"].astype(bool)]
+    names = {"us_equity": "funds", "fx_continuous": "currency pairs"}
+    for (template, reading), rows in gaps.groupby(["template", "reading"]):
+        spans = rows.groupby("ticker")["hour_utc"].agg(lambda h: (h.max() - h.min()) / YEAR)
+        flagged = rows[rows["word"].notna()]
+        per = flagged.groupby("ticker").size().reindex(spans.index, fill_value=0) / spans
+        by_word = [(flagged[flagged["word"] == w].groupby("ticker").size()
+                    .reindex(spans.index, fill_value=0) / spans).median() for w in jumps.WORDS]
+        lines.append(f"| {names.get(template, template)} | {reading} | {per.median():.2f} | "
+                     + " | ".join(f"{v:.2f}" for v in by_word)
+                     + f" | {per.sum() / 52.18:.1f} |")
+    return lines + [""]
+
+
 def report(scored: pd.DataFrame, seed: int = 0) -> str:
+    gaps = gap_section(scored)
+    scored = scored[scored["reading"] == jumps.HOUR]
     lines = []
     settled = scored[~scored["young"]]
     spans = settled.groupby("ticker")["hour_utc"].agg(lambda h: (h.max() - h.min()) / YEAR)
@@ -104,6 +131,7 @@ def report(scored: pd.DataFrame, seed: int = 0) -> str:
         lines.append(f"| {word} | {counts[word]} | {counts[word] / max(total_big, 1):.0%} |")
     lines.append("")
 
+    lines += gaps
     sample = flagged.sample(min(10, len(flagged)), random_state=seed).sort_values("hour_utc")
     lines += ["## Ten flagged hours, at random", "",
               "| hour (UTC) | instrument | move | half-year σ | z | word |",

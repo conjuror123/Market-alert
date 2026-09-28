@@ -34,15 +34,26 @@ A young series is scored as soon as its window holds the paper's minimum count (
 a fund, 78 for a 24-hour market); the window then grows to half a year. Rows scored before
 it is full are marked `young`.
 
-Stage 0's output is a table, not messages: `data/tremor/jumps.parquet`, every hour that
-reached `noticeable`. `tools/stage_report.py` prints what it flags — per week, per
-instrument and block, and how the biggest hours of each record were worded.
+**Stage 1b, the gap — built.** What happens while a market is shut arrives as the jump from
+the last price before the close to the first after it: a fund's night and weekend, a
+currency pair's weekend (crypto never closes). Each gap is scored by the same two rules
+against the earlier gaps **of its own kind** over the half-year before it — a night against
+nights, a weekend against weekends — so every reading of an instrument is read against the
+same half-year of events. A gap spanning 48 hours or more is a weekend (a long weekend
+included); a midweek holiday is a night. Scoring starts at 16 nights or 7 weekends, the
+paper's minimum for once-a-day and once-a-week data. The gap value is the pipeline's
+`gap`: corrected for dividends, and left out on a split, an unconfirmed dividend or a
+missing bar before the close.
+
+The output is a table, not messages: `data/tremor/jumps.parquet`, every reading — hour,
+night or weekend — that reached `noticeable`. `tools/stage_report.py` prints what it flags:
+per week, per instrument and block, the gaps by kind, and how the biggest hours of each
+record were worded.
 
 **Stages to come**, each only after the previous one has been reviewed:
 
 | | stage | source |
 |---|---|---|
-| 1b | the overnight gap — how to score it is being researched first | — |
 | 1 | one event per instrument per day | — |
 | 2 | channels (push or note) and delivery to Telegram | — |
 | 3 | the "biggest since …" date | — |
