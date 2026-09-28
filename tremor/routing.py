@@ -17,8 +17,8 @@ in how long they wait. Nothing is held back:
   digest    `noticeable`, written into the weekly note as it is found. That note is OPENED at the start of the period it covers
             and edited in place afterwards, so a digest line appears within the
             hour of the move rather than days later - and the edit is silent, so
-            each row also gets a throwaway ping that is deleted when the next
-            note opens (see price_monitor.tremor_delivery).
+            each row also gets a small ping that lives as long as its row
+            (see price_monitor.tremor_delivery).
 
 There is deliberately no cap on how many pushes a week may contain. A detector
 that counts its own alerts and goes quiet on the third one is answering a
@@ -37,14 +37,12 @@ DIGEST = "digest"
 # The words that interrupt, at once. `noticeable` goes into the weekly note.
 PUSH_TIERS = ("high", "major", "extreme")
 
-# datetime.weekday(): Monday=0, Saturday=5. ONE NOTE A WEEK, opening Saturday
-# and running to the next Saturday, just after the coming week's economic
-# calendar goes out as its own message (price_monitor.weekly_digest). Saturday
-# because a forecast wants to
-# arrive before the week it forecasts, with a weekend to read it in. It used to
-# be two notes, Monday and Saturday; with the jump detector every word from
-# `high` up pushes, so the note carries only `noticeable` rows and one a week
-# holds them.
+# datetime.weekday(): Monday=0, Sunday=6. ONE NOTE A WEEK, opening Sunday and
+# running to the next Sunday, just after the coming week's economic calendar
+# goes out as its own message (price_monitor.weekly_digest). Sunday because a
+# forecast wants to arrive before the week it forecasts, and the week's markets
+# are all shut by then. With the jump detector every word from `high` up
+# pushes, so the note carries only `noticeable` rows and one a week holds them.
 #
 # UTC AND NOT THE READER'S CLOCK. The ping is what buzzes; the note is a record,
 # and a record wants the boundary the market uses. 00:05 UTC sits between the
@@ -53,7 +51,7 @@ PUSH_TIERS = ("high", "major", "extreme")
 #
 # Five past rather than on the hour: the hourly job runs at :05, so a note opens
 # on the first run of its period instead of waiting fifty-five minutes.
-DIGEST_WEEKDAYS = (5,)
+DIGEST_WEEKDAYS = (6,)
 DIGEST_HOUR_LOCAL = 0
 DIGEST_MINUTE_LOCAL = 5
 DIGEST_TZ = timezone.utc
@@ -68,7 +66,7 @@ def digest_slot(hour_utc: int) -> int:
     queueing for one.
 
     Kept as a zone lookup rather than arithmetic on the timestamp even though
-    the zone is now UTC: the boundary is a wall-clock rule - Saturday at 00:05
+    the zone is now UTC: the boundary is a wall-clock rule - Sunday at 00:05
     - and expressing it as a modulus would quietly break the day a
     different zone is wanted again.
     """

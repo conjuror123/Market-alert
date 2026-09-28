@@ -60,8 +60,8 @@ date for currency pairs and coins (`sessions.day_tz`).
 
 **Stage 2, channels — built.** `high`, `major` and `extreme` push: a message of their own,
 at once. `noticeable` goes into the weekly note, with a small ping that points at it
-(`routing.PUSH_TIERS`, `jumps.for_delivery`). There is **one note a week**, opened Saturday
-00:05 UTC and edited in place until the next Saturday. The coming week's economic calendar
+(`routing.PUSH_TIERS`, `jumps.for_delivery`). There is **one note a week**, opened Sunday
+00:05 UTC and edited in place until the next Sunday. The coming week's economic calendar
 goes out as its own message in the same run, just before the note opens. A jump message
 says only what the detector measured: the colour of the square is the word, and the size is
 `|move| / σ` over the last half-year — the hour's σ, or the night's or the weekend's for a
@@ -111,25 +111,46 @@ Settings live under `detector:` in `config/basket.yaml`: `window_days`,
 
 ## Delivery
 
-**A push** goes out the hour its event is found, as its own message: the first line and the
-hour, and beneath them the scheduled releases in the hours around the move (`Nearby
-economic events`) when there are any. It is re-rendered every run and edited in place if
-its text changed — the hour is scored a few minutes in and the bar heals on the next fetch
-(`follow_up`). Nothing older than 48 hours is sent.
+**When a move is found.** `jumps` judges a reading only once it can be (`jumps.ended`): an
+hour once it has ended, a fund's gap with its first bar once that bar has ended, a currency
+pair's weekend gap at its open. That moment is the event's `found_utc`, and the run five
+minutes later is the one that sees it. `jumps.parquet` holds every flagged reading, with
+`kept` marking the ones one-a-day keeps, so a message already out can be corrected from its
+reading even once it is no longer kept.
 
-**A note row** goes into the weekly note — one a week, opened Saturday at 00:05 UTC just
-after the economic calendar's own message, and edited in place. The note's header carries
-the VIX line (the fear gauge, `tremor.vix`). Since Telegram does not notify on an edit, each
-row gets a small ping pointing at the note; a ping exists only while the note beneath it
-shows its row, and all are deleted as the next note opens.
+**A push** is its own message: the first line and the hour, and beneath them the scheduled
+releases in the hours around the move (`Nearby economic events`) when there are any.
+**A note row** goes into the weekly note, whose header carries the VIX line (the fear
+gauge, `tremor.vix`); since Telegram does not notify on an edit, each row gets a small ping
+pointing up at the note.
 
-**The sweep** deletes two kinds of message and no others: pings, and a day's lower
-messages once the day has grown and its rarer message is on the channel (each event of such
-a day carries `superseded_by`, the day's rarest). Everything else that changes is corrected
-in place by an edit (`follow_up`): a push whose bar healed and whose numbers moved, and a
-push whose word fell to `noticeable`, which stays
-the one message for its move. The bot is an administrator of a public channel; a delete it
-is refused anyway is struck through by an edit.
+**The week** (`tremor_delivery`). The note opens Sunday 00:05 UTC, just after the economic
+calendar's own message, and a move belongs to the note open when it is found — the hour
+checked in the opening run goes into the new note. For that week every run re-reads the
+events table and brings every message of the week in line with it; what belongs to an
+earlier note is history and is never touched. In order:
+
+| on the channel | the move now | what happens |
+|---|---|---|
+| a push | gone | deleted |
+| a push | a rarer word, within 24 h of being found | a new push rings; the old one is deleted |
+| a push | a rarer word after 24 h, or any other change | edited in place — `noticeable` shows ⬜; a flip-flop never rings twice |
+| a row | gone, or no longer the day's kept event | leaves the note (an edit); its ping is deleted |
+| a row | a push word, within 24 h | a push rings; the row leaves and its ping is deleted |
+| a row | a push word after 24 h | stays, recoloured, and so does its ping |
+| nothing | found within the last 24 h, kept, the day's rarest | `high` and up push; `noticeable` becomes a row with a ping, unless its day has a push |
+
+An instrument-day keeps one push, its rarest: once the rarer one is out the lower one is
+deleted and never sent again, and a day with a push shows no row. Different days, hours and
+events are different pushes. When the next note opens, the week's pings are deleted and the
+rest stays as it is. A part the note no longer needs is deleted. The bot is an
+administrator of a public channel; a delete it is refused anyway is struck through by an
+edit.
+
+**A detector update** — a new `jumps.detector_version()`, the hash of the detector's parsed
+code and the basket — restarts the week at that run: every push and ping of the week is
+deleted, the note and the calendar stay, and the note shows only what is found from then
+on. The first run of this delivery on the previous one's state is handled the same way.
 
 ---
 
@@ -182,14 +203,13 @@ delivery columns) · `routing` (which words push, and the weekly note's slots) �
 pipeline's warm lead and the VIX line's settings) · `ewma` + `zscore` (the VIX line's
 long-run sigma and short-memory state)
 
-**Delivery** lives in `price_monitor/`: `tremor_delivery` (renders and sends; decides
-nothing, routing is already stamped), `follow_up` (corrects a push already sent, and
-deletes a day's lower push), `weekly_digest` (the economic calendar, sent just
-before the weekly note opens), `health`, `notifier`, and the source clients (`tiingo`,
+**Delivery** lives in `price_monitor/`: `tremor_delivery` (renders the messages and
+curates the week's channel; the word and the channel are already stamped), `weekly_digest` (the economic calendar, sent just before the weekly
+note opens), `health`, `notifier`, and the source clients (`tiingo`,
 `yahoo`, `coinbase`, `twelvedata`, `dukascopy`, `hfdata`) that `backfill` fetches through.
 
 Product pushes go to `TELEGRAM_CHAT_ID`. Health and named provider failures go to
-`TELEGRAM_HEALTH_CHAT_ID`, falling back to the product chat until that secret exists.
+`TELEGRAM_HEALTH_CHAT_ID`, and without it only to the log — never the public channel.
 
 ---
 

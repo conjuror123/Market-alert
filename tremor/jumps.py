@@ -236,15 +236,21 @@ def day_keys(hour_utc, tz_name: "str | None") -> np.ndarray:
             - pd.Timestamp("1970-01-01")).days.to_numpy()
 
 
-def one_a_day(flagged: pd.DataFrame, tz_name: "str | None") -> pd.DataFrame:
+def one_a_day(flagged: pd.DataFrame, tz_name: "str | None",
+              keep_all: bool = False) -> pd.DataFrame:
     """One instrument's flagged readings, cut to one event a day unless the day
     grows: a reading is kept only if its word is rarer than every reading kept
     before it that day. A gap is taken before the hour that shares its
     timestamp - the night happened first. Adds `day` and `escalation` (False
-    for the day's first event, True for one that raised it)."""
+    for the day's first event, True for one that raised it).
+
+    keep_all=True returns every flagged reading with a `kept` column instead of
+    dropping the rest: delivery sends only kept events, but corrects a message
+    already on the channel from its reading whether or not it is still kept."""
     if flagged.empty:
-        return flagged.assign(day=pd.Series(dtype="int64"),
-                              escalation=pd.Series(dtype="bool"))
+        out = flagged.assign(day=pd.Series(dtype="int64"),
+                             escalation=pd.Series(dtype="bool"))
+        return out.assign(kept=pd.Series(dtype="bool")) if keep_all else out
     order = flagged.assign(_after=(flagged["reading"] == HOUR).astype(int))
     order = order.sort_values(["hour_utc", "_after"]).drop(columns="_after")
     rank = order["word"].map({w: i for i, w in enumerate(WORDS)}).to_numpy()
@@ -257,10 +263,56 @@ def one_a_day(flagged: pd.DataFrame, tz_name: "str | None") -> pd.DataFrame:
             today, best = day, -1
         if r > best:
             keep[i], escalation[i], best = True, best >= 0, r
-    return order.assign(day=days, escalation=escalation)[keep].reset_index(drop=True)
+    out = order.assign(day=days, escalation=escalation)
+    if keep_all:
+        return out.assign(kept=keep).reset_index(drop=True)
+    return out[keep].reset_index(drop=True)
+
+
+def ended(scored: pd.DataFrame, template: str, now: int) -> pd.DataFrame:
+    """Only the readings that can be judged at `now`, with `found_utc`, the
+    moment each became judgeable.
+
+    An hour is judged once it has ended: the run fires a few minutes past the
+    hour and the bar of the hour it is standing in holds those minutes only.
+    A fund's gap is judged with its first bar, once that bar has ended; a
+    currency pair's weekend gap as soon as the first bar exists, since its open
+    is the whole of the gap."""
+    hours = scored["hour_utc"].astype("int64")
+    is_hour = scored["reading"] == HOUR
+    fx_gap = (~is_hour) & (template != "us_equity")
+    found = np.where(fx_gap, hours, hours + 3600)
+    out = scored.assign(found_utc=found)
+    return out[out["found_utc"] <= int(now)].reset_index(drop=True)
+
+
+def detector_version(root: "str | None" = None) -> str:
+    """A hash of what decides the set of events: the detector's code, parsed
+    with docstrings stripped, and the basket and its settings, parsed so that a
+    comment does not count. A new value means the detector was updated, and
+    delivery starts the current week over from that run (see
+    price_monitor.tremor_delivery)."""
+    import hashlib
+    import json
+
+    from tremor import versioning
+
+    root = root or os.path.join(os.path.dirname(__file__), "..")
+    digest = hashlib.sha256()
+    for name in ("jumps.py", "returns.py", "pipeline.py", "quality.py", "routing.py",
+                 "windows.py"):
+        with open(os.path.join(root, "tremor", name), "rb") as f:
+            digest.update(versioning._code(f.read()))
+    with open(os.path.join(root, "config", "basket.yaml"), encoding="utf-8") as f:
+        digest.update(json.dumps(yaml.safe_load(f), sort_keys=True, default=str).encode())
+    return digest.hexdigest()[:12]
 
 
 BASIS = "jump"
+
+# The hourly run fires at :05, so a move judgeable at :00 is found five
+# minutes later - and a note opening at 00:05 takes the hour checked with it.
+FOUND_TO_RUN = 300
 
 
 def event_ids(asset_id, reading, hour_utc) -> pd.Series:
@@ -279,22 +331,28 @@ def for_delivery(events: pd.DataFrame) -> pd.DataFrame:
     "N×σ" with N = |z|. The "biggest since" date and the held check are absent
     until their stages exist.
 
-    `superseded_by` names, on every event of a day that later grew, the day's
-    rarest event: once that one is delivered, the lower ones leave the channel
-    (price_monitor.follow_up). Empty on the day's rarest event itself.
+    `superseded_by` names, on every kept event of a day that later grew, the
+    day's rarest event: once that one is on the channel, the lower ones leave it
+    (price_monitor.tremor_delivery). Empty on the day's rarest event itself, and
+    on a reading one_a_day does not keep.
     """
     from tremor import routing
 
     if events.empty:
         return events
     out = events.copy()
+    if "kept" not in out:
+        out["kept"] = True
+    if "found_utc" not in out:
+        out["found_utc"] = out["hour_utc"].astype("int64") + 3600
     out["event_id"] = event_ids(out["asset_id"], out["reading"], out["hour_utc"])
     rank = out["word"].map({w: i for i, w in enumerate(WORDS)})
-    top = (out.assign(_rank=rank).sort_values("_rank")
+    kept = out[out["kept"].astype(bool)]
+    top = (kept.assign(_rank=rank[kept.index]).sort_values("_rank")
            .groupby(["asset_id", "day"])["event_id"].last())
     tops = pd.Series([top.get((a, d)) for a, d in zip(out["asset_id"], out["day"])],
                      index=out.index, dtype="string")
-    out["superseded_by"] = tops.where(tops != out["event_id"])
+    out["superseded_by"] = tops.where((tops != out["event_id"]) & out["kept"].astype(bool))
     out["tier"] = out["word"].astype("string")
     out["basis"] = BASIS
     out["sigma_lt"] = out["sigma"]
@@ -302,18 +360,22 @@ def for_delivery(events: pd.DataFrame) -> pd.DataFrame:
     out["gap_kind"] = out["reading"].where(out["overnight"])
     pushes = out["tier"].isin(routing.PUSH_TIERS).fillna(False).to_numpy(dtype=bool)
     out["channel"] = pd.array(np.where(pushes, routing.PUSH, routing.DIGEST), dtype="string")
-    slots = pd.Series(pd.NA, index=out.index, dtype="Int64")
-    if (~pushes).any():
-        slots.loc[~pushes] = pd.array([routing.digest_slot(h) for h in
-                                       out.loc[~pushes, "hour_utc"]], dtype="Int64")
-    out["digest_slot"] = slots
+    # The note a move belongs to is the one open when it is FOUND: the run a
+    # few minutes after it became judgeable. The hour checked in the run that
+    # opens a note goes into that note.
+    out["digest_slot"] = pd.array([routing.digest_slot(int(f) + FOUND_TO_RUN)
+                                   for f in out["found_utc"]], dtype="Int64")
     return out
 
 
-def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKET_PATH
-        ) -> pd.DataFrame:
-    """Every instrument's events: its flagged readings - hour, night or
-    weekend - cut to one a day unless the day grows (one_a_day)."""
+def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKET_PATH,
+        now: "int | None" = None) -> pd.DataFrame:
+    """Every instrument's flagged readings that can be judged at `now` - hour,
+    night or weekend - with `kept` marking the events one_a_day keeps (one a
+    day unless the day grows). Delivery sends kept events only."""
+    import time
+
+    now = int(time.time()) if now is None else int(now)
     basket = load_basket(basket_path)
     window, bottom, step = settings(basket_path)
     parts = []
@@ -328,8 +390,9 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
         scored = pd.concat([f for f in readings if not f.empty], ignore_index=True)
         if scored.empty:
             continue
+        scored = ended(scored, asset.session_template, now)
         flagged = one_a_day(scored[scored["word"].notna()],
-                            sessions.day_tz(asset.session_template))
+                            sessions.day_tz(asset.session_template), keep_all=True)
         flagged.insert(1, "asset_id", asset.asset_id)
         flagged.insert(2, "ticker", asset.ticker)
         flagged.insert(3, "block", asset.block)
@@ -349,8 +412,12 @@ def main(argv: "list[str] | None" = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     flagged = run(args.metrics_dir)
     atomic.write_parquet(args.out, flagged, index=False)
-    log.info("%d events (%d of them escalations) -> %s", len(flagged),
-             int(flagged["escalation"].sum()) if not flagged.empty else 0, args.out)
+    kept = flagged[flagged["kept"]] if not flagged.empty else flagged
+    log.info("%d events (%d of them escalations; %d more flagged readings the "
+             "one-a-day rule drops) -> %s", len(kept),
+             int(kept["escalation"].sum()) if not kept.empty else 0,
+             len(flagged) - len(kept), args.out)
+    flagged = kept
     if not flagged.empty:
         log.info("by reading: %s", flagged["reading"].value_counts().to_dict())
         log.info("by word: %s", flagged["word"].value_counts().to_dict())

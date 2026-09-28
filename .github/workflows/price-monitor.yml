@@ -156,8 +156,8 @@ jobs:
             echo "No state changes to commit."
           else
             git commit -m "chore: update monitor state [skip ci]"
-            # A rejected push leaves the next checkout with the old sent map
-            # and re-delivers every push still inside 48 hours. Rebase onto
+            # A rejected push leaves the next checkout with an old record of
+            # the week and re-delivers what it forgot. Rebase onto
             # whatever landed and try again, same loop as the bars persist.
             for attempt in 1 2 3 4 5; do
               if git push origin "HEAD:${{ github.ref_name }}"; then

@@ -1,4 +1,3 @@
-import sys
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -8,13 +7,13 @@ from price_monitor.config import Config
 from price_monitor.notifier import TelegramError
 from tremor import routing
 
-# The moment the weekend price note opens: Saturday 00:05 UTC. The digest goes
+# The moment the weekly price note opens: Sunday 00:05 UTC. The digest goes
 # out in the same run and immediately before it, so the note - which keeps
-# changing for the next two days - is the last message in the chat. Derived from
+# changing all week - is the last message in the chat. Derived from
 # routing rather than written down, because that is the property under test:
 # these two messages share one boundary and cannot be given separate ones.
 WEEKEND_OPEN = datetime.fromtimestamp(
-    routing.digest_slot(int(datetime(2026, 8, 29, 6, tzinfo=timezone.utc).timestamp())),
+    routing.digest_slot(int(datetime(2026, 8, 30, 6, tzinfo=timezone.utc).timestamp())),
     tz=timezone.utc)
 WEEKEND_LATE = WEEKEND_OPEN + timedelta(hours=3)      # inside the grace window
 WEEKEND_EVENING = WEEKEND_OPEN + timedelta(hours=18)  # outside it
@@ -52,7 +51,7 @@ def make_config(tmp_path):
 
 
 def test_the_digest_goes_out_as_the_weekend_note_opens():
-    # A forecast wants to arrive before the week it forecasts, with a weekend to
+    # A forecast wants to arrive before the week it forecasts, with a day to
     # read it in - and in the same run as the price note, immediately before it,
     # so the note is the last message in the chat.
     assert weekly_digest._is_digest_window(WEEKEND_OPEN) is True
@@ -61,7 +60,7 @@ def test_the_digest_goes_out_as_the_weekend_note_opens():
 
 def test_the_send_day_is_read_off_the_note_rather_than_written_down_twice():
     # The one property that keeps these two messages in the same run. If routing
-    # moves the weekend boundary, this moves with it; a second "Saturday" spelled
+    # moves the weekly boundary, this moves with it; a second "Sunday" spelled
     # out here would not.
     opens = datetime.fromtimestamp(
         routing.digest_slot(int(WEEKEND_OPEN.timestamp())), tz=timezone.utc)
@@ -70,9 +69,8 @@ def test_the_send_day_is_read_off_the_note_rather_than_written_down_twice():
 
 
 def test_a_missed_run_at_the_opening_does_not_cost_the_week(monkeypatch):
-    # The same hours of grace the price note has, and for the same reason: the
-    # trigger is an external service, and both messages have to keep landing in
-    # one run so their order never inverts.
+    # A few hours of grace: the trigger is an external service, and one failed
+    # run must not cost the week's calendar.
     assert weekly_digest._is_digest_window(WEEKEND_LATE) is True
     assert weekly_digest._is_digest_window(WEEKEND_EVENING) is False
 
@@ -184,7 +182,7 @@ def test_events_outside_the_coming_week_are_not_listed(tmp_path, monkeypatch):
 
 
 def test_the_window_is_the_next_whole_week_monday_to_monday():
-    # Sent at 00:05 on Saturday the 29th: the 31st through the 6th, a week
+    # Sent at 00:05 on Sunday the 30th: the 31st through the 6th, a week
     # starting on the day a week starts. Not "seven days from now", which would
     # begin mid-weekend and end mid-weekend.
     start, end = weekly_digest.coming_week(WEEKEND_OPEN)
@@ -390,52 +388,6 @@ def test_maybe_send_weekly_digest_returns_false_on_send_failure(tmp_path, monkey
 
     assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=WEEKEND_OPEN) is False
     assert weekly_digest._STATE_KEY not in state
-
-
-def test_main_requires_the_force_flag(monkeypatch):
-    monkeypatch.setattr(sys, "argv", ["weekly_digest.py"])
-    with pytest.raises(SystemExit):
-        weekly_digest.main()
-
-
-def test_main_force_sends_immediately_regardless_of_day(tmp_path, monkeypatch):
-    """--force is meant for manual testing outside the send window - it should
-    send right away, with no day/time gating and no state.json involvement at
-    all (main() never even receives a state dict)."""
-    cfg = make_config(tmp_path)
-    sent_texts = []
-    # Placed INSIDE the window the digest will actually ask for rather than at
-    # fixed offsets from today. The window is the next whole Monday-to-Monday
-    # week, so a fixed offset lands inside it or outside it depending on what
-    # day the test is run - which is a property of the calendar and not of the
-    # code under test.
-    start, end = weekly_digest.coming_week(datetime.now(timezone.utc))
-    inside = start + (end - start) / 2
-    ahead = [dict(e, date=(inside + timedelta(hours=h)).isoformat())
-             for h, e in zip((0, 6, 12, 18), RAW_EVENTS)]
-    monkeypatch.setattr(weekly_digest, "load_config", lambda: cfg)
-    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", lambda session=None: ahead)
-    monkeypatch.setattr(weekly_digest, "send_telegram_message", lambda *a, **k: sent_texts.append(a[2]) or 1)
-    monkeypatch.setattr(sys, "argv", ["weekly_digest.py", "--force"])
-
-    exit_code = weekly_digest.main()
-
-    assert exit_code == 0
-    assert len(sent_texts) == 1
-    assert "Non-Farm Payrolls" in sent_texts[0]
-
-
-def test_main_force_returns_nonzero_on_failure(tmp_path, monkeypatch):
-    cfg = make_config(tmp_path)
-
-    def failing_fetch(session=None):
-        raise weekly_digest.economic_calendar.CalendarError("boom")
-
-    monkeypatch.setattr(weekly_digest, "load_config", lambda: cfg)
-    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", failing_fetch)
-    monkeypatch.setattr(sys, "argv", ["weekly_digest.py", "--force"])
-
-    assert weekly_digest.main() == 1
 
 
 @pytest.mark.real_backfill

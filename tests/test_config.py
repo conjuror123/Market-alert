@@ -37,12 +37,12 @@ def test_secrets_never_come_from_the_file(tmp_path, monkeypatch):
     assert cfg.telegram_health_chat_id == ""
 
 
-def test_health_chat_falls_back_to_the_product_chat(tmp_path, monkeypatch):
+def test_health_never_falls_back_to_the_public_channel(tmp_path, monkeypatch):
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "@public")
     monkeypatch.delenv("TELEGRAM_HEALTH_CHAT_ID", raising=False)
     cfg = load_config(str(tmp_path / "absent.yaml"))
     assert cfg.telegram_chat_id == "@public"
-    assert cfg.telegram_health_chat_id == "@public"
+    assert cfg.telegram_health_chat_id == ""
 
 
 def test_health_chat_is_its_own_secret(tmp_path, monkeypatch):

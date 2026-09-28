@@ -178,6 +178,63 @@ def test_a_funds_day_is_its_new_york_date_and_a_coins_the_utc_date():
     assert len(jumps.one_a_day(flags, None)) == 2
 
 
+def test_keep_all_returns_every_reading_and_marks_the_ones_kept():
+    flags = _flags([("2024-01-02 10:00", "hour", "noticeable"),
+                    ("2024-01-02 11:00", "hour", "noticeable"),
+                    ("2024-01-02 12:00", "hour", "high")])
+    everything = jumps.one_a_day(flags, None, keep_all=True)
+    assert list(everything["kept"]) == [True, False, True]
+    kept = everything[everything["kept"]].drop(columns="kept").reset_index(drop=True)
+    pd.testing.assert_frame_equal(kept, jumps.one_a_day(flags, None))
+
+
+def test_an_hour_is_found_once_it_has_ended_and_not_before():
+    # The run at 10:05 stands in the 10:00 bar, which holds five minutes: only
+    # 09:00 can be judged.
+    flags = _flags([("2024-01-02 09:00", "hour", "noticeable"),
+                    ("2024-01-02 10:00", "hour", "noticeable")])
+    now = int(pd.Timestamp("2024-01-02 10:05", tz="UTC").timestamp())
+    out = jumps.ended(flags, "crypto_24_7", now)
+    assert list(out["hour_utc"]) == [int(flags["hour_utc"].iloc[0])]
+    assert out["found_utc"].iloc[0] == int(flags["hour_utc"].iloc[0]) + HOUR
+
+
+def test_a_funds_gap_is_found_with_its_first_bar_and_a_pairs_at_its_open():
+    # A fund's gap is judged with its first bar (13:30-14:00, stamped 13:00),
+    # once that bar has ended; a currency pair's weekend gap is its open.
+    fund = _flags([("2024-01-02 13:00", "night", "noticeable")])
+    pair = _flags([("2024-01-07 22:00", "weekend", "noticeable")])
+    fund_open = int(fund["hour_utc"].iloc[0])
+    pair_open = int(pair["hour_utc"].iloc[0])
+    assert jumps.ended(fund, "us_equity", fund_open + 1800).empty
+    assert jumps.ended(fund, "us_equity", fund_open + HOUR)["found_utc"].iloc[0] == fund_open + HOUR
+    assert jumps.ended(pair, "fx_24_5", pair_open)["found_utc"].iloc[0] == pair_open
+
+
+def test_the_detector_version_ignores_comments_and_follows_the_settings(tmp_path):
+    import shutil
+
+    root = tmp_path / "repo"
+    (root / "tremor").mkdir(parents=True)
+    (root / "config").mkdir()
+    for name in ("jumps.py", "returns.py", "pipeline.py", "quality.py", "routing.py",
+                 "windows.py"):
+        shutil.copy(f"tremor/{name}", root / "tremor" / name)
+    shutil.copy(jumps.DEFAULT_BASKET_PATH, root / "config" / "basket.yaml")
+    before = jumps.detector_version(str(root))
+
+    code = root / "tremor" / "routing.py"
+    code.write_text(code.read_text() + "\n# a comment\n")
+    basket = root / "config" / "basket.yaml"
+    basket.write_text(basket.read_text() + "\n# a comment\n")
+    assert jumps.detector_version(str(root)) == before
+    assert before == jumps.detector_version()       # the real repository, from anywhere
+
+    basket.write_text(basket.read_text().replace("noticeable_sigma: 3.9",
+                                                 "noticeable_sigma: 4.0"))
+    assert jumps.detector_version(str(root)) != before
+
+
 def _events(words, reading="hour", days=None):
     base = pd.Timestamp("2026-09-15 14:00", tz="UTC")
     days = days or [20711] * len(words)
@@ -203,8 +260,9 @@ def test_high_and_up_push_and_noticeable_goes_into_the_weekly_note():
     from tremor import routing
     out = jumps.for_delivery(_events(["noticeable", "high", "major", "extreme"]))
     assert list(out["channel"]) == ["digest", "push", "push", "push"]
-    assert out["digest_slot"].iloc[0] == routing.digest_slot(int(out["hour_utc"].iloc[0]))
-    assert out["digest_slot"].iloc[1:].isna().all()
+    # The note open when the move is found: the run five minutes after its hour ends.
+    found = int(out["hour_utc"].iloc[0]) + 3600 + jumps.FOUND_TO_RUN
+    assert out["digest_slot"].iloc[0] == routing.digest_slot(found)
     assert (out["basis"] == "jump").all()
 
 

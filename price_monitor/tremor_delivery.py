@@ -1,59 +1,31 @@
-"""Delivers Tremor events to Telegram: the pushes, and the running digest.
+"""Delivers Tremor events to Telegram: the pushes, and the weekly note.
 
 The detector decides everything about WHAT to say - the word, which channel an
-event belongs to, which note it falls in (see tremor.jumps and tremor.routing).
-This module decides nothing. It reads those decisions,
-renders them, and keeps the messages up to date.
+event belongs to, when it was found (tremor.jumps, tremor.routing). This module
+decides what is on the channel because of it, and keeps that in line.
 
-TWO KINDS OF MESSAGE, and the difference is how loudly they arrive rather than
-how long they wait. A push is its own message and goes out the hour the move is
-found. A digest row goes into the note for its period - and that note is OPENED
-at the start of the period rather than written at the end of it, so a row
-appears the same hour and the reader is not made to wait three days for
-something that has already happened and will not change. Telegram notifies on a
-new message and stays silent on an edit, so the note itself costs one
-interruption a week, when it opens; each row adds a small ping of its own.
+THE CHANNEL IS PUBLIC and the bot is an administrator of it: it can edit any of
+its messages at any age and delete any message there.
 
-EVERY MESSAGE IS CORRECTED IN PLACE. A row's numbers can move after it is
-sent - the hour is scored a few minutes in and the bar heals on the next fetch -
-so a push is re-rendered and edited when its text changes (follow_up.py), and a
-note is rendered whole every run (_write_digest here).
+TWO KINDS OF MESSAGE, and the difference is how loudly they arrive. A push -
+`high` and up - is its own message and rings. A `noticeable` move is a row in
+the week's note, which is edited in place and so stays silent; a small ping
+beneath it rings instead and points up at it.
 
-NOTHING IS REMEMBERED ABOUT A NOTE EXCEPT ITS MESSAGE IDS. It is rendered whole
-from the events table every run and edited only when the text actually changed,
-so a late event simply appears, a recomputed-away one simply goes, and a run
-that renders twice writes the same thing twice.
+ONE NOTE A WEEK, opened Sunday 00:05 UTC right after the economic calendar's own
+message (weekly_digest.py), and curated for that week: every run re-reads the
+events table and brings every message of the week in line with it - see "the
+week" below for exactly what that means. What belongs to an earlier note is
+history and is never touched.
 
-It piggybacks on the existing hourly trigger rather than taking a schedule of
-its own.
+A MOVE IS SENT ONLY WITHIN 24 HOURS OF BEING FOUND. After that it may still be
+corrected or removed, but nothing new rings for it. This is load-bearing: the
+events table holds the whole history, so without it the first run after a mute
+would deliver years of alerts at once. An EMPTY events table changes nothing at
+all: it cannot tell "nothing happened" from "the pipeline did not run".
 
-SEPARATE FROM THE SATURDAY CALENDAR DIGEST, on purpose, and not merely to keep
-files apart. The two are different tenses: the calendar digest is a forecast of
-what is scheduled next week, this one is a report of what actually happened.
-Reading them as one message makes both harder to skim. Both go out in the run
-that opens the note, the calendar first (see weekly_digest.py).
-
-WHEN A NOTE MAY BE OPENED is a rule of its own. Only in its own hour, or the
-three after it, so that a note stays a thing with a date on it: Saturday 00:05
-UTC, the quietest hour of the week and the seam where the trading week actually
-ends. A note opened whenever the system
-happened to next run is not a schedule, it is an arrival time. A period that
-misses the window is not lost: the next note covers from where the last one that
-actually went out left off, so the boundaries hold AND no move is silently
-dropped for want of a scheduler.
-
-WHAT IS NOT SENT. A push older than STALE_AFTER_HOURS. This is load-bearing
-rather than a nicety: the events table holds the entire history, so without it
-the first run after the mute comes off would deliver five years of alerts at
-once - old news is not news, whatever the state file does or does not remember.
-An EMPTY events table sends nothing at all, note included: it cannot tell
-"nothing happened" from "the pipeline did not run", and only one of those is
-safe to print.
-
-MUTED BY DEFAULT (Config.tremor_alerts_muted). The flag lives in config.yaml for
-the same reason alerts_muted does: "we are deliberately silent" is a state of the
-project and has to be visible where the code is, not on some scheduler's website
-where a month later nobody can tell it from a breakage.
+THE MUTE (Config.tremor_alerts_muted) lives in config.yaml, so "we are
+deliberately silent" is visible where the code is.
 """
 from __future__ import annotations
 
@@ -78,25 +50,7 @@ log = logging.getLogger("price_monitor.tremor_delivery")
 # "part N of M" line, which would otherwise have to be counted recursively.
 _MESSAGE_LIMIT = 4000
 
-# How old an event may be and still be worth sending. Two days: long enough that
-# a scheduler outage over a weekend does not lose the Friday digest, short enough
-# that nothing arrives claiming to be news when it is not.
-STALE_AFTER_HOURS = 48
-
-# What the state file remembers. Event ids rather than a high-water mark on the
-# hour, because an event can legitimately change channel after the fact: an event
-# is open for the rest of its trading day and escalates if the move gets worse,
-# so a digest row found at 10:00 can be a push by 15:00. A watermark would have
-# stepped over it in between and it would never have been sent at all. The wait
-# is bounded by STALE_AFTER_HOURS with room to spare: an event can escalate at
-# most 23 hours after it opened, and nothing is dropped before 48.
 STATE_KEY = "tremor_delivery"
-_SENT = "sent"
-
-# The outstanding throwaway pings, {event_id: message_id}. Kept because a
-# message can only be deleted by its id, and the runner that sent it is thrown
-# away within the minute - an untracked ping is a ping that stays for ever.
-PINGS = "pings"
 
 # How rare the move was, as a colour. A SQUARE, against the circles the economic
 # calendar uses for a release's impact (economic_calendar.IMPACT_EMOJI): the same
@@ -254,32 +208,6 @@ def load_events(cfg: Config) -> "list[dict]":
             continue
         rows.extend(frame.to_dict("records"))
     return rows
-
-
-def superseder(event: dict) -> "str | None":
-    """The event_id of the rarer event that later took this one's day
-    (tremor.jumps.for_delivery), or None for the day's rarest event."""
-    value = event.get("superseded_by")
-    try:
-        if value is None or pd.isna(value):
-            return None
-    except (TypeError, ValueError):
-        pass
-    return str(value) or None
-
-
-def on_channel_elsewhere(events: "list[dict]", sent: dict) -> "set[str]":
-    """Events a note row and a ping must not show: one already sent as a push -
-    its word may since have fallen to `noticeable`, and the push, corrected in
-    place, stays its one message - and one whose day grew into a rarer event
-    that is already on the channel."""
-    hidden = {str(k) for k, v in sent.items()
-              if not (isinstance(v, dict) and v.get("gone"))}
-    for e in events:
-        top = superseder(e)
-        if top and top in sent:
-            hidden.add(str(e.get("event_id")))
-    return hidden
 
 
 def _clean(value) -> "float | None":
@@ -568,206 +496,6 @@ def format_push(event: dict, labels: dict[str, str],
     return "\n".join(lines)
 
 
-# --- the running note -------------------------------------------------------
-#
-# The digest is not a report written at the end of a period. It is OPENED at the
-# start of the period it covers and edited in place as events are found, which
-# is a different product from the same events: a move that will be in Friday's
-# note is worth reading on Wednesday, and there is nothing to gain by holding
-# it - it happened and its size is known.
-#
-# It costs no extra interruption. Telegram notifies on a NEW message and stays
-# silent on an edit, so the note buzzes once a week, at the hour it opens, and
-# everything after that arrives quietly in a message the reader already has
-# (each row's own small ping aside).
-#
-# WHICH IS WHY THE OPENING HOUR IS THE ONE THING THAT CANNOT SLIP. The whole
-# arrangement is worth having because the note's interruption lands at a
-# scheduled hour; a note that opened whenever the system happened to next
-# run - at 22:16, as it did the first time this shipped - is an ordinary
-# unscheduled buzz wearing a schedule's clothes.
-DIGEST_STATE = "digests"
-
-# So a note may only be opened in its own hour, or shortly after. Three hours of
-# grace, because the trigger is an external service and one failed run must not
-# cost the whole note - but 15:00 is still an afternoon and 22:00 is not.
-DIGEST_OPEN_WITHIN_HOURS = 4
-
-# And when a note misses that window entirely, its period is not lost: it is
-# carried into the next note, which then covers from where the last note that
-# actually went out left off. That is the only way both halves can be true at
-# once - the buzz is always at noon, and no move is silently dropped for want of
-# a scheduler.
-
-# How long after its period ends a note may still POST a part, as opposed to
-# edit one. It needs a little: the last hour of a period is scored by the run
-# after that period has closed, so a note that froze exactly on its boundary
-# would drop its own final hour. It must not have much, because a new message is
-# an interruption and the whole point of a note is that it interrupts twice a
-# week. The same four hours the opening rule allows, for the same reason - the
-# trigger is an external service and one failed run must not cost the tail.
-DIGEST_GROW_AFTER_CLOSE_HOURS = DIGEST_OPEN_WITHIN_HOURS
-
-# How long a note stays editable after it opens. Its own window is at most three
-# and a half days, and the last event inside it then needs until the close of
-# the next trading day to be answered - over a holiday weekend, another four.
-# Ten days covers both with room to spare, after which the note is left as it
-# stands and forgotten.
-DIGEST_TRACK_HOURS = 240
-
-
-def _fingerprint(text: str) -> str:
-    """What the note said last time, so an unchanged note is not re-sent.
-
-    Telegram rejects an edit whose text matches the message already there, and
-    most hours change nothing: without this the run would call editMessageText
-    for every live note every hour and collect an error each time.
-    """
-    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:16]
-
-
-def note_window(slot: int, record: "dict | None" = None) -> "tuple[int, int]":
-    """The hours one note speaks for: from where the last note stopped, to where
-    the next one starts.
-
-    Normally that is exactly the note's own period. It is wider only when a
-    previous note was never opened, and the record carries the wider bound so
-    the answer does not change if the state file is read again later.
-    """
-    from tremor import routing
-
-    slot = int(slot)
-    record = record or {}
-    return (int(record.get("from", slot)),
-            int(record.get("to") or routing.next_digest_slot(slot)))
-
-
-def due_to_open(slot: int, now: datetime) -> bool:
-    """Whether a note that does not exist yet may be opened right now."""
-    return int(slot) <= now.timestamp() < int(slot) + DIGEST_OPEN_WITHIN_HOURS * 3600
-
-
-def carried_from(records: dict, slot: int) -> int:
-    """Where a note opening at `slot` should start covering.
-
-    The end of the last note that ACTUALLY went out - so a period whose note
-    was never opened is picked up by the next one instead of vanishing. A
-    record with no message behind it does not count as a note: it is a post
-    that failed and will be retried, and treating it as covered would lose
-    exactly the rows it failed to deliver.
-    """
-    from tremor import routing
-
-    ends = [note_window(int(key), record)[1]
-            for key, record in records.items() if record.get("ids")]
-    reached = [end for end in ends if end <= int(slot)]
-    # With no note behind it at all - a cold start, or a scheduler that has been
-    # down longer than a note is kept - one period back is the honest default.
-    # It is what the reader missed, it is bounded at three and a half days, and
-    # it arrives silently inside a note rather than as a burst of alerts.
-    fallback = routing.digest_slot(int(slot) - 1)
-    floor = int(slot) - DIGEST_TRACK_HOURS * 3600
-    return max(max(reached) if reached else fallback, floor)
-
-
-def tidy_windows(records: dict) -> int:
-    """Makes the open notes cover one stretch each, end to end, never overlapping.
-
-    THE SCHEDULE CAN MOVE UNDER A LIVE NOTE, and when it does the arithmetic that
-    is right the rest of the time goes wrong. A note is opened with a `to` taken
-    from the boundaries in force at the time; change those boundaries and the
-    next note can open INSIDE a note that is still running. carried_from then
-    looks for the last note end that has been reached, finds the one before the
-    still-open note rather than the still-open note itself, and starts the new
-    note there - so both claim the same hours.
-
-    Seen live, moving the notes from Tuesday/Friday to Monday/Saturday:
-
-        Fri 11 09:00  covers Fri 11 09:00 -> Tue 15 09:00   (still open)
-        Mon 14 00:05  covers Fri 11 09:00 -> Sat 19 00:05   (opened inside it)
-
-    The reader gets one note headed "Fri 11 to Sat 19" and another headed
-    "Fri 11 to Tue 15", both listing the same move.
-
-    So a note ends where the next one begins, always. Applied on every run rather
-    than only when a note is opened, because that also repairs records already
-    written this way - there is no migration to run and no state to hand-edit.
-    Returns how many records it changed, for the log.
-    """
-    fixed = 0
-    ordered = sorted(int(key) for key in records)
-    for earlier, later in zip(ordered, ordered[1:]):
-        before, after = records[str(earlier)], records[str(later)]
-        end = int(note_window(earlier, before)[1])
-        if end > later:
-            before["to"] = later
-            before.pop("rows", None)
-            end = later
-            fixed += 1
-        if int(after.get("from", later)) < end:
-            after["from"] = end
-            # The rows marker guards a note against being emptied by a change to
-            # what QUALIFIES (see the note in maybe_deliver). A window that has
-            # just been straightened is a different thing: the rows it is losing
-            # were never its own, they belong to the note beside it, and holding
-            # them would leave the same move printed twice.
-            after.pop("rows", None)
-            fixed += 1
-    return fixed
-
-
-def published_only(record: dict, rows: "list[dict]",
-                   window: "tuple[int, int]", now: datetime) -> "list[dict]":
-    """A closed note shows what it showed, not what the table says now.
-
-    A note is re-rendered from the events table on every run, which is what lets
-    a late row appear while the period is open. Once the period is over that
-    stops being a feature and becomes a lie: the table keeps changing - a
-    recompute, a retuned threshold, a fixed detector - and the note silently
-    rewrites itself into a record of moves it never reported.
-
-    That is not hypothetical. Scoring was fixed so that an hour is judged on its
-    whole bar rather than on the first five minutes of it, and fourteen moves it
-    had missed appeared at once inside a note for a week that had already ended -
-    which then claimed to have reported nineteen moves that week when it had
-    reported five. The reader is owed the five.
-
-    So while a note can still grow it records the ids it is showing, and once it
-    cannot it shows only those. A note from before this existed has nothing
-    recorded and is left alone.
-    """
-    kept = record.get("events")
-    if kept is None:
-        return rows
-    if now.timestamp() < window[1] + DIGEST_GROW_AFTER_CLOSE_HOURS * 3600:
-        return rows
-    allowed = set(kept)
-    return [e for e in rows if str(e.get("event_id")) in allowed]
-
-
-def digest_rows(events: "list[dict]", window: "tuple[int, int]",
-                now: datetime) -> "list[dict]":
-    """Every event one note speaks for. Recomputed from the table each run.
-
-    Nothing is remembered about which rows have already been written: the note
-    is rendered whole from the events table every time, so an event that
-    arrives late simply appears, and one a recompute no longer produces simply
-    goes. That is what makes editing safe to repeat.
-
-    A push word is never here: its channel is decided from its word. A move
-    that is on the channel as a push already - its word has since fallen, or
-    its day grew into one - is taken out by the caller (on_channel_elsewhere),
-    so nothing is ever shown twice.
-
-    An hour that has not happened yet is not written down, the same rule a push
-    is held to. It should not arise - a bar has to close before it is scored -
-    but a clock skew or a bad bar must not put tomorrow in today's note.
-    """
-    start, end = window
-    return [e for e in events
-            if str(e.get("channel") or "") == "digest"
-            and start <= float(e.get("hour_utc", 0)) < end
-            and float(e.get("hour_utc", 0)) <= now.timestamp()]
 
 
 def format_digest(events: "list[dict]", labels: dict[str, str],
@@ -787,10 +515,7 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
     at every cut - so the rows are ordered once and the cut falls wherever the
     character budget runs out.
 
-    The header states the period the note speaks for rather than the day it was
-    posted, because those come apart exactly when it matters: a note that had
-    to pick up a period whose own note never opened covers six days, and saying
-    so is the difference between a complete record and a puzzling one.
+    The header states the period the note speaks for, Sunday to Saturday.
     """
     from tremor.jumps import WORDS as TIERS
 
@@ -809,10 +534,9 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
     else:
         count = "Nothing so far" if live else "Nothing in this period"
     # THE LAST DAY THE NOTE CAN HOLD ANYTHING, not the moment it stops. A note
-    # runs to the instant the next one opens, and under the current boundaries
-    # that instant is 00:05 - so a note technically reaches into the next
-    # Saturday by five minutes and would print "Sat 12 to Sat 19", handing that
-    # Saturday to a note that carries none of it. It belongs to the next note.
+    # runs to the instant the next one opens, Sunday 00:05 - so it technically
+    # reaches into the next Sunday by five minutes and would print "Sun 13 to
+    # Sun 20", handing that Sunday to a note that carries none of it.
     #
     # An hour back rather than a second, and the hour is the unit that makes it
     # true rather than merely nicer: the note is a list of hourly bars, so a
@@ -846,94 +570,13 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
 
     if len(messages) > 1:
         # THE PART MARKER NAMES ITS NOTE. Only the first part carries the
-        # header, so a later part read on its own is a wall of event lines
-        # ending in "part 2 of 3" with nothing saying of what. That is not
-        # hypothetical: when a closed note gained parts they landed BELOW the
-        # note that had already replaced it, and the reader got two orphans
-        # under the wrong week. The bound in maybe_deliver stops a note growing
-        # once it is closed; this makes any part that does get split legible on
-        # its own, wherever it ends up in the scroll.
+        # header, so a later part read on its own would be a wall of rows
+        # ending in "part 2 of 3" with nothing saying of what.
         total = len(messages)
         period = f"{format_day(opened)} to {format_day(last)}"
         messages = [f"{m}\n\n<i>part {i} of {total} - {period}</i>"
                     for i, m in enumerate(messages, 1)]
     return messages
-
-
-_EMPTIED_PART = "<i>(this part is no longer needed - the note above is complete)</i>"
-
-
-def _write_digest(cfg: Config, slot: int, record: dict,
-                  texts: "list[str]", state: dict | None = None,
-                  may_grow: bool = True) -> "tuple[int, int]":
-    """Posts a note's parts, or edits the ones already posted.
-
-    Returns (posted, edited). Whether the note may exist at all was decided
-    before this was called; here it either has messages behind it or is having
-    its first ones sent.
-
-    Parts can only grow - events are added, never removed - so a new part is a
-    new message and everything before it is an edit. A failed post stops the
-    loop rather than skipping a part, because the parts are numbered and a gap
-    would be worse than a retry on the next run.
-
-    may_grow=False renders into the parts the note already has and stops there.
-    It is how a closed note stays correctable without becoming loud: an edit is
-    silent, a new part is a notification, and a period that ended days ago has
-    no business notifying anybody. The caller decides; see maybe_deliver.
-    """
-    ids, hashes = record["ids"], record["hashes"]
-    if len(texts) < len(ids):
-        # A note can lose a part: a recompute that no longer produces an event
-        # takes its lines with it. The message itself cannot be deleted, so the
-        # surplus part is emptied rather than left saying "part 3 of 5" under a
-        # note that now has two.
-        texts = list(texts) + [_EMPTIED_PART] * (len(ids) - len(texts))
-
-    posted = edited = 0
-    for index, text in enumerate(texts):
-        mark = _fingerprint(text)
-        if index < len(ids):
-            if hashes[index] == mark:
-                continue
-            try:
-                edit_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
-                                      int(ids[index]), text)
-            except TelegramError as exc:
-                log.error("Could not update the digest for %s: %s", slot, exc)
-                continue
-            hashes[index] = mark
-            edited += 1
-            if state is not None:
-                save_state(cfg.state_path, state)
-        else:
-            if not may_grow:
-                break
-            try:
-                message_id = send_telegram_message(
-                    cfg.telegram_bot_token, cfg.telegram_chat_id, text)
-            except TelegramError as exc:
-                log.error("Could not post the digest for %s: %s", slot, exc)
-                break
-            ids.append(int(message_id))
-            hashes.append(mark)
-            posted += 1
-            if state is not None:
-                save_state(cfg.state_path, state)
-    return posted, edited
-
-
-def _prune_digests(digests: dict, now: datetime) -> dict:
-    cutoff = now.timestamp() - DIGEST_TRACK_HOURS * 3600
-    return {k: v for k, v in digests.items() if float(k) >= cutoff}
-
-
-def _fresh(event: dict, now: datetime, key: str = "hour_utc") -> bool:
-    value = event.get(key)
-    if value is None or value != value:
-        return False
-    age = now.timestamp() - float(value)
-    return 0 <= age <= STALE_AFTER_HOURS * 3600
 
 
 def format_ping(event: dict, labels: dict[str, str]) -> str:
@@ -944,8 +587,9 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
     NOW has to keep opening it. This is the buzz: ticker, name, size, and a
     pointer at the note. The calendar context stays in the note, one tap away.
 
-    It is deleted when the next note opens, so what remains is a clean run of
-    notes rather than a scroll of pings around them.
+    It lives exactly as long as its row: deleted when the row leaves the note,
+    when the move becomes a push, and when the next note opens - so what
+    remains is a clean run of notes rather than a scroll of pings around them.
     """
     tier = str(event.get("tier") or "noticeable")
     emoji = TIER_EMOJI.get(tier, "⚪")
@@ -958,426 +602,420 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
              f"{shown}{_sigma_multiple(event)}")
     return f"{first}\nAdded to digest👆🏻👆🏻"
 
+# --- the week ------------------------------------------------------------------
+#
+# ONE NOTE A WEEK, opened Sunday 00:05 UTC (tremor.routing) just after the
+# economic calendar's own message. For that week every message the bot sent is
+# kept in line with the events table, every run; anything from before the note
+# opened is history and is never touched again.
+#
+# The week's state is the only thing remembered: which pushes and which note rows
+# are on the channel, their pings, and the note's message ids. What each run does
+# with them, in order:
+#
+#   pushes on the channel   event gone -> deleted. A rarer word within 24 hours of
+#                           the move being found -> a new push rings and the old
+#                           one is deleted. Anything else -> edited in place (a
+#                           push whose word fell to `noticeable` shows ⬜).
+#   rows in the note        event gone -> the row leaves (an edit) and its ping is
+#                           deleted. A push word within 24 hours -> the push rings,
+#                           the row and its ping go. Past 24 hours -> the row stays
+#                           with its new colour, and so does its ping.
+#   new events              within 24 hours of being found only: `high` and up
+#                           push, `noticeable` becomes a row with a ping - unless
+#                           its day already has a push on the channel.
+#   the day                 an instrument-day keeps one push, its rarest: the lower
+#                           ones are deleted. A day with a push shows no rows.
+#
+# A detector update (a new tremor.jumps.detector_version) starts the week over at
+# that run: every push and ping of the week is deleted, the note stays and shows
+# only what is found from then on.
+#
+# Deleting is how a message leaves; the bot is an administrator of a public
+# channel and may delete any message there. Should Telegram refuse, the message
+# is struck through by an edit instead.
 
-def pending_pings(events: "list[dict]", pinged: dict, now: datetime,
-                  window: "tuple[int, int] | None" = None,
-                  hidden: "set[str] | frozenset" = frozenset()) -> "list[dict]":
-    """Digest rows that have appeared in the OPEN note and not yet been announced.
+WEEK = "week"
 
-    Keyed on the TIER and not merely on where the event sits right now. An event
-    stays open for the rest of its trading day, so a row found at the noticeable
-    level in the morning can be a push by the afternoon - and a channel test
-    would buzz for it, then push it, and the reader would be interrupted twice
-    for one move. A push tier never pings; it gets the message with the story in
-    it, which is the whole distinction between the two.
+# A push goes out only within this long of its move being found. After that the
+# move can still be corrected or removed, but nothing new rings for it.
+PUSH_WINDOW_HOURS = 24
 
-    The same freshness rule as a push, and for the same reason: without it the
-    first run after the mute comes off would buzz once for every row in the
-    history rather than for what just happened.
 
-    AND THE SAME WINDOW THE NOTE ITSELF USES, which is what stops the ping and
-    the note disagreeing. A ping says "a row just appeared in the note below";
-    it is the interim signal that exists only because Telegram does not notify
-    on an edit. Once a note's period closes, its rows have been said properly
-    and its pings are swept - so an event from a CLOSED period must never buzz
-    again. Without this bound it did: `sweep_pings` clears the ledger as the
-    next note opens, and `pending_pings` ran straight down the same event table
-    and re-announced everything still inside the 48-hour freshness rule. Seen
-    live on 19 Sep 2026 - the note for 19-21 Sep opened empty and correct, and
-    two rows from the 17th and 18th, already published by the note that had
-    just closed, buzzed again beside it.
+def _fingerprint(text: str) -> str:
+    """What a message said last time, so an unchanged one is not re-sent.
 
-    No open note means no ping. Nothing is lost: the next note to open carries
-    the stretch through `carried_from`, and the rows buzz when it does.
-
-    Nor for a row the note does not show (`hidden`, see on_channel_elsewhere).
+    Telegram rejects an edit whose text matches the message already there, and
+    most hours change nothing: without this the run would call editMessageText
+    for every live message every hour and collect an error each time.
     """
+    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:16]
+
+
+def _rank(tier) -> int:
+    from tremor.jumps import WORDS
+
+    return WORDS.index(str(tier)) if str(tier) in WORDS else -1
+
+
+def _is_push_word(tier) -> bool:
     from tremor.routing import PUSH_TIERS
 
-    if window is None:
-        return []
-    start, end = window
-    out = [e for e in events
-           if str(e.get("channel") or "") == "digest"
-           and str(e.get("tier") or "") not in PUSH_TIERS
-           and str(e.get("event_id", ""))
-           and str(e.get("event_id", "")) not in pinged
-           and str(e.get("event_id", "")) not in hidden
-           and start <= float(e.get("hour_utc", 0)) < end
-           and _fresh(e, now)]
-    out.sort(key=lambda e: int(e["hour_utc"]))
-    return out
+    return str(tier) in PUSH_TIERS
 
 
-def _ping_message_id(value) -> int:
-    """A ping record is either the Telegram id or `{id, hash}` after restyle."""
-    if isinstance(value, dict):
-        return int(value["id"])
-    return int(value)
+def superseder(event: dict) -> "str | None":
+    """The event_id of the rarer event that later took this one's day
+    (tremor.jumps.for_delivery), or None for the day's rarest event."""
+    value = event.get("superseded_by")
+    try:
+        if value is None or pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    return str(value) or None
 
 
-def _ping_hash(value) -> str:
-    if isinstance(value, dict):
-        return str(value.get("hash") or "")
-    return ""
+def _kept(event: dict) -> bool:
+    value = event.get("kept", True)
+    try:
+        return bool(value) and not pd.isna(value)
+    except (TypeError, ValueError):
+        return bool(value)
 
 
-def _remove_ping(cfg: Config, event_id: str, value) -> bool:
-    """Deletes one ping. The bot is an administrator of a public channel and
-    can delete any message there; should Telegram refuse anyway, the ping is
-    struck through by an edit instead, so it never goes on claiming a row.
-    True if it is deleted or struck."""
+def _found(event: dict) -> int:
+    value = event.get("found_utc")
+    try:
+        if value is not None and not pd.isna(value):
+            return int(value)
+    except (TypeError, ValueError):
+        pass
+    return int(event["hour_utc"]) + 3600
+
+
+def _day_key(event: dict) -> "tuple[str, int]":
+    day = event.get("day")
+    try:
+        day = int(day)
+    except (TypeError, ValueError):
+        day = int(event["hour_utc"]) // 86400
+    return str(event.get("asset_id", "")), day
+
+
+def _send(cfg: Config, text: str) -> "int | None":
+    try:
+        return int(send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id, text))
+    except TelegramError as exc:
+        log.error("Could not send: %s", exc)
+        return None
+
+
+def _edit(cfg: Config, message_id: int, text: str) -> bool:
+    try:
+        edit_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
+                              int(message_id), text)
+        return True
+    except TelegramError as exc:
+        log.error("Could not edit message %s: %s", message_id, exc)
+        return False
+
+
+def _delete(cfg: Config, message_id: "int | None", first_line: str = "") -> bool:
+    """Deletes one message. If Telegram refuses, strikes it through instead.
+    True once the message no longer stands on the channel as it was."""
     from price_monitor.notifier import delete_telegram_message
 
-    message_id = _ping_message_id(value)
+    if message_id is None:
+        return True
     try:
         if delete_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
-                                   message_id):
+                                   int(message_id)):
             return True
     except TelegramError as exc:
-        log.warning("Could not delete ping %s: %s", event_id, exc)
+        log.warning("Could not delete message %s: %s", message_id, exc)
         return False
-    first = (value.get("text") if isinstance(value, dict) else "") or ""
-    first = first.split("\n", 1)[0]
+    struck = f"<s>{first_line}</s>" if first_line else "<s>removed</s>"
     try:
-        edit_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id, message_id,
-                              f"<s>{first}</s>" if first else "<s>ping</s>")
+        edit_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
+                              int(message_id), struck)
     except TelegramError as exc:
-        log.warning("Could not strike ping %s through either: %s", event_id, exc)
+        if "not found" in str(exc).lower():
+            return True                          # somebody deleted it already
+        log.error("Could not strike message %s through: %s", message_id, exc)
         return False
-    log.info("Ping %s struck through: Telegram would not delete it", event_id)
+    log.info("Message %s struck through: Telegram would not delete it", message_id)
     return True
 
 
-def sweep_pings(cfg: Config, store: dict) -> int:
-    """Removes every outstanding ping. Called as the next note opens.
+def _first(text: str) -> str:
+    return (text or "").split("\n", 1)[0]
 
-    An id is dropped from the state once it is handled; one Telegram would
-    neither delete nor edit is dropped too, because retrying it every hour for
-    ever would be a leak dressed as diligence.
+
+def _old_format(store: dict) -> bool:
+    return any(k in store for k in ("digests", "sent", "tracked", "pings"))
+
+
+def _adopt_old_state(cfg: Config, store: dict, now: datetime) -> "dict | None":
+    """The first run of this delivery on a channel the previous one wrote.
+
+    The previous version kept its notes, pushes and pings under other keys. Its
+    latest note is adopted as this week's note; every push of that note's
+    period and every outstanding ping is deleted, and the week goes on from this
+    run - the same as any detector update.
     """
-    outstanding: dict = store.get(PINGS) or {}
-    if not outstanding:
-        return 0
-    gone = sum(_remove_ping(cfg, event_id, value)
-               for event_id, value in list(outstanding.items()))
-    store[PINGS] = {}
-    if gone < len(outstanding):
-        log.warning("Cleared %d of %d pings; Telegram refused the rest - check the "
-                    "bot's admin rights in the channel", gone, len(outstanding))
-    return gone
+    from tremor import routing
+
+    digests = store.pop("digests", {}) or {}
+    sent = store.pop("sent", {}) or {}
+    tracked = store.pop("tracked", {}) or {}
+    pings = store.pop("pings", {}) or {}
+    latest = max((int(k) for k, v in digests.items() if v.get("ids")), default=None)
+    start = latest if latest is not None else routing.digest_slot(int(now.timestamp()))
+    for event_id, rec in sent.items():
+        hour = rec.get("hour") if isinstance(rec, dict) else rec
+        mid = rec.get("id") if isinstance(rec, dict) else None
+        mid = mid or (tracked.get(event_id) or {}).get("message_id")
+        if hour is not None and int(float(hour)) >= start and mid:
+            _delete(cfg, mid)
+    for value in pings.values():
+        _delete(cfg, value.get("id") if isinstance(value, dict) else value)
+    if latest is None:
+        return None
+    record = digests[str(latest)]
+    return {"slot": latest, "since": int(now.timestamp()) - 3600 + 1,
+            "note": {"ids": list(record.get("ids") or []),
+                     "hashes": list(record.get("hashes") or [])},
+            "pushes": {}, "rows": {}, "retired": []}
 
 
-def _still_a_digest_ping(event: dict | None,
-                         hidden: "set[str] | frozenset" = frozenset()) -> bool:
-    """True only while this run's table still puts the row in the note."""
-    from tremor.routing import PUSH_TIERS
+def _new_week(slot: int, version: str) -> dict:
+    return {"slot": int(slot), "since": int(slot), "detector": version,
+            "note": {"ids": [], "hashes": []}, "pushes": {}, "rows": {}, "retired": []}
 
-    if event is None:
+
+def _close_week(cfg: Config, week: dict) -> None:
+    """The week becomes history: its pings go, everything else stays as it is."""
+    for row in week.get("rows", {}).values():
+        _delete(cfg, row.get("ping"), _first(row.get("ping_text", "")))
+
+
+def _restart_week(cfg: Config, week: dict, version: str, now: datetime) -> None:
+    """A detector update: the week's pushes and pings are deleted, the note
+    stays, and the week continues with what is found from this run on."""
+    for rec in week.get("pushes", {}).values():
+        _delete(cfg, rec.get("id"), rec.get("first", ""))
+    for row in week.get("rows", {}).values():
+        _delete(cfg, row.get("ping"), _first(row.get("ping_text", "")))
+    week.update(pushes={}, rows={}, retired=[], detector=version,
+                since=int(now.timestamp()) - 3600 + 1)
+
+
+def _in_week(event: dict, week: dict) -> bool:
+    from tremor import routing
+    from tremor.jumps import FOUND_TO_RUN
+
+    moment = _found(event) + FOUND_TO_RUN
+    end = routing.next_digest_slot(int(week["slot"]))
+    return max(int(week["slot"]), int(week["since"])) <= moment < end
+
+
+def _push(cfg: Config, week: dict, event: dict, labels: dict, calendar) -> bool:
+    text = format_push(event, labels, calendar)
+    message_id = _send(cfg, text)
+    if message_id is None:
         return False
-    return (str(event.get("channel") or "") == "digest"
-            and str(event.get("tier") or "") not in PUSH_TIERS
-            and str(event.get("event_id")) not in hidden)
+    asset_id, day = _day_key(event)
+    week["pushes"][str(event["event_id"])] = {
+        "id": message_id, "hash": _fingerprint(text), "first": _first(text),
+        "tier": str(event.get("tier")), "rang": str(event.get("tier")),
+        "asset_id": asset_id, "day": day}
+    return True
 
 
-def _drop_ping(cfg: Config, outstanding: dict, event_id: str, value) -> bool:
-    """Removes a ping whose row the open note no longer shows. Drops the id."""
-    gone = _remove_ping(cfg, event_id, value)
-    outstanding.pop(event_id, None)
-    return gone
+def _drop_row(cfg: Config, week: dict, event_id: str) -> None:
+    row = week["rows"].pop(event_id, None)
+    if row:
+        _delete(cfg, row.get("ping"), _first(row.get("ping_text", "")))
 
 
-def restyle_pings(cfg: Config, store: dict, events: "list[dict]",
-                  labels: dict[str, str],
-                  window: "tuple[int, int] | None" = None,
-                  hidden: "set[str] | frozenset" = frozenset()) -> int:
-    """Re-edits outstanding pings whose rendered text no longer matches, and
-    deletes the ones with nothing left to point at.
-
-    A ping is a claim that the row is in the note below it. A recompute, or a
-    raised floor, can drop that row while the ping is still on the phone;
-    rewriting it as ticker · name with no size, and still saying "Added to
-    digest", is a lie. Those pings are deleted instead. An empty table is left
-    alone: that is "the pipeline did not run", not "every live row vanished".
-
-    A ping can also be orphaned by TIME rather than by a recompute: its event
-    belongs to a period that has closed, so the note now on screen does not
-    show it and never will. `sweep_pings` clears the ledger as a note opens,
-    which covers the ordinary case - but a ping created after that sweep, in
-    the same run, is left pointing at a note that cannot contain it. That is
-    how messages 24 and 25 survived the 19 September run. Any ping outside the
-    open note's window is deleted here, so the invariant holds in both
-    directions: a ping exists only while the note beneath it shows its row.
-
-    And a row the note stops showing because the move is on the channel
-    elsewhere (`hidden`: the day grew into a push, or the move was pushed)
-    takes its ping with it.
-    """
-    outstanding: dict = store.get(PINGS) or {}
-    if not outstanding:
-        return 0
+def _curate(cfg: Config, week: dict, events: "list[dict]", labels: dict,
+            calendar, now: datetime) -> int:
+    """One run's pass over the week. Returns how many messages changed."""
     by_id = {str(e.get("event_id")): e for e in events}
-    edited = dropped = 0
-    for event_id, value in list(outstanding.items()):
-        event = by_id.get(str(event_id))
-        if window is not None and event is not None:
-            hour = float(event.get("hour_utc", 0))
-            if not window[0] <= hour < window[1]:
-                _drop_ping(cfg, outstanding, str(event_id), value)
-                dropped += 1
-                continue
-        if not _still_a_digest_ping(event, hidden):
-            if not events:
-                continue
-            _drop_ping(cfg, outstanding, str(event_id), value)
-            dropped += 1
+    now_ts = int(now.timestamp())
+    window = PUSH_WINDOW_HOURS * 3600
+    changed = 0
+
+    # Pushes already on the channel.
+    for event_id, rec in list(week["pushes"].items()):
+        event = by_id.get(event_id)
+        if event is None or not _in_week(event, week):
+            if _delete(cfg, rec.get("id"), rec.get("first", "")):
+                week["pushes"].pop(event_id)
+                changed += 1
+            continue
+        tier = str(event.get("tier"))
+        # Rarer than the word it last RANG at, not than its current one: a push
+        # that fell to `noticeable` and came back is a flip-flop, and is edited.
+        rarer = _is_push_word(tier) and _rank(tier) > _rank(rec.get("rang", rec.get("tier")))
+        if rarer and _kept(event) and now_ts - _found(event) <= window:
+            old = dict(rec)
+            if _push(cfg, week, event, labels, calendar):
+                _delete(cfg, old.get("id"), old.get("first", ""))
+                changed += 2
+            continue
+        text = format_push(event, labels, calendar)
+        rec["tier"] = tier
+        if _fingerprint(text) != rec.get("hash") and _edit(cfg, rec["id"], text):
+            rec.update(hash=_fingerprint(text), first=_first(text))
+            changed += 1
+
+    # Rows already in the note.
+    for event_id, row in list(week["rows"].items()):
+        event = by_id.get(event_id)
+        if event is None or not _kept(event) or not _in_week(event, week):
+            _drop_row(cfg, week, event_id)
+            changed += 1
+            continue
+        if (_is_push_word(event.get("tier")) and _kept(event)
+                and now_ts - _found(event) <= window):
+            if _push(cfg, week, event, labels, calendar):
+                _drop_row(cfg, week, event_id)
+                changed += 2
+            continue
+        if row.get("ping") is not None:
+            text = format_ping(event, labels)
+            if _fingerprint(text) != row.get("ping_hash") and _edit(cfg, row["ping"], text):
+                row.update(ping_hash=_fingerprint(text), ping_text=text)
+                changed += 1
+
+    # New events: only within their push window, and only the day's kept ones.
+    days_with_push = {(r["asset_id"], int(r["day"])) for r in week["pushes"].values()}
+    fresh = sorted((e for e in events
+                    if _kept(e) and superseder(e) is None and _in_week(e, week)
+                    and 0 <= now_ts - _found(e) <= window
+                    and str(e.get("event_id")) not in week["pushes"]
+                    and str(e.get("event_id")) not in week["rows"]
+                    and str(e.get("event_id")) not in week["retired"]),
+                   key=_found)
+    for event in [e for e in fresh if _is_push_word(e.get("tier"))]:
+        if _push(cfg, week, event, labels, calendar):
+            days_with_push.add(_day_key(event))
+            changed += 1
+    for event in [e for e in fresh if not _is_push_word(e.get("tier"))]:
+        if _day_key(event) in days_with_push:
             continue
         text = format_ping(event, labels)
+        ping = _send(cfg, text)
+        asset_id, day = _day_key(event)
+        week["rows"][str(event["event_id"])] = {
+            "ping": ping, "ping_hash": _fingerprint(text), "ping_text": text,
+            "asset_id": asset_id, "day": day}
+        changed += 1
+
+    # One push a day, its rarest; lower ones leave. A day with a push shows no row.
+    by_day: dict = {}
+    for event_id, rec in week["pushes"].items():
+        by_day.setdefault((rec["asset_id"], int(rec["day"])), []).append(event_id)
+    for ids in by_day.values():
+        if len(ids) < 2:
+            continue
+        keep = max(ids, key=lambda i: (_rank(week["pushes"][i]["tier"]),
+                                       _found(by_id.get(i, {"hour_utc": 0}))))
+        for event_id in ids:
+            if event_id == keep:
+                continue
+            rec = week["pushes"][event_id]
+            if _delete(cfg, rec.get("id"), rec.get("first", "")):
+                week["pushes"].pop(event_id)
+                week["retired"].append(event_id)
+                changed += 1
+    days_with_push = {(r["asset_id"], int(r["day"])) for r in week["pushes"].values()}
+    for event_id, row in list(week["rows"].items()):
+        if (row.get("asset_id"), int(row.get("day", -1))) in days_with_push:
+            _drop_row(cfg, week, event_id)
+            changed += 1
+    return changed
+
+
+def _write_note(cfg: Config, week: dict, texts: "list[str]") -> int:
+    """Posts, edits and trims the note's parts. A part that is no longer needed
+    is deleted, newest first, so the ids stay a prefix of the note."""
+    note = week["note"]
+    ids, hashes = note["ids"], note["hashes"]
+    changed = 0
+    for index, text in enumerate(texts):
         mark = _fingerprint(text)
-        if mark == _ping_hash(value):
+        if index < len(ids):
+            if hashes[index] != mark and _edit(cfg, ids[index], text):
+                hashes[index] = mark
+                changed += 1
             continue
-        message_id = _ping_message_id(value)
-        try:
-            edit_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
-                                  message_id, text)
-        except TelegramError as exc:
-            log.error("Could not restyle ping %s: %s", event_id, exc)
-            continue
-        outstanding[event_id] = {"id": message_id, "hash": mark, "text": text}
-        edited += 1
-    if dropped:
-        log.info("Pings deleted (no longer in the open note): %d", dropped)
-    return edited + dropped
-
-
-def _sent_hour(value) -> float:
-    """A sent record is the hour, or `{hour, id, hash}` after restyle ids landed."""
-    if isinstance(value, dict):
-        return float(value.get("hour") or 0)
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return 0.0
-
-
-def _sent_message_id(value) -> "int | None":
-    if isinstance(value, dict) and value.get("id") is not None:
-        return int(value["id"])
-    return None
-
-
-def pending(events: "list[dict]", sent: dict, now: datetime) -> "list[dict]":
-    """The pushes that are due and have not gone out.
-
-    Only pushes. A digest row needs no record of having been written: its note
-    is rendered whole from the events table every run and edited if it changed,
-    so "already sent" is a question the digest side never has to ask.
-
-    A push whose day has already grown into a rarer one is not sent at all: the
-    rarer one is, and it would only be deleted beside it (follow_up).
-    """
-    pushes = [e for e in events
-              if str(e.get("channel") or "") == "push"
-              and str(e.get("event_id", ""))
-              and str(e.get("event_id", "")) not in sent
-              and superseder(e) is None
-              and _fresh(e, now)]
-    pushes.sort(key=lambda e: int(e["hour_utc"]))
-    return pushes
-
-
-def _prune(sent: dict, now: datetime) -> dict:
-    """Forgets what is too old to matter, so the state file stays small.
-
-    Kept a little longer than an event can be delivered, so that an id is never
-    dropped while its event is still deliverable and re-sent as a result.
-    """
-    cutoff = now.timestamp() - 4 * STALE_AFTER_HOURS * 3600
-    return {k: v for k, v in sent.items() if _sent_hour(v) >= cutoff}
+        message_id = _send(cfg, text)
+        if message_id is None:
+            break
+        ids.append(message_id)
+        hashes.append(mark)
+        changed += 1
+    while len(ids) > max(len(texts), 1):
+        if not _delete(cfg, ids[-1]):
+            break
+        ids.pop()
+        hashes.pop()
+        changed += 1
+    return changed
 
 
 def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
-    """Sends whatever is due. Returns how many Telegram messages went out or changed.
+    """One run of the week. Returns how many Telegram messages went out or changed.
 
     Failures are logged and swallowed: this runs inside the hourly monitoring
-    loop, and a Telegram outage must not bring the whole run down. A push is
-    marked sent only once its message has actually gone, and a note's part is
-    remembered only once it is up, so a failure means a retry on the next run
-    rather than a loss.
+    loop, and a Telegram outage must not bring the whole run down. A message is
+    remembered only once it is up, so a failure means a retry on the next run.
     """
+    from tremor import jumps, routing
+
     now = now or datetime.now(timezone.utc)
     if cfg.tremor_alerts_muted:
         return 0
 
     events = load_events(cfg)
-    # An empty table must not mass-delete pings: that is "the pipeline did not
-    # run", not "every live row vanished". A missing row among a live table is
-    # deleted in restyle_pings.
-
-    from price_monitor import follow_up
-    from tremor import routing
-
+    # An empty table is "the pipeline did not run", not "every event vanished"
+    # and not "nothing happened": it changes nothing, the note included.
+    if not events:
+        return 0
     store = state.setdefault(STATE_KEY, {})
-    sent: dict = store.setdefault(_SENT, {})
-    pushes = pending(events, sent, now)
+    version = jumps.detector_version()
+    changed = 0
 
-    # Open this period's note if its hour has come and it is not open already.
-    # Nothing else ever creates one: a period whose hour passed unopened is
-    # picked up by the next note instead (see carried_from).
-    digests: dict = store.setdefault(DIGEST_STATE, {})
-    current = routing.digest_slot(int(now.timestamp()))
-    if str(current) not in digests and due_to_open(current, now):
-        # Before the note, never after: the pings are the interim signal that a
-        # row appeared, and the note they were standing in for is about to say
-        # it properly. Clearing them afterwards would leave a window where both
-        # are on screen claiming the same moves.
-        swept = sweep_pings(cfg, store)
-        if swept:
-            log.info("Cleared %d ping(s) ahead of the %s note", swept, current)
-        digests[str(current)] = {"ids": [], "hashes": [],
-                                 "from": carried_from(digests, current),
-                                 "to": routing.next_digest_slot(current)}
+    if _old_format(store):
+        adopted = _adopt_old_state(cfg, store, now)
+        if adopted is not None:
+            adopted["detector"] = version
+            store[WEEK] = adopted
+        save_state(cfg.state_path, state)
 
-    # After opening, so a note created this run is tidied with the rest, and on
-    # every run, so records written before this existed are repaired in place.
-    straightened = tidy_windows(digests)
-    if straightened:
-        log.info("Straightened %d overlapping note window(s)", straightened)
-
-    # The archive is ninety thousand events, so it is read once for the whole
-    # run and only when there is something to render with it.
-    calendar = _calendar(cfg) if (
-        pushes or digests or store.get(_SENT) or store.get(follow_up.TRACKED)
-    ) else None
+    week = store.get(WEEK)
+    slot = routing.digest_slot(int(now.timestamp()))
+    if week is None or slot > int(week["slot"]):
+        if week is not None:
+            _close_week(cfg, week)
+        week = store[WEEK] = _new_week(slot, version)
+        save_state(cfg.state_path, state)
+    elif week.get("detector") != version:
+        _restart_week(cfg, week, version, now)
+        log.info("Detector updated: the week restarts from this run")
+        save_state(cfg.state_path, state)
 
     labels = _labels()
-    pushed = posted = edited = 0
+    calendar = _calendar(cfg)
+    changed += _curate(cfg, week, events, labels, calendar, now)
+    save_state(cfg.state_path, state)
 
-    for event in pushes:
-        text = format_push(event, labels, calendar)
-        try:
-            message_id = send_telegram_message(
-                cfg.telegram_bot_token, cfg.telegram_chat_id, text)
-        except TelegramError as exc:
-            log.error("Failed to send Tremor push %s: %s", event.get("event_id"), exc)
-            continue
-        mark = _fingerprint(text)
-        sent[str(event["event_id"])] = {
-            "hour": int(event["hour_utc"]), "id": int(message_id), "hash": mark,
-        }
-        # Remembered so a later correction edits this very message rather
-        # than sending another. Kept for TRACK_HOURS.
-        follow_up.track(store, event, message_id, mark, text)
-        save_state(cfg.state_path, state)
-        pushed += 1
-
-    # What the note and the pings must not show, now that this run's pushes
-    # are out: a move already on the channel as a push, and a day's lower
-    # rows once the day grew into one.
-    hidden = on_channel_elsewhere(events, sent)
-
-    # The buzz for a digest row. Sent after the pushes so that on an hour
-    # carrying both, the message with the whole story arrives first and the
-    # throwaway line second.
-    pings: dict = store.setdefault(PINGS, {})
-    buzzed = 0
-    # The window of the note that is open right now, so a ping cannot announce
-    # a row the note beneath it does not show.
-    open_note = digests.get(str(current))
-    open_window = note_window(current, open_note) if open_note else None
-    for event in pending_pings(events, pings, now, open_window, hidden):
-        text = format_ping(event, labels)
-        try:
-            message_id = send_telegram_message(
-                cfg.telegram_bot_token, cfg.telegram_chat_id, text)
-        except TelegramError as exc:
-            log.error("Failed to send ping %s: %s", event.get("event_id"), exc)
-            continue
-        pings[str(event["event_id"])] = {"id": int(message_id),
-                                         "hash": _fingerprint(text), "text": text}
-        save_state(cfg.state_path, state)
-        buzzed += 1
-    if buzzed:
-        log.info("Pings sent: %d", buzzed)
-    restyled = restyle_pings(cfg, store, events, labels, open_window, hidden)
-    if restyled:
-        save_state(cfg.state_path, state)
-        log.info("Pings restyled or removed: %d", restyled)
-
-    for slot in sorted(int(key) for key in digests):
-        record = digests[str(slot)]
-        table_rows = digest_rows(events, note_window(slot, record), now)
-        rows = [e for e in table_rows if str(e.get("event_id")) not in hidden]
-        # A NOTE NEVER UN-SAYS SOMETHING. It is rendered whole from the events
-        # table every run, which is what lets a late event appear and a
-        # recomputed-away one go - right for one row among several, wrong for
-        # all of them at once. A change to what qualifies (a retuned ladder, a
-        # moved floor) can otherwise empty a note the reader has already read
-        # and been pinged about, which reads as forgetting rather than
-        # correcting.
-        #
-        # So a note that has had rows keeps them until its period closes. A
-        # recompute dropping one row of three still shows; only the
-        # all-or-nothing case is held. A row the note stops showing because
-        # its move is on the channel as a push is not that case: the table
-        # still has it, and the note is edited without it.
-        if not table_rows and record.get("rows"):
-            log.info("Digest %s: recomputed to nothing, keeping the %d row(s) "
-                     "already published", slot, record["rows"])
-            continue
-        window = note_window(slot, record)
-        rows = published_only(record, rows, window, now)
-        # A NOTE INTERRUPTS ONLY WHILE ITS PERIOD IS OPEN, and for the short
-        # grace that lets its own last hour land. After that it is a record: it
-        # is still rendered and still corrected in place, silently, but it never
-        # grows a new part again.
-        #
-        # Every note here is re-rendered from the events table on every run for
-        # as long as DIGEST_TRACK_HOURS keeps it, which is ten days. Without
-        # this bound, anything that changes the table changes closed notes too,
-        # and the rows they gain go out as new messages - a burst of alerts,
-        # now, for hours that were scored days ago. That is not a hypothetical:
-        # a cold rebuild grew the note for Mon 14 -> Sat 19 from 5 rows to 19
-        # seven hours after it had closed, and posted the fourteen it gained as
-        # two new messages. The rows were right; the interruption was not.
-        #
-        # A note that has never posted at all is exempt. It is not a closed note
-        # gaining a row, it is a first post that failed and is being retried,
-        # and refusing it would lose the only copy of that period.
-        may_grow = (not record["ids"]
-                    or now.timestamp() < window[1]
-                    + DIGEST_GROW_AFTER_CLOSE_HOURS * 3600)
-        texts = format_digest(rows, labels, window, calendar, now)
-        held = max(0, len(texts) - len(record["ids"])) if not may_grow else 0
-        made, changed = _write_digest(cfg, slot, record, texts, state,
-                                      may_grow=may_grow)
-        posted += made
-        edited += changed
-        if may_grow:
-            # WHAT THIS NOTE HAS ACTUALLY SAID, kept while it can still say more
-            # and frozen the moment it cannot. See published_only.
-            record["events"] = [str(e.get("event_id")) for e in rows]
-        if rows:
-            record["rows"] = len(rows)
-        if made or changed:
-            log.info("Digest %s: %d part(s) posted, %d edited (%d event(s))",
-                     slot, made, changed, len(rows))
-        if held:
-            log.info("Digest %s: closed, so %d late part(s) were not posted",
-                     slot, held)
-
-    if pushes:
-        log.info("Tremor pushes sent: %d of %d due", pushed, len(pushes))
-
-    # THE PUSHES ALREADY ON THE CHANNEL, after this run's are out: a day's
-    # lower push is deleted once the day's rarer one is delivered, and every
-    # other change - a healed bar, a move that was not a jump once its hour
-    # completed - is corrected in place by an edit. See follow_up.
-    corrected = follow_up.apply(cfg, state, events, calendar, now)
-    if corrected:
-        save_state(cfg.state_path, state)
-        log.info("Pushes corrected or removed: %d", corrected)
-
-    store[_SENT] = _prune(sent, now)
-    store[DIGEST_STATE] = _prune_digests(digests, now)
-    return pushed + posted + edited + corrected + buzzed + restyled
+    by_id = {str(e.get("event_id")): e for e in events}
+    rows = [by_id[i] for i in week["rows"] if i in by_id]
+    window = (int(week["slot"]), routing.next_digest_slot(int(week["slot"])))
+    changed += _write_note(cfg, week, format_digest(rows, labels, window, calendar, now))
+    save_state(cfg.state_path, state)
+    return changed

@@ -115,8 +115,10 @@ def main() -> int:
 
     if had_error:
         streak = health.record_failure(state)
-        if health.should_alert_down(streak, cfg.health_alert_after_failures,
-                                    cfg.health_reminder_every_failures):
+        if not cfg.telegram_health_chat_id:
+            log.warning("TELEGRAM_HEALTH_CHAT_ID is not set; the down alert goes nowhere")
+        elif health.should_alert_down(streak, cfg.health_alert_after_failures,
+                                      cfg.health_reminder_every_failures):
             try:
                 send_telegram_message(cfg.telegram_bot_token, cfg.telegram_health_chat_id,
                                       format_health_down(streak, error_details))
@@ -127,7 +129,7 @@ def main() -> int:
         log.error("Tremor step failed; not recording a clean run")
     else:
         previous_streak = health.record_success(state)
-        if previous_streak >= cfg.health_alert_after_failures:
+        if previous_streak >= cfg.health_alert_after_failures and cfg.telegram_health_chat_id:
             try:
                 send_telegram_message(cfg.telegram_bot_token, cfg.telegram_health_chat_id,
                                       format_health_recovered(previous_streak))

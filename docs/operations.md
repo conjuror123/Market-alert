@@ -63,14 +63,15 @@ skip when the Sun 17:00 → Fri 17:00 New York week is shut
 
 ## What gets committed, and when
 
-**Every run:** `data/state.json` (which events have been sent — losing it re-sends them),
+**Every run:** `data/state.json` (the week's messages on the channel — losing it posts a second note
+and re-sends the moves of the last 24 hours),
 `data/economic_calendar/`, and the dividend record: `data/tremor/corporate_actions.csv`
 and `data/tremor/dividend_checks.csv`. On the first run after 09:30 New York,
 `tremor.backfill` asks Yahoo for each paying fund's payouts; new ones go to
 `corporate_actions.csv`, and `dividend_checks.csv` records how far each fund is confirmed.
 A fund's overnight gap is not scored on a day its dividend is unconfirmed. When a fund is
 five or more days behind, one line a day goes to the health chat. The push rebases and retries if the branch moved, because a
-rejected push is the same as losing the sent map. A truncated `state.json` fails the run
+rejected push is the same as losing that record. A truncated `state.json` fails the run
 rather than being read as a cold start.
 
 **Saturday 04:00 UTC only:** `data/tremor/bars/` and `data/tremor/vix/`. Git cannot delta
@@ -113,8 +114,8 @@ updating while the repository looks healthy is the failure this arrangement exis
 prevent.
 
 If a fetch fails, `pipeline` and `jumps` still run on the bars already stored, so healthy
-instruments still get events. Delivery's 48-hour staleness rule drops what did not
-refresh. Health does not record a clean run or send "recovered" while the Tremor step is
+instruments still get events. Delivery sends a move only within 24 hours of its being
+found, so what did not refresh in time is not sent late. Health does not record a clean run or send "recovered" while the Tremor step is
 red — empty events would otherwise look like a quiet hour.
 
 A provider failure names the instruments and their providers in a message to
@@ -148,21 +149,21 @@ mode with the run.
 ### What is deleted, and what is corrected
 
 The bot posts to a **public channel** and is an administrator there: it can edit its own
-messages at any age and delete any message. Delivery deletes two kinds of message and no
-others, every run:
+messages at any age and delete any message. For the week of the open note every run brings
+the channel in line with the events table (`architecture.md`, "The week"):
 
-- **pings** — when the next note opens, and as soon as the note stops showing the ping's
-  row (the row left the table, its day grew into a push, or it fell outside the open note);
-- **a day's lower messages** — once an instrument's day has grown and its rarer message is
-  on the channel, the lower push of that day is deleted, and a lower note row leaves the
-  note (an edit) with its ping.
+- **deleted** — a push whose move is gone; a push replaced by a rarer one that rang (the
+  same move within 24 hours, or a rarer move later the same day); a row's ping when the
+  row leaves the note or becomes a push; a note part no longer needed; every ping of the
+  week when the next note opens;
+- **edited** — everything else that changes: a push whose numbers moved or whose word
+  fell (`noticeable` shows ⬜), the note, a ping whose row changed colour.
 
-Everything else is corrected in place by an edit: a push whose bar healed and whose numbers
-moved; a push whose word fell to `noticeable`
-(it stays the one message for that move, and the note does not list it too); a note that
-shrank (its surplus parts are emptied). A push whose event has left the table, with nothing
-else of its day on the channel, stays as it was sent. A delete Telegram refuses is struck through by an
-edit instead, and Telegram's reason is logged.
+Nothing of an earlier week is touched. **A detector update** (a new
+`jumps.detector_version()`) deletes every push and ping of the current week, keeps the note
+and the calendar, and carries on with what is found from that run on — expect that on the
+first run after a change to the detector or the basket. A delete Telegram refuses is struck
+through by an edit instead, and Telegram's reason is logged.
 
 ---
 
@@ -170,7 +171,8 @@ edit instead, and Telegram's reason is logged.
 
 About 10 pushes a week across today's 61 instruments and about 19 note rows, each with a
 small ping; the busiest week of the last year had 37 pushes and 61 rows (`decisions.md`).
-One note a week opens Saturday at 00:05 UTC and fills as moves are found.
+One note a week opens Sunday at 00:05 UTC and fills as moves are found; it opens even when
+nothing has happened yet ("Nothing so far").
 
 The economic-calendar forecast goes out once a week, in the same run immediately before
 the note opens — so the note, the message that keeps changing, is the last one in the chat.
@@ -180,13 +182,14 @@ rather than the live feed, and consecutive digests abut exactly.
 
 The calendar archive is topped up from the live feed once a day, separately from the
 weekly digest: pushes name the releases in the three hours around a move on any day of the
-week, and a schedule fetched last Saturday does not have the speech added on Wednesday.
+week, and a schedule fetched last Sunday does not have the speech added on Wednesday.
 
-**Nothing older than 48 hours is sent, and a note opens only in its own hour or the three
-after.** This is load-bearing rather than tidy: the events table holds the whole history,
-so without it the first run after a mute would deliver years of alerts at once. It also
-does the right thing on a cold start. An empty events table sends nothing at all — it
-cannot tell "nothing happened" from "the pipeline did not run".
+**Nothing is sent more than 24 hours after its move was found.** This is load-bearing
+rather than tidy: the events table holds the whole history, so without it the first run
+after a mute would deliver years of alerts at once. The note opens at the first run of its
+week; the calendar goes out only within four hours of the opening, so after a longer outage
+the note opens without it. An empty events table changes nothing at all, the note included
+— it cannot tell "nothing happened" from "the pipeline did not run".
 
 A quiet day is still possible, and is not evidence of a fault. What distinguishes the two is
 the Actions tab: green runs mean it looked and found nothing.

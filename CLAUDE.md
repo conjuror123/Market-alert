@@ -21,7 +21,8 @@ will run live. Production still runs the previous detector from
 bot is an administrator there. A bot can edit its own messages at any age, and as a
 channel admin with "Delete messages" (`can_delete_messages`) it can delete any message
 there — the Bot API's 48-hour delete limit does not bind it. Never reason, write or log as
-if this were a private chat.
+if this were a private chat. Health and provider failures never go there: without
+`TELEGRAM_HEALTH_CHAT_ID` they are only logged.
 
 Read this file first, then the one doc that covers your task:
 
@@ -66,21 +67,22 @@ Break one of these and the system is wrong rather than merely broken.
    `jumps.one_a_day`, not by filtering afterwards: a later reading that day is kept only if
    its word is rarer than every one kept before it. The New York date for the funds, the
    UTC date for currency pairs and crypto.
-5. **A ping exists only while the note beneath it shows its row.** `pending_pings` and
-   `restyle_pings` both bound on the open note's window; they must not diverge.
-   **Delivery deletes two kinds of message and no others:** pings, and a day's lower
-   messages once the day's rarer one is on the channel (`follow_up`). Everything else
-   that changes is corrected in place by an edit; a delete Telegram refuses is struck
-   through by an edit instead.
-6. **A note interrupts only while its period is open.** Every note inside
-   `DIGEST_TRACK_HOURS` is re-rendered from the events table each run, so it stays
-   correctable — but an edit is silent and a new part is a notification. Past
-   `DIGEST_GROW_AFTER_CLOSE_HOURS` beyond its window, a note may be corrected and may
-   not grow. One note a week, Saturday, right after the calendar's own message.
-7. **An hour is scored from the bar it ends with, not the bar it starts with.** The run
-   fires at :05 and stores the hour it is standing in — a few per cent of its volume.
-   The bars heal on the next fetch, so the metrics must too: `extend_asset_metrics`
-   re-scores its last `RECOMPUTE_TAIL_BARS` rows instead of trusting them.
+5. **One note a week, curated for that week and never after.** It opens Sunday 00:05 UTC,
+   right after the calendar's own message. A move belongs to the note open when it is
+   **found**; for that week every run brings every message in line with the events table
+   (`tremor_delivery` "the week"). Anything of an earlier week is history and is never
+   touched: at the next note only the old week's pings are deleted. A push rings only
+   within `PUSH_WINDOW_HOURS` (24) of its move being found; after that a move is only
+   edited or deleted. A ping lives exactly as long as its row.
+6. **A detector update restarts the week.** When `jumps.detector_version()` changes, every
+   push and ping of the week is deleted; the note (and the calendar) stay, and the week
+   continues with what is found from that run on. Nothing found before the update rings.
+7. **A reading is judged only once it can be.** The run fires at :05 and stores the hour
+   it is standing in — a few per cent of its volume — so `jumps.ended` scores an hour
+   only after it ends, a fund's gap with its first bar, once that bar has ended, and a
+   currency pair's weekend gap at its open. The stored bars heal on the next fetch, so
+   the metrics must too: `extend_asset_metrics` re-scores its last `RECOMPUTE_TAIL_BARS`
+   rows instead of trusting them.
 8. **Tables are written through a temp file and `os.replace`** (`tremor/atomic.py`), so a
    killed run cannot truncate one in place.
 9. **Secrets never enter the repository.** The repo is public. `config.yaml` may name a

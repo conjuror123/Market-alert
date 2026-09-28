@@ -97,8 +97,9 @@ To be tuned with the threshold at stage 12, against a few weeks of real messages
 **One note a week.** With every word from `high` up pushed, the note holds only
 `noticeable` rows, and one note a week holds them (it used to be two, Monday and Saturday).
 The economic calendar stays a message of its own, sent in the same run just before the note
-opens: one is a forecast, the other a report, and they are read differently. Saturday, so
-the forecast arrives before the week it forecasts.
+opens: one is a forecast, the other a report, and they are read differently. Sunday 00:05
+UTC, the reader's choice: the forecast arrives the day before the week it forecasts, and
+everything stays in UTC.
 
 **A jump message claims only what the detector measured.** The square's colour is the word,
 so the word is not written out; the size is `|move| / σ` to one decimal, `11.0×σ`, at the end
@@ -134,18 +135,32 @@ rate tripling the day three instruments are added.
 the third alert of the week fails adversarially: the week the franc is unpegged is exactly
 the week records cluster. Volume is controlled where it is generated.
 
-**A closed note is a record, not a feed.** Every tracked note is re-rendered each run, so a
-late event can appear — but past `DIGEST_GROW_AFTER_CLOSE_HOURS` it may be corrected and
-may not grow. Without that bound one cold rebuild grew a note that had closed two days
-earlier from 5 rows to 19 and posted the difference as two alerts at breakfast. The rows
-were right; the interruption was not.
+**The week is curated; an earlier week is history.** The reader's rule. For the week of the
+open note, the channel says what the detector says now: a move that is gone is deleted, a
+move whose numbers or word changed is edited where it stands, a row that turns out to be a
+push becomes one. Once the next note opens, the old week is a record and nothing in it
+moves — before this rule one cold rebuild grew a note that had closed two days earlier from
+5 rows to 19 and posted the difference as two alerts at breakfast. The channel is public and
+the bot an admin, so Telegram lets it edit or delete at any age; the limit is ours.
 
-**Delete pings and a day's lower messages; correct everything else.** The reader's rule. A
-ping is a throwaway pointer at the note, and a day that grew has one story, told by its
-rarest message — so those go. Any other message that turns out wrong is corrected where it
-stands, by an edit: a deleted alert looks to a reader like one that never happened, and an
-edited one says what really happened. The channel is public and the bot an admin, so
-Telegram lets it do either at any age.
+**A push rings only within 24 hours of its move being found.** After that a phone buzzing
+for it is old news: a Monday row that turns `high` on Thursday is recoloured, not pushed. A
+rarer word inside the 24 hours rings again and the lower push is deleted, because the day
+then has one story told by its rarest message; a word that falls is edited (⬜ for
+`noticeable`), and a push that falls and comes back never rings twice.
+
+**A move belongs to the note open when it is found, and it is found only once it can be
+judged.** The run fires at :05 and stores the hour it stands in, five minutes of it, so
+scoring that bar judged a move on a few per cent of its volume. An hour is judged once it
+has ended; a fund's gap with its first half-hour, once it has ended; a currency pair's
+weekend gap at its open, which is the whole of it.
+
+**A detector update restarts the week under the same note.** A new detector's events are
+not the old one's, so correcting the old messages against them would be rewriting them with
+another instrument's readings. The reader's rule: delete the week's pushes and pings, keep
+the note and the calendar, and go on from that run as if on a new channel — nothing found
+before the update rings. The update is a hash of the parsed code and the basket, so a
+comment does not count.
 
 **The size is said in σ, and the word is the colour.** `|move| / σ` over the instrument's own
 half-year, to one decimal, at the end of the first line — `11.0×σ` — in the push and the

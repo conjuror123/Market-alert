@@ -54,7 +54,7 @@ def test_ops_alert_uses_the_health_chat_not_the_product_one(monkeypatch):
     assert sent == [("tok", "12345", "hello")]
 
 
-def test_ops_alert_falls_back_to_the_product_chat(monkeypatch):
+def test_ops_alert_never_goes_to_the_public_channel(monkeypatch):
     sent = []
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "tok")
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "@public")
@@ -63,4 +63,4 @@ def test_ops_alert_falls_back_to_the_product_chat(monkeypatch):
         "tremor.backfill.send_telegram_message",
         lambda token, chat, text: sent.append(chat) or 1)
     send_ops_alert("hello")
-    assert sent == ["@public"]
+    assert sent == []

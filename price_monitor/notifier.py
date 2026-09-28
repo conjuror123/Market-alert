@@ -123,7 +123,7 @@ def delete_telegram_message(
     message is already gone, or the admin right was taken away - and Telegram's
     own reason is logged rather than guessed at. The caller does not depend on
     the delete landing: a refused delete is struck through by an edit instead
-    (price_monitor.follow_up, tremor_delivery.sweep_pings).
+    (tremor_delivery._delete).
     """
     if not bot_token or not chat_id:
         raise TelegramError("TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID are not configured")

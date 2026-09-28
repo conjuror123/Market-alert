@@ -32,9 +32,9 @@ class Config:
     health_reminder_every_failures: int = 24
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
-    # Operational messages (health, provider failures). Falls back to the
-    # product chat until TELEGRAM_HEALTH_CHAT_ID exists, so behaviour is
-    # unchanged; once set, nothing diagnostic goes to the main channel.
+    # Operational messages (health, provider failures). Never the product
+    # channel, which is public: without TELEGRAM_HEALTH_CHAT_ID they are only
+    # logged.
     telegram_health_chat_id: str = ""
     state_path: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(__file__), "..", "data", "state.json"))
@@ -80,8 +80,6 @@ def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
             "HEALTH_REMINDER_EVERY_FAILURES", raw.get("health_reminder_every_failures", 24)),
         telegram_bot_token=os.environ.get("TELEGRAM_BOT_TOKEN", ""),
         telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID", ""),
-        telegram_health_chat_id=(
-            os.environ.get("TELEGRAM_HEALTH_CHAT_ID")
-            or os.environ.get("TELEGRAM_CHAT_ID", "")),
+        telegram_health_chat_id=os.environ.get("TELEGRAM_HEALTH_CHAT_ID", ""),
         twelvedata_api_key=os.environ.get("TWELVEDATA_API_KEY", ""),
     )
