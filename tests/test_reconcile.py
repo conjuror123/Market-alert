@@ -175,3 +175,43 @@ def test_a_refused_part_delete_stops_the_ones_before_it(monkeypatch):
     assert reconcile.shed(cfg, state, extra) == 0
     record = state[tremor_delivery.STATE_KEY][tremor_delivery.DIGEST_STATE][str(slot)]
     assert record["ids"] == [13, 27, 28], "nothing may be forgotten if nothing went"
+
+
+def _long_note_run(monkeypatch, now_ts):
+    """A note whose rows fit in one part without the calendar lines and need a
+    second part with them - the shape that looped live on 28 Sep 2026."""
+    from datetime import datetime, timezone
+    slot = 1790553900
+    events = [{"event_id": f"e{i}", "channel": "digest", "tier": "noticeable",
+               "asset_id": "twelvedata:GLD", "basis": "abnormal", "r": 0.01,
+               "hour_utc": slot + 3600 * (i + 1)} for i in range(8)]
+    state = _note(slot, [67, 68], events=[e["event_id"] for e in events],
+                  to=slot + 5 * 24 * 3600)
+    monkeypatch.setattr(tremor_delivery, "_labels", lambda: {})
+    monkeypatch.setattr(tremor_delivery, "load_rate_history", lambda *a: [])
+    monkeypatch.setattr(tremor_delivery, "vix_context", lambda *a: "")
+    cfg = Config(telegram_bot_token="t", telegram_chat_id="c", state_path="/dev/null")
+    now = datetime.fromtimestamp(now_ts(slot), tz=timezone.utc)
+    return reconcile.surplus(cfg, events, state, now)
+
+
+def test_an_open_note_is_never_trimmed_by_the_sweep(monkeypatch):
+    # Delivery posted part 2 of the open note and the sweep, rendering it
+    # without the calendar lines, deleted it again - every hour.
+    monkeypatch.setattr(tremor_delivery, "_calendar", lambda cfg: None)
+    assert _long_note_run(monkeypatch, lambda slot: slot + 2 * 24 * 3600) == []
+
+
+def test_a_closed_note_is_trimmed_by_the_same_text_delivery_renders(monkeypatch):
+    rendered = []
+    real = tremor_delivery.format_digest
+
+    def spy(*a, **k):
+        rendered.append(a[3])          # the calendar argument
+        return real(*a, **k)
+
+    monkeypatch.setattr(reconcile.tremor_delivery, "format_digest", spy, raising=False)
+    monkeypatch.setattr("price_monitor.tremor_delivery.format_digest", spy)
+    monkeypatch.setattr(tremor_delivery, "_calendar", lambda cfg: ["CAL"])
+    _long_note_run(monkeypatch, lambda slot: slot + 20 * 24 * 3600)
+    assert rendered == [["CAL"]]

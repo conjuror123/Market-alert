@@ -179,14 +179,22 @@ def surplus(cfg: Config, events: "list[dict]", state: dict, now) -> "list[dict]"
     store = state.get(tremor_delivery.STATE_KEY, {})
     labels = tremor_delivery._labels()
     rate_history = tremor_delivery.load_rate_history()
+    # RENDERED EXACTLY AS DELIVERY RENDERS IT, calendar lines included. Without
+    # the calendar the note came out shorter than the one delivery had just
+    # posted, so every hour delivery posted a second part and this deleted it:
+    # a buzz for a message that vanished at once (live, 28 Sep 2026).
+    calendar = tremor_delivery._calendar(cfg)
     out = []
     for slot, record in store.get(tremor_delivery.DIGEST_STATE, {}).items():
         ids = list(record.get("ids") or [])
         if record.get("events") is None or not ids:
             continue
         window = note_window(int(slot), record)
+        # A note that may still grow is delivery's to render, not this one's.
+        if now.timestamp() < window[1] + tremor_delivery.DIGEST_GROW_AFTER_CLOSE_HOURS * 3600:
+            continue
         rows = published_only(record, digest_rows(events, window, now), window, now)
-        texts = format_digest(rows, labels, window, None, now, events, rate_history)
+        texts = format_digest(rows, labels, window, calendar, now, events, rate_history)
         for index, message_id in enumerate(ids[len(texts):], start=len(texts)):
             out.append({"slot": str(slot), "index": index,
                         "message_id": int(message_id),
