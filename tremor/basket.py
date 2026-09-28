@@ -1,10 +1,9 @@
 """Basket configuration: assets, blocks, tiers, derived weights.
 
-The key difference from the existing monitor's config.yaml: here an asset has no
-thresholds of its own, and cannot have any. Thresholds in Tremor are adaptive -
-percentiles of an asset's own |Z| distribution - so the configuration
-describes only the COMPOSITION and the PROPERTIES of the instruments, not the
-sensitivity to them.
+An asset has no thresholds of its own, and cannot have any: every instrument is
+judged against its own half-year by the same rule (tremor.jumps, whose settings
+sit under `detector:`), so the configuration describes only the COMPOSITION and
+the PROPERTIES of the instruments, not the sensitivity to them.
 
 The weight is not a configuration field either. It is derived:
     weight_i = 1 / (N_blocks * N_assets_block)
@@ -17,7 +16,6 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
-from functools import lru_cache
 from datetime import date, datetime
 
 import yaml
@@ -33,10 +31,9 @@ BLOCKS = ("equity", "rates", "credit", "energy", "precious_metals",
           "industrial_metals", "agriculture", "FX", "crypto")
 
 # The hard floor on a block's size, and it is the arithmetic rather than a
-# preference: the block factor is a leave-one-out median, so a one-member block
-# has nothing left to take a median OF. It matches
-# cross_section.BLOCK_MOVE_MIN_MEMBERS, which is the same rule applied per hour
-# rather than per config.
+# preference: a block's move is a leave-one-out median of the other members (the
+# previous detector's block factor, and the co-jump stage's to come), so a
+# one-member block has nothing left to take a median OF.
 #
 # THE USEFUL FLOOR IS HIGHER AND IS NOT ENFORCED HERE. Measured on this basket -
 # mean |correlation between members' residuals|, which is the thing a block
@@ -104,40 +101,6 @@ class Asset:
     def asset_id(self) -> str:
         """Logical identifier used in metrics, logs and events."""
         return f"{self.source}:{self.ticker}"
-
-    @property
-    def block_sign(self) -> float:
-        """How this instrument is oriented relative to its block's common move.
-
-        A block factor is a median across the block's members, and a median only
-        represents a common move if the members respond to it with the same
-        SIGN. That holds for equities, rates, commodities and crypto, whose
-        members all rise together. It fails for FX, where the block is quoted
-        against a shared currency from both sides: on a dollar rally EUR/USD,
-        GBP/USD and AUD/USD fall while USD/JPY, USD/CHF and USD/CAD rise, and
-        the median of three negatives and three positives is close to nothing.
-
-        Measured on 142,400 hours with all six pairs present: on the 1% of hours
-        the dollar moves most, the real dollar move has a median size of 40.7 bp
-        and the plain median the block factor is built from sees 10.8 bp. Three
-        quarters of it leaked into the residuals of all six pairs at once, which
-        is exactly what the second principal component of those residuals turned
-        out to be.
-
-        Taken from the ticker rather than estimated, because it is a fact about
-        how the instrument is quoted and not a quantity with error bars - a sign
-        fitted per window could flip between windows, which is worse than not
-        correcting at all. A pair with no USD leg gets +1 and is left alone; the
-        orientation is only defined against a currency the block shares.
-        """
-        if "/" not in self.ticker:
-            return 1.0
-        base, _, quote = self.ticker.partition("/")
-        if quote == "USD":          # EUR/USD - a stronger dollar takes it down
-            return -1.0
-        if base == "USD":           # USD/JPY - a stronger dollar takes it up
-            return 1.0
-        return 1.0
 
     @property
     def file_stem(self) -> str:
@@ -259,137 +222,6 @@ def _asset(raw: dict, *, in_basket: bool) -> Asset:
     )
 
 
-@dataclass(frozen=True)
-class Tuning:
-    """The knobs of config/basket.yaml: how rare, how big, and how big FOR WHOM.
-
-    Read on their own rather than through load_basket because the ladder asks
-    for them inside its refit loop, and parsing sixty assets to learn one float
-    would be paid thousands of times a run. The file is read once and cached;
-    an hourly job is a fresh process, so a turned knob takes effect on the next
-    run without anything to invalidate by hand.
-
-    `floors` is the per-instrument override of min_move_sigma, and it is the one
-    lever that makes instruments speak at DIFFERENT rates. The rungs cannot: a
-    rung is the biggest move in its own lookback, so every instrument clears one
-    about once per lookback whatever its market does - which is exactly what
-    makes the word mean one thing across a digest, and exactly why it cannot
-    also be the thing that separates a loan ETF from Solana. Measured before
-    this existed, the whole basket sat inside a 2.2x spread of events per year,
-    which is far too flat for instruments that different.
-
-    A block's own line uses the same lever under a `block:` key, and that
-    override does not copy onto the members. Absent either override, the shared
-    `min_move_sigma` is the default.
-    """
-    sensitivity: float = 1.0
-    min_move_sigma: float = 1.0
-    floors: "tuple[tuple[str, float], ...]" = ()
-    ladders: "tuple[tuple[str, tuple[float, float, float, float]], ...]" = ()
-
-    def sigma_for(self, block: "str | None") -> "tuple[float, float, float, float]":
-        """This block's rungs: the YAML override, else the table, else raise.
-
-        A named block absent from BLOCK_SIGMA raises rather than borrowing the
-        default - see severity.rungs_for for why silence is the dangerous answer
-        here.
-        """
-        from tremor import severity
-
-        for name, values in self.ladders:
-            if name == block:
-                return values
-        return severity.rungs_for(severity.BLOCK_SIGMA, block,
-                                  severity.DEFAULT_SIGMA, "BLOCK_SIGMA")
-
-    def floor_for(self, asset_id: str) -> float:
-        """This instrument's or block's floor, or the shared one where it has no override."""
-        for name, value in self.floors:
-            if name == asset_id:
-                return value
-        return self.min_move_sigma
-
-
-@lru_cache(maxsize=8)
-def load_tuning(path: str = DEFAULT_BASKET_PATH) -> Tuning:
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            raw = yaml.safe_load(f) or {}
-    except OSError:
-        return Tuning()
-
-    def positive(name: str, default: float, allow_zero: bool = False) -> float:
-        value = raw.get(name, default)
-        try:
-            value = float(value)
-        except (TypeError, ValueError):
-            raise BasketConfigError(f"{name}: {value!r} is not a number")
-        if not (value > 0 or (allow_zero and value == 0)):
-            raise BasketConfigError(f"{name}: must be positive, got {value}")
-        return value
-
-    # The per-instrument overrides are read here rather than off a loaded
-    # Basket so that the trigger can ask for a floor without parsing sixty asset
-    # entries to get it. A tuple of pairs rather than a dict because Tuning is
-    # frozen and hashable, and a dict field would quietly stop it being either.
-    shared = positive("min_move_sigma", 1.0, allow_zero=True)
-    floors = []
-    for entry in list(raw.get("assets") or []) + list(raw.get("outside") or []):
-        if not isinstance(entry, dict) or "min_move_sigma" not in entry:
-            continue
-        asset_id = f"{entry.get('source')}:{entry.get('ticker')}"
-        value = entry["min_move_sigma"]
-        try:
-            value = float(value)
-        except (TypeError, ValueError):
-            raise BasketConfigError(
-                f"{asset_id}: min_move_sigma {value!r} is not a number")
-        if value < 0:
-            raise BasketConfigError(
-                f"{asset_id}: min_move_sigma must not be negative, got {value}")
-        floors.append((asset_id, value))
-
-    mapping = raw.get("block_min_move_sigma") or {}
-    if mapping and not isinstance(mapping, dict):
-        raise BasketConfigError("block_min_move_sigma must be a mapping of block to number")
-    for name, value in mapping.items():
-        block = str(name)
-        asset_id = block if block.startswith("block:") else f"block:{block}"
-        try:
-            value = float(value)
-        except (TypeError, ValueError):
-            raise BasketConfigError(
-                f"{asset_id}: min_move_sigma {value!r} is not a number")
-        if value < 0:
-            raise BasketConfigError(
-                f"{asset_id}: min_move_sigma must not be negative, got {value}")
-        floors.append((asset_id, value))
-
-    # Per-block rung overrides. Absent from the file, severity.BLOCK_SIGMA
-    # stands - the table lives there because it is the shape of the ladder
-    # rather than a deployment setting, and a config that has to restate nine
-    # blocks to change one is a config nobody edits.
-    ladders = []
-    for name, values in (raw.get("block_sigma") or {}).items():
-        try:
-            rungs = tuple(float(v) for v in values)
-        except (TypeError, ValueError):
-            raise BasketConfigError(f"block_sigma {name}: {values!r} is not four numbers")
-        if len(rungs) != 4:
-            raise BasketConfigError(
-                f"block_sigma {name}: needs four rungs, got {len(rungs)}")
-        if not all(a < b for a, b in zip(rungs, rungs[1:])):
-            raise BasketConfigError(
-                f"block_sigma {name}: rungs must increase, got {rungs}")
-        if rungs[0] <= 0:
-            raise BasketConfigError(f"block_sigma {name}: rungs must be positive")
-        ladders.append((str(name), rungs))
-
-    return Tuning(sensitivity=positive("sensitivity", 1.0),
-                  min_move_sigma=shared, floors=tuple(sorted(floors)),
-                  ladders=tuple(sorted(ladders)))
-
-
 def load_basket(path: str = DEFAULT_BASKET_PATH) -> Basket:
     with open(path, "r", encoding="utf-8") as f:
         raw = yaml.safe_load(f) or {}
@@ -422,8 +254,8 @@ def load_basket(path: str = DEFAULT_BASKET_PATH) -> Basket:
 
     # A BLOCK BELOW THE FLOOR CANNOT BE A BLOCK. The factor is a leave-one-out
     # median of the other members, so one member leaves nothing to take a median
-    # of: cross_section produces NaN and blocks produces no move at all
-    # (BLOCK_MOVE_MIN_MEMBERS). Until now this was asserted only in the tests, so
+    # of and the block produces no move at all. Until now this was asserted only
+    # in the tests, so
     # a hand-edited config could load a one-member block and simply go quiet
     # where it should have shouted. It is a config error, and it is raised here.
     short = {b: len(m) for b, m in by_block.items() if len(m) < BLOCK_MIN_MEMBERS}

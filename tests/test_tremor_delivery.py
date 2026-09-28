@@ -44,6 +44,19 @@ _STATE_PATH = ""
 
 
 @pytest.fixture(autouse=True)
+def offline(monkeypatch):
+    """Nothing here reaches Telegram or reads the real calendar archive. A
+    stranded ping used to be deleted through the real API - two hundred HTTPS
+    round trips in one test - and every row parsed the 180,000-event archive.
+    A test that cares about either puts its own stand-in over these."""
+    monkeypatch.setattr("price_monitor.notifier.delete_telegram_message",
+                        lambda *a, **k: False)
+    monkeypatch.setattr("price_monitor.reconcile.delete_telegram_message",
+                        lambda *a, **k: False)
+    monkeypatch.setattr(md, "_calendar", lambda cfg: None)
+
+
+@pytest.fixture(autouse=True)
 def state_path(tmp_path):
     global _STATE_PATH
     _STATE_PATH = str(tmp_path / "state.json")
@@ -57,21 +70,12 @@ def cfg(**over):
     return Config(**(base | over))
 
 
-def dated(since=int(datetime(2020, 3, 16, tzinfo=timezone.utc).timestamp()), hour=None, **over):
-    """The two fields every record claim is built from: when the move was, and
-    the last time the instrument matched it."""
-    base = {"hour_utc": hour if hour is not None
-            else int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp()),
-            "record_since": since}
-    return base | over
-
-
 def event(**over):
-    base = dict(event_id="e1", asset_id="twelvedata:GLD", block="commodities",
+    """A jump event as tremor.jumps.for_delivery writes it: |r| / sigma_lt = 7.0."""
+    base = dict(event_id="e1", asset_id="twelvedata:GLD", block="precious_metals",
                 hour_utc=int(NOW.timestamp()) - HOUR,
-                tier="major", basis="abnormal", channel="push", r=0.021,
-                e_resid=0.019, co_basket=0.002, co_block=0.0,
-                retention_settled=0.9, digest_slot=None)
+                tier="major", basis="jump", channel="push", r=0.021,
+                sigma_lt=0.003, overnight=False, digest_slot=None)
     return base | over
 
 
@@ -268,141 +272,6 @@ def test_a_missing_parquet_file_is_not_an_error(tmp_path):
     assert md.maybe_deliver(quiet, {}) == 0
 
 
-def test_a_move_that_kept_going_does_not_read_as_a_percentage_still_standing():
-    # A ratio above one means the move CONTINUED. Rendered as a percentage it
-    # produced "360% of it still standing", which reads as an error rather than
-    # as the strongest thing the system can say about an event.
-    assert "3.6x" in md._retention_note(3.6)
-    assert "kept going" in md._retention_note(1.4)
-    assert "%" not in md._retention_note(3.6)
-
-
-def test_the_retention_wording_covers_the_whole_range():
-    assert md._retention_note(0.95) == "still there at the next day's close"
-    assert "60%" in md._retention_note(0.6)
-    assert "reversed" in md._retention_note(-0.2)
-    assert "reversed" in md._retention_note(0.0)
-
-
-def test_a_move_on_the_abnormal_ladder_says_which_ladder_it_is_on():
-    # Two ladders exist: one ranks the raw return, the other what is left after
-    # the market is taken out. "Biggest move in about a year" would be false for
-    # the second - the instrument may well have had larger hours the market
-    # accounted for perfectly - and "of its own" says so without a glossary.
-    event = dated()
-    assert md._headline(event, "major", "abnormal") == (
-        "the biggest move of its own since 2278 day ago")
-    assert md._headline(event, "major", "absolute") == (
-        "the biggest move since 2278 day ago")
-    assert md._headline(event, "major", "both") == (
-        "the biggest move since 2278 day ago")
-
-
-def test_the_claim_is_a_record_and_names_the_date():
-    # It used to be a frequency - "about once in 3 years" - because the fitted
-    # ladder could not support a record claim and the two flatly contradicted
-    # each other: "biggest move in about three years" over "the last one this
-    # big was 23 days ago". A rung is now literally the biggest move in its own
-    # lookback, so the record claim is the true one and it can name the bar.
-    assert md._headline(dated(), "noticeable", "absolute") == (
-        "the biggest move since 2278 day ago")
-    assert "once in" not in md._headline(dated(), "extreme", "absolute")
-
-
-def test_a_move_bigger_than_anything_on_record_says_so_rather_than_guessing():
-    # No earlier bar to name, so there is no date to print. Inventing one would
-    # be the only outright false thing this line could say.
-    # "in the whole record" would overclaim on a warm run, where the archive is
-    # trimmed to the record horizon and cannot speak for what sits below it.
-    assert md._headline(dated(since=None), "extreme", "absolute") == (
-        "the biggest move in at least 6 years")
-
-
-def test_a_record_is_how_many_days_ago_not_a_calendar_stamp():
-    now = int(datetime(2026, 6, 10, tzinfo=timezone.utc).timestamp())
-    day = 86400
-    assert md.record_phrase({"hour_utc": now, "record_since": now - 1 * day}) \
-        == "since 1 day ago"
-    assert md.record_phrase({"hour_utc": now, "record_since": now - 10 * day}) \
-        == "since 10 day ago"
-    assert md.record_phrase({"hour_utc": now, "record_since": now - 17 * day}) \
-        == "since 17 day ago"
-    assert md.record_phrase({"hour_utc": now, "record_since": now - 900 * day}) \
-        == "since 900 day ago"
-
-
-def test_no_alert_claims_the_economic_calendar_explained_anything():
-    # The residual is r minus what the basket and block factors predicted; the
-    # calendar enters only the SI-Index, never this basis. An alert naming it
-    # would be reporting a test the system never ran.
-    for tier in ("noticeable", "high", "major", "extreme"):
-        for basis in ("abnormal", "absolute", "both", "market"):
-            assert "calendar" not in md._headline(dated(), tier, basis).lower()
-    for line in md._split_lines({"r": 0.02, "e_resid": 0.018}, "Gold"):
-        assert "calendar" not in line.lower()
-
-
-def test_the_split_is_two_parts_and_never_the_word_market():
-    # For the S&P 500, "the market" IS the S&P 500 - so naming the idea invited
-    # "which market, and how would I have followed it?". The parts are named by
-    # what they actually are instead.
-    lines = md._split_lines({"r": 0.0700, "e_resid": 0.0100,
-                             "co_block": 0.0600, "block": "equity"}, "S&P 500")
-    # Two lines and no header: "of that move:" was a whole line spent saying
-    # that the two beneath it add up, which the numbers already show.
-    assert "+6.00%  block moving, [US and global equities]" in lines[0]
-    assert "+1.00%  move on its own" in lines[1]
-    assert len(lines) == 2
-    for line in lines:
-        assert "market" not in line
-
-
-def test_the_block_line_carries_the_cause_on_its_own():
-    # On 2008-11-20 the financial sector's +10.50% came almost entirely from the
-    # equity block. Naming the block is the diagnosis a reader can act on; the
-    # basket term that used to sit above this line said -0.21% and nothing else.
-    lines = md._split_lines({"r": 0.1050, "e_resid": 0.0088,
-                             "co_block": 0.0962, "block": "equity"},
-                            "US financial sector")
-    assert "+9.62%  block moving, [US and global equities]" in lines[0]
-    assert "+0.88%  move on its own" in lines[1]
-
-
-def test_a_block_that_contributed_nothing_still_takes_its_line():
-    # Zero is an answer here, and a load-bearing one: "its block did nothing and
-    # the instrument did all of it" is the strongest thing the split can say, so
-    # dropping the line would delete the finding.
-    lines = md._split_lines({"r": 0.018, "e_resid": 0.018,
-                             "co_block": 0.0, "block": "FX"}, "Euro / dollar")
-    assert "+0.00%  block moving, [the dollar block]" in lines[0]
-    assert "+1.80%  move on its own" in lines[1]
-
-
-def test_the_split_falls_back_to_the_difference_on_an_older_row():
-    # Before the split was carried, only the total was.
-    lines = md._split_lines({"r": 0.02, "e_resid": 0.018, "block": "precious_metals"},
-                            "Gold")
-    assert "+0.20%  block moving, [precious metals]" in lines[0]
-    assert "+1.80%  move on its own" in lines[1]
-
-
-def test_no_split_is_claimed_when_the_regression_has_not_been_fitted():
-    # Beta is undefined through an instrument's first five hundred bars.
-    assert md._split_lines({"r": 0.02, "e_resid": None}, "Gold") == []
-    assert md._split_lines({}, "Gold") == []
-
-
-def test_the_headline_does_not_claim_the_market_was_quiet():
-    # A large residual means the co-movement does not ACCOUNT for the size of
-    # the move. It does not mean the rest of the market was calm - on a macro
-    # hour everything moves and this one moved further still, which is the case
-    # the residual channel exists to catch.
-    line = md._headline(dated(), "major", "abnormal")
-    for overclaim in ("usual", "quiet", "normal", "calm", "did not move"):
-        assert overclaim not in line
-
-
-
 def _cal(rows):
     """rows: (iso date, country, title, impact)."""
     return [{"date": d, "country": c, "title": t, "impact": i,
@@ -528,37 +397,17 @@ def test_a_missing_calendar_never_costs_the_alert():
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
     assert md.calendar_context(hour, None) == ""
     text = md.format_push({"hour_utc": hour, "asset_id": "a:SPY", "tier": "major",
-                           "basis": "abnormal", "r": 0.02,
-                           "record_since": hour - 900 * 86400}, {}, None)
-    assert "the biggest move of its own since" in text
-
-
-def test_the_push_says_what_the_move_was_big_compared_with():
-    # "+0.13%, biggest move in about three years" reads as a bug on its own, and
-    # 45% of pushes carry a number under 1%. SHY's usual hour is 0.013%, so that
-    # really is ten times normal - the message just never said so.
-    event = {"asset_id": "twelvedata:SHY", "tier": "extreme", "basis": "absolute",
-             "hour_utc": 1767225600, "r": 0.0013, "sigma_lt": 0.00013}
-    text = md.format_push(event, {"twelvedata:SHY": "Treasuries 1-3 years"})
-    assert "10x usual hour" in text
-
-
-def test_a_modest_multiple_is_still_said_and_still_has_its_decimal():
-    # It used to be suppressed below three times normal, and that silence read
-    # as a gap rather than as "this one was only 2.7x". 21% of events fall under
-    # the old floor. The decimal matters too: "3x" for 2.7 flatters the alert.
-    event = {"asset_id": "twelvedata:SPY", "tier": "noticeable", "basis": "absolute",
-             "hour_utc": 1767225600, "r": 0.0027, "sigma_lt": 0.001}
-    assert "2.7x usual hour" in md.format_push(event, {})
+                           "basis": "jump", "r": 0.02, "sigma_lt": 0.004}, {}, None)
+    assert text.splitlines()[0].endswith("+2.00% · 5.0×σ")
 
 
 def test_the_comparison_is_skipped_when_the_yardstick_is_missing():
     # sigma_LT is NaN through an instrument's first 720 bars, and a live event
     # there must still render rather than raise.
-    event = {"asset_id": "twelvedata:SPY", "tier": "major", "basis": "absolute",
+    event = {"asset_id": "twelvedata:SPY", "tier": "major", "basis": "jump",
              "hour_utc": 1767225600, "r": 0.02, "sigma_lt": float("nan")}
     text = md.format_push(event, {})
-    assert "usual hour" not in text and "+2.00%" in text
+    assert "×σ" not in text and "+2.00%" in text
 
 
 # --- when the next check-in is due -----------------------------------------
@@ -569,93 +418,6 @@ def test_the_comparison_is_skipped_when_the_yardstick_is_missing():
 # within the hour" all through the weekend, because the hours passed and the
 # bars did not.
 
-FRIDAY_LAST_ETF_BAR = int(datetime(2026, 9, 4, 19, 0, tzinfo=timezone.utc).timestamp())
-
-
-def spy(**over):
-    return {"asset_id": "twelvedata:SPY", "hour_utc": FRIDAY_LAST_ETF_BAR,
-            "tier": "extreme", "basis": "abnormal", "r": 0.03} | over
-
-
-def test_a_check_in_is_named_as_a_close_rather_than_counted_down():
-    # Both horizons are day closes, and for anything whose day is the UTC one
-    # that close falls at midnight - so a bare timestamp read as a day later
-    # than it is. Naming whose close it is also means the line does not tick,
-    # so a message is not edited every hour to count it down.
-    saturday = datetime(2026, 9, 5, 12, 0, tzinfo=timezone.utc)
-    said = md._due_in(spy(), "settled", saturday)
-    assert said == "coming at Tuesday's close (20:00 UTC)"
-    assert "in " not in said.replace("coming at", "")
-
-
-def test_the_weekend_does_not_move_the_answer_closer():
-    friday = datetime(2026, 9, 4, 20, 10, tzinfo=timezone.utc)
-    monday = datetime(2026, 9, 7, 12, 0, tzinfo=timezone.utc)
-    assert md._due_in(spy(), "settled", friday) == md._due_in(spy(), "settled", monday)
-
-
-def test_a_holiday_is_skipped_like_any_other_closed_day():
-    # Monday 7 September 2026 is Labor Day, so the next day this instrument
-    # trades is the Tuesday - which is what the session table says.
-    due = md.due_moment(spy(), "settled")
-    assert datetime.fromtimestamp(due, tz=timezone.utc).strftime("%a") == "Tue"
-
-
-def test_this_days_close_is_the_end_of_the_move_s_own_day():
-    hour = int(datetime(2026, 9, 8, 14, 0, tzinfo=timezone.utc).timestamp())
-    due = md.due_moment(spy(hour_utc=hour), "today")
-    assert datetime.fromtimestamp(due, tz=timezone.utc).strftime("%a %H:%M") == "Tue 20:00"
-
-
-def test_a_move_in_the_closing_hour_has_its_own_day_end_immediately():
-    # There is no day left to hold through, so the moment is the end of the bar.
-    due = md.due_moment(spy(), "today")          # Friday's last ETF bar
-    assert datetime.fromtimestamp(due, tz=timezone.utc).strftime("%a %H:%M") == "Fri 20:00"
-
-
-def test_round_the_clock_days_end_at_midnight():
-    btc = {"asset_id": "coinbase:BTC-USD", "hour_utc": FRIDAY_LAST_ETF_BAR,
-           "basis": "absolute"}
-    now = datetime(2026, 9, 4, 20, 10, tzinfo=timezone.utc)
-    assert md._due_in(btc, "today", now) == "coming at Friday's close (00:00 UTC)"
-
-
-def test_the_settled_reading_is_dated_by_the_next_trading_day():
-    # Not "24 hours later": the settled reading lands at the close of the next
-    # day the instrument actually trades, and over Labor Day weekend that is the
-    # Tuesday.
-    due = md.due_moment(spy(), "settled")
-    moment = datetime.fromtimestamp(due, tz=timezone.utc)
-    assert moment.strftime("%a %H:%M") == "Tue 20:00"
-
-
-def test_an_undatable_check_in_says_less_rather_than_something_wrong(monkeypatch):
-    # An unreadable session table must not raise inside a push that is going out.
-    monkeypatch.setattr(md, "due_moment", lambda e, h: None)
-    for horizon in ("today", "settled"):
-        assert md._due_in(spy(), horizon).startswith("coming,")
-
-
-def test_an_undatable_check_in_does_not_repeat_the_horizon_it_is_written_under(
-        monkeypatch):
-    # The full line is "<horizon> - <answer>", so a fallback naming the horizon
-    # again read "this day's close - coming at this day's close".
-    monkeypatch.setattr(md, "due_moment", lambda e, h: None)
-    lines = md.check_in_lines(event(retention_today=None,
-                                    retention_settled=None), NOW)
-    for line in lines:
-        label, _, answer = line.strip().partition(" - ")
-        assert label and label not in answer
-
-
-def test_a_landed_horizon_is_not_a_promise():
-    # The placeholder is only for the check-ins that have no answer yet.
-    midday = spy(hour_utc=int(datetime(2026, 9, 8, 14, tzinfo=timezone.utc).timestamp()),
-                 retention_today=0.9)
-    lines = md.check_in_lines(midday, now=NOW)
-    assert "this day's close - still there" in lines[0]
-    assert "next day's close - coming" in lines[1]
-
 
 # --- the note is written into, not written up -------------------------------
 #
@@ -665,8 +427,7 @@ def test_a_landed_horizon_is_not_a_promise():
 # arrives quietly in a message they already have.
 
 def digest_row(**over):
-    return event(event_id="d1", channel="digest", tier="high",
-                 retention_today=None, retention_settled=None) | over
+    return event(event_id="d1", channel="digest", tier="noticeable") | over
 
 
 def test_a_later_move_edits_the_open_note_rather_than_sending_another(
@@ -690,60 +451,6 @@ def test_a_note_that_has_not_changed_is_not_edited(monkeypatch, sender, editor):
     assert editor.calls == []
 
 
-def test_a_row_says_when_its_answer_is_due(monkeypatch, sender, editor):
-    # It is written the hour the move is found, long before the market has
-    # answered, so a row that said only its size would look like a bot that had
-    # forgotten to come back.
-    deliver(monkeypatch, [digest_row()])
-    assert "next day's close - coming" in notes(sender)[0]
-
-
-def test_the_answer_replaces_the_promise_when_it_lands(monkeypatch, sender, editor):
-    _, state = deliver(monkeypatch, [digest_row()])
-    deliver(monkeypatch, [digest_row(retention_settled=0.95)], state=state)
-    assert len(editor.calls) == 1
-    text = editor.calls[0][1]
-    assert "next day's close - still there" in text
-
-
-def test_a_move_that_reverted_stays_in_the_note_and_says_so(
-        monkeypatch, sender, editor):
-    # It used to be dropped before anyone saw it. Now it is already on the
-    # reader's phone by the time the answer arrives, and unsending is not a
-    # thing Telegram can do - so the line is corrected instead.
-    _, state = deliver(monkeypatch, [digest_row()])
-    deliver(monkeypatch, [digest_row(retention_settled=-0.02)], state=state)
-    assert "next day's close - fully reversed" in editor.calls[0][1]
-
-
-def test_a_move_that_reversed_past_its_start_says_how_far_past(
-        monkeypatch, sender, editor):
-    # A fifth of settled readings are negative: the price gave the move back
-    # and kept going the other way. Calling that "fully reversed" throws away
-    # the louder half of the fact, so the overshoot is said in the move's own
-    # units, the same way a continuation is.
-    _, state = deliver(monkeypatch, [digest_row()])
-    deliver(monkeypatch, [digest_row(retention_settled=-0.4)], state=state)
-    assert ("next day's close - reversed past where it started, "
-            "40% of the move the other way") in editor.calls[0][1]
-
-    _, state = deliver(monkeypatch, [digest_row()])
-    deliver(monkeypatch, [digest_row(retention_settled=-1.7)], state=state)
-    assert ("next day's close - reversed past where it started, "
-            "1.7x the move the other way") in editor.calls[1][1]
-
-
-def test_a_closed_note_is_still_corrected_when_its_last_answer_arrives(
-        monkeypatch, sender, editor):
-    # A move an hour before the period ends is answered at the next close,
-    # days after the note stopped taking new events.
-    _, state = deliver(monkeypatch, [digest_row()])
-    later = NOW + timedelta(days=4)
-    deliver(monkeypatch, [digest_row(retention_settled=0.9)], state=state, now=later)
-    assert len(editor.calls) == 1
-    assert "next day's close - still there" in editor.calls[0][1]
-
-
 def test_a_note_is_forgotten_once_nothing_about_it_can_change(
         monkeypatch, sender, editor):
     _, state = deliver(monkeypatch, [digest_row()])
@@ -757,12 +464,13 @@ def test_a_failed_edit_is_retried_rather_than_lost(monkeypatch, sender):
     failing = Edited(fail=True)
     monkeypatch.setattr(md, "edit_telegram_message", failing)
     _, state = deliver(monkeypatch, [digest_row()])
-    deliver(monkeypatch, [digest_row(retention_settled=0.9)], state=state)
+    # The bar healed: the move the row was written with has changed.
+    deliver(monkeypatch, [digest_row(r=0.024)], state=state)
 
     working = Edited()
     monkeypatch.setattr(md, "edit_telegram_message", working)
-    deliver(monkeypatch, [digest_row(retention_settled=0.9)], state=state)
-    assert len(working.calls) == 1
+    deliver(monkeypatch, [digest_row(r=0.024)], state=state)
+    assert len([t for _, t in working.calls if "Digest" in t]) == 1
 
 
 def test_a_move_carries_its_tier_as_a_colour(monkeypatch, sender):
@@ -878,97 +586,12 @@ def test_a_note_whose_first_post_failed_does_not_cover_its_period(monkeypatch):
     assert any("Gold" in t for t in working.texts)
 
 
-
 def test_a_move_that_belongs_to_no_push_keeps_its_row(monkeypatch, sender):
     deliver(monkeypatch, [digest_row(folded_into="")])
     assert "Gold" in notes(sender)[0]
 
 
-def test_the_third_check_in_lands_on_a_push_that_already_has_two(monkeypatch, sender, editor):
-    # The horizons are not all the same kind of thing - two and six are bar
-    # counts, "settled" is a moment - and holding both in one set used to raise
-    # the moment the third answer arrived, inside the hourly delivery run.
-    pushed = event(channel="push", retention_today=None, retention_settled=None)
-    _, state = deliver(monkeypatch, [pushed])
-    tracked = state[md.STATE_KEY][follow_up_module.TRACKED]
-    assert tracked
-
-    deliver(monkeypatch, [event(channel="push", retention_today=0.9,
-                                retention_settled=None)], state=state)
-    deliver(monkeypatch, [event(channel="push", retention_today=0.9,
-                                retention_settled=0.8)], state=state)
-    assert len(editor.calls) == 2
-    assert "next day's close - 80% of it still there" in editor.calls[-1][1]
-    # All three written, and the push stays tracked so a later copy tweak
-    # can still rewrite the message.
-    assert "e1" in state[md.STATE_KEY][follow_up_module.TRACKED]
-
-
 # --- saying it in terms nobody needs statistics for -------------------------
-
-def test_only_one_date_line_and_it_is_the_exact_one():
-    # There used to be two. The headline said how OFTEN a move like this happens
-    # and a second line said when the last one was - and under a fitted ladder
-    # those could flatly contradict each other ("biggest move in about three
-    # years" over "the last one this big was 23 days ago").
-    #
-    # The headline is now itself a date, read off the bar the level was measured
-    # against, so the second line was the same claim computed a weaker way: it
-    # searched the EVENTS table for the last row at this tier or rarer, which
-    # can be a different bar entirely - a smaller move that still cleared the
-    # rung, or one claimed by the other ladder. Measured on a real push the two
-    # disagreed, "the biggest since July" against "similar move 28 days ago".
-    hour = int(datetime(2026, 9, 4, 14, tzinfo=timezone.utc).timestamp())
-    history = [event(event_id="old", tier="major", hour_utc=hour - 400 * 24 * HOUR)]
-    row = event(tier="major", hour_utc=hour, basis="absolute",
-                record_since=hour - 400 * 24 * HOUR)
-    text = md.format_push(row, LABELS, None, events=history)
-
-    assert "the biggest move since 400 day ago" in text
-    assert "similar move" not in text
-
-
-def test_an_unfinished_day_reads_as_an_appointment_not_an_answer():
-    # What the reader saw instead: AVAX-USD fell 5.84% in the 01:00 UTC hour of
-    # Sunday 20 September, and three hours later the note said "this day's close
-    # - still there" of a day with twenty-one hours left in it. The number came
-    # from tremor.persistence, which took the newest bar in the store for the
-    # day's last; with that fixed the column is empty here, and an empty column
-    # is what this line turns into an appointment.
-    avax = {"asset_id": "coinbase:AVAX-USD", "basis": "abnormal",
-            "hour_utc": int(datetime(2026, 9, 20, 1, tzinfo=timezone.utc).timestamp())}
-    now = datetime(2026, 9, 20, 3, 6, tzinfo=timezone.utc)
-    assert md.check_in_lines(avax, now=now)[0] == (
-        "\tthis day's close - coming at Sunday's close (00:00 UTC)")
-
-
-def test_a_move_in_the_closing_hour_gets_no_line_for_its_own_day():
-    # 6% of moves are made in the last hour their instrument trades that day.
-    # There is nothing left of the day to hold through, so the ratio is one by
-    # construction and "still there" would be reporting arithmetic as news. The
-    # line was once kept and answered in words; it is now left out, because a
-    # reader who did not ask about this day's close does not need to be told
-    # why it has no answer.
-    closing = spy(retention_today=1.0)          # Friday's last ETF bar
-    lines = md.check_in_lines(closing, now=NOW)
-    assert not any("this day's close" in line for line in lines)
-    assert lines == ["\tnext day's close - coming with the next update"]
-    assert "closing hour" not in md.format_push(closing, LABELS, now=NOW)
-
-    midday = spy(hour_utc=int(datetime(2026, 9, 8, 14, tzinfo=timezone.utc).timestamp()),
-                 retention_today=1.0)
-    lines = md.check_in_lines(midday, now=NOW)
-    assert lines[0] == "\tthis day's close - still there"
-
-
-def test_the_block_line_names_the_instrument_s_peers():
-    # The block factor is a leave-one-out median: the instrument is measured
-    # against its neighbours, never against itself, so naming it in its own peer
-    # group would misdescribe the number on the line.
-    peers = md._block_peers({"asset_id": "twelvedata:SPY", "block": "equity"})
-    assert peers.startswith("XLK, XLF, XLY")
-    assert "QQQ" in peers and "EEM" in peers
-    assert "SPY" not in peers
 
 
 def test_the_headline_leads_with_the_rarity_the_ticker_and_the_move():
@@ -977,7 +600,7 @@ def test_the_headline_leads_with_the_rarity_the_ticker_and_the_move():
     # it used to be on the second line.
     text = md.describe(event(asset_id="twelvedata:GLD"), LABELS)
     first = text.split("\n")[0]
-    assert first == md.TIER_EMOJI["major"] + " <b>GLD</b> · Gold +2.10%"
+    assert first == md.TIER_EMOJI["major"] + " <b>GLD</b> · Gold +2.10% · 7.0×σ"
 
 
 def test_the_hour_is_the_last_line_and_is_bold():
@@ -988,279 +611,9 @@ def test_the_hour_is_the_last_line_and_is_bold():
     assert last.startswith(md.TIME_EMOJI)
     stamp = (NOW - timedelta(hours=1)).strftime("%d.%m.%Y %H:%M")
     assert last.endswith("UTC</b>") and f"<b>{stamp}" in last
-    assert "GLD major or rarer ≈" in md.describe(
-        event(asset_id="twelvedata:GLD"), LABELS,
-        events=[event(asset_id="twelvedata:GLD",
-                      hour_utc=int(NOW.timestamp()) - 400 * 86400)])
-
-
-def _history(*rows):
-    return list(rows)
-
-
-def test_describe_puts_this_ticker_and_tier_rate_before_the_timestamp():
-    # Unique days, this asset, this tier or rarer. Two hours the same day count
-    # once; an extreme row inflates a major count. Years are first-to-last of
-    # every stored row for the asset, including quieter tiers.
-    day = 1_700_000_000
-    later = day + 400 * 86400
-    current = event(asset_id="twelvedata:XLF", tier="major", hour_utc=later)
-    history = _history(
-        dict(current, hour_utc=day, event_id="a"),
-        dict(current, hour_utc=day + 3600, event_id="b"),
-        dict(current, hour_utc=later, event_id="c"),
-        dict(current, tier="extreme", hour_utc=later + 86400, event_id="d"),
-        dict(current, tier="noticeable", hour_utc=day - 200 * 86400, event_id="e"),
-        event(asset_id="twelvedata:GLD", tier="major", hour_utc=day),
-    )
-    lines = md.describe(current, {"twelvedata:XLF": "Financials"},
-                        events=history).splitlines()
-    assert lines[-1].startswith(md.TIME_EMOJI)
-    assert lines[-2] == (
-        "XLF major or rarer ≈ 1.8 times a year (3 events over 1.6 years)")
-    assert lines[-3].startswith("\tnext day's close")
-    assert "GLD" not in lines[-2]
-
-
-def test_a_rare_tier_is_said_as_once_in_years():
-    day = 1_700_000_000
-    current = event(asset_id="twelvedata:XLF", tier="major",
-                    hour_utc=day + 400 * 86400)
-    history = _history(
-        dict(current, hour_utc=day, event_id="a"),
-        dict(current, hour_utc=day + 400 * 86400, event_id="b"),
-        dict(current, tier="noticeable", hour_utc=day - 3 * 365 * 86400,
-             event_id="c"),
-    )
-    line = md.describe(current, {"twelvedata:XLF": "Financials"},
-                       events=history).splitlines()[-2]
-    assert line.startswith("XLF major or rarer ≈ once in ")
-    assert "times a year" not in line
-    assert "(2 events over " in line
-
-
-def test_no_other_asset_or_tier_is_mixed_into_this_line():
-    current = event(tier="major", hour_utc=2_000_000_000)
-    text = md.describe(current, LABELS, events=[
-        event(asset_id="twelvedata:GLD", tier="noticeable",
-              hour_utc=2_000_000_000 - 400 * 86400),
-        event(asset_id="twelvedata:XLF", tier="extreme",
-              hour_utc=2_000_000_000 - 200 * 86400),
-    ])
-    assert "GLD major or rarer ≈" in text
-    line = [l for l in text.splitlines() if "≈" in l][0]
-    assert "XLF" not in line
-
-
-def test_rate_years_are_the_asset_archive_span_not_the_tier_gap():
-    # BKLN scored from 2002: z is ~24 years even when this line is extreme-only.
-    first = 1_000_000_000
-    last = first + int(round(24.1 * 365.25 * 86400))
-    current = event(asset_id="twelvedata:BKLN", tier="extreme", hour_utc=last)
-    history = [
-        dict(current, tier="noticeable", hour_utc=first, event_id="old"),
-        dict(current, event_id="now"),
-    ]
-    line = md.tier_rate_line(current, history)
-    assert line == (
-        "BKLN extreme or rarer ≈ once in 24.1 years (1 event over 24.1 years)")
-
-
-def test_noticeable_or_rarer_counts_every_higher_tier():
-    # noticeable includes high+major+extreme. Years stay the archive span, not
-    # the gap between noticeable rows. 17 unique days / 24.1 years is below
-    # 1×/year, so the line is "once in" rather than "times a year".
-    first = 1_000_000_000
-    span = int(round(24.1 * 365.25 * 86400))
-    last = first + span
-    current = event(asset_id="twelvedata:DBB", tier="noticeable", hour_utc=last)
-    history = [
-        dict(current, hour_utc=first + i * (span // 16), event_id=f"e{i}",
-             tier=("noticeable", "high", "major", "extreme")[i % 4])
-        for i in range(16)
-    ]
-    history.append(dict(current, event_id="now"))
-    line = md.tier_rate_line(current, history)
-    assert line == (
-        "DBB noticeable or rarer ≈ once in 1.4 years "
-        "(17 events over 24.1 years)")
-
-
-def test_or_rarer_times_a_year_when_at_least_once_per_year():
-    from price_monitor.tremor_delivery import YEAR
-
-    n, per_year = 17, 14.2
-    span = int(round((n / per_year) * YEAR))
-    last = 1_700_000_000
-    first = last - span
-    current = event(asset_id="twelvedata:DBB", tier="noticeable", hour_utc=last)
-    history = [
-        dict(current, hour_utc=first + i * (span // (n - 1)), event_id=f"e{i}",
-             tier=("noticeable", "high", "major", "extreme")[i % 4])
-        for i in range(n - 1)
-    ]
-    history.append(dict(current, event_id="now"))
-    line = md.tier_rate_line(current, history)
-    assert line == (
-        "DBB noticeable or rarer ≈ 14.2 times a year "
-        "(17 events over 1.2 years)")
-
-
-
-def test_describe_rates_from_the_archive_not_the_warm_table():
-    warm = [event(asset_id="twelvedata:DBB", tier="noticeable",
-                  hour_utc=1_700_000_000)]
-    archive = [
-        dict(warm[0], hour_utc=1_700_000_000 - int(24.1 * 365.25 * 86400),
-             event_id="old", tier="high"),
-        dict(warm[0], event_id="now"),
-    ]
-    line = [l for l in md.describe(warm[0], LABELS, events=warm,
-                                   rate_history=archive).splitlines()
-            if "≈" in l][0]
-    assert "24.1 years" in line
-    assert "noticeable or rarer" in line
-    # A reader told "its own block moved" is entitled to know which instruments
-    # that block holds, and the honest form is a list.
-    footer = md.basket_footer()
-    for ticker in ("SPY", "XLK", "TLT", "HYG", "GLD", "EUR/USD", "BTC-USD"):
-        assert ticker in footer
-    assert "DBC*" in footer              # watched, not counted in its own block
-    assert "61 instruments tracked" in footer
-    # Every block gets a line of its own, under the name the move's own line uses.
-    for label in ("US and global equities", "US Treasuries",
-                  "corporate and sovereign credit", "precious metals"):
-        assert label in footer
 
 
 # --- a block's own move ------------------------------------------------------
-
-def block_event(**over):
-    base = dict(event_id="block_equity:1", asset_id="block:equity", block="equity",
-                hour_utc=int(datetime(2026, 9, 8, 14, tzinfo=timezone.utc).timestamp()),
-                peak_hour_utc=int(datetime(2026, 9, 8, 14, tzinfo=timezone.utc).timestamp()),
-                tier="extreme", basis="block", r=-0.0241, e_resid=-0.0241,
-                co_block=0.0, sigma_lt=0.0058, n_members=16,
-                leaders="XLE -6.20%, XLF -5.80%, XLI -5.10%, XLB -4.90%",
-                channel="push", z_resid=-4.2)
-    return base | over
-
-
-def test_a_block_move_is_told_as_a_block_and_not_as_an_instrument():
-    # It has no ticker to chart, no price level and no split into "its block and
-    # itself" - it IS the block - so the lines that would say those things are
-    # replaced by what a typical member did and which members did most of it.
-    text = md.describe(block_event(), LABELS)
-
-    # Black IN FRONT OF the rarity, not instead of it: a block is the same four
-    # rarities read at a different level of the market, and dropping the colour
-    # would trade what every line is skimmed by for what one line in twenty needs.
-    assert text.startswith(md.BLOCK_MARK + md.TIER_EMOJI["extreme"]
-                           + " <b>US and global equities</b> · ")
-    assert "of that move" not in text
-    assert "whole block moved together" in text.lower()
-    assert " · -2.41%" in text.splitlines()[0]
-    assert "4.2x a typical member's usual hour" in text
-    assert "biggest movers: XLE -6.20%, XLF -5.80%" in text
-    assert "(of 16 trading that hour)" in text
-    # No split line: there is nothing above a block to explain its move with.
-    assert "\t+6.00%  block moving," not in text
-    assert "on its own" not in text
-
-
-def test_a_block_move_still_gets_its_two_check_ins():
-    # The question "did it hold" is the same question for a block as for an
-    # instrument, and it is the one the reader asks next.
-    lines = md.describe(block_event(retention_today=1.4), LABELS).splitlines()
-    assert any("this day's close - kept going, 1.4x the original move" in l for l in lines)
-    assert any("next day's close -" in l for l in lines)
-
-
-def test_a_block_rate_uses_the_block_id_and_counts_rarer_tiers():
-    day = 1_700_000_000
-    current = block_event(hour_utc=day + 400 * 86400, tier="major")
-    history = [
-        dict(current, hour_utc=day, event_id="a", tier="major"),
-        dict(current, hour_utc=day + 400 * 86400, event_id="b", tier="major"),
-        dict(current, hour_utc=day + 401 * 86400, event_id="c", tier="extreme"),
-    ]
-    line = md.describe(current, LABELS, events=history).splitlines()[-2]
-    assert line.startswith("equity major or rarer ≈")
-    assert "3 events" in line
-    assert "extreme" not in line.split("≈")[0]
-
-
-def test_a_block_check_in_is_dated_on_its_members_calendar():
-    # Without this a block would fall back to the round-the-clock calendar and
-    # promise a US block's close at midnight - eight hours before it happens, on
-    # a day the market is shut.
-    assert md._template("block:equity") == "us_equity"
-    assert md._template("block:crypto") == "crypto_24_7"
-    assert md._template("block:FX") == "fx_continuous"
-
-    friday = int(datetime(2026, 9, 4, 17, tzinfo=timezone.utc).timestamp())
-    due = md.due_moment({"asset_id": "block:equity", "hour_utc": friday}, "settled")
-    assert due is not None
-    # The next day US equities trade after that Friday is Tuesday the 8th: the
-    # Monday is Labor Day. On the round-the-clock calendar it would have been
-    # Saturday, three days and one closed market too early.
-    assert datetime.fromtimestamp(due, tz=timezone.utc).date() == date(2026, 9, 8)
-
-
-def test_the_currency_block_names_the_dollar_rather_than_a_sign():
-    # Its members are oriented before the median, so the figure is a statement
-    # about the DOLLAR while the movers under it are quoted the way a chart
-    # quotes them. "+0.88%" above "EUR/USD -1.05%" reads as a contradiction and
-    # is not one.
-    text = md.describe(block_event(
-        block="FX", asset_id="block:FX", r=0.0088, e_resid=0.0088, sigma_lt=0.0008,
-        leaders="USD/CHF +1.31%, EUR/USD -1.22%"), LABELS)
-
-    # And the block is named for what its members have in common rather than
-    # for the members themselves: "currencies" made a number in ONE pair's own
-    # direction look like a claim about all of them at once.
-    assert "<b>The dollar block</b>" in text
-    assert "the dollar gained 0.88% against the typical pair" in text
-    assert "+0.88%" not in text
-
-    fell = md.describe(block_event(
-        block="FX", asset_id="block:FX", r=-0.0088, e_resid=-0.0088,
-        sigma_lt=0.0008, leaders="EUR/USD +1.22%"), LABELS)
-    assert "the dollar lost 0.88% against the typical pair" in fell
-
-
-def test_a_block_ping_carries_the_black_mark_too():
-    # The ping and the note row arrive one after the other and have to agree on
-    # what kind of thing moved. blocks.events_frame only emits the push tiers
-    # today, so this path is not reachable from the pipeline - it is here so
-    # that relaxing that filter cannot silently produce an unmarked ping.
-    ping = md.format_ping(block_event(tier="noticeable", channel="digest",
-                                      block="agriculture",
-                                      asset_id="block:agriculture", r=-0.0072,
-                                      sigma_lt=0.0036), {})
-    assert ping == (f"{md.BLOCK_MARK}{md.TIER_EMOJI['noticeable']} "
-                    f"<b>Agriculture</b> -0.72% (2.0x)\n"
-                    f"Added to digest👆🏻👆🏻")
-
-
-def test_a_block_routes_on_its_tier_exactly_as_an_instrument_does():
-    # There is no separate block channel and there should not be: a block is the
-    # same four rarities read one level up, so the black mark is the ONLY thing
-    # that distinguishes it in delivery.
-    frame = pd.DataFrame([
-        {"asset_id": "block:equity", "tier": "extreme", "hour_utc": int(NOW.timestamp())},
-        {"asset_id": "block:rates", "tier": "major", "hour_utc": int(NOW.timestamp())},
-        {"asset_id": "block:energy", "tier": "high", "hour_utc": int(NOW.timestamp())},
-    ])
-    frame["tier"] = frame["tier"].astype("string")
-    assert list(routing.route(frame)["channel"]) == [
-        routing.PUSH, routing.PUSH, routing.DIGEST]
-
-
-def test_a_block_headline_starts_with_a_capital():
-    text = md.describe(block_event(block="precious_metals",
-                                   asset_id="block:precious_metals"), LABELS)
-    assert "<b>Precious metals</b>" in text
 
 
 # --- the regime the move happened in ----------------------------------------
@@ -1387,35 +740,6 @@ def test_a_push_does_not_carry_the_regime_the_note_does(monkeypatch):
     assert "Fear gauge" in note[0] and "14.32" in note[0]
 
 
-def test_a_block_standalone_matches_an_instrument_lead_and_omits_the_gauge(
-        monkeypatch):
-    use_vix(monkeypatch, vix_frame([((2026, 9, 3), (2026, 9, 4, 15), 14.32)]))
-    text = md.format_push(block_event(), LABELS)
-    first = text.splitlines()[0]
-    assert first.startswith(md.BLOCK_MARK + md.TIER_EMOJI["extreme"]
-                            + " <b>US and global equities</b> · -2.41%")
-    assert "4.2x a typical member's usual hour" in text
-    assert "this day's close" in text
-    assert "08.09.2026" in text
-    assert "Fear gauge" not in text
-    assert "Added to digest" not in text
-    assert "equity extreme or rarer ≈" in md.format_push(
-        block_event(), LABELS, events=[
-            dict(block_event(), hour_utc=block_event()["hour_utc"] - 400 * 86400,
-                 event_id="older")])
-
-
-def test_a_digest_row_carries_the_same_rate_line():
-    window = (int(datetime(2026, 9, 8, 9, tzinfo=timezone.utc).timestamp()),
-              int(datetime(2026, 9, 11, 9, tzinfo=timezone.utc).timestamp()))
-    row = event(tier="noticeable", channel="digest")
-    older = dict(row, event_id="old",
-                 hour_utc=int(row["hour_utc"]) - 400 * 86400)
-    note = md.format_digest([row], LABELS, window, now=NOW,
-                            rate_history=[older, row])[0]
-    assert "GLD noticeable or rarer ≈" in note
-
-
 # --- the throwaway ping ----------------------------------------------------
 #
 # A digest row is written the hour its move is found, but a note stays silent
@@ -1441,7 +765,7 @@ def test_a_digest_row_buzzes_once_with_ticker_size_and_a_pointer(monkeypatch, se
     _, state = deliver(monkeypatch, [row])
 
     pings = [t for t in sender.texts if t.startswith("⬜")]
-    assert pings == ["⬜ <b>GLD</b> · Gold +2.10% (2.0x)\nAdded to digest👆🏻👆🏻"]
+    assert pings == ["⬜ <b>GLD</b> · Gold +2.10% · 2.0×σ\nAdded to digest👆🏻👆🏻"]
     stored = state[md.STATE_KEY][md.PINGS]["p1"]
     assert md._ping_message_id(stored) == 1
 
@@ -1457,7 +781,7 @@ def test_a_ticker_ping_puts_percent_and_size_after_the_name():
               asset_id="twelvedata:BKLN", r=-0.008, sigma_lt=0.008 / 2.7),
         {"twelvedata:BKLN": "Senior bank loans"})
     assert text == (
-        "⬜ <b>BKLN</b> · Senior bank loans -0.80% (2.7x)\n"
+        "⬜ <b>BKLN</b> · Senior bank loans -0.80% · 2.7×σ\n"
         "Added to digest👆🏻👆🏻")
     assert " · -0.80%" not in text
 
@@ -1496,32 +820,6 @@ def test_nothing_stale_is_ever_buzzed(monkeypatch):
     old = event(event_id="ancient", tier="noticeable", channel="digest",
                 hour_utc=int(NOW.timestamp()) - 40 * 24 * HOUR)
     assert md.pending_pings([old], {}, NOW) == []
-
-
-def test_the_rarity_is_said_of_the_thing_its_ladder_actually_ranks():
-    # Not cosmetic. The abnormal ladder ranks what is LEFT after the block is
-    # taken out, so its return period belongs on the "on its own" line: said of
-    # the whole move it would claim the instrument had not moved this far in
-    # years when its block may have carried it there last week. The absolute
-    # ladder ranks the move itself, so there it belongs to the move.
-    row = dict(dated(), r=0.0700, e_resid=0.0100, co_block=0.0600, block="equity")
-
-    abnormal = md._split_lines(row, "S&P 500", "major", "abnormal")
-    assert abnormal[-1] == "\t+1.00% biggest move on its own since 2278 day ago"
-    assert not any("the biggest move since" in line for line in abnormal)
-
-    absolute = md._split_lines(row, "S&P 500", "major", "absolute")
-    assert absolute[0] == "the biggest move since 2278 day ago"
-    assert "biggest" not in absolute[-1]
-
-
-def test_a_row_with_no_split_still_says_how_rare_it_was():
-    # No block to hang it on, so it is said as a sentence - and by the same
-    # function the headline uses, because "the biggest move" and "the biggest
-    # move of its own" are different claims and only one is true of a channel.
-    lines = md._split_lines(dict(dated(), r=0.02, e_resid=None),
-                            "Gold", "extreme", "abnormal")
-    assert lines == ["the biggest move of its own since 2278 day ago"]
 
 
 def header_for(y, m, d):
@@ -1698,31 +996,38 @@ def test_a_format_change_rewrites_pushes_and_pings_since_the_open_note(
     assert any(message_id == 99 for message_id, _ in changed)
 
 
-def test_a_finished_push_is_still_restyled_after_check_ins_landed(
+def test_a_sent_push_is_edited_in_place_when_its_bar_heals(
         monkeypatch, sender, editor):
-    # Live: XLF's settled line arrived, tracking was dropped, and every later
-    # copy tweak left the old fear-gauge message on the phone.
-    live = event(event_id="twelvedata_XLF:1789405200", channel="push",
-                 asset_id="twelvedata:XLF", retention_today=0.39,
-                 retention_settled=0.39, hour_utc=int(NOW.timestamp()) - HOUR)
+    # The hour is scored a few minutes in and the bar heals on the next fetch,
+    # so the move - and its size in sigma - can change after the push went out.
+    live = event(event_id="e1", channel="push", hour_utc=int(NOW.timestamp()) - HOUR)
     _, state = deliver(monkeypatch, [live])
     store = state[md.STATE_KEY]
-    mid = store[follow_up_module.TRACKED]["twelvedata_XLF:1789405200"]["message_id"]
-    store[follow_up_module.TRACKED] = {}
-    store[md._SENT]["twelvedata_XLF:1789405200"] = int(live["hour_utc"])
-    monkeypatch.setitem(follow_up_module._LEGACY_PUSH_IDS,
-                        "twelvedata_XLF:1789405200", mid)
+    mid = store[follow_up_module.TRACKED]["e1"]["message_id"]
 
-    real = md.format_push
-    monkeypatch.setattr(
-        md, "format_push",
-        lambda *a, **k: "NEWSTYLE\n" + real(*a, **k))
     before = len(editor.calls)
     deliver(monkeypatch, [live], state=state)
+    assert editor.calls[before:] == []                   # nothing changed, nothing edited
+
+    healed = live | {"r": 0.027}
+    deliver(monkeypatch, [healed], state=state)
     changed = editor.calls[before:]
-    assert any(i == mid and t.startswith("NEWSTYLE") for i, t in changed)
-    assert "twelvedata_XLF:1789405200" in store[follow_up_module.TRACKED]
-    assert "Fear gauge" not in changed[-1][1]
+    assert [i for i, _ in changed] == [mid]
+    assert "+2.70% · 9.0×σ" in changed[0][1]
+    assert len([t for t in sender.texts if "GLD" in t]) == 1   # no second message
+
+
+def test_a_push_sent_before_tracking_is_picked_up_from_its_sent_record(
+        monkeypatch, sender, editor):
+    live = event(event_id="e1", channel="push", hour_utc=int(NOW.timestamp()) - HOUR)
+    _, state = deliver(monkeypatch, [live])
+    store = state[md.STATE_KEY]
+    mid = store[follow_up_module.TRACKED]["e1"]["message_id"]
+    store[follow_up_module.TRACKED] = {}
+
+    deliver(monkeypatch, [live | {"r": 0.027}], state=state)
+    assert any(i == mid for i, _ in editor.calls)
+    assert "e1" in store[follow_up_module.TRACKED]
 
 
 def test_a_ping_whose_row_left_the_digest_is_deleted(
@@ -1980,35 +1285,20 @@ def test_an_open_note_records_the_rows_it_is_showing(monkeypatch, sender):
     assert record["events"] == ["d1"], "a note must remember what it has said"
 
 
-def test_every_block_has_a_reader_facing_label():
-    # BLOCK_LABEL is read with .get(block, block) in four places, so a block
-    # nobody labelled does not fail - it prints its own internal name inside an
-    # English sentence: "industrial_metals moved", "equity_us_tech moved". The
-    # block name is a Python identifier and the message is prose; they are not
-    # the same register, and the gap only shows up in a sent message.
-    from tremor.basket import BLOCKS
-
-    missing = [b for b in BLOCKS if b not in md.BLOCK_LABEL]
-    assert not missing, f"no BLOCK_LABEL for: {', '.join(missing)}"
-    for block, label in md.BLOCK_LABEL.items():
-        assert "_" not in label, f"{block}: {label!r} reads as an identifier"
-
-
 def jump(**over):
-    return event(basis="jump", tier="high", r=0.012, sigma_lt=0.002, overnight=False,
-                 e_resid=None, co_basket=None, co_block=None, retention_settled=None) | over
+    return event(tier="high", r=0.012, sigma_lt=0.002) | over
 
 
 def test_a_jump_says_its_size_in_sigma_on_the_first_line_and_no_word():
     # The colour of the square is the word; the size is |move| / half-year σ.
-    text = md.format_push(jump(), LABELS, None, [jump()], NOW)
+    text = md.format_push(jump(), LABELS)
     lines = text.splitlines()
     assert lines[0] == "🟨 <b>GLD</b> · Gold +1.20% · 6.0×σ"
     assert "high" not in text and "usual" not in text
 
 
 def test_a_jump_is_dated_day_dot_month_dot_year():
-    text = md.format_push(jump(), LABELS, None, [jump()], NOW)
+    text = md.format_push(jump(), LABELS)
     assert text.splitlines()[-1] == "🕐 <b>12.09.2026 02:00 UTC</b>"
 
 
@@ -2017,16 +1307,8 @@ def test_a_jump_ping_says_its_size_in_sigma():
     assert ping.splitlines()[0] == "⬜ <b>GLD</b> · Gold +1.06% · 5.3×σ"
 
 
-def test_a_jump_claims_no_record_no_check_in_and_no_split():
-    # Those are stages 3, 4 and 8 of the jump detector; until they exist the
-    # message says only what the detector measured.
-    text = md.format_push(jump(), LABELS, None, [jump()], NOW)
-    for absent in ("biggest", "since", "close", "block", "moving"):
-        assert absent not in text.lower()
-
-
 def test_a_gap_jump_names_no_yardstick_either():
     # Hour or gap shows in the "biggest since" line (stage 3), not here.
-    text = md.format_push(jump(overnight=True, gap_kind="weekend"), LABELS, None, [], NOW)
+    text = md.format_push(jump(overnight=True, gap_kind="weekend"), LABELS)
     assert text.splitlines()[0].endswith(" · 6.0×σ")
     assert "usual" not in text

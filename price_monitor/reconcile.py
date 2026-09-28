@@ -178,7 +178,6 @@ def surplus(cfg: Config, events: "list[dict]", state: dict, now) -> "list[dict]"
 
     store = state.get(tremor_delivery.STATE_KEY, {})
     labels = tremor_delivery._labels()
-    rate_history = tremor_delivery.load_rate_history()
     out = []
     for slot, record in store.get(tremor_delivery.DIGEST_STATE, {}).items():
         ids = list(record.get("ids") or [])
@@ -186,7 +185,7 @@ def surplus(cfg: Config, events: "list[dict]", state: dict, now) -> "list[dict]"
             continue
         window = note_window(int(slot), record)
         rows = published_only(record, digest_rows(events, window, now), window, now)
-        texts = format_digest(rows, labels, window, None, now, events, rate_history)
+        texts = format_digest(rows, labels, window, None, now)
         for index, message_id in enumerate(ids[len(texts):], start=len(texts)):
             out.append({"slot": str(slot), "index": index,
                         "message_id": int(message_id),

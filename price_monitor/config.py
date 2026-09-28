@@ -41,12 +41,12 @@ class Config:
     # Local store for economic_calendar.py / weekly_digest.py - see README.
     calendar_dir: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(__file__), "..", "data", "economic_calendar"))
-    # Routed Tremor events, written by python -m tremor.saed and read by
+    # Routed Tremor events, written by python -m tremor.jumps and read by
     # tremor_delivery.py. Each row carries the channel and digest slot the
     # detector decided on; the delivery layer decides nothing except what it
     # has already sent.
     tremor_events_path: str = field(default_factory=lambda: os.path.join(
-        os.path.dirname(__file__), "..", "data", "tremor", "saed_events.parquet"))
+        os.path.dirname(__file__), "..", "data", "tremor", "jumps.parquet"))
     # Kept because tremor/backfill.py fetches through these clients.
     coinbase_base_url: str = "https://api.exchange.coinbase.com"
     twelvedata_base_url: str = "https://api.twelvedata.com"

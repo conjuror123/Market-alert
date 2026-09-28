@@ -13,52 +13,9 @@ changes on every run, taking idempotency with it. The third is non-deterministic
 iteration order over dicts and sets, which leaves the events the same but their
 sequence different each time.
 """
-import json
 import os
 
-import numpy as np
-import pandas as pd
-
-from tremor import saed, severity, versioning
-from tremor.basket import Asset
-
-HOUR = 3600
-
-
-def basket_frame(n=400):
-    """The frame cross_section produces: without cluster's derived columns."""
-    index = pd.Index([(i + 1) * HOUR for i in range(n)], name="hour_utc")
-    rng = np.random.default_rng(20260901)
-    return pd.DataFrame({
-        "quorum_ok": pd.array([True] * n, dtype="boolean"),
-        "n_assets": np.full(n, 12),
-        "csv_norm": rng.normal(1.0, 0.1, n),
-        "m_weighted_median": rng.normal(0.0, 0.005, n),
-        "pc1_ratio": rng.uniform(0.2, 0.8, n),
-        "single_factor": pd.array([False] * n, dtype="boolean"),
-    }, index=index)
-
-
-def with_derived(frame):
-    """What the cluster run itself appends to that same file."""
-    return frame.assign(
-        m_calendar=1.0, m_vix=1.0, si_total=0.0, sigma_m=0.01, k=2.0,
-        decision="", base_points=0, breadth_q99=False,
-        n_active_blocks=0, n_active_blocks_q99=0,
-        trigger_price_shock=False, trigger_volume=False,
-        trigger_cluster_shift=False, trigger_single_factor=False,
-    ).astype({"base_points": int, "n_active_blocks": int})
-
-
-def run_frame(n=400, fire_at=(50, 200, 300)):
-    frame = basket_frame(n).assign(
-        trigger_cluster_shift=False, si_total=0.0, base_points=0,
-        breadth_q99=False, sigma_m=0.01, k=2.0)
-    for position in fire_at:
-        hour = frame.index[position]
-        frame.loc[hour, ["trigger_cluster_shift", "si_total", "base_points"]] = \
-            [True, 12.0, 8]
-    return frame
+from tremor import versioning
 
 
 # --- the set of events ------------------------------------------------------
@@ -128,28 +85,3 @@ def test_the_config_version_does_not_depend_on_the_run(tmp_path):
     inputs = ("windows.py",)
     assert versioning.config_version(str(tmp_path), inputs) \
         == versioning.config_version(str(tmp_path), inputs)
-
-
-def test_saed_events_keep_their_order_across_runs():
-    asset = Asset(ticker="SPY", source="twelvedata", tier=1, block="equity",
-                  has_volume=True, session_template="us_equity",
-                  fetch_interval="30min", label="S&P 500", in_basket=True,
-                  tick_size=0.01)
-    n = 200
-    frame = pd.DataFrame({
-        "hour_utc": [(i + 1) * HOUR for i in range(n)],
-        "z_resid": np.zeros(n), "e_resid": np.zeros(n), "r": np.zeros(n),
-        "beta": np.full(n, 0.9), "sigma_lt_resid": np.full(n, 0.01),
-        "q99_resid": np.full(n, 3.0),
-        "tier": pd.array([pd.NA] * n, dtype="string"),
-    })
-    for name in severity.TIERS:
-        frame[f"level_{name}"] = 5.0
-    for position in (20, 21, 100):
-        frame.loc[position, ["z_resid", "e_resid", "r"]] = [6.0, 0.05, 0.06]
-        frame.loc[position, "tier"] = "noticeable"
-
-    first = saed.events_frame(saed.build_events(asset, frame))
-    second = saed.events_frame(saed.build_events(asset, frame))
-    assert first.equals(second)
-    assert list(first["hour_utc"]) == sorted(first["hour_utc"])

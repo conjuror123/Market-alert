@@ -9,7 +9,7 @@
 
 ---
 
-## The jump detector (replacing the ladder, in stages)
+## The jump detector
 
 **Copy an established detector rather than design one.** The hand-made ladder asked its
 reader too many questions — three tables of rungs, a rate per rung, a sensitivity — none of
@@ -88,7 +88,7 @@ that opens `noticeable` and turns `major` is a different day from one that stays
 `noticeable`. Over the record this cuts 28,095 flags to 22,168 events, 1,422 of them rises.
 
 **`high` and up push; `noticeable` goes into the note.** The reader's choice, to try: more
-messages than the running detector's one a week was the point of the change. For today's
+messages than the previous detector's one a week was the point of the change. For today's
 basket that is about 10 pushes a week and about 19 note rows a week, each row with its own
 small ping; the busiest week of the last year had 37 pushes and 61 rows. `noticeable`
 alone is two thirds of the events, so it is the one word worth reading in a batch; `high` (5.5σ) is where a move stops being routine for its instrument.
@@ -105,10 +105,10 @@ so the word is not written out; the size is `|move| / σ` to one decimal, `11.0�
 of the first line, in the ping as in the push. Hour or gap is not spelled out as a yardstick
 ("its usual weekend gap"); the "biggest since" line (stage 3) will say which it was. Dates
 read `24.09.2026`. No "biggest since" date, no held-at-close line, no
-block/own split until their stages exist — the running detector's wording for those would
+block/own split until their stages exist — the previous detector's wording for those would
 describe a measurement the jump detector does not make.
 
-**What the jump detector replaces.** The ladder of the running detector: three per-block
+**What the jump detector replaces.** The ladder of the previous detector: three per-block
 tables of rungs (`BLOCK_SIGMA`, `BLOCK_RESID_SIGMA`, `BLOCK_MOVE_SIGMA`) and a
 `sensitivity` multiplier. Before that the rungs were ranks within a six-year window, retired
 because after a crash nothing could reach the top rung until the crash rolled out (395
@@ -116,116 +116,19 @@ moves larger than a typical `extreme` went out milder); before that, fitted tail
 put SPY's once-in-six-years level anywhere from 2.22% to 6.78% on different windows. A
 per-instrument "N times a year" rung was built and rejected: it equalised rates but let
 the biggest crisis hours go out as digest rows (70.8% → 61.6% of the biggest hours pushed),
-and its settings were still choices rather than derivations. The tables stay in the code
-only until the switch, because the running detector reads them.
+and its settings were still choices rather than derivations. Its code, and its decisions -
+the block residual, the ladder, the record book, the check-ins, the report card - are on
+the production branch (`claude/price-spike-monitoring-app-yyg2jg`, this file's copy there);
+a stage that brings a piece back brings its entry with it.
 
 ---
 
-## The residual
-
-**The market model, with an estimation gap, through zero.** `r = beta*F + e`, a rolling
-500-bar regression ending three bars before the bar being judged. Three bars because the
-leak is short and three of five hundred does not measurably move the coefficients. No
-intercept: 500 hours cannot measure a drift of about 0.004% an hour, so subtracting one only
-added noise (events 9,690 → 9,704, pushes unchanged).
-
-**The regressor is the instrument's own block factor**, oriented by sign — within FX the
-dollar-quoted and dollar-based pairs otherwise cancel and the factor reads near zero. A
-basket-wide factor does not scale to sixty instruments the way a block factor does.
-
-**Leave-one-out in the BMP denominator**, which the published form does not do. Each
-instrument is tested against its peers individually, so without it a genuine single-asset
-move inflates the spread it is measured against and hides itself.
-
-**It is a t, not a z.** Dividing by a sample spread over as few as five peers makes a t;
-Wallace's transform maps it to z for the degrees of freedom actually present.
-
-**One size floor, not a rank test.** An unexplained move can be tiny — a residual its
-own history finds remarkable in an instrument that ticked +0.03%. The raw move must be at
-least twice the instrument's usual hour (`min_move_sigma: 2.0`). It replaced a one-hour
-floor plus Corrado's rank test, which did the same job twice: the same messages, 97% of
-pushes identical, held 73.9% against 74.2%. The two-tick check went with it (it fired once
-in 25 years, and the floor covers it), and so did Patell's correction on the regression
-(99.4% of pushes identical).
-
-**The opening is judged against openings.** A US fund's residual is divided by that hour's
-usual size relative to all hours, learned per fund over 500 sessions; the opening's
-crossing rate fell from 0.61% to 0.35%. Not for FX, whose busy hour is the news itself.
-
-**Peer count is not the discriminator.** Fewer than ten peers is 37.5% of scored hours —
-the shape of a 24-hour basket whose equities trade six and a half. The thin hours hold the
-best calls (the franc unpeg, Brexit, post-Fukushima), all with nine peers or fewer. What
-matters is whether the peers were *moving*.
-
----
-
-## What counts as an event
-
-**An event carries one bar's numbers.** Escalating inside its day keeps the higher tier
-*and* that bar's move — otherwise a push reads "biggest move in 3 years, +0.01%".
-
-**The peak moves at the same tier.** `extreme` is the top of the ladder, so a
-strictly-higher rule can never fire for it: USD/CHF opened `extreme` at -3.5% on
-2015-01-15 and did -10.5% an hour later.
-
----
-
-## Who gets interrupted
+## Delivery
 
 **Rarity and urgency are different questions.** Rarity belongs to the instrument and means
 the same whether five are watched or fifty; willingness to be interrupted belongs to the
 person and does not grow with the watchlist. Keeping them apart is what stops the alert
 rate tripling the day three instruments are added.
-
-**One event, one interruption, one day.** A calendar day rather than a rolling window, so
-the reader can say when the next one can come. The UTC boundary because 00:00 UTC is the
-quietest hour there is; a local midnight lands mid-American-session.
-
-**Both push tiers go out immediately, and are edited afterwards.** Of events still standing
-at their own day's close, 80% were still standing at the next, against 26% of those that
-had already given it back — so waiting is informative, but a once-in-three-years move that
-arrives six hours late is worse than one that arrives now and is corrected. Retention
-decides what a message *says*, not whether it is sent.
-
-**A close reading waits for the close.** "This day's close" is the last bar the instrument
-trades that day, and a live store always ends mid-day — so the reading was taken from
-whatever bar had just been fetched, and AVAX-USD read "still there" three hours into a day
-with twenty-one hours left. The frame cannot tell a finished day from a three-hour-old one;
-`sessions.day_is_closed` can, and both readings wait for it.
-
-**A line about the calendar is not a check-in.** A move made in its closing hour has no day
-left to hold through, so its ratio is one by construction. The line is omitted rather than
-answered in words.
-
-**The sigma window is a dial between accuracy and crisis loudness, not an estimate.**
-Scored as a forecast, every instrument wants the shortest window offered — the wrong
-question, since `sigma_eff` is already the fast estimator. Scored against a centred
-hindsight estimate, the optimum moves with the bandwidth chosen for "local", so it measures
-the choice. The two criteria left disagree because they are one quantity with the sign
-flipped: a short window keeps the multiple comparable across eras and goes quiet in a
-crash, a long one is the reverse. The setting sits on the loud side, which is the right
-choice here and had never been made.
-
-**Exponential weights, not a box.** A box counts a bar from two years ago as much as this
-morning's and one an hour older not at all; that edge travels through the data and stepped
-the yardstick 16.8% on a twenty-sigma bar. At matched loudness the exponential form holds
-the multiple steadier era to era on 82% of equity settings and 65% of crypto ones. It is
-cut off at six half-lives, where the measurement stops improving, and normalised by the
-weights actually used — so a warm run still reproduces a cold one exactly.
-
-**The half-life is per trading calendar.** One bar count meant 290 calendar days of memory
-for an ETF and 58 for a coin, a five-fold spread that fell out of exchange hours. 600 bars
-for `us_equity`, 1,400 for `fx_continuous`, 2,000 for `crypto_24_7`, 83 for a daily series
-— 86, 82, 83 and 83 trading days, the band the volatility literature settles on. Equity's
-worst-year spread of the rarest-1% marker goes 3.02x to 2.00x; crypto gains six points of
-coverage in its own worst weeks. The floor cannot exceed the span, or the count inside the
-window never reaches it.
-
-**Crypto's window is not extended to match the ETFs' calendar span.** Volatility half-lives
-are ~97 days for crypto and 122 for equity, so a flat bar count does give the ETFs more
-memory — but crypto's storm coverage saturates at the current span (42% at 5,000, 8,000,
-13,000 and 20,000 alike) and era drift gets *worse* for seven of the nine coins, which is
-the thing a longer window was meant to fix.
 
 **The system does not count its own alerts.** No weekly cap. A detector that goes quiet on
 the third alert of the week fails adversarially: the week the franc is unpegged is exactly
@@ -237,36 +140,24 @@ may not grow. Without that bound one cold rebuild grew a note that had closed tw
 earlier from 5 rows to 19 and posted the difference as two alerts at breakfast. The rows
 were right; the interruption was not.
 
-**Say what the move was big compared with.** 45% of pushes carry a number under 1%, and
-"+0.13%, biggest move in about three years" reads as a bug — short Treasuries move 0.024%
-in a usual hour. Both numbers are shown, so the claim is checkable.
+**The size is said in σ, and the word is the colour.** `|move| / σ` over the instrument's own
+half-year, to one decimal, at the end of the first line — `11.0×σ` — in the push and the
+ping alike. A bare percentage says nothing across a basket where short Treasuries move
+0.024% in a usual hour and a coin several per cent; the σ says how far out the move is for
+that instrument. The word is not written: the square already says it.
 
----
-
-## How it is scored
-
-**Precision is the wrong yardstick.** Delaying every alert by six hours *raises* it, from
-52.0% to 56.0%. No predictive measure can behave that way.
-
-**Recall on the obvious is the right one.** Of the hours in the top 0.01% of an
-instrument's own distribution, how many reached the reader? Its counterpart — how often a
-below-median hour fires — should be 0%. Neither needs episode labels or an arguable
-threshold. Current figures are in `README.md`.
-
-**Judge each event on the quantity its own ladder scores.** `absolute` against the raw
-return, `abnormal` against the standardised residual. Swapping them scores 3.5% and 1.1%
-and means only that they were swapped.
-
-**Recall is per episode, not per hour.** One shock spans several bars and the detector
-reports the peak, so a per-hour figure would mostly measure the debounce.
+**Recall on the obvious is the yardstick, not precision.** Of each instrument's biggest
+hours (its top 0.01%), how many were flagged and at which word — `tools/stage_report.py`
+prints it for every stage. Precision is the wrong measure here: delaying every alert by six
+hours raised it, from 52.0% to 56.0%, which no measure of a detector's quality should do.
 
 ---
 
 ## The data
 
 **The store is unadjusted, with ex-dates recorded.** Adjusted series are recomputed
-retroactively on every dividend, so a history built from them changes underneath the record
-the ladder is made of. The ex-dividend drop happens between sessions, and nothing between
+retroactively on every dividend, so a history built from them changes underneath every
+yardstick measured on it. The ex-dividend drop happens between sessions, and nothing between
 sessions is a return here.
 
 **Corporate actions are declared, not inferred.** `divCash` and `splitFactor` come from
@@ -301,9 +192,8 @@ a source of alerts for moves that did not happen.
 
 ## The shape of the repository
 
-**Derived data is not tracked.** Metrics, residuals, the event table and the record book
-are several hundred megabytes rewritten every run and rebuild from the bars in about a
-minute and a half.
+**Derived data is not tracked.** The metrics and the event table are rewritten every run
+and rebuild from the bars in about fifteen seconds.
 
 **Bars commit once a day, not hourly.** Appending to Parquet leaves earlier row groups
 byte-identical, so a day of new bars costs about 1 MB; hourly commits would be twenty-four
@@ -317,7 +207,6 @@ rewrite is the point. Nothing here needs a server.
 ## Settled and closed
 
 Raised, dealt with, and not to be raised again.
-
 - **Retention as a gate** — refused. Gating buys silence for as long as the answer takes.
 - **A watchdog for the trigger's silence** — not this repository's job. cron-job.org makes
   the call, so it is the party that knows the call stopped; anything inside the run shares
@@ -326,79 +215,15 @@ Raised, dealt with, and not to be raised again.
   blind where Dukascopy gates on a measured overlap.
 - **`tremor/volume.py` and the `v_r` column** — deleted. Computed in every metrics build
   and read by nothing.
-- **The overnight gap** — scored again, on a path of its own (`tremor/gaps.py`), against
-  the usual gap after the same kind of close; a midweek holiday counts as a weeknight,
-  because two or three a year are too few to learn their own size and borrowing the
-  weekend's made them fire three times their share. Unscored when the day's dividend isn't
-  confirmed, which is why `tremor.backfill` asks Yahoo for payouts each morning.
-- **Stages nothing read** — deleted: the reversion fit, the Q95/Q99 thresholds, the price
-  z-score and the basket statistics built on it. Removing them left the events identical.
 - **VIX refetched from 1990 every run** — fixed. The stored parquet is read first.
 - **FX fetched into a closed market** — fixed. The skip guard takes its expectation from
   the same session walk the bar loop uses.
 - **Health messages in the product channel** — fixed. `TELEGRAM_HEALTH_CHAT_ID`.
-- **`data/tremor/evaluation.md` and its entry point** — deleted. It scored the SI-Index
-  cluster channel, not the delivered detector, against a forecasting label neither claims
-  to answer. `tremor/evaluate.py` went with it: its episode and cooldown helpers had no
-  caller outside their own tests, because `saed_score` carries its own. Three constants
-  in `tremor/windows.py` are now unreferenced and stay there, marked — removing them
-  moves `config_version` and rebuilds every metric cold for no change in behaviour.
-- **The block-alert aggregator** — deleted. It grouped events by block and hour, wrote
-  `saed_block_alerts.parquet` and stamped `aggregate_alert_id` on every event, and nothing
-  read either one in the repository's whole history. Its one real use would be folding
-  simultaneous pushes into one message, which is not wanted — each push should ring
-  separately. Tested as a detector signal instead and it carries nothing: block-mate
-  corroboration predicts holding at 71.2 / 70.2 / 73.1 / 71.2% (flat), abnormal co-firing
-  contradicted the block model three times in twenty-three years, and it does not flag a
-  bad print (4.3% against a 4.2% base rate).
-- **`/floor` and the feedback recorder** — deleted. The command never changed a number in
-  the project's life and the recorder collected one verdict, while between them they cost
-  two of the six steps in the hourly pass, which is why that part of the order was
-  load-bearing. The pass is four commands now. The `min_move_sigma` gate stays and is
-  edited by hand (now at two usual hours, see "One size floor"); deleting a working gate
-  because its setter was unused would be the wrong trade. What is genuinely given up is that
-  nothing records whether a message was worth reading.
 - **`schema/event_export.schema.json`** — deleted, with its `jsonschema` dependency.
   Nothing produced the export and no test validated it, despite a comment saying one did.
-- **299 citations of the deleted specification** — removed across 46 files.
-- **Run health measured by a throwaway script** — replaced by `tools/run_health.py`, which
-  counts hourly slots with no successful run rather than failed runs, because an outage
-  produces none of the latter.
-- **What the shallowest rung is for** — restated. It was described as "near ten messages
-  per instrument-year", which is how it was seeded and not something a reader can see.
-  What it decides is the length of the weekly note: 7.3 digest rows a week across two
-  notes, and three quarters of them are `noticeable`, so the first column sets the note's
-  length almost alone and the three above it only decide which row carries which word.
-- **Re-seeding the rungs after the sigma estimator changed** — checked, nothing to do. The
-  ladder was seeded against one measurable criterion, near ten messages per
-  instrument-year at the shallowest rung, and under the EWMA estimator the blocks run 8.1
-  to 12.2. Spread across the basket is 3.8x, recall on large-and-unexplained episodes
-  90.7%, and the detector fires harder in a crisis rather than quieter (4.9x in Oct 2008,
-  9.7x in Mar 2020), which was the one failure a faster-adapting sigma could have caused.
-  What is left is the preference about what each word means, and a preference does not go
-  stale when an estimator changes.
-- **Spacing the rungs the way a magnitude scale is spaced** — recorded, not adopted. Bottom
-  rate, top rate and step size fix each other: pick two and the third follows. The bottom
-  and top fire 288 and 15.3 times a year basket-wide, a ratio of 18.9x, which is 1.28
-  magnitude units — so at the seismologist's one-unit step (10x rarer per class) there is
-  room for **two** categories, not four. Four names at a 10x step would put `extreme` at
-  0.29/yr across all 61 instruments, one every three and a half years. The ladder keeps
-  four names by stepping 0.43 units instead. Changing that is a question about what the
-  words should mean, and it has not been asked yet.
-- **Routing on anything but the tier** — measured on the whole archive, then refused. The
-  claim was that events found by both ladders at once hold up better and could be routed
-  on for free. The effect is real (79.5% still standing against 71.0% and 69.3%, and it
-  survives conditioning on tier), and the standardised residual `|z_resid|` is a better
-  ranker still — at today's 43 pushes a year it holds 81.2% against the tier rule's
-  75.6%, in every era. It was refused because of what pays for it. Re-cutting the rungs
-  on `|z_resid|` drops the median record a push announces from 1.03 years to 0.27, and
-  that sentence — *the biggest move since 3 March 2020* — is the product. Keeping the
-  rungs and gating `major` on the residual holds the record at 1.06 years and 79.4%, but
-  costs a third of the messages. Nothing recovers both.
-
-  Two findings from that work are worth more than the verdict. **Retention is flat across
-  the three lower rungs** — 70.3%, 73.0%, 71.6%, then 83.8% at `extreme` — so the ladder
-  separates on size, as designed, and size barely predicts holding until the top rung.
-  And **raw size in sigma predicts holding no better than chance** (71.8% against a 71.4%
-  base rate) while the residual predicts it well. Big moves do not hold; unexplained ones
-  do.
+- **The previous detector** — deleted from this branch, with its tests, tools and
+  workflow: the block residual and BMP, the per-block ladder tables and the size floor, the
+  record book, the check-ins and retention, the block events, the rate line, the overnight
+  gap's own scoring, the report card. It keeps running production from its own branch until
+  the switch, and its code is read there when a stage needs a piece of it. The jump events
+  were identical before and after: 22,840, of them 7,907 pushes.

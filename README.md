@@ -11,20 +11,19 @@ of them moves in a way that is unusual **for that instrument**.
 
 That last part is the whole design. A 1.5% hour is nothing in SOL and enormous in short
 Treasuries, so one percentage threshold shared across a basket says almost nothing. Each
-instrument is measured against its own history, and the message is a date: *the biggest
-move since 3 March 2020*, which needs no calibration intuition to read.
+move is measured against the instrument's own last half-year — the jump test of Lee &
+Mykland (2008) — and the message says how big it was in those terms:
 
-The running detector, measured over 23.3 years of hourly history, 2.9M bars, a cold pass:
+```
+🟥 LTC-USD · Litecoin +5.76% · 11.0×σ
+🕐 24.09.2026 02:00 UTC
+```
 
-| | |
-|---|---|
-| pushes | 1,336 — about **57 a year** |
-| reached you | **94.4%** of the hours that were unmistakably large for their own instrument |
-| held up | **73.9%** of pushes still standing at the next close |
-
-The report card also prints 258 "false alarms" (events on hours below the instrument's
-median move); most are overnight-gap events, which it still judges by their first hour.
-Left out, the count is about 96. That rate is an output, watched rather than aimed at.
+The square's colour is the word: ⬜ noticeable at 3.9σ, 🟨 high at 5.5σ, 🟧 major at 7.8σ,
+🟥 extreme at 11.0σ. `high` and up arrive as their own message, about 10 a week for today's
+basket; `noticeable` goes into one weekly note, about 19 rows a week, each with a small
+ping. The detector is built in stages (`docs/architecture.md`); this branch is it as it
+will run live, and production runs the previous detector until the switch.
 
 It runs entirely on GitHub Actions. Nothing extra needs hosting.
 
@@ -66,30 +65,21 @@ Notification → Run workflow**.
 
 ## Turning it up or down
 
-**The detector is being replaced.** Production still runs the running detector described
-below; its replacement, a jump detector copied from Lee & Mykland (2008), is built stage by
-stage on the branch `claude/youthful-pascal-u0rx7u` (see `docs/architecture.md`). Stage 0
-scores each hour against the instrument's half-year bipower volatility and words it at
-3.9 / 5.5 / 7.8 / 11.0σ; over 23 years that flags about 16 hours per instrument a year
-(median), before any of the stages that turn flags into messages. Its settings sit under
-`detector:` in `config/basket.yaml`.
-
-**The running detector** has two knobs in `config/basket.yaml`:
+Three settings, under `detector:` in `config/basket.yaml`:
 
 ```yaml
-sensitivity: 1.0      # how RARE must a move be: scales all four rungs together
-min_move_sigma: 2.0   # how BIG must it be: two of the instrument's usual hours
+detector:
+  window_days: 182.6       # how far back "usual" reaches, the same calendar span for all
+  noticeable_sigma: 3.9    # the lowest word; every word above is `step` times bigger
+  step: 1.414
 ```
 
-`sensitivity` scales every rung at once; pushes move with roughly its 4.6th power, so a
-10% turn roughly halves or doubles them. `min_move_sigma` is the size floor: the abnormal
-channel asks whether a move was *unexplained*, never whether it was *large*, and without a
-floor an instrument that ticked +0.03% could be reported. It is written per instrument, or
-under `block_min_move_sigma` on a block's own line. Both take effect on the next hourly run
-(after one cold rebuild).
+`noticeable_sigma` is the one that sets how much you hear; it is to be tuned last, against
+the exact 99% level. Which words push is `PUSH_TIERS` in `tremor/routing.py`. All take
+effect on the next hourly run.
 
-Nothing records whether a message was worth reading; the knobs are turned by reading the
-messages and editing the yaml.
+Nothing records whether a message was worth reading; the settings are turned by reading
+the messages and editing the yaml.
 
 ## Where to look next
 

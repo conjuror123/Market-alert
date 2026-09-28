@@ -12,17 +12,12 @@ the yardstick steps.
 Exponential weights are the standard answer and have been since RiskMetrics
 quoted a decay rate rather than a window. Foster and Nelson (1996) and the
 rolling-sample literature after it find them dominating flat weights for the
-same reason. Measured here, at matched behaviour (see tools/sigma_window.py),
-they hold the multiple steadier from era to era than the box does on 82% of
-equity settings and 65% of crypto ones.
+same reason.
 
 WHY IT IS STILL CUT OFF SOMEWHERE. A true EWMA depends on every bar ever
-recorded. This system's hourly run reproduces a cold pass over the whole
-archive precisely BECAUSE every quantity depends on a bounded stretch of the
-past (windows.warm_bars); an unbounded one would make the warm run an
-approximation, and the tier of a borderline bar would depend on how much
-history the runner happened to load. So the weights are cut off at
-windows.SIGMA_LT_BARS - six half-lives, past which the measurement stops
+recorded, and an answer that depends on how much history the runner happened
+to load is not reproducible. So the weights are cut off at six half-lives
+(windows.sigma_lt_span), past which the measurement stops
 improving - and the estimator is normalised by the weights it ACTUALLY USED.
 The cut is part of the definition rather than an error in it, and the bar at
 the edge carries a sixty-fourth of the newest one's weight rather than all of
@@ -102,12 +97,10 @@ def long_run_sigma(values: pd.Series, half_life: int, span: int,
 
 
 def sigma_lt(values: pd.Series, template: str) -> pd.Series:
-    """long_run_sigma at the settings in tremor.windows, for this calendar.
+    """long_run_sigma at the settings in tremor.windows, for this series.
 
-    `template` is required rather than defaulted because the half-life is set
-    per trading calendar: an ETF's 600 bars and a coin's 2,000 are the same 85
-    days of market, and a default would silently give one of them the other's.
-    Pass windows.DAILY_SERIES for a series of one bar a day.
+    Only the daily VIX series is measured this way now: pass
+    windows.DAILY_SERIES.
     """
     from tremor import windows
 

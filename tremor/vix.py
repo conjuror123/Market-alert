@@ -1,54 +1,63 @@
-"""VIX stress multiplier.
+"""The VIX spike test behind the fear-gauge line on the weekly note.
 
 The condition is one-sided, and that is the point: fear and relief are not
 symmetric states of the market. A sharp rise in VIX means participants are
 paying for protection, that is, they consider the near future dangerous; a fall
 of the same size merely means a return to normal. So a falling VIX does not
-count as stress and gives no multiplier.
+count as a spike.
 
-The window is fixed and is NOT extended by repeat spikes. Otherwise a drawn-out
-period of high volatility - when VIX jerks upward every day - would keep the
-multiplier on for weeks, and it would stop distinguishing an acute moment from
-the general background. Repeats inside a window are counted and logged, but they
-do not move the window.
-
-A departure recorded in docs/decisions.md: the
-series is daily, because no available source offers intraday VIX, and the window
-starts at the moment the value became KNOWN to the system, not at the
-observation date. FRED publishes the value on the next business day, and
-counting from the observation date would mean the backtest using something that
-did not yet exist in that hour.
+The series is daily, because no available source offers intraday VIX, and a
+reading counts from the moment the value became KNOWN to the system, not from
+the observation date: FRED publishes it on the next business day.
 """
 from __future__ import annotations
-
-import os
-from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
 
 from tremor import ewma, windows, zscore
 
-# Multiplier size and window length. Both starting values.
-M_VIX = 1.3
-WINDOW_HOURS = windows.VIX_WINDOW
 
 # Absolute-leg threshold for the VIX series: 1.5 * sigma_LT.
 ABS_LEG = windows.ABS_LEG_Q95
 
 
-@dataclass(frozen=True)
-class VixWindow:
-    opened_at: int      # moment from which the multiplier applies (epoch UTC)
-    closes_at: int      # moment after which it is back to 1.0
-    spike_count: int    # how many spikes fell into this window, the first included
+# Rows per pass of the vectorised MAD. The sliding view itself is free - it is a
+# stride trick over the original buffer - but the |x - median| step has to
+# materialise, so a whole series at once would allocate n*window doubles. At
+# this size that is tens of megabytes rather than gigabytes, and chunking keeps
+# it flat regardless of how long the history grows.
+_MAD_CHUNK = 100_000
 
 
-def load_series(path: str) -> pd.DataFrame:
-    if not os.path.exists(path):
-        raise FileNotFoundError(
-            f"No VIX series at {path}. Fetch it with: python -m tremor.backfill")
-    return pd.read_parquet(path).sort_values("day").reset_index(drop=True)
+def _rolling_mad(series: pd.Series, window: int) -> pd.Series:
+    """Median absolute deviation on a rolling window, EXCLUDING the current bar -
+    the window ends on the previous one.
+
+    Vectorised over the whole series rather than called back per window, which
+    is not a micro-optimisation: this was 54% of the entire pipeline when the pipeline winsorised every instrument. The window
+    is twenty-four bars, and a twenty-four-element double median takes about
+    35us of which almost all is call overhead rather than arithmetic - so 1.7
+    million of them, one per bar per instrument, cost two minutes of the five a
+    full run took, to do a few seconds of actual work.
+
+    NaN handling is inherited rather than coded: np.median returns NaN if any
+    element is NaN, exactly as the per-window callback did, so a window
+    straddling a gap still yields NaN and the first `window` positions stay NaN
+    for want of a full window.
+    """
+    values = series.shift(1).to_numpy(dtype="float64")
+    out = np.full(len(values), np.nan)
+    if len(values) < window or window < 1:
+        return pd.Series(out, index=series.index)
+
+    view = np.lib.stride_tricks.sliding_window_view(values, window)
+    for start in range(0, len(view), _MAD_CHUNK):
+        block = view[start:start + _MAD_CHUNK]
+        median = np.median(block, axis=1, keepdims=True)
+        out[start + window - 1:start + window - 1 + len(block)] = np.median(
+            np.abs(block - median), axis=1)
+    return pd.Series(out, index=series.index)
 
 
 def score(series: pd.DataFrame, window: int = windows.SIGMA_LT_MIN_BARS) -> pd.DataFrame:
@@ -61,8 +70,6 @@ def score(series: pd.DataFrame, window: int = windows.SIGMA_LT_MIN_BARS) -> pd.D
     out = series.copy()
     out["r"] = np.log(out["close"] / out["close"].shift(1))
     out["sigma_lt"] = ewma.sigma_lt(out["r"], windows.DAILY_SERIES)
-
-    from tremor.returns import _rolling_mad
 
     mad_24 = _rolling_mad(out["r"], windows.MAD_WINDOW)
     mad_eff = np.maximum(mad_24, 0.2 * out["sigma_lt"])
@@ -85,39 +92,3 @@ def score(series: pd.DataFrame, window: int = windows.SIGMA_LT_MIN_BARS) -> pd.D
     return out
 
 
-def windows_from_spikes(scored: pd.DataFrame, reference_hours: np.ndarray,
-                        window_hours: int = WINDOW_HOURS) -> list[VixWindow]:
-    """Builds the windows during which the multiplier applies.
-
-    A new window opens only on a spike AFTER the previous one has closed; spikes
-    inside an active window merely increment the counter.
-    """
-    reference = np.asarray(sorted(reference_hours))
-    result: list[VixWindow] = []
-    for _, row in scored[scored["is_spike"].fillna(False)].iterrows():
-        opened = int(row["available_at"])
-        if result and opened < result[-1].closes_at:
-            last = result[-1]
-            result[-1] = VixWindow(last.opened_at, last.closes_at, last.spike_count + 1)
-            continue
-        # The window ends 24 REFERENCE-CALENDAR hours later, not 24 calendar
-        # hours: weekends do not count.
-        start = int(np.searchsorted(reference, opened, side="left"))
-        end_index = start + window_hours
-        closes = (int(reference[end_index]) if end_index < len(reference)
-                  else int(reference[-1]) + 3600)
-        result.append(VixWindow(opened, closes, 1))
-    return result
-
-
-def multiplier_series(hours_utc, vix_windows: list[VixWindow]) -> dict[int, float]:
-    """Multiplier per hour: 1.3 inside a window, 1.0 outside."""
-    result = {int(h): 1.0 for h in hours_utc}
-    if not vix_windows:
-        return result
-    hours = np.array(sorted(result))
-    for window in vix_windows:
-        inside = hours[(hours >= window.opened_at) & (hours < window.closes_at)]
-        for hour in inside:
-            result[int(hour)] = M_VIX
-    return result

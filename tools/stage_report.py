@@ -27,7 +27,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from tremor import jumps
+from tremor import jumps, routing
 from tremor.basket import load_basket
 
 YEAR = 365.25 * 86400
@@ -109,9 +109,9 @@ def event_section(scored: pd.DataFrame) -> "list[str]":
 
     # The channels (stage 2): which of those events interrupt at once and which
     # go into the weekly note, each row with its own small ping.
-    pushed = events["word"].isin(jumps.PUSH_WORDS)
+    pushed = events["word"].isin(routing.PUSH_TIERS)
     lines += ["", "## Channels", "",
-              f"Pushed: {', '.join(jumps.PUSH_WORDS)}. The rest go into the one weekly note.", "",
+              f"Pushed: {', '.join(routing.PUSH_TIERS)}. The rest go into the one weekly note.", "",
               "| channel | events | a week, today's basket | busiest week in the last year |",
               "|---|---|---|---|"]
     last_year = events["hour_utc"] >= events["hour_utc"].max() - YEAR

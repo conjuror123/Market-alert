@@ -1,39 +1,12 @@
 # Tremor basket configuration.
 #
-# WHAT A BLOCK IS FOR. Every instrument here is modelled against the median of
-# its own block, and against nothing else:
-#
-#     r = alpha + beta_block * B + e
-#
-# So a block is not a filing category. It is a claim that its members respond to
-# the same thing with the same sign, because a median only stands for a common
-# move when they do. That claim is what the composition below is chosen to make
-# true, and it is why the blocks are narrower than they used to be.
-#
-# WHAT USED TO BE HERE AND IS NOT. A second regressor, the weighted median of the
-# whole basket, meant as the "everything de-risks at once" factor. Such a factor
-# is real - it is the first principal component of a multi-asset panel, and it is
-# what 2008 and March 2020 look like - but a median cannot carry it, because that
-# factor has SIGNS: equities down, Treasuries up, gold up. A median assumes its
-# members all move the same way, so on exactly the days the common factor is
-# strongest, stocks and bonds cancelled and the factor read near nothing.
-#
-# It could not be repaired by orienting the blocks the way the FX block is
-# oriented, either. The equity-rates correlation is not a constant to hard-code:
-# measured on the block medians it runs -0.66 in 2002 and -0.42 in 2008, and then
-# FLIPS after the 2022 inflation shock to +0.24, +0.28, +0.43. A fixed sign would
-# be right for twenty years and wrong for the last four; a rolling one is a
-# principal component with extra steps.
-#
-# Dropping it was measured, not assumed. Adding the basket component back into
-# every residual - which is what a block-only fit leaves, since least squares
-# makes the fitted parts orthogonal to the residual - moved the hours where three
-# or more instruments exceed four sigma at once from 610 to 645 in twenty-one
-# years, and the mean absolute correlation between standardised residuals from
-# 0.146 to 0.161. The rarity ladder is fitted to each instrument's own residual
-# tail, so a uniform rise in residual sigma rescales away entirely and the alert
-# rate is unchanged; only the clustering moves, and the same-day collapse folds
-# most of that into one message anyway.
+# WHAT A BLOCK IS FOR. A block is a claim that its members respond to the same
+# thing with the same sign. The jump detector reads each instrument on its own;
+# the blocks group the reports today (tools/stage_report.py) and are what the
+# co-jump and own-move stages (7 and 8, docs/architecture.md) will test against.
+# The previous detector modelled every instrument against its block's median,
+# and the measurements behind the composition below come from that; its notes
+# on the model are on the production branch.
 #
 # WHY THE BLOCKS LOOK LIKE THIS. Commercial multi-asset risk models do not use
 # one global factor either: they build a factor block per asset class and model
@@ -54,10 +27,8 @@
 # the equality rule
 #     weight_i = 1 / (N_blocks * N_assets_block)
 # and a stored weight could be hand-edited out of line with the rule, so the only
-# way never to diverge is not to store it. They no longer enter the model at all
-# - a block median is unweighted, since within a block the rule makes every
-# weight equal - and survive only for the cross-sectional diagnostics (breadth,
-# CSV, PC1) that feed the cluster channel.
+# way never to diverge is not to store it. Nothing in the jump detector reads
+# them.
 #
 # There are two live US-session providers besides Coinbase. Yahoo is the
 # consolidated-tape feed for the fifteen thin ETFs Tiingo's IEX slice cannot
@@ -96,8 +67,8 @@ history_since: "2015-01-01"
 fetch_since: "2002-01-01"
 
 # ---------------------------------------------------------------------------
-# THE JUMP DETECTOR (tremor/jumps.py), being built in stages beside the running
-# one. Stage 0 is the jump test of Lee & Mykland (2008) and nothing else:
+# THE JUMP DETECTOR (tremor/jumps.py), built in stages (docs/architecture.md).
+# Its score is the jump test of Lee & Mykland (2008):
 #
 #   z = the hour's move / the instrument's bipower volatility over the
 #       window_days before it (calendar time, the same for every instrument)
@@ -111,104 +82,6 @@ detector:
   window_days: 182.6
   noticeable_sigma: 3.9
   step: 1.414
-
-# ---------------------------------------------------------------------------
-# THE TWO KNOBS. Everything else in this file describes the market; these two
-# describe how much of it you want to hear about, and they are here rather than
-# in the code so that turning them is an edit and not a release.
-#
-# They answer DIFFERENT questions and neither substitutes for the other.
-#
-# sensitivity - HOW BIG must a move be before it is worth a line. It scales every
-# rung of every block at once: 1.0 leaves them where tremor/severity.py sets
-# them, 2.0 doubles every threshold and cuts the messages hard, 0.5 the other
-# way. Scaling them TOGETHER is the point - moving one rung alone would silently
-# re-rank a move from major to high, which is a different thing from asking for
-# fewer messages.
-#
-# It does NOT equalise instruments, and must not: the rungs are in units of each
-# instrument's own sigma, and how often a market crosses them is a fact about
-# that market. Measured, the basket spans about 3.8x between its quietest and
-# loudest instrument - a flat threshold gave 47x - which is the dispersion the
-# ladder was rebuilt to get.
-#
-# Changing it moves config_version, which retires derived data and costs one
-# cold run. That is correct: the events would otherwise be a mix of two rules.
-sensitivity: 1.0
-
-# block_sigma - the rungs themselves, per block, in multiples of the
-# instrument's own long-run sigma. OPTIONAL: the shipped table lives in
-# tremor/severity.py (BLOCK_SIGMA) because it is the shape of the ladder rather
-# than a deployment setting, and only the blocks named here override it.
-#
-# Four numbers, increasing: noticeable, high, major, extreme. They are derived
-# rather than chosen - each rung crosses about 3.16x less often than the one
-# below - so an override here replaces that spacing with whatever is typed. Run
-# `python tools/ladder.py` to see what the derivation gives before overriding it.
-#
-#   block_sigma:
-#     crypto: [7.2, 9.9, 13.2, 18.3]
-#
-# WHY PER BLOCK. A single threshold across the basket claims that 5 sigma means
-# the same thing in Solana and in utilities, and it does not: flat, crypto ran at
-# 36-43 messages a year and XLU, XLRE and XLB at about one - a 47x spread.
-# Instruments in a block share a return shape, so setting the threshold per block
-# removes the systematic part of that difference and leaves the idiosyncratic
-# part standing. The equity block still spans 6.5x internally.
-#
-# WHY NOT PER BLOCK SIZE. Measured, and it is the opposite of the intuition: the
-# equity block has the MOST members, sixteen, and the second-quietest assets - 70
-# messages a year between them against crypto's 281 from nine. Dividing by
-# headcount would quiet the block that is already quiet.
-
-# min_move_sigma - HOW BIG must a move be, in its own terms, to be worth a line
-# at all, whatever the ladder says about rarity. This is the floor the system
-# went without for too long: the abnormal channel asks whether a move was
-# unexplained, not whether it was large, so an instrument that ticked +0.03%
-# while its block went the other way could be reported as a once-a-month event.
-#
-# TWO usual hours, and it replaced a rank test. At one usual hour the floor sat
-# behind Corrado's rank test and the two did one job twice: with the rank test
-# on, the floor caught five events a year; with the floor on, the rank test
-# removed about 120 more, mid-sized ones. One floor at two usual hours gives the
-# same messages - 97% of pushes identical, 57.3 pushes a year against 56.5,
-# held at the next close 73.9% against 74.2% - with one number instead of a
-# rolling rank. A raw-ladder rung is several usual hours already, so in
-# practice this floor filters the "unexplained" channel alone.
-#
-# In units of the instrument's own sigma_LT, so the number means the same thing
-# to SHY and to SOL. 0 disables it.
-#
-# THIS IS THE DEFAULT, AND ANY INSTRUMENT MAY OVERRIDE IT on its own entry in
-# `assets` or `outside` below:
-#
-#   - ticker: PFF
-#     ...
-#     min_move_sigma: 2.5
-#
-# That override is the ONE lever that makes instruments speak at different
-# rates, and it exists because nothing else can. A rung is the biggest move in
-# its own lookback, so every instrument clears one about once per lookback
-# whatever its market does - that is what makes "the biggest since March 2020"
-# mean one thing across a digest, and it is also why the rungs cannot be what
-# separates a loan ETF from Solana. With one shared floor the whole basket sat
-# between 9.3 and 20.4 events a year, a 2.2x spread across instruments that
-# differ by far more.
-#
-# Do not guess these. Write the number on the instrument's own entry, or on a
-# block's own line below; members keep whatever they already have. Raising the
-# shared number instead silences every quiet instrument at once - point at BKLN
-# and lose SHY. There was a Telegram command that wrote these; in the project's
-# life it never changed a number, and it is gone.
-#
-# Changing any of them moves config_version, which retires derived data and
-# costs one cold run. That is correct: the events would otherwise be a mix of
-# two rules.
-min_move_sigma: 2.0
-
-# Size floor for a block's own messages, in the block's usual hour. Absent, the
-# shared min_move_sigma above is the default. Members are not written here: the
-# key is `block_min_move_sigma:` with the block's name under it.
 
 # Session templates are filled in during phase 1 (holiday and half-session
 # calendars); here only the names the assets refer to.

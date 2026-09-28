@@ -89,24 +89,3 @@ def test_thresholds_are_smoothed_by_the_specified_recurrence():
 
     # Smoothing slows the threshold: it does not jump along with the window.
     assert q95.iloc[-1] < raw.iloc[-1]
-
-
-def test_compute_gives_no_scale_while_sigma_lt_is_unknown():
-    # During the burn-in the denominator has no floor, so the state is not
-    # given out at all.
-    frame = pd.DataFrame({
-        "r": [0.0, 0.0, 0.0, 0.01, 0.01],
-        "r_w": [0.0, 0.0, 0.0, 0.01, 0.01],
-        "sigma_lt": [np.nan, np.nan, np.nan, 0.01, 0.01],
-    })
-    out = zscore.compute(frame)
-    assert out["sigma_eff"].iloc[:3].isna().all()
-    assert out["sigma_eff"].iloc[3:].notna().all()
-
-
-def test_compute_keeps_only_what_the_blocks_read():
-    # The price z-score, the Q95/Q99 thresholds and the breach flags fed no
-    # decision and are gone; sigma_eff is what the blocks read.
-    out = zscore.compute(pd.DataFrame({"r": [], "r_w": [], "sigma_lt": []}))
-    assert out.empty and "sigma_eff" in out.columns
-    assert not {"z", "q95", "q99", "breach_q95", "breach_q99"} & set(out.columns)

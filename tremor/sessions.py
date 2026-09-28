@@ -246,8 +246,8 @@ def bars_after(hour_utc: int, count: int, template: str,
     """The stamp of the bar `count` bars after the one opening at `hour_utc`.
 
     Bars, not hours: the answer to "two bars after Friday's last one" is Monday
-    morning, and every horizon in this system is counted the same way (see
-    tremor.persistence). Returns None when the calendar cannot reach that far -
+    morning, and every horizon in this system is counted the same way. Returns
+    None when the calendar cannot reach that far -
     the honest answer for an instrument whose session table has run out.
     """
     if count <= 0:

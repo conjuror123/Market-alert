@@ -91,27 +91,3 @@ def adaptive_thresholds(abs_z: pd.Series, window: int,
     q99 = raw.quantile(0.99).ewm(alpha=lam_q, adjust=False).mean()
     # Where Z is undefined no threshold is needed: the breach is not assessed anyway.
     return q95.reindex(abs_z.index), q99.reindex(abs_z.index)
-
-
-def compute(frame: pd.DataFrame) -> pd.DataFrame:
-    """The short-memory scale of one price series: `sigma_eff`.
-
-    The input is a frame after winsorize, with columns r, r_w and sigma_lt. The
-    blocks read sigma_eff - a block's move is the median of its members' moves
-    each over its own sigma_eff (tremor.cross_section) - and nothing else reads
-    this state for a price series. Its Z-score, and the Q95/Q99 thresholds and
-    breach flags built on it, fed no decision and were removed.
-    """
-    out = frame.copy()
-    if out.empty:
-        return out.assign(sigma_eff=pd.Series(dtype="float64"))
-
-    _, sigma_eff = ewma_state(out["r"].to_numpy(dtype="float64"),
-                              out["r_w"].to_numpy(dtype="float64"),
-                              out["sigma_lt"].to_numpy(dtype="float64"))
-    out["sigma_eff"] = sigma_eff
-    # Until sigma_LT has filled, the denominator has no floor - the very floor
-    # that keeps the EWMA variance from collapsing - so the state is not given
-    # out there at all.
-    out.loc[out["sigma_lt"].isna(), "sigma_eff"] = np.nan
-    return out

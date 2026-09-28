@@ -8,62 +8,23 @@ venv/
 data/backtest_results.json
 data/calibration_review/
 
-# Fully derived Tremor outputs. All three are rewritten in full on every run, so
-# keeping them in git means adding hundreds of megabytes per run without a single
-# new fact - 4.9 GB a day once the pipeline runs hourly, which is what made this
-# worth revisiting. Every one of them is restored by re-running the pipeline from
-# the bars, which is what the hourly job does anyway before it reads them.
+# Fully derived Tremor outputs, rebuilt from the committed bars by the run that
+# reads them - delivery reads the events table the same run just wrote. Git
+# cannot delta parquet, so committing them would store every byte again on
+# every run without a single new fact.
 #
-#   events/    - JSON left behind by the cluster detector, which is deleted. Nothing
-#                writes here any more; the rule stays so a working copy that still
-#                holds the files cannot commit them by accident.
-#   residuals/ - the SAED residual series, from python -m tremor.saed.
-#   metrics/   - the per-asset metrics, from python -m tremor.pipeline. These
-#                used to be tracked, on the reasoning that they cost a full
-#                pipeline run to rebuild where the other two are seconds on top.
-#                That was true of a pipeline run by hand a few times a month. It
-#                is 157 MB rewritten twenty-four times a day now, and the rebuild
-#                is 63 seconds.
+#   metrics/        - per-asset metrics (the move and the gap), python -m tremor.pipeline;
+#                     kept between runs in the Actions cache.
+#   jumps.parquet   - the events, python -m tremor.jumps, rescored whole every run.
+data/tremor/metrics/
+data/tremor/jumps.parquet
+
+# Outputs of detectors that no longer run on this branch. Nothing writes them;
+# the rules stay so a working copy that still holds the files cannot commit them.
 data/tremor/events/
 data/tremor/residuals/
-data/tremor/metrics/
-
-# The same reasoning, arrived at late and the hard way. These are single files
-# rather than directories, so they looked small enough to keep - and they are
-# not, because git cannot delta them. A parquet of floats that the pipeline
-# recomputes in full has no bytes in common with its previous version, so every
-# commit stores the WHOLE file again:
-#
-#     metrics_basket_hour.parquet   13 copies, 108.5 MB   8.3 MB a commit
-#     decision_log.parquet          10 copies,  44.9 MB
-#     detector_scores.parquet        1 copy,    25.2 MB
-#     saed_events.parquet           14 copies,  13.8 MB
-#
-# against the bar archive, which at least appends. THAT COMPARISON USED TO SAY
-# "2.3 KB in the pack, measured, so the bars are not the problem" and it is no
-# longer true at this basket size: 22 bar commits have cost 146 MB, and a
-# routine daily append touching 61 files costs 3.3 to 3.8 MB. Parquet is
-# compressed, so appending a row rewrites the block and git cannot delta it
-# either. Keep that number in mind before proposing to commit the bars more
-# often than once a day.
-#
-# Every derived file below is rebuilt from the bars by the run that reads it,
-# and the reading always happens in the SAME workflow run that wrote it -
-# delivery reads the events table the pipeline just produced. Nothing anywhere
-# loads them from a previous run, so committing them buys nothing at all.
-#
-# The cluster, market and truth tables were listed here too, until the
-# detectors that wrote them were deleted. metrics_basket_hour stays listed
-# because tremor.cross_section can still be run by hand; nothing in the hourly
-# job writes it any more.
 data/tremor/metrics_basket_hour.parquet
 data/tremor/decision_log.parquet
 data/tremor/saed_events.parquet
-# Durable events for message rates. A warm hourly run only scores six years, so
-# this file is restored from Actions cache (same as metrics/) rather than
-# committed: like the other derived parquet it does not delta in git.
 data/tremor/saed_events_archive.parquet
-# The record book: each series' "biggest since" lookup at a checkpoint,
-# rebuilt by any cold saed run. Cached with the metrics, never committed.
 data/tremor/record_book.parquet
-data/tremor/jumps.parquet

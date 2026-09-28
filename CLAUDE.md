@@ -10,9 +10,11 @@ An hourly Telegram bot. It watches 61 market instruments and writes when one mov
 unusually **for itself**, measured against its own history rather than a shared
 percentage. It runs entirely on GitHub Actions.
 
-**The detector is being replaced.** Production runs the detector below; its replacement, a
-jump detector copied from Lee & Mykland (2008), is built stage by stage in `tremor/jumps.py`
-on the branch `claude/youthful-pascal-u0rx7u`. Each stage is reviewed before the next;
+**This branch is the replacement detector.** A jump detector copied from Lee & Mykland
+(2008), built stage by stage in `tremor/jumps.py` on `claude/youthful-pascal-u0rx7u`, as it
+will run live. Production still runs the previous detector from
+`claude/price-spike-monitoring-app-yyg2jg` until the switch; its code is not on this branch
+— read it there when a stage needs a piece of it. Each stage is reviewed before the next;
 `docs/architecture.md` has the stage list and `docs/decisions.md` the reasons.
 
 Read this file first, then the one doc that covers your task:
@@ -33,13 +35,13 @@ Four commands. **The order is load-bearing.**
 
 ```
 tremor.backfill   fetch new bars into data/tremor/bars/
-tremor.pipeline   per-instrument metrics
-tremor.saed       residuals, ladder, events, routing      <- the product
+tremor.pipeline   per-instrument metrics: the move and the gap
+tremor.jumps      score, words, one event a day, channels   <- the product
 price_monitor     deliver what is due to Telegram
 ```
 
-- `saed` reads what `pipeline` wrote and builds its cross-section in memory.
-- `price_monitor` is last: delivery reads `saed_events.parquet` off disk.
+- `jumps` reads what `pipeline` wrote and rescores the whole history every run.
+- `price_monitor` is last: delivery reads `jumps.parquet` off disk.
 
 ## Invariants
 
@@ -51,11 +53,13 @@ Break one of these and the system is wrong rather than merely broken.
    changes freely.
 2. **Rolling windows end before the bar being judged.** A full-sample fit labels a 2016
    move knowing 2020 is coming, and the backtest then flatters a system nobody can run.
-3. **Everything internal is UTC seconds, named `hour_utc`.** Local time appears in one
-   place only — the digest slot, because the reader reads it locally — resolved through
-   `ZoneInfo`.
-4. **One event per instrument per trading day.** Enforced in `saed` (and, for a day both
-   the gap and an hour fired, in `saed.merge_days`), not by filtering afterwards. End of session for the funds, end of the UTC day for crypto.
+3. **Everything internal is UTC seconds, named `hour_utc`.** Local time appears where a
+   day is a local thing — a fund's trading day and session, in New York — resolved
+   through `ZoneInfo`. The weekly note's slot is UTC.
+4. **One event per instrument per day, unless the day grows.** Enforced in
+   `jumps.one_a_day`, not by filtering afterwards: a later reading that day is kept only if
+   its word is rarer than every one kept before it. The New York date for the funds, the
+   UTC date for currency pairs and crypto.
 5. **A ping exists only while the note beneath it shows its row.** `pending_pings` and
    `restyle_pings` both bound on the open note's window; they must not diverge.
 6. **A note interrupts only while its period is open.** Every note inside
@@ -80,13 +84,13 @@ Break one of these and the system is wrong rather than merely broken.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q                     # ~850 tests, about five minutes
+pytest -q                     # ~580 tests, about a minute
 ```
 
 Run the tests alone — several load large parquet files, and concurrent runs thrash.
 
 To exercise the real pipeline you need `TIINGO_API_KEY` (hourly bars), plus
 `TWELVEDATA_API_KEY` and `FRED_API_KEY` for archive work. Derived data under
-`data/tremor/metrics/`, `residuals/` and `saed_events.parquet` is gitignored and rebuilds
-from the committed bars in about a minute and a half.
+`data/tremor/metrics/` and `jumps.parquet` is gitignored and rebuilds from the committed
+bars in about fifteen seconds.
 

@@ -27,35 +27,14 @@ import os
 # number, while hashing only the configuration would miss a change of formula.
 CONFIG_INPUTS = (
     os.path.join("config", "basket.yaml"),
+    # How far back an extension recomputes.
     os.path.join("tremor", "windows.py"),
-    os.path.join("tremor", "zscore.py"),
-    os.path.join("tremor", "returns.py"),
-    # The long-run sigma's estimator. Every tier is a multiple of what this
-    # returns, so its shape is as much a formula as the ladder's own.
-    os.path.join("tremor", "ewma.py"),
+    # What a metric row is: the quality gate, the move and the gap.
     os.path.join("tremor", "quality.py"),
-    os.path.join("tremor", "residuals.py"),
-    # Added late, and the omission was a real gap rather than a tidy-up:
-    # severity decides what tier every single event gets, persistence decides
-    # whether it held, and blocks decides whether a whole complex moving is an
-    # event at all. A change to any of them changes every number downstream and
-    # has to change the configuration version with it. tremor/ladder.py was here
-    # too while the ladder was a fitted tail cached between runs - a cached level
-    # was only an answer to the question the code was asking when it was fitted.
-    # The record rule has nothing to cache, so the module and its entry are gone.
-    os.path.join("tremor", "severity.py"),
-    os.path.join("tremor", "persistence.py"),
-    os.path.join("tremor", "blocks.py"),
-    os.path.join("tremor", "cross_section.py"),
-    os.path.join("tremor", "saed.py"),
-    # The overnight gap's own scoring. It never runs warm, so nothing is
-    # extended across a change to it - but every gap-claimed event carries the
-    # stamp, and a stamp that did not move with the formula would vouch for it.
-    os.path.join("tremor", "gaps.py"),
-    # si_index.py, cluster.py and calendar_multiplier.py were here until the
-    # cluster detector was deleted. vix.py stays: it no longer feeds a stress
-    # multiplier, but it is still the fear gauge printed on the digest note.
-    os.path.join("tremor", "vix.py"),
+    os.path.join("tremor", "returns.py"),
+    os.path.join("tremor", "pipeline.py"),
+    # tremor/jumps.py is not here: it rescores the whole history on every run
+    # from the metrics, so nothing of its own is ever extended or cached.
 )
 
 # Raw inputs of the calculation: everything that arrives from outside and is not
@@ -68,10 +47,8 @@ CONFIG_INPUTS = (
 # else is a function of those.
 RAW_INPUTS = (
     os.path.join("data", "tremor", "bars"),
-    os.path.join("data", "tremor", "vix"),
     os.path.join("data", "tremor", "sessions"),
     os.path.join("data", "tremor", "corporate_actions.csv"),
-    os.path.join("data", "economic_calendar", "calendar.ndjson"),
 )
 
 VERSION_LENGTH = 12
@@ -220,10 +197,6 @@ def versions_for(data_paths=RAW_INPUTS, root: str = ".") -> tuple[str, str]:
 
 VERSION_COLUMNS = ("config_version", "run_version")
 
-# Provenance of a row: which raw data produced it, whether it
-# has since been recomputed, and when it first appeared.
-PROVENANCE_COLUMNS = ("data_fingerprint", "recalculated", "created_at")
-
 
 def stamp(frame, config: str, run: str):
     """Writes both versions into every row.
@@ -234,67 +207,3 @@ def stamp(frame, config: str, run: str):
     table in front of them cannot state what is not in it.
     """
     return frame.assign(config_version=config, run_version=run)
-
-
-def provenance(frame, previous, fingerprint: str, key: str = "event_id",
-               now: int | None = None):
-    """data_fingerprint, recalculated and created_at.
-
-    created_at is the moment a row FIRST appeared, not the moment of the latest
-    write. Taking the clock on every run would be easier and would be wrong twice
-    over: it destroys idempotency - a rerun over unchanged data would
-    produce a different table byte for byte - and it answers a question
-    run_version already answers better, since run_version says WHICH inputs
-    produced the row while created_at is meant to say WHEN it first existed.
-
-    recalculated is judged on the RAW-DATA fingerprint, not on run_version. The rule
-    raises the flag for one situation - a bar arriving late or revised by the
-    vendor - and run_version also moves when a threshold or a comment in the code
-    changes, which is not that situation. Judging on run_version would raise the
-    flag on every edit, and during calibration, when the thresholds move on every
-    iteration, it would stand at True on every row and mean nothing. What the code
-    changed is already what config_version is for.
-
-    `previous` is the table as the last run left it, or None when there is none -
-    on the very first run nothing can be claimed about recomputation, and
-    everything is simply new.
-    """
-    import time
-
-    import pandas as pd
-
-    stamp_now = int(time.time()) if now is None else int(now)
-    if frame.empty:
-        return frame.assign(data_fingerprint=pd.Series(dtype="object"),
-                            recalculated=pd.Series(dtype="boolean"),
-                            created_at=pd.Series(dtype="int64"))
-
-    born, redone = {}, set()
-    if previous is not None and not previous.empty and key in previous.columns:
-        if "created_at" in previous.columns:
-            born = dict(zip(previous[key], previous["created_at"]))
-        if "data_fingerprint" in previous.columns:
-            redone = {row_key for row_key, was in
-                      zip(previous[key], previous["data_fingerprint"])
-                      if was != fingerprint}
-
-    keys = frame[key]
-    return frame.assign(
-        data_fingerprint=fingerprint,
-        recalculated=[bool(k in redone) for k in keys],
-        created_at=pd.array([born.get(k, stamp_now) for k in keys], dtype="int64"),
-    )
-
-
-def previous_table(path: str):
-    """The table as the last run left it, or None if there is not one yet."""
-    import pandas as pd
-
-    if not os.path.exists(path):
-        return None
-    try:
-        return pd.read_parquet(path)
-    except Exception:
-        # An unreadable leftover must not stop the run: the worst case is that
-        # the rows count as new, which is exactly what an absent table means.
-        return None

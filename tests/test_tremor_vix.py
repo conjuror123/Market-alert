@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
-import pytest
 
-from tremor import vix
+from tremor import vix, windows
 
 DAY = 86400
 HOUR = 3600
@@ -42,54 +41,42 @@ def test_spike_needs_the_absolute_leg_too():
     assert not bool(scored["is_spike"].iloc[-1])
 
 
-def test_window_lasts_the_specified_reference_hours():
-    reference = np.arange(0, 200 * HOUR, HOUR)
-    scored = pd.DataFrame({"available_at": [10 * HOUR], "is_spike": [True]})
-    built = vix.windows_from_spikes(scored, reference, window_hours=24)
+def test_the_vectorised_mad_matches_a_per_window_median_exactly():
+    # Vectorised for speed, so it has to be exact rather than close: it is
+    # checked against the per-window form it replaced, NaNs and short series
+    # included.
+    def per_window(series, window):
+        def mad(values):
+            median = np.median(values)
+            return float(np.median(np.abs(values - median)))
+        return series.shift(1).rolling(window).apply(mad, raw=True)
 
-    assert len(built) == 1
-    assert built[0].opened_at == 10 * HOUR
-    assert (built[0].closes_at - built[0].opened_at) / HOUR == 24
-
-
-def test_repeat_spike_inside_a_window_does_not_extend_it():
-    # Otherwise a prolonged period of high volatility would keep the multiplier on
-    # for weeks, and it would stop distinguishing an acute moment from the
-    # background.
-    reference = np.arange(0, 200 * HOUR, HOUR)
-    scored = pd.DataFrame({"available_at": [10 * HOUR, 20 * HOUR], "is_spike": [True, True]})
-    built = vix.windows_from_spikes(scored, reference, window_hours=24)
-
-    assert len(built) == 1
-    assert built[0].spike_count == 2
-    assert built[0].closes_at == 34 * HOUR
-
-
-def test_a_new_window_opens_after_the_previous_closes():
-    reference = np.arange(0, 200 * HOUR, HOUR)
-    scored = pd.DataFrame({"available_at": [10 * HOUR, 40 * HOUR], "is_spike": [True, True]})
-    built = vix.windows_from_spikes(scored, reference, window_hours=24)
-
-    assert len(built) == 2
-    assert all(w.spike_count == 1 for w in built)
+    rng = np.random.default_rng(0)
+    for n, holes in ((5000, 0), (5000, 200), (50, 0), (24, 0), (20, 0)):
+        values = rng.normal(size=n)
+        if holes:
+            values[rng.choice(n, holes, replace=False)] = np.nan
+        series = pd.Series(values)
+        expected = per_window(series, windows.MAD_WINDOW)
+        actual = vix._rolling_mad(series, windows.MAD_WINDOW)
+        # NaN in the same places, and bit-identical where both are finite.
+        assert expected.isna().equals(actual.isna())
+        assert np.array_equal(expected.dropna().to_numpy(), actual.dropna().to_numpy())
 
 
-def test_multiplier_is_one_outside_and_raised_inside():
-    built = [vix.VixWindow(opened_at=10 * HOUR, closes_at=34 * HOUR, spike_count=1)]
-    hours = [5 * HOUR, 10 * HOUR, 33 * HOUR, 34 * HOUR, 50 * HOUR]
-    values = vix.multiplier_series(hours, built)
+def test_the_vectorised_mad_spans_more_than_one_chunk():
+    # The |x - median| step materialises, so it runs in chunks; the seam between
+    # two chunks must not drop or duplicate a window.
+    rng = np.random.default_rng(1)
+    series = pd.Series(rng.normal(size=3000))
+    whole = vix._rolling_mad(series, windows.MAD_WINDOW)
+    original = vix._MAD_CHUNK
+    try:
+        vix._MAD_CHUNK = 500
+        chunked = vix._rolling_mad(series, windows.MAD_WINDOW)
+    finally:
+        vix._MAD_CHUNK = original
+    assert whole.equals(chunked)
 
-    assert values[5 * HOUR] == 1.0
-    assert values[10 * HOUR] == vix.M_VIX
-    assert values[33 * HOUR] == vix.M_VIX
-    assert values[34 * HOUR] == 1.0     # the edge is exclusive
-    assert values[50 * HOUR] == 1.0
 
-
-def test_no_windows_means_no_multiplier():
-    assert vix.multiplier_series([HOUR, 2 * HOUR], []) == {HOUR: 1.0, 2 * HOUR: 1.0}
-
-
-def test_missing_series_says_how_to_get_it(tmp_path):
-    with pytest.raises(FileNotFoundError, match="tremor.backfill"):
-        vix.load_series(str(tmp_path / "missing.parquet"))
+# --- the overnight gap, kept beside r ----------------------------------------

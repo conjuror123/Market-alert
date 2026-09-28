@@ -49,14 +49,13 @@ the same day is kept only if it reaches a HIGHER word than anything kept before 
 that day: a day that starts `noticeable` and turns `high` says so, and a second
 `noticeable` - or a `high` after a `major` - is dropped. So a day holds at most four
 events, each rarer than the last. The day is the fund's New York session date and
-the UTC date for currency pairs and coins (sessions.day_tz, the same day the
-running detector uses).
+the UTC date for currency pairs and coins (sessions.day_tz).
 
 CHANNELS (stage 2). `high` and rarer push at once; `noticeable` goes into the
 weekly note, with a short ping of its own. Each event carries what the delivery
 layer reads (price_monitor.tremor_delivery): an id, its word as the `tier`, the
 basis `jump`, its channel and note slot, the move as `r` and the half-year sigma
-as `sigma_lt` - so the message's "N x its usual hour" is exactly |z|.
+as `sigma_lt` - so the message's "N×σ" is exactly |z|.
 
 WHAT IS NOT HERE YET, deliberately: no
 "biggest since" date, no held check, no time-of-day scale, no block or own-move
@@ -261,8 +260,6 @@ def one_a_day(flagged: pd.DataFrame, tz_name: "str | None") -> pd.DataFrame:
     return order.assign(day=days, escalation=escalation)[keep].reset_index(drop=True)
 
 
-# The words that interrupt at once. The rest go into the weekly note.
-PUSH_WORDS: tuple[str, ...] = ("high", "major", "extreme")
 BASIS = "jump"
 
 
@@ -270,9 +267,8 @@ def for_delivery(events: pd.DataFrame) -> pd.DataFrame:
     """The columns the delivery layer reads, added to an events table.
 
     `tier` is the word and `sigma_lt` the half-year sigma, so the message says
-    "N x its usual hour" with N = |z|. `record_since` and the retention columns
-    are absent until their stages exist, and delivery says nothing about them
-    for a `jump` event rather than guessing.
+    "N×σ" with N = |z|. The "biggest since" date and the held check are absent
+    until their stages exist.
     """
     from tremor import routing
 
@@ -286,7 +282,7 @@ def for_delivery(events: pd.DataFrame) -> pd.DataFrame:
     out["sigma_lt"] = out["sigma"]
     out["overnight"] = out["reading"] != HOUR
     out["gap_kind"] = out["reading"].where(out["overnight"])
-    pushes = out["tier"].isin(PUSH_WORDS).fillna(False).to_numpy(dtype=bool)
+    pushes = out["tier"].isin(routing.PUSH_TIERS).fillna(False).to_numpy(dtype=bool)
     out["channel"] = pd.array(np.where(pushes, routing.PUSH, routing.DIGEST), dtype="string")
     slots = pd.Series(pd.NA, index=out.index, dtype="Int64")
     if (~pushes).any():

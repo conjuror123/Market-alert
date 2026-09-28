@@ -29,17 +29,17 @@ fire is worse than none — its silence is indistinguishable from a quiet market
 | | |
 |---|---:|
 | Live fetch (Tiingo + Yahoo + Coinbase) | seconds |
-| Metrics and events, warm run | ~30 s |
-| Metrics and events, cold rebuild | ~1.5 min |
+| Metrics and events, warm run | ~5 s |
+| Metrics and events, cold rebuild | ~15 s |
 | Whole job, median | ~2 min |
 | Our own timeout | 20 min |
 | GitHub's hard cap | 6 hours |
 
 No live fetch waits on a rate limit. Tiingo answers in about 0.28 s with no enforced
 throttle; Yahoo and Coinbase have no pacing requirement. A `config_version` mismatch
-forces a cold rebuild of the derived data (about a minute and a half locally) — that is
-the guard working, not a fault. A warm run reads each series' warm-up plus the bars after
-the record book's checkpoint, about a third of the bars.
+forces a cold rebuild of the metrics (about ten seconds locally) — that is the guard
+working, not a fault. The jump detector rescores the whole history every run, in about two
+seconds, so it has no warm state to lose.
 
 ---
 
@@ -85,13 +85,10 @@ consecutive misses, set by Yahoo's 55 days at thirty minutes, the shortest reach
 basket. VIX rides the same commit so the skip-if-fresh check can see the latest close
 and avoid re-fetching CBOE's full 1990 file.
 
-**Never:** `data/tremor/metrics/`, `residuals/`, `saed_events.parquet`,
-`record_book.parquet`, `jumps.parquet`. Derived, gitignored, rebuilt in the run that needs
-them.
+**Never:** `data/tremor/metrics/` and `jumps.parquet`. Derived, gitignored, rebuilt in the
+run that needs them.
 
-**The Actions cache** (`metrics/`, the events archive and the record book, 232 MiB) holds
-what a warm run extends; the record book is the "biggest since" lookup as of a checkpoint
-14 days back, and without it the run goes cold. It is uploaded only when
+**The Actions cache** (`metrics/`) holds what a warm run extends. It is uploaded only when
 the run actually changed it, plus once a day regardless so a quiet stretch cannot let the
 entry age out — GitHub drops a cache nothing has touched for a week, and a cold start
 costs every instrument a full rebuild.
@@ -115,7 +112,7 @@ delivery — and the job is **failed at the end anyway**. A pipeline that quietl
 updating while the repository looks healthy is the failure this arrangement exists to
 prevent.
 
-If a fetch fails, `pipeline` and `saed` still run on the bars already stored, so healthy
+If a fetch fails, `pipeline` and `jumps` still run on the bars already stored, so healthy
 instruments still get events. Delivery's 48-hour staleness rule drops what did not
 refresh. Health does not record a clean run or send "recovered" while the Tremor step is
 red — empty events would otherwise look like a quiet hour.
@@ -169,10 +166,9 @@ rather than silently declared handled.
 
 ## Silence is the normal state
 
-About 56 pushes a year across 61 instruments, arriving on ~35 days, median six days
-apart, longest observed quiet stretch 85 days. (Those are the running detector's numbers. The
-jump detector, once switched in, pushes about 10 a week; see `decisions.md`.) One digest
-note a week opens Saturday at 00:05 UTC and fills as moves are found.
+About 10 pushes a week across today's 61 instruments and about 19 note rows, each with a
+small ping; the busiest week of the last year had 37 pushes and 61 rows (`decisions.md`).
+One note a week opens Saturday at 00:05 UTC and fills as moves are found.
 
 The economic-calendar forecast goes out once a week, in the same run immediately before
 the note opens — so the note, the message that keeps changing, is the last one in the chat.
@@ -190,15 +186,15 @@ so without it the first run after a mute would deliver years of alerts at once. 
 does the right thing on a cold start. An empty events table sends nothing at all — it
 cannot tell "nothing happened" from "the pipeline did not run".
 
-So a long silence is the expected reading, not evidence of a fault. What distinguishes the
-two is the Actions tab: green runs mean it looked and found nothing.
+A quiet day is still possible, and is not evidence of a fault. What distinguishes the two is
+the Actions tab: green runs mean it looked and found nothing.
 
 ---
 
 ## Checking on it
 
 ```bash
-python tools/report_card.py     # recall on the obvious, false alarms, frequency
+PYTHONPATH=. python tools/stage_report.py   # rates by word, block and channel; the biggest hours
 ```
 
 Nothing imports that file and no threshold is set from its numbers. The alert count is a
@@ -213,7 +209,7 @@ export FRED_API_KEY=...         # the VIX series only
 
 python -m tremor.backfill
 python -m tremor.pipeline
-python -m tremor.saed
+python -m tremor.jumps
 python -m price_monitor
 ```
 
@@ -229,34 +225,3 @@ It lives in the repository rather than on the scheduler's side deliberately: *"w
 deliberately silent"* is a state of the project and has to be visible where the code is. A
 cron job switched off on someone else's website is indistinguishable from a breakage a
 month later.
-
-### Regenerating the report card
-
-`tools/dashboard.py` emits the whole payload the report-card page renders itself from, so
-"is the dashboard still true?" is answered by re-running it rather than by reading it. It
-takes the **full** backtest, not the warm table the hourly run writes — the two are scored
-against hours drawn from the whole archive, so mixing them reports most of history as
-missed:
-
-```bash
-python -m tremor.saed --full --events-out /tmp/ev.parquet --residuals-out /tmp/res
-PYTHONPATH=. python tools/dashboard.py --events /tmp/ev.parquet --residuals /tmp/res \
-  --ops ops.json --messages messages.json --out card.html
-```
-
-An `.html` output fills `tools/report_card.html`, which is the page with a `__PAYLOAD__`
-placeholder where the numbers go; a `.json` output writes the payload alone. The page is
-kept in the repository and the payload is not, for the same reason the derived parquet is
-not: a hundred kilobytes of numbers rewritten on every rebuild is churn git cannot delta.
-
-Two inputs are not derived. Run health comes from the Actions API, which needs a token this
-has no business holding, and the four sample messages are rendered by the delivery code.
-Everything else is measured from the store, so a figure that has drifted shows up as a
-different number rather than as nothing at all.
-
-**The page is a snapshot and says so.** It carries the date, the time and the commit it was
-measured on — including whether the tree was dirty — because it stops being recomputed the
-moment it is written, and a reader cannot otherwise tell a figure that still holds from one
-that stopped holding weeks ago. The one section that is *not* measured is Limits: it is
-hand-written prose about the present, so it goes stale first and the page warns that it
-does.

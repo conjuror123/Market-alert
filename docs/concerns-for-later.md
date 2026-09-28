@@ -195,23 +195,17 @@ generalise to the next candidate with a change of endpoint.
 
 ## 8. Smaller things, found and left alone
 
-- **The report card judges overnight events by their first hour.** `tools/report_card.py`
-  counts an event on a below-median hour as a false alarm, and for a gap event it reads the
-  first hour's own move rather than the gap: 258 printed, about 96 without them. Acting on
-  it means judging a gap event by the gap.
 - **A hole inside a session makes a two-hour move.** When a bar is missing mid-session, the
   next bar's return spans both hours and is judged as one. Rare; acting on it means
   dividing by the elapsed time or leaving that bar unscored.
-- **Warm and cold differ by a hair for US funds.** Up to 0.28% on the running detector's
-  own-move score, through the hour scale's reach; no rung has ever changed because of it.
 - **One instrument's timeout turns the whole run red.** A single provider read timeout in
   backfill fails the job and sends the "Failed" email even though every other instrument
   ran.
 - **To watch on 2026-10-01:** the monthly payers go ex-dividend; check that Yahoo lists
   them by the 10:05 New York run, or their gaps stay unscored that day.
-- **The running detector's opening still fires about twice as often** as its other hours
-  after the opening-hour scale, from extreme outliers at the open. The jump detector's
-  time-of-day stage is where this is answered.
+- **A fund's opening hour fires about twice as often** as its other hours, from extreme
+  outliers at the open. The jump detector's time-of-day stage (5) is where this is
+  answered.
 
 ---
 

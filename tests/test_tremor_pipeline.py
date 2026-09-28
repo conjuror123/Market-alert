@@ -67,9 +67,10 @@ def _small_basket(tickers=("SPY", "GLD")):
 
 
 def test_extending_gives_the_same_answer_as_recomputing_everything(tmp_path):
-    # THE WHOLE CLAIM. Every window in the chain is bounded, so recomputing only
-    # windows.warm_bars of lead-in reproduces a full run. If this ever stops
-    # being true the hourly metrics quietly drift from the backtest's.
+    # THE WHOLE CLAIM. Nothing in the chain looks back further than a few
+    # sessions, so recomputing windows.warm_bars of lead-in reproduces a full
+    # run. If this ever stops being true the hourly metrics quietly drift from
+    # the backtest's.
     import numpy as np
     from tremor import pipeline as pl
 
@@ -88,8 +89,9 @@ def test_extending_gives_the_same_answer_as_recomputing_everything(tmp_path):
         b = pd.read_parquet(pl.metrics_path(str(part), asset.file_stem))
         assert a.shape == b.shape, asset.ticker
         assert a["hour_utc"].tolist() == b["hour_utc"].tolist(), asset.ticker
-        for column in ("r", "sigma_lt", "sigma_eff", "r_w", "mad_eff"):
+        for column in ("r", "gap"):
             x, y = a[column].to_numpy(float), b[column].to_numpy(float)
+            assert (np.isnan(x) == np.isnan(y)).all(), (asset.ticker, column)
             ok = np.isfinite(x) & np.isfinite(y)
             worst = np.abs(x[ok] - y[ok]) / np.maximum(np.abs(x[ok]), 1e-12)
             # float64 accumulation order, not a disagreement

@@ -17,7 +17,7 @@ Without the session filter those hours enter the EWMA state as genuine trading.
 """
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, time
 from zoneinfo import ZoneInfo
 
 import pandas as pd

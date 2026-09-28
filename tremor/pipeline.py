@@ -1,13 +1,12 @@
-"""Assembly of per-asset metrics: layer A + layer B.
+"""Per-asset metrics: what the jump detector reads.
 
-Runs one instrument through the whole phase 1-2 chain: quality gate -> return
-channels -> winsorization -> the long-run sigma and the short-memory EWMA state.
-The result goes into metrics_asset_hour.
+Runs one instrument through the quality gate and the return channels: the
+hour's move `r` and the overnight or weekend `gap` before a session's first bar
+(tremor.returns). tremor.jumps scores them.
 
-THE HOURLY RUN EXTENDS RATHER THAN RECOMPUTES. Every window here is bounded -
-the longest is the long-run sigma's span, with the EWMA state under it
-converging inside its burn-in - so windows.warm_bars of lead-in is enough for
-the new rows to come out exactly as a full run would have them.
+THE HOURLY RUN EXTENDS RATHER THAN RECOMPUTES. Nothing here looks further back
+than a few sessions, so windows.warm_bars of lead-in - far more than that - is
+enough for the new rows to come out exactly as a full run would have them.
 
 See extend_asset_metrics for when that is NOT safe and the whole thing is rebuilt
 instead - a changed configuration, a store that does not reach back far enough,
@@ -24,8 +23,7 @@ from datetime import date
 import numpy as np
 import pandas as pd
 
-from tremor import (atomic, bars, corporate_actions, quality, returns, sessions,
-                    windows, zscore)
+from tremor import atomic, bars, corporate_actions, quality, returns, sessions, windows
 from tremor.basket import Asset, Basket, load_basket
 
 log = logging.getLogger("tremor.pipeline")
@@ -47,10 +45,8 @@ def build_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
     if usable.empty:
         return usable
 
-    channels = returns.split_channels(asset, usable, basket.anchor_exchange_tz,
-                                      dividends, session_table)
-    winsorised = returns.winsorize(asset, channels)
-    scored = zscore.compute(winsorised)
+    scored = returns.split_channels(asset, usable, basket.anchor_exchange_tz,
+                                    dividends, session_table)
 
     scored["asset_id"] = asset.asset_id
     scored["block"] = asset.block
@@ -60,8 +56,7 @@ def build_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
 
 METRIC_COLUMNS = [
     "hour_utc", "asset_id", "block", "tier", "close", "volume",
-    "r", "r_w", "is_session_open", "gap",
-    "sigma_lt", "mad_eff", "sigma_eff",
+    "r", "is_session_open", "gap",
 ]
 
 
@@ -127,12 +122,10 @@ def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
     store, a store from a different configuration, or bars that do not reach the
     window. Every caller must handle it, because a wrong extension is silent.
 
-    WHY THIS IS EXACT rather than merely close. Every window in the chain is
-    bounded: the longest is the long-run sigma's span, and the EWMA state
-    underneath it converges inside its burn-in. windows.warm_bars covers both,
-    and it is the same function saed uses to decide how far back its own run
-    must reach. Recomputing the last warm_bars bars and keeping only what is
-    newer than the store therefore reproduces a full run.
+    WHY THIS IS EXACT rather than merely close. Nothing in the chain looks
+    further back than a few sessions, and windows.warm_bars is far longer.
+    Recomputing the last warm_bars bars and keeping only what is newer than the
+    store therefore reproduces a full run.
 
     THE LAST RECOMPUTE_TAIL_BARS ROWS ARE NEVER TRUSTED, only the ones behind
     them. The newest rows were written by runs that scored an hour before it had
@@ -244,17 +237,16 @@ def build_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
 # --- the same thing, across the machine's cores ------------------------------
 #
 # The instruments are independent: nothing in the metric chain for EUR/USD looks
-# at SPY. The cross-sectional work that does comes later, in cross_section, and
-# reads these files off disk. So the loop above is embarrassingly parallel, and
+# at SPY; tremor.jumps reads these files off disk afterwards. So the loop above is embarrassingly parallel, and
 # the only reason it was not was that it started life with twelve instruments
 # and a few seconds.
 #
 # Written as a pool over PROCESSES rather than threads because the work is
 # numpy and pandas holding the GIL for most of it. The workers return summaries
-# only, never frames: a scored frame is 145,000 rows by forty columns, and
+# only, never frames: a scored frame is up to 145,000 rows, and
 # pickling twenty-three of them back to the parent would cost more than the
 # computation saved. They write their own parquet, which the loop above already
-# did, and whoever needs the numbers reads them back with load_all.
+# did, and tremor.jumps reads them back.
 _POOL_STATE: dict = {}
 
 
@@ -361,15 +353,6 @@ def write_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
                      "" if was_extended else "  (rebuilt whole)")
     log.info("%d of %d instruments extended from the stored metrics", extended, written)
     return written
-
-
-def load_all(basket: Basket, metrics_dir: str = DEFAULT_METRICS_DIR) -> dict[str, pd.DataFrame]:
-    out = {}
-    for asset in basket.instruments:
-        path = metrics_path(metrics_dir, asset.file_stem)
-        if os.path.exists(path):
-            out[asset.asset_id] = pd.read_parquet(path)
-    return out
 
 
 def main(argv: list[str] | None = None) -> int:

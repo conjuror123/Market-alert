@@ -1290,7 +1290,7 @@ def main(argv: list[str] | None = None) -> int:
         send_ops_alert(text)
 
     # Nonzero so the hourly job goes red. The workflow still runs pipeline and
-    # saed after this process exits, so healthy instruments still get events.
+    # jumps after this process exits, so healthy instruments still get events.
     return 1 if failures else 0
 
 

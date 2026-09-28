@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tremor import bars, returns, windows
+from tremor import bars, returns
 from tremor.basket import Asset
 
 HOUR = 3600
@@ -113,93 +113,6 @@ def test_forex_week_is_one_session():
     assert list(out["is_session_open"]) == [True, False, True]
     assert out.iloc[2]["r"] == pytest.approx(math.log(1.09 / 1.08))
 
-
-def test_winsorization_clips_only_the_state_input():
-    # r_w goes into the EWMA update, r stays untouched: clipping the very thing
-    # we want to detect is pointless.
-    calm = [(i * HOUR, 100.0, 100.1, 99.9, 100.0 + (i % 2) * 0.01, 1.0, 2)
-            for i in range(1, 40)]
-    spike = [(40 * HOUR, 100.0, 130.0, 99.9, 130.0, 1.0, 2)]
-    out = returns.winsorize(asset(), returns.split_channels(
-        asset(ticker="BTC-USD", source="coinbase", block="crypto",
-              session_template="crypto_24_7", fetch_interval="1h"),
-        frame(calm + spike)))
-
-    last = out.iloc[-1]
-    assert last["r"] > last["r_w"]           # the raw return exceeds the clipped one
-    assert last["r_w"] == pytest.approx(5 * last["mad_eff"])
-
-
-def test_winsorization_floor_saves_a_stuck_quote():
-    # The quote stands still: MAD_24 is zero, and without the floor any move at
-    # all would come out "larger than five MADs".
-    flat = [(i * HOUR, 100.0, 100.0, 100.0, 100.0, 1.0, 2) for i in range(1, 40)]
-    move = [(40 * HOUR, 100.0, 100.2, 100.0, 100.2, 1.0, 2)]
-    crypto = asset(ticker="BTC-USD", source="coinbase", block="crypto",
-                   session_template="crypto_24_7", fetch_interval="1h")
-    out = returns.winsorize(crypto, returns.split_channels(crypto, frame(flat + move)))
-
-    assert out.iloc[-1]["mad_eff"] > 0
-    assert np.isfinite(out.iloc[-1]["r_w"])
-
-
-def test_winsorization_leaves_returns_alone_before_the_window_fills():
-    short = frame([(i * HOUR, 100.0, 101.0, 99.0, 100.0 + i, 1.0, 2) for i in range(1, 5)])
-    crypto = asset(ticker="BTC-USD", source="coinbase", block="crypto",
-                   session_template="crypto_24_7", fetch_interval="1h")
-    out = returns.winsorize(crypto, returns.split_channels(crypto, short))
-
-    filled = out["r"].notna()
-    assert (out.loc[filled, "r_w"] == out.loc[filled, "r"]).all()
-
-
-def test_empty_input_keeps_the_columns():
-    out = returns.winsorize(asset(), returns.split_channels(asset(), bars.empty_frame()))
-    assert out.empty
-    assert "r_w" in out.columns
-
-
-def test_the_vectorised_mad_matches_a_per_window_median_exactly():
-    # _rolling_mad was 54% of the whole pipeline: 1.7 million callbacks, one per
-    # bar per instrument, over a twenty-four-bar window where the call overhead
-    # dwarfs the arithmetic. Vectorising it has to be exact, not close - the
-    # levels the ladder fits are downstream of this - so it is checked against
-    # the per-window form it replaced, NaNs and short series included.
-    def per_window(series, window):
-        def mad(values):
-            median = np.median(values)
-            return float(np.median(np.abs(values - median)))
-        return series.shift(1).rolling(window).apply(mad, raw=True)
-
-    rng = np.random.default_rng(0)
-    for n, holes in ((5000, 0), (5000, 200), (50, 0), (24, 0), (20, 0)):
-        values = rng.normal(size=n)
-        if holes:
-            values[rng.choice(n, holes, replace=False)] = np.nan
-        series = pd.Series(values)
-        expected = per_window(series, windows.MAD_WINDOW)
-        actual = returns._rolling_mad(series, windows.MAD_WINDOW)
-        # NaN in the same places, and bit-identical where both are finite.
-        assert expected.isna().equals(actual.isna())
-        assert np.array_equal(expected.dropna().to_numpy(), actual.dropna().to_numpy())
-
-
-def test_the_vectorised_mad_spans_more_than_one_chunk():
-    # The |x - median| step materialises, so it runs in chunks; the seam between
-    # two chunks must not drop or duplicate a window.
-    rng = np.random.default_rng(1)
-    series = pd.Series(rng.normal(size=3000))
-    whole = returns._rolling_mad(series, windows.MAD_WINDOW)
-    original = returns._MAD_CHUNK
-    try:
-        returns._MAD_CHUNK = 500
-        chunked = returns._rolling_mad(series, windows.MAD_WINDOW)
-    finally:
-        returns._MAD_CHUNK = original
-    assert whole.equals(chunked)
-
-
-# --- the overnight gap, kept beside r ----------------------------------------
 
 from tremor.corporate_actions import Dividends
 from tremor.sessions import Session

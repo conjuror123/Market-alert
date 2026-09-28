@@ -1,8 +1,8 @@
 """Delivers Tremor events to Telegram: the pushes, and the running digest.
 
-The detector decides everything about WHAT to say - severity as a return period,
-which channel an event belongs to, which note it falls in (see tremor.severity
-and tremor.routing). This module decides nothing. It reads those decisions,
+The detector decides everything about WHAT to say - the word, which channel an
+event belongs to, which note it falls in (see tremor.jumps and tremor.routing).
+This module decides nothing. It reads those decisions,
 renders them, and keeps the messages up to date.
 
 TWO KINDS OF MESSAGE, and the difference is how loudly they arrive rather than
@@ -14,13 +14,10 @@ something that has already happened and will not change. Telegram notifies on a
 new message and stays silent on an edit, so the note itself costs one
 interruption a week, when it opens; each row adds a small ping of its own.
 
-EVERY MESSAGE IS CORRECTED IN PLACE. Neither kind waits for the market to
-answer, so both say what they are waiting for: a push carries both check-ins -
-this day's close and the next day's - with the moment each is due, a digest row
-carries the settled one. When an answer lands the message is edited (see
-follow_up.py for pushes, _write_digest here for notes). A move that fully
-reverted is therefore reported rather than hidden: by the time that is known it
-is already on the reader's phone, and unsending is not a thing Telegram can do.
+EVERY MESSAGE IS CORRECTED IN PLACE. A row's numbers can move after it is
+sent - the hour is scored a few minutes in and the bar heals on the next fetch -
+so a push is re-rendered and edited when its text changes (follow_up.py), and a
+note is rendered whole every run (_write_digest here).
 
 NOTHING IS REMEMBERED ABOUT A NOTE EXCEPT ITS MESSAGE IDS. It is rendered whole
 from the events table every run and edited only when the text actually changed,
@@ -65,7 +62,6 @@ import logging
 import os
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
-from math import ceil
 
 import pandas as pd
 
@@ -108,14 +104,10 @@ PINGS = "pings"
 # kind of thing the line is - something the market did, or something that was on
 # the schedule - without the reader having to read the words first.
 #
-# Ordered like the ladder itself, so a digest sorted by tier is also sorted by
+# Ordered like the words themselves, so a note sorted by word is also sorted by
 # colour, and a long note can be skimmed down its left edge.
 TIER_EMOJI = {"noticeable": "⬜", "high": "🟨", "major": "🟧", "extreme": "🟥"}
 
-# A block is the same four rarities seen at a different level of the market, so
-# it keeps the rarity colour and gains a black square in front of it: the tier
-# still reads at a glance and a block is never mistaken for an instrument.
-BLOCK_MARK = "\u2b1b"
 
 # Marks the timestamp footer. The hour is the last thing on the line rather
 # than the first because it is what a reader checks last - everything above it
@@ -128,77 +120,11 @@ def format_day(when: datetime) -> str:
     return when.strftime("%d.%m.%Y")
 
 
-# SAID AS A RECORD, AS ELAPSED DAYS. "Biggest move since 17 days ago" is a
-# fact about the instrument's own history: the reader can check it, it needs no
-# calibration intuition, and it tells them something the rung alone does not -
-# how long it has been since this instrument last moved this far.
-#
-# NOT A FREQUENCY. A rung is literally the largest move in its own lookback (see
-# tremor.severity), so the span printed here IS the bar the level was measured
-# against. A rate would also contradict the line beneath it: "about once in six
-# years" sitting over "the last one this big was 23 days ago" asks the reader to
-# believe both.
-def _days_ago(event: dict) -> "int | None":
-    """How many calendar days sit between this hour and the last matching bar."""
-    since = event.get("record_since")
-    hour = event.get("hour_utc")
-    if since is None or (isinstance(since, float) and not since == since) \
-            or pd.isna(since):
-        return None
-    if hour is None or (isinstance(hour, float) and not hour == hour) \
-            or pd.isna(hour):
-        return None
-    return max(1, int(round((float(hour) - float(since)) / 86400)))
-
-
-def record_phrase(event: dict) -> str:
-    """When this instrument last did something this big, as a person says it.
-
-    Elapsed days from this event's hour, not a calendar date: "since 17 days
-    ago" is the same shape on every line, and the reader does not have to
-    subtract a stamp from today first.
-    """
-    days = _days_ago(event)
-    if days is None:
-        # Nothing in the archive matched it. On a full run that means exactly
-        # what it says; on a warm one the archive was trimmed to the record
-        # horizon, so the honest claim is the horizon rather than "ever" - the
-        # slice cannot speak for what sits below it.
-        from tremor.severity import RECORD_HORIZON_DAYS
-
-        years = int(round(RECORD_HORIZON_DAYS / 365.25))
-        return f"in at least {years} years"
-    # Spoken as "day ago" for every span, matching the rest of the copy
-    # ("17 day ago", "1 day ago") rather than switching plural mid-sentence.
-    return f"since {days} day ago"
-
-# WHICH LADDER the tier was measured against, said in the noun rather than in a
-# parenthesis. Two ladders exist and they answer different questions: the
-# absolute one ranks the raw return, the abnormal one ranks what is left after
-# the market is taken out (see tremor.residuals). "Biggest move in about a year"
-# would be false for the second - the instrument may well have had larger hours
-# the market accounted for perfectly - so the second says "biggest move OF ITS
-# OWN in about a year", which needs no glossary.
-#
-# The idea is shown rather than named, one line down, in the units the reader is
-# already reading: see _market_share_note.
-BASIS_NOUN = {
-    "abnormal": "the biggest move of its own",
-    "absolute": "the biggest move",
-    "both": "the biggest move",
-    # A block. "Of its own" would be meaningless - there is nothing above a block
-    # to explain its move with - and a bare "the biggest move" would read as a
-    # claim about one price when it is a claim about a whole complex.
-    "block": "the whole block moved together, the biggest",
-}
-
-
 def _overnight(event: dict) -> bool:
     """Whether the overnight gap claimed this event rather than an hour's move.
 
     Then `r` is the gap - last close to first print - and `sigma_lt` the
-    instrument's usual gap, and every sentence that says "hour" would be false.
-    See tremor.gaps.
+    half-year σ of that kind of gap (tremor.jumps).
     """
     flag = event.get("overnight")
     try:
@@ -217,9 +143,9 @@ def _weekly(event: dict) -> bool:
 def _gap_kind(event: dict) -> str:
     """What kind of close came before a gap: "night" or "weekend".
 
-    Carried on the row by tremor.gaps, because the usual gap quoted beside it is
-    the usual gap of THAT kind - a Monday is judged against other Mondays. A row
-    written before the kind was carried falls back to what it must have been.
+    Carried on the row by tremor.jumps, because a gap is judged against the
+    earlier gaps of THAT kind - a weekend against weekends. A row without it
+    falls back to what it must have been.
     """
     kind = event.get("gap_kind")
     if isinstance(kind, str) and kind:
@@ -237,241 +163,22 @@ def _open_words(event: dict) -> "tuple[str, str]":
     return "at the open", "overnight gap"
 
 
-def _headline(event: dict, tier: str, basis: str) -> str:
-    record = record_phrase(event)
-    if _overnight(event):
-        # "Opening", not the kind, for a fund: the record is the last gap of ANY
-        # kind this unusual for its own kind, so "the biggest weekend gap since"
-        # would name a date that may have been a Tuesday.
-        kind = "weekend gap" if _weekly(event) else "opening gap"
-        if basis == "block":
-            return f"the whole block opened together, the biggest {kind} {record}"
-        own = " of its own" if basis == "abnormal" else ""
-        return f"the biggest {kind}{own} {record}"
-    if basis == "block":
-        return f"the whole block moved together, the biggest {record}"
-    return f"{BASIS_NOUN.get(basis, 'the biggest move')} {record}"
-
-
-# What each block is called in a sentence. The internal names are lower case and
-# two of them are abbreviations.
-# Reader-facing names for the blocks. The configuration's own names are keys in
-# a taxonomy; these are what a person would call the thing.
-BLOCK_LABEL = {
-    "equity": "US and global equities",
-    "rates": "US Treasuries",
-    "credit": "corporate and sovereign credit",
-    "energy": "energy",
-    "precious_metals": "precious metals",
-    "industrial_metals": "industrial metals",
-    "agriculture": "agriculture",
-    # "Currencies" invited a reading the number does not support. The block's
-    # members are sign-oriented before the median is taken, so the thing they
-    # have in common IS the dollar, and naming the group after its members made
-    # a line like "-0.02%, its own block moving, currencies - EUR/USD, USD/JPY,
-    # AUD/USD..." look like a claim that all of those moved -0.02% at once, or
-    # that the dollar did. It is neither: it is THIS pair's own move, the part
-    # of it the common dollar move accounts for, in this pair's own direction.
-    "FX": "the dollar block",
-    "crypto": "crypto",
-}
-
-
 @lru_cache(maxsize=1)
-def _basket() -> "tuple[dict, dict]":
-    """(asset_id -> ticker, block -> [asset_ids]), from the basket definition.
-
-    Read once per process and used to say WHICH instruments a line is talking
-    about. "The whole watchlist" and "its own block" are both answers a reader
-    cannot check; the tickers are.
-    """
+def _tickers() -> dict:
+    """asset_id -> ticker, from the basket definition, read once per process."""
     try:
         from tremor.basket import load_basket
 
-        basket = load_basket()
-        tickers = {a.asset_id: a.ticker for a in basket.instruments}
-        blocks: dict = {}
-        for a in basket.instruments:
-            blocks.setdefault(a.block, []).append(a.asset_id)
-        return tickers, blocks
+        return {a.asset_id: a.ticker for a in load_basket().instruments}
     except Exception as exc:                     # pragma: no cover - defensive
         log.warning("Could not read the basket composition: %s", exc)
-        return {}, {}
+        return {}
 
 
 def _ticker(asset_id: str) -> str:
-    tickers, _ = _basket()
-    return tickers.get(asset_id) or str(asset_id).split(":")[-1]
+    return _tickers().get(asset_id) or str(asset_id).split(":")[-1]
 
 
-def _block_peers(event: dict) -> str:
-    """The OTHER members of this instrument's block, by ticker.
-
-    The others rather than all of them, because the block factor is a
-    leave-one-out median (see tremor.cross_section): the instrument is measured
-    against its neighbours, never against itself, and naming it in its own peer
-    group would misdescribe the number on the line.
-    """
-    _, blocks = _basket()
-    members = blocks.get(str(event.get("block") or ""), [])
-    mine = str(event.get("asset_id") or "")
-    peers = [_ticker(a) for a in members if a != mine]
-    return ", ".join(peers)
-
-
-@lru_cache(maxsize=1)
-def basket_footer() -> str:
-    """Every instrument tracked, named, grouped, once at the foot of a message.
-
-    A reader told "its own block moved" is entitled to know which instruments
-    that block holds, and the honest form of that is a list rather than a
-    category. Built from the configuration, so it cannot drift from what the
-    pipeline actually watches, and grouped in the configuration's own order so
-    the block named on a move's own line is findable here.
-    """
-    tickers, blocks = _basket()
-    if not blocks:
-        return ""
-    try:
-        from tremor.basket import load_basket
-
-        outside = {a.asset_id for a in load_basket().instruments if not a.in_basket}
-    except Exception:                            # pragma: no cover - defensive
-        outside = set()
-
-    lines = [f"<i>The {len(tickers)} instruments tracked, by block "
-             f"(* watched, but not counted in its block's own move):</i>"]
-    for block, members in blocks.items():
-        if not members:
-            continue
-        named = ", ".join(_ticker(a) + ("*" if a in outside else "") for a in members)
-        lines.append(f"     <i>{BLOCK_LABEL.get(block, block)}: {_escape(named)}</i>")
-    return "\n".join(lines)
-
-
-def _split_lines(event: dict, label: str, tier: str = "",
-                 basis: str = "") -> "list[str]":
-    """The move broken into the two things it can be, adding back to the move.
-
-    THE WORD "MARKET" IS DELIBERATELY ABSENT. Every attempt to name this idea
-    failed on the same objection, and the objection was right: for the S&P 500,
-    "the market" IS the S&P 500, so "following the market would have given
-    +6.01%" invites "which market, and how would I have followed it?".
-
-    So the parts are named by what they actually are. Each instrument is
-    regressed on ONE thing it moves with - the median of its own block, taken
-    across its peers with the instrument itself left out - over the five hundred
-    bars before this one, stopping three bars short so the move being tested
-    cannot adjust its own coefficients. The fitted part and the leftover are both
-    carried on the event, and they sum to the return exactly.
-
-    TWO PARTS, WHERE THERE USED TO BE THREE. The third was a weighted median of
-    the whole basket, and it was deleted because it did not say anything: the
-    basket spanned every asset class at once, so a median across it cancelled
-    whenever stocks and bonds moved oppositely - which is most of the time, and
-    is exactly what a broad risk-off hour looks like. On the events where it was
-    largest it was usually just a proxy for the block anyway. What replaced it is
-    not "nothing" but narrower, more honest blocks: eleven sectors where there
-    was one equity bucket, credit separated from Treasuries, and four commodity
-    blocks, because gold and crude cannot share one median.
-    """
-    if _is_jump(event):
-        return []
-    move = _clean(event.get("r"))
-    own = _clean(event.get("e_resid"))
-    rarity = record_phrase(event) if tier else ""
-
-    # WHERE THE RARITY IS SAID depends on which channel claimed the hour, and
-    # getting it wrong makes the message a false statement rather than an ugly
-    # one. The abnormal ladder ranks what is LEFT after the block is taken out,
-    # so its return period belongs on the "on its own" line and nowhere else -
-    # said of the whole move it would claim the instrument had not moved this
-    # far in years when the block may have carried it there last week. The
-    # absolute ladder ranks the move itself, so there it belongs to the move.
-    whole_move = basis == "absolute" or not basis
-    if move is None or own is None:
-        # No split to hang it on, so the rarity is said as a sentence - and by
-        # the same function the headline uses, because "a move this big" and "a
-        # move of its own this big" are different claims and only one of them
-        # is true of a given channel.
-        return [_headline(event, tier, basis)] if tier else []
-
-    block = _clean(event.get("co_block"))
-    if block is None:
-        # Before the split was carried, only the total was. Falling back to the
-        # difference keeps an older row renderable rather than silent.
-        block = move - own
-
-    named = BLOCK_LABEL.get(str(event.get("block")), str(event.get("block") or "its block"))
-    peers = _block_peers(event)
-    lines = []
-    if whole_move and tier:
-        lines.append(_headline(event, tier, basis))
-    line = (f"\t{block * 100:+.2f}%  block opening, [{_escape(named)}]"
-            if _overnight(event) else
-            f"\t{block * 100:+.2f}%  block moving, [{_escape(named)}]")
-    if peers:
-        line += f" - {_escape(peers)}"
-    lines.append(line)
-    noun = "gap" if _overnight(event) else "move"
-    if rarity and not whole_move:
-        own_line = f"\t{own * 100:+.2f}% biggest {noun} on its own {rarity}"
-    else:
-        own_line = f"\t{own * 100:+.2f}%  {noun} on its own"
-    lines.append(own_line)
-    return lines
-
-
-def _retention_note(value: float) -> str:
-    """How the move stood once settled, in words rather than a bare ratio.
-
-    Used on a DIGEST line, where every horizon has long since elapsed and one
-    settled sentence is the whole answer - a push carries the three-line
-    follow-up instead, because for a push the answer is still arriving.
-
-    "By the next day's close" rather than "a day later": the settled reading is
-    taken at the close of the next day the instrument TRADES, which in something
-    that trades six and a half hours is not the same thing as twenty-four hours
-    later. And "the next day's" rather than "the next", because a move at eleven
-    in the morning has a close of its own a few hours later and that is not the
-    one being measured.
-
-    A ratio above one means the move CONTINUED, and rendering that as a
-    percentage still standing produces sentences like "360% of it still
-    standing", which reads as an error rather than as the strongest thing the
-    system can say about an event.
-
-    A ratio BELOW ZERO means the price went past where it started - a +5% hour
-    that gave the 5% back and then fell 5% further reads -1.0 - and that is a
-    different and louder fact than "fully reversed", which only says the move
-    is gone. It is not a corner: a fifth of settled readings are negative and
-    a fourteenth of them overshoot by more than the move itself. So the two
-    sides are told the same way, in the move's own units, and only the flat
-    band around zero - where the price really did come back to where it began -
-    is called a full reversal.
-    """
-    if value > 1.15:
-        return (f"and it kept going - {value:.1f}x the original move "
-                f"by the next day's close")
-    if value >= 0.85:
-        return "still there at the next day's close"
-    if value >= 0.05:
-        return f"{value * 100:.0f}% of it still there at the next day's close"
-    if value > -0.05:
-        return "fully reversed before the next day's close"
-    if value > -1.15:
-        return (f"reversed past where it started - {-value * 100:.0f}% of the move "
-                f"the other way by the next day's close")
-    return (f"reversed past where it started - {-value:.1f}x the move "
-            f"the other way by the next day's close")
-
-
-
-
-# How long the whole message may run before Telegram rejects it. A push is one
-# instrument's story now that nothing is folded into it, so this is headroom
-# rather than a budget anything is trimmed against.
-_PUSH_LIMIT = 3600
 
 
 def _escape(text: str) -> str:
@@ -521,7 +228,7 @@ def load_events(cfg: Config) -> "list[dict]":
     """Every routed event as a plain dict.
 
     Returns an empty list rather than raising when the parquet file is absent.
-    It is produced by python -m tremor.saed, and the hourly monitoring run must
+    It is produced by python -m tremor.jumps, and the hourly monitoring run must
     not fall over because a pipeline step has not been run yet.
     """
     paths = [cfg.tremor_events_path]
@@ -549,58 +256,12 @@ def load_events(cfg: Config) -> "list[dict]":
     return rows
 
 
-def _is_jump(event: dict) -> bool:
-    """An event from the jump detector (tremor.jumps), which is being built in
-    stages. Until the "biggest since" date and the held check exist as stages of
-    their own, its message claims neither: no record, no check-in lines, no
-    split of the move - only what the detector has actually measured."""
-    return str(event.get("basis") or "") == "jump"
-
-
-def _is_block(event: dict) -> bool:
-    """Whether this row is a block rather than an instrument (see tremor.blocks)."""
-    from tremor.blocks import is_block
-
-    return is_block(str(event.get("asset_id") or ""))
-
-
 def _clean(value) -> "float | None":
     try:
         number = float(value)
     except (TypeError, ValueError):
         return None
     return None if number != number else number   # NaN check without numpy
-
-
-def _scale_note(event: dict) -> str:
-    """What the move was big COMPARED WITH, in the instrument's own units.
-
-    "+0.13%, biggest move in about three years" reads as a bug, and 45% of
-    pushes carry a number under 1%. It is not a bug - SHY's usual hour is
-    0.013%, so that is ten times normal - but nothing in the message said so,
-    and a reader has no way to know that a tenth of a percent in short
-    Treasuries is an enormous hour while the same number in SOL is nothing.
-
-    The yardstick is sigma_LT, the instrument's own rolling standard deviation
-    over the previous five thousand bars, so it is causal like everything else
-    and was already being computed. Only the ratio is shown. The raw sigma used
-    to sit beside it as a receipt - "3.0x its usual hour, which is 0.24%" - and
-    it made the line twice as long for a number no reader was checking, in a
-    message deliberately being cut short so that fewer notes need splitting.
-    """
-    size = _ratio_short(event)
-    if not size:
-        return ""
-    if _is_jump(event):
-        # A jump says its size on the first line instead (_sigma_multiple), and
-        # its word is the colour of the square.
-        return ""
-    # For a block the yardstick is the median member's usual hour rather than any
-    # one instrument's, and saying "its" would invite the reader to look for an
-    # instrument that does not exist.
-    unit = f"usual {_open_words(event)[1]}" if _overnight(event) else "usual hour"
-    whose = f"a typical member's {unit}" if _is_block(event) else unit
-    return f"{size} {whose}"
 
 
 def _sigma_multiple(event: dict) -> str:
@@ -614,240 +275,38 @@ def _sigma_multiple(event: dict) -> str:
     return f" · {abs(move) / usual:.1f}×σ"
 
 
-def _ratio_short(event: dict) -> str:
-    """Just '2.0x' / '10x'. Decimal below ten, because '3x' for 2.7 flatters it."""
-    move = _clean(event.get("r"))
-    usual = _clean(event.get("sigma_lt"))
-    if move is None or usual is None or usual <= 0:
-        return ""
-    ratio = abs(move) / usual
-    return f"{ratio:.0f}x" if ratio >= 10 else f"{ratio:.1f}x"
+def describe(event: dict, labels: dict[str, str]) -> str:
+    """One instrument's move, as it appears in a push or a note row.
 
+    THE SAME ACCOUNT EVERYWHERE. A push and a row in the weekly note are the
+    same kind of thing seen at different volumes: what moved, how far, and how
+    big that is against the instrument's own half-year (tremor.jumps). The
+    colour of the square is the word - noticeable, high, major, extreme - so
+    the word is not written out.
 
-def check_in_lines(event: dict, now: datetime | None = None,
-                   horizons=None) -> "list[str]":
-    """How the move held, one line per check-in, on every block that has a move.
-
-    Both horizons are listed from the first message onward, so the reader can
-    see what is still coming rather than wondering whether the bot forgot. One
-    whose answer has not arrived yet says when it is due; the message is edited
-    in place as each lands (see follow_up.py). The exception is a move made in
-    its instrument's closing hour, which has no day left to hold through: that
-    line is not written at all.
-
-    Carried by EVERY instrument in a message now, not only the one in the
-    headline. A push speaks for a whole day's episode and each instrument in it
-    held or gave back its move on its own terms - the financial sector kept
-    going to 1.9x while short Treasuries gave two thirds back, and one shared
-    verdict at the bottom of the message could say neither.
-
-    Reading the ABNORMAL series or the RAW one is not a detail: an event found
-    because the market did not account for the move is tested on whether THAT
-    survived, and one found because the move was simply large is tested on the
-    price itself. persistence.held makes the same choice for the same reason.
-    """
-    raw_basis = str(event.get("basis") or "") == "absolute"
-    lines = []
-    for h in horizons or FOLLOW_UP_HORIZONS:
-        # 6% of moves are made in the last hour their instrument trades that
-        # day. There is nothing left of the day to hold through, so the ratio is
-        # one by construction - the line is about the calendar rather than about
-        # the move, and it is left out entirely. Saying it in words
-        # ("the move was in the closing hour") was no better: a reader who did
-        # not ask about this day's close does not need to be told why it has no
-        # answer. The settled check-in still lands, and carries the whole story.
-        if h == "today" and _closed_the_day(event):
-            continue
-        key = f"retention_raw_{h}" if raw_basis else f"retention_{h}"
-        value = _clean(event.get(key))
-        label = _HORIZON_LABEL.get(h, str(h))
-        answer = _retention_word(value) if value is not None else _due_in(event, h, now)
-        lines.append(f"\t{label} - {answer}")
-    return lines
-
-
-def _closed_the_day(event: dict) -> bool:
-    """Whether the move was made in the last hour its instrument traded that day."""
-    due = due_moment(event, "today")
-    return due is not None and due == int(event["hour_utc"]) + 3600
-
-
-def _as_rare_as(row_tier: str, floor_tier: str) -> bool:
-    """True when row_tier is floor_tier or rarer (extreme is rarest)."""
-    from tremor.severity import TIERS
-
-    order = {name: i for i, name in enumerate(TIERS)}
-    return order.get(str(row_tier), -1) >= order.get(str(floor_tier), 999)
-
-
-def load_rate_history(path: str | None = None) -> list[dict]:
-    """Unique-day rates read this file, never the trimmed hourly events table."""
-    from tremor.saed import DEFAULT_ARCHIVE_PATH, load_events_archive
-
-    return load_events_archive(path or DEFAULT_ARCHIVE_PATH)
-
-
-# Seconds in a year, and the two helpers the rate line needs. They lived in
-# price_monitor/floor.py, which existed to serve the /floor command; the command
-# is gone and these are the only part of it anything still used.
-YEAR = 365.25 * 86400
-
-
-def _day_tz_for(asset_id: str, basket) -> "str | None":
-    """The timezone whose calendar day this asset's events are counted in.
-
-    A block answers for its members only when they all share one session
-    template; otherwise None, and the count falls back to UTC days rather than
-    pretending a mixed block has one clock.
-    """
-    from tremor import blocks, sessions
-
-    if blocks.is_block(asset_id):
-        name = blocks.block_name(asset_id)
-        templates = {a.session_template for a in basket.assets if a.block == name}
-        return sessions.day_tz(templates.pop()) if len(templates) == 1 else None
-    for asset in basket.instruments:
-        if asset.asset_id == asset_id:
-            return sessions.day_tz(asset.session_template)
-    return None
-
-
-def _event_days(hours, tz_name: "str | None") -> int:
-    """Unique trading days among these hours - not raw hours.
-
-    Two events in one session are one day the instrument spoke, which is what
-    the rate line claims.
-    """
-    import pandas as pd
-
-    ts = pd.to_datetime(list(hours), unit="s", utc=True)
-    if tz_name:
-        ts = ts.tz_convert(tz_name)
-    return int(ts.normalize().nunique())
-
-
-def tier_rate_line(event: dict, history: "list[dict] | None") -> str:
-    """How often this asset has opened at this tier or rarer, from the archive.
-
-    Unique trading days over the stored span of this asset_id — first hour to
-    last hour of EVERY row for it in `history`, not the gap between hits of
-    this one tier, and not the six-year warm window. noticeable includes
-    high/major/extreme; extreme is itself. No size-floor filter, no Gaussian.
-    """
-    asset_id = str(event.get("asset_id") or "")
-    tier = str(event.get("tier") or "")
-    if not asset_id or not tier:
-        return ""
-    rows = list(history or [])
-    rows.append(event)
-
-    mine, keep = [], []
-    for row in rows:
-        if str(row.get("asset_id") or "") != asset_id:
-            continue
-        hour = row.get("hour_utc")
-        try:
-            hour = int(hour)
-        except (TypeError, ValueError):
-            continue
-        mine.append(hour)
-        if _as_rare_as(str(row.get("tier") or ""), tier):
-            keep.append(hour)
-    if not keep or not mine:
-        return ""
-    span = max(mine) - min(mine)
-    if span <= 0:
-        return ""
-
-    from tremor.basket import load_basket
-
-    years = span / YEAR
-    n = _event_days(keep, _day_tz_for(asset_id, load_basket()))
-    if n == 0:
-        return ""
-    per_year = n / years
-    often = (f"{per_year:.1f} times a year" if per_year >= 1
-             else f"once in {1 / per_year:.1f} years")
-    noun = "event" if n == 1 else "events"
-    who = _escape(_ticker(asset_id))
-    return (f"{who} {tier} or rarer ≈ {often} "
-            f"({n} {noun} over {years:.1f} years)")
-
-
-def describe(event: dict, labels: dict[str, str],
-             now: datetime | None = None,
-             events: "list[dict] | None" = None,
-             rate_history: "list[dict] | None" = None) -> str:
-    """One instrument's whole story, as it appears in a push or a digest row.
-
-    THE SAME BLOCK EVERYWHERE. A pushed move, an instrument folded into that
-    push, and a row in the running note are the same kind of thing seen at
-    different volumes, and they all deserve the same account: what moved, how
-    far, how that compares with its ordinary hour, when it was last this rare,
-    what the move was made of, and how it held at each of the two closes.
-
-    Written the hour the move is found, long before the answers exist, so the
-    check-in lines say when each is due and the message is edited when they
-    land.
+    Only what the detector measures is said. The "biggest since" date, how the
+    move held at the next close and the block's share of it come back as the
+    stages that measure them do.
     """
     tier = str(event.get("tier") or "noticeable")
     emoji = TIER_EMOJI.get(tier, "⚪")
     when = datetime.fromtimestamp(int(event["hour_utc"]), tz=timezone.utc)
-
-    basis = str(event.get("basis") or "")
-    headline = _headline(event, tier, basis)
-    if _is_block(event):
-        return _describe_block(event, headline, emoji, when, now, events,
-                               rate_history)
 
     asset_id = str(event.get("asset_id", ""))
     label = labels.get(asset_id) or asset_id.split(":")[-1]
     move = _clean(event.get("r"))
     # The ticker leads: it is what the reader types into a chart and the only
     # name that is the same everywhere. The move shares that line, because it is
-    # the first thing anyone wants.
+    # the first thing anyone wants, and its size in σ ends it.
     shown = f" {move * 100:+.2f}%" if move is not None else ""
     if shown and _overnight(event):
         # The gap is a price move from the last close to the first print, and
         # it is said as one - never as the hour it was scored alongside.
         shown += f" {_open_words(event)[0]}"
-    if _is_jump(event):
-        shown += _sigma_multiple(event)
-    parts = [f"{emoji} <b>{_escape(_ticker(asset_id))}</b> · "
-             f"{_escape(label)}{shown}"]
-
-    context = _scale_note(event)
-    if context:
-        parts.append(context)
-
-    parts.extend(_split_lines(event, label, tier, basis))
-    if not _is_jump(event):
-        parts.extend(check_in_lines(event, now))
-        rate = tier_rate_line(
-            event, rate_history if rate_history is not None else events)
-        if rate:
-            parts.append(rate)
-    parts.append(f"{TIME_EMOJI}<b>{format_day(when)} {when:%H:%M} UTC</b>")
-    return "\n".join(parts)
-
-
-def _block_move_phrase(block: str, move: "float | None") -> str:
-    """How far the block moved, said so that it agrees with the tickers below it.
-
-    The currency block is the one that needs saying carefully. Its members are
-    sign-oriented before the median is taken - three pairs quote the dollar as
-    base and the rest as quote, so an unoriented median of a dollar rally is
-    close to nothing - and the oriented figure is therefore a statement about the
-    DOLLAR, while the movers listed under it are quoted the way a chart quotes
-    them. Printing "+0.88%" above "EUR/USD -1.05%" reads as a contradiction and
-    is not one, so the dollar is named and the sign goes into the verb.
-    """
-    if move is None:
-        return ""
-    if block == "FX":
-        verb = "gained" if move > 0 else "lost"
-        return f"the dollar {verb} {abs(move) * 100:.2f}% against the typical pair "
-    return f"the typical member moved {move * 100:+.2f}% "
+    shown += _sigma_multiple(event)
+    return "\n".join([f"{emoji} <b>{_escape(_ticker(asset_id))}</b> · "
+                      f"{_escape(label)}{shown}",
+                      f"{TIME_EMOJI}<b>{format_day(when)} {when:%H:%M} UTC</b>"])
 
 
 # --- the regime the move happened in ----------------------------------------
@@ -876,10 +335,6 @@ def _block_move_phrase(block: str, move: "float | None") -> str:
 # three calendar days behind across a weekend.
 VIX_PATH = os.path.join("data", "tremor", "vix", "fred_VIXCLS.parquet")
 
-# Below this the two readings are called unchanged rather than given a
-# direction. A tenth is about the daily noise of the index, and "up from 15.9"
-# on a reading of 16.1 is a direction that is not there.
-VIX_FLAT = 0.10
 
 
 @lru_cache(maxsize=1)
@@ -989,64 +444,6 @@ def _vix_since(known: "pd.DataFrame") -> int:
     return datetime.fromtimestamp(int(known["day"].iloc[0]), tz=timezone.utc).year
 
 
-def _describe_block(event: dict, headline: str, emoji: str, when: datetime,
-                    now: "datetime | None", events: "list[dict] | None",
-                    rate_history: "list[dict] | None" = None) -> str:
-    """A block's own move. Same shape as an instrument standalone: lead, size,
-    rarity, check-ins, date. The same body serves a block's push and a block's
-    note row - `major` and `extreme` interrupt, `high` goes into the note - so
-    this is the whole message either way. The digest PING beside it is separate
-    and short (see _digest_ping).
-
-    A block has no ticker to chart and no split into "its block and itself" -
-    it IS the block. The lead is still rarity, name and percent, the same three
-    facts an instrument lead carries. FX names the dollar instead of a signed
-    percent, because the figure is oriented and the members under it are not.
-    """
-    block = str(event.get("block") or "")
-    named = BLOCK_LABEL.get(block, block or "a block")
-    move = _clean(event.get("r"))
-    title = _escape(named[:1].upper() + named[1:])
-    if move is None:
-        shown = ""
-    elif block == "FX":
-        shown = f" · {_block_move_phrase(block, move).strip()}"
-    else:
-        shown = f" · {move * 100:+.2f}%"
-    if shown and _overnight(event):
-        shown += f" {_open_words(event)[0]}"
-    # BLACK IN FRONT OF THE RARITY, not instead of it. A block is the same four
-    # rarities read at a different level of the market, so dropping the colour
-    # to mark it would trade the thing every line is sorted and skimmed by for
-    # the thing one line in twenty needs.
-    parts = [f"{BLOCK_MARK}{emoji} <b>{title}</b>{shown}"]
-
-    context = _scale_note(event)
-    if context:
-        parts.append(context)
-    # Not str.capitalize(), which lowercases everything after the first letter
-    # and turned "since November 2021" into "since november 2021".
-    parts.append(headline[:1].upper() + headline[1:])
-
-    leaders = str(event.get("leaders") or "")
-    if leaders:
-        count = _clean(event.get("n_members"))
-        if _overnight(event):
-            of = f" (of {int(count)} that opened)" if count else ""
-            parts.append(f"\tbiggest gaps: {_escape(leaders)}{_escape(of)}")
-        else:
-            of = f" (of {int(count)} trading that hour)" if count else ""
-            parts.append(f"\tbiggest movers: {_escape(leaders)}{_escape(of)}")
-
-    parts.extend(check_in_lines(event, now))
-    rate = tier_rate_line(
-        event, rate_history if rate_history is not None else events)
-    if rate:
-        parts.append(rate)
-    parts.append(f"{TIME_EMOJI}<b>{format_day(when)} {when:%H:%M} UTC</b>")
-    return "\n".join(parts)
-
-
 # How far back to look for scheduled news when a push goes out. Three hours
 # because that is long enough to cover a release the instrument was still
 # digesting and short enough that what it names is plausibly the cause;
@@ -1124,158 +521,8 @@ def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
     return "\n".join(lines)
 
 
-# The check-ins a push promises, matching tremor.persistence.HORIZONS. The first
-# two are bar counts; the last is the close of the next trading day, which is a
-# moment rather than a distance - in an ETF that trades six and a half hours,
-# twenty-four bars was nearly four days away and arrived on a Thursday for a
-# Monday move.
-#
-# Every one is listed from the first message onward WITH WHEN IT IS DUE, so a
-# line that has not landed yet reads as an appointment rather than an omission.
-FOLLOW_UP_HORIZONS = ("today", "settled")
-_HORIZON_LABEL = {"today": "this day's close", "settled": "next day's close"}
-
-
-def _retention_word(value: float) -> str:
-    """How the move stood, in the same words the digest uses.
-
-    Symmetric about zero on purpose. Above one the move kept going and is said
-    as a multiple; below zero the price crossed back past where it started and
-    is said as the same multiple the other way, because "fully reversed" would
-    throw that away - a +5% hour now sitting 5% BELOW its starting price is not
-    the same news as one that merely came back to it.
-    """
-    if value > 1.15:
-        return f"kept going, {value:.1f}x the original move"
-    if value >= 0.85:
-        return "still there"
-    if value >= 0.5:
-        return f"{value * 100:.0f}% of it still there"
-    if value >= 0.05:
-        return f"mostly given back, {value * 100:.0f}% left"
-    if value > -0.05:
-        return "fully reversed"
-    if value > -1.15:
-        return f"reversed past where it started, {-value * 100:.0f}% of the move the other way"
-    return f"reversed past where it started, {-value:.1f}x the move the other way"
-
-
-def _template(asset_id: str) -> str:
-    """Which trading calendar this instrument keeps.
-
-    Falls back to the round-the-clock one, where a bar is an hour and there are
-    no closed days, because that is the assumption that degrades gracefully: it
-    can make a promise arrive early, never make one that never arrives.
-    """
-    return _templates().get(asset_id, "crypto_24_7")
-
-
-@lru_cache(maxsize=1)
-def _templates() -> dict[str, str]:
-    """asset_id -> session template, from the basket definition.
-
-    Blocks are in here too, under their own ids. A block's day closes when its
-    members' day closes, and without this a block event would fall back to the
-    round-the-clock calendar and promise a US block's close at midnight - eight
-    hours before it happens, on a day the market is shut.
-    """
-    try:
-        from tremor.basket import load_basket
-        from tremor.blocks import block_id
-
-        basket = load_basket()
-        out = {a.asset_id: a.session_template for a in basket.instruments}
-        for block, members in basket.by_block().items():
-            shared = {a.session_template for a in members}
-            if len(shared) == 1:
-                out[block_id(block)] = shared.pop()
-        return out
-    except Exception as exc:                     # pragma: no cover - defensive
-        log.warning("Could not read basket session templates: %s", exc)
-        return {}
-
-
-def due_moment(event: dict, horizon) -> "int | None":
-    """The earliest epoch second at which this check-in can have an answer.
-
-    Every horizon in this system is measured in the instrument's OWN bars, and a
-    closed market has none - so the wait for an answer is a question about the
-    trading calendar, not about the clock. Two bars after an ETF's last bar of
-    the week is Monday morning; the settled reading is the close of the next day
-    the instrument actually trades.
-
-    None where the calendar cannot answer - an unreadable session table, or a
-    date past the end of it. The caller then says less rather than saying
-    something wrong.
-    """
-    try:
-        from tremor import sessions
-
-        template = _template(str(event.get("asset_id") or ""))
-        table = sessions.cached_sessions() if template == "us_equity" else None
-        hour = int(event["hour_utc"])
-        if horizon == "settled":
-            return sessions.next_close_after(hour, template, table)
-        return sessions.today_close_after(hour, template, table)
-    except Exception as exc:                     # pragma: no cover - defensive
-        log.warning("Could not date the %s check-in: %s", horizon, exc)
-        return None
-
-
-# Past this, counting hours stops being useful. "Coming in 63h" is arithmetic a
-# reader has to do something with; "coming Monday at 14:00 UTC" is an
-# appointment. Half a day is the crossover: everything inside it is today or
-# tonight and reads naturally as a countdown.
-_COUNTDOWN_LIMIT_HOURS = 12
-# And past a week a weekday name is ambiguous, so the date is named instead.
-_WEEKDAY_LIMIT_HOURS = 6 * 24
-
-
-def _due_in(event: dict, horizon, now: datetime | None = None) -> str:
-    """When an unanswered check-in is expected, in the reader's terms.
-
-    A placeholder that says only "not yet" is indistinguishable from a bot that
-    has forgotten. Saying when it is due makes the same silence an appointment.
-
-    The wait is computed through the instrument's trading calendar and then
-    rendered in ordinary clock time, because those are the two different things
-    the writer and the reader each need. Counting the horizon in hours instead -
-    which is what this did - told a Friday-afternoon push it was "coming within
-    the hour" for the whole weekend, since the hours passed and the bars did not.
-    """
-    now = now or datetime.now(timezone.utc)
-    due = due_moment(event, horizon)
-    if due is None:
-        # The horizon has already been named by the line this answer is appended
-        # to, so naming it again produced "this day's close - coming at this
-        # day's close". Say the one thing the caller does not already know:
-        # that a moment was wanted and the calendar would not give one.
-        return "coming, though the trading calendar could not say when"
-
-    left = (due - now.timestamp()) / 3600.0
-    if left <= 0:
-        # The bar has closed and the answer has not appeared: the pipeline runs
-        # a few minutes past the hour, and a bar the quality gate threw out
-        # never produces one at all.
-        return "coming with the next update"
-
-    # Named as a CLOSE, never as a countdown or a bare timestamp. Both horizons
-    # are day closes, and for anything whose day is the UTC one that close falls
-    # at midnight - so "coming Thursday at 00:00 UTC" was the end of Wednesday
-    # wearing Thursday's name, and read as a day later than it is. Saying whose
-    # close it is removes the ambiguity, and it does not tick, so a message is
-    # not edited every hour to count it down.
-    moment = datetime.fromtimestamp(due, tz=timezone.utc)
-    ended = datetime.fromtimestamp(due - 1, tz=timezone.utc)
-    day = f"{ended:%A}" if left <= _WEEKDAY_LIMIT_HOURS else format_day(ended)
-    return f"coming at {day}'s close ({moment:%H:%M} UTC)"
-
-
 def format_push(event: dict, labels: dict[str, str],
-                calendar: "list[dict] | None" = None,
-                events: "list[dict] | None" = None,
-                now: datetime | None = None,
-                rate_history: "list[dict] | None" = None) -> str:
+                calendar: "list[dict] | None" = None) -> str:
     """A single interrupting alert.
 
     Ordered so the reader meets one instrument first and the day second: the
@@ -1283,22 +530,15 @@ def format_push(event: dict, labels: dict[str, str],
 
     ONE INSTRUMENT, and only one. A push is final when it arrives - nothing is
     folded into it - so each is its own story and the day assembles itself out
-    of however many arrive. The fear gauge lives on the digest note rather than
+    of however many arrive. The fear gauge lives on the weekly note rather than
     here: a standalone alert is already one instrument's story, and the running
     note carries the regime once for all of them.
     """
-    lines = [describe(event, labels, now, events, rate_history)]
+    lines = [describe(event, labels)]
     context = calendar_context(int(event["hour_utc"]), calendar)
     if context:
         lines.append("")
         lines.append(_escape(context))
-    # Once at the foot of the message rather than under every instrument: any
-    # message that says "its own block" or speaks for a block outright is asking
-    # the reader to accept a claim about a group of instruments, and they are
-    # entitled to see which instruments - said once.
-    if any("its own block" in line or "the whole block" in line for line in lines):
-        lines.append("")
-        lines.append(basket_footer())
     return "\n".join(lines)
 
 
@@ -1308,8 +548,7 @@ def format_push(event: dict, labels: dict[str, str],
 # start of the period it covers and edited in place as events are found, which
 # is a different product from the same events: a move that will be in Friday's
 # note is worth reading on Wednesday, and there is nothing to gain by holding
-# it - it happened, its size is known, and the only thing still missing is
-# whether it held, which the row says it is waiting for.
+# it - it happened and its size is known.
 #
 # It costs no extra interruption. Telegram notifies on a NEW message and stays
 # silent on an edit, so the note buzzes once a week, at the hour it opens, and
@@ -1508,9 +747,7 @@ def digest_rows(events: "list[dict]", window: "tuple[int, int]",
 def format_digest(events: "list[dict]", labels: dict[str, str],
                   window: "tuple[int, int]",
                   calendar: "list[dict] | None" = None,
-                  now: datetime | None = None,
-                  all_events: "list[dict] | None" = None,
-                  rate_history: "list[dict] | None" = None) -> "list[str]":
+                  now: datetime | None = None) -> "list[str]":
     """One note, whole, split into parts Telegram will accept.
 
     ORDERED BY TIME, and by rarity only inside an hour. A note is a record, so a
@@ -1529,7 +766,7 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
     to pick up a period whose own note never opened covers six days, and saying
     so is the difference between a complete record and a puzzling one.
     """
-    from tremor.severity import TIERS
+    from tremor.jumps import WORDS as TIERS
 
     now = now or datetime.now(timezone.utc)
     start, end = int(window[0]), int(window[1])
@@ -1567,9 +804,7 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
         header += "\n" + regime
 
     def row(event: dict) -> str:
-        history = (rate_history if rate_history is not None
-                   else all_events if all_events is not None else events)
-        line = describe(event, labels, now, events, history)
+        line = describe(event, labels)
         context = calendar_context(int(event["hour_utc"]), calendar)
         return f"{line}\n     {_escape(context)}" if context else line
 
@@ -1582,9 +817,6 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
         else:
             current = candidate
     messages.append(current)
-
-    if any("instruments drifting together" in m for m in messages):
-        messages[-1] += "\n\n" + basket_footer()
 
     if len(messages) > 1:
         # THE PART MARKER NAMES ITS NOTE. Only the first part carries the
@@ -1684,8 +916,7 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
     A digest row is written the hour its move is found, but the note stays
     silent - Telegram does not notify on an edit - so a reader who wants to know
     NOW has to keep opening it. This is the buzz: ticker, name, size, and a
-    pointer at the note. The rarity colour, the check-ins and the calendar stay
-    in the note, one tap away.
+    pointer at the note. The calendar context stays in the note, one tap away.
 
     It is deleted when the next note opens, so what remains is a clean run of
     notes rather than a scroll of pings around them.
@@ -1695,24 +926,10 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
     asset_id = str(event.get("asset_id", ""))
     move = _clean(event.get("r"))
     shown = f" {move * 100:+.2f}%" if move is not None else ""
-    if _is_jump(event):
-        extra = _sigma_multiple(event)
-    else:
-        ratio = _ratio_short(event)
-        extra = f" ({ratio})" if ratio else ""
-    if _is_block(event):
-        # Reached by a block at `high`, which goes into the note rather than
-        # onto the phone. Same lead as a standalone: rarity, name, size.
-        name = BLOCK_LABEL.get(str(event.get("block")),
-                               labels.get(asset_id) or asset_id.split(":")[-1])
-        name = name[:1].upper() + name[1:]
-        first = (f"{BLOCK_MARK}{emoji} <b>{_escape(name)}</b>"
-                 f"{shown}{extra}")
-    else:
-        ticker = _ticker(asset_id)
-        label = labels.get(asset_id) or ticker
-        first = (f"{emoji} <b>{_escape(ticker)}</b> · {_escape(label)}"
-                 f"{shown}{extra}")
+    ticker = _ticker(asset_id)
+    label = labels.get(asset_id) or ticker
+    first = (f"{emoji} <b>{_escape(ticker)}</b> · {_escape(label)}"
+             f"{shown}{_sigma_multiple(event)}")
     return f"{first}\nAdded to digest👆🏻👆🏻"
 
 
@@ -1985,39 +1202,32 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     calendar = _calendar(cfg) if (
         pushes or notes or store.get(_SENT) or store.get(follow_up.TRACKED)
     ) else None
-    rate_history = load_rate_history()
 
-    # Corrections to already-sent pushes run on their own schedule - one sent on
-    # Monday is edited on Tuesday whether or not Tuesday has news of its own.
-    corrected = follow_up.apply(cfg, state, events, calendar, now,
-                               restyle_after=0, rate_history=rate_history)
+    # A push already on the phone is re-rendered every run and edited when its
+    # text changed - the bar it was scored on healed, say - whether or not this
+    # run has news of its own.
+    corrected = follow_up.apply(cfg, state, events, calendar, now)
     if corrected:
         save_state(cfg.state_path, state)
-        log.info("Pushes restyled or corrected: %d", corrected)
+        log.info("Pushes restyled: %d", corrected)
 
     labels = _labels()
     pushed = posted = edited = 0
 
     for event in pushes:
-        # What this push speaks for. Usually nothing: only a fifth of pushes
-        # have a companion, and at the hour one is sent the window it collapses
-        # is still open, so the block fills in through the follow-up edits.
+        text = format_push(event, labels, calendar)
         try:
             message_id = send_telegram_message(
-                cfg.telegram_bot_token, cfg.telegram_chat_id,
-                format_push(event, labels, calendar, events, now,
-                            rate_history))
+                cfg.telegram_bot_token, cfg.telegram_chat_id, text)
         except TelegramError as exc:
             log.error("Failed to send Tremor push %s: %s", event.get("event_id"), exc)
             continue
-        text = format_push(event, labels, calendar, events, now, rate_history)
         mark = _fingerprint(text)
         sent[str(event["event_id"])] = {
             "hour": int(event["hour_utc"]), "id": int(message_id), "hash": mark,
         }
-        # Remembered so both check-ins edit this very message rather than
-        # sending more. Kept until TRACK_HOURS even after both have landed, so a
-        # copy change can still rewrite a finished push.
+        # Remembered so a later correction edits this very message rather
+        # than sending another. Kept for TRACK_HOURS.
         follow_up.track(store, event, message_id, mark)
         save_state(cfg.state_path, state)
         pushed += 1
@@ -2089,8 +1299,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         may_grow = (not record["ids"]
                     or now.timestamp() < window[1]
                     + DIGEST_GROW_AFTER_CLOSE_HOURS * 3600)
-        texts = format_digest(rows, labels, window, calendar,
-                              now, events, rate_history)
+        texts = format_digest(rows, labels, window, calendar, now)
         held = max(0, len(texts) - len(record["ids"])) if not may_grow else 0
         made, changed = _write_digest(cfg, slot, record, texts, state,
                                       may_grow=may_grow)
