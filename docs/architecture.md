@@ -56,15 +56,22 @@ date for currency pairs and coins (`sessions.day_tz`, the running detector's day
 **Stage 2, channels — built.** `high`, `major` and `extreme` push: a message of their own,
 at once. `noticeable` goes into the weekly note, with a small ping that points at it
 (`jumps.PUSH_WORDS`, `jumps.for_delivery`). There is **one note a week**, opened Saturday
-00:05 UTC and edited in place until the next Saturday, and the coming week's economic
-calendar is its top part (`weekly_digest.calendar_parts`), the rows below it. A jump
-message says only what the detector measured — the word and the size against the usual hour
-(or the usual night or weekend gap) over the last half-year:
+00:05 UTC and edited in place until the next Saturday. The coming week's economic calendar
+goes out as its own message in the same run, just before the note opens. A jump message
+says only what the detector measured: the colour of the square is the word, and the size is
+`|move| / σ` over the last half-year — the hour's σ, or the night's or the weekend's for a
+gap — at the end of the first line:
 
 ```
-🟥 LTC-USD · Litecoin +5.76%
-extreme · 11x its usual hour over the last half-year
-🕐 24-09-2026 02:00 UTC
+🟥 LTC-USD · Litecoin +5.76% · 11.0×σ
+🕐 24.09.2026 02:00 UTC
+```
+
+and a note row's ping:
+
+```
+⬜ LTC-USD · Litecoin +2.89% · 5.3×σ
+Added to digest👆🏻👆🏻
 ```
 
 No "biggest since" date, no check-in lines and no block/own split: those are stages 3, 4 and
@@ -155,8 +162,8 @@ the running digest note. Retention decides what the sent message says, not wheth
 sent.
 
 **7. Deliver.** A push goes out the hour it is found and is final when it arrives. A digest
-row goes into the note for its period — one a week, opened Saturday at 00:05 UTC with the
-economic calendar at its top, and edited in place — with a throwaway ping, since Telegram does not notify on an edit; a ping exists
+row goes into the note for its period — one a week, opened Saturday at 00:05 UTC just after
+the economic calendar's own message, and edited in place — with a throwaway ping, since Telegram does not notify on an edit; a ping exists
 only while the note beneath it shows its row. Messages are then corrected as the market
 answers: at this day's close and the next day's close. Nothing older than 48 hours is sent.
 
@@ -228,7 +235,7 @@ scoring, run by hand) · `feedback` (recorded verdicts)
 
 **Delivery** lives in `price_monitor/`: `tremor_delivery` (renders and sends; decides
 nothing, routing is already stamped), `follow_up` (the check-ins that edit a push already
-sent), `weekly_digest` (the economic calendar at the top of the weekly note), `health`, `notifier`, and the
+sent), `weekly_digest` (the economic calendar, sent just before the weekly note opens), `health`, `notifier`, and the
 source clients (`tiingo`, `yahoo`, `coinbase`, `twelvedata`, `dukascopy`, `hfdata`) that
 `backfill` fetches through.
 

@@ -90,18 +90,21 @@ that opens `noticeable` and turns `major` is a different day from one that stays
 **`high` and up push; `noticeable` goes into the note.** The reader's choice, to try: more
 messages than the running detector's one a week was the point of the change. For today's
 basket that is about 10 pushes a week and about 19 note rows a week, each row with its own
-small ping; the busiest week of the last year had 37 pushes and 61 rows. `noticeable` alone is two thirds of the events, so it is the one word worth
-reading in a batch; `high` (5.5σ) is where a move stops being routine for its instrument.
+small ping; the busiest week of the last year had 37 pushes and 61 rows. `noticeable`
+alone is two thirds of the events, so it is the one word worth reading in a batch; `high` (5.5σ) is where a move stops being routine for its instrument.
 To be tuned with the threshold at stage 12, against a few weeks of real messages.
 
-**One note a week, with the economic calendar on top.** With every word from `high` up
-pushed, the note holds only `noticeable` rows, and one note a week holds them (it used to be
-two, Monday and Saturday). The calendar is no longer a message of its own: it forecasts the
-week the note will report, so both sit in one message and cost one interruption. Saturday,
-so the forecast arrives before the week it forecasts.
+**One note a week.** With every word from `high` up pushed, the note holds only
+`noticeable` rows, and one note a week holds them (it used to be two, Monday and Saturday).
+The economic calendar stays a message of its own, sent in the same run just before the note
+opens: one is a forecast, the other a report, and they are read differently. Saturday, so
+the forecast arrives before the week it forecasts.
 
-**A jump message claims only what the detector measured.** The word and the size against
-the usual hour over the last half-year. No "biggest since" date, no held-at-close line, no
+**A jump message claims only what the detector measured.** The square's colour is the word,
+so the word is not written out; the size is `|move| / σ` to one decimal, `11.0×σ`, at the end
+of the first line, in the ping as in the push. Hour or gap is not spelled out as a yardstick
+("its usual weekend gap"); the "biggest since" line (stage 3) will say which it was. Dates
+read `24.09.2026`. No "biggest since" date, no held-at-close line, no
 block/own split until their stages exist — the running detector's wording for those would
 describe a measurement the jump detector does not make.
 

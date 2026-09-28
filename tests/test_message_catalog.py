@@ -189,7 +189,7 @@ def test_every_message_shape_follows_the_copy_rules(monkeypatch, tmp_path):
     assert "Added to digest" not in push
     assert "XLF major or rarer ≈" in push
     assert "biggest move on its own since 17 day ago" in push
-    assert "14-09-2026 17:00 UTC" in push
+    assert "14.09.2026 17:00 UTC" in push
     assert "2026-09-14" not in push
     assert " · Financial sector -0.88%" in push
     assert " · -0.88%" not in push.splitlines()[0]

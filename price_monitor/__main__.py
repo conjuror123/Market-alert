@@ -96,11 +96,11 @@ def main() -> int:
         error_details.append(f"calendar refresh failed ({exc})")
 
     try:
-        weekly_digest.maybe_prepare_weekly_calendar(cfg, state, session)
+        weekly_digest.maybe_send_weekly_digest(cfg, state, session)
     except Exception as exc:                     # pragma: no cover - defensive
-        log.error("Weekly calendar refresh failed: %s", exc)
+        log.error("Weekly calendar digest failed: %s", exc)
         had_error = True
-        error_details.append(f"weekly calendar refresh failed ({exc})")
+        error_details.append(f"weekly calendar digest failed ({exc})")
 
     # Wrapped for the same reason it always was: a fault in a delivery layer must
     # not cost the run its health reporting, which is the thing that would tell

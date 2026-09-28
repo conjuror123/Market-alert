@@ -44,14 +44,6 @@ _STATE_PATH = ""
 
 
 @pytest.fixture(autouse=True)
-def no_calendar(monkeypatch):
-    """The weekly note carries the coming week's economic calendar at its top
-    (weekly_digest.calendar_parts); these tests are about the note's rows, so
-    the calendar is left out unless a test puts it back."""
-    monkeypatch.setattr(md, "_economic", lambda cfg, slot: [])
-
-
-@pytest.fixture(autouse=True)
 def state_path(tmp_path):
     global _STATE_PATH
     _STATE_PATH = str(tmp_path / "state.json")
@@ -994,7 +986,7 @@ def test_the_hour_is_the_last_line_and_is_bold():
     text = md.describe(event(asset_id="twelvedata:GLD"), LABELS)
     last = text.split("\n")[-1]
     assert last.startswith(md.TIME_EMOJI)
-    stamp = (NOW - timedelta(hours=1)).strftime("%d-%m-%Y %H:%M")
+    stamp = (NOW - timedelta(hours=1)).strftime("%d.%m.%Y %H:%M")
     assert last.endswith("UTC</b>") and f"<b>{stamp}" in last
     assert "GLD major or rarer ≈" in md.describe(
         event(asset_id="twelvedata:GLD"), LABELS,
@@ -1375,7 +1367,7 @@ def test_a_stress_episode_is_named_while_it_is_running_and_not_after(monkeypatch
     ], spikes=(1,)))
 
     inside = md.vix_context(int(datetime(2020, 2, 28, 18, tzinfo=timezone.utc).timestamp()))
-    assert "stress episode" in inside and "28-02-2020" in inside
+    assert "stress episode" in inside and "28.02.2020" in inside
 
     later = md.vix_context(int(datetime(2020, 3, 20, 18, tzinfo=timezone.utc).timestamp()))
     assert "39.16" in later                      # still the latest known reading
@@ -1404,7 +1396,7 @@ def test_a_block_standalone_matches_an_instrument_lead_and_omits_the_gauge(
                             + " <b>US and global equities</b> · -2.41%")
     assert "4.2x a typical member's usual hour" in text
     assert "this day's close" in text
-    assert "08-09-2026" in text
+    assert "08.09.2026" in text
     assert "Fear gauge" not in text
     assert "Added to digest" not in text
     assert "equity extreme or rarer ≈" in md.format_push(
@@ -1543,15 +1535,15 @@ def test_the_header_names_the_last_day_the_note_can_hold_an_hour_of():
     # on the next Saturday - so a header taken from the boundary would name that
     # Saturday, a day the note carries none of. The note is a list of hourly
     # bars: a five-minute sliver cannot hold one.
-    assert "19-09-2026 to 25-09-2026" in header_for(2026, 9, 19)
+    assert "19.09.2026 to 25.09.2026" in header_for(2026, 9, 19)
 
 
 def test_the_note_header_uses_day_month_year_on_both_ends():
-    inside = header_for(2026, 3, 9)
-    assert "09-03-2026 to 13-03-2026" in inside
+    inside = header_for(2026, 3, 7)
+    assert "07.03.2026 to 13.03.2026" in inside
 
-    across = header_for(2026, 3, 30)     # Monday 30 March into April
-    assert "30-03-2026 to 03-04-2026" in across
+    across = header_for(2026, 3, 28)     # Saturday 28 March into April
+    assert "28.03.2026 to 03.04.2026" in across
 
 
 def test_the_note_runs_in_time_order_across_all_its_parts():
@@ -2007,9 +1999,22 @@ def jump(**over):
                  e_resid=None, co_basket=None, co_block=None, retention_settled=None) | over
 
 
-def test_a_jump_says_its_word_and_its_size_against_the_half_year():
+def test_a_jump_says_its_size_in_sigma_on_the_first_line_and_no_word():
+    # The colour of the square is the word; the size is |move| / half-year σ.
     text = md.format_push(jump(), LABELS, None, [jump()], NOW)
-    assert "high · 6.0x its usual hour over the last half-year" in text
+    lines = text.splitlines()
+    assert lines[0] == "🟨 <b>GLD</b> · Gold +1.20% · 6.0×σ"
+    assert "high" not in text and "usual" not in text
+
+
+def test_a_jump_is_dated_day_dot_month_dot_year():
+    text = md.format_push(jump(), LABELS, None, [jump()], NOW)
+    assert text.splitlines()[-1] == "🕐 <b>12.09.2026 02:00 UTC</b>"
+
+
+def test_a_jump_ping_says_its_size_in_sigma():
+    ping = md.format_ping(jump(tier="noticeable", r=0.0106), LABELS)
+    assert ping.splitlines()[0] == "⬜ <b>GLD</b> · Gold +1.06% · 5.3×σ"
 
 
 def test_a_jump_claims_no_record_no_check_in_and_no_split():
@@ -2020,13 +2025,8 @@ def test_a_jump_claims_no_record_no_check_in_and_no_split():
         assert absent not in text.lower()
 
 
-def test_a_weekend_jump_is_measured_against_the_usual_weekend():
+def test_a_gap_jump_names_no_yardstick_either():
+    # Hour or gap shows in the "biggest since" line (stage 3), not here.
     text = md.format_push(jump(overnight=True, gap_kind="weekend"), LABELS, None, [], NOW)
-    assert "its usual weekend gap over the last half-year" in text
-
-
-def test_the_calendar_is_the_top_of_the_weekly_note():
-    messages = md.format_digest([], LABELS, routing.digest_window(SLOT), now=NOW,
-                                economic=["📅 calendar"])
-    assert messages[0].startswith("📅 calendar")
-    assert "Digest" in messages[1]
+    assert text.splitlines()[0].endswith(" · 6.0×σ")
+    assert "usual" not in text

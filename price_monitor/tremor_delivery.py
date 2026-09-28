@@ -30,11 +30,11 @@ that renders twice writes the same thing twice.
 It piggybacks on the existing hourly trigger rather than taking a schedule of
 its own.
 
-THE ECONOMIC CALENDAR IS THE TOP OF THE NOTE (weekly_digest.calendar_parts):
-the coming week's scheduled releases first, then the rows of what actually
-moved. One note a week, one interruption for both, and the forecast and the
-report of the same week sit in one place. A calendar that cannot be read leaves
-the note with its rows and without the calendar, never the other way round.
+SEPARATE FROM THE SATURDAY CALENDAR DIGEST, on purpose, and not merely to keep
+files apart. The two are different tenses: the calendar digest is a forecast of
+what is scheduled next week, this one is a report of what actually happened.
+Reading them as one message makes both harder to skim. Both go out in the run
+that opens the note, the calendar first (see weekly_digest.py).
 
 WHEN A NOTE MAY BE OPENED is a rule of its own. Only in its own hour, or the
 three after it, so that a note stays a thing with a date on it: Saturday 00:05
@@ -124,8 +124,8 @@ TIME_EMOJI = "\U0001f550 "
 
 
 def format_day(when: datetime) -> str:
-    """A calendar day as 14-09-2026. The same shape on every line that names one."""
-    return when.strftime("%d-%m-%Y")
+    """A calendar day as 14.09.2026. The same shape on every line that names one."""
+    return when.strftime("%d.%m.%Y")
 
 
 # SAID AS A RECORD, AS ELAPSED DAYS. "Biggest move since 17 days ago" is a
@@ -592,15 +592,26 @@ def _scale_note(event: dict) -> str:
     if not size:
         return ""
     if _is_jump(event):
-        unit = f"usual {_open_words(event)[1]}" if _overnight(event) else "usual hour"
-        return (f"{_escape(str(event.get('tier') or ''))} · {size} its {unit} "
-                f"over the last half-year")
+        # A jump says its size on the first line instead (_sigma_multiple), and
+        # its word is the colour of the square.
+        return ""
     # For a block the yardstick is the median member's usual hour rather than any
     # one instrument's, and saying "its" would invite the reader to look for an
     # instrument that does not exist.
     unit = f"usual {_open_words(event)[1]}" if _overnight(event) else "usual hour"
     whose = f"a typical member's {unit}" if _is_block(event) else unit
     return f"{size} {whose}"
+
+
+def _sigma_multiple(event: dict) -> str:
+    """A jump's size, " · 11.0×σ": |move| over its half-year σ (tremor.jumps),
+    always to one decimal, at the end of the first line. Empty when either is
+    missing."""
+    move = _clean(event.get("r"))
+    usual = _clean(event.get("sigma_lt"))
+    if move is None or usual is None or usual <= 0:
+        return ""
+    return f" · {abs(move) / usual:.1f}×σ"
 
 
 def _ratio_short(event: dict) -> str:
@@ -800,6 +811,8 @@ def describe(event: dict, labels: dict[str, str],
         # The gap is a price move from the last close to the first print, and
         # it is said as one - never as the hour it was scored alongside.
         shown += f" {_open_words(event)[0]}"
+    if _is_jump(event):
+        shown += _sigma_multiple(event)
     parts = [f"{emoji} <b>{_escape(_ticker(asset_id))}</b> · "
              f"{_escape(label)}{shown}"]
 
@@ -1492,29 +1505,13 @@ def digest_rows(events: "list[dict]", window: "tuple[int, int]",
             and float(e.get("hour_utc", 0)) <= now.timestamp()]
 
 
-def _economic(cfg, slot: int) -> "list[str]":
-    """The coming week's calendar for this note, or nothing if it cannot be
-    read - a calendar fault must never cost the note its rows."""
-    try:
-        from price_monitor import weekly_digest
-        return weekly_digest.calendar_parts(cfg, slot)
-    except Exception as exc:                     # pragma: no cover - defensive
-        log.warning("Economic calendar left out of note %s: %s", slot, exc)
-        return []
-
-
 def format_digest(events: "list[dict]", labels: dict[str, str],
                   window: "tuple[int, int]",
                   calendar: "list[dict] | None" = None,
                   now: datetime | None = None,
                   all_events: "list[dict] | None" = None,
-                  rate_history: "list[dict] | None" = None,
-                  economic: "list[str] | None" = None) -> "list[str]":
+                  rate_history: "list[dict] | None" = None) -> "list[str]":
     """One note, whole, split into parts Telegram will accept.
-
-    THE WEEK'S ECONOMIC CALENDAR COMES FIRST (`economic`, already cut into
-    parts by price_monitor.weekly_digest), and the note's rows below it: one
-    weekly message that says what is scheduled and then what happened.
 
     ORDERED BY TIME, and by rarity only inside an hour. A note is a record, so a
     period read top to bottom runs in the order it happened; leading with the
@@ -1588,7 +1585,6 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
 
     if any("instruments drifting together" in m for m in messages):
         messages[-1] += "\n\n" + basket_footer()
-    messages = list(economic or []) + messages
 
     if len(messages) > 1:
         # THE PART MARKER NAMES ITS NOTE. Only the first part carries the
@@ -1699,8 +1695,11 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
     asset_id = str(event.get("asset_id", ""))
     move = _clean(event.get("r"))
     shown = f" {move * 100:+.2f}%" if move is not None else ""
-    ratio = _ratio_short(event)
-    extra = f" ({ratio})" if ratio else ""
+    if _is_jump(event):
+        extra = _sigma_multiple(event)
+    else:
+        ratio = _ratio_short(event)
+        extra = f" ({ratio})" if ratio else ""
     if _is_block(event):
         # Reached by a block at `high`, which goes into the note rather than
         # onto the phone. Same lead as a standalone: rarity, name, size.
@@ -2091,7 +2090,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
                     or now.timestamp() < window[1]
                     + DIGEST_GROW_AFTER_CLOSE_HOURS * 3600)
         texts = format_digest(rows, labels, window, calendar,
-                              now, events, rate_history, _economic(cfg, slot))
+                              now, events, rate_history)
         held = max(0, len(texts) - len(record["ids"])) if not may_grow else 0
         made, changed = _write_digest(cfg, slot, record, texts, state,
                                       may_grow=may_grow)

@@ -174,15 +174,14 @@ apart, longest observed quiet stretch 85 days. (Those are the running detector's
 jump detector, once switched in, pushes about 10 a week; see `decisions.md`.) One digest
 note a week opens Saturday at 00:05 UTC and fills as moves are found.
 
-The economic calendar is the top part of that note, not a message of its own. As the note
-opens, the coming week is fetched into the archive once (`maybe_prepare_weekly_calendar`);
-the note then reads it from the archive on every re-render, so an `actual` released during
-the week reaches it too. It takes its day from `tremor.routing` rather than a weekday of its
-own. It covers Monday 00:00 UTC to the following Monday, and consecutive notes' calendars
-abut exactly. An archive that does not reach the end of the week says so in one line rather
-than printing an empty week.
+The economic-calendar forecast goes out once a week, in the same run immediately before
+the note opens — so the note, the message that keeps changing, is the last one in the chat.
+It takes its day from `tremor.routing` rather than a weekday of its own, so the pair cannot
+be separated. It covers Monday 00:00 UTC to the following Monday, read from the archive
+rather than the live feed, and consecutive digests abut exactly.
 
-The calendar archive is also topped up from the live feed once a day: pushes name the releases in the three hours around a move on any day of the
+The calendar archive is topped up from the live feed once a day, separately from the
+weekly digest: pushes name the releases in the three hours around a move on any day of the
 week, and a schedule fetched last Saturday does not have the speech added on Wednesday.
 
 **Nothing older than 48 hours is sent, and a note opens only in its own hour or the three
