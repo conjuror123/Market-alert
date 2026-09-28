@@ -38,8 +38,8 @@
         ],
         "from": 1789949100,
         "hashes": [
-          "d4decbc1b4d2e54a",
-          "cea88519de919398"
+          "23620cec44d2641f",
+          "db93aac59f40ed72"
         ],
         "ids": [
           30,
@@ -60,18 +60,56 @@
         "to": 1790553900
       },
       "1790553900": {
-        "events": [],
+        "events": [
+          "twelvedata_IEI:1790604000",
+          "twelvedata_IEF:1790604000",
+          "twelvedata_TLH:1790604000",
+          "twelvedata_TLT:1790604000",
+          "twelvedata_TIP:1790604000",
+          "twelvedata_MBB:1790604000",
+          "twelvedata_LQD:1790604000"
+        ],
         "from": 1790553900,
         "hashes": [
-          "6dec0c77447f9797"
+          "e446083febcfa83f"
         ],
         "ids": [
           55
         ],
+        "rows": 7,
         "to": 1790985900
       }
     },
-    "pings": {},
+    "pings": {
+      "twelvedata_IEF:1790604000": {
+        "hash": "7baac2e41f7562f1",
+        "id": 58
+      },
+      "twelvedata_IEI:1790604000": {
+        "hash": "445514cffd9120a5",
+        "id": 57
+      },
+      "twelvedata_LQD:1790604000": {
+        "hash": "4cf9a9d141bf55b1",
+        "id": 63
+      },
+      "twelvedata_MBB:1790604000": {
+        "hash": "abc9d66a8ff14166",
+        "id": 62
+      },
+      "twelvedata_TIP:1790604000": {
+        "hash": "373e685de2322570",
+        "id": 61
+      },
+      "twelvedata_TLH:1790604000": {
+        "hash": "d9d1d9309ab9f647",
+        "id": 59
+      },
+      "twelvedata_TLT:1790604000": {
+        "hash": "4fbbf1a071e9b9d0",
+        "id": 60
+      }
+    },
     "sent": {
       "coinbase_BCH-USD:1790078400": {
         "hash": "defa61dd4ff88ec8",
