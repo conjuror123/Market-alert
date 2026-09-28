@@ -39,7 +39,7 @@
         "from": 1789949100,
         "hashes": [
           "23620cec44d2641f",
-          "51b88a1881710bf5"
+          "39f6d4e169650db3"
         ],
         "ids": [
           30,
@@ -72,7 +72,7 @@
         ],
         "from": 1790553900,
         "hashes": [
-          "1b8635c71f19d48a"
+          "75e839568aa27376"
         ],
         "ids": [
           55
@@ -122,7 +122,7 @@
         "id": 38
       },
       "twelvedata_EMB:1790600400": {
-        "hash": "c8a6d309bba8bd43",
+        "hash": "79b9c3c3cdbb5d13",
         "hour": 1790600400,
         "id": 56
       },
@@ -145,7 +145,7 @@
       "twelvedata_EMB:1790600400": {
         "hour_utc": 1790600400,
         "message_id": 56,
-        "text_hash": "c8a6d309bba8bd43",
+        "text_hash": "79b9c3c3cdbb5d13",
         "written": [
           "today"
         ]
