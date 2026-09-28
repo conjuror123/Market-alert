@@ -205,7 +205,7 @@ def build(events: pd.DataFrame, ops: dict | None) -> dict:
 
     inbox, gap_rows, clusters = _inbox(push, years)
     inbox["digest_rows_per_note"] = round(
-        int((events.channel == "digest").sum()) / max(years * 104, 1), 1)
+        int((events.channel == "digest").sum()) / max(years * 52.18, 1), 1)
 
     blocks = []
     for blk, g in events.assign(b=events.asset_id.map(block_of)).groupby("b"):

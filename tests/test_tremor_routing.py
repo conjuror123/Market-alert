@@ -75,46 +75,44 @@ def test_nothing_is_demoted_for_being_the_third_push_of_the_week():
 
 
 def test_the_slot_is_the_note_that_is_already_open():
-    # Wednesday's move joins the note opened on Monday, which is live and on
-    # the reader's phone - not one that will be written on Saturday.
+    # Wednesday's move joins the note opened on Saturday, which is live and on
+    # the reader's phone - not one that will be written next Saturday.
     wednesday = int(datetime(2026, 4, 1, 9, tzinfo=timezone.utc).timestamp())
     slot = datetime.fromtimestamp(routing.digest_slot(wednesday),
                                   tz=timezone.utc).astimezone(routing.DIGEST_TZ)
-    assert slot.weekday() == 0 and slot.hour == routing.DIGEST_HOUR_LOCAL
-    assert (slot.year, slot.month, slot.day) == (2026, 3, 30)
+    assert slot.weekday() == 5 and slot.hour == routing.DIGEST_HOUR_LOCAL
+    assert (slot.year, slot.month, slot.day) == (2026, 3, 28)
 
 
 def test_a_move_an_hour_after_a_note_opens_joins_that_note():
-    monday = datetime(2026, 3, 30, routing.DIGEST_HOUR_LOCAL,
-                      routing.DIGEST_MINUTE_LOCAL, tzinfo=routing.DIGEST_TZ)
-    just_after = int(monday.timestamp()) + HOUR
-    assert routing.digest_slot(just_after) == int(monday.timestamp())
+    saturday = datetime(2026, 3, 28, routing.DIGEST_HOUR_LOCAL,
+                        routing.DIGEST_MINUTE_LOCAL, tzinfo=routing.DIGEST_TZ)
+    just_after = int(saturday.timestamp()) + HOUR
+    assert routing.digest_slot(just_after) == int(saturday.timestamp())
 
 
 def test_the_window_runs_from_one_note_to_the_next():
-    # The workweek note: opened Monday, closed when Saturday's opens.
-    monday = int(datetime(2026, 3, 30, routing.DIGEST_HOUR_LOCAL,
-                          routing.DIGEST_MINUTE_LOCAL,
-                          tzinfo=routing.DIGEST_TZ).timestamp())
-    start, end = routing.digest_window(monday)
-    assert start == monday
-    closes = datetime.fromtimestamp(end, tz=timezone.utc).astimezone(routing.DIGEST_TZ)
-    assert closes.weekday() == 5 and closes.hour == routing.DIGEST_HOUR_LOCAL
+    # One note a week: opened Saturday, closed when the next Saturday's opens.
+    saturday = int(datetime(2026, 3, 28, routing.DIGEST_HOUR_LOCAL,
+                            routing.DIGEST_MINUTE_LOCAL,
+                            tzinfo=routing.DIGEST_TZ).timestamp())
+    start, end = routing.digest_window(saturday)
+    assert start == saturday
+    assert end - start == 7 * 24 * HOUR
 
 
-def test_a_note_never_covers_half_a_trading_week_and_half_a_weekend():
-    # The whole reason the boundaries are Monday and Saturday. A Tuesday/Friday
-    # pair could not avoid a note that was part working days and part weekend,
-    # and those two stretches have nothing to say to each other.
+def test_one_note_covers_the_whole_week():
+    # The weekend, the working week and the next Friday all belong to the note
+    # that opened on Saturday; the next Saturday starts the next one.
     saturday = int(datetime(2026, 4, 4, 6, tzinfo=timezone.utc).timestamp())
-    sunday = int(datetime(2026, 4, 5, 18, tzinfo=timezone.utc).timestamp())
-    assert routing.digest_slot(saturday) == routing.digest_slot(sunday)
+    for day in (5, 6, 9, 10):
+        later = int(datetime(2026, 4, day, 18, tzinfo=timezone.utc).timestamp())
+        assert routing.digest_slot(later) == routing.digest_slot(saturday)
     opens = datetime.fromtimestamp(routing.digest_slot(saturday),
                                    tz=timezone.utc).astimezone(routing.DIGEST_TZ)
     assert opens.weekday() == 5
-    # ...and Monday morning starts the other one.
-    monday = int(datetime(2026, 4, 6, 6, tzinfo=timezone.utc).timestamp())
-    assert routing.digest_slot(monday) != routing.digest_slot(sunday)
+    next_saturday = int(datetime(2026, 4, 11, 6, tzinfo=timezone.utc).timestamp())
+    assert routing.digest_slot(next_saturday) != routing.digest_slot(saturday)
 
 
 def test_a_note_opens_at_the_same_utc_hour_on_both_sides_of_daylight_saving():

@@ -11,7 +11,7 @@ from price_monitor.config import Config
 from price_monitor.notifier import TelegramError
 
 HOUR = 3600
-NOW = datetime(2026, 9, 14, 3, 0, tzinfo=timezone.utc)   # a Monday, inside the note's opening window
+NOW = datetime(2026, 9, 12, 3, 0, tzinfo=timezone.utc)   # a Saturday, inside the weekly note's opening window
 LABELS = {"twelvedata:GLD": "Gold", "coinbase:BTC-USD": "Bitcoin"}
 
 # The note that is open at NOW. A digest row names the note it joins, and that
@@ -41,6 +41,14 @@ def alerts(sender):
 # alerts came to be committed. The sent map is the same: a successful send
 # now writes state.json immediately, so the tests must not touch data/state.json.
 _STATE_PATH = ""
+
+
+@pytest.fixture(autouse=True)
+def no_calendar(monkeypatch):
+    """The weekly note carries the coming week's economic calendar at its top
+    (weekly_digest.calendar_parts); these tests are about the note's rows, so
+    the calendar is left out unless a test puts it back."""
+    monkeypatch.setattr(md, "_economic", lambda cfg, slot: [])
 
 
 @pytest.fixture(autouse=True)
@@ -170,8 +178,10 @@ def test_a_move_joins_the_note_that_is_already_open(monkeypatch, sender):
 
 
 def test_a_move_from_before_the_note_opened_is_not_in_it(monkeypatch, sender):
+    # Before the previous week's period too, which a note that never opened
+    # would otherwise carry into this one.
     stale = event(event_id="d1", channel="digest", tier="noticeable",
-                  hour_utc=SLOT - 4 * 24 * HOUR)
+                  hour_utc=SLOT - 8 * 24 * HOUR)
     deliver(monkeypatch, [stale])
     assert len(notes(sender)) == 1 and "Gold" not in notes(sender)[0]
 
@@ -1529,12 +1539,11 @@ def header_for(y, m, d):
 
 
 def test_the_header_names_the_last_day_the_note_can_hold_an_hour_of():
-    # A note runs to the instant the next one opens, and that instant is 00:05 -
-    # so the workweek note reaches into Saturday by five minutes and was headed
-    # "Mon 14 to Sat 19", handing Saturday to a note that carries none of it.
-    # The note is a list of hourly bars: a five-minute sliver cannot hold one.
-    assert "14-09-2026 to 18-09-2026" in header_for(2026, 9, 14)
-    assert "19-09-2026 to 20-09-2026" in header_for(2026, 9, 19)
+    # A note runs to the instant the next one opens, and that instant is 00:05
+    # on the next Saturday - so a header taken from the boundary would name that
+    # Saturday, a day the note carries none of. The note is a list of hourly
+    # bars: a five-minute sliver cannot hold one.
+    assert "19-09-2026 to 25-09-2026" in header_for(2026, 9, 19)
 
 
 def test_the_note_header_uses_day_month_year_on_both_ends():
@@ -1991,3 +2000,33 @@ def test_every_block_has_a_reader_facing_label():
     assert not missing, f"no BLOCK_LABEL for: {', '.join(missing)}"
     for block, label in md.BLOCK_LABEL.items():
         assert "_" not in label, f"{block}: {label!r} reads as an identifier"
+
+
+def jump(**over):
+    return event(basis="jump", tier="high", r=0.012, sigma_lt=0.002, overnight=False,
+                 e_resid=None, co_basket=None, co_block=None, retention_settled=None) | over
+
+
+def test_a_jump_says_its_word_and_its_size_against_the_half_year():
+    text = md.format_push(jump(), LABELS, None, [jump()], NOW)
+    assert "high · 6.0x its usual hour over the last half-year" in text
+
+
+def test_a_jump_claims_no_record_no_check_in_and_no_split():
+    # Those are stages 3, 4 and 8 of the jump detector; until they exist the
+    # message says only what the detector measured.
+    text = md.format_push(jump(), LABELS, None, [jump()], NOW)
+    for absent in ("biggest", "since", "close", "block", "moving"):
+        assert absent not in text.lower()
+
+
+def test_a_weekend_jump_is_measured_against_the_usual_weekend():
+    text = md.format_push(jump(overnight=True, gap_kind="weekend"), LABELS, None, [], NOW)
+    assert "its usual weekend gap over the last half-year" in text
+
+
+def test_the_calendar_is_the_top_of_the_weekly_note():
+    messages = md.format_digest([], LABELS, routing.digest_window(SLOT), now=NOW,
+                                economic=["📅 calendar"])
+    assert messages[0].startswith("📅 calendar")
+    assert "Digest" in messages[1]

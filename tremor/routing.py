@@ -15,7 +15,7 @@ in how long they wait. Nothing is held back:
             arrival - nothing folds into it and nothing moves it afterwards. A
             once-a-year move that arrives six hours late is a worse product than
             one that arrives now and is marked "reverted" later.
-  digest    everything else, written into the Monday or Saturday note as it is
+  digest    everything else, written into the weekly note as it is
             found. That note is OPENED at the start of the period it covers
             and edited in place afterwards, so a digest line appears within the
             hour of the move rather than days later - and the edit is silent, so
@@ -57,11 +57,13 @@ DIGEST = "digest"
 PUSH_TIERS = ("major", "extreme")
 SETTLED_HORIZON = persistence.SETTLED        # the next trading close
 
-# datetime.weekday(): Monday=0, Saturday=5. Two notes a week, each opening at
-# the start of the stretch it covers rather than in the middle of one: the
-# workweek note opens Monday and runs to Saturday, the weekend note opens
-# Saturday and runs to Monday. So a note is never half trading week and half
-# weekend, which is what a Tuesday/Friday pair could not avoid.
+# datetime.weekday(): Monday=0, Saturday=5. ONE NOTE A WEEK, opening Saturday
+# and running to the next Saturday, with the coming week's economic calendar at
+# its top (price_monitor.weekly_digest). Saturday because a forecast wants to
+# arrive before the week it forecasts, with a weekend to read it in. It used to
+# be two notes, Monday and Saturday; with the jump detector every word from
+# `high` up pushes, so the note carries only `noticeable` rows and one a week
+# holds them.
 #
 # UTC AND NOT THE READER'S CLOCK. The ping is what buzzes; the note is a record,
 # and a record wants the boundary the market uses. 00:05 UTC sits between the
@@ -70,7 +72,7 @@ SETTLED_HORIZON = persistence.SETTLED        # the next trading close
 #
 # Five past rather than on the hour: the hourly job runs at :05, so a note opens
 # on the first run of its period instead of waiting fifty-five minutes.
-DIGEST_WEEKDAYS = (0, 5)
+DIGEST_WEEKDAYS = (5,)
 DIGEST_HOUR_LOCAL = 0
 DIGEST_MINUTE_LOCAL = 5
 DIGEST_TZ = timezone.utc
@@ -111,8 +113,8 @@ def digest_slot(hour_utc: int) -> int:
     queueing for one.
 
     Kept as a zone lookup rather than arithmetic on the timestamp even though
-    the zone is now UTC: the boundary is a wall-clock rule - Monday and Saturday
-    at 00:05 - and expressing it as a modulus would quietly break the day a
+    the zone is now UTC: the boundary is a wall-clock rule - Saturday at 00:05
+    - and expressing it as a modulus would quietly break the day a
     different zone is wanted again.
     """
     moment = datetime.fromtimestamp(int(hour_utc), tz=timezone.utc).astimezone(DIGEST_TZ)

@@ -12,6 +12,7 @@ prints, as Markdown:
   - the gaps (nights and weekends) by kind: per instrument a year and by word;
   - the events once flags are cut to one per instrument per day unless the day
     grows (tremor.jumps.one_a_day);
+  - the events by channel: pushed, or a row in the weekly note;
   - ten flagged hours picked at random, for a sanity read.
 
 Rates count only SETTLED hours - those whose window already spans the full
@@ -105,6 +106,22 @@ def event_section(scored: pd.DataFrame) -> "list[str]":
         v = per[names.index]
         lines.append(f"| {block} | {v.median():.1f} | {v.quantile(.1):.1f}–{v.quantile(.9):.1f} |")
     lines.append(f"| **all** | {per.median():.1f} | {per.quantile(.1):.1f}–{per.quantile(.9):.1f} |")
+
+    # The channels (stage 2): which of those events interrupt at once and which
+    # go into the weekly note, each row with its own small ping.
+    pushed = events["word"].isin(jumps.PUSH_WORDS)
+    lines += ["", "## Channels", "",
+              f"Pushed: {', '.join(jumps.PUSH_WORDS)}. The rest go into the one weekly note.", "",
+              "| channel | events | a week, today's basket | busiest week in the last year |",
+              "|---|---|---|---|"]
+    last_year = events["hour_utc"] >= events["hour_utc"].max() - YEAR
+    for name, mask in (("push", pushed), ("weekly note (and a ping each)", ~pushed)):
+        rate = (events[mask].groupby("ticker").size().reindex(spans.index, fill_value=0)
+                / spans).sum() / 52.18
+        weeks = (pd.to_datetime(events.loc[mask & last_year, "hour_utc"], unit="s")
+                 .dt.to_period("W-FRI").value_counts())
+        lines.append(f"| {name} | {int(mask.sum()):,} | {rate:.1f} | "
+                     f"{int(weeks.max()) if len(weeks) else 0} |")
     return lines + [""]
 
 

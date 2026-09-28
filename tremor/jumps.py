@@ -52,7 +52,13 @@ events, each rarer than the last. The day is the fund's New York session date an
 the UTC date for currency pairs and coins (sessions.day_tz, the same day the
 running detector uses).
 
-WHAT IS NOT HERE YET, deliberately: no channels, no
+CHANNELS (stage 2). `high` and rarer push at once; `noticeable` goes into the
+weekly note, with a short ping of its own. Each event carries what the delivery
+layer reads (price_monitor.tremor_delivery): an id, its word as the `tier`, the
+basis `jump`, its channel and note slot, the move as `r` and the half-year sigma
+as `sigma_lt` - so the message's "N x its usual hour" is exactly |z|.
+
+WHAT IS NOT HERE YET, deliberately: no
 "biggest since" date, no held check, no time-of-day scale, no block or own-move
 reading, no size floor. Each comes back as its own stage with its own logic.
 The output is a table of every reading that reached `noticeable`.
@@ -255,6 +261,41 @@ def one_a_day(flagged: pd.DataFrame, tz_name: "str | None") -> pd.DataFrame:
     return order.assign(day=days, escalation=escalation)[keep].reset_index(drop=True)
 
 
+# The words that interrupt at once. The rest go into the weekly note.
+PUSH_WORDS: tuple[str, ...] = ("high", "major", "extreme")
+BASIS = "jump"
+
+
+def for_delivery(events: pd.DataFrame) -> pd.DataFrame:
+    """The columns the delivery layer reads, added to an events table.
+
+    `tier` is the word and `sigma_lt` the half-year sigma, so the message says
+    "N x its usual hour" with N = |z|. `record_since` and the retention columns
+    are absent until their stages exist, and delivery says nothing about them
+    for a `jump` event rather than guessing.
+    """
+    from tremor import routing
+
+    if events.empty:
+        return events
+    out = events.copy()
+    out["event_id"] = ("jump:" + out["asset_id"].astype(str) + ":" + out["reading"].astype(str)
+                       + ":" + out["hour_utc"].astype("int64").astype(str))
+    out["tier"] = out["word"].astype("string")
+    out["basis"] = BASIS
+    out["sigma_lt"] = out["sigma"]
+    out["overnight"] = out["reading"] != HOUR
+    out["gap_kind"] = out["reading"].where(out["overnight"])
+    pushes = out["tier"].isin(PUSH_WORDS).fillna(False).to_numpy(dtype=bool)
+    out["channel"] = pd.array(np.where(pushes, routing.PUSH, routing.DIGEST), dtype="string")
+    slots = pd.Series(pd.NA, index=out.index, dtype="Int64")
+    if (~pushes).any():
+        slots.loc[~pushes] = pd.array([routing.digest_slot(h) for h in
+                                       out.loc[~pushes, "hour_utc"]], dtype="Int64")
+    out["digest_slot"] = slots
+    return out
+
+
 def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKET_PATH
         ) -> pd.DataFrame:
     """Every instrument's events: its flagged readings - hour, night or
@@ -279,8 +320,9 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
         flagged.insert(4, "template", asset.session_template)
         parts.append(flagged)
     out = (pd.concat(parts, ignore_index=True) if parts else pd.DataFrame())
-    return out.sort_values(["hour_utc", "asset_id"]).reset_index(drop=True) \
-        if not out.empty else out
+    if out.empty:
+        return out
+    return for_delivery(out.sort_values(["hour_utc", "asset_id"]).reset_index(drop=True))
 
 
 def main(argv: "list[str] | None" = None) -> int:
@@ -296,6 +338,7 @@ def main(argv: "list[str] | None" = None) -> int:
     if not flagged.empty:
         log.info("by reading: %s", flagged["reading"].value_counts().to_dict())
         log.info("by word: %s", flagged["word"].value_counts().to_dict())
+        log.info("by channel: %s", flagged["channel"].value_counts().to_dict())
     return 0
 
 

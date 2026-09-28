@@ -53,16 +53,35 @@ dropped. A day therefore holds at most four events, each rarer than the last. A 
 before the hour that shares its timestamp. The day is the fund's New York date and the UTC
 date for currency pairs and coins (`sessions.day_tz`, the running detector's day).
 
-The output is a table, not messages: `data/tremor/jumps.parquet`, every instrument's events
-— hour, night or weekend — with `escalation` marking the ones that raised their day. `tools/stage_report.py` prints what it flags:
-per week, per instrument and block, the gaps by kind, and how the biggest hours of each
-record were worded.
+**Stage 2, channels — built.** `high`, `major` and `extreme` push: a message of their own,
+at once. `noticeable` goes into the weekly note, with a small ping that points at it
+(`jumps.PUSH_WORDS`, `jumps.for_delivery`). There is **one note a week**, opened Saturday
+00:05 UTC and edited in place until the next Saturday, and the coming week's economic
+calendar is its top part (`weekly_digest.calendar_parts`), the rows below it. A jump
+message says only what the detector measured — the word and the size against the usual hour
+(or the usual night or weekend gap) over the last half-year:
+
+```
+🟥 LTC-USD · Litecoin +5.76%
+extreme · 11x its usual hour over the last half-year
+🕐 24-09-2026 02:00 UTC
+```
+
+No "biggest since" date, no check-in lines and no block/own split: those are stages 3, 4 and
+8, and the delivery layer leaves them out for a `basis: jump` event rather than guessing.
+
+The output is `data/tremor/jumps.parquet`, every instrument's events — hour, night or
+weekend — with `escalation` marking the ones that raised their day, and the columns the
+delivery layer reads (`event_id`, `tier`, `channel`, `digest_slot`, `sigma_lt`). Delivery
+still reads the running detector's `saed_events.parquet`; the switch points it here.
+`tools/stage_report.py` prints what the detector flags: per week, per instrument and block,
+the gaps by kind, how the biggest hours of each record were worded, and the events by
+channel.
 
 **Stages to come**, each only after the previous one has been reviewed:
 
 | | stage | source |
 |---|---|---|
-| 2 | channels (push or note) and delivery to Telegram | — |
 | 3 | the "biggest since …" date | — |
 | 4 | the held-at-next-close check | — |
 | 5 | time of day and weekday | Boudt, Croux & Laurent (2011) |
@@ -136,8 +155,8 @@ the running digest note. Retention decides what the sent message says, not wheth
 sent.
 
 **7. Deliver.** A push goes out the hour it is found and is final when it arrives. A digest
-row goes into the note for its period — opened Monday and Saturday at 00:05 UTC and edited
-in place — with a throwaway ping, since Telegram does not notify on an edit; a ping exists
+row goes into the note for its period — one a week, opened Saturday at 00:05 UTC with the
+economic calendar at its top, and edited in place — with a throwaway ping, since Telegram does not notify on an edit; a ping exists
 only while the note beneath it shows its row. Messages are then corrected as the market
 answers: at this day's close and the next day's close. Nothing older than 48 hours is sent.
 
@@ -209,7 +228,7 @@ scoring, run by hand) · `feedback` (recorded verdicts)
 
 **Delivery** lives in `price_monitor/`: `tremor_delivery` (renders and sends; decides
 nothing, routing is already stamped), `follow_up` (the check-ins that edit a push already
-sent), `weekly_digest` (the economic-calendar forecast), `health`, `notifier`, and the
+sent), `weekly_digest` (the economic calendar at the top of the weekly note), `health`, `notifier`, and the
 source clients (`tiingo`, `yahoo`, `coinbase`, `twelvedata`, `dukascopy`, `hfdata`) that
 `backfill` fetches through.
 

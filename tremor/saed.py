@@ -1104,7 +1104,8 @@ def main(argv: list[str] | None = None) -> int:
         if span > 0 and by_channel.get(routing.PUSH, 0):
             log.info("a push every %.0f days, %.1f items per digest",
                      365.25 / (by_channel[routing.PUSH] / span),
-                     by_channel.get(routing.DIGEST, 0) / (span * 104))
+                     by_channel.get(routing.DIGEST, 0)
+                     / (span * 52.18 * len(routing.DIGEST_WEEKDAYS)))
     return 0
 
 

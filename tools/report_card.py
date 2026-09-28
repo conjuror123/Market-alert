@@ -168,7 +168,7 @@ def report(events: pd.DataFrame) -> str:
         f"  longest quiet stretch  {gaps.max():.0f} days",
         f"  worst single day       {per_day.max()} pushes",
         f"  digest                 {int(events['channel'].eq('digest').sum())} lines "
-        f"= {events['channel'].eq('digest').sum()/years/104:.1f} per note (two a week)",
+        f"= {events['channel'].eq('digest').sum()/years/52.18:.1f} per note (one a week)",
         "",
         "PER INSTRUMENT",
         *lines,

@@ -1,31 +1,26 @@
-"""Posts a Saturday digest of the coming week's Medium/High-impact economic
-calendar events to Telegram.
+"""The coming week's Medium/High-impact economic calendar, as the top of the
+weekly note.
 
-Piggybacks on the existing hourly trigger (see .github/workflows/price-monitor.yml
-and README - external cron-job.org calls workflow_dispatch roughly once an hour)
-instead of provisioning a second schedule: __main__.py calls
-maybe_send_weekly_digest on every run, and it's a no-op except during the one
-hourly run that lands on the Saturday note's opening. "Already sent" is tracked
-in state.json (already loaded/saved every run) so a second run inside the grace
-window - or the external trigger firing a little early or late - never posts the
-digest twice.
+It is not a message of its own any more. There is one note a week, opened on
+Saturday (tremor.routing), and the calendar sits at its head, above the week's
+digest rows (price_monitor.tremor_delivery.format_digest). Two things here make
+that work:
 
-IMMEDIATELY BEFORE THE WEEKEND PRICE NOTE, and that ordering is the reason for
-the day. __main__ calls this first and tremor_delivery second, so in the one run
-that lands on the Saturday slot both go out in that order and the running price
-note is the last message in the chat - which is where it should be, because it
-is the one that keeps changing for the next two days.
+  maybe_prepare_weekly_calendar  called by __main__ on every run; a no-op except
+      in the first hours after the note opens, when it fetches the coming week
+      into the archive once. "Already fetched" is kept in state.json, keyed by
+      the note's slot, so a second run inside the grace window does not fetch
+      twice.
+  calendar_parts  the calendar text for a given note, read from the archive
+      alone. The note is re-rendered every run, and the calendar with it.
 
 THE DAY IS NOT WRITTEN DOWN HERE AS A WEEKDAY. It is read off tremor.routing,
-which owns the note boundaries, and this module only asks whether the note due
-to open right now is the WEEKEND one. Two constants both spelling "Saturday" in
-two files is exactly the pair that survives one of them being changed, and the
-entire point of the day is that these two messages arrive in the same run.
+which owns the note boundaries. Two constants both spelling "Saturday" in two
+files is exactly the pair that survives one of them being changed.
 
-The weekend note and not the Monday one, because a forecast wants to arrive
-before the week it forecasts, with a weekend to read it in. A calendar of the
-coming week delivered one minute past the start of that week is a schedule
-handed out after the meeting began.
+Saturday because a forecast wants to arrive before the week it forecasts, with
+a weekend to read it in. A calendar of the coming week delivered one minute
+past the start of that week is a schedule handed out after the meeting began.
 
 IT IS BUILT FROM THE ARCHIVE, over a window this module states outright: the
 next whole calendar week, Monday 00:00 UTC to the following Monday 00:00 UTC.
@@ -47,9 +42,10 @@ Every value the source gave is printed under each event: actual, forecast,
 previous. The actual takes separate work - the live weekly feed does not serve it
 at all, see refresh_months.
 
-Also runnable directly as a one-off, bypassing the day and dedup checks - see
-main() and .github/workflows/weekly-digest-test.yml - for manually checking
-what the digest actually looks like without waiting for Saturday:
+Also runnable directly as a one-off that SENDS the calendar as its own message,
+bypassing the day and dedup checks - see main() and
+.github/workflows/weekly-digest-test.yml - for checking what it looks like
+without waiting for Saturday:
     python -m price_monitor.weekly_digest --force
 """
 from __future__ import annotations
@@ -71,10 +67,11 @@ log = logging.getLogger("price_monitor.weekly_digest")
 
 _DIGEST_IMPACTS = set(economic_calendar.SHOWN_IMPACTS)
 
-# datetime.weekday(): Monday=0 ... Saturday=5. Which of routing.DIGEST_WEEKDAYS
-# this digest rides on - the weekend note, not the Monday one. The MOMENT it goes
-# out is not stated here at all: it is whatever routing says the weekend note
-# opens at, so the two cannot drift apart no matter which is edited.
+# datetime.weekday(): Monday=0 ... Saturday=5. The note the calendar rides on.
+# routing has one note a week, on Saturday, so this is a guard rather than a
+# choice: if routing ever opens notes on more days again, only the Saturday one
+# carries the calendar. The MOMENT is not stated here at all: it is whatever
+# routing says the note opens at, so the two cannot drift apart.
 _DIGEST_WEEKDAY = 5
 
 # And the same hours of grace the price note has (tremor_delivery
@@ -149,9 +146,8 @@ _MESSAGE_LIMIT = 4000
 def _weekend_slot(now: datetime) -> "int | None":
     """The weekend note-opening this moment belongs to, or None on a weekday.
 
-    routing.digest_slot answers "which note is open right now", which is either
-    the Monday one or the Saturday one. Only the Saturday one takes a calendar,
-    so a Monday slot is simply not this digest's business.
+    routing.digest_slot answers "which note is open right now". Only a note
+    opened on Saturday takes a calendar; today that is every note.
     """
     slot = routing.digest_slot(int(now.timestamp()))
     opens = datetime.fromtimestamp(slot, tz=timezone.utc).astimezone(routing.DIGEST_TZ)
@@ -159,8 +155,8 @@ def _weekend_slot(now: datetime) -> "int | None":
 
 
 def _is_digest_window(now: datetime) -> bool:
-    """Whether a digest may go out at this moment: as the weekend note opens, or
-    within the few hours after it if those runs were missed."""
+    """Whether the calendar may be fetched at this moment: as the note opens,
+    or within the few hours after it if those runs were missed."""
     slot = _weekend_slot(now)
     if slot is None:
         return False
@@ -347,7 +343,7 @@ def maybe_refresh_calendar(cfg: Config, state: dict,
                            now: datetime | None = None) -> bool:
     """Merges the live weekly feed into the archive, once a day.
 
-    Not for the digest - that refreshes the archive itself when it sends. This
+    Not for the note - that refreshes the archive itself as it opens. This
     is for the pushes, which name the scheduled releases around a move on every
     day of the week and would otherwise be reading a schedule fetched last
     Saturday. Cheap enough to be unremarkable: one request, and only the first run
@@ -439,21 +435,45 @@ def _send_digest(cfg: Config, session: requests.Session | None,
     return True
 
 
-def maybe_send_weekly_digest(
+def calendar_parts(cfg: Config, slot: int) -> list[str]:
+    """The coming week's calendar for the weekly note opened at `slot`, read
+    from the archive alone - no fetch, because the note is re-rendered every
+    run and the calendar with it (which is also how an `actual` that arrives
+    during the week reaches the note).
+
+    The window is taken from the slot, not from the clock, so every re-render
+    of the same note lists the same week. An archive that stops short says so
+    in one line rather than printing "no events" for a week it does not know.
+    """
+    opens = datetime.fromtimestamp(int(slot), tz=timezone.utc)
+    start, end = coming_week(opens)
+    archive = economic_calendar.load_events(economic_calendar.store_path(cfg.calendar_dir))
+    if not _covers(archive, end):
+        return ["📅 <b>Economic calendar for the week</b>\n"
+                f"<i>{start.strftime('%d.%m')} — {(end - timedelta(seconds=1)).strftime('%d.%m')}"
+                "</i>\n\nThe calendar for this week is not in the archive yet; it appears "
+                "here once it is."]
+    events = [e for e in economic_calendar.events_in_window(archive, start, end)
+              if e["impact"] in _DIGEST_IMPACTS]
+    return format_digest(events, start, end)
+
+
+def maybe_prepare_weekly_calendar(
     cfg: Config, state: dict, session: requests.Session, now: datetime | None = None,
 ) -> bool:
-    """No-ops outside the weekend note's opening window, and no-ops if this
-    week's digest has already been sent. Returns True if one actually went."""
+    """Brings the archive up to the end of the coming week as the weekly note
+    opens, once per note. The calendar is no longer sent as a message of its
+    own: it is the top of the weekly note (calendar_parts), and this makes sure
+    the archive holds the week before the note is first rendered. Returns True
+    if it fetched."""
     now = now or datetime.now(timezone.utc)
     if not _is_digest_window(now):
         return False
-
     week_id = _week_identifier(now)
     if state.get(_STATE_KEY) == week_id:
         return False
-    if not _send_digest(cfg, session, now):
-        return False
-
+    start, end = coming_week(datetime.fromtimestamp(int(week_id), tz=timezone.utc))
+    _refresh_archive(cfg, session, now, end)
     state[_STATE_KEY] = week_id
     return True
 

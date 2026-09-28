@@ -176,3 +176,27 @@ def test_a_funds_day_is_its_new_york_date_and_a_coins_the_utc_date():
                     ("2024-01-03 01:00", "hour", "noticeable")])   # 20:00 New York, next UTC day
     assert len(jumps.one_a_day(flags, "America/New_York")) == 1
     assert len(jumps.one_a_day(flags, None)) == 2
+
+
+def _events(words, reading="hour"):
+    base = pd.Timestamp("2026-09-15 14:00", tz="UTC")
+    return pd.DataFrame([{"asset_id": "twelvedata:GLD", "hour_utc": int((base + pd.Timedelta(hours=i)).timestamp()),
+                          "reading": reading, "word": w, "r": 0.02, "sigma": 0.002, "z": 10.0}
+                         for i, w in enumerate(words)])
+
+
+def test_high_and_up_push_and_noticeable_goes_into_the_weekly_note():
+    from tremor import routing
+    out = jumps.for_delivery(_events(["noticeable", "high", "major", "extreme"]))
+    assert list(out["channel"]) == ["digest", "push", "push", "push"]
+    assert out["digest_slot"].iloc[0] == routing.digest_slot(int(out["hour_utc"].iloc[0]))
+    assert out["digest_slot"].iloc[1:].isna().all()
+    assert (out["basis"] == "jump").all()
+
+
+def test_a_jump_event_is_named_by_its_instrument_reading_and_hour():
+    out = jumps.for_delivery(_events(["high"], reading="weekend"))
+    hour = int(out["hour_utc"].iloc[0])
+    assert out["event_id"].iloc[0] == f"jump:twelvedata:GLD:weekend:{hour}"
+    assert bool(out["overnight"].iloc[0]) and out["gap_kind"].iloc[0] == "weekend"
+    assert out["sigma_lt"].iloc[0] == 0.002

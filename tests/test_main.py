@@ -21,8 +21,8 @@ def _quiet(monkeypatch):
     sent = []
     monkeypatch.setattr(entry, "send_telegram_message",
                         lambda token, chat, text: sent.append((chat, text)) or 1)
-    monkeypatch.setattr(entry.weekly_digest, "maybe_send_weekly_digest",
-                        lambda *a, **k: 0)
+    monkeypatch.setattr(entry.weekly_digest, "maybe_prepare_weekly_calendar",
+                        lambda *a, **k: False)
     monkeypatch.setattr(entry.weekly_digest, "maybe_refresh_calendar",
                         lambda *a, **k: False)
     monkeypatch.setattr(entry.requests, "Session", lambda: object())
@@ -125,6 +125,6 @@ def test_a_broken_weekly_digest_is_also_carried_into_health(tmp_path, monkeypatc
         raise RuntimeError("calendar is down")
 
     monkeypatch.setattr(entry, "load_config", lambda: _cfg(tmp_path))
-    monkeypatch.setattr(entry.weekly_digest, "maybe_send_weekly_digest", boom)
+    monkeypatch.setattr(entry.weekly_digest, "maybe_prepare_weekly_calendar", boom)
     monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", lambda cfg, state: 0)
     assert entry.main() == 1

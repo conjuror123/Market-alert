@@ -87,6 +87,24 @@ milder word the same day is dropped. A rise is kept because it is new informatio
 that opens `noticeable` and turns `major` is a different day from one that stays
 `noticeable`. Over the record this cuts 28,095 flags to 22,168 events, 1,422 of them rises.
 
+**`high` and up push; `noticeable` goes into the note.** The reader's choice, to try: more
+messages than the running detector's one a week was the point of the change. For today's
+basket that is about 10 pushes a week and about 19 note rows a week, each row with its own
+small ping; the busiest week of the last year had 37 pushes and 61 rows. `noticeable` alone is two thirds of the events, so it is the one word worth
+reading in a batch; `high` (5.5σ) is where a move stops being routine for its instrument.
+To be tuned with the threshold at stage 12, against a few weeks of real messages.
+
+**One note a week, with the economic calendar on top.** With every word from `high` up
+pushed, the note holds only `noticeable` rows, and one note a week holds them (it used to be
+two, Monday and Saturday). The calendar is no longer a message of its own: it forecasts the
+week the note will report, so both sit in one message and cost one interruption. Saturday,
+so the forecast arrives before the week it forecasts.
+
+**A jump message claims only what the detector measured.** The word and the size against
+the usual hour over the last half-year. No "biggest since" date, no held-at-close line, no
+block/own split until their stages exist — the running detector's wording for those would
+describe a measurement the jump detector does not make.
+
 **What the jump detector replaces.** The ladder of the running detector: three per-block
 tables of rungs (`BLOCK_SIGMA`, `BLOCK_RESID_SIGMA`, `BLOCK_MOVE_SIGMA`) and a
 `sensitivity` multiplier. Before that the rungs were ranks within a six-year window, retired

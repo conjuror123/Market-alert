@@ -11,8 +11,8 @@ found. A digest row goes into the note for its period - and that note is OPENED
 at the start of the period rather than written at the end of it, so a row
 appears the same hour and the reader is not made to wait three days for
 something that has already happened and will not change. Telegram notifies on a
-new message and stays silent on an edit, so the whole arrangement costs exactly
-two interruptions a week: one when each note opens.
+new message and stays silent on an edit, so the note itself costs one
+interruption a week, when it opens; each row adds a small ping of its own.
 
 EVERY MESSAGE IS CORRECTED IN PLACE. Neither kind waits for the market to
 answer, so both say what they are waiting for: a push carries both check-ins -
@@ -27,18 +27,19 @@ from the events table every run and edited only when the text actually changed,
 so a late event simply appears, a recomputed-away one simply goes, and a run
 that renders twice writes the same thing twice.
 
-Like the calendar digest it piggybacks on the existing hourly trigger rather
-than taking a schedule of its own (see weekly_digest.py's module docstring).
+It piggybacks on the existing hourly trigger rather than taking a schedule of
+its own.
 
-SEPARATE FROM THE SATURDAY CALENDAR DIGEST, on purpose, and not merely to keep
-files apart. The two are different tenses: the calendar digest is a forecast of
-what is scheduled next week, this one is a report of what actually happened.
-Reading them as one message makes both harder to skim.
+THE ECONOMIC CALENDAR IS THE TOP OF THE NOTE (weekly_digest.calendar_parts):
+the coming week's scheduled releases first, then the rows of what actually
+moved. One note a week, one interruption for both, and the forecast and the
+report of the same week sit in one place. A calendar that cannot be read leaves
+the note with its rows and without the calendar, never the other way round.
 
 WHEN A NOTE MAY BE OPENED is a rule of its own. Only in its own hour, or the
-three after it, so that a note stays a thing with a date on it: Monday 00:05 UTC
-and Saturday 00:05 UTC, the two quietest hours of the week and the two seams
-where a stretch of trading actually ends. A note opened whenever the system
+three after it, so that a note stays a thing with a date on it: Saturday 00:05
+UTC, the quietest hour of the week and the seam where the trading week actually
+ends. A note opened whenever the system
 happened to next run is not a schedule, it is an arrival time. A period that
 misses the window is not lost: the next note covers from where the last one that
 actually went out left off, so the boundaries hold AND no move is silently
@@ -374,6 +375,8 @@ def _split_lines(event: dict, label: str, tier: str = "",
     was one equity bucket, credit separated from Treasuries, and four commodity
     blocks, because gold and crude cannot share one median.
     """
+    if _is_jump(event):
+        return []
     move = _clean(event.get("r"))
     own = _clean(event.get("e_resid"))
     rarity = record_phrase(event) if tier else ""
@@ -546,6 +549,14 @@ def load_events(cfg: Config) -> "list[dict]":
     return rows
 
 
+def _is_jump(event: dict) -> bool:
+    """An event from the jump detector (tremor.jumps), which is being built in
+    stages. Until the "biggest since" date and the held check exist as stages of
+    their own, its message claims neither: no record, no check-in lines, no
+    split of the move - only what the detector has actually measured."""
+    return str(event.get("basis") or "") == "jump"
+
+
 def _is_block(event: dict) -> bool:
     """Whether this row is a block rather than an instrument (see tremor.blocks)."""
     from tremor.blocks import is_block
@@ -580,6 +591,10 @@ def _scale_note(event: dict) -> str:
     size = _ratio_short(event)
     if not size:
         return ""
+    if _is_jump(event):
+        unit = f"usual {_open_words(event)[1]}" if _overnight(event) else "usual hour"
+        return (f"{_escape(str(event.get('tier') or ''))} · {size} its {unit} "
+                f"over the last half-year")
     # For a block the yardstick is the median member's usual hour rather than any
     # one instrument's, and saying "its" would invite the reader to look for an
     # instrument that does not exist.
@@ -793,11 +808,12 @@ def describe(event: dict, labels: dict[str, str],
         parts.append(context)
 
     parts.extend(_split_lines(event, label, tier, basis))
-    parts.extend(check_in_lines(event, now))
-    rate = tier_rate_line(
-        event, rate_history if rate_history is not None else events)
-    if rate:
-        parts.append(rate)
+    if not _is_jump(event):
+        parts.extend(check_in_lines(event, now))
+        rate = tier_rate_line(
+            event, rate_history if rate_history is not None else events)
+        if rate:
+            parts.append(rate)
     parts.append(f"{TIME_EMOJI}<b>{format_day(when)} {when:%H:%M} UTC</b>")
     return "\n".join(parts)
 
@@ -1283,13 +1299,13 @@ def format_push(event: dict, labels: dict[str, str],
 # whether it held, which the row says it is waiting for.
 #
 # It costs no extra interruption. Telegram notifies on a NEW message and stays
-# silent on an edit, so the reader is buzzed exactly twice a week, at the hour
-# each note opens, and everything after that arrives quietly in a message they
-# already have.
+# silent on an edit, so the note buzzes once a week, at the hour it opens, and
+# everything after that arrives quietly in a message the reader already has
+# (each row's own small ping aside).
 #
 # WHICH IS WHY THE OPENING HOUR IS THE ONE THING THAT CANNOT SLIP. The whole
-# arrangement is worth having because the two interruptions land at noon on a
-# Tuesday and a Friday; a note that opened whenever the system happened to next
+# arrangement is worth having because the note's interruption lands at a
+# scheduled hour; a note that opened whenever the system happened to next
 # run - at 22:16, as it did the first time this shipped - is an ordinary
 # unscheduled buzz wearing a schedule's clothes.
 DIGEST_STATE = "digests"
@@ -1476,13 +1492,29 @@ def digest_rows(events: "list[dict]", window: "tuple[int, int]",
             and float(e.get("hour_utc", 0)) <= now.timestamp()]
 
 
+def _economic(cfg, slot: int) -> "list[str]":
+    """The coming week's calendar for this note, or nothing if it cannot be
+    read - a calendar fault must never cost the note its rows."""
+    try:
+        from price_monitor import weekly_digest
+        return weekly_digest.calendar_parts(cfg, slot)
+    except Exception as exc:                     # pragma: no cover - defensive
+        log.warning("Economic calendar left out of note %s: %s", slot, exc)
+        return []
+
+
 def format_digest(events: "list[dict]", labels: dict[str, str],
                   window: "tuple[int, int]",
                   calendar: "list[dict] | None" = None,
                   now: datetime | None = None,
                   all_events: "list[dict] | None" = None,
-                  rate_history: "list[dict] | None" = None) -> "list[str]":
+                  rate_history: "list[dict] | None" = None,
+                  economic: "list[str] | None" = None) -> "list[str]":
     """One note, whole, split into parts Telegram will accept.
+
+    THE WEEK'S ECONOMIC CALENDAR COMES FIRST (`economic`, already cut into
+    parts by price_monitor.weekly_digest), and the note's rows below it: one
+    weekly message that says what is scheduled and then what happened.
 
     ORDERED BY TIME, and by rarity only inside an hour. A note is a record, so a
     period read top to bottom runs in the order it happened; leading with the
@@ -1518,9 +1550,9 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
         count = "Nothing so far" if live else "Nothing in this period"
     # THE LAST DAY THE NOTE CAN HOLD ANYTHING, not the moment it stops. A note
     # runs to the instant the next one opens, and under the current boundaries
-    # that instant is 00:05 - so the workweek note technically reaches into
-    # Saturday by five minutes and was printing "Mon 14 to Sat 19", handing
-    # Saturday to a note that carries none of it. Saturday is the weekend note's.
+    # that instant is 00:05 - so a note technically reaches into the next
+    # Saturday by five minutes and would print "Sat 12 to Sat 19", handing that
+    # Saturday to a note that carries none of it. It belongs to the next note.
     #
     # An hour back rather than a second, and the hour is the unit that makes it
     # true rather than merely nicer: the note is a list of hourly bars, so a
@@ -1556,6 +1588,7 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
 
     if any("instruments drifting together" in m for m in messages):
         messages[-1] += "\n\n" + basket_footer()
+    messages = list(economic or []) + messages
 
     if len(messages) > 1:
         # THE PART MARKER NAMES ITS NOTE. Only the first part carries the
@@ -2058,7 +2091,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
                     or now.timestamp() < window[1]
                     + DIGEST_GROW_AFTER_CLOSE_HOURS * 3600)
         texts = format_digest(rows, labels, window, calendar,
-                              now, events, rate_history)
+                              now, events, rate_history, _economic(cfg, slot))
         held = max(0, len(texts) - len(record["ids"])) if not may_grow else 0
         made, changed = _write_digest(cfg, slot, record, texts, state,
                                       may_grow=may_grow)

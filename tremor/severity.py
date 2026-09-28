@@ -84,8 +84,8 @@ import pandas as pd
 # to the rank rule this table replaced.
 #
 # WHAT THE FIRST COLUMN ACTUALLY DECIDES IS THE LENGTH OF THE WEEKLY NOTE. The
-# digest carries noticeable and high, 6.7 rows a week across two notes - about
-# 3.3 rows a note - and THREE QUARTERS OF THEM ARE `noticeable`. So the shallowest
+# digest carries noticeable and high, 6.7 rows a week (then across two notes;
+# the jump detector keeps one) - and THREE QUARTERS OF THEM ARE `noticeable`. So the shallowest
 # rung sets how much there is to read on a Saturday almost by itself, and the
 # three above it only decide which of those rows carries which word. That is the
 # question to ask when moving the first column, because it is the one a person

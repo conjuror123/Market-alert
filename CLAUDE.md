@@ -62,7 +62,7 @@ Break one of these and the system is wrong rather than merely broken.
    `DIGEST_TRACK_HOURS` is re-rendered from the events table each run, so it stays
    correctable — but an edit is silent and a new part is a notification. Past
    `DIGEST_GROW_AFTER_CLOSE_HOURS` beyond its window, a note may be corrected and may
-   not grow. Two interruptions a week, and no third.
+   not grow. One note a week (Saturday, calendar on top), one interruption for it.
 7. **An hour is scored from the bar it ends with, not the bar it starts with.** The run
    fires at :05 and stores the hour it is standing in — a few per cent of its volume.
    The bars heal on the next fetch, so the metrics must too: `extend_asset_metrics`
