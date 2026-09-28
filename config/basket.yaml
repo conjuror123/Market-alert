@@ -96,6 +96,23 @@ history_since: "2015-01-01"
 fetch_since: "2002-01-01"
 
 # ---------------------------------------------------------------------------
+# THE JUMP DETECTOR (tremor/jumps.py), being built in stages beside the running
+# one. Stage 0 is the jump test of Lee & Mykland (2008) and nothing else:
+#
+#   z = the hour's move / the instrument's bipower volatility over the
+#       window_days before it (calendar time, the same for every instrument)
+#   the word from |z|: noticeable at noticeable_sigma, and each word above it
+#       `step` times bigger - 3.9, 5.5, 7.8, 11.0 with the settings below.
+#
+# window_days: half a year, inside the paper's valid range for every calendar.
+# noticeable_sigma: 3.9 for now, to be tuned at the end against the exact 99%
+#   level. step: sqrt(2), half an earthquake magnitude per word.
+detector:
+  window_days: 182.6
+  noticeable_sigma: 3.9
+  step: 1.414
+
+# ---------------------------------------------------------------------------
 # THE TWO KNOBS. Everything else in this file describes the market; these two
 # describe how much of it you want to hear about, and they are here rather than
 # in the code so that turning them is an edit and not a release.

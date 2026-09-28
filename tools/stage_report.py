@@ -1,0 +1,128 @@
+"""What the jump detector flags, stage by stage: the numbers a reader checks.
+
+    PYTHONPATH=. python tools/stage_report.py [--metrics-dir DIR] [--seed N]
+
+Scores every instrument's whole history with tremor.jumps (a second or two) and
+prints, as Markdown:
+
+  - flags a week for the whole basket, by word;
+  - per instrument a year, by block: median and the 10-90% range;
+  - the biggest hours of each instrument's record (its top 0.01% of |move|):
+    how many were flagged, and at which word;
+  - ten flagged hours picked at random, for a sanity read.
+
+Rates count only SETTLED hours - those whose window already spans the full
+half-year. Hours scored while a series was still young are counted apart, so
+the early, noisier yardstick cannot hide inside the totals.
+"""
+from __future__ import annotations
+
+import argparse
+import os
+
+import numpy as np
+import pandas as pd
+
+from tremor import jumps
+from tremor.basket import load_basket
+
+YEAR = 365.25 * 86400
+BIGGEST_SHARE = 1e-4          # the top 0.01% of an instrument's hours
+
+
+def scored_basket(metrics_dir: str) -> pd.DataFrame:
+    basket = load_basket()
+    window, bottom, step = jumps.settings()
+    parts = []
+    for asset in basket.instruments:
+        path = os.path.join(metrics_dir, f"{asset.file_stem}.parquet")
+        if not os.path.exists(path):
+            continue
+        frame = jumps.score(pd.read_parquet(path, columns=["hour_utc", "r"]),
+                            asset.session_template, window, bottom, step)
+        frame = frame[np.isfinite(frame["z"])]
+        frame.insert(0, "ticker", asset.ticker)
+        frame.insert(1, "block", asset.block)
+        parts.append(frame)
+    return pd.concat(parts, ignore_index=True)
+
+
+def report(scored: pd.DataFrame, seed: int = 0) -> str:
+    lines = []
+    settled = scored[~scored["young"]]
+    spans = settled.groupby("ticker")["hour_utc"].agg(lambda h: (h.max() - h.min()) / YEAR)
+    years = spans.sum()
+    flagged = settled[settled["word"].notna()]
+    young_flags = scored[scored["young"] & scored["word"].notna()]
+
+    lines += ["## Flags, whole basket", "",
+              f"{len(spans)} instruments, {years:.0f} instrument-years of settled hours. "
+              f"{len(young_flags)} more flags came from young stretches (window under half "
+              f"a year) and are left out below.", "",
+              "Each instrument's own rate, summed: what today's basket produces.", "",
+              "| word | flags in the record | a year, today's basket | a week, today's basket |",
+              "|---|---|---|---|"]
+    total = 0.0
+    for word in jumps.WORDS:
+        mine = flagged[flagged["word"] == word]
+        rate = (mine.groupby("ticker").size().reindex(spans.index, fill_value=0) / spans).sum()
+        total += rate
+        lines.append(f"| {word} | {len(mine):,} | {rate:,.0f} | {rate / 52.18:,.1f} |")
+    lines.append(f"| **all** | {len(flagged):,} | {total:,.0f} | {total / 52.18:,.1f} |")
+    lines.append("")
+
+    per_inst = (flagged.groupby("ticker").size().reindex(spans.index, fill_value=0) / spans)
+    block_of = settled.groupby("ticker")["block"].first()
+    lines += ["## Per instrument a year, by block", "",
+              "| block | instruments | median | 10–90% | major or rarer, median |",
+              "|---|---|---|---|---|"]
+    rare = (flagged[flagged["word"].isin(["major", "extreme"])].groupby("ticker").size()
+            .reindex(spans.index, fill_value=0) / spans)
+    for block, names in block_of.groupby(block_of):
+        v = per_inst[names.index]
+        lines.append(f"| {block} | {len(v)} | {v.median():.1f} | "
+                     f"{v.quantile(.1):.1f}–{v.quantile(.9):.1f} | "
+                     f"{rare[names.index].median():.2f} |")
+    v = per_inst
+    lines.append(f"| **all** | {len(v)} | {v.median():.1f} | "
+                 f"{v.quantile(.1):.1f}–{v.quantile(.9):.1f} | {rare.median():.2f} |")
+    lines.append("")
+
+    counts = {w: 0 for w in jumps.WORDS}
+    counts["not flagged"] = 0
+    total_big = 0
+    for ticker, rows in settled.groupby("ticker"):
+        size = rows["r"].abs()
+        big = rows[size >= size.quantile(1 - BIGGEST_SHARE)]
+        total_big += len(big)
+        for word, n in big["word"].fillna("not flagged").value_counts().items():
+            counts[word] += int(n)
+    lines += ["## The biggest hours of each record", "",
+              f"Each instrument's top 0.01% of hours by size of move, {total_big} in all.", "",
+              "| word | hours | share |", "|---|---|---|"]
+    for word in list(jumps.WORDS) + ["not flagged"]:
+        lines.append(f"| {word} | {counts[word]} | {counts[word] / max(total_big, 1):.0%} |")
+    lines.append("")
+
+    sample = flagged.sample(min(10, len(flagged)), random_state=seed).sort_values("hour_utc")
+    lines += ["## Ten flagged hours, at random", "",
+              "| hour (UTC) | instrument | move | half-year σ | z | word |",
+              "|---|---|---|---|---|---|"]
+    for row in sample.itertuples():
+        when = pd.to_datetime(row.hour_utc, unit="s").strftime("%Y-%m-%d %H:%M")
+        lines.append(f"| {when} | {row.ticker} | {row.r * 100:+.2f}% | "
+                     f"{row.sigma * 100:.3f}% | {row.z:+.1f} | {row.word} |")
+    return "\n".join(lines)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--metrics-dir", default=jumps.DEFAULT_METRICS_DIR)
+    parser.add_argument("--seed", type=int, default=0)
+    args = parser.parse_args()
+    print(report(scored_basket(args.metrics_dir), args.seed))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
