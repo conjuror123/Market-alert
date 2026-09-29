@@ -24,7 +24,7 @@
         ],
         "from": 1789949100,
         "hashes": [
-          "23620cec44d2641f",
+          "36b39b68a7bf07b9",
           "823c404c7bc8d1a2"
         ],
         "ids": [
@@ -47,6 +47,7 @@
       },
       "1790553900": {
         "events": [
+          "twelvedata_SHY:1790704800",
           "twelvedata_IEI:1790604000",
           "twelvedata_IEF:1790604000",
           "twelvedata_TLH:1790604000",
@@ -59,14 +60,14 @@
         ],
         "from": 1790553900,
         "hashes": [
-          "2d65f7467082d447",
-          "a5215441113eb04d"
+          "3a4e29b847e5618c",
+          "474a55b451a12e67"
         ],
         "ids": [
           55,
           69
         ],
-        "rows": 9,
+        "rows": 10,
         "to": 1790985900
       }
     },
@@ -94,6 +95,10 @@
       "twelvedata_MBB:1790604000": {
         "hash": "abc9d66a8ff14166",
         "id": 62
+      },
+      "twelvedata_SHY:1790704800": {
+        "hash": "64e35f8790ad92bb",
+        "id": 71
       },
       "twelvedata_TIP:1790604000": {
         "hash": "373e685de2322570",
