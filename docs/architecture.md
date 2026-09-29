@@ -126,17 +126,27 @@ seconds, so nothing of it is cached. `tools/stage_report.py` prints what the det
 per week, per instrument and block, the gaps by kind, how the biggest hours of each record
 were worded, the events by channel, and how far back the rarest-since line reaches.
 
-**Stages to come**, each only after the previous one has been reviewed:
+**All the stages**, in the order they are built; each one after the previous has been
+reviewed:
 
-| | stage | source |
-|---|---|---|
-| 5 | time of day and weekday | Boudt, Croux & Laurent (2011) |
-| 7 | block co-jumps | Bollerslev, Law & Tauchen (2008) |
-| 8 | the own move, after the block | Bollerslev, Law & Tauchen (2008) |
-| 9 | scheduled news, labelled rather than hidden | Lahaye, Laurent & Neely (2011) |
-| 10 | tail shape per asset class (optional) | Student-t, from risk management |
-| 11 | a size floor, only if stage 8 needs one | — |
-| 12 | tuning the threshold and the step | — |
+| | stage | source | state |
+|---|---|---|---|
+| 0 | the score and the word: half-year bipower σ, 3.9 / 5.5 / 7.8 / 11.0 | Lee & Mykland (2008) | built |
+| 1b | the gap: nights and weekends, each against its own kind (was stage 6) | Lee & Mykland (2008) | built |
+| 1 | one event per 24 hours | — | built |
+| 2 | channels, the weekly note, delivery and curation | — | built |
+| 3 | rarest since | — | built |
+| 4 | held at the funds' close | — | built |
+| 5 | time of day and weekday | Boudt, Croux & Laurent (2011) | to come |
+| 7 | block co-jumps | Bollerslev, Law & Tauchen (2008) | to come |
+| 8 | the own move, after the block | Bollerslev, Law & Tauchen (2008) | to come |
+| 9 | scheduled news, labelled rather than hidden | Lahaye, Laurent & Neely (2011) | to come |
+| 10 | tail shape per asset class (optional) | Student-t, from risk management | to come |
+| 11 | a size floor, only if stage 8 needs one | — | to come |
+| 12 | tuning the threshold and the step | — | to come |
+
+Stages 1–4 were what the switch to production waited on. The blocks enter the detector
+only at stages 7 and 8; until then each instrument is judged on its own history alone.
 
 Settings live under `detector:` in `config/basket.yaml`: `window_days`,
 `noticeable_sigma`, `step`.

@@ -193,6 +193,52 @@ generalise to the next candidate with a change of endpoint.
 
 ---
 
+### The plan it blocks
+
+Parked 2026-09-22 and written for the previous detector; kept here so it outlives the
+session it was made in. **The owner's decisions:** one re-cut of the whole basket and block
+map at once; message volume may grow, and what to do about it is chosen after seeing it; no
+instrument shallower than the existing 2020-02-10 wall.
+
+**The rule it rests on:** every block ends with 8–12 members. Measured on the previous
+detector's residuals, leftover correlation between members falls steeply up to about six
+and is flat after eight; splitting today's thin blocks without adding members made it
+worse. **Under the jump detector the blocks do not enter detection until stages 7 and 8**
+(`architecture.md`), so the rule binds then, not now — a new instrument today is judged on
+its own history alone.
+
+**The target**, about 150 instruments in 16–19 blocks, existing ones in bold, broad
+benchmarks (SPY IWM DIA RSP MDY) watched outside the basket:
+
+| block | members |
+|---|---|
+| US cyclicals | **XLY XLI XLB XLF XLE** KRE XRT ITB IYT XME |
+| US defensives | **XLP XLV XLU** XBI XPH IHI VDC VHT VPU |
+| US tech | **XLK XLC QQQ** SMH SOXX IGV FDN CIBR SKYY |
+| developed ex-US | **EFA** EWJ EWG EWU EWQ EWC EWA EWL EWN EZU |
+| emerging | **EEM** FXI EWZ EWW INDA EWY EWT EZA EPI TUR |
+| real estate | **XLRE** VNQ IYR RWR SCHH REM VNQI RWX |
+| government bonds | **SHY IEI IEF TLH TLT** GOVT SCHO VGIT VGLT SPTL BWX |
+| inflation and securitized | **TIP MBB** VTIP SCHP STIP VMBS SPMB LMBS JMBS |
+| IG credit | **LQD** VCIT VCSH IGIB SPIB USIG QLTA GIGB SLQD |
+| HY credit | **HYG JNK BKLN PFF** SHYG USHY ANGL SRLN FALN |
+| EM credit | **EMB** EMLC VWOB PCY EBND LEMB EMHY CEMB |
+| energy | **USO BNO UGA UNG DBC** DBO DBE UNL |
+| precious metals | **GLD SLV PPLT PALL** IAU SGOL SIVR GLTR |
+| industrial metals | **DBB CPER** JJC JJN JJU LIT REMX SLX |
+| agriculture | **DBA CORN WEAT SOYB** CANE JO NIB BAL COW |
+| DM FX | **EUR/USD USD/JPY GBP/USD USD/CHF AUD/USD NZD/USD USD/CAD** USD/SEK USD/NOK |
+| EM FX | **USD/CNH** USD/MXN USD/ZAR USD/BRL USD/TRY USD/INR USD/KRW USD/PLN |
+| crypto majors | **BTC ETH SOL LTC BCH ADA DOGE** XRP |
+| crypto alts | **LINK AVAX** DOT MATIC UNI ATOM FIL AAVE |
+
+Expected to fail the feed test first: the MBS funds past MBB/VMBS, EM credit past
+EMB/EMLC/VWOB, the JJ* ETNs, and COW/NIB/BAL; a block that cannot reach 8 merges rather
+than ships short. **Phase A** — a committed verdict table, one row per candidate: provider,
+median and p90 disagreement in bps against a trusted feed, oldest bar, pass or reject — was
+never produced; it stopped at the Alpaca measurements above. Its other half, guards on the
+previous detector's severity tables and block labels, went with that detector.
+
 ## 8. Smaller things, found and left alone
 
 - **A hole inside a session makes a two-hour move.** When a bar is missing mid-session, the
