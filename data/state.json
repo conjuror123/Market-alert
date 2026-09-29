@@ -54,18 +54,19 @@
           "twelvedata_TIP:1790604000",
           "twelvedata_MBB:1790604000",
           "twelvedata_LQD:1790604000",
+          "twelvedata_AUD_USD:1790658000",
           "coinbase_LINK-USD:1790611200"
         ],
         "from": 1790553900,
         "hashes": [
-          "c1b9cb162da351d9",
-          "392674473f6ab7e4"
+          "2d65f7467082d447",
+          "a5215441113eb04d"
         ],
         "ids": [
           55,
           69
         ],
-        "rows": 8,
+        "rows": 9,
         "to": 1790985900
       }
     },
@@ -73,6 +74,10 @@
       "coinbase_LINK-USD:1790611200": {
         "hash": "4d077136ac0d72ac",
         "id": 64
+      },
+      "twelvedata_AUD_USD:1790658000": {
+        "hash": "716f2dd482984e98",
+        "id": 70
       },
       "twelvedata_IEF:1790604000": {
         "hash": "7baac2e41f7562f1",
