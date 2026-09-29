@@ -6,20 +6,6 @@
   "telegram_update_offset": 688283215,
   "tremor_delivery": {
     "digests": {
-      "1789776300": {
-        "events": [
-          "coinbase_AVAX-USD:1789866000"
-        ],
-        "from": 1789776300,
-        "hashes": [
-          "4f6bd031dc45f943"
-        ],
-        "ids": [
-          26
-        ],
-        "rows": 1,
-        "to": 1789949100
-      },
       "1789949100": {
         "events": [
           "twelvedata_SHY:1790168400",
@@ -73,7 +59,7 @@
         "from": 1790553900,
         "hashes": [
           "75e839568aa27376",
-          "73d31e1ed1fdf5c5"
+          "392674473f6ab7e4"
         ],
         "ids": [
           55,
@@ -163,6 +149,6 @@
       }
     }
   },
-  "weekly_digest:last_refreshed": "2026-09-28",
+  "weekly_digest:last_refreshed": "2026-09-29",
   "weekly_digest:last_sent_week": "1790381100"
 }
