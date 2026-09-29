@@ -18,8 +18,8 @@ events table and brings every message of the week in line with it - see "the
 week" below for exactly what that means. What belongs to an earlier note is
 history and is never touched.
 
-A MOVE IS SENT ONLY WITHIN 24 HOURS OF BEING FOUND. After that it may still be
-corrected or removed, but nothing new rings for it. This is load-bearing: the
+AN EVENT IS 24 HOURS FROM ITS FIRST MOVE BEING FOUND, and it rings only inside
+them. After that it may still be corrected or removed, silently. This is load-bearing: the
 events table holds the whole history, so without it the first run after a mute
 would deliver years of alerts at once. An EMPTY events table changes nothing at
 all: it cannot tell "nothing happened" from "the pipeline did not run".
@@ -489,6 +489,8 @@ def format_push(event: dict, labels: dict[str, str],
     note carries the regime once for all of them.
     """
     lines = [describe(event, labels)]
+    if event.get("story"):
+        lines.append(event["story"])
     context = calendar_context(int(event["hour_utc"]), calendar)
     if context:
         lines.append("")
@@ -555,6 +557,8 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
 
     def row(event: dict) -> str:
         line = describe(event, labels)
+        if event.get("story"):
+            line += "\n" + event["story"]
         context = calendar_context(int(event["hour_utc"]), calendar)
         return f"{line}\n     {_escape(context)}" if context else line
 
@@ -602,30 +606,34 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
              f"{shown}{_sigma_multiple(event)}")
     return f"{first}\nAdded to digest👆🏻👆🏻"
 
+
+
 # --- the week ------------------------------------------------------------------
 #
 # ONE NOTE A WEEK, opened Sunday 00:05 UTC (tremor.routing) just after the
-# economic calendar's own message. For that week every message the bot sent is
-# kept in line with the events table, every run; anything from before the note
-# opened is history and is never touched again.
+# economic calendar's own message. For that week every message is kept in line
+# with the events table, every run; anything from before the note opened is
+# history and is never touched again.
 #
-# The week's state is the only thing remembered: which pushes and which note rows
-# are on the channel, their pings, and the note's message ids. What each run does
-# with them, in order:
+# AN EVENT is 24 hours of real time from its first move being found
+# (tremor.jumps.event_starts). Its word is its rarest reading's and the numbers
+# it shows its biggest reading's. What happens to it on the channel:
 #
-#   pushes on the channel   event gone -> deleted. A rarer word within 24 hours of
-#                           the move being found -> a new push rings and the old
-#                           one is deleted. Anything else -> edited in place (a
-#                           push whose word fell to `noticeable` shows ⬜).
-#   rows in the note        event gone -> the row leaves (an edit) and its ping is
-#                           deleted. A push word within 24 hours -> the push rings,
-#                           the row and its ping go. Past 24 hours -> the row stays
-#                           with its new colour, and so does its ping.
-#   new events              within 24 hours of being found only: `high` and up
-#                           push, `noticeable` becomes a row with a ping - unless
-#                           its day already has a push on the channel.
-#   the day                 an instrument-day keeps one push, its rarest: the lower
-#                           ones are deleted. A day with a push shows no rows.
+#   within its 24 hours     rarer (any cause but a detector update) -> its
+#                           message is deleted - the row and its ping, or the
+#                           push - and it goes out again at the new word, and
+#                           rings. Milder -> edited in place: a push that falls
+#                           to `noticeable` shows ⬜; a `noticeable` that falls
+#                           away is deleted, row and ping. Same word, other
+#                           numbers -> edited in place.
+#   after its 24 hours      complete: a new move starts a new event. It changes
+#                           only when a bar is corrected or arrives late, and
+#                           never rings: rarer or milder is an edit - a row that
+#                           becomes `high` leaves the note and its ping is
+#                           edited into the push - and gone is deleted, for good.
+#
+# A CHANGED EVENT TELLS ITS STORY: one line under the time, every state it has
+# been in with why it moved (story_line). A clean event says nothing.
 #
 # A detector update (a new tremor.jumps.detector_version) starts the week over at
 # that run: every push and ping of the week is deleted, the note stays and shows
@@ -637,9 +645,19 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
 
 WEEK = "week"
 
-# A push goes out only within this long of its move being found. After that the
-# move can still be corrected or removed, but nothing new rings for it.
+# A message rings only within this long of its event's first move being found.
+# After that the event can still be corrected or removed, but nothing rings.
 PUSH_WINDOW_HOURS = 24
+
+ROW, PUSH = "row", "push"
+
+# Why an event's message changed, in the jump detector's own terms: its size is
+# |move| / σ of its biggest reading, and only these move it.
+BIGGER = "bigger jump"            # a new hour in the event jumped further
+LATE = "arrived late"             # a bar or gap that was missing came in
+PRICE = "price corrected"         # the provider revised the bar
+SIGMA = "σ corrected"             # older bars revised, so the half-year yardstick moved
+AWAY = "corrected away"           # no longer a jump
 
 
 def _fingerprint(text: str) -> str:
@@ -655,7 +673,7 @@ def _fingerprint(text: str) -> str:
 def _rank(tier) -> int:
     from tremor.jumps import WORDS
 
-    return WORDS.index(str(tier)) if str(tier) in WORDS else -1
+    return WORDS.index(str(tier)) if tier is not None and str(tier) in WORDS else -1
 
 
 def _is_push_word(tier) -> bool:
@@ -664,43 +682,50 @@ def _is_push_word(tier) -> bool:
     return str(tier) in PUSH_TIERS
 
 
-def superseder(event: dict) -> "str | None":
-    """The event_id of the rarer event that later took this one's day
-    (tremor.jumps.for_delivery), or None for the day's rarest event."""
-    value = event.get("superseded_by")
-    try:
-        if value is None or pd.isna(value):
-            return None
-    except (TypeError, ValueError):
-        pass
-    return str(value) or None
-
-
-def _kept(event: dict) -> bool:
-    value = event.get("kept", True)
-    try:
-        return bool(value) and not pd.isna(value)
-    except (TypeError, ValueError):
-        return bool(value)
-
-
-def _found(event: dict) -> int:
-    value = event.get("found_utc")
+def _found(reading: dict) -> int:
+    value = reading.get("found_utc")
     try:
         if value is not None and not pd.isna(value):
             return int(value)
     except (TypeError, ValueError):
         pass
-    return int(event["hour_utc"]) + 3600
+    return int(reading["hour_utc"]) + 3600
 
 
-def _day_key(event: dict) -> "tuple[str, int]":
-    day = event.get("day")
-    try:
-        day = int(day)
-    except (TypeError, ValueError):
-        day = int(event["hour_utc"]) // 86400
-    return str(event.get("asset_id", "")), day
+def _size(reading: dict) -> float:
+    z = _clean(reading.get("z"))
+    if z is None:
+        move, usual = _clean(reading.get("r")), _clean(reading.get("sigma_lt"))
+        z = move / usual if move is not None and usual else 0.0
+    return abs(z)
+
+
+def _hour_of(reading_id: str) -> int:
+    return int(str(reading_id).rsplit(":", 1)[1])
+
+
+def _clock(hour_utc: int, headline: int) -> str:
+    """HH:MM, with the day in front when it is not the headline's day."""
+    at = datetime.fromtimestamp(int(hour_utc), tz=timezone.utc)
+    same = at.date() == datetime.fromtimestamp(int(headline), tz=timezone.utc).date()
+    return at.strftime("%H:%M") if same else at.strftime("%d.%m %H:%M")
+
+
+def story_line(story: "list[list]", headline: int) -> str:
+    """✏️ 🟨 6.0×σ 02:00 → 🟧 8.1×σ 03:00 bigger jump → ✖ corrected away ...
+
+    Every state the event has been in, oldest first, and why it moved into
+    each. Empty for an event that never changed."""
+    if len(story) < 2:
+        return ""
+    steps = []
+    for tier, size, hour, why in story:
+        if tier is None:
+            steps.append(f"✖ {why}".rstrip())
+            continue
+        step = f"{TIER_EMOJI.get(tier, '⚪')} {size:.1f}×σ {_clock(hour, headline)}"
+        steps.append(f"{step} {why}" if why else step)
+    return "✏️ " + " → ".join(_escape(s) for s in steps)
 
 
 def _send(cfg: Config, text: str) -> "int | None":
@@ -752,6 +777,14 @@ def _first(text: str) -> str:
     return (text or "").split("\n", 1)[0]
 
 
+def _discard(cfg: Config, week: dict, message_id, first_line: str = "") -> None:
+    """Deletes a message, and remembers it to try again should that fail."""
+    if message_id is not None and not _delete(cfg, message_id, first_line):
+        week.setdefault("orphans", []).append([int(message_id), first_line])
+
+
+# --- the week's state -----------------------------------------------------------
+
 def _old_format(store: dict) -> bool:
     return any(k in store for k in ("digests", "sent", "tracked", "pings"))
 
@@ -783,160 +816,226 @@ def _adopt_old_state(cfg: Config, store: dict, now: datetime) -> "dict | None":
     if latest is None:
         return None
     record = digests[str(latest)]
-    return {"slot": latest, "since": int(now.timestamp()) - 3600 + 1,
-            "note": {"ids": list(record.get("ids") or []),
-                     "hashes": list(record.get("hashes") or [])},
-            "pushes": {}, "rows": {}, "retired": []}
+    week = _new_week(routing.digest_slot(int(now.timestamp())), "")
+    week["since"] = int(now.timestamp()) - 3600 + 1
+    week["note"] = {"ids": list(record.get("ids") or []),
+                    "hashes": list(record.get("hashes") or [])}
+    return week
 
 
 def _new_week(slot: int, version: str) -> dict:
     return {"slot": int(slot), "since": int(slot), "detector": version,
-            "note": {"ids": [], "hashes": []}, "pushes": {}, "rows": {}, "retired": []}
+            "note": {"ids": [], "hashes": []}, "events": {}, "orphans": []}
 
 
 def _close_week(cfg: Config, week: dict) -> None:
     """The week becomes history: its pings go, everything else stays as it is."""
-    for row in week.get("rows", {}).values():
-        _delete(cfg, row.get("ping"), _first(row.get("ping_text", "")))
+    for rec in week.get("events", {}).values():
+        if rec.get("form") == ROW:
+            _delete(cfg, rec.get("ping"), rec.get("first", ""))
+    for message_id, first_line in week.get("orphans", []):
+        _delete(cfg, message_id, first_line)
 
 
 def _restart_week(cfg: Config, week: dict, version: str, now: datetime) -> None:
     """A detector update: the week's pushes and pings are deleted, the note
     stays, and the week continues with what is found from this run on."""
-    for rec in week.get("pushes", {}).values():
-        _delete(cfg, rec.get("id"), rec.get("first", ""))
-    for row in week.get("rows", {}).values():
-        _delete(cfg, row.get("ping"), _first(row.get("ping_text", "")))
-    week.update(pushes={}, rows={}, retired=[], detector=version,
+    for rec in week.get("events", {}).values():
+        _delete(cfg, rec.get("id") if rec.get("form") == PUSH else rec.get("ping"),
+                rec.get("first", ""))
+    for message_id, first_line in week.get("orphans", []):
+        _delete(cfg, message_id, first_line)
+    week.update(events={}, orphans=[], detector=version,
                 since=int(now.timestamp()) - 3600 + 1)
 
 
-def _in_week(event: dict, week: dict) -> bool:
+def note_due(state: dict, now: datetime) -> bool:
+    """Whether this run opens a new note - the run the calendar goes out in,
+    just before it (weekly_digest)."""
+    from tremor import routing
+
+    store = state.get(STATE_KEY) or {}
+    if _old_format(store):
+        return False
+    week = store.get(WEEK)
+    return week is None or routing.digest_slot(int(now.timestamp())) > int(week["slot"])
+
+
+# --- one event ------------------------------------------------------------------
+
+def _in_week(reading: dict, week: dict) -> bool:
     from tremor import routing
     from tremor.jumps import FOUND_TO_RUN
 
-    moment = _found(event) + FOUND_TO_RUN
+    moment = _found(reading) + FOUND_TO_RUN
     end = routing.next_digest_slot(int(week["slot"]))
     return max(int(week["slot"]), int(week["since"])) <= moment < end
 
 
-def _push(cfg: Config, week: dict, event: dict, labels: dict, calendar) -> bool:
-    text = format_push(event, labels, calendar)
-    message_id = _send(cfg, text)
-    if message_id is None:
-        return False
-    asset_id, day = _day_key(event)
-    week["pushes"][str(event["event_id"])] = {
-        "id": message_id, "hash": _fingerprint(text), "first": _first(text),
-        "tier": str(event.get("tier")), "rang": str(event.get("tier")),
-        "asset_id": asset_id, "day": day}
+def _group(readings: "list[dict]", week: dict) -> "dict[str, list[dict]]":
+    """The week's readings as events, {key: readings}. Events already on the
+    channel hold their 24 hours (tremor.jumps.event_starts' anchors)."""
+    from tremor.jumps import event_starts
+
+    tracked = week["events"]
+    by_asset: dict = {}
+    for reading in readings:
+        by_asset.setdefault(str(reading.get("asset_id", "")), []).append(reading)
+    out: dict = {key: [] for key in tracked}
+    for asset, rows in by_asset.items():
+        anchors = [rec["start"] for rec in tracked.values() if rec["asset"] == asset]
+        starts = event_starts([_found(r) for r in rows], anchors)
+        for reading, start in zip(rows, starts):
+            out.setdefault(f"{asset}|{int(start)}", []).append(reading)
+    return out
+
+
+def _moved(before: "list[float]", reading: dict) -> "str | None":
+    """Why one reading's numbers differ from what was seen before, if they do."""
+    import math
+
+    r, sigma = _clean(reading.get("r")), _clean(reading.get("sigma_lt"))
+    if r is None or not math.isclose(before[0], r, rel_tol=1e-9, abs_tol=1e-12):
+        return PRICE
+    if sigma is None or not math.isclose(before[1], sigma, rel_tol=1e-9, abs_tol=1e-12):
+        return SIGMA
+    return None
+
+
+def _why(rec: dict, members: "dict[str, dict]", peak: "dict | None") -> str:
+    """Why the event now shows `peak` rather than what it showed."""
+    if peak is None:
+        return AWAY
+    seen, old_peak = rec["members"], rec.get("peak")
+    pid = str(peak["reading_id"])
+    if old_peak and old_peak not in members:
+        return f"{_clock(_hour_of(old_peak), int(peak['hour_utc']))} {AWAY}"
+    if old_peak and old_peak in seen:
+        moved = _moved(seen[old_peak], members[old_peak])
+        if moved:
+            return moved
+    if pid in seen:
+        return _moved(seen[pid], peak) or PRICE
+    return BIGGER if _found(peak) > int(rec.get("seen", 0)) else LATE
+
+
+def _shown(peak: "dict | None") -> list:
+    if peak is None:
+        return [None, None, None, None]
+    return [str(peak.get("tier")), round(_size(peak), 1), int(peak["hour_utc"]),
+            round(float(_clean(peak.get("r")) or 0.0) * 100, 2)]
+
+
+def _render(rec: dict, peak: dict) -> dict:
+    return dict(peak, story=story_line(rec["story"], int(peak["hour_utc"])))
+
+
+def _post(cfg: Config, rec: dict, peak: dict, labels: dict, calendar) -> bool:
+    """Puts the event on the channel at its word: a push, or a row and its
+    ping. True once it is up; nothing in `rec` changes if it is not."""
+    if _is_push_word(peak.get("tier")):
+        text = format_push(_render(rec, peak), labels, calendar)
+        message_id = _send(cfg, text)
+        if message_id is None:
+            return False
+        rec.update(form=PUSH, id=message_id, ping=None, hash=_fingerprint(text),
+                   first=_first(text))
+        return True
+    text = format_ping(peak, labels)
+    ping = _send(cfg, text)
+    rec.update(form=ROW, id=None, ping=ping, hash=_fingerprint(text), first=_first(text))
     return True
 
 
-def _drop_row(cfg: Config, week: dict, event_id: str) -> None:
-    row = week["rows"].pop(event_id, None)
-    if row:
-        _delete(cfg, row.get("ping"), _first(row.get("ping_text", "")))
+def _take_down(cfg: Config, week: dict, rec: dict) -> None:
+    """Deletes what the event has on the channel. A row leaves the note with
+    the next render."""
+    if rec.get("form") == PUSH:
+        _discard(cfg, week, rec.get("id"), rec.get("first", ""))
+    elif rec.get("form") == ROW:
+        _discard(cfg, week, rec.get("ping"), rec.get("first", ""))
+    rec.update(form=None, id=None, ping=None, hash=None)
 
 
-def _curate(cfg: Config, week: dict, events: "list[dict]", labels: dict,
-            calendar, now: datetime) -> int:
-    """One run's pass over the week. Returns how many messages changed."""
-    by_id = {str(e.get("event_id")): e for e in events}
-    now_ts = int(now.timestamp())
-    window = PUSH_WINDOW_HOURS * 3600
+def _step(cfg: Config, week: dict, key: str, readings: "list[dict]", labels: dict,
+          calendar, now_ts: int) -> int:
+    """One event, one run. Returns how many messages went out or went."""
+    tracked = week["events"]
+    asset, start = key.rsplit("|", 1)
+    rec = tracked.get(key)
+    open_ = now_ts < int(start) + PUSH_WINDOW_HOURS * 3600
+    members = {str(r["reading_id"]): r for r in readings}
+    peak = max(readings, key=_size) if readings else None
+    # Every reading the event has shown, kept after it vanishes: one that comes
+    # back was corrected back, it did not arrive late.
+    snapshot = dict(rec["members"]) if rec else {}
+    snapshot.update({rid: [_clean(r.get("r")) or 0.0, _clean(r.get("sigma_lt")) or 0.0]
+                     for rid, r in members.items()})
+
+    if rec is None:
+        # Found now. Only an event still inside its 24 hours goes out at all.
+        if peak is None or not open_:
+            return 0
+        rec = {"asset": asset, "start": int(start), "form": None, "members": {},
+               "peak": None, "tier": None, "shown": _shown(None), "story": [],
+               "seen": now_ts}
+        shown = _shown(peak)
+        rec["story"] = [shown[:3] + [""]]
+        if not _post(cfg, rec, peak, labels, calendar):
+            return 0
+        rec.update(members=snapshot, peak=str(peak["reading_id"]), tier=shown[0],
+                   shown=shown)
+        tracked[key] = rec
+        return 1
+
+
+    shown = _shown(peak)
+    if shown == rec["shown"]:
+        rec.update(members=snapshot, seen=now_ts)
+        return 0
+
+    before = dict(rec, story=list(rec["story"]))
+    why = _why(rec, members, peak)
+    rec["story"] = rec["story"] + [shown[:3] + [why] if peak is not None
+                                   else [None, None, None, why]]
     changed = 0
+    promoted = _rank(shown[0]) > _rank(rec.get("tier"))
 
-    # Pushes already on the channel.
-    for event_id, rec in list(week["pushes"].items()):
-        event = by_id.get(event_id)
-        if event is None or not _in_week(event, week):
-            if _delete(cfg, rec.get("id"), rec.get("first", "")):
-                week["pushes"].pop(event_id)
-                changed += 1
-            continue
-        tier = str(event.get("tier"))
-        # Rarer than the word it last RANG at, not than its current one: a push
-        # that fell to `noticeable` and came back is a flip-flop, and is edited.
-        rarer = _is_push_word(tier) and _rank(tier) > _rank(rec.get("rang", rec.get("tier")))
-        if rarer and _kept(event) and now_ts - _found(event) <= window:
-            old = dict(rec)
-            if _push(cfg, week, event, labels, calendar):
-                _delete(cfg, old.get("id"), old.get("first", ""))
-                changed += 2
-            continue
-        text = format_push(event, labels, calendar)
-        rec["tier"] = tier
-        if _fingerprint(text) != rec.get("hash") and _edit(cfg, rec["id"], text):
-            rec.update(hash=_fingerprint(text), first=_first(text))
-            changed += 1
-
-    # Rows already in the note.
-    for event_id, row in list(week["rows"].items()):
-        event = by_id.get(event_id)
-        if event is None or not _kept(event) or not _in_week(event, week):
-            _drop_row(cfg, week, event_id)
-            changed += 1
-            continue
-        if (_is_push_word(event.get("tier")) and _kept(event)
-                and now_ts - _found(event) <= window):
-            if _push(cfg, week, event, labels, calendar):
-                _drop_row(cfg, week, event_id)
-                changed += 2
-            continue
-        if row.get("ping") is not None:
-            text = format_ping(event, labels)
-            if _fingerprint(text) != row.get("ping_hash") and _edit(cfg, row["ping"], text):
-                row.update(ping_hash=_fingerprint(text), ping_text=text)
-                changed += 1
-
-    # New events: only within their push window, and only the day's kept ones.
-    days_with_push = {(r["asset_id"], int(r["day"])) for r in week["pushes"].values()}
-    fresh = sorted((e for e in events
-                    if _kept(e) and superseder(e) is None and _in_week(e, week)
-                    and 0 <= now_ts - _found(e) <= window
-                    and str(e.get("event_id")) not in week["pushes"]
-                    and str(e.get("event_id")) not in week["rows"]
-                    and str(e.get("event_id")) not in week["retired"]),
-                   key=_found)
-    for event in [e for e in fresh if _is_push_word(e.get("tier"))]:
-        if _push(cfg, week, event, labels, calendar):
-            days_with_push.add(_day_key(event))
-            changed += 1
-    for event in [e for e in fresh if not _is_push_word(e.get("tier"))]:
-        if _day_key(event) in days_with_push:
-            continue
-        text = format_ping(event, labels)
-        ping = _send(cfg, text)
-        asset_id, day = _day_key(event)
-        week["rows"][str(event["event_id"])] = {
-            "ping": ping, "ping_hash": _fingerprint(text), "ping_text": text,
-            "asset_id": asset_id, "day": day}
+    if peak is None:
+        _take_down(cfg, week, rec)
         changed += 1
-
-    # One push a day, its rarest; lower ones leave. A day with a push shows no row.
-    by_day: dict = {}
-    for event_id, rec in week["pushes"].items():
-        by_day.setdefault((rec["asset_id"], int(rec["day"])), []).append(event_id)
-    for ids in by_day.values():
-        if len(ids) < 2:
-            continue
-        keep = max(ids, key=lambda i: (_rank(week["pushes"][i]["tier"]),
-                                       _found(by_id.get(i, {"hour_utc": 0}))))
-        for event_id in ids:
-            if event_id == keep:
-                continue
-            rec = week["pushes"][event_id]
-            if _delete(cfg, rec.get("id"), rec.get("first", "")):
-                week["pushes"].pop(event_id)
-                week["retired"].append(event_id)
-                changed += 1
-    days_with_push = {(r["asset_id"], int(r["day"])) for r in week["pushes"].values()}
-    for event_id, row in list(week["rows"].items()):
-        if (row.get("asset_id"), int(row.get("day", -1))) in days_with_push:
-            _drop_row(cfg, week, event_id)
-            changed += 1
+    elif promoted and open_:
+        # Rarer inside its 24 hours: the old message goes, the new one rings.
+        # Only here does anything go out, so an event with nothing on the
+        # channel once its 24 hours are over - corrected away - stays gone.
+        old = {k: rec.get(k) for k in ("form", "id", "ping", "first")}
+        if not _post(cfg, rec, peak, labels, calendar):
+            tracked[key] = before
+            return 0
+        _take_down(cfg, week, dict(old))
+        changed += 2
+    elif rec.get("form") == ROW and _is_push_word(shown[0]):
+        # Rarer after its 24 hours: silent. The row leaves the note and its
+        # ping becomes the push, by an edit.
+        rec.update(form=PUSH, id=rec.get("ping"), ping=None, hash=None)
+        changed += 1
+    rec.update(members=snapshot, peak=str(peak["reading_id"]) if peak else None,
+               tier=shown[0], shown=shown, seen=now_ts)
     return changed
+
+
+def _sync(cfg: Config, rec: dict, peak: dict, labels: dict, calendar) -> int:
+    """Edits the event's message where its text changed."""
+    if rec.get("form") == PUSH:
+        text, message_id = format_push(_render(rec, peak), labels, calendar), rec.get("id")
+    elif rec.get("form") == ROW and rec.get("ping") is not None:
+        text, message_id = format_ping(peak, labels), rec.get("ping")
+    else:
+        return 0
+    if _fingerprint(text) == rec.get("hash") or not _edit(cfg, message_id, text):
+        return 0
+    rec.update(hash=_fingerprint(text), first=_first(text))
+    return 1
 
 
 def _write_note(cfg: Config, week: dict, texts: "list[str]") -> int:
@@ -980,13 +1079,14 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     if cfg.tremor_alerts_muted:
         return 0
 
-    events = load_events(cfg)
+    readings = load_events(cfg)
     # An empty table is "the pipeline did not run", not "every event vanished"
     # and not "nothing happened": it changes nothing, the note included.
-    if not events:
+    if not readings:
         return 0
     store = state.setdefault(STATE_KEY, {})
     version = jumps.detector_version()
+    now_ts = int(now.timestamp())
     changed = 0
 
     if _old_format(store):
@@ -997,7 +1097,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         save_state(cfg.state_path, state)
 
     week = store.get(WEEK)
-    slot = routing.digest_slot(int(now.timestamp()))
+    slot = routing.digest_slot(now_ts)
     if week is None or slot > int(week["slot"]):
         if week is not None:
             _close_week(cfg, week)
@@ -1008,14 +1108,27 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         log.info("Detector updated: the week restarts from this run")
         save_state(cfg.state_path, state)
 
+    orphans, week["orphans"] = week.get("orphans", []), []
+    for message_id, first_line in orphans:
+        _discard(cfg, week, message_id, first_line)
+
     labels = _labels()
     calendar = _calendar(cfg)
-    changed += _curate(cfg, week, events, labels, calendar, now)
+    groups = _group([r for r in readings if _in_week(r, week)], week)
+    # Oldest first, so the pushes of one run arrive in the order they happened.
+    for key in sorted(groups, key=lambda k: int(k.rsplit("|", 1)[1])):
+        changed += _step(cfg, week, key, groups[key], labels, calendar, now_ts)
+        save_state(cfg.state_path, state)
+    for key, rec in week["events"].items():
+        rows = groups.get(key) or []
+        if rows and rec.get("form"):
+            changed += _sync(cfg, rec, max(rows, key=_size), labels, calendar)
     save_state(cfg.state_path, state)
 
-    by_id = {str(e.get("event_id")): e for e in events}
-    rows = [by_id[i] for i in week["rows"] if i in by_id]
+    note_rows = [_render(rec, max(groups[key], key=_size))
+                 for key, rec in week["events"].items()
+                 if rec.get("form") == ROW and groups.get(key)]
     window = (int(week["slot"]), routing.next_digest_slot(int(week["slot"])))
-    changed += _write_note(cfg, week, format_digest(rows, labels, window, calendar, now))
+    changed += _write_note(cfg, week, format_digest(note_rows, labels, window, calendar, now))
     save_state(cfg.state_path, state)
     return changed

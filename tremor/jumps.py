@@ -43,19 +43,17 @@ holiday is a night. The yardstick for weekends is the noisiest, 26 readings a
 half-year, against the paper's minimum of 7 for once-a-week data; measured, it
 is no worse than pooling them with the nights (see docs/decisions.md).
 
-ONE EVENT PER INSTRUMENT PER DAY (stage 1), unless the day grows. The first flagged
-reading of an instrument's day - its gap or an hour - opens the day. A later reading
-the same day is kept only if it reaches a HIGHER word than anything kept before it
-that day: a day that starts `noticeable` and turns `high` says so, and a second
-`noticeable` - or a `high` after a `major` - is dropped. So a day holds at most four
-events, each rarer than the last. The day is the fund's New York session date and
-the UTC date for currency pairs and coins (sessions.day_tz).
+ONE EVENT PER 24 HOURS (stage 1). An instrument's first flagged reading - a gap
+or an hour - opens an event that lasts 24 hours of real time from when it was
+found; every reading found inside them belongs to it, and the first one found
+after them opens the next. The event's word is its rarest reading's, and the
+numbers it shows are its biggest reading's (event_starts, events).
 
 CHANNELS (stage 2). `high` and rarer push at once; `noticeable` goes into the
-weekly note, with a short ping of its own. Each event carries what the delivery
+weekly note, with a short ping of its own. Each reading carries what the delivery
 layer reads (price_monitor.tremor_delivery): an id, its word as the `tier`, the
-basis `jump`, its channel and note slot, the move as `r` and the half-year sigma
-as `sigma_lt` - so the message's "N×σ" is exactly |z|.
+basis `jump`, its channel, its event's start, the move as `r` and the half-year
+sigma as `sigma_lt` - so the message's "N×σ" is exactly |z|.
 
 WHAT IS NOT HERE YET, deliberately: no
 "biggest since" date, no held check, no time-of-day scale, no block or own-move
@@ -79,7 +77,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
-from tremor import atomic, sessions
+from tremor import atomic
 from tremor.basket import DEFAULT_BASKET_PATH, load_basket
 
 log = logging.getLogger("tremor.jumps")
@@ -226,63 +224,63 @@ def score_gaps(frame: pd.DataFrame, window_days: float = WINDOW_DAYS,
                          "young": young})[columns]
 
 
-def day_keys(hour_utc, tz_name: "str | None") -> np.ndarray:
-    """The trading day each reading belongs to, as a sortable integer
-    (days since 1970 in `tz_name`, or in UTC for None)."""
-    moments = pd.to_datetime(np.asarray(hour_utc, dtype="int64"), unit="s", utc=True)
-    if tz_name:
-        moments = moments.tz_convert(tz_name)
-    return (moments.tz_localize(None).normalize()
-            - pd.Timestamp("1970-01-01")).days.to_numpy()
+# An event is this many hours of real time from its first move being found. A
+# move found later than that starts the next event.
+EVENT_HOURS = 24
 
 
-def one_a_day(flagged: pd.DataFrame, tz_name: "str | None",
-              keep_all: bool = False) -> pd.DataFrame:
-    """One instrument's flagged readings, cut to one event a day unless the day
-    grows: a reading is kept only if its word is rarer than every reading kept
-    before it that day. A gap is taken before the hour that shares its
-    timestamp - the night happened first. Adds `day` and `escalation` (False
-    for the day's first event, True for one that raised it).
+def event_starts(found, anchors=()) -> np.ndarray:
+    """The start of the event each reading belongs to, for one instrument.
 
-    keep_all=True returns every flagged reading with a `kept` column instead of
-    dropping the rest: delivery sends only kept events, but corrects a message
-    already on the channel from its reading whether or not it is still kept."""
-    if flagged.empty:
-        out = flagged.assign(day=pd.Series(dtype="int64"),
-                             escalation=pd.Series(dtype="bool"))
-        return out.assign(kept=pd.Series(dtype="bool")) if keep_all else out
-    order = flagged.assign(_after=(flagged["reading"] == HOUR).astype(int))
-    order = order.sort_values(["hour_utc", "_after"]).drop(columns="_after")
-    rank = order["word"].map({w: i for i, w in enumerate(WORDS)}).to_numpy()
-    days = day_keys(order["hour_utc"], tz_name)
-    keep = np.zeros(len(order), dtype=bool)
-    escalation = np.zeros(len(order), dtype=bool)
-    best, today = -1, None
-    for i, (day, r) in enumerate(zip(days, rank)):
-        if day != today:
-            today, best = day, -1
-        if r > best:
-            keep[i], escalation[i], best = True, best >= 0, r
-    out = order.assign(day=days, escalation=escalation)
-    if keep_all:
-        return out.assign(kept=keep).reset_index(drop=True)
-    return out[keep].reset_index(drop=True)
+    ONE EVENT PER 24 HOURS OF REAL TIME, from the moment its first move was
+    found - not per trading day, and not per candle: a fund's move at 15:00 New
+    York and the next morning's gap are one event. A reading found inside an
+    event's 24 hours joins it; the first one found after them starts the next.
+
+    `anchors` are the starts of events already on the channel (delivery's
+    state). They hold their 24 hours whatever the table now says - a first move
+    corrected away does not slide the event later - and a reading that arrives
+    late, found in the 24 hours BEFORE an anchored event, joins it rather than
+    opening a second event that would overlap it."""
+    found = np.asarray(found, dtype="int64")
+    span = EVENT_HOURS * 3600
+    anchors = np.sort(np.asarray(list(anchors), dtype="int64"))
+    starts = np.full(len(found), -1, dtype="int64")
+    for a in anchors:
+        starts[(found >= a) & (found < a + span) & (starts < 0)] = a
+    current = None
+    for i in np.argsort(found, kind="stable"):
+        if starts[i] >= 0:
+            continue
+        f = int(found[i])
+        if current is not None and f < current + span:
+            starts[i] = current
+            continue
+        ahead = anchors[(anchors > f) & (anchors - span <= f)]
+        if len(ahead):
+            starts[i] = int(ahead[0])
+            continue
+        current = f
+        starts[i] = f
+    return starts
+
+
+def found_times(scored: pd.DataFrame, template: str) -> np.ndarray:
+    """When each reading became judgeable: an hour once it has ended; a fund's
+    gap with its first bar, once that bar has ended (the first half-hour, as
+    the bar is stamped on the hour); a currency pair's weekend gap at its open,
+    which is the whole of it."""
+    hours = scored["hour_utc"].astype("int64").to_numpy()
+    fx_gap = (scored["reading"] != HOUR).to_numpy() & (template != "us_equity")
+    return np.where(fx_gap, hours, hours + 3600)
 
 
 def ended(scored: pd.DataFrame, template: str, now: int) -> pd.DataFrame:
     """Only the readings that can be judged at `now`, with `found_utc`, the
-    moment each became judgeable.
-
-    An hour is judged once it has ended: the run fires a few minutes past the
-    hour and the bar of the hour it is standing in holds those minutes only.
-    A fund's gap is judged with its first bar, once that bar has ended; a
-    currency pair's weekend gap as soon as the first bar exists, since its open
-    is the whole of the gap."""
-    hours = scored["hour_utc"].astype("int64")
-    is_hour = scored["reading"] == HOUR
-    fx_gap = (~is_hour) & (template != "us_equity")
-    found = np.where(fx_gap, hours, hours + 3600)
-    out = scored.assign(found_utc=found)
+    moment each became judgeable (found_times). The run fires a few minutes
+    past the hour, and the bar of the hour it is standing in holds those
+    minutes only."""
+    out = scored.assign(found_utc=found_times(scored, template))
     return out[out["found_utc"] <= int(now)].reset_index(drop=True)
 
 
@@ -315,7 +313,7 @@ BASIS = "jump"
 FOUND_TO_RUN = 300
 
 
-def event_ids(asset_id, reading, hour_utc) -> pd.Series:
+def reading_ids(asset_id, reading, hour_utc) -> pd.Series:
     """jump:<asset_id>:<reading>:<hour> - the same id for the same reading on
     every run, whatever else changed."""
     return pd.Series("jump:" + pd.Series(asset_id).astype(str).to_numpy() + ":"
@@ -324,35 +322,27 @@ def event_ids(asset_id, reading, hour_utc) -> pd.Series:
                      index=getattr(asset_id, "index", None))
 
 
-def for_delivery(events: pd.DataFrame) -> pd.DataFrame:
-    """The columns the delivery layer reads, added to an events table.
+def for_delivery(readings: pd.DataFrame) -> pd.DataFrame:
+    """The columns the delivery layer reads, added to the flagged readings.
 
     `tier` is the word and `sigma_lt` the half-year sigma, so the message says
-    "N×σ" with N = |z|. The "biggest since" date and the held check are absent
-    until their stages exist.
-
-    `superseded_by` names, on every kept event of a day that later grew, the
-    day's rarest event: once that one is on the channel, the lower ones leave it
-    (price_monitor.tremor_delivery). Empty on the day's rarest event itself, and
-    on a reading one_a_day does not keep.
+    "N×σ" with N = |z|. `event_start` groups the readings into 24-hour events
+    from the table alone; delivery regroups them against the events already on
+    the channel (event_starts' anchors). The "biggest since" date and the held
+    check are absent until their stages exist.
     """
     from tremor import routing
 
-    if events.empty:
-        return events
-    out = events.copy()
-    if "kept" not in out:
-        out["kept"] = True
+    if readings.empty:
+        return readings
+    out = readings.copy()
     if "found_utc" not in out:
         out["found_utc"] = out["hour_utc"].astype("int64") + 3600
-    out["event_id"] = event_ids(out["asset_id"], out["reading"], out["hour_utc"])
-    rank = out["word"].map({w: i for i, w in enumerate(WORDS)})
-    kept = out[out["kept"].astype(bool)]
-    top = (kept.assign(_rank=rank[kept.index]).sort_values("_rank")
-           .groupby(["asset_id", "day"])["event_id"].last())
-    tops = pd.Series([top.get((a, d)) for a, d in zip(out["asset_id"], out["day"])],
-                     index=out.index, dtype="string")
-    out["superseded_by"] = tops.where((tops != out["event_id"]) & out["kept"].astype(bool))
+    if "event_start" not in out:
+        out["event_start"] = 0
+        for _, rows in out.groupby("asset_id"):
+            out.loc[rows.index, "event_start"] = event_starts(rows["found_utc"])
+    out["reading_id"] = reading_ids(out["asset_id"], out["reading"], out["hour_utc"])
     out["tier"] = out["word"].astype("string")
     out["basis"] = BASIS
     out["sigma_lt"] = out["sigma"]
@@ -360,19 +350,23 @@ def for_delivery(events: pd.DataFrame) -> pd.DataFrame:
     out["gap_kind"] = out["reading"].where(out["overnight"])
     pushes = out["tier"].isin(routing.PUSH_TIERS).fillna(False).to_numpy(dtype=bool)
     out["channel"] = pd.array(np.where(pushes, routing.PUSH, routing.DIGEST), dtype="string")
-    # The note a move belongs to is the one open when it is FOUND: the run a
-    # few minutes after it became judgeable. The hour checked in the run that
-    # opens a note goes into that note.
-    out["digest_slot"] = pd.array([routing.digest_slot(int(f) + FOUND_TO_RUN)
-                                   for f in out["found_utc"]], dtype="Int64")
     return out
+
+
+def events(readings: pd.DataFrame) -> pd.DataFrame:
+    """One row per 24-hour event: its biggest reading, whose word is the
+    event's. For reports; delivery works from the readings."""
+    if readings.empty:
+        return readings
+    size = readings["z"].abs()
+    top = size.groupby([readings["asset_id"], readings["event_start"]]).idxmax()
+    return readings.loc[top.to_numpy()].reset_index(drop=True)
 
 
 def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKET_PATH,
         now: "int | None" = None) -> pd.DataFrame:
     """Every instrument's flagged readings that can be judged at `now` - hour,
-    night or weekend - with `kept` marking the events one_a_day keeps (one a
-    day unless the day grows). Delivery sends kept events only."""
+    night or weekend - each with the start of its 24-hour event."""
     import time
 
     now = int(time.time()) if now is None else int(now)
@@ -391,8 +385,8 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
         if scored.empty:
             continue
         scored = ended(scored, asset.session_template, now)
-        flagged = one_a_day(scored[scored["word"].notna()],
-                            sessions.day_tz(asset.session_template), keep_all=True)
+        flagged = scored[scored["word"].notna()].sort_values("found_utc").reset_index(drop=True)
+        flagged["event_start"] = event_starts(flagged["found_utc"])
         flagged.insert(1, "asset_id", asset.asset_id)
         flagged.insert(2, "ticker", asset.ticker)
         flagged.insert(3, "block", asset.block)
@@ -412,16 +406,15 @@ def main(argv: "list[str] | None" = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     flagged = run(args.metrics_dir)
     atomic.write_parquet(args.out, flagged, index=False)
-    kept = flagged[flagged["kept"]] if not flagged.empty else flagged
-    log.info("%d events (%d of them escalations; %d more flagged readings the "
-             "one-a-day rule drops) -> %s", len(kept),
-             int(kept["escalation"].sum()) if not kept.empty else 0,
-             len(flagged) - len(kept), args.out)
-    flagged = kept
-    if not flagged.empty:
-        log.info("by reading: %s", flagged["reading"].value_counts().to_dict())
-        log.info("by word: %s", flagged["word"].value_counts().to_dict())
-        log.info("by channel: %s", flagged["channel"].value_counts().to_dict())
+    if flagged.empty:
+        log.info("no flagged readings -> %s", args.out)
+        return 0
+    tops = events(flagged)
+    log.info("%d events of 24 hours from %d flagged readings -> %s",
+             len(tops), len(flagged), args.out)
+    log.info("by reading: %s", tops["reading"].value_counts().to_dict())
+    log.info("by word: %s", tops["word"].value_counts().to_dict())
+    log.info("by channel: %s", tops["channel"].value_counts().to_dict())
     return 0
 
 

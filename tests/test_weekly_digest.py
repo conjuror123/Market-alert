@@ -138,22 +138,29 @@ def test_a_feed_that_will_not_load_does_not_cost_the_digest(tmp_path, monkeypatc
     assert len(sent) == 1
 
 
-def test_an_archive_that_stops_short_holds_the_digest_back(tmp_path, monkeypatch):
+def test_an_archive_that_stops_short_sends_the_outage_calendar(tmp_path, monkeypatch):
     # It cannot tell "nothing is scheduled" from "nothing was imported", and only
-    # one of those is safe to print under the heading "for the week".
+    # one of those is safe to print under the heading "for the week" - so the
+    # calendar goes out empty and says there was an outage.
     cfg = make_config(tmp_path)
     path = weekly_digest.economic_calendar.store_path(cfg.calendar_dir)
     weekly_digest.economic_calendar.merge_events(
         path, [dict(RAW_EVENTS[0], date="2026-08-29T08:30:00+00:00")])
 
+    sent = []
     monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar",
                         lambda session=None: [])
-    monkeypatch.setattr(weekly_digest, "send_telegram_message", lambda *a, **k: 1)
+    monkeypatch.setattr(weekly_digest, "send_telegram_message",
+                        lambda *a, **k: sent.append(a[2]) or 1)
 
     state = {}
     assert weekly_digest.maybe_send_weekly_digest(
-        cfg, state, session=None, now=WEEKEND_OPEN) is False
-    assert weekly_digest._STATE_KEY not in state
+        cfg, state, session=None, now=WEEKEND_OPEN) is True
+    assert len(sent) == 1
+    assert "31.08 — 06.09" in sent[0]
+    assert "⚠️ Outage: the calendar source did not answer" in sent[0]
+    assert "Non-Farm" not in sent[0]
+    assert state[weekly_digest._STATE_KEY] == str(int(WEEKEND_OPEN.timestamp()))
 
 
 def test_events_outside_the_coming_week_are_not_listed(tmp_path, monkeypatch):
@@ -296,17 +303,39 @@ def test_a_long_week_is_split_at_day_boundaries():
         assert message.splitlines()[0].startswith("📅")
 
 
-def test_maybe_send_weekly_digest_noops_outside_window(tmp_path, monkeypatch):
+def test_a_week_opened_while_the_runs_were_down_gets_the_outage_calendar(
+        tmp_path, monkeypatch):
+    # The note opens at the first run of the week whenever that is; past the
+    # grace hours the calendar it goes out with is the empty one.
     cfg = make_config(tmp_path)
-    state = {}
-    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", lambda session=None: RAW_EVENTS)
+    state, sent = {}, []
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar",
+                        lambda session=None: RAW_EVENTS)
+    monkeypatch.setattr(weekly_digest, "send_telegram_message",
+                        lambda *a, **k: sent.append(a[2]) or 1)
+
+    assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None,
+                                                  now=MIDWEEK) is True
+    assert len(sent) == 1 and "⚠️ Outage: the bot was down when the week opened" in sent[0]
+    assert "31.08 — 06.09" in sent[0]
+    assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None,
+                                                  now=MIDWEEK) is False
+
+
+def test_the_calendar_goes_out_only_in_the_run_that_opens_a_note(tmp_path, monkeypatch):
+    # Not mid-week once the note is up, and not on the run that takes over the
+    # previous delivery's note.
+    from price_monitor import tremor_delivery
+
+    cfg = make_config(tmp_path)
     monkeypatch.setattr(weekly_digest, "send_telegram_message", lambda *a, **k: (_ for _ in ()).throw(
-        AssertionError("should not send outside the digest window")))
-
-    sent = weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=MIDWEEK)
-
-    assert sent is False
-    assert weekly_digest._STATE_KEY not in state
+        AssertionError("no calendar when no note opens")))
+    slot = int(WEEKEND_OPEN.timestamp())
+    open_week = {tremor_delivery.STATE_KEY: {tremor_delivery.WEEK: {"slot": slot}}}
+    taken_over = {tremor_delivery.STATE_KEY: {"digests": {}, "sent": {}}}
+    for state in (open_week, taken_over):
+        assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None,
+                                                      now=MIDWEEK) is False
 
 
 def test_maybe_send_weekly_digest_sends_and_records_state(tmp_path, monkeypatch):

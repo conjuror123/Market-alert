@@ -10,8 +10,8 @@ prints, as Markdown:
   - the biggest hours of each instrument's record (its top 0.01% of |move|):
     how many were flagged, and at which word;
   - the gaps (nights and weekends) by kind: per instrument a year and by word;
-  - the events once flags are cut to one per instrument per day unless the day
-    grows (tremor.jumps.one_a_day);
+  - the events: an instrument's flags grouped into 24 hours of real time from
+    the first one found, each worded by its rarest flag (tremor.jumps.event_starts);
   - the events by channel: pushed, or a row in the weekly note;
   - ten flagged hours picked at random, for a sanity read.
 
@@ -76,20 +76,19 @@ def gap_section(scored: pd.DataFrame) -> "list[str]":
 
 
 def event_section(scored: pd.DataFrame) -> "list[str]":
-    """Flags cut to one event per instrument per day unless the day grows."""
-    from tremor import sessions
+    """Flags grouped into 24-hour events, each worded by its rarest flag."""
     settled = scored[~scored["young"].astype(bool)]
     spans = settled.groupby("ticker")["hour_utc"].agg(lambda h: (h.max() - h.min()) / YEAR)
     parts = []
     for ticker, rows in settled[settled["word"].notna()].groupby("ticker"):
-        tz = sessions.day_tz(rows["template"].iloc[0])
-        parts.append(jumps.one_a_day(rows, tz))
-    events = pd.concat(parts, ignore_index=True)
+        rows = rows.assign(found_utc=jumps.found_times(rows, rows["template"].iloc[0]))
+        rows = rows.sort_values("found_utc").reset_index(drop=True)
+        parts.append(rows.assign(event_start=jumps.event_starts(rows["found_utc"]),
+                                 asset_id=ticker))
+    events = jumps.events(pd.concat(parts, ignore_index=True))
     flags = int(settled["word"].notna().sum())
-    lines = ["## Events: one per instrument per day, unless the day grows", "",
-             f"{flags:,} flags become {len(events):,} events; "
-             f"{int(events['escalation'].sum()):,} of them are a later, rarer reading the "
-             f"same day.", "",
+    lines = ["## Events: 24 hours from an instrument's first flag", "",
+             f"{flags:,} flags become {len(events):,} events.", "",
              "| word | events | a year, today's basket | a week, today's basket |",
              "|---|---|---|---|"]
     total = 0.0

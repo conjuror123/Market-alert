@@ -20,6 +20,8 @@ SLOT = int(OPEN.timestamp())
 NEXT = routing.next_digest_slot(SLOT)
 MON = datetime(2026, 9, 7, tzinfo=timezone.utc)
 LABELS = {"twelvedata:GLD": "Gold", "coinbase:BTC-USD": "Bitcoin"}
+SIGMA = 0.003
+SIZE = {"noticeable": 4.5, "high": 6.0, "major": 8.5, "extreme": 12.0}
 
 
 class Channel:
@@ -57,7 +59,8 @@ class Channel:
 
     def pushes(self):
         return [t for t in self.messages.values()
-                if "<b>Digest</b>" not in t and "Added to digest" not in t]
+                if "<b>Digest</b>" not in t and "Added to digest" not in t
+                and "<i>part " not in t]
 
     def pings(self):
         return [t for t in self.messages.values() if "Added to digest" in t]
@@ -86,19 +89,19 @@ def cfg(channel, **over):
     return Config(**(base | over))
 
 
-def ev(event_id="e1", *, at, tier="noticeable", asset="twelvedata:GLD", kept=True,
-       superseded_by=None, found=None, r=0.021):
-    """An event as tremor.jumps writes it; `at` is the hour's start."""
+def ev(at, tier="noticeable", *, asset="twelvedata:GLD", size=None, found=None,
+       sigma=SIGMA, reading="hour"):
+    """A flagged reading as tremor.jumps writes it; `at` is the hour's start."""
     hour = int(at.timestamp())
-    return dict(event_id=event_id, asset_id=asset, hour_utc=hour, tier=tier,
-                basis="jump", r=r, sigma_lt=0.003, overnight=False, kept=kept,
-                superseded_by=superseded_by,
-                found_utc=hour + HOUR if found is None else int(found.timestamp()),
-                day=hour // 86400)
+    size = SIZE[tier] if size is None else size
+    return dict(reading_id=f"jump:{asset}:{reading}:{hour}", asset_id=asset,
+                hour_utc=hour, tier=tier, basis="jump", r=size * sigma, z=size,
+                sigma_lt=sigma, overnight=reading != "hour", reading=reading,
+                found_utc=hour + HOUR if found is None else int(found.timestamp()))
 
 
-def run(monkeypatch, channel, events, now, state, **over):
-    monkeypatch.setattr(md, "load_events", lambda c: list(events))
+def run(monkeypatch, channel, readings, now, state, **over):
+    monkeypatch.setattr(md, "load_events", lambda c: [dict(r) for r in readings])
     return md.maybe_deliver(cfg(channel, **over), state, now)
 
 
@@ -111,11 +114,22 @@ def run_at(day, hour):
     return at(day, hour, 5)
 
 
+def story(text):
+    lines = [line for line in text.split("\n") if line.startswith("✏️")]
+    return lines[0] if lines else ""
+
+
+@pytest.fixture
+def week(monkeypatch, channel):
+    """A week whose note is already open."""
+    state = {}
+    run(monkeypatch, channel, [ev(OPEN - timedelta(days=3))], OPEN, state)
+    return state
+
+
 # --- the note ---------------------------------------------------------------
 
-def test_the_note_opens_on_sunday_even_with_nothing_in_it(monkeypatch, channel):
-    state = {}
-    run(monkeypatch, channel, [ev(at=OPEN - timedelta(days=3))], OPEN, state)
+def test_the_note_opens_on_sunday_even_with_nothing_in_it(monkeypatch, channel, week):
     assert len(channel.notes()) == 1
     assert "Nothing so far" in channel.note()
     assert "06.09.2026 to 12.09.2026" in channel.note()
@@ -127,313 +141,319 @@ def test_an_empty_events_table_changes_nothing(monkeypatch, channel):
 
 
 def test_nothing_goes_out_while_muted(monkeypatch, channel):
-    run(monkeypatch, channel, [ev(at=OPEN)], OPEN, {}, tremor_alerts_muted=True)
+    run(monkeypatch, channel, [ev(OPEN)], OPEN, {}, tremor_alerts_muted=True)
     assert channel.messages == {}
 
 
 def test_the_hour_checked_in_the_opening_run_goes_into_the_new_note(monkeypatch, channel):
-    # Saturday 23:00-00:00 is found at Sunday 00:00, and scored in the run that
+    # Saturday 23:00-00:00 is found at Sunday 00:00 and scored in the run that
     # opens the note.
-    last = ev(at=OPEN - timedelta(minutes=65))
     state = {}
-    run(monkeypatch, channel, [last], OPEN, state)
-    assert "Gold" in channel.note()
-    assert len(channel.pings()) == 1
+    run(monkeypatch, channel, [ev(OPEN - timedelta(minutes=65))], OPEN, state)
+    assert "Gold" in channel.note() and len(channel.pings()) == 1
 
 
 def test_a_move_found_before_the_note_opened_is_history(monkeypatch, channel):
-    # Friday 23:00, found Saturday: it belonged to last week's note, and a bar
-    # that heals after Sunday does not bring it into this one.
-    friday = ev(at=OPEN - timedelta(hours=25), tier="high")
+    friday = ev(OPEN - timedelta(hours=25), "high")
     state = {}
     run(monkeypatch, channel, [friday], OPEN, state)
-    run(monkeypatch, channel, [friday | {"tier": "major"}], OPEN + timedelta(hours=1), state)
+    run(monkeypatch, channel, [dict(friday, tier="major", z=9.0)], OPEN + timedelta(hours=1),
+        state)
     assert channel.pushes() == [] and "Gold" not in channel.note()
 
 
-# --- rows and pings ---------------------------------------------------------
+# --- a new event --------------------------------------------------------------
 
-def test_a_noticeable_move_is_a_row_with_one_ping(monkeypatch, channel):
-    state = {}
-    run(monkeypatch, channel, [], OPEN, state)
-    row = ev(at=at(0, 10))
-    run(monkeypatch, channel, [row], OPEN, state)
-    run(monkeypatch, channel, [row], run_at(0, 11), state)
+def test_a_noticeable_move_is_a_row_with_one_ping_and_no_story(monkeypatch, channel, week):
+    row = ev(at(0, 10))
+    run(monkeypatch, channel, [row], run_at(0, 11), week)
     rang = len(channel.rang)
-    run(monkeypatch, channel, [row], run_at(0, 12), state)
+    run(monkeypatch, channel, [row], run_at(0, 12), week)
     assert channel.rings_since(rang) == []
-    assert "Gold" in channel.note()
-    assert channel.pings() == ["⬜ <b>GLD</b> · Gold +2.10% · 7.0×σ\nAdded to digest👆🏻👆🏻"]
-    assert channel.pushes() == []
+    assert "Gold" in channel.note() and story(channel.note()) == ""
+    assert channel.pings() == ["⬜ <b>GLD</b> · Gold +1.35% · 4.5×σ\nAdded to digest👆🏻👆🏻"]
 
 
-def test_a_row_that_vanishes_leaves_the_note_and_takes_its_ping(monkeypatch, channel):
-    state = {}
-    row = ev(at=at(0, 10))
-    run(monkeypatch, channel, [row], run_at(0, 11), state)
-    run(monkeypatch, channel, [ev("other", at=at(0, 3), kept=False)], run_at(0, 12), state)
-    assert "Gold" not in channel.note() and channel.pings() == []
-
-
-def test_a_day_shows_one_row_even_when_an_earlier_hour_heals_in(monkeypatch, channel):
-    # 10:00 was the day's first noticeable reading; 08:00 then heals into one,
-    # and one_a_day keeps 08:00 instead. The day is one row, not two.
-    state = {}
-    ten = ev("ten", at=at(0, 10))
-    run(monkeypatch, channel, [ten], run_at(0, 11), state)
-    eight = ev("eight", at=at(0, 8))
-    run(monkeypatch, channel, [eight, ten | {"kept": False}], run_at(0, 12), state)
-    assert "1 event so far" in channel.note()
-    assert len(channel.pings()) == 1
-
-
-def test_a_row_that_turns_high_within_a_day_becomes_a_push(monkeypatch, channel):
-    state = {}
-    row = ev(at=at(0, 10))
-    run(monkeypatch, channel, [row], run_at(0, 11), state)
+def test_a_high_move_is_a_push_that_rings_once_and_says_no_story(monkeypatch, channel, week):
+    push = ev(at(0, 10), "high")
+    run(monkeypatch, channel, [push], run_at(0, 11), week)
     rang = len(channel.rang)
-    run(monkeypatch, channel, [row | {"tier": "high"}], run_at(0, 12), state)
-    assert channel.rings_since(rang) == [md.format_push(row | {"tier": "high"}, LABELS)]
-    assert channel.pings() == [] and "Gold" not in channel.note()
-
-
-def test_a_row_that_turns_high_after_a_day_is_only_recoloured(monkeypatch, channel):
-    state = {}
-    row = ev(at=at(0, 10))
-    run(monkeypatch, channel, [row], run_at(0, 11), state)
-    rang = len(channel.rang)
-    run(monkeypatch, channel, [row | {"tier": "high"}], run_at(1, 12), state)
-    assert channel.rings_since(rang) == []
-    assert channel.pushes() == []
-    assert "🟨 <b>GLD</b>" in channel.note()
-    assert channel.pings()[0].startswith("🟨 <b>GLD</b>")
-
-
-def test_a_move_found_more_than_a_day_ago_is_never_sent(monkeypatch, channel):
-    state = {}
-    run(monkeypatch, channel, [ev("x", at=at(0, 1))], run_at(0, 1), state)
-    late = [ev("a", at=at(0, 1), tier="high"), ev("b", at=at(0, 2))]
-    run(monkeypatch, channel, late, run_at(1, 5), state)
-    assert channel.pushes() == [] and channel.pings() == []
-
-
-# --- pushes -----------------------------------------------------------------
-
-def test_a_push_rings_once(monkeypatch, channel):
-    state = {}
-    push = ev(at=at(0, 10), tier="high")
-    run(monkeypatch, channel, [push], run_at(0, 11), state)
-    rang = len(channel.rang)
-    run(monkeypatch, channel, [push], run_at(0, 12), state)
+    run(monkeypatch, channel, [push], run_at(0, 12), week)
     assert channel.rings_since(rang) == []
     assert channel.pushes() == [md.format_push(push, LABELS)]
     assert "Gold" not in channel.note()
 
 
-def test_a_rarer_word_within_a_day_rings_again_and_the_old_push_goes(monkeypatch, channel):
-    state = {}
-    push = ev(at=at(0, 10), tier="high")
-    run(monkeypatch, channel, [push], run_at(0, 11), state)
-    rang = len(channel.rang)
-    run(monkeypatch, channel, [push | {"tier": "major"}], run_at(0, 12), state)
-    assert channel.rings_since(rang) == [md.format_push(push | {"tier": "major"}, LABELS)]
-    assert channel.pushes() == [md.format_push(push | {"tier": "major"}, LABELS)]
+def test_a_move_found_more_than_a_day_ago_is_never_sent(monkeypatch, channel, week):
+    late = [ev(at(0, 1), "high"), ev(at(0, 2), asset="coinbase:BTC-USD")]
+    run(monkeypatch, channel, late, run_at(1, 5), week)
+    assert channel.pushes() == [] and channel.pings() == []
 
 
-def test_a_rarer_word_after_a_day_is_an_edit(monkeypatch, channel):
-    state = {}
-    push = ev(at=at(0, 10), tier="high")
-    run(monkeypatch, channel, [push], run_at(0, 11), state)
+# --- inside its 24 hours --------------------------------------------------------
+
+def test_a_bigger_hour_of_the_same_word_is_edited_in_place(monkeypatch, channel, week):
+    first = ev(at(0, 10))
+    run(monkeypatch, channel, [first], run_at(0, 11), week)
     rang = len(channel.rang)
-    run(monkeypatch, channel, [push | {"tier": "major"}], run_at(1, 12), state)
+    bigger = ev(at(0, 14), size=5.0)
+    run(monkeypatch, channel, [first, bigger], run_at(0, 15), week)
     assert channel.rings_since(rang) == []
-    assert channel.pushes() == [md.format_push(push | {"tier": "major"}, LABELS)]
+    assert "5.0×σ" in channel.note() and "4.5×σ" not in channel.note().split("✏️")[0]
+    assert story(channel.note()) == "✏️ ⬜ 4.5×σ 10:00 → ⬜ 5.0×σ 14:00 bigger jump"
+    assert channel.pings()[0].startswith("⬜ <b>GLD</b> · Gold +1.50% · 5.0×σ")
 
 
-def test_a_push_that_falls_between_push_words_is_edited_silently(monkeypatch, channel):
-    state = {}
-    push = ev(at=at(0, 10), tier="major")
-    run(monkeypatch, channel, [push], run_at(0, 11), state)
+def test_a_row_that_turns_high_is_deleted_and_rings_as_a_push(monkeypatch, channel, week):
+    first = ev(at(0, 10))
+    run(monkeypatch, channel, [first], run_at(0, 11), week)
     rang = len(channel.rang)
-    run(monkeypatch, channel, [push | {"tier": "high"}], run_at(0, 12), state)
+    rarer = ev(at(0, 14), "high")
+    run(monkeypatch, channel, [first, rarer], run_at(0, 15), week)
+    assert len(channel.rings_since(rang)) == 1
+    assert channel.pings() == [] and "Gold" not in channel.note()
+    push = channel.pushes()[0]
+    assert push.startswith("🟨 <b>GLD</b>")
+    assert story(push) == "✏️ ⬜ 4.5×σ 10:00 → 🟨 6.0×σ 14:00 bigger jump"
+
+
+def test_a_push_that_turns_rarer_is_deleted_and_rings_again(monkeypatch, channel, week):
+    high = ev(at(0, 10), "high")
+    run(monkeypatch, channel, [high], run_at(0, 11), week)
+    rang = len(channel.rang)
+    major = ev(at(0, 12), "major")
+    run(monkeypatch, channel, [high, major], run_at(0, 13), week)
+    assert len(channel.rings_since(rang)) == 1
+    assert [p[:1] for p in channel.pushes()] == ["🟧"]
+
+
+def test_a_push_that_falls_to_noticeable_turns_white_and_says_why(monkeypatch, channel, week):
+    high = ev(at(0, 10), "high")
+    run(monkeypatch, channel, [high], run_at(0, 11), week)
+    rang = len(channel.rang)
+    run(monkeypatch, channel, [ev(at(0, 10), size=4.6)], run_at(0, 12), week)
+    assert channel.rings_since(rang) == []
+    push = channel.pushes()[0]
+    assert push.startswith("⬜ <b>GLD</b>")
+    assert story(push) == "✏️ 🟨 6.0×σ 10:00 → ⬜ 4.6×σ 10:00 price corrected"
+    assert channel.pings() == [] and "Gold" not in channel.note()
+
+
+def test_a_white_push_that_turns_high_again_rings_again(monkeypatch, channel, week):
+    run(monkeypatch, channel, [ev(at(0, 10), "high")], run_at(0, 11), week)
+    run(monkeypatch, channel, [ev(at(0, 10), size=4.6)], run_at(0, 12), week)
+    rang = len(channel.rang)
+    run(monkeypatch, channel, [ev(at(0, 10), "high", size=6.1)], run_at(0, 13), week)
+    assert len(channel.rings_since(rang)) == 1
+    assert len(channel.pushes()) == 1 and channel.pushes()[0].startswith("🟨")
+
+
+def test_a_push_that_falls_between_push_words_is_edited_silently(monkeypatch, channel, week):
+    run(monkeypatch, channel, [ev(at(0, 10), "major")], run_at(0, 11), week)
+    rang = len(channel.rang)
+    run(monkeypatch, channel, [ev(at(0, 10), "high", size=7.0)], run_at(0, 12), week)
     assert channel.rings_since(rang) == []
     assert channel.pushes()[0].startswith("🟨")
 
 
-def test_a_push_that_falls_to_noticeable_turns_white_where_it_stands(monkeypatch, channel):
-    state = {}
-    push = ev(at=at(0, 10), tier="high")
-    run(monkeypatch, channel, [push], run_at(0, 11), state)
-    run(monkeypatch, channel, [push | {"tier": "noticeable"}], run_at(0, 12), state)
-    assert [p[:1] for p in channel.pushes()] == ["⬜"]
-    assert "Gold" not in channel.note() and channel.pings() == []
+def test_a_row_that_falls_away_takes_its_ping(monkeypatch, channel, week):
+    run(monkeypatch, channel, [ev(at(0, 10))], run_at(0, 11), week)
+    run(monkeypatch, channel, [ev(at(0, 3), asset="coinbase:BTC-USD")], run_at(0, 12), week)
+    assert "Gold" not in channel.note() and not any("GLD" in p for p in channel.pings())
 
 
-def test_a_push_that_flip_flops_is_edited_and_never_rings_twice(monkeypatch, channel):
-    state = {}
-    push = ev(at=at(0, 10), tier="high")
-    run(monkeypatch, channel, [push], run_at(0, 11), state)
-    rang = len(channel.rang)
-    run(monkeypatch, channel, [push | {"tier": "noticeable"}], run_at(0, 12), state)
-    run(monkeypatch, channel, [push], run_at(0, 13), state)
-    assert channel.rings_since(rang) == []
-    assert channel.pushes() == [md.format_push(push, LABELS)]
-
-
-def test_a_push_whose_move_is_gone_is_deleted(monkeypatch, channel):
-    state = {}
-    push = ev(at=at(0, 10), tier="high")
-    run(monkeypatch, channel, [push], run_at(0, 11), state)
-    run(monkeypatch, channel, [ev("other", at=at(0, 3), kept=False)], run_at(0, 12), state)
+def test_a_push_that_vanishes_and_returns_within_a_day_rings_again(monkeypatch, channel, week):
+    high = ev(at(0, 10), "high")
+    other = ev(at(0, 3), asset="coinbase:BTC-USD")
+    run(monkeypatch, channel, [high], run_at(0, 11), week)
+    run(monkeypatch, channel, [other], run_at(0, 12), week)
     assert channel.pushes() == []
-
-
-def test_a_move_that_vanishes_and_returns_within_a_day_rings_again(monkeypatch, channel):
-    state = {}
-    push = ev(at=at(0, 10), tier="high")
-    other = ev("other", at=at(0, 3), kept=False)
-    run(monkeypatch, channel, [push], run_at(0, 11), state)
-    run(monkeypatch, channel, [other], run_at(0, 12), state)
     rang = len(channel.rang)
-    run(monkeypatch, channel, [push], run_at(0, 13), state)
-    assert channel.rings_since(rang) == [md.format_push(push, LABELS)]
+    run(monkeypatch, channel, [other, high], run_at(0, 13), week)
+    assert len(channel.rings_since(rang)) == 1
+    assert story(channel.pushes()[0]) == (
+        "✏️ 🟨 6.0×σ 10:00 → ✖ corrected away → 🟨 6.0×σ 10:00 price corrected")
 
 
-def test_different_days_are_different_pushes(monkeypatch, channel):
-    state = {}
-    monday = ev("mon", at=at(0, 10), tier="high")
-    tuesday = ev("tue", at=at(1, 10), tier="high")
-    run(monkeypatch, channel, [monday], run_at(0, 11), state)
-    run(monkeypatch, channel, [monday, tuesday], run_at(1, 11), state)
-    assert len(channel.pushes()) == 2
+def test_a_late_hour_says_it_arrived_late(monkeypatch, channel, week):
+    first = ev(at(0, 10))
+    run(monkeypatch, channel, [first], run_at(0, 13), week)
+    late = ev(at(0, 11), size=5.0)                   # found 12:00, seen only at 14:05
+    run(monkeypatch, channel, [first, late], run_at(0, 14), week)
+    assert story(channel.note()).endswith("⬜ 5.0×σ 11:00 arrived late")
 
 
-# --- a day that grows -------------------------------------------------------
-
-def test_a_day_that_grows_from_a_row_to_a_push_takes_the_row_away(monkeypatch, channel):
-    state = {}
-    morning = ev("am", at=at(0, 10))
-    run(monkeypatch, channel, [morning], run_at(0, 11), state)
-    afternoon = ev("pm", at=at(0, 14), tier="high")
-    run(monkeypatch, channel, [morning | {"superseded_by": "pm"}, afternoon],
-        run_at(0, 15), state)
-    assert channel.pushes() == [md.format_push(afternoon, LABELS)]
-    assert "Gold" not in channel.note() and channel.pings() == []
+def test_a_moved_yardstick_says_sigma_corrected(monkeypatch, channel, week):
+    run(monkeypatch, channel, [ev(at(0, 10))], run_at(0, 11), week)
+    moved = dict(ev(at(0, 10)), sigma_lt=SIGMA * 0.9, z=5.0)
+    run(monkeypatch, channel, [moved], run_at(0, 12), week)
+    assert story(channel.note()).endswith("⬜ 5.0×σ 10:00 σ corrected")
 
 
-def test_a_day_that_grew_and_fell_back_keeps_its_push_white(monkeypatch, channel):
-    state = {}
-    morning = ev("am", at=at(0, 10))
-    afternoon = ev("pm", at=at(0, 14), tier="high")
-    run(monkeypatch, channel, [morning], run_at(0, 11), state)
-    run(monkeypatch, channel, [morning | {"superseded_by": "pm"}, afternoon],
-        run_at(0, 15), state)
-    # 14:00 heals to noticeable: it is no longer rarer than 10:00, so the day
-    # keeps 10:00 - but the push stays, white, and 10:00 does not come back.
-    fell = afternoon | {"tier": "noticeable", "kept": False}
-    run(monkeypatch, channel, [morning, fell], run_at(0, 16), state)
-    assert [p[:1] for p in channel.pushes()] == ["⬜"]
-    assert "Gold" not in channel.note() and channel.pings() == []
+def test_an_event_is_24_hours_so_the_next_move_is_a_new_event(monkeypatch, channel, week):
+    run(monkeypatch, channel, [ev(at(0, 10))], run_at(0, 11), week)
+    again = [ev(at(0, 10)), ev(at(1, 12))]           # 26 hours on
+    run(monkeypatch, channel, again, run_at(1, 13), week)
+    assert len(channel.pings()) == 2
+    assert "2 events so far" in channel.note()
 
 
-def test_a_day_that_grows_between_pushes_rings_and_deletes_the_lower(monkeypatch, channel):
-    state = {}
-    morning = ev("am", at=at(0, 10), tier="high")
-    afternoon = ev("pm", at=at(0, 14), tier="major")
-    run(monkeypatch, channel, [morning], run_at(0, 11), state)
+def test_a_funds_next_morning_is_the_same_event(monkeypatch, channel, week):
+    # 19:00 UTC Monday and Tuesday's open are inside one 24 hours.
+    evening = ev(at(0, 19))
+    morning = ev(at(1, 13), size=5.0, reading="night")
+    run(monkeypatch, channel, [evening], run_at(0, 20), week)
+    run(monkeypatch, channel, [evening, morning], run_at(1, 14), week)
+    assert len(channel.pings()) == 1 and "1 event so far" in channel.note()
+
+
+# --- after its 24 hours -------------------------------------------------------
+
+def test_after_a_day_a_row_that_turns_high_becomes_its_ping_silently(
+        monkeypatch, channel, week):
+    run(monkeypatch, channel, [ev(at(0, 10))], run_at(0, 11), week)
     rang = len(channel.rang)
-    run(monkeypatch, channel, [morning | {"superseded_by": "pm"}, afternoon],
-        run_at(0, 15), state)
-    assert channel.rings_since(rang) == [md.format_push(afternoon, LABELS)]
-    assert channel.pushes() == [md.format_push(afternoon, LABELS)]
+    run(monkeypatch, channel, [ev(at(0, 10), "high")], run_at(1, 12), week)
+    assert channel.rings_since(rang) == []
+    assert channel.pings() == [] and "Gold" not in channel.note()
+    push = channel.pushes()[0]
+    assert push.startswith("🟨 <b>GLD</b>")
+    assert story(push) == "✏️ ⬜ 4.5×σ 10:00 → 🟨 6.0×σ 10:00 price corrected"
 
 
-def test_a_lower_push_telegram_will_not_delete_is_struck_through(monkeypatch, channel):
-    state = {}
-    morning = ev("am", at=at(0, 10), tier="high")
-    afternoon = ev("pm", at=at(0, 14), tier="major")
-    run(monkeypatch, channel, [morning], run_at(0, 11), state)
-    channel.refuse_delete.add(state[md.STATE_KEY][md.WEEK]["pushes"]["am"]["id"])
-    run(monkeypatch, channel, [morning | {"superseded_by": "pm"}, afternoon],
-        run_at(0, 15), state)
-    struck = [t for t in channel.messages.values() if t.startswith("<s>")]
-    assert struck == ["<s>" + md.format_push(morning, LABELS).split("\n")[0] + "</s>"]
+def test_after_a_day_a_rarer_push_is_an_edit(monkeypatch, channel, week):
+    run(monkeypatch, channel, [ev(at(0, 10), "high")], run_at(0, 11), week)
+    rang = len(channel.rang)
+    run(monkeypatch, channel, [ev(at(0, 10), "major")], run_at(1, 12), week)
+    assert channel.rings_since(rang) == []
+    assert [p[:1] for p in channel.pushes()] == ["🟧"]
 
 
-# --- the week turns ---------------------------------------------------------
+def test_after_a_day_an_event_corrected_away_stays_gone(monkeypatch, channel, week):
+    high = ev(at(0, 10), "high")
+    other = ev(at(0, 3), asset="coinbase:BTC-USD")
+    run(monkeypatch, channel, [high], run_at(0, 11), week)
+    run(monkeypatch, channel, [other], run_at(1, 12), week)
+    assert channel.pushes() == []
+    rang = len(channel.rang)
+    run(monkeypatch, channel, [other, high], run_at(1, 13), week)
+    assert channel.rings_since(rang) == [] and channel.pushes() == []
 
-def test_the_next_note_clears_the_pings_and_leaves_the_rest_as_history(monkeypatch, channel):
-    state = {}
-    row = ev("row", at=at(5, 10))
-    push = ev("push", at=at(5, 12), tier="high", asset="coinbase:BTC-USD")
-    run(monkeypatch, channel, [row, push], run_at(5, 13), state)
+
+def test_an_event_gone_inside_its_day_that_returns_after_it_stays_gone(
+        monkeypatch, channel, week):
+    # Nothing can ring after the 24 hours, and there is no message left to edit.
+    high = ev(at(0, 10), "high")
+    other = ev(at(0, 3), asset="coinbase:BTC-USD")
+    run(monkeypatch, channel, [high], run_at(0, 11), week)
+    run(monkeypatch, channel, [other], run_at(0, 12), week)
+    rang = len(channel.rang)
+    run(monkeypatch, channel, [other, high], run_at(1, 13), week)
+    run(monkeypatch, channel, [other, high], run_at(1, 14), week)
+    assert channel.rings_since(rang) == [] and channel.pushes() == []
+
+
+def test_after_a_day_a_new_move_inside_the_old_event_is_not_possible(
+        monkeypatch, channel, week):
+    # A move found after the 24 hours opens its own event, which can ring.
+    run(monkeypatch, channel, [ev(at(0, 10))], run_at(0, 11), week)
+    rang = len(channel.rang)
+    run(monkeypatch, channel, [ev(at(0, 10)), ev(at(1, 11), "high")], run_at(1, 12), week)
+    assert len(channel.rings_since(rang)) == 1
+    assert "Gold" in channel.note()                  # the old row stays
+
+
+# --- the week turns -----------------------------------------------------------
+
+def test_the_next_note_clears_the_pings_and_leaves_the_rest_as_history(
+        monkeypatch, channel, week):
+    row = ev(at(5, 10))
+    push = ev(at(5, 12), "high", asset="coinbase:BTC-USD")
+    run(monkeypatch, channel, [row, push], run_at(5, 13), week)
     old_note = channel.note()
     sunday = datetime.fromtimestamp(NEXT, tz=timezone.utc)
-    # Even a push whose move has since changed is last week's, and stays.
-    run(monkeypatch, channel, [row, push | {"tier": "noticeable"}], sunday, state)
+    run(monkeypatch, channel, [row, dict(push, tier="noticeable", z=4.0)], sunday, week)
     assert channel.pings() == []
     assert channel.pushes() == [md.format_push(push, LABELS)]
     notes = channel.notes()
-    assert len(notes) == 2 and notes[0] == old_note
-    assert "Nothing so far" in notes[1]
+    assert len(notes) == 2 and notes[0] == old_note and "Nothing so far" in notes[1]
 
 
-def test_a_note_that_shrinks_deletes_its_surplus_parts(monkeypatch, channel):
-    state = {}
-    many = [ev(f"r{i}", at=at(0, 1), asset=f"twelvedata:X{i}") for i in range(120)]
-    run(monkeypatch, channel, many, run_at(0, 2), state)
-    parts = [t for t in channel.messages.values() if "<i>part " in t]
-    assert len(parts) > 1, "the fixture must be long enough to split"
-    run(monkeypatch, channel, many[:2], run_at(0, 3), state)
+def test_a_move_after_the_note_opens_is_a_new_event_even_inside_24_hours(
+        monkeypatch, channel, week):
+    saturday = ev(at(5, 22), "high", asset="coinbase:BTC-USD")
+    run(monkeypatch, channel, [saturday], run_at(5, 23), week)
+    sunday = datetime.fromtimestamp(NEXT, tz=timezone.utc)
+    run(monkeypatch, channel, [saturday], sunday, week)
+    rang = len(channel.rang)
+    later = ev(at(6, 1), "high", asset="coinbase:BTC-USD", size=6.5)
+    run(monkeypatch, channel, [saturday, later], run_at(6, 2), week)
+    assert len(channel.rings_since(rang)) == 1
+    assert len(channel.pushes()) == 2
+
+
+def test_a_note_that_shrinks_deletes_its_surplus_parts(monkeypatch, channel, week):
+    many = [ev(at(0, 1), asset=f"twelvedata:X{i}") for i in range(120)]
+    run(monkeypatch, channel, many, run_at(0, 2), week)
+    assert len([t for t in channel.messages.values() if "<i>part " in t]) > 1
+    run(monkeypatch, channel, many[:2], run_at(0, 3), week)
     assert [t for t in channel.messages.values() if "<i>part " in t] == []
     assert len(channel.notes()) == 1 and "2 events so far" in channel.note()
 
 
-def test_a_failed_send_is_retried_on_the_next_run(monkeypatch, channel):
-    state = {}
-    run(monkeypatch, channel, [ev("x", at=at(0, 1))], run_at(0, 1), state)
-    push = ev(at=at(0, 10), tier="high")
+def test_a_failed_send_is_retried_on_the_next_run(monkeypatch, channel, week):
+    push = ev(at(0, 10), "high")
     channel.fail_send = True
-    run(monkeypatch, channel, [push], run_at(0, 11), state)
+    run(monkeypatch, channel, [push], run_at(0, 11), week)
     channel.fail_send = False
-    run(monkeypatch, channel, [push], run_at(0, 12), state)
+    run(monkeypatch, channel, [push], run_at(0, 12), week)
     assert channel.pushes() == [md.format_push(push, LABELS)]
+
+
+def test_a_push_telegram_will_not_delete_is_struck_through(monkeypatch, channel, week):
+    high = ev(at(0, 10), "high")
+    run(monkeypatch, channel, [high], run_at(0, 11), week)
+    old = max(channel.messages, key=lambda m: channel.messages[m].startswith("🟨"))
+    channel.refuse_delete.add(old)
+    run(monkeypatch, channel, [high, ev(at(0, 12), "major")], run_at(0, 13), week)
+    assert channel.messages[old] == "<s>" + md.format_push(high, LABELS).split("\n")[0] + "</s>"
 
 
 # --- a detector update --------------------------------------------------------
 
-def test_a_detector_update_restarts_the_week_under_the_same_note(monkeypatch, channel):
-    state = {}
-    row = ev("row", at=at(1, 10))
-    push = ev("push", at=at(1, 12), tier="high", asset="coinbase:BTC-USD")
-    run(monkeypatch, channel, [row, push], run_at(1, 13), state)
-    note_id = state[md.STATE_KEY][md.WEEK]["note"]["ids"][0]
+def test_a_detector_update_restarts_the_week_under_the_same_note(monkeypatch, channel, week):
+    row = ev(at(1, 10))
+    push = ev(at(1, 12), "high", asset="coinbase:BTC-USD")
+    run(monkeypatch, channel, [row, push], run_at(1, 13), week)
+    note_id = week[md.STATE_KEY][md.WEEK]["note"]["ids"][0]
 
     monkeypatch.setattr(jumps, "detector_version", lambda root=None: "v2")
-    fresh = ev("new", at=at(2, 9), tier="high")
+    fresh = ev(at(2, 9), "high")
     rang = len(channel.rang)
-    run(monkeypatch, channel, [row, push | {"tier": "major"}, fresh], run_at(2, 10), state)
-    # Everything of the week goes but the note, which carries on; what was found
-    # before the update never rings again, what is found from it on does.
+    run(monkeypatch, channel, [row, dict(push, tier="major", z=9.0), fresh], run_at(2, 10),
+        week)
     assert channel.rings_since(rang) == [md.format_push(fresh, LABELS)]
     assert channel.pushes() == [md.format_push(fresh, LABELS)]
     assert channel.pings() == []
-    assert state[md.STATE_KEY][md.WEEK]["note"]["ids"][0] == note_id
+    assert week[md.STATE_KEY][md.WEEK]["note"]["ids"][0] == note_id
     assert "Nothing so far" in channel.messages[note_id]
 
 
 def test_the_previous_delivery_state_is_taken_over_as_an_update(monkeypatch, channel):
-    # What production's state.json holds before the switch.
     old_note = channel.send("", "", "📋 <b>Digest</b> - old")
     old_push = channel.send("", "", "🟨 <b>GLD</b> · Gold")
     older_push = channel.send("", "", "🟨 <b>SPY</b>")
     ping = channel.send("", "", "⬜ x\nAdded to digest👆🏻👆🏻")
+    saturday = SLOT - 24 * HOUR               # production's notes open on Saturday
     state = {md.STATE_KEY: {
-        "digests": {str(SLOT): {"ids": [old_note], "hashes": ["h"]}},
-        "sent": {"a": {"hour": SLOT + 5 * HOUR, "id": old_push},
-                 "b": {"hour": SLOT - 5 * HOUR, "id": older_push}},
+        "digests": {str(saturday): {"ids": [old_note], "hashes": ["h"]}},
+        "sent": {"a": {"hour": saturday + 5 * HOUR, "id": old_push},
+                 "b": {"hour": saturday - 5 * HOUR, "id": older_push}},
         "tracked": {}, "pings": {"p": {"id": ping, "hash": "h"}}}}
-    run(monkeypatch, channel, [ev(at=at(0, 1))], run_at(1, 10), state)
+    assert md.note_due(state, run_at(1, 10)) is False
+    run(monkeypatch, channel, [ev(at(0, 1))], run_at(1, 10), state)
+    # The old note carries on as this week's; no second note opens.
     assert set(channel.messages) == {old_note, older_push}
     assert "Nothing so far" in channel.messages[old_note]
-    assert set(state[md.STATE_KEY]) == {md.WEEK}
+    assert state[md.STATE_KEY][md.WEEK]["slot"] == SLOT
+    assert md.note_due(state, run_at(1, 11)) is False

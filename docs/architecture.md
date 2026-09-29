@@ -50,13 +50,13 @@ paper's minimum for once-a-day and once-a-week data. The gap value is the pipeli
 `gap`: corrected for dividends, and left out on a split, an unconfirmed dividend or a
 missing bar before the close.
 
-**Stage 1, one event per instrument per day — built.** The first flagged reading of an
-instrument's day, its gap or an hour, opens the day. A later reading that day is kept only
-if it reaches a *rarer* word than anything kept before it: a day that starts `noticeable`
-and turns `high` says so, while a second `noticeable`, or a `high` after a `major`, is
-dropped. A day therefore holds at most four events, each rarer than the last. A gap goes
-before the hour that shares its timestamp. The day is the fund's New York date and the UTC
-date for currency pairs and coins (`sessions.day_tz`).
+**Stage 1, one event per 24 hours — built.** An instrument's first flagged reading, a gap
+or an hour, opens an event that lasts 24 hours of real time from when it was found — not a
+trading day and not a count of candles, so a fund's afternoon move and the next morning's
+open are one event. Every reading found inside them belongs to it; the first found after
+them opens the next. The event's word is its rarest reading's, and the numbers it shows
+are its biggest reading's (`jumps.event_starts`, `jumps.events`). Over the record this
+turns 28,095 settled flags into 19,185 events.
 
 **Stage 2, channels — built.** `high`, `major` and `extreme` push: a message of their own,
 at once. `noticeable` goes into the weekly note, with a small ping that points at it
@@ -83,8 +83,8 @@ No "biggest since" date, no check-in lines and no block/own split: those are sta
 8, and come back with them.
 
 The output is `data/tremor/jumps.parquet`, every instrument's events — hour, night or
-weekend — with `escalation` marking the ones that raised their day, and the columns the
-delivery layer reads (`event_id`, `tier`, `channel`, `digest_slot`, `sigma_lt`). It is
+weekend — each with `found_utc` and its 24-hour event's `event_start`, and the columns
+the delivery layer reads (`reading_id`, `tier`, `channel`, `sigma_lt`). It is
 rescored from the whole history every run, in about two seconds, so nothing of it is cached.
 `tools/stage_report.py` prints what the detector flags: per week, per instrument and block,
 the gaps by kind, how the biggest hours of each record were worded, and the events by
@@ -114,9 +114,11 @@ Settings live under `detector:` in `config/basket.yaml`: `window_days`,
 **When a move is found.** `jumps` judges a reading only once it can be (`jumps.ended`): an
 hour once it has ended, a fund's gap with its first bar once that bar has ended, a currency
 pair's weekend gap at its open. That moment is the event's `found_utc`, and the run five
-minutes later is the one that sees it. `jumps.parquet` holds every flagged reading, with
-`kept` marking the ones one-a-day keeps, so a message already out can be corrected from its
-reading even once it is no longer kept.
+minutes later is the one that sees it. `jumps.parquet` holds every flagged reading;
+delivery groups them into 24-hour events itself, holding the events already on the channel
+to the 24 hours they started with (`jumps.event_starts` with anchors) — a first move
+corrected away does not slide its event later, and a bar that arrives late just before an
+event on the channel joins it.
 
 **A push** is its own message: the first line and the hour, and beneath them the scheduled
 releases in the hours around the move (`Nearby economic events`) when there are any.
@@ -128,24 +130,35 @@ pointing up at the note.
 calendar's own message, and a move belongs to the note open when it is found — the hour
 checked in the opening run goes into the new note. For that week every run re-reads the
 events table and brings every message of the week in line with it; what belongs to an
-earlier note is history and is never touched. In order:
+earlier note is history and is never touched. A move found after the note opened starts a
+new event, even inside the 24 hours of one from the week before. Per event:
 
-| on the channel | the move now | what happens |
+| the event | inside its 24 hours | after them |
 |---|---|---|
-| a push | gone | deleted |
-| a push | a rarer word, within 24 h of being found | a new push rings; the old one is deleted |
-| a push | a rarer word after 24 h, or any other change | edited in place — `noticeable` shows ⬜; a flip-flop never rings twice |
-| a row | gone, or no longer the day's kept event | leaves the note (an edit); its ping is deleted |
-| a row | a push word, within 24 h | a push rings; the row leaves and its ping is deleted |
-| a row | a push word after 24 h | stays, recoloured, and so does its ping |
-| nothing | found within the last 24 h, kept, the day's rarest | `high` and up push; `noticeable` becomes a row with a ping, unless its day has a push |
+| new | `high` and up: a push, rings. `noticeable`: a row and its ping, rings | never sent |
+| rarer — any cause but a detector update | its message is deleted (the row and its ping, or the push) and it goes out again at the new word, and rings — a ⬜ push that turns `high` again included | silent: a push is edited; a row turning `high` leaves the note and its ping is edited into the push |
+| milder | edited: a push falls a colour, to ⬜ at `noticeable` | the same |
+| same word, other numbers (a bigger hour, a fix) | edited | edited |
+| gone | deleted — the push, or the row and its ping; it can come back and ring | deleted, for good |
 
-An instrument-day keeps one push, its rarest: once the rarer one is out the lower one is
-deleted and never sent again, and a day with a push shows no row. Different days, hours and
-events are different pushes. When the next note opens, the week's pings are deleted and the
-rest stays as it is. A part the note no longer needs is deleted. The bot is an
-administrator of a public channel; a delete it is refused anyway is struck through by an
-edit.
+**The story.** A changed event says what it went through on one line under its time, in
+the push or the note row (not the ping); a clean event says nothing:
+
+```
+✏️ ⬜ 4.0×σ 10:00 → 🟧 7.9×σ 12:00 bigger jump
+✏️ 🟨 6.0×σ 10:00 → ⬜ 4.6×σ 10:00 price corrected
+✏️ 🟨 6.0×σ 10:00 → ✖ corrected away → 🟨 6.0×σ 10:00 price corrected
+```
+
+Each state is its colour, size and hour, and why it moved there, in the jump detector's
+terms — what can move |move| / σ of an event's biggest reading: `bigger jump` (a new hour
+went further), `arrived late` (a bar or gap that was missing came in), `price corrected`
+(the provider revised the bar), `σ corrected` (older bars were revised, so the half-year
+yardstick moved), `corrected away` (no longer a jump).
+
+When the next note opens, the week's pings are deleted and the rest stays as it is. A part
+the note no longer needs is deleted. The bot is an administrator of a public channel; a
+delete it is refused anyway is struck through by an edit.
 
 **A detector update** — a new `jumps.detector_version()`, the hash of the detector's parsed
 code and the basket — restarts the week at that run: every push and ping of the week is
@@ -194,7 +207,7 @@ rather than rebuilding them, and re-scoring the last two days in case a bar has 
 completed or corrected since)
 
 **The jump detector**
-`jumps` (the half-year bipower score, the words, the gaps by kind, one event a day, the
+`jumps` (the half-year bipower score, the words, the gaps by kind, 24-hour events, the
 delivery columns) · `routing` (which words push, and the weekly note's slots) · `basket`
 (the instruments and the `detector:` settings)
 

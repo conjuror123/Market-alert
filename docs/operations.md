@@ -152,12 +152,13 @@ The bot posts to a **public channel** and is an administrator there: it can edit
 messages at any age and delete any message. For the week of the open note every run brings
 the channel in line with the events table (`architecture.md`, "The week"):
 
-- **deleted** — a push whose move is gone; a push replaced by a rarer one that rang (the
-  same move within 24 hours, or a rarer move later the same day); a row's ping when the
-  row leaves the note or becomes a push; a note part no longer needed; every ping of the
-  week when the next note opens;
+- **deleted** — an event that is gone (its push, or its row's ping); an event that turned
+  rarer inside its 24 hours, which then goes out again and rings; a note part no longer
+  needed; every ping of the week when the next note opens;
 - **edited** — everything else that changes: a push whose numbers moved or whose word
-  fell (`noticeable` shows ⬜), the note, a ping whose row changed colour.
+  fell (⬜ at `noticeable`), the note, a ping whose numbers moved, and — after an event's
+  24 hours — a row's ping that becomes the push. An edited or re-sent event says why on
+  its `✏️` line.
 
 Nothing of an earlier week is touched. **A detector update** (a new
 `jumps.detector_version()`) deletes every push and ping of the current week, keeps the note
@@ -169,8 +170,8 @@ through by an edit instead, and Telegram's reason is logged.
 
 ## Silence is the normal state
 
-About 10 pushes a week across today's 61 instruments and about 19 note rows, each with a
-small ping; the busiest week of the last year had 37 pushes and 61 rows (`decisions.md`).
+About 9 pushes a week across today's 61 instruments and about 16 note rows, each with a
+small ping; the busiest week of the last year had 32 pushes and 52 rows (`decisions.md`).
 One note a week opens Sunday at 00:05 UTC and fills as moves are found; it opens even when
 nothing has happened yet ("Nothing so far").
 
@@ -184,12 +185,13 @@ The calendar archive is topped up from the live feed once a day, separately from
 weekly digest: pushes name the releases in the three hours around a move on any day of the
 week, and a schedule fetched last Sunday does not have the speech added on Wednesday.
 
-**Nothing is sent more than 24 hours after its move was found.** This is load-bearing
+**Nothing rings more than 24 hours after its event's first move was found.** This is load-bearing
 rather than tidy: the events table holds the whole history, so without it the first run
 after a mute would deliver years of alerts at once. The note opens at the first run of its
 week; the calendar goes out only within four hours of the opening, so after a longer outage
-the note opens without it. An empty events table changes nothing at all, the note included
-— it cannot tell "nothing happened" from "the pipeline did not run".
+the note opens with an empty calendar that says there was an outage — as it does when the
+calendar source does not reach the end of the week. An empty events table changes nothing
+at all, the note included — it cannot tell "nothing happened" from "the pipeline did not run".
 
 A quiet day is still possible, and is not evidence of a fault. What distinguishes the two is
 the Actions tab: green runs mean it looked and found nothing.

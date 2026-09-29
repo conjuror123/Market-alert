@@ -151,41 +151,36 @@ def _flags(rows):
                           "reading": reading, "word": word} for t, reading, word in rows])
 
 
-def test_a_day_keeps_its_first_event_and_every_rise_and_nothing_else():
-    flags = _flags([("2024-01-02 10:00", "hour", "noticeable"),
-                    ("2024-01-02 11:00", "hour", "noticeable"),   # same word: dropped
-                    ("2024-01-02 12:00", "hour", "high"),         # rarer: kept
-                    ("2024-01-02 13:00", "hour", "noticeable"),   # milder: dropped
-                    ("2024-01-02 14:00", "hour", "high"),         # not rarer: dropped
-                    ("2024-01-02 15:00", "hour", "extreme"),      # rarer: kept
-                    ("2024-01-03 10:00", "hour", "noticeable")])  # a new day starts over
-    events = jumps.one_a_day(flags, None)
-    assert list(events["word"]) == ["noticeable", "high", "extreme", "noticeable"]
-    assert list(events["escalation"]) == [False, True, True, False]
+def test_an_event_is_24_real_hours_from_its_first_move():
+    # Not a trading day and not a count of candles: a fund's 15:00 New York move
+    # and the next morning's open (found 14:00 UTC) are one event.
+    found = [0, 5 * HOUR, 23 * HOUR, 24 * HOUR, 30 * HOUR, 48 * HOUR]
+    assert list(jumps.event_starts(found)) == [0, 0, 0, 24 * HOUR, 24 * HOUR, 48 * HOUR]
 
 
-def test_the_gap_comes_before_the_hour_it_shares_a_timestamp_with():
-    flags = _flags([("2024-01-02 14:00", "hour", "noticeable"),
-                    ("2024-01-02 14:00", "night", "noticeable")])
-    events = jumps.one_a_day(flags, "America/New_York")
-    assert list(events["reading"]) == ["night"]
+def test_a_later_move_does_not_stretch_the_event():
+    # 24 hours from the FIRST move, whatever comes inside them.
+    found = [0, 20 * HOUR, 26 * HOUR]
+    assert list(jumps.event_starts(found)) == [0, 0, 26 * HOUR]
 
 
-def test_a_funds_day_is_its_new_york_date_and_a_coins_the_utc_date():
-    flags = _flags([("2024-01-02 20:00", "hour", "noticeable"),    # 15:00 New York
-                    ("2024-01-03 01:00", "hour", "noticeable")])   # 20:00 New York, next UTC day
-    assert len(jumps.one_a_day(flags, "America/New_York")) == 1
-    assert len(jumps.one_a_day(flags, None)) == 2
+def test_an_event_on_the_channel_keeps_its_24_hours():
+    # Its first move corrected away does not slide it later.
+    assert list(jumps.event_starts([5 * HOUR, 25 * HOUR], anchors=[0])) == [0, 25 * HOUR]
 
 
-def test_keep_all_returns_every_reading_and_marks_the_ones_kept():
-    flags = _flags([("2024-01-02 10:00", "hour", "noticeable"),
-                    ("2024-01-02 11:00", "hour", "noticeable"),
-                    ("2024-01-02 12:00", "hour", "high")])
-    everything = jumps.one_a_day(flags, None, keep_all=True)
-    assert list(everything["kept"]) == [True, False, True]
-    kept = everything[everything["kept"]].drop(columns="kept").reset_index(drop=True)
-    pd.testing.assert_frame_equal(kept, jumps.one_a_day(flags, None))
+def test_a_late_move_just_before_an_event_on_the_channel_joins_it():
+    # A bar that arrives late, found three hours before the event on the
+    # channel, would open an event overlapping it; it joins it instead.
+    starts = jumps.event_starts([-3 * HOUR, -30 * HOUR], anchors=[0])
+    assert list(starts) == [0, -30 * HOUR]
+
+
+def test_an_event_is_worded_by_its_biggest_reading():
+    readings = pd.DataFrame({"asset_id": ["a", "a", "a"], "event_start": [0, 0, 0],
+                             "z": [4.0, -9.0, 6.0],
+                             "word": ["noticeable", "major", "high"]})
+    assert list(jumps.events(readings)["word"]) == ["major"]
 
 
 def test_an_hour_is_found_once_it_has_ended_and_not_before():
@@ -208,7 +203,7 @@ def test_a_funds_gap_is_found_with_its_first_bar_and_a_pairs_at_its_open():
     pair_open = int(pair["hour_utc"].iloc[0])
     assert jumps.ended(fund, "us_equity", fund_open + 1800).empty
     assert jumps.ended(fund, "us_equity", fund_open + HOUR)["found_utc"].iloc[0] == fund_open + HOUR
-    assert jumps.ended(pair, "fx_24_5", pair_open)["found_utc"].iloc[0] == pair_open
+    assert jumps.ended(pair, "fx_continuous", pair_open)["found_utc"].iloc[0] == pair_open
 
 
 def test_the_detector_version_ignores_comments_and_follows_the_settings(tmp_path):
@@ -235,40 +230,30 @@ def test_the_detector_version_ignores_comments_and_follows_the_settings(tmp_path
     assert jumps.detector_version(str(root)) != before
 
 
-def _events(words, reading="hour", days=None):
+def _events(words, reading="hour"):
     base = pd.Timestamp("2026-09-15 14:00", tz="UTC")
-    days = days or [20711] * len(words)
     return pd.DataFrame([{"asset_id": "twelvedata:GLD",
                           "hour_utc": int((base + pd.Timedelta(hours=i)).timestamp()),
                           "reading": reading, "word": w, "r": 0.02, "sigma": 0.002,
-                          "z": 10.0, "day": d}
-                         for i, (w, d) in enumerate(zip(words, days))])
+                          "z": 10.0}
+                         for i, w in enumerate(words)])
 
 
-def test_a_day_that_grew_names_its_rarest_event_on_the_lower_ones():
-    # The lower messages of a day leave the channel once its rarest is
-    # delivered; the event table says which one that is.
-    out = jumps.for_delivery(_events(["noticeable", "high", "major", "high"],
-                                     days=[1, 1, 1, 2]))
-    top = out["event_id"].iloc[2]
-    assert list(out["superseded_by"].iloc[:2]) == [top, top]
-    assert pd.isna(out["superseded_by"].iloc[2])          # the day's rarest
-    assert pd.isna(out["superseded_by"].iloc[3])          # a new day starts over
+def test_delivery_gets_each_readings_event():
+    out = jumps.for_delivery(_events(["noticeable", "high"]))
+    first = int(out["hour_utc"].iloc[0]) + HOUR
+    assert list(out["event_start"]) == [first, first]
 
 
 def test_high_and_up_push_and_noticeable_goes_into_the_weekly_note():
-    from tremor import routing
     out = jumps.for_delivery(_events(["noticeable", "high", "major", "extreme"]))
     assert list(out["channel"]) == ["digest", "push", "push", "push"]
-    # The note open when the move is found: the run five minutes after its hour ends.
-    found = int(out["hour_utc"].iloc[0]) + 3600 + jumps.FOUND_TO_RUN
-    assert out["digest_slot"].iloc[0] == routing.digest_slot(found)
     assert (out["basis"] == "jump").all()
 
 
-def test_a_jump_event_is_named_by_its_instrument_reading_and_hour():
+def test_a_reading_is_named_by_its_instrument_reading_and_hour():
     out = jumps.for_delivery(_events(["high"], reading="weekend"))
     hour = int(out["hour_utc"].iloc[0])
-    assert out["event_id"].iloc[0] == f"jump:twelvedata:GLD:weekend:{hour}"
+    assert out["reading_id"].iloc[0] == f"jump:twelvedata:GLD:weekend:{hour}"
     assert bool(out["overnight"].iloc[0]) and out["gap_kind"].iloc[0] == "weekend"
     assert out["sigma_lt"].iloc[0] == 0.002

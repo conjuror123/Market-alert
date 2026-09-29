@@ -81,16 +81,18 @@ data is 7) leave that yardstick uncertain by about ±16%, so weekend words near 
 are the least certain. Borrowing from the trading hours loses everywhere: the night does
 not follow the day's mood closely enough.
 
-**One event a day, unless the day grows.** A storm of hours is one story, so an instrument's
-day keeps its first event and then only readings that reach a rarer word; the same or a
-milder word the same day is dropped. A rise is kept because it is new information — a day
-that opens `noticeable` and turns `major` is a different day from one that stays
-`noticeable`. Over the record this cuts 28,095 flags to 22,168 events, 1,422 of them rises.
+**One event per 24 hours of real time.** The reader's rule. A storm of hours is one story,
+so an instrument's moves inside the 24 hours from its first one found are one event, shown
+by its biggest hour and worded by its rarest. Real hours, not a trading day or a count of
+candles: the same span for a coin, a pair and a fund, whose afternoon move and next
+morning's open then read as one story. It replaced "one event a day unless the day grows",
+which split a storm at midnight New York and sent a second message for each rise. Over the
+record 28,095 flags become 19,185 events.
 
 **`high` and up push; `noticeable` goes into the note.** The reader's choice, to try: more
 messages than the previous detector's one a week was the point of the change. For today's
-basket that is about 10 pushes a week and about 19 note rows a week, each row with its own
-small ping; the busiest week of the last year had 37 pushes and 61 rows. `noticeable`
+basket that is about 9 pushes a week and about 16 note rows a week, each row with its own
+small ping; the busiest week of the last year had 32 pushes and 52 rows. `noticeable`
 alone is two thirds of the events, so it is the one word worth reading in a batch; `high` (5.5σ) is where a move stops being routine for its instrument.
 To be tuned with the threshold at stage 12, against a few weeks of real messages.
 
@@ -143,11 +145,22 @@ moves — before this rule one cold rebuild grew a note that had closed two days
 5 rows to 19 and posted the difference as two alerts at breakfast. The channel is public and
 the bot an admin, so Telegram lets it edit or delete at any age; the limit is ours.
 
-**A push rings only within 24 hours of its move being found.** After that a phone buzzing
-for it is old news: a Monday row that turns `high` on Thursday is recoloured, not pushed. A
-rarer word inside the 24 hours rings again and the lower push is deleted, because the day
-then has one story told by its rarest message; a word that falls is edited (⬜ for
-`noticeable`), and a push that falls and comes back never rings twice.
+**An event rings only inside its 24 hours; rarer rings again, milder never does.** The
+reader's rules. Inside the 24 hours an event that turns rarer — a bigger hour, a fix, a late
+bar — is deleted and sent again at its new word, so the phone says what the move now is and
+the channel keeps one message for it; a ⬜ push that turns `high` again rings again too.
+Milder is an edit: the reader already heard about it, and a falling word is not news worth a
+buzz. After the 24 hours the event is complete and a fix can only correct it silently — a
+row that turns `high` leaves the note and its own ping becomes the push, by an edit — and an
+event corrected away then stays gone. A detector update is not a change to an event: it
+restarts the week.
+
+**A changed event tells its story.** The reader's rule: a message that was edited, or sent
+again, says on one line what it went through and why — `✏️ ⬜ 4.0×σ 10:00 → 🟧 7.9×σ 12:00
+bigger jump` — so an edit is never silent about being one. A clean event says nothing. The
+reasons are the jump detector's own: the only things that move |move| / σ of an event's
+biggest hour are a bigger hour, a late bar, a revised price, a revised yardstick, or the
+jump disappearing. The story sits on the push and on the note row, not on the ping.
 
 **A move belongs to the note open when it is found, and it is found only once it can be
 judged.** The run fires at :05 and stores the hour it stands in, five minutes of it, so

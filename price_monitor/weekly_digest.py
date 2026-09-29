@@ -400,32 +400,49 @@ def _covers(events: list[dict], through: datetime) -> bool:
     return last >= through - timedelta(days=_COVERAGE_SLACK_DAYS)
 
 
-def _send_digest(cfg: Config, session: requests.Session | None,
-                 now: datetime) -> bool:
-    """Refreshes the archive and sends the coming week's Medium+High digest.
+def format_outage(start: datetime, end: datetime, why: str) -> str:
+    """The calendar's place when there is no calendar to give: the header and
+    the week it would have covered, empty, and why."""
+    last = end - timedelta(seconds=1)
+    return ("📅 <b>Economic calendar for the week</b>\n"
+            f"<i>{start.strftime('%d.%m')} — {last.strftime('%d.%m')}</i>\n\n"
+            f"⚠️ Outage: {why}. No calendar this week.")
 
-    Failures are swallowed rather than raised: the digest lives inside the hourly
-    monitoring run, and a failed send must not bring the whole run down - the same
-    approach as the per-asset error handling in __main__.py. Returns True if the
-    digest actually went out.
-    """
-    start, end = coming_week(now)
-    path = _refresh_archive(cfg, session, now, end)
-    archive = economic_calendar.load_events(path)
-    if not _covers(archive, end):
-        log.warning("The archive does not reach %s - digest held back", end.date())
-        return False
 
-    digest_events = [e for e in economic_calendar.events_in_window(archive, start, end)
-                     if e["impact"] in _DIGEST_IMPACTS]
-    messages = format_digest(digest_events, start, end)
+def _post(cfg: Config, messages: "list[str]") -> bool:
     try:
         for text in messages:
             send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id, text)
     except TelegramError as exc:
         log.error("Failed to send weekly digest: %s", exc)
         return False
+    return True
 
+
+def _send_digest(cfg: Config, session: requests.Session | None,
+                 now: datetime) -> bool:
+    """Refreshes the archive and sends the coming week's Medium+High digest -
+    or, when the archive does not reach the end of that week, the empty
+    calendar that says so.
+
+    Failures are swallowed rather than raised: the digest lives inside the hourly
+    monitoring run, and a failed send must not bring the whole run down - the same
+    approach as the per-asset error handling in __main__.py. Returns True if a
+    message actually went out.
+    """
+    start, end = coming_week(now)
+    path = _refresh_archive(cfg, session, now, end)
+    archive = economic_calendar.load_events(path)
+    if not _covers(archive, end):
+        log.warning("The archive does not reach %s - the outage calendar goes out",
+                    end.date())
+        return _post(cfg, [format_outage(start, end, "the calendar source did not answer")])
+
+    digest_events = [e for e in economic_calendar.events_in_window(archive, start, end)
+                     if e["impact"] in _DIGEST_IMPACTS]
+    messages = format_digest(digest_events, start, end)
+    if not _post(cfg, messages):
+        return False
     log.info("Weekly digest sent (%d Medium/High events, %s .. %s, %d message(s))",
              len(digest_events), start.date(), end.date(), len(messages))
     return True
@@ -434,18 +451,24 @@ def _send_digest(cfg: Config, session: requests.Session | None,
 def maybe_send_weekly_digest(
     cfg: Config, state: dict, session: requests.Session, now: datetime | None = None,
 ) -> bool:
-    """No-ops outside the weekly note's opening window, and no-ops if this
-    week's digest has already been sent. Returns True if one actually went."""
+    """The calendar goes out in the run that opens the weekly note, just before
+    it (tremor_delivery.note_due), once a week. Inside the opening's grace
+    hours it is the real calendar; later - the runs were down when the week
+    opened - it is the empty calendar that says there was an outage. Returns
+    True if one actually went."""
+    from price_monitor import tremor_delivery
+
     now = now or datetime.now(timezone.utc)
-    if not _is_digest_window(now):
+    slot = routing.digest_slot(int(now.timestamp()))
+    week_id = str(slot)
+    if state.get(_STATE_KEY) == week_id or not tremor_delivery.note_due(state, now):
         return False
-
-    week_id = _week_identifier(now)
-    if state.get(_STATE_KEY) == week_id:
-        return False
-    if not _send_digest(cfg, session, now):
-        return False
-
-    state[_STATE_KEY] = week_id
-    return True
-
+    if _is_digest_window(now):
+        sent = _send_digest(cfg, session, now)
+    else:
+        opened = datetime.fromtimestamp(slot, tz=timezone.utc)
+        start, end = coming_week(opened)
+        sent = _post(cfg, [format_outage(start, end, "the bot was down when the week opened")])
+    if sent:
+        state[_STATE_KEY] = week_id
+    return sent

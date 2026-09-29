@@ -43,7 +43,7 @@ Four commands. **The order is load-bearing.**
 ```
 tremor.backfill   fetch new bars into data/tremor/bars/
 tremor.pipeline   per-instrument metrics: the move and the gap
-tremor.jumps      score, words, one event a day, channels   <- the product
+tremor.jumps      score, words, 24-hour events, channels    <- the product
 price_monitor     deliver what is due to Telegram
 ```
 
@@ -63,17 +63,22 @@ Break one of these and the system is wrong rather than merely broken.
 3. **Everything internal is UTC seconds, named `hour_utc`.** Local time appears where a
    day is a local thing — a fund's trading day and session, in New York — resolved
    through `ZoneInfo`. The weekly note's slot is UTC.
-4. **One event per instrument per day, unless the day grows.** Enforced in
-   `jumps.one_a_day`, not by filtering afterwards: a later reading that day is kept only if
-   its word is rarer than every one kept before it. The New York date for the funds, the
-   UTC date for currency pairs and crypto.
+4. **An event is 24 real hours from its first move being found** (`jumps.event_starts`),
+   for every instrument — not a trading day, not a count of candles. Its word is its
+   rarest reading's, its numbers its biggest reading's. A move found after the 24 hours
+   opens the next event; one found after the week's note opened opens a new event even
+   inside them. Events already on the channel hold their 24 hours (delivery's anchors).
 5. **One note a week, curated for that week and never after.** It opens Sunday 00:05 UTC,
    right after the calendar's own message. A move belongs to the note open when it is
    **found**; for that week every run brings every message in line with the events table
    (`tremor_delivery` "the week"). Anything of an earlier week is history and is never
-   touched: at the next note only the old week's pings are deleted. A push rings only
-   within `PUSH_WINDOW_HOURS` (24) of its move being found; after that a move is only
-   edited or deleted. A ping lives exactly as long as its row.
+   touched: at the next note only the old week's pings are deleted. **Inside its 24
+   hours** an event that turns rarer is deleted and goes out again at the new word, and
+   rings; one that turns milder is edited (a push that falls to `noticeable` shows ⬜, a
+   `noticeable` that falls away is deleted). **After them** it changes only by a fix,
+   silently: rarer or milder is an edit (a row turning `high` leaves the note and its
+   ping is edited into the push), gone is gone for good. A changed event carries its
+   story on one line; a clean one says nothing. A ping lives exactly as long as its row.
 6. **A detector update restarts the week.** When `jumps.detector_version()` changes, every
    push and ping of the week is deleted; the note (and the calendar) stay, and the week
    continues with what is found from that run on. Nothing found before the update rings.
