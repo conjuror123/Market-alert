@@ -38,7 +38,7 @@ fire is worse than none — its silence is indistinguishable from a quiet market
 No live fetch waits on a rate limit. Tiingo answers in about 0.28 s with no enforced
 throttle; Yahoo and Coinbase have no pacing requirement. A `config_version` mismatch
 forces a cold rebuild of the metrics (about ten seconds locally) — that is the guard
-working, not a fault. The jump detector rescores the whole history every run, in about two
+working, not a fault. The jump detector rescores the whole history every run, in about three
 seconds, so it has no warm state to lose.
 
 ---

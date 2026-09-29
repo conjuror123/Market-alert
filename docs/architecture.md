@@ -11,7 +11,7 @@ message only when one of them moves unusually **for itself**.
 
 **This branch is the jump detector, as it will run live.** It is built in stages on
 `claude/youthful-pascal-u0rx7u`; production keeps running the previous detector from its own
-branch until the switch, which comes once stages 3 and 4 exist. The previous detector's code
+branch until the switch, which comes once stage 4 exists. The previous detector's code
 is not here — read it on the production branch when a later stage needs a piece of it.
 
 **The hourly pass** is four commands, and the order is load-bearing — `CLAUDE.md` lists
@@ -69,6 +69,7 @@ gap — at the end of the first line:
 
 ```
 🟥 LTC-USD · Litecoin +5.76% · 11.0×σ
+📈 Rarest hour in 7 months (then 10.7×σ)
 🕐 24.09.2026 02:00 UTC
 ```
 
@@ -79,22 +80,39 @@ and a note row's ping:
 Added to digest👆🏻👆🏻
 ```
 
-No "biggest since" date, no check-in lines and no block/own split: those are stages 3, 4 and
-8, and come back with them.
+No check-in lines and no block/own split: those are stages 4 and 8, and come back with them.
+
+**Stage 3, rarest since — built.** The second line of a push or a note row (not the ping)
+says how long since the instrument was last at least this rare: the most recent earlier
+reading **of the same kind** — hours against hours, nights against nights, weekends against
+weekends, each in its own σ — **in the same direction**, at least 95% of this one's size or
+bigger (`jumps.rarest_since`, `RARE_SHARE`). It reads the whole stored history, and names
+that reading's size:
+
+```
+📈 Rarest hour in 6 months (then 7.1×σ)
+📉 Rarest night in 3 years (then 6.1×σ)
+📉 Rarest weekend in 6 years of record
+```
+
+The last form is a record: nothing at least as rare since the instrument's first bar. The
+span is rounded down — hours under two days, days under two months, months under two
+years, then years — so "in 2 years" holds for 2.6 of them. Over the last year the median
+line reads 11 days for a `noticeable` hour, 49 for a `high` one and 258 for a `major`;
+nights and weekends reach back about a year or more, being one a day and one a week.
 
 The output is `data/tremor/jumps.parquet`, every instrument's events — hour, night or
 weekend — each with `found_utc` and its 24-hour event's `event_start`, and the columns
-the delivery layer reads (`reading_id`, `tier`, `channel`, `sigma_lt`). It is
-rescored from the whole history every run, in about two seconds, so nothing of it is cached.
-`tools/stage_report.py` prints what the detector flags: per week, per instrument and block,
-the gaps by kind, how the biggest hours of each record were worded, and the events by
-channel.
+the delivery layer reads (`reading_id`, `tier`, `channel`, `sigma_lt`, `since_utc`,
+`since_z`, `record_start`). It is rescored from the whole history every run, in about three
+seconds, so nothing of it is cached. `tools/stage_report.py` prints what the detector flags:
+per week, per instrument and block, the gaps by kind, how the biggest hours of each record
+were worded, the events by channel, and how far back the rarest-since line reaches.
 
 **Stages to come**, each only after the previous one has been reviewed:
 
 | | stage | source |
 |---|---|---|
-| 3 | the "biggest since …" date | — |
 | 4 | the held-at-next-close check | — |
 | 5 | time of day and weekday | Boudt, Croux & Laurent (2011) |
 | 7 | block co-jumps | Bollerslev, Law & Tauchen (2008) |

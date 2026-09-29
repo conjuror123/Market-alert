@@ -55,9 +55,13 @@ layer reads (price_monitor.tremor_delivery): an id, its word as the `tier`, the
 basis `jump`, its channel, its event's start, the move as `r` and the half-year
 sigma as `sigma_lt` - so the message's "N×σ" is exactly |z|.
 
-WHAT IS NOT HERE YET, deliberately: no
-"biggest since" date, no held check, no time-of-day scale, no block or own-move
-reading, no size floor. Each comes back as its own stage with its own logic.
+RAREST SINCE (stage 3). Each flagged reading carries the most recent earlier
+reading of its own kind, in the same direction, at least 95% of its size in
+sigma or bigger, as `since_utc` and `since_z` - or none in the whole record
+since `record_start` (rarest_since).
+
+WHAT IS NOT HERE YET, deliberately: no held check, no time-of-day scale, no
+block or own-move reading, no size floor. Each comes back as its own stage with its own logic.
 The output is a table of every reading that reached `noticeable`.
 
     python -m tremor.jumps            reads data/tremor/metrics, writes
@@ -265,6 +269,71 @@ def event_starts(found, anchors=()) -> np.ndarray:
     return starts
 
 
+# STAGE 3: RAREST SINCE. How close an earlier move must come, as a share of this
+# one's size in sigma, to count as at least as rare: a 5.0 sigma move is matched
+# by 4.75 and up, and by anything bigger. The reader's choice: an exact record
+# would pass over a 4.9 half a year ago to name a 5.0 two years ago, and "rarest
+# in half a year" is the truer answer to "when did it last do this".
+RARE_SHARE = 0.95
+
+
+def rarest_since(scored: pd.DataFrame, bottom: float = NOTICEABLE_SIGMA,
+                 share: float = RARE_SHARE) -> pd.DataFrame:
+    """Adds `since_utc` and `since_z` to one instrument's readings: the most
+    recent EARLIER reading OF THE SAME KIND, in the same direction, at least
+    `share` of this one's size in sigma - or NA where the whole record has
+    none. Hours against hours, nights against nights, weekends against
+    weekends: a reading's sigma is its own kind's, so only within a kind do two
+    sizes in sigma describe comparable moves."""
+    hours = scored["hour_utc"].to_numpy(dtype="int64")
+    z = scored["z"].to_numpy(dtype="float64")
+    kinds = scored["reading"].to_numpy()
+    since_hour = np.full(len(z), -1, dtype="int64")
+    since_z = np.full(len(z), np.nan)
+    for kind in (HOUR, NIGHT, WEEKEND):
+        at = np.flatnonzero(kinds == kind)
+        at = at[np.argsort(hours[at], kind="stable")]
+        since_hour[at], since_z[at] = matches(hours[at], z[at], share, bottom)
+    return scored.assign(
+        since_utc=pd.arrays.IntegerArray(since_hour, since_hour < 0), since_z=since_z)
+
+
+def matches(hours, z, share: float = RARE_SHARE, bottom: float = NOTICEABLE_SIGMA
+            ) -> "tuple[np.ndarray, np.ndarray]":
+    """For each reading, in time order, the most recent EARLIER one in the same
+    direction whose size is at least `share` of its own: (its hour, its z), or
+    (-1, NaN) where there is none.
+
+    Readings below the bottom word are left unanswered - no message quotes
+    them - and nothing smaller than share x bottom can answer a flagged one, so
+    only those are kept as candidates. A stack per direction holds the
+    candidates nothing at least as big has come after since, so their sizes
+    fall towards the top; the answer is the topmost one still big enough, found
+    by bisection."""
+    import bisect
+
+    hours = np.asarray(hours, dtype="int64")
+    z = np.asarray(z, dtype="float64")
+    out_hour = np.full(len(z), -1, dtype="int64")
+    out_z = np.full(len(z), np.nan)
+    floor = share * bottom
+    stacks = {1: ([], [], []), -1: ([], [], [])}      # -size, hour, z; oldest first
+    with np.errstate(invalid="ignore"):
+        candidates = np.flatnonzero(np.abs(z) >= floor)
+    for i in candidates:
+        value = z[i]
+        size, sign = abs(value), (1 if value > 0 else -1)
+        negs, hrs, zs = stacks[sign]
+        if size >= bottom:
+            at = bisect.bisect_right(negs, -share * size) - 1
+            if at >= 0:
+                out_hour[i], out_z[i] = hrs[at], zs[at]
+        while negs and -negs[-1] <= size:
+            negs.pop(), hrs.pop(), zs.pop()
+        negs.append(-size), hrs.append(int(hours[i])), zs.append(float(value))
+    return out_hour, out_z
+
+
 def found_times(scored: pd.DataFrame, template: str) -> np.ndarray:
     """When each reading became judgeable: an hour once it has ended; a fund's
     gap with its first bar, once that bar has ended (the first half-hour, as
@@ -328,8 +397,10 @@ def for_delivery(readings: pd.DataFrame) -> pd.DataFrame:
     `tier` is the word and `sigma_lt` the half-year sigma, so the message says
     "N×σ" with N = |z|. `event_start` groups the readings into 24-hour events
     from the table alone; delivery regroups them against the events already on
-    the channel (event_starts' anchors). The "biggest since" date and the held
-    check are absent until their stages exist.
+    the channel (event_starts' anchors). `since_utc`, `since_z` and
+    `record_start` say how long it has been since a reading of its kind was at
+    least this rare (rarest_since). The held check is absent until its stage
+    exists.
     """
     from tremor import routing
 
@@ -384,7 +455,8 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
         scored = pd.concat([f for f in readings if not f.empty], ignore_index=True)
         if scored.empty:
             continue
-        scored = ended(scored, asset.session_template, now)
+        scored = rarest_since(ended(scored, asset.session_template, now), bottom)
+        scored["record_start"] = int(metrics["hour_utc"].min())
         flagged = scored[scored["word"].notna()].sort_values("found_utc").reset_index(drop=True)
         flagged["event_start"] = event_starts(flagged["found_utc"])
         flagged.insert(1, "asset_id", asset.asset_id)

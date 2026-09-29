@@ -106,10 +106,22 @@ everything stays in UTC.
 **A jump message claims only what the detector measured.** The square's colour is the word,
 so the word is not written out; the size is `|move| / σ` to one decimal, `11.0×σ`, at the end
 of the first line, in the ping as in the push. Hour or gap is not spelled out as a yardstick
-("its usual weekend gap"); the "biggest since" line (stage 3) will say which it was. Dates
-read `24.09.2026`. No "biggest since" date, no held-at-close line, no
-block/own split until their stages exist — the previous detector's wording for those would
-describe a measurement the jump detector does not make.
+("its usual weekend gap"); the rarest-since line says which it was. Dates read `24.09.2026`.
+No held-at-close line and no block/own split until their stages exist — the previous
+detector's wording for those would describe a measurement the jump detector does not make.
+
+**Rarest since: the last move at least this rare, of the same kind, the same way.** The
+reader's choices, stage 3. *In σ*, the number the colour comes from, so the line and the
+square speak one ladder. *Of the same kind*: a night's and a weekend's σ are not an hour's,
+so only within a kind do two sizes in σ describe comparable moves — which is why the line
+names the kind. *The same direction*: "rarest drop" is what a reader checks against a chart.
+*At least 95% of the size, or bigger*: an exact record passes over a 4.9σ half a year ago to
+name a 5.0σ two years ago, and the 4.9σ is the truer answer to "when did it last do this";
+a bigger move always counts, so a 5σ with none like it but a 7σ last year says "in 1 year".
+*Elapsed, rounded down*, so the claim stays true. *Always shown*, even "in 2 days": half of
+`noticeable` hours say less than a fortnight, and that is itself the information. It
+replaces the previous detector's "biggest move since N day ago", which compared gaps with
+gaps of any kind and matched only an exact record.
 
 **What the jump detector replaces.** The ladder of the previous detector: three per-block
 tables of rungs (`BLOCK_SIGMA`, `BLOCK_RESID_SIGMA`, `BLOCK_MOVE_SIGMA`) and a

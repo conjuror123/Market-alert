@@ -13,6 +13,8 @@ prints, as Markdown:
   - the events: an instrument's flags grouped into 24 hours of real time from
     the first one found, each worded by its rarest flag (tremor.jumps.event_starts);
   - the events by channel: pushed, or a row in the weekly note;
+  - rarest since (stage 3): how far back the line reaches, by kind and word,
+    over the last year's flags;
   - ten flagged hours picked at random, for a sanity read.
 
 Rates count only SETTLED hours - those whose window already spans the full
@@ -124,7 +126,29 @@ def event_section(scored: pd.DataFrame) -> "list[str]":
     return lines + [""]
 
 
+def rarest_section(scored: pd.DataFrame) -> "list[str]":
+    """How far back "Rarest ... in N" reaches, over the last year's flags."""
+    parts = [jumps.rarest_since(rows) for _, rows in scored.groupby("ticker")]
+    rows = pd.concat(parts, ignore_index=True)
+    flagged = rows[rows["word"].notna() & (rows["hour_utc"] >= rows["hour_utc"].max() - YEAR)]
+    days = (flagged["hour_utc"] - flagged["since_utc"].astype("float64")) / 86400
+    lines = ["## Rarest since (stage 3)", "",
+             "The last year's flags: how far back the most recent earlier reading of the "
+             "same kind, same direction, at least 95% as big reaches. Records have none in "
+             "the whole history.", "",
+             "| reading | word | flags | median | 10–90% | records |", "|---|---|---|---|---|---|"]
+    for (kind, word), d in days.groupby([flagged["reading"], flagged["word"]]):
+        known = d.dropna()
+        spread = (f"{known.quantile(.1):.0f}–{known.quantile(.9):.0f} days"
+                  if len(known) else "—")
+        median = f"{known.median():.0f} days" if len(known) else "—"
+        lines.append(f"| {kind} | {word} | {len(d)} | {median} | {spread} | "
+                     f"{int(d.isna().sum())} |")
+    return lines + [""]
+
+
 def report(scored: pd.DataFrame, seed: int = 0) -> str:
+    rarest = rarest_section(scored)
     events = event_section(scored)
     gaps = gap_section(scored)
     scored = scored[scored["reading"] == jumps.HOUR]
@@ -186,6 +210,7 @@ def report(scored: pd.DataFrame, seed: int = 0) -> str:
 
     lines += gaps
     lines += events
+    lines += rarest
     sample = flagged.sample(min(10, len(flagged)), random_state=seed).sort_values("hour_utc")
     lines += ["## Ten flagged hours, at random", "",
               "| hour (UTC) | instrument | move | half-year σ | z | word |",

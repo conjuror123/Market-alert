@@ -257,3 +257,45 @@ def test_a_reading_is_named_by_its_instrument_reading_and_hour():
     assert out["reading_id"].iloc[0] == f"jump:twelvedata:GLD:weekend:{hour}"
     assert bool(out["overnight"].iloc[0]) and out["gap_kind"].iloc[0] == "weekend"
     assert out["sigma_lt"].iloc[0] == 0.002
+
+
+# --- stage 3: rarest since ---------------------------------------------------
+
+def test_the_answer_is_the_most_recent_move_at_least_95_percent_as_big():
+    hours = [0, 1, 2, 3]
+    z = [7.0, 4.9, 3.0, 5.0]           # 4.9 >= 4.75: it answers the 5.0, not the older 7.0
+    hour, match = jumps.matches(hours, z)
+    assert hour[3] == 1 and match[3] == 4.9
+
+
+def test_a_bigger_move_counts_when_nothing_close_is_more_recent():
+    hour, match = jumps.matches([0, 1, 2], [7.0, 4.7, 5.0])   # 4.7 < 4.75
+    assert hour[2] == 0 and match[2] == 7.0
+
+
+def test_only_the_same_direction_counts():
+    hour, _ = jumps.matches([0, 1], [-6.0, 5.0])
+    assert hour[1] == -1
+
+
+def test_nothing_at_least_as_rare_in_the_record_is_no_answer():
+    hour, match = jumps.matches([0, 1], [4.0, 9.0])
+    assert hour[1] == -1 and np.isnan(match[1])
+
+
+def test_each_kind_is_read_against_its_own_kind():
+    # A 6-sigma night is not matched by a 6-sigma hour: each is in its own sigma.
+    scored = pd.DataFrame({"hour_utc": [0, HOUR, 2 * HOUR, 3 * HOUR],
+                           "reading": ["hour", "night", "hour", "night"],
+                           "z": [6.0, 6.5, 5.0, 6.2]})
+    out = jumps.rarest_since(scored)
+    assert out["since_utc"].tolist()[2] == 0
+    assert out["since_utc"].tolist()[3] == HOUR
+    assert pd.isna(out["since_utc"].iloc[1])
+
+
+def test_a_smaller_move_in_between_does_not_hide_the_answer():
+    # 9, then 5, then 8: for a 7.9 the answer is the 8, the most recent move
+    # at least 7.5 - the 5 between them must not steer the search to the 9.
+    hour, match = jumps.matches([0, 1, 2, 3], [9.0, 5.0, 8.0, 7.9])
+    assert hour[3] == 2 and match[3] == 8.0

@@ -238,9 +238,10 @@ def describe(event: dict, labels: dict[str, str]) -> str:
     colour of the square is the word - noticeable, high, major, extreme - so
     the word is not written out.
 
-    Only what the detector measures is said. The "biggest since" date, how the
-    move held at the next close and the block's share of it come back as the
-    stages that measure them do.
+    Only what the detector measures is said: the move, its size in σ, and how
+    long it has been since the instrument was at least this rare (rarest_line).
+    How the move held at the next close and the block's share of it come back
+    as the stages that measure them do.
     """
     tier = str(event.get("tier") or "noticeable")
     emoji = TIER_EMOJI.get(tier, "⚪")
@@ -258,9 +259,60 @@ def describe(event: dict, labels: dict[str, str]) -> str:
         # it is said as one - never as the hour it was scored alongside.
         shown += f" {_open_words(event)[0]}"
     shown += _sigma_multiple(event)
-    return "\n".join([f"{emoji} <b>{_escape(_ticker(asset_id))}</b> · "
-                      f"{_escape(label)}{shown}",
-                      f"{TIME_EMOJI}<b>{format_day(when)} {when:%H:%M} UTC</b>"])
+    lines = [f"{emoji} <b>{_escape(_ticker(asset_id))}</b> · {_escape(label)}{shown}"]
+    rarest = rarest_line(event)
+    if rarest:
+        lines.append(rarest)
+    lines.append(f"{TIME_EMOJI}<b>{format_day(when)} {when:%H:%M} UTC</b>")
+    return "\n".join(lines)
+
+
+def _span(seconds: float) -> str:
+    """A span the way a person says it, rounded DOWN so the claim stays true:
+    "rarest in 2 years" holds for 2.6 of them. Hours under two days, days
+    under two months, months under two years, then years."""
+    hours = max(1, int(seconds // 3600))
+    days = seconds / 86400
+    if hours < 48:
+        n, unit = hours, "hour"
+    elif days < 60:
+        n, unit = int(days), "day"
+    elif days < 730.5:
+        n, unit = int(days // 30.44), "month"
+    else:
+        n, unit = int(days // 365.25), "year"
+    return f"{n} {unit}{'' if n == 1 else 's'}"
+
+
+def _kind(event: dict) -> str:
+    reading = event.get("reading")
+    if isinstance(reading, str) and reading:
+        return reading
+    return _gap_kind(event) if _overnight(event) else "hour"
+
+
+def rarest_line(event: dict) -> str:
+    """📈 Rarest hour in 6 months (then 7.1×σ) - or, with nothing at least as
+    rare in the whole record, 📉 Rarest weekend in 6 years of record.
+
+    STAGE 3 (tremor.jumps.rarest_since). How long since the instrument last
+    moved at least this rarely: the most recent earlier reading of the SAME
+    KIND - an hour, a night, a weekend, each in its own σ - in the same
+    direction, at least 95% of this size or bigger. "Then" is that reading's
+    size, so a near-match is shown as one. Empty when the event does not carry
+    the stage's columns."""
+    hour, start = _clean(event.get("hour_utc")), _clean(event.get("record_start"))
+    move = _clean(event.get("r"))
+    if hour is None or start is None:
+        return ""
+    arrow = "📉" if move is not None and move < 0 else "📈"
+    kind = _kind(event)
+    since = _clean(event.get("since_utc"))
+    if since is None:
+        return f"{arrow} Rarest {kind} in {_span(hour - start)} of record"
+    then = _clean(event.get("since_z"))
+    size = f" (then {abs(then):.1f}×σ)" if then is not None else ""
+    return f"{arrow} Rarest {kind} in {_span(hour - since)}{size}"
 
 
 # --- the regime the move happened in ----------------------------------------

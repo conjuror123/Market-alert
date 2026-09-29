@@ -404,3 +404,42 @@ def test_a_gap_jump_names_no_yardstick_either():
     text = md.format_push(jump(overnight=True, gap_kind="weekend"), LABELS)
     assert text.splitlines()[0].endswith(" · 6.0×σ")
     assert "usual" not in text
+
+
+# --- stage 3: the rarest-since line ------------------------------------------
+
+def rare(**over):
+    return jump(reading="hour", record_start=int(NOW.timestamp()) - 6 * 366 * 24 * HOUR,
+                since_utc=None, since_z=None) | over
+
+
+def test_the_rarest_line_says_how_long_and_how_big_the_last_one_was():
+    hour = int(NOW.timestamp()) - HOUR
+    text = md.format_push(rare(since_utc=hour - 200 * 24 * HOUR, since_z=7.1), LABELS)
+    assert text.splitlines()[1] == "📈 Rarest hour in 6 months (then 7.1×σ)"
+
+
+def test_a_record_says_how_much_record_there_is():
+    text = md.format_push(rare(r=-0.012), LABELS)
+    assert text.splitlines()[1] == "📉 Rarest hour in 6 years of record"
+
+
+def test_the_span_rounds_down_so_the_claim_stays_true():
+    day = 24 * HOUR
+    assert md._span(1.5 * HOUR) == "1 hour"
+    assert md._span(47 * HOUR) == "47 hours"
+    assert md._span(59.9 * day) == "59 days"
+    assert md._span(60 * day) == "1 month"
+    assert md._span(730 * day) == "23 months"
+    assert md._span(2.9 * 365.25 * day) == "2 years"
+
+
+def test_a_gap_names_its_own_kind():
+    hour = int(NOW.timestamp()) - HOUR
+    night = rare(reading="night", overnight=True, gap_kind="night",
+                 since_utc=hour - 3 * 24 * HOUR, since_z=6.0)
+    assert md.format_push(night, LABELS).splitlines()[1] == "📈 Rarest night in 3 days (then 6.0×σ)"
+
+
+def test_no_stage_3_columns_no_line():
+    assert "Rarest" not in md.format_push(jump(), LABELS)
