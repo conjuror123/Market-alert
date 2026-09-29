@@ -7,7 +7,7 @@ from price_monitor.config import Config
 from price_monitor.notifier import TelegramError
 from tremor import routing
 
-# The moment the weekly price note opens: Sunday 00:05 UTC. The digest goes
+# The moment the weekly price note opens: the run after Friday's funds close. The digest goes
 # out in the same run and immediately before it, so the note - which keeps
 # changing all week - is the last message in the chat. Derived from
 # routing rather than written down, because that is the property under test:
@@ -65,7 +65,6 @@ def test_the_send_day_is_read_off_the_note_rather_than_written_down_twice():
     opens = datetime.fromtimestamp(
         routing.digest_slot(int(WEEKEND_OPEN.timestamp())), tz=timezone.utc)
     assert opens == WEEKEND_OPEN
-    assert opens.weekday() in routing.DIGEST_WEEKDAYS
 
 
 def test_a_missed_run_at_the_opening_does_not_cost_the_week(monkeypatch):

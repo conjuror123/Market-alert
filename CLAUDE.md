@@ -68,8 +68,11 @@ Break one of these and the system is wrong rather than merely broken.
    rarest reading's, its numbers its biggest reading's. A move found after the 24 hours
    opens the next event; one found after the week's note opened opens a new event even
    inside them. Events already on the channel hold their 24 hours (delivery's anchors).
-5. **One note a week, curated for that week and never after.** It opens Sunday 00:05 UTC,
-   right after the calendar's own message. A move belongs to the note open when it is
+5. **One note a week, curated for that week and never after.** It opens at the first run
+   after the week's last NYSE close (normally Friday 16:05 New York; `routing.digest_slot`),
+   right after the calendar's own message. That run first finishes the old week — its
+   moves' checks at that close land — then opens the new note; the closing hour is found
+   in it and goes into the new week. A move belongs to the note open when it is
    **found**; for that week every run brings every message in line with the events table
    (`tremor_delivery` "the week"). Anything of an earlier week is history and is never
    touched: at the next note only the old week's pings are deleted. **Inside its 24
@@ -79,6 +82,8 @@ Break one of these and the system is wrong rather than merely broken.
    silently: rarer or milder is an edit (a row turning `high` leaves the note and its
    ping is edited into the push), gone is gone for good. A changed event carries its
    story on one line; a clean one says nothing. A ping lives exactly as long as its row.
+   Every move — a coin's and a pair's too — is checked at the first NYSE close after it
+   was found (`jumps.held_at_close`): its time line counts down, then says how much held.
 6. **A detector update restarts the week.** When `jumps.detector_version()` changes, every
    push and ping of the week is deleted; the note (and the calendar) stay, and the week
    continues with what is found from that run on. Nothing found before the update rings.

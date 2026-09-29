@@ -12,7 +12,7 @@
 # --- Muting ------------------------------------------------------------------
 #
 # true - the hourly run proceeds as usual: bars are fetched, the pipeline runs,
-# events are routed and written, the Sunday calendar digest goes out and so does
+# events are routed and written, the weekly calendar digest goes out and so does
 # the bot's own health alert. The only thing that does not go out is Tremor's own
 # pushes, its weekly note and the pings.
 #

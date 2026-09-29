@@ -11,7 +11,7 @@ message only when one of them moves unusually **for itself**.
 
 **This branch is the jump detector, as it will run live.** It is built in stages on
 `claude/youthful-pascal-u0rx7u`; production keeps running the previous detector from its own
-branch until the switch, which comes once stage 4 exists. The previous detector's code
+branch until the switch, which can come now that stage 4 exists. The previous detector's code
 is not here — read it on the production branch when a later stage needs a piece of it.
 
 **The hourly pass** is four commands, and the order is load-bearing — `CLAUDE.md` lists
@@ -60,8 +60,8 @@ turns 28,095 settled flags into 19,185 events.
 
 **Stage 2, channels — built.** `high`, `major` and `extreme` push: a message of their own,
 at once. `noticeable` goes into the weekly note, with a small ping that points at it
-(`routing.PUSH_TIERS`, `jumps.for_delivery`). There is **one note a week**, opened Sunday
-00:05 UTC and edited in place until the next Sunday. The coming week's economic calendar
+(`routing.PUSH_TIERS`, `jumps.for_delivery`). There is **one note a week**, opened at the
+first run after the week's last NYSE close and edited in place until the next one. The coming week's economic calendar
 goes out as its own message in the same run, just before the note opens. A jump message
 says only what the detector measured: the colour of the square is the word, and the size is
 `|move| / σ` over the last half-year — the hour's σ, or the night's or the weekend's for a
@@ -80,7 +80,7 @@ and a note row's ping:
 Added to digest👆🏻👆🏻
 ```
 
-No check-in lines and no block/own split: those are stages 4 and 8, and come back with them.
+No block/own split: that is stage 8, and comes back with it.
 
 **Stage 3, rarest since — built.** The second line of a push or a note row (not the ping)
 says how long since the instrument was last at least this rare: the most recent earlier
@@ -101,10 +101,27 @@ years, then years — so "in 2 years" holds for 2.6 of them. Over the last year 
 line reads 11 days for a `noticeable` hour, 49 for a `high` one and 258 for a `major`;
 nights and weekends reach back about a year or more, being one a day and one a week.
 
+**Stage 4, held at the close — built.** Every flagged reading — a coin's and a currency
+pair's too — is checked at the first NYSE close after it was found; a move in the closing
+hour is checked at the next one (`jumps.held_at_close`, `routing.next_close`). `held` is the
+share of the move still there, from the price before it to the last bar ending at the close,
+once the bars reach it. The message says it on its time line — counting down first, then the
+answer:
+
+```
+🕐 24.09.2026 14:00 UTC · close in 5h
+🕐 24.09.2026 14:00 UTC · close 80%
+🕐 25.09.2026 19:00 UTC · next close in 72h
+```
+
+"Next close" when the close is on a later New York day than the move was found. Over the
+record, `high` hours are still at least half there at the close 69–78% of the time (median
+93–100%), fund gaps 76–83%, and an FX weekend gap is half gone by Monday's close.
+
 The output is `data/tremor/jumps.parquet`, every instrument's events — hour, night or
 weekend — each with `found_utc` and its 24-hour event's `event_start`, and the columns
 the delivery layer reads (`reading_id`, `tier`, `channel`, `sigma_lt`, `since_utc`,
-`since_z`, `record_start`). It is rescored from the whole history every run, in about three
+`since_z`, `record_start`, `check_utc`, `held`). It is rescored from the whole history every run, in about three
 seconds, so nothing of it is cached. `tools/stage_report.py` prints what the detector flags:
 per week, per instrument and block, the gaps by kind, how the biggest hours of each record
 were worded, the events by channel, and how far back the rarest-since line reaches.
@@ -113,7 +130,6 @@ were worded, the events by channel, and how far back the rarest-since line reach
 
 | | stage | source |
 |---|---|---|
-| 4 | the held-at-next-close check | — |
 | 5 | time of day and weekday | Boudt, Croux & Laurent (2011) |
 | 7 | block co-jumps | Bollerslev, Law & Tauchen (2008) |
 | 8 | the own move, after the block | Bollerslev, Law & Tauchen (2008) |
@@ -144,9 +160,11 @@ releases in the hours around the move (`Nearby economic events`) when there are 
 gauge, `tremor.vix`); since Telegram does not notify on an edit, each row gets a small ping
 pointing up at the note.
 
-**The week** (`tremor_delivery`). The note opens Sunday 00:05 UTC, just after the economic
-calendar's own message, and a move belongs to the note open when it is found — the hour
-checked in the opening run goes into the new note. For that week every run re-reads the
+**The week** (`tremor_delivery`). The note opens at the first run after the week's last NYSE
+close, just after the economic calendar's own message, and a move belongs to the note open
+when it is found — the hour checked in the opening run, the closing hour, goes into the new
+note. That run first finishes the old week, so its moves' checks at that close land on it,
+then closes it, then opens the new note, and only then sends what it found. For that week every run re-reads the
 events table and brings every message of the week in line with it; what belongs to an
 earlier note is history and is never touched. A move found after the note opened starts a
 new event, even inside the 24 hours of one from the week before. Per event:

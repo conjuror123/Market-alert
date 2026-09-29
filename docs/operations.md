@@ -172,8 +172,11 @@ through by an edit instead, and Telegram's reason is logged.
 
 About 9 pushes a week across today's 61 instruments and about 16 note rows, each with a
 small ping; the busiest week of the last year had 32 pushes and 52 rows (`decisions.md`).
-One note a week opens Sunday at 00:05 UTC and fills as moves are found; it opens even when
-nothing has happened yet ("Nothing so far").
+One note a week opens at the first run after the week's last NYSE close — normally Friday
+16:05 New York, 20:05 UTC in summer and 21:05 in winter; Thursday on a Good Friday week,
+13:05 on a half day — and fills as moves are found; it opens even when nothing has happened
+yet ("Nothing so far"). Every message counts down on its time line to the funds' close its
+move is checked at, one silent edit an hour, and then shows how much of the move held.
 
 The economic-calendar forecast goes out once a week, in the same run immediately before
 the note opens — so the note, the message that keeps changing, is the last one in the chat.
@@ -183,7 +186,7 @@ rather than the live feed, and consecutive digests abut exactly.
 
 The calendar archive is topped up from the live feed once a day, separately from the
 weekly digest: pushes name the releases in the three hours around a move on any day of the
-week, and a schedule fetched last Sunday does not have the speech added on Wednesday.
+week, and a schedule fetched last Friday does not have the speech added on Wednesday.
 
 **Nothing rings more than 24 hours after its event's first move was found.** This is load-bearing
 rather than tidy: the events table holds the whole history, so without it the first run

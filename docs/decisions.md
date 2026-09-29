@@ -99,16 +99,35 @@ To be tuned with the threshold at stage 12, against a few weeks of real messages
 **One note a week.** With every word from `high` up pushed, the note holds only
 `noticeable` rows, and one note a week holds them (it used to be two, Monday and Saturday).
 The economic calendar stays a message of its own, sent in the same run just before the note
-opens: one is a forecast, the other a report, and they are read differently. Sunday 00:05
-UTC, the reader's choice: the forecast arrives the day before the week it forecasts, and
-everything stays in UTC.
+opens: one is a forecast, the other a report, and they are read differently.
+
+**The week turns at the run after its last funds close.** The reader's choice, with stage 4.
+Every move is checked at the funds' close after it, so a week that turns just after its last
+close holds every one of its checks: the run that turns it finishes the old week first, and
+the closing hour — found in that run — belongs to the new week and is checked on Monday. A
+boundary before the close would strand Friday's checks in a closed week; one at Sunday 00:05
+UTC left every weekend coin move waiting for Monday in the next. It follows New York, not
+UTC — the one exception to UTC everywhere, and invariant 3 already allows it where the funds'
+session is the day.
+
+**Held at the close: one check, at the funds' close, for everything.** The reader's rules,
+stage 4. Measured over the record, a check far out mostly measures the market's wandering
+after the move: by the next close a random walk alone would already say "gave back" for
+14–26% of `high` moves, and a Friday move's next close lands in the next week. The
+same-session close is where the real fade shows clearly above the noise (a fund's `high`
+hour: 79% still half there against 95% for a random walk). Coins and pairs take the funds'
+close too rather than a span of their own, so that every check of a week lands in it. It is
+said as a percentage only — 100% held exactly, 120% kept going, -20% reversed — on the time
+line, not on lines of its own, and counts down in hours until then ("close in 5h", "next
+close in 72h" when the close is on a later day). Filling it in is not a change to the event:
+it adds no story.
 
 **A jump message claims only what the detector measured.** The square's colour is the word,
 so the word is not written out; the size is `|move| / σ` to one decimal, `11.0×σ`, at the end
 of the first line, in the ping as in the push. Hour or gap is not spelled out as a yardstick
 ("its usual weekend gap"); the rarest-since line says which it was. Dates read `24.09.2026`.
-No held-at-close line and no block/own split until their stages exist — the previous
-detector's wording for those would describe a measurement the jump detector does not make.
+No block/own split until its stage exists — the previous detector's wording for it would
+describe a measurement the jump detector does not make.
 
 **Rarest since: the last move at least this rare, of the same kind, the same way.** The
 reader's choices, stage 3. *In σ*, the number the colour comes from, so the line and the

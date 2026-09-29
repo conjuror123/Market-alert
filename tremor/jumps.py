@@ -60,8 +60,13 @@ reading of its own kind, in the same direction, at least 95% of its size in
 sigma or bigger, as `since_utc` and `since_z` - or none in the whole record
 since `record_start` (rarest_since).
 
-WHAT IS NOT HERE YET, deliberately: no held check, no time-of-day scale, no
-block or own-move reading, no size floor. Each comes back as its own stage with its own logic.
+HELD AT THE CLOSE (stage 4). Each flagged reading is checked at the first NYSE
+close after it was found - a coin and a currency pair too - as `check_utc`, and
+once that close has passed, `held` is the share of the move still there
+(held_at_close).
+
+WHAT IS NOT HERE YET, deliberately: no time-of-day scale, no block or own-move
+reading, no size floor. Each comes back as its own stage with its own logic.
 The output is a table of every reading that reached `noticeable`.
 
     python -m tremor.jumps            reads data/tremor/metrics, writes
@@ -353,6 +358,52 @@ def ended(scored: pd.DataFrame, template: str, now: int) -> pd.DataFrame:
     return out[out["found_utc"] <= int(now)].reset_index(drop=True)
 
 
+def held_at_close(metrics: pd.DataFrame, flagged: pd.DataFrame, now: int
+                  ) -> "tuple[np.ndarray, np.ndarray]":
+    """STAGE 4: HOW MUCH OF THE MOVE WAS STILL THERE AT THE FUNDS' CLOSE.
+
+    Every reading is checked at the first NYSE close after it was found - for a
+    coin and a currency pair too, so every check lands inside its week (the week
+    turns just after its last close, tremor.routing). A move found at the close,
+    its closing hour, is checked at the next one. Returns (check_utc, held) per
+    flagged reading: `held` is the share of the move still there - 1.0 held
+    exactly, 1.2 kept going, -0.2 reversed past where it began - and NaN until
+    the close has passed.
+
+    Measured in the instrument's own prices, from the price before the move to
+    the last bar ending at or before the close: an hour from its open, a gap
+    from the last close before it."""
+    from tremor import routing
+
+    frame = metrics.sort_values("hour_utc")
+    hours = frame["hour_utc"].to_numpy(dtype="int64")
+    r = np.nan_to_num(frame["r"].to_numpy(dtype="float64"))
+    gap = np.nan_to_num(frame["gap"].to_numpy(dtype="float64"))
+    price = np.cumsum(r + gap)                     # log price, up to a constant
+    ends = hours + 3600
+    check = np.full(len(flagged), -1, dtype="int64")
+    held = np.full(len(flagged), np.nan)
+    for i, (hour, found, kind) in enumerate(zip(flagged["hour_utc"], flagged["found_utc"],
+                                                flagged["reading"])):
+        close = routing.next_close(int(found))
+        if close is None:
+            continue
+        check[i] = close
+        t = int(np.searchsorted(hours, int(hour)))
+        # Only once the bars reach the close: a store that stops short of it -
+        # a missed fetch - is not the price at the close, whatever time it is.
+        if close > now or not len(ends) or ends[-1] < close:
+            continue
+        if t >= len(hours) or hours[t] != int(hour):
+            continue
+        move = r[t] if kind == HOUR else gap[t]
+        base = price[t] - r[t] if kind == HOUR else price[t] - r[t] - gap[t]
+        k = int(np.searchsorted(ends, close, side="right")) - 1
+        if move and k >= t:
+            held[i] = (price[k] - base) / move
+    return check, held
+
+
 def detector_version(root: "str | None" = None) -> str:
     """A hash of what decides the set of events: the detector's code, parsed
     with docstrings stripped, and the basket and its settings, parsed so that a
@@ -399,8 +450,8 @@ def for_delivery(readings: pd.DataFrame) -> pd.DataFrame:
     from the table alone; delivery regroups them against the events already on
     the channel (event_starts' anchors). `since_utc`, `since_z` and
     `record_start` say how long it has been since a reading of its kind was at
-    least this rare (rarest_since). The held check is absent until its stage
-    exists.
+    least this rare (rarest_since). `check_utc` and `held` say how much of the
+    move was still there at the funds' close after it (held_at_close).
     """
     from tremor import routing
 
@@ -459,6 +510,9 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
         scored["record_start"] = int(metrics["hour_utc"].min())
         flagged = scored[scored["word"].notna()].sort_values("found_utc").reset_index(drop=True)
         flagged["event_start"] = event_starts(flagged["found_utc"])
+        check, held = held_at_close(metrics, flagged, now)
+        flagged["check_utc"] = pd.arrays.IntegerArray(check, check < 0)
+        flagged["held"] = held
         flagged.insert(1, "asset_id", asset.asset_id)
         flagged.insert(2, "ticker", asset.ticker)
         flagged.insert(3, "block", asset.block)

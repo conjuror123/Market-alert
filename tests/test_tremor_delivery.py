@@ -322,25 +322,19 @@ def test_a_ticker_ping_puts_percent_and_size_after_the_name():
 
 
 def header_for(y, m, d):
-    opens = int(datetime(y, m, d, 0, 5, tzinfo=timezone.utc).timestamp())
+    """The header of the note open on that day."""
+    opens = routing.digest_slot(int(datetime(y, m, d, 12, tzinfo=timezone.utc).timestamp()))
     return md.format_digest([], LABELS, routing.digest_window(opens),
                             None, NOW)[0].splitlines()[0]
 
 
-def test_the_header_names_the_last_day_the_note_can_hold_an_hour_of():
-    # A note runs to the instant the next one opens, and that instant is 00:05
-    # on the next Sunday - so a header taken from the boundary would name that
-    # Sunday, a day the note carries none of. The note is a list of hourly
-    # bars: a five-minute sliver cannot hold one.
-    assert "20.09.2026 to 26.09.2026" in header_for(2026, 9, 20)
+def test_the_header_runs_from_one_weeks_last_close_to_the_next():
+    assert "18.09.2026 to 25.09.2026" in header_for(2026, 9, 22)
 
 
 def test_the_note_header_uses_day_month_year_on_both_ends():
-    inside = header_for(2026, 3, 8)
-    assert "08.03.2026 to 14.03.2026" in inside
-
-    across = header_for(2026, 3, 29)     # Sunday 29 March into April
-    assert "29.03.2026 to 04.04.2026" in across
+    across = header_for(2026, 3, 31)     # Good Friday week: 27 March to Thursday 2 April
+    assert "27.03.2026 to 02.04.2026" in across
 
 
 def test_the_note_runs_in_time_order_across_all_its_parts():
@@ -443,3 +437,38 @@ def test_a_gap_names_its_own_kind():
 
 def test_no_stage_3_columns_no_line():
     assert "Rarest" not in md.format_push(jump(), LABELS)
+
+
+# --- stage 4: the check on the time line --------------------------------------
+
+def checked(**over):
+    found = int(datetime(2026, 9, 8, 15, tzinfo=timezone.utc).timestamp())
+    return jump(hour_utc=found - HOUR, found_utc=found,
+                check_utc=int(datetime(2026, 9, 8, 20, tzinfo=timezone.utc).timestamp()),
+                held=None) | over
+
+
+def test_the_time_line_counts_down_to_the_close_in_hours():
+    now = int(datetime(2026, 9, 8, 15, 5, tzinfo=timezone.utc).timestamp())
+    assert md.check_suffix(checked(now_utc=now)) == " · close in 5h"
+
+
+def test_a_close_on_a_later_day_is_the_next_close():
+    later = int(datetime(2026, 9, 9, 20, tzinfo=timezone.utc).timestamp())
+    now = int(datetime(2026, 9, 8, 20, 5, tzinfo=timezone.utc).timestamp())
+    assert md.check_suffix(checked(check_utc=later, now_utc=now)) == " · next close in 24h"
+
+
+def test_the_answer_is_the_share_still_there():
+    assert md.check_suffix(checked(held=0.8)) == " · close 80%"
+    assert md.check_suffix(checked(held=1.2)) == " · close 120%"
+    assert md.check_suffix(checked(held=-0.2)) == " · close -20%"
+
+
+def test_past_the_close_without_its_bars_it_waits():
+    now = int(datetime(2026, 9, 8, 21, 5, tzinfo=timezone.utc).timestamp())
+    assert md.check_suffix(checked(now_utc=now)) == " · close pending"
+
+
+def test_no_check_columns_no_suffix():
+    assert md.check_suffix(jump()) == ""

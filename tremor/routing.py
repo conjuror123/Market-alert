@@ -29,7 +29,11 @@ where it is generated - by the jump detector's words (tremor.jumps).
 """
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta, timezone
+import bisect
+import os
+from datetime import datetime
+from functools import lru_cache
+from zoneinfo import ZoneInfo
 
 PUSH = "push"
 DIGEST = "digest"
@@ -37,64 +41,74 @@ DIGEST = "digest"
 # The words that interrupt, at once. `noticeable` goes into the weekly note.
 PUSH_TIERS = ("high", "major", "extreme")
 
-# datetime.weekday(): Monday=0, Sunday=6. ONE NOTE A WEEK, opening Sunday and
-# running to the next Sunday, just after the coming week's economic calendar
-# goes out as its own message (price_monitor.weekly_digest). Sunday because a
-# forecast wants to arrive before the week it forecasts, and the week's markets
-# are all shut by then. With the jump detector every word from `high` up
-# pushes, so the note carries only `noticeable` rows and one a week holds them.
+# ONE NOTE A WEEK, turning at the first run after the WEEK'S LAST FUNDS CLOSE -
+# the NYSE close, normally Friday 16:00 New York; Thursday on a Good Friday week,
+# 13:00 on a half day - just after the coming week's economic calendar goes out as
+# its own message (price_monitor.weekly_digest). With the jump detector every
+# word from `high` up pushes, so the note carries only `noticeable` rows and one
+# a week holds them.
 #
-# UTC AND NOT THE READER'S CLOCK. The ping is what buzzes; the note is a record,
-# and a record wants the boundary the market uses. 00:05 UTC sits between the
-# American close and the Asian open, the quietest hour there is, and it does not
-# drift by an hour twice a year.
+# THE FUNDS' CLOSE, because every move is checked at it (stage 4, tremor.jumps
+# held_at_close): with the week turning just after its last close, every check
+# lands inside its own week. The run that turns the week fills in the old week's
+# checks at that close first; the closing hour itself is found in that run and
+# goes into the new note, and is checked at Monday's close.
 #
-# Five past rather than on the hour: the hourly job runs at :05, so a note opens
-# on the first run of its period instead of waiting fifty-five minutes.
-DIGEST_WEEKDAYS = (6,)
-DIGEST_HOUR_LOCAL = 0
-DIGEST_MINUTE_LOCAL = 5
-DIGEST_TZ = timezone.utc
+# Five past, the run after the close: the hourly job runs at :05.
+TURN_AFTER_CLOSE = 300
+EXCHANGE_TZ = ZoneInfo("America/New_York")
+SESSIONS_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "tremor",
+                             "sessions", "nyse.csv")
+
+
+@lru_cache(maxsize=1)
+def closes() -> "tuple[int, ...]":
+    """Every NYSE close in the session table, as UTC seconds, in order."""
+    from tremor.sessions import cached_sessions
+
+    out = []
+    for day, session in cached_sessions(SESSIONS_PATH).items():
+        hh, mm = (int(x) for x in session.local_close.split(":"))
+        moment = datetime(day.year, day.month, day.day, hh, mm, tzinfo=EXCHANGE_TZ)
+        out.append(int(moment.timestamp()))
+    return tuple(sorted(out))
+
+
+@lru_cache(maxsize=1)
+def _turns() -> "tuple[int, ...]":
+    """Every week's turn: its last close, plus the run after it."""
+    last: dict = {}
+    for close in closes():
+        local = datetime.fromtimestamp(close, tz=EXCHANGE_TZ)
+        week = local.isocalendar()[:2]
+        last[week] = max(last.get(week, close), close)
+    return tuple(sorted(c + TURN_AFTER_CLOSE for c in last.values()))
+
+
+def next_close(moment: int) -> "int | None":
+    """The first NYSE close strictly after `moment`, or None past the table."""
+    table = closes()
+    at = bisect.bisect_right(table, int(moment))
+    return table[at] if at < len(table) else None
 
 
 def digest_slot(hour_utc: int) -> int:
-    """WHICH digest note this hour belongs to: the one opened at or before it.
-
-    The note is opened at the start of the period it covers and edited as
-    events are found, so the slot an event carries names a message that already
-    exists rather than a time to wait for: an event joins a live note instead of
-    queueing for one.
-
-    Kept as a zone lookup rather than arithmetic on the timestamp even though
-    the zone is now UTC: the boundary is a wall-clock rule - Sunday at 00:05
-    - and expressing it as a modulus would quietly break the day a
-    different zone is wanted again.
-    """
-    moment = datetime.fromtimestamp(int(hour_utc), tz=timezone.utc).astimezone(DIGEST_TZ)
-    for back in range(0, 9):
-        day = (moment - timedelta(days=back)).date()
-        if day.weekday() not in DIGEST_WEEKDAYS:
-            continue
-        slot = datetime.combine(day, time(DIGEST_HOUR_LOCAL, DIGEST_MINUTE_LOCAL),
-                                tzinfo=DIGEST_TZ)
-        if slot <= moment:
-            return int(slot.astimezone(timezone.utc).timestamp())
-    raise RuntimeError("no digest slot within nine days")
+    """WHICH note this moment belongs to: the one opened at or before it."""
+    turns = _turns()
+    at = bisect.bisect_right(turns, int(hour_utc)) - 1
+    if at < 0:
+        raise RuntimeError("before the session table begins")
+    return turns[at]
 
 
 def next_digest_slot(hour_utc: int) -> int:
-    """The first slot strictly after this hour - when the open note stops taking
-    events and the next one opens."""
-    moment = datetime.fromtimestamp(int(hour_utc), tz=timezone.utc).astimezone(DIGEST_TZ)
-    for ahead in range(0, 9):
-        day = (moment + timedelta(days=ahead)).date()
-        if day.weekday() not in DIGEST_WEEKDAYS:
-            continue
-        slot = datetime.combine(day, time(DIGEST_HOUR_LOCAL, DIGEST_MINUTE_LOCAL),
-                                tzinfo=DIGEST_TZ)
-        if slot > moment:
-            return int(slot.astimezone(timezone.utc).timestamp())
-    raise RuntimeError("no digest slot within nine days")
+    """The first turn strictly after this moment - when the open note stops
+    taking events and the next one opens."""
+    turns = _turns()
+    at = bisect.bisect_right(turns, int(hour_utc))
+    if at >= len(turns):
+        raise RuntimeError("past the session table's end")
+    return turns[at]
 
 
 def digest_window(slot_utc: int) -> tuple[int, int]:

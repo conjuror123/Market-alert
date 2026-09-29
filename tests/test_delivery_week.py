@@ -14,8 +14,9 @@ from price_monitor.notifier import TelegramError
 from tremor import jumps, routing
 
 HOUR = 3600
-# The week under test: Sunday 6 September 2026, 00:05 UTC, to the next Sunday.
-OPEN = datetime(2026, 9, 6, 0, 5, tzinfo=timezone.utc)
+# The week under test: from the run after Friday 4 September 2026's close
+# (16:00 New York, 20:00 UTC) to the run after the next Friday's.
+OPEN = datetime(2026, 9, 4, 20, 5, tzinfo=timezone.utc)
 SLOT = int(OPEN.timestamp())
 NEXT = routing.next_digest_slot(SLOT)
 MON = datetime(2026, 9, 7, tzinfo=timezone.utc)
@@ -90,14 +91,15 @@ def cfg(channel, **over):
 
 
 def ev(at, tier="noticeable", *, asset="twelvedata:GLD", size=None, found=None,
-       sigma=SIGMA, reading="hour"):
+       sigma=SIGMA, reading="hour", check=None, held=None):
     """A flagged reading as tremor.jumps writes it; `at` is the hour's start."""
     hour = int(at.timestamp())
     size = SIZE[tier] if size is None else size
     return dict(reading_id=f"jump:{asset}:{reading}:{hour}", asset_id=asset,
                 hour_utc=hour, tier=tier, basis="jump", r=size * sigma, z=size,
                 sigma_lt=sigma, overnight=reading != "hour", reading=reading,
-                found_utc=hour + HOUR if found is None else int(found.timestamp()))
+                found_utc=hour + HOUR if found is None else int(found.timestamp()),
+                check_utc=None if check is None else int(check.timestamp()), held=held)
 
 
 def run(monkeypatch, channel, readings, now, state, **over):
@@ -129,10 +131,12 @@ def week(monkeypatch, channel):
 
 # --- the note ---------------------------------------------------------------
 
-def test_the_note_opens_on_sunday_even_with_nothing_in_it(monkeypatch, channel, week):
+def test_the_note_opens_after_the_weeks_last_close_even_with_nothing_in_it(
+        monkeypatch, channel, week):
+    assert NEXT == int(datetime(2026, 9, 11, 20, 5, tzinfo=timezone.utc).timestamp())
     assert len(channel.notes()) == 1
     assert "Nothing so far" in channel.note()
-    assert "06.09.2026 to 12.09.2026" in channel.note()
+    assert "04.09.2026 to 11.09.2026" in channel.note()
 
 
 def test_an_empty_events_table_changes_nothing(monkeypatch, channel):
@@ -146,8 +150,8 @@ def test_nothing_goes_out_while_muted(monkeypatch, channel):
 
 
 def test_the_hour_checked_in_the_opening_run_goes_into_the_new_note(monkeypatch, channel):
-    # Saturday 23:00-00:00 is found at Sunday 00:00 and scored in the run that
-    # opens the note.
+    # Friday's closing hour, 19:00-20:00 UTC, is found at the close and scored
+    # in the run that opens the note.
     state = {}
     run(monkeypatch, channel, [ev(OPEN - timedelta(minutes=65))], OPEN, state)
     assert "Gold" in channel.note() and len(channel.pings()) == 1
@@ -367,12 +371,16 @@ def test_after_a_day_a_new_move_inside_the_old_event_is_not_possible(
 
 def test_the_next_note_clears_the_pings_and_leaves_the_rest_as_history(
         monkeypatch, channel, week):
-    row = ev(at(5, 10))
-    push = ev(at(5, 12), "high", asset="coinbase:BTC-USD")
-    run(monkeypatch, channel, [row, push], run_at(5, 13), week)
-    old_note = channel.note()
-    sunday = datetime.fromtimestamp(NEXT, tz=timezone.utc)
-    run(monkeypatch, channel, [row, dict(push, tier="noticeable", z=4.0)], sunday, week)
+    row = ev(at(4, 10))
+    push = ev(at(4, 12), "high", asset="coinbase:BTC-USD")
+    run(monkeypatch, channel, [row, push], run_at(4, 13), week)
+    turn = datetime.fromtimestamp(NEXT, tz=timezone.utc)
+    run(monkeypatch, channel, [row, push], turn, week)
+    old_note = channel.notes()[0]
+    assert "1 event\n" in old_note                   # its last render: no longer "so far"
+    # From the turn on it is history: a later change to its move changes nothing.
+    run(monkeypatch, channel, [row, dict(push, tier="noticeable", z=4.0)],
+        turn + timedelta(hours=1), week)
     assert channel.pings() == []
     assert channel.pushes() == [md.format_push(push, LABELS)]
     notes = channel.notes()
@@ -381,13 +389,13 @@ def test_the_next_note_clears_the_pings_and_leaves_the_rest_as_history(
 
 def test_a_move_after_the_note_opens_is_a_new_event_even_inside_24_hours(
         monkeypatch, channel, week):
-    saturday = ev(at(5, 22), "high", asset="coinbase:BTC-USD")
-    run(monkeypatch, channel, [saturday], run_at(5, 23), week)
-    sunday = datetime.fromtimestamp(NEXT, tz=timezone.utc)
-    run(monkeypatch, channel, [saturday], sunday, week)
+    friday = ev(at(4, 17), "high", asset="coinbase:BTC-USD")
+    run(monkeypatch, channel, [friday], run_at(4, 18), week)
+    turn = datetime.fromtimestamp(NEXT, tz=timezone.utc)
+    run(monkeypatch, channel, [friday], turn, week)
     rang = len(channel.rang)
-    later = ev(at(6, 1), "high", asset="coinbase:BTC-USD", size=6.5)
-    run(monkeypatch, channel, [saturday, later], run_at(6, 2), week)
+    later = ev(at(4, 22), "high", asset="coinbase:BTC-USD", size=6.5)
+    run(monkeypatch, channel, [friday, later], run_at(4, 23), week)
     assert len(channel.rings_since(rang)) == 1
     assert len(channel.pushes()) == 2
 
@@ -457,3 +465,43 @@ def test_the_previous_delivery_state_is_taken_over_as_an_update(monkeypatch, cha
     assert "Nothing so far" in channel.messages[old_note]
     assert state[md.STATE_KEY][md.WEEK]["slot"] == SLOT
     assert md.note_due(state, run_at(1, 11)) is False
+
+
+# --- stage 4: held at the funds' close ------------------------------------------
+
+def time_line(text):
+    return [line for line in text.split("\n") if line.startswith("🕐")][0]
+
+
+def test_a_move_counts_down_to_its_close_and_then_says_how_much_held(
+        monkeypatch, channel, week):
+    close = at(1, 20)                                  # Tuesday 16:00 New York
+    push = ev(at(1, 14), "high", check=close)
+    run(monkeypatch, channel, [push], run_at(1, 15), week)
+    assert time_line(channel.pushes()[0]).endswith(" · close in 5h")
+    run(monkeypatch, channel, [push], run_at(1, 19), week)
+    assert time_line(channel.pushes()[0]).endswith(" · close in 1h")
+    rang = len(channel.rang)
+    run(monkeypatch, channel, [dict(push, held=0.8)], run_at(1, 20), week)
+    assert time_line(channel.pushes()[0]).endswith(" · close 80%")
+    assert channel.rings_since(rang) == [] and story(channel.pushes()[0]) == ""
+
+
+def test_the_turn_fills_in_the_old_week_then_opens_the_new_note_then_the_closing_hour(
+        monkeypatch, channel, week):
+    friday_close = datetime.fromtimestamp(NEXT - 300, tz=timezone.utc)
+    monday_close = at(7, 20)
+    before = ev(at(4, 18), "high", check=friday_close)            # 14:00-15:00 New York
+    run(monkeypatch, channel, [before], run_at(4, 19), week)
+    assert time_line(channel.pushes()[0]).endswith(" · close in 1h")
+
+    closing = ev(at(4, 19), "high", asset="coinbase:BTC-USD", check=monday_close)
+    rang = len(channel.rang)
+    turn = datetime.fromtimestamp(NEXT, tz=timezone.utc)
+    run(monkeypatch, channel, [dict(before, held=-0.2), closing], turn, week)
+    old = [p for p in channel.pushes() if "GLD" in p][0]
+    assert time_line(old).endswith(" · close -20%")
+    new = channel.rings_since(rang)
+    assert "<b>Digest</b>" in new[0] and "Nothing so far" in new[0]
+    assert new[1].startswith("🟨 <b>BTC-USD</b>")
+    assert time_line(new[1]).endswith(" · next close in 72h")

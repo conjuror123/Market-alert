@@ -299,3 +299,51 @@ def test_a_smaller_move_in_between_does_not_hide_the_answer():
     # at least 7.5 - the 5 between them must not steer the search to the 9.
     hour, match = jumps.matches([0, 1, 2, 3], [9.0, 5.0, 8.0, 7.9])
     assert hour[3] == 2 and match[3] == 8.0
+
+
+# --- stage 4: held at the funds' close ----------------------------------------
+
+def _bars(start, moves, gaps=None):
+    hours = [start + i * HOUR for i in range(len(moves))]
+    return pd.DataFrame({"hour_utc": hours, "r": moves,
+                         "gap": gaps if gaps is not None else [np.nan] * len(moves)})
+
+
+def test_an_hour_is_checked_at_the_close_and_measured_from_its_own_open():
+    # Tuesday 8 September 2026: bars from 14:00 UTC; the close is 20:00 UTC.
+    start = int(pd.Timestamp("2026-09-08 14:00", tz="UTC").timestamp())
+    bars = _bars(start, [0.0, 0.010, -0.002, -0.002, 0.0, 0.0])
+    move = pd.DataFrame({"hour_utc": [start + HOUR], "found_utc": [start + 2 * HOUR],
+                         "reading": ["hour"]})
+    check, held = jumps.held_at_close(bars, move, now=start + 10 * HOUR)
+    assert check[0] == start + 6 * HOUR
+    assert held[0] == pytest.approx(0.6)             # 1.0% up, 0.4% given back
+
+
+def test_a_gap_is_measured_from_the_close_before_it():
+    start = int(pd.Timestamp("2026-09-08 14:00", tz="UTC").timestamp())
+    bars = _bars(start, [0.001, -0.003, 0.0, 0.0, 0.0, 0.0],
+                 gaps=[0.010, np.nan, np.nan, np.nan, np.nan, np.nan])
+    gap = pd.DataFrame({"hour_utc": [start], "found_utc": [start + HOUR],
+                        "reading": ["night"]})
+    _, held = jumps.held_at_close(bars, gap, now=start + 10 * HOUR)
+    assert held[0] == pytest.approx(0.8)             # 1.0 + 0.1 - 0.3
+
+
+def test_the_closing_hour_is_checked_at_the_next_close():
+    friday_close = int(pd.Timestamp("2026-09-04 20:00", tz="UTC").timestamp())
+    bars = _bars(friday_close - HOUR, [0.01])
+    move = pd.DataFrame({"hour_utc": [friday_close - HOUR], "found_utc": [friday_close],
+                         "reading": ["hour"]})
+    check, held = jumps.held_at_close(bars, move, now=friday_close + 300)
+    assert check[0] == int(pd.Timestamp("2026-09-08 20:00", tz="UTC").timestamp())  # Labor Day
+    assert np.isnan(held[0])
+
+
+def test_the_answer_waits_for_the_bars_to_reach_the_close():
+    start = int(pd.Timestamp("2026-09-08 14:00", tz="UTC").timestamp())
+    bars = _bars(start, [0.0, 0.010, -0.002])        # the store stops at 17:00
+    move = pd.DataFrame({"hour_utc": [start + HOUR], "found_utc": [start + 2 * HOUR],
+                         "reading": ["hour"]})
+    _, held = jumps.held_at_close(bars, move, now=start + 10 * HOUR)
+    assert np.isnan(held[0])

@@ -12,8 +12,9 @@ TWO KINDS OF MESSAGE, and the difference is how loudly they arrive. A push -
 the week's note, which is edited in place and so stays silent; a small ping
 beneath it rings instead and points up at it.
 
-ONE NOTE A WEEK, opened Sunday 00:05 UTC right after the economic calendar's own
-message (weekly_digest.py), and curated for that week: every run re-reads the
+ONE NOTE A WEEK, opened at the first run after the week's last funds close
+(tremor.routing) right after the economic calendar's own message
+(weekly_digest.py), and curated for that week: every run re-reads the
 events table and brings every message of the week in line with it - see "the
 week" below for exactly what that means. What belongs to an earlier note is
 history and is never touched.
@@ -263,8 +264,40 @@ def describe(event: dict, labels: dict[str, str]) -> str:
     rarest = rarest_line(event)
     if rarest:
         lines.append(rarest)
-    lines.append(f"{TIME_EMOJI}<b>{format_day(when)} {when:%H:%M} UTC</b>")
+    lines.append(f"{TIME_EMOJI}<b>{format_day(when)} {when:%H:%M} UTC</b>"
+                 f"{check_suffix(event)}")
     return "\n".join(lines)
+
+
+def check_suffix(event: dict) -> str:
+    """ · close in 5h, then · close 80% - STAGE 4 on the time line.
+
+    Every move is checked at the funds' close after it was found
+    (tremor.jumps.held_at_close): "close" when that is the close of the day it
+    was found on in New York, "next close" when it is a later one - a move in
+    the closing hour, after it, or on a weekend. Until then it counts down in
+    hours, from the run's own clock (`now_utc`, set by delivery); after, the
+    share of the move still there - 100% held exactly, 120% kept going, -20%
+    reversed. Nothing without the stage's columns."""
+    from tremor.routing import EXCHANGE_TZ
+
+    check, found = _clean(event.get("check_utc")), _clean(event.get("found_utc"))
+    if check is None:
+        return ""
+    if found is None:
+        found = (_clean(event.get("hour_utc")) or 0) + 3600
+    same_day = (datetime.fromtimestamp(check, tz=EXCHANGE_TZ).date()
+                == datetime.fromtimestamp(found, tz=EXCHANGE_TZ).date())
+    label = "close" if same_day else "next close"
+    held = _clean(event.get("held"))
+    if held is not None:
+        return f" · {label} {held * 100:.0f}%"
+    now = _clean(event.get("now_utc"))
+    if now is None:
+        return ""
+    left = -int(-(check - now) // 3600)               # hours, rounded up
+    # Past the close with the bars not there yet (a missed fetch): it waits.
+    return f" · {label} in {left}h" if left > 0 else f" · {label} pending"
 
 
 def _span(seconds: float) -> str:
@@ -569,7 +602,8 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
     at every cut - so the rows are ordered once and the cut falls wherever the
     character budget runs out.
 
-    The header states the period the note speaks for, Sunday to Saturday.
+    The header states the period the note speaks for, from the evening of one
+    week's last funds close to the next's.
     """
     from tremor.jumps import WORDS as TIERS
 
@@ -588,9 +622,9 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
     else:
         count = "Nothing so far" if live else "Nothing in this period"
     # THE LAST DAY THE NOTE CAN HOLD ANYTHING, not the moment it stops. A note
-    # runs to the instant the next one opens, Sunday 00:05 - so it technically
-    # reaches into the next Sunday by five minutes and would print "Sun 13 to
-    # Sun 20", handing that Sunday to a note that carries none of it.
+    # runs to the instant the next one opens, five minutes after a close - so a
+    # boundary just past midnight UTC would otherwise name a day the note
+    # carries none of.
     #
     # An hour back rather than a second, and the hour is the unit that makes it
     # true rather than merely nicer: the note is a list of hourly bars, so a
@@ -662,10 +696,17 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
 
 # --- the week ------------------------------------------------------------------
 #
-# ONE NOTE A WEEK, opened Sunday 00:05 UTC (tremor.routing) just after the
-# economic calendar's own message. For that week every message is kept in line
-# with the events table, every run; anything from before the note opened is
-# history and is never touched again.
+# ONE NOTE A WEEK, opened at the first run after the week's last funds close
+# (tremor.routing) just after the economic calendar's own message. For that week
+# every message is kept in line with the events table, every run; anything from
+# before the note opened is history and is never touched again. The run that
+# turns the week first finishes the old one - its checks at that close are in -
+# and only then closes it and opens the new note.
+#
+# HELD AT THE CLOSE (stage 4). Every message counts down on its time line to
+# the funds' close its move is checked at, and then says how much of the move
+# was still there (check_suffix). The edits are silent and are not a change to
+# the event: they add no story.
 #
 # AN EVENT is 24 hours of real time from its first move being found
 # (tremor.jumps.event_starts). Its word is its rarest reading's and the numbers
@@ -1148,10 +1189,19 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
             store[WEEK] = adopted
         save_state(cfg.state_path, state)
 
+    labels = _labels()
+    calendar = _calendar(cfg)
+    # Every message says how long until its close from this run's own clock.
+    readings = [dict(r, now_utc=now_ts) for r in readings]
+
     week = store.get(WEEK)
     slot = routing.digest_slot(now_ts)
     if week is None or slot > int(week["slot"]):
         if week is not None:
+            # The run after the week's last close: its moves' checks at that
+            # close are in, and land on the old week before it closes.
+            if week.get("detector") == version:
+                changed += _pass(cfg, state, week, readings, labels, calendar, now)
             _close_week(cfg, week)
         week = store[WEEK] = _new_week(slot, version)
         save_state(cfg.state_path, state)
@@ -1159,13 +1209,25 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         _restart_week(cfg, week, version, now)
         log.info("Detector updated: the week restarts from this run")
         save_state(cfg.state_path, state)
+    return changed + _pass(cfg, state, week, readings, labels, calendar, now)
 
+
+def _pass(cfg: Config, state: dict, week: dict, readings: "list[dict]", labels: dict,
+          calendar, now: datetime) -> int:
+    """One run over one week's messages: its events, their edits, its note."""
+    from tremor import routing
+
+    now_ts = int(now.timestamp())
+    window = (int(week["slot"]), routing.next_digest_slot(int(week["slot"])))
+    changed = 0
+    if not week["note"]["ids"]:
+        # A new note goes up before anything it opens with: the calendar, the
+        # note, then the moves - the closing hour's among them.
+        changed += _write_note(cfg, week, format_digest([], labels, window, calendar, now))
     orphans, week["orphans"] = week.get("orphans", []), []
     for message_id, first_line in orphans:
         _discard(cfg, week, message_id, first_line)
 
-    labels = _labels()
-    calendar = _calendar(cfg)
     groups = _group([r for r in readings if _in_week(r, week)], week)
     # Oldest first, so the pushes of one run arrive in the order they happened.
     for key in sorted(groups, key=lambda k: int(k.rsplit("|", 1)[1])):
@@ -1180,7 +1242,6 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     note_rows = [_render(rec, max(groups[key], key=_size))
                  for key, rec in week["events"].items()
                  if rec.get("form") == ROW and groups.get(key)]
-    window = (int(week["slot"]), routing.next_digest_slot(int(week["slot"])))
     changed += _write_note(cfg, week, format_digest(note_rows, labels, window, calendar, now))
     save_state(cfg.state_path, state)
     return changed
