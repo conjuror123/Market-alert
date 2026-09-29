@@ -59,7 +59,7 @@
         ],
         "from": 1790553900,
         "hashes": [
-          "d6d7dd90a5eb1625",
+          "8a0c00dfe4d36fba",
           "23aa08cbc16ddd7d"
         ],
         "ids": [
@@ -115,7 +115,7 @@
         "id": 38
       },
       "twelvedata_EMB:1790600400": {
-        "hash": "db95ed7984c25968",
+        "hash": "99183b7b4874b97e",
         "hour": 1790600400,
         "id": 56
       },
@@ -138,7 +138,7 @@
       "twelvedata_EMB:1790600400": {
         "hour_utc": 1790600400,
         "message_id": 56,
-        "text_hash": "db95ed7984c25968",
+        "text_hash": "99183b7b4874b97e",
         "written": [
           "today",
           "settled"
