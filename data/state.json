@@ -47,7 +47,6 @@
       },
       "1790553900": {
         "events": [
-          "twelvedata_SHY:1790704800",
           "twelvedata_IEI:1790604000",
           "twelvedata_IEF:1790604000",
           "twelvedata_TLH:1790604000",
@@ -60,14 +59,14 @@
         ],
         "from": 1790553900,
         "hashes": [
-          "3a4e29b847e5618c",
-          "474a55b451a12e67"
+          "d6d7dd90a5eb1625",
+          "23aa08cbc16ddd7d"
         ],
         "ids": [
           55,
           69
         ],
-        "rows": 10,
+        "rows": 9,
         "to": 1790985900
       }
     },
@@ -96,10 +95,6 @@
         "hash": "abc9d66a8ff14166",
         "id": 62
       },
-      "twelvedata_SHY:1790704800": {
-        "hash": "64e35f8790ad92bb",
-        "id": 71
-      },
       "twelvedata_TIP:1790604000": {
         "hash": "373e685de2322570",
         "id": 61
@@ -120,7 +115,7 @@
         "id": 38
       },
       "twelvedata_EMB:1790600400": {
-        "hash": "79b9c3c3cdbb5d13",
+        "hash": "db95ed7984c25968",
         "hour": 1790600400,
         "id": 56
       },
@@ -143,9 +138,10 @@
       "twelvedata_EMB:1790600400": {
         "hour_utc": 1790600400,
         "message_id": 56,
-        "text_hash": "79b9c3c3cdbb5d13",
+        "text_hash": "db95ed7984c25968",
         "written": [
-          "today"
+          "today",
+          "settled"
         ]
       },
       "twelvedata_USD_CHF:1790233200": {
