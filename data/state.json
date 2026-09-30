@@ -110,7 +110,7 @@
     },
     "sent": {
       "twelvedata_CORN:1790784000": {
-        "hash": "02e659cff7078663",
+        "hash": "b1447e853ae834ea",
         "hour": 1790784000,
         "id": 72
       },
@@ -138,7 +138,7 @@
       "twelvedata_CORN:1790784000": {
         "hour_utc": 1790784000,
         "message_id": 72,
-        "text_hash": "02e659cff7078663",
+        "text_hash": "b1447e853ae834ea",
         "written": []
       },
       "twelvedata_EMB:1790600400": {
