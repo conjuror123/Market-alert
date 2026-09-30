@@ -32,7 +32,8 @@
 #
 # There are two live US-session providers besides Coinbase. Yahoo is the
 # consolidated-tape feed for the fifteen thin ETFs Tiingo's IEX slice cannot
-# price (see docs/tiingo-findings.md). Twelve Data remains the archive.
+# price (see docs/tiingo-findings.md). SiftingIO serves the currency pairs.
+# Twelve Data remains the archive.
 
 # Anchor exchange of the basket's reference calendar: Sun 17:00 .. Fri 17:00
 # local time. The bounds are stored in this timezone and converted to UTC on the
@@ -118,9 +119,10 @@ session_templates:
 # plan counts requests, not rows.
 #
 # WHAT THIS COSTS, HOURLY. Live bars are not Twelve Data. Tiingo serves 29
-# US-session funds and the 8 FX pairs (50 requests/hour, 1000/day); Yahoo
-# serves the 15 thin ETFs (no published quota); Coinbase serves the 9 crypto
-# pairs (free). US-session names skip when the NYSE calendar says no bar can
+# US-session funds (50 requests/hour, 1000/day); SiftingIO the 8 FX pairs
+# (10,000 requests/MONTH on the free tier - one an hour per pair through the
+# FX week is about 520 a month each); Yahoo serves the 15 thin ETFs (no
+# published quota); Coinbase serves the 9 crypto pairs (free). US-session names skip when the NYSE calendar says no bar can
 # have appeared; FX skips when the Sun 17:00-Fri 17:00 New York week is shut
 # - see tremor.backfill.nothing_can_have_appeared. Twelve Data's 800/day and
 # 8-second pause apply to archive work (--extend-history, --fill-gaps), not
@@ -141,10 +143,11 @@ session_templates:
 # candidates and compared against the bars already stored, hour by hour, in basis
 # points - the full table is in docs/tiingo-findings.md.
 #
-#   tiingo  the eight currency pairs, and the ETFs whose IEX-only price matches
-#           the consolidated tape. Tiingo is the best FX source measured here
-#           (0.43-1.57 bps against Yahoo's 0.43-3.26, whose FX quotes are
-#           indicative rather than traded).
+#   tiingo  the ETFs whose IEX-only price matches the consolidated tape.
+#   sifting the currency pairs, since 2026-09-30: against the stored bars over
+#           300 hours, 0.11-0.35 bps median (Tiingo measured 0.43-1.57), the
+#           bar closed at :00 is served by :05 on the free tier, and it carries
+#           the EM pairs nothing else here does (price_monitor/sifting.py).
 #   yahoo   the fifteen ETFs where IEX is NOT the same price. These are thin
 #           commodity and credit funds where one exchange's slice of the tape
 #           diverges: SOYB by 7.2 bps, UGA by 7.97 with a worst hour of 76.8,
@@ -603,7 +606,7 @@ assets:
   # Major currency pairs, all quoted against the dollar.
   - ticker: EUR/USD
     source: twelvedata
-    provider: tiingo
+    provider: sifting
     tier: 1
     block: FX
     has_volume: false
@@ -613,7 +616,7 @@ assets:
     label: "Euro / dollar"
   - ticker: USD/JPY
     source: twelvedata
-    provider: tiingo
+    provider: sifting
     tier: 1
     block: FX
     has_volume: false
@@ -623,7 +626,7 @@ assets:
     label: "Dollar / yen"
   - ticker: GBP/USD
     source: twelvedata
-    provider: tiingo
+    provider: sifting
     tier: 2
     block: FX
     has_volume: false
@@ -633,7 +636,7 @@ assets:
     label: "Pound / dollar"
   - ticker: AUD/USD
     source: twelvedata
-    provider: tiingo
+    provider: sifting
     tier: 2
     block: FX
     has_volume: false
@@ -643,7 +646,7 @@ assets:
     label: "Australian dollar / dollar"
   - ticker: NZD/USD
     source: twelvedata
-    provider: tiingo
+    provider: sifting
     tier: 2
     block: FX
     has_volume: false
@@ -653,7 +656,7 @@ assets:
     label: "New Zealand dollar / dollar"
   - ticker: USD/CHF
     source: twelvedata
-    provider: tiingo
+    provider: sifting
     tier: 2
     block: FX
     has_volume: false
@@ -663,7 +666,7 @@ assets:
     label: "Dollar / franc"
   - ticker: USD/CAD
     source: twelvedata
-    provider: tiingo
+    provider: sifting
     tier: 2
     block: FX
     has_volume: false
@@ -673,7 +676,7 @@ assets:
     label: "Dollar / Canadian dollar"
   - ticker: USD/CNH
     source: twelvedata
-    provider: tiingo
+    provider: sifting
     tier: 2
     block: FX
     has_volume: false

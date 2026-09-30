@@ -422,8 +422,19 @@ def detector_version(root: "str | None" = None) -> str:
         with open(os.path.join(root, "tremor", name), "rb") as f:
             digest.update(versioning._code(f.read()))
     with open(os.path.join(root, "config", "basket.yaml"), encoding="utf-8") as f:
-        digest.update(json.dumps(yaml.safe_load(f), sort_keys=True, default=str).encode())
+        basket = yaml.safe_load(f) or {}
+    # Who serves an instrument and what it is called cannot change an event, so
+    # moving a pair to another provider is not a detector update.
+    for key in ("assets", "outside_basket"):
+        basket[key] = [{k: v for k, v in item.items() if k not in NOT_DETECTOR}
+                       for item in basket.get(key) or [] if isinstance(item, dict)]
+    digest.update(json.dumps(basket, sort_keys=True, default=str).encode())
     return digest.hexdigest()[:12]
+
+
+# Instrument fields detector_version leaves out: they decide where a bar comes
+# from and how a message names it, never what the bar is judged to be.
+NOT_DETECTOR = ("provider", "label")
 
 
 BASIS = "jump"

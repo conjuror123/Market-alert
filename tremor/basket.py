@@ -61,7 +61,7 @@ SOURCES = ("twelvedata", "coinbase")
 
 # Who can be asked for bars. Wider than SOURCES because a provider may serve an
 # instrument whose history came from somewhere else.
-PROVIDERS = ("twelvedata", "coinbase", "tiingo", "yahoo")
+PROVIDERS = ("twelvedata", "coinbase", "tiingo", "yahoo", "sifting")
 FETCH_INTERVALS = ("30min", "1h")
 
 

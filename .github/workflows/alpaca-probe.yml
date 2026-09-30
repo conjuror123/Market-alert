@@ -39,7 +39,7 @@ on:
         type: boolean
         default: false
       sifting_only:
-        description: 'SiftingIO: "freshness" to run only the freshness check'
+        description: 'SiftingIO: "freshness" or "client" to run only that part'
         type: string
         default: ''
 

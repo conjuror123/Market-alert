@@ -1240,3 +1240,76 @@ def test_a_yahoo_404_stays_per_instrument_and_does_not_skip_the_rest(
 
     assert rc == 1
     assert asked == ["UGA", "UNG"]
+
+
+def _sifting_pair(ticker):
+    return Asset(ticker=ticker, source="twelvedata", provider="sifting",
+                 tier=2, block="FX", has_volume=False, tick_size=0.00001,
+                 session_template="fx_continuous", fetch_interval="1h",
+                 label=ticker, in_basket=True)
+
+
+def test_a_sifting_budget_skips_remaining_pairs_and_says_so(tmp_path, monkeypatch):
+    from tremor import backfill
+    from tremor.basket import Basket, VolatilityIndex
+    from price_monitor import sifting
+
+    asked, alerts = [], []
+
+    def fake_backfill(asset, *a, **k):
+        asked.append(asset.ticker)
+        if asset.ticker == "EUR/USD":
+            raise sifting.RateLimited("EUR/USD: budget", remaining="0")
+        return {"asset_id": asset.asset_id, "rows": 1, "first": 1, "last": 1,
+                "from_legacy": 0, "from_api": 1}
+
+    basket = Basket(
+        assets=(_sifting_pair("EUR/USD"), _sifting_pair("USD/JPY"), _yahoo_asset("UGA")),
+        outside=(),
+        volatility_index=VolatilityIndex("VIXCLS", "fred", "1d", "VIX", date(1990, 1, 1)),
+        anchor_exchange_tz="America/New_York",
+        history_since=date(2021, 1, 1),
+        session_templates={"fx_continuous": {}, "us_equity": {}},
+    )
+    monkeypatch.setenv("SIFTING_API_KEY", "k")
+    monkeypatch.setattr(backfill, "load_basket", lambda: basket)
+    monkeypatch.setattr(backfill, "backfill_instrument", fake_backfill)
+    monkeypatch.setattr(backfill._sessions, "load_sessions",
+                        lambda: (_ for _ in ()).throw(FileNotFoundError()))
+    monkeypatch.setattr(backfill, "send_ops_alert", alerts.append)
+
+    assert backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)]) == 0
+    assert asked == ["EUR/USD", "UGA"]
+    assert "SiftingIO request budget spent" in alerts[0]
+    assert "monthly quota left 0" in alerts[0]
+
+
+def test_a_sifting_pair_without_the_key_stops_the_run(tmp_path, monkeypatch):
+    from tremor import backfill
+    from tremor.basket import Basket, VolatilityIndex
+
+    basket = Basket(
+        assets=(_sifting_pair("EUR/USD"),), outside=(),
+        volatility_index=VolatilityIndex("VIXCLS", "fred", "1d", "VIX", date(1990, 1, 1)),
+        anchor_exchange_tz="America/New_York", history_since=date(2021, 1, 1),
+        session_templates={"fx_continuous": {}},
+    )
+    monkeypatch.delenv("SIFTING_API_KEY", raising=False)
+    monkeypatch.setattr(backfill, "load_basket", lambda: basket)
+    assert backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)]) == 2
+
+
+def test_the_fetch_asks_sifting_for_a_sifting_pair(tmp_path, monkeypatch):
+    from tremor import backfill
+
+    seen = {}
+
+    def fake(**kwargs):
+        seen.update(kwargs)
+        return []
+
+    monkeypatch.setattr(backfill.sifting, "fetch_full_history", fake)
+    backfill.fetch_missing(_sifting_pair("USD/MXN"), str(tmp_path / "p"),
+                           date(2021, 1, 1), "td", requests.Session(),
+                           sifting_key="sk")
+    assert seen["symbol"] == "USD/MXN" and seen["api_key"] == "sk"

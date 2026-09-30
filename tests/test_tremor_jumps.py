@@ -225,6 +225,11 @@ def test_the_detector_version_ignores_comments_and_follows_the_settings(tmp_path
     assert jumps.detector_version(str(root)) == before
     assert before == jumps.detector_version()       # the real repository, from anywhere
 
+    # Who serves a pair, and what it is called, is not the detector.
+    basket.write_text(basket.read_text().replace("provider: tiingo", "provider: yahoo", 1)
+                      .replace('label: "Gold"', 'label: "Gold bullion"'))
+    assert jumps.detector_version(str(root)) == before
+
     basket.write_text(basket.read_text().replace("noticeable_sigma: 3.9",
                                                  "noticeable_sigma: 4.0"))
     assert jumps.detector_version(str(root)) != before

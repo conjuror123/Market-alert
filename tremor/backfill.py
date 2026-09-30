@@ -41,7 +41,7 @@ import requests
 from tremor import atomic, bars, cboe, corporate_actions, fred, quality
 from tremor import sessions as _sessions
 from tremor.basket import Asset, Basket, load_basket
-from price_monitor import (candle_store, coinbase, dukascopy, hfdata,
+from price_monitor import (candle_store, coinbase, dukascopy, hfdata, sifting,
                            tiingo, twelvedata, yahoo)
 from price_monitor.models import ExchangeError
 from price_monitor.notifier import TelegramError, redact_secrets, send_telegram_message
@@ -89,7 +89,11 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
                             tiingo_trip: str | None = None,
                             yahoo_gone: bool = False,
                             yahoo_skipped: int = 0,
-                            yahoo_trip: str | None = None) -> str:
+                            yahoo_trip: str | None = None,
+                            sifting_gone: bool = False,
+                            sifting_skipped: int = 0,
+                            sifting_remaining: str | None = None,
+                            sifting_trip: str | None = None) -> str:
     """One operational message naming who went dark. Does not switch provider."""
     lines = []
     if dark:
@@ -115,6 +119,15 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
         who = f" after {yahoo_trip}" if yahoo_trip else ""
         lines.append(f"⚠️ <b>Yahoo rate limit{who}</b>")
         lines.append(f"{yahoo_skipped} remaining Yahoo instrument(s) skipped.")
+        lines.append("Provider was not switched automatically.")
+    if sifting_gone:
+        if lines:
+            lines.append("")
+        who = f" after {sifting_trip}" if sifting_trip else ""
+        quota = (f"monthly quota left {sifting_remaining}"
+                 if sifting_remaining is not None else "quota left not in the 429")
+        lines.append(f"⚠️ <b>SiftingIO request budget spent{who}</b>")
+        lines.append(f"{quota}; {sifting_skipped} remaining SiftingIO instrument(s) skipped.")
         lines.append("Provider was not switched automatically.")
     return "\n".join(lines)
 
@@ -160,7 +173,7 @@ SETTLE_HOURS = 3
 def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
                   session: requests.Session, extend_history: bool = False,
                   tiingo_key: str = "",
-                  now: datetime | None = None) -> int:
+                  now: datetime | None = None, sifting_key: str = "") -> int:
     """Fetches whatever the store does not have yet: from the last saved bar up
     to now, or from `since` when the store is empty.
 
@@ -234,6 +247,11 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
         candles = tiingo.fetch_full_history(
             symbol=asset.ticker, interval=asset.fetch_interval, days=days,
             base_url=TIINGO_BASE_URL, api_key=tiingo_key, session=session, end=end,
+        )
+    elif provider == "sifting":
+        candles = sifting.fetch_full_history(
+            symbol=asset.ticker, interval=asset.fetch_interval, days=days,
+            api_key=sifting_key, session=session, end=end,
         )
     elif provider == "yahoo":
         candles = yahoo.fetch_full_history(
@@ -375,11 +393,12 @@ def nothing_can_have_appeared(asset: Asset, path: str,
 
 def backfill_instrument(asset: Asset, basket: Basket, bars_dir: str, api_key: str,
                         session: requests.Session, legacy_dir: str = LEGACY_HISTORY_DIR,
-                        extend_history: bool = False, tiingo_key: str = "") -> dict:
+                        extend_history: bool = False, tiingo_key: str = "",
+                        sifting_key: str = "") -> dict:
     path = bars.store_path(bars_dir, asset.file_stem)
     from_legacy = import_legacy(asset, path, legacy_dir)
     from_api = fetch_missing(asset, path, basket.acquire_since, api_key, session,
-                             extend_history, tiingo_key)
+                             extend_history, tiingo_key, sifting_key=sifting_key)
     stored = bars.load(path)
     return {
         "asset_id": asset.asset_id,
@@ -1129,6 +1148,11 @@ def main(argv: list[str] | None = None) -> int:
         log.error("TIINGO_API_KEY is not set, and the list contains Tiingo instruments")
         return 2
 
+    sifting_key = os.environ.get("SIFTING_API_KEY", "")
+    if not sifting_key and any(a.fetched_from == "sifting" for a in instruments):
+        log.error("SIFTING_API_KEY is not set, and the list contains SiftingIO instruments")
+        return 2
+
     session = requests.Session()
     # Loaded once. A missing table is not an error here - it only means no
     # instrument can be skipped, which is the safe direction.
@@ -1148,6 +1172,10 @@ def main(argv: list[str] | None = None) -> int:
     tiingo_remaining = None
     yahoo_gone = False
     yahoo_skipped = 0
+    sifting_gone = False
+    sifting_skipped = 0
+    sifting_trip = None
+    sifting_remaining = None
     yahoo_trip = None
     dark: list[tuple[str, str, str]] = []
     for i, asset in enumerate(instruments):
@@ -1179,9 +1207,14 @@ def main(argv: list[str] | None = None) -> int:
             skipped += 1
             yahoo_skipped += 1
             continue
+        if sifting_gone and asset.fetched_from == "sifting":
+            skipped += 1
+            sifting_skipped += 1
+            continue
         try:
             r = backfill_instrument(asset, basket, args.bars_dir, api_key, session,
-                                    args.legacy_dir, args.extend_history, tiingo_key)
+                                    args.legacy_dir, args.extend_history, tiingo_key,
+                                    sifting_key)
             log.info("%s: %d bars (%s .. %s), from local history %d, from network %d",
                      r["asset_id"], r["rows"], _fmt(r["first"]), _fmt(r["last"]),
                      r["from_legacy"], r["from_api"])
@@ -1209,6 +1242,16 @@ def main(argv: list[str] | None = None) -> int:
             tiingo_remaining = getattr(exc, "remaining", None)
             log.error("Tiingo's request budget is spent - %s", exc)
             log.error("Skipping the remaining Tiingo instruments; the other "
+                      "providers continue.")
+        except sifting.RateLimited as exc:
+            # The monthly quota or the burst limit. Same reasoning as Tiingo:
+            # it will not clear inside the run, so stop asking and keep the rest.
+            sifting_gone = True
+            sifting_trip = asset.asset_id
+            sifting_remaining = getattr(exc, "remaining", None)
+            log.error("SiftingIO's request budget is spent (quota left: %s) - %s",
+                      getattr(exc, "remaining", None), exc)
+            log.error("Skipping the remaining SiftingIO instruments; the other "
                       "providers continue.")
         except yahoo.RateLimited as exc:
             yahoo_gone = True
@@ -1285,7 +1328,9 @@ def main(argv: list[str] | None = None) -> int:
         dark, tiingo_gone=tiingo_gone, tiingo_skipped=tiingo_skipped,
         tiingo_remaining=tiingo_remaining, tiingo_trip=tiingo_trip,
         yahoo_gone=yahoo_gone, yahoo_skipped=yahoo_skipped,
-        yahoo_trip=yahoo_trip)
+        yahoo_trip=yahoo_trip, sifting_gone=sifting_gone,
+        sifting_skipped=sifting_skipped, sifting_remaining=sifting_remaining,
+        sifting_trip=sifting_trip)
     if text:
         send_ops_alert(text)
 

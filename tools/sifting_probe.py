@@ -191,12 +191,58 @@ def coverage() -> None:
     print(f"   not served: {' '.join(missing) or 'none'}")
 
 
+def client_check(now: datetime) -> None:
+    """The real client (price_monitor.sifting), as the hourly fetch calls it."""
+    from price_monitor import sifting
+
+    key = os.environ["SIFTING_API_KEY"]
+    basket = load_basket()
+    print("CLIENT - held pairs through price_monitor.sifting, against the store")
+    for a in basket.instruments:
+        if a.session_template != "fx_continuous":
+            continue
+        candles = sifting.fetch_full_history(a.ticker, a.fetch_interval, days=21, api_key=key)
+        fresh = bars.to_hourly(bars.candles_to_frame(candles))
+        got = _compare(fresh, bars.load(bars.store_path(BARS_DIR, a.file_stem)))
+        newest = datetime.fromtimestamp(int(fresh["hour_utc"].max()), tz=timezone.utc)
+        verdict = "no overlap"
+        if got:
+            n, med, p90, worst = got
+            ok = med <= SAFE_MEDIAN_BPS and p90 <= SAFE_P90_BPS
+            verdict = (f"{n}h median {med:.2f} p90 {p90:.2f} max {worst:.1f} bps "
+                       f"{'PASS' if ok else 'FAIL'}")
+        print(f"   {a.ticker:8s} provider={a.fetched_from:8s} {len(fresh)} hours, newest "
+              f"{newest:%a %H:%M} UTC | {verdict}")
+
+    print("\nHOURS - when the new pairs actually trade (last 4 weeks, weekdays)")
+    for pair in NEW_PAIRS:
+        candles = sifting.fetch_full_history(pair[:3] + "/" + pair[3:], "1h", days=28,
+                                             api_key=key)
+        frame = bars.candles_to_frame(candles)
+        if frame.empty:
+            print(f"   {pair}: no bars")
+            continue
+        moments = pd.to_datetime(frame["hour_utc"], unit="s", utc=True)
+        weekdays = moments[moments.dt.weekday < 5]
+        days = weekdays.dt.date.nunique()
+        per_hour = weekdays.dt.hour.value_counts().reindex(range(24), fill_value=0)
+        thin = [h for h, n in per_hour.items() if n < 0.5 * days]
+        steps = frame["hour_utc"].sort_values().diff().dropna() / 3600
+        midweek = steps[(steps > 1) & (steps < 40)]
+        print(f"   {pair}: {len(frame)} bars, {len(weekdays) / max(days, 1):.1f} a weekday; "
+              f"hours (UTC) mostly missing: {thin or 'none'}; "
+              f"midweek gaps over an hour: {len(midweek)} (longest {midweek.max() if len(midweek) else 0:.0f}h)")
+
+
 def main() -> int:
     if not os.environ.get("SIFTING_API_KEY"):
         print("SIFTING_API_KEY is not set")
         return 1
     now = datetime.now(timezone.utc)
     print(f"Probing SiftingIO at {now:%Y-%m-%d %H:%M} UTC\n")
+    if os.environ.get("SIFTING_ONLY") == "client":
+        client_check(now)
+        return 0
     freshness(now)
     if os.environ.get("SIFTING_ONLY") != "freshness":
         fx_coverage(now)
