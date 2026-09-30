@@ -59,7 +59,7 @@
         ],
         "from": 1790553900,
         "hashes": [
-          "724de69a3f3a5517",
+          "b292d6caf2c1e776",
           "119e415b48e0e38a"
         ],
         "ids": [
@@ -155,6 +155,6 @@
       }
     }
   },
-  "weekly_digest:last_refreshed": "2026-09-29",
+  "weekly_digest:last_refreshed": "2026-09-30",
   "weekly_digest:last_sent_week": "1790381100"
 }
