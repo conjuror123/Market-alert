@@ -102,20 +102,23 @@ def _compare(fresh: pd.DataFrame, stored: pd.DataFrame):
 
 def freshness(now: datetime) -> None:
     print("1. FRESHNESS - the newest bar each serves, against the clock")
-    start = (now - timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
     for label, path in [("SPY (US stocks)", "/hist/stocks/SPY/bars"),
                         ("EURUSD (forex)", "/hist/forex/EURUSD/bars"),
                         ("USDMXN (forex)", "/hist/forex/USDMXN/bars")]:
-        for interval in ("1m", "1h"):
-            data, status, limits = _get(path, start=start, interval=interval,
-                                        order="desc", limit=3)
+        for interval, back in (("1m", timedelta(minutes=40)), ("1h", timedelta(hours=5))):
+            start = (now - back).strftime("%Y-%m-%dT%H:%M:%SZ")
+            data, status, limits = _get(path, start=start, interval=interval, limit=2000)
             rows = _rows(data)
-            detail = (f"newest bar opened {_age(rows[0]['t'], now)} ago"
-                      if rows else "no bars in the last 3 hours")
+            if rows:
+                newest = max(r["t"] for r in rows)
+                opened = datetime.fromtimestamp(newest / 1000, tz=timezone.utc)
+                detail = (f"{len(rows)} bars, newest opened {opened:%H:%M} UTC "
+                          f"({_age(newest, now)} ago)")
+            else:
+                detail = "no bars in the window"
             as_of = (data or {}).get("meta", {}).get("as_of", "")
             print(f"   {label:16s} {interval:3s} {status:6.40s} {detail}  as_of={as_of}")
-            if limits:
-                print(f"   {'':20s} limits: {limits}")
+    print(f"   limits on the last call: {limits}")
 
 
 def fx_coverage(now: datetime) -> None:
@@ -195,9 +198,10 @@ def main() -> int:
     now = datetime.now(timezone.utc)
     print(f"Probing SiftingIO at {now:%Y-%m-%d %H:%M} UTC\n")
     freshness(now)
-    fx_coverage(now)
-    agreement(now)
-    coverage()
+    if os.environ.get("SIFTING_ONLY") != "freshness":
+        fx_coverage(now)
+        agreement(now)
+        coverage()
     print(f"\n{_calls} calls spent of the free tier's 10,000 a month")
     return 0
 
