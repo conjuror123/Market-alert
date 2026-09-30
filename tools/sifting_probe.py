@@ -26,6 +26,7 @@ import sys
 import time
 from datetime import datetime, timedelta, timezone
 
+import numpy as np
 import pandas as pd
 import requests
 
@@ -234,6 +235,81 @@ def client_check(now: datetime) -> None:
               f"midweek gaps over an hour: {len(midweek)} (longest {midweek.max() if len(midweek) else 0:.0f}h)")
 
 
+# Each pair's home market, whose holidays may empty its hours: the exchange
+# calendar (exchange_calendars) and the timezone its days are counted in.
+HOME = {"USDKRW": ("XKRX", "Asia/Seoul"), "USDINR": ("XBOM", "Asia/Kolkata"),
+        "USDBRL": ("BVMF", "America/Sao_Paulo"), "USDMXN": ("XMEX", "America/Mexico_City"),
+        "USDZAR": ("XJSE", "Africa/Johannesburg"), "USDTRY": ("XIST", "Europe/Istanbul"),
+        "USDPLN": ("XWAR", "Europe/Warsaw"), "USDSEK": ("XSTO", "Europe/Stockholm"),
+        "USDNOK": ("XOSL", "Europe/Oslo"), "USDCNH": ("XSHG", "Asia/Shanghai"),
+        "EURUSD": (None, "UTC")}
+
+
+def holes(now: datetime) -> None:
+    """Two years of hourly bars per pair: when it trades, how deep it goes, and
+    whether the hours it lacks midweek are its home market's holidays."""
+    import exchange_calendars as xcals
+    from zoneinfo import ZoneInfo
+
+    from price_monitor import sifting
+
+    key = os.environ["SIFTING_API_KEY"]
+    begin = now - timedelta(days=730)
+    print("HOLES - two years of hourly bars, holes inside the trading week\n")
+    for pair, (code, tz) in HOME.items():
+        data, _, _ = _get(f"/hist/forex/{pair}/bars", start="2000-01-01", interval="1d",
+                          limit=1)
+        oldest = _rows(data)
+        oldest = (datetime.fromtimestamp(oldest[0]["t"] / 1000, tz=timezone.utc)
+                  .strftime("%Y-%m-%d") if oldest else "?")
+        candles = sifting.fetch_full_history(pair[:3] + "/" + pair[3:], "1h", days=730,
+                                             api_key=key, end=now)
+        h = np.array(sorted({c.open_time for c in candles}), dtype="int64")
+        if len(h) < 2:
+            print(f"{pair}: {len(h)} bars")
+            continue
+        moments = pd.to_datetime(h, unit="s", utc=True)
+        # When it trades: share of mid-week days (Tue-Thu, clear of the weekend
+        # edges) with a bar at each UTC hour.
+        mid = moments[moments.weekday.isin([1, 2, 3])]
+        days = mid.normalize().nunique()
+        share = (pd.Series(mid.hour).value_counts().reindex(range(24), fill_value=0)
+                 / max(days, 1))
+        profile = " ".join(f"{int(round(100 * s)):3d}" for s in share)
+        print(f"{pair}: {len(h)} bars since {moments[0]:%Y-%m-%d}, history from {oldest}")
+        print(f"   UTC hour  {' '.join(f'{i:3d}' for i in range(24))}")
+        print(f"   % of days {profile}")
+
+        closed: set = set()
+        if code:
+            cal = xcals.get_calendar(code, start=f"{begin:%Y-%m-%d}", end=f"{now:%Y-%m-%d}")
+            weekdays = pd.bdate_range(f"{begin:%Y-%m-%d}", f"{now:%Y-%m-%d}")
+            open_days = set(cal.sessions_in_range(weekdays[0], weekdays[-1]).date)
+            closed = {d.date() for d in weekdays if d.date() not in open_days}
+        step = np.diff(h) // 3600
+        buckets = {"1": 0, "2-4": 0, "5-10": 0, "11-22": 0, "23+": 0}
+        on_holiday, long_ones = 0, []
+        home = ZoneInfo(tz)
+        for i in np.flatnonzero(step > 1):
+            gap_hours = range(int(h[i]) + 3600, int(h[i + 1]), 3600)
+            stamps = pd.to_datetime(list(gap_hours), unit="s", utc=True)
+            if (stamps.weekday == 5).any():      # spans a Saturday: the weekend
+                continue
+            k = int(step[i]) - 1                  # hours missing
+            buckets["1" if k == 1 else "2-4" if k < 5 else "5-10" if k < 11
+                    else "11-22" if k < 23 else "23+"] += 1
+            local_days = {s.tz_convert(home).date() for s in stamps}
+            holiday = bool(local_days & closed)
+            on_holiday += holiday
+            if k >= 5:
+                long_ones.append(f"{stamps[0]:%y%m%d %H}h+{k}{'*' if holiday else ''}")
+        total = sum(buckets.values())
+        print(f"   midweek holes: {total}, by hours missing {buckets}; touching a home "
+              f"holiday: {on_holiday}; home holidays in the span: {len(closed)}")
+        print(f"   5 hours or more (first missing hour UTC, +hours, * = home holiday): "
+              f"{' '.join(long_ones[-60:]) or 'none'}\n")
+
+
 def main() -> int:
     if not os.environ.get("SIFTING_API_KEY"):
         print("SIFTING_API_KEY is not set")
@@ -242,6 +318,10 @@ def main() -> int:
     print(f"Probing SiftingIO at {now:%Y-%m-%d %H:%M} UTC\n")
     if os.environ.get("SIFTING_ONLY") == "client":
         client_check(now)
+        return 0
+    if os.environ.get("SIFTING_ONLY") == "holes":
+        holes(now)
+        print(f"\n{_calls} direct calls, plus the client's pages")
         return 0
     freshness(now)
     if os.environ.get("SIFTING_ONLY") != "freshness":

@@ -86,7 +86,11 @@ jobs:
         env:
           SIFTING_API_KEY: ${{ secrets.SIFTING_API_KEY }}
           SIFTING_ONLY: ${{ inputs.only }}
-        run: python -m tools.sifting_probe
+        # The holiday calendars are a development dependency; the holes check
+        # matches SiftingIO's missing hours against them.
+        run: |
+          pip install -q 'exchange-calendars>=4.13,<5'
+          python -m tools.sifting_probe
 
       # Every source against the consolidated tape, per fund, held and
       # candidate. Needs Alpaca (the tape), SiftingIO and one Twelve Data
