@@ -62,9 +62,16 @@ def get(path: str, **params) -> "tuple[int, object]":
 
 def candles(symbol: str, timeframe: str, start: datetime, end: datetime,
             order: str = "asc", limit: int = 5000) -> "tuple[int, object]":
-    return get("/candles", symbol=symbol, timeframe=timeframe, order=order, limit=limit,
-               start=start.strftime("%Y-%m-%dT%H:%M:%SZ"),
-               end=end.strftime("%Y-%m-%dT%H:%M:%SZ"))
+    # The vault takes dates only: the end is widened to the next day and the
+    # rows trimmed to the window here.
+    code, rows = get("/candles", symbol=symbol, timeframe=timeframe, order=order,
+                     limit=limit, start=start.strftime("%Y-%m-%d"),
+                     end=(end + timedelta(days=1)).strftime("%Y-%m-%d"))
+    if isinstance(rows, list) and rows:
+        lo, hi = start.timestamp(), end.timestamp()
+        rows = [r for r in rows if lo <= pd.Timestamp(r.get("ts") or r.get("timestamp"))
+                .timestamp() < hi]
+    return code, rows
 
 
 def frame(rows) -> pd.DataFrame:
@@ -103,6 +110,16 @@ def catalog(held_funds, candidates, held_fx) -> dict:
         print(f"   {title}: {len(found)} of {len(names)} held"
               + (f"; missing: {' '.join(s for s in names if s not in by)}"
                  if len(found) < len(names) else ""))
+    for ds in ("etf", "fx", "futures", "crypto"):
+        rows = sorted((r for r in body if r.get("dataset") == ds), key=lambda r: r["symbol"])
+        print(f"   {ds} ({len(rows)}): " + " ".join(
+            f"{r['symbol']}[{str(r.get('first_tick'))[:7]}]" for r in rows))
+    commodities = [r for r in body if any(w in f"{r.get('symbol')} {r.get('name')}".lower()
+                   for w in ("nickel", "alumin", "tin ", "coffee", "cocoa", "cotton",
+                             "cattle", "hog", "sugar", "lithium", "copper", "platinum"))]
+    print(f"   commodity-like: " + "; ".join(
+        f"{r['symbol']} ({r.get('dataset')}, {str(r.get('name'))[:30]}, "
+        f"from {str(r.get('first_tick'))[:7]})" for r in commodities[:40]))
     for s in ("SPY", "CPER", "TUR", "JJC", "USD/BRL", "USD/KRW", "USD/INR", "EUR/USD"):
         for r in by.get(s, []):
             print(f"      {s:8s} {r.get('dataset'):10s} first {str(r.get('first_tick'))[:19]}  "
