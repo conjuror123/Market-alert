@@ -34,6 +34,10 @@ on:
         description: 'Probe Finnhub instead: access, freshness, limits, coverage'
         type: boolean
         default: false
+      sifting:
+        description: 'Probe SiftingIO instead: freshness, FX, agreement, coverage'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -68,8 +72,15 @@ jobs:
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
         run: python -m tools.finnhub_probe
 
+      # Needs the checked-out bar store too: it compares against the bars held.
+      - name: Probe what SiftingIO serves
+        if: inputs.sifting
+        env:
+          SIFTING_API_KEY: ${{ secrets.SIFTING_API_KEY }}
+        run: python -m tools.sifting_probe
+
       - name: Probe what Alpaca covers
-        if: inputs.probe && !inputs.finnhub
+        if: inputs.probe && !inputs.finnhub && !inputs.sifting
         env:
           ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
