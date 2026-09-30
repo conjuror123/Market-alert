@@ -144,59 +144,104 @@ window for weekends only — each a one-line change in `tremor/jumps.py` and a r
 
 ---
 
-## 6. A wider basket still has no live feed, and that is the whole blocker
+## 6. A wider basket: every source measured, and what is still unsourced
 
-The plan to widen the basket needs a provider for roughly 63 new US-listed instruments
-plus 7 EM currency pairs. Measured on 2026-09-22, here is what is and is not covered.
+The plan below adds 96 funds, 9 currency pairs and 7 coins. Each source was measured for
+it on 2026-09-30 (`tools/fund_verdict.py`, `tools/sifting_probe.py`), and each was asked
+only what it alone can answer.
 
-**History is not the problem.** Twelve Data already reaches past the 2020-02-10 floor
-these instruments would be held to, and seeding them is about 630 requests against an
-800-a-day budget — roughly 90 minutes of wall clock, not the multi-day job it was once
-described as. Alpaca's free SIP reaches 2016 and would be faster, but it duplicates
-something that already works.
+| source | live hourly? | history | its job here |
+|---|---|---|---|
+| Tiingo IEX | yes — 50/hour, shared with production | — | liquid funds, IEX-safe only |
+| Alpaca IEX | documented real-time on the free plan; not yet measured at :05 | from about 2021 | IEX-safe funds, with no quota, *if* fresh |
+| Alpaca SIP | no — refuses queries ending under 15 minutes ago | from 2016, many symbols a call | the reference tape; seeding every new fund |
+| Yahoo | yes — no published limit, no SLA | 60 days at 30 minutes | funds that need the consolidated tape |
+| Twelve Data | yes — 800/day, but 8/minute | EM pairs from 2019–2020 | archive; live, a minute of every run per 8 funds |
+| SiftingIO | yes — 10,000/month | FX from 2000–2012, except KRW INR BRL | every FX pair; 5 funds |
+| Coinbase | yes — no key | from each coin's listing | crypto |
+| Finnhub | quotes only on the free tier | — | nothing: a quote at :05 is not the :00 close |
+| FRED | daily series | — | VIX |
+| HF Data | — | US funds before 2020 | deepening only |
 
-**FX is solved (2026-09-30).** SiftingIO's free tier serves every pair wanted, the bar
-closed at :00 by :05, and agrees with the stored bars to a fraction of a basis point; the
-eight held pairs moved there, which leaves Tiingo 21 free hourly slots against 29 used.
-Its catch is the budget, 10,000 calls a MONTH: seventeen pairs is about 8,900. Its fund
-prices are no substitute for the tape on thin names (UGA 8.8 bps median, SOYB 4.7).
+Alpaca SIP's 15-minute wall was confirmed on 2026-09-22 (403 at 2, 5 and 10 minutes,
+served at 15). Moving the run to :20 or paying for the unrestricted tier would lift it, and
+both were declined.
 
-**For the funds, the live hourly fetch is still the problem.** Tiingo's 50-an-hour bucket
-has 21 free slots, for liquid funds only. Yahoo publishes no limit but
-is an undocumented endpoint with no SLA, so putting sixty instruments behind it
-concentrates most of the basket on the one feed this document already worries about.
+**The fund verdict.** The reference is Alpaca's consolidated tape over 28 days of
+regular-session hours. A feed passes when its hourly closes agree to median ≤ 2 bps and
+p90 ≤ 5, **and** it lacks at most 2% of the tape's hours: a missing hour folds two hours of
+move into one reading.
 
-**Alpaca cannot help here, and the reason is measured rather than assumed.** On the free
-plan its SIP feed refuses any query ending less than 15 minutes ago — 403, *"subscription
-does not permit querying recent SIP data"*, confirmed at 2, 5 and 10 minutes and served
-at 15, 20 and 30. The hourly run fires at :05 and needs the bar that closed at :00. Two
-remedies exist and both were declined: move the run to :20, or pay for the unrestricted
-tier.
+- **7 of the 96 no longer trade:** `JJC JJN JJU JO NIB BAL COW`. They are not on the tape
+  at all.
+- **The other 89 all reach back past 2020-02-10** on Alpaca's history.
+- **IEX agrees on 30:** `KRE XRT IHI SMH SOXX IGV DIA RSP EWJ FXI EWZ INDA EWT EPI VNQ IYR
+  GOVT VGIT SPTL VTIP SCHP VMBS LMBS VCIT VCSH IGIB SPIB USIG USHY EMLC`. IEX here means
+  Tiingo's feed or Alpaca's, which are the same exchange.
+- **Yahoo agrees on 87.** It misses TUR (p90 5.6) and RWX (3% of hours missing) by a
+  hair. On TUR, Twelve Data misses the tape by exactly the same amounts, spread over every
+  hour of the day, so that is how thin TUR trades rather than a bad feed.
+- **Twelve Data equals Yahoo** on all eight names checked. It is the consolidated tape too.
+- **SiftingIO carries few of the candidates at all.** Five pass: `DIA MDY IAU SGOL SIVR`.
+- **The 44 held funds reproduce today's split, with two exceptions.** USO and SLV sit on
+  Tiingo and fail IEX, at 3.3/15.2 and 1.6/5.4 bps, as they did in the 2026-09-22
+  comparison.
 
-Also established about Alpaca, so the next reader does not re-derive it:
+**What fits where:**
 
-- Its **IEX** feed only reaches about 2021, so it is shallow as well as wrong on thin
-  names.
-- It serves **63 of the 70** candidate instruments. The seven it does not are `JO NIB BAL
-  COW JJC JJN JJU` — coffee, cocoa, cotton, livestock and three base-metal ETNs.
-- Its **forex endpoint is not on the free plan at all**: 403, *"forbidden: insufficient
-  grants"*. EM FX gets nothing from it.
+- The 30 IEX-safe funds exceed Tiingo's 21 free slots, or 23 if USO and SLV leave it.
+- The other 59 need a consolidated feed:
+  - Yahoo;
+  - Twelve Data, costing a minute of every run per eight funds;
+  - SiftingIO's spare, about 1,100 calls a month with 17 pairs, which is roughly the 5
+    funds it passes.
 
-**The four questions any future candidate has to answer**, in this order, because the
-cheapest disqualifier comes first:
+**FX.** SiftingIO serves all nine new pairs live. For USD/KRW, USD/INR and USD/BRL its
+hourly history starts on 2026-07-26. Twelve Data reaches further back for all three:
 
-1. **Freshness.** Will it serve a bar five minutes old? If not, it cannot be the live
-   feed, whatever else it does well.
-2. **Headroom.** Requests per hour against 63 more instruments.
-3. **Agreement.** Median and p90 disagreement in bps against the stored bars, on the THIN
-   names — the liquid ones agree with everything. `tools/alpaca_compare.py` is the shape
-   to copy; the line is median ≤ 2 bps and p90 ≤ 5.
-4. **Coverage and depth.** Which tickers exist, and do they reach 2020-02-10.
+| pair | Twelve Data from | agrees with SiftingIO? |
+|---|---|---|
+| USD/KRW | 2020-01 | yes, 0.38 bps median |
+| USD/INR | 2019-11 | yes, 0.38 bps median |
+| USD/BRL | 2019-09 | **no**, 1.54 median / 6.94 p90 even inside 11:00–22:00 UTC |
 
-**What acting on it would mean:** finding a provider that answers question 1. Until one
-does, the widening is capped at the ~13 Tiingo slots, or accepts Yahoo concentration as a
-deliberate risk. `tools/alpaca_probe.py` and `tools/alpaca_compare.py` are written and
-generalise to the next candidate with a change of endpoint.
+The other six new pairs go back to 2003–2007 on SiftingIO itself.
+
+**Crypto.** Coinbase lists all seven:
+
+| coin | listed from |
+|---|---|
+| XRP | 2019 |
+| ATOM | 2020-01 |
+| UNI | 2020-09 |
+| FIL | 2020-12 |
+| AAVE | 2020-12 |
+| DOT | 2021-06 |
+| POL | 2024-09, as the renamed MATIC (MATIC-USD: 2021-03 to 2024-09) |
+
+POL's two histories would have to be joined.
+
+**Still without a source:**
+
+1. **The seven delisted ETNs:** nickel, aluminium, tin, coffee, cocoa, cotton and
+   livestock. Without them, the industrial-metals and agriculture blocks stop at five
+   members each.
+2. **A second consolidated live feed for about 60 funds.** The alternative is to accept
+   Yahoo carrying them, which is the concentration this document already worries about.
+   Twelve Data can take a slice, at a minute of run time per eight.
+3. **USD/BRL's history before 2026-07-26 from a feed that agrees with SiftingIO.**
+   Otherwise, seed it from Twelve Data at the disagreement above, or let it start young.
+4. **Live IEX capacity past Tiingo's 21 slots, if Alpaca's IEX turns out not to be
+   fresh at :05.**
+
+**The four questions any future candidate has to answer**, cheapest disqualifier first:
+
+1. **Freshness.** Does it serve the bar that closed at :00 by :05?
+2. **Headroom.** How many requests per hour does it allow, against the instruments it
+   would carry?
+3. **Agreement** against the consolidated tape, on the thin names.
+   `tools/fund_verdict.py` measures it.
+4. **Coverage and depth.** Which tickers exist, and do they reach 2020-02-10?
 
 ---
 
@@ -241,16 +286,27 @@ benchmarks (SPY IWM DIA RSP MDY) watched outside the basket:
 
 Expected to fail the feed test first: the MBS funds past MBB/VMBS, EM credit past
 EMB/EMLC/VWOB, the JJ* ETNs, and COW/NIB/BAL; a block that cannot reach 8 merges rather
-than ships short. **Phase A** — a committed verdict table, one row per candidate: provider,
-median and p90 disagreement in bps against a trusted feed, oldest bar, pass or reject — was
-never produced; it stopped at the Alpaca measurements above. Its other half, guards on the
-previous detector's severity tables and block labels, went with that detector.
+than ships short. **Phase A**, the verdict table, is the measurement at the top of this
+item (2026-09-30): the ETNs are gone from the market altogether, and the MBS and EM credit
+funds pass on the consolidated tape but not on IEX. Its other half, guards on the previous
+detector's severity tables and block labels, went with that detector.
 
 ## 8. Smaller things, found and left alone
 
 - **A hole inside a session makes a two-hour move.** When a bar is missing mid-session, the
-  next bar's return spans both hours and is judged as one. Rare; acting on it means
-  dividing by the elapsed time or leaving that bar unscored.
+  next bar's return spans both hours and is judged as one hour. Measured 2026-09-30:
+  - **In today's history:** 122 of the 28,940 flagged readings are such moves. CPER has
+    24, USD/CNH 17, TLH 10 and UGA 9, and some reached `extreme`.
+  - **If a move over k hours were judged against σ·√k:** 94 of the 122 would not flag,
+    21 would drop a word, and 7 would stay.
+  - **The widening makes it common.** In SiftingIO's data:
+    - USD/BRL trades 11:00–22:00 UTC on 97% of days, but on 14–52% of days outside it.
+    - USD/TRY thins every night.
+    - Every pair, EUR/USD included, loses 14–16 hours at Christmas and 24 at New Year.
+  - **Local holidays do not empty the hours.** USD/KRW has a bar every hour through
+    Chuseok. Its one long hole was US Labor Day, which INR and CNH also lack.
+
+  Being designed now, together with a session of its own for USD/BRL.
 - **One instrument's timeout turns the whole run red.** A single provider read timeout in
   backfill fails the job and sends the "Failed" email even though every other instrument
   ran.
