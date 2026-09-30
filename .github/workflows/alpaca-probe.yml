@@ -43,7 +43,7 @@ on:
         type: boolean
         default: false
       only:
-        description: 'Run one part: SiftingIO "freshness" or "client"; verdict "freshness"'
+        description: 'One part: SiftingIO freshness/client/holes/archive; verdict freshness or hours:T1,T2'
         type: string
         default: ''
 
@@ -85,6 +85,7 @@ jobs:
         if: inputs.sifting
         env:
           SIFTING_API_KEY: ${{ secrets.SIFTING_API_KEY }}
+          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
           SIFTING_ONLY: ${{ inputs.only }}
         # The holiday calendars are a development dependency; the holes check
         # matches SiftingIO's missing hours against them.

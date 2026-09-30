@@ -310,6 +310,43 @@ def holes(now: datetime) -> None:
               f"{' '.join(long_ones[-60:]) or 'none'}\n")
 
 
+def archive(now: datetime) -> None:
+    """SiftingIO's history of USD/KRW, USD/INR and USD/BRL starts in July 2026.
+    Can Twelve Data supply the years before, at prices that agree with it?"""
+    from price_monitor import sifting, twelvedata
+
+    key = os.environ["SIFTING_API_KEY"]
+    td_key = os.environ.get("TWELVEDATA_API_KEY", "")
+    print("ARCHIVE - Twelve Data for the pairs SiftingIO holds only two months of\n")
+    for pair in ("USD/KRW", "USD/INR", "USD/BRL"):
+        r = requests.get("https://api.twelvedata.com/earliest_timestamp",
+                         params={"symbol": pair, "interval": "1h", "apikey": td_key},
+                         timeout=TIMEOUT)
+        earliest = r.json() if r.status_code == 200 else r.text[:120]
+        time.sleep(8)
+        try:
+            td = bars.candles_to_frame(twelvedata.fetch_full_history(
+                pair, "1h", days=60, base_url="https://api.twelvedata.com", api_key=td_key,
+                request_delay_seconds=0, chunk_days=90, end=now))
+        except Exception as exc:
+            print(f"{pair}: Twelve Data refused - {str(exc)[:120]}  earliest={earliest}\n")
+            time.sleep(8)
+            continue
+        time.sleep(8)
+        sf = bars.candles_to_frame(sifting.fetch_full_history(pair, "1h", days=60,
+                                                               api_key=key, end=now))
+        got = _compare(td, sf)
+        per_day = len(td) / 60 * 7 / 5
+        line = (f"{pair}: earliest hourly bar {earliest}; {len(td)} Twelve Data hours in "
+                f"60 days (~{per_day:.0f} a weekday), {len(sf)} SiftingIO")
+        if got:
+            n, med, p90, worst = got
+            ok = med <= SAFE_MEDIAN_BPS and p90 <= SAFE_P90_BPS
+            line += (f"\n   against SiftingIO: {n}h median {med:.2f} p90 {p90:.2f} "
+                     f"max {worst:.1f} bps {'PASS' if ok else 'FAIL'}")
+        print(line + "\n")
+
+
 def main() -> int:
     if not os.environ.get("SIFTING_API_KEY"):
         print("SIFTING_API_KEY is not set")
@@ -318,6 +355,9 @@ def main() -> int:
     print(f"Probing SiftingIO at {now:%Y-%m-%d %H:%M} UTC\n")
     if os.environ.get("SIFTING_ONLY") == "client":
         client_check(now)
+        return 0
+    if os.environ.get("SIFTING_ONLY") == "archive":
+        archive(now)
         return 0
     if os.environ.get("SIFTING_ONLY") == "holes":
         holes(now)
