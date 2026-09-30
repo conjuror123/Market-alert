@@ -111,7 +111,8 @@ pytest -q                     # ~580 tests, about a minute
 
 Run the tests alone — several load large parquet files, and concurrent runs thrash.
 
-To exercise the real pipeline you need `TIINGO_API_KEY` (hourly bars), plus
+To exercise the real pipeline you need `TIINGO_API_KEY` and `SIFTING_API_KEY` (hourly
+bars: funds and FX), plus
 `TWELVEDATA_API_KEY` and `FRED_API_KEY` for archive work. Derived data under
 `data/tremor/metrics/` and `jumps.parquet` is gitignored and rebuilds from the committed
 bars in about fifteen seconds.

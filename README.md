@@ -45,7 +45,8 @@ the map of these documents.
    |---|---|
    | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | required — where pushes go |
    | `TELEGRAM_HEALTH_CHAT_ID` | optional — health and provider failures; without it they are only logged, never sent to the public channel |
-   | `TIINGO_API_KEY` | 29 US-session funds + 8 FX pairs (free: 50/hour, 1000/day) |
+   | `TIINGO_API_KEY` | 29 US-session funds (free: 50/hour, 1000/day) |
+   | `SIFTING_API_KEY` | the 8 FX pairs (free: 10,000/month) |
    | `TWELVEDATA_API_KEY` | archive, gap-fill and deepening — **not** the hourly path |
    | `FRED_API_KEY` | the VIX series only |
    | `HFDATA_API_KEY` | optional — deepening US-equity history before 2020 |

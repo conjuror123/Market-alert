@@ -63,7 +63,8 @@ instrument is assigned to the feed that was shown to price *it* correctly:
 
 | provider | instruments | what it is |
 |---|---|---|
-| `tiingo` | 37 | IEX — a single exchange |
+| `tiingo` | 29 | IEX — a single exchange |
+| `sifting` | 8 | FX; aggregated across venues, 0.11–0.35 bps median against the stored bars |
 | `yahoo` | 15 | a consolidated feed — an undocumented endpoint with no SLA, which can change shape without notice. That is why the funds are split across two providers rather than sent to one |
 | `coinbase` | 9 | the exchange itself, for crypto |
 
@@ -154,8 +155,14 @@ these instruments would be held to, and seeding them is about 630 requests again
 described as. Alpaca's free SIP reaches 2016 and would be faster, but it duplicates
 something that already works.
 
-**The live hourly fetch is the problem, and nothing found so far moves it.** Tiingo's
-50-an-hour bucket has about 13 free slots against 37 used. Yahoo publishes no limit but
+**FX is solved (2026-09-30).** SiftingIO's free tier serves every pair wanted, the bar
+closed at :00 by :05, and agrees with the stored bars to a fraction of a basis point; the
+eight held pairs moved there, which leaves Tiingo 21 free hourly slots against 29 used.
+Its catch is the budget, 10,000 calls a MONTH: seventeen pairs is about 8,900. Its fund
+prices are no substitute for the tape on thin names (UGA 8.8 bps median, SOYB 4.7).
+
+**For the funds, the live hourly fetch is still the problem.** Tiingo's 50-an-hour bucket
+has 21 free slots, for liquid funds only. Yahoo publishes no limit but
 is an undocumented endpoint with no SLA, so putting sixty instruments behind it
 concentrates most of the basket on the one feed this document already worries about.
 

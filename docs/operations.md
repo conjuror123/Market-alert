@@ -28,7 +28,7 @@ fire is worse than none — its silence is indistinguishable from a quiet market
 
 | | |
 |---|---:|
-| Live fetch (Tiingo + Yahoo + Coinbase) | seconds |
+| Live fetch (Tiingo + SiftingIO + Yahoo + Coinbase) | seconds |
 | Metrics and events, warm run | ~5 s |
 | Metrics and events, cold rebuild | ~15 s |
 | Whole job, median | ~2 min |
@@ -47,16 +47,18 @@ seconds, so it has no warm state to lose.
 
 | | Limit | Used |
 |---|---:|---:|
-| **Tiingo** | 50/hour, 1000/day | 37 instruments (29 US-session funds + 8 FX) |
+| **Tiingo** | 50/hour, 1000/day | 29 US-session funds |
+| **SiftingIO** | 10,000/**month**, a few a second | 8 FX pairs — about 4,200 a month |
 | **Yahoo** | none published | 15 thin ETFs |
 | **Coinbase** | no key | 9 crypto |
 | **Twelve Data** | 800/day, 8/min | archive, gap-fill, deepening — not the hourly path |
 | GitHub Actions minutes | unlimited (public repo) | — |
 | Repository size | 1 GB warning, ~5 GB cutoff | 565 MiB packed |
 
-Tiingo's hourly bucket is the binding live limit. The 29 US-session funds skip when the
-NYSE calendar says no bar can have appeared since the newest stored one; the 8 FX pairs
-skip when the Sun 17:00 → Fri 17:00 New York week is shut
+Tiingo's hourly bucket and SiftingIO's monthly one are the binding live limits: each FX
+pair costs about 520 SiftingIO calls a month, one per hour of the FX week. The 29
+US-session funds skip when the NYSE calendar says no bar can have appeared since the newest
+stored one; the 8 FX pairs skip when the Sun 17:00 → Fri 17:00 New York week is shut
 (`tremor.backfill.nothing_can_have_appeared`). Crypto is never skipped.
 
 ---
@@ -119,13 +121,13 @@ found, so what did not refresh in time is not sent late. Health does not record 
 red — empty events would otherwise look like a quiet hour.
 
 A provider failure names the instruments and their providers in a message to
-`TELEGRAM_HEALTH_CHAT_ID`. The provider is not switched automatically. A Yahoo or Tiingo
-rate limit that survives retries skips that provider's remaining instruments and is named
+`TELEGRAM_HEALTH_CHAT_ID`. The provider is not switched automatically. A Yahoo, Tiingo or
+SiftingIO rate limit that survives retries skips that provider's remaining instruments and is named
 in the same message; a 404 stays a per-instrument dark.
 
 **A fetch is retried three times before it counts as a failure** — two seconds of backoff
 then four, inside each provider's client. That holds for all three providers on the
-hourly path: Tiingo, Yahoo and Coinbase. A dropped connection therefore costs six seconds
+hourly path: Tiingo, SiftingIO, Yahoo and Coinbase. A dropped connection therefore costs six seconds
 rather than a red run, against a twenty-minute job timeout, and a failure that reaches the
 health message is one that survived all three attempts. Twelve Data waits 8 and 16
 instead, because a retry there spends a credit against an 8-a-minute plan; it answers
@@ -213,7 +215,8 @@ thing to report afterwards, not a thing to steer by.
 To run the whole pass by hand:
 
 ```bash
-export TIINGO_API_KEY=...       # hourly bars
+export TIINGO_API_KEY=...       # hourly bars: funds
+export SIFTING_API_KEY=...      # hourly bars: FX
 export TWELVEDATA_API_KEY=...   # archive / gap-fill / deepening
 export FRED_API_KEY=...         # the VIX series only
 
