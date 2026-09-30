@@ -119,13 +119,11 @@ from tremor.sessions import Session
 
 # two_days() ends its first session on the 11:00 bar, so that day closes at
 # 12:00 here - the calendar has to agree that the stored bar reached the close.
-# Its sessions start on the 10:00 bar, so they open at 10:00 here: a gap is
-# scored only when the stored bars reach both the close and the open.
 TABLE = {
     date(2021, 2, 26): Session(date(2021, 2, 26), "09:30", "16:00", False),
-    date(2021, 3, 1): Session(date(2021, 3, 1), "10:00", "12:00", True),
-    date(2021, 3, 2): Session(date(2021, 3, 2), "10:00", "16:00", False),
-    date(2021, 3, 3): Session(date(2021, 3, 3), "10:00", "16:00", False),
+    date(2021, 3, 1): Session(date(2021, 3, 1), "09:30", "12:00", True),
+    date(2021, 3, 2): Session(date(2021, 3, 2), "09:30", "16:00", False),
+    date(2021, 3, 3): Session(date(2021, 3, 3), "09:30", "16:00", False),
 }
 
 
@@ -284,9 +282,8 @@ def test_a_missing_hour_is_skipped_as_if_it_were_never_there():
     assert np.isnan(out.iloc[2]["hole"])
 
 
-def test_a_night_whose_first_hour_is_missing_is_not_scored():
-    # Day two's 10:00 bar is missing, so the price at 11:00 carries the night and
-    # the missing morning together, and the two cannot be told apart.
+def test_a_night_whose_first_hour_is_missing_is_scored_to_the_first_bar_there_is():
+    # Day two's 10:00 bar is missing: the night runs to the 11:00 bar's open.
     data = frame([
         (et(2021, 3, 1, 10), 100.0, 101.0, 99.0, 100.5, 1.0, 2),
         (et(2021, 3, 1, 11), 100.5, 102.0, 100.0, 101.0, 1.0, 2),
@@ -295,13 +292,8 @@ def test_a_night_whose_first_hour_is_missing_is_not_scored():
     out = returns.split_channels(asset(), data, session_table=TABLE, dividends=dividends())
 
     assert out.iloc[2]["is_session_open"]
-    assert np.isnan(out.iloc[2]["gap"])
+    assert out.iloc[2]["gap"] == pytest.approx(math.log(106.0 / 101.0))
     assert out.iloc[2]["r"] == pytest.approx(math.log(106.5 / 106.0))
-
-
-def fx_pair():
-    return asset(ticker="EUR/USD", block="FX", has_volume=False, tick_size=0.00001,
-                 session_template="fx_continuous", fetch_interval="1h")
 
 
 def utc(*args):

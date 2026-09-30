@@ -113,6 +113,13 @@ WEEKEND_HOURS = 48.0     # a gap this long or longer spans a weekend
 
 SECONDS_PER_DAY = 86400.0
 
+# A reading this many sigmas out is a broken price, not a market: it is not a
+# reading at all, and it never enters a yardstick. The biggest real ones in the
+# history are PFF's open on 2015-08-24 (-207 as a weekend, +147 as an hour) and
+# the Swiss franc's unpegging on 2015-01-15 (-118); the one above is Coinbase
+# reopening on a $0.06 bitcoin print on 2017-04-15 (+1,526).
+MISTAKE_SIGMA = 1000.0
+
 
 def minimum_count(bars_per_day: int) -> int:
     """Lee & Mykland's smallest valid window: the smallest integer above
@@ -167,6 +174,23 @@ def half_year_sigma(hour_utc, values, window_days: float = WINDOW_DAYS,
     return out
 
 
+def trusted_sigma(hour_utc, values, window_days: float = WINDOW_DAYS,
+                  min_count: int = 78) -> "tuple[np.ndarray, np.ndarray]":
+    """half_year_sigma with the impossible readings taken out: (values, sigma),
+    where a reading beyond MISTAKE_SIGMA is NaN in both and never reaches a
+    later reading's yardstick either. Taking one out can only shrink the
+    yardsticks after it, so the next pass may find another; it stops when a
+    pass finds none."""
+    values = np.array(values, dtype="float64")
+    while True:
+        sigma = half_year_sigma(hour_utc, values, window_days, min_count)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            wrong = np.abs(np.where(sigma > 0, values / sigma, np.nan)) > MISTAKE_SIGMA
+        if not wrong.any():
+            return values, sigma
+        values[wrong] = np.nan
+
+
 def word_of(z, bottom: float = NOTICEABLE_SIGMA, step: float = STEP) -> np.ndarray:
     """The word each |z| reaches, or None below the bottom one."""
     magnitude = np.abs(np.asarray(z, dtype="float64"))
@@ -182,8 +206,8 @@ def score(frame: pd.DataFrame, template: str, window_days: float = WINDOW_DAYS,
     window was still shorter than `window_days` (`young`)."""
     frame = frame.sort_values("hour_utc").reset_index(drop=True)
     hours = frame["hour_utc"].to_numpy(dtype="int64")
-    r = frame["r"].to_numpy(dtype="float64")
-    sigma = half_year_sigma(hours, r, window_days, minimum_count(BARS_PER_DAY[template]))
+    r, sigma = trusted_sigma(hours, frame["r"].to_numpy(dtype="float64"), window_days,
+                             minimum_count(BARS_PER_DAY[template]))
     with np.errstate(divide="ignore", invalid="ignore"):
         z = np.where(sigma > 0, r / sigma, np.nan)
     finite = np.isfinite(r)
@@ -229,10 +253,12 @@ def score_gaps(frame: pd.DataFrame, window_days: float = WINDOW_DAYS,
         mine = kind == name
         if not mine.any():
             continue
-        sigma[mine] = half_year_sigma(when[mine], move[mine], window_days, minimum)
+        move[mine], sigma[mine] = trusted_sigma(when[mine], move[mine], window_days, minimum)
         young[mine] = (when[mine] - when[mine][0]) < window_days * SECONDS_PER_DAY
     with np.errstate(divide="ignore", invalid="ignore"):
         z = np.where(sigma > 0, move / sigma, np.nan)
+    kept = np.isfinite(move)
+    when, kind, move, sigma, z, young = (x[kept] for x in (when, kind, move, sigma, z, young))
     return pd.DataFrame({"hour_utc": when, "reading": kind, "r": move, "sigma": sigma,
                          "z": z, "word": pd.array(word_of(z, bottom, step), dtype="string"),
                          "young": young})[columns]

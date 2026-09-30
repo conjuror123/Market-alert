@@ -199,9 +199,6 @@ def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
         fund that is checked against the NYSE calendar (`session_table`, and
         without one no fund gap is scored at all); for a pair, the previous bar
         must be the Friday afternoon one, at most FX_WEEKEND_MAX_SECONDS before;
-      - for a fund, when its first bar is not the session's first hour: the
-        gap would carry the missing morning with the night, and the two cannot
-        be told apart (1,287 in the history, most of them CPER, TLH, UGA);
       - for a fund, on a date past its checked-through date, because a payout
         the table has not heard of yet reads as a gap the size of the dividend;
       - for a fund, on a declared split date, and on any gap within
@@ -227,8 +224,7 @@ def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
         return np.where(usable, gap, np.nan)
 
     day = session.to_numpy(dtype=object)
-    complete = (_closed_on_the_last_bar(day, prev_hour, is_open, session_table)
-                & _opened_on_the_first_bar(day, hours, is_open, session_table))
+    complete = _closed_on_the_last_bar(day, prev_hour, is_open, session_table)
 
     steps = dividends.steps.get(asset.ticker, {})
     step = np.array([steps.get(d, 0.0) for d in day], dtype="float64") \
@@ -254,26 +250,6 @@ def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
     usable = (is_open & complete & known & ~declared & ~looks_split
               & np.isfinite(gap))
     return np.where(usable, gap, np.nan)
-
-
-def _opened_on_the_first_bar(day: np.ndarray, hours: np.ndarray,
-                             is_open: np.ndarray, session_table) -> np.ndarray:
-    """Per bar: is this session-opening bar the session's first hour? The bar
-    is stamped on the hour it starts in, so a 09:30 open is the 09:00 bar."""
-    out = np.zeros(len(day), dtype=bool)
-    if not session_table:
-        return out
-    from datetime import date as _date
-
-    from tremor import quality
-
-    for position in np.flatnonzero(is_open):
-        today = _date.fromisoformat(day[position])
-        if today not in session_table:
-            continue
-        opened, _ = quality._session_bounds_utc(today, session_table[today])
-        out[position] = int(hours[position]) <= opened // HOUR * HOUR
-    return out
 
 
 def _closed_on_the_last_bar(day: np.ndarray, prev_hour: np.ndarray,

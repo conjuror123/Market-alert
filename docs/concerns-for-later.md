@@ -293,12 +293,10 @@ detector's severity tables and block labels, went with that detector.
 
 ## 8. Smaller things, found and left alone
 
-- **A bar after a hole can open on a broken print.** Since missing hours are skipped, the
-  bar after one is measured from its own open. On 2017-04-15 Coinbase reopened after
+- **A broken print under 1,000σ still counts.** On 2017-04-15 Coinbase reopened after
   three hours down on a BTC print of $0.06 and an ETH print of $74.98 (the market was at
-  $1,183 and $48.5), so both read as `extreme` hours, BTC at 1,526σ. They are history
-  only, but a reading that size is what "rarest since" compares against. Nothing in the
-  last year is like it. A fund's session opens have always been measured the same way.
+  $1,183 and $48.5). The 1,000σ line drops BTC's (+1,526σ), but ETH's reads as -36σ, an
+  `extreme` hour, and stays. It is history only; nothing in the last year is like it.
 - **USD/BRL needs a session of its own** before it is added: it trades 11:00–22:00 UTC on
   97% of days and only sometimes outside it, so without one its nights are holes and the
   São Paulo open is the bar after one.

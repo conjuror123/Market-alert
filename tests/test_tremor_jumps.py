@@ -131,6 +131,19 @@ def test_a_weekend_is_judged_only_against_weekends():
     assert 3.5 < weekend / night < 7
 
 
+def test_a_broken_price_is_not_a_reading_and_not_in_the_yardstick():
+    start = int(pd.Timestamp("2026-01-05 00:00", tz="UTC").timestamp())
+    rng = np.random.default_rng(3)
+    r = rng.normal(0, 0.01, 3000)
+    r[2000] = 9.9                                    # a $0.06 print: thousands of sigmas
+    frame = pd.DataFrame({"hour_utc": start + HOUR * np.arange(3000), "r": r})
+    scored = jumps.score(frame, "crypto_24_7")
+    assert np.isnan(scored["z"].iloc[2000]) and pd.isna(scored["word"].iloc[2000])
+    clean = frame.assign(r=np.where(np.arange(3000) == 2000, np.nan, r))
+    expected = jumps.score(clean, "crypto_24_7")["sigma"]
+    assert np.allclose(scored["sigma"], expected, equal_nan=True)
+
+
 def test_a_currency_pair_has_no_nights():
     # Its Christmas and New Year closures are judged with its weekends.
     assert list(jumps.gap_kinds([24.0, 34.0, 49.0], "fx_continuous")) == ["weekend"] * 3

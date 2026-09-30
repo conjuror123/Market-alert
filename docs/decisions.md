@@ -253,12 +253,20 @@ dropped: judging a k-hour move against σ·√k, which needs a clock of expected
 instrument and a message that says "over 3 hours"; and not scoring the bar after the hole,
 which throws away an hour that was really measured. The bar after it is its own hour, open
 to close, like a session's first bar; only the jump across the hole is set aside. A missing
-first hour of a fund's day leaves that night unscored, for the same reason a missing last
-hour always has. Only closures the calendar knows are gaps: a fund's nights and weekends, a
+first hour of a fund's day still leaves the night scored, to the first bar there is: one
+quiet hour is small next to a night, and dropping the night lost 1,287 of them. Only closures the calendar knows are gaps: a fund's nights and weekends, a
 pair's weekends and its Christmas and New Year closures (2026-09-30), the latter judged with
 its weekends because a pair has no nights to compare them with. In the last year this
 skips 68 holes, 150 hours: UGA 39, two Coinbase outages of five hours on all nine coins,
 and five single hours at the Sunday open of GBP/USD and NZD/USD.
+
+**A reading beyond 1,000σ is a mistake, and is dropped.** Coinbase reopened after an
+outage on 2017-04-15 on a bitcoin print of $0.06, which read as +1,526σ and swelled BTC's
+yardstick for half a year, hiding 24 of its hours. The line sits well above the largest
+real readings in the history - PFF's open on 2015-08-24 (-207σ as a weekend, +147σ as an
+hour) and the Swiss franc's unpegging on 2015-01-15 (-118σ) - which a 100σ line would have
+thrown away. Dropping one can only shrink the yardsticks after it, so the check repeats
+until it finds none.
 
 **A day is not a unit of completeness.** Gap detection asks about hours: a day present with
 three of its seven hours is a hole a day-level check cannot see.

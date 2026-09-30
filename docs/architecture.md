@@ -49,14 +49,18 @@ same half-year of events. A gap spanning 48 hours or more is a weekend (a long w
 included); a midweek holiday is a night. A currency pair has no nights: its Christmas and
 New Year closures are judged with its weekends. Scoring starts at 16 nights or 7 weekends,
 the paper's minimum for once-a-day and once-a-week data. The gap value is the pipeline's
-`gap`: corrected for dividends, and left out on a split, an unconfirmed dividend, or a
-missing bar at the close before it or at the open after it.
+`gap`: corrected for dividends, and left out on a split, an unconfirmed dividend or a
+missing bar before the close. A missing first hour does not stop it: the night runs to the
+first bar there is.
 
 **A missing hour is skipped, as if it were never there.** An hour with no bar that the
 calendar says should trade — a thin fund's quiet hour, a provider outage — is not a
 closure. The bar after it is its own hour, open to close, scored as usual; the move across
 the hole (`hole` in the metrics) is never scored, and counts only toward the price the
 close check reads.
+
+**A reading beyond 1,000σ is a broken price, not a market.** It is not a reading at all,
+and it never enters a later reading's yardstick (`jumps.MISTAKE_SIGMA`).
 
 **Stage 1, one event per 24 hours — built.** An instrument's first flagged reading, a gap
 or an hour, opens an event that lasts 24 hours of real time from when it was found — not a
