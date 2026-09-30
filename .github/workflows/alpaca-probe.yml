@@ -43,7 +43,7 @@ on:
         type: boolean
         default: false
       only:
-        description: 'One part: SiftingIO freshness/client/holes/archive; verdict freshness or hours:T1,T2'
+        description: 'One part: SiftingIO freshness/client/holes/archive; verdict freshness or hours:T1,T2; eulerpool or eulerpool:newest'
         type: string
         default: ''
 
@@ -106,6 +106,18 @@ jobs:
           TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
           FUND_VERDICT_ONLY: ${{ inputs.only }}
         run: python -m tools.fund_verdict
+
+      # Eulerpool against the tape: shape, agreement, depth, freshness, FX and
+      # crypto. Dispatched with only=eulerpool (or eulerpool:newest for the
+      # freshness part alone) and probe off.
+      - name: Probe what Eulerpool serves
+        if: startsWith(inputs.only, 'eulerpool')
+        env:
+          EULERPOOL_API_KEY: ${{ secrets.EULERPOOL_API_KEY }}
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          EULERPOOL_ONLY: ${{ inputs.only }}
+        run: python -m tools.eulerpool_probe
 
       - name: Probe what Alpaca covers
         if: inputs.probe && !inputs.finnhub && !inputs.sifting && !inputs.verdict
