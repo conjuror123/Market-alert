@@ -317,6 +317,30 @@ def freshness(now: datetime) -> int:
     return 0
 
 
+def by_hour(now: datetime, symbols: list[str]) -> int:
+    """Yahoo against the tape, hour by hour of the New York day: is a fund's
+    disagreement spread across the session or sitting in one hour?"""
+    end = now - timedelta(minutes=20)
+    start = end - timedelta(days=DAYS)
+    stamp = lambda d: d.strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: E731
+    tape = alpaca_bars(symbols, "30Min", stamp(start), stamp(end), "sip")
+    for s in symbols:
+        t = _regular(bars.candles_to_frame(tape[s]))
+        y = _regular(bars.candles_to_frame(yahoo.fetch_full_history(s, "30min", days=DAYS,
+                                                                    end=end)))
+        j = y.merge(t, on="hour_utc", suffixes=("_f", "_t"))
+        j["bps"] = (j["close_f"] - j["close_t"]).abs() / j["close_t"] * 1e4
+        j["ny"] = pd.to_datetime(j["hour_utc"], unit="s", utc=True).dt.tz_convert(NY).dt.hour
+        cells = " ".join(f"{h:02d}h {g['bps'].median():.1f}/{g['bps'].quantile(0.9):.1f}"
+                         for h, g in j.groupby("ny"))
+        missing = pd.to_datetime(sorted(set(t["hour_utc"]) - set(y["hour_utc"])),
+                                 unit="s", utc=True).tz_convert(NY)
+        print(f"{s:5s} median/p90 bps by New York hour: {cells}")
+        print("      tape hours Yahoo lacks: "
+              + (" ".join(f"{m:%m-%d %H}h" for m in missing) or "none"))
+    return 0
+
+
 def main() -> int:
     global _alpaca_headers
     key = (os.environ.get("ALPACA_KEY_ID") or "").strip()
@@ -326,8 +350,11 @@ def main() -> int:
         return 1
     _alpaca_headers = {"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret}
     now = datetime.now(timezone.utc)
-    if os.environ.get("FUND_VERDICT_ONLY") == "freshness":
+    only = os.environ.get("FUND_VERDICT_ONLY") or ""
+    if only == "freshness":
         return freshness(now)
+    if only.startswith("hours:"):
+        return by_hour(now, [t.strip().upper() for t in only[6:].split(",") if t.strip()])
     if not os.environ.get("SIFTING_API_KEY"):
         print("SIFTING_API_KEY is not set")
         return 1
