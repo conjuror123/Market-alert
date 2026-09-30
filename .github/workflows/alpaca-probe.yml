@@ -38,8 +38,12 @@ on:
         description: 'Probe SiftingIO instead: freshness, FX, agreement, coverage'
         type: boolean
         default: false
-      sifting_only:
-        description: 'SiftingIO: "freshness" or "client" to run only that part'
+      verdict:
+        description: 'Build the fund verdict table instead (tools/fund_verdict.py)'
+        type: boolean
+        default: false
+      only:
+        description: 'Run one part: SiftingIO "freshness" or "client"; verdict "freshness"'
         type: string
         default: ''
 
@@ -81,11 +85,24 @@ jobs:
         if: inputs.sifting
         env:
           SIFTING_API_KEY: ${{ secrets.SIFTING_API_KEY }}
-          SIFTING_ONLY: ${{ inputs.sifting_only }}
+          SIFTING_ONLY: ${{ inputs.only }}
         run: python -m tools.sifting_probe
 
+      # Every source against the consolidated tape, per fund, held and
+      # candidate. Needs Alpaca (the tape), SiftingIO and one Twelve Data
+      # sample; Yahoo needs no key.
+      - name: Build the fund verdict table
+        if: inputs.verdict
+        env:
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          SIFTING_API_KEY: ${{ secrets.SIFTING_API_KEY }}
+          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
+          FUND_VERDICT_ONLY: ${{ inputs.only }}
+        run: python -m tools.fund_verdict
+
       - name: Probe what Alpaca covers
-        if: inputs.probe && !inputs.finnhub && !inputs.sifting
+        if: inputs.probe && !inputs.finnhub && !inputs.sifting && !inputs.verdict
         env:
           ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
