@@ -318,7 +318,8 @@ def archive(now: datetime) -> None:
     key = os.environ["SIFTING_API_KEY"]
     td_key = os.environ.get("TWELVEDATA_API_KEY", "")
     print("ARCHIVE - Twelve Data for the pairs SiftingIO holds only two months of\n")
-    for pair in ("USD/KRW", "USD/INR", "USD/BRL"):
+    for pair in [p for p in ("USD/KRW", "USD/INR", "USD/BRL")
+                 if p.replace("/", "") in (os.environ.get("SIFTING_PAIRS") or "USDKRW,USDINR,USDBRL")]:
         r = requests.get("https://api.twelvedata.com/earliest_timestamp",
                          params={"symbol": pair, "interval": "1h", "apikey": td_key},
                          timeout=TIMEOUT)
@@ -335,16 +336,23 @@ def archive(now: datetime) -> None:
         time.sleep(8)
         sf = bars.candles_to_frame(sifting.fetch_full_history(pair, "1h", days=60,
                                                                api_key=key, end=now))
-        got = _compare(td, sf)
-        per_day = len(td) / 60 * 7 / 5
         line = (f"{pair}: earliest hourly bar {earliest}; {len(td)} Twelve Data hours in "
-                f"60 days (~{per_day:.0f} a weekday), {len(sf)} SiftingIO")
-        if got:
-            n, med, p90, worst = got
-            ok = med <= SAFE_MEDIAN_BPS and p90 <= SAFE_P90_BPS
-            line += (f"\n   against SiftingIO: {n}h median {med:.2f} p90 {p90:.2f} "
-                     f"max {worst:.1f} bps {'PASS' if ok else 'FAIL'}")
-        print(line + "\n")
+                f"60 days, {len(sf)} SiftingIO")
+        # All hours, then only the ones a USD/BRL session would keep: 11:00 to
+        # 22:00 UTC, when SiftingIO has a bar on 97% of days.
+        in_session = lambda f: f[(f["hour_utc"] // 3600 % 24).between(11, 21)]  # noqa: E731
+        for label, a, b in (("all hours", td, sf), ("11-22 UTC", in_session(td), in_session(sf))):
+            got = _compare(a, b)
+            if got:
+                n, med, p90, worst = got
+                ok = med <= SAFE_MEDIAN_BPS and p90 <= SAFE_P90_BPS
+                line += (f"\n   against SiftingIO, {label}: {n}h median {med:.2f} p90 {p90:.2f} "
+                         f"max {worst:.1f} bps {'PASS' if ok else 'FAIL'}")
+        j = td.merge(sf, on="hour_utc", suffixes=("_a", "_b"))
+        j["bps"] = (j["close_a"] - j["close_b"]).abs() / j["close_b"] * 1e4
+        cells = " ".join(f"{h:02d}:{g['bps'].median():.1f}/{g['bps'].quantile(0.9):.1f}"
+                         for h, g in j.groupby(j["hour_utc"] // 3600 % 24))
+        print(line + f"\n   by UTC hour, median/p90 bps: {cells}\n")
 
 
 def main() -> int:

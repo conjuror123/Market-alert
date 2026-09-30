@@ -87,6 +87,7 @@ jobs:
           SIFTING_API_KEY: ${{ secrets.SIFTING_API_KEY }}
           TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
           SIFTING_ONLY: ${{ inputs.only }}
+          SIFTING_PAIRS: ${{ inputs.tickers }}
         # The holiday calendars are a development dependency; the holes check
         # matches SiftingIO's missing hours against them.
         run: |
