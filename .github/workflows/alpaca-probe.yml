@@ -43,7 +43,7 @@ on:
         type: boolean
         default: false
       only:
-        description: 'One part: SiftingIO freshness/client/holes/archive; verdict freshness or hours:T1,T2; eulerpool or eulerpool:newest'
+        description: 'One part: SiftingIO freshness/client/holes/archive; verdict freshness or hours:T1,T2; eulerpool or eulerpool:newest; lse'
         type: string
         default: ''
 
@@ -118,6 +118,17 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           EULERPOOL_ONLY: ${{ inputs.only }}
         run: python -m tools.eulerpool_probe
+
+      # London Strategic Edge against the tape (funds), the stored bars (held
+      # pairs) and SiftingIO (new pairs). Dispatched with only=lse, probe off.
+      - name: Probe what London Strategic Edge serves
+        if: inputs.only == 'lse'
+        env:
+          LSE_API_KEY: ${{ secrets.LSE_API_KEY }}
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          SIFTING_API_KEY: ${{ secrets.SIFTING_API_KEY }}
+        run: python -m tools.lse_probe
 
       - name: Probe what Alpaca covers
         if: inputs.probe && !inputs.finnhub && !inputs.sifting && !inputs.verdict
