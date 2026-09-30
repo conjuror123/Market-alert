@@ -66,11 +66,12 @@ on:
 permissions:
   contents: write
 
-# The same group as price-monitor.yml and backfill-history.yml: all three spend
-# the one Twelve Data account's 8 credits a minute, and a collision makes both
-# sides fail with 429.
+# Its own group, not price-monitor's: concurrency groups are repository-wide, so
+# sharing one would hold the live hourly run on the default branch behind a
+# backfill of several hours here. The live run no longer asks Twelve Data for
+# anything, so the credit collision the shared group once prevented is gone.
 concurrency:
-  group: price-monitor
+  group: tremor-backfill
   cancel-in-progress: false
 
 jobs:

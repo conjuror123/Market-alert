@@ -139,13 +139,15 @@ def test_the_thin_blocks_are_the_ones_we_know_about():
     # eight and above, flat thereafter. So a block under six degrades quickly and
     # a block under eight is leaving something on the table.
     #
-    # Four blocks are under six today and that is a known, deliberate state, not
+    # Two blocks are under six today and that is a known, deliberate state, not
     # a warning worth printing on every load. This test fails when the set
     # changes in EITHER direction: adding a new thin block, or fixing one of
-    # these and forgetting to say so here.
+    # these and forgetting to say so here. The widening of 2026-09-30 brought
+    # energy and precious metals to eight; the metals' ETNs no longer trade and
+    # agriculture's did not either.
     basket = load_basket()
     thin = {b for b, m in basket.by_block().items() if len(m) < 6}
-    assert thin == {"industrial_metals", "energy", "precious_metals", "agriculture"}
+    assert thin == {"industrial_metals", "agriculture"}
 
 
 def test_real_basket_config_is_valid():

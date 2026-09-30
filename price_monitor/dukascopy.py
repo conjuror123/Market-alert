@@ -85,6 +85,8 @@ SYMBOLS = {
     "EUR/USD": "EURUSD", "GBP/USD": "GBPUSD", "USD/JPY": "USDJPY",
     "USD/CHF": "USDCHF", "USD/CAD": "USDCAD", "AUD/USD": "AUDUSD",
     "NZD/USD": "NZDUSD", "USD/CNH": "USDCNH",
+    "USD/SEK": "USDSEK", "USD/NOK": "USDNOK", "USD/MXN": "USDMXN",
+    "USD/ZAR": "USDZAR",
 }
 
 # The earliest month each symbol holds a traded hour, probed rather than
@@ -94,6 +96,10 @@ FIRST_MONTH = {
     "EURUSD": (2003, 5), "GBPUSD": (2003, 5), "USDJPY": (2003, 5),
     "USDCHF": (2003, 5), "USDCAD": (2003, 8), "AUDUSD": (2003, 8),
     "NZDUSD": (2003, 8), "USDCNH": (2012, 4),
+    # Probed 2026-09-30. SEK and NOK at June of odd years only (none in 2003,
+    # traded in 2005), so their floor is the last month known to be empty.
+    "USDSEK": (2003, 6), "USDNOK": (2003, 6), "USDMXN": (2007, 3),
+    "USDZAR": (2004, 11),
 }
 
 RECORD = struct.Struct(">iiiiif")   # time, open, close, low, high, volume

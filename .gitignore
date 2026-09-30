@@ -28,3 +28,4 @@ data/tremor/decision_log.parquet
 data/tremor/saed_events.parquet
 data/tremor/saed_events_archive.parquet
 data/tremor/record_book.parquet
+.claude/settings.local.json

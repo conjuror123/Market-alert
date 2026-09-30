@@ -767,6 +767,1027 @@ assets:
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Avalanche"
+  # --- the widening (2026-09-30) ---------------------------------------------
+  # Added on the development branch to take their history: funds from Twelve
+  # Data (2020-02 on) and HF Data's consolidated tape (before), live on Yahoo,
+  # which agrees with the consolidated tape on each of them; pairs from Twelve
+  # Data and Dukascopy, live on SiftingIO; coins from Coinbase. Blocked into the
+  # existing blocks for now. Left out: TUR and RWX (no live feed agrees), the
+  # seven iPath ETNs (no longer trade) and USD/BRL (its session and history
+  # are still open) - docs/concerns-for-later.md.
+  - ticker: KRE
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Regional banks"
+  - ticker: XRT
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "US retail"
+  - ticker: ITB
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "US homebuilders"
+  - ticker: IYT
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "US transportation"
+  - ticker: XME
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "US metals & mining"
+  - ticker: XBI
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "US biotech"
+  - ticker: XPH
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "US pharmaceuticals"
+  - ticker: IHI
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "US medical devices"
+  - ticker: VDC
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "US consumer staples (Vanguard)"
+  - ticker: VHT
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "US health care (Vanguard)"
+  - ticker: VPU
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "US utilities (Vanguard)"
+  - ticker: SMH
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Semiconductors (VanEck)"
+  - ticker: SOXX
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Semiconductors (iShares)"
+  - ticker: IGV
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "US software"
+  - ticker: FDN
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "US internet"
+  - ticker: CIBR
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Cybersecurity"
+  - ticker: SKYY
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Cloud computing"
+  - ticker: DIA
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Dow Jones Industrial Average"
+  - ticker: RSP
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "S&P 500 equal weight"
+  - ticker: MDY
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "S&P mid cap 400"
+  - ticker: EWJ
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Japan"
+  - ticker: EWG
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Germany"
+  - ticker: EWU
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "United Kingdom"
+  - ticker: EWQ
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "France"
+  - ticker: EWC
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Canada"
+  - ticker: EWA
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Australia"
+  - ticker: EWL
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Switzerland"
+  - ticker: EWN
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Netherlands"
+  - ticker: EZU
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Eurozone"
+  - ticker: FXI
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "China large caps"
+  - ticker: EWZ
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Brazil"
+  - ticker: EWW
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Mexico"
+  - ticker: INDA
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "India"
+  - ticker: EWY
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "South Korea"
+  - ticker: EWT
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Taiwan"
+  - ticker: EZA
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "South Africa"
+  - ticker: EPI
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "India earnings"
+  - ticker: VNQ
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "US real estate (Vanguard)"
+  - ticker: IYR
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "US real estate (iShares)"
+  - ticker: RWR
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "US REITs (SPDR)"
+  - ticker: SCHH
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "US REITs (Schwab)"
+  - ticker: REM
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Mortgage REITs"
+  - ticker: VNQI
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "International real estate"
+  - ticker: GOVT
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "US Treasuries, all maturities"
+  - ticker: SCHO
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "US Treasuries 1-3y (Schwab)"
+  - ticker: VGIT
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "US Treasuries 3-10y (Vanguard)"
+  - ticker: VGLT
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "US Treasuries 10y+ (Vanguard)"
+  - ticker: SPTL
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "US Treasuries 10y+ (SPDR)"
+  - ticker: BWX
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "International government bonds"
+  - ticker: VTIP
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Short TIPS (Vanguard)"
+  - ticker: SCHP
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "TIPS (Schwab)"
+  - ticker: STIP
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "TIPS 0-5y (iShares)"
+  - ticker: VMBS
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Mortgage-backed (Vanguard)"
+  - ticker: SPMB
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Mortgage-backed (SPDR)"
+  - ticker: LMBS
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Low-duration mortgage"
+  - ticker: JMBS
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Mortgage-backed (Janus)"
+  - ticker: VCIT
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Intermediate corporate bonds"
+  - ticker: VCSH
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Short corporate bonds"
+  - ticker: IGIB
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Intermediate IG corporates (iShares)"
+  - ticker: SPIB
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Intermediate corporates (SPDR)"
+  - ticker: USIG
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Broad IG corporates"
+  - ticker: QLTA
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Aaa-A corporates"
+  - ticker: GIGB
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "IG corporates (Goldman)"
+  - ticker: SLQD
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Short IG corporates 0-5y"
+  - ticker: SHYG
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Short high yield"
+  - ticker: USHY
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Broad high yield"
+  - ticker: ANGL
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Fallen angels"
+  - ticker: SRLN
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Senior loans"
+  - ticker: FALN
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Fallen angels (iShares)"
+  - ticker: EMLC
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "EM local-currency bonds"
+  - ticker: VWOB
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "EM government bonds (Vanguard)"
+  - ticker: PCY
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "EM sovereign bonds"
+  - ticker: EBND
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "EM local bonds (SPDR)"
+  - ticker: LEMB
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "EM local bonds (iShares)"
+  - ticker: EMHY
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "EM high yield"
+  - ticker: CEMB
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "EM corporate bonds"
+  - ticker: DBO
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: energy
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Crude oil (Invesco)"
+  - ticker: DBE
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: energy
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Energy basket"
+  - ticker: UNL
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: energy
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Natural gas 12-month"
+  - ticker: IAU
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: precious_metals
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Gold (iShares)"
+  - ticker: SGOL
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: precious_metals
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Gold (abrdn)"
+  - ticker: SIVR
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: precious_metals
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Silver (abrdn)"
+  - ticker: GLTR
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: precious_metals
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Precious metals basket"
+  - ticker: LIT
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: industrial_metals
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Lithium & batteries"
+  - ticker: REMX
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: industrial_metals
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Rare earths"
+  - ticker: SLX
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: industrial_metals
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Steel"
+  - ticker: CANE
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: agriculture
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Sugar"
+  - ticker: USD/SEK
+    source: twelvedata
+    provider: sifting
+    tier: 2
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Dollar / Swedish krona"
+  - ticker: USD/NOK
+    source: twelvedata
+    provider: sifting
+    tier: 2
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Dollar / Norwegian krone"
+  - ticker: USD/MXN
+    source: twelvedata
+    provider: sifting
+    tier: 2
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Dollar / Mexican peso"
+  - ticker: USD/ZAR
+    source: twelvedata
+    provider: sifting
+    tier: 2
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Dollar / South African rand"
+  - ticker: USD/TRY
+    source: twelvedata
+    provider: sifting
+    tier: 2
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Dollar / Turkish lira"
+  - ticker: USD/PLN
+    source: twelvedata
+    provider: sifting
+    tier: 2
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Dollar / Polish zloty"
+  - ticker: USD/INR
+    source: twelvedata
+    provider: sifting
+    tier: 2
+    block: FX
+    has_volume: false
+    tick_size: 0.0001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Dollar / Indian rupee"
+  - ticker: USD/KRW
+    source: twelvedata
+    provider: sifting
+    tier: 2
+    block: FX
+    has_volume: false
+    tick_size: 0.01
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Dollar / Korean won"
+  - ticker: XRP-USD
+    source: coinbase
+    tier: 2
+    block: crypto
+    has_volume: true
+    tick_size: 0.0001
+    session_template: crypto_24_7
+    fetch_interval: 1h
+    label: "XRP"
+  - ticker: DOT-USD
+    source: coinbase
+    tier: 2
+    block: crypto
+    has_volume: true
+    tick_size: 0.001
+    session_template: crypto_24_7
+    fetch_interval: 1h
+    label: "Polkadot"
+  - ticker: POL-USD
+    source: coinbase
+    tier: 2
+    block: crypto
+    has_volume: true
+    tick_size: 0.0001
+    session_template: crypto_24_7
+    fetch_interval: 1h
+    label: "Polygon (POL, formerly MATIC)"
+  - ticker: UNI-USD
+    source: coinbase
+    tier: 2
+    block: crypto
+    has_volume: true
+    tick_size: 0.001
+    session_template: crypto_24_7
+    fetch_interval: 1h
+    label: "Uniswap"
+  - ticker: ATOM-USD
+    source: coinbase
+    tier: 2
+    block: crypto
+    has_volume: true
+    tick_size: 0.001
+    session_template: crypto_24_7
+    fetch_interval: 1h
+    label: "Cosmos"
+  - ticker: FIL-USD
+    source: coinbase
+    tier: 2
+    block: crypto
+    has_volume: true
+    tick_size: 0.001
+    session_template: crypto_24_7
+    fetch_interval: 1h
+    label: "Filecoin"
+  - ticker: AAVE-USD
+    source: coinbase
+    tier: 2
+    block: crypto
+    has_volume: true
+    tick_size: 0.01
+    session_template: crypto_24_7
+    fetch_interval: 1h
+    label: "Aave"
 
 # Instruments outside the basket: they take no part in the quorum, the weights or
 # breadth, but they get residuals and events like anything else. block is
