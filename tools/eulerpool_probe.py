@@ -211,6 +211,31 @@ def fx_and_crypto(now: datetime) -> None:
     print()
 
 
+def identify(now: datetime) -> None:
+    """Which identifiers and which endpoints know an ETF at all."""
+    print("IDENTIFY - which endpoint knows which identifier")
+    week = {"from": int((now - timedelta(days=5)).timestamp()), "to": int(now.timestamp())}
+    for ident in ("AAPL", "US0378331005", "SPY", "US78462F1030", "SPY.US", "XLK",
+                  "US81369Y8030", "CPER", "US9092221079"):
+        for path, params in ((f"/charting/ohlcv/{ident}", {"resolution": "60", **week}),
+                             (f"/equity/candles/{ident}", {"range": "1m"}),
+                             (f"/etf/quotes/{ident}", {}),
+                             (f"/equity/quotes/{ident}", {}),
+                             (f"/market/quotes/intraday/{ident}", {})):
+            code, body = get(path, **params)
+            if isinstance(body, dict) and body.get("t"):
+                what = f"{len(body['t'])} bars, newest {_stamp(max(body['t']))}"
+            elif isinstance(body, list):
+                what = f"list of {len(body)}: {str(body[:1])[:140]}"
+            else:
+                what = str(body)[:140]
+            print(f"   {ident:13s} {path.split('/' + ident)[0]:28s} HTTP {code} {what}")
+    for path in ("/etf/list", "/equity/search?q=SPY", "/search?q=SPY"):
+        code, body = get(path)
+        print(f"   {path:28s} HTTP {code} {str(body)[:200]}")
+    print(f"   quota headers: {_quota or 'none'}\n")
+
+
 def main() -> int:
     if not (os.environ.get("EULERPOOL_API_KEY") or "").strip():
         print("EULERPOOL_API_KEY is not set")
@@ -219,6 +244,9 @@ def main() -> int:
     secret = (os.environ.get("ALPACA_SECRET_KEY") or "").strip()
     fv._alpaca_headers = {"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret}
     now = datetime.now(timezone.utc)
+    if os.environ.get("EULERPOOL_ONLY") == "eulerpool:identify":
+        identify(now)
+        return 0
     shape(now)
     newest(now)
     if os.environ.get("EULERPOOL_ONLY") == "eulerpool:newest":
