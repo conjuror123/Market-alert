@@ -101,6 +101,9 @@ jobs:
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
           HFDATA_API_KEY: ${{ secrets.HFDATA_API_KEY }}
+          # Deepening asks each pair's archive source, not SiftingIO, but the
+          # backfill refuses up front a list holding SiftingIO pairs without it.
+          SIFTING_API_KEY: ${{ secrets.SIFTING_API_KEY }}
         run: |
           # probe-hfdata takes its ticker as the flag's value rather than as a
           # separate --instruments, so it is spelled out on its own.
