@@ -43,7 +43,7 @@ from __future__ import annotations
 import bisect
 import logging
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import numpy as np
@@ -68,6 +68,10 @@ SPLIT_TOLERANCE = 0.01
 # 16:00 New York bar to the 17:00 one is 49 hours, and the clocks may change in
 # between. Anything longer means the store lost the end of the week.
 FX_WEEKEND_MAX_SECONDS = 50 * HOUR
+
+# The two days a year currency markets close midweek: Christmas Day and New
+# Year's Day. Every pair's store is empty across them.
+FX_HOLIDAYS = frozenset({(12, 25), (1, 1)})
 
 
 def session_ids(asset: Asset, hours: pd.Series, anchor_tz: str = "America/New_York") -> pd.Series:
@@ -99,6 +103,24 @@ def session_ids(asset: Asset, hours: pd.Series, anchor_tz: str = "America/New_Yo
     raise ValueError(f"{asset.ticker}: unknown session template '{asset.session_template}'")
 
 
+def fx_holiday_closed(prev_hour: np.ndarray, hours: np.ndarray,
+                      anchor_tz: str = "America/New_York") -> np.ndarray:
+    """Per bar: do the missing hours before it touch Christmas Day or New Year's
+    Day, New York time? Currency markets close for them - 24 to 34 hours with
+    no bar - so the stretch is a closure, not a hole, and the price it reopens
+    at is a gap judged with the pair's weekends (tremor.jumps.score_gaps)."""
+    tz = ZoneInfo(anchor_tz)
+    out = np.zeros(len(hours), dtype=bool)
+    for i in np.flatnonzero(hours - prev_hour > HOUR):
+        first = datetime.fromtimestamp(int(prev_hour[i]) + HOUR, tz).date()
+        last = datetime.fromtimestamp(int(hours[i]) - HOUR, tz).date()
+        day = first
+        while day <= last and not out[i]:
+            out[i] = (day.month, day.day) in FX_HOLIDAYS
+            day += timedelta(days=1)
+    return out
+
+
 def split_channels(asset: Asset, usable: pd.DataFrame,
                    anchor_tz: str = "America/New_York",
                    dividends=None, session_table=None) -> pd.DataFrame:
@@ -108,10 +130,14 @@ def split_channels(asset: Asset, usable: pd.DataFrame,
     a session): a return computed across an invalid or after-hours bar is
     meaningless.
 
-    A missing bar inside a session is not forward-filled - that is forbidden,
-    forward-fill for returns. The return is simply taken from the last valid
-    close, so it spans two hours instead of one; that is more honest than
-    inventing a close that never existed.
+    A MISSING HOUR IS SKIPPED, AS IF IT WERE NEVER THERE. The bar after it is
+    its own hour, open to close, and scored as usual; the move across the hole -
+    from the last close before it to that bar's open - is `hole`, never scored
+    (tremor.jumps keeps it only in the price path the close check reads).
+    Measured from the last close instead, a thin fund's three quiet hours read
+    as one violent one: 122 flags in the history were such moves. A closure
+    the calendar knows is not a hole: it opens a session, and its gap is scored
+    against the instrument's other gaps.
 
     Still named split_channels because the split is still what it does: the
     overnight jump is separated from the intra-hour move and then dropped, rather
@@ -121,21 +147,27 @@ def split_channels(asset: Asset, usable: pd.DataFrame,
     if out.empty:
         return out.assign(r=pd.Series(dtype="float64"),
                           is_session_open=pd.Series(dtype=bool),
+                          hole=pd.Series(dtype="float64"),
                           gap=pd.Series(dtype="float64"))
 
     session = session_ids(asset, out["hour_utc"], anchor_tz)
     is_open = session != session.shift(1)
     is_open.iloc[0] = True  # first bar of history: there is no prior session
+    hours = out["hour_utc"].to_numpy(dtype="int64")
+    prev_hour = np.concatenate([[hours[0]], hours[:-1]])
+    if asset.session_template == "fx_continuous":
+        is_open |= fx_holiday_closed(prev_hour, hours, anchor_tz)
+    after_hole = ~is_open.to_numpy() & (hours - prev_hour > HOUR)
 
     prev_close = out["close"].shift(1)
-    out["r"] = np.where(is_open,
-                        np.log(out["close"] / out["open"]),
-                        np.log(out["close"] / prev_close))
+    own_hour = np.log(out["close"] / out["open"])
+    out["r"] = np.where(is_open | after_hole, own_hour, np.log(out["close"] / prev_close))
     # The very first bar of history has no previous close, and its own open is
     # the start of the record rather than a continuation of anything: undefined,
     # not zero.
     out.loc[0, "r"] = np.nan
     out["is_session_open"] = is_open
+    out["hole"] = np.where(after_hole, np.log(out["open"] / prev_close), np.nan)
     out["gap"] = (overnight_gaps(asset, out, session, dividends, session_table)
                   if dividends is not None else np.nan)
     return out
@@ -167,6 +199,9 @@ def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
         fund that is checked against the NYSE calendar (`session_table`, and
         without one no fund gap is scored at all); for a pair, the previous bar
         must be the Friday afternoon one, at most FX_WEEKEND_MAX_SECONDS before;
+      - for a fund, when its first bar is not the session's first hour: the
+        gap would carry the missing morning with the night, and the two cannot
+        be told apart (1,287 in the history, most of them CPER, TLH, UGA);
       - for a fund, on a date past its checked-through date, because a payout
         the table has not heard of yet reads as a gap the size of the dividend;
       - for a fund, on a declared split date, and on any gap within
@@ -192,7 +227,8 @@ def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
         return np.where(usable, gap, np.nan)
 
     day = session.to_numpy(dtype=object)
-    complete = _closed_on_the_last_bar(day, prev_hour, is_open, session_table)
+    complete = (_closed_on_the_last_bar(day, prev_hour, is_open, session_table)
+                & _opened_on_the_first_bar(day, hours, is_open, session_table))
 
     steps = dividends.steps.get(asset.ticker, {})
     step = np.array([steps.get(d, 0.0) for d in day], dtype="float64") \
@@ -218,6 +254,26 @@ def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
     usable = (is_open & complete & known & ~declared & ~looks_split
               & np.isfinite(gap))
     return np.where(usable, gap, np.nan)
+
+
+def _opened_on_the_first_bar(day: np.ndarray, hours: np.ndarray,
+                             is_open: np.ndarray, session_table) -> np.ndarray:
+    """Per bar: is this session-opening bar the session's first hour? The bar
+    is stamped on the hour it starts in, so a 09:30 open is the 09:00 bar."""
+    out = np.zeros(len(day), dtype=bool)
+    if not session_table:
+        return out
+    from datetime import date as _date
+
+    from tremor import quality
+
+    for position in np.flatnonzero(is_open):
+        today = _date.fromisoformat(day[position])
+        if today not in session_table:
+            continue
+        opened, _ = quality._session_bounds_utc(today, session_table[today])
+        out[position] = int(hours[position]) <= opened // HOUR * HOUR
+    return out
 
 
 def _closed_on_the_last_bar(day: np.ndarray, prev_hour: np.ndarray,

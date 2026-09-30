@@ -46,7 +46,8 @@ def scored_basket(metrics_dir: str) -> pd.DataFrame:
             continue
         metrics = pd.read_parquet(path, columns=["hour_utc", "r", "gap"])
         parts_one = [jumps.score(metrics, asset.session_template, window, bottom, step),
-                     jumps.score_gaps(metrics, window, bottom, step)]
+                     jumps.score_gaps(metrics, window, bottom, step,
+                                      asset.session_template)]
         frame = pd.concat([f for f in parts_one if not f.empty], ignore_index=True)
         frame = frame[np.isfinite(frame["z"].astype("float64"))]
         frame.insert(2, "template", asset.session_template)

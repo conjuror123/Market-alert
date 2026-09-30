@@ -119,11 +119,13 @@ from tremor.sessions import Session
 
 # two_days() ends its first session on the 11:00 bar, so that day closes at
 # 12:00 here - the calendar has to agree that the stored bar reached the close.
+# Its sessions start on the 10:00 bar, so they open at 10:00 here: a gap is
+# scored only when the stored bars reach both the close and the open.
 TABLE = {
     date(2021, 2, 26): Session(date(2021, 2, 26), "09:30", "16:00", False),
-    date(2021, 3, 1): Session(date(2021, 3, 1), "09:30", "12:00", True),
-    date(2021, 3, 2): Session(date(2021, 3, 2), "09:30", "16:00", False),
-    date(2021, 3, 3): Session(date(2021, 3, 3), "09:30", "16:00", False),
+    date(2021, 3, 1): Session(date(2021, 3, 1), "10:00", "12:00", True),
+    date(2021, 3, 2): Session(date(2021, 3, 2), "10:00", "16:00", False),
+    date(2021, 3, 3): Session(date(2021, 3, 3), "10:00", "16:00", False),
 }
 
 
@@ -260,3 +262,75 @@ def test_crypto_has_no_gap():
     out = returns.split_channels(coin, two_days(),
                                  dividends=dividends(ticker="BTC-USD"))
     assert out["gap"].isna().all()
+
+
+# --- missing hours ---------------------------------------------------------------
+
+def test_a_missing_hour_is_skipped_as_if_it_were_never_there():
+    # 11:00 and 12:00 are missing. The 13:00 bar is its own hour, open to close;
+    # the move across the hole, 101 to 104, is kept aside and never scored.
+    data = frame([
+        (et(2021, 3, 2, 10), 100.0, 101.0, 99.0, 101.0, 1.0, 2),
+        (et(2021, 3, 2, 13), 104.0, 105.0, 103.0, 105.0, 1.0, 2),
+        (et(2021, 3, 2, 14), 105.0, 106.0, 104.0, 106.0, 1.0, 2),
+    ])
+    out = returns.split_channels(asset(), data)
+
+    assert not out.iloc[1]["is_session_open"]
+    assert out.iloc[1]["r"] == pytest.approx(math.log(105.0 / 104.0))
+    assert out.iloc[1]["hole"] == pytest.approx(math.log(104.0 / 101.0))
+    # The hour after it is close to close as usual, and has no hole.
+    assert out.iloc[2]["r"] == pytest.approx(math.log(106.0 / 105.0))
+    assert np.isnan(out.iloc[2]["hole"])
+
+
+def test_a_night_whose_first_hour_is_missing_is_not_scored():
+    # Day two's 10:00 bar is missing, so the price at 11:00 carries the night and
+    # the missing morning together, and the two cannot be told apart.
+    data = frame([
+        (et(2021, 3, 1, 10), 100.0, 101.0, 99.0, 100.5, 1.0, 2),
+        (et(2021, 3, 1, 11), 100.5, 102.0, 100.0, 101.0, 1.0, 2),
+        (et(2021, 3, 2, 11), 106.0, 107.0, 105.0, 106.5, 1.0, 2),
+    ])
+    out = returns.split_channels(asset(), data, session_table=TABLE, dividends=dividends())
+
+    assert out.iloc[2]["is_session_open"]
+    assert np.isnan(out.iloc[2]["gap"])
+    assert out.iloc[2]["r"] == pytest.approx(math.log(106.5 / 106.0))
+
+
+def fx_pair():
+    return asset(ticker="EUR/USD", block="FX", has_volume=False, tick_size=0.00001,
+                 session_template="fx_continuous", fetch_interval="1h")
+
+
+def utc(*args):
+    return int(datetime(*args, tzinfo=timezone.utc).timestamp())
+
+
+def test_christmas_is_a_closure_for_a_currency_pair():
+    # The store stops on 24 December at 17:00 UTC and resumes on the 26th: the
+    # reopening is a gap from the last close, not a missing stretch.
+    data = frame([
+        (utc(2019, 12, 24, 16), 1.100, 1.11, 1.09, 1.100, 0.0, 1),
+        (utc(2019, 12, 24, 17), 1.100, 1.11, 1.09, 1.101, 0.0, 1),
+        (utc(2019, 12, 26, 4), 1.110, 1.12, 1.10, 1.112, 0.0, 1),
+    ])
+    out = returns.split_channels(fx_pair(), data, dividends=dividends(ticker="EUR/USD"))
+
+    assert out.iloc[2]["is_session_open"]
+    assert out.iloc[2]["gap"] == pytest.approx(math.log(1.110 / 1.101))
+    assert out.iloc[2]["r"] == pytest.approx(math.log(1.112 / 1.110))
+    assert np.isnan(out.iloc[2]["hole"])
+
+
+def test_an_ordinary_midweek_hole_is_not_a_closure_for_a_currency_pair():
+    data = frame([
+        (utc(2019, 12, 10, 16), 1.100, 1.11, 1.09, 1.100, 0.0, 1),
+        (utc(2019, 12, 10, 19), 1.105, 1.11, 1.10, 1.106, 0.0, 1),
+    ])
+    out = returns.split_channels(fx_pair(), data, dividends=dividends(ticker="EUR/USD"))
+
+    assert not out.iloc[1]["is_session_open"]
+    assert np.isnan(out.iloc[1]["gap"])
+    assert out.iloc[1]["hole"] == pytest.approx(math.log(1.105 / 1.100))

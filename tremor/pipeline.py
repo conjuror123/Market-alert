@@ -56,7 +56,7 @@ def build_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
 
 METRIC_COLUMNS = [
     "hour_utc", "asset_id", "block", "tier", "close", "volume",
-    "r", "is_session_open", "gap",
+    "r", "is_session_open", "hole", "gap",
 ]
 
 

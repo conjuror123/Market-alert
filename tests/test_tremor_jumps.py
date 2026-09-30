@@ -131,6 +131,12 @@ def test_a_weekend_is_judged_only_against_weekends():
     assert 3.5 < weekend / night < 7
 
 
+def test_a_currency_pair_has_no_nights():
+    # Its Christmas and New Year closures are judged with its weekends.
+    assert list(jumps.gap_kinds([24.0, 34.0, 49.0], "fx_continuous")) == ["weekend"] * 3
+    assert list(jumps.gap_kinds([17.5, 65.5], "us_equity")) == ["night", "weekend"]
+
+
 def test_a_gap_left_unscored_is_not_a_reading():
     frame = _sessions()
     frame.loc[frame.index[200], "gap"] = np.nan
@@ -333,6 +339,18 @@ def test_a_gap_is_measured_from_the_close_before_it():
                         "reading": ["night"]})
     _, held = jumps.held_at_close(bars, gap, now=start + 10 * HOUR)
     assert held[0] == pytest.approx(0.8)             # 1.0 + 0.1 - 0.3
+
+
+def test_the_move_across_a_missing_hour_counts_toward_the_close():
+    # Never scored, but the price did move: 1.0% up, then a hole that gave back
+    # 0.5%, so half the move is left at the close.
+    start = int(pd.Timestamp("2026-09-08 14:00", tz="UTC").timestamp())
+    bars = _bars(start, [0.0, 0.010, 0.0, 0.0, 0.0, 0.0])
+    bars["hole"] = [np.nan, np.nan, np.nan, -0.005, np.nan, np.nan]
+    move = pd.DataFrame({"hour_utc": [start + HOUR], "found_utc": [start + 2 * HOUR],
+                         "reading": ["hour"]})
+    _, held = jumps.held_at_close(bars, move, now=start + 10 * HOUR)
+    assert held[0] == pytest.approx(0.5)
 
 
 def test_the_closing_hour_is_checked_at_the_next_close():

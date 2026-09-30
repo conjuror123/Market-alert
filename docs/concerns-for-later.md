@@ -169,8 +169,8 @@ both were declined.
 
 **The fund verdict.** The reference is Alpaca's consolidated tape over 28 days of
 regular-session hours. A feed passes when its hourly closes agree to median ≤ 2 bps and
-p90 ≤ 5, **and** it lacks at most 2% of the tape's hours: a missing hour folds two hours of
-move into one reading.
+p90 ≤ 5, **and** it lacks at most 2% of the tape's hours: a missing hour is a move never
+scored.
 
 - **7 of the 96 no longer trade:** `JJC JJN JJU JO NIB BAL COW`. They are not on the tape
   at all.
@@ -293,20 +293,15 @@ detector's severity tables and block labels, went with that detector.
 
 ## 8. Smaller things, found and left alone
 
-- **A hole inside a session makes a two-hour move.** When a bar is missing mid-session, the
-  next bar's return spans both hours and is judged as one hour. Measured 2026-09-30:
-  - **In today's history:** 122 of the 28,940 flagged readings are such moves. CPER has
-    24, USD/CNH 17, TLH 10 and UGA 9, and some reached `extreme`.
-  - **If a move over k hours were judged against σ·√k:** 94 of the 122 would not flag,
-    21 would drop a word, and 7 would stay.
-  - **The widening makes it common.** In SiftingIO's data:
-    - USD/BRL trades 11:00–22:00 UTC on 97% of days, but on 14–52% of days outside it.
-    - USD/TRY thins every night.
-    - Every pair, EUR/USD included, loses 14–16 hours at Christmas and 24 at New Year.
-  - **Local holidays do not empty the hours.** USD/KRW has a bar every hour through
-    Chuseok. Its one long hole was US Labor Day, which INR and CNH also lack.
-
-  Being designed now, together with a session of its own for USD/BRL.
+- **A bar after a hole can open on a broken print.** Since missing hours are skipped, the
+  bar after one is measured from its own open. On 2017-04-15 Coinbase reopened after
+  three hours down on a BTC print of $0.06 and an ETH print of $74.98 (the market was at
+  $1,183 and $48.5), so both read as `extreme` hours, BTC at 1,526σ. They are history
+  only, but a reading that size is what "rarest since" compares against. Nothing in the
+  last year is like it. A fund's session opens have always been measured the same way.
+- **USD/BRL needs a session of its own** before it is added: it trades 11:00–22:00 UTC on
+  97% of days and only sometimes outside it, so without one its nights are holes and the
+  São Paulo open is the bar after one.
 - **One instrument's timeout turns the whole run red.** A single provider read timeout in
   backfill fails the job and sends the "Failed" email even though every other instrument
   ran.

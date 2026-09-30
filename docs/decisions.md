@@ -246,6 +246,20 @@ does not fix it — the live year's shard grows all year, making the annual bill
 one complete year: 955 MiB to record 5.2 MiB of bars. Settled years keep one shard each and
 the live year is split by month. Which year is live is read off the data, not the clock.
 
+**A missing hour is skipped, not stretched.** Measured from the last close before it, the
+bar after a hole read three quiet hours as one violent one: 122 of 28,940 flagged readings
+were such moves, CPER's and USD/CNH's among them at `extreme`. Two fixes were weighed and
+dropped: judging a k-hour move against σ·√k, which needs a clock of expected hours per
+instrument and a message that says "over 3 hours"; and not scoring the bar after the hole,
+which throws away an hour that was really measured. The bar after it is its own hour, open
+to close, like a session's first bar; only the jump across the hole is set aside. A missing
+first hour of a fund's day leaves that night unscored, for the same reason a missing last
+hour always has. Only closures the calendar knows are gaps: a fund's nights and weekends, a
+pair's weekends and its Christmas and New Year closures (2026-09-30), the latter judged with
+its weekends because a pair has no nights to compare them with. In the last year this
+skips 68 holes, 150 hours: UGA 39, two Coinbase outages of five hours on all nine coins,
+and five single hours at the Sunday open of GBP/USD and NZD/USD.
+
 **A day is not a unit of completeness.** Gap detection asks about hours: a day present with
 three of its seven hours is a hole a day-level check cannot see.
 

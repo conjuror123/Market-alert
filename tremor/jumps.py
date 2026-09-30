@@ -194,20 +194,25 @@ def score(frame: pd.DataFrame, template: str, window_days: float = WINDOW_DAYS,
                          "young": young})
 
 
-def gap_kinds(elapsed_hours) -> np.ndarray:
+def gap_kinds(elapsed_hours, template: "str | None" = None) -> np.ndarray:
     """`weekend` for a gap spanning WEEKEND_HOURS or more, else `night`. A long
-    weekend is a weekend; a midweek holiday (about 41.5 hours) is a night."""
-    return np.where(np.asarray(elapsed_hours, dtype="float64") >= WEEKEND_HOURS,
-                    WEEKEND, NIGHT)
+    weekend is a weekend; a midweek holiday (about 41.5 hours) is a night. A
+    currency pair has no nights: its only midweek closures are Christmas and New
+    Year's Day, two a year, and they are judged with its weekends."""
+    elapsed = np.asarray(elapsed_hours, dtype="float64")
+    if template == "fx_continuous":
+        return np.full(elapsed.shape, WEEKEND, dtype=object)
+    return np.where(elapsed >= WEEKEND_HOURS, WEEKEND, NIGHT)
 
 
 def score_gaps(frame: pd.DataFrame, window_days: float = WINDOW_DAYS,
-               bottom: float = NOTICEABLE_SIGMA, step: float = STEP) -> pd.DataFrame:
+               bottom: float = NOTICEABLE_SIGMA, step: float = STEP,
+               template: "str | None" = None) -> pd.DataFrame:
     """Every gap of one instrument, each judged against the earlier gaps of its
     own kind within `window_days`. `frame` holds the metrics' `hour_utc` and
     `gap`: the gap sits on the first bar after a close, NaN everywhere else and
     where it was left unscored (an unconfirmed dividend, a split, a missing bar
-    before the close)."""
+    at either end of the night)."""
     frame = frame.sort_values("hour_utc").reset_index(drop=True)
     hours = frame["hour_utc"].to_numpy(dtype="int64")
     gap = frame["gap"].to_numpy(dtype="float64")
@@ -217,7 +222,7 @@ def score_gaps(frame: pd.DataFrame, window_days: float = WINDOW_DAYS,
     if not len(at):
         return pd.DataFrame(columns=columns)
     when, move = hours[at], gap[at]
-    kind = gap_kinds((hours[at] - hours[at - 1]) / 3600.0)
+    kind = gap_kinds((hours[at] - hours[at - 1]) / 3600.0, template)
     sigma = np.full(len(at), np.nan)
     young = np.zeros(len(at), dtype=bool)
     for name, minimum in GAP_MIN_COUNT.items():
@@ -379,7 +384,10 @@ def held_at_close(metrics: pd.DataFrame, flagged: pd.DataFrame, now: int
     hours = frame["hour_utc"].to_numpy(dtype="int64")
     r = np.nan_to_num(frame["r"].to_numpy(dtype="float64"))
     gap = np.nan_to_num(frame["gap"].to_numpy(dtype="float64"))
-    price = np.cumsum(r + gap)                     # log price, up to a constant
+    # The move across a missing hour is never scored, but the price did move.
+    hole = (np.nan_to_num(frame["hole"].to_numpy(dtype="float64"))
+            if "hole" in frame else np.zeros(len(frame)))
+    price = np.cumsum(r + gap + hole)              # log price, up to a constant
     ends = hours + 3600
     check = np.full(len(flagged), -1, dtype="int64")
     held = np.full(len(flagged), np.nan)
@@ -511,9 +519,9 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
         if not os.path.exists(path):
             log.warning("no metrics for %s", asset.asset_id)
             continue
-        metrics = pd.read_parquet(path, columns=["hour_utc", "r", "gap"])
+        metrics = pd.read_parquet(path, columns=["hour_utc", "r", "hole", "gap"])
         readings = [score(metrics, asset.session_template, window, bottom, step),
-                    score_gaps(metrics, window, bottom, step)]
+                    score_gaps(metrics, window, bottom, step, asset.session_template)]
         scored = pd.concat([f for f in readings if not f.empty], ignore_index=True)
         if scored.empty:
             continue
