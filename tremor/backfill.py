@@ -968,9 +968,29 @@ def deepen_from_dukascopy(asset: Asset, path: str, since: date,
 # the March 2020 crash, where a timing or adjustment error would show loudest.
 ALPACA_OVERLAP_DAYS = 93
 
+# A stored hour whose close sits this far from the consolidated tape's is a bad
+# print, not a timing difference: EZU's 2020-03-12 15:00 bar in the store is
+# 12% above the tape and back the next morning. Two feeds of the same tape
+# agree to a basis point or two (ALIGNMENT_MAX_MEDIAN_BP is 25 for a median).
+REPAIR_MIN_BP = 50.0
+
+
+def repair_from_tape(path: str, tape: "pd.DataFrame") -> list:
+    """Replaces each stored hour whose close is more than REPAIR_MIN_BP from the
+    consolidated tape's with the tape's bar. Only hours both hold; returns the
+    stamps replaced."""
+    stored = bars.load(path)
+    joined = tape.merge(stored[["hour_utc", "close"]], on="hour_utc",
+                        suffixes=("", "_stored"))
+    off = (joined["close"] - joined["close_stored"]).abs() / joined["close_stored"] * 1e4
+    bad = joined.loc[off > REPAIR_MIN_BP, "hour_utc"]
+    if not bad.empty:
+        bars.merge(path, tape[tape["hour_utc"].isin(bad)])
+    return [int(h) for h in bad]
+
 
 def deepen_from_alpaca(asset: Asset, path: str, since: date, auth: dict,
-                       session: requests.Session) -> dict:
+                       session: requests.Session, repair: bool = False) -> dict:
     """Fills a US fund's history below what is stored, from Alpaca's
     consolidated tape (2016 on). Same gates as the Dukascopy deepening: the
     overlap is fetched and not written, and the years below are written only if
@@ -996,18 +1016,26 @@ def deepen_from_alpaca(asset: Asset, path: str, since: date, auth: dict,
         return {"skipped": "Alpaca returned nothing", "added": 0}
 
     frame = bars.to_hourly(bars.candles_to_frame(candles))
+    # Repair first, when asked: the owner's call per fund (EZU, EBND on
+    # 2026-10-01), never automatic - it overwrites stored history. The check
+    # then runs on the repaired store, so a series that disagrees everywhere
+    # still fails.
+    repaired = repair_from_tape(path, frame[frame["hour_utc"] >= floor]) if repair else []
+    if repaired:
+        stored = bars.load(path)
     check = verify_alignment(frame, stored)
     if not check["ok"]:
         return {"skipped": f"alignment check failed: {check['why']}",
-                "added": 0, "check": check}
+                "added": 0, "check": check, "repaired": repaired}
     below = frame[frame["hour_utc"] < floor]
     if below.empty:
         return {"skipped": "nothing below the oldest stored bar (listed later)",
-                "added": 0, "check": check}
+                "added": 0, "check": check, "repaired": repaired}
     added = bars.merge(path, below)
     first = datetime.fromtimestamp(int(below["hour_utc"].min()), tz=timezone.utc).date()
     return {"skipped": None, "added": added, "fetched": len(candles),
-            "from": first, "to": oldest.date(), "check": check}
+            "from": first, "to": oldest.date(), "check": check,
+            "repaired": repaired}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1046,6 +1074,11 @@ def main(argv: list[str] | None = None) -> int:
                              "from Alpaca's consolidated tape, 2016 on "
                              "(ALPACA_KEY_ID, ALPACA_SECRET_KEY). Overlaps the "
                              "store and is gated on agreeing with it.")
+    parser.add_argument("--repair-alpaca", action="store_true",
+                        help="as --deepen-alpaca, but first replace stored "
+                             "overlap hours more than REPAIR_MIN_BP from the "
+                             "consolidated tape with the tape's bars. Overwrites "
+                             "stored history: name the funds with --instruments.")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -1184,7 +1217,11 @@ def main(argv: list[str] | None = None) -> int:
                  "the source", filled, unfilled)
         return 0
 
-    if args.deepen_alpaca:
+    if args.repair_alpaca and not wanted:
+        log.error("--repair-alpaca overwrites stored hours; name the funds "
+                  "with --instruments")
+        return 2
+    if args.deepen_alpaca or args.repair_alpaca:
         key = os.environ.get("ALPACA_KEY_ID", "").strip()
         secret = os.environ.get("ALPACA_SECRET_KEY", "").strip()
         if not key or not secret:
@@ -1197,11 +1234,14 @@ def main(argv: list[str] | None = None) -> int:
             path = bars.store_path(args.bars_dir, asset.file_stem)
             try:
                 out = deepen_from_alpaca(asset, path, basket.acquire_since,
-                                         auth, session)
+                                         auth, session, repair=args.repair_alpaca)
             except Exception as exc:
                 log.error("%s: Alpaca deepening failed - %s", asset.asset_id, exc)
                 continue
             check = out.get("check")
+            for stamp in out.get("repaired", []):
+                log.info("%s: stored hour %s replaced by the consolidated tape's",
+                         asset.asset_id, _fmt(stamp))
             if out["skipped"]:
                 if check:
                     log.info("%s: skipped (%s); overlap %d hours, corr %.4f, "

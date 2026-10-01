@@ -35,6 +35,9 @@ name: Backfill Tremor Bars
 #                   tape (SIP), 2016 on - for the funds HF Data does not carry,
 #                   which otherwise start 2020-02. Gated on an overlap with the
 #                   store, like the others. Run after deepen-etfs.
+#   repair-alpaca   deepen-alpaca that first overwrites stored overlap hours
+#                   whose close is more than 50 bp off the tape (bad prints).
+#                   Only for the funds named in `instruments`.
 #   corporate-actions
 #                   rebuild the ex-date table from Tiingo's declared divCash /
 #                   splitFactor (needs TIINGO_API_KEY). It must reach at least
@@ -65,6 +68,7 @@ on:
           - deepen-dukascopy
           - deepen-etfs
           - deepen-alpaca
+          - repair-alpaca
           - probe-hfdata
           - corporate-actions
 

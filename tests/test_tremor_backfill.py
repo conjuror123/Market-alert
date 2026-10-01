@@ -1424,3 +1424,27 @@ def test_alpaca_keeps_only_the_regular_session():
     at = lambda h, m: int(datetime(2019, 6, 3, h, m, tzinfo=ny).timestamp())  # noqa: E731
     assert [alpaca.regular_session(at(h, m)) for h, m in
             ((9, 0), (9, 30), (15, 30), (16, 0))] == [False, True, True, False]
+
+
+def test_a_bad_stored_print_is_repaired_from_the_tape_when_asked(tmp_path, monkeypatch):
+    from tremor import backfill
+    stamps = _session_half_hours(200)
+    prices = _walk(len(stamps), 13, start=80.0)
+    archive = _alpaca_candles(stamps, prices)
+    path = str(tmp_path / "twelvedata_EZU.parquet")
+    stored = bars.to_hourly(bars.candles_to_frame(archive[1300:]))
+    spikes = stored.index[10:60:5]                       # ten +12% prints
+    stored.loc[spikes, ["open", "high", "low", "close"]] *= 1.12
+    bars.merge(path, stored)
+    monkeypatch.setattr(backfill.alpaca, "fetch_history", lambda *a, **k: archive)
+
+    refused = backfill.deepen_from_alpaca(_fund(), path, date(2015, 1, 1), {}, None)
+    assert refused["added"] == 0 and "correlation" in refused["skipped"]
+
+    out = backfill.deepen_from_alpaca(_fund(), path, date(2015, 1, 1), {}, None,
+                                      repair=True)
+    assert out["skipped"] is None and len(out["repaired"]) == 10
+    fixed = bars.load(path).set_index("hour_utc")["close"]
+    tape = bars.to_hourly(bars.candles_to_frame(archive)).set_index("hour_utc")["close"]
+    assert (fixed.loc[stored.loc[spikes, "hour_utc"]] ==
+            tape.loc[stored.loc[spikes, "hour_utc"]]).all()
