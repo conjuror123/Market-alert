@@ -1332,3 +1332,21 @@ def test_the_fetch_asks_google_for_a_google_fund(tmp_path, monkeypatch):
     backfill.fetch_missing(asset, str(tmp_path / "p"), date(2021, 1, 1), "td",
                            requests.Session())
     assert seen["symbol"] == "TUR" and seen["interval"] == "30min"
+
+
+def test_the_fetch_asks_kitco_for_nickel(tmp_path, monkeypatch):
+    from tremor import backfill
+
+    seen = {}
+
+    def fake(**kwargs):
+        seen.update(kwargs)
+        return []
+
+    monkeypatch.setattr(backfill.kitco, "fetch_full_history", fake)
+    asset = Asset(ticker="NI", source="kitco", tier=2, block="industrial_metals",
+                  has_volume=False, tick_size=5.0, session_template="lme",
+                  fetch_interval="1h", label="Nickel", in_basket=True)
+    backfill.fetch_missing(asset, str(tmp_path / "p"), date(2021, 1, 1), "td",
+                           requests.Session())
+    assert seen["symbol"] == "NI"

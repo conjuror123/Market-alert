@@ -99,6 +99,10 @@ session_templates:
     exchange: COINBASE
     tz: UTC
     description: "around the clock, no weekends"
+  lme:
+    exchange: LME
+    tz: Europe/London
+    description: "01:00-19:00 London on weekdays (LMEselect); holidays are the days the quote never moves"
 
 # tick_size is the exchange price step, needed by the winsorization (the eps_MAD
 # floor includes the return on half a tick). It is stated explicitly rather than
@@ -560,6 +564,18 @@ assets:
     session_template: us_equity
     fetch_interval: 30min
     label: "Copper"
+  # Nickel itself, not a fund: the nickel ETN (JJN) is delisted. Kitco's quote,
+  # in dollars a tonne, on the LME's hours (price_monitor/kitco.py). The tick is
+  # the LME's, $5 a tonne.
+  - ticker: NI
+    source: kitco
+    tier: 2
+    block: industrial_metals
+    has_volume: false
+    tick_size: 5.0
+    session_template: lme
+    fetch_interval: 1h
+    label: "Nickel (LME)"
   # --- agriculture -----------------------------------------------------------
   # Agricultural commodities.
   - ticker: DBA

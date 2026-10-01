@@ -237,6 +237,9 @@ def instrument_day_hours(day: date, template: str,
         return hours
     if template == "fx_continuous":
         return [h for h in hours if is_reference_hour(h, tz_name)]
+    if template == "lme":
+        mask = lme_hours_mask(hours)
+        return [h for h, inside in zip(hours, mask) if inside]
     raise ValueError(f"unknown session template '{template}'")
 
 
@@ -432,3 +435,24 @@ if __name__ == "__main__":
     import sys
 
     sys.exit(main())
+
+
+# THE LME'S DAY. Nickel trades on LMEselect from 01:00 to 19:00 London time on
+# weekdays, and Kitco's quote moves then and stands still otherwise (measured on
+# five years of it: 59-91% of five-minute quotes change inside those hours, none
+# after 20:00 or at the weekend). Holidays are not listed: the quote does not
+# move on them, and the client drops a day that never moves, so a holiday is a
+# closure without a calendar saying so.
+LME_TZ = "Europe/London"
+LME_OPEN_HOUR, LME_CLOSE_HOUR = 1, 19
+
+
+def lme_hours_mask(hours_utc) -> "pd.Series":
+    """Which of these hours (by their opening moment) are LME trading hours."""
+    import pandas as pd
+
+    hours = hours_utc if isinstance(hours_utc, pd.Series) else pd.Series(
+        list(hours_utc), dtype="int64")
+    local = pd.to_datetime(hours.astype("int64"), unit="s", utc=True).dt.tz_convert(LME_TZ)
+    return ((local.dt.weekday < 5) & (local.dt.hour >= LME_OPEN_HOUR)
+            & (local.dt.hour < LME_CLOSE_HOUR))

@@ -144,10 +144,11 @@ def test_the_thin_blocks_are_the_ones_we_know_about():
     # changes in EITHER direction: adding a new thin block, or fixing one of
     # these and forgetting to say so here. The widening of 2026-09-30 brought
     # energy and precious metals to eight; the metals' ETNs no longer trade and
-    # agriculture's did not either.
+    # agriculture's did not either. Nickel itself (Kitco, 2026-10-01) brought
+    # industrial metals to six.
     basket = load_basket()
     thin = {b for b, m in basket.by_block().items() if len(m) < 6}
-    assert thin == {"industrial_metals", "agriculture"}
+    assert thin == {"agriculture"}
 
 
 def test_real_basket_config_is_valid():
@@ -193,4 +194,6 @@ def test_rejects_a_tick_size_that_yaml_parsed_as_text(tmp_path):
 def test_real_config_tick_sizes_are_plausible(tmp_path):
     basket = load_basket()
     for a in basket.instruments:
-        assert 0 < a.tick_size <= 0.01, a.ticker
+        # Nickel is quoted in dollars a tonne and steps by the LME's $5.
+        limit = 5.0 if a.session_template == "lme" else 0.01
+        assert 0 < a.tick_size <= limit, a.ticker

@@ -231,13 +231,13 @@ POL's two histories would have to be joined.
 1. **The seven delisted ETNs:** nickel, aluminium, tin, coffee, cocoa, cotton and
    livestock. Without them, the industrial-metals and agriculture blocks stop at five
    members each. What the commodities themselves can be had from (2026-10-01):
-   - **Nickel: Kitco's chart gateway** (`kdb-gw.prod.kitco.com`, GraphQL
-     `GetMetalHistoryV3`, no key), hourly from 2020-12 and live to the last five minutes.
-     Its level matches the LME official price to a ratio of 1.000 in every year. It has
-     glitches — a ±20% two-hour swing and back, four times in 2022–2024 (2022-04-04,
-     2023-01-23/24, 2023-02-27, 2024-09-25) — to clean before use, and none since. It
-     moves 00:00–19:00 UTC on weekdays, the LME's hours, so it needs a session template of
-     its own.
+   - **Nickel: in, from Kitco's chart gateway** (`kdb-gw.prod.kitco.com`, GraphQL
+     `GetMetalHistoryV3`, no key), five-minute quotes from 2020-11, live to the last five
+     minutes; its level matches the LME official price to a ratio of 1.000 in every year.
+     Its six glitches (2022-04-04, 2023-01-23 and 24, 2023-02-27, 2023-07-24,
+     2024-09-25) and the days its quote never moves are dropped by the client; it runs on
+     a session template of its own, `lme` (`price_monitor/kitco.py`). A real 15%
+     five-minute move would be held a day as a possible glitch and so never go out.
    - **Aluminium: not Kitco.** Its series switches every few weeks, still in 2025, to a
      near-flat second price about 30% higher (a +29% step at a Monday open, back a day or
      two later), and was more than 5% off the LME official price on 206 days of 2022.

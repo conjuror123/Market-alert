@@ -28,7 +28,7 @@ fire is worse than none — its silence is indistinguishable from a quiet market
 
 | | |
 |---|---:|
-| Live fetch (Tiingo + SiftingIO + Yahoo + Google + Coinbase) | seconds |
+| Live fetch (Tiingo + SiftingIO + Yahoo + Google + Kitco + Coinbase) | seconds |
 | Metrics and events, warm run | ~5 s |
 | Metrics and events, cold rebuild | ~15 s |
 | Whole job, median | ~2 min |
@@ -51,6 +51,7 @@ seconds, so it has no warm state to lose.
 | **SiftingIO** | 10,000/**month**, a few a second | 8 FX pairs — about 4,200 a month |
 | **Yahoo** | none published | 15 thin ETFs |
 | **Google Finance** | none — a web page, read against its terms | TUR, one page a run |
+| **Kitco** | none — a website's private gateway | nickel, one request a run in LME hours |
 | **Coinbase** | no key | 9 crypto |
 | **Twelve Data** | 800/day, 8/min | archive, gap-fill, deepening — not the hourly path |
 | GitHub Actions minutes | unlimited (public repo) | — |
@@ -128,7 +129,7 @@ in the same message; a 404 stays a per-instrument dark.
 
 **A fetch is retried three times before it counts as a failure** — two seconds of backoff
 then four, inside each provider's client. That holds for all three providers on the
-hourly path: Tiingo, SiftingIO, Yahoo, Google and Coinbase. A dropped connection therefore costs six seconds
+hourly path: Tiingo, SiftingIO, Yahoo, Google, Kitco and Coinbase. A dropped connection therefore costs six seconds
 rather than a red run, against a twenty-minute job timeout, and a failure that reaches the
 health message is one that survived all three attempts. Twelve Data waits 8 and 16
 instead, because a retry there spends a credit against an 8-a-minute plan; it answers

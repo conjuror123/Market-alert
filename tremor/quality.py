@@ -57,6 +57,9 @@ def in_session(asset: Asset, hours: pd.Series,
         # exchange's time - exactly the basket's reference week.
         return sessions_mod.reference_hours_mask(hours, anchor_tz)
 
+    if asset.session_template == "lme":
+        return sessions_mod.lme_hours_mask(hours)
+
     if asset.session_template != "us_equity":
         raise ValueError(f"{asset.ticker}: unknown session template "
                          f"'{asset.session_template}'")

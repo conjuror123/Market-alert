@@ -41,8 +41,8 @@ it is full are marked `young`.
 
 **Stage 1b, the gap — built.** What happens while a market is shut arrives as the jump from
 the last price before the close to the first after it: a fund's night and weekend, a
-currency pair's weekend and its two midweek closures, Christmas and New Year's Day (crypto
-never closes). Each gap is scored by the same two rules
+currency pair's weekend and its two midweek closures, Christmas and New Year's Day,
+nickel's LME night (19:00 to 01:00 London) and weekend (crypto never closes). Each gap is scored by the same two rules
 against the earlier gaps **of its own kind** over the half-year before it — a night against
 nights, a weekend against weekends — so every reading of an instrument is read against the
 same half-year of events. A gap spanning 48 hours or more is a weekend (a long weekend
@@ -169,7 +169,7 @@ Settings live under `detector:` in `config/basket.yaml`: `window_days`,
 
 **When a move is found.** `jumps` judges a reading only once it can be (`jumps.ended`): an
 hour once it has ended, a fund's gap with its first bar once that bar has ended, a currency
-pair's weekend gap at its open. That moment is the event's `found_utc`, and the run five
+pair's weekend gap and nickel's night at their open. That moment is the event's `found_utc`, and the run five
 minutes later is the one that sees it. `jumps.parquet` holds every flagged reading;
 delivery groups them into 24-hour events itself, holding the events already on the channel
 to the 24 hours they started with (`jumps.event_starts` with anchors) — a first move
@@ -236,6 +236,7 @@ move.
 | Tiingo | 29 | the funds whose single-exchange price matches the consolidated tape |
 | SiftingIO | 8 | the FX pairs: 0.11–0.35 bps median against the stored bars, the bar closed at :00 served by :05 |
 | Yahoo | 15 | the thin funds where one exchange is *not* the same price; also the morning dividend check |
+| Kitco | 1 | nickel: the chart gateway behind kitco.com, five-minute quotes from 2020-11 folded to hours; glitches and still days dropped (`price_monitor/kitco.py`) |
 | Google Finance | 1 | TUR: the one feed whose hourly closes match the tape on it, read off the quote page (`price_monitor/google.py`) |
 | Coinbase | 9 | crypto |
 | Twelve Data | — | archive, gap-fill and deepening; not on the hourly path |

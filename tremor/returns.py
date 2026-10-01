@@ -73,6 +73,11 @@ FX_WEEKEND_MAX_SECONDS = 50 * HOUR
 # Year's Day. Every pair's store is empty across them.
 FX_HOLIDAYS = frozenset({(12, 25), (1, 1)})
 
+# The longest an LME close can be: Thursday 19:00 to Tuesday 01:00 London over
+# Easter or a Christmas falling on a Thursday, 102 hours. Longer means the
+# quote was out (Kitco's eight days from 2023-12-18), not the market shut.
+LME_CLOSED_MAX_SECONDS = 110 * HOUR
+
 
 def session_ids(asset: Asset, hours: pd.Series, anchor_tz: str = "America/New_York") -> pd.Series:
     """Session id for each hour. The first bar of a session is the one whose id
@@ -99,6 +104,11 @@ def session_ids(asset: Asset, hours: pd.Series, anchor_tz: str = "America/New_Yo
         from tremor.sessions import reference_week_opens
 
         return reference_week_opens(moments, anchor_tz).astype("int64") // 10 ** 9
+
+    if asset.session_template == "lme":
+        from tremor.sessions import LME_TZ
+
+        return moments.dt.tz_convert(LME_TZ).dt.strftime("%Y-%m-%d")
 
     raise ValueError(f"{asset.ticker}: unknown session template '{asset.session_template}'")
 
@@ -177,7 +187,8 @@ def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
                    dividends, session_table=None) -> np.ndarray:
     """ln(open / previous close) on the first bar of each session, else NaN.
 
-    Two calendars have a gap. A US fund's is every night, 16:00 to 09:30. A
+    Three calendars have a gap. Nickel's is the LME's night, 19:00 to 01:00
+    London, and its weekend. A US fund's is every night, 16:00 to 09:30. A
     currency pair trades Sunday 17:00 to Friday 17:00 New York time, so its one
     gap is the weekend - small most weeks (2% of its variance) and not small on
     the weekends that matter: 2025-02-02, the Canada tariffs, USD/CAD +1.44%;
@@ -208,7 +219,7 @@ def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
     """
     n = len(frame)
     template = asset.session_template
-    if template not in ("us_equity", "fx_continuous") or n == 0:
+    if template not in ("us_equity", "fx_continuous", "lme") or n == 0:
         return np.full(n, np.nan)
 
     is_open = frame["is_session_open"].to_numpy(dtype=bool).copy()
@@ -220,6 +231,19 @@ def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
 
     if template == "fx_continuous":
         complete = (hours - prev_hour) <= FX_WEEKEND_MAX_SECONDS
+        usable = is_open & complete & np.isfinite(gap)
+        return np.where(usable, gap, np.nan)
+
+    if template == "lme":
+        # The previous bar must be the last hour of its day, 18:00 London, or
+        # the store lost the evening; and the close no longer than the
+        # longest holiday, or the quote was out.
+        from tremor.sessions import LME_CLOSE_HOUR, LME_TZ
+
+        last_hour = (pd.to_datetime(prev_hour, unit="s", utc=True)
+                     .tz_convert(LME_TZ).hour == LME_CLOSE_HOUR - 1)
+        complete = (np.asarray(last_hour)
+                    & ((hours - prev_hour) <= LME_CLOSED_MAX_SECONDS))
         usable = is_open & complete & np.isfinite(gap)
         return np.where(usable, gap, np.nan)
 

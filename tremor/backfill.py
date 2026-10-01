@@ -7,7 +7,8 @@ THE HOURLY PATH asks each instrument only for what it can be missing: the walk
 starts at its newest stored bar minus three hours, and an instrument whose market
 has been shut since that bar is not asked at all (see nothing_can_have_appeared).
 Providers are chosen per instrument by `provider` in config/basket.yaml - Tiingo,
-Yahoo, SiftingIO, Coinbase and, for TUR and RWX, Google Finance's quote page - and
+Yahoo, SiftingIO, Coinbase, Kitco for nickel and Google Finance's quote page for
+TUR - and
 only Twelve Data is paced, because only its free tier enforces one.
 
 US EQUITY ETFs ARE REQUESTED AS HALF-HOURLY BARS and folded onto the round UTC
@@ -42,7 +43,7 @@ from tremor import atomic, bars, cboe, corporate_actions, fred, quality
 from tremor import sessions as _sessions
 from tremor.basket import Asset, Basket, load_basket
 from price_monitor import (candle_store, coinbase, dukascopy, google, hfdata,
-                           sifting, tiingo, twelvedata, yahoo)
+                           kitco, sifting, tiingo, twelvedata, yahoo)
 from price_monitor.models import ExchangeError
 from price_monitor.notifier import TelegramError, redact_secrets, send_telegram_message
 
@@ -258,6 +259,12 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
             symbol=asset.ticker, interval=asset.fetch_interval, days=days,
             base_url=YAHOO_BASE_URL, session=session, end=end,
         )
+    elif provider == "kitco":
+        # Five-minute quotes, both for history (from 2020-11) and the hour.
+        candles = kitco.fetch_full_history(
+            symbol=asset.ticker, interval=asset.fetch_interval, days=days,
+            session=session, end=end,
+        )
     elif provider == "google":
         # The latest session, whatever `days` asks: the page holds no more.
         candles = google.fetch_full_history(
@@ -363,6 +370,7 @@ def nothing_can_have_appeared(asset: Asset, path: str,
         what the walk considers a bar.
       - us_equity still needs the session table; a missing or short table never
         causes a skip.
+      - lme uses the LME's 01:00-19:00 London weekday, as the gate does.
       - never on an empty store, where there is no newest bar to reason from.
       - never within SETTLE_HOURS of the newest stored bar, so a bar served
         while its hour was still open is re-asked for.
@@ -374,7 +382,7 @@ def nothing_can_have_appeared(asset: Asset, path: str,
         return False
     if template == "us_equity" and not table:
         return False
-    if template not in ("us_equity", "fx_continuous"):
+    if template not in ("us_equity", "fx_continuous", "lme"):
         return False
 
     stored = bars.load(path)

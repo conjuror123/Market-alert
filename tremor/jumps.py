@@ -102,7 +102,8 @@ NOTICEABLE_SIGMA = 3.9       # the bottom word, in half-year sigmas
 STEP = math.sqrt(2)          # each word this many times bigger than the one below
 
 # Bars a day, per calendar, for the paper's minimum window.
-BARS_PER_DAY: "dict[str, int]" = {"us_equity": 7, "fx_continuous": 24, "crypto_24_7": 24}
+BARS_PER_DAY: "dict[str, int]" = {"us_equity": 7, "fx_continuous": 24, "crypto_24_7": 24,
+                                  "lme": 18}
 
 # The three readings, and each gap kind's minimum window from the paper's rule
 # at one reading a day (nights: sqrt(252) -> 16) or a week (weekends: 7, their
@@ -373,8 +374,9 @@ def matches(hours, z, share: float = RARE_SHARE, bottom: float = NOTICEABLE_SIGM
 def found_times(scored: pd.DataFrame, template: str) -> np.ndarray:
     """When each reading became judgeable: an hour once it has ended; a fund's
     gap with its first bar, once that bar has ended (the first half-hour, as
-    the bar is stamped on the hour); a currency pair's weekend gap at its open,
-    which is the whole of it."""
+    the bar is stamped on the hour); a currency pair's weekend gap and
+    nickel's overnight one at their open, which is the whole of them - Kitco's
+    first quote of the day is the open."""
     hours = scored["hour_utc"].astype("int64").to_numpy()
     fx_gap = (scored["reading"] != HOUR).to_numpy() & (template != "us_equity")
     return np.where(fx_gap, hours, hours + 3600)

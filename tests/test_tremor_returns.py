@@ -326,3 +326,52 @@ def test_an_ordinary_midweek_hole_is_not_a_closure_for_a_currency_pair():
     assert not out.iloc[1]["is_session_open"]
     assert np.isnan(out.iloc[1]["gap"])
     assert out.iloc[1]["hole"] == pytest.approx(math.log(1.105 / 1.100))
+
+
+# --- nickel: the LME's day ----------------------------------------------------
+
+def nickel():
+    return asset(ticker="NI", source="kitco", block="industrial_metals",
+                 has_volume=False, tick_size=5.0, session_template="lme",
+                 fetch_interval="1h")
+
+
+def ldn(y, m, d, h):
+    return int(datetime(y, m, d, h, tzinfo=ZoneInfo("Europe/London")).timestamp())
+
+
+def test_nickel_has_a_night_from_the_last_lme_hour_to_the_first():
+    out = returns.split_channels(nickel(), frame([
+        (ldn(2026, 9, 29, 17), 15000, 15020, 14990, 15010, 0.0, 12),
+        (ldn(2026, 9, 29, 18), 15010, 15030, 15000, 15020, 0.0, 12),
+        (ldn(2026, 9, 30, 1), 15200, 15210, 15190, 15205, 0.0, 12),
+        (ldn(2026, 9, 30, 2), 15205, 15215, 15195, 15210, 0.0, 12),
+    ]), dividends=dividends(ticker="SPY"))
+    assert list(out["is_session_open"]) == [True, False, True, False]
+    assert out.iloc[2]["gap"] == pytest.approx(math.log(15200 / 15020))
+    assert out.iloc[2]["r"] == pytest.approx(math.log(15205 / 15200))
+    assert out["gap"].notna().sum() == 1
+
+
+def test_a_nickel_night_that_lost_its_evening_is_not_scored():
+    out = returns.split_channels(nickel(), frame([
+        (ldn(2026, 9, 29, 15), 15000, 15020, 14990, 15010, 0.0, 12),
+        (ldn(2026, 9, 30, 1), 15200, 15210, 15190, 15205, 0.0, 12),
+    ]), dividends=dividends(ticker="SPY"))
+    assert out["gap"].isna().all()
+
+
+def test_a_nickel_close_longer_than_any_holiday_is_an_outage_not_a_gap():
+    # Kitco's quote stood still for eight days from 2023-12-18.
+    out = returns.split_channels(nickel(), frame([
+        (ldn(2023, 12, 15, 18), 15000, 15020, 14990, 15010, 0.0, 12),
+        (ldn(2023, 12, 27, 1), 16200, 16210, 16190, 16205, 0.0, 12),
+    ]), dividends=dividends(ticker="SPY"))
+    assert out["gap"].isna().all()
+
+
+def test_lme_hours_are_one_to_nineteen_london_on_weekdays():
+    from tremor import quality
+    hours = pd.Series([ldn(2026, 9, 30, 0), ldn(2026, 9, 30, 1), ldn(2026, 9, 30, 18),
+                       ldn(2026, 9, 30, 19), ldn(2026, 10, 3, 12)])
+    assert list(quality.in_session(nickel(), hours)) == [False, True, True, False, False]
