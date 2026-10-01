@@ -113,8 +113,11 @@ POINT_JPY = 1e-3
 
 # Polite spacing between requests, and how hard to retry a 503.
 REQUEST_DELAY_SECONDS = 1.5
-MAX_ATTEMPTS = 6
-BACKOFF_SECONDS = 3.0
+# The limiter answers 503 for a while once tripped: six tries three seconds
+# apart gave up on USD/SEK in 2026-10, eighty requests in, and a pair is lost
+# whole when one month gives up. Waiting longer costs only wall clock.
+MAX_ATTEMPTS = 8
+BACKOFF_SECONDS = 10.0
 
 
 def symbol_for(ticker: str) -> str | None:
