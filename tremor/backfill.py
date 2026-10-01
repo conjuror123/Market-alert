@@ -709,6 +709,12 @@ def verify_alignment(minutes: "pd.DataFrame", stored: "pd.DataFrame") -> dict:
     median_bp = float(np.median(
         np.abs(joined["close_new"] - joined["close_stored"])
         / joined["close_stored"]) * 1e4)
+    # Where the two disagree most, for a refusal to be read rather than guessed.
+    gap = np.abs(returns_new - returns_old)
+    worst = [(datetime.fromtimestamp(int(joined["hour_utc"].iloc[i + 1]), tz=timezone.utc)
+              .strftime("%Y-%m-%d %H:%M"), round(float(returns_new[i]) * 1e4),
+              round(float(returns_old[i]) * 1e4))
+             for i in np.argsort(np.where(good, gap, -1))[::-1][:3]]
     reasons = []
     if not correlation >= ALIGNMENT_MIN_CORRELATION:
         reasons.append(f"correlation {correlation:.4f} below "
@@ -718,9 +724,12 @@ def verify_alignment(minutes: "pd.DataFrame", stored: "pd.DataFrame") -> dict:
                        f"{ALIGNMENT_MAX_MEDIAN_BP}bp - the series disagree on "
                        f"PRICE while agreeing on returns, which is what a "
                        f"dividend adjustment looks like")
+    if reasons:
+        reasons.append("worst hours (new bp, stored bp): " + ", ".join(
+            f"{t} {a:+d}/{b:+d}" for t, a, b in worst))
     return {"hours": len(joined), "correlation": correlation,
             "median_bp": median_bp, "ok": not reasons,
-            "why": "; ".join(reasons)}
+            "why": "; ".join(reasons), "worst": worst}
 
 
 # How much of the overlap is spent pinning the vendor's adjustment factor. The
