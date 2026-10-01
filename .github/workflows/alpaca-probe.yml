@@ -43,7 +43,7 @@ on:
         type: boolean
         default: false
       only:
-        description: 'One part: SiftingIO freshness/client/holes/archive; verdict freshness or hours:T1,T2; eulerpool or eulerpool:newest; lse; fmp'
+        description: 'One part: SiftingIO freshness/client/holes/archive; verdict freshness or hours:T1,T2; eulerpool or eulerpool:newest; lse; fmp; rapidapi'
         type: string
         default: ''
 
@@ -139,6 +139,14 @@ jobs:
           ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
         run: python -m tools.fmp_probe
+
+      # RapidAPI: the Metal Sentinel subscription, for nickel, aluminium and
+      # tin. only=rapidapi, probe off.
+      - name: Probe what the RapidAPI subscriptions serve
+        if: inputs.only == 'rapidapi'
+        env:
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+        run: python -m tools.rapidapi_probe
 
       - name: Probe what Alpaca covers
         if: inputs.probe && !inputs.finnhub && !inputs.sifting && !inputs.verdict
