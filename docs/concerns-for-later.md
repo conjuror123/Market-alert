@@ -16,28 +16,26 @@ newly added name says "biggest in a quarter" for years before it can say "bigges
 
 ---
 
-## 1. Thirteen instruments are walled at 2020-02-10
+## 1. The 2020-02-10 wall — filled to 2016 from Alpaca (2026-10-01)
 
-Verified on the store: thirteen instruments hold no bar before 2020-02-10, and XLP holds
-none before 2022-08-01. Everything else reaches 2002–2007, and the currency pairs reach
-2003.
+Twelve Data's intraday archive stops at 2020-02-10 for every fund, and HF Data (2002 on)
+does not carry about sixty of them. `tremor.backfill --deepen-alpaca` filled those from
+Alpaca's free consolidated tape (SIP), which starts 2016-01-01: 59 funds, 392,993 hourly
+bars, each gated on a three-month overlap with the store (returns correlate ≥ 0.90, levels
+within 25 bp; most matched at 0.00 bp). XLP's 2020–2022 hole went with it — it now reaches
+2016 like the rest. Funds launched after 2016 start at launch (FALN 2016-06, GIGB 2017-06,
+IGIB and USIG 2017-08, USHY 2017-10, JMBS 2018-09); XLC launched 2018-06 and was already
+complete.
 
-The wall is a provider plan limit, not a bug. The consequence is that those instruments
-are **quieter than the rest by design**: an instrument with six years of history cannot
-say "the biggest since 2008".
+**Still walled at 2020-02-10: EZU and EBND**, refused because the overlap correlates at only
+0.80 and 0.88. The bad hours are in the store, not in Alpaca: Twelve Data has EZU up 12.3%
+in the 15:00 hour of 2020-03-12 and down 9.1% at the next open, where the consolidated tape
+has −1.2% and +4.3%; EBND +2.6% at 15:00 on 2020-03-13 against the tape's −0.2%. Replacing
+those stored hours with the tape's would let both through, and would take two false
+`extreme` readings out of their history.
 
-This entry used to add that five instruments could not reach the top rung at all, and
-blamed the wall for it. **Four of those five were the ladder, not the history.** Under the
-re-cut table only SOL-USD never reaches `extreme`; LINK-USD, XLP and XLU now do, and
-EUR/USD — which was on the list with twenty-three years and 145,000 bars — was never a
-history problem at all. What is left is the true version of the claim: a short history
-caps the DATE a message can quote, not the rung it can reach.
-
-XLP at 2022-08-01 is separate and unexplained — 7,246 bars against XLK's 11,572, from the
-same provider on the same plan. Nothing in the repository accounts for the difference.
-
-**What acting on it would mean:** deepening history from an archive provider, which is a
-data migration rather than a code change, plus finding out what is different about XLP.
+A short history caps the DATE a message can quote ("biggest since…"), not the word it can
+reach.
 
 ---
 
