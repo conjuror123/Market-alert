@@ -43,7 +43,7 @@ on:
         type: boolean
         default: false
       only:
-        description: 'One part: SiftingIO freshness/client/holes/archive; verdict freshness or hours:T1,T2; eulerpool or eulerpool:newest; lse'
+        description: 'One part: SiftingIO freshness/client/holes/archive; verdict freshness or hours:T1,T2; eulerpool or eulerpool:newest; lse; fmp'
         type: string
         default: ''
 
@@ -129,6 +129,16 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           SIFTING_API_KEY: ${{ secrets.SIFTING_API_KEY }}
         run: python -m tools.lse_probe
+
+      # Financial Modeling Prep, for what is still unsourced: TUR and RWX
+      # against the tape, the ETNs' commodities, USD/BRL. only=fmp, probe off.
+      - name: Probe what Financial Modeling Prep serves
+        if: inputs.only == 'fmp'
+        env:
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: python -m tools.fmp_probe
 
       - name: Probe what Alpaca covers
         if: inputs.probe && !inputs.finnhub && !inputs.sifting && !inputs.verdict
