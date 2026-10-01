@@ -77,7 +77,9 @@ def google_page(ticker: str, exchange: str) -> "tuple[pd.DataFrame, float | None
 
 def minutes(ticker: str, day: pd.Timestamp, feed: str) -> pd.DataFrame:
     start = day.tz_convert(fv.NY).replace(hour=9, minute=30)
-    end = start + timedelta(hours=6, minutes=31)
+    # Alpaca's free plan serves the consolidated tape only to 15 minutes back.
+    end = min(start + timedelta(hours=6, minutes=31),
+              pd.Timestamp.now(tz="UTC") - timedelta(minutes=16))
     stamp = lambda d: d.tz_convert("UTC").strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: E731
     candles = fv.alpaca_bars([ticker], "1Min", stamp(start), stamp(end), feed).get(ticker, [])
     return pd.DataFrame([(pd.Timestamp(c.open_time, unit="s", tz="UTC"), c.close, c.volume)
@@ -144,10 +146,14 @@ def main() -> int:
         sip, iex = minutes(ticker, day, "sip"), minutes(ticker, day, "iex")
         start = day.tz_convert(fv.NY).replace(hour=9, minute=30)
         stamp = lambda d: d.tz_convert("UTC").strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: E731
+        tape_end = min(start + timedelta(hours=7),
+                       pd.Timestamp.now(tz="UTC") - timedelta(minutes=16))
         sip_30 = bars.candles_to_frame(fv.alpaca_bars(
-            [ticker], "30Min", stamp(start), stamp(start + timedelta(hours=7)), "sip")
-            .get(ticker, []))
-        print(f"{ticker:5s} session {day.tz_convert(fv.NY):%Y-%m-%d}, {len(g)} Google bars")
+            [ticker], "30Min", stamp(start), stamp(tape_end), "sip").get(ticker, []))
+        # Mid-session the page is only worth having if it is current.
+        age = (pd.Timestamp.now(tz="UTC") - g["t"].iloc[-1]).total_seconds() / 60
+        print(f"{ticker:5s} session {day.tz_convert(fv.NY):%Y-%m-%d}, {len(g)} Google bars, "
+              f"newest ends {g['t'].iloc[-1].tz_convert(fv.NY):%H:%M} New York, {age:.0f} min ago")
         print(f"      volume: Google day {day_volume or '-'}, Google bars {g['volume'].sum():.0f}, "
               f"SIP {sip['volume'].sum():.0f}, IEX {iex['volume'].sum():.0f}")
         print(f"      prints vs SIP  {prints(g, sip)}")

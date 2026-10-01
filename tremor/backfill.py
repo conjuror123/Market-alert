@@ -7,8 +7,8 @@ THE HOURLY PATH asks each instrument only for what it can be missing: the walk
 starts at its newest stored bar minus three hours, and an instrument whose market
 has been shut since that bar is not asked at all (see nothing_can_have_appeared).
 Providers are chosen per instrument by `provider` in config/basket.yaml - Tiingo,
-Yahoo and Coinbase - and only Twelve Data is paced, because only its free tier
-enforces one.
+Yahoo, SiftingIO, Coinbase and, for TUR and RWX, Google Finance's quote page - and
+only Twelve Data is paced, because only its free tier enforces one.
 
 US EQUITY ETFs ARE REQUESTED AS HALF-HOURLY BARS and folded onto the round UTC
 hour (see bars.to_hourly): their own grid runs on the :30 and would not line up
@@ -41,8 +41,8 @@ import requests
 from tremor import atomic, bars, cboe, corporate_actions, fred, quality
 from tremor import sessions as _sessions
 from tremor.basket import Asset, Basket, load_basket
-from price_monitor import (candle_store, coinbase, dukascopy, hfdata, sifting,
-                           tiingo, twelvedata, yahoo)
+from price_monitor import (candle_store, coinbase, dukascopy, google, hfdata,
+                           sifting, tiingo, twelvedata, yahoo)
 from price_monitor.models import ExchangeError
 from price_monitor.notifier import TelegramError, redact_secrets, send_telegram_message
 
@@ -257,6 +257,12 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
         candles = yahoo.fetch_full_history(
             symbol=asset.ticker, interval=asset.fetch_interval, days=days,
             base_url=YAHOO_BASE_URL, session=session, end=end,
+        )
+    elif provider == "google":
+        # The latest session, whatever `days` asks: the page holds no more.
+        candles = google.fetch_full_history(
+            symbol=asset.ticker, interval=asset.fetch_interval, days=days,
+            session=session, end=end,
         )
     else:
         raise ExchangeError(f"{asset.asset_id}: unknown provider '{provider}'")

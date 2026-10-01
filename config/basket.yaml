@@ -772,9 +772,11 @@ assets:
   # Data (2020-02 on) and HF Data's consolidated tape (before), live on Yahoo,
   # which agrees with the consolidated tape on each of them; pairs from Twelve
   # Data and Dukascopy, live on SiftingIO; coins from Coinbase. Blocked into the
-  # existing blocks for now. Left out: TUR and RWX (no live feed agrees), the
-  # seven iPath ETNs (no longer trade) and USD/BRL (its session and history
-  # are still open) - docs/concerns-for-later.md.
+  # existing blocks for now. TUR is live on Google Finance's quote page, the
+  # one feed whose hourly closes match the tape on it (price_monitor/google.py);
+  # RWX on Yahoo, which matches the tape but lacks 3% of its hours - skipped as
+  # holes since 2026-10-01. Left out: the seven iPath ETNs (no longer trade) and
+  # USD/BRL (its session and history are still open) - docs/concerns-for-later.md.
   - ticker: KRE
     source: twelvedata
     provider: yahoo
@@ -1135,6 +1137,16 @@ assets:
     session_template: us_equity
     fetch_interval: 30min
     label: "South Africa"
+  - ticker: TUR
+    source: twelvedata
+    provider: google
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Turkey"
   - ticker: EPI
     source: twelvedata
     provider: yahoo
@@ -1205,6 +1217,16 @@ assets:
     session_template: us_equity
     fetch_interval: 30min
     label: "International real estate"
+  - ticker: RWX
+    source: twelvedata
+    provider: yahoo
+    tier: 2
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "International real estate (SPDR)"
   - ticker: GOVT
     source: twelvedata
     provider: yahoo

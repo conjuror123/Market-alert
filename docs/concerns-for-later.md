@@ -181,6 +181,11 @@ scored.
 - **Yahoo agrees on 87.** It misses TUR (p90 5.6) and RWX (3% of hours missing) by a
   hair. On TUR, Twelve Data misses the tape by exactly the same amounts, spread over every
   hour of the day, so that is how thin TUR trades rather than a bad feed.
+  - **Since 2026-10-01 both are in.** RWX on Yahoo: a missing hour is now a hole, skipped
+    rather than merged into the next, so 3% missing costs readings, not truth. TUR on
+    Google Finance's quote page, whose hourly closes matched the tape exactly on the one
+    session measured (`tools/google_probe.py`). Google sees exchange trades only — 91% of
+    TUR's volume, 19% of RWX's — which is why RWX is not on it.
 - **Twelve Data equals Yahoo** on all eight names checked. It is the consolidated tape too.
 - **SiftingIO carries few of the candidates at all.** Five pass: `DIA MDY IAU SGOL SIVR`.
 - **The 44 held funds reproduce today's split, with two exceptions.** USO and SLV sit on

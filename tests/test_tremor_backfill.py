@@ -1313,3 +1313,22 @@ def test_the_fetch_asks_sifting_for_a_sifting_pair(tmp_path, monkeypatch):
                            date(2021, 1, 1), "td", requests.Session(),
                            sifting_key="sk")
     assert seen["symbol"] == "USD/MXN" and seen["api_key"] == "sk"
+
+
+def test_the_fetch_asks_google_for_a_google_fund(tmp_path, monkeypatch):
+    from tremor import backfill
+
+    seen = {}
+
+    def fake(**kwargs):
+        seen.update(kwargs)
+        return []
+
+    monkeypatch.setattr(backfill.google, "fetch_full_history", fake)
+    asset = Asset(ticker="TUR", source="twelvedata", provider="google", tier=2,
+                  block="equity", has_volume=True, tick_size=0.01,
+                  session_template="us_equity", fetch_interval="30min",
+                  label="TUR", in_basket=True)
+    backfill.fetch_missing(asset, str(tmp_path / "p"), date(2021, 1, 1), "td",
+                           requests.Session())
+    assert seen["symbol"] == "TUR" and seen["interval"] == "30min"

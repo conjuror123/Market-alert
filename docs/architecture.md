@@ -236,6 +236,7 @@ move.
 | Tiingo | 29 | the funds whose single-exchange price matches the consolidated tape |
 | SiftingIO | 8 | the FX pairs: 0.11–0.35 bps median against the stored bars, the bar closed at :00 served by :05 |
 | Yahoo | 15 | the thin funds where one exchange is *not* the same price; also the morning dividend check |
+| Google Finance | 1 | TUR: the one feed whose hourly closes match the tape on it, read off the quote page (`price_monitor/google.py`) |
 | Coinbase | 9 | crypto |
 | Twelve Data | — | archive, gap-fill and deepening; not on the hourly path |
 | Dukascopy, HF Data | — | history below what the live providers reach |
