@@ -43,7 +43,7 @@ on:
         type: boolean
         default: false
       only:
-        description: 'One part: SiftingIO freshness/client/holes/archive; verdict freshness or hours:T1,T2; eulerpool or eulerpool:newest; lse; fmp; rapidapi'
+        description: 'One part: SiftingIO freshness/client/holes/archive; verdict freshness or hours:T1,T2; eulerpool or eulerpool:newest; lse; fmp; rapidapi; deriv'
         type: string
         default: ''
 
@@ -147,6 +147,14 @@ jobs:
         env:
           RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
         run: python -m tools.rapidapi_probe
+
+      # Deriv's public market-data websocket, for what is still unsourced.
+      # only=deriv, probe off. Needs no key.
+      - name: Probe what Deriv serves
+        if: inputs.only == 'deriv'
+        run: |
+          pip install -q websocket-client
+          python -m tools.deriv_probe
 
       - name: Probe what Alpaca covers
         if: inputs.probe && !inputs.finnhub && !inputs.sifting && !inputs.verdict
