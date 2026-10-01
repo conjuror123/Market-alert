@@ -255,8 +255,9 @@ POL's two histories would have to be joined.
    Twelve Data can take a slice, at a minute of run time per eight.
 3. **USD/BRL's history before 2026-07-26 from a feed that agrees with SiftingIO.**
    Otherwise, seed it from Twelve Data at the disagreement above, or let it start young.
-4. **Live IEX capacity past Tiingo's 21 slots, if Alpaca's IEX turns out not to be
-   fresh at :05.**
+4. **Live IEX capacity past Tiingo's 21 slots** — answered 2026-10-01: Alpaca's free IEX
+   is fresh. At 15:05 UTC it served the half-hour bar opened at 15:00 and minute bars to
+   15:04, so the 30 IEX-safe funds fit between Tiingo and Alpaca. Not wired yet.**
 
 **The four questions any future candidate has to answer**, cheapest disqualifier first:
 
