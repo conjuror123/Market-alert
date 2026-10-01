@@ -394,6 +394,51 @@ def collect_from_twelvedata(funds, since: date, api_key: str, session,
     return all_actions
 
 
+def add_missing_from_yahoo(funds, since: date, path: str, session,
+                           delay: float = 1.0) -> int:
+    """Dividends for the funds the table lacks, from Yahoo, merged into it.
+
+    Yahoo's steps are already in the table's d/(1-d) form (price_monitor.yahoo).
+    Every fund asked must answer, as with the full refresh: a fund left out would
+    read its every ex-date as an unexplained drop. Splits are not asked for -
+    the store is split-adjusted and un-adjustment never uses them.
+    """
+    from price_monitor import yahoo
+
+    existing: list[CorporateAction] = []
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            existing = [CorporateAction(r["ticker"], date.fromisoformat(r["date"]), r["kind"],
+                                        float(r["factor_step"])) for r in csv.DictReader(f)]
+    held = {a.ticker for a in existing}
+    missing = [a for a in funds if a.ticker not in held]
+    added: list[CorporateAction] = []
+    failed: list[str] = []
+    for i, asset in enumerate(missing):
+        try:
+            found = yahoo.fetch_dividends(asset.ticker, since, session=session)
+            added.extend(CorporateAction(asset.ticker, day, "dividend", step)
+                         for day, step in found if abs(step) >= STEP_THRESHOLD)
+            log.info("%s: payouts %d (Yahoo)", asset.ticker, len(found))
+        except Exception as exc:
+            log.error("%s: failed - %s", asset.ticker, exc)
+            failed.append(asset.ticker)
+        if i < len(missing) - 1:
+            time.sleep(delay)
+    if failed:
+        log.error("Refusing to write a truncated table: %s", ", ".join(failed))
+        return 1
+    write_actions(path, existing + added)
+    log.info("%s: %d funds added, %d records", path, len(missing), len(added))
+    if path == DEFAULT_ACTIONS_PATH:
+        through = (date.today() - timedelta(days=1)).isoformat()
+        checks = load_checks()
+        checks.update({a.ticker: max(checks.get(a.ticker, through), through)
+                       for a in missing})
+        write_checks(checks)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
@@ -409,6 +454,12 @@ def main(argv: list[str] | None = None) -> int:
         help="tiingo (default) uses declared dividends and splits. "
              "twelvedata cannot see splits: both of its series are split-adjusted "
              "so the split cancels in the ratio.")
+    parser.add_argument(
+        "--add-missing", action="store_true",
+        help="Add only the funds the table does not hold yet, from Yahoo's declared "
+             "payouts, and keep every existing row. For a widened basket: the full "
+             "Tiingo refresh asks for every fund at Tiingo's hourly budget, which the "
+             "live run on the default branch shares.")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -416,6 +467,9 @@ def main(argv: list[str] | None = None) -> int:
     basket = load_basket()
     funds = _funds(basket)
     session = requests.Session()
+
+    if args.add_missing:
+        return add_missing_from_yahoo(funds, basket.acquire_since, args.out, session)
 
     try:
         if args.source == "twelvedata":
