@@ -41,24 +41,41 @@ def main() -> int:
     if not (os.environ.get("RAPIDAPI_KEY") or "").strip():
         print("RAPIDAPI_KEY is not set")
         return 1
-    print("PATHS - what answers")
-    tries = [("/metal-quote", {}), ("/metal-quote", {"metal": "nickel"}),
-             ("/metal-quote", {"symbol": "nickel"}), ("/metal-quote", {"metal": "NI"}),
-             ("/metals", {}), ("/supported-metals", {}), ("/metal-list", {}),
-             ("/market-status", {}), ("/historical", {"metal": "nickel"}),
-             ("/metal-history", {"metal": "nickel"}), ("/intraday", {"metal": "nickel"})]
-    limits = {}
-    for path, params in tries:
-        code, body, limits = get(path, **params)
-        print(f"   {path} {params}: HTTP {code} {str(body)[:500]}")
-    print(f"   rate-limit headers: {limits or 'none'}\n")
+    print("SYMBOLS - which spelling /metal-quote accepts")
+    ok = {}
+    for metal, spellings in (("gold", ("XAU", "GOLD", "gold", "AU")),
+                             ("nickel", ("XNI", "NI", "NICKEL", "Nickel", "LME-NI")),
+                             ("aluminium", ("XAL", "AL", "ALU", "ALUMINUM", "Aluminum")),
+                             ("tin", ("XSN", "SN", "TIN", "LME-TIN"))):
+        for sym in spellings:
+            code, body, _ = get("/metal-quote", symbol=sym, currency="USD")
+            good = not (isinstance(body, dict) and body.get("error"))
+            print(f"   {metal:9s} {sym:9s} HTTP {code} {str(body)[:260]}")
+            if good:
+                ok[metal] = sym
+                break
+    print(f"   accepted: {ok}\n")
 
-    print("MOVEMENT - the nickel and aluminium quote, five times a minute apart")
+    print("HISTORY - granularity of /metal-history over the last two days")
+    end = int(time.time())
+    for metal, sym in ok.items():
+        for start_fmt in ("ms", "s", "iso"):
+            lo = end - 2 * 86400
+            st, en = {"ms": (lo * 1000, end * 1000), "s": (lo, end),
+                      "iso": (time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(lo)),
+                              time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(end)))}[start_fmt]
+            code, body, _ = get("/metal-history", symbol=sym, currency="USD",
+                                startTime=st, endTime=en)
+            print(f"   {metal:9s} times as {start_fmt}: HTTP {code} {str(body)[:600]}")
+            if not (isinstance(body, dict) and body.get("error")):
+                break
+    print()
+
+    print("MOVEMENT - each accepted quote, five times a minute apart")
     for i in range(5):
-        for metal in ("nickel", "aluminum", "tin"):
-            code, body, _ = get("/metal-quote", metal=metal)
-            print(f"   {time.strftime('%H:%M:%S', time.gmtime())} {metal:9s} HTTP {code} "
-                  f"{str(body)[:240]}")
+        for metal, sym in ok.items():
+            code, body, _ = get("/metal-quote", symbol=sym, currency="USD")
+            print(f"   {time.strftime('%H:%M:%S', time.gmtime())} {metal:9s} {str(body)[:240]}")
         if i < 4:
             time.sleep(60)
     return 0
