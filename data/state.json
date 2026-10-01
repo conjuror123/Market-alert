@@ -41,8 +41,8 @@
         "from": 1790553900,
         "hashes": [
           "af41463f3c0dd3b7",
-          "bfe343c6eb235424",
-          "6c315267c976cb85"
+          "ae8130134f794b57",
+          "1ec0833ab554594f"
         ],
         "ids": [
           55,
@@ -129,7 +129,7 @@
     },
     "sent": {
       "twelvedata_CORN:1790784000": {
-        "hash": "d6715e8eff841f5c",
+        "hash": "008a1913124e384f",
         "hour": 1790784000,
         "id": 72
       },
@@ -157,9 +157,10 @@
       "twelvedata_CORN:1790784000": {
         "hour_utc": 1790784000,
         "message_id": 72,
-        "text_hash": "d6715e8eff841f5c",
+        "text_hash": "008a1913124e384f",
         "written": [
-          "today"
+          "today",
+          "settled"
         ]
       },
       "twelvedata_EMB:1790600400": {
