@@ -17,8 +17,8 @@ with the currency pairs and crypto, which would make "the same hour" mean two
 different things in the cross-section. It costs nothing extra - the providers
 count requests, not rows.
 
-THE DEEPENING MODES (--extend-history, --deepen-etfs, --deepen-fx,
---deepen-dukascopy, --fill-gaps) reach back past what the live providers serve,
+THE DEEPENING MODES (--extend-history, --deepen-etfs, --deepen-alpaca,
+--deepen-fx, --deepen-dukascopy, --fill-gaps) reach back past what the live providers serve,
 and are routed to `source` rather than `provider`: Yahoo serves 55 days of
 half-hourly bars and Tiingo caps a response at 10000 rows, so only the archive
 provider can answer a walk backwards. An import from HF Data is un-adjusted
@@ -42,8 +42,8 @@ import requests
 from tremor import atomic, bars, cboe, corporate_actions, fred, quality
 from tremor import sessions as _sessions
 from tremor.basket import Asset, Basket, load_basket
-from price_monitor import (candle_store, coinbase, dukascopy, google, hfdata,
-                           kitco, sifting, tiingo, twelvedata, yahoo)
+from price_monitor import (alpaca, candle_store, coinbase, dukascopy, google,
+                           hfdata, kitco, sifting, tiingo, twelvedata, yahoo)
 from price_monitor.models import ExchangeError
 from price_monitor.notifier import TelegramError, redact_secrets, send_telegram_message
 
@@ -953,6 +953,54 @@ def deepen_from_dukascopy(asset: Asset, path: str, since: date,
             "from": since, "to": oldest.date(), "check": check}
 
 
+# How far ABOVE the oldest stored bar Alpaca is asked, to buy the overlap the
+# splice is gated on. A fund's store starts 2020-02-10; three months of seven
+# hours a day is about 440 hours against the 200 the check needs, and it covers
+# the March 2020 crash, where a timing or adjustment error would show loudest.
+ALPACA_OVERLAP_DAYS = 93
+
+
+def deepen_from_alpaca(asset: Asset, path: str, since: date, auth: dict,
+                       session: requests.Session) -> dict:
+    """Fills a US fund's history below what is stored, from Alpaca's
+    consolidated tape (2016 on). Same gates as the Dukascopy deepening: the
+    overlap is fetched and not written, and the years below are written only if
+    returns correlate and LEVELS match there - a dividend-adjusted series agrees
+    on returns and sits below the store on price, and the level gate refuses it.
+    Nothing at or above the oldest stored bar is written."""
+    if asset.session_template != CALENDAR_TEMPLATE:
+        return {"skipped": "not a US-equity instrument", "added": 0}
+    stored = bars.load(path)
+    if stored.empty:
+        return {"skipped": "nothing stored yet", "added": 0}
+    floor = int(stored["hour_utc"].min())
+    oldest = datetime.fromtimestamp(floor, tz=timezone.utc)
+    start = max(datetime.combine(since, datetime.min.time(), tzinfo=timezone.utc),
+                alpaca.FIRST)
+    if oldest <= start:
+        return {"skipped": "already reaches back far enough", "added": 0}
+
+    end = min(oldest + timedelta(days=ALPACA_OVERLAP_DAYS),
+              datetime.now(timezone.utc) - timedelta(minutes=20))
+    candles = alpaca.fetch_history(asset.ticker, start, end, auth, session)
+    if not candles:
+        return {"skipped": "Alpaca returned nothing", "added": 0}
+
+    frame = bars.to_hourly(bars.candles_to_frame(candles))
+    check = verify_alignment(frame, stored)
+    if not check["ok"]:
+        return {"skipped": f"alignment check failed: {check['why']}",
+                "added": 0, "check": check}
+    below = frame[frame["hour_utc"] < floor]
+    if below.empty:
+        return {"skipped": "nothing below the oldest stored bar (listed later)",
+                "added": 0, "check": check}
+    added = bars.merge(path, below)
+    first = datetime.fromtimestamp(int(below["hour_utc"].min()), tz=timezone.utc).date()
+    return {"skipped": None, "added": added, "fetched": len(candles),
+            "from": first, "to": oldest.date(), "check": check}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Phase 0: backfill of Tremor hourly history")
     parser.add_argument("--instruments", default="",
@@ -984,6 +1032,11 @@ def main(argv: list[str] | None = None) -> int:
                              "2003 and also carries USD/CNH. Needs no key. "
                              "Overlaps the store and is gated on agreeing with "
                              "it.")
+    parser.add_argument("--deepen-alpaca", action="store_true",
+                        help="fill the US funds' history below what is stored "
+                             "from Alpaca's consolidated tape, 2016 on "
+                             "(ALPACA_KEY_ID, ALPACA_SECRET_KEY). Overlaps the "
+                             "store and is gated on agreeing with it.")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -1120,6 +1173,42 @@ def main(argv: list[str] | None = None) -> int:
             unfilled += len(hours_left)
         log.info("gap fill: %d hour(s) recovered, %d confirmed missing at "
                  "the source", filled, unfilled)
+        return 0
+
+    if args.deepen_alpaca:
+        key = os.environ.get("ALPACA_KEY_ID", "").strip()
+        secret = os.environ.get("ALPACA_SECRET_KEY", "").strip()
+        if not key or not secret:
+            log.error("ALPACA_KEY_ID / ALPACA_SECRET_KEY are not set")
+            return 2
+        auth = alpaca.headers(key, secret)
+        session = requests.Session()
+        total = 0
+        for asset in instruments:
+            path = bars.store_path(args.bars_dir, asset.file_stem)
+            try:
+                out = deepen_from_alpaca(asset, path, basket.acquire_since,
+                                         auth, session)
+            except Exception as exc:
+                log.error("%s: Alpaca deepening failed - %s", asset.asset_id, exc)
+                continue
+            check = out.get("check")
+            if out["skipped"]:
+                if check:
+                    log.info("%s: skipped (%s); overlap %d hours, corr %.4f, "
+                             "median %.2fbp", asset.asset_id, out["skipped"],
+                             check["hours"], check["correlation"],
+                             check["median_bp"])
+                else:
+                    log.info("%s: skipped (%s)", asset.asset_id, out["skipped"])
+                continue
+            total += out["added"]
+            log.info("%s: +%d bars from Alpaca (%s .. %s, %d half-hours fetched); "
+                     "overlap check %d hours, corr %.4f, median %.2fbp",
+                     asset.asset_id, out["added"], out["from"], out["to"],
+                     out["fetched"], check["hours"], check["correlation"],
+                     check["median_bp"])
+        log.info("Alpaca deepening added %d bars", total)
         return 0
 
     if args.deepen_dukascopy:

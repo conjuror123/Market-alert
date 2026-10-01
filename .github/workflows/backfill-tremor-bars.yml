@@ -31,6 +31,10 @@ name: Backfill Tremor Bars
 #                   extend-history alone leaves a new instrument with six years
 #                   where SPY has twenty-three. Run extend-history first, then
 #                   this. It spends no Twelve Data credits.
+#   deepen-alpaca   the US funds below what is stored, from Alpaca's consolidated
+#                   tape (SIP), 2016 on - for the funds HF Data does not carry,
+#                   which otherwise start 2020-02. Gated on an overlap with the
+#                   store, like the others. Run after deepen-etfs.
 #   corporate-actions
 #                   rebuild the ex-date table from Tiingo's declared divCash /
 #                   splitFactor (needs TIINGO_API_KEY). It must reach at least
@@ -60,6 +64,7 @@ on:
           - fill-gaps
           - deepen-dukascopy
           - deepen-etfs
+          - deepen-alpaca
           - probe-hfdata
           - corporate-actions
 
@@ -104,6 +109,8 @@ jobs:
           # Deepening asks each pair's archive source, not SiftingIO, but the
           # backfill refuses up front a list holding SiftingIO pairs without it.
           SIFTING_API_KEY: ${{ secrets.SIFTING_API_KEY }}
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
         run: |
           # probe-hfdata takes its ticker as the flag's value rather than as a
           # separate --instruments, so it is spelled out on its own.

@@ -1,5 +1,5 @@
 import os
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
 import pytest
@@ -1350,3 +1350,77 @@ def test_the_fetch_asks_kitco_for_nickel(tmp_path, monkeypatch):
     backfill.fetch_missing(asset, str(tmp_path / "p"), date(2021, 1, 1), "td",
                            requests.Session())
     assert seen["symbol"] == "NI"
+
+
+# --- Alpaca deepening ---------------------------------------------------------
+
+def _fund():
+    return Asset(ticker="VCIT", source="twelvedata", provider="yahoo", tier=2,
+                 block="credit", has_volume=True, tick_size=0.01,
+                 session_template="us_equity", fetch_interval="30min",
+                 label="VCIT", in_basket=True)
+
+
+def _session_half_hours(days):
+    """Regular-session half-hour stamps (New York) for consecutive weekdays."""
+    from zoneinfo import ZoneInfo
+    ny = ZoneInfo("America/New_York")
+    out, day = [], datetime(2019, 6, 3)
+    while len(out) < days * 13:
+        if day.weekday() < 5:
+            for k in range(13):
+                t = datetime(day.year, day.month, day.day, 9, 30, tzinfo=ny) + timedelta(minutes=30 * k)
+                out.append(int(t.timestamp()))
+        day += timedelta(days=1)
+    return out
+
+
+def _alpaca_candles(stamps, prices):
+    from price_monitor.models import Candle
+    return [Candle(open_time=t, open=p, high=p, low=p, close=p, volume=100.0,
+                   close_time=t + 1800) for t, p in zip(stamps, prices)]
+
+
+def test_alpaca_writes_only_below_the_store_once_the_overlap_agrees(tmp_path, monkeypatch):
+    from tremor import backfill
+    stamps = _session_half_hours(200)
+    prices = _walk(len(stamps), 11, start=80.0)
+    archive = _alpaca_candles(stamps, prices)
+    path = str(tmp_path / "twelvedata_VCIT.parquet")
+    split = 100 * 13
+    bars.merge(path, bars.to_hourly(bars.candles_to_frame(archive[split:])))
+    before = bars.load(path)
+    monkeypatch.setattr(backfill.alpaca, "fetch_history", lambda *a, **k: archive)
+
+    out = backfill.deepen_from_alpaca(_fund(), path, date(2015, 1, 1), {}, None)
+
+    assert out["skipped"] is None and out["check"]["ok"]
+    after = bars.load(path)
+    assert after["hour_utc"].min() < before["hour_utc"].min()
+    kept = before.merge(after, on="hour_utc", suffixes=("_b", "_a"))
+    assert (kept["close_b"] == kept["close_a"]).all()
+
+
+def test_alpaca_with_dividends_taken_out_is_refused_on_level(tmp_path, monkeypatch):
+    # A dividend-adjusted series agrees on returns and sits below on price.
+    from tremor import backfill
+    stamps = _session_half_hours(200)
+    prices = _walk(len(stamps), 12, start=80.0)
+    path = str(tmp_path / "twelvedata_VCIT.parquet")
+    bars.merge(path, bars.to_hourly(bars.candles_to_frame(
+        _alpaca_candles(stamps[1300:], prices[1300:]))))
+    adjusted = _alpaca_candles(stamps, prices * 0.97)
+    monkeypatch.setattr(backfill.alpaca, "fetch_history", lambda *a, **k: adjusted)
+    before = len(bars.load(path))
+    out = backfill.deepen_from_alpaca(_fund(), path, date(2015, 1, 1), {}, None)
+    assert out["added"] == 0 and "median level gap" in out["skipped"]
+    assert len(bars.load(path)) == before
+
+
+def test_alpaca_keeps_only_the_regular_session():
+    from zoneinfo import ZoneInfo
+    from price_monitor import alpaca
+    ny = ZoneInfo("America/New_York")
+    at = lambda h, m: int(datetime(2019, 6, 3, h, m, tzinfo=ny).timestamp())  # noqa: E731
+    assert [alpaca.regular_session(at(h, m)) for h, m in
+            ((9, 0), (9, 30), (15, 30), (16, 0))] == [False, True, True, False]
