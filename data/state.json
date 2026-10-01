@@ -6,34 +6,6 @@
   "telegram_update_offset": 688283215,
   "tremor_delivery": {
     "digests": {
-      "1789949100": {
-        "events": [
-          "twelvedata_SHY:1790168400",
-          "twelvedata_IEI:1790168400",
-          "twelvedata_IEF:1790168400",
-          "twelvedata_IEF:1790258400",
-          "twelvedata_TLH:1790258400",
-          "twelvedata_TLT:1790258400",
-          "twelvedata_MBB:1790258400",
-          "twelvedata_LQD:1790168400",
-          "twelvedata_BKLN:1790348400",
-          "twelvedata_UNG:1790258400",
-          "twelvedata_NZD_USD:1790042400",
-          "coinbase_LTC-USD:1790215200",
-          "coinbase_LINK-USD:1790272800"
-        ],
-        "from": 1789949100,
-        "hashes": [
-          "36b39b68a7bf07b9",
-          "823c404c7bc8d1a2"
-        ],
-        "ids": [
-          30,
-          50
-        ],
-        "rows": 13,
-        "to": 1790381100
-      },
       "1790381100": {
         "events": [],
         "from": 1790381100,
@@ -60,7 +32,7 @@
         "from": 1790553900,
         "hashes": [
           "29ddde96cec9372e",
-          "6543ead24ec4af17"
+          "008aa5244a2b6855"
         ],
         "ids": [
           55,
@@ -163,6 +135,6 @@
       }
     }
   },
-  "weekly_digest:last_refreshed": "2026-09-30",
+  "weekly_digest:last_refreshed": "2026-10-01",
   "weekly_digest:last_sent_week": "1790381100"
 }

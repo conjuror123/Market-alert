@@ -91633,6 +91633,7 @@
 {"actual": "", "country": "GBP", "date": "2026-09-30T06:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Nationwide HPI m/m"}
 {"actual": "", "country": "EUR", "date": "2026-09-30T06:00:00+00:00", "forecast": "0.6%", "impact": "Low", "previous": "0.2%", "title": "German Import Prices m/m"}
 {"actual": "", "country": "EUR", "date": "2026-09-30T06:00:00+00:00", "forecast": "1.6%", "impact": "Low", "previous": "-3.4%", "title": "German Retail Sales m/m"}
+{"actual": "", "country": "EUR", "date": "2026-09-30T06:04:00+00:00", "forecast": "1.6%", "impact": "Low", "previous": "-3.4%", "title": "German Retail Sales m/m"}
 {"actual": "", "country": "EUR", "date": "2026-09-30T06:29:00+00:00", "forecast": "0.5%", "impact": "Medium", "previous": "0.2%", "title": "German Prelim CPI m/m"}
 {"actual": "", "country": "EUR", "date": "2026-09-30T06:45:00+00:00", "forecast": "0.0%", "impact": "Low", "previous": "0.5%", "title": "French Consumer Spending m/m"}
 {"actual": "", "country": "EUR", "date": "2026-09-30T06:45:00+00:00", "forecast": "-0.5%", "impact": "Low", "previous": "0.7%", "title": "French Prelim CPI m/m"}
@@ -91641,6 +91642,7 @@
 {"actual": "", "country": "EUR", "date": "2026-09-30T09:00:00+00:00", "forecast": "0.2%", "impact": "Low", "previous": "0.5%", "title": "Italian Prelim CPI m/m"}
 {"actual": "", "country": "GBP", "date": "2026-09-30T09:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FPC Meeting Minutes"}
 {"actual": "", "country": "GBP", "date": "2026-09-30T09:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FPC Statement"}
+{"actual": "", "country": "EUR", "date": "2026-09-30T09:32:00+00:00", "forecast": "", "impact": "Low", "previous": "3.39|1.5", "title": "German 10-y Bond Auction"}
 {"actual": "", "country": "EUR", "date": "2026-09-30T09:42:00+00:00", "forecast": "", "impact": "Low", "previous": "3.39|1.5", "title": "German 10-y Bond Auction"}
 {"actual": "", "country": "GBP", "date": "2026-09-30T10:32:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "30-y Bond Auction"}
 {"actual": "", "country": "CAD", "date": "2026-09-30T12:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Bank Holiday"}
@@ -91654,14 +91656,15 @@
 {"actual": "", "country": "USD", "date": "2026-09-30T12:30:00+00:00", "forecast": "0.5%", "impact": "Low", "previous": "1.3%", "title": "Prelim Wholesale Inventories m/m"}
 {"actual": "", "country": "CHF", "date": "2026-09-30T13:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "SNB Quarterly Bulletin"}
 {"actual": "", "country": "USD", "date": "2026-09-30T13:45:00+00:00", "forecast": "51.2", "impact": "Low", "previous": "47.1", "title": "Chicago PMI"}
-{"actual": "", "country": "USD", "date": "2026-09-30T14:30:00+00:00", "forecast": "-1.9M", "impact": "Low", "previous": "3.0M", "title": "Crude Oil Inventories"}
+{"actual": "", "country": "USD", "date": "2026-09-30T14:30:00+00:00", "forecast": "-0.7M", "impact": "Low", "previous": "3.0M", "title": "Crude Oil Inventories"}
 {"actual": "", "country": "CHF", "date": "2026-09-30T14:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Gov Board Member Tschudin Speaks"}
 {"actual": "", "country": "CHF", "date": "2026-09-30T15:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Gov Board Member Tschudin Speaks"}
 {"actual": "", "country": "USD", "date": "2026-09-30T17:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Barkin Speaks"}
 {"actual": "", "country": "USD", "date": "2026-09-30T19:25:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Cook Speaks"}
+{"actual": "", "country": "USD", "date": "2026-09-30T19:30:00+00:00", "forecast": "", "impact": "Medium", "previous": "", "title": "President Trump Speaks"}
 {"actual": "", "country": "USD", "date": "2026-09-30T21:10:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Goolsbee Speaks"}
 {"actual": "", "country": "NZD", "date": "2026-09-30T21:45:00+00:00", "forecast": "", "impact": "Low", "previous": "-4.3%", "title": "Building Consents m/m"}
-{"actual": "", "country": "USD", "date": "2026-09-30T22:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Kashkari Speaks"}
+{"actual": "", "country": "USD", "date": "2026-09-30T22:00:00+00:00", "forecast": "", "impact": "Medium", "previous": "", "title": "FOMC Member Kashkari Speaks"}
 {"actual": "", "country": "CNY", "date": "2026-09-30T23:01:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Bank Holiday"}
 {"actual": "", "country": "JPY", "date": "2026-09-30T23:50:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "BOJ Summary of Opinions"}
 {"actual": "", "country": "JPY", "date": "2026-09-30T23:50:00+00:00", "forecast": "25", "impact": "Low", "previous": "22", "title": "Tankan Manufacturing Index"}
@@ -91675,7 +91678,7 @@
 {"actual": "", "country": "CHF", "date": "2026-10-01T06:30:00+00:00", "forecast": "0.0%", "impact": "Medium", "previous": "0.4%", "title": "CPI m/m"}
 {"actual": "", "country": "CHF", "date": "2026-10-01T06:30:00+00:00", "forecast": "2.1%", "impact": "Low", "previous": "2.3%", "title": "Retail Sales y/y"}
 {"actual": "", "country": "EUR", "date": "2026-10-01T07:15:00+00:00", "forecast": "50.2", "impact": "Low", "previous": "49.5", "title": "Spanish Manufacturing PMI"}
-{"actual": "", "country": "CHF", "date": "2026-10-01T07:30:00+00:00", "forecast": "56.4", "impact": "Low", "previous": "57.1", "title": "Manufacturing PMI"}
+{"actual": "", "country": "CHF", "date": "2026-10-01T07:30:00+00:00", "forecast": "56.3", "impact": "Low", "previous": "57.1", "title": "Manufacturing PMI"}
 {"actual": "", "country": "EUR", "date": "2026-10-01T07:45:00+00:00", "forecast": "50.1", "impact": "Low", "previous": "49.6", "title": "Italian Manufacturing PMI"}
 {"actual": "", "country": "EUR", "date": "2026-10-01T07:50:00+00:00", "forecast": "50.3", "impact": "Low", "previous": "50.3", "title": "French Final Manufacturing PMI"}
 {"actual": "", "country": "EUR", "date": "2026-10-01T07:55:00+00:00", "forecast": "53.8", "impact": "Low", "previous": "53.8", "title": "German Final Manufacturing PMI"}
@@ -91701,7 +91704,7 @@
 {"actual": "", "country": "USD", "date": "2026-10-01T14:00:00+00:00", "forecast": "0.0%", "impact": "Low", "previous": "-0.5%", "title": "Construction Spending m/m"}
 {"actual": "", "country": "USD", "date": "2026-10-01T14:00:00+00:00", "forecast": "72.9", "impact": "Low", "previous": "71.1", "title": "ISM Manufacturing Prices"}
 {"actual": "", "country": "USD", "date": "2026-10-01T14:15:00+00:00", "forecast": "16.3M", "impact": "Low", "previous": "16.8M", "title": "Omdia Total Vehicle Sales"}
-{"actual": "", "country": "USD", "date": "2026-10-01T14:30:00+00:00", "forecast": "", "impact": "Low", "previous": "53B", "title": "Natural Gas Storage"}
+{"actual": "", "country": "USD", "date": "2026-10-01T14:30:00+00:00", "forecast": "63B", "impact": "Low", "previous": "53B", "title": "Natural Gas Storage"}
 {"actual": "", "country": "CHF", "date": "2026-10-01T15:30:00+00:00", "forecast": "", "impact": "Medium", "previous": "", "title": "SNB Chairman Schlegel Speaks"}
 {"actual": "", "country": "USD", "date": "2026-10-01T17:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Jefferson Speaks"}
 {"actual": "", "country": "USD", "date": "2026-10-01T19:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Bowman Speaks"}
