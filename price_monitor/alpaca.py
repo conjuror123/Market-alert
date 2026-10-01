@@ -1,6 +1,15 @@
-"""Alpaca's historical bars: the consolidated tape (SIP) from 2016, free.
+"""Alpaca's bars: the consolidated tape (SIP) from 2016 for history, and the IEX
+exchange's bars for the hour.
 
-WHAT IT IS FOR HERE. History, not the hour. The free plan serves SIP bars only
+LIVE: IEX. The free plan's IEX bars are current - measured 2026-10-01 at 15:05
+UTC, the half-hour bar opened at 15:00 was served, minute bars to 15:04 - and
+on the 30 funds whose IEX price agrees with the tape (tools/fund_verdict.py:
+median <= 2 bp, p90 <= 5, at most 2% of hours missing) that is the same price.
+Tiingo's intraday feed is IEX too; this carries the IEX-safe funds Tiingo has
+no hourly room for. A fund IEX does not price like the tape belongs on a
+consolidated feed instead (Twelve Data, then Yahoo).
+
+HISTORY: SIP. The free plan serves SIP bars only
 to fifteen minutes back, so it cannot be the live source, but below that it is
 the consolidated tape itself - the line every live feed was held to
 (tools/fund_verdict.py) - from 2016-01-01, for every US-listed fund in the
@@ -36,6 +45,12 @@ MAX_ATTEMPTS = 3
 BACKOFF_SECONDS = 2.0
 
 
+class RateLimited(ExchangeError):
+    """429 after every retry: 200 requests a minute per key, shared with the
+    probes. The run stops asking Alpaca rather than spend a retry cycle on each
+    remaining fund."""
+
+
 def headers(key_id: str, secret: str) -> dict:
     return {"APCA-API-KEY-ID": key_id, "APCA-API-SECRET-KEY": secret}
 
@@ -59,7 +74,10 @@ def _get(session, url: str, params: dict, auth: dict, symbol: str) -> dict:
         except requests.RequestException as exc:
             last = ExchangeError(f"{symbol}: {exc}")
             continue
-        if resp.status_code in (429, 500, 502, 503, 504):
+        if resp.status_code == 429:
+            last = RateLimited(f"{symbol}: Alpaca answered 429")
+            continue
+        if resp.status_code in (500, 502, 503, 504):
             last = ExchangeError(f"{symbol}: Alpaca answered {resp.status_code}")
             continue
         if resp.status_code != 200:
@@ -71,10 +89,11 @@ def _get(session, url: str, params: dict, auth: dict, symbol: str) -> dict:
 
 def fetch_history(symbol: str, start: datetime, end: datetime, auth: dict,
                   session: requests.Session | None = None,
-                  base_url: str = BASE_URL) -> list[Candle]:
-    """Regular-session thirty-minute SIP bars from `start` to `end`, paged."""
+                  base_url: str = BASE_URL, feed: str = "sip") -> list[Candle]:
+    """Regular-session thirty-minute bars from `start` to `end`, paged. `sip`
+    for history (it refuses an end less than 15 minutes ago), `iex` live."""
     start = max(start, FIRST)
-    params = {"symbols": symbol, "timeframe": "30Min", "feed": "sip",
+    params = {"symbols": symbol, "timeframe": "30Min", "feed": feed,
               "adjustment": "split", "limit": PAGE_LIMIT,
               "start": start.strftime("%Y-%m-%dT%H:%M:%SZ"),
               "end": end.strftime("%Y-%m-%dT%H:%M:%SZ")}

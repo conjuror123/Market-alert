@@ -7,8 +7,8 @@ THE HOURLY PATH asks each instrument only for what it can be missing: the walk
 starts at its newest stored bar minus three hours, and an instrument whose market
 has been shut since that bar is not asked at all (see nothing_can_have_appeared).
 Providers are chosen per instrument by `provider` in config/basket.yaml - Tiingo,
-Yahoo, SiftingIO, Coinbase, Kitco for nickel and Google Finance's quote page for
-TUR - and
+Alpaca (IEX), Twelve Data, Yahoo, SiftingIO, Coinbase, Kitco for nickel and
+Google Finance's quote page for TUR - and
 only Twelve Data is paced, because only its free tier enforces one.
 
 US EQUITY ETFs ARE REQUESTED AS HALF-HOURLY BARS and folded onto the round UTC
@@ -259,6 +259,14 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
             symbol=asset.ticker, interval=asset.fetch_interval, days=days,
             base_url=YAHOO_BASE_URL, session=session, end=end,
         )
+    elif provider == "alpaca":
+        # IEX, live: the half-hour bars of the hours since the newest stored one.
+        stop = end or now
+        candles = alpaca.fetch_history(
+            asset.ticker, stop - timedelta(days=days), stop,
+            alpaca.headers(os.environ.get("ALPACA_KEY_ID", "").strip(),
+                           os.environ.get("ALPACA_SECRET_KEY", "").strip()),
+            session, feed="iex")
     elif provider == "kitco":
         # Five-minute quotes, both for history (from 2020-11) and the hour.
         candles = kitco.fetch_full_history(
@@ -327,6 +335,12 @@ def check_dividends(funds: "list[Asset]", table: "dict | None",
         try:
             pairs = yahoo.fetch_dividends(asset.ticker, since, session=session,
                                           now=now)
+        except alpaca.RateLimited as exc:
+            alpaca_gone = True
+            dark.append((asset.asset_id, "alpaca", str(exc)))
+            log.error("Alpaca's rate limit is spent - %s", exc)
+            log.error("Skipping the remaining Alpaca instruments; the other "
+                      "providers continue.")
         except yahoo.RateLimited as exc:
             log.warning("dividend check: Yahoo rate-limited at %s - %s",
                         asset.ticker, exc)
@@ -1074,6 +1088,10 @@ def main(argv: list[str] | None = None) -> int:
                              "from Alpaca's consolidated tape, 2016 on "
                              "(ALPACA_KEY_ID, ALPACA_SECRET_KEY). Overlaps the "
                              "store and is gated on agreeing with it.")
+    parser.add_argument("--live-pass", action="store_true",
+                        help="the ordinary hourly fetch without the VIX, for "
+                             "trying a provider change from the backfill "
+                             "workflow on a few named instruments")
     parser.add_argument("--repair-alpaca", action="store_true",
                         help="as --deepen-alpaca, but first replace stored "
                              "overlap hours more than REPAIR_MIN_BP from the "
@@ -1082,6 +1100,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    if args.live_pass:
+        args.skip_vix = True
     basket = load_basket()
     wanted = {t.strip() for t in args.instruments.split(",") if t.strip()}
     instruments = [a for a in basket.instruments if not wanted or a.ticker in wanted]
@@ -1305,6 +1325,14 @@ def main(argv: list[str] | None = None) -> int:
         log.error("SIFTING_API_KEY is not set, and the list contains SiftingIO instruments")
         return 2
 
+    if any(a.fetched_from == "alpaca" for a in instruments) and not (
+            os.environ.get("ALPACA_KEY_ID", "").strip()
+            and os.environ.get("ALPACA_SECRET_KEY", "").strip()):
+        log.error("ALPACA_KEY_ID / ALPACA_SECRET_KEY are not set, and the list "
+                  "contains Alpaca instruments")
+        return 2
+    alpaca_gone = False
+
     session = requests.Session()
     # Loaded once. A missing table is not an error here - it only means no
     # instrument can be skipped, which is the safe direction.
@@ -1362,6 +1390,10 @@ def main(argv: list[str] | None = None) -> int:
         if sifting_gone and asset.fetched_from == "sifting":
             skipped += 1
             sifting_skipped += 1
+            continue
+        if alpaca_gone and asset.fetched_from == "alpaca":
+            skipped += 1
+            dark.append((asset.asset_id, "alpaca", "skipped: Alpaca's rate limit is spent"))
             continue
         try:
             r = backfill_instrument(asset, basket, args.bars_dir, api_key, session,

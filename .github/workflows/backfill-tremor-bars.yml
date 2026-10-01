@@ -38,6 +38,9 @@ name: Backfill Tremor Bars
 #   repair-alpaca   deepen-alpaca that first overwrites stored overlap hours
 #                   whose close is more than 50 bp off the tape (bad prints).
 #                   Only for the funds named in `instruments`.
+#   live-pass       the ordinary hourly fetch (no VIX) for the named
+#                   instruments, to try a provider change before it goes live.
+#                   Name few: Tiingo's 50 an hour are shared with production.
 #   corporate-actions
 #                   rebuild the ex-date table from Tiingo's declared divCash /
 #                   splitFactor (needs TIINGO_API_KEY). It must reach at least
@@ -69,6 +72,7 @@ on:
           - deepen-etfs
           - deepen-alpaca
           - repair-alpaca
+          - live-pass
           - probe-hfdata
           - corporate-actions
 

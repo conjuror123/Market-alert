@@ -1448,3 +1448,38 @@ def test_a_bad_stored_print_is_repaired_from_the_tape_when_asked(tmp_path, monke
     tape = bars.to_hourly(bars.candles_to_frame(archive)).set_index("hour_utc")["close"]
     assert (fixed.loc[stored.loc[spikes, "hour_utc"]] ==
             tape.loc[stored.loc[spikes, "hour_utc"]]).all()
+
+
+def test_the_fetch_asks_alpaca_iex_for_an_alpaca_fund(tmp_path, monkeypatch):
+    from tremor import backfill
+    seen = {}
+
+    def fake(symbol, start, end, auth, session, feed="sip", **k):
+        seen.update(symbol=symbol, feed=feed, span=end - start)
+        return []
+
+    monkeypatch.setattr(backfill.alpaca, "fetch_history", fake)
+    asset = Asset(ticker="KRE", source="twelvedata", provider="alpaca", tier=2,
+                  block="equity", has_volume=True, tick_size=0.01,
+                  session_template="us_equity", fetch_interval="30min",
+                  label="KRE", in_basket=True)
+    backfill.fetch_missing(asset, str(tmp_path / "p"), date(2021, 1, 1), "td",
+                           requests.Session())
+    assert seen["symbol"] == "KRE" and seen["feed"] == "iex"
+
+
+def test_alpaca_funds_need_the_alpaca_keys(tmp_path, monkeypatch):
+    from tremor import backfill
+    from tremor.basket import Basket, VolatilityIndex
+    fund = Asset(ticker="KRE", source="twelvedata", provider="alpaca", tier=2,
+                 block="equity", has_volume=True, tick_size=0.01,
+                 session_template="us_equity", fetch_interval="30min",
+                 label="KRE", in_basket=True)
+    basket = Basket(assets=(fund,), outside=(),
+                    volatility_index=VolatilityIndex("VIXCLS", "fred", "1d", "VIX",
+                                                     date(1990, 1, 1)),
+                    anchor_exchange_tz="America/New_York",
+                    history_since=date(2021, 1, 1), session_templates={"us_equity": {}})
+    monkeypatch.delenv("ALPACA_KEY_ID", raising=False)
+    monkeypatch.setattr(backfill, "load_basket", lambda: basket)
+    assert backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)]) == 2

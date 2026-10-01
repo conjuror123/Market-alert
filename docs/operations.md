@@ -28,7 +28,7 @@ fire is worse than none — its silence is indistinguishable from a quiet market
 
 | | |
 |---|---:|
-| Live fetch (Tiingo + SiftingIO + Yahoo + Google + Kitco + Coinbase) | seconds |
+| Live fetch (Tiingo, Alpaca, SiftingIO, Yahoo, Google, Kitco, Coinbase; Twelve Data paced) | ~2 min |
 | Metrics and events, warm run | ~5 s |
 | Metrics and events, cold rebuild | ~15 s |
 | Whole job, median | ~2 min |
@@ -47,19 +47,20 @@ seconds, so it has no warm state to lose.
 
 | | Limit | Used |
 |---|---:|---:|
-| **Tiingo** | 50/hour, 1000/day | 29 US-session funds |
-| **SiftingIO** | 10,000/**month**, a few a second | 8 FX pairs — about 4,200 a month |
-| **Yahoo** | none published | 15 thin ETFs |
+| **Tiingo** | 50/hour, 1000/day | 27 funds — 54% of the hour |
+| **Alpaca** | 200/min, IEX live free; SIP to 15 min back | 30 funds — 30 requests a run |
+| **Twelve Data** | 800/day, 8/min | 16 funds — ~130 credits a day, 2 min of pace a run; plus archive and gap-fill |
+| **SiftingIO** | 10,000/**month**, a few a second | 16 FX pairs — about 8,300 a month (83%) |
+| **Yahoo** | none published | 59 funds and the dividend check |
 | **Google Finance** | none — a web page, read against its terms | TUR, one page a run |
 | **Kitco** | none — a website's private gateway | nickel, one request a run in LME hours |
-| **Coinbase** | no key | 9 crypto |
-| **Twelve Data** | 800/day, 8/min | archive, gap-fill, deepening — not the hourly path |
+| **Coinbase** | no key | 16 crypto |
 | GitHub Actions minutes | unlimited (public repo) | — |
 | Repository size | 1 GB warning, ~5 GB cutoff | 565 MiB packed |
 
-Tiingo's hourly bucket and SiftingIO's monthly one are the binding live limits: each FX
-pair costs about 520 SiftingIO calls a month, one per hour of the FX week. The 29
-US-session funds skip when the NYSE calendar says no bar can have appeared since the newest
+SiftingIO's monthly bucket and Twelve Data's eight a minute are the binding live limits:
+each FX pair costs about 520 SiftingIO calls a month, one per hour of the FX week, and
+each Twelve Data fund eight seconds of every run. The US-session funds skip when the NYSE calendar says no bar can have appeared since the newest
 stored one; the 8 FX pairs skip when the Sun 17:00 → Fri 17:00 New York week is shut
 (`tremor.backfill.nothing_can_have_appeared`). Crypto is never skipped.
 

@@ -122,15 +122,21 @@ session_templates:
 # on series offset from one another by half an hour. This costs no credits: the
 # plan counts requests, not rows.
 #
-# WHAT THIS COSTS, HOURLY. Live bars are not Twelve Data. Tiingo serves 29
-# US-session funds (50 requests/hour, 1000/day); SiftingIO the 8 FX pairs
-# (10,000 requests/MONTH on the free tier - one an hour per pair through the
-# FX week is about 520 a month each); Yahoo serves the 15 thin ETFs (no
-# published quota); Coinbase serves the 9 crypto pairs (free). US-session names skip when the NYSE calendar says no bar can
-# have appeared; FX skips when the Sun 17:00-Fri 17:00 New York week is shut
-# - see tremor.backfill.nothing_can_have_appeared. Twelve Data's 800/day and
-# 8-second pause apply to archive work (--extend-history, --fill-gaps), not
-# the hourly run. Deepening a newly added ETF to 2002 is HF Data, once.
+# WHAT THIS COSTS, HOURLY - each quota kept well under its limit, so tests and
+# backfills have room (docs/architecture.md, "Where the bars come from"):
+#   Tiingo       27 IEX-safe funds of its 50 requests an hour (shared with
+#                production until the switch);
+#   Alpaca       30 more IEX-safe funds, free IEX bars, 30 of 200 a minute;
+#   Twelve Data  16 thin funds that need the consolidated tape - two minutes of
+#                its 8-a-minute pace a run, ~130 of 800 credits a day;
+#   SiftingIO    the 16 FX pairs, ~520 a month each, ~83% of 10,000;
+#   Yahoo        the remaining 59 thin funds (no published quota) - last,
+#                being undocumented;
+#   Google TUR, Kitco nickel, Coinbase the 16 coins.
+# US-session names skip when the NYSE calendar says no bar can have appeared;
+# FX skips when the Sun 17:00-Fri 17:00 New York week is shut - see
+# tremor.backfill.nothing_can_have_appeared. History below 2020-02 is HF Data
+# (2002) and Alpaca's SIP (2016), once.
 #
 # SOURCE IS THE STORE; PROVIDER IS THE SERVER. `source` names the identity: both
 # the asset_id and the file on disk are built from it, so every bar ever stored,
@@ -256,7 +262,7 @@ assets:
     label: "Utilities sector"
   - ticker: XLRE
     source: twelvedata
-    provider: yahoo
+    provider: twelvedata
     tier: 2
     block: equity
     has_volume: true
@@ -440,7 +446,7 @@ assets:
     label: "Emerging-market sovereign bonds in dollars"
   - ticker: BKLN
     source: twelvedata
-    provider: yahoo
+    provider: twelvedata
     tier: 2
     block: credit
     has_volume: true
@@ -462,7 +468,7 @@ assets:
   # The energy complex.
   - ticker: USO
     source: twelvedata
-    provider: tiingo
+    provider: twelvedata
     tier: 1
     block: energy
     has_volume: true
@@ -472,7 +478,7 @@ assets:
     label: "WTI crude oil"
   - ticker: BNO
     source: twelvedata
-    provider: yahoo
+    provider: twelvedata
     tier: 2
     block: energy
     has_volume: true
@@ -492,7 +498,7 @@ assets:
     label: "Gasoline"
   - ticker: UNG
     source: twelvedata
-    provider: yahoo
+    provider: twelvedata
     tier: 2
     block: energy
     has_volume: true
@@ -504,7 +510,7 @@ assets:
   # Precious metals.
   - ticker: GLD
     source: twelvedata
-    provider: yahoo
+    provider: twelvedata
     tier: 1
     block: precious_metals
     has_volume: true
@@ -514,7 +520,7 @@ assets:
     label: "Gold"
   - ticker: SLV
     source: twelvedata
-    provider: tiingo
+    provider: twelvedata
     tier: 1
     block: precious_metals
     has_volume: true
@@ -524,7 +530,7 @@ assets:
     label: "Silver"
   - ticker: PPLT
     source: twelvedata
-    provider: yahoo
+    provider: twelvedata
     tier: 2
     block: precious_metals
     has_volume: true
@@ -534,7 +540,7 @@ assets:
     label: "Platinum"
   - ticker: PALL
     source: twelvedata
-    provider: yahoo
+    provider: twelvedata
     tier: 2
     block: precious_metals
     has_volume: true
@@ -556,7 +562,7 @@ assets:
     label: "Base metals (aluminium, zinc, copper)"
   - ticker: CPER
     source: twelvedata
-    provider: yahoo
+    provider: twelvedata
     tier: 2
     block: industrial_metals
     has_volume: true
@@ -580,7 +586,7 @@ assets:
   # Agricultural commodities.
   - ticker: DBA
     source: twelvedata
-    provider: yahoo
+    provider: twelvedata
     tier: 1
     block: agriculture
     has_volume: true
@@ -795,7 +801,7 @@ assets:
   # USD/BRL (its session and history are still open) - docs/concerns-for-later.md.
   - ticker: KRE
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: equity
     has_volume: true
@@ -805,7 +811,7 @@ assets:
     label: "Regional banks"
   - ticker: XRT
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: equity
     has_volume: true
@@ -865,7 +871,7 @@ assets:
     label: "US pharmaceuticals"
   - ticker: IHI
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: equity
     has_volume: true
@@ -905,7 +911,7 @@ assets:
     label: "US utilities (Vanguard)"
   - ticker: SMH
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: equity
     has_volume: true
@@ -915,7 +921,7 @@ assets:
     label: "Semiconductors (VanEck)"
   - ticker: SOXX
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: equity
     has_volume: true
@@ -925,7 +931,7 @@ assets:
     label: "Semiconductors (iShares)"
   - ticker: IGV
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: equity
     has_volume: true
@@ -965,7 +971,7 @@ assets:
     label: "Cloud computing"
   - ticker: DIA
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: equity
     has_volume: true
@@ -975,7 +981,7 @@ assets:
     label: "Dow Jones Industrial Average"
   - ticker: RSP
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: equity
     has_volume: true
@@ -985,7 +991,7 @@ assets:
     label: "S&P 500 equal weight"
   - ticker: MDY
     source: twelvedata
-    provider: yahoo
+    provider: twelvedata
     tier: 2
     block: equity
     has_volume: true
@@ -995,7 +1001,7 @@ assets:
     label: "S&P mid cap 400"
   - ticker: EWJ
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: equity
     has_volume: true
@@ -1085,7 +1091,7 @@ assets:
     label: "Eurozone"
   - ticker: FXI
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: equity
     has_volume: true
@@ -1095,7 +1101,7 @@ assets:
     label: "China large caps"
   - ticker: EWZ
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: equity
     has_volume: true
@@ -1115,7 +1121,7 @@ assets:
     label: "Mexico"
   - ticker: INDA
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: equity
     has_volume: true
@@ -1135,7 +1141,7 @@ assets:
     label: "South Korea"
   - ticker: EWT
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: equity
     has_volume: true
@@ -1165,7 +1171,7 @@ assets:
     label: "Turkey"
   - ticker: EPI
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: equity
     has_volume: true
@@ -1175,7 +1181,7 @@ assets:
     label: "India earnings"
   - ticker: VNQ
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: equity
     has_volume: true
@@ -1185,7 +1191,7 @@ assets:
     label: "US real estate (Vanguard)"
   - ticker: IYR
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: equity
     has_volume: true
@@ -1245,7 +1251,7 @@ assets:
     label: "International real estate (SPDR)"
   - ticker: GOVT
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: rates
     has_volume: true
@@ -1265,7 +1271,7 @@ assets:
     label: "US Treasuries 1-3y (Schwab)"
   - ticker: VGIT
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: rates
     has_volume: true
@@ -1285,7 +1291,7 @@ assets:
     label: "US Treasuries 10y+ (Vanguard)"
   - ticker: SPTL
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: rates
     has_volume: true
@@ -1305,7 +1311,7 @@ assets:
     label: "International government bonds"
   - ticker: VTIP
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: rates
     has_volume: true
@@ -1315,7 +1321,7 @@ assets:
     label: "Short TIPS (Vanguard)"
   - ticker: SCHP
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: rates
     has_volume: true
@@ -1335,7 +1341,7 @@ assets:
     label: "TIPS 0-5y (iShares)"
   - ticker: VMBS
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: rates
     has_volume: true
@@ -1355,7 +1361,7 @@ assets:
     label: "Mortgage-backed (SPDR)"
   - ticker: LMBS
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: rates
     has_volume: true
@@ -1375,7 +1381,7 @@ assets:
     label: "Mortgage-backed (Janus)"
   - ticker: VCIT
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: credit
     has_volume: true
@@ -1385,7 +1391,7 @@ assets:
     label: "Intermediate corporate bonds"
   - ticker: VCSH
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: credit
     has_volume: true
@@ -1395,7 +1401,7 @@ assets:
     label: "Short corporate bonds"
   - ticker: IGIB
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: credit
     has_volume: true
@@ -1405,7 +1411,7 @@ assets:
     label: "Intermediate IG corporates (iShares)"
   - ticker: SPIB
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: credit
     has_volume: true
@@ -1415,7 +1421,7 @@ assets:
     label: "Intermediate corporates (SPDR)"
   - ticker: USIG
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: credit
     has_volume: true
@@ -1465,7 +1471,7 @@ assets:
     label: "Short high yield"
   - ticker: USHY
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: credit
     has_volume: true
@@ -1505,7 +1511,7 @@ assets:
     label: "Fallen angels (iShares)"
   - ticker: EMLC
     source: twelvedata
-    provider: yahoo
+    provider: alpaca
     tier: 2
     block: credit
     has_volume: true
@@ -1605,7 +1611,7 @@ assets:
     label: "Natural gas 12-month"
   - ticker: IAU
     source: twelvedata
-    provider: yahoo
+    provider: twelvedata
     tier: 2
     block: precious_metals
     has_volume: true
@@ -1615,7 +1621,7 @@ assets:
     label: "Gold (iShares)"
   - ticker: SGOL
     source: twelvedata
-    provider: yahoo
+    provider: twelvedata
     tier: 2
     block: precious_metals
     has_volume: true
@@ -1625,7 +1631,7 @@ assets:
     label: "Gold (abrdn)"
   - ticker: SIVR
     source: twelvedata
-    provider: yahoo
+    provider: twelvedata
     tier: 2
     block: precious_metals
     has_volume: true
@@ -1839,7 +1845,7 @@ outside_basket:
   # and is modelled against energy, the largest thing inside it.
   - ticker: DBC
     source: twelvedata
-    provider: yahoo
+    provider: twelvedata
     tier: 2
     block: energy
     has_volume: true
