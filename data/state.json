@@ -19,6 +19,7 @@
       },
       "1790553900": {
         "events": [
+          "twelvedata_SHY:1790859600",
           "twelvedata_IEI:1790604000",
           "twelvedata_IEF:1790604000",
           "twelvedata_TLH:1790604000",
@@ -26,20 +27,22 @@
           "twelvedata_TIP:1790604000",
           "twelvedata_MBB:1790604000",
           "twelvedata_LQD:1790604000",
+          "twelvedata_JNK:1790859600",
+          "twelvedata_EMB:1790859600",
           "twelvedata_AUD_USD:1790658000",
           "twelvedata_USD_CHF:1790838000",
           "coinbase_LINK-USD:1790611200"
         ],
         "from": 1790553900,
         "hashes": [
-          "26a5d49ecc48cd08",
-          "73c9096789e5d2ea"
+          "8086345c33352375",
+          "7b71ac0dbaeff81a"
         ],
         "ids": [
           55,
           69
         ],
-        "rows": 10,
+        "rows": 13,
         "to": 1790985900
       }
     },
@@ -52,6 +55,10 @@
         "hash": "716f2dd482984e98",
         "id": 70
       },
+      "twelvedata_EMB:1790859600": {
+        "hash": "83b6daaea815b02a",
+        "id": 76
+      },
       "twelvedata_IEF:1790604000": {
         "hash": "7baac2e41f7562f1",
         "id": 58
@@ -60,6 +67,10 @@
         "hash": "445514cffd9120a5",
         "id": 57
       },
+      "twelvedata_JNK:1790859600": {
+        "hash": "c5e206398ac05dc9",
+        "id": 75
+      },
       "twelvedata_LQD:1790604000": {
         "hash": "4cf9a9d141bf55b1",
         "id": 63
@@ -67,6 +78,10 @@
       "twelvedata_MBB:1790604000": {
         "hash": "abc9d66a8ff14166",
         "id": 62
+      },
+      "twelvedata_SHY:1790859600": {
+        "hash": "ceb67a97a899cabe",
+        "id": 74
       },
       "twelvedata_TIP:1790604000": {
         "hash": "373e685de2322570",
@@ -92,7 +107,7 @@
         "id": 72
       },
       "twelvedata_EMB:1790600400": {
-        "hash": "99183b7b4874b97e",
+        "hash": "922b9cb227c3079f",
         "hour": 1790600400,
         "id": 56
       },
@@ -123,7 +138,7 @@
       "twelvedata_EMB:1790600400": {
         "hour_utc": 1790600400,
         "message_id": 56,
-        "text_hash": "99183b7b4874b97e",
+        "text_hash": "922b9cb227c3079f",
         "written": [
           "today",
           "settled"
