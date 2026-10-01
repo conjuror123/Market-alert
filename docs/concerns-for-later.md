@@ -20,19 +20,18 @@ newly added name says "biggest in a quarter" for years before it can say "bigges
 
 Twelve Data's intraday archive stops at 2020-02-10 for every fund, and HF Data (2002 on)
 does not carry about sixty of them. `tremor.backfill --deepen-alpaca` filled those from
-Alpaca's free consolidated tape (SIP), which starts 2016-01-01: 59 funds, 392,993 hourly
+Alpaca's free consolidated tape (SIP), which starts 2016-01-01: 61 funds, 407,153 hourly
 bars, each gated on a three-month overlap with the store (returns correlate ≥ 0.90, levels
 within 25 bp; most matched at 0.00 bp). XLP's 2020–2022 hole went with it — it now reaches
 2016 like the rest. Funds launched after 2016 start at launch (FALN 2016-06, GIGB 2017-06,
 IGIB and USIG 2017-08, USHY 2017-10, JMBS 2018-09); XLC launched 2018-06 and was already
 complete.
 
-**Still walled at 2020-02-10: EZU and EBND**, refused because the overlap correlates at only
-0.80 and 0.88. The bad hours are in the store, not in Alpaca: Twelve Data has EZU up 12.3%
-in the 15:00 hour of 2020-03-12 and down 9.1% at the next open, where the consolidated tape
-has −1.2% and +4.3%; EBND +2.6% at 15:00 on 2020-03-13 against the tape's −0.2%. Replacing
-those stored hours with the tape's would let both through, and would take two false
-`extreme` readings out of their history.
+**EZU and EBND joined them** after their bad stored prints were replaced with the
+consolidated tape's (`--repair-alpaca`, the owner's call): EZU's 2020-03-12 15:00 hour
+(+12.3% in the store, −1.2% on the tape) and five EBND hours in March–April 2020. Their
+overlaps then checked at 0.9995 and 0.970. Every fund in the basket now reaches 2016 or its
+launch.
 
 A short history caps the DATE a message can quote ("biggest since…"), not the word it can
 reach.
