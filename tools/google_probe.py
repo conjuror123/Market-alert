@@ -12,7 +12,8 @@ against Alpaca's consolidated (SIP) and IEX minute bars of the same session:
   volume     Google's day volume and its bars' sum against SIP and IEX - which
              venues Google sees;
   prints     each Google bar's close against the tape's last trade in its five
-             minutes, labelled at the bar's start and at its end;
+             minutes, read as stamped at the bar's start and at its end (it is
+             the end: the 16:00 bar is the close);
   hours      the session's hourly closes, the reading the detector is fed,
              against the tape's, as tools/fund_verdict.py measures every feed.
 
@@ -91,6 +92,8 @@ def last_trade(tape: pd.DataFrame, lo: pd.Timestamp, hi: pd.Timestamp) -> "float
 def prints(g: pd.DataFrame, tape: pd.DataFrame) -> str:
     """Each Google bar against the tape's last trade in the five minutes it
     starts and in the five it ends, in basis points."""
+    if tape.empty:
+        return "tape has no trades"
     out = []
     for label, shift in (("start", timedelta(0)), ("end", timedelta(minutes=-5))):
         diffs = []
@@ -110,9 +113,15 @@ def prints(g: pd.DataFrame, tape: pd.DataFrame) -> str:
 
 
 def hours(g: pd.DataFrame, tape_30: pd.DataFrame) -> str:
-    """Hourly closes as the store would hold them, Google's bars stamped at
-    their start, against the SIP half-hour bars folded the same way."""
-    frame = pd.DataFrame({"hour_utc": g["t"].astype("int64") // 10**9, "open": g["open"],
+    """Hourly closes as the store would hold them, against the SIP half-hour
+    bars folded the same way. Google stamps a bar at its end, so it is moved
+    back five minutes to its start; the 09:30 bar is the opening print and
+    stays in the session."""
+    local = g["t"].dt.tz_convert(fv.NY)
+    opening = local.dt.normalize() + pd.Timedelta(hours=9, minutes=30)
+    start = (local - pd.Timedelta(minutes=5)).where(local > opening, opening)
+    frame = pd.DataFrame({"hour_utc": start.dt.tz_convert("UTC").astype("int64") // 10**9,
+                          "open": g["open"],
                           "high": g["high"], "low": g["low"], "close": g["close"],
                           "volume": g["volume"], "n_src": 1}).astype(bars.SCHEMA)
     return fv._cell(fv.measure(fv._regular(frame), fv._regular(tape_30)))
