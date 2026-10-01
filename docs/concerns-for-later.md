@@ -230,7 +230,26 @@ POL's two histories would have to be joined.
 
 1. **The seven delisted ETNs:** nickel, aluminium, tin, coffee, cocoa, cotton and
    livestock. Without them, the industrial-metals and agriculture blocks stop at five
-   members each.
+   members each. What the commodities themselves can be had from (2026-10-01):
+   - **Nickel: Kitco's chart gateway** (`kdb-gw.prod.kitco.com`, GraphQL
+     `GetMetalHistoryV3`, no key), hourly from 2020-12 and live to the last five minutes.
+     Its level matches the LME official price to a ratio of 1.000 in every year. It has
+     glitches — a ±20% two-hour swing and back, four times in 2022–2024 (2022-04-04,
+     2023-01-23/24, 2023-02-27, 2024-09-25) — to clean before use, and none since. It
+     moves 00:00–19:00 UTC on weekdays, the LME's hours, so it needs a session template of
+     its own.
+   - **Aluminium: not Kitco.** Its series switches every few weeks, still in 2025, to a
+     near-flat second price about 30% higher (a +29% step at a Monday open, back a day or
+     two later), and was more than 5% off the LME official price on 206 days of 2022.
+     Yahoo's `ALI=F` (COMEX), hourly from 2024-05, is what is left.
+   - **Tin: no hourly source.** Kitco has no tin; Business Insider, Westmetall and
+     Trading Economics carry the daily official price only; LME, Investing.com and CNBC
+     refuse automated readers.
+   - **Coffee, cocoa, cotton, live cattle:** Yahoo's `KC=F CC=F CT=F LE=F`, hourly from
+     2024-05 with a jump at each roll; Dukascopy's CFDs for the first three. FXEmpire's
+     chart API (open, OANDA's CFDs) carries none of them — copper, sugar, the grains,
+     energy and precious metals only — and its futures pages show a quote, not bars.
+     DailyFX is gone.
 2. **A second consolidated live feed for about 60 funds.** The alternative is to accept
    Yahoo carrying them, which is the concentration this document already worries about.
    Twelve Data can take a slice, at a minute of run time per eight.
