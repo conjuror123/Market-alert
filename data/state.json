@@ -21,11 +21,16 @@
         "events": [
           "twelvedata_SHY:1790859600",
           "twelvedata_IEI:1790604000",
+          "twelvedata_IEI:1790866800",
           "twelvedata_IEF:1790604000",
+          "twelvedata_IEF:1790866800",
           "twelvedata_TLH:1790604000",
           "twelvedata_TLT:1790604000",
+          "twelvedata_TLT:1790866800",
           "twelvedata_TIP:1790604000",
+          "twelvedata_TIP:1790866800",
           "twelvedata_MBB:1790604000",
+          "twelvedata_MBB:1790866800",
           "twelvedata_LQD:1790604000",
           "twelvedata_JNK:1790859600",
           "twelvedata_EMB:1790859600",
@@ -35,14 +40,16 @@
         ],
         "from": 1790553900,
         "hashes": [
-          "8086345c33352375",
-          "7b71ac0dbaeff81a"
+          "af41463f3c0dd3b7",
+          "bfe343c6eb235424",
+          "6c315267c976cb85"
         ],
         "ids": [
           55,
-          69
+          69,
+          82
         ],
-        "rows": 13,
+        "rows": 18,
         "to": 1790985900
       }
     },
@@ -63,9 +70,17 @@
         "hash": "7baac2e41f7562f1",
         "id": 58
       },
+      "twelvedata_IEF:1790866800": {
+        "hash": "3a1df60e3fe809b0",
+        "id": 78
+      },
       "twelvedata_IEI:1790604000": {
         "hash": "445514cffd9120a5",
         "id": 57
+      },
+      "twelvedata_IEI:1790866800": {
+        "hash": "08146ac0c1ac795f",
+        "id": 77
       },
       "twelvedata_JNK:1790859600": {
         "hash": "c5e206398ac05dc9",
@@ -79,6 +94,10 @@
         "hash": "abc9d66a8ff14166",
         "id": 62
       },
+      "twelvedata_MBB:1790866800": {
+        "hash": "9afd7653a0997b4b",
+        "id": 81
+      },
       "twelvedata_SHY:1790859600": {
         "hash": "ceb67a97a899cabe",
         "id": 74
@@ -87,6 +106,10 @@
         "hash": "373e685de2322570",
         "id": 61
       },
+      "twelvedata_TIP:1790866800": {
+        "hash": "d66e01ef3cc242fe",
+        "id": 80
+      },
       "twelvedata_TLH:1790604000": {
         "hash": "d9d1d9309ab9f647",
         "id": 59
@@ -94,6 +117,10 @@
       "twelvedata_TLT:1790604000": {
         "hash": "4fbbf1a071e9b9d0",
         "id": 60
+      },
+      "twelvedata_TLT:1790866800": {
+        "hash": "6785aed4a8b3016a",
+        "id": 79
       },
       "twelvedata_USD_CHF:1790838000": {
         "hash": "20ba010c43677aba",
