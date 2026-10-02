@@ -29,7 +29,9 @@ Bars now enter git once per settled month, as `.csv.gz` (`operations.md`): about
 a year at today's basket. The month being written is on a release, outside the repository.
 
 **What acting on it would mean:** rewriting history to drop superseded parquet blobs,
-which force-pushes the branch production runs from and is irreversible. That is the
+which force-pushes the branch production runs from and is irreversible. If it is ever
+done, the old yearly Parquet should become `.csv.gz` in the same rewrite: 136 MiB instead
+of 220, and one format (`decisions.md`, the shape of the repository). That is the
 reason it has not been done, not the effort.
 
 ---

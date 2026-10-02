@@ -298,9 +298,9 @@ def test_a_month_shard_outranks_the_year_it_replaces(tmp_path):
     assert bars.load(store)["close"].tolist() == [22.0]
 
 
-def test_the_open_month_settles_three_days_after_it_ends(tmp_path):
-    # Text outside git while it is written; gzip in git once, when providers'
-    # late corrections to its last bars have landed.
+def test_the_open_month_settles_a_week_after_it_ends(tmp_path):
+    # Text outside git while it is written; gzip in git once, a week after its
+    # end, when a hole an outage left in its last days has been filled.
     import os
 
     store = bars.store_path(str(tmp_path), "twelvedata_SPY")
@@ -310,10 +310,10 @@ def test_the_open_month_settles_three_days_after_it_ends(tmp_path):
     bars.merge(store, _rows([_hour(2026, 10, 1, 13)]))
     assert sorted(os.listdir(store)) == ["2026-09.csv", "2026-10.csv"]
 
-    bars.merge(store, _rows([_hour(2026, 10, 3, 23)]))
+    bars.merge(store, _rows([_hour(2026, 10, 7, 23)]))
     assert sorted(os.listdir(store)) == ["2026-09.csv", "2026-10.csv"]
 
-    bars.merge(store, _rows([_hour(2026, 10, 4, 0)]))
+    bars.merge(store, _rows([_hour(2026, 10, 8, 0)]))
     assert sorted(os.listdir(store)) == ["2026-09.csv.gz", "2026-10.csv"]
     assert len(bars.load(store)) == 5
 
@@ -324,9 +324,9 @@ def test_settled_before_is_the_oldest_open_month():
     def at(*args):
         return int(datetime(*args, tzinfo=timezone.utc).timestamp())
 
-    assert bars.settled_before(at(2026, 10, 3, 23)) == at(2026, 9, 1)
-    assert bars.settled_before(at(2026, 10, 4)) == at(2026, 10, 1)
-    assert bars.settled_before(at(2027, 1, 2)) == at(2026, 12, 1)
+    assert bars.settled_before(at(2026, 10, 7, 23)) == at(2026, 9, 1)
+    assert bars.settled_before(at(2026, 10, 8)) == at(2026, 10, 1)
+    assert bars.settled_before(at(2027, 1, 7)) == at(2026, 12, 1)
     assert bars.settled_before(at(2027, 1, 20)) == at(2027, 1, 1)
 
 

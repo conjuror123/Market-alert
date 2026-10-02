@@ -60,8 +60,7 @@ def store_path(base_dir: str, file_stem: str) -> str:
     nothing.
 
     A MONTH ENTERS GIT ONCE, when it is settled: SETTLE_DAYS after its end, so
-    the late corrections providers make to the last bars of a month have
-    landed. It is written as `2026-09.csv.gz` - gzip CSV is the smallest form
+    the holes a provider's outage left in its last days have been filled. It is written as `2026-09.csv.gz` - gzip CSV is the smallest form
     measured (0.72 MB for a month of all 173 instruments; per-instrument
     Parquet 2.06) - and never rewritten: `merge` fills hours a settled month
     lacks but does not revise the ones it holds. About 9 MB of git a year.
@@ -91,7 +90,12 @@ def _legacy_path(store: str) -> str:
     return f"{store}.parquet"
 
 
-SETTLE_DAYS = 3
+# A week: what still reaches a closed month after its end is a hole filled late
+# - a provider down over a long weekend, a market shut since the month's last
+# day. The backfill re-asks only the last three hours of each store, so a bar
+# revised later than that never arrives anyway. A fill after settling is not
+# lost, it rewrites that one month of that one instrument (a few KB of git).
+SETTLE_DAYS = 7
 
 
 def _month_end(year: int, month: int) -> int:

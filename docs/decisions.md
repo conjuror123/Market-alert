@@ -365,11 +365,16 @@ bytes and the commit recording them in per-instrument files 14 KB: 124 MiB a yea
 hourly, 18 daily, 51 for weekly Parquet (which shares nothing with its previous version at
 all). So the open months live as CSV on a GitHub release of the repository
 (`tools/hot_bars.sh`) — replacing a release's file costs the repository nothing — and every
-run downloads them, appends, uploads them back. A month goes into git as `.csv.gz` three
-days after it ends, so the providers' late corrections have landed, and is never rewritten:
+run downloads them, appends, uploads them back. A month goes into git as `.csv.gz` a week
+after it ends, so a hole a provider's outage left in its last days has been filled (a later
+fill rewrites that one month of that one instrument), and is otherwise never rewritten:
 about 0.7 MB a month for all 173 instruments, 9 MB a year. Years before this layout keep
-their Parquet; a year written month by month stays monthly, since folding it would commit
-the same bars twice. The Actions cache was the other place outside git, and was not chosen
+their Parquet: as gzip CSV the whole history would be 136 MiB instead of 220, but
+converting adds those 136 MiB to git while the Parquet copies stay in its history, and the
+pipeline's full load takes 18 s instead of 13 (measured 2026-10-02). It becomes worth doing
+only together with a rewrite of history (`concerns-for-later.md`, the repository's size).
+A year written month by month stays monthly, since folding it would commit the same bars
+twice. The Actions cache was the other place outside git, and was not chosen
 for bars: it drops an entry nothing touched for seven days, and bars cannot be fetched
 again. The metrics, which can, live there.
 

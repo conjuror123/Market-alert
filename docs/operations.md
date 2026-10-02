@@ -84,7 +84,7 @@ rejected push is the same as losing that record. A truncated `state.json` fails 
 rather than being read as a cold start.
 
 **Every run, but almost always nothing: settled months of `data/tremor/bars/`.** A month
-enters git once, as `YYYY-MM.csv.gz`, on the first run at least three days after it ends,
+enters git once, as `YYYY-MM.csv.gz`, on the first run at least a week after it ends,
 and is never rewritten (`tremor/bars.py`): about 0.7 MB a month for 173 instruments.
 
 **Never in git: the open months** (`YYYY-MM.csv`, gitignored). They are one archive,
