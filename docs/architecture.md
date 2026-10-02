@@ -153,7 +153,7 @@ reviewed:
 | 2 | channels, the weekly note, delivery and curation | — | built |
 | 3 | rarest since | — | built |
 | 4 | held at the funds' close | — | built |
-| 5 | time of day and weekday | Boudt, Croux & Laurent (2011) | measured, off pending a decision (`concerns-for-later.md`) |
+| 5 | time of day and weekday | Boudt, Croux & Laurent (2011) | to come |
 | 7 | block co-jumps | Bollerslev, Law & Tauchen (2008) | to come |
 | 8 | the own move, after the block | Bollerslev, Law & Tauchen (2008) | to come |
 | 9 | scheduled news, labelled rather than hidden | Lahaye, Laurent & Neely (2011) | to come |
