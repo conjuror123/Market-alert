@@ -16,6 +16,28 @@ newly added name says "biggest in a quarter" for years before it can say "bigges
 
 ---
 
+## 0. The futures' history mixes contract months (found 2026-10-02, being fixed)
+
+Yahoo's continuous series, from which coffee's, cocoa's and cattle's history was built
+(`tools/futures_history.py`), switches between two contract months within days, not only
+for single hours - the import's cleaning catches only an hour that goes out and straight
+back. Measured on coffee against the December 2026 contract itself: on 2026-07-31, 08-03
+and 08-05 the store holds December's prices, September's on the days between. It shows as
+runs of same-hour moves that are the spread between two contracts: coffee 2026-07-22 to
+08-10 (about twenty readings of +4% to +8% at 09:00 and -4% to -6% at 12:00 or 15:00),
+cocoa 2026-03-17 to 27 and 2024-11-01 to 07, cattle probably 2026-03-30 to 04-02. None of it
+is live - this branch is not on the trigger - but it is in the record every yardstick and
+"biggest since" is measured on.
+
+**What acting on it means (under way):** coffee's and cotton's records rebuilt from
+Dukascopy's CFDs, which hold one contract at a time and switch once (coffee onto December
+2026 on 08-11, three business days before this series' own roll; cotton onto December on
+06-05, eight before), with the weeks before each roll left out so a switch on a day not
+known exactly is never scored; cocoa's the same if its CFD agrees with its listed
+contracts; cattle's, which Dukascopy does not carry, cleaned of whole-day switches.
+
+---
+
 ## 1. Repository size
 
 636 MiB packed (2026-10-02). GitHub starts warning at 1 GB.
