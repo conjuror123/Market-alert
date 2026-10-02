@@ -97,11 +97,11 @@ lives"), what is missing and what was tried:
 | instruments | missing before | tried |
 |---|---|---|
 | live cattle, aluminium | 2024-05 | Yahoo's hourly stops at 730 days; Dukascopy has neither; Stooq needs a login |
-| coffee, cocoa | 2024-05 | as above; Dukascopy's CFDs being measured |
-| cotton | 2026-06 | Yahoo's continuous series too broken to use; Dukascopy's CFD being measured |
+| coffee, cocoa | 2024-05; and most months since hold a third of their hours | as above. Dukascopy's CFDs from 2019-06: coffee agrees with the store (median 2.2 bp, return correlation 0.990) but sits on another contract one hour in ten (p90 138 bp), so its rolls must be mapped first; cocoa does not agree (0.52) |
+| cotton | 2026-06 | Yahoo's continuous series too broken to use. Dukascopy's CFD from 2019-06 agrees with the store (median 1.1 bp, p90 2.8, return correlation 0.997, same hours); its rolls still to be checked |
 | tin (Shanghai) | 2019-08 | Sina serves no older contract |
 | nickel | 2020-09 | Kitco's first quote is 2020-09-11 |
-| USD/BRL, USD/INR, USD/KRW | 2019-09, 2019-11, 2020-01 | Twelve Data's start; Dukascopy has no INR, and its BRL files (from 2007) hold no traded hour; KRW being measured; Sina forex holds six months; TradingView about 6,300 bars |
+| USD/BRL, USD/INR, USD/KRW | 2019-09, 2019-11, 2020-01 | Twelve Data's start; Dukascopy holds no traded hour of INR or KRW in any sampled year, and its BRL files (from 2007) none in 2019; Sina forex holds six months; TradingView about 6,300 bars |
 | ATOM UNI FIL AAVE POL ADA DOGE DOT SOL AVAX | their Coinbase listing, 2020–2021 | Bitstamp lists none earlier. Binance's archive does, in USDT: ADA from 2018-04, POL (as MATIC) and ATOM 2019-04, DOGE 2019-07, DOT and SOL 2020-08, AVAX 2020-09; UNI, FIL, AAVE no earlier than Coinbase |
 
 **What acting on it would mean:** paid data for the futures and the three pairs; for the
