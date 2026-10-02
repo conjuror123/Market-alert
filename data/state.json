@@ -33,6 +33,7 @@
           "twelvedata_MBB:1790866800",
           "twelvedata_LQD:1790604000",
           "twelvedata_JNK:1790859600",
+          "twelvedata_JNK:1790946000",
           "twelvedata_EMB:1790859600",
           "twelvedata_AUD_USD:1790658000",
           "twelvedata_USD_CHF:1790838000",
@@ -40,16 +41,16 @@
         ],
         "from": 1790553900,
         "hashes": [
-          "6a7c69c6baf0faad",
-          "fc7e4a2dc834b526",
-          "1ec0833ab554594f"
+          "ca9b76fc3fbc7f47",
+          "91ec3e1595a44b1e",
+          "bb364fe3310c40e7"
         ],
         "ids": [
           55,
           69,
           82
         ],
-        "rows": 18,
+        "rows": 19,
         "to": 1790985900
       }
     },
@@ -85,6 +86,10 @@
       "twelvedata_JNK:1790859600": {
         "hash": "c5e206398ac05dc9",
         "id": 75
+      },
+      "twelvedata_JNK:1790946000": {
+        "hash": "3efabbfd1e4fdb39",
+        "id": 83
       },
       "twelvedata_LQD:1790604000": {
         "hash": "4cf9a9d141bf55b1",
