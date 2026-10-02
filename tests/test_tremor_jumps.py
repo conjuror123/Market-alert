@@ -383,3 +383,29 @@ def test_the_answer_waits_for_the_bars_to_reach_the_close():
                          "reading": ["hour"]})
     _, held = jumps.held_at_close(bars, move, now=start + 10 * HOUR)
     assert np.isnan(held[0])
+
+
+def test_time_of_day_factors_follow_each_hours_spread():
+    # Stage 5 (measured, off by default): a slot twice as busy gets twice the
+    # factor, the squares average one, and a few jumps in a slot do not move it.
+    import numpy as np
+    from tremor import jumps
+
+    rng = np.random.default_rng(3)
+    slots = np.tile(np.arange(4), 200)
+    # Standardised moves average one in square, as r / sigma does.
+    u = rng.standard_normal(len(slots)) * np.where(slots == 0, 2.0, 1.0) / math.sqrt(1.75)
+    u[np.flatnonzero(slots == 1)[:5]] = 50.0
+    f = jumps.slot_factors(u, slots)
+    assert np.mean([v * v for v in f.values()]) == pytest.approx(1.0)
+    assert f[0] / f[2] == pytest.approx(2.0, rel=0.15)
+    assert f[1] / f[2] == pytest.approx(1.0, rel=0.15)
+
+
+def test_time_of_day_is_off_by_default():
+    import pandas as pd
+    from tremor import jumps
+
+    hours = [1_700_000_000 + 3600 * i for i in range(400)]
+    frame = pd.DataFrame({"hour_utc": hours, "r": [0.001 * ((-1) ** i) * (1 + i % 5) for i in range(400)]})
+    assert (jumps.score(frame, "crypto_24_7")["factor"] == 1.0).all()

@@ -108,9 +108,15 @@ lives"), what is missing and what was tried:
 - **To watch at the first month start after the switch:** the monthly payers go
   ex-dividend; check that Yahoo lists them by the 10:05 New York run, or their gaps stay
   unscored that day. (Due 2026-10-01, but this branch was not running then.)
-- **A fund's opening hour fires about twice as often** as its other hours, from extreme
-  outliers at the open. The jump detector's time-of-day stage (5) is where this is
-  answered.
+- **A fund's opening hour fires about twice as often** as its other hours (2.1x; FX at
+  08-10 New York 2-4x). Stage 5, Boudt, Croux & Laurent's time-of-day factor, was built and
+  measured (2026-10-02, five years, `jumps.score(..., time_of_day=True)`) and is OFF pending
+  the owner's call: it cut hour flags 5% (events 7%), but the flags it removed reversed at
+  the close no more often than the rest (15-18% at the busy hours) - the busy hours are
+  where the news is - and the ones it added in quiet hours reversed more (26%: FX 17-19 New
+  York 36-49%); USD/INR, KRW and TRY got factors near 0.01 in their shut night hours. A
+  raise-only factor cut events 10% with no dead-hour problem. Options: skip it, raise-only,
+  or the paper's hour-of-week with a dead-hour guard.
 
 ---
 

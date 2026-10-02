@@ -65,8 +65,35 @@ close after it was found - a coin and a currency pair too - as `check_utc`, and
 once that close has passed, `held` is the share of the move still there
 (held_at_close).
 
-WHAT IS NOT HERE YET, deliberately: no time-of-day scale, no block or own-move
-reading, no size floor. Each comes back as its own stage with its own logic.
+TIME OF DAY (stage 5). Boudt, Croux & Laurent (2011), "Robust estimation of
+intraweek periodicity in volatility and jump detection", Journal of Empirical
+Finance 18(2). A fund's opening half hour and a currency pair's 08:30 New York
+hour are busier every day than its lunch hour; judged against one yardstick for
+all hours they fire two to three times as often, and the quiet hours a third as
+often. So each hour's move is judged against the half-year sigma times its own
+hour's factor:
+
+    z = r / (f_slot * sigma*),   sigma* the half-year bipower of r / f
+
+The factor is their weighted standard deviation (WSD) of the hour's
+standardised moves u = r / sigma, normalised so its square averages one over
+the day's hours - a robust spread, which a few jumps in an hour cannot inflate:
+a first scale from the shortest half of the hour's u's, then the standard
+deviation of those within the 99% band of that scale. One factor per
+instrument and hour of the day, the hour read on the instrument's own clock
+(slot_of), from the half-year before each month began (periodicity): strictly
+earlier, like every yardstick here. An hour with fewer than SLOT_MIN_COUNT
+readings in that half-year has the factor 1.
+
+OFF, PENDING THE OWNER'S CALL (2026-10-02): measured over five years it cut
+hour flags by 5% and moved them into quiet hours, where they reverse at the
+close more often (26% against 18% for the flags it removed), and a currency
+pair whose home market is shut overnight (USD/INR, KRW, TRY) got factors near
+0.01 there. `score(..., time_of_day=True)` is the measured version; see
+docs/concerns-for-later.md.
+
+WHAT IS NOT HERE YET, deliberately: no block or own-move reading, no size
+floor. Each comes back as its own stage with its own logic.
 The output is a table of every reading that reached `noticeable`.
 
     python -m tremor.jumps            reads data/tremor/metrics, writes
@@ -114,6 +141,95 @@ def bars_per_day(template: str) -> int:
     if template in SEGMENTED_SESSIONS:
         return segmented_bars_per_day(template)
     return BARS_PER_DAY[template]
+
+# Time of day (stage 5). An hour is a slot of the instrument's own clock: its
+# exchange's timezone for a daily-session market, New York for a fund, a
+# currency pair and a coin - the US open and the 08:30 releases are where their
+# busy hours sit, and New York's clock follows them through daylight saving.
+SLOT_TZ_DEFAULT = "America/New_York"
+# Each slot is a once-a-day reading: the paper's minimum at one reading a day.
+SLOT_MIN_COUNT = 16
+# Boudt, Croux & Laurent's constants: the shortest half's consistency factor,
+# the 99% point of chi-squared with one degree of freedom, and the WSD's
+# correction for the readings that band leaves out.
+SHORTEST_HALF = 0.741
+WSD_BAND = 6.635
+WSD_CORRECTION = 1.081
+
+
+def slot_tz(template: str) -> str:
+    from tremor.sessions import DAILY_SESSIONS, SEGMENTED_SESSIONS
+
+    if template in DAILY_SESSIONS:
+        return DAILY_SESSIONS[template][0]
+    if template in SEGMENTED_SESSIONS:
+        return SEGMENTED_SESSIONS[template][0]
+    return SLOT_TZ_DEFAULT
+
+
+def slot_of(hour_utc, template: str) -> np.ndarray:
+    """Each bar's hour of the day on the instrument's own clock (0-23); a fund's
+    09:30 half hour is slot 9."""
+    when = pd.to_datetime(np.asarray(hour_utc, dtype="int64"), unit="s", utc=True)
+    return np.asarray(when.tz_convert(slot_tz(template)).hour, dtype="int64")
+
+
+def shortest_half(values: np.ndarray) -> float:
+    """0.741 times the length of the shortest interval holding half the values."""
+    x = np.sort(values)
+    h = len(x) // 2 + 1
+    return SHORTEST_HALF * float(np.min(x[h - 1:] - x[:len(x) - h + 1]))
+
+
+def slot_factors(u: np.ndarray, slots: np.ndarray,
+                 min_count: int = SLOT_MIN_COUNT) -> "dict[int, float]":
+    """Boudt, Croux & Laurent's WSD factor of each slot holding `min_count`
+    standardised moves or more, normalised so the squares average one."""
+    keep = np.isfinite(u)
+    u, slots = u[keep], slots[keep]
+    groups = {s: u[slots == s] for s in np.unique(slots)}
+    groups = {s: v for s, v in groups.items() if len(v) >= min_count}
+    if not groups:
+        return {}
+    sh = {s: shortest_half(v) for s, v in groups.items()}
+    norm = math.sqrt(np.mean([x * x for x in sh.values()]))
+    if not norm > 0:
+        return {}
+    wsd = {}
+    for s, v in groups.items():
+        f_sh = sh[s] / norm
+        inside = (v / f_sh) ** 2 <= WSD_BAND if f_sh > 0 else np.ones(len(v), dtype=bool)
+        wsd[s] = math.sqrt(WSD_CORRECTION * float(np.mean(v[inside] ** 2)))
+    norm = math.sqrt(np.mean([x * x for x in wsd.values()]))
+    # A slot whose moves are all zero has no spread to measure: factor 1.
+    return {s: (x / norm if x > 0 else 1.0) for s, x in wsd.items()} if norm > 0 else {}
+
+
+def periodicity(hour_utc, u, slots, window_days: float = WINDOW_DAYS,
+                min_count: int = SLOT_MIN_COUNT) -> np.ndarray:
+    """Each reading's time-of-day factor: its slot's slot_factors over the
+    standardised moves of the `window_days` before the start of its month
+    (UTC). 1 where the slot has too few of them."""
+    hours = np.asarray(hour_utc, dtype="int64")
+    u = np.asarray(u, dtype="float64")
+    slots = np.asarray(slots, dtype="int64")
+    out = np.ones(len(hours))
+    if not len(hours):
+        return out
+    month = pd.to_datetime(hours, unit="s").to_period("M")
+    starts = month.unique()
+    width = int(window_days * SECONDS_PER_DAY)
+    for start in starts:
+        t = int(pd.Timestamp(start.start_time).tz_localize("UTC").timestamp())
+        lo, hi = np.searchsorted(hours, [t - width, t])
+        factors = slot_factors(u[lo:hi], slots[lo:hi], min_count)
+        if not factors:
+            continue
+        mine = np.flatnonzero(month == start)
+        for s, f in factors.items():
+            out[mine[slots[mine] == s]] = f
+    return out
+
 
 # The three readings, and each gap kind's minimum window from the paper's rule
 # at one reading a day (nights: sqrt(252) -> 16) or a week (weekends: 7, their
@@ -212,13 +328,25 @@ def word_of(z, bottom: float = NOTICEABLE_SIGMA, step: float = STEP) -> np.ndarr
 
 
 def score(frame: pd.DataFrame, template: str, window_days: float = WINDOW_DAYS,
-          bottom: float = NOTICEABLE_SIGMA, step: float = STEP) -> pd.DataFrame:
-    """Every hour of one instrument, with its sigma, z, word and whether its
-    window was still shorter than `window_days` (`young`)."""
+          bottom: float = NOTICEABLE_SIGMA, step: float = STEP,
+          time_of_day: bool = False) -> pd.DataFrame:
+    """Every hour of one instrument, with its yardstick `sigma` (the half-year
+    sigma times its hour's `factor`), z, word and whether its window was still
+    shorter than `window_days` (`young`). `time_of_day=True` applies stage 5,
+    which is measured but off (see the module docstring)."""
     frame = frame.sort_values("hour_utc").reset_index(drop=True)
     hours = frame["hour_utc"].to_numpy(dtype="int64")
+    minimum = minimum_count(bars_per_day(template))
     r, sigma = trusted_sigma(hours, frame["r"].to_numpy(dtype="float64"), window_days,
-                             minimum_count(bars_per_day(template)))
+                             minimum)
+    factor = np.ones(len(hours))
+    if time_of_day:
+        with np.errstate(divide="ignore", invalid="ignore"):
+            u = np.where(sigma > 0, r / sigma, np.nan)
+        factor = periodicity(hours, u, slot_of(hours, template), window_days)
+        filtered, sigma = trusted_sigma(hours, r / factor, window_days, minimum)
+        r = np.where(np.isfinite(filtered), r, np.nan)
+        sigma = sigma * factor
     with np.errstate(divide="ignore", invalid="ignore"):
         z = np.where(sigma > 0, r / sigma, np.nan)
     finite = np.isfinite(r)
@@ -226,7 +354,7 @@ def score(frame: pd.DataFrame, template: str, window_days: float = WINDOW_DAYS,
     young = (hours - first) < window_days * SECONDS_PER_DAY
     return pd.DataFrame({"hour_utc": hours, "reading": HOUR, "r": r, "sigma": sigma,
                          "z": z, "word": pd.array(word_of(z, bottom, step), dtype="string"),
-                         "young": young})
+                         "young": young, "factor": factor})
 
 
 def gap_kinds(elapsed_hours, template: "str | None" = None) -> np.ndarray:
