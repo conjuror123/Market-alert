@@ -43,7 +43,7 @@ on:
         type: boolean
         default: false
       only:
-        description: 'One part: SiftingIO freshness/client/holes/archive; verdict freshness or hours:T1,T2; eulerpool or eulerpool:newest; lse; fmp; rapidapi; google; sina or sina-fresh'
+        description: 'One part: SiftingIO freshness/client/holes/archive; verdict freshness or hours:T1,T2; eulerpool or eulerpool:newest; lse; fmp; rapidapi; google; sina or sina-fresh; dukascopy'
         type: string
         default: ''
 
@@ -53,7 +53,7 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -157,6 +157,13 @@ jobs:
           ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
         run: python -m tools.sina_probe
+
+      # Dukascopy's archive under the gap instruments' history: USD/BRL, KRW,
+      # INR, coffee, cocoa, cotton. No key; the archive throttles a sandbox.
+      # only=dukascopy, probe off; tickers narrows it.
+      - name: Probe Dukascopy's archive for the gap instruments
+        if: inputs.only == 'dukascopy'
+        run: python -m tools.dukascopy_probe ${{ inputs.tickers }}
 
       # Google Finance, the feed behind a sheet's GOOGLEFINANCE(): TUR and RWX
       # against the tape. only=google, probe off.
