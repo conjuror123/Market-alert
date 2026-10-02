@@ -43,7 +43,7 @@ on:
         type: boolean
         default: false
       only:
-        description: 'One part: SiftingIO freshness/client/holes/archive; verdict freshness or hours:T1,T2; eulerpool or eulerpool:newest; lse; fmp; rapidapi; google; sina or sina-fresh; dukascopy; dukascopy-dump (tickers: SYMBOL list)'
+        description: 'One part: SiftingIO freshness/client/holes/archive; verdict freshness or hours:T1,T2; eulerpool or eulerpool:newest; lse; fmp; rapidapi; google; sina or sina-fresh; dukascopy; dukascopy-dump (tickers: SYMBOL list); symbols:T1,T2 (Alpaca, with probe on)'
         type: string
         default: ''
 
@@ -213,6 +213,8 @@ jobs:
           ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           ALPACA_FEEDS: ${{ inputs.feeds }}
+          # only=symbols:CIU,IGIB - a renamed fund's old and new tickers.
+          ALPACA_ONLY: ${{ inputs.only }}
         run: python -m tools.alpaca_probe
 
       # This one DOES need the checked-out bar store as well as the keys: the

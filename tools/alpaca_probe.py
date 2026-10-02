@@ -174,6 +174,31 @@ def forex() -> None:
               + ("" if code == 200 else f"   ({code} {str(payload)[:70]})"))
 
 
+def symbol_history(symbols: list[str]) -> None:
+    """Daily bars a month on the consolidated tape, 2016 to 2019, and each
+    symbol's first and last day: whether a fund's old ticker is served, and
+    where the new one takes over. only=symbols:CIU,IGIB,..."""
+    section("SYMBOL HISTORY - daily bars a month on 'sip', 2016-2019")
+    for symbol in symbols:
+        days = []
+        for year in range(2016, 2020):
+            code, got = bars_for([symbol], f"{year}-01-01T00:00:00Z",
+                                 f"{year + 1}-01-01T00:00:00Z", "sip", timeframe="1Day")
+            if code != 200:
+                print(f"{symbol}: {year} request failed: {code} {str(got)[:80]}")
+                continue
+            days += [b["t"][:10] for b in got.get(symbol, [])]
+        months = {}
+        for d in days:
+            months[d[:7]] = months.get(d[:7], 0) + 1
+        span = f"{days[0]} .. {days[-1]}" if days else "none"
+        print(f"\n{symbol}: {len(days)} days, {span}")
+        print("  " + " ".join(f"{m}:{n}" for m, n in sorted(months.items())))
+        code, got = bars_for([symbol], "2016-01-01T00:00:00Z", "2016-01-10T00:00:00Z",
+                             "sip", timeframe="1Hour")
+        print(f"  hourly in 2016-01-04..08: {len(got.get(symbol, [])) if code == 200 else code}")
+
+
 def main() -> int:
     global _h
     key = (os.environ.get("ALPACA_KEY_ID") or "").strip()
@@ -187,6 +212,10 @@ def main() -> int:
     print(f"Probing Alpaca at {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC "
           f"on a free plan.")
 
+    only = os.environ.get("ALPACA_ONLY") or ""
+    if only.startswith("symbols:"):
+        symbol_history([t.strip() for t in only[len("symbols:"):].split(",") if t.strip()])
+        return 0
     feeds = [f.strip() for f in
              (os.environ.get("ALPACA_FEEDS") or "iex,sip").split(",") if f.strip()]
     depth(feeds)

@@ -1206,20 +1206,22 @@ def main(argv: list[str] | None = None) -> int:
         # factor - 0.733x of SPY's actual close in 2005 - and whether "raw" does
         # too is the whole question, so asking one at a time would cost a round
         # trip to learn half the answer.
-        for version in ("clean", "raw"):
-            try:
-                payload = hfdata.fetch_parquet(args.probe_hfdata, key, session,
-                                               version=version)
-            except Exception as exc:
-                log.error("%s (%s): %s", args.probe_hfdata, version, exc)
-                continue
-            log.info("%s (%s): %d bytes", args.probe_hfdata, version, len(payload))
-            report = hfdata.describe(payload)
-            if args.probe_hfdata.upper() == "SPY":
-                report["reference_closes"] = hfdata.reference_check(
-                    payload, hfdata.SPY_REFERENCE_CLOSES)
-            print(f"--- {version} ---")
-            print(json.dumps(report, indent=2, default=str))
+        # Comma-separated: one dispatch for several tickers (a renamed fund's
+        # old and new names).
+        for ticker in [t.strip() for t in args.probe_hfdata.split(",") if t.strip()]:
+            for version in ("clean", "raw"):
+                try:
+                    payload = hfdata.fetch_parquet(ticker, key, session, version=version)
+                except Exception as exc:
+                    log.error("%s (%s): %s", ticker, version, exc)
+                    continue
+                log.info("%s (%s): %d bytes", ticker, version, len(payload))
+                report = hfdata.describe(payload)
+                if ticker.upper() == "SPY":
+                    report["reference_closes"] = hfdata.reference_check(
+                        payload, hfdata.SPY_REFERENCE_CLOSES)
+                print(f"--- {ticker} {version} ---")
+                print(json.dumps(report, indent=2, default=str))
         return 0
 
     if args.deepen_etfs:
