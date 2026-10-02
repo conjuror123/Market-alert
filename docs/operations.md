@@ -54,6 +54,7 @@ seconds, so it has no warm state to lose.
 | **Yahoo** | none published | 67 funds and the dividend check |
 | **Google Finance** | none — a web page, read against its terms | TUR, one page a run |
 | **Kitco** | none — a website's private gateway | nickel, one request a run in LME hours |
+| **Sina Finance** | none published; wants a Referer | tin, one request a run in Shanghai's sessions |
 | **Yahoo futures** | as Yahoo | 5 commodities, one request each a run in session; live from the front contract (`tremor.futures.front_contract`) |
 | **Coinbase** | no key | 16 crypto |
 | GitHub Actions minutes | unlimited (public repo) | — |

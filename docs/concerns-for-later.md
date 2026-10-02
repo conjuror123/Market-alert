@@ -225,10 +225,13 @@ POL's two histories would have to be joined.
 
 **Still without a source:**
 
-1. **Tin** — no hourly source, live or history. Kitco has no tin; Business Insider,
-   Westmetall and Trading Economics carry the daily official price only; LME,
-   Investing.com and CNBC refuse automated readers. Every other delisted ETN's
-   commodity is in (2026-10-02):
+1. **Nothing.** Every delisted ETN's commodity is in (2026-10-02):
+   - **Tin** from Sina Finance: Shanghai's tin, its main contract hourly, history chained
+     from the delivery months to 2019-08 (`price_monitor/sina.py`). LME tin has no hourly
+     source - Kitco has none, the LME and Investing.com refuse readers, Sina's LME quote
+     prints twice a day - so this is tin priced in yuan with VAT, labelled Tin (Shanghai).
+     Its curve is flat (neighbouring months 0-5 bp apart), so its contract changes are
+     not handled at all; its night and day are two sessions, each gap scored.
    - **Nickel** from Kitco's chart gateway (`price_monitor/kitco.py`), on the `lme`
      session, from 2020-11; its glitches and still days dropped by the client. A real
      15% five-minute move would be held a day as a possible glitch and never go out.

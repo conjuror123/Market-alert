@@ -101,10 +101,10 @@ def session_ids(asset: Asset, hours: pd.Series, anchor_tz: str = "America/New_Yo
 
         return reference_week_opens(moments, anchor_tz).astype("int64") // 10 ** 9
 
-    from tremor.sessions import DAILY_SESSIONS, daily_session_of
+    from tremor.sessions import is_calendar_template, session_key
 
-    if asset.session_template in DAILY_SESSIONS:
-        return pd.Series([str(daily_session_of(int(h), asset.session_template))
+    if is_calendar_template(asset.session_template):
+        return pd.Series([str(session_key(int(h), asset.session_template))
                           for h in hours], index=hours.index)
 
     raise ValueError(f"{asset.ticker}: unknown session template '{asset.session_template}'")
@@ -218,10 +218,11 @@ def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
     n = len(frame)
     template = asset.session_template
     from tremor import futures
-    from tremor.sessions import (DAILY_CLOSED_MAX_SECONDS, DAILY_SESSIONS,
-                                 daily_session_close)
+    from tremor.sessions import (DAILY_CLOSED_MAX_SECONDS, is_calendar_template,
+                                 session_key_close)
 
-    if template not in ("us_equity", "fx_continuous", *DAILY_SESSIONS) or n == 0:
+    if not (template in ("us_equity", "fx_continuous") or is_calendar_template(template)) \
+            or n == 0:
         return np.full(n, np.nan)
 
     is_open = frame["is_session_open"].to_numpy(dtype=bool).copy()
@@ -236,15 +237,14 @@ def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
         usable = is_open & complete & np.isfinite(gap)
         return np.where(usable, gap, np.nan)
 
-    if template in DAILY_SESSIONS:
+    if is_calendar_template(template):
         # The previous bar must come within an hour of its session's close, or
         # the store lost the evening; the close must be no longer than the longest holiday,
         # or the source was out (Kitco's eight days from 2023-12-18). And a
         # future's contract roll is not the market: the continuous series
         # jumps to the next contract across that night (tremor.futures).
         day = session.to_numpy(dtype=object)
-        closes = {d: daily_session_close(date.fromisoformat(d), template)
-                  for d in set(day)}
+        closes = {d: session_key_close(d, template) for d in set(day)}
         prev_day = np.concatenate([[day[0]], day[:-1]])
         # Within an hour of it: Yahoo's last half-hour of the soft
         # commodities is mostly a zero-volume marker (81% of coffee's 13:00

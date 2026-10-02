@@ -44,7 +44,9 @@ the last price before the close to the first after it: a fund's night and weeken
 currency pair's weekend and its two midweek closures, Christmas and New Year's Day,
 and a daily-session market's night and weekend — nickel on the LME, the soft
 commodities, cattle and aluminium on their exchanges, the real on B3
-(`sessions.DAILY_SESSIONS`; crypto never closes). A future's roll night is not scored:
+(`sessions.DAILY_SESSIONS`), and each of Shanghai tin's two sessions a day, its night
+(21:00-01:00 Beijing) and its day (09:00-15:00) (`sessions.SEGMENTED_SESSIONS`); crypto
+never closes. A future's roll night is not scored:
 the series jumps there by the spread between two contracts (`tremor.futures`). Each gap is scored by the same two rules
 against the earlier gaps **of its own kind** over the half-year before it — a night against
 nights, a weekend against weekends — so every reading of an instrument is read against the
@@ -243,6 +245,7 @@ move.
 | Yahoo | 67 | the rest of the thin funds, consolidated; also the morning dividend check |
 | Kitco | 1 | nickel: the chart gateway behind kitco.com, five-minute quotes from 2020-11 folded to hours; glitches and still days dropped (`price_monitor/kitco.py`) |
 | Yahoo futures | 5 | coffee, cocoa, cotton, live cattle (the front contract itself, rolled before first notice) and aluminium (Yahoo's continuous series) — `tremor/futures.py` |
+| Sina Finance | 1 | tin: the Shanghai Futures Exchange's main contract, hourly; history chained from its delivery months to 2019-08 (`price_monitor/sina.py`, `tools/sina_history.py`) |
 | Google Finance | 1 | TUR: the one feed whose hourly closes match the tape on it, read off the quote page (`price_monitor/google.py`) |
 | Coinbase | 16 | crypto |
 | Dukascopy, HF Data | — | history below what the live providers reach |

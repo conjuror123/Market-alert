@@ -43,7 +43,7 @@ from tremor import atomic, bars, cboe, corporate_actions, fred, futures, quality
 from tremor import sessions as _sessions
 from tremor.basket import Asset, Basket, load_basket
 from price_monitor import (alpaca, candle_store, coinbase, dukascopy, google,
-                           hfdata, kitco, sifting, tiingo, twelvedata, yahoo)
+                           hfdata, kitco, sifting, sina, tiingo, twelvedata, yahoo)
 from price_monitor.models import ExchangeError
 from price_monitor.notifier import TelegramError, redact_secrets, send_telegram_message
 
@@ -277,6 +277,9 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
             alpaca.headers(os.environ.get("ALPACA_KEY_ID", "").strip(),
                            os.environ.get("ALPACA_SECRET_KEY", "").strip()),
             session, feed="iex")
+    elif provider == "sina":
+        # Its last 1,023 hourly bars, whatever `days` asks: about six months.
+        candles = sina.fetch_bars(asset.ticker, session)
     elif provider == "kitco":
         # Five-minute quotes, both for history (from 2020-11) and the hour.
         candles = kitco.fetch_full_history(
@@ -407,7 +410,8 @@ def nothing_can_have_appeared(asset: Asset, path: str,
         return False
     if template == "us_equity" and not table:
         return False
-    if template not in ("us_equity", "fx_continuous", *_sessions.DAILY_SESSIONS):
+    if template not in ("us_equity", "fx_continuous") and \
+            not _sessions.is_calendar_template(template):
         return False
 
     stored = bars.load(path)

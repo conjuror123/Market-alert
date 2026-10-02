@@ -125,6 +125,10 @@ session_templates:
     exchange: COMEX
     tz: America/New_York
     description: "18:00-17:00 New York, Sunday evening to Friday"
+  shfe:
+    exchange: SHFE
+    tz: Asia/Shanghai
+    description: "21:00-01:00 and 09:00-15:00 Beijing, each its own session (tremor/sessions.py SEGMENTED_SESSIONS)"
   b3_fx:
     exchange: B3
     tz: America/Sao_Paulo
@@ -866,6 +870,18 @@ assets:
     session_template: comex
     fetch_interval: 1h
     label: "Aluminium (COMEX)"
+  # Tin: Shanghai's, the one hourly tin found (price_monitor/sina.py) - yuan a
+  # tonne with VAT, so it carries the yuan and China's market too. Its night and
+  # its day are two sessions, each opening with a scored gap.
+  - ticker: SN0
+    source: sina
+    tier: 2
+    block: industrial_metals
+    has_volume: true
+    tick_size: 10.0
+    session_template: shfe
+    fetch_interval: 1h
+    label: "Tin (Shanghai)"
   # The Brazilian real on its own session (sessions.b3_fx): live from SiftingIO,
   # history from Twelve Data (2019-09), whose hourly closes sit 1.5 bp
   # (median) from SiftingIO's against 9-31 bp of an hour's move.

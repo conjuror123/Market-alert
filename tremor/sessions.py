@@ -237,8 +237,8 @@ def instrument_day_hours(day: date, template: str,
         return hours
     if template == "fx_continuous":
         return [h for h in hours if is_reference_hour(h, tz_name)]
-    if template in DAILY_SESSIONS:
-        return [h for h in hours if daily_session_of(h, template) is not None]
+    if template in DAILY_SESSIONS or template in SEGMENTED_SESSIONS:
+        return [h for h in hours if session_key(h, template) is not None]
     raise ValueError(f"unknown session template '{template}'")
 
 
@@ -524,3 +524,96 @@ def daily_hours_mask(hours_utc, name: str) -> "pd.Series":
     hours = hours_utc if isinstance(hours_utc, pd.Series) else pd.Series(
         list(hours_utc), dtype="int64")
     return hours.map(lambda h: daily_session_of(int(h), name) is not None).astype(bool)
+
+
+# SEGMENTED SESSIONS: a market that trades in more than one stretch a day, each
+# closed off by a pause long enough to carry its own move - Shanghai's metals
+# trade 21:00-01:00 and 09:00-15:00 Beijing, and on tin the move across each
+# pause is about an hour's (64 bp and 51 bp against 57). Each stretch is its own
+# session here: its first bar's gap is scored against the last bar before the
+# pause, like a night. A pause inside a stretch (Shanghai's lunch, 11:30-13:30)
+# is missing hours, skipped. A stretch starting on a weekday counts, Friday
+# night included; holidays are the days with no bars.
+#
+#   shfe   Shanghai Futures Exchange metals: 21:00-01:00 and 09:00-15:00
+SEGMENTED_SESSIONS: "dict[str, tuple[str, tuple]]" = {
+    "shfe": ("Asia/Shanghai", (((21, 0), (1, 0)), ((9, 0), (15, 0)))),
+}
+
+
+def _segments_around(start_local: datetime, name: str):
+    zone, segments = SEGMENTED_SESSIONS[name]
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo(zone)
+    for back in (0, 1):
+        day = start_local.date() - timedelta(days=back)
+        if day.weekday() >= 5:
+            continue
+        for (oh, om), (ch, cm) in segments:
+            opened = datetime.combine(day, time(oh, om), tzinfo=tz)
+            close_day = day + timedelta(days=1) if (ch, cm) <= (oh, om) else day
+            yield opened, datetime.combine(close_day, time(ch, cm), tzinfo=tz)
+
+
+def segment_of(hour_utc: int, name: str) -> "str | None":
+    """The stretch an hour belongs to, as its local opening ("YYYY-MM-DD
+    HH:MM"), or None outside every stretch."""
+    from zoneinfo import ZoneInfo
+
+    start = datetime.fromtimestamp(int(hour_utc), ZoneInfo(SEGMENTED_SESSIONS[name][0]))
+    end = start + timedelta(hours=1)
+    for opened, closed in _segments_around(start, name):
+        if start < closed and end > opened:
+            return opened.strftime("%Y-%m-%d %H:%M")
+    return None
+
+
+def segment_close(key: str, name: str) -> int:
+    """Epoch UTC of the close of the stretch opened at `key`."""
+    from zoneinfo import ZoneInfo
+
+    opened = datetime.strptime(key, "%Y-%m-%d %H:%M").replace(
+        tzinfo=ZoneInfo(SEGMENTED_SESSIONS[name][0]))
+    for o, c in _segments_around(opened, name):
+        if o == opened:
+            return int(c.timestamp())
+    raise ValueError(f"{key} opens no {name} stretch")
+
+
+def segmented_bars_per_day(name: str) -> int:
+    """Hours a weekday's stretches cover (on a winter Wednesday)."""
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo(SEGMENTED_SESSIONS[name][0])
+    noon = int(datetime(2026, 1, 7, 12, tzinfo=tz).timestamp())
+    return sum(segment_of(h, name) is not None
+               for h in range(noon - 12 * HOUR, noon + 12 * HOUR, HOUR))
+
+
+def session_key(hour_utc: int, template: str) -> "str | None":
+    """The daily or segmented session an hour belongs to, or None."""
+    if template in DAILY_SESSIONS:
+        day = daily_session_of(hour_utc, template)
+        return str(day) if day else None
+    return segment_of(hour_utc, template)
+
+
+def session_key_close(key: str, template: str) -> int:
+    if template in DAILY_SESSIONS:
+        return daily_session_close(date.fromisoformat(key), template)
+    return segment_close(key, template)
+
+
+def hours_mask(hours_utc, template: str) -> "pd.Series":
+    """Which of these hours are in a daily or segmented template's sessions."""
+    import pandas as pd
+
+    hours = hours_utc if isinstance(hours_utc, pd.Series) else pd.Series(
+        list(hours_utc), dtype="int64")
+    return hours.map(lambda h: session_key(int(h), template) is not None).astype(bool)
+
+
+def is_calendar_template(template: str) -> bool:
+    """A template whose sessions are computed here (daily or segmented)."""
+    return template in DAILY_SESSIONS or template in SEGMENTED_SESSIONS
