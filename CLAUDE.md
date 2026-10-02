@@ -6,7 +6,7 @@
 > pass and of local setup; everything else here is a pointer.
 > **Add to it only** what would cause a wrong change if it were not known immediately.
 
-An hourly Telegram bot. It watches 61 market instruments and writes when one moves
+An hourly Telegram bot. It watches 172 market instruments and writes when one moves
 unusually **for itself**, measured against its own history rather than a shared
 percentage. It runs entirely on GitHub Actions.
 

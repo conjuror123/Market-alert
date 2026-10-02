@@ -237,9 +237,8 @@ def instrument_day_hours(day: date, template: str,
         return hours
     if template == "fx_continuous":
         return [h for h in hours if is_reference_hour(h, tz_name)]
-    if template == "lme":
-        mask = lme_hours_mask(hours)
-        return [h for h, inside in zip(hours, mask) if inside]
+    if template in DAILY_SESSIONS:
+        return [h for h in hours if daily_session_of(h, template) is not None]
     raise ValueError(f"unknown session template '{template}'")
 
 
@@ -437,22 +436,91 @@ if __name__ == "__main__":
     sys.exit(main())
 
 
-# THE LME'S DAY. Nickel trades on LMEselect from 01:00 to 19:00 London time on
-# weekdays, and Kitco's quote moves then and stands still otherwise (measured on
-# five years of it: 59-91% of five-minute quotes change inside those hours, none
-# after 20:00 or at the weekend). Holidays are not listed: the quote does not
-# move on them, and the client drops a day that never moves, so a holiday is a
-# closure without a calendar saying so.
-LME_TZ = "Europe/London"
-LME_OPEN_HOUR, LME_CLOSE_HOUR = 1, 19
+# DAILY SESSIONS: a market that opens and closes once a trading day (Monday to
+# Friday) at fixed local times. An hour (by its opening moment) is in the session
+# when [h, h+1) overlaps [open, close) - the us_equity rule. A session whose open
+# is later than its close starts the evening before: cotton's Monday runs from
+# Sunday 21:00 New York. Holidays are not listed: the source has no bars on them,
+# so the close before one is simply longer, and its gap is judged with the other
+# closes of that length (tremor.jumps.gap_kinds).
+#
+#   lme          nickel on LMEselect, 01:00-19:00 London. Kitco's quote moves
+#                then and stands still otherwise: 59-91% of its five-minute
+#                quotes change inside those hours, none after 20:00.
+#   ice_coffee   ICE arabica, 04:15-13:30 New York
+#   ice_cocoa    ICE cocoa, 04:45-13:30 New York
+#   ice_cotton   ICE cotton No. 2, 21:00-14:20 New York
+#   cme_cattle   CME live cattle, 08:30-13:05 Chicago
+#   comex        COMEX aluminium, 18:00-17:00 New York, Sunday evening to Friday
+#   b3_fx        the Brazilian real, 09:00-18:00 Sao Paulo: on a whole session
+#                of hourly bars, 94-98% of the hours from 12:00 to 21:00 UTC move
+#                and carry 9-31 bp each, the rest under 3.5 bp - the offshore
+#                quote before the onshore market opens
+DAILY_SESSIONS: "dict[str, tuple[str, tuple[int, int], tuple[int, int]]]" = {
+    "lme": ("Europe/London", (1, 0), (19, 0)),
+    "ice_coffee": ("America/New_York", (4, 15), (13, 30)),
+    "ice_cocoa": ("America/New_York", (4, 45), (13, 30)),
+    "ice_cotton": ("America/New_York", (21, 0), (14, 20)),
+    "cme_cattle": ("America/Chicago", (8, 30), (13, 5)),
+    "comex": ("America/New_York", (18, 0), (17, 0)),
+    "b3_fx": ("America/Sao_Paulo", (9, 0), (18, 0)),
+}
+
+# The longest a daily-session market can be shut: Thursday's close to Tuesday's
+# open over Easter, or a Christmas on a Thursday, about 102 hours. Longer means
+# the source was out, not the market shut, and the move across is not a gap.
+DAILY_CLOSED_MAX_SECONDS = 110 * HOUR
 
 
-def lme_hours_mask(hours_utc) -> "pd.Series":
-    """Which of these hours (by their opening moment) are LME trading hours."""
+def _bounds(day: date, name: str) -> "tuple[datetime, datetime]":
+    """The session of trading day `day`: its open and close as aware datetimes."""
+    from zoneinfo import ZoneInfo
+
+    zone, (oh, om), (ch, cm) = DAILY_SESSIONS[name]
+    tz = ZoneInfo(zone)
+    opened_on = day - timedelta(days=1) if (oh, om) > (ch, cm) else day
+    return (datetime.combine(opened_on, time(oh, om), tzinfo=tz),
+            datetime.combine(day, time(ch, cm), tzinfo=tz))
+
+
+def daily_session_of(hour_utc: int, name: str) -> "date | None":
+    """The trading day an hour belongs to, or None outside every session."""
+    from zoneinfo import ZoneInfo
+
+    start = datetime.fromtimestamp(int(hour_utc), ZoneInfo(DAILY_SESSIONS[name][0]))
+    end = start + timedelta(hours=1)
+    for day in (start.date(), start.date() + timedelta(days=1)):
+        if day.weekday() >= 5:
+            continue
+        opened, closed = _bounds(day, name)
+        if start < closed and end > opened:
+            return day
+    return None
+
+
+def daily_session_open(day: date, name: str) -> int:
+    """Epoch UTC of that trading day's open."""
+    return int(_bounds(day, name)[0].timestamp())
+
+
+def daily_session_close(day: date, name: str) -> int:
+    """Epoch UTC of that trading day's close."""
+    return int(_bounds(day, name)[1].timestamp())
+
+
+def daily_bars_per_day(name: str) -> int:
+    """How many hourly bars a whole session holds (on a winter Wednesday)."""
+    day = date(2026, 1, 7)
+    opened, closed = _bounds(day, name)
+    first = int(opened.timestamp()) // HOUR * HOUR - HOUR
+    return sum(daily_session_of(h, name) == day
+               for h in range(first, int(closed.timestamp()) + HOUR, HOUR))
+
+
+def daily_hours_mask(hours_utc, name: str) -> "pd.Series":
+    """Which of these hours are in the named daily session."""
     import pandas as pd
 
     hours = hours_utc if isinstance(hours_utc, pd.Series) else pd.Series(
         list(hours_utc), dtype="int64")
-    local = pd.to_datetime(hours.astype("int64"), unit="s", utc=True).dt.tz_convert(LME_TZ)
-    return ((local.dt.weekday < 5) & (local.dt.hour >= LME_OPEN_HOUR)
-            & (local.dt.hour < LME_CLOSE_HOUR))
+    return hours.map(lambda h: daily_session_of(int(h), name) is not None).astype(bool)

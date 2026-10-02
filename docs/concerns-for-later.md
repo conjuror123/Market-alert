@@ -225,33 +225,33 @@ POL's two histories would have to be joined.
 
 **Still without a source:**
 
-1. **The seven delisted ETNs:** nickel, aluminium, tin, coffee, cocoa, cotton and
-   livestock. Without them, the industrial-metals and agriculture blocks stop at five
-   members each. What the commodities themselves can be had from (2026-10-01):
-   - **Nickel: in, from Kitco's chart gateway** (`kdb-gw.prod.kitco.com`, GraphQL
-     `GetMetalHistoryV3`, no key), five-minute quotes from 2020-11, live to the last five
-     minutes; its level matches the LME official price to a ratio of 1.000 in every year.
-     Its six glitches (2022-04-04, 2023-01-23 and 24, 2023-02-27, 2023-07-24,
-     2024-09-25) and the days its quote never moves are dropped by the client; it runs on
-     a session template of its own, `lme` (`price_monitor/kitco.py`). A real 15%
-     five-minute move would be held a day as a possible glitch and so never go out.
-   - **Aluminium: not Kitco.** Its series switches every few weeks, still in 2025, to a
-     near-flat second price about 30% higher (a +29% step at a Monday open, back a day or
-     two later), and was more than 5% off the LME official price on 206 days of 2022.
-     Yahoo's `ALI=F` (COMEX), hourly from 2024-05, is what is left.
-   - **Tin: no hourly source.** Kitco has no tin; Business Insider, Westmetall and
-     Trading Economics carry the daily official price only; LME, Investing.com and CNBC
-     refuse automated readers.
-   - **Coffee, cocoa, cotton, live cattle:** Yahoo's `KC=F CC=F CT=F LE=F`, hourly from
-     2024-05 with a jump at each roll; Dukascopy's CFDs for the first three. FXEmpire's
-     chart API (open, OANDA's CFDs) carries none of them — copper, sugar, the grains,
-     energy and precious metals only — and its futures pages show a quote, not bars.
-     DailyFX is gone.
+1. **Tin** — no hourly source, live or history. Kitco has no tin; Business Insider,
+   Westmetall and Trading Economics carry the daily official price only; LME,
+   Investing.com and CNBC refuse automated readers. Every other delisted ETN's
+   commodity is in (2026-10-02):
+   - **Nickel** from Kitco's chart gateway (`price_monitor/kitco.py`), on the `lme`
+     session, from 2020-11; its glitches and still days dropped by the client. A real
+     15% five-minute move would be held a day as a possible glitch and never go out.
+   - **Coffee, cocoa, cotton, live cattle, aluminium** from Yahoo's futures
+     (`tremor/futures.py`), each on its exchange's session (`sessions.DAILY_SESSIONS`).
+     Live bars come from the front contract itself (KCZ26.NYB, ...), rolled on liquid
+     months before first notice; Yahoo's continuous series mixes contracts and is used
+     only for history, cleaned once (`tools/futures_history.py`): other-contract hours
+     and stray opens out, sparse months out, and the stretches where it lags this
+     series' roll out. Roll nights and bars too thin to be a trade are not scored.
+     Coffee, cocoa and cattle from 2024-05; aluminium from 2024-05 as Yahoo's series
+     (not rolled here: monthly, a tenth-of-a-percent spread, no flips); cotton only from
+     2026-06-17, its continuous history being too broken to use.
+   - Not tried: Aluminium from Kitco (a second price 30% higher every few weeks);
+     FXEmpire's chart API (OANDA's CFDs, none of these); DailyFX (gone).
 2. **A second consolidated live feed for about 60 funds.** The alternative is to accept
    Yahoo carrying them, which is the concentration this document already worries about.
    Twelve Data can take a slice, at a minute of run time per eight.
-3. **USD/BRL's history before 2026-07-26 from a feed that agrees with SiftingIO.**
-   Otherwise, seed it from Twelve Data at the disagreement above, or let it start young.
+3. **USD/BRL is in** (2026-10-02), on its own session, `b3_fx` (09:00-18:00 Sao Paulo):
+   outside it the real barely moves (under 3.5 bp an hour against 9-31 bp inside). Live
+   from SiftingIO; history from Twelve Data (2019-09), whose closes sit 1.5 bp (median)
+   from SiftingIO's - a twentieth of an in-session hour's move. TradingView's FX_IDC pull
+   (2024-12 on) was used only to measure the session.
 4. **Live IEX capacity past Tiingo's 21 slots** — answered 2026-10-01: Alpaca's free IEX
    is fresh. At 15:05 UTC it served the half-hour bar opened at 15:00 and minute bars to
    15:04, so the 30 IEX-safe funds fit between Tiingo and Alpaca. Not wired yet.**

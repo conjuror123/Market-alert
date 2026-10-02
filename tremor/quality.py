@@ -57,8 +57,8 @@ def in_session(asset: Asset, hours: pd.Series,
         # exchange's time - exactly the basket's reference week.
         return sessions_mod.reference_hours_mask(hours, anchor_tz)
 
-    if asset.session_template == "lme":
-        return sessions_mod.lme_hours_mask(hours)
+    if asset.session_template in sessions_mod.DAILY_SESSIONS:
+        return sessions_mod.daily_hours_mask(hours, asset.session_template)
 
     if asset.session_template != "us_equity":
         raise ValueError(f"{asset.ticker}: unknown session template "
@@ -104,6 +104,13 @@ def invalid_reasons(asset: Asset, frame: pd.DataFrame) -> pd.Series:
     reasons[inconsistent & (reasons == "")] = "OHLC inconsistent"
 
     reasons[(frame["volume"] < 0) & (reasons == "")] = "volume negative"
+
+    from tremor import futures
+    if futures.is_continuous(asset.ticker):
+        ordered = frame.sort_values("hour_utc")
+        thin = pd.Series(futures.thin(ordered["volume"]), index=ordered.index)
+        reasons[thin.reindex(frame.index).to_numpy(dtype=bool) & (reasons == "")] = \
+            "volume too thin to be a trade"
     reasons[frame["hour_utc"].duplicated(keep="last") & (reasons == "")] = "duplicate hour"
     return reasons
 

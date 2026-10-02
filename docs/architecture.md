@@ -42,7 +42,10 @@ it is full are marked `young`.
 **Stage 1b, the gap — built.** What happens while a market is shut arrives as the jump from
 the last price before the close to the first after it: a fund's night and weekend, a
 currency pair's weekend and its two midweek closures, Christmas and New Year's Day,
-nickel's LME night (19:00 to 01:00 London) and weekend (crypto never closes). Each gap is scored by the same two rules
+and a daily-session market's night and weekend — nickel on the LME, the soft
+commodities, cattle and aluminium on their exchanges, the real on B3
+(`sessions.DAILY_SESSIONS`; crypto never closes). A future's roll night is not scored:
+the series jumps there by the spread between two contracts (`tremor.futures`). Each gap is scored by the same two rules
 against the earlier gaps **of its own kind** over the half-year before it — a night against
 nights, a weekend against weekends — so every reading of an instrument is read against the
 same half-year of events. A gap spanning 48 hours or more is a weekend (a long weekend
@@ -239,6 +242,7 @@ move.
 | SiftingIO | 16 | the FX pairs: 0.11–0.35 bps median against the stored bars, the bar closed at :00 served by :05 |
 | Yahoo | 67 | the rest of the thin funds, consolidated; also the morning dividend check |
 | Kitco | 1 | nickel: the chart gateway behind kitco.com, five-minute quotes from 2020-11 folded to hours; glitches and still days dropped (`price_monitor/kitco.py`) |
+| Yahoo futures | 5 | coffee, cocoa, cotton, live cattle (the front contract itself, rolled before first notice) and aluminium (Yahoo's continuous series) — `tremor/futures.py` |
 | Google Finance | 1 | TUR: the one feed whose hourly closes match the tape on it, read off the quote page (`price_monitor/google.py`) |
 | Coinbase | 16 | crypto |
 | Dukascopy, HF Data | — | history below what the live providers reach |

@@ -89,9 +89,13 @@ def _overnight(event: dict) -> bool:
 
 
 def _weekly(event: dict) -> bool:
-    """A currency pair's gap is the WEEKEND - Friday 17:00 to Sunday 17:00 New
-    York - and saying "overnight" or "the open" of it would send the reader to
-    the wrong chart."""
+    """A round-the-week currency pair's gap is the WEEKEND - Friday 17:00 to
+    Sunday 17:00 New York - and saying "overnight" or "the open" of it would
+    send the reader to the wrong chart. The Brazilian real is in the FX block
+    but keeps a daily session, so its gaps are nights and weekends."""
+    template = event.get("template")
+    if isinstance(template, str) and template:
+        return template == "fx_continuous"
     return str(event.get("block") or "") == "FX"
 
 

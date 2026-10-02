@@ -57,7 +57,7 @@ TIERS = (1, 2)
 # `provider` is who actually answers the request, and that CAN change: see
 # docs/architecture.md for the current split and how it was chosen. It defaults
 # to `source`, which is why the crypto rows need no provider line.
-SOURCES = ("twelvedata", "coinbase", "kitco")
+SOURCES = ("twelvedata", "coinbase", "kitco", "yahoo")
 
 # Who can be asked for bars. Wider than SOURCES because a provider may serve an
 # instrument whose history came from somewhere else.

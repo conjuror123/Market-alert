@@ -102,8 +102,15 @@ NOTICEABLE_SIGMA = 3.9       # the bottom word, in half-year sigmas
 STEP = math.sqrt(2)          # each word this many times bigger than the one below
 
 # Bars a day, per calendar, for the paper's minimum window.
-BARS_PER_DAY: "dict[str, int]" = {"us_equity": 7, "fx_continuous": 24, "crypto_24_7": 24,
-                                  "lme": 18}
+BARS_PER_DAY: "dict[str, int]" = {"us_equity": 7, "fx_continuous": 24, "crypto_24_7": 24}
+
+
+def bars_per_day(template: str) -> int:
+    from tremor.sessions import DAILY_SESSIONS, daily_bars_per_day
+
+    if template in DAILY_SESSIONS:
+        return daily_bars_per_day(template)
+    return BARS_PER_DAY[template]
 
 # The three readings, and each gap kind's minimum window from the paper's rule
 # at one reading a day (nights: sqrt(252) -> 16) or a week (weekends: 7, their
@@ -208,7 +215,7 @@ def score(frame: pd.DataFrame, template: str, window_days: float = WINDOW_DAYS,
     frame = frame.sort_values("hour_utc").reset_index(drop=True)
     hours = frame["hour_utc"].to_numpy(dtype="int64")
     r, sigma = trusted_sigma(hours, frame["r"].to_numpy(dtype="float64"), window_days,
-                             minimum_count(BARS_PER_DAY[template]))
+                             minimum_count(bars_per_day(template)))
     with np.errstate(divide="ignore", invalid="ignore"):
         z = np.where(sigma > 0, r / sigma, np.nan)
     finite = np.isfinite(r)

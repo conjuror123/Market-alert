@@ -99,10 +99,36 @@ session_templates:
     exchange: COINBASE
     tz: UTC
     description: "around the clock, no weekends"
+  # The daily sessions below are defined in tremor/sessions.py DAILY_SESSIONS;
+  # here only named, for the instruments to refer to.
   lme:
     exchange: LME
     tz: Europe/London
     description: "01:00-19:00 London on weekdays (LMEselect); holidays are the days the quote never moves"
+  ice_coffee:
+    exchange: ICE US
+    tz: America/New_York
+    description: "04:15-13:30 New York on weekdays"
+  ice_cocoa:
+    exchange: ICE US
+    tz: America/New_York
+    description: "04:45-13:30 New York on weekdays"
+  ice_cotton:
+    exchange: ICE US
+    tz: America/New_York
+    description: "21:00-14:20 New York, the session opening the evening before"
+  cme_cattle:
+    exchange: CME
+    tz: America/Chicago
+    description: "08:30-13:05 Chicago on weekdays"
+  comex:
+    exchange: COMEX
+    tz: America/New_York
+    description: "18:00-17:00 New York, Sunday evening to Friday"
+  b3_fx:
+    exchange: B3
+    tz: America/Sao_Paulo
+    description: "09:00-18:00 Sao Paulo on weekdays, the onshore dollar market"
 
 # tick_size is the exchange price step, needed by the winsorization (the eps_MAD
 # floor includes the return on half a tick). It is stated explicitly rather than
@@ -791,6 +817,68 @@ assets:
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Avalanche"
+  # Commodities themselves, now that their iPath ETNs no longer trade: Yahoo's
+  # continuous futures, hourly from 2024-05. Each its exchange's session; a
+  # roll's jump is left unscored and a bar too thin to be a trade dropped
+  # (tremor/futures.py). Prices in the contract's own unit.
+  - ticker: KC=F
+    source: yahoo
+    tier: 2
+    block: agriculture
+    has_volume: true
+    tick_size: 0.05
+    session_template: ice_coffee
+    fetch_interval: 1h
+    label: "Coffee (ICE)"
+  - ticker: CC=F
+    source: yahoo
+    tier: 2
+    block: agriculture
+    has_volume: true
+    tick_size: 1.0
+    session_template: ice_cocoa
+    fetch_interval: 1h
+    label: "Cocoa (ICE)"
+  - ticker: CT=F
+    source: yahoo
+    tier: 2
+    block: agriculture
+    has_volume: true
+    tick_size: 0.01
+    session_template: ice_cotton
+    fetch_interval: 1h
+    label: "Cotton (ICE)"
+  - ticker: LE=F
+    source: yahoo
+    tier: 2
+    block: agriculture
+    has_volume: true
+    tick_size: 0.025
+    session_template: cme_cattle
+    fetch_interval: 1h
+    label: "Live cattle (CME)"
+  - ticker: ALI=F
+    source: yahoo
+    tier: 2
+    block: industrial_metals
+    has_volume: true
+    tick_size: 0.25
+    session_template: comex
+    fetch_interval: 1h
+    label: "Aluminium (COMEX)"
+  # The Brazilian real on its own session (sessions.b3_fx): live from SiftingIO,
+  # history from Twelve Data (2019-09), whose hourly closes sit 1.5 bp
+  # (median) from SiftingIO's against 9-31 bp of an hour's move.
+  - ticker: USD/BRL
+    source: twelvedata
+    provider: sifting
+    tier: 2
+    block: FX
+    has_volume: false
+    tick_size: 0.0001
+    session_template: b3_fx
+    fetch_interval: 1h
+    label: "Brazilian real"
   # --- the widening (2026-09-30) ---------------------------------------------
   # Added on the development branch to take their history: funds from Twelve
   # Data (2020-02 on) and HF Data's consolidated tape (before), live on Yahoo,

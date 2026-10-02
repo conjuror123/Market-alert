@@ -39,7 +39,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import requests
 
-from tremor import atomic, bars, cboe, corporate_actions, fred, quality
+from tremor import atomic, bars, cboe, corporate_actions, fred, futures, quality
 from tremor import sessions as _sessions
 from tremor.basket import Asset, Basket, load_basket
 from price_monitor import (alpaca, candle_store, coinbase, dukascopy, google,
@@ -254,6 +254,16 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
             symbol=asset.ticker, interval=asset.fetch_interval, days=days,
             api_key=sifting_key, session=session, end=end,
         )
+    elif provider == "yahoo" and futures.front_contract(asset.ticker, now.date()):
+        # A rolled futures series: the front contract's own bars, from the
+        # session it became front - never Yahoo's continuous series, which
+        # mixes in other contracts' prints (tremor.futures).
+        symbol, since_day = futures.front_contract(asset.ticker, now.date())
+        candles = yahoo.fetch_full_history(
+            symbol=symbol, interval=asset.fetch_interval, days=days,
+            base_url=YAHOO_BASE_URL, session=session, end=end)
+        floor = _sessions.daily_session_open(since_day, asset.session_template)
+        candles = [c for c in candles if c.open_time >= floor]
     elif provider == "yahoo":
         candles = yahoo.fetch_full_history(
             symbol=asset.ticker, interval=asset.fetch_interval, days=days,
@@ -384,7 +394,8 @@ def nothing_can_have_appeared(asset: Asset, path: str,
         what the walk considers a bar.
       - us_equity still needs the session table; a missing or short table never
         causes a skip.
-      - lme uses the LME's 01:00-19:00 London weekday, as the gate does.
+      - a daily-session market (nickel, futures, the real) uses its own
+        open and close, as the gate does (sessions.DAILY_SESSIONS).
       - never on an empty store, where there is no newest bar to reason from.
       - never within SETTLE_HOURS of the newest stored bar, so a bar served
         while its hour was still open is re-asked for.
@@ -396,7 +407,7 @@ def nothing_can_have_appeared(asset: Asset, path: str,
         return False
     if template == "us_equity" and not table:
         return False
-    if template not in ("us_equity", "fx_continuous", "lme"):
+    if template not in ("us_equity", "fx_continuous", *_sessions.DAILY_SESSIONS):
         return False
 
     stored = bars.load(path)
