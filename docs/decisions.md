@@ -343,7 +343,12 @@ median ratio over the month after it so there is no step: BTC Bitstamp from 2013
 8.7 bp), LTC Bitfinex 2013-12 (0.989, 7.1 bp), ETH Bitfinex 2016-04 (0.992, 6.0 bp), XRP
 Bitstamp 2017-03 (0.974, 13.4 bp), BCH Coinbase 2018-01 with a 2019-01-15 seam (0.987,
 24.3 bp). Each starts at its first month traded in 90% of hours. Pairs Binance renamed are
-joined to their earlier name: POL to MATIC, BCH to BCHABC (+0.0% across each).
+joined to their earlier name: POL to MATIC, BCH to BCHABC (+0.0% across each). LINK and
+ADA traded against BTC on Binance before their USDT pairs opened, so below a seam where the
+USDT pair's volume caught up their record is the BTC pair times BTCUSDT, hour by hour: LINK
+from 2017-10 below 2019-05-01 (0.997, 7.7 bp after the seam), ADA from 2017-12 below
+2018-06-01 (0.994, 5.8 bp). The other coins' BTC pairs open with their USDT pairs, or the
+coin did not exist before.
 
 **A candidate source answers four questions, cheapest disqualifier first:** does it serve
 the bar that closed at :00 by :05; how many requests an hour does it allow against what it

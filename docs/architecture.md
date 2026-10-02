@@ -329,7 +329,7 @@ reaches (2026-10-02):
 | 133 US funds | 2002–2011 for 71, 2016 for 55, launch for 7 (FALN, GIGB, IGIB, USIG, USHY, XLC, JMBS; IGIB's and USIG's may predate their tickers, `concerns-for-later.md` 5) | HF Data (2002 on), Twelve Data (2020-02 on), Alpaca's consolidated tape (2016 on) |
 | 14 currency pairs | 2003–2007; USD/CNH 2012 | Dukascopy, then the live feed |
 | USD/BRL, USD/INR, USD/KRW | 2019-09, 2019-11, 2020-01 | Twelve Data |
-| 16 coins | each pair's Binance listing — LINK 2019-01, POL 2019-04 (as MATIC), ATOM 2019-04, DOGE 2019-07, SOL and DOT 2020-08, UNI and AVAX 2020-09, FIL and AAVE 2020-10, ADA 2018-04 — and under Binance's first months a dollar exchange's: BTC 2013-02, LTC 2013-12, ETH 2016-04, XRP 2017-03, BCH 2018-01 | Binance; Bitstamp, Bitfinex, Coinbase below 2018-06 (`tools/binance_history.py`) |
+| 16 coins | each pair's Binance listing — POL 2019-04 (as MATIC), ATOM 2019-04, DOGE 2019-07, SOL and DOT 2020-08, UNI and AVAX 2020-09, FIL and AAVE 2020-10 — under a late USDT listing the coin's BTC pair: LINK 2017-10, ADA 2017-12 — and under Binance's first months a dollar exchange's: BTC 2013-02, LTC 2013-12, ETH 2016-04, XRP 2017-03, BCH 2018-01 | Binance; its BTC pairs times BTCUSDT; Bitstamp, Bitfinex, Coinbase below 2018-06 (`tools/binance_history.py`) |
 | tin, nickel, aluminium (LME) | 2026-07 | Sina |
 | coffee, cocoa, cotton | 2019-01 | Dukascopy's CFDs to the seam (coffee 2026-08-14, cocoa 2026-08-11, cotton 2026-06-17), then the listed contract |
 | live cattle | 2024-05 | Yahoo's continuous series, cleaned |

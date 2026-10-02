@@ -3,10 +3,11 @@
 WHY BINANCE. The owner's call (2026-10-02): every coin as its USDT pair on one
 exchange, for homogeneity, and named for what it is - ADA/USDT, not ADA-USD.
 It also reaches further back than Coinbase for the coins Coinbase listed late:
-ADA from 2018-04, POL (as MATIC) and ATOM 2019-04, DOGE 2019-07. For the five
-older coins a dollar exchange's record goes under Binance's first, thin months
-(tools/binance_history.py): BTC from 2013, LTC 2013-12, ETH 2016-04, XRP 2017-03,
-BCH 2018-01.
+POL (as MATIC) and ATOM 2019-04, DOGE 2019-07. For the five older coins a
+dollar exchange's record goes under Binance's first, thin months, and for LINK
+and ADA the coin's BTC pair times BTCUSDT under their late USDT listing
+(tools/binance_history.py): BTC from 2013, LTC 2013-12, ETH 2016-04, XRP
+2017-03, LINK 2017-10, ADA and BCH 2017-12/2018-01.
 
 WHICH HOST. api.binance.com answers HTTP 451 to US addresses, which GitHub's
 runners are. data-api.binance.vision is Binance's own market-data-only mirror

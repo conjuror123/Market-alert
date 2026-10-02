@@ -27,17 +27,29 @@ Measured 2026-10-02, return correlation and median level gap after the ratio:
     XRP  Bitstamp   from 2017-03 0.974  13.4 bp
     BCH  Coinbase   from 2017-12 0.987  24.3 bp
 
+BELOW A LATE USDT LISTING, THE BTC PAIR. LINK and ADA traded on Binance
+against BTC months before their USDT pairs opened (LINKBTC 2017-09, LINKUSDT
+2019-01; ADABTC 2017-11, ADAUSDT 2018-04). Below the seam their record is the
+BTC pair times BTCUSDT, hour by hour: open by open, close by close; high and
+low as the product of the two highs and of the two lows, an outer bound the
+detector does not read; volume the BTC pair's, in the coin. Seams where the
+USDT pair's volume caught up with the BTC pair's: LINK 2019-05-01, ADA
+2018-06-01. Measured 2026-10-02, against the USDT pair after its listing:
+
+    LINK  correlation 0.95-0.99 a month, median gap 12 bp (2019 Q1-Q2)
+    ADA   correlation 0.99 a month,      median gap 6 bp
+
 Each dollar record starts at its first month traded in at least
 MIN_MONTH_COVERAGE of its hours: a market trading in fits is stale prices and
 catch-ups, which read as moves.
 
-Writes data/tremor/bars/binance_*. Run from the repository root:
-    python -m tools.binance_history
+Writes data/tremor/bars/binance_*. Run from the repository root, for every
+coin or the ones named:
+    python -m tools.binance_history [LINK/USDT ADA/USDT]
 """
 from __future__ import annotations
 
 import math
-import shutil
 import sys
 from datetime import datetime, timedelta, timezone
 
@@ -61,6 +73,9 @@ DOLLAR = {
     "LTC/USDT": ("bitfinex", "tLTCUSD", datetime(2013, 1, 1, tzinfo=timezone.utc), SEAM),
     "XRP/USDT": ("bitstamp", "xrpusd", datetime(2017, 1, 1, tzinfo=timezone.utc), SEAM),
     "BCH/USDT": ("coinbase", "coinbase_BCH-USD", None, datetime(2019, 1, 15, tzinfo=timezone.utc)),
+    "LINK/USDT": ("binance-btc", "LINKBTC", datetime(2017, 9, 1, tzinfo=timezone.utc),
+                  datetime(2019, 5, 1, tzinfo=timezone.utc)),
+    "ADA/USDT": ("binance-btc", "ADABTC", datetime(2017, 11, 1, tzinfo=timezone.utc), SEAM),
 }
 SEAM_CALIBRATION = 30         # days after the seam the ratio is measured on
 SEAM_CHECK = 93               # ... and through which the gates are applied
@@ -68,6 +83,8 @@ MIN_MONTH_COVERAGE = 0.9
 
 
 def dollar_record(kind: str, symbol: str, start, end, session) -> pd.DataFrame:
+    if kind == "binance-btc":
+        return btc_cross(symbol, start, end, session)
     if kind == "bitstamp":
         candles = bitstamp.fetch_history(symbol, start, end, session)
     elif kind == "bitfinex":
@@ -76,6 +93,18 @@ def dollar_record(kind: str, symbol: str, start, end, session) -> pd.DataFrame:
         frame = bars.load(bars.store_path(bars.DEFAULT_BARS_DIR, symbol))
         return frame[frame["hour_utc"] < int(end.timestamp())].reset_index(drop=True)
     return bars.to_hourly(bars.candles_to_frame(candles))
+
+
+def btc_cross(symbol: str, start, end, session) -> pd.DataFrame:
+    """A coin's BTC pair times BTCUSDT, for the hours the pair traded."""
+    pair = bars.candles_to_frame(binance.fetch_history(symbol, start, end, session))
+    btc = bars.candles_to_frame(binance.fetch_history("BTCUSDT", start, end, session))
+    pair = pair[pair["volume"] > 0]
+    j = pair.merge(btc, on="hour_utc", suffixes=("", "_btc"))
+    out = pd.DataFrame({"hour_utc": j["hour_utc"], "volume": j["volume"], "n_src": 1})
+    for column in ("open", "high", "low", "close"):
+        out[column] = j[column] * j[f"{column}_btc"]
+    return out[list(bars.SCHEMA)].astype(bars.SCHEMA).reset_index(drop=True)
 
 
 def from_first_full_month(frame: pd.DataFrame) -> pd.DataFrame:
@@ -113,7 +142,9 @@ def splice(ticker: str, top: pd.DataFrame, session) -> pd.DataFrame:
 
 def main() -> int:
     session = requests.Session()
-    coins = [a for a in load_basket().instruments if a.source == "binance"]
+    named = set(sys.argv[1:])
+    coins = [a for a in load_basket().instruments
+             if a.source == "binance" and (not named or a.ticker in named)]
     for asset in coins:
         candles = binance.fetch_history(binance.symbol_for(asset.ticker), START,
                                         session=session)
@@ -132,7 +163,8 @@ def main() -> int:
         if asset.ticker in DOLLAR:
             frame = splice(asset.ticker, frame, session)
         path = bars.store_path(bars.DEFAULT_BARS_DIR, asset.file_stem)
-        shutil.rmtree(path, ignore_errors=True)
+        # The whole record, written over the store: shards that did not change
+        # are not touched, and months already in git keep their files.
         bars.write(path, frame)
         stored = bars.load(path)
         first = datetime.fromtimestamp(int(stored["hour_utc"].min()), timezone.utc)
