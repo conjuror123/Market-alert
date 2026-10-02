@@ -159,21 +159,21 @@ def test_a_settled_year_lands_in_one_file_and_the_live_one_in_months(tmp_path):
 
     import os
     assert sorted(os.listdir(store)) == [
-        "2003.parquet", "2004.parquet", "2026-01.parquet", "2026-09.csv"]
+        "2003.csv.gz", "2004.csv.gz", "2026-01.csv.gz", "2026-09.csv"]
     assert len(bars.load(store)) == 5
     assert not any(name.endswith(".tmp") for name in os.listdir(store))
 
 
 def test_a_settled_year_is_not_rewritten_when_a_new_hour_arrives(tmp_path):
     # The whole reason the store is sharded: parquet rewrites a file whole, and
-    # the archive is committed daily. A year whose bars are long finished must
+    # settled months are committed. A year whose bars are long finished must
     # produce no file write at all, or git stores the entire history again to
     # record one hour.
     import os
 
     store = bars.store_path(str(tmp_path), "twelvedata_SPY")
     bars.write(store, _rows([_hour(2003), _hour(2026)]))
-    settled = os.path.join(store, "2003.parquet")
+    settled = os.path.join(store, "2003.csv.gz")
     stamp = os.stat(settled).st_mtime_ns
 
     bars.merge(store, _rows([_hour(2026, 1, 1, 5)]))
@@ -198,7 +198,7 @@ def test_a_legacy_single_file_is_read_and_then_folded_in(tmp_path):
 
     assert not os.path.exists(legacy)
     assert sorted(os.listdir(store)) == [
-        "2003.parquet", "2004.parquet", "2026-01.csv"]
+        "2003.csv.gz", "2004.csv.gz", "2026-01.csv"]
     assert sorted(bars.load(store)["hour_utc"]) == [_hour(2003), _hour(2004), _hour(2026)]
 
 
@@ -247,26 +247,36 @@ def test_appending_an_hour_rewrites_only_the_month_it_lands_in(tmp_path):
     assert touched == {"2026-09.csv"}
 
 
-def test_the_first_bar_of_a_new_year_folds_the_old_one_back_into_one_shard(tmp_path):
-    # The compaction has no code path of its own and no calendar check: the live
-    # year is whichever is newest IN THE DATA, so a year stops being live the
-    # moment a later bar arrives and its months collapse on that write. A
-    # January-only branch would run once a year and be wrong the first time.
+def test_a_year_written_month_by_month_stays_in_months(tmp_path):
+    # Folding a finished year into one file would put the same bars into git a
+    # second time. A year is one shard only where it never had months - the
+    # import tools' whole histories, and the years before this layout.
     import os
 
     store = bars.store_path(str(tmp_path), "twelvedata_SPY")
     bars.write(store, _rows([_hour(2025, 6), _hour(2026, 1), _hour(2026, 6),
                              _hour(2026, 11)]))
     assert sorted(os.listdir(store)) == [
-        "2025.parquet", "2026-01.parquet", "2026-06.parquet", "2026-11.csv"]
+        "2025.csv.gz", "2026-01.csv.gz", "2026-06.csv.gz", "2026-11.csv"]
 
     bars.merge(store, _rows([_hour(2027, 1, 1, 9)]))
 
     assert sorted(os.listdir(store)) == [
-        "2025.parquet", "2026.parquet", "2027-01.csv"]
+        "2025.csv.gz", "2026-01.csv.gz", "2026-06.csv.gz", "2026-11.csv.gz", "2027-01.csv"]
     assert sorted(bars.load(store)["hour_utc"]) == [
         _hour(2025, 6), _hour(2026, 1), _hour(2026, 6), _hour(2026, 11),
         _hour(2027, 1, 1, 9)]
+
+
+def test_a_year_already_in_parquet_keeps_its_file(tmp_path):
+    import os
+
+    store = bars.store_path(str(tmp_path), "twelvedata_SPY")
+    os.makedirs(store)
+    bars.write(os.path.join(store, "2025.parquet"), _rows([_hour(2025, 6)]))
+    bars.merge(store, _rows([_hour(2026, 9)]))
+
+    assert sorted(os.listdir(store)) == ["2025.parquet", "2026-09.csv"]
 
 
 def test_a_month_shard_outranks_the_year_it_replaces(tmp_path):
@@ -288,10 +298,9 @@ def test_a_month_shard_outranks_the_year_it_replaces(tmp_path):
     assert bars.load(store)["close"].tolist() == [22.0]
 
 
-def test_the_live_month_is_text_and_turns_to_parquet_when_the_next_begins(tmp_path):
-    # Text so that committing it every run costs git a line, not a file; the
-    # finished month is laid down as Parquet once, by the write that brings the
-    # next month's first bar.
+def test_the_open_month_settles_three_days_after_it_ends(tmp_path):
+    # Text outside git while it is written; gzip in git once, when providers'
+    # late corrections to its last bars have landed.
     import os
 
     store = bars.store_path(str(tmp_path), "twelvedata_SPY")
@@ -299,9 +308,79 @@ def test_the_live_month_is_text_and_turns_to_parquet_when_the_next_begins(tmp_pa
     assert sorted(os.listdir(store)) == ["2026-09.csv"]
 
     bars.merge(store, _rows([_hour(2026, 10, 1, 13)]))
+    assert sorted(os.listdir(store)) == ["2026-09.csv", "2026-10.csv"]
 
-    assert sorted(os.listdir(store)) == ["2026-09.parquet", "2026-10.csv"]
-    assert len(bars.load(store)) == 3
+    bars.merge(store, _rows([_hour(2026, 10, 3, 23)]))
+    assert sorted(os.listdir(store)) == ["2026-09.csv", "2026-10.csv"]
+
+    bars.merge(store, _rows([_hour(2026, 10, 4, 0)]))
+    assert sorted(os.listdir(store)) == ["2026-09.csv.gz", "2026-10.csv"]
+    assert len(bars.load(store)) == 5
+
+
+def test_settled_before_is_the_oldest_open_month():
+    from datetime import datetime, timezone
+
+    def at(*args):
+        return int(datetime(*args, tzinfo=timezone.utc).timestamp())
+
+    assert bars.settled_before(at(2026, 10, 3, 23)) == at(2026, 9, 1)
+    assert bars.settled_before(at(2026, 10, 4)) == at(2026, 10, 1)
+    assert bars.settled_before(at(2027, 1, 2)) == at(2026, 12, 1)
+    assert bars.settled_before(at(2027, 1, 20)) == at(2027, 1, 1)
+
+
+def test_a_settled_month_keeps_its_rows_and_fills_its_holes(tmp_path):
+    # It is in git: a provider re-serving an old bar a hair different must not
+    # rewrite it. An hour it lacks is still taken, and the tape repair, which
+    # replaces bad prints on purpose, may revise.
+    store = bars.store_path(str(tmp_path), "twelvedata_SPY")
+    bars.write(store, _rows([_hour(2026, 8, 3), _hour(2026, 9, 10)]))
+    revised = _rows([_hour(2026, 8, 3), _hour(2026, 8, 4), _hour(2026, 9, 10)])
+    revised["close"] = 99.0
+
+    added = bars.merge(store, revised)
+
+    got = bars.load(store).set_index("hour_utc")["close"]
+    assert added == 1
+    assert got[_hour(2026, 8, 3)] == 1.5
+    assert got[_hour(2026, 8, 4)] == 99.0
+    assert got[_hour(2026, 9, 10)] == 99.0
+
+    bars.merge(store, revised, revise_settled=True)
+    assert bars.load(store).set_index("hour_utc")["close"][_hour(2026, 8, 3)] == 99.0
+
+
+def test_a_committed_month_is_never_pulled_back_out_of_git(tmp_path):
+    # A run that lost its open months (no release to restore them from) sees its
+    # newest committed month as the newest data. Read off the clock alone, that
+    # month would be open again, and the write would turn its .csv.gz into an
+    # untracked .csv - deleting it from git.
+    import os
+
+    store = bars.store_path(str(tmp_path), "twelvedata_SPY")
+    bars.write(store, _rows([_hour(2026, 8, 3), _hour(2026, 9, 10)]))
+    os.remove(os.path.join(store, "2026-09.csv"))
+
+    bars.merge(store, _rows([_hour(2026, 8, 5)]))
+
+    assert sorted(os.listdir(store)) == ["2026-08.csv.gz"]
+    assert len(bars.load(store)) == 2
+
+
+def test_a_settled_month_is_the_same_bytes_every_time(tmp_path):
+    # gzip stamps the time into its header unless told not to; then every write
+    # of an unchanged month would be a change to git.
+    import os
+
+    a = bars.store_path(str(tmp_path), "a")
+    b = bars.store_path(str(tmp_path), "b")
+    rows = _rows([_hour(2026, 8, 3), _hour(2026, 9, 10)])
+    bars.write(a, rows)
+    bars.write(b, rows)
+
+    read = lambda s: open(os.path.join(s, "2026-08.csv.gz"), "rb").read()
+    assert read(a) == read(b)
 
 
 def test_the_text_month_reads_back_exactly(tmp_path):

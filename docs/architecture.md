@@ -261,7 +261,7 @@ changes freely.
 ## The modules
 
 **Data in**
-`bars` (the store: a Parquet shard per settled year and per month of the live one, the month being written as CSV) · `backfill`
+`bars` (the store: a shard per year before 2026 and per month since; the open months as CSV on a release, `tools/hot_bars.sh`, settled ones as `.csv.gz` in git) · `backfill`
 (fetch and merge, session-aware skipping, the morning dividend check, the deepening and
 repair modes) · `sessions` (NYSE calendar, the FX reference week, and the futures', metals'
 and B3's own sessions) · `futures` (contract rolls, the front contract, thin bars, the
@@ -301,7 +301,9 @@ Product pushes go to `TELEGRAM_CHAT_ID`. Health and named provider failures go t
 ## Where the data lives
 
 ```
-data/tremor/bars/                  hourly bars: per instrument, Parquet shards and the month being written as CSV  TRACKED
+data/tremor/bars/*/YYYY.parquet     hourly bars, a year a shard, before 2026            TRACKED
+data/tremor/bars/*/YYYY-MM.csv.gz   hourly bars, a settled month a shard                TRACKED
+data/tremor/bars/*/YYYY-MM.csv      the open months             release bars-live-<branch>
 data/tremor/vix/                   daily VIX close                                   TRACKED
 data/tremor/corporate_actions.csv  ex-dates and splits                               TRACKED
 data/tremor/dividend_checks.csv    how far each fund's dividends are confirmed       TRACKED
@@ -313,7 +315,9 @@ config/basket.yaml                 the instruments, blocks and the detector sett
 config/config.yaml                 the mute and the health thresholds
 ```
 
-Only the bars are committed. Everything computed from them is gitignored; the hourly job
+Only the bars are committed, and of them only settled months: the open ones are kept
+between runs on a release, which every run restores before the backfill and saves after it.
+Everything computed from them is gitignored; the hourly job
 keeps the metrics in the Actions cache and extends them, and rebuilds an instrument from
 its bars when that cache is missing, `config_version` has moved, or bars were written under
 its metrics (a deepening, a filled hole) — about ten seconds for all of them. The events

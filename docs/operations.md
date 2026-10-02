@@ -83,15 +83,19 @@ five or more days behind, one line a day goes to the health chat. The push rebas
 rejected push is the same as losing that record. A truncated `state.json` fails the run
 rather than being read as a cold start.
 
-**Once a day, at the first run after 16:00 New York: `data/tremor/bars/`.** Each
-instrument's month being written is a CSV (`tremor/bars.py`); every other shard is Parquet.
-Git stores a CSV that gained lines as about those lines. Simulated on the week of
-2026-09-21 with all 173 instruments: about 18 MiB of git a year committed daily, 124 MiB
-committed hourly (every commit carries its own tree objects) and 51 MiB for the weekly
-Parquet commits this replaced. After the US close because Google's page holds TUR's latest
-session only, until the next open; `data/tremor/bars-committed` names the New York day
-last committed, so a failed 16:05 run is covered by the next. Each run fetches from each
-instrument's newest stored bar, so a day without a commit is re-fetched by the next run.
+**Every run, but almost always nothing: settled months of `data/tremor/bars/`.** A month
+enters git once, as `YYYY-MM.csv.gz`, on the first run at least three days after it ends,
+and is never rewritten (`tremor/bars.py`): about 0.7 MB a month for 173 instruments.
+
+**Never in git: the open months** (`YYYY-MM.csv`, gitignored). They are one archive,
+`bars-live-<run>.tar.gz`, on the prerelease `bars-live-<branch>` of this repository
+(`tools/hot_bars.sh`). Each run restores it before the backfill and saves it straight
+after, uploading the new archive before deleting the old, so a save that dies leaves the
+previous one. A release that exists but cannot be read fails the run before anything is
+scored: a store missing its last weeks would read every recent move as gone. A save that
+fails loses that run's bars only until the next run, which fetches from the newest bar the
+archive holds. The first run with no release keeps the open CSVs the checkout still has
+from before this layout, creates the release, and takes them out of git.
 
 **Saturday 04:00 UTC only:** `data/tremor/vix/`, one Parquet file rewritten daily, so the
 skip-if-fresh check can see a recent close and avoid re-fetching CBOE's full 1990 file.
@@ -106,10 +110,13 @@ costs every instrument a full rebuild.
 
 ### What the store costs
 
-A Parquet commit stores the whole shard that changed, so the shards are cut to keep the
-appended-to one small: settled years one shard each, the live year one per month, and the
-month being written a CSV (`tremor/bars.store_path`), committed once a day. The finished
-months go in as Parquet once.
+Git stores a whole new copy of every file a commit changes, so the bars are laid out to
+change committed files as seldom as possible (`tremor/bars.store_path`): years before
+2026 one Parquet shard each, as they were; from 2026 one shard per month, settled months
+`.csv.gz`, committed once; the open months on the release. About 9 MB of git a year, against
+124 MiB for committing the open month's CSV hourly, 18 daily and 51 for weekly Parquet
+(simulated on the week of 2026-09-21). The release costs the repository nothing: release
+files are not part of it.
 ---
 
 ## When it breaks

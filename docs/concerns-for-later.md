@@ -25,8 +25,8 @@ parquet since the store began, which git cannot delta because parquet is compres
 Sharding the live year by month (already done) slowed the growth; it did not undo what is
 already in the history.
 
-The bars commit once a day (`operations.md`): about 18 MiB of git a year at today's basket,
-simulated.
+Bars now enter git once per settled month, as `.csv.gz` (`operations.md`): about 9 MB of git
+a year at today's basket. The month being written is on a release, outside the repository.
 
 **What acting on it would mean:** rewriting history to drop superseded parquet blobs,
 which force-pushes the branch production runs from and is irreversible. That is the

@@ -1084,7 +1084,7 @@ def repair_from_tape(path: str, tape: "pd.DataFrame") -> list:
     off = (joined["close"] - joined["close_stored"]).abs() / joined["close_stored"] * 1e4
     bad = joined.loc[off > REPAIR_MIN_BP, "hour_utc"]
     if not bad.empty:
-        bars.merge(path, tape[tape["hour_utc"].isin(bad)])
+        bars.merge(path, tape[tape["hour_utc"].isin(bad)], revise_settled=True)
     return [int(h) for h in bad]
 
 

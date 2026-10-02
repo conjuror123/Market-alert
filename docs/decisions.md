@@ -357,12 +357,21 @@ would carry; does it agree with the consolidated tape on the thin names
 **Derived data is not tracked.** The metrics and the event table are rewritten every run
 and rebuild from the bars in about fifteen seconds.
 
-**Bars commit once a day, the month being written as text.** Git cannot delta Parquet, so
-a commit stores every byte of each shard it touches; a CSV that gained lines costs about
-those lines. Simulated on a real week (2026-09-21, 173 instruments): 18 MiB of git a year
-committed daily, 124 hourly - each commit carries its own tree objects, and there would be
-169 a week - and 51 for the weekly Parquet before, which also lost what a source cannot
-serve again (Google's page holds TUR's latest session only). Daily, after the US close.
+**The month being written is not in git; a month enters git once, settled.** Git does not
+store changes, it stores snapshots: a commit that adds one line to forty files stores forty
+whole new files (zlib-compressed, and only later, maybe, packed as deltas) plus the folder
+listings pointing at them. Measured on the week of 2026-09-21, an hour's new bars are 650
+bytes and the commit recording them in per-instrument files 14 KB: 124 MiB a year committed
+hourly, 18 daily, 51 for weekly Parquet (which shares nothing with its previous version at
+all). So the open months live as CSV on a GitHub release of the repository
+(`tools/hot_bars.sh`) — replacing a release's file costs the repository nothing — and every
+run downloads them, appends, uploads them back. A month goes into git as `.csv.gz` three
+days after it ends, so the providers' late corrections have landed, and is never rewritten:
+about 0.7 MB a month for all 173 instruments, 9 MB a year. Years before this layout keep
+their Parquet; a year written month by month stays monthly, since folding it would commit
+the same bars twice. The Actions cache was the other place outside git, and was not chosen
+for bars: it drops an entry nothing touched for seven days, and bars cannot be fetched
+again. The metrics, which can, live there.
 
 **Two stores, not one.** Parquet for columnar history, JSON for state where a whole-file
 rewrite is the point. Nothing here needs a server.

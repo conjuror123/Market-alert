@@ -108,6 +108,15 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # Read only, never saved back: deepening writes history, not the open
+      # months, and only the hourly run may replace them (tools/hot_bars.sh).
+      # They are restored so the store is whole when a deepening compares
+      # against it, and so its newest month reads as what it is.
+      - name: Restore the open months of the bars
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: tools/hot_bars.sh restore
+
       - name: Deepen the bar store
         env:
           TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}

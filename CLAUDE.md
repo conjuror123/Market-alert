@@ -49,6 +49,8 @@ price_monitor     deliver what is due to Telegram
 
 - `jumps` reads what `pipeline` wrote and rescores the whole history every run.
 - `price_monitor` is last: delivery reads `jumps.parquet` off disk.
+- Around `backfill`, the open months of the bars (`YYYY-MM.csv`, gitignored) are restored
+  from and saved to a release, `tools/hot_bars.sh`; only settled months are in git.
 
 ## Invariants
 
@@ -115,5 +117,6 @@ To exercise the real pipeline you need `TIINGO_API_KEY`, `ALPACA_KEY_ID` and
 `ALPACA_SECRET_KEY`, `TWELVEDATA_API_KEY` (hourly bars: funds) and `SIFTING_API_KEY` (FX),
 plus `FRED_API_KEY` for the VIX series. The other providers need no key. Derived data under
 `data/tremor/metrics/` and `jumps.parquet` is gitignored and rebuilds from the committed
-bars in about fifteen seconds.
+bars in about fifteen seconds. The open months are not in a clone: `tools/hot_bars.sh restore`
+(with `gh` logged in, `GITHUB_REPOSITORY` and `GITHUB_REF_NAME` set) lays them down.
 
