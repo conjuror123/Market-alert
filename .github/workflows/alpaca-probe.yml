@@ -43,7 +43,7 @@ on:
         type: boolean
         default: false
       only:
-        description: 'One part: SiftingIO freshness/client/holes/archive; verdict freshness or hours:T1,T2; eulerpool or eulerpool:newest; lse; fmp; rapidapi; google; sina'
+        description: 'One part: SiftingIO freshness/client/holes/archive; verdict freshness or hours:T1,T2; eulerpool or eulerpool:newest; lse; fmp; rapidapi; google; sina or sina-fresh'
         type: string
         default: ''
 
@@ -151,8 +151,9 @@ jobs:
       # Sina Finance's US fund bars against the tape, for the funds on Yahoo.
       # only=sina, probe off.
       - name: Probe Sina Finance's US bars against the tape
-        if: inputs.only == 'sina'
+        if: startsWith(inputs.only, 'sina')
         env:
+          SINA_PROBE_ONLY: ${{ inputs.only == 'sina-fresh' && 'fresh' || '' }}
           ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
         run: python -m tools.sina_probe

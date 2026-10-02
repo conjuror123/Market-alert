@@ -162,8 +162,9 @@ session_templates:
 #                credits a minute), in a thread beside the other providers,
 #                ~65 of 800 credits a day;
 #   SiftingIO    the 16 FX pairs, ~520 a month each, ~83% of 10,000;
-#   Yahoo        the remaining 67 thin funds (no published quota) - last,
-#                being undocumented;
+#   Sina, Yahoo  the remaining 67 thin funds, split within each block so an
+#                outage of either leaves every block reporting - both the
+#                consolidated tape, both undocumented, neither with a quota;
 #   Google TUR, Kitco nickel, Coinbase the 16 coins.
 # US-session names skip when the NYSE calendar says no bar can have appeared;
 # FX skips when the Sun 17:00-Fri 17:00 New York week is shut - see
@@ -520,7 +521,7 @@ assets:
     label: "Brent crude oil"
   - ticker: UGA
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: energy
     has_volume: true
@@ -572,7 +573,7 @@ assets:
     label: "Platinum"
   - ticker: PALL
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: precious_metals
     has_volume: true
@@ -648,7 +649,7 @@ assets:
     label: "Wheat"
   - ticker: SOYB
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: agriculture
     has_volume: true
@@ -927,7 +928,7 @@ assets:
     label: "US retail"
   - ticker: ITB
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: equity
     has_volume: true
@@ -947,7 +948,7 @@ assets:
     label: "US transportation"
   - ticker: XME
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: equity
     has_volume: true
@@ -967,7 +968,7 @@ assets:
     label: "US biotech"
   - ticker: XPH
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: equity
     has_volume: true
@@ -997,7 +998,7 @@ assets:
     label: "US consumer staples (Vanguard)"
   - ticker: VHT
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: equity
     has_volume: true
@@ -1047,7 +1048,7 @@ assets:
     label: "US software"
   - ticker: FDN
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: equity
     has_volume: true
@@ -1067,7 +1068,7 @@ assets:
     label: "Cybersecurity"
   - ticker: SKYY
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: equity
     has_volume: true
@@ -1117,7 +1118,7 @@ assets:
     label: "Japan"
   - ticker: EWG
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: equity
     has_volume: true
@@ -1137,7 +1138,7 @@ assets:
     label: "United Kingdom"
   - ticker: EWQ
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: equity
     has_volume: true
@@ -1157,7 +1158,7 @@ assets:
     label: "Canada"
   - ticker: EWA
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: equity
     has_volume: true
@@ -1177,7 +1178,7 @@ assets:
     label: "Switzerland"
   - ticker: EWN
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: equity
     has_volume: true
@@ -1217,7 +1218,7 @@ assets:
     label: "Brazil"
   - ticker: EWW
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: equity
     has_volume: true
@@ -1257,7 +1258,7 @@ assets:
     label: "Taiwan"
   - ticker: EZA
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: equity
     has_volume: true
@@ -1317,7 +1318,7 @@ assets:
     label: "US REITs (SPDR)"
   - ticker: SCHH
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: equity
     has_volume: true
@@ -1337,7 +1338,7 @@ assets:
     label: "Mortgage REITs"
   - ticker: VNQI
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: equity
     has_volume: true
@@ -1347,7 +1348,7 @@ assets:
     label: "International real estate"
   - ticker: RWX
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: equity
     has_volume: true
@@ -1387,7 +1388,7 @@ assets:
     label: "US Treasuries 3-10y (Vanguard)"
   - ticker: VGLT
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: rates
     has_volume: true
@@ -1437,7 +1438,7 @@ assets:
     label: "TIPS (Schwab)"
   - ticker: STIP
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: rates
     has_volume: true
@@ -1477,7 +1478,7 @@ assets:
     label: "Low-duration mortgage"
   - ticker: JMBS
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: rates
     has_volume: true
@@ -1537,7 +1538,7 @@ assets:
     label: "Broad IG corporates"
   - ticker: QLTA
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: credit
     has_volume: true
@@ -1557,7 +1558,7 @@ assets:
     label: "IG corporates (Goldman)"
   - ticker: SLQD
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: credit
     has_volume: true
@@ -1587,7 +1588,7 @@ assets:
     label: "Broad high yield"
   - ticker: ANGL
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: credit
     has_volume: true
@@ -1607,7 +1608,7 @@ assets:
     label: "Senior loans"
   - ticker: FALN
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: credit
     has_volume: true
@@ -1637,7 +1638,7 @@ assets:
     label: "EM government bonds (Vanguard)"
   - ticker: PCY
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: credit
     has_volume: true
@@ -1657,7 +1658,7 @@ assets:
     label: "EM local bonds (SPDR)"
   - ticker: LEMB
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: credit
     has_volume: true
@@ -1677,7 +1678,7 @@ assets:
     label: "EM high yield"
   - ticker: CEMB
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: credit
     has_volume: true
@@ -1697,7 +1698,7 @@ assets:
     label: "Crude oil (Invesco)"
   - ticker: DBE
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: energy
     has_volume: true
@@ -1727,7 +1728,7 @@ assets:
     label: "Gold (iShares)"
   - ticker: SGOL
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: precious_metals
     has_volume: true
@@ -1747,7 +1748,7 @@ assets:
     label: "Silver (abrdn)"
   - ticker: GLTR
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: precious_metals
     has_volume: true
@@ -1757,7 +1758,7 @@ assets:
     label: "Precious metals basket"
   - ticker: LIT
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: industrial_metals
     has_volume: true
@@ -1777,7 +1778,7 @@ assets:
     label: "Rare earths"
   - ticker: SLX
     source: twelvedata
-    provider: yahoo
+    provider: sina
     tier: 2
     block: industrial_metals
     has_volume: true

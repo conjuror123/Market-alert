@@ -50,7 +50,28 @@ def sina_hours(symbol: str) -> pd.DataFrame:
     return fv._regular(pd.DataFrame(out, columns=list(bars.SCHEMA)).astype(bars.SCHEMA))
 
 
+def freshness() -> int:
+    """During the session: the newest half-hour bar Sina serves for a liquid
+    and a thin fund, and how long after its end it is being read. The hourly
+    run reads at :05 and needs the bar that ended at :00."""
+    from price_monitor import sina
+    now = datetime.now(timezone.utc)
+    print(f"Sina US freshness at {now:%H:%M:%S} UTC")
+    for s in ("SPY", "SLQD", "CEMB", "GLTR"):
+        candles = sina.fetch_us_bars(s, now=now + timedelta(hours=1))   # unended too
+        if not candles:
+            print(f"   {s:5s} no bars")
+            continue
+        last = candles[-1]
+        end = datetime.fromtimestamp(last.close_time, timezone.utc)
+        print(f"   {s:5s} newest bar ends {end:%H:%M} UTC ({(now - end).total_seconds() / 60:+.0f} "
+              f"min ago), close {last.close}, volume {last.volume:.0f}")
+    return 0
+
+
 def main() -> int:
+    if os.environ.get("SINA_PROBE_ONLY") == "fresh":
+        return freshness()
     key = (os.environ.get("ALPACA_KEY_ID") or "").strip()
     secret = (os.environ.get("ALPACA_SECRET_KEY") or "").strip()
     if not key or not secret:

@@ -76,3 +76,40 @@ def test_both_of_shanghais_pauses_are_scored_gaps_and_lunch_is_a_hole():
     assert gaps.loc[bj(2026, 9, 29, 21)] == pytest.approx(np.log(404 / 402))
     assert gaps.loc[bj(2026, 9, 30, 9)] == pytest.approx(np.log(410 / 405))
     assert np.isfinite(out.set_index("hour_utc").loc[bj(2026, 9, 29, 13), "hole"])
+
+
+NY = ZoneInfo("America/New_York")
+
+
+def test_us_half_hours_are_stamped_at_their_start_inside_the_session():
+    text = _answer([("2026-10-01 09:30:00", 1, 1, 1, 1, 5),     # pre-market
+                    ("2026-10-01 10:00:00", 2, 2, 2, 2, 5),
+                    ("2026-10-01 16:00:00", 3, 3, 3, 3, 5),
+                    ("2026-10-01 16:30:00", 4, 4, 4, 4, 5)])    # after hours
+    candles = sina.parse_us(text, "SPY", now=datetime(2026, 10, 2, tzinfo=timezone.utc))
+    assert [c.open_time for c in candles] == [
+        int(datetime(2026, 10, 1, 9, 30, tzinfo=NY).timestamp()),
+        int(datetime(2026, 10, 1, 15, 30, tzinfo=NY).timestamp())]
+
+
+def test_a_us_half_hour_still_running_is_left_out():
+    text = _answer([("2026-10-01 10:00:00", 2, 2, 2, 2, 5), ("2026-10-01 10:30:00", 3, 3, 3, 3, 5)])
+    now = datetime(2026, 10, 1, 10, 5, tzinfo=NY).astimezone(timezone.utc)
+    assert len(sina.parse_us(text, "SPY", now=now)) == 1
+
+
+def test_the_fetch_asks_sina_for_a_sina_fund(tmp_path, monkeypatch):
+    import requests
+    from datetime import date
+    from tremor import backfill
+    seen = {}
+    monkeypatch.setattr(backfill.sina, "fetch_us_bars",
+                        lambda symbol, session=None, now=None: seen.setdefault("us", symbol) and [])
+    monkeypatch.setattr(backfill.sina, "fetch_bars",
+                        lambda symbol, session=None, now=None: seen.setdefault("fut", symbol) and [])
+    fund = Asset(ticker="RWX", source="twelvedata", provider="sina", tier=2, block="equity",
+                 has_volume=True, tick_size=0.01, session_template="us_equity",
+                 fetch_interval="30min", label="RWX", in_basket=True)
+    backfill.fetch_missing(fund, str(tmp_path / "a"), date(2021, 1, 1), "", requests.Session())
+    backfill.fetch_missing(_tin(), str(tmp_path / "b"), date(2021, 1, 1), "", requests.Session())
+    assert seen == {"us": "RWX", "fut": "SN0"}

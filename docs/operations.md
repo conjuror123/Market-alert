@@ -51,10 +51,10 @@ seconds, so it has no warm state to lose.
 | **Alpaca** | 200/min, IEX live free; SIP to 15 min back | 30 funds — 30 requests a run |
 | **Twelve Data** | 800/day, 8/min | 8 funds — one batched request a run, in the background; ~65 credits a day; plus archive and gap-fill |
 | **SiftingIO** | 10,000/**month**, a few a second | 17 FX pairs — about 8,500 a month (85%); USD/BRL only in its B3 session |
-| **Yahoo** | none published | 67 funds and the dividend check |
+| **Sina Finance** | none published; wants a Referer | 33 funds (half-hour bars) and tin |
+| **Yahoo** | none published | 34 funds, 5 futures and the dividend check |
 | **Google Finance** | none — a web page, read against its terms | TUR, one page a run |
 | **Kitco** | none — a website's private gateway | nickel, one request a run in LME hours |
-| **Sina Finance** | none published; wants a Referer | tin, one request a run in Shanghai's sessions |
 | **Yahoo futures** | as Yahoo | 5 commodities, one request each a run in session; live from the front contract (`tremor.futures.front_contract`) |
 | **Coinbase** | no key | 16 crypto |
 | GitHub Actions minutes | unlimited (public repo) | — |

@@ -242,10 +242,11 @@ move.
 | Alpaca | 30 | more IEX-safe funds, from Alpaca's free IEX bars, fresh at :05; also SIP history from 2016 |
 | Twelve Data | 8 | consolidated tape for thin funds IEX misprices, one or two per commodity block: USO UNG DBC GLD SLV CPER DBA CORN; also archive and gap-fill |
 | SiftingIO | 16 | the FX pairs: 0.11–0.35 bps median against the stored bars, the bar closed at :00 served by :05 |
-| Yahoo | 67 | the rest of the thin funds, consolidated; also the morning dividend check |
+| Sina Finance | 33 | half of the remaining thin funds: its half-hour US bars are the consolidated tape (0.0 bp against Alpaca's SIP on all 67 over 28 days, 100% of its volume, no hour missing) |
+| Yahoo | 34 | the other half, consolidated; also the morning dividend check |
 | Kitco | 1 | nickel: the chart gateway behind kitco.com, five-minute quotes from 2020-11 folded to hours; glitches and still days dropped (`price_monitor/kitco.py`) |
 | Yahoo futures | 5 | coffee, cocoa, cotton, live cattle (the front contract itself, rolled before first notice) and aluminium (Yahoo's continuous series) — `tremor/futures.py` |
-| Sina Finance | 1 | tin: the Shanghai Futures Exchange's main contract, hourly; history chained from its delivery months to 2019-08 (`price_monitor/sina.py`, `tools/sina_history.py`) |
+| Sina Finance (futures) | 1 | tin: the Shanghai Futures Exchange's main contract, hourly; history chained from its delivery months to 2019-08 (`price_monitor/sina.py`, `tools/sina_history.py`) |
 | Google Finance | 1 | TUR: the one feed whose hourly closes match the tape on it, read off the quote page (`price_monitor/google.py`) |
 | Coinbase | 16 | crypto |
 | Dukascopy, HF Data | — | history below what the live providers reach |
@@ -257,8 +258,9 @@ no quota run past about 85%, so tests and backfills have room: Tiingo stays at 2
 key is shared with production until the switch), Twelve Data at 8 (one batched request, its whole
 minute's credits, in a thread beside the other providers; ~65 of 800 credits a day — 16 would
 put a minute's wait on every run), SiftingIO at the currency pairs alone (~83% of
-its month, ~88% with USD/BRL). Yahoo takes what is left. The commodity blocks each keep a
-member off Yahoo, so a Yahoo outage leaves every block reporting.
+its month, ~88% with USD/BRL). Sina and Yahoo split what is left, alternately within each
+block - both the consolidated tape, both undocumented endpoints with no quota - so an
+outage of either leaves every block reporting.
 
 The liquid funds agree with the stored bars to under a basis point. The thin
 single-commodity funds do not — on one exchange's prints they drift by several, and at 20–40

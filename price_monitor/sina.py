@@ -85,3 +85,59 @@ def fetch_bars(symbol: str, session: requests.Session | None = None,
             raise ExchangeError(f"{symbol}: Sina answered {resp.status_code}")
         return parse(resp.text, symbol, now)       # [] for a symbol it does not hold
     raise last or ExchangeError(f"{symbol}: no response")
+
+
+# --- US funds ------------------------------------------------------------------
+#
+# The same site's US bars are the consolidated tape: over 28 days to
+# 2026-10-02, the half-hour bars of all 67 thin funds then on Yahoo, folded to
+# the store's hours, matched Alpaca's SIP closes at 0.0 bp (median and p90) with
+# 100% of its volume and no hour missing (tools/sina_probe.py) - RWX included,
+# which Yahoo lacks 3% of. Its HOURLY bars run 09:30-10:30, 10:30-11:30, a grid
+# the store's clock hours cannot be folded from, so the half-hour ones (about
+# 78 days of them) are asked for. Labelled by their end, New York time.
+US_URL = "https://stock.finance.sina.com.cn/usstock/api/jsonp.php/var%20t=/US_MinKService.getMinK"
+NEW_YORK = ZoneInfo("America/New_York")
+HALF_HOUR = 1800
+
+
+def parse_us(text: str, symbol: str, now: datetime | None = None) -> list[Candle]:
+    """Half-hour candles inside the regular session, ended ones only."""
+    match = _PAYLOAD.search(text)
+    if match is None:
+        raise ExchangeError(f"{symbol}: Sina's answer has no bars")
+    now = now or datetime.now(timezone.utc)
+    out = []
+    for row in json.loads(match.group(1)) or []:
+        end = datetime.strptime(row["d"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=NEW_YORK)
+        start = end - timedelta(seconds=HALF_HOUR)
+        minutes = start.hour * 60 + start.minute
+        if end > now or start.weekday() >= 5 or not 570 <= minutes < 960:
+            continue
+        t = int(start.timestamp())
+        out.append(Candle(open_time=t, open=float(row["o"]), high=float(row["h"]),
+                          low=float(row["l"]), close=float(row["c"]),
+                          volume=float(row.get("v") or 0.0), close_time=t + HALF_HOUR))
+    return out
+
+
+def fetch_us_bars(symbol: str, session: requests.Session | None = None,
+                  now: datetime | None = None) -> list[Candle]:
+    """A US fund's last ~78 days of half-hour bars that have ended."""
+    last: Exception | None = None
+    for attempt in range(MAX_ATTEMPTS):
+        if attempt:
+            time.sleep(BACKOFF_SECONDS * attempt)
+        try:
+            resp = (session or requests).get(US_URL, params={"symbol": symbol.lower(), "type": 30},
+                                             headers=HEADERS, timeout=30)
+        except requests.RequestException as exc:
+            last = ExchangeError(f"{symbol}: {exc}")
+            continue
+        if resp.status_code in (429, 500, 502, 503, 504):
+            last = ExchangeError(f"{symbol}: Sina answered {resp.status_code}")
+            continue
+        if resp.status_code != 200:
+            raise ExchangeError(f"{symbol}: Sina answered {resp.status_code}")
+        return parse_us(resp.text, symbol, now)
+    raise last or ExchangeError(f"{symbol}: no response")
