@@ -879,6 +879,14 @@ def unadjust_to_store(minutes: "pd.DataFrame", stored: "pd.DataFrame",
                  "ex_dates": len(steps), "hours_used": len(window)}
 
 
+# A fund's ticker before a rename, for the history sources that file the years
+# before it under the old name (probed 2026-10-02): HF Data has no IGIB, but
+# CIU from 2007-01 to 2018-07; Alpaca serves CIU 2016 to 2018-07 and CRED 2016
+# on. Only ever a candidate: the history it brings is written only if it
+# passes the same overlap gate against the stored bars as any other source.
+FORMER_TICKERS = {"IGIB": "CIU", "USIG": "CRED"}
+
+
 def deepen_from_hfdata(asset: Asset, path: str, since: date, api_key: str,
                        session: requests.Session,
                        timezone_name: str | None = HFDATA_TIMEZONE) -> dict:
@@ -903,7 +911,8 @@ def deepen_from_hfdata(asset: Asset, path: str, since: date, api_key: str,
     if oldest.date() <= since:
         return {"skipped": "already reaches back far enough", "added": 0}
 
-    payload = hfdata.fetch_parquet(asset.ticker, api_key, session)
+    payload = hfdata.fetch_parquet(FORMER_TICKERS.get(asset.ticker, asset.ticker),
+                                   api_key, session)
     minutes = hfdata.to_minute_frame(payload, timezone_name)
     if minutes.empty:
         return {"skipped": "no consolidated-tape bars returned", "added": 0}
@@ -1110,7 +1119,8 @@ def deepen_from_alpaca(asset: Asset, path: str, since: date, auth: dict,
 
     end = min(oldest + timedelta(days=ALPACA_OVERLAP_DAYS),
               datetime.now(timezone.utc) - timedelta(minutes=20))
-    candles = alpaca.fetch_history(asset.ticker, start, end, auth, session)
+    candles = alpaca.fetch_history(FORMER_TICKERS.get(asset.ticker, asset.ticker),
+                                   start, end, auth, session)
     if not candles:
         return {"skipped": "Alpaca returned nothing", "added": 0}
 
