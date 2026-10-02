@@ -53,7 +53,7 @@ the map of these documents.
    | `HFDATA_API_KEY` | optional — deepening US-equity history before 2020 |
 
    Yahoo (34 funds, 4 futures), Sina Finance (33 funds; LME tin, nickel and aluminium),
-   Google Finance (TUR) and Coinbase (16 coins) need no key. Without a key the hourly run still prices
+   Google Finance (TUR) and Binance (16 coins) need no key. Without a key the hourly run still prices
    the other providers' names and stays silent on that one's.
    Which providers you need is decided by `config/basket.yaml`: each instrument names its
    `provider`, and a missing key costs you those instruments and nothing else. **To add a

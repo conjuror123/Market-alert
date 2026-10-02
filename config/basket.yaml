@@ -30,10 +30,8 @@
 # way never to diverge is not to store it. Nothing in the jump detector reads
 # them.
 #
-# There are two live US-session providers besides Coinbase. Yahoo is the
-# consolidated-tape feed for the fifteen thin ETFs Tiingo's IEX slice cannot
-# price (see docs/tiingo-findings.md). SiftingIO serves the currency pairs.
-# Twelve Data remains the archive.
+# Which provider carries what, and why, is below (WHAT THIS COSTS, HOURLY) and in
+# docs/decisions.md ("The data").
 
 # Anchor exchange of the basket's reference calendar: Sun 17:00 .. Fri 17:00
 # local time. The bounds are stored in this timezone and converted to UTC on the
@@ -62,7 +60,7 @@ history_since: "2015-01-01"
 #                 library switches to IEX-only data in March 2022 and the module
 #                 refuses those bars outright - see price_monitor.hfdata.
 #   Dukascopy     2003 for the currency pairs (--deepen-dukascopy), no key.
-#   Coinbase      each pair's own listing date, no key and no credits.
+#   Binance       each pair's own listing date (2017-08 at the earliest), no key.
 # So a newly added ETF needs BOTH Twelve Data passes and the HF Data one before
 # its history is comparable with SPY's.
 fetch_since: "2002-01-01"
@@ -96,7 +94,7 @@ session_templates:
     tz: America/New_York
     description: "continuous from Sun 17:00 to Fri 17:00"
   crypto_24_7:
-    exchange: COINBASE
+    exchange: BINANCE
     tz: UTC
     description: "around the clock, no weekends"
   # The daily sessions below are defined in tremor/sessions.py DAILY_SESSIONS;
@@ -140,9 +138,9 @@ session_templates:
 # 769.53992 where the exchange shows 769.54 - so a measured precision of 1e-7
 # describes the vendor's storage format, not the trading step. For currency pairs
 # the source precision and the step coincide: five decimals, the yen included
-# (verified on real data). For crypto the step is the pair's own quote_increment
-# as Coinbase publishes it, which is not 0.01 for every pair - ADA and DOGE quote
-# to five decimals. The audit cross-checks the two and complains if the step is
+# (verified on real data). For crypto the step is the pair's own tick size
+# as Binance publishes it (exchangeInfo PRICE_FILTER), which is not 0.01 for every
+# pair - DOGE and POL quote to five decimals. The audit cross-checks the two and complains if the step is
 # finer than the precision.
 #
 # fetch_interval is the interval at which the instrument is REQUESTED from the
@@ -165,7 +163,7 @@ session_templates:
 #   Sina, Yahoo  the remaining 67 thin funds, split within each block so an
 #                outage of either leaves every block reporting - both the
 #                consolidated tape, both undocumented, neither with a quota;
-#   Google TUR; Sina the LME metals; Yahoo 4 futures; Coinbase the 16 coins.
+#   Google TUR; Sina the LME metals; Yahoo 4 futures; Binance the 16 coins (USDT pairs).
 # US-session names skip when the NYSE calendar says no bar can have appeared;
 # FX skips when the Sun 17:00-Fri 17:00 New York week is shut - see
 # tremor.backfill.nothing_can_have_appeared. History below 2020-02 is HF Data
@@ -759,9 +757,10 @@ assets:
     fetch_interval: 1h
     label: "Dollar / offshore yuan"
   # --- crypto ----------------------------------------------------------------
-  # Crypto, the only block that trades every hour of the week.
-  - ticker: BTC-USD
-    source: coinbase
+  # Crypto, the only block that trades every hour of the week: every coin as its
+  # USDT pair on Binance, one exchange and one quote currency (price_monitor/binance.py).
+  - ticker: BTC/USDT
+    source: binance
     tier: 1
     block: crypto
     has_volume: true
@@ -769,8 +768,8 @@ assets:
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Bitcoin"
-  - ticker: ETH-USD
-    source: coinbase
+  - ticker: ETH/USDT
+    source: binance
     tier: 1
     block: crypto
     has_volume: true
@@ -778,8 +777,8 @@ assets:
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Ethereum"
-  - ticker: SOL-USD
-    source: coinbase
+  - ticker: SOL/USDT
+    source: binance
     tier: 2
     block: crypto
     has_volume: true
@@ -787,8 +786,8 @@ assets:
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Solana"
-  - ticker: LTC-USD
-    source: coinbase
+  - ticker: LTC/USDT
+    source: binance
     tier: 2
     block: crypto
     has_volume: true
@@ -796,8 +795,8 @@ assets:
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Litecoin"
-  - ticker: BCH-USD
-    source: coinbase
+  - ticker: BCH/USDT
+    source: binance
     tier: 2
     block: crypto
     has_volume: true
@@ -805,8 +804,8 @@ assets:
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Bitcoin Cash"
-  - ticker: LINK-USD
-    source: coinbase
+  - ticker: LINK/USDT
+    source: binance
     tier: 2
     block: crypto
     has_volume: true
@@ -814,8 +813,8 @@ assets:
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Chainlink"
-  - ticker: ADA-USD
-    source: coinbase
+  - ticker: ADA/USDT
+    source: binance
     tier: 2
     block: crypto
     has_volume: true
@@ -823,8 +822,8 @@ assets:
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Cardano"
-  - ticker: DOGE-USD
-    source: coinbase
+  - ticker: DOGE/USDT
+    source: binance
     tier: 2
     block: crypto
     has_volume: true
@@ -832,8 +831,8 @@ assets:
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Dogecoin"
-  - ticker: AVAX-USD
-    source: coinbase
+  - ticker: AVAX/USDT
+    source: binance
     tier: 2
     block: crypto
     has_volume: true
@@ -898,7 +897,7 @@ assets:
   # Added on the development branch to take their history: funds from Twelve
   # Data (2020-02 on) and HF Data's consolidated tape (before), live on Yahoo,
   # which agrees with the consolidated tape on each of them; pairs from Twelve
-  # Data and Dukascopy, live on SiftingIO; coins from Coinbase. Blocked into the
+  # Data and Dukascopy, live on SiftingIO; coins from Binance. Blocked into the
   # existing blocks for now. TUR is live on Google Finance's quote page, the
   # one feed whose hourly closes match the tape on it (price_monitor/google.py);
   # RWX on Yahoo, which matches the tape but lacks 3% of its hours - skipped as
@@ -1874,8 +1873,8 @@ assets:
     session_template: fx_continuous
     fetch_interval: 1h
     label: "Dollar / Korean won"
-  - ticker: XRP-USD
-    source: coinbase
+  - ticker: XRP/USDT
+    source: binance
     tier: 2
     block: crypto
     has_volume: true
@@ -1883,8 +1882,8 @@ assets:
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "XRP"
-  - ticker: DOT-USD
-    source: coinbase
+  - ticker: DOT/USDT
+    source: binance
     tier: 2
     block: crypto
     has_volume: true
@@ -1892,8 +1891,8 @@ assets:
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Polkadot"
-  - ticker: POL-USD
-    source: coinbase
+  - ticker: POL/USDT
+    source: binance
     tier: 2
     block: crypto
     has_volume: true
@@ -1901,8 +1900,8 @@ assets:
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Polygon (POL, formerly MATIC)"
-  - ticker: UNI-USD
-    source: coinbase
+  - ticker: UNI/USDT
+    source: binance
     tier: 2
     block: crypto
     has_volume: true
@@ -1910,8 +1909,8 @@ assets:
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Uniswap"
-  - ticker: ATOM-USD
-    source: coinbase
+  - ticker: ATOM/USDT
+    source: binance
     tier: 2
     block: crypto
     has_volume: true
@@ -1919,8 +1918,8 @@ assets:
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Cosmos"
-  - ticker: FIL-USD
-    source: coinbase
+  - ticker: FIL/USDT
+    source: binance
     tier: 2
     block: crypto
     has_volume: true
@@ -1928,8 +1927,8 @@ assets:
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Filecoin"
-  - ticker: AAVE-USD
-    source: coinbase
+  - ticker: AAVE/USDT
+    source: binance
     tier: 2
     block: crypto
     has_volume: true

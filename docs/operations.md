@@ -36,7 +36,7 @@ fire is worse than none — its silence is indistinguishable from a quiet market
 | GitHub's hard cap | 6 hours |
 
 No live fetch waits on a rate limit. Tiingo answers in about 0.28 s with no enforced
-throttle; Yahoo and Coinbase have no pacing requirement. A `config_version` mismatch
+throttle; Yahoo and Binance have no pacing requirement at this volume. A `config_version` mismatch
 forces a cold rebuild of the metrics (about ten seconds locally) — that is the guard
 working, not a fault. The jump detector rescores the whole history every run, in about three
 seconds, so it has no warm state to lose.
@@ -55,7 +55,7 @@ seconds, so it has no warm state to lose.
 | **Yahoo** | none published | 34 funds, 4 futures and the dividend check |
 | **Google Finance** | none — a web page, read against its terms | TUR, one page a run |
 | **Yahoo futures** | as Yahoo | 4 commodities, one request each a run in session; live from the front contract (`tremor.futures.front_contract`) |
-| **Coinbase** | no key | 16 crypto |
+| **Binance** | no key; 6,000 request weight a minute per address | 16 coins, one request each a run |
 | GitHub Actions minutes | unlimited (public repo) | — |
 | Repository size | 1 GB warning, ~5 GB cutoff | 636 MiB packed (2026-10-02) |
 
@@ -131,7 +131,7 @@ and is named in the same message; a 404 stays a per-instrument dark.
 
 **A fetch is retried three times before it counts as a failure** — two seconds of backoff
 then four, inside each provider's client. That holds for every provider on the hourly path
-but one: Tiingo, Alpaca, SiftingIO, Sina, Yahoo, Google and Coinbase. A dropped
+but one: Tiingo, Alpaca, SiftingIO, Sina, Yahoo, Google and Binance. A dropped
 connection therefore costs six seconds rather than a red run, against a twenty-minute job
 timeout, and a failure that reaches the health message is one that survived all three
 attempts. Twelve Data's hourly batch is retried twice, 61 seconds apart, because a retry

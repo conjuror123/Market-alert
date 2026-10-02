@@ -303,7 +303,7 @@ hours the store lacks are written. A stored bar is replaced only from the consol
 and by hand (`--repair-alpaca`; EZU's 2020-03-12 15:00 was +12.3% in the store, −1.2% on the
 tape). A stretch with no overlap at all is refereed by a third market: Bitstamp's XRP over
 Coinbase's 905-day suspension against Binance's archive, return correlation 0.9945, every
-month at 0.989 or better (`tools/bitstamp_fill.py`).
+month at 0.989 or better (`tools/bitstamp_fill.py`; that record left with Coinbase).
 
 **Futures are read one contract at a time.** Live bars come from the front contract;
 Yahoo's continuous series mixes in other contracts' prints — 64 of coffee's hours since
@@ -322,6 +322,15 @@ owner's call: the right instrument with a short record over a longer record of a
 yuan with VAT, correlated 0.85 with the LME's hour by hour; Kitco's nickel quote stood
 still in 20% of hours (Sina 2%), sat 98 bp below and correlated 0.61; COMEX aluminium
 traded a median 5 contracts an hour against the LME's 901 lots.
+
+**Every coin is its USDT pair on Binance.** The owner's call (2026-10-02): one exchange
+and one quote currency for all sixteen, named for what they are (ADA/USDT). Binance reaches
+further back than Coinbase for the coins Coinbase listed late — ADA by three years, DOGE
+and POL by two, ATOM, SOL, DOT and AVAX by about one — and less far for the oldest: BTC
+starts 2017-08 against Coinbase's 2015-07, ETH and LTC lose about a year each, XRP its
+Bitstamp-filled 2017. Pairs Binance renamed are joined to their earlier name, refused if
+the price steps more than 15% across the join: POL to MATIC (+0.0%), BCH to BCHABC
+(+0.0%).
 
 **A candidate source answers four questions, cheapest disqualifier first:** does it serve
 the bar that closed at :00 by :05; how many requests an hour does it allow against what it
@@ -376,7 +385,8 @@ Raised, dealt with, and not to be raised again.
   | Business Insider | tin once a day |
   | Kitco, aluminium | a second price 30% higher every few weeks |
   | Kitco, nickel; COMEX aluminium; Shanghai tin | replaced by the LME's own bars (above) |
-  | Binance's API | HTTP 451 from US runners; its public archive is used as a referee only |
+  | api.binance.com | HTTP 451 from US runners; Binance's market-data mirror answers them and is used |
+  | Coinbase | replaced by Binance for one exchange and one quote currency (above) |
   | Stooq | nothing without a login |
   | Sina forex | six months of hourly bars |
   | Barchart, Interactive Brokers | paid (about $500 a month) or a funded account; not tried |

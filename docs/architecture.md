@@ -246,9 +246,8 @@ move.
 | Yahoo futures | 4 | coffee, cocoa, cotton, live cattle: the front contract itself, rolled before first notice — `tremor/futures.py` |
 | Sina Finance (LME) | 3 | tin, nickel, aluminium: the LME's three-month contract, traded hourly bars with volume; the last 1,023 only (`price_monitor/sina.py`) |
 | Google Finance | 1 | TUR: the one feed whose hourly closes match the tape on it, read off the quote page (`price_monitor/google.py`) |
-| Coinbase | 16 | crypto |
+| Binance | 16 | crypto: every coin as its USDT pair on one exchange, from Binance's market-data mirror (`data-api.binance.vision`), which US runners can reach (`price_monitor/binance.py`) |
 | Dukascopy, HF Data | — | history below what the live providers reach |
-| Bitstamp | — | XRP's history where Coinbase has none: before its 2019 listing (from 2017-03) and through its 2021–2023 suspension, gated against Coinbase and refereed by Binance (`tools/bitstamp_fill.py`) |
 
 Which feed each fund is on, and why — the IEX line, the order of preference, the quota
 headroom — is in `decisions.md` ("The data").
@@ -289,9 +288,10 @@ long-run sigma and short-memory state)
 **Delivery** lives in `price_monitor/`: `tremor_delivery` (renders the messages and
 curates the week's channel; the word and the channel are already stamped), `weekly_digest` (the economic calendar, sent just before the weekly
 note opens), `health`, `notifier`, and the source clients `backfill` fetches through: live, `tiingo`, `alpaca`, `sifting`,
-`twelvedata`, `sina`, `yahoo`, `google`, `coinbase`; history only, `dukascopy`,
-`hfdata`, `bitstamp`. One-off history builders are in `tools/`: `futures_history`,
-`sina_history`, `bitstamp_fill`.
+`twelvedata`, `sina`, `yahoo`, `google`, `binance`; history only, `dukascopy`,
+`hfdata`. One-off history builders are in `tools/`: `futures_history`,
+`binance_history`; `sina_history`, `bitstamp_fill` and the `kitco`, `coinbase` and
+`bitstamp` clients built records no longer in the basket.
 
 Product pushes go to `TELEGRAM_CHAT_ID`. Health and named provider failures go to
 `TELEGRAM_HEALTH_CHAT_ID`, and without it only to the log — never the public channel.
@@ -325,7 +325,7 @@ reaches (2026-10-02):
 | 133 US funds | 2002–2011 for 71, 2016 for 55, launch for 7 (FALN, GIGB, IGIB, USIG, USHY, XLC, JMBS) | HF Data (2002 on), Twelve Data (2020-02 on), Alpaca's consolidated tape (2016 on) |
 | 14 currency pairs | 2003–2007; USD/CNH 2012 | Dukascopy, then the live feed |
 | USD/BRL, USD/INR, USD/KRW | 2019-09, 2019-11, 2020-01 | Twelve Data |
-| 16 coins | each one's Coinbase listing, 2015–2021; XRP from 2017-03 | Coinbase; XRP's years without it from Bitstamp |
+| 16 coins | each pair's Binance listing: BTC and ETH 2017-08, LTC 2017-12, ADA 2018-04, XRP 2018-05, BCH 2018-11 (as BCHABC), LINK 2019-01, POL 2019-04 (as MATIC), ATOM 2019-04, DOGE 2019-07, SOL and DOT 2020-08, UNI and AVAX 2020-09, FIL and AAVE 2020-10 | Binance (`tools/binance_history.py`) |
 | tin, nickel, aluminium (LME) | 2026-07 | Sina |
 | coffee, cocoa, cattle | 2024-05 | Yahoo's continuous series, cleaned |
 | cotton | 2026-06 | its contracts' own bars |

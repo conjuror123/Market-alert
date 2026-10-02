@@ -89,49 +89,9 @@ lives"), what is missing and what was tried:
 | cotton | 2026-06 | Yahoo's continuous series too broken to use. Dukascopy's CFD from 2019-06 agrees with the store (median 1.1 bp, p90 2.8, return correlation 0.997, same hours); its rolls still to be checked |
 | tin, nickel, aluminium (LME) | 2026-07 | Sina serves the last 1,023 bars; Kitco's nickel (2020-09 on) is a quote that does not track the LME's price; no free hourly LME history found |
 | USD/BRL, USD/INR, USD/KRW | 2019-09, 2019-11, 2020-01 | Twelve Data's start; Dukascopy holds no traded hour of INR or KRW in any sampled year, and its BRL files (from 2007) none in 2019; Sina forex holds six months; TradingView about 6,300 bars |
-| ATOM UNI FIL AAVE POL ADA DOGE DOT SOL AVAX | their Coinbase listing, 2020–2021 | Bitstamp lists none earlier. Binance's archive does, in USDT: ADA from 2018-04, POL (as MATIC) and ATOM 2019-04, DOGE 2019-07, DOT and SOL 2020-08, AVAX 2020-09; UNI, FIL, AAVE no earlier than Coinbase |
+| BTC, ETH, LTC, XRP, BCH | Binance's listing, 2017-08 to 2018-11 | Coinbase's dollar pairs reach 2015–2017 (BTC from 2015-07), Bitstamp's XRP 2017-03 - other markets in another currency, so not joined |
 
-**What acting on it would mean:** paid data for the futures and the three pairs; for the
-coins, the same gated fill XRP had (`tools/bitstamp_fill.py`), from Binance with each hour's
-USDT turned into dollars (Coinbase's BTC-USD over Binance's BTC/USDT would do it, and would
-take out USDT's own swings, such as its premium in March 2020).
-
----
-
-## 6. The blocks are still the nine broad ones
-
-The basket grew from 61 to 173 without its blocks being re-cut: equity holds 61, credit 26,
-rates 20. The jump detector reads each instrument alone, so this changes no message today;
-it matters from stages 7 and 8 (block co-jumps, own move), which test against the blocks.
-
-**The re-cut planned for then (2026-09-22):** every block ends with 8–12 members. Measured
-on the previous detector's residuals, leftover correlation between members falls steeply up
-to about six and is flat after eight; splitting the thin blocks without adding members made
-it worse. The target, 16–19 blocks, with the delisted ETNs' places taken by the
-commodities themselves:
-
-| block | members |
-|---|---|
-| US cyclicals | XLY XLI XLB XLF XLE KRE XRT ITB IYT XME |
-| US defensives | XLP XLV XLU XBI XPH IHI VDC VHT VPU |
-| US tech | XLK XLC QQQ SMH SOXX IGV FDN CIBR SKYY |
-| developed ex-US | EFA EWJ EWG EWU EWQ EWC EWA EWL EWN EZU |
-| emerging | EEM FXI EWZ EWW INDA EWY EWT EZA EPI TUR |
-| real estate | XLRE VNQ IYR RWR SCHH REM VNQI RWX |
-| government bonds | SHY IEI IEF TLH TLT GOVT SCHO VGIT VGLT SPTL BWX |
-| inflation and securitized | TIP MBB VTIP SCHP STIP VMBS SPMB LMBS JMBS |
-| IG credit | LQD VCIT VCSH IGIB SPIB USIG QLTA GIGB SLQD |
-| HY credit | HYG JNK BKLN PFF SHYG USHY ANGL SRLN FALN |
-| EM credit | EMB EMLC VWOB PCY EBND LEMB EMHY CEMB |
-| energy | USO BNO UGA UNG DBC DBO DBE UNL |
-| precious metals | GLD SLV PPLT PALL IAU SGOL SIVR GLTR |
-| industrial metals | DBB CPER LIT REMX SLX nickel aluminium tin |
-| agriculture | DBA CORN WEAT SOYB CANE coffee cocoa cotton live cattle |
-| DM FX | EUR/USD USD/JPY GBP/USD USD/CHF AUD/USD NZD/USD USD/CAD USD/SEK USD/NOK |
-| EM FX | USD/CNH USD/MXN USD/ZAR USD/BRL USD/TRY USD/INR USD/KRW USD/PLN |
-| crypto majors | BTC ETH SOL LTC BCH ADA DOGE XRP |
-| crypto alts | LINK AVAX DOT POL UNI ATOM FIL AAVE |
-
+**What acting on it would mean:** paid data for the futures and the three pairs.
 
 ---
 
@@ -139,8 +99,9 @@ commodities themselves:
 
 - **A broken print under 1,000σ still counts.** On 2017-04-15 Coinbase reopened after
   three hours down on a BTC print of $0.06 and an ETH print of $74.98 (the market was at
-  $1,183 and $48.5). The 1,000σ line drops BTC's (+1,526σ), but ETH's reads as -36σ, an
-  `extreme` hour, and stays. It is history only; nothing in the last year is like it.
+  $1,183 and $48.5). The 1,000σ line dropped BTC's (+1,526σ), but ETH's read as -36σ, an
+  `extreme` hour. Both were Coinbase's; the coins are Binance's since 2026-10-02, and
+  the largest reading in Binance's record is 56σ (UNI, 2024-02-23, the fee-switch vote).
 - **One instrument's timeout turns the whole run red.** A single provider read timeout in
   backfill fails the job and sends the "Failed" email even though every other instrument
   ran.

@@ -57,11 +57,11 @@ TIERS = (1, 2)
 # `provider` is who actually answers the request, and that CAN change: see
 # docs/architecture.md for the current split and how it was chosen. It defaults
 # to `source`, which is why the crypto rows need no provider line.
-SOURCES = ("twelvedata", "coinbase", "kitco", "yahoo", "sina")
+SOURCES = ("twelvedata", "coinbase", "binance", "kitco", "yahoo", "sina")
 
 # Who can be asked for bars. Wider than SOURCES because a provider may serve an
 # instrument whose history came from somewhere else.
-PROVIDERS = ("twelvedata", "coinbase", "tiingo", "alpaca", "yahoo", "sifting", "google",
+PROVIDERS = ("twelvedata", "coinbase", "binance", "tiingo", "alpaca", "yahoo", "sifting", "google",
              "kitco", "sina")
 FETCH_INTERVALS = ("30min", "1h")
 

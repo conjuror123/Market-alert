@@ -42,7 +42,7 @@ import requests
 from tremor import atomic, bars, cboe, corporate_actions, fred, futures, quality
 from tremor import sessions as _sessions
 from tremor.basket import Asset, Basket, load_basket
-from price_monitor import (alpaca, candle_store, coinbase, dukascopy, google,
+from price_monitor import (alpaca, binance, candle_store, coinbase, dukascopy, google,
                            hfdata, kitco, sifting, sina, tiingo, twelvedata, yahoo)
 from price_monitor.models import ExchangeError
 from price_monitor.notifier import TelegramError, redact_secrets, send_telegram_message
@@ -238,6 +238,11 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
             base_url=TWELVEDATA_BASE_URL, api_key=api_key, session=session,
             request_delay_seconds=TWELVEDATA_DELAY_SECONDS,
             chunk_days=CHUNK_DAYS[asset.fetch_interval], end=end,
+        )
+    elif provider == "binance":
+        candles = binance.fetch_full_history(
+            symbol=asset.ticker, interval=asset.fetch_interval, days=days,
+            session=session, end=end,
         )
     elif provider == "coinbase":
         candles = coinbase.fetch_full_history(
