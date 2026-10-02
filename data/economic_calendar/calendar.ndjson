@@ -91686,6 +91686,8 @@
 {"actual": "", "country": "EUR", "date": "2026-10-01T08:00:00+00:00", "forecast": "5.8%", "impact": "Low", "previous": "5.8%", "title": "Italian Monthly Unemployment Rate"}
 {"actual": "", "country": "GBP", "date": "2026-10-01T08:00:00+00:00", "forecast": "", "impact": "Medium", "previous": "", "title": "BOE Gov Bailey Speaks"}
 {"actual": "", "country": "GBP", "date": "2026-10-01T08:30:00+00:00", "forecast": "52.0", "impact": "Low", "previous": "52.0", "title": "Final Manufacturing PMI"}
+{"actual": "", "country": "EUR", "date": "2026-10-01T08:42:00+00:00", "forecast": "", "impact": "Low", "previous": "3.96|1.7", "title": "Spanish 10-y Bond Auction"}
+{"actual": "", "country": "EUR", "date": "2026-10-01T08:57:00+00:00", "forecast": "", "impact": "Low", "previous": "4.23|2.3", "title": "French 10-y Bond Auction"}
 {"actual": "", "country": "EUR", "date": "2026-10-01T09:00:00+00:00", "forecast": "6.4%", "impact": "Low", "previous": "6.4%", "title": "Unemployment Rate"}
 {"actual": "", "country": "EUR", "date": "2026-10-01T09:03:00+00:00", "forecast": "", "impact": "Low", "previous": "3.96|1.7", "title": "Spanish 10-y Bond Auction"}
 {"actual": "", "country": "EUR", "date": "2026-10-01T09:18:00+00:00", "forecast": "", "impact": "Low", "previous": "4.23|2.3", "title": "French 10-y Bond Auction"}
@@ -91712,6 +91714,7 @@
 {"actual": "", "country": "USD", "date": "2026-10-01T19:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Cook Speaks"}
 {"actual": "", "country": "USD", "date": "2026-10-01T22:45:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Logan Speaks"}
 {"actual": "", "country": "CNY", "date": "2026-10-01T23:01:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Bank Holiday"}
+{"actual": "", "country": "USD", "date": "2026-10-01T23:20:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Logan Speaks"}
 {"actual": "", "country": "JPY", "date": "2026-10-01T23:30:00+00:00", "forecast": "2.4%", "impact": "Medium", "previous": "1.8%", "title": "Tokyo Core CPI y/y"}
 {"actual": "", "country": "JPY", "date": "2026-10-01T23:30:00+00:00", "forecast": "2.4%", "impact": "Low", "previous": "2.4%", "title": "Unemployment Rate"}
 {"actual": "", "country": "JPY", "date": "2026-10-01T23:50:00+00:00", "forecast": "-16.3%", "impact": "Low", "previous": "-15.7%", "title": "Monetary Base y/y"}
@@ -91720,7 +91723,7 @@
 {"actual": "", "country": "EUR", "date": "2026-10-02T09:00:00+00:00", "forecast": "2.5%", "impact": "Medium", "previous": "2.4%", "title": "Core CPI Flash Estimate y/y"}
 {"actual": "", "country": "EUR", "date": "2026-10-02T09:00:00+00:00", "forecast": "3.7%", "impact": "Medium", "previous": "3.3%", "title": "CPI Flash Estimate y/y"}
 {"actual": "", "country": "USD", "date": "2026-10-02T12:30:00+00:00", "forecast": "0.3%", "impact": "High", "previous": "0.3%", "title": "Average Hourly Earnings m/m"}
-{"actual": "", "country": "USD", "date": "2026-10-02T12:30:00+00:00", "forecast": "90K", "impact": "High", "previous": "162K", "title": "Non-Farm Employment Change"}
+{"actual": "", "country": "USD", "date": "2026-10-02T12:30:00+00:00", "forecast": "89K", "impact": "High", "previous": "162K", "title": "Non-Farm Employment Change"}
 {"actual": "", "country": "USD", "date": "2026-10-02T12:30:00+00:00", "forecast": "4.1%", "impact": "High", "previous": "4.1%", "title": "Unemployment Rate"}
 {"actual": "", "country": "USD", "date": "2026-10-02T14:00:00+00:00", "forecast": "0.1%", "impact": "Low", "previous": "0.9%", "title": "Factory Orders m/m"}
 {"actual": "", "country": "USD", "date": "2026-10-02T14:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Logan Speaks"}
