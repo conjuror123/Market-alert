@@ -309,10 +309,10 @@ month at 0.989 or better (`tools/bitstamp_fill.py`; that record left with Coinba
 Yahoo's continuous series mixes contract months - not only single hours (64 of coffee's
 since 2024-05 jumped past 3% and straight back) but whole stretches of sessions that open
 on one month and trade on the other: coffee 2026-07-22 to 08-10, cocoa 2026-03, cattle
-2026-02-19 to 04-02, each a run of same-hour moves the size of the spread. So coffee's and
-cotton's history is Dukascopy's CFDs (`tools/dukascopy_futures.py`), which hold one
+2026-02-19 to 04-02, each a run of same-hour moves the size of the spread. So coffee's, cocoa's
+and cotton's history is Dukascopy's CFDs (`tools/dukascopy_futures.py`), which hold one
 contract at a time and switch once, from 2019-01: spliced to the listed contract at the
-seam (coffee 0.9986 correlation, 1.7 bp; cotton 0.9971, 1.2 bp). The CFD switches 2 to 12
+seam (coffee 0.9986 correlation, 1.7 bp; cocoa 0.9981, 2.9 bp; cotton 0.9971, 1.2 bp). The CFD switches 2 to 12
 business days before this series rolls; where its switch stands out in its own data it is
 listed in `data/tremor/rolls.csv` and its night unscored, and where none does the weeks
 around the roll are dropped. Cattle, which Dukascopy does not carry, keeps Yahoo's series

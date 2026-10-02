@@ -33,7 +33,7 @@ def chart(symbol: str):
 
 # Rebuilt from Dukascopy's CFDs, which hold one contract at a time; Yahoo's
 # continuous series interleaves two around a roll (docs/decisions.md).
-REBUILT_FROM_DUKASCOPY = {"KC=F", "CT=F"}
+REBUILT_FROM_DUKASCOPY = {"KC=F", "CT=F", "CC=F"}
 
 
 def main() -> int:

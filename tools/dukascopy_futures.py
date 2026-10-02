@@ -11,8 +11,8 @@ matching KCZ26.NYB to 0 bp from that day - and reaches back to 2019.
 THE SEAM. Below it the record is the CFD's, above it the store's own: the
 listed contract the series was on, bar for bar. It is where this series rolled
 into a contract the CFD was already on and the store holds clean - coffee
-2026-08-14 (KCZ26), cotton 2026-06-17 (CTZ26). The CFD is quoted in dollars a
-pound, the store in cents; the splice is refused unless, over the SEAM_CHECK
+2026-08-14 (KCZ26), cotton 2026-06-17 (CTZ26), cocoa 2026-08-11 (CCZ26). The
+CFD is quoted in hundredths of the contract's unit; the splice is refused unless, over the SEAM_CHECK
 days after the seam, the two pass the gates every splice passes
 (tremor.backfill.verify_alignment). Volume, the CFD's tick count, is scaled to
 the contracts' median over those days, so the thin-bar rule (tremor.futures)
@@ -51,9 +51,9 @@ from tremor.basket import load_basket
 SPEC = {
     "KC=F": dict(symbol="COFFEECMDUSX", seam=date(2026, 8, 14)),
     "CT=F": dict(symbol="COTTONCMDUSX", seam=date(2026, 6, 17)),
-    "CC=F": dict(symbol="COCOACMDUSD", seam=None),
+    "CC=F": dict(symbol="COCOACMDUSD", seam=date(2026, 8, 11)),
 }
-SCALE = 100.0                 # dollars a pound -> cents (coffee, cotton)
+SCALE = 100.0                 # the CFD in hundredths of the contract: coffee and cotton dollars a pound to cents, cocoa hundreds of dollars a tonne
 SEAM_CHECK = 60
 ROLL_BEFORE, ROLL_AFTER = 15, 3
 ROLL_CLEAR, ROLL_TYPICAL = 1.8, 5.0

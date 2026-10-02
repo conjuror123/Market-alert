@@ -16,18 +16,6 @@ newly added name says "biggest in a quarter" for years before it can say "bigges
 
 ---
 
-## 0. Cocoa's history still mixes contract months
-
-Yahoo's continuous series interleaves two contract months around a roll, in stretches of
-sessions, not single hours. Coffee's and cotton's history is now Dukascopy's and cattle's
-is cleaned (`docs/decisions.md`, "Futures are read one contract at a time"). Cocoa's is
-still Yahoo's: its stretches of 2026-03-18 to 27 and 2024-11 are in the record.
-
-**What acting on it would mean (under way):** cocoa from Dukascopy's CFD if it agrees with
-the listed contract at a seam; otherwise the same cleaning as cattle's.
-
----
-
 ## 1. Repository size
 
 636 MiB packed (2026-10-02). GitHub starts warning at 1 GB.
@@ -96,8 +84,7 @@ lives"), what is missing and what was tried:
 | instruments | missing before | tried |
 |---|---|---|
 | live cattle | 2024-05 | Yahoo's hourly stops at 730 days; Dukascopy has none; Stooq needs a login |
-| cocoa | 2024-05 | Yahoo's hourly stops at 730 days; Dukascopy's CFD from 2019 being checked against the listed contract |
-| coffee, cotton | 2019-01 | Dukascopy's CFDs held no traded hour in June 2017; 2018 not yet fetched |
+| coffee, cocoa, cotton | 2019-01 | Dukascopy's CFDs held no traded hour in June 2017; 2018 not yet fetched |
 | tin, nickel, aluminium (LME) | 2026-07 | Sina serves the last 1,023 bars; Kitco's nickel (2020-09 on) is a quote that does not track the LME's price; no free hourly LME history found |
 | USD/BRL, USD/INR, USD/KRW | 2019-09, 2019-11, 2020-01 | Twelve Data's start; Dukascopy holds no traded hour of INR or KRW in any sampled year, and its BRL files (from 2007) none in 2019; Sina forex holds six months; TradingView about 6,300 bars |
 
