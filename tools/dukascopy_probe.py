@@ -28,9 +28,13 @@ from tremor import bars
 from tremor.basket import load_basket
 
 CANDIDATES = {
-    "USD/BRL": "USDBRL", "USD/KRW": "USDKRW", "USD/INR": "USDINR",
     "KC=F": "COFFEECMDUSX", "CC=F": "COCOACMDUSD", "CT=F": "COTTONCMDUSX",
+    "USD/KRW": "USDKRW", "USD/INR": "USDINR", "USD/BRL": "USDBRL",
 }
+# The years whose June is asked for when looking for a symbol's first month: a
+# full year-by-year walk took seven minutes a symbol against the throttle.
+# USD/BRL's files reach 2007-03 but hold no traded hour in 2019 (2026-10-02).
+SAMPLE_YEARS = (2010, 2014, 2017, 2019, 2021, 2023)
 # Three months the store holds for each, the oldest it is likely to be asked to
 # meet: the store's first months for the pairs, a year in for the futures.
 OVERLAP = {
@@ -59,17 +63,12 @@ def traded(rows) -> list:
 
 
 def first_month(symbol: str) -> "tuple[int, int] | None":
-    first_year = None
-    for year in range(2003, 2027):
-        if traded(month(symbol, year, 6)):
-            first_year = year
-            break
-    if first_year is None:
-        return None
-    for mon in range(1, 7):
-        if traded(month(symbol, first_year, mon)):
-            return first_year, mon
-    return first_year, 6
+    for year in SAMPLE_YEARS:
+        rows = traded(month(symbol, year, 6))
+        print(f"   {year}-06: {len(rows)} traded hours", flush=True)
+        if rows:
+            return year, 6
+    return None
 
 
 def overlap(ticker: str, symbol: str, stored: pd.DataFrame) -> None:
@@ -119,9 +118,8 @@ def main() -> int:
         start = pd.to_datetime(stored["hour_utc"].min(), unit="s", utc=True)
         print(f"{ticker} ({symbol}); store from {start:%Y-%m-%d}", flush=True)
         first = first_month(symbol)
-        print(f"   first month held: {first}", flush=True)
-        if first is not None:
-            overlap(ticker, symbol, stored)
+        print(f"   first sampled June with trades: {first}", flush=True)
+        overlap(ticker, symbol, stored)
     return 0
 
 
