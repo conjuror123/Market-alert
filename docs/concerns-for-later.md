@@ -25,9 +25,8 @@ parquet since the store began, which git cannot delta because parquet is compres
 Sharding the live year by month (already done) slowed the growth; it did not undo what is
 already in the history.
 
-The bars now commit every run (`operations.md`): about 150 MB of git a year at today's
-basket, which reaches the warning in about two and a half years. Committing once a day
-after the US close would cost about a third of that.
+The bars commit once a day (`operations.md`): about 18 MiB of git a year at today's basket,
+simulated.
 
 **What acting on it would mean:** rewriting history to drop superseded parquet blobs,
 which force-pushes the branch production runs from and is irreversible. That is the

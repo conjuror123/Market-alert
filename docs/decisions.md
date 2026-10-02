@@ -344,11 +344,12 @@ would carry; does it agree with the consolidated tape on the thin names
 **Derived data is not tracked.** The metrics and the event table are rewritten every run
 and rebuild from the bars in about fifteen seconds.
 
-**Bars commit every run, the month being written as text.** Git cannot delta Parquet, so a
-commit stores every byte of each shard it touches; a CSV that gained a line costs about
-that line (measured, ~280 bytes packed per instrument an hour). Weekly Parquet commits
-cost about the same order (~80 MB a year against ~150) but lost what a source cannot
-serve again: Google's page holds one session, and TUR kept one weekday in five.
+**Bars commit once a day, the month being written as text.** Git cannot delta Parquet, so
+a commit stores every byte of each shard it touches; a CSV that gained lines costs about
+those lines. Simulated on a real week (2026-09-21, 173 instruments): 18 MiB of git a year
+committed daily, 124 hourly - each commit carries its own tree objects, and there would be
+169 a week - and 51 for the weekly Parquet before, which also lost what a source cannot
+serve again (Google's page holds TUR's latest session only). Daily, after the US close.
 
 **Two stores, not one.** Parquet for columnar history, JSON for state where a whole-file
 rewrite is the point. Nothing here needs a server.

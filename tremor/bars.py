@@ -72,8 +72,9 @@ def store_path(base_dir: str, file_stem: str) -> str:
     AND THE LIVE MONTH IS TEXT. The newest month of each instrument is a CSV
     (`2026-10.csv`), every other shard Parquet. Git stores a text file that
     gained a line as a delta of about that line, where a rewritten Parquet file
-    is all new bytes - so the live month can be committed on every run (about
-    one line per instrument an hour) instead of the whole store once a week.
+    is all new bytes - so the live month can be committed once a day (18 MiB of git a
+    year, simulated, against 51 for weekly Parquet) instead of the whole store
+    once a week.
     That matters for a source that cannot be asked again: Google's page holds
     one session, so TUR's week was lost between weekly commits. When the next
     month's first bar arrives, the finished month is written as Parquet once.

@@ -113,3 +113,12 @@ def test_the_fetch_asks_sina_for_a_sina_fund(tmp_path, monkeypatch):
     backfill.fetch_missing(fund, str(tmp_path / "a"), date(2021, 1, 1), "", requests.Session())
     backfill.fetch_missing(_tin(), str(tmp_path / "b"), date(2021, 1, 1), "", requests.Session())
     assert seen == {"us": "RWX", "fut": "SN0"}
+
+
+def test_a_negative_volume_is_unknown_not_a_broken_bar():
+    # Sina's LME volume restarts its daily count in the first London hour and
+    # comes out negative there; the bar's prices are real.
+    from datetime import datetime, timezone
+    text = 'var t=([{"d":"2026-07-17 09:00:00","o":"17115","h":"17124.5","l":"17080","c":"17124.5","v":"-10641","p":"0"}]);'
+    bar = sina.parse(text, "NID", now=datetime(2026, 7, 18, tzinfo=timezone.utc))[0]
+    assert bar.volume == 0.0 and bar.close == 17124.5
