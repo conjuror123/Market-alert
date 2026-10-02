@@ -127,8 +127,9 @@ session_templates:
 #   Tiingo       27 IEX-safe funds of its 50 requests an hour (shared with
 #                production until the switch);
 #   Alpaca       30 more IEX-safe funds, free IEX bars, 30 of 200 a minute;
-#   Twelve Data  16 thin funds that need the consolidated tape - two minutes of
-#                its 8-a-minute pace a run, ~130 of 800 credits a day;
+#   Twelve Data  16 thin funds that need the consolidated tape - two batched
+#                requests a minute apart, in a thread beside the other
+#                providers, ~130 of 800 credits a day;
 #   SiftingIO    the 16 FX pairs, ~520 a month each, ~83% of 10,000;
 #   Yahoo        the remaining 59 thin funds (no published quota) - last,
 #                being undocumented;

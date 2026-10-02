@@ -247,8 +247,8 @@ move.
 the tape (median ≤ 2 bp, p90 ≤ 5, ≤ 2% of hours missing — `tools/fund_verdict.py`);
 otherwise to a consolidated one. Documented APIs before Yahoo's undocumented endpoint, and
 no quota run past about 85%, so tests and backfills have room: Tiingo stays at 27 (its
-key is shared with production until the switch), Twelve Data at 16 (two minutes of its
-8-a-minute pace, ~130 of 800 credits a day), SiftingIO at the currency pairs alone (~83% of
+key is shared with production until the switch), Twelve Data at 16 (two batched requests a
+minute apart, in a thread beside the other providers; ~130 of 800 credits a day), SiftingIO at the currency pairs alone (~83% of
 its month, ~88% with USD/BRL). Yahoo takes what is left. The commodity blocks each keep a
 member off Yahoo, so a Yahoo outage leaves every block reporting.
 

@@ -1483,3 +1483,72 @@ def test_alpaca_funds_need_the_alpaca_keys(tmp_path, monkeypatch):
     monkeypatch.delenv("ALPACA_KEY_ID", raising=False)
     monkeypatch.setattr(backfill, "load_basket", lambda: basket)
     assert backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)]) == 2
+
+
+# --- Twelve Data live: batched, in the background -----------------------------
+
+def _td_fund(t):
+    return Asset(ticker=t, source="twelvedata", provider="twelvedata", tier=2,
+                 block="energy", has_volume=True, tick_size=0.01,
+                 session_template="us_equity", fetch_interval="30min",
+                 label=t, in_basket=True)
+
+
+def test_twelvedata_funds_go_eight_to_a_request_a_minute_apart(tmp_path, monkeypatch):
+    from tremor import backfill
+    funds = [_td_fund(f"F{i}") for i in range(10)]
+    t0 = int(datetime(2026, 9, 30, 14, tzinfo=timezone.utc).timestamp())
+    for a in funds:
+        bars.merge(bars.store_path(str(tmp_path), a.file_stem),
+                   bars.candles_to_frame([Candle(t0, 1, 1, 1, 1, 0, t0 + 1800)]))
+    calls, slept = [], []
+
+    def fake_batch(symbols, interval, start, end, *a, **k):
+        calls.append(list(symbols))
+        return {s: [Candle(t0 + 3600, 2, 2, 2, 2, 0, t0 + 5400)] for s in symbols}
+
+    monkeypatch.setattr(backfill.twelvedata, "fetch_batch", fake_batch)
+    out = backfill.fetch_twelvedata_live(funds, str(tmp_path), "key",
+                                         now=datetime(2026, 9, 30, 17, tzinfo=timezone.utc),
+                                         sleep=slept.append)
+    assert [len(c) for c in calls] == [8, 2]
+    assert slept == [backfill.TWELVEDATA_BATCH_GAP_SECONDS]
+    assert all(isinstance(r, dict) and r["from_api"] == 1 for _, r in out)
+
+
+def test_one_symbols_error_in_a_batch_is_that_symbols_alone(tmp_path, monkeypatch):
+    from tremor import backfill
+    from price_monitor.models import ExchangeError
+    funds = [_td_fund("USO"), _td_fund("GLD")]
+    t0 = int(datetime(2026, 9, 30, 14, tzinfo=timezone.utc).timestamp())
+    for a in funds:
+        bars.merge(bars.store_path(str(tmp_path), a.file_stem),
+                   bars.candles_to_frame([Candle(t0, 1, 1, 1, 1, 0, t0 + 1800)]))
+    monkeypatch.setattr(backfill.twelvedata, "fetch_batch", lambda symbols, *a, **k: {
+        "USO": ExchangeError("USO: bad"), "GLD": [Candle(t0 + 3600, 2, 2, 2, 2, 0, t0 + 5400)]})
+    out = dict((a.ticker, r) for a, r in backfill.fetch_twelvedata_live(
+        funds, str(tmp_path), "key", sleep=lambda s: None))
+    assert isinstance(out["USO"], ExchangeError) and out["GLD"]["from_api"] == 1
+
+
+def test_a_batched_answer_is_split_by_symbol():
+    from price_monitor import twelvedata
+
+    class R:
+        status_code = 200
+        def json(self):
+            return {"USO": {"status": "ok", "values": [
+                        {"datetime": "2026-09-30 14:00:00", "open": "1", "high": "1",
+                         "low": "1", "close": "1", "volume": "5"}]},
+                    "GLD": {"status": "error", "code": 400, "message": "**symbol** not found"}}
+
+    class S:
+        def get(self, *a, **k):
+            return R()
+
+    got = twelvedata.fetch_batch(["USO", "GLD"], "30min",
+                                 datetime(2026, 9, 30, tzinfo=timezone.utc),
+                                 datetime(2026, 9, 30, 20, tzinfo=timezone.utc),
+                                 "https://x", "key", S())
+    assert len(got["USO"]) == 1 and got["USO"][0].volume == 5.0
+    assert isinstance(got["GLD"], Exception)

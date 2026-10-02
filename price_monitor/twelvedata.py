@@ -295,3 +295,71 @@ def fetch_full_history(
             time.sleep(request_delay_seconds)
 
     return sorted(by_time.values(), key=lambda c: c.open_time)
+
+
+# How many symbols one batched request carries: the free tier's credits a
+# minute, each symbol costing one. A batch is one round trip instead of eight
+# and eight seconds of pause apart.
+BATCH_SIZE = 8
+
+
+def _candles(values: list, granularity_seconds: int) -> list[Candle]:
+    out = []
+    for v in values or []:
+        t = int(_parse_datetime(v["datetime"]).timestamp())
+        out.append(Candle(open_time=t, open=float(v["open"]), high=float(v["high"]),
+                          low=float(v["low"]), close=float(v["close"]),
+                          volume=float(v.get("volume") or 0.0),
+                          close_time=t + granularity_seconds))
+    return sorted(out, key=lambda c: c.open_time)
+
+
+def fetch_batch(symbols: "list[str]", interval: str, start: datetime, end: datetime,
+                base_url: str, api_key: str, session: requests.Session | None = None,
+                retries: int = 2, backoff_seconds: float = 61.0
+                ) -> "dict[str, list[Candle] | ExchangeError]":
+    """The bars of up to BATCH_SIZE symbols from `start` to `end` in one request.
+
+    The answer is keyed by symbol, each with its own status, so one symbol's
+    error is that symbol's and not the batch's. A rate limit for the minute is
+    waited out a whole minute before the retry - the eight-second backoff of a
+    single request would only meet it again. The day's quota raises
+    DailyQuotaExhausted, as everywhere."""
+    if not api_key:
+        raise ExchangeError("No Twelve Data API key configured (TWELVEDATA_API_KEY)")
+    granularity_seconds = _granularity_seconds(interval)
+    params = {"symbol": ",".join(symbols), "interval": _interval_code(interval),
+              "timezone": "UTC", "apikey": api_key,
+              "start_date": start.strftime("%Y-%m-%d %H:%M:%S"),
+              "end_date": end.strftime("%Y-%m-%d %H:%M:%S")}
+    sess = session or requests
+    label = ",".join(symbols)
+    last: Exception | None = None
+    for attempt in range(retries + 1):
+        if attempt:
+            time.sleep(backoff_seconds)
+        try:
+            resp = sess.get(f"{base_url}{TIME_SERIES_ENDPOINT}", params=params, timeout=30,
+                            headers={"User-Agent": "market-alert-bot"})
+            if resp.status_code != 200:
+                raise _classify(label, resp.status_code, resp.text)
+            data = resp.json()
+            if data.get("status") == "error":
+                raise _classify(label, int(data.get("code") or 0), str(data.get("message")))
+        except PermanentExchangeError:
+            raise
+        except (requests.RequestException, ExchangeError, ValueError) as exc:
+            last = exc
+            continue
+        # One symbol comes back as the series itself, several as a dict of them.
+        series = {symbols[0]: data} if len(symbols) == 1 else data
+        out: "dict[str, list[Candle] | ExchangeError]" = {}
+        for symbol in symbols:
+            one = series.get(symbol) or {}
+            if one.get("status") == "error":
+                out[symbol] = _classify(symbol, int(one.get("code") or 0),
+                                        str(one.get("message")))
+            else:
+                out[symbol] = _candles(one.get("values"), granularity_seconds)
+        return out
+    raise ExchangeError(f"{label}: batch failed after {retries + 1} attempts: {last}")

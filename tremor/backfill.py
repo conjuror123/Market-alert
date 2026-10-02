@@ -419,6 +419,65 @@ def nothing_can_have_appeared(asset: Asset, path: str,
     return not any(hour > newest for hour in expected)
 
 
+# A minute and a second between batched Twelve Data requests: each spends the
+# whole minute's credits.
+TWELVEDATA_BATCH_GAP_SECONDS = 61.0
+
+
+def fetch_twelvedata_live(assets: "list[Asset]", bars_dir: str, api_key: str,
+                          now: datetime | None = None, sleep=time.sleep
+                          ) -> "list[tuple[Asset, dict | Exception]]":
+    """The hourly fetch of the Twelve Data funds, BATCH_SIZE symbols a request.
+
+    It runs in a thread beside the rest of the pass (main), so the minute
+    between two batches is spent while Tiingo, Alpaca, Yahoo and the others are
+    being asked, not on top of them. Only stores that already hold bars come
+    here; a new one is seeded on the ordinary path. Each batch asks from the
+    earliest of its funds' newest-bar-minus-SETTLE_HOURS: one more hour or two
+    for some of them costs nothing, a symbol being one credit whatever its rows.
+    Returns, per fund, the same summary as backfill_instrument or the error.
+    """
+    now = now or datetime.now(timezone.utc)
+    session = requests.Session()
+    results: "list[tuple[Asset, dict | Exception]]" = []
+    groups: dict = {}
+    for asset in assets:
+        groups.setdefault(asset.fetch_interval, []).append(asset)
+    batches = [members[k:k + twelvedata.BATCH_SIZE]
+               for members in groups.values()
+               for k in range(0, len(members), twelvedata.BATCH_SIZE)]
+    for n, batch in enumerate(batches):
+        if n:
+            sleep(TWELVEDATA_BATCH_GAP_SECONDS)
+        paths = {a.ticker: bars.store_path(bars_dir, a.file_stem) for a in batch}
+        newest = min(int(bars.load(p)["hour_utc"].max()) for p in paths.values())
+        start = (datetime.fromtimestamp(newest, tz=timezone.utc)
+                 - timedelta(hours=SETTLE_HOURS))
+        try:
+            got = twelvedata.fetch_batch([a.ticker for a in batch], batch[0].fetch_interval,
+                                         start, now, TWELVEDATA_BASE_URL, api_key, session)
+        except twelvedata.DailyQuotaExhausted as exc:
+            # Every later batch would be told the same.
+            results += [(a, exc) for b in batches[n:] for a in b]
+            break
+        except Exception as exc:
+            results += [(a, exc) for a in batch]
+            continue
+        for asset in batch:
+            answer = got.get(asset.ticker)
+            if isinstance(answer, Exception):
+                results.append((asset, answer))
+                continue
+            path = paths[asset.ticker]
+            added = bars.merge(path, bars.to_hourly(bars.candles_to_frame(answer)))
+            stored = bars.load(path)
+            results.append((asset, {
+                "asset_id": asset.asset_id, "from_legacy": 0, "from_api": added,
+                "rows": len(stored), "first": int(stored["hour_utc"].min()),
+                "last": int(stored["hour_utc"].max())}))
+    return results
+
+
 def backfill_instrument(asset: Asset, basket: Basket, bars_dir: str, api_key: str,
                         session: requests.Session, legacy_dir: str = LEGACY_HISTORY_DIR,
                         extend_history: bool = False, tiingo_key: str = "",
@@ -1358,7 +1417,29 @@ def main(argv: list[str] | None = None) -> int:
     sifting_remaining = None
     yahoo_trip = None
     dark: list[tuple[str, str, str]] = []
+
+    # TWELVE DATA FIRST, AND BESIDE THE REST. Its funds are fetched in batches
+    # in a thread started before anything else is asked, so its eight credits a
+    # minute are waited out while the other providers answer. Only the
+    # ordinary pass over stores that hold bars; the skip rule is the same.
+    background: "set[str]" = set()
+    td_thread = None
+    if not args.extend_history and api_key:
+        live = [a for a in instruments if a.fetched_from == "twelvedata"
+                and not bars.load(bars.store_path(args.bars_dir, a.file_stem)).empty]
+        due = [a for a in live if not nothing_can_have_appeared(
+            a, bars.store_path(args.bars_dir, a.file_stem), session_table)]
+        background = {a.asset_id for a in live}
+        skipped += len(live) - len(due)
+        if due:
+            from concurrent.futures import ThreadPoolExecutor
+            pool = ThreadPoolExecutor(max_workers=1)
+            td_thread = pool.submit(fetch_twelvedata_live, due, args.bars_dir, api_key)
+            pool.shutdown(wait=False)
+
     for i, asset in enumerate(instruments):
+        if asset.asset_id in background:
+            continue
         path = bars.store_path(args.bars_dir, asset.file_stem)
         if not args.extend_history and bars.load(path).empty:
             # Only a few never-seen instruments per run. Adding a block of new
@@ -1453,6 +1534,24 @@ def main(argv: list[str] | None = None) -> int:
         # rate, and pausing after them would spend the wait twice over.
         if asset.fetched_from == "twelvedata" and i < len(instruments) - 1:
             time.sleep(TWELVEDATA_DELAY_SECONDS)
+
+    if td_thread is not None:
+        try:
+            td_results = td_thread.result()
+        except Exception as exc:                     # the thread itself broke
+            td_results = [(a, exc) for a in instruments if a.asset_id in background]
+        for asset, r in td_results:
+            if isinstance(r, twelvedata.DailyQuotaExhausted):
+                quota_gone = True
+                log.error("%s: Twelve Data daily credits are gone - %s", asset.asset_id, r)
+            elif isinstance(r, Exception):
+                failures += 1
+                dark.append((asset.asset_id, "twelvedata", str(r)))
+                log.error("%s: failed - %s", asset.asset_id, r)
+            else:
+                log.info("%s: %d bars (%s .. %s), from network %d (batched)",
+                         r["asset_id"], r["rows"], _fmt(r["first"]), _fmt(r["last"]),
+                         r["from_api"])
 
     if skipped:
         log.info("%d instrument(s) skipped: the calendar says nothing new can exist",

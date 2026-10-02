@@ -28,7 +28,7 @@ fire is worse than none — its silence is indistinguishable from a quiet market
 
 | | |
 |---|---:|
-| Live fetch (Tiingo, Alpaca, SiftingIO, Yahoo, Google, Kitco, Coinbase; Twelve Data paced) | ~2 min |
+| Live fetch (all providers; Twelve Data's minute between batches runs alongside) | ~1 min |
 | Metrics and events, warm run | ~5 s |
 | Metrics and events, cold rebuild | ~15 s |
 | Whole job, median | ~2 min |
@@ -49,7 +49,7 @@ seconds, so it has no warm state to lose.
 |---|---:|---:|
 | **Tiingo** | 50/hour, 1000/day | 27 funds — 54% of the hour |
 | **Alpaca** | 200/min, IEX live free; SIP to 15 min back | 30 funds — 30 requests a run |
-| **Twelve Data** | 800/day, 8/min | 16 funds — ~130 credits a day, 2 min of pace a run; plus archive and gap-fill |
+| **Twelve Data** | 800/day, 8/min | 16 funds — two batched requests a minute apart, in the background; ~130 credits a day; plus archive and gap-fill |
 | **SiftingIO** | 10,000/**month**, a few a second | 16 FX pairs — about 8,300 a month (83%) |
 | **Yahoo** | none published | 59 funds and the dividend check |
 | **Google Finance** | none — a web page, read against its terms | TUR, one page a run |
@@ -59,8 +59,11 @@ seconds, so it has no warm state to lose.
 | Repository size | 1 GB warning, ~5 GB cutoff | 565 MiB packed |
 
 SiftingIO's monthly bucket and Twelve Data's eight a minute are the binding live limits:
-each FX pair costs about 520 SiftingIO calls a month, one per hour of the FX week, and
-each Twelve Data fund eight seconds of every run. The US-session funds skip when the NYSE calendar says no bar can have appeared since the newest
+each FX pair costs about 520 SiftingIO calls a month, one per hour of the FX week,  and
+Twelve Data allows eight symbols a minute, so its funds go eight to a request, a minute
+apart, in a thread started before the other providers are asked
+(`tremor.backfill.fetch_twelvedata_live`): the wait overlaps their work instead of adding
+to it. The US-session funds skip when the NYSE calendar says no bar can have appeared since the newest
 stored one; the 8 FX pairs skip when the Sun 17:00 → Fri 17:00 New York week is shut
 (`tremor.backfill.nothing_can_have_appeared`). Crypto is never skipped.
 
