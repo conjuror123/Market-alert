@@ -140,15 +140,6 @@
       }
     },
     "tracked": {
-      "coinbase_BCH-USD:1790078400": {
-        "hour_utc": 1790078400,
-        "message_id": 38,
-        "text_hash": "defa61dd4ff88ec8",
-        "written": [
-          "today",
-          "settled"
-        ]
-      },
       "twelvedata_CORN:1790784000": {
         "hour_utc": 1790784000,
         "message_id": 72,
