@@ -108,9 +108,6 @@ lives"), what is missing and what was tried:
 - **To watch at the first month start after the switch:** the monthly payers go
   ex-dividend; check that Yahoo lists them by the 10:05 New York run, or their gaps stay
   unscored that day. (Due 2026-10-01, but this branch was not running then.)
-- **A fund's opening hour fires about twice as often** as its other hours, from extreme
-  outliers at the open. The jump detector's time-of-day stage (5) is where this is
-  answered.
 
 ---
 

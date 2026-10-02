@@ -65,7 +65,8 @@ close after it was found - a coin and a currency pair too - as `check_utc`, and
 once that close has passed, `held` is the share of the move still there
 (held_at_close).
 
-WHAT IS NOT HERE YET, deliberately: no time-of-day scale, no block or own-move
+NOT HERE, deliberately: no time-of-day scale - measured and dropped, a busy hour
+fires more because more happens in it (docs/decisions.md). Not yet: no block or own-move
 reading, no size floor. Each comes back as its own stage with its own logic.
 The output is a table of every reading that reached `noticeable`.
 

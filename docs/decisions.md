@@ -54,11 +54,11 @@ what they should.
 
 **What the papers say about using what we know of an asset.** Model known repeating
 patterns — the time of day (Boudt, Croux & Laurent find it recovers small jumps in quiet
-hours and removes false ones in busy hours; without it, half or more of detected jumps can
-be spurious). Do not filter news: about a third of FX jumps coincide with US data releases
-(Lahaye, Laurent & Neely), and they are the real thing — label them. Fat tails are what a
-jump test detects, so a per-asset tail shape is a risk-management idea, kept as an
-optional later stage.
+hours and removes false ones in busy hours). Do not filter news: about a third of FX jumps
+coincide with US data releases (Lahaye, Laurent & Neely), and they are the real thing.
+Fat tails are what a jump test detects, so a per-asset tail shape is a risk-management
+idea, kept as an optional later stage. Both of the first two were tried or weighed here and
+dropped (below, "Settled and closed").
 
 **The gap: each kind against its own kind, over the same half-year.** Every reading of an
 instrument — hours, nights, weekends — is read against the same half-year of the world's
@@ -400,6 +400,17 @@ rewrite is the point. Nothing here needs a server.
 ## Settled and closed
 
 Raised, dealt with, and not to be raised again.
+- **The time-of-day factor (stage 5)** — built, measured and dropped (2026-10-02). Boudt,
+  Croux & Laurent's factor, per instrument and hour of the day, over five years: hour
+  flags -5%, events -7%. The busy hours' flags it removed reversed at the next close no
+  more often than the rest (15-18%) — the open and the 08:30 and 10:00 New York releases
+  are where the news is — and the quiet hours' flags it added reversed more (26%; FX at
+  17-19 New York 36-49%); a pair whose home market is shut at night (USD/INR, KRW, TRY)
+  got factors near 0.01 there. Raising the bar only in busy hours cut events 10% at the
+  cost of real news. The owner's call: a busy hour fires more because more happens in it.
+- **Labelling scheduled news (stage 9)** — dropped with stage 5, the owner's call
+  (2026-10-02). A push already lists the releases in the hours around its move
+  (`Nearby economic events`).
 - **The 2020-02-10 wall** — filled. Twelve Data's intraday archive stops there; Alpaca's
   consolidated tape (2016 on) filled 61 funds, 407,153 hours, each gated on a three-month
   overlap (`--deepen-alpaca`, 2026-10-01). Every fund reaches 2016 or its launch.
