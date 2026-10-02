@@ -235,9 +235,9 @@ move.
 |---|---|---|
 | Tiingo | 27 | funds whose single-exchange (IEX) price matches the consolidated tape |
 | Alpaca | 30 | more IEX-safe funds, from Alpaca's free IEX bars, fresh at :05; also SIP history from 2016 |
-| Twelve Data | 16 | consolidated tape for thin funds IEX misprices: USO SLV GLD MDY IAU SGOL SIVR DBC UNG BNO CPER DBA XLRE BKLN PPLT PALL; also archive and gap-fill |
+| Twelve Data | 8 | consolidated tape for thin funds IEX misprices, one or two per commodity block: USO UNG DBC GLD SLV CPER DBA CORN; also archive and gap-fill |
 | SiftingIO | 16 | the FX pairs: 0.11–0.35 bps median against the stored bars, the bar closed at :00 served by :05 |
-| Yahoo | 59 | the rest of the thin funds, consolidated; also the morning dividend check |
+| Yahoo | 67 | the rest of the thin funds, consolidated; also the morning dividend check |
 | Kitco | 1 | nickel: the chart gateway behind kitco.com, five-minute quotes from 2020-11 folded to hours; glitches and still days dropped (`price_monitor/kitco.py`) |
 | Google Finance | 1 | TUR: the one feed whose hourly closes match the tape on it, read off the quote page (`price_monitor/google.py`) |
 | Coinbase | 16 | crypto |
@@ -247,8 +247,9 @@ move.
 the tape (median ≤ 2 bp, p90 ≤ 5, ≤ 2% of hours missing — `tools/fund_verdict.py`);
 otherwise to a consolidated one. Documented APIs before Yahoo's undocumented endpoint, and
 no quota run past about 85%, so tests and backfills have room: Tiingo stays at 27 (its
-key is shared with production until the switch), Twelve Data at 16 (two batched requests a
-minute apart, in a thread beside the other providers; ~130 of 800 credits a day), SiftingIO at the currency pairs alone (~83% of
+key is shared with production until the switch), Twelve Data at 8 (one batched request, its whole
+minute's credits, in a thread beside the other providers; ~65 of 800 credits a day — 16 would
+put a minute's wait on every run), SiftingIO at the currency pairs alone (~83% of
 its month, ~88% with USD/BRL). Yahoo takes what is left. The commodity blocks each keep a
 member off Yahoo, so a Yahoo outage leaves every block reporting.
 

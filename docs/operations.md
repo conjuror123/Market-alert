@@ -28,7 +28,7 @@ fire is worse than none — its silence is indistinguishable from a quiet market
 
 | | |
 |---|---:|
-| Live fetch (all providers; Twelve Data's minute between batches runs alongside) | ~1 min |
+| Live fetch (all providers; Twelve Data's one batch runs alongside) | ~15 s |
 | Metrics and events, warm run | ~5 s |
 | Metrics and events, cold rebuild | ~15 s |
 | Whole job, median | ~2 min |
@@ -49,9 +49,9 @@ seconds, so it has no warm state to lose.
 |---|---:|---:|
 | **Tiingo** | 50/hour, 1000/day | 27 funds — 54% of the hour |
 | **Alpaca** | 200/min, IEX live free; SIP to 15 min back | 30 funds — 30 requests a run |
-| **Twelve Data** | 800/day, 8/min | 16 funds — two batched requests a minute apart, in the background; ~130 credits a day; plus archive and gap-fill |
+| **Twelve Data** | 800/day, 8/min | 8 funds — one batched request a run, in the background; ~65 credits a day; plus archive and gap-fill |
 | **SiftingIO** | 10,000/**month**, a few a second | 16 FX pairs — about 8,300 a month (83%) |
-| **Yahoo** | none published | 59 funds and the dividend check |
+| **Yahoo** | none published | 67 funds and the dividend check |
 | **Google Finance** | none — a web page, read against its terms | TUR, one page a run |
 | **Kitco** | none — a website's private gateway | nickel, one request a run in LME hours |
 | **Coinbase** | no key | 16 crypto |
