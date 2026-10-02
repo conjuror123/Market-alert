@@ -84,19 +84,17 @@ five or more days behind, one line a day goes to the health chat. The push rebas
 rejected push is the same as losing that record. A truncated `state.json` fails the run
 rather than being read as a cold start.
 
-**Saturday 04:00 UTC only:** `data/tremor/bars/` and `data/tremor/vix/`. Git cannot delta
-parquet, so a commit stores every byte of whatever shard changed and the frequency is the
-whole cost. Nothing is lost by waiting: the forward fetch starts at each instrument's
-newest **stored** bar, so a week-old checkout is simply a week-wide request, and a week is
-far inside every provider's reach but one — Tiingo serves 365 days, Yahoo 55 at thirty
-minutes, Sina about 78. **Google Finance serves one session**, so TUR keeps only the last
-weekday of each week under this cadence (`concerns-for-later.md`, item 1).
-Saturday because every market that keeps a session is shut, so the week written down is a
-whole one. A missed Saturday is not a loss either — the next one re-fetches and commits the
-whole fortnight — and the margin before anything is unrecoverable is about seven
-consecutive misses, set by Yahoo's 55 days at thirty minutes, the shortest reach after
-Google's. VIX rides the same commit so the skip-if-fresh check can see the latest close
-and avoid re-fetching CBOE's full 1990 file.
+**Every run, too: `data/tremor/bars/`.** Each instrument's month being written is a CSV
+(`tremor/bars.py`); every other shard is Parquet. Git stores a text file that gained a line
+as a delta of about that line — measured, about 280 bytes packed per instrument an hour,
+so with some 60 instruments trading in an average hour, about 130 MB of git a year, and
+another ~25 MB for the month shards laid down as Parquet when each month ends (2 MB for
+all 173). Committed every run rather than weekly because one source cannot be asked
+again: Google's page holds TUR's latest session only. Each run still fetches from each
+instrument's newest stored bar, so a run that failed to push is healed by the next.
+
+**Saturday 04:00 UTC only:** `data/tremor/vix/`, one Parquet file rewritten daily, so the
+skip-if-fresh check can see a recent close and avoid re-fetching CBOE's full 1990 file.
 
 **Never:** `data/tremor/metrics/` and `jumps.parquet`. Derived, gitignored, rebuilt in the
 run that needs them.
@@ -108,14 +106,11 @@ costs every instrument a full rebuild.
 
 ### What the store costs
 
-A commit stores the whole shard that changed, so the only number that matters is how much
-history shares a shard with the new hour. Settled years get one shard each; the year being
-written gets twelve, one per month (`tremor/bars.store_path`). Measured on the real store,
-that cuts the bytes rewritten per append from 6.89 MiB to 0.61 MiB — **11.4x** — and
-weekly rather than daily commits divide the remainder by seven again. One complete year of
-bars for the 61 instruments of 2026-09 was 5.2 MiB; recording it costs about 12 MiB of git a year,
-against 955 MiB under daily commits of year-sized shards.
-
+A Parquet commit stores the whole shard that changed, so the shards are cut to keep the
+appended-to one small: settled years one shard each, the live year one per month, and the
+month being written a CSV (`tremor/bars.store_path`). A CSV that gained a line costs git
+about that line — measured, ~280 bytes packed per instrument an hour, against ~12 KB for
+re-committing the same month as Parquet. The finished months go in as Parquet once.
 ---
 
 ## When it breaks

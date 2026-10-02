@@ -16,23 +16,7 @@ newly added name says "biggest in a quarter" for years before it can say "bigges
 
 ---
 
-## 1. TUR keeps one weekday a week under the weekly bar commit
-
-TUR's feed, Google Finance's quote page, holds the latest session and nothing earlier. The
-bars are committed on Saturdays (`operations.md`) and every run fetches from the newest
-committed bar, so from Tuesday on the week's earlier sessions cannot be fetched again, and
-Saturday's commit records Friday's alone. Monday to Thursday are lost every week, and the
-events found on them disappear when the next day's run rescores without them. Nothing is
-affected today — this branch is not on the hourly trigger — but it would be from the
-switch.
-
-**What acting on it would mean:** committing TUR's month shard (a few kB) on the first run
-after each NYSE close; or moving TUR to Yahoo or Twelve Data, which reach weeks back and miss
-the tape on it by p90 5.6 bp.
-
----
-
-## 2. Repository size
+## 1. Repository size
 
 636 MiB packed (2026-10-02). GitHub starts warning at 1 GB.
 
@@ -41,13 +25,17 @@ parquet since the store began, which git cannot delta because parquet is compres
 Sharding the live year by month (already done) slowed the growth; it did not undo what is
 already in the history.
 
+The bars now commit every run (`operations.md`): about 150 MB of git a year at today's
+basket, which reaches the warning in about two and a half years. Committing once a day
+after the US close would cost about a third of that.
+
 **What acting on it would mean:** rewriting history to drop superseded parquet blobs,
 which force-pushes the branch production runs from and is irreversible. That is the
 reason it has not been done, not the effort.
 
 ---
 
-## 3. The fund verdict rests on 28 days of one regime
+## 2. The fund verdict rests on 28 days of one regime
 
 Which feed each fund is on (`decisions.md`, "The data") was measured over 28 days to
 2026-09-30, and Sina's agreement over 28 days to 2026-10-02 — one calm stretch. Feeds that
@@ -60,7 +48,7 @@ days, Sina about 78), so the window has to be caught while it is recent.
 
 ---
 
-## 4. The weekend yardstick is the noisiest in the jump detector
+## 3. The weekend yardstick is the noisiest in the jump detector
 
 A weekend gap is judged against the 26 weekends of the half-year before it, so its yardstick
 is uncertain by about ±16% (a fund's hours: ±3%, its nights: ±8%). Measured, pooling
@@ -74,7 +62,7 @@ window for weekends only — each a one-line change in `tremor/jumps.py` and a r
 
 ---
 
-## 5. Most of the basket rides undocumented endpoints
+## 4. Most of the basket rides undocumented endpoints
 
 Yahoo (34 funds, 5 futures, the dividend check), Sina Finance (33 funds and tin), Google
 Finance (TUR) and Kitco (nickel) are web endpoints with no terms that allow this use and no
@@ -88,7 +76,7 @@ would carry every fund — and paid futures data (Barchart, Financial Modeling P
 
 ---
 
-## 6. History no free source reached
+## 5. History no free source reached
 
 A record shorter than six months scores from the paper's minimum and says "biggest since"
 only as far back as it goes. Below each record's start (`architecture.md`, "Where the data
@@ -111,7 +99,7 @@ take out USDT's own swings, such as its premium in March 2020).
 
 ---
 
-## 7. The blocks are still the nine broad ones
+## 6. The blocks are still the nine broad ones
 
 The basket grew from 61 to 173 without its blocks being re-cut: equity holds 61, credit 26,
 rates 20. The jump detector reads each instrument alone, so this changes no message today;
@@ -148,7 +136,7 @@ commodities themselves:
 
 ---
 
-## 8. Smaller things, found and left alone
+## 7. Smaller things, found and left alone
 
 - **A broken print under 1,000σ still counts.** On 2017-04-15 Coinbase reopened after
   three hours down on a BTC print of $0.06 and an ETH print of $74.98 (the market was at
@@ -168,7 +156,7 @@ commodities themselves:
 
 ---
 
-## 9. Comments and prose that have drifted
+## 8. Comments and prose that have drifted
 
 Small, cosmetic, and worth a pass rather than a project. Nothing specific is currently
 listed here — the prose drift that was on this list turned out to be one substantive

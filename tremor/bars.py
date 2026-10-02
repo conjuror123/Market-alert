@@ -1,4 +1,5 @@
-"""Tremor hourly bar store: Parquet, one directory of shards per instrument.
+"""Tremor hourly bar store: one directory of shards per instrument - Parquet,
+and CSV for the month being written.
 
 Why Parquet rather than the NDJSON of the existing monitor: there a file is only
 appended one row per hour and grows slowly, whereas here sixty-two instruments
@@ -68,6 +69,16 @@ def store_path(base_dir: str, file_stem: str) -> str:
     folds the previous year's twelve months back into one shard by itself, and
     there is no January-only code path to get wrong once a year.
 
+    AND THE LIVE MONTH IS TEXT. The newest month of each instrument is a CSV
+    (`2026-10.csv`), every other shard Parquet. Git stores a text file that
+    gained a line as a delta of about that line, where a rewritten Parquet file
+    is all new bytes - so the live month can be committed on every run (about
+    one line per instrument an hour) instead of the whole store once a week.
+    That matters for a source that cannot be asked again: Google's page holds
+    one session, so TUR's week was lost between weekly commits. When the next
+    month's first bar arrives, the finished month is written as Parquet once.
+    Floats round-trip exactly (`load` reads them with round_trip precision).
+
     The path is still handed around as one string, so nothing above this module
     has to know. `load` also reads the legacy single file where one is still
     lying about, and the next `write` folds it into the shards and deletes it -
@@ -96,6 +107,26 @@ def _shard_of(hours: pd.Series) -> pd.Series:
         year != live, year.astype(str) + "-" + month.map("{:02d}".format))
 
 
+SHARD_EXTENSIONS = (".parquet", ".csv")
+
+
+def _stem(name: str) -> str:
+    for ext in SHARD_EXTENSIONS:
+        if name.endswith(ext):
+            return name[:-len(ext)]
+    return name
+
+
+def _is_shard(name: str) -> bool:
+    return name.endswith(SHARD_EXTENSIONS)
+
+
+def _read_shard(path: str) -> pd.DataFrame:
+    if path.endswith(".csv"):
+        return pd.read_csv(path, dtype=SCHEMA, float_precision="round_trip")
+    return pd.read_parquet(path)
+
+
 def _shard_key(path: str) -> "tuple[int, int]":
     """Chronological order, with a year's own shard BEFORE its months.
 
@@ -106,9 +137,7 @@ def _shard_key(path: str) -> "tuple[int, int]":
     Sorting the names as strings gets this backwards, because "-" sorts before
     ".".
     """
-    stem = os.path.basename(path)
-    stem = stem[:-len(".parquet")] if stem.endswith(".parquet") else stem
-    year, _, month = stem.partition("-")
+    year, _, month = _stem(os.path.basename(path)).partition("-")
     try:
         return (int(year), int(month) if month else 0)
     except ValueError:                       # pragma: no cover - defensive
@@ -130,7 +159,7 @@ def _shards(store: str) -> list[str]:
         found.append(legacy)
     if os.path.isdir(store):
         found.extend(sorted((os.path.join(store, name) for name in os.listdir(store)
-                             if name.endswith(".parquet")), key=_shard_key))
+                             if _is_shard(name)), key=_shard_key))
     return found
 
 
@@ -145,7 +174,7 @@ def load(store: str) -> pd.DataFrame:
     de-duplication - during a migration the shard is the newer copy by
     construction, and reading it second would resurrect stale rows.
     """
-    parts = [pd.read_parquet(path) for path in _shards(store)]
+    parts = [_read_shard(path) for path in _shards(store)]
     if not parts:
         return empty_frame()
     combined = pd.concat(parts, ignore_index=True)
@@ -169,21 +198,31 @@ def write(store: str, frame: pd.DataFrame) -> None:
     os.makedirs(store, exist_ok=True)
     wanted = {str(shard): part.reset_index(drop=True)
               for shard, part in frame.groupby(_shard_of(frame["hour_utc"]))}
+    live = max(wanted, key=lambda name: _shard_key(name)) if wanted else None
+    files = {}
     for shard, part in wanted.items():
-        path = os.path.join(store, f"{shard}.parquet")
+        ext = ".csv" if shard == live and "-" in shard else ".parquet"
+        files[shard + ext] = part
+    for name, part in files.items():
+        path = os.path.join(store, name)
         if os.path.exists(path):
             try:
-                if _normalise(pd.read_parquet(path)).equals(part):
+                if _normalise(_read_shard(path)).equals(part):
                     continue
             except Exception:                    # pragma: no cover - defensive
                 pass                             # unreadable shard: rewrite it
-        atomic.write_parquet(path, part)
+        if name.endswith(".csv"):
+            atomic.write_csv(path, part)
+        else:
+            atomic.write_parquet(path, part)
     for name in os.listdir(store):
         # A shard that no longer has bars in the frame: a year rebuilt from a
         # shorter history, or - every January - the twelve months of the year
-        # that has just stopped being the live one. Leaving the file behind
-        # would make load() return rows write() was told to drop.
-        if name.endswith(".parquet") and name[:-len(".parquet")] not in wanted:
+        # that has just stopped being the live one. Or the same month in the
+        # other format: last month's CSV once it has been laid down as Parquet.
+        # Leaving the file behind would make load() return rows write() was
+        # told to drop.
+        if _is_shard(name) and name not in files:
             os.remove(os.path.join(store, name))
     legacy = _legacy_path(store)
     if os.path.exists(legacy):

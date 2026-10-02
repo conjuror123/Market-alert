@@ -159,7 +159,7 @@ def test_a_settled_year_lands_in_one_file_and_the_live_one_in_months(tmp_path):
 
     import os
     assert sorted(os.listdir(store)) == [
-        "2003.parquet", "2004.parquet", "2026-01.parquet", "2026-09.parquet"]
+        "2003.parquet", "2004.parquet", "2026-01.parquet", "2026-09.csv"]
     assert len(bars.load(store)) == 5
     assert not any(name.endswith(".tmp") for name in os.listdir(store))
 
@@ -198,7 +198,7 @@ def test_a_legacy_single_file_is_read_and_then_folded_in(tmp_path):
 
     assert not os.path.exists(legacy)
     assert sorted(os.listdir(store)) == [
-        "2003.parquet", "2004.parquet", "2026-01.parquet"]
+        "2003.parquet", "2004.parquet", "2026-01.csv"]
     assert sorted(bars.load(store)["hour_utc"]) == [_hour(2003), _hour(2004), _hour(2026)]
 
 
@@ -221,7 +221,7 @@ def test_a_year_that_lost_its_bars_loses_its_shard(tmp_path):
     bars.write(store, _rows([_hour(2003), _hour(2026)]))
     bars.write(store, _rows([_hour(2026)]))
 
-    assert os.listdir(store) == ["2026-01.parquet"]
+    assert os.listdir(store) == ["2026-01.csv"]
 
 
 def test_appending_an_hour_rewrites_only_the_month_it_lands_in(tmp_path):
@@ -244,7 +244,7 @@ def test_appending_an_hour_rewrites_only_the_month_it_lands_in(tmp_path):
 
     touched = {name for name in os.listdir(store)
                if stamps.get(name) != os.stat(os.path.join(store, name)).st_mtime_ns}
-    assert touched == {"2026-09.parquet"}
+    assert touched == {"2026-09.csv"}
 
 
 def test_the_first_bar_of_a_new_year_folds_the_old_one_back_into_one_shard(tmp_path):
@@ -258,12 +258,12 @@ def test_the_first_bar_of_a_new_year_folds_the_old_one_back_into_one_shard(tmp_p
     bars.write(store, _rows([_hour(2025, 6), _hour(2026, 1), _hour(2026, 6),
                              _hour(2026, 11)]))
     assert sorted(os.listdir(store)) == [
-        "2025.parquet", "2026-01.parquet", "2026-06.parquet", "2026-11.parquet"]
+        "2025.parquet", "2026-01.parquet", "2026-06.parquet", "2026-11.csv"]
 
     bars.merge(store, _rows([_hour(2027, 1, 1, 9)]))
 
     assert sorted(os.listdir(store)) == [
-        "2025.parquet", "2026.parquet", "2027-01.parquet"]
+        "2025.parquet", "2026.parquet", "2027-01.csv"]
     assert sorted(bars.load(store)["hour_utc"]) == [
         _hour(2025, 6), _hour(2026, 1), _hour(2026, 6), _hour(2026, 11),
         _hour(2027, 1, 1, 9)]
@@ -286,3 +286,46 @@ def test_a_month_shard_outranks_the_year_it_replaces(tmp_path):
     bars.write(os.path.join(store, "2026-03.parquet"), fresh)
 
     assert bars.load(store)["close"].tolist() == [22.0]
+
+
+def test_the_live_month_is_text_and_turns_to_parquet_when_the_next_begins(tmp_path):
+    # Text so that committing it every run costs git a line, not a file; the
+    # finished month is laid down as Parquet once, by the write that brings the
+    # next month's first bar.
+    import os
+
+    store = bars.store_path(str(tmp_path), "twelvedata_SPY")
+    bars.write(store, _rows([_hour(2026, 9), _hour(2026, 9, 30, 20)]))
+    assert sorted(os.listdir(store)) == ["2026-09.csv"]
+
+    bars.merge(store, _rows([_hour(2026, 10, 1, 13)]))
+
+    assert sorted(os.listdir(store)) == ["2026-09.parquet", "2026-10.csv"]
+    assert len(bars.load(store)) == 3
+
+
+def test_the_text_month_reads_back_exactly(tmp_path):
+    # A float that came back a hair different would read as a move.
+    import numpy as np
+
+    store = bars.store_path(str(tmp_path), "twelvedata_SPY")
+    rng = np.random.default_rng(7)
+    rows = _rows([_hour(2026, 9, 1, h) for h in range(24)])
+    for column in ("open", "high", "low", "close", "volume"):
+        rows[column] = rng.random(24) * 10.0 ** rng.integers(-4, 6, 24)
+    bars.write(store, rows)
+
+    assert bars.load(store).equals(bars._normalise(rows))
+
+
+def test_an_unchanged_text_month_is_not_rewritten(tmp_path):
+    import os
+
+    store = bars.store_path(str(tmp_path), "twelvedata_SPY")
+    bars.write(store, _rows([_hour(2026, 9), _hour(2026, 9, 2)]))
+    path = os.path.join(store, "2026-09.csv")
+    stamp = os.stat(path).st_mtime_ns
+
+    bars.merge(store, _rows([_hour(2026, 9)]))
+
+    assert os.stat(path).st_mtime_ns == stamp

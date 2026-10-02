@@ -264,7 +264,7 @@ changes freely.
 ## The modules
 
 **Data in**
-`bars` (Parquet store, a shard per settled year and per month of the live one) · `backfill`
+`bars` (the store: a Parquet shard per settled year and per month of the live one, the month being written as CSV) · `backfill`
 (fetch and merge, session-aware skipping, the morning dividend check, the deepening and
 repair modes) · `sessions` (NYSE calendar, the FX reference week, and the futures', metals'
 and B3's own sessions) · `futures` (contract rolls, the front contract, thin bars, the
@@ -303,7 +303,7 @@ Product pushes go to `TELEGRAM_CHAT_ID`. Health and named provider failures go t
 ## Where the data lives
 
 ```
-data/tremor/bars/                  hourly bars, one Parquet per instrument per year  TRACKED
+data/tremor/bars/                  hourly bars: per instrument, Parquet shards and the month being written as CSV  TRACKED
 data/tremor/vix/                   daily VIX close                                   TRACKED
 data/tremor/corporate_actions.csv  ex-dates and splits                               TRACKED
 data/tremor/dividend_checks.csv    how far each fund's dividends are confirmed       TRACKED

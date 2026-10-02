@@ -31,3 +31,13 @@ def write_parquet(path: str, frame, **kwargs) -> None:
         frame.to_parquet(tmp, **kwargs)
 
     write_replacing(path, _write)
+
+
+def write_csv(path: str, frame, **kwargs) -> None:
+    kwargs.setdefault("index", False)
+    kwargs.setdefault("lineterminator", "\n")
+
+    def _write(tmp: str) -> None:
+        frame.to_csv(tmp, **kwargs)
+
+    write_replacing(path, _write)
