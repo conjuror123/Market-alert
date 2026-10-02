@@ -36,7 +36,7 @@ the tape on it by p90 5.6 bp.
 
 636 MiB packed (2026-10-02). GitHub starts warning at 1 GB.
 
-The committed bars are only 84 MiB of that; the rest is history — every rewrite of every
+The committed bars are only 199 MiB of that; the rest is history — every rewrite of every
 parquet since the store began, which git cannot delta because parquet is compressed.
 Sharding the live year by month (already done) slowed the growth; it did not undo what is
 already in the history.
@@ -102,10 +102,12 @@ lives"), what is missing and what was tried:
 | tin (Shanghai) | 2019-08 | Sina serves no older contract |
 | nickel | 2020-09 | Kitco's first quote is 2020-09-11 |
 | USD/BRL, USD/INR, USD/KRW | 2019-09, 2019-11, 2020-01 | Twelve Data's start; Dukascopy has no INR, and its BRL files (from 2007) hold no traded hour; KRW being measured; Sina forex holds six months; TradingView about 6,300 bars |
-| ATOM UNI FIL AAVE POL ADA DOGE DOT SOL AVAX | their Coinbase listing, 2020–2021 | not yet: Binance's archive and Bitstamp may reach earlier for some |
+| ATOM UNI FIL AAVE POL ADA DOGE DOT SOL AVAX | their Coinbase listing, 2020–2021 | Bitstamp lists none earlier. Binance's archive does, in USDT: ADA from 2018-04, POL (as MATIC) and ATOM 2019-04, DOGE 2019-07, DOT and SOL 2020-08, AVAX 2020-09; UNI, FIL, AAVE no earlier than Coinbase |
 
 **What acting on it would mean:** paid data for the futures and the three pairs; for the
-coins, the same gated fill XRP had (`tools/bitstamp_fill.py`).
+coins, the same gated fill XRP had (`tools/bitstamp_fill.py`), from Binance with each hour's
+USDT turned into dollars (Coinbase's BTC-USD over Binance's BTC/USDT would do it, and would
+take out USDT's own swings, such as its premium in March 2020).
 
 ---
 
