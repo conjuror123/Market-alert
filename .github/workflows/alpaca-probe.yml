@@ -53,15 +53,19 @@ permissions:
 jobs:
   # Research dumps: one Dukascopy symbol-year per job, side by side, because the
   # archive throttles each address to about a request every half minute. The
-  # CSVs come back as artifacts. only=dukascopy-dump, tickers = the symbols.
+  # CSVs come back as artifacts. only=dukascopy-dump.
   dukascopy-dump:
     if: inputs.only == 'dukascopy-dump'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
       fail-fast: false
+      # One job a symbol-year. The years ride the `days` input as a JSON list
+      # (e.g. [2019,2020]) and the symbols `tickers` as one (["COTTONCMDUSX"]):
+      # a year of two symbols ran past the hour.
       matrix:
-        year: [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
+        year: ${{ fromJSON(inputs.days) }}
+        symbol: ${{ fromJSON(inputs.tickers) }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -70,16 +74,13 @@ jobs:
           cache: "pip"
       - run: pip install -r requirements.txt
       - name: Can a runner reach Binance's market-data mirror?
-        if: matrix.year == 2026
+        if: matrix.year == 2026 && strategy.job-index == 0
         run: curl -sS -o /dev/null -w "data-api.binance.vision %{http_code}\n" "https://data-api.binance.vision/api/v3/klines?symbol=ADAUSDT&interval=1h&limit=2"
       - name: Dump
-        run: |
-          for s in $(echo "${{ inputs.tickers }}" | tr ',' ' '); do
-            python -m tools.dukascopy_dump "$s" ${{ matrix.year }} dump/
-          done
+        run: python -m tools.dukascopy_dump ${{ matrix.symbol }} ${{ matrix.year }} dump/
       - uses: actions/upload-artifact@v4
         with:
-          name: dukascopy-${{ matrix.year }}
+          name: dukascopy-${{ matrix.symbol }}-${{ matrix.year }}
           path: dump/
 
   probe:
