@@ -22,6 +22,7 @@
           "twelvedata_SHY:1790859600",
           "twelvedata_IEI:1790604000",
           "twelvedata_IEI:1790866800",
+          "twelvedata_IEI:1790949600",
           "twelvedata_IEF:1790604000",
           "twelvedata_IEF:1790866800",
           "twelvedata_TLH:1790604000",
@@ -31,6 +32,7 @@
           "twelvedata_TIP:1790866800",
           "twelvedata_MBB:1790604000",
           "twelvedata_MBB:1790866800",
+          "twelvedata_MBB:1790949600",
           "twelvedata_LQD:1790604000",
           "twelvedata_JNK:1790859600",
           "twelvedata_JNK:1790946000",
@@ -41,16 +43,18 @@
         ],
         "from": 1790553900,
         "hashes": [
-          "ca9b76fc3fbc7f47",
-          "91ec3e1595a44b1e",
-          "bb364fe3310c40e7"
+          "144aa89844954229",
+          "fe8329dee3e2d8cb",
+          "38be17c4d106804b",
+          "f96a8796cc14440f"
         ],
         "ids": [
           55,
           69,
-          82
+          82,
+          86
         ],
-        "rows": 19,
+        "rows": 21,
         "to": 1790985900
       }
     },
@@ -83,6 +87,10 @@
         "hash": "08146ac0c1ac795f",
         "id": 77
       },
+      "twelvedata_IEI:1790949600": {
+        "hash": "445514cffd9120a5",
+        "id": 84
+      },
       "twelvedata_JNK:1790859600": {
         "hash": "c5e206398ac05dc9",
         "id": 75
@@ -102,6 +110,10 @@
       "twelvedata_MBB:1790866800": {
         "hash": "9afd7653a0997b4b",
         "id": 81
+      },
+      "twelvedata_MBB:1790949600": {
+        "hash": "cd252f3b126ff9f0",
+        "id": 85
       },
       "twelvedata_SHY:1790859600": {
         "hash": "ceb67a97a899cabe",
