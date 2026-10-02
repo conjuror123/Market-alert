@@ -1,9 +1,10 @@
 """Sina Finance's futures bars, used for tin: the Shanghai Futures Exchange's.
 
-WHY SHANGHAI. No source found carries LME tin by the hour - Kitco has no tin,
-the LME and Investing.com refuse readers, and Sina's own LME tin quote (hf_SND)
-prints a couple of times a day. Shanghai's tin trades 84,000 lots a day, and on
-Sina its contracts serve hourly bars back to 2019-07 with no key. It is priced
+WHY SHANGHAI. LME tin's hourly history is nowhere free - Kitco has no tin, the
+LME and Investing.com refuse readers, and Sina's own LME tin (SND, on the chart
+endpoint gu.sina.cn GlobalService.getMink) serves only its last 1,023 hourly
+bars, from 2026-07. Shanghai's tin trades 84,000 lots a day, and on Sina its
+contracts serve hourly bars back to 2019-07 with no key. It is priced
 in yuan a tonne with VAT, so it moves with the yuan and China's market as well
 as with tin; it is labelled for what it is, Tin (Shanghai).
 

@@ -5,7 +5,7 @@
 > or how to run it (`docs/operations.md`).
 > **Keep it short.** A visitor should be able to read the whole thing.
 
-Once an hour the bot looks at 61 instruments — equities, credit, rates, precious and
+Once an hour the bot looks at 173 instruments — equities, credit, rates, precious and
 industrial metals, energy, agriculture, FX and crypto — and writes to Telegram when one
 of them moves in a way that is unusual **for that instrument**.
 
@@ -21,9 +21,9 @@ Mykland (2008) — and the message says how big it was in those terms:
 
 The square's colour is the word: ⬜ noticeable at 3.9σ, 🟨 high at 5.5σ, 🟧 major at 7.8σ,
 🟥 extreme at 11.0σ. An instrument's event is the 24 hours from its first move, worded by
-its rarest hour. `high` and up arrive as their own message, about 9 a week for today's
-basket; `noticeable` goes into one weekly note, about 16 rows a week, each with a small
-ping. The detector is built in stages (`docs/architecture.md`); this branch is it as it
+its rarest hour. `high` and up arrive as their own message, about 22 a week for today's
+basket; `noticeable` goes into one weekly note, about 49 rows a week, each with a small
+ping (the year to 2026-10-01). The detector is built in stages (`docs/architecture.md`); this branch is it as it
 will run live, and production runs the previous detector until the switch.
 
 It runs entirely on GitHub Actions. Nothing extra needs hosting.
@@ -45,14 +45,16 @@ the map of these documents.
    |---|---|
    | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | required — where pushes go |
    | `TELEGRAM_HEALTH_CHAT_ID` | optional — health and provider failures; without it they are only logged, never sent to the public channel |
-   | `TIINGO_API_KEY` | 29 US-session funds (free: 50/hour, 1000/day) |
-   | `SIFTING_API_KEY` | the 8 FX pairs (free: 10,000/month) |
-   | `TWELVEDATA_API_KEY` | archive, gap-fill and deepening — **not** the hourly path |
+   | `TIINGO_API_KEY` | 27 funds (free: 50/hour, 1000/day) |
+   | `ALPACA_KEY_ID`, `ALPACA_SECRET_KEY` | 30 funds live (free IEX feed); history from 2016 (consolidated tape) |
+   | `SIFTING_API_KEY` | the 17 FX pairs (free: 10,000/month) |
+   | `TWELVEDATA_API_KEY` | 8 thin funds every hour (free: 800/day, 8/minute); archive, gap-fill and deepening |
    | `FRED_API_KEY` | the VIX series only |
    | `HFDATA_API_KEY` | optional — deepening US-equity history before 2020 |
 
-   Yahoo (15 thin ETFs) and Coinbase (9 crypto) need no key. Without a Tiingo key the
-   hourly run still prices the Yahoo and Coinbase names and stays silent on the rest.
+   Yahoo (34 funds, 5 futures), Sina Finance (33 funds, tin), Google Finance (TUR), Kitco
+   (nickel) and Coinbase (16 coins) need no key. Without a key the hourly run still prices
+   the other providers' names and stays silent on that one's.
    Which providers you need is decided by `config/basket.yaml`: each instrument names its
    `provider`, and a missing key costs you those instruments and nothing else. **To add a
    provider:** a client module in `price_monitor/` exposing `fetch_full_history(...)`, its

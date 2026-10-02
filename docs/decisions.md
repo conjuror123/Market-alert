@@ -91,8 +91,8 @@ record 28,095 flags become 19,185 events.
 
 **`high` and up push; `noticeable` goes into the note.** The reader's choice, to try: more
 messages than the previous detector's one a week was the point of the change. For today's
-basket that is about 9 pushes a week and about 16 note rows a week, each row with its own
-small ping; the busiest week of the last year had 32 pushes and 52 rows. `noticeable`
+basket of 173 that is about 22 pushes a week and about 49 note rows a week, each row with its
+own small ping, over the year to 2026-10-01; the busiest week had 87 pushes and 142 rows. `noticeable`
 alone is two thirds of the events, so it is the one word worth reading in a batch; `high` (5.5σ) is where a move stops being routine for its instrument.
 To be tuned with the threshold at stage 12, against a few weeks of real messages.
 
@@ -276,6 +276,61 @@ the stored bars hour by hour in basis points, against one sigma of an hourly mov
 bps). A feed disagreeing by a few basis points on a thin fund is not a cheaper feed — it is
 a source of alerts for moves that did not happen.
 
+**A fund goes to an IEX feed only if IEX prices it like the tape**: median ≤ 2 bp, p90 ≤ 5,
+and at most 2% of the tape's hours missing, against Alpaca's consolidated tape (SIP) over
+28 days (`tools/fund_verdict.py`, 2026-09-30). IEX is one exchange; it passed 30 of the 89
+candidates. The thin commodity funds fail it by far: UGA by 15.09 bp at the median and 60.17
+at p90 (2026-09-22), one and a half to three sigma of an hourly move. The rest go to a
+consolidated feed.
+
+**Documented APIs first, Yahoo last, and no quota past about 85%**, so tests and backfills
+have room. Tiingo holds 27 funds (its key is shared with production until the switch);
+Alpaca's free IEX feed the other IEX-safe ones (fresh at :05, measured 2026-10-01); Twelve
+Data 8, in one batched request a run on a thread beside the other providers (16 would add a
+minute's wait to every run); SiftingIO the currency pairs (about 85% of its month). Sina
+Finance and Yahoo split the remaining consolidated funds, alternately within each block, so
+an outage of either leaves every block reporting: Sina's half-hour US bars matched the tape
+at 0.0 bp (median and p90) on all 67 then on Yahoo, with 100% of its volume and no hour
+missing (28 days to 2026-10-02, `tools/sina_probe.py`). TUR alone is on Google Finance's
+quote page: every consolidated feed misses the tape on it by p90 5.6 bp, Google's page by
+0.0.
+
+**History from a second source is written only where it agrees with the store**: over the
+hours both hold, returns correlate ≥ 0.90, the median level gap is ≤ 25 bp, on at least 200
+hours (`tremor.backfill.verify_alignment`). The level test is the one that bites — a
+dividend-adjusted import scored 0.9959 on returns while sitting 99 bp below the store. Only
+hours the store lacks are written. A stored bar is replaced only from the consolidated tape
+and by hand (`--repair-alpaca`; EZU's 2020-03-12 15:00 was +12.3% in the store, −1.2% on the
+tape). A stretch with no overlap at all is refereed by a third market: Bitstamp's XRP over
+Coinbase's 905-day suspension against Binance's archive, return correlation 0.9945, every
+month at 0.989 or better (`tools/bitstamp_fill.py`).
+
+**Futures are read one contract at a time.** Live bars come from the front contract;
+Yahoo's continuous series mixes in other contracts' prints — 64 of coffee's hours since
+2024-05 jump past 3% and straight back, against 2 on a single contract — so it is used only
+for history, cleaned once (`tools/futures_history.py`). Each series rolls on its liquid
+months before first notice, and the night across a roll, which is the spread between two
+contracts, is not scored. A bar on under 5% of the series' usual volume is a quote, not a
+trade, and is a hole: a third of the moves past 6σ sat on such bars, each undone the next
+hour (`tremor/futures.py`). Cotton's continuous history holds a third of a normal month in
+14 of its 29 months and is not used; its record starts with its contracts' own bars.
+
+**Nickel's quote glitches are dropped where it is fetched.** Kitco's gateway jumped 18–86%
+in one five-minute step and came back five times in its history; no real step that size
+has come back (2022-03-21, −22%, stayed). A step past 15% that returns more than halfway
+within 24 hours is dropped; one not yet decided is held back, so a real 15% five-minute move
+would reach the store a day late (`price_monitor/kitco.py`).
+
+**Tin is Shanghai's.** The Shanghai Futures Exchange's main contract, hourly from 2019-08
+(`tools/sina_history.py`), in yuan with VAT, labelled Tin (Shanghai). LME tin is served by
+the hour only by Sina's chart endpoint, and only its last 1,023 bars — from 2026-07. Over
+their shared clock hours the two correlate 0.85 hour by hour and 0.91 day by day.
+
+**A candidate source answers four questions, cheapest disqualifier first:** does it serve
+the bar that closed at :00 by :05; how many requests an hour does it allow against what it
+would carry; does it agree with the consolidated tape on the thin names
+(`tools/fund_verdict.py`); which tickers does it hold, and how far back.
+
 ---
 
 ## The shape of the repository
@@ -283,9 +338,10 @@ a source of alerts for moves that did not happen.
 **Derived data is not tracked.** The metrics and the event table are rewritten every run
 and rebuild from the bars in about fifteen seconds.
 
-**Bars commit once a day, not hourly.** Appending to Parquet leaves earlier row groups
-byte-identical, so a day of new bars costs about 1 MB; hourly commits would be twenty-four
-times that for the same information.
+**Bars commit once a week, on Saturday.** Git cannot delta parquet, so a commit stores every
+byte of each shard it touches and the frequency is the whole cost. Nothing is lost by
+waiting while every provider reaches back further than a week: each run fetches from the
+newest committed bar (`operations.md`).
 
 **Two stores, not one.** Parquet for columnar history, JSON for state where a whole-file
 rewrite is the point. Nothing here needs a server.
@@ -295,6 +351,36 @@ rewrite is the point. Nothing here needs a server.
 ## Settled and closed
 
 Raised, dealt with, and not to be raised again.
+- **The 2020-02-10 wall** — filled. Twelve Data's intraday archive stops there; Alpaca's
+  consolidated tape (2016 on) filled 61 funds, 407,153 hours, each gated on a three-month
+  overlap (`--deepen-alpaca`, 2026-10-01). Every fund reaches 2016 or its launch.
+- **The feed split resting on one week (62 hours)** — superseded by the 28-day fund verdict
+  against the consolidated tape (2026-09-30) and Alpaca's 30-day comparison (2026-09-22:
+  SIP 44 of 44 at 0.00 bp, IEX 30 of 44).
+- **A second consolidated live feed** — Sina Finance (2026-10-02), above.
+- **Live IEX capacity past Tiingo's slots** — Alpaca's free IEX feed (2026-10-01).
+- **USD/BRL's nights** — its own session, `b3_fx`, 09:00–18:00 São Paulo: outside it the
+  real moves under 3.5 bp an hour, against 9–31 inside (2026-10-02).
+- **Sources measured and not used**, so they are not measured again:
+
+  | source | why not |
+  |---|---|
+  | Finnhub (free) | quotes only; a quote at :05 is not the :00 close |
+  | Eulerpool | no hourly bars for funds |
+  | London Strategic Edge | its catalogue lacks what was missing |
+  | Financial Modeling Prep (free) | daily bars only; hourly answers 402 |
+  | Massive (Polygon), free | today's bars only after the close |
+  | Metal Sentinel (RapidAPI) | nickel and aluminium quotes, no history |
+  | TradingView | about 6,300 hourly bars a symbol without a login, and its terms; used once, for research (USD/BRL's session) |
+  | Investing.com, the LME, CNBC | refuse automated readers; not bypassed |
+  | FXEmpire | quotes, and OANDA's CFDs |
+  | DailyFX | gone |
+  | Business Insider | tin once a day |
+  | Kitco, aluminium | a second price 30% higher every few weeks |
+  | Binance's API | HTTP 451 from US runners; its public archive is used as a referee only |
+  | Stooq | nothing without a login |
+  | Sina forex | six months of hourly bars |
+  | Barchart, Interactive Brokers | paid (about $500 a month) or a funded account; not tried |
 - **Retention as a gate** — refused. Gating buys silence for as long as the answer takes.
 - **A watchdog for the trigger's silence** — not this repository's job. cron-job.org makes
   the call, so it is the party that knows the call stopped; anything inside the run shares

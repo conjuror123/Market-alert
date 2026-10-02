@@ -1,6 +1,6 @@
 """What Eulerpool's free plan serves, measured against the consolidated tape.
 
-Eulerpool (docs/concerns-for-later.md, the fund verdict) is the one source whose
+Eulerpool (docs/decisions.md, the fund verdict) is the one source whose
 free licence might fit a public channel: non-commercial use with the line "Data
 by Eulerpool". This asks it what tools/fund_verdict.py asked every other feed:
 

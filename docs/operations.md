@@ -58,7 +58,7 @@ seconds, so it has no warm state to lose.
 | **Yahoo futures** | as Yahoo | 5 commodities, one request each a run in session; live from the front contract (`tremor.futures.front_contract`) |
 | **Coinbase** | no key | 16 crypto |
 | GitHub Actions minutes | unlimited (public repo) | — |
-| Repository size | 1 GB warning, ~5 GB cutoff | 565 MiB packed |
+| Repository size | 1 GB warning, ~5 GB cutoff | 636 MiB packed (2026-10-02) |
 
 SiftingIO's monthly bucket and Twelve Data's eight a minute are the binding live limits:
 each FX pair costs about 520 SiftingIO calls a month, one per hour of the FX week,  and
@@ -88,12 +88,14 @@ rather than being read as a cold start.
 parquet, so a commit stores every byte of whatever shard changed and the frequency is the
 whole cost. Nothing is lost by waiting: the forward fetch starts at each instrument's
 newest **stored** bar, so a week-old checkout is simply a week-wide request, and a week is
-far inside every provider's reach — Tiingo serves 365 days, Yahoo 55 at thirty minutes.
+far inside every provider's reach but one — Tiingo serves 365 days, Yahoo 55 at thirty
+minutes, Sina about 78. **Google Finance serves one session**, so TUR keeps only the last
+weekday of each week under this cadence (`concerns-for-later.md`, item 1).
 Saturday because every market that keeps a session is shut, so the week written down is a
 whole one. A missed Saturday is not a loss either — the next one re-fetches and commits the
 whole fortnight — and the margin before anything is unrecoverable is about seven
-consecutive misses, set by Yahoo's 55 days at thirty minutes, the shortest reach in the
-basket. VIX rides the same commit so the skip-if-fresh check can see the latest close
+consecutive misses, set by Yahoo's 55 days at thirty minutes, the shortest reach after
+Google's. VIX rides the same commit so the skip-if-fresh check can see the latest close
 and avoid re-fetching CBOE's full 1990 file.
 
 **Never:** `data/tremor/metrics/` and `jumps.parquet`. Derived, gitignored, rebuilt in the
@@ -111,7 +113,7 @@ history shares a shard with the new hour. Settled years get one shard each; the 
 written gets twelve, one per month (`tremor/bars.store_path`). Measured on the real store,
 that cuts the bytes rewritten per append from 6.89 MiB to 0.61 MiB — **11.4x** — and
 weekly rather than daily commits divide the remainder by seven again. One complete year of
-bars for all 61 instruments is 5.2 MiB; recording it costs about 12 MiB of git a year,
+bars for the 61 instruments of 2026-09 was 5.2 MiB; recording it costs about 12 MiB of git a year,
 against 955 MiB under daily commits of year-sized shards.
 
 ---
@@ -130,16 +132,17 @@ red — empty events would otherwise look like a quiet hour.
 
 A provider failure names the instruments and their providers in a message to
 `TELEGRAM_HEALTH_CHAT_ID`. The provider is not switched automatically. A Yahoo, Tiingo or
-SiftingIO rate limit that survives retries skips that provider's remaining instruments and is named
-in the same message; a 404 stays a per-instrument dark.
+SiftingIO or Alpaca rate limit that survives retries skips that provider's remaining instruments
+and is named in the same message; a 404 stays a per-instrument dark.
 
 **A fetch is retried three times before it counts as a failure** — two seconds of backoff
-then four, inside each provider's client. That holds for all three providers on the
-hourly path: Tiingo, SiftingIO, Yahoo, Google, Kitco and Coinbase. A dropped connection therefore costs six seconds
-rather than a red run, against a twenty-minute job timeout, and a failure that reaches the
-health message is one that survived all three attempts. Twelve Data waits 8 and 16
-instead, because a retry there spends a credit against an 8-a-minute plan; it answers
-deepening and gap-fill runs rather than the hourly one.
+then four, inside each provider's client. That holds for every provider on the hourly path
+but one: Tiingo, Alpaca, SiftingIO, Sina, Yahoo, Google, Kitco and Coinbase. A dropped
+connection therefore costs six seconds rather than a red run, against a twenty-minute job
+timeout, and a failure that reaches the health message is one that survived all three
+attempts. Twelve Data's hourly batch is retried twice, 61 seconds apart, because a retry
+spends the minute's eight credits; it runs on its own thread, so the wait is not added to
+the run. Its deepening and gap-fill requests wait 8 and 16.
 
 **Three things watch, and none of them needs code here:**
 
@@ -180,8 +183,9 @@ through by an edit instead, and Telegram's reason is logged.
 
 ## Silence is the normal state
 
-About 9 pushes a week across today's 61 instruments and about 16 note rows, each with a
-small ping; the busiest week of the last year had 32 pushes and 52 rows (`decisions.md`).
+About 22 pushes a week across today's 173 instruments and about 49 note rows, each with a
+small ping, over the year to 2026-10-01; the busiest week had 87 pushes and 142 rows
+(`decisions.md`).
 One note a week opens at the first run after the week's last NYSE close — normally Friday
 16:05 New York, 20:05 UTC in summer and 21:05 in winter; Thursday on a Good Friday week,
 13:05 on a half day — and fills as moves are found; it opens even when nothing has happened
@@ -223,9 +227,11 @@ thing to report afterwards, not a thing to steer by.
 To run the whole pass by hand:
 
 ```bash
-export TIINGO_API_KEY=...       # hourly bars: funds
+export TIINGO_API_KEY=...       # hourly bars: 27 funds
+export ALPACA_KEY_ID=...        # hourly bars: 30 funds (IEX); history (SIP)
+export ALPACA_SECRET_KEY=...
 export SIFTING_API_KEY=...      # hourly bars: FX
-export TWELVEDATA_API_KEY=...   # archive / gap-fill / deepening
+export TWELVEDATA_API_KEY=...   # hourly bars: 8 funds; archive / gap-fill / deepening
 export FRED_API_KEY=...         # the VIX series only
 
 python -m tremor.backfill

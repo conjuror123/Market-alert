@@ -16,31 +16,25 @@ newly added name says "biggest in a quarter" for years before it can say "bigges
 
 ---
 
-## 1. The 2020-02-10 wall — filled to 2016 from Alpaca (2026-10-01)
+## 1. TUR keeps one weekday a week under the weekly bar commit
 
-Twelve Data's intraday archive stops at 2020-02-10 for every fund, and HF Data (2002 on)
-does not carry about sixty of them. `tremor.backfill --deepen-alpaca` filled those from
-Alpaca's free consolidated tape (SIP), which starts 2016-01-01: 61 funds, 407,153 hourly
-bars, each gated on a three-month overlap with the store (returns correlate ≥ 0.90, levels
-within 25 bp; most matched at 0.00 bp). XLP's 2020–2022 hole went with it — it now reaches
-2016 like the rest. Funds launched after 2016 start at launch (FALN 2016-06, GIGB 2017-06,
-IGIB and USIG 2017-08, USHY 2017-10, JMBS 2018-09); XLC launched 2018-06 and was already
-complete.
+TUR's feed, Google Finance's quote page, holds the latest session and nothing earlier. The
+bars are committed on Saturdays (`operations.md`) and every run fetches from the newest
+committed bar, so from Tuesday on the week's earlier sessions cannot be fetched again, and
+Saturday's commit records Friday's alone. Monday to Thursday are lost every week, and the
+events found on them disappear when the next day's run rescores without them. Nothing is
+affected today — this branch is not on the hourly trigger — but it would be from the
+switch.
 
-**EZU and EBND joined them** after their bad stored prints were replaced with the
-consolidated tape's (`--repair-alpaca`, the owner's call): EZU's 2020-03-12 15:00 hour
-(+12.3% in the store, −1.2% on the tape) and five EBND hours in March–April 2020. Their
-overlaps then checked at 0.9995 and 0.970. Every fund in the basket now reaches 2016 or its
-launch.
-
-A short history caps the DATE a message can quote ("biggest since…"), not the word it can
-reach.
+**What acting on it would mean:** committing TUR's month shard (a few kB) on the first run
+after each NYSE close; or moving TUR to Yahoo or Twelve Data, which reach weeks back and miss
+the tape on it by p90 5.6 bp.
 
 ---
 
 ## 2. Repository size
 
-565 MiB packed, 590 MiB on disk. GitHub starts warning at 1 GB.
+636 MiB packed (2026-10-02). GitHub starts warning at 1 GB.
 
 The committed bars are only 84 MiB of that; the rest is history — every rewrite of every
 parquet since the store began, which git cannot delta because parquet is compressed.
@@ -53,81 +47,20 @@ reason it has not been done, not the effort.
 
 ---
 
-## 3. The feed comparison rests on 62 hours
+## 3. The fund verdict rests on 28 days of one regime
 
-**What the feed split is.** The basket is not served by one data provider. Each
-instrument is assigned to the feed that was shown to price *it* correctly:
+Which feed each fund is on (`decisions.md`, "The data") was measured over 28 days to
+2026-09-30, and Sina's agreement over 28 days to 2026-10-02 — one calm stretch. Feeds that
+agree to a basis point in a quiet month can part in a violent one, when prints scatter
+across venues and an alert matters most. Nothing is known to be wrong.
 
-| provider | instruments | what it is |
-|---|---|---|
-| `tiingo` | 29 | IEX — a single exchange |
-| `sifting` | 8 | FX; aggregated across venues, 0.11–0.35 bps median against the stored bars |
-| `yahoo` | 15 | a consolidated feed — an undocumented endpoint with no SLA, which can change shape without notice. That is why the funds are split across two providers rather than sent to one |
-| `coinbase` | 9 | the exchange itself, for crypto |
-
-**Why the assignment needed measuring at all.** IEX is one exchange holding roughly 5.5%
-of US equity volume; a consolidated feed sees the whole tape. Two feeds can both be
-complete and still disagree about where a thin ETF closed at 14:00, because they saw
-different prints. On a liquid fund that difference is a fraction of a basis point. On a
-thin single-commodity fund it is not — and a few basis points of disagreement, against an
-hourly sigma of 20–40 bps, is not noise. **It is an alert for a move that never
-happened**, arriving through the data rather than through the arithmetic. That is the one
-failure worth paying to avoid, and it is why fifteen thin funds stayed on the
-consolidated feed instead of moving with the rest.
-
-**What was actually measured.** `tools/tiingo_compare.py` fetched the same hours from
-Tiingo, folded them to the hourly grid with the same code the pipeline uses, joined them
-to the bars already stored, and reported the median absolute difference in basis points,
-per instrument. Instruments that agreed closely moved; instruments that did not, stayed.
-
-**The concern.** That comparison covered **62 overlapping hours — one week**, and has not
-been repeated since. One week is one volatility regime. A feed that tracks the
-consolidated tape closely in a quiet week can diverge in a violent one, precisely when an
-alert matters most, because that is when prints scatter across venues. Several
-instruments sat close to the line where the decision flips; their assignment rests on a
-sample too small to separate them confidently.
-
-Nothing is known to be wrong. The point is that the evidence is thin, and the assignment
-it produced is treated as settled.
-
-**What acting on it would mean:** re-running `tools/tiingo_compare.py` — 44 requests,
-read-only, runs in Actions where both the key and the store are — over a longer and
-ideally more volatile window, and recording the sample size as a limit next to the
-result. Cheap. It is on this list rather than the other one only because nothing is
-visibly broken.
-
-**The 2026-09-22 Alpaca probe is a second, independent measurement of the same thing, and
-it confirms the split.** `tools/alpaca_compare.py` put Alpaca's two feeds against the
-stored bars over 30 days, all 44 US-listed instruments:
-
-| | agrees with the store | median disagreement | volume share |
-|---|---|---|---|
-| Alpaca **SIP** (consolidated) | 44 of 44 | **0.00 bps** | 119.6% |
-| Alpaca **IEX** (one exchange) | 30 of 44 | 0.86 bps | 7.5% |
-
-The fourteen IEX disagrees with are *exactly* the thin commodity funds — BNO CORN CPER
-DBA DBB DBC PALL PPLT SLV SOYB UGA UNG USO WEAT — and the size is not marginal: **UGA
-disagrees by 15.09 bps at the median and 60.17 at the ninetieth percentile**, which
-against an hourly sigma of 20–40 bps is one and a half to three sigma. That is a
-`noticeable` event manufactured by the feed. The decision to keep fifteen thin funds off
-a single-exchange feed was right, and is now supported by a second provider rather than
-by one 62-hour sample.
-
-It also raises the confidence in the stored bars themselves: an independent consolidated
-tape agrees with them to the cent on the median hour.
+**What acting on it would mean:** re-running `tools/fund_verdict.py` and `tools/sina_probe.py`
+after the next violent month. They can only look back as far as each feed serves (Yahoo 55
+days, Sina about 78), so the window has to be caught while it is recent.
 
 ---
 
-## 4. Better and deeper data
-
-The general version of concerns 1 and 3: more history, better-verified providers, and
-more instruments. Grouped here because they are one programme rather than three tasks,
-and because each of them is a data migration with a verification step rather than a code
-change.
-
----
-
-## 5. The weekend yardstick is the noisiest in the jump detector
+## 4. The weekend yardstick is the noisiest in the jump detector
 
 A weekend gap is judged against the 26 weekends of the half-year before it, so its yardstick
 is uncertain by about ±16% (a fund's hours: ±3%, its nights: ±8%). Measured, pooling
@@ -141,180 +74,77 @@ window for weekends only — each a one-line change in `tremor/jumps.py` and a r
 
 ---
 
-## 6. A wider basket: every source measured, and what is still unsourced
+## 5. Most of the basket rides undocumented endpoints
 
-The plan below adds 96 funds, 9 currency pairs and 7 coins. Each source was measured for
-it on 2026-09-30 (`tools/fund_verdict.py`, `tools/sifting_probe.py`), and each was asked
-only what it alone can answer.
+Yahoo (34 funds, 5 futures, the dividend check), Sina Finance (33 funds and tin), Google
+Finance (TUR) and Kitco (nickel) are web endpoints with no terms that allow this use and no
+notice before they change. A changed shape raises, and the run's health message names the
+provider and its instruments; the funds are split between Sina and Yahoo within each block
+so either can fail without silencing a block. Kitco's glitch rule holds a real 15%
+five-minute move back a day. Tiingo's key is shared with production until the switch.
 
-| source | live hourly? | history | its job here |
-|---|---|---|---|
-| Tiingo IEX | yes — 50/hour, shared with production | — | liquid funds, IEX-safe only |
-| Alpaca IEX | documented real-time on the free plan; not yet measured at :05 | from about 2021 | IEX-safe funds, with no quota, *if* fresh |
-| Alpaca SIP | no — refuses queries ending under 15 minutes ago | from 2016, many symbols a call | the reference tape; seeding every new fund |
-| Yahoo | yes — no published limit, no SLA | 60 days at 30 minutes | funds that need the consolidated tape |
-| Twelve Data | yes — 800/day, but 8/minute | EM pairs from 2019–2020 | archive; live, a minute of every run per 8 funds |
-| SiftingIO | yes — 10,000/month | FX from 2000–2012, except KRW INR BRL | every FX pair; 5 funds |
-| Coinbase | yes — no key | from each coin's listing | crypto |
-| Finnhub | quotes only on the free tier | — | nothing: a quote at :05 is not the :00 close |
-| FRED | daily series | — | VIX |
-| HF Data | — | US funds before 2020 | deepening only |
-
-Alpaca SIP's 15-minute wall was confirmed on 2026-09-22 (403 at 2, 5 and 10 minutes,
-served at 15). Moving the run to :20 or paying for the unrestricted tier would lift it, and
-both were declined.
-
-**The fund verdict.** The reference is Alpaca's consolidated tape over 28 days of
-regular-session hours. A feed passes when its hourly closes agree to median ≤ 2 bps and
-p90 ≤ 5, **and** it lacks at most 2% of the tape's hours: a missing hour is a move never
-scored.
-
-- **7 of the 96 no longer trade:** `JJC JJN JJU JO NIB BAL COW`. They are not on the tape
-  at all.
-- **The other 89 all reach back past 2020-02-10** on Alpaca's history.
-- **IEX agrees on 30:** `KRE XRT IHI SMH SOXX IGV DIA RSP EWJ FXI EWZ INDA EWT EPI VNQ IYR
-  GOVT VGIT SPTL VTIP SCHP VMBS LMBS VCIT VCSH IGIB SPIB USIG USHY EMLC`. IEX here means
-  Tiingo's feed or Alpaca's, which are the same exchange.
-- **Yahoo agrees on 87.** It misses TUR (p90 5.6) and RWX (3% of hours missing) by a
-  hair. On TUR, Twelve Data misses the tape by exactly the same amounts, spread over every
-  hour of the day, so that is how thin TUR trades rather than a bad feed.
-  - **Since 2026-10-01 both are in.** RWX on Yahoo: a missing hour is now a hole, skipped
-    rather than merged into the next, so 3% missing costs readings, not truth. TUR on
-    Google Finance's quote page, whose hourly closes matched the tape exactly on the one
-    session measured (`tools/google_probe.py`). Google sees exchange trades only — 91% of
-    TUR's volume, 19% of RWX's — which is why RWX is not on it.
-- **Twelve Data equals Yahoo** on all eight names checked. It is the consolidated tape too.
-- **SiftingIO carries few of the candidates at all.** Five pass: `DIA MDY IAU SGOL SIVR`.
-- **The 44 held funds reproduce today's split, with two exceptions.** USO and SLV sit on
-  Tiingo and fail IEX, at 3.3/15.2 and 1.6/5.4 bps, as they did in the 2026-09-22
-  comparison.
-
-**What fits where:**
-
-- The 30 IEX-safe funds exceed Tiingo's 21 free slots, or 23 if USO and SLV leave it.
-- The other 59 need a consolidated feed:
-  - Yahoo;
-  - Twelve Data, costing a minute of every run per eight funds;
-  - SiftingIO's spare, about 1,100 calls a month with 17 pairs, which is roughly the 5
-    funds it passes.
-
-**FX.** SiftingIO serves all nine new pairs live. For USD/KRW, USD/INR and USD/BRL its
-hourly history starts on 2026-07-26. Twelve Data reaches further back for all three:
-
-| pair | Twelve Data from | agrees with SiftingIO? |
-|---|---|---|
-| USD/KRW | 2020-01 | yes, 0.38 bps median |
-| USD/INR | 2019-11 | yes, 0.38 bps median |
-| USD/BRL | 2019-09 | **no**, 1.54 median / 6.94 p90 even inside 11:00–22:00 UTC |
-
-The other six new pairs go back to 2003–2007 on SiftingIO itself.
-
-**Crypto.** Coinbase lists all seven:
-
-| coin | listed from |
-|---|---|
-| XRP | 2019; Bitstamp fills 2017-03 on and the 2021–2023 suspension |
-| ATOM | 2020-01 |
-| UNI | 2020-09 |
-| FIL | 2020-12 |
-| AAVE | 2020-12 |
-| DOT | 2021-06 |
-| POL | 2024-09, as the renamed MATIC (MATIC-USD: 2021-03 to 2024-09) |
-
-POL's two histories would have to be joined.
-
-**Still without a source:**
-
-1. **Nothing.** Every delisted ETN's commodity is in (2026-10-02):
-   - **Tin** from Sina Finance: Shanghai's tin, its main contract hourly, history chained
-     from the delivery months to 2019-08 (`price_monitor/sina.py`). LME tin has no hourly
-     source - Kitco has none, the LME and Investing.com refuse readers, Sina's LME quote
-     prints twice a day - so this is tin priced in yuan with VAT, labelled Tin (Shanghai).
-     Its curve is flat (neighbouring months 0-5 bp apart), so its contract changes are
-     not handled at all; its night and day are two sessions, each gap scored.
-   - **Nickel** from Kitco's chart gateway (`price_monitor/kitco.py`), on the `lme`
-     session, from 2020-09; its glitches and still days dropped by the client. A real
-     15% five-minute move would be held a day as a possible glitch and never go out.
-   - **Coffee, cocoa, cotton, live cattle, aluminium** from Yahoo's futures
-     (`tremor/futures.py`), each on its exchange's session (`sessions.DAILY_SESSIONS`).
-     Live bars come from the front contract itself (KCZ26.NYB, ...), rolled on liquid
-     months before first notice; Yahoo's continuous series mixes contracts and is used
-     only for history, cleaned once (`tools/futures_history.py`): other-contract hours
-     and stray opens out, sparse months out, and the stretches where it lags this
-     series' roll out. Roll nights and bars too thin to be a trade are not scored.
-     Coffee, cocoa and cattle from 2024-05; aluminium from 2024-05 as Yahoo's series
-     (not rolled here: monthly, a tenth-of-a-percent spread, no flips); cotton only from
-     2026-06-17, its continuous history being too broken to use.
-   - Not tried: Aluminium from Kitco (a second price 30% higher every few weeks);
-     FXEmpire's chart API (OANDA's CFDs, none of these); DailyFX (gone).
-2. **A second consolidated live feed for about 60 funds.** The alternative is to accept
-   Yahoo carrying them, which is the concentration this document already worries about.
-   Twelve Data can take a slice, at a minute of run time per eight.
-3. **USD/BRL is in** (2026-10-02), on its own session, `b3_fx` (09:00-18:00 Sao Paulo):
-   outside it the real barely moves (under 3.5 bp an hour against 9-31 bp inside). Live
-   from SiftingIO; history from Twelve Data (2019-09), whose closes sit 1.5 bp (median)
-   from SiftingIO's - a twentieth of an in-session hour's move. TradingView's FX_IDC pull
-   (2024-12 on) was used only to measure the session.
-4. **Live IEX capacity past Tiingo's 21 slots** — answered 2026-10-01: Alpaca's free IEX
-   is fresh. At 15:05 UTC it served the half-hour bar opened at 15:00 and minute bars to
-   15:04, so the 30 IEX-safe funds fit between Tiingo and Alpaca. Not wired yet.**
-
-**The four questions any future candidate has to answer**, cheapest disqualifier first:
-
-1. **Freshness.** Does it serve the bar that closed at :00 by :05?
-2. **Headroom.** How many requests per hour does it allow, against the instruments it
-   would carry?
-3. **Agreement** against the consolidated tape, on the thin names.
-   `tools/fund_verdict.py` measures it.
-4. **Coverage and depth.** Which tickers exist, and do they reach 2020-02-10?
+**What acting on it would mean:** a paid consolidated feed — Alpaca's unrestricted SIP
+would carry every fund — and paid futures data (Barchart, Financial Modeling Prep).
 
 ---
 
-### The plan it blocks
+## 6. History no free source reached
 
-Parked 2026-09-22 and written for the previous detector; kept here so it outlives the
-session it was made in. **The owner's decisions:** one re-cut of the whole basket and block
-map at once; message volume may grow, and what to do about it is chosen after seeing it; no
-instrument shallower than the existing 2020-02-10 wall.
+A record shorter than six months scores from the paper's minimum and says "biggest since"
+only as far back as it goes. Below each record's start (`architecture.md`, "Where the data
+lives"), what is missing and what was tried:
 
-**The rule it rests on:** every block ends with 8–12 members. Measured on the previous
-detector's residuals, leftover correlation between members falls steeply up to about six
-and is flat after eight; splitting today's thin blocks without adding members made it
-worse. **Under the jump detector the blocks do not enter detection until stages 7 and 8**
-(`architecture.md`), so the rule binds then, not now — a new instrument today is judged on
-its own history alone.
+| instruments | missing before | tried |
+|---|---|---|
+| live cattle, aluminium | 2024-05 | Yahoo's hourly stops at 730 days; Dukascopy has neither; Stooq needs a login |
+| coffee, cocoa | 2024-05 | as above; Dukascopy's CFDs being measured |
+| cotton | 2026-06 | Yahoo's continuous series too broken to use; Dukascopy's CFD being measured |
+| tin (Shanghai) | 2019-08 | Sina serves no older contract |
+| nickel | 2020-09 | Kitco's first quote is 2020-09-11 |
+| USD/BRL, USD/INR, USD/KRW | 2019-09, 2019-11, 2020-01 | Twelve Data's start; Dukascopy has no INR, and its BRL files (from 2007) hold no traded hour; KRW being measured; Sina forex holds six months; TradingView about 6,300 bars |
+| ATOM UNI FIL AAVE POL ADA DOGE DOT SOL AVAX | their Coinbase listing, 2020–2021 | not yet: Binance's archive and Bitstamp may reach earlier for some |
 
-**The target**, about 150 instruments in 16–19 blocks, existing ones in bold, broad
-benchmarks (SPY IWM DIA RSP MDY) watched outside the basket:
+**What acting on it would mean:** paid data for the futures and the three pairs; for the
+coins, the same gated fill XRP had (`tools/bitstamp_fill.py`).
+
+---
+
+## 7. The blocks are still the nine broad ones
+
+The basket grew from 61 to 173 without its blocks being re-cut: equity holds 61, credit 26,
+rates 20. The jump detector reads each instrument alone, so this changes no message today;
+it matters from stages 7 and 8 (block co-jumps, own move), which test against the blocks.
+
+**The re-cut planned for then (2026-09-22):** every block ends with 8–12 members. Measured
+on the previous detector's residuals, leftover correlation between members falls steeply up
+to about six and is flat after eight; splitting the thin blocks without adding members made
+it worse. The target, 16–19 blocks, with the delisted ETNs' places taken by the
+commodities themselves:
 
 | block | members |
 |---|---|
-| US cyclicals | **XLY XLI XLB XLF XLE** KRE XRT ITB IYT XME |
-| US defensives | **XLP XLV XLU** XBI XPH IHI VDC VHT VPU |
-| US tech | **XLK XLC QQQ** SMH SOXX IGV FDN CIBR SKYY |
-| developed ex-US | **EFA** EWJ EWG EWU EWQ EWC EWA EWL EWN EZU |
-| emerging | **EEM** FXI EWZ EWW INDA EWY EWT EZA EPI TUR |
-| real estate | **XLRE** VNQ IYR RWR SCHH REM VNQI RWX |
-| government bonds | **SHY IEI IEF TLH TLT** GOVT SCHO VGIT VGLT SPTL BWX |
-| inflation and securitized | **TIP MBB** VTIP SCHP STIP VMBS SPMB LMBS JMBS |
-| IG credit | **LQD** VCIT VCSH IGIB SPIB USIG QLTA GIGB SLQD |
-| HY credit | **HYG JNK BKLN PFF** SHYG USHY ANGL SRLN FALN |
-| EM credit | **EMB** EMLC VWOB PCY EBND LEMB EMHY CEMB |
-| energy | **USO BNO UGA UNG DBC** DBO DBE UNL |
-| precious metals | **GLD SLV PPLT PALL** IAU SGOL SIVR GLTR |
-| industrial metals | **DBB CPER** JJC JJN JJU LIT REMX SLX |
-| agriculture | **DBA CORN WEAT SOYB** CANE JO NIB BAL COW |
-| DM FX | **EUR/USD USD/JPY GBP/USD USD/CHF AUD/USD NZD/USD USD/CAD** USD/SEK USD/NOK |
-| EM FX | **USD/CNH** USD/MXN USD/ZAR USD/BRL USD/TRY USD/INR USD/KRW USD/PLN |
-| crypto majors | **BTC ETH SOL LTC BCH ADA DOGE** XRP |
-| crypto alts | **LINK AVAX** DOT MATIC UNI ATOM FIL AAVE |
+| US cyclicals | XLY XLI XLB XLF XLE KRE XRT ITB IYT XME |
+| US defensives | XLP XLV XLU XBI XPH IHI VDC VHT VPU |
+| US tech | XLK XLC QQQ SMH SOXX IGV FDN CIBR SKYY |
+| developed ex-US | EFA EWJ EWG EWU EWQ EWC EWA EWL EWN EZU |
+| emerging | EEM FXI EWZ EWW INDA EWY EWT EZA EPI TUR |
+| real estate | XLRE VNQ IYR RWR SCHH REM VNQI RWX |
+| government bonds | SHY IEI IEF TLH TLT GOVT SCHO VGIT VGLT SPTL BWX |
+| inflation and securitized | TIP MBB VTIP SCHP STIP VMBS SPMB LMBS JMBS |
+| IG credit | LQD VCIT VCSH IGIB SPIB USIG QLTA GIGB SLQD |
+| HY credit | HYG JNK BKLN PFF SHYG USHY ANGL SRLN FALN |
+| EM credit | EMB EMLC VWOB PCY EBND LEMB EMHY CEMB |
+| energy | USO BNO UGA UNG DBC DBO DBE UNL |
+| precious metals | GLD SLV PPLT PALL IAU SGOL SIVR GLTR |
+| industrial metals | DBB CPER LIT REMX SLX nickel aluminium tin |
+| agriculture | DBA CORN WEAT SOYB CANE coffee cocoa cotton live cattle |
+| DM FX | EUR/USD USD/JPY GBP/USD USD/CHF AUD/USD NZD/USD USD/CAD USD/SEK USD/NOK |
+| EM FX | USD/CNH USD/MXN USD/ZAR USD/BRL USD/TRY USD/INR USD/KRW USD/PLN |
+| crypto majors | BTC ETH SOL LTC BCH ADA DOGE XRP |
+| crypto alts | LINK AVAX DOT POL UNI ATOM FIL AAVE |
 
-Expected to fail the feed test first: the MBS funds past MBB/VMBS, EM credit past
-EMB/EMLC/VWOB, the JJ* ETNs, and COW/NIB/BAL; a block that cannot reach 8 merges rather
-than ships short. **Phase A**, the verdict table, is the measurement at the top of this
-item (2026-09-30): the ETNs are gone from the market altogether, and the MBS and EM credit
-funds pass on the consolidated tape but not on IEX. Its other half, guards on the previous
-detector's severity tables and block labels, went with that detector.
+
+---
 
 ## 8. Smaller things, found and left alone
 
@@ -322,21 +152,21 @@ detector's severity tables and block labels, went with that detector.
   three hours down on a BTC print of $0.06 and an ETH print of $74.98 (the market was at
   $1,183 and $48.5). The 1,000σ line drops BTC's (+1,526σ), but ETH's reads as -36σ, an
   `extreme` hour, and stays. It is history only; nothing in the last year is like it.
-- **USD/BRL needs a session of its own** before it is added: it trades 11:00–22:00 UTC on
-  97% of days and only sometimes outside it, so without one its nights are holes and the
-  São Paulo open is the bar after one.
 - **One instrument's timeout turns the whole run red.** A single provider read timeout in
   backfill fails the job and sends the "Failed" email even though every other instrument
   ran.
-- **To watch on 2026-10-01:** the monthly payers go ex-dividend; check that Yahoo lists
-  them by the 10:05 New York run, or their gaps stay unscored that day.
+- **To watch at the first month start after the switch:** the monthly payers go
+  ex-dividend; check that Yahoo lists them by the 10:05 New York run, or their gaps stay
+  unscored that day. (Due 2026-10-01, but this branch was not running then.)
 - **A fund's opening hour fires about twice as often** as its other hours, from extreme
   outliers at the open. The jump detector's time-of-day stage (5) is where this is
   answered.
 
 ---
 
-## 7. Comments and prose that have drifted
+---
+
+## 9. Comments and prose that have drifted
 
 Small, cosmetic, and worth a pass rather than a project. Nothing specific is currently
 listed here — the prose drift that was on this list turned out to be one substantive

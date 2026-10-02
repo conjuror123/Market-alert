@@ -106,14 +106,14 @@ Break one of these and the system is wrong rather than merely broken.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q                     # ~580 tests, about a minute
+pytest -q                     # ~640 tests, about a minute and a half
 ```
 
 Run the tests alone — several load large parquet files, and concurrent runs thrash.
 
-To exercise the real pipeline you need `TIINGO_API_KEY` and `SIFTING_API_KEY` (hourly
-bars: funds and FX), plus
-`TWELVEDATA_API_KEY` and `FRED_API_KEY` for archive work. Derived data under
+To exercise the real pipeline you need `TIINGO_API_KEY`, `ALPACA_KEY_ID` and
+`ALPACA_SECRET_KEY`, `TWELVEDATA_API_KEY` (hourly bars: funds) and `SIFTING_API_KEY` (FX),
+plus `FRED_API_KEY` for the VIX series. The other providers need no key. Derived data under
 `data/tremor/metrics/` and `jumps.parquet` is gitignored and rebuilds from the committed
 bars in about fifteen seconds.
 

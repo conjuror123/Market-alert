@@ -6,7 +6,7 @@
 > **Describe what runs.** If a paragraph argues for something, it belongs in
 > `decisions.md`.
 
-61 instruments — 60 in the basket plus `DBC` tracked outside it — one hourly pass, and a
+173 instruments — 172 in the basket plus `DBC` tracked outside it — one hourly pass, and a
 message only when one of them moves unusually **for itself**.
 
 **This branch is the jump detector, as it will run live.** It is built in stages on
@@ -241,7 +241,7 @@ move.
 | Tiingo | 27 | funds whose single-exchange (IEX) price matches the consolidated tape |
 | Alpaca | 30 | more IEX-safe funds, from Alpaca's free IEX bars, fresh at :05; also SIP history from 2016 |
 | Twelve Data | 8 | consolidated tape for thin funds IEX misprices, one or two per commodity block: USO UNG DBC GLD SLV CPER DBA CORN; also archive and gap-fill |
-| SiftingIO | 16 | the FX pairs: 0.11–0.35 bps median against the stored bars, the bar closed at :00 served by :05 |
+| SiftingIO | 17 | the FX pairs: 0.11–0.35 bps median against the stored bars, the bar closed at :00 served by :05; USD/BRL only in its São Paulo session |
 | Sina Finance | 33 | half of the remaining thin funds: its half-hour US bars are the consolidated tape (0.0 bp against Alpaca's SIP on all 67 over 28 days, 100% of its volume, no hour missing) |
 | Yahoo | 34 | the other half, consolidated; also the morning dividend check |
 | Kitco | 1 | nickel: the chart gateway behind kitco.com, five-minute quotes from 2020-09 folded to hours; glitches and still days dropped (`price_monitor/kitco.py`) |
@@ -252,21 +252,8 @@ move.
 | Dukascopy, HF Data | — | history below what the live providers reach |
 | Bitstamp | — | XRP's history where Coinbase has none: before its 2019 listing (from 2017-03) and through its 2021–2023 suspension, gated against Coinbase and refereed by Binance (`tools/bitstamp_fill.py`) |
 
-**The order a fund is placed in.** A fund goes to an IEX feed only if IEX prices it like
-the tape (median ≤ 2 bp, p90 ≤ 5, ≤ 2% of hours missing — `tools/fund_verdict.py`);
-otherwise to a consolidated one. Documented APIs before Yahoo's undocumented endpoint, and
-no quota run past about 85%, so tests and backfills have room: Tiingo stays at 27 (its
-key is shared with production until the switch), Twelve Data at 8 (one batched request, its whole
-minute's credits, in a thread beside the other providers; ~65 of 800 credits a day — 16 would
-put a minute's wait on every run), SiftingIO at the currency pairs alone (~83% of
-its month, ~88% with USD/BRL). Sina and Yahoo split what is left, alternately within each
-block - both the consolidated tape, both undocumented endpoints with no quota - so an
-outage of either leaves every block reporting.
-
-The liquid funds agree with the stored bars to under a basis point. The thin
-single-commodity funds do not — on one exchange's prints they drift by several, and at 20–40
-bps to the sigma that is a source of alerts for moves that did not happen. They stay on a
-consolidated feed.
+Which feed each fund is on, and why — the IEX line, the order of preference, the quota
+headroom — is in `decisions.md` ("The data").
 
 `source` in `config/basket.yaml` names the store — `asset_id` and the file on disk are
 built from it, so it never changes when the fetch moves. `provider` is who is asked, and
@@ -277,16 +264,19 @@ changes freely.
 ## The modules
 
 **Data in**
-`bars` (Parquet store, sharded by year) · `backfill` (fetch and merge, session-aware
-skipping, the morning dividend check) · `sessions` (NYSE calendar and the FX reference
-week) · `corporate_actions` (ex-dates and splits) · `cboe` + `fred` + `vix` (the daily VIX
+`bars` (Parquet store, a shard per settled year and per month of the live one) · `backfill`
+(fetch and merge, session-aware skipping, the morning dividend check, the deepening and
+repair modes) · `sessions` (NYSE calendar, the FX reference week, and the futures', metals'
+and B3's own sessions) · `futures` (contract rolls, the front contract, thin bars, the
+continuous history's one cleaning) · `corporate_actions` (ex-dates and splits) · `cboe` + `fred` + `vix` (the daily VIX
 series and the fear-gauge line) · `quality` (bar quality gate) · `audit` (coverage table) ·
 `atomic` (write through a temp file, so a killed run cannot truncate a table in place)
 
 **Per instrument**
 `returns` (the move and the gap) · `pipeline` (assembles them, extending stored metrics
 rather than rebuilding them, and re-scoring the last two days in case a bar has been
-completed or corrected since)
+completed or corrected since; an instrument whose store gained bars under its metrics —
+each row keeps how many it was computed from, `bars_upto` — is rebuilt)
 
 **The jump detector**
 `jumps` (the half-year bipower score, the words, the gaps by kind, 24-hour events, the
@@ -300,8 +290,10 @@ long-run sigma and short-memory state)
 
 **Delivery** lives in `price_monitor/`: `tremor_delivery` (renders the messages and
 curates the week's channel; the word and the channel are already stamped), `weekly_digest` (the economic calendar, sent just before the weekly
-note opens), `health`, `notifier`, and the source clients (`tiingo`, `sifting`,
-`yahoo`, `coinbase`, `twelvedata`, `dukascopy`, `hfdata`) that `backfill` fetches through.
+note opens), `health`, `notifier`, and the source clients `backfill` fetches through: live, `tiingo`, `alpaca`, `sifting`,
+`twelvedata`, `sina`, `yahoo`, `google`, `kitco`, `coinbase`; history only, `dukascopy`,
+`hfdata`, `bitstamp`. One-off history builders are in `tools/`: `futures_history`,
+`sina_history`, `bitstamp_fill`.
 
 Product pushes go to `TELEGRAM_CHAT_ID`. Health and named provider failures go to
 `TELEGRAM_HEALTH_CHAT_ID`, and without it only to the log — never the public channel.
@@ -324,7 +316,21 @@ config/config.yaml                 the mute and the health thresholds
 ```
 
 Only the bars are committed. Everything computed from them is gitignored; the hourly job
-keeps the metrics in the Actions cache and extends them, and rebuilds from the bars only
-when that cache is missing or `config_version` has moved — about ten seconds. The events
-are rescored whole every run. The bar archive is the only thing here that cannot be rebuilt. It
-reaches 2003 for FX, assembled from Dukascopy because no free plan serves that history.
+keeps the metrics in the Actions cache and extends them, and rebuilds an instrument from
+its bars when that cache is missing, `config_version` has moved, or bars were written under
+its metrics (a deepening, a filled hole) — about ten seconds for all of them. The events
+are rescored whole every run. The bar archive is the only thing here that cannot be rebuilt. How far back each record
+reaches (2026-10-02):
+
+| instruments | from | built from |
+|---|---|---|
+| 133 US funds | 2002–2011 for 71, 2016 for 55, launch for 7 (FALN, GIGB, IGIB, USIG, USHY, XLC, JMBS) | HF Data (2002 on), Twelve Data (2020-02 on), Alpaca's consolidated tape (2016 on) |
+| 14 currency pairs | 2003–2007; USD/CNH 2012 | Dukascopy, then the live feed |
+| USD/BRL, USD/INR, USD/KRW | 2019-09, 2019-11, 2020-01 | Twelve Data |
+| 16 coins | each one's Coinbase listing, 2015–2021; XRP from 2017-03 | Coinbase; XRP's years without it from Bitstamp |
+| nickel | 2020-09 | Kitco |
+| tin (Shanghai) | 2019-08 | Sina, chained from the delivery months |
+| coffee, cocoa, cattle, aluminium | 2024-05 | Yahoo's continuous series, cleaned |
+| cotton | 2026-06 | its contracts' own bars |
+
+What is missing below these, and what was tried for it, is in `concerns-for-later.md`.

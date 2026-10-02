@@ -1,6 +1,6 @@
 """The fund verdict table: which live source can carry each fund, measured.
 
-The widening (docs/concerns-for-later.md, item 6) needs a live hourly source for
+The widening (docs/decisions.md, "The data") needs a live hourly source for
 96 more US-listed funds. A source qualifies for a fund when its hourly closes
 agree with the consolidated tape - median <= 2 bps and p90 <= 5, the line
 tools/alpaca_compare.py holds every feed to - and when it does not skip hours
@@ -63,7 +63,8 @@ SAFE_MEDIAN_BPS, SAFE_P90_BPS = 2.0, 5.0
 SAFE_MISSING = 0.02
 
 # The new members of the target block map (docs/concerns-for-later.md, "The
-# plan it blocks"), and the three broad benchmarks watched beside it.
+# blocks are still the nine broad ones"), and the three broad benchmarks
+# watched beside it.
 CANDIDATES = {
     "US cyclicals": "KRE XRT ITB IYT XME",
     "US defensives": "XBI XPH IHI VDC VHT VPU",
