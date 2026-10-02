@@ -88,7 +88,6 @@ lives"), what is missing and what was tried:
 | cotton | 2026-06 | Yahoo's continuous series too broken to use. Dukascopy's CFD from 2019-06 agrees with the store (median 1.1 bp, p90 2.8, return correlation 0.997, same hours); its rolls still to be checked |
 | tin, nickel, aluminium (LME) | 2026-07 | Sina serves the last 1,023 bars; Kitco's nickel (2020-09 on) is a quote that does not track the LME's price; no free hourly LME history found |
 | USD/BRL, USD/INR, USD/KRW | 2019-09, 2019-11, 2020-01 | Twelve Data's start; Dukascopy holds no traded hour of INR or KRW in any sampled year, and its BRL files (from 2007) none in 2019; Sina forex holds six months; TradingView about 6,300 bars |
-| BTC, ETH, LTC, XRP, BCH | Binance's listing, 2017-08 to 2018-11 | Coinbase's dollar pairs reach 2015–2017 (BTC from 2015-07), Bitstamp's XRP 2017-03 - other markets in another currency, so not joined |
 
 **What acting on it would mean:** paid data for the futures and the three pairs.
 

@@ -323,14 +323,19 @@ yuan with VAT, correlated 0.85 with the LME's hour by hour; Kitco's nickel quote
 still in 20% of hours (Sina 2%), sat 98 bp below and correlated 0.61; COMEX aluminium
 traded a median 5 contracts an hour against the LME's 901 lots.
 
-**Every coin is its USDT pair on Binance.** The owner's call (2026-10-02): one exchange
-and one quote currency for all sixteen, named for what they are (ADA/USDT). Binance reaches
-further back than Coinbase for the coins Coinbase listed late — ADA by three years, DOGE
-and POL by two, ATOM, SOL, DOT and AVAX by about one — and less far for the oldest: BTC
-starts 2017-08 against Coinbase's 2015-07, ETH and LTC lose about a year each, XRP its
-Bitstamp-filled 2017. Pairs Binance renamed are joined to their earlier name, refused if
-the price steps more than 15% across the join: POL to MATIC (+0.0%), BCH to BCHABC
-(+0.0%).
+**Every coin is its USDT pair on Binance, and a dollar exchange's record under its first
+months.** The owner's call (2026-10-02): one exchange and one quote currency live, named
+for what they are (ADA/USDT); and history combined where another public record reaches
+further. Binance opened in 2017-08 thin: its hourly returns correlated 0.84 with Coinbase's
+over its first quarter, 0.98 by mid-2018 and 0.99 from 2019 (BTC; ETH and LTC alike). So
+below a seam - 2018-06-01, after Binance matured and before USDT slipped off the dollar
+in late 2018, where seams fail the level gate - the record is the deepest dollar
+exchange's that passes the splice gates over the two months after the seam, scaled by the
+median ratio over the month after it so there is no step: BTC Bitstamp from 2013 (0.989,
+8.7 bp), LTC Bitfinex 2013-12 (0.989, 7.1 bp), ETH Bitfinex 2016-04 (0.992, 6.0 bp), XRP
+Bitstamp 2017-03 (0.974, 13.4 bp), BCH Coinbase 2018-01 with a 2019-01-15 seam (0.987,
+24.3 bp). Each starts at its first month traded in 90% of hours. Pairs Binance renamed are
+joined to their earlier name: POL to MATIC, BCH to BCHABC (+0.0% across each).
 
 **A candidate source answers four questions, cheapest disqualifier first:** does it serve
 the bar that closed at :00 by :05; how many requests an hour does it allow against what it
@@ -387,7 +392,7 @@ Raised, dealt with, and not to be raised again.
   | Kitco, aluminium | a second price 30% higher every few weeks |
   | Kitco, nickel; COMEX aluminium; Shanghai tin | replaced by the LME's own bars (above) |
   | api.binance.com | HTTP 451 from US runners; Binance's market-data mirror answers them and is used |
-  | Coinbase | replaced by Binance for one exchange and one quote currency (above) |
+  | Coinbase, live | replaced by Binance for one exchange and one quote currency; its BCH record is used below the seam (above) |
   | Stooq | nothing without a login |
   | Sina forex | six months of hourly bars |
   | Barchart, Interactive Brokers | paid (about $500 a month) or a funded account; not tried |
