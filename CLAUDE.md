@@ -49,7 +49,7 @@ price_monitor     deliver what is due to Telegram
 
 - `jumps` reads what `pipeline` wrote and rescores the whole history every run.
 - `price_monitor` is last: delivery reads `jumps.parquet` off disk.
-- Around `backfill`, the open months of the bars (`YYYY-MM.csv`, gitignored) are restored
+- Around `backfill`, the open months of the bars (`YYYY-MM.open.csv`, gitignored) are restored
   from and saved to a release, `tools/hot_bars.sh`; only settled months are in git.
 
 ## Invariants

@@ -25,14 +25,14 @@ parquet since the store began, which git cannot delta because parquet is compres
 Sharding the live year by month (already done) slowed the growth; it did not undo what is
 already in the history.
 
-Bars now enter git once per settled month, as `.csv.gz` (`operations.md`): about 9 MB of git
-a year at today's basket. The month being written is on a release, outside the repository.
+Bars now enter git once per settled month as CSV, and once more per finished year as
+Parquet (`operations.md`): about 28 MB of git a year at today's basket. The month being
+written is on a release, outside the repository.
 
 **What acting on it would mean:** rewriting history to drop superseded parquet blobs,
-which force-pushes the branch production runs from and is irreversible. If it is ever
-done, the old yearly Parquet should become `.csv.gz` in the same rewrite: 136 MiB instead
-of 220, and one format (`decisions.md`, the shape of the repository). That is the
-reason it has not been done, not the effort.
+which force-pushes the branch production runs from and is irreversible. That is the
+reason it has not been done, not the effort. The same rewrite could also drop each
+finished year's monthly CSVs once its Parquet exists, about 12 MB a year.
 
 ---
 

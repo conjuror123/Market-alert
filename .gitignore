@@ -21,9 +21,9 @@ data/tremor/jumps.parquet
 
 # The open months of the bar store, appended every hour. Kept between runs on a
 # GitHub release (tools/hot_bars.sh), where replacing a file costs the
-# repository nothing; a month enters git once, settled, as .csv.gz
+# repository nothing; a month enters git once, settled, as YYYY-MM.csv
 # (tremor/bars.py).
-data/tremor/bars/*/*.csv
+data/tremor/bars/*/*.open.csv
 
 # Outputs of detectors that no longer run on this branch. Nothing writes them;
 # the rules stay so a working copy that still holds the files cannot commit them.

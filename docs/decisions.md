@@ -365,18 +365,23 @@ bytes and the commit recording them in per-instrument files 14 KB: 124 MiB a yea
 hourly, 18 daily, 51 for weekly Parquet (which shares nothing with its previous version at
 all). So the open months live as CSV on a GitHub release of the repository
 (`tools/hot_bars.sh`) — replacing a release's file costs the repository nothing — and every
-run downloads them, appends, uploads them back. A month goes into git as `.csv.gz` a week
-after it ends, so a hole a provider's outage left in its last days has been filled (a later
-fill rewrites that one month of that one instrument), and is otherwise never rewritten:
-about 0.7 MB a month for all 173 instruments, 9 MB a year. Years before this layout keep
-their Parquet: as gzip CSV the whole history would be 136 MiB instead of 220, but
-converting adds those 136 MiB to git while the Parquet copies stay in its history, and the
-pipeline's full load takes 18 s instead of 13 (measured 2026-10-02). It becomes worth doing
-only together with a rewrite of history (`concerns-for-later.md`, the repository's size).
-A year written month by month stays monthly, since folding it would commit the same bars
-twice. The Actions cache was the other place outside git, and was not chosen
-for bars: it drops an entry nothing touched for seven days, and bars cannot be fetched
-again. The metrics, which can, live there.
+run downloads them, appends, uploads them back (`YYYY-MM.open.csv`, gitignored). The
+Actions cache was the other place outside git, and was not chosen for bars: it drops an
+entry nothing touched for seven days, and bars cannot be fetched again. The metrics, which
+can, live there.
+
+**A settled month is plain CSV, a finished year Parquet.** A month goes into git a week after
+it ends, so a hole a provider's outage left in its last days has been filled (a later fill
+rewrites that one month of that one instrument), and is otherwise never rewritten. Plain
+CSV, not gzip: git compresses every file it stores, so August 2026 costs it 0.97 MB plain
+and 0.98 gzipped. Not Parquet: 1.85 MB (1.3 tuned), because a month of one instrument is
+too small for Parquet's per-file overhead to pay off, and no faster to read — 192 month
+files load in 0.30 s as CSV, 0.39 as Parquet (measured 2026-10-02). A year is big enough
+for Parquet to win, so once its December has settled the first write folds its months into
+one `YYYY.parquet`. That costs git the year once more, about 16 MB (2025 was 16.4), but keeps
+the store at a file a year for every load to open rather than twelve more each year. In
+all about 28 MB of git a year. Years already in Parquet stay as they are: Parquet is the
+format history is read in.
 
 **Two stores, not one.** Parquet for columnar history, JSON for state where a whole-file
 rewrite is the point. Nothing here needs a server.

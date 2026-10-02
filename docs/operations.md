@@ -83,11 +83,13 @@ five or more days behind, one line a day goes to the health chat. The push rebas
 rejected push is the same as losing that record. A truncated `state.json` fails the run
 rather than being read as a cold start.
 
-**Every run, but almost always nothing: settled months of `data/tremor/bars/`.** A month
-enters git once, as `YYYY-MM.csv.gz`, on the first run at least a week after it ends,
-and is never rewritten (`tremor/bars.py`): about 0.7 MB a month for 173 instruments.
+**Every run, but almost always nothing: settled bars in `data/tremor/bars/`.** A month
+enters git once, as `YYYY-MM.csv`, on the first run at least a week after it ends, and is
+never rewritten (`tremor/bars.py`): about 1 MB for all instruments. A year enters once
+more, as `YYYY.parquet`, on the first run a week into January, and its months leave the
+tree: about 16 MB.
 
-**Never in git: the open months** (`YYYY-MM.csv`, gitignored). They are one archive,
+**Never in git: the open months** (`YYYY-MM.open.csv`, gitignored). They are one archive,
 `bars-live-<run>.tar.gz`, on the prerelease `bars-live-<branch>` of this repository
 (`tools/hot_bars.sh`). Each run restores it before the backfill and saves it straight
 after, uploading the new archive before deleting the old, so a save that dies leaves the
@@ -111,11 +113,11 @@ costs every instrument a full rebuild.
 ### What the store costs
 
 Git stores a whole new copy of every file a commit changes, so the bars are laid out to
-change committed files as seldom as possible (`tremor/bars.store_path`): years before
-2026 one Parquet shard each, as they were; from 2026 one shard per month, settled months
-`.csv.gz`, committed once; the open months on the release. About 9 MB of git a year, against
-124 MiB for committing the open month's CSV hourly, 18 daily and 51 for weekly Parquet
-(simulated on the week of 2026-09-21). The release costs the repository nothing: release
+change committed files as seldom as possible (`tremor/bars.store_path`): a finished year
+one Parquet shard, a settled month of the year being written one plain CSV, committed
+once; the open months on the release. About 28 MB of git a year (12 for the months, 16 for
+the year's Parquet), against 124 MiB for committing the open month's CSV hourly, 18 daily
+and 51 for weekly Parquet (simulated on the week of 2026-09-21). The release costs the repository nothing: release
 files are not part of it.
 ---
 

@@ -1,5 +1,5 @@
 """Tremor hourly bar store: one directory of shards per instrument - the open
-month as CSV outside git, settled months as gzip CSV, older years as Parquet.
+months as CSV outside git, settled months as CSV, settled years as Parquet.
 
 Why Parquet rather than the NDJSON of the existing monitor: there a file is only
 appended one row per hour and grows slowly, whereas here sixty-two instruments
@@ -54,21 +54,25 @@ def store_path(base_dir: str, file_stem: str) -> str:
     new objects and the folder listings pointing at them, and Parquet, being
     compressed, shares nothing with its previous version at all. Measured on a
     real week: a run's new bars are 650 bytes, the commit that recorded them in
-    per-instrument files 14 KB - 124 MiB a year hourly. So the open month
-    (`2026-10.csv`) is gitignored and kept between runs as one file on a GitHub
-    release (tools/hot_bars.sh), where replacing it costs the repository
-    nothing.
+    per-instrument files 14 KB - 124 MiB a year hourly. So the open months
+    (`2026-10.open.csv`) are gitignored and kept between runs as one file on a
+    GitHub release (tools/hot_bars.sh), where replacing it costs the
+    repository nothing.
 
     A MONTH ENTERS GIT ONCE, when it is settled: SETTLE_DAYS after its end, so
-    the holes a provider's outage left in its last days have been filled. It is written as `2026-09.csv.gz` - gzip CSV is the smallest form
-    measured (0.72 MB for a month of all 173 instruments; per-instrument
-    Parquet 2.06) - and never rewritten: `merge` fills hours a settled month
-    lacks but does not revise the ones it holds. About 9 MB of git a year.
+    the holes a provider's outage left in its last days have been filled. It is
+    plain CSV, `2026-09.csv`. Git compresses every file it stores, so a month
+    costs it the same 1 MB (all instruments) plain or gzipped; as Parquet 1.9,
+    because a month is too small for Parquet's per-file overhead to pay off,
+    and no faster to read (measured on 2026-08). It is not rewritten after:
+    `merge` fills hours it lacks but does not revise the ones it holds.
 
-    YEARS. A year with no monthly shard on disk is one shard: whole histories
-    written by the import tools, and the years before this layout, which keep
-    their Parquet. A year written month by month stays monthly - folding it
-    would put the same bytes into git a second time.
+    A YEAR BECOMES ONE PARQUET FILE once its December has settled: the first
+    write after that folds its twelve months into `2026.parquet`. A year is big
+    enough for Parquet to be the smaller and faster form, and the store keeps a
+    few dozen files rather than twelve more every year for `load` to open. The
+    fold costs git the year once more, about 16 MB (2025 was 16.4), the months
+    staying in its history: with the months, about 28 MB a year.
 
     What is settled is read off the DATA, not the clock: SETTLE_DAYS after the
     month's end, measured against the newest bar the store holds.
@@ -115,44 +119,49 @@ def settled_before(newest_hour: int) -> int:
     return int(pd.Timestamp(year=year, month=month, day=1, tz="UTC").timestamp())
 
 
+OPEN = ".open.csv"
+
+
 def _layout(hours: pd.Series, existing: "set[str]") -> "tuple[pd.Series, dict]":
     """Each bar's shard, and each shard's file name.
 
-    A month shard is open (`.csv`, not committed) until settled, then
-    `.csv.gz`. A month already committed - `.csv.gz`, or the `.parquet` of the
-    months before this layout - keeps its file whatever the clock says: a store
-    that lost its open months (a run without the release) must not read its
-    newest committed month as open and pull it out of git. A year with no
-    monthly shard on disk, before the newest bar's year, is one shard: Parquet
-    where it already is, else `.csv.gz`."""
+    A month is open (`2026-10.open.csv`, gitignored) until settled, then
+    `2026-09.csv`, committed once. A year is one Parquet shard once its
+    December has settled: the first write after that folds its months into
+    `2026.parquet`. What is in git already - a settled month's `.csv`, a month's
+    or a year's `.parquet` - keeps its file whatever the clock says: a store
+    that lost its open months (a run without the release) sees its newest
+    committed month as its newest data, and read off the clock alone that month
+    would be open again, pulled out of git."""
     if hours.empty:
         return pd.Series(dtype="object"), {}
     when = pd.to_datetime(hours, unit="s", utc=True)
     year, month = when.dt.year, when.dt.month
-    newest = int(hours.max())
-    newest_year = int(year.max())
-    cutoff = settled_before(newest)
-    monthly_years = {int(_stem(n)[:4]) for n in existing if "-" in _stem(n)}
-    by_year = (year < newest_year) & ~year.isin(monthly_years)
+    cutoff = settled_before(int(hours.max()))
+    year_end = pd.to_datetime((year + 1).astype(str) + "-01-01", utc=True)
+    year_settled = (year_end.astype("int64") // 10**9) <= cutoff
+    yearly = {int(n[:-len(".parquet")]) for n in existing
+              if n.endswith(".parquet") and "-" not in n}
+    by_year = year_settled | year.isin(yearly)
     shard = year.astype(str).where(by_year, year.astype(str) + "-" + month.map("{:02d}".format))
     names = {}
     for name in shard.unique():
         if "-" not in name:
-            names[name] = f"{name}.parquet" if f"{name}.parquet" in existing else f"{name}.csv.gz"
+            names[name] = f"{name}.parquet"
             continue
-        y, m = int(name[:4]), int(name[5:])
-        committed = [f"{name}{ext}" for ext in (".csv.gz", ".parquet") if f"{name}{ext}" in existing]
+        committed = [f"{name}{ext}" for ext in (".csv", ".parquet") if f"{name}{ext}" in existing]
         if committed:                          # in git already: stays as it is
             names[name] = committed[0]
-        elif _month_end(y, m) > cutoff:        # open: the month the store is writing
-            names[name] = f"{name}.csv"
+        elif _month_end(int(name[:4]), int(name[5:])) > cutoff:
+            names[name] = f"{name}{OPEN}"     # open: the month the store is writing
         else:
-            names[name] = f"{name}.csv.gz"
+            names[name] = f"{name}.csv"
     return shard, names
 
 
-# .csv.gz before .csv: the stem of "2026-09.csv.gz" is "2026-09".
-SHARD_EXTENSIONS = (".parquet", ".csv.gz", ".csv")
+# The open month's suffix before the plain one: the stem of "2026-10.open.csv"
+# is "2026-10".
+SHARD_EXTENSIONS = (".parquet", OPEN, ".csv")
 
 
 def _stem(name: str) -> str:
@@ -167,7 +176,7 @@ def _is_shard(name: str) -> bool:
 
 
 def _read_shard(path: str) -> pd.DataFrame:
-    if path.endswith((".csv", ".csv.gz")):
+    if path.endswith(".csv"):
         return pd.read_csv(path, dtype=SCHEMA, float_precision="round_trip")
     return pd.read_parquet(path)
 
@@ -252,17 +261,14 @@ def write(store: str, frame: pd.DataFrame) -> None:
                     continue
             except Exception:                    # pragma: no cover - defensive
                 pass                             # unreadable shard: rewrite it
-        if name.endswith(".csv.gz"):
-            # mtime 0: the same bars give the same bytes, so git sees no change
-            atomic.write_csv(path, part, compression={"method": "gzip", "compresslevel": 9,
-                                                      "mtime": 0})
-        elif name.endswith(".csv"):
+        if name.endswith(".csv"):
             atomic.write_csv(path, part)
         else:
             atomic.write_parquet(path, part)
     for name in existing:
         # A shard that no longer has bars in the frame, or the same shard in
-        # another form - an open month's CSV once it is settled as .csv.gz.
+        # another form - an open month once it settles, a settled year's months
+        # once they are folded into its Parquet.
         # Leaving the file behind would make load() return rows write() was
         # told to drop.
         if name not in files:
@@ -295,9 +301,10 @@ def merge(store: str, frame: pd.DataFrame, revise_settled: bool = False) -> int:
         settled = incoming["hour_utc"] < cutoff
         if os.path.isdir(store):
             committed = {_stem(n) for n in os.listdir(store)
-                         if n.endswith((".csv.gz", ".parquet")) and "-" in n}
-            month = pd.to_datetime(incoming["hour_utc"], unit="s", utc=True).dt.strftime("%Y-%m")
-            settled |= month.isin(committed)
+                         if n.endswith((".csv", ".parquet")) and not n.endswith(OPEN)}
+            when = pd.to_datetime(incoming["hour_utc"], unit="s", utc=True)
+            settled |= when.dt.strftime("%Y-%m").isin(committed)
+            settled |= when.dt.strftime("%Y").isin(committed)
         held = incoming["hour_utc"].isin(set(existing["hour_utc"].astype(int)))
         incoming = incoming[(~(settled & held)).to_numpy()]
     combined = pd.concat([existing, incoming], ignore_index=True)

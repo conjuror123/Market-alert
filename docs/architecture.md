@@ -261,7 +261,7 @@ changes freely.
 ## The modules
 
 **Data in**
-`bars` (the store: a shard per year before 2026 and per month since; the open months as CSV on a release, `tools/hot_bars.sh`, settled ones as `.csv.gz` in git) · `backfill`
+`bars` (the store: a Parquet shard per finished year, a CSV per settled month of the year being written, the open months as CSV on a release, `tools/hot_bars.sh`) · `backfill`
 (fetch and merge, session-aware skipping, the morning dividend check, the deepening and
 repair modes) · `sessions` (NYSE calendar, the FX reference week, and the futures', metals'
 and B3's own sessions) · `futures` (contract rolls, the front contract, thin bars, the
@@ -301,9 +301,9 @@ Product pushes go to `TELEGRAM_CHAT_ID`. Health and named provider failures go t
 ## Where the data lives
 
 ```
-data/tremor/bars/*/YYYY.parquet     hourly bars, a year a shard, before 2026            TRACKED
-data/tremor/bars/*/YYYY-MM.csv.gz   hourly bars, a settled month a shard                TRACKED
-data/tremor/bars/*/YYYY-MM.csv      the open months             release bars-live-<branch>
+data/tremor/bars/*/YYYY.parquet     hourly bars, a finished year a shard               TRACKED
+data/tremor/bars/*/YYYY-MM.csv      hourly bars, a settled month a shard                TRACKED
+data/tremor/bars/*/YYYY-MM.open.csv the open months             release bars-live-<branch>
 data/tremor/vix/                   daily VIX close                                   TRACKED
 data/tremor/corporate_actions.csv  ex-dates and splits                               TRACKED
 data/tremor/dividend_checks.csv    how far each fund's dividends are confirmed       TRACKED

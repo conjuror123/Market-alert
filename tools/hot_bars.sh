@@ -11,10 +11,11 @@
 # per-instrument files 14 KB, 124 MiB a year hourly. Here they are one archive
 # on a GitHub release of this repository (a prerelease, one per branch), and
 # replacing a release's file costs the repository nothing - release files are
-# not part of it. Months enter git once, settled, as .csv.gz (tremor/bars.py).
+# not part of it. Months enter git once, settled, as plain CSV, and a finished
+# year as one Parquet file (tremor/bars.py).
 #
-# THE ARCHIVE is every data/tremor/bars/*/*.csv, about 1.5 MB gzipped. Each save
-# uploads a new file named for its run and then deletes the older ones, so a
+# THE ARCHIVE is every data/tremor/bars/*/*.open.csv, 0.5 to 1.5 MB gzipped.
+# Each save uploads a new file named for its run and then deletes the older ones, so a
 # save that dies half way leaves the previous archive, not none. Restore takes
 # the newest.
 #
@@ -77,7 +78,7 @@ restore() {
   retry gh release download "$TAG" -p "$newest" -D "$tmp" --clobber
   # The release is the newer truth: CSVs a checkout still carries from before
   # this layout must not be read beside it.
-  find "$BARS" -mindepth 2 -maxdepth 2 -name '*.csv' -delete
+  find "$BARS" -mindepth 2 -maxdepth 2 -name '*.open.csv' -delete
   tar -xzf "$tmp/$newest"
   echo "restored $(tar -tzf "$tmp/$newest" | wc -l) open months from $TAG/$newest"
 }
@@ -86,7 +87,7 @@ save() {
   local id name tmp
   tmp=$(mktemp -d)
   name="bars-live-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}.tar.gz"
-  find "$BARS" -mindepth 2 -maxdepth 2 -name '*.csv' -print0 | sort -z \
+  find "$BARS" -mindepth 2 -maxdepth 2 -name '*.open.csv' -print0 | sort -z \
     | tar --null -T - -czf "$tmp/$name"
   id=$(release_id) || { echo "::error::cannot read release $TAG"; exit 1; }
   if [ -z "$id" ]; then
