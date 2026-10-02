@@ -43,7 +43,7 @@ on:
         type: boolean
         default: false
       only:
-        description: 'One part: SiftingIO freshness/client/holes/archive; verdict freshness or hours:T1,T2; eulerpool or eulerpool:newest; lse; fmp; rapidapi; google'
+        description: 'One part: SiftingIO freshness/client/holes/archive; verdict freshness or hours:T1,T2; eulerpool or eulerpool:newest; lse; fmp; rapidapi; google; sina'
         type: string
         default: ''
 
@@ -147,6 +147,15 @@ jobs:
         env:
           RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
         run: python -m tools.rapidapi_probe
+
+      # Sina Finance's US fund bars against the tape, for the funds on Yahoo.
+      # only=sina, probe off.
+      - name: Probe Sina Finance's US bars against the tape
+        if: inputs.only == 'sina'
+        env:
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: python -m tools.sina_probe
 
       # Google Finance, the feed behind a sheet's GOOGLEFINANCE(): TUR and RWX
       # against the tape. only=google, probe off.
