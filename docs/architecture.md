@@ -243,7 +243,7 @@ move.
 | SiftingIO | 17 | the FX pairs: 0.11–0.35 bps median against the stored bars, the bar closed at :00 served by :05; USD/BRL only in its São Paulo session |
 | Sina Finance | 33 | half of the remaining thin funds: its half-hour US bars are the consolidated tape (0.0 bp against Alpaca's SIP on all 67 over 28 days, 100% of its volume, no hour missing) |
 | Yahoo | 34 | the other half, consolidated; also the morning dividend check |
-| Yahoo futures | 4 | coffee, cocoa, cotton, live cattle: the front contract itself, rolled before first notice — `tremor/futures.py` |
+| Yahoo futures | 4 | coffee, cocoa, cotton, live cattle: the front contract itself, rolled before first notice — `tremor/futures.py`; coffee's and cotton's history from Dukascopy's CFDs (`tools/dukascopy_futures.py`) |
 | Sina Finance (LME) | 3 | tin, nickel, aluminium: the LME's three-month contract, traded hourly bars with volume; the last 1,023 only (`price_monitor/sina.py`) |
 | Google Finance | 1 | TUR: the one feed whose hourly closes match the tape on it, read off the quote page (`price_monitor/google.py`) |
 | Binance | 16 | crypto: every coin as its USDT pair on one exchange, from Binance's market-data mirror (`data-api.binance.vision`), which US runners can reach (`price_monitor/binance.py`) |
@@ -327,7 +327,7 @@ reaches (2026-10-02):
 | USD/BRL, USD/INR, USD/KRW | 2019-09, 2019-11, 2020-01 | Twelve Data |
 | 16 coins | each pair's Binance listing — LINK 2019-01, POL 2019-04 (as MATIC), ATOM 2019-04, DOGE 2019-07, SOL and DOT 2020-08, UNI and AVAX 2020-09, FIL and AAVE 2020-10, ADA 2018-04 — and under Binance's first months a dollar exchange's: BTC 2013-02, LTC 2013-12, ETH 2016-04, XRP 2017-03, BCH 2018-01 | Binance; Bitstamp, Bitfinex, Coinbase below 2018-06 (`tools/binance_history.py`) |
 | tin, nickel, aluminium (LME) | 2026-07 | Sina |
-| coffee, cocoa, cattle | 2024-05 | Yahoo's continuous series, cleaned |
-| cotton | 2026-06 | its contracts' own bars |
+| coffee, cotton | 2019-01 | Dukascopy's CFDs to the seam (coffee 2026-08-14, cotton 2026-06-17), then the listed contract |
+| cocoa, cattle | 2024-05 | Yahoo's continuous series, cleaned |
 
 What is missing below these, and what was tried for it, is in `concerns-for-later.md`.

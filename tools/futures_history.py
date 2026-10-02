@@ -31,10 +31,18 @@ def chart(symbol: str):
         return []
 
 
+# Rebuilt from Dukascopy's CFDs, which hold one contract at a time; Yahoo's
+# continuous series interleaves two around a roll (docs/decisions.md).
+REBUILT_FROM_DUKASCOPY = {"KC=F", "CT=F"}
+
+
 def main() -> int:
     today = datetime.now(timezone.utc).date()
     for asset in load_basket().instruments:
         if not futures.is_continuous(asset.ticker):
+            continue
+        if asset.ticker in REBUILT_FROM_DUKASCOPY:
+            print(f"{asset.ticker}: history from Dukascopy (tools/dukascopy_futures.py); skipped")
             continue
         frame = bars.to_hourly(bars.candles_to_frame(chart(asset.ticker)))
         if not futures.SPECS.get(asset.ticker, {}).get("continuous_history", True):
@@ -43,6 +51,8 @@ def main() -> int:
         print(f"{asset.ticker}: {len(frame)} hours from the continuous series, "
               f"{dropped} other-contract hours dropped, {stray} stray opens reset, "
               f"sparse months dropped: {' '.join(sparse) or 'none'}")
+        frame, mixed = futures.drop_mixed(frame, asset.session_template)
+        print(f"   stretches interleaving two contract months dropped: {mixed or 'none'}")
         if asset.ticker in futures.SPECS:
             # Keep only the hours where Yahoo's series is on the contract this
             # series holds; the stretches where it lags are holes, unless a

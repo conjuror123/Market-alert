@@ -142,3 +142,44 @@ def test_a_thin_bar_is_invalid_for_a_continuous_future():
     frame = _frame([300.0] * 61).assign(volume=[1000.0] * 60 + [0.0])
     reasons = quality.invalid_reasons(_future(), frame)
     assert reasons.iloc[-1] == "volume too thin to be a trade" and (reasons.iloc[:-1] == "").all()
+
+
+def test_a_history_sources_switch_night_is_a_roll(tmp_path, monkeypatch):
+    # Dukascopy's CFD switches contract on days of its own; the list of them
+    # leaves those nights unscored like the series' own rolls.
+    rolls = tmp_path / "rolls.csv"
+    rolls.write_text("ticker,date,source\nKC=F,2021-07-26,dukascopy\n")
+    monkeypatch.setattr(futures, "ROLLS_PATH", str(rolls))
+    days = ["2021-07-22", "2021-07-23", "2021-07-26", "2021-07-27", "2021-07-28"]
+    marked = futures.roll_sessions("KC=F", days)
+    monkeypatch.setattr(futures, "ROLLS_PATH", str(tmp_path / "none.csv"))
+    without = futures.roll_sessions("KC=F", days)
+    assert marked - without == {"2021-07-26", "2021-07-27"}
+
+
+def _cattle_sessions(levels_by_day):
+    """Bars for live cattle (13:00-18:00 UTC in summer), one list of closes a day."""
+    from datetime import datetime, timezone
+    import pandas as pd
+    from datetime import timedelta
+    rows = []
+    day = datetime(2026, 6, 1, tzinfo=timezone.utc)
+    for closes in levels_by_day:
+        while day.weekday() >= 5:
+            day += timedelta(days=1)
+        for i, c in enumerate(closes):
+            t = int(day.replace(hour=13 + i).timestamp())
+            rows.append((t, c, c, c, c, 1000.0, 1))
+        day += timedelta(days=1)
+    return pd.DataFrame(rows, columns=["hour_utc", "open", "high", "low", "close", "volume", "n_src"])
+
+
+def test_a_run_of_sessions_interleaving_two_months_is_dropped_and_one_reversal_kept():
+    normal = [100.0] * 6
+    mixed = [96.5, 96.5, 100.0, 100.0, 100.0, 100.0]     # opens on the other month
+    reversal = [97.0, 99.5, 99.8, 99.9, 100.0, 100.0]     # once: a real day
+    days = [normal] * 3 + [reversal] + [normal] * 16 + [mixed] * 4 + [normal] * 3
+    frame = _cattle_sessions(days)
+    kept, stretches = futures.drop_mixed(frame, "cme_cattle")
+    assert len(stretches) == 1
+    assert len(frame) - len(kept) == 4 * 6

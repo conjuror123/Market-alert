@@ -33,6 +33,10 @@ CONFIG_INPUTS = (
     os.path.join("tremor", "quality.py"),
     os.path.join("tremor", "returns.py"),
     os.path.join("tremor", "pipeline.py"),
+    # Which nights are rolls, and every market's session.
+    os.path.join("tremor", "futures.py"),
+    os.path.join("tremor", "sessions.py"),
+    os.path.join("data", "tremor", "rolls.csv"),
     # tremor/jumps.py is not here: it rescores the whole history on every run
     # from the metrics, so nothing of its own is ever extended or cached.
 )

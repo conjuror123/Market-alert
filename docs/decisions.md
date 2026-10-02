@@ -305,15 +305,23 @@ tape). A stretch with no overlap at all is refereed by a third market: Bitstamp'
 Coinbase's 905-day suspension against Binance's archive, return correlation 0.9945, every
 month at 0.989 or better (`tools/bitstamp_fill.py`; that record left with Coinbase).
 
-**Futures are read one contract at a time.** Live bars come from the front contract;
-Yahoo's continuous series mixes in other contracts' prints — 64 of coffee's hours since
-2024-05 jump past 3% and straight back, against 2 on a single contract — so it is used only
-for history, cleaned once (`tools/futures_history.py`). Each series rolls on its liquid
-months before first notice, and the night across a roll, which is the spread between two
-contracts, is not scored. A bar on under 5% of the series' usual volume is a quote, not a
-trade, and is a hole: a third of the moves past 6σ sat on such bars, each undone the next
-hour (`tremor/futures.py`). Cotton's continuous history holds a third of a normal month in
-14 of its 29 months and is not used; its record starts with its contracts' own bars.
+**Futures are read one contract at a time.** Live bars come from the front contract.
+Yahoo's continuous series mixes contract months - not only single hours (64 of coffee's
+since 2024-05 jumped past 3% and straight back) but whole stretches of sessions that open
+on one month and trade on the other: coffee 2026-07-22 to 08-10, cocoa 2026-03, cattle
+2026-02-19 to 04-02, each a run of same-hour moves the size of the spread. So coffee's and
+cotton's history is Dukascopy's CFDs (`tools/dukascopy_futures.py`), which hold one
+contract at a time and switch once, from 2019-01: spliced to the listed contract at the
+seam (coffee 0.9986 correlation, 1.7 bp; cotton 0.9971, 1.2 bp). The CFD switches 2 to 12
+business days before this series rolls; where its switch stands out in its own data it is
+listed in `data/tremor/rolls.csv` and its night unscored, and where none does the weeks
+around the roll are dropped. Cattle, which Dukascopy does not carry, keeps Yahoo's series
+with its interleaved stretches dropped (three sessions within fifteen that open past 1.5%
+from the last close and come back) and stray opens judged on its own hourly moves
+(`tremor/futures.py`). Each series' own rolls are made on its liquid months before first
+notice, and the night across a roll is not scored. A bar on under 5% of the series' usual
+volume is a quote, not a trade, and is a hole: a third of the moves past 6σ sat on such
+bars, each undone the next hour.
 
 **The LME's metals are the LME's, from Sina**: tin, nickel and aluminium as the three-month
 contract's traded hourly bars, though Sina serves only the last 1,023 (from 2026-07). The

@@ -26,6 +26,7 @@ which makes them holes, skipped rather than scored.
 """
 from __future__ import annotations
 
+import os
 from datetime import date, timedelta
 
 import numpy as np
@@ -133,11 +134,26 @@ def roll_days(ticker: str, first_year: int, last_year: int) -> "list[tuple[str, 
     return fronts
 
 
+# Contract switches of a history source whose roll does not follow this
+# series' calendar - Dukascopy's CFDs, located in their own data
+# (tools/dukascopy_futures.py). Their nights are left unscored like any roll's.
+ROLLS_PATH = os.path.join("data", "tremor", "rolls.csv")
+
+
+def history_rolls(ticker: str, path: "str | None" = None) -> "list[date]":
+    path = path or ROLLS_PATH
+    if not os.path.exists(path):
+        return []
+    table = pd.read_csv(path, dtype=str)
+    return [date.fromisoformat(d) for d in table.loc[table["ticker"] == ticker, "date"]]
+
+
 def roll_sessions(ticker: str, session_days) -> "set[str]":
     """The session dates ("YYYY-MM-DD") whose opening gap may hold a roll -
-    Yahoo's (its history) or this series' own (its live bars): the first two
-    sessions on or after each such day. Exchange holidays can move a last
-    trading day one session earlier than the weekday count makes it."""
+    Yahoo's (its history), this series' own (its live bars) or a history
+    source's (ROLLS_PATH): the first two sessions on or after each such day.
+    Exchange holidays can move a last trading day one session earlier than the
+    weekday count makes it."""
     import bisect
 
     days = sorted({str(d) for d in session_days})
@@ -147,6 +163,7 @@ def roll_sessions(ticker: str, session_days) -> "set[str]":
     edges = [ltd + timedelta(days=1)
              for ltd in last_trading_days(ticker, first - 1, last)]
     edges += [start for _, start in roll_days(ticker, first - 1, last)]
+    edges += history_rolls(ticker)
     out: "set[str]" = set()
     for edge in edges:
         at = bisect.bisect_left(days, (edge - timedelta(days=1)).isoformat())
@@ -213,10 +230,16 @@ def yahoo_lag_windows(ticker: str, first_year: int, last_year: int
 # The once-over the continuous history gets on import (never in the hourly
 # pass, which would need the bar after the one it judges): an hour that moves
 # past FLIP and is undone by more than half in the next is another contract's
-# print, and an open past STRAY_OPEN from the last close that its own bar
+# print, and an open past the stray line from the last close that its own bar
 # undoes by more than half is a stray opening print.
 FLIP = 0.03
-STRAY_OPEN = 0.04
+# A stray open is judged against the series' own hourly moves: STRAY_OPEN_MULT
+# times its median absolute hourly return, at least STRAY_OPEN_FLOOR. A fixed
+# 4% suited coffee and missed cattle's (2024-06-24 13:00 opened 2.5% up on the
+# other contract's price and closed where it had been; cattle's median hour is
+# a tenth of coffee's).
+STRAY_OPEN_MULT = 8.0
+STRAY_OPEN_FLOOR = 0.01
 # And a month holding under this share of a normal month (the series' 75th
 # percentile - the median itself sinks when a third of the months are sparse,
 # as cotton's are) is dropped:
@@ -241,17 +264,83 @@ def clean_history(frame: pd.DataFrame) -> "tuple[pd.DataFrame, int, int, list]":
             break
         dropped += int(flip.sum())
         out = out[~flip].reset_index(drop=True)
-    prev = out["close"].shift(1)
-    jump = np.log(out["open"] / prev)
-    held = np.log(out["close"] / prev)
-    stray = (jump.abs() > STRAY_OPEN) & (held.abs() < jump.abs() / 2)
-    out.loc[stray, "open"] = prev[stray]
-    out.loc[stray, "low"] = out.loc[stray, ["low", "open", "close"]].min(axis=1)
-    out.loc[stray, "high"] = out.loc[stray, ["high", "open", "close"]].max(axis=1)
+    out, stray = reset_stray_opens(out)
     month = pd.to_datetime(out["hour_utc"], unit="s", utc=True).dt.strftime("%Y-%m")
     counts = month.value_counts().sort_index()
     full = counts.iloc[1:-1] if len(counts) > 2 else counts     # not the two ends
     sparse = sorted(m for m, n in counts.items()
                     if n < SPARSE_MONTH * full.quantile(0.75) and m in full.index)
     out = out[~month.isin(sparse)].reset_index(drop=True)
-    return out, dropped, int(stray.sum()), sparse
+    return out, dropped, stray, sparse
+
+
+def reset_stray_opens(frame: pd.DataFrame) -> "tuple[pd.DataFrame, int]":
+    """Opens past the series' stray line from the last close, which their own
+    bar undoes by more than half, set to that close. Returns the count."""
+    out = frame.sort_values("hour_utc").reset_index(drop=True)
+    prev = out["close"].shift(1)
+    line = max(STRAY_OPEN_FLOOR,
+               STRAY_OPEN_MULT * float(np.log(out["close"]).diff().abs().median()))
+    jump = np.log(out["open"] / prev)
+    held = np.log(out["close"] / prev)
+    stray = (jump.abs() > line) & (held.abs() < jump.abs() / 2)
+    out.loc[stray, "open"] = prev[stray]
+    out.loc[stray, "low"] = out.loc[stray, ["low", "open", "close"]].min(axis=1)
+    out.loc[stray, "high"] = out.loc[stray, ["high", "open", "close"]].max(axis=1)
+    return out, int(stray.sum())
+
+
+# And whole stretches where the continuous series interleaves two contract
+# months within its sessions - live cattle from 2026-02-19 to 04-02 opened each
+# session on one month and jumped about 3.5% onto the other at 15:00 UTC on ten
+# times the volume, back again the next morning. A session is MIXED when its
+# first close sits more than MIXED_OPEN from the previous session's close and
+# the session then moves back past three quarters of that. One such session is
+# as likely a real reversal (cattle 2025-04-09, the tariff pause); MIXED_RUN of
+# them within MIXED_SPAN sessions is not, and everything from the first to the
+# last of them is dropped.
+MIXED_OPEN = 0.015
+MIXED_RUN = 3
+MIXED_SPAN = 15
+
+
+def mixed_sessions(frame: pd.DataFrame, template: str) -> "list[str]":
+    from tremor import sessions
+    key = frame["hour_utc"].map(lambda h: sessions.session_key(int(h), template))
+    f = frame.assign(key=key).dropna(subset=["key"]).sort_values("hour_utc")
+    prev_close = f.groupby("key")["close"].last().shift(1)
+    out = []
+    for k, g in f.groupby("key"):
+        pc = prev_close.get(k)
+        if pc is None or not np.isfinite(pc):
+            continue
+        level = np.log(g["close"].to_numpy() / pc)
+        first = level[0]
+        back = (level - first) * -np.sign(first)
+        if abs(first) > MIXED_OPEN and back.max() > 0.75 * abs(first):
+            out.append(k)
+    return out
+
+
+def drop_mixed(frame: pd.DataFrame, template: str) -> "tuple[pd.DataFrame, list]":
+    """The frame without its mixed stretches, and the stretches dropped."""
+    from tremor import sessions
+    key = frame["hour_utc"].map(lambda h: sessions.session_key(int(h), template))
+    order = sorted(k for k in key.dropna().unique())
+    pos = {k: i for i, k in enumerate(order)}
+    flagged = [pos[k] for k in mixed_sessions(frame, template)]
+    stretches, i = [], 0
+    while i < len(flagged):
+        j = i
+        while j + 1 < len(flagged) and flagged[j + 1] - flagged[i] < MIXED_SPAN:
+            j += 1
+        # extend while the run keeps finding flags within the span of its last
+        while j + 1 < len(flagged) and flagged[j + 1] - flagged[j] < MIXED_SPAN:
+            j += 1
+        if j - i + 1 >= MIXED_RUN:
+            stretches.append((order[flagged[i]], order[flagged[j]]))
+        i = j + 1
+    drop = pd.Series(False, index=frame.index)
+    for lo, hi in stretches:
+        drop |= key.between(lo, hi).fillna(False)
+    return frame[~drop.to_numpy()].reset_index(drop=True), stretches

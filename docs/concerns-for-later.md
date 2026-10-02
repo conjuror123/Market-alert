@@ -16,25 +16,15 @@ newly added name says "biggest in a quarter" for years before it can say "bigges
 
 ---
 
-## 0. The futures' history mixes contract months (found 2026-10-02, being fixed)
+## 0. Cocoa's history still mixes contract months
 
-Yahoo's continuous series, from which coffee's, cocoa's and cattle's history was built
-(`tools/futures_history.py`), switches between two contract months within days, not only
-for single hours - the import's cleaning catches only an hour that goes out and straight
-back. Measured on coffee against the December 2026 contract itself: on 2026-07-31, 08-03
-and 08-05 the store holds December's prices, September's on the days between. It shows as
-runs of same-hour moves that are the spread between two contracts: coffee 2026-07-22 to
-08-10 (about twenty readings of +4% to +8% at 09:00 and -4% to -6% at 12:00 or 15:00),
-cocoa 2026-03-17 to 27 and 2024-11-01 to 07, cattle probably 2026-03-30 to 04-02. None of it
-is live - this branch is not on the trigger - but it is in the record every yardstick and
-"biggest since" is measured on.
+Yahoo's continuous series interleaves two contract months around a roll, in stretches of
+sessions, not single hours. Coffee's and cotton's history is now Dukascopy's and cattle's
+is cleaned (`docs/decisions.md`, "Futures are read one contract at a time"). Cocoa's is
+still Yahoo's: its stretches of 2026-03-18 to 27 and 2024-11 are in the record.
 
-**What acting on it means (under way):** coffee's and cotton's records rebuilt from
-Dukascopy's CFDs, which hold one contract at a time and switch once (coffee onto December
-2026 on 08-11, three business days before this series' own roll; cotton onto December on
-06-05, eight before), with the weeks before each roll left out so a switch on a day not
-known exactly is never scored; cocoa's the same if its CFD agrees with its listed
-contracts; cattle's, which Dukascopy does not carry, cleaned of whole-day switches.
+**What acting on it would mean (under way):** cocoa from Dukascopy's CFD if it agrees with
+the listed contract at a seam; otherwise the same cleaning as cattle's.
 
 ---
 
@@ -106,8 +96,8 @@ lives"), what is missing and what was tried:
 | instruments | missing before | tried |
 |---|---|---|
 | live cattle | 2024-05 | Yahoo's hourly stops at 730 days; Dukascopy has none; Stooq needs a login |
-| coffee, cocoa | 2024-05; and most months since hold a third of their hours | as above. Dukascopy's CFDs from 2019-06: coffee agrees with the store (median 2.2 bp, return correlation 0.990) but sits on another contract one hour in ten (p90 138 bp), so its rolls must be mapped first; cocoa does not agree (0.52) |
-| cotton | 2026-06 | Yahoo's continuous series too broken to use. Dukascopy's CFD from 2019-06 agrees with the store (median 1.1 bp, p90 2.8, return correlation 0.997, same hours); its rolls still to be checked |
+| cocoa | 2024-05 | Yahoo's hourly stops at 730 days; Dukascopy's CFD from 2019 being checked against the listed contract |
+| coffee, cotton | 2019-01 | Dukascopy's CFDs held no traded hour in June 2017; 2018 not yet fetched |
 | tin, nickel, aluminium (LME) | 2026-07 | Sina serves the last 1,023 bars; Kitco's nickel (2020-09 on) is a quote that does not track the LME's price; no free hourly LME history found |
 | USD/BRL, USD/INR, USD/KRW | 2019-09, 2019-11, 2020-01 | Twelve Data's start; Dukascopy holds no traded hour of INR or KRW in any sampled year, and its BRL files (from 2007) none in 2019; Sina forex holds six months; TradingView about 6,300 bars |
 
