@@ -1,7 +1,7 @@
 """Kitco's chart gateway, used for nickel: the one hourly nickel series found.
 
 WHAT IT IS. kitco.com's own charts ask a GraphQL gateway (`GetMetalHistoryV3`)
-that takes no key. It serves five-minute quotes from 2020-11 to the last five
+that takes no key. It serves five-minute quotes from 2020-09 to the last five
 minutes, in US dollars a pound. Its level matches the LME's official price to
 a ratio of 1.000 in every year from 2020 to 2026, and it moves on the LME's
 hours - 01:00 to 19:00 London on weekdays - and is flat outside them.
@@ -64,7 +64,8 @@ POUNDS_PER_TONNE = 2204.62262
 BAR_SECONDS = 300
 # Five days of five-minute rows a request: 1,440 rows. Fifteen timed out.
 WINDOW_DAYS = 5
-FIRST = datetime(2020, 11, 1, tzinfo=timezone.utc)
+# Its first quotes are 2020-09-11 10:30; the 14th is the first whole day.
+FIRST = datetime(2020, 9, 14, tzinfo=timezone.utc)
 
 GLITCH_STEP = 0.15               # log move in one five-minute step
 GLITCH_RETURN = 0.03             # back at least this close to where it left

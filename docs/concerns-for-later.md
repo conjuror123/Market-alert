@@ -213,7 +213,7 @@ The other six new pairs go back to 2003–2007 on SiftingIO itself.
 
 | coin | listed from |
 |---|---|
-| XRP | 2019 |
+| XRP | 2019; Bitstamp fills 2017-03 on and the 2021–2023 suspension |
 | ATOM | 2020-01 |
 | UNI | 2020-09 |
 | FIL | 2020-12 |
@@ -233,7 +233,7 @@ POL's two histories would have to be joined.
      Its curve is flat (neighbouring months 0-5 bp apart), so its contract changes are
      not handled at all; its night and day are two sessions, each gap scored.
    - **Nickel** from Kitco's chart gateway (`price_monitor/kitco.py`), on the `lme`
-     session, from 2020-11; its glitches and still days dropped by the client. A real
+     session, from 2020-09; its glitches and still days dropped by the client. A real
      15% five-minute move would be held a day as a possible glitch and never go out.
    - **Coffee, cocoa, cotton, live cattle, aluminium** from Yahoo's futures
      (`tremor/futures.py`), each on its exchange's session (`sessions.DAILY_SESSIONS`).

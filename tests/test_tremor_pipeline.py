@@ -191,6 +191,7 @@ def test_added_rows_are_stamped_before_they_are_concatenated(monkeypatch):
     stored = pd.DataFrame({
         "hour_utc": [100, 200],
         "r": [0.0, 0.0],
+        "bars_upto": [1, 2],
         "config_version": ["cfg", "cfg"],
         "run_version": ["old", "old"],
     })
@@ -205,6 +206,45 @@ def test_added_rows_are_stamped_before_they_are_concatenated(monkeypatch):
     assert list(out["config_version"]) == ["cfg", "cfg", "cfg"]
     assert list(out["run_version"]) == ["old", "new", "new"]
     assert list(out["r"]) == [0.0, 0.02, 0.1]      # 200 re-scored, not kept
+
+
+def test_bars_written_among_the_settled_rows_force_a_rebuild():
+    # A deepening or a hole filled from a second source lands under or among
+    # rows already scored, which were computed without it: extending would
+    # leave those hours out of the metrics for good.
+    from tremor import pipeline as pl, sessions
+
+    small = _small_basket(("SPY",))
+    asset = small.instruments[0]
+    table = sessions.load_sessions()
+    frame = bars.load(bars.store_path(bars.DEFAULT_BARS_DIR, asset.file_stem))
+    cut = frame.iloc[200:]                                   # before the deepening
+    built = pl.build_asset_metrics(asset, small, cut, table)
+    stored = built[[c for c in pl.METRIC_COLUMNS if c in built]].assign(
+        config_version="cfg", run_version="run")
+    assert pl.extend_asset_metrics(asset, small, cut, table,
+                                   stored, "cfg", "run") is stored
+    assert pl.extend_asset_metrics(asset, small, frame, table,
+                                   stored, "cfg", "run") is None
+    # And a store from before the count was kept is rebuilt once.
+    assert pl.extend_asset_metrics(asset, small, cut, table,
+                                   stored.drop(columns="bars_upto"), "cfg", "run") is None
+
+
+def test_bars_upto_counts_the_whole_store_on_an_extension():
+    from tremor import pipeline as pl, sessions
+
+    small = _small_basket(("SPY",))
+    asset = small.instruments[0]
+    table = sessions.load_sessions()
+    frame = bars.load(bars.store_path(bars.DEFAULT_BARS_DIR, asset.file_stem))
+    truth = pl.build_asset_metrics(asset, small, frame, table)
+    early = pl.build_asset_metrics(asset, small, frame.iloc[:-300], table)
+    stored = early[[c for c in pl.METRIC_COLUMNS if c in early]].assign(
+        config_version="cfg", run_version="run")
+    out = pl.extend_asset_metrics(asset, small, frame, table, stored, "cfg", "run")
+    assert out is not None
+    assert list(out["bars_upto"]) == list(truth["bars_upto"])
 
 
 def test_an_hour_first_scored_part_way_through_is_rescored_when_it_closes():

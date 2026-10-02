@@ -244,12 +244,13 @@ move.
 | SiftingIO | 16 | the FX pairs: 0.11–0.35 bps median against the stored bars, the bar closed at :00 served by :05 |
 | Sina Finance | 33 | half of the remaining thin funds: its half-hour US bars are the consolidated tape (0.0 bp against Alpaca's SIP on all 67 over 28 days, 100% of its volume, no hour missing) |
 | Yahoo | 34 | the other half, consolidated; also the morning dividend check |
-| Kitco | 1 | nickel: the chart gateway behind kitco.com, five-minute quotes from 2020-11 folded to hours; glitches and still days dropped (`price_monitor/kitco.py`) |
+| Kitco | 1 | nickel: the chart gateway behind kitco.com, five-minute quotes from 2020-09 folded to hours; glitches and still days dropped (`price_monitor/kitco.py`) |
 | Yahoo futures | 5 | coffee, cocoa, cotton, live cattle (the front contract itself, rolled before first notice) and aluminium (Yahoo's continuous series) — `tremor/futures.py` |
 | Sina Finance (futures) | 1 | tin: the Shanghai Futures Exchange's main contract, hourly; history chained from its delivery months to 2019-08 (`price_monitor/sina.py`, `tools/sina_history.py`) |
 | Google Finance | 1 | TUR: the one feed whose hourly closes match the tape on it, read off the quote page (`price_monitor/google.py`) |
 | Coinbase | 16 | crypto |
 | Dukascopy, HF Data | — | history below what the live providers reach |
+| Bitstamp | — | XRP's history where Coinbase has none: before its 2019 listing (from 2017-03) and through its 2021–2023 suspension, gated against Coinbase and refereed by Binance (`tools/bitstamp_fill.py`) |
 
 **The order a fund is placed in.** A fund goes to an IEX feed only if IEX prices it like
 the tape (median ≤ 2 bp, p90 ≤ 5, ≤ 2% of hours missing — `tools/fund_verdict.py`);

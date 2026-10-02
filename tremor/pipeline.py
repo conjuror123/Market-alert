@@ -51,12 +51,22 @@ def build_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
     scored["asset_id"] = asset.asset_id
     scored["block"] = asset.block
     scored["tier"] = asset.tier
+    scored["bars_upto"] = bars_upto(scored["hour_utc"], frame)
     return scored
+
+
+def bars_upto(hours: pd.Series, frame: pd.DataFrame) -> np.ndarray:
+    """Per metrics row: how many stored bars, up to and including its hour, it
+    was computed from. Not every bar becomes a row (out-of-session and invalid
+    ones do not), so the rows alone cannot say whether the store has since
+    gained bars among them; this can (extend_asset_metrics)."""
+    held = np.sort(frame["hour_utc"].to_numpy())
+    return np.searchsorted(held, hours.to_numpy(), side="right").astype("int64")
 
 
 METRIC_COLUMNS = [
     "hour_utc", "asset_id", "block", "tier", "close", "volume",
-    "r", "is_session_open", "hole", "gap",
+    "r", "is_session_open", "hole", "gap", "bars_upto",
 ]
 
 
@@ -132,6 +142,10 @@ def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
     finished, and a bar that has since been completed or corrected has to be
     able to replace what they said.
 
+    BARS ADDED UNDER OR AMONG THE SETTLED ROWS - a deepening, a hole filled
+    from a second source - are seen: each row keeps how many stored bars it was
+    computed from (`bars_upto`), and a store that no longer agrees is rebuilt.
+
     WHAT IT CANNOT SEE is a revision to a bar older than that tail. The provider
     does correct history occasionally, and a correction to a bar from three
     years ago would leave the stored metrics saying what they said. That is what
@@ -160,6 +174,12 @@ def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
         settled = settled.iloc[:-RECOMPUTE_TAIL_BARS]
 
     newest = int(settled["hour_utc"].max())
+    # Bars written under or among the settled rows - a deepening, a hole filled
+    # from a second source - are not an extension: those rows were computed
+    # without them. A store from before the count was kept is rebuilt once.
+    if "bars_upto" not in settled.columns or \
+            int((frame["hour_utc"] <= newest).sum()) != int(settled["bars_upto"].iloc[-1]):
+        return None
     fresh = frame[frame["hour_utc"] > newest]
     if fresh.empty:
         return stored          # the bars do not even reach the store; leave it
@@ -174,7 +194,9 @@ def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
                                      session_table, dividends)
     if recomputed.empty:
         return stored
-    added = recomputed[recomputed["hour_utc"] > newest]
+    added = recomputed[recomputed["hour_utc"] > newest].copy()
+    # Counted against the whole store, not the lead-in it was recomputed from.
+    added["bars_upto"] = bars_upto(added["hour_utc"], frame)
     if added.empty:
         return stored
     from tremor import versioning
