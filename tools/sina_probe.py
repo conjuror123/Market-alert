@@ -5,9 +5,12 @@ to (tools/fund_verdict.py: median <= 2 bp, p90 <= 5, at most 2% of the tape's
 hours missing), and its volume against the tape's - a feed of one exchange
 reports a fraction.
 
-Sina's US bars (US_MinKService.getMinK, type 60) are labelled by their end in
-New York time on the clock hour, the first by 10:00 for 09:30-10:00; each is
-stamped at the hour its first minute falls in, which is the store's grid.
+Sina's US bars (US_MinKService.getMinK) are labelled by their end in New York
+time. Its hourly ones run 09:30-10:30, 10:30-11:30 ... - a grid the store's
+clock hours cannot be folded from, and the first run of this probe compared
+them across half an hour (SPY 5 bp apart where the closes are identical). So
+the half-hour bars (type 30, about 78 days) are taken and folded like the
+tape's.
 
 Read-only; prints. One Sina request a fund, a few Alpaca ones.
 """
@@ -32,7 +35,7 @@ HEADERS = {"Referer": "https://finance.sina.com.cn", "User-Agent": "Mozilla/5.0"
 
 
 def sina_hours(symbol: str) -> pd.DataFrame:
-    r = requests.get(URL, params={"symbol": symbol.lower(), "type": 60}, headers=HEADERS,
+    r = requests.get(URL, params={"symbol": symbol.lower(), "type": 30}, headers=HEADERS,
                      timeout=30)
     time.sleep(0.5)
     m = re.search(r"var t=\((.*)\);", r.text, re.S)
@@ -41,11 +44,10 @@ def sina_hours(symbol: str) -> pd.DataFrame:
         return bars.empty_frame()
     out = []
     for row in rows:
-        end = pd.Timestamp(row["d"], tz=fv.NY)
-        start = (end - pd.Timedelta(hours=1)).floor("h")
+        start = pd.Timestamp(row["d"], tz=fv.NY) - pd.Timedelta(minutes=30)
         out.append((int(start.timestamp()), float(row["o"]), float(row["h"]), float(row["l"]),
                     float(row["c"]), float(row["v"]), 1))
-    return pd.DataFrame(out, columns=list(bars.SCHEMA)).astype(bars.SCHEMA)
+    return fv._regular(pd.DataFrame(out, columns=list(bars.SCHEMA)).astype(bars.SCHEMA))
 
 
 def main() -> int:
