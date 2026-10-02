@@ -87,7 +87,7 @@ lives"), what is missing and what was tried:
 |---|---|---|
 | 55 US funds (XLK, XLY, XLP, XLE, MBB, VNQ, GOVT, …) | 2016-01 | HF Data's consolidated tape (2002 on) carries 41 of the 87 funds deepened (the rest 404); Twelve Data stops at 2020-02; Alpaca's tape starts 2016 |
 | live cattle | 2024-05 | Yahoo's hourly stops at 730 days; Dukascopy has none; Stooq needs a login |
-| coffee, cocoa, cotton | 2019-01 | Dukascopy's CFDs held no traded hour in June 2017; 2018 not yet fetched |
+| coffee, cocoa, cotton | 2018-01 | Dukascopy's CFDs held no traded hour in June 2017; the rest of 2017 not fetched |
 | tin, nickel, aluminium (LME) | 2026-07 | Sina serves the last 1,023 bars; Kitco's nickel (2020-09 on) is a quote that does not track the LME's price; no free hourly LME history found |
 | USD/BRL, USD/INR, USD/KRW | 2019-09, 2019-11, 2020-01 | Twelve Data's start; Dukascopy holds no traded hour of INR or KRW in any sampled year, and its BRL files (from 2007) none in 2019; Sina forex holds six months; TradingView about 6,300 bars |
 

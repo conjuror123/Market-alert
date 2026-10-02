@@ -290,6 +290,29 @@ def reset_stray_opens(frame: pd.DataFrame) -> "tuple[pd.DataFrame, int]":
     return out, int(stray.sum())
 
 
+def reset_stray_closes(frame: pd.DataFrame) -> "tuple[pd.DataFrame, int]":
+    """Closes past the series' stray line from their own bar's open, which the
+    next bar's open takes back to within a third of the move, set to that next
+    open. Returns the count.
+
+    Dukascopy's soft CFDs print them on a session's last hour: coffee closed
+    2018-05-21 at 111.80 from an open of 120.13 and opened the next session at
+    119.69 - a -7.2% hour, 20 sigma, that never traded. A real last-hour move
+    is followed by a gap that does not undo it (cocoa 2024-04-29: +2.8%, then
+    -5.4%), and is left alone."""
+    out = frame.sort_values("hour_utc").reset_index(drop=True)
+    line = max(STRAY_OPEN_FLOOR,
+               STRAY_OPEN_MULT * float(np.log(out["close"]).diff().abs().median()))
+    nxt = out["open"].shift(-1)
+    move = np.log(out["close"] / out["open"])
+    back = np.log(nxt / out["close"])
+    stray = (move.abs() > line) & ((move + back).abs() < move.abs() / 3)
+    out.loc[stray, "close"] = nxt[stray]
+    out.loc[stray, "low"] = out.loc[stray, ["low", "open", "close"]].min(axis=1)
+    out.loc[stray, "high"] = out.loc[stray, ["high", "open", "close"]].max(axis=1)
+    return out, int(stray.sum())
+
+
 # And whole stretches where the continuous series interleaves two contract
 # months within its sessions - live cattle from 2026-02-19 to 04-02 opened each
 # session on one month and jumped about 3.5% onto the other at 15:00 UTC on ten

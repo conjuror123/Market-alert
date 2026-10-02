@@ -311,11 +311,15 @@ since 2024-05 jumped past 3% and straight back) but whole stretches of sessions 
 on one month and trade on the other: coffee 2026-07-22 to 08-10, cocoa 2026-03, cattle
 2026-02-19 to 04-02, each a run of same-hour moves the size of the spread. So coffee's, cocoa's
 and cotton's history is Dukascopy's CFDs (`tools/dukascopy_futures.py`), which hold one
-contract at a time and switch once, from 2019-01: spliced to the listed contract at the
+contract at a time and switch once, from 2018-01: spliced to the listed contract at the
 seam (coffee 0.9986 correlation, 1.7 bp; cocoa 0.9981, 2.9 bp; cotton 0.9971, 1.2 bp). The CFD switches 2 to 12
 business days before this series rolls; where its switch stands out in its own data it is
 listed in `data/tremor/rolls.csv` and its night unscored, and where none does the weeks
-around the roll are dropped. Cattle, which Dukascopy does not carry, keeps Yahoo's series
+around the roll are dropped — in 2018 four of five rolls for coffee and for cocoa, so that
+year has a four-week hole around most rolls. A session's last hour that closes far off and
+is taken back by the next open (coffee 2018-05-21, -7.2% at 20σ; cocoa 2018-02-09) is a
+print the CFD never traded at, and is set to the next open before the rolls are looked for
+(`futures.reset_stray_closes`). Cattle, which Dukascopy does not carry, keeps Yahoo's series
 with its interleaved stretches dropped (three sessions within fifteen that open past 1.5%
 from the last close and come back) and stray opens judged on its own hourly moves
 (`tremor/futures.py`). Each series' own rolls are made on its liquid months before first

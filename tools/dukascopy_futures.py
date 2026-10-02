@@ -6,7 +6,7 @@ on 2026-07-31, 08-03 and 08-05 coffee's held December's prices and September's
 on the days between, and the store showed it as runs of same-hour moves the
 size of the spread (docs/concerns-for-later.md). Dukascopy's CFD holds one
 contract at a time and switches once - coffee onto December on 2026-08-11,
-matching KCZ26.NYB to 0 bp from that day - and reaches back to 2019.
+matching KCZ26.NYB to 0 bp from that day - and reaches back to 2018.
 
 THE SEAM. Below it the record is the CFD's, above it the store's own: the
 listed contract the series was on, bar for bar. It is where this series rolled
@@ -17,6 +17,10 @@ days after the seam, the two pass the gates every splice passes
 (tremor.backfill.verify_alignment). Volume, the CFD's tick count, is scaled to
 the contracts' median over those days, so the thin-bar rule (tremor.futures)
 reads both sides alike.
+
+STRAY CLOSES - a session's last hour closing far off and the next session
+opening back where it was (coffee 2018-05-07 and 05-21, cocoa 2018-02-09) - are
+set to that next open first (futures.reset_stray_closes).
 
 THE CFD'S OWN ROLLS do not follow this series' calendar: they come 2 to 12
 business days before it. Each is looked for in the weeks before each of this
@@ -37,7 +41,6 @@ from __future__ import annotations
 
 import glob
 import os
-import shutil
 import sys
 from datetime import date, datetime, timedelta, timezone
 
@@ -116,6 +119,10 @@ def main() -> int:
     cfd["volume"] *= float(shared["volume_store"].median() / shared["volume"].median())
 
     below = cfd[cfd["hour_utc"] < seam].reset_index(drop=True)
+    # Before the rolls are looked for: a stray close and the next open that
+    # takes it back would otherwise read as a session gap the size of a switch.
+    below, strays = futures.reset_stray_closes(below)
+    print(f"   {strays} stray closes set to the next open")
     gaps = session_gaps(below, template)
     typical = float(gaps.abs().median())
     first_day = date.fromisoformat(gaps.index.min())
@@ -140,7 +147,8 @@ def main() -> int:
             print(f"   roll {roll}: no clear switch; {lo} to {hi} dropped")
     history = below[keep.to_numpy()]
     rebuilt = pd.concat([history, store[store["hour_utc"] >= seam]], ignore_index=True)
-    shutil.rmtree(path, ignore_errors=True)
+    # The whole record, written over the store: shards that did not change are
+    # not touched, and months already in git keep their files.
     bars.write(path, rebuilt)
 
     table = pd.read_csv(futures.ROLLS_PATH, dtype=str) if os.path.exists(futures.ROLLS_PATH) \

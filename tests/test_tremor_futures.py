@@ -183,3 +183,21 @@ def test_a_run_of_sessions_interleaving_two_months_is_dropped_and_one_reversal_k
     kept, stretches = futures.drop_mixed(frame, "cme_cattle")
     assert len(stretches) == 1
     assert len(frame) - len(kept) == 4 * 6
+
+
+def test_a_stray_close_taken_back_by_the_next_open_is_reset():
+    import numpy as np
+    from tremor import futures
+    hours = [3600 * i for i in range(40)]
+    close = list(100.0 + 0.05 * np.sin(np.arange(40)))
+    frame = pd.DataFrame({"hour_utc": hours, "open": close, "high": close, "low": close,
+                          "close": close, "volume": 1.0, "n_src": 1})
+    frame["open"] = frame["close"].shift(1).fillna(frame["close"])
+    frame.loc[20, "close"] = 93.0              # -7%, and the next bar opens back
+    frame.loc[30, "close"] = 103.0             # +3%, and the next bar goes on
+    frame.loc[31, "open"] = 104.0
+    out, n = futures.reset_stray_closes(frame)
+    assert n == 1
+    assert out.loc[20, "close"] == frame.loc[21, "open"]
+    assert out.loc[20, "low"] <= out.loc[20, "close"]
+    assert out.loc[30, "close"] == 103.0
