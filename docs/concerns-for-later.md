@@ -86,7 +86,6 @@ lives"), what is missing and what was tried:
 | instruments | missing before | tried |
 |---|---|---|
 | 55 US funds (XLK, XLY, XLP, XLE, MBB, VNQ, GOVT, …) | 2016-01 | HF Data's consolidated tape (2002 on) carries 41 of the 87 funds deepened (the rest 404); Twelve Data stops at 2020-02; Alpaca's tape starts 2016 |
-| IGIB, USIG | 2017-08 | recorded as their launch, but both funds date from 2007 under earlier tickers (CIU and CFT, as remembered — not checked); no source asked under the old names |
 | live cattle | 2024-05 | Yahoo's hourly stops at 730 days; Dukascopy has none; Stooq needs a login |
 | coffee, cocoa, cotton | 2019-01 | Dukascopy's CFDs held no traded hour in June 2017; 2018 not yet fetched |
 | tin, nickel, aluminium (LME) | 2026-07 | Sina serves the last 1,023 bars; Kitco's nickel (2020-09 on) is a quote that does not track the LME's price; no free hourly LME history found |

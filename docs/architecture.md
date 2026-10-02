@@ -326,7 +326,7 @@ reaches (2026-10-02):
 
 | instruments | from | built from |
 |---|---|---|
-| 133 US funds | 2002–2011 for 71, 2016 for 55, launch for 7 (FALN, GIGB, IGIB, USIG, USHY, XLC, JMBS; IGIB's and USIG's may predate their tickers, `concerns-for-later.md` 5) | HF Data (2002 on), Twelve Data (2020-02 on), Alpaca's consolidated tape (2016 on) |
+| 133 US funds | 2002–2011 for 73 (IGIB and USIG from 2007 under their former tickers, CIU and CRED), 2016 for 55, launch for 5 (FALN, GIGB, USHY, XLC, JMBS) | HF Data (2002 on), Twelve Data (2020-02 on), Alpaca's consolidated tape (2016 on) |
 | 14 currency pairs | 2003–2007; USD/CNH 2012 | Dukascopy, then the live feed |
 | USD/BRL, USD/INR, USD/KRW | 2019-09, 2019-11, 2020-01 | Twelve Data |
 | 16 coins | each pair's Binance listing — POL 2019-04 (as MATIC), ATOM 2019-04, DOGE 2019-07, SOL and DOT 2020-08, UNI and AVAX 2020-09, FIL and AAVE 2020-10 — under a late USDT listing the coin's BTC pair: LINK 2017-10, ADA 2017-12 — and under Binance's first months a dollar exchange's: BTC 2013-02, LTC 2013-12, ETH 2016-04, XRP 2017-03, BCH 2018-01 | Binance; its BTC pairs times BTCUSDT; Bitstamp, Bitfinex, Coinbase below 2018-06 (`tools/binance_history.py`) |

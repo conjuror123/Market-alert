@@ -399,6 +399,9 @@ Raised, dealt with, and not to be raised again.
 - **The 2020-02-10 wall** — filled. Twelve Data's intraday archive stops there; Alpaca's
   consolidated tape (2016 on) filled 61 funds, 407,153 hours, each gated on a three-month
   overlap (`--deepen-alpaca`, 2026-10-01). Every fund reaches 2016 or its launch.
+  IGIB and USIG, which looked launched in 2017-08, are funds of 2007 renamed in 2018: HF Data
+  files their years before under CIU and CRED, and both passed the overlap gate from there
+  (`backfill.FORMER_TICKERS`, 2026-10-02).
 - **The feed split resting on one week (62 hours)** — superseded by the 28-day fund verdict
   against the consolidated tape (2026-09-30) and Alpaca's 30-day comparison (2026-09-22:
   SIP 44 of 44 at 0.00 bp, IEX 30 of 44).
