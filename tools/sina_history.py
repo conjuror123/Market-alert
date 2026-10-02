@@ -1,5 +1,8 @@
 """One-off: build Shanghai tin's hourly history from Sina, contract by contract.
 
+Shanghai tin left the basket on 2026-10-02 for the LME's (price_monitor/sina.py);
+this stays as the way to chain any Shanghai contract's history.
+
 Sina serves each delivery month's last 1,023 hourly bars - about seven months -
 back to the January 2020 contract (bars from 2019-07). Each day is taken from
 the contract that traded most that day (the main contract, as the exchange's

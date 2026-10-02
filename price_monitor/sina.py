@@ -1,20 +1,25 @@
-"""Sina Finance's futures bars, used for tin: the Shanghai Futures Exchange's.
+"""Sina Finance's bars: the LME's metals, US funds, and Shanghai's futures.
 
-WHY SHANGHAI. LME tin's hourly history is nowhere free - Kitco has no tin, the
-LME and Investing.com refuse readers, and Sina's own LME tin (SND, on the chart
-endpoint gu.sina.cn GlobalService.getMink) serves only its last 1,023 hourly
-bars, from 2026-07. Shanghai's tin trades 84,000 lots a day, and on Sina its
-contracts serve hourly bars back to 2019-07 with no key. It is priced
-in yuan a tonne with VAT, so it moves with the yuan and China's market as well
-as with tin; it is labelled for what it is, Tin (Shanghai).
+THE LME METALS - tin (SND), nickel (NID), aluminium (AHD) - come from the chart
+endpoint behind Sina's global futures pages (gu.sina.cn GlobalService.getMink,
+type 60): the three-month contract's traded hourly bars, in dollars a tonne,
+with volume. Only the last 1,023 are served - about three months - and nothing
+older by any parameter tried, so each record starts 2026-07. Chosen over what
+they replaced (2026-10-02): Kitco's nickel quote did not move in 20% of hours
+(Sina's 2%) and sat 98 bp below the LME's three-month price, correlating 0.61
+with it hour to hour and 0.64 day to day; COMEX aluminium traded a median 5
+contracts an hour against the LME's 901 lots; Shanghai's tin is a different
+market (0.85 hourly correlation), in yuan with VAT. The bar served by :05 was
+measured at 07:05 UTC. A few bars fall outside LMEselect's hours and are left
+to the session gate.
 
-WHAT IS ASKED. InnerFuturesNewService.getFewMinLine, type 60: the last 1,023
-hourly bars of one symbol. SN0 is Sina's continuous main contract, used live;
-a delivery month (SN2611) serves its own last 1,023, which is how the history
-is built (tools/sina_history.py). Tin's curve is flat - neighbouring contracts
-sit 0-5 bp apart - so the move from one contract to the next is no move.
+SHANGHAI'S FUTURES, the first use (InnerFuturesNewService.getFewMinLine): a
+delivery month (SN2611) serves its own last 1,023 hourly bars, so contracts can
+be chained into a history (tools/sina_history.py). Not in the basket now.
 
-THE BARS are labelled by their END, in Beijing time, on the exchange's own grid
+THE BARS of both endpoints are labelled by their END, in Beijing time - for the
+LME's metals too: the first bar of a summer day is 09:00, LMEselect's 01:00 to
+02:00 London. On Shanghai's own grid
 (22:00, 23:00, 00:00, 01:00 at night; 10:00, 11:15, 14:15, 15:00 by day, the
 first day bar from 09:00 and the 11:15 one across the 10:15 break). Each is
 stamped at the hour its first minute falls in - its label less an hour,
@@ -66,15 +71,19 @@ def parse(text: str, symbol: str, now: datetime | None = None) -> list[Candle]:
     return out
 
 
+GLOBAL_URL = "https://gu.sina.cn/ft/api/jsonp.php/var%20t=/GlobalService.getMink"
+
+
 def fetch_bars(symbol: str, session: requests.Session | None = None,
-               now: datetime | None = None) -> list[Candle]:
-    """The last 1,023 hourly bars of `symbol` that have ended."""
+               now: datetime | None = None, url: str = URL) -> list[Candle]:
+    """The last 1,023 hourly bars of `symbol` that have ended: a Shanghai
+    contract by default, an LME metal with url=GLOBAL_URL."""
     last: Exception | None = None
     for attempt in range(MAX_ATTEMPTS):
         if attempt:
             time.sleep(BACKOFF_SECONDS * attempt)
         try:
-            resp = (session or requests).get(URL, params={"symbol": symbol, "type": 60},
+            resp = (session or requests).get(url, params={"symbol": symbol, "type": 60},
                                              headers=HEADERS, timeout=30)
         except requests.RequestException as exc:
             last = ExchangeError(f"{symbol}: {exc}")

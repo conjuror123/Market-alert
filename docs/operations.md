@@ -51,11 +51,10 @@ seconds, so it has no warm state to lose.
 | **Alpaca** | 200/min, IEX live free; SIP to 15 min back | 30 funds — 30 requests a run |
 | **Twelve Data** | 800/day, 8/min | 8 funds — one batched request a run, in the background; ~65 credits a day; plus archive and gap-fill |
 | **SiftingIO** | 10,000/**month**, a few a second | 17 FX pairs — about 8,500 a month (85%); USD/BRL only in its B3 session |
-| **Sina Finance** | none published; wants a Referer | 33 funds (half-hour bars) and tin |
-| **Yahoo** | none published | 34 funds, 5 futures and the dividend check |
+| **Sina Finance** | none published; wants a Referer | 33 funds (half-hour bars) and the LME's tin, nickel and aluminium |
+| **Yahoo** | none published | 34 funds, 4 futures and the dividend check |
 | **Google Finance** | none — a web page, read against its terms | TUR, one page a run |
-| **Kitco** | none — a website's private gateway | nickel, one request a run in LME hours |
-| **Yahoo futures** | as Yahoo | 5 commodities, one request each a run in session; live from the front contract (`tremor.futures.front_contract`) |
+| **Yahoo futures** | as Yahoo | 4 commodities, one request each a run in session; live from the front contract (`tremor.futures.front_contract`) |
 | **Coinbase** | no key | 16 crypto |
 | GitHub Actions minutes | unlimited (public repo) | — |
 | Repository size | 1 GB warning, ~5 GB cutoff | 636 MiB packed (2026-10-02) |
@@ -132,7 +131,7 @@ and is named in the same message; a 404 stays a per-instrument dark.
 
 **A fetch is retried three times before it counts as a failure** — two seconds of backoff
 then four, inside each provider's client. That holds for every provider on the hourly path
-but one: Tiingo, Alpaca, SiftingIO, Sina, Yahoo, Google, Kitco and Coinbase. A dropped
+but one: Tiingo, Alpaca, SiftingIO, Sina, Yahoo, Google and Coinbase. A dropped
 connection therefore costs six seconds rather than a red run, against a twenty-minute job
 timeout, and a failure that reaches the health message is one that survived all three
 attempts. Twelve Data's hourly batch is retried twice, 61 seconds apart, because a retry

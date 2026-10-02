@@ -315,16 +315,13 @@ trade, and is a hole: a third of the moves past 6σ sat on such bars, each undon
 hour (`tremor/futures.py`). Cotton's continuous history holds a third of a normal month in
 14 of its 29 months and is not used; its record starts with its contracts' own bars.
 
-**Nickel's quote glitches are dropped where it is fetched.** Kitco's gateway jumped 18–86%
-in one five-minute step and came back five times in its history; no real step that size
-has come back (2022-03-21, −22%, stayed). A step past 15% that returns more than halfway
-within 24 hours is dropped; one not yet decided is held back, so a real 15% five-minute move
-would reach the store a day late (`price_monitor/kitco.py`).
-
-**Tin is Shanghai's.** The Shanghai Futures Exchange's main contract, hourly from 2019-08
-(`tools/sina_history.py`), in yuan with VAT, labelled Tin (Shanghai). LME tin is served by
-the hour only by Sina's chart endpoint, and only its last 1,023 bars — from 2026-07. Over
-their shared clock hours the two correlate 0.85 hour by hour and 0.91 day by day.
+**The LME's metals are the LME's, from Sina**: tin, nickel and aluminium as the three-month
+contract's traded hourly bars, though Sina serves only the last 1,023 (from 2026-07). The
+owner's call: the right instrument with a short record over a longer record of another
+(2026-10-02). What they replaced, measured over their shared hours: Shanghai's tin, in
+yuan with VAT, correlated 0.85 with the LME's hour by hour; Kitco's nickel quote stood
+still in 20% of hours (Sina 2%), sat 98 bp below and correlated 0.61; COMEX aluminium
+traded a median 5 contracts an hour against the LME's 901 lots.
 
 **A candidate source answers four questions, cheapest disqualifier first:** does it serve
 the bar that closed at :00 by :05; how many requests an hour does it allow against what it
@@ -378,6 +375,7 @@ Raised, dealt with, and not to be raised again.
   | DailyFX | gone |
   | Business Insider | tin once a day |
   | Kitco, aluminium | a second price 30% higher every few weeks |
+  | Kitco, nickel; COMEX aluminium; Shanghai tin | replaced by the LME's own bars (above) |
   | Binance's API | HTTP 451 from US runners; its public archive is used as a referee only |
   | Stooq | nothing without a login |
   | Sina forex | six months of hourly bars |

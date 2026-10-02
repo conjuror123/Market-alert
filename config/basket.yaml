@@ -161,11 +161,11 @@ session_templates:
 #                each commodity block - one batched request a run (its 8
 #                credits a minute), in a thread beside the other providers,
 #                ~65 of 800 credits a day;
-#   SiftingIO    the 16 FX pairs, ~520 a month each, ~83% of 10,000;
+#   SiftingIO    the 17 FX pairs, ~520 a month each (USD/BRL in its session), ~85% of 10,000;
 #   Sina, Yahoo  the remaining 67 thin funds, split within each block so an
 #                outage of either leaves every block reporting - both the
 #                consolidated tape, both undocumented, neither with a quota;
-#   Google TUR, Kitco nickel, Coinbase the 16 coins.
+#   Google TUR; Sina the LME metals; Yahoo 4 futures; Coinbase the 16 coins.
 # US-session names skip when the NYSE calendar says no bar can have appeared;
 # FX skips when the Sun 17:00-Fri 17:00 New York week is shut - see
 # tremor.backfill.nothing_can_have_appeared. History below 2020-02 is HF Data
@@ -603,18 +603,37 @@ assets:
     session_template: us_equity
     fetch_interval: 30min
     label: "Copper"
-  # Nickel itself, not a fund: the nickel ETN (JJN) is delisted. Kitco's quote,
-  # in dollars a tonne, on the LME's hours (price_monitor/kitco.py). The tick is
-  # the LME's, $5 a tonne.
-  - ticker: NI
-    source: kitco
+  # The LME's metals themselves - the ETNs (JJN, JJU, JJT) are delisted: the
+  # three-month contract's traded hourly bars from Sina (price_monitor/sina.py),
+  # in dollars a tonne, on LMEselect's hours. Sina serves only the last 1,023
+  # bars, so each record starts 2026-07. Ticks are the LME's.
+  - ticker: SND
+    source: sina
     tier: 2
     block: industrial_metals
-    has_volume: false
+    has_volume: true
+    tick_size: 5.0
+    session_template: lme
+    fetch_interval: 1h
+    label: "Tin (LME)"
+  - ticker: NID
+    source: sina
+    tier: 2
+    block: industrial_metals
+    has_volume: true
     tick_size: 5.0
     session_template: lme
     fetch_interval: 1h
     label: "Nickel (LME)"
+  - ticker: AHD
+    source: sina
+    tier: 2
+    block: industrial_metals
+    has_volume: true
+    tick_size: 0.5
+    session_template: lme
+    fetch_interval: 1h
+    label: "Aluminium (LME)"
   # --- agriculture -----------------------------------------------------------
   # Agricultural commodities.
   - ticker: DBA
@@ -862,27 +881,6 @@ assets:
     session_template: cme_cattle
     fetch_interval: 1h
     label: "Live cattle (CME)"
-  - ticker: ALI=F
-    source: yahoo
-    tier: 2
-    block: industrial_metals
-    has_volume: true
-    tick_size: 0.25
-    session_template: comex
-    fetch_interval: 1h
-    label: "Aluminium (COMEX)"
-  # Tin: Shanghai's, the one hourly tin found (price_monitor/sina.py) - yuan a
-  # tonne with VAT, so it carries the yuan and China's market too. Its night and
-  # its day are two sessions, each opening with a scored gap.
-  - ticker: SN0
-    source: sina
-    tier: 2
-    block: industrial_metals
-    has_volume: true
-    tick_size: 10.0
-    session_template: shfe
-    fetch_interval: 1h
-    label: "Tin (Shanghai)"
   # The Brazilian real on its own session (sessions.b3_fx): live from SiftingIO,
   # history from Twelve Data (2019-09), whose hourly closes sit 1.5 bp
   # (median) from SiftingIO's against 9-31 bp of an hour's move.

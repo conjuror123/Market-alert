@@ -42,11 +42,10 @@ it is full are marked `young`.
 **Stage 1b, the gap — built.** What happens while a market is shut arrives as the jump from
 the last price before the close to the first after it: a fund's night and weekend, a
 currency pair's weekend and its two midweek closures, Christmas and New Year's Day,
-and a daily-session market's night and weekend — nickel on the LME, the soft
-commodities, cattle and aluminium on their exchanges, the real on B3
-(`sessions.DAILY_SESSIONS`), and each of Shanghai tin's two sessions a day, its night
-(21:00-01:00 Beijing) and its day (09:00-15:00) (`sessions.SEGMENTED_SESSIONS`); crypto
-never closes. A future's roll night is not scored:
+and a daily-session market's night and weekend — the LME's metals, the soft
+commodities and cattle on their exchanges, the real on B3 (`sessions.DAILY_SESSIONS`; a
+market with several sessions a day, as Shanghai's, has each scored, `SEGMENTED_SESSIONS`);
+crypto never closes. A future's roll night is not scored:
 the series jumps there by the spread between two contracts (`tremor.futures`). Each gap is scored by the same two rules
 against the earlier gaps **of its own kind** over the half-year before it — a night against
 nights, a weekend against weekends — so every reading of an instrument is read against the
@@ -174,7 +173,7 @@ Settings live under `detector:` in `config/basket.yaml`: `window_days`,
 
 **When a move is found.** `jumps` judges a reading only once it can be (`jumps.ended`): an
 hour once it has ended, a fund's gap with its first bar once that bar has ended, a currency
-pair's weekend gap and nickel's night at their open. That moment is the event's `found_utc`, and the run five
+pair's weekend gap and a metal's night at their open. That moment is the event's `found_utc`, and the run five
 minutes later is the one that sees it. `jumps.parquet` holds every flagged reading;
 delivery groups them into 24-hour events itself, holding the events already on the channel
 to the 24 hours they started with (`jumps.event_starts` with anchors) — a first move
@@ -244,9 +243,8 @@ move.
 | SiftingIO | 17 | the FX pairs: 0.11–0.35 bps median against the stored bars, the bar closed at :00 served by :05; USD/BRL only in its São Paulo session |
 | Sina Finance | 33 | half of the remaining thin funds: its half-hour US bars are the consolidated tape (0.0 bp against Alpaca's SIP on all 67 over 28 days, 100% of its volume, no hour missing) |
 | Yahoo | 34 | the other half, consolidated; also the morning dividend check |
-| Kitco | 1 | nickel: the chart gateway behind kitco.com, five-minute quotes from 2020-09 folded to hours; glitches and still days dropped (`price_monitor/kitco.py`) |
-| Yahoo futures | 5 | coffee, cocoa, cotton, live cattle (the front contract itself, rolled before first notice) and aluminium (Yahoo's continuous series) — `tremor/futures.py` |
-| Sina Finance (futures) | 1 | tin: the Shanghai Futures Exchange's main contract, hourly; history chained from its delivery months to 2019-08 (`price_monitor/sina.py`, `tools/sina_history.py`) |
+| Yahoo futures | 4 | coffee, cocoa, cotton, live cattle: the front contract itself, rolled before first notice — `tremor/futures.py` |
+| Sina Finance (LME) | 3 | tin, nickel, aluminium: the LME's three-month contract, traded hourly bars with volume; the last 1,023 only (`price_monitor/sina.py`) |
 | Google Finance | 1 | TUR: the one feed whose hourly closes match the tape on it, read off the quote page (`price_monitor/google.py`) |
 | Coinbase | 16 | crypto |
 | Dukascopy, HF Data | — | history below what the live providers reach |
@@ -291,7 +289,7 @@ long-run sigma and short-memory state)
 **Delivery** lives in `price_monitor/`: `tremor_delivery` (renders the messages and
 curates the week's channel; the word and the channel are already stamped), `weekly_digest` (the economic calendar, sent just before the weekly
 note opens), `health`, `notifier`, and the source clients `backfill` fetches through: live, `tiingo`, `alpaca`, `sifting`,
-`twelvedata`, `sina`, `yahoo`, `google`, `kitco`, `coinbase`; history only, `dukascopy`,
+`twelvedata`, `sina`, `yahoo`, `google`, `coinbase`; history only, `dukascopy`,
 `hfdata`, `bitstamp`. One-off history builders are in `tools/`: `futures_history`,
 `sina_history`, `bitstamp_fill`.
 
@@ -328,9 +326,8 @@ reaches (2026-10-02):
 | 14 currency pairs | 2003–2007; USD/CNH 2012 | Dukascopy, then the live feed |
 | USD/BRL, USD/INR, USD/KRW | 2019-09, 2019-11, 2020-01 | Twelve Data |
 | 16 coins | each one's Coinbase listing, 2015–2021; XRP from 2017-03 | Coinbase; XRP's years without it from Bitstamp |
-| nickel | 2020-09 | Kitco |
-| tin (Shanghai) | 2019-08 | Sina, chained from the delivery months |
-| coffee, cocoa, cattle, aluminium | 2024-05 | Yahoo's continuous series, cleaned |
+| tin, nickel, aluminium (LME) | 2026-07 | Sina |
+| coffee, cocoa, cattle | 2024-05 | Yahoo's continuous series, cleaned |
 | cotton | 2026-06 | its contracts' own bars |
 
 What is missing below these, and what was tried for it, is in `concerns-for-later.md`.

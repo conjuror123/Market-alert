@@ -280,6 +280,9 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
     elif provider == "sina" and asset.session_template == CALENDAR_TEMPLATE:
         # A US fund: its last ~78 days of half-hour bars, whatever `days` asks.
         candles = sina.fetch_us_bars(asset.ticker, session)
+    elif provider == "sina" and asset.session_template == "lme":
+        # An LME metal: its last 1,023 hourly bars, about three months.
+        candles = sina.fetch_bars(asset.ticker, session, url=sina.GLOBAL_URL)
     elif provider == "sina":
         # A Shanghai future: its last 1,023 hourly bars, about six months.
         candles = sina.fetch_bars(asset.ticker, session)

@@ -1,4 +1,9 @@
-"""Kitco's chart gateway, used for nickel: the one hourly nickel series found.
+"""Kitco's chart gateway: nickel's quote, from 2020-09.
+
+NOT IN THE BASKET since 2026-10-02: nickel is the LME's own traded bars from Sina
+(price_monitor/sina.py), which Kitco's quote does not track - it stood still in
+20% of hours, sat 98 bp below the three-month price and correlated 0.61 with it.
+Kept for its five-year archive and as a fallback.
 
 WHAT IT IS. kitco.com's own charts ask a GraphQL gateway (`GetMetalHistoryV3`)
 that takes no key. It serves five-minute quotes from 2020-09 to the last five

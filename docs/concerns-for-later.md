@@ -64,12 +64,12 @@ window for weekends only — each a one-line change in `tremor/jumps.py` and a r
 
 ## 4. Most of the basket rides undocumented endpoints
 
-Yahoo (34 funds, 5 futures, the dividend check), Sina Finance (33 funds and tin), Google
-Finance (TUR) and Kitco (nickel) are web endpoints with no terms that allow this use and no
+Yahoo (34 funds, 4 futures, the dividend check), Sina Finance (33 funds and the LME's
+metals) and Google Finance (TUR) are web endpoints with no terms that allow this use and no
 notice before they change. A changed shape raises, and the run's health message names the
 provider and its instruments; the funds are split between Sina and Yahoo within each block
-so either can fail without silencing a block. Kitco's glitch rule holds a real 15%
-five-minute move back a day. Tiingo's key is shared with production until the switch.
+so either can fail without silencing a block; the LME's metals have no second source.
+Tiingo's key is shared with production until the switch.
 
 **What acting on it would mean:** a paid consolidated feed — Alpaca's unrestricted SIP
 would carry every fund — and paid futures data (Barchart, Financial Modeling Prep).
@@ -84,11 +84,10 @@ lives"), what is missing and what was tried:
 
 | instruments | missing before | tried |
 |---|---|---|
-| live cattle, aluminium | 2024-05 | Yahoo's hourly stops at 730 days; Dukascopy has neither; Stooq needs a login |
+| live cattle | 2024-05 | Yahoo's hourly stops at 730 days; Dukascopy has none; Stooq needs a login |
 | coffee, cocoa | 2024-05; and most months since hold a third of their hours | as above. Dukascopy's CFDs from 2019-06: coffee agrees with the store (median 2.2 bp, return correlation 0.990) but sits on another contract one hour in ten (p90 138 bp), so its rolls must be mapped first; cocoa does not agree (0.52) |
 | cotton | 2026-06 | Yahoo's continuous series too broken to use. Dukascopy's CFD from 2019-06 agrees with the store (median 1.1 bp, p90 2.8, return correlation 0.997, same hours); its rolls still to be checked |
-| tin (Shanghai) | 2019-08 | Sina serves no older contract |
-| nickel | 2020-09 | Kitco's first quote is 2020-09-11 |
+| tin, nickel, aluminium (LME) | 2026-07 | Sina serves the last 1,023 bars; Kitco's nickel (2020-09 on) is a quote that does not track the LME's price; no free hourly LME history found |
 | USD/BRL, USD/INR, USD/KRW | 2019-09, 2019-11, 2020-01 | Twelve Data's start; Dukascopy holds no traded hour of INR or KRW in any sampled year, and its BRL files (from 2007) none in 2019; Sina forex holds six months; TradingView about 6,300 bars |
 | ATOM UNI FIL AAVE POL ADA DOGE DOT SOL AVAX | their Coinbase listing, 2020–2021 | Bitstamp lists none earlier. Binance's archive does, in USDT: ADA from 2018-04, POL (as MATIC) and ATOM 2019-04, DOGE 2019-07, DOT and SOL 2020-08, AVAX 2020-09; UNI, FIL, AAVE no earlier than Coinbase |
 
