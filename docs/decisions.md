@@ -57,8 +57,8 @@ patterns — the time of day (Boudt, Croux & Laurent find it recovers small jump
 hours and removes false ones in busy hours). Do not filter news: about a third of FX jumps
 coincide with US data releases (Lahaye, Laurent & Neely), and they are the real thing.
 Fat tails are what a jump test detects, so a per-asset tail shape is a risk-management
-idea, kept as an optional later stage. Both of the first two were tried or weighed here and
-dropped (below, "Settled and closed").
+idea. All three — time of day, news labels and the tail shape — were tried or weighed here
+and dropped (below, "Settled and closed").
 
 **The gap: each kind against its own kind, over the same half-year.** Every reading of an
 instrument — hours, nights, weekends — is read against the same half-year of the world's
@@ -433,6 +433,19 @@ Raised, dealt with, and not to be raised again.
   message a run does that better (Delivery, above). The own move (8) was the same block
   machinery, and the floor (11) existed only for it. The owner's call: anything more on
   blocks is overcomplication.
+- **A tail shape per asset class (stage 10, Student-t)** — measured and dropped
+  (2026-10-03). Against its own half-year σ every class has nearly the same tail: an hour
+  reaches 3.9σ 71-110 times as often as the bell curve says (equity 71, FX 94, crypto 95,
+  rates 98, precious metals 110), so 3.9σ is about one hour in 115 for all of them, not one
+  in 10,000. A Student-t fits far better than the bell curve (ν 2.5-3.5 by block) and was
+  run through the whole detector over five years two ways. Keeping the bell curve's rarity
+  per word put `noticeable` at 14-24σ: 0.4 events a week, and 86% of each instrument's five
+  biggest hours missed. Keeping the basket's rarity and adjusting only each class's shape
+  moved messages 22.9 -> 22.3 a week, shifting a few events a year from FX, agriculture and
+  metals to equity; and the class thresholds this needs (3.6-3.9σ) differ by less than one
+  class's own threshold moves between years fitted alone (up to ±0.7σ). Bajgrowicz,
+  Scaillet & Treccani (2016) answer false detections with a higher threshold, not another
+  distribution: that is stage 12.
 - **The 2020-02-10 wall** — filled. Twelve Data's intraday archive stops there; Alpaca's
   consolidated tape (2016 on) filled 61 funds, 407,153 hours, each gated on a three-month
   overlap (`--deepen-alpaca`, 2026-10-01). Every fund reaches 2016 or its launch.

@@ -152,12 +152,12 @@ reviewed:
 | 2 | channels, the weekly note, delivery and curation | — | built |
 | 3 | rarest since | — | built |
 | 4 | held at the funds' close | — | built |
-| 10 | tail shape per asset class (optional) | Student-t, from risk management | to come |
 | 12 | tuning the threshold and the step | — | to come |
 
 Stages 1–4 were what the switch to production waited on. Stages 5 (time of day), 7 (block
-co-jumps), 8 (the own move after the block), 9 (labelling news) and 11 (the size floor
-stage 8 might have needed) were measured or weighed and dropped (`decisions.md`, "Settled
+co-jumps), 8 (the own move after the block), 9 (labelling news), 10 (a tail shape per
+asset class) and 11 (the size floor stage 8 might have needed) were measured or weighed and
+dropped (`decisions.md`, "Settled
 and closed"). The blocks never enter the detector: each instrument is judged on its own
 history alone.
 
