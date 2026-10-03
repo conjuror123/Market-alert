@@ -596,8 +596,8 @@ def format_push(event: dict, labels: dict[str, str],
 # the same hour: the FOMC hour of 2024-12-18 found 130 events, 108 of them
 # pushes, and Telegram takes about twenty messages a minute into a channel. So
 # the pushes a run finds go out together in one message, and its pings in one
-# more - measured over five years to 2026-10-01, 22.9 messages a week against
-# 62.7 one per move, and at most 6 in one run, against 130. Each move keeps its
+# more - replayed over the year to 2026-10-01, 29.1 messages a week for 69
+# events, and the FOMC hour in 6 alert messages, against 130. Each move keeps its
 # own life inside the message (the week below): it is edited there, and leaves
 # it when it turns rarer and rings again in the run that finds that.
 #

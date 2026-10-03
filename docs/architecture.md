@@ -190,9 +190,10 @@ names the hour it is around. A message is cut at 3,000 characters when it is fir
 (`MESSAGE_BUDGET`), below Telegram's 4,096, so the moves in it stay there for their lives
 and a story line or a filled-in close still fits. Only the run's first message rings — the
 pings stay silent after a push, and so do a flood's further messages and a part the note
-grows by. Over five years to 2026-10-01 this is 22.9 messages a week instead of 62.7, 18.6
-of them ringing, and at most 6 in one run (the FOMC hour of 2024-12-18, 108 pushes and 67
-rows, in 5 push messages and one of pings).
+grows by. Replayed hour by hour over the year to 2026-10-01, delivery sent 29.1 messages a
+week — 9.2 of pushes, 16.6 of pings, 3.3 note parts — 21.8 of them ringing, for 69 events a
+week; the FOMC hour of 2024-12-18, 108 pushes and 67 rows, went out in 5 push messages and
+one of pings.
 
 **The week** (`tremor_delivery`). The note opens at the first run after the week's last NYSE
 close, just after the economic calendar's own message, and a move belongs to the note open

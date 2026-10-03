@@ -24,7 +24,7 @@ The square's colour is the word: ⬜ noticeable at 3.9σ, 🟨 high at 5.5σ, �
 its rarest hour. `high` and up arrive at once, about 22 a week for today's basket;
 `noticeable` goes into one weekly note, about 49 rows a week, each with a ping line (the
 year to 2026-10-01). What one hourly run finds goes out together — one message for its
-pushes, one for its pings, biggest first — about 24 messages a week. The detector is built in stages (`docs/architecture.md`); this branch is it as it
+pushes, one for its pings, biggest first — about 29 messages a week. The detector is built in stages (`docs/architecture.md`); this branch is it as it
 will run live, and production runs the previous detector until the switch.
 
 It runs entirely on GitHub Actions. Nothing extra needs hosting.

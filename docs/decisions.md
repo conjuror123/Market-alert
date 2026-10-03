@@ -199,13 +199,15 @@ twenty messages a minute into a channel, so one message per move arrived over ho
 and out of order. The moves one run finds share messages instead — its pushes in one, its
 pings in one more — ordered by size in σ, largest first: a message is an alarm, and leads
 with what matters most, where the note is a record and runs by time (by size only inside
-an hour). Over five years to 2026-10-01: 22.9 messages a week instead of 62.7, at most 6 in a
-run instead of 130. Each move keeps its own life inside its message; turning rarer inside
+an hour). Delivery replayed hour by hour over the year to 2026-10-01: 29.1 messages a week
+(9.2 of pushes, 16.6 of pings, 3.3 note parts) for 69 events a week, and the FOMC hour of
+2024-12-18 in 6 alert messages instead of 130. Each move keeps its own life inside its message; turning rarer inside
 its 24 hours takes it out and rings it again in the run that finds that. **Only the run's
 first message rings**: after it the reader is on the channel, so the pings after a push, a
-flood's further messages and a part the note grows by are silent — 18.6 rings a week.
-Grouping by block (stage 7) was the other way to fold a flood, and was measured worse:
-25.7 messages a week and 9 in the worst hour.
+flood's further messages and a part the note grows by are silent — 21.8 rings a week.
+Grouping by block (stage 7) was the other way to fold a flood, and was measured worse: by
+the same estimate from the events table, 25.7 messages a week against 22.9 for one message
+a run, and 9 in the worst hour against 6.
 
 **A move belongs to the note open when it is found, and it is found only once it can be
 judged.** The run fires at :05 and stores the hour it stands in, five minutes of it, so
@@ -441,8 +443,8 @@ Raised, dealt with, and not to be raised again.
   run through the whole detector over five years two ways. Keeping the bell curve's rarity
   per word put `noticeable` at 14-24σ: 0.4 events a week, and 86% of each instrument's five
   biggest hours missed. Keeping the basket's rarity and adjusting only each class's shape
-  moved messages 22.9 -> 22.3 a week, shifting a few events a year from FX, agriculture and
-  metals to equity; and the class thresholds this needs (3.6-3.9σ) differ by less than one
+  moved events 62.8 -> 65.0 a week and messages about 3% down, shifting a few events a year
+  from FX, agriculture and metals to equity; and the class thresholds this needs (3.6-3.9σ) differ by less than one
   class's own threshold moves between years fitted alone (up to ±0.7σ). Bajgrowicz,
   Scaillet & Treccani (2016) answer false detections with a higher threshold, not another
   distribution: that is stage 12.
