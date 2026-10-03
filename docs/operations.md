@@ -168,27 +168,36 @@ The bot posts to a **public channel** and is an administrator there: it can edit
 messages at any age and delete any message. For the week of the open note every run brings
 the channel in line with the events table (`architecture.md`, "The week"):
 
-- **deleted** — an event that is gone (its push, or its row's ping); an event that turned
-  rarer inside its 24 hours, which then goes out again and rings; a note part no longer
-  needed; every ping of the week when the next note opens;
+- **taken out of its message** — an event that is gone (its push, or its row's ping line);
+  an event that turned rarer inside its 24 hours, which then goes out again in the run's
+  new message and rings; every ping line of the week when the next note opens. A message
+  left with nothing in it is **deleted**, and so is a note part no longer needed;
 - **edited** — everything else that changes: a push whose numbers moved or whose word
-  fell (⬜ at `noticeable`), the note, a ping whose numbers moved, and — after an event's
-  24 hours — a row's ping that becomes the push. An edited or re-sent event says why on
-  its `✏️` line.
+  fell (⬜ at `noticeable`), the note, a ping line whose numbers moved, and — after an
+  event's 24 hours — a row's ping line that becomes a push in the same message. An edited
+  or re-sent event says why on its `✏️` line.
 
 Nothing of an earlier week is touched. **A detector update** (a new
-`jumps.detector_version()`) deletes every push and ping of the current week, keeps the note
+`jumps.detector_version()`) deletes every push and ping message of the current week, keeps the note
 and the calendar, and carries on with what is found from that run on — expect that on the
 first run after a change to the detector or the basket. A delete Telegram refuses is struck
 through by an edit instead, and Telegram's reason is logged.
+
+**Too many requests.** Telegram takes about twenty messages a minute into a channel, edits
+included, and answers more with 429 and how long to wait. The notifier waits that long and
+tries again, up to three times and never more than 60 s at once
+(`notifier.RETRIES_ON_429`, `RETRY_AFTER_CAP_SECONDS`); past that the message fails like any
+other and the next run sends it.
 
 ---
 
 ## Silence is the normal state
 
 About 22 pushes a week across today's 173 instruments and about 49 note rows, each with a
-small ping, over the year to 2026-10-01; the busiest week had 87 pushes and 142 rows
-(`decisions.md`).
+ping line, over the year to 2026-10-01; the busiest week had 87 pushes and 142 rows
+(`decisions.md`). The moves one run finds share messages — one for the pushes, one for the
+pings — so that is about 24 messages a week, 19 of them ringing (only a run's first message
+rings).
 One note a week opens at the first run after the week's last NYSE close — normally Friday
 16:05 New York, 20:05 UTC in summer and 21:05 in winter; Thursday on a Good Friday week,
 13:05 on a half day — and fills as moves are found; it opens even when nothing has happened

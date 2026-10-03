@@ -66,8 +66,8 @@ once that close has passed, `held` is the share of the move still there
 (held_at_close).
 
 NOT HERE, deliberately: no time-of-day scale - measured and dropped, a busy hour
-fires more because more happens in it (docs/decisions.md). Not yet: no block or own-move
-reading, no size floor. Each comes back as its own stage with its own logic.
+fires more because more happens in it (docs/decisions.md); no block co-jump or own-move
+reading, measured and dropped too.
 The output is a table of every reading that reached `noticeable`.
 
     python -m tremor.jumps            reads data/tremor/metrics, writes

@@ -77,17 +77,21 @@ Break one of these and the system is wrong rather than merely broken.
    in it and goes into the new week. A move belongs to the note open when it is
    **found**; for that week every run brings every message in line with the events table
    (`tremor_delivery` "the week"). Anything of an earlier week is history and is never
-   touched: at the next note only the old week's pings are deleted. **Inside its 24
-   hours** an event that turns rarer is deleted and goes out again at the new word, and
-   rings; one that turns milder is edited (a push that falls to `noticeable` shows ⬜, a
-   `noticeable` that falls away is deleted). **After them** it changes only by a fix,
-   silently: rarer or milder is an edit (a row turning `high` leaves the note and its
-   ping is edited into the push), gone is gone for good. A changed event carries its
-   story on one line; a clean one says nothing. A ping lives exactly as long as its row.
+   touched: at the next note only the old week's pings are taken down. **The moves one
+   run finds share messages** — its pushes in one, its pings in one more, biggest σ
+   first — and only the run's first message rings; a message is edited as what it
+   carries changes and deleted once it carries nothing. **Inside its 24 hours** an event
+   that turns rarer leaves its message and goes out again in the run's new one at the
+   new word, and rings; one that turns milder is edited (a push that falls to
+   `noticeable` shows ⬜, a `noticeable` that falls away is taken out). **After them** it
+   changes only by a fix, silently: rarer or milder is an edit (a row turning `high`
+   leaves the note and its ping line becomes the push), gone is gone for good. A changed
+   event carries its story on one line; a clean one says nothing. A ping line lives
+   exactly as long as its row.
    Every move — a coin's and a pair's too — is checked at the first NYSE close after it
    was found (`jumps.held_at_close`): its time line counts down, then says how much held.
 6. **A detector update restarts the week.** When `jumps.detector_version()` changes, every
-   push and ping of the week is deleted; the note (and the calendar) stay, and the week
+   push and ping message of the week is deleted; the note (and the calendar) stay, and the week
    continues with what is found from that run on. Nothing found before the update rings.
 7. **A reading is judged only once it can be.** The run fires at :05 and stores the hour
    it is standing in — a few per cent of its volume — so `jumps.ended` scores an hour

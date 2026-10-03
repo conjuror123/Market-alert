@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 
 import requests
 
@@ -30,23 +31,57 @@ def redact_secrets(text: str) -> str:
     return text
 
 
-def send_telegram_message(bot_token: str, chat_id: str, text: str, timeout: int = 15) -> int:
-    """Send a message, returning its Telegram message_id (needed to edit it later)."""
+# TOO MANY REQUESTS. Telegram allows about twenty messages a minute into one
+# channel, edits included, and answers 429 with how many seconds to wait
+# (`parameters.retry_after`). The run waits that long and asks again rather
+# than giving the message up until the next hour. Bounded, so a long ban cannot
+# hold the hourly job: a wait over the cap, or a refusal after the last retry,
+# is an error like any other and the message is retried by the next run.
+RETRY_AFTER_CAP_SECONDS = 60
+RETRIES_ON_429 = 3
+
+
+def _retry_after(resp) -> "float | None":
+    try:
+        return float(resp.json()["parameters"]["retry_after"])
+    except (ValueError, KeyError, TypeError):
+        return None
+
+
+def _post(url: str, payload: dict, timeout: int):
+    """POST to the Bot API, waiting out Telegram's 429s. Raises
+    requests.RequestException like requests.post does."""
+    for attempt in range(RETRIES_ON_429 + 1):
+        resp = requests.post(url, json=payload, timeout=timeout)
+        if resp.status_code != 429 or attempt == RETRIES_ON_429:
+            return resp
+        wait = _retry_after(resp)
+        if wait is None or wait > RETRY_AFTER_CAP_SECONDS:
+            return resp
+        log.warning("Telegram says too many requests: waiting %.0f s", wait)
+        time.sleep(wait + 0.5)
+    return resp                                  # pragma: no cover - loop returns
+
+
+def send_telegram_message(bot_token: str, chat_id: str, text: str, timeout: int = 15,
+                          silent: bool = False) -> int:
+    """Send a message, returning its Telegram message_id (needed to edit it later).
+
+    `silent` delivers it without a sound (disable_notification)."""
     if not bot_token or not chat_id:
         raise TelegramError("TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID are not configured")
 
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
+    }
+    if silent:
+        payload["disable_notification"] = True
     try:
-        resp = requests.post(
-            url,
-            json={
-                "chat_id": chat_id,
-                "text": text,
-                "parse_mode": "HTML",
-                "disable_web_page_preview": True,
-            },
-            timeout=timeout,
-        )
+        resp = _post(url, payload, timeout)
     except requests.RequestException:
         # The token is in the URL; str(exc) would put it in health/ops text.
         raise TelegramError("Telegram request failed") from None
@@ -87,16 +122,16 @@ def edit_telegram_message(
 
     url = f"https://api.telegram.org/bot{bot_token}/editMessageText"
     try:
-        resp = requests.post(
+        resp = _post(
             url,
-            json={
+            {
                 "chat_id": chat_id,
                 "message_id": message_id,
                 "text": text,
                 "parse_mode": "HTML",
                 "disable_web_page_preview": True,
             },
-            timeout=timeout,
+            timeout,
         )
     except requests.RequestException:
         raise TelegramError("Telegram request failed") from None
@@ -130,11 +165,7 @@ def delete_telegram_message(
 
     url = f"https://api.telegram.org/bot{bot_token}/deleteMessage"
     try:
-        resp = requests.post(
-            url,
-            json={"chat_id": chat_id, "message_id": message_id},
-            timeout=timeout,
-        )
+        resp = _post(url, {"chat_id": chat_id, "message_id": message_id}, timeout)
     except requests.RequestException:
         return False
     if resp.status_code == 200:

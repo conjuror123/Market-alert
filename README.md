@@ -21,9 +21,10 @@ Mykland (2008) — and the message says how big it was in those terms:
 
 The square's colour is the word: ⬜ noticeable at 3.9σ, 🟨 high at 5.5σ, 🟧 major at 7.8σ,
 🟥 extreme at 11.0σ. An instrument's event is the 24 hours from its first move, worded by
-its rarest hour. `high` and up arrive as their own message, about 22 a week for today's
-basket; `noticeable` goes into one weekly note, about 49 rows a week, each with a small
-ping (the year to 2026-10-01). The detector is built in stages (`docs/architecture.md`); this branch is it as it
+its rarest hour. `high` and up arrive at once, about 22 a week for today's basket;
+`noticeable` goes into one weekly note, about 49 rows a week, each with a ping line (the
+year to 2026-10-01). What one hourly run finds goes out together — one message for its
+pushes, one for its pings, biggest first — about 24 messages a week. The detector is built in stages (`docs/architecture.md`); this branch is it as it
 will run live, and production runs the previous detector until the switch.
 
 It runs entirely on GitHub Actions. Nothing extra needs hosting.

@@ -15,14 +15,14 @@
 reader too many questions — three tables of rungs, a rate per rung, a sensitivity — none of
 which could be answered from anything but taste. The problem this bot solves already has a
 standard answer: the intraday jump test of Lee & Mykland (2008, *Review of Financial
-Studies* 21:6), with the time-of-day correction of Boudt, Croux & Laurent (2011) and the
-group ("co-jump") test of Bollerslev, Law & Tauchen (2008). It is built in stages, each
-with its source and a measured before/after, so what a message means can be followed.
+Studies* 21:6). It is built in stages, each with its source and a measured before/after, so
+what a message means can be followed. Two refinements from the same literature were
+measured and dropped: the time-of-day correction of Boudt, Croux & Laurent (2011) and the
+group ("co-jump") test of Bollerslev, Law & Tauchen (2008) ("Settled and closed").
 
 **Stage 0 is two rules and nothing else.** The hour's move over the instrument's bipower
 volatility, and a word from the size of that ratio. One-a-day, channels, the date, the held
-check, the time-of-day scale, the gap, blocks, the own move and the floor all come back as
-their own stages.
+check and the gap came back as their own stages.
 
 **Bipower, not a standard deviation.** Lee & Mykland's eq. 8 averages products of
 neighbouring moves, so a jump inside the window pairs with ordinary moves on either side
@@ -192,6 +192,20 @@ bigger jump` — so an edit is never silent about being one. A clean event says 
 reasons are the jump detector's own: the only things that move |move| / σ of an event's
 biggest hour are a bigger hour, a late bar, a revised price, a revised yardstick, or the
 jump disappearing. The story sits on the push and on the note row, not on the ping.
+
+**One message a run, biggest first.** Big news moves dozens of instruments in one hour: the
+FOMC hour of 2024-12-18 found 130 events, 108 of them pushes, and Telegram takes about
+twenty messages a minute into a channel, so one message per move arrived over hours, late
+and out of order. The moves one run finds share messages instead — its pushes in one, its
+pings in one more — ordered by size in σ, largest first: a message is an alarm, and leads
+with what matters most, where the note is a record and runs by time (by size only inside
+an hour). Over five years to 2026-10-01: 22.9 messages a week instead of 62.7, at most 6 in a
+run instead of 130. Each move keeps its own life inside its message; turning rarer inside
+its 24 hours takes it out and rings it again in the run that finds that. **Only the run's
+first message rings**: after it the reader is on the channel, so the pings after a push, a
+flood's further messages and a part the note grows by are silent — 18.6 rings a week.
+Grouping by block (stage 7) was the other way to fold a flood, and was measured worse:
+25.7 messages a week and 9 in the worst hour.
 
 **A move belongs to the note open when it is found, and it is found only once it can be
 judged.** The run fires at :05 and stores the hour it stands in, five minutes of it, so
@@ -411,6 +425,14 @@ Raised, dealt with, and not to be raised again.
 - **Labelling scheduled news (stage 9)** — dropped with stage 5, the owner's call
   (2026-10-02). A push already lists the releases in the hours around its move
   (`Nearby economic events`).
+- **Block co-jumps and the own move (stages 7 and 8), and the size floor (11)** — measured
+  and dropped (2026-10-03). Bollerslev, Law & Tauchen's test on a block's mean standardised
+  move, against its own half-year, over five years: 4.6 block jumps a week at 3.9σ, of them
+  0.2 a week — about ten a year — with no member already flagged. The blocks are tight, so a
+  common move shows in the members themselves. What was left was folding floods, and one
+  message a run does that better (Delivery, above). The own move (8) was the same block
+  machinery, and the floor (11) existed only for it. The owner's call: anything more on
+  blocks is overcomplication.
 - **The 2020-02-10 wall** — filled. Twelve Data's intraday archive stops there; Alpaca's
   consolidated tape (2016 on) filled 61 funds, 407,153 hours, each gated on a three-month
   overlap (`--deepen-alpaca`, 2026-10-01). Every fund reaches 2016 or its launch.

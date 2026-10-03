@@ -2,8 +2,9 @@
 #
 # WHAT A BLOCK IS FOR. A block is a claim that its members respond to the same
 # thing with the same sign. The jump detector reads each instrument on its own;
-# the blocks group the reports today (tools/stage_report.py) and are what the
-# co-jump and own-move stages (7 and 8, docs/architecture.md) will test against.
+# the blocks group the reports (tools/stage_report.py). The co-jump and own-move
+# stages that would have tested against them were measured and dropped
+# (docs/decisions.md, "Settled and closed").
 # The previous detector modelled every instrument against its block's median,
 # and the measurements behind the composition below come from that; its notes
 # on the model are on the production branch.

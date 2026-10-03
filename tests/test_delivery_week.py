@@ -37,7 +37,8 @@ class Channel:
             raise TelegramError("Telegram request failed")
         mid, self.next_id = self.next_id, self.next_id + 1
         self.messages[mid] = text
-        self.rang.append(text)
+        if not k.get("silent"):
+            self.rang.append(text)
         return mid
 
     def edit(self, token, chat, message_id, text, *a, **k):
@@ -505,3 +506,129 @@ def test_the_turn_fills_in_the_old_week_then_opens_the_new_note_then_the_closing
     assert "<b>Digest</b>" in new[0] and "Nothing so far" in new[0]
     assert new[1].startswith("🟨 <b>BTC-USD</b>")
     assert time_line(new[1]).endswith(" · next close in 72h")
+
+
+# --- one message a run ----------------------------------------------------------
+
+FUNDS = [f"twelvedata:F{i}" for i in range(6)]
+
+
+def alerts(channel):
+    """The alert messages on the channel: everything but the note."""
+    return [t for t in channel.messages.values() if "<b>Digest</b>" not in t]
+
+
+def test_the_pushes_of_one_run_are_one_message_biggest_first_ringing_once(
+        monkeypatch, channel, week):
+    found = [ev(at(0, 10), "high", asset=FUNDS[0], size=6.0),
+             ev(at(0, 10), "extreme", asset=FUNDS[1]),
+             ev(at(0, 10), "major", asset=FUNDS[2])]
+    rang = len(channel.rang)
+    run(monkeypatch, channel, found, run_at(0, 11), week)
+    assert len(channel.rings_since(rang)) == 1
+    [message] = alerts(channel)
+    assert [line[:1] for line in message.split("\n") if line[:1] and line[:1] in "🟥🟧🟨"] == \
+        ["🟥", "🟧", "🟨"]
+
+
+def test_pushes_and_pings_of_one_run_are_two_messages_and_only_the_first_rings(
+        monkeypatch, channel, week):
+    found = [ev(at(0, 10), "high", asset=FUNDS[0]),
+             ev(at(0, 10), asset=FUNDS[1], size=4.0),
+             ev(at(0, 10), asset=FUNDS[2], size=5.0)]
+    rang = len(channel.rang)
+    run(monkeypatch, channel, found, run_at(0, 11), week)
+    assert len(channel.rings_since(rang)) == 1
+    assert channel.rings_since(rang)[0].startswith("🟨 <b>F0</b>")
+    [ping] = channel.pings()
+    assert ping == ("⬜ <b>F2</b> · F2 +1.50% · 5.0×σ\n"
+                    "⬜ <b>F1</b> · F1 +1.20% · 4.0×σ\nAdded to digest👆🏻👆🏻")
+
+
+def test_news_shared_by_every_push_is_said_once_at_the_end(monkeypatch, channel, week):
+    monkeypatch.setattr(md, "calendar_context", lambda hour, cal: (
+        f"Nearby economic events (-2h+1h):\n     news at "
+        f"{datetime.fromtimestamp(hour, timezone.utc):%H}"))
+    run(monkeypatch, channel, [ev(at(0, 10), "high", asset=FUNDS[0]),
+                               ev(at(0, 10), "major", asset=FUNDS[1])], run_at(0, 11), week)
+    [message] = alerts(channel)
+    assert message.count("news at 10") == 1
+    assert message.endswith("\n\nNearby economic events (-2h+1h):\n     news at 10")
+    # Moves of different hours: each list once, after all the moves, naming its hour.
+    run(monkeypatch, channel, [ev(at(1, 9), "high", asset=FUNDS[2]),
+                               ev(at(1, 10), "major", asset=FUNDS[3], found=at(1, 11))],
+        run_at(1, 11), week)
+    newest = alerts(channel)[-1]
+    assert newest.index("F3") < newest.index("F2") < newest.index("around 09:00 UTC")
+    assert newest.index("news at 09") < newest.index("around 10:00 UTC (-2h+1h):\n     news at 10")
+
+
+def test_a_move_that_turns_rarer_leaves_its_message_and_rings_in_a_new_one(
+        monkeypatch, channel, week):
+    first = [ev(at(0, 10), "high", asset=FUNDS[0]), ev(at(0, 10), "high", asset=FUNDS[1])]
+    run(monkeypatch, channel, first, run_at(0, 11), week)
+    rang = len(channel.rang)
+    rarer = ev(at(0, 12), "major", asset=FUNDS[1])
+    run(monkeypatch, channel, first + [rarer], run_at(0, 13), week)
+    assert len(channel.rings_since(rang)) == 1
+    old, new = alerts(channel)
+    assert "F0" in old and "F1" not in old
+    assert new.startswith("🟧 <b>F1</b>") and "F0" not in new
+
+
+def test_a_message_loses_a_move_corrected_away_and_goes_with_its_last(
+        monkeypatch, channel, week):
+    both = [ev(at(0, 10), "high", asset=FUNDS[0]), ev(at(0, 10), "high", asset=FUNDS[1])]
+    run(monkeypatch, channel, both, run_at(0, 11), week)
+    rang = len(channel.rang)
+    run(monkeypatch, channel, both[:1], run_at(0, 12), week)
+    [message] = alerts(channel)
+    assert "F0" in message and "F1" not in message
+    run(monkeypatch, channel, [ev(at(0, 3), asset="coinbase:BTC-USD")], run_at(0, 13), week)
+    assert not any("F0" in t for t in alerts(channel))
+    assert len(channel.rings_since(rang)) == 1          # BTC's ping, nothing else
+
+
+def test_a_flood_is_cut_into_few_messages_and_rings_once(monkeypatch, channel, week):
+    flood = [ev(at(0, 20), "high", asset=f"twelvedata:X{i}", size=5.5 + i / 100)
+             for i in range(108)]
+    rang = len(channel.rang)
+    run(monkeypatch, channel, flood, run_at(0, 21), week)
+    messages = alerts(channel)
+    assert 1 < len(messages) <= 12
+    assert all(len(m) <= md.MESSAGE_BUDGET for m in messages)
+    assert len(channel.rings_since(rang)) == 1
+    assert sum(m.count("🟨") for m in messages) == 108
+    assert messages[0].startswith("🟨 <b>X107</b>")         # the biggest leads
+
+
+def test_the_turn_takes_the_pings_out_of_a_message_and_keeps_its_pushes(
+        monkeypatch, channel, week):
+    rows = [ev(at(3, 10), asset=FUNDS[0]), ev(at(3, 10), asset=FUNDS[1], size=4.0)]
+    run(monkeypatch, channel, rows, run_at(3, 11), week)
+    # After its 24 hours F0 turns high: its line becomes a push, silently.
+    later = [dict(rows[0], tier="high", z=6.0, r=6.0 * SIGMA), rows[1]]
+    run(monkeypatch, channel, later, run_at(4, 12), week)
+    [message] = alerts(channel)
+    assert message.startswith("🟨 <b>F0</b>") and message.endswith("Added to digest👆🏻👆🏻")
+    run(monkeypatch, channel, later, datetime.fromtimestamp(NEXT, tz=timezone.utc), week)
+    [message] = alerts(channel)
+    assert message.startswith("🟨 <b>F0</b>") and "F1" not in message
+    assert "Added to digest" not in message
+
+
+def test_the_note_runs_by_time_and_by_size_inside_an_hour(monkeypatch, channel, week):
+    rows = [ev(at(0, 10), asset=FUNDS[0], size=4.0), ev(at(0, 10), asset=FUNDS[1], size=5.0),
+            ev(at(0, 9), asset=FUNDS[2], size=3.95, found=at(0, 11))]
+    run(monkeypatch, channel, rows, run_at(0, 11), week)
+    note = channel.note()
+    assert note.index("F2") < note.index("F1") < note.index("F0")
+
+
+def test_a_part_the_note_grows_is_silent(monkeypatch, channel, week):
+    many = [ev(at(0, 1), asset=f"twelvedata:X{i}") for i in range(120)]
+    rang = len(channel.rang)
+    run(monkeypatch, channel, many, run_at(0, 2), week)
+    assert len(channel.notes()) == 1 and len(channel.note()) > 0
+    assert [t for t in channel.messages.values() if "<i>part " in t]
+    assert len(channel.rings_since(rang)) == 1 and "Added to digest" in channel.rang[-1]

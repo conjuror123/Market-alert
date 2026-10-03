@@ -32,7 +32,7 @@ BLOCKS = ("equity", "rates", "credit", "energy", "precious_metals",
 
 # The hard floor on a block's size, and it is the arithmetic rather than a
 # preference: a block's move is a leave-one-out median of the other members (the
-# previous detector's block factor, and the co-jump stage's to come), so a
+# previous detector's block factor), so a
 # one-member block has nothing left to take a median OF.
 #
 # THE USEFUL FLOOR IS HIGHER AND IS NOT ENFORCED HERE. Measured on this basket -

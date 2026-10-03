@@ -7,10 +7,12 @@ decides what is on the channel because of it, and keeps that in line.
 THE CHANNEL IS PUBLIC and the bot is an administrator of it: it can edit any of
 its messages at any age and delete any message there.
 
-TWO KINDS OF MESSAGE, and the difference is how loudly they arrive. A push -
-`high` and up - is its own message and rings. A `noticeable` move is a row in
-the week's note, which is edited in place and so stays silent; a small ping
-beneath it rings instead and points up at it.
+TWO KINDS OF MOVE, and the difference is how loudly they arrive. A push -
+`high` and up - goes out at once and rings. A `noticeable` move is a row in
+the week's note, which is edited in place and so stays silent; a ping line
+rings instead and points up at it. The moves one run finds share messages: its
+pushes in one, its pings in one more, biggest first, and only the run's first
+message rings (format_message).
 
 ONE NOTE A WEEK, opened at the first run after the week's last funds close
 (tremor.routing) right after the economic calendar's own message
@@ -564,29 +566,82 @@ def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
     return "\n".join(lines)
 
 
+def push_parts(event: dict, labels: dict[str, str],
+               calendar: "list[dict] | None" = None) -> "tuple[str, str]":
+    """(the move, the news around it) - a push's two parts, apart, so that a
+    message carrying several pushes can say the news once (format_message)."""
+    body = describe(event, labels)
+    if event.get("story"):
+        body += "\n" + event["story"]
+    return body, _escape(calendar_context(int(event["hour_utc"]), calendar))
+
+
 def format_push(event: dict, labels: dict[str, str],
                 calendar: "list[dict] | None" = None) -> str:
-    """A single interrupting alert.
+    """One interrupting alert, as it reads when it is alone in its message.
 
     Ordered so the reader meets one instrument first and the day second: the
-    move written out in full, then the news scheduled around it.
-
-    ONE INSTRUMENT, and only one. A push is final when it arrives - nothing is
-    folded into it - so each is its own story and the day assembles itself out
-    of however many arrive. The fear gauge lives on the weekly note rather than
-    here: a standalone alert is already one instrument's story, and the running
-    note carries the regime once for all of them.
+    move written out in full, then the news scheduled around it. The fear gauge
+    lives on the weekly note rather than here: the running note carries the
+    regime once for all of them.
     """
-    lines = [describe(event, labels)]
-    if event.get("story"):
-        lines.append(event["story"])
-    context = calendar_context(int(event["hour_utc"]), calendar)
-    if context:
-        lines.append("")
-        lines.append(_escape(context))
-    return "\n".join(lines)
+    body, context = push_parts(event, labels, calendar)
+    return format_message([dict(form=PUSH, size=0.0, body=body, context=context,
+                                hour=int(event["hour_utc"]))])
 
 
+# ONE MESSAGE A RUN, NOT ONE PER MOVE. Big news moves dozens of instruments in
+# the same hour: the FOMC hour of 2024-12-18 found 130 events, 108 of them
+# pushes, and Telegram takes about twenty messages a minute into a channel. So
+# the pushes a run finds go out together in one message, and its pings in one
+# more - measured over five years to 2026-10-01, 22.9 messages a week against
+# 62.7 one per move, and at most 6 in one run, against 130. Each move keeps its
+# own life inside the message (the week below): it is edited there, and leaves
+# it when it turns rarer and rings again in the run that finds that.
+#
+# BIGGEST FIRST. Inside a message the moves are ordered by size in σ, largest
+# to smallest, pushes before pings. The note is a record and runs by time; a
+# message is an alarm and leads with what matters most.
+#
+# A message is cut at this many characters when it is first sent, rather than at
+# Telegram's 4096: its moves stay with it for their lives, and a story line or
+# a filled-in close has to fit later without moving anything to another
+# message.
+MESSAGE_BUDGET = 3000
+
+PING_FOOTER = "Added to digest👆🏻👆🏻"
+
+
+def format_message(members: "list[dict]") -> str:
+    """One alert message from its moves, each {form, size, body, context, hour}.
+
+    Pushes first, then pings, each by size, biggest first. The news scheduled
+    around the pushes follows them, each list once: a run's pushes are nearly
+    always the same hour, so it is usually one list. When they are not, each
+    list names the hour it is around. The pings share one pointer up at the
+    note."""
+    pushes = sorted((m for m in members if m["form"] == PUSH), key=lambda m: -m["size"])
+    rows = sorted((m for m in members if m["form"] == ROW), key=lambda m: -m["size"])
+    blocks = []
+    if pushes:
+        blocks.append("\n\n".join(m["body"] for m in pushes))
+        news: dict = {}
+        for m in sorted(pushes, key=lambda m: int(m.get("hour") or 0)):
+            if m["context"]:
+                news.setdefault(m["context"], int(m.get("hour") or 0))
+        if len(news) == 1:
+            blocks.append(next(iter(news)))
+        else:
+            days = {datetime.fromtimestamp(h, tz=timezone.utc).date() for h in news.values()}
+            for context, hour in news.items():
+                at = datetime.fromtimestamp(hour, tz=timezone.utc)
+                clock = at.strftime("%H:%M" if len(days) == 1 else "%d.%m %H:%M")
+                blocks.append(context.replace("Nearby economic events (",
+                                              f"Nearby economic events around {clock} UTC (",
+                                              1))
+    if rows:
+        blocks.append("\n".join(m["body"] for m in rows) + "\n" + PING_FOOTER)
+    return "\n\n".join(blocks)
 
 
 def format_digest(events: "list[dict]", labels: dict[str, str],
@@ -595,11 +650,11 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
                   now: datetime | None = None) -> "list[str]":
     """One note, whole, split into parts Telegram will accept.
 
-    ORDERED BY TIME, and by rarity only inside an hour. A note is a record, so a
+    ORDERED BY TIME, and by size only inside an hour. A note is a record, so a
     period read top to bottom runs in the order it happened; leading with the
-    rarest row would buy nothing, because the note does not notify - the ping
-    does. Two moves in the same hour are the one case time cannot separate, and
-    there the rarer goes first.
+    biggest row would buy nothing, because the note does not notify - the ping
+    does. Moves in the same hour are the one case time cannot separate, and
+    there the biggest in σ goes first.
 
     The order runs ACROSS the parts, not within each. A long note is cut into
     several messages, and sorting each part on its own would restart the clock
@@ -619,7 +674,7 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
 
     rank = {name: i for i, name in enumerate(TIERS)}
     ordered = sorted(events, key=lambda e: (int(e["hour_utc"]),
-                                            -rank.get(str(e.get("tier")), 0)))
+                                            -rank.get(str(e.get("tier")), 0), -_size(e)))
     if ordered:
         count = (f"{len(ordered)} event{'s' if len(ordered) != 1 else ''}"
                  + (" so far" if live else ""))
@@ -673,18 +728,8 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
     return messages
 
 
-def format_ping(event: dict, labels: dict[str, str]) -> str:
-    """The throwaway line that says a digest row just appeared.
-
-    A digest row is written the hour its move is found, but the note stays
-    silent - Telegram does not notify on an edit - so a reader who wants to know
-    NOW has to keep opening it. This is the buzz: ticker, name, size, and a
-    pointer at the note. The calendar context stays in the note, one tap away.
-
-    It lives exactly as long as its row: deleted when the row leaves the note,
-    when the move becomes a push, and when the next note opens - so what
-    remains is a clean run of notes rather than a scroll of pings around them.
-    """
+def ping_line(event: dict, labels: dict[str, str]) -> str:
+    """One noticeable move in a ping: ticker, name, size."""
     tier = str(event.get("tier") or "noticeable")
     emoji = TIER_EMOJI.get(tier, "⚪")
     asset_id = str(event.get("asset_id", ""))
@@ -692,10 +737,25 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
     shown = f" {move * 100:+.2f}%" if move is not None else ""
     ticker = _ticker(asset_id)
     label = labels.get(asset_id) or ticker
-    first = (f"{emoji} <b>{_escape(ticker)}</b> · {_escape(label)}"
-             f"{shown}{_sigma_multiple(event)}")
-    return f"{first}\nAdded to digest👆🏻👆🏻"
+    return (f"{emoji} <b>{_escape(ticker)}</b> · {_escape(label)}"
+            f"{shown}{_sigma_multiple(event)}")
 
+
+def format_ping(event: dict, labels: dict[str, str]) -> str:
+    """The throwaway message that says a digest row just appeared, as it reads
+    when it is alone.
+
+    A digest row is written the hour its move is found, but the note stays
+    silent - Telegram does not notify on an edit - so a reader who wants to know
+    NOW has to keep opening it. This is the buzz: ticker, name, size, and a
+    pointer at the note. The calendar context stays in the note, one tap away.
+
+    A line lives exactly as long as its row: gone when the row leaves the note,
+    when the move becomes a push, and when the next note opens - so what
+    remains is a clean run of notes rather than a scroll of pings around them.
+    """
+    return format_message([dict(form=ROW, size=0.0, body=ping_line(event, labels),
+                                context="")])
 
 
 # --- the week ------------------------------------------------------------------
@@ -716,24 +776,28 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
 # (tremor.jumps.event_starts). Its word is its rarest reading's and the numbers
 # it shows its biggest reading's. What happens to it on the channel:
 #
-#   within its 24 hours     rarer (any cause but a detector update) -> its
-#                           message is deleted - the row and its ping, or the
-#                           push - and it goes out again at the new word, and
-#                           rings. Milder -> edited in place: a push that falls
-#                           to `noticeable` shows ⬜; a `noticeable` that falls
-#                           away is deleted, row and ping. Same word, other
+#   within its 24 hours     rarer (any cause but a detector update) -> it leaves
+#                           its message - and the note - and goes out again in
+#                           this run's message at the new word, and rings.
+#                           Milder -> edited in place: a push that falls to
+#                           `noticeable` shows ⬜; a `noticeable` that falls away
+#                           is taken out, row and ping line. Same word, other
 #                           numbers -> edited in place.
 #   after its 24 hours      complete: a new move starts a new event. It changes
 #                           only when a bar is corrected or arrives late, and
 #                           never rings: rarer or milder is an edit - a row that
-#                           becomes `high` leaves the note and its ping is
-#                           edited into the push - and gone is deleted, for good.
+#                           becomes `high` leaves the note and its ping line
+#                           becomes the push, in the same message - and gone is
+#                           taken out, for good.
+#
+# A MESSAGE carries the moves it was sent with (each event's `message`), is
+# edited as they change and deleted once none is left in it (_sync_messages).
 #
 # A CHANGED EVENT TELLS ITS STORY: one line under the time, every state it has
 # been in with why it moved (story_line). A clean event says nothing.
 #
 # A detector update (a new tremor.jumps.detector_version) starts the week over at
-# that run: every push and ping of the week is deleted, the note stays and shows
+# that run: every alert message of the week is deleted, the note stays and shows
 # only what is found from then on.
 #
 # Deleting is how a message leaves; the bot is an administrator of a public
@@ -825,8 +889,11 @@ def story_line(story: "list[list]", headline: int) -> str:
     return "✏️ " + " → ".join(_escape(s) for s in steps)
 
 
-def _send(cfg: Config, text: str) -> "int | None":
+def _send(cfg: Config, text: str, silent: bool = False) -> "int | None":
     try:
+        if silent:
+            return int(send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
+                                             text, silent=True))
         return int(send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id, text))
     except TelegramError as exc:
         log.error("Could not send: %s", exc)
@@ -922,14 +989,17 @@ def _adopt_old_state(cfg: Config, store: dict, now: datetime) -> "dict | None":
 
 def _new_week(slot: int, version: str) -> dict:
     return {"slot": int(slot), "since": int(slot), "detector": version,
-            "note": {"ids": [], "hashes": []}, "events": {}, "orphans": []}
+            "note": {"ids": [], "hashes": []}, "events": {}, "messages": {},
+            "orphans": []}
 
 
 def _close_week(cfg: Config, week: dict) -> None:
-    """The week becomes history: its pings go, everything else stays as it is."""
+    """The week becomes history: its pings go, everything else stays as it is.
+    A message that carried pings and pushes keeps its pushes."""
     for rec in week.get("events", {}).values():
         if rec.get("form") == ROW:
-            _delete(cfg, rec.get("ping"), rec.get("first", ""))
+            rec["message"] = None
+    _sync_messages(cfg, week)
     for message_id, first_line in week.get("orphans", []):
         _delete(cfg, message_id, first_line)
 
@@ -937,12 +1007,11 @@ def _close_week(cfg: Config, week: dict) -> None:
 def _restart_week(cfg: Config, week: dict, version: str, now: datetime) -> None:
     """A detector update: the week's pushes and pings are deleted, the note
     stays, and the week continues with what is found from this run on."""
-    for rec in week.get("events", {}).values():
-        _delete(cfg, rec.get("id") if rec.get("form") == PUSH else rec.get("ping"),
-                rec.get("first", ""))
+    for message_id, rec in week.get("messages", {}).items():
+        _delete(cfg, int(message_id), rec.get("first", ""))
     for message_id, first_line in week.get("orphans", []):
         _delete(cfg, message_id, first_line)
-    week.update(events={}, orphans=[], detector=version,
+    week.update(events={}, messages={}, orphans=[], detector=version,
                 since=int(now.timestamp()) - 3600 + 1)
 
 
@@ -1027,36 +1096,21 @@ def _render(rec: dict, peak: dict) -> dict:
     return dict(peak, story=story_line(rec["story"], int(peak["hour_utc"])))
 
 
-def _post(cfg: Config, rec: dict, peak: dict, labels: dict, calendar) -> bool:
-    """Puts the event on the channel at its word: a push, or a row and its
-    ping. True once it is up; nothing in `rec` changes if it is not."""
-    if _is_push_word(peak.get("tier")):
-        text = format_push(_render(rec, peak), labels, calendar)
-        message_id = _send(cfg, text)
-        if message_id is None:
-            return False
-        rec.update(form=PUSH, id=message_id, ping=None, hash=_fingerprint(text),
-                   first=_first(text))
-        return True
-    text = format_ping(peak, labels)
-    ping = _send(cfg, text)
-    rec.update(form=ROW, id=None, ping=ping, hash=_fingerprint(text), first=_first(text))
-    return True
 
 
-def _take_down(cfg: Config, week: dict, rec: dict) -> None:
-    """Deletes what the event has on the channel. A row leaves the note with
-    the next render."""
-    if rec.get("form") == PUSH:
-        _discard(cfg, week, rec.get("id"), rec.get("first", ""))
-    elif rec.get("form") == ROW:
-        _discard(cfg, week, rec.get("ping"), rec.get("first", ""))
-    rec.update(form=None, id=None, ping=None, hash=None)
+def _leave(rec: dict) -> None:
+    """The event comes off the channel: out of its message, and out of the
+    note with the next render. Its message is edited without it, or deleted
+    once nothing is left in it (_sync_messages)."""
+    rec.update(form=None, message=None)
 
 
-def _step(cfg: Config, week: dict, key: str, readings: "list[dict]", labels: dict,
-          calendar, now_ts: int) -> int:
-    """One event, one run. Returns how many messages went out or went."""
+def _step(week: dict, key: str, readings: "list[dict]", now_ts: int,
+          fresh: "list[tuple]") -> int:
+    """One event, one run: its state brought in line with the table. What has
+    to go out in a new message is appended to `fresh` as (key, rec, before) -
+    `before` the record to fall back to should the send fail, None for an
+    event not on the channel yet. Returns how many events changed in place."""
     tracked = week["events"]
     asset, start = key.rsplit("|", 1)
     rec = tracked.get(key)
@@ -1073,25 +1127,19 @@ def _step(cfg: Config, week: dict, key: str, readings: "list[dict]", labels: dic
         # Found now. Only an event still inside its 24 hours goes out at all.
         if peak is None or not open_:
             return 0
-        rec = {"asset": asset, "start": int(start), "form": None, "members": {},
-               "peak": None, "tier": None, "shown": _shown(None), "story": [],
-               "seen": now_ts}
         shown = _shown(peak)
-        rec["story"] = [shown[:3] + [""]]
-        if not _post(cfg, rec, peak, labels, calendar):
-            return 0
-        rec.update(members=snapshot, peak=str(peak["reading_id"]), tier=shown[0],
-                   shown=shown)
-        tracked[key] = rec
-        return 1
-
+        rec = {"asset": asset, "start": int(start), "form": None, "message": None,
+               "members": snapshot, "peak": str(peak["reading_id"]), "tier": shown[0],
+               "shown": shown, "story": [shown[:3] + [""]], "seen": now_ts}
+        fresh.append((key, rec, None))
+        return 0
 
     shown = _shown(peak)
     if shown == rec["shown"]:
         rec.update(members=snapshot, seen=now_ts)
         return 0
 
-    before = dict(rec, story=list(rec["story"]))
+    before = dict(rec)
     why = _why(rec, members, peak)
     rec["story"] = rec["story"] + [shown[:3] + [why] if peak is not None
                                    else [None, None, None, why]]
@@ -1099,45 +1147,122 @@ def _step(cfg: Config, week: dict, key: str, readings: "list[dict]", labels: dic
     promoted = _rank(shown[0]) > _rank(rec.get("tier"))
 
     if peak is None:
-        _take_down(cfg, week, rec)
+        _leave(rec)
         changed += 1
     elif promoted and open_:
-        # Rarer inside its 24 hours: the old message goes, the new one rings.
-        # Only here does anything go out, so an event with nothing on the
-        # channel once its 24 hours are over - corrected away - stays gone.
-        old = {k: rec.get(k) for k in ("form", "id", "ping", "first")}
-        if not _post(cfg, rec, peak, labels, calendar):
-            tracked[key] = before
-            return 0
-        _take_down(cfg, week, dict(old))
-        changed += 2
+        # Rarer inside its 24 hours: it leaves its message and rings again in
+        # this run's. Only here does anything go out, so an event with nothing
+        # on the channel once its 24 hours are over - corrected away - stays gone.
+        fresh.append((key, rec, before))
     elif rec.get("form") == ROW and _is_push_word(shown[0]):
         # Rarer after its 24 hours: silent. The row leaves the note and its
-        # ping becomes the push, by an edit.
-        rec.update(form=PUSH, id=rec.get("ping"), ping=None, hash=None)
+        # line in the ping message becomes a push, by an edit.
+        rec["form"] = PUSH
         changed += 1
     rec.update(members=snapshot, peak=str(peak["reading_id"]) if peak else None,
                tier=shown[0], shown=shown, seen=now_ts)
     return changed
 
 
-def _sync(cfg: Config, rec: dict, peak: dict, labels: dict, calendar) -> int:
-    """Edits the event's message where its text changed."""
-    if rec.get("form") == PUSH:
-        text, message_id = format_push(_render(rec, peak), labels, calendar), rec.get("id")
-    elif rec.get("form") == ROW and rec.get("ping") is not None:
-        text, message_id = format_ping(peak, labels), rec.get("ping")
+def _member(rec: dict, peak: dict, form: str, labels: dict, calendar) -> dict:
+    """The event as a message shows it, kept on the record so that a message
+    can be put back together without the events table (_close_week)."""
+    if form == PUSH:
+        body, context = push_parts(_render(rec, peak), labels, calendar)
     else:
-        return 0
-    if _fingerprint(text) == rec.get("hash") or not _edit(cfg, message_id, text):
-        return 0
-    rec.update(hash=_fingerprint(text), first=_first(text))
-    return 1
+        body, context = ping_line(peak, labels), ""
+    rec.update(body=body, context=context, size=_size(peak), hour=int(peak["hour_utc"]))
+    return {"form": form, "size": rec["size"], "body": body, "context": context,
+            "hour": rec["hour"]}
+
+
+def _members_of(week: dict) -> "dict[str, list[dict]]":
+    """{message id: what it carries}, from the events' own records."""
+    out: dict = {}
+    for rec in week["events"].values():
+        if rec.get("form") and rec.get("message") is not None:
+            out.setdefault(str(rec["message"]), []).append(
+                {"form": rec["form"], "size": float(rec.get("size") or 0.0),
+                 "body": rec.get("body", ""), "context": rec.get("context", ""),
+                 "hour": int(rec.get("hour") or 0)})
+    return out
+
+
+def _cut(members: "list[tuple]") -> "list[list[tuple]]":
+    """Moves into messages of at most MESSAGE_BUDGET characters, biggest first.
+    `members` are (key, member) pairs."""
+    members = sorted(members, key=lambda km: -km[1]["size"])
+    messages: list = []
+    for item in members:
+        if messages and len(format_message([m for _, m in messages[-1] + [item]])) \
+                <= MESSAGE_BUDGET:
+            messages[-1].append(item)
+        else:
+            messages.append([item])
+    return messages
+
+
+def _post_new(cfg: Config, state: dict, week: dict, fresh: "list[tuple]",
+              groups: dict, labels: dict, calendar, ring: dict) -> int:
+    """This run's new moves, in as few messages as fit: the pushes, then the
+    pings. Only the run's first message rings - the reader is on the channel
+    after that - and a move is on the record only once its message is up. A
+    push that cannot be sent is tried again by the next run; a row is in the
+    note whether or not its ping went."""
+    tracked = week["events"]
+    by_form: dict = {PUSH: [], ROW: []}
+    for key, rec, before in fresh:
+        peak = max(groups[key], key=_size)
+        form = PUSH if _is_push_word(peak.get("tier")) else ROW
+        by_form[form].append((key, _member(rec, peak, form, labels, calendar)))
+    sent = 0
+    states = {key: (rec, before) for key, rec, before in fresh}
+    for form in (PUSH, ROW):
+        for message in _cut(by_form[form]):
+            text = format_message([m for _, m in message])
+            message_id = _send(cfg, text, silent=not ring["left"])
+            if message_id is not None:
+                ring["left"] = False
+                week["messages"][str(message_id)] = {"hash": _fingerprint(text),
+                                                     "first": _first(text)}
+                sent += 1
+            for key, _ in message:
+                rec, before = states[key]
+                if message_id is None and form == PUSH:
+                    if before is not None:
+                        tracked[key] = before
+                    continue
+                rec.update(form=form, message=message_id)
+                tracked[key] = rec
+            save_state(cfg.state_path, state)
+    return sent
+
+
+def _sync_messages(cfg: Config, week: dict) -> int:
+    """Every alert message of the week brought in line with what it carries:
+    edited where its text changed, deleted once nothing is left in it."""
+    carried = _members_of(week)
+    changed = 0
+    for message_id, rec in list(week["messages"].items()):
+        members = carried.get(message_id)
+        if not members:
+            _discard(cfg, week, int(message_id), rec.get("first", ""))
+            del week["messages"][message_id]
+            changed += 1
+            continue
+        text = format_message(members)
+        mark = _fingerprint(text)
+        if mark != rec.get("hash") and _edit(cfg, int(message_id), text):
+            rec.update(hash=mark, first=_first(text))
+            changed += 1
+    return changed
 
 
 def _write_note(cfg: Config, week: dict, texts: "list[str]") -> int:
     """Posts, edits and trims the note's parts. A part that is no longer needed
-    is deleted, newest first, so the ids stay a prefix of the note."""
+    is deleted, newest first, so the ids stay a prefix of the note. Only the
+    note's opening rings: a part added as it grows is the note growing, and
+    the pings already rang for what is in it."""
     note = week["note"]
     ids, hashes = note["ids"], note["hashes"]
     changed = 0
@@ -1148,7 +1273,7 @@ def _write_note(cfg: Config, week: dict, texts: "list[str]") -> int:
                 hashes[index] = mark
                 changed += 1
             continue
-        message_id = _send(cfg, text)
+        message_id = _send(cfg, text, silent=index > 0)
         if message_id is None:
             break
         ids.append(message_id)
@@ -1185,6 +1310,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     version = jumps.detector_version()
     now_ts = int(now.timestamp())
     changed = 0
+    ring = {"left": True}
 
     if _old_format(store):
         adopted = _adopt_old_state(cfg, store, now)
@@ -1205,7 +1331,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
             # The run after the week's last close: its moves' checks at that
             # close are in, and land on the old week before it closes.
             if week.get("detector") == version:
-                changed += _pass(cfg, state, week, readings, labels, calendar, now)
+                changed += _pass(cfg, state, week, readings, labels, calendar, now, ring)
             _close_week(cfg, week)
         week = store[WEEK] = _new_week(slot, version)
         save_state(cfg.state_path, state)
@@ -1213,16 +1339,17 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         _restart_week(cfg, week, version, now)
         log.info("Detector updated: the week restarts from this run")
         save_state(cfg.state_path, state)
-    return changed + _pass(cfg, state, week, readings, labels, calendar, now)
+    return changed + _pass(cfg, state, week, readings, labels, calendar, now, ring)
 
 
 def _pass(cfg: Config, state: dict, week: dict, readings: "list[dict]", labels: dict,
-          calendar, now: datetime) -> int:
-    """One run over one week's messages: its events, their edits, its note."""
+          calendar, now: datetime, ring: dict) -> int:
+    """One run over one week's messages: its events, their messages, its note."""
     from tremor import routing
 
     now_ts = int(now.timestamp())
     window = (int(week["slot"]), routing.next_digest_slot(int(week["slot"])))
+    week.setdefault("messages", {})
     changed = 0
     if not week["note"]["ids"]:
         # A new note goes up before anything it opens with: the calendar, the
@@ -1233,14 +1360,17 @@ def _pass(cfg: Config, state: dict, week: dict, readings: "list[dict]", labels: 
         _discard(cfg, week, message_id, first_line)
 
     groups = _group([r for r in readings if _in_week(r, week)], week)
-    # Oldest first, so the pushes of one run arrive in the order they happened.
+    fresh: list = []
     for key in sorted(groups, key=lambda k: int(k.rsplit("|", 1)[1])):
-        changed += _step(cfg, week, key, groups[key], labels, calendar, now_ts)
-        save_state(cfg.state_path, state)
+        changed += _step(week, key, groups[key], now_ts, fresh)
+    # What stays where it is shows its moves as they now stand.
+    moving = {key for key, _, _ in fresh}
     for key, rec in week["events"].items():
         rows = groups.get(key) or []
-        if rows and rec.get("form"):
-            changed += _sync(cfg, rec, max(rows, key=_size), labels, calendar)
+        if rows and rec.get("form") and key not in moving:
+            _member(rec, max(rows, key=_size), rec["form"], labels, calendar)
+    changed += _post_new(cfg, state, week, fresh, groups, labels, calendar, ring)
+    changed += _sync_messages(cfg, week)
     save_state(cfg.state_path, state)
 
     note_rows = [_render(rec, max(groups[key], key=_size))

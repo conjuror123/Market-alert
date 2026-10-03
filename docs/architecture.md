@@ -74,9 +74,10 @@ them opens the next. The event's word is its rarest reading's, and the numbers i
 are its biggest reading's (`jumps.event_starts`, `jumps.events`). Over the record this
 turns 28,095 settled flags into 19,185 events.
 
-**Stage 2, channels — built.** `high`, `major` and `extreme` push: a message of their own,
-at once. `noticeable` goes into the weekly note, with a small ping that points at it
-(`routing.PUSH_TIERS`, `jumps.for_delivery`). There is **one note a week**, opened at the
+**Stage 2, channels — built.** `high`, `major` and `extreme` push: they go out at once.
+`noticeable` goes into the weekly note, with a small ping that points at it
+(`routing.PUSH_TIERS`, `jumps.for_delivery`). The moves one run finds share messages: one
+for its pushes and one for its pings, biggest first (below, "The week"). There is **one note a week**, opened at the
 first run after the week's last NYSE close and edited in place until the next one. The coming week's economic calendar
 goes out as its own message in the same run, just before the note opens. A jump message
 says only what the detector measured: the colour of the square is the word, and the size is
@@ -95,8 +96,6 @@ and a note row's ping:
 ⬜ LTC-USD · Litecoin +2.89% · 5.3×σ
 Added to digest👆🏻👆🏻
 ```
-
-No block/own split: that is stage 8, and comes back with it.
 
 **Stage 3, rarest since — built.** The second line of a push or a note row (not the ping)
 says how long since the instrument was last at least this rare: the most recent earlier
@@ -153,14 +152,14 @@ reviewed:
 | 2 | channels, the weekly note, delivery and curation | — | built |
 | 3 | rarest since | — | built |
 | 4 | held at the funds' close | — | built |
-| 7 | block co-jumps | Bollerslev, Law & Tauchen (2008) | to come |
-| 8 | the own move, after the block | Bollerslev, Law & Tauchen (2008) | to come |
 | 10 | tail shape per asset class (optional) | Student-t, from risk management | to come |
-| 11 | a size floor, only if stage 8 needs one | — | to come |
 | 12 | tuning the threshold and the step | — | to come |
 
-Stages 1–4 were what the switch to production waited on. The blocks enter the detector
-only at stages 7 and 8; until then each instrument is judged on its own history alone.
+Stages 1–4 were what the switch to production waited on. Stages 5 (time of day), 7 (block
+co-jumps), 8 (the own move after the block), 9 (labelling news) and 11 (the size floor
+stage 8 might have needed) were measured or weighed and dropped (`decisions.md`, "Settled
+and closed"). The blocks never enter the detector: each instrument is judged on its own
+history alone.
 
 Settings live under `detector:` in `config/basket.yaml`: `window_days`,
 `noticeable_sigma`, `step`.
@@ -178,11 +177,22 @@ to the 24 hours they started with (`jumps.event_starts` with anchors) — a firs
 corrected away does not slide its event later, and a bar that arrives late just before an
 event on the channel joins it.
 
-**A push** is its own message: the first line and the hour, and beneath them the scheduled
-releases in the hours around the move (`Nearby economic events`) when there are any.
-**A note row** goes into the weekly note, whose header carries the VIX line (the fear
-gauge, `tremor.vix`); since Telegram does not notify on an edit, each row gets a small ping
-pointing up at the note.
+**A push** is the first line and the hour, and beneath them the scheduled releases in the
+hours around the move (`Nearby economic events`) when there are any. **A note row** goes
+into the weekly note, whose header carries the VIX line (the fear gauge, `tremor.vix`);
+since Telegram does not notify on an edit, each row also gets a ping line pointing up at
+the note.
+
+**One message a run.** The pushes a run finds go out together in one message, and its pings
+in one more, each ordered by size in σ, biggest first (`format_message`). The news around
+the pushes follows them, each list once; when the pushes are of different hours each list
+names the hour it is around. A message is cut at 3,000 characters when it is first sent
+(`MESSAGE_BUDGET`), below Telegram's 4,096, so the moves in it stay there for their lives
+and a story line or a filled-in close still fits. Only the run's first message rings — the
+pings stay silent after a push, and so do a flood's further messages and a part the note
+grows by. Over five years to 2026-10-01 this is 22.9 messages a week instead of 62.7, 18.6
+of them ringing, and at most 6 in one run (the FOMC hour of 2024-12-18, 108 pushes and 67
+rows, in 5 push messages and one of pings).
 
 **The week** (`tremor_delivery`). The note opens at the first run after the week's last NYSE
 close, just after the economic calendar's own message, and a move belongs to the note open
@@ -195,11 +205,14 @@ new event, even inside the 24 hours of one from the week before. Per event:
 
 | the event | inside its 24 hours | after them |
 |---|---|---|
-| new | `high` and up: a push, rings. `noticeable`: a row and its ping, rings | never sent |
-| rarer — any cause but a detector update | its message is deleted (the row and its ping, or the push) and it goes out again at the new word, and rings — a ⬜ push that turns `high` again included | silent: a push is edited; a row turning `high` leaves the note and its ping is edited into the push |
+| new | in this run's message: `high` and up a push, `noticeable` a row and its ping line | never sent |
+| rarer — any cause but a detector update | it leaves its message (and the note) and goes out again in this run's message at the new word — a ⬜ push that turns `high` again included | silent: a push is edited; a row turning `high` leaves the note and its ping line becomes the push, in the same message |
 | milder | edited: a push falls a colour, to ⬜ at `noticeable` | the same |
 | same word, other numbers (a bigger hour, a fix) | edited | edited |
-| gone | deleted — the push, or the row and its ping; it can come back and ring | deleted, for good |
+| gone | taken out of its message (and the note); it can come back and ring | taken out, for good |
+
+A message is edited whenever what it carries changes, and deleted once nothing is left in
+it.
 
 **The story.** A changed event says what it went through on one line under its time, in
 the push or the note row (not the ping); a clean event says nothing:
@@ -216,12 +229,14 @@ went further), `arrived late` (a bar or gap that was missing came in), `price co
 (the provider revised the bar), `σ corrected` (older bars were revised, so the half-year
 yardstick moved), `corrected away` (no longer a jump).
 
-When the next note opens, the week's pings are deleted and the rest stays as it is. A part
+When the next note opens, the week's pings are taken out of their messages — a message of
+pings only is deleted, one that also carries pushes keeps them — and the rest stays as it
+is. A part
 the note no longer needs is deleted. The bot is an administrator of a public channel; a
 delete it is refused anyway is struck through by an edit.
 
 **A detector update** — a new `jumps.detector_version()`, the hash of the detector's parsed
-code and the basket — restarts the week at that run: every push and ping of the week is
+code and the basket — restarts the week at that run: every push and ping message of the week is
 deleted, the note and the calendar stay, and the note shows only what is found from then
 on. The first run of this delivery on the previous one's state is handled the same way.
 

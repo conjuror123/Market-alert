@@ -132,3 +132,50 @@ def test_fetch_updates_passes_the_offset(monkeypatch):
     assert fetch_telegram_updates("token", offset=5) == [{"update_id": 4}]
     assert calls[0][0].endswith("/bottoken/getUpdates")
     assert calls[0][1]["offset"] == 5
+
+
+def test_a_429_is_waited_out_and_the_message_goes(monkeypatch):
+    answers = [FakeResponse(429, {"ok": False, "parameters": {"retry_after": 3}}),
+               FakeResponse(200, {"ok": True, "result": {"message_id": 7}})]
+    slept = []
+    monkeypatch.setattr(notifier.requests, "post", lambda url, json, timeout: answers.pop(0))
+    monkeypatch.setattr(notifier.time, "sleep", slept.append)
+    assert send_telegram_message("token", "@chan", "hello") == 7
+    assert slept == [3.5]
+
+
+def test_a_429_past_the_cap_is_an_error_not_a_long_wait(monkeypatch):
+    monkeypatch.setattr(notifier.requests, "post", lambda url, json, timeout: FakeResponse(
+        429, {"ok": False, "parameters": {"retry_after": 600}}))
+    monkeypatch.setattr(notifier.time, "sleep",
+                        lambda s: (_ for _ in ()).throw(AssertionError("waited")))
+    with pytest.raises(TelegramError):
+        send_telegram_message("token", "@chan", "hello")
+
+
+def test_429s_are_retried_a_bounded_number_of_times(monkeypatch):
+    calls = []
+
+    def fake_post(url, json, timeout):
+        calls.append(1)
+        return FakeResponse(429, {"ok": False, "parameters": {"retry_after": 1}})
+
+    monkeypatch.setattr(notifier.requests, "post", fake_post)
+    monkeypatch.setattr(notifier.time, "sleep", lambda s: None)
+    with pytest.raises(TelegramError):
+        edit_telegram_message("token", "@chan", 5, "x")
+    assert len(calls) == notifier.RETRIES_ON_429 + 1
+
+
+def test_a_silent_send_asks_for_no_sound(monkeypatch):
+    seen = []
+
+    def fake_post(url, json, timeout):
+        seen.append(json)
+        return FakeResponse(200, {"ok": True, "result": {"message_id": 1}})
+
+    monkeypatch.setattr(notifier.requests, "post", fake_post)
+    send_telegram_message("token", "@chan", "a")
+    send_telegram_message("token", "@chan", "b", silent=True)
+    assert "disable_notification" not in seen[0]
+    assert seen[1]["disable_notification"] is True
