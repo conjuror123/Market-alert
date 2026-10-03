@@ -170,16 +170,17 @@ def _labels() -> dict[str, str]:
         return {}
 
 
-def _calendar(cfg: Config) -> "list[dict] | None":
-    """The economic calendar archive, or None if it cannot be read.
+def _calendar(cfg: Config) -> "economic_calendar.Timeline | None":
+    """The economic calendar archive in time order, or None if it cannot be read.
 
-    A push must not be lost because the calendar is missing: the context is an
-    addition to the message, and an alert without it is far better than no
-    alert at all.
+    Read and sorted once a run; every push and note row then looks up its own
+    hours in it (economic_calendar.Timeline). A push must not be lost because
+    the calendar is missing: the context is an addition to the message, and an
+    alert without it is far better than no alert at all.
     """
     try:
-        return economic_calendar.load_events(
-            economic_calendar.store_path(cfg.calendar_dir))
+        return economic_calendar.Timeline(economic_calendar.load_events(
+            economic_calendar.store_path(cfg.calendar_dir)))
     except Exception as exc:                     # pragma: no cover - defensive
         log.warning("calendar could not be read, sending without context: %s", exc)
         return None
@@ -522,7 +523,8 @@ CALENDAR_LOOKAHEAD_HOURS = 1
 CALENDAR_IMPACTS = economic_calendar.SHOWN_IMPACTS
 
 
-def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
+def calendar_context(hour_utc: int,
+                     calendar: "economic_calendar.Timeline | list[dict] | None") -> str:
     """What was scheduled around the move - before it and just after.
 
     Naming the release tells the reader the move has a known cause and they can
@@ -567,7 +569,7 @@ def calendar_context(hour_utc: int, calendar: "list[dict] | None") -> str:
 
 
 def push_parts(event: dict, labels: dict[str, str],
-               calendar: "list[dict] | None" = None) -> "tuple[str, str]":
+               calendar: "economic_calendar.Timeline | list[dict] | None" = None) -> "tuple[str, str]":
     """(the move, the news around it) - a push's two parts, apart, so that a
     message carrying several pushes can say the news once (format_message)."""
     body = describe(event, labels)
@@ -577,7 +579,7 @@ def push_parts(event: dict, labels: dict[str, str],
 
 
 def format_push(event: dict, labels: dict[str, str],
-                calendar: "list[dict] | None" = None) -> str:
+                calendar: "economic_calendar.Timeline | list[dict] | None" = None) -> str:
     """One interrupting alert, as it reads when it is alone in its message.
 
     Ordered so the reader meets one instrument first and the day second: the
@@ -646,7 +648,7 @@ def format_message(members: "list[dict]") -> str:
 
 def format_digest(events: "list[dict]", labels: dict[str, str],
                   window: "tuple[int, int]",
-                  calendar: "list[dict] | None" = None,
+                  calendar: "economic_calendar.Timeline | list[dict] | None" = None,
                   now: datetime | None = None) -> "list[str]":
     """One note, whole, split into parts Telegram will accept.
 

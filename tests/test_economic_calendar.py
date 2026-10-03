@@ -137,7 +137,8 @@ def test_parse_event_time_converts_to_utc():
     assert parsed.hour == 12
 
 
-def test_events_in_window_keeps_only_events_inside_the_range_inclusive():
+@pytest.mark.parametrize("ordered", [False, True], ids=["list", "timeline"])
+def test_events_in_window_keeps_only_events_inside_the_range_inclusive(ordered):
     events = [
         {"title": "before", "date": datetime(2024, 1, 1, 11, 59, tzinfo=timezone.utc).isoformat()},
         {"title": "lower bound", "date": datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc).isoformat()},
@@ -145,19 +146,51 @@ def test_events_in_window_keeps_only_events_inside_the_range_inclusive():
         {"title": "upper bound", "date": datetime(2024, 1, 1, 14, 0, tzinfo=timezone.utc).isoformat()},
         {"title": "after", "date": datetime(2024, 1, 1, 14, 1, tzinfo=timezone.utc).isoformat()},
     ]
+    if ordered:
+        events = economic_calendar.Timeline(list(reversed(events)))
     matched = economic_calendar.events_in_window(
         events, datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc), datetime(2024, 1, 1, 14, 0, tzinfo=timezone.utc))
     assert [e["title"] for e in matched] == ["lower bound", "inside", "upper bound"]
 
 
-def test_events_in_window_returns_events_sorted_by_date():
+@pytest.mark.parametrize("ordered", [False, True], ids=["list", "timeline"])
+def test_events_in_window_returns_events_sorted_by_date(ordered):
     events = [
         {"title": "second", "date": datetime(2024, 1, 1, 13, 0, tzinfo=timezone.utc).isoformat()},
         {"title": "first", "date": datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc).isoformat()},
     ]
+    if ordered:
+        events = economic_calendar.Timeline(events)
     matched = economic_calendar.events_in_window(
         events, datetime(2024, 1, 1, 0, 0, tzinfo=timezone.utc), datetime(2024, 1, 2, 0, 0, tzinfo=timezone.utc))
     assert [e["title"] for e in matched] == ["first", "second"]
+
+
+def test_a_timeline_orders_by_the_moment_not_the_written_offset():
+    # 08:30 New York is 12:30 UTC, after 12:00 UTC, though "08:30" sorts first.
+    events = [{"title": "new york", "date": "2026-09-03T08:30:00-04:00"},
+              {"title": "utc", "date": "2026-09-03T12:00:00+00:00"},
+              {"title": "tokyo", "date": "2026-09-03T23:50:00+09:00"}]
+    timeline = economic_calendar.Timeline(events)
+    found = timeline.between(datetime(2026, 9, 3, 12, 0, tzinfo=timezone.utc),
+                             datetime(2026, 9, 3, 12, 30, tzinfo=timezone.utc))
+    assert [e["title"] for e in found] == ["utc", "new york"]
+    assert len(timeline) == 3 and not economic_calendar.Timeline([])
+
+
+def test_a_timeline_finds_what_a_scan_of_the_archive_finds():
+    archive = load_events(store_path("data/economic_calendar"))
+    if not archive:
+        pytest.skip("no calendar archive in this checkout")
+    timeline = economic_calendar.Timeline(archive)
+    from datetime import timedelta
+    for hour in range(int(datetime(2016, 1, 4, tzinfo=timezone.utc).timestamp()),
+                      int(datetime(2026, 10, 1, tzinfo=timezone.utc).timestamp()),
+                      997 * 3600):                 # about every six weeks, at every hour of day
+        moment = datetime.fromtimestamp(hour, tz=timezone.utc)
+        lower, upper = moment - timedelta(hours=2), moment + timedelta(hours=1)
+        assert (economic_calendar.events_in_window(timeline, lower, upper)
+                == economic_calendar.events_in_window(archive, lower, upper))
 
 
 def test_merge_events_is_idempotent_and_deduplicates(tmp_path):

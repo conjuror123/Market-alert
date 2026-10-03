@@ -33,6 +33,7 @@ magnitude fewer. That price is zero in substance: only High and Medium are used.
 from __future__ import annotations
 
 import argparse
+import bisect
 import json
 import logging
 import os
@@ -183,12 +184,42 @@ def parse_event_time(date_str: str) -> datetime:
     return datetime.fromisoformat(date_str).astimezone(timezone.utc)
 
 
-def events_in_window(events: list[dict], lower: datetime, upper: datetime) -> list[dict]:
+class Timeline:
+    """The archive in time order, so that a window is looked up, not searched.
+
+    The archive holds every release since 2007, about 92,000 of them, and a
+    push asks only for the three hours around its move. Scanning the whole list
+    for that cost about a tenth of a second a push, every run, for every push
+    and note row of the week. Here each release's moment is read once, the list
+    is sorted by it, and a window is found by binary search (bisect): two
+    lookups of about seventeen steps each, whatever the size of the archive.
+    """
+
+    def __init__(self, events: "list[dict]"):
+        timed = sorted(((parse_event_time(e["date"]).timestamp(), e) for e in events),
+                       key=lambda pair: pair[0])
+        self._moments = [moment for moment, _ in timed]
+        self._events = [event for _, event in timed]
+
+    def __len__(self) -> int:
+        return len(self._events)
+
+    def between(self, lower: datetime, upper: datetime) -> "list[dict]":
+        """Events with a time in [lower, upper], inclusive both ends."""
+        start = bisect.bisect_left(self._moments, lower.timestamp())
+        end = bisect.bisect_right(self._moments, upper.timestamp())
+        return self._events[start:end]
+
+
+def events_in_window(events: "list[dict] | Timeline", lower: datetime,
+                     upper: datetime) -> list[dict]:
     """Archive events with a time in [lower, upper] (inclusive both ends,
     same convention as explain.py's _filter_after/_filter_before), sorted by
-    date. Used by daily_signal_review.py to show calendar context next to
-    each backtest event."""
-    matched = [e for e in events if lower <= parse_event_time(e["date"]) <= upper]
+    date. A Timeline is looked up; a plain list is scanned whole."""
+    if isinstance(events, Timeline):
+        matched = events.between(lower, upper)
+    else:
+        matched = [e for e in events if lower <= parse_event_time(e["date"]) <= upper]
     return sorted(matched, key=lambda e: e["date"])
 
 
