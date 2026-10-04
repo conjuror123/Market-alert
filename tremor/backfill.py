@@ -43,14 +43,12 @@ import requests
 from tremor import atomic, bars, cboe, corporate_actions, fred, futures, quality, verify
 from tremor import sessions as _sessions
 from tremor.basket import Asset, Basket, load_basket
-from price_monitor import (alpaca, binance, candle_store, dukascopy, google, hfdata,
-                           sifting, sina, tiingo, twelvedata, yahoo)
+from price_monitor import (alpaca, binance, dukascopy, google, hfdata, sifting, sina,
+                           tiingo, twelvedata, yahoo)
 from price_monitor.models import ExchangeError
 from price_monitor.notifier import TelegramError, redact_secrets, send_telegram_message
 
 log = logging.getLogger("tremor.backfill")
-
-LEGACY_HISTORY_DIR = os.path.join("data", "candle_history")
 
 TWELVEDATA_BASE_URL = "https://api.twelvedata.com"
 TIINGO_BASE_URL = tiingo.BASE_URL
@@ -150,19 +148,6 @@ def send_ops_alert(text: str) -> None:
 def _days_since(start: date) -> float:
     return max(1.0, (datetime.now(timezone.utc) - datetime.combine(
         start, datetime.min.time(), tzinfo=timezone.utc)).total_seconds() / 86400)
-
-
-def import_legacy(asset: Asset, path: str, legacy_dir: str = LEGACY_HISTORY_DIR) -> int:
-    """Moves the already accumulated NDJSON history into Parquet. The file-naming
-    scheme is the same in candle_store and in Tremor, so the mapping is direct.
-    """
-    legacy_path = candle_store.store_path(legacy_dir, asset.source, asset.ticker)
-    if not os.path.exists(legacy_path):
-        return 0
-    candles = candle_store.load_candles(legacy_path)
-    if not candles:
-        return 0
-    return bars.merge(path, bars.to_hourly(bars.candles_to_frame(candles)))
 
 
 # Overlap the newest stored bar by this many hours on a forward fetch, and
@@ -493,24 +478,21 @@ def fetch_twelvedata_live(assets: "list[Asset]", bars_dir: str, api_key: str,
             added = bars.merge(path, bars.to_hourly(bars.candles_to_frame(answer)))
             stored = bars.load(path)
             results.append((asset, {
-                "asset_id": asset.asset_id, "from_legacy": 0, "from_api": added,
+                "asset_id": asset.asset_id, "from_api": added,
                 "rows": len(stored), "first": int(stored["hour_utc"].min()),
                 "last": int(stored["hour_utc"].max())}))
     return results
 
 
 def backfill_instrument(asset: Asset, basket: Basket, bars_dir: str, api_key: str,
-                        session: requests.Session, legacy_dir: str = LEGACY_HISTORY_DIR,
-                        extend_history: bool = False, tiingo_key: str = "",
+                        session: requests.Session, extend_history: bool = False, tiingo_key: str = "",
                         sifting_key: str = "") -> dict:
     path = bars.store_path(bars_dir, asset.file_stem)
-    from_legacy = import_legacy(asset, path, legacy_dir)
     from_api = fetch_missing(asset, path, basket.acquire_since, api_key, session,
                              extend_history, tiingo_key, sifting_key=sifting_key)
     stored = bars.load(path)
     return {
         "asset_id": asset.asset_id,
-        "from_legacy": from_legacy,
         "from_api": from_api,
         "rows": len(stored),
         "first": int(stored["hour_utc"].min()) if not stored.empty else None,
@@ -1148,7 +1130,6 @@ def main(argv: list[str] | None = None) -> int:
                         help="Comma-separated tickers; the whole basket by default")
     parser.add_argument("--bars-dir", default=bars.DEFAULT_BARS_DIR)
     parser.add_argument("--vix-dir", default=bars.DEFAULT_VIX_DIR)
-    parser.add_argument("--legacy-dir", default=LEGACY_HISTORY_DIR)
     parser.add_argument("--skip-vix", action="store_true")
     parser.add_argument("--extend-history", action="store_true",
                         help="ask from basket.history_since even where the store "
@@ -1511,11 +1492,9 @@ def main(argv: list[str] | None = None) -> int:
             continue
         try:
             r = backfill_instrument(asset, basket, args.bars_dir, api_key, session,
-                                    args.legacy_dir, args.extend_history, tiingo_key,
-                                    sifting_key)
-            log.info("%s: %d bars (%s .. %s), from local history %d, from network %d",
-                     r["asset_id"], r["rows"], _fmt(r["first"]), _fmt(r["last"]),
-                     r["from_legacy"], r["from_api"])
+                                    args.extend_history, tiingo_key, sifting_key)
+            log.info("%s: %d bars (%s .. %s), %d new", r["asset_id"], r["rows"],
+                     _fmt(r["first"]), _fmt(r["last"]), r["from_api"])
         except twelvedata.DailyQuotaExhausted as exc:
             # STOP THE WHOLE LOOP, and this is the difference between a run that
             # delivers on slightly stale bars and a run that delivers nothing.

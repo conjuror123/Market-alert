@@ -1,5 +1,5 @@
 """Client for ForexFactory's public economic calendar feed, plus a permanent
-local NDJSON store (same pattern as candle_store.py) so events accumulate
+local NDJSON store so events accumulate
 over time as the weekly digest (weekly_digest.py) fetches them.
 
 Only a "this week" feed exists at
@@ -276,8 +276,7 @@ def _merge_one(stored: dict | None, incoming: dict) -> dict:
 
 def merge_events(path: str, events: list[dict]) -> int:
     """Idempotently merges `events` into the local store, deduplicated by
-    (country, title, moment of publication) and rewritten in order - same pattern
-    as candle_store.merge_history, for the same reason: this is called every
+    (country, title, moment of publication) and rewritten in order: this is called every
     week with a feed that mostly repeats recurring events, so it must be
     safe to call repeatedly with overlapping data without accumulating
     duplicate rows. Returns how many rows were added OR CHANGED.

@@ -99,8 +99,8 @@ def test_load_missing_file_returns_typed_empty_frame(tmp_path):
 
 
 def test_candles_to_frame_preserves_the_open_time_convention():
-    # hour_utc is the bar's OPENING moment, the same convention as
-    # open_time in candle_store, so the import needs no shift.
+    # hour_utc is the bar's OPENING moment, the same convention as every
+    # provider's open_time, so nothing is shifted.
     candles = [Candle(open_time=HOUR, open=1.0, high=2.0, low=0.5, close=1.5,
                       volume=3.0, close_time=2 * HOUR)]
     out = bars.candles_to_frame(candles)

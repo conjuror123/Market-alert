@@ -6,9 +6,7 @@ import pytest
 import requests
 
 from tremor import bars
-from tremor.backfill import import_legacy
 from tremor.basket import Asset
-from price_monitor import candle_store
 from price_monitor.models import Candle
 
 HOUR = 3600
@@ -36,52 +34,6 @@ class _Rows:
 def candle(hour, close=1.5):
     return Candle(open_time=hour * HOUR, open=1.0, high=2.0, low=0.5,
                   close=close, volume=0.0, close_time=(hour + 1) * HOUR)
-
-
-def test_imports_the_accumulated_ndjson_history(tmp_path):
-    legacy_dir = tmp_path / "legacy"
-    legacy_dir.mkdir()
-    a = asset()
-    candle_store.append_candles(
-        candle_store.store_path(str(legacy_dir), a.source, a.ticker),
-        [candle(1), candle(2), candle(3)])
-
-    path = bars.store_path(str(tmp_path / "bars"), a.file_stem)
-    assert import_legacy(a, path, str(legacy_dir)) == 3
-    assert list(bars.load(path)["hour_utc"]) == [HOUR, 2 * HOUR, 3 * HOUR]
-
-
-def test_import_deduplicates_the_repeated_block(tmp_path):
-    # The accumulated history contains a block of 299 hours duplicated by a bad
-    # branch merge. The store must accept it exactly once.
-    legacy_dir = tmp_path / "legacy"
-    legacy_dir.mkdir()
-    a = asset()
-    block = [candle(h) for h in range(1, 6)]
-    candle_store.append_candles(
-        candle_store.store_path(str(legacy_dir), a.source, a.ticker), block + block)
-
-    path = bars.store_path(str(tmp_path / "bars"), a.file_stem)
-    assert import_legacy(a, path, str(legacy_dir)) == 5
-    assert len(bars.load(path)) == 5
-
-
-def test_import_is_idempotent(tmp_path):
-    legacy_dir = tmp_path / "legacy"
-    legacy_dir.mkdir()
-    a = asset()
-    candle_store.append_candles(
-        candle_store.store_path(str(legacy_dir), a.source, a.ticker), [candle(1)])
-
-    path = bars.store_path(str(tmp_path / "bars"), a.file_stem)
-    import_legacy(a, path, str(legacy_dir))
-    assert import_legacy(a, path, str(legacy_dir)) == 0
-
-
-def test_import_without_legacy_file_is_a_no_op(tmp_path):
-    path = bars.store_path(str(tmp_path / "bars"), "x")
-    assert import_legacy(asset(), path, str(tmp_path / "missing")) == 0
-    assert not os.path.exists(path)
 
 
 def test_deepening_starts_at_the_oldest_stored_bar_not_at_today(tmp_path, monkeypatch):
@@ -1198,7 +1150,7 @@ def test_a_yahoo_rate_limit_skips_remaining_yahoo_instruments(tmp_path, monkeypa
         if asset.ticker == "UGA":
             raise yahoo.RateLimited("UGA: status 429")
         return {"asset_id": asset.asset_id, "rows": 1, "first": 1, "last": 1,
-                "from_legacy": 0, "from_api": 1}
+                "from_api": 1}
 
     basket = Basket(
         assets=(_yahoo_asset("UGA"), _yahoo_asset("UNG"), _yahoo_asset("CPER"),
@@ -1239,7 +1191,7 @@ def test_a_yahoo_404_stays_per_instrument_and_does_not_skip_the_rest(
         if asset.ticker == "UGA":
             raise ExchangeError("UGA: unknown to Yahoo (404)")
         return {"asset_id": asset.asset_id, "rows": 1, "first": 1, "last": 1,
-                "from_legacy": 0, "from_api": 1}
+                "from_api": 1}
 
     basket = Basket(
         assets=(_yahoo_asset("UGA"), _yahoo_asset("UNG")),
@@ -1280,7 +1232,7 @@ def test_a_sifting_budget_skips_remaining_pairs_and_says_so(tmp_path, monkeypatc
         if asset.ticker == "EUR/USD":
             raise sifting.RateLimited("EUR/USD: budget", remaining="0")
         return {"asset_id": asset.asset_id, "rows": 1, "first": 1, "last": 1,
-                "from_legacy": 0, "from_api": 1}
+                "from_api": 1}
 
     basket = Basket(
         assets=(_sifting_pair("EUR/USD"), _sifting_pair("USD/JPY"), _yahoo_asset("UGA")),
@@ -1568,7 +1520,7 @@ def test_an_alpaca_rate_limit_skips_remaining_alpaca_instruments(tmp_path, monke
         if asset.ticker == "LQD":
             raise alpaca.RateLimited("LQD: Alpaca answered 429")
         return {"asset_id": asset.asset_id, "rows": 1, "first": 1, "last": 1,
-                "from_legacy": 0, "from_api": 1}
+                "from_api": 1}
 
     def fund(ticker):
         return Asset(ticker=ticker, source="twelvedata", provider="alpaca",
