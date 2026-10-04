@@ -116,7 +116,22 @@ def test_real_config_tick_sizes_are_plausible(tmp_path):
     basket = load_basket()
     for a in basket.instruments:
         # Nickel is quoted in dollars a tonne and steps by the LME's $5; the
-        # futures by their contracts' ticks (cocoa $1 a tonne).
-        limit = 0.01 if a.session_template in ("us_equity", "fx_continuous",
-                                               "crypto_24_7") else 10.0
+        # futures by their contracts' ticks (cocoa $1 a tonne); a coin by
+        # Binance's (test_a_coins_tick_is_binances).
+        limit = 0.01 if a.session_template in ("us_equity", "fx_continuous") else 10.0
         assert 0 < a.tick_size <= limit, a.ticker
+
+
+# Binance's PRICE_FILTER tickSize for each USDT pair (exchangeInfo, 2026-10-04).
+BINANCE_TICKS = {
+    "BTC/USDT": 0.01, "ETH/USDT": 0.01, "SOL/USDT": 0.01, "LTC/USDT": 0.01,
+    "BCH/USDT": 0.1, "LINK/USDT": 0.001, "ADA/USDT": 0.0001, "DOGE/USDT": 0.00001,
+    "AVAX/USDT": 0.001, "XRP/USDT": 0.0001, "DOT/USDT": 0.001, "POL/USDT": 0.00001,
+    "UNI/USDT": 0.001, "ATOM/USDT": 0.001, "FIL/USDT": 0.0001, "AAVE/USDT": 0.01,
+}
+
+
+def test_a_coins_tick_is_binances():
+    coins = {a.ticker: a.tick_size for a in load_basket().instruments
+             if a.source == "binance"}
+    assert coins == BINANCE_TICKS

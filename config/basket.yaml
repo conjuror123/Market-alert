@@ -662,7 +662,7 @@ assets:
     source: binance
     block: crypto
     has_volume: true
-    tick_size: 0.001
+    tick_size: 0.01
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Litecoin"
@@ -670,7 +670,7 @@ assets:
     source: binance
     block: crypto
     has_volume: true
-    tick_size: 0.01
+    tick_size: 0.1
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Bitcoin Cash"
@@ -686,7 +686,7 @@ assets:
     source: binance
     block: crypto
     has_volume: true
-    tick_size: 0.00001
+    tick_size: 0.0001
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Cardano"
@@ -1653,7 +1653,7 @@ assets:
     source: binance
     block: crypto
     has_volume: true
-    tick_size: 0.0001
+    tick_size: 0.00001
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Polygon (POL, formerly MATIC)"
@@ -1677,7 +1677,7 @@ assets:
     source: binance
     block: crypto
     has_volume: true
-    tick_size: 0.001
+    tick_size: 0.0001
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Filecoin"
