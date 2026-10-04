@@ -292,6 +292,13 @@ def judge(c: dict, v: pd.DataFrame, now: int) -> "tuple[str, float, float]":
     return (UNCONFIRMED if lag_passed else PENDING), p, direct
 
 
+def _priced(v: pd.DataFrame) -> pd.DataFrame:
+    """A second source's bars with a real price only: a zero, negative or
+    missing open or close is not a price, as in the store's bar gate."""
+    prices = v[["open", "close"]].to_numpy(dtype="float64")
+    return v[(np.isfinite(prices) & (prices > 0)).all(axis=1)].reset_index(drop=True)
+
+
 def combine(verdicts: "list[tuple[str, str, float, float]]") -> "tuple[str, float, list, list]":
     """One verdict from every second source that answered, each (name,
     verdict, stored move, its move): confirmed if any saw the move; pending
@@ -431,8 +438,8 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
                 continue
             requests_left -= 1
             try:
-                answers.append((name, fetch_verifier(name, symbol, interval, days, session,
-                                                     now_dt)))
+                answers.append((name, _priced(fetch_verifier(name, symbol, interval, days,
+                                                             session, now_dt))))
             except Exception as exc:
                 log.warning("verify: %s from %s failed - %s", asset.ticker, name, exc)
                 if isinstance(exc, yahoo.RateLimited) or "answered 429" in str(exc):
@@ -440,7 +447,13 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
         if not answers:
             continue
         for c in found:
-            verdict, stored, names, moves = judge_all(c, answers, now_ts)
+            try:
+                verdict, stored, names, moves = judge_all(c, answers, now_ts)
+            except Exception as exc:
+                # One instrument's surprise costs that reading, not the pass.
+                log.warning("verify: %s %s could not be judged - %s", asset.ticker,
+                            c["hour"], exc)
+                continue
             counts[verdict] += 1
             record[(asset.asset_id, c["hour"], c["check"])] = {
                 "asset_id": asset.asset_id, "hour_utc": c["hour"], "check": c["check"],

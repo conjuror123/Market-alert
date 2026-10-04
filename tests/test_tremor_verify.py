@@ -520,3 +520,26 @@ def test_the_check_follows_the_detectors_settings(monkeypatch, basket):
     asked()
     assert windows == [365.0]
     assert verify.tail_days(365.0) >= 365.0
+
+
+def test_a_broken_bar_from_a_second_source_costs_only_its_instrument(
+        monkeypatch, tmp_path, basket):
+    # A second source's zero or missing price is not a price. It must not take
+    # the pass down with it: every other instrument is still judged.
+    asset, hours, bad, frame, market = _inr_store(tmp_path, basket)
+    other = basket["USD/TRY"]
+    bars.write(bars.store_path(str(tmp_path / "bars"), other.file_stem), frame)
+    broken = market.copy()
+    broken.loc[bad - 1, ["open", "close"]] = 0.0
+
+    def fetch(name, symbol, interval, days, session, now):
+        return broken if "INR" in symbol else market
+
+    monkeypatch.setattr(verify, "fetch_verifier", fetch)
+    now = datetime.fromtimestamp(int(hours[bad + 5]) + 300, timezone.utc)
+    path = str(tmp_path / "verified.csv")
+    verify.verify([asset, other], str(tmp_path / "bars"), None, now=now, path=path)
+    doubted = verify.unconfirmed(path)
+    assert (other.asset_id, int(hours[bad]), "close") in doubted
+    # The broken bar is left out and the rest of the source's hours decide.
+    assert (asset.asset_id, int(hours[bad]), "close") in doubted
