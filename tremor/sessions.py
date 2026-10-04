@@ -12,7 +12,7 @@ repository as a table committed alongside the code. There are three reasons.
 2. The export schema explicitly requires holidays and half_sessions tables - that
    is, data, not a function call.
 3. The hourly run then needs no calendar library at all, only a ready CSV. Fewer
-   dependencies in production, faster installs.
+   dependencies in the hourly run, faster installs.
 
 There are deliberately no separate holidays and half_sessions tables in the
 store: both are derived from the session table without loss - a business day that
@@ -55,7 +55,7 @@ def generate_nyse_sessions(start: date, end: date) -> list[Session]:
 
     Called by hand only, when the table is refreshed (see main). It is not used in
     the hourly run, so exchange_calendars stays a development dependency rather
-    than a production one.
+    than a runtime one.
     """
     import exchange_calendars as xcals  # local import: generation only
 
@@ -313,10 +313,7 @@ def today_close_after(hour_utc: int, template: str,
                       tz_name: str = EXCHANGE_TZ) -> "int | None":
     """When the instrument's OWN day ends, as an epoch UTC moment.
 
-    The moment the first check-in becomes measurable. Equal to the end of the
-    bar itself when the move happened in the closing hour, which is not a
-    failure: there is no day left to hold through, and the message leaves the
-    line out rather than reporting a ratio that is one by construction.
+    Equal to the end of the bar itself when the bar is the day's closing hour.
     """
     day = instrument_day(hour_utc, template, tz_name)
     hours = instrument_day_hours(day, template, table, tz_name)
@@ -335,8 +332,7 @@ def day_is_closed(hour_utc: int, template: str,
     reading to nowhere in particular, whatever it is labelled.
 
     False where the calendar cannot say, which is the safe direction: an answer
-    withheld is a check-in still shown as due, and an answer invented is a
-    number the reader believes.
+    withheld waits, an answer invented is a number the reader believes.
     """
     close = today_close_after(hour_utc, template, table, tz_name)
     return close is not None and close <= int(hour_utc) + HOUR
@@ -370,7 +366,7 @@ def reference_week_bounds(any_moment: datetime, anchor_tz: str) -> tuple[int, in
     (open, close) in epoch UTC.
 
     The bounds are given in the anchor exchange's local time and converted to UTC
-    on the fly - storing them as UTC is forbidden, because the switch to daylight
+    on the fly - storing them as UTC is forbidden, because a change to daylight
     saving would shift them relative to the market.
     """
     from zoneinfo import ZoneInfo

@@ -22,27 +22,14 @@ import yaml
 
 DEFAULT_BASKET_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "basket.yaml")
 
-# The blocks, and the split is not cosmetic: each exists so that a median across
-# its members stands for something. Credit is its own block rather than part of
-# rates, and commodities are four rather than one, because gold and crude do not
-# respond to the same thing and a median across both stands for neither. See
-# basket.yaml for the composition argument.
+# The blocks group instruments by what moves them: gold and crude do not answer
+# to the same news, so commodities are four blocks, and credit is apart from
+# rates. Reports count by block, and the funds' two consolidated feeds alternate
+# within each block so an outage of either leaves every block reporting.
 BLOCKS = ("equity", "rates", "credit", "energy", "precious_metals",
           "industrial_metals", "agriculture", "FX", "crypto")
 
-# The hard floor on a block's size, and it is the arithmetic rather than a
-# preference: a block's move is a leave-one-out median of the other members (the
-# previous detector's block factor), so a
-# one-member block has nothing left to take a median OF.
-#
-# THE USEFUL FLOOR IS HIGHER AND IS NOT ENFORCED HERE. Measured on this basket -
-# mean |correlation between members' residuals|, which is the thing a block
-# exists to remove - a block of 2 leaves 0.43 to 0.74 of it, a block of 4 about
-# 0.32, of 6 about 0.25, and 8 or more about 0.23 and flat thereafter. Leftover
-# correlation is the detector firing several times for one event. So 8 members
-# is where a block stops costing anything and 6 is the point below which it
-# degrades quickly. Four of the nine blocks are under 6 today; that is a known
-# state recorded in the tests, not something to warn about on every load.
+# A block of one is a typo in basket.yaml, not a group.
 BLOCK_MIN_MEMBERS = 2
 BLOCK_ADVISED_MEMBERS = 8
 TIERS = (1, 2)
@@ -55,7 +42,7 @@ TIERS = (1, 2)
 # recorded against it.
 #
 # `provider` is who actually answers the request, and that CAN change: see
-# docs/architecture.md for the current split and how it was chosen. It defaults
+# docs/manual.md, "Data in", for the current split. It defaults
 # to `source`, which is why the crypto rows need no provider line.
 SOURCES = ("twelvedata", "coinbase", "binance", "kitco", "yahoo", "sina")
 
@@ -105,9 +92,8 @@ class Asset:
 
     @property
     def file_stem(self) -> str:
-        """File name in the store. Matches the candle_store scheme of the existing
-        monitor so that the history already accumulated can be imported without
-        renaming anything."""
+        """File name in the store, built from `source`: an identity, never a
+        provider."""
         return re.sub(r"[^A-Za-z0-9_.-]", "_", f"{self.source}_{self.ticker}")
 
 
@@ -145,8 +131,8 @@ class Basket:
     # stored now may not be recoverable later, and there is no cost to holding
     # history the analysis does not yet use.
     #
-    # Last and optional so that every hand-built Basket keeps working and falls
-    # back to the analysis floor, which is what it meant before this existed.
+    # Last and optional so that a hand-built Basket falls back to the analysis
+    # floor.
     fetch_since: date | None = None
 
     @property
@@ -245,31 +231,23 @@ def load_basket(path: str = DEFAULT_BASKET_PATH) -> Basket:
                 f"{a.ticker}: session template '{a.session_template}' is not "
                 f"described in session_templates")
 
-    # The hourly quorum requires at least two blocks of two assets each. A
-    # basket where that is unreachable in any hour is pointless: its cluster
-    # triggers will never fire, not merely "rarely".
+    # At least two blocks of two members each: a basket below that is a broken
+    # config, not a small one.
     by_block = Basket(
         assets, outside, VolatilityIndex("", "", "", "", date.today()), "",
         date.today(), templates
     ).by_block()
 
-    # A BLOCK BELOW THE FLOOR CANNOT BE A BLOCK. The factor is a leave-one-out
-    # median of the other members, so one member leaves nothing to take a median
-    # of and the block produces no move at all. Until now this was asserted only
-    # in the tests, so
-    # a hand-edited config could load a one-member block and simply go quiet
-    # where it should have shouted. It is a config error, and it is raised here.
+    # A one-member block is a config error (BLOCK_MIN_MEMBERS).
     short = {b: len(m) for b, m in by_block.items() if len(m) < BLOCK_MIN_MEMBERS}
     if short:
         listed = ", ".join(f"{b} ({n})" for b, n in sorted(short.items()))
         raise BasketConfigError(
             f"Block below the minimum of {BLOCK_MIN_MEMBERS} members: {listed}. "
-            "A block's factor is a leave-one-out median of its other members, so "
-            "one member has nothing to be measured against.")
+            "A block groups instruments; one member is a typo.")
 
-    # The hourly quorum requires at least two blocks of two assets each. A
-    # basket where that is unreachable in any hour is pointless: its cluster
-    # triggers will never fire, not merely "rarely".
+    # At least two blocks of two members each: a basket below that is a broken
+    # config, not a small one.
     populated = [b for b, members in by_block.items() if len(members) >= 2]
     if len(populated) < 2:
         raise BasketConfigError(

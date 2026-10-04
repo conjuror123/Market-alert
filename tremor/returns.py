@@ -18,25 +18,13 @@ the first bar is not disturbed. It is KEPT beside it, though, as its own column
 
 This also disposes of the unadjusted-series problem. ETFs arrive from the source
 without a dividend adjustment, and on the ex-date the price mechanically drops by
-the payout. That drop happens between sessions, so it falls in the jump this
-module discards and never reaches r_t.
+the payout. That drop happens between sessions, so it never reaches r, and the
+gap is taken net of it (overnight_gaps).
 
-WHAT WAS HERE, WENT, AND CAME BACK. The jump used to be kept as a second channel, r_gap,
-alongside a gap_masked flag marking the ex-dates the corporate-actions table
-knows about, so that the distribution of the gap channel would not be skewed by
-regular dividend steps. Both were computed on every bar, written into every
-metrics table, and read by nothing - the channel awarded no points and no message
-ever quoted it. They are gone, and with them the corporate-actions lookup that
-existed only to feed the flag. tremor.corporate_actions is still used for
-un-adjustment, which is a different question and a live one.
-
-It came back because dropping it was measured and found expensive: across the
-US funds a median 43% of day-to-day price variance happens between the close
-and the next open - 25% for XLU, 70% for CPER - and SPY's largest opening gaps
-are 2020-03-16, 2008-10-24, 2015-08-24 and 2024-08-05. Those days the detector
-saw only what happened after the first print. This time the gap is scored, not
-merely stored: tremor.jumps judges it against the fund's own earlier gaps of
-the same kind.
+The gap is scored, not merely stored: across the US funds a median 43% of
+day-to-day variance happens between the close and the next open (25% for XLU,
+70% for CPER), and SPY's largest opening gaps are some of its biggest days.
+tremor.jumps judges it against the fund's own earlier gaps of the same kind.
 """
 from __future__ import annotations
 
@@ -94,9 +82,8 @@ def session_ids(asset: Asset, hours: pd.Series, anchor_tz: str = "America/New_Yo
         return local.dt.strftime("%Y-%m-%d")
 
     if asset.session_template == "fx_continuous":
-        # Vectorised, and it has to be: this used to call reference_week_bounds
-        # once per bar, which at 145,000 bars was the single largest cost in the
-        # whole metrics stage - 292,165 calls, two timezone conversions each.
+        # Vectorised: reference_week_bounds once per bar would be the largest
+        # cost of the metrics step at 145,000 bars.
         from tremor.sessions import reference_week_opens
 
         return reference_week_opens(moments, anchor_tz).astype("int64") // 10 ** 9

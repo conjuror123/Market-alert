@@ -1,80 +1,45 @@
-"""The jump detector, stage 0: an hour's move against the half-year before it.
+"""The jump detector: each reading against the half-year before it.
 
-This is the jump test of Lee & Mykland (2008), "Jumps in Financial Markets: A New
-Nonparametric Test and Jump Dynamics", Review of Financial Studies 21(6). Stage 0 is
-exactly two rules and nothing else:
+The jump test of Lee & Mykland (2008), "Jumps in Financial Markets: A New
+Nonparametric Test and Jump Dynamics", Review of Financial Studies 21(6).
+docs/manual.md, "The detector", says what each part does; docs/decisions.md why.
 
-  1. THE SCORE. For each instrument and hour, z = r / sigma, where sigma is the
-     instrument's bipower volatility over the half-year BEFORE this hour (their
-     eq. 8):
+THE SCORE. z = r / sigma, sigma the instrument's bipower volatility over the
+half-year BEFORE the reading (their eq. 8):
 
-         sigma = sqrt(pi/2 * mean(|r_j| * |r_(j-1)|))
+    sigma = sqrt(pi/2 * mean(|r_j| * |r_(j-1)|))
 
-     Products of neighbouring moves rather than squares, so one jump inside the
-     window cannot inflate the yardstick it is later measured against: a jump
-     multiplies with an ordinary move on either side of it, not with itself.
+Products of neighbouring moves, so a jump in the window never multiplies with
+itself and cannot inflate the yardstick it is later measured against.
 
-  2. THE WORD, from |z|: 6, 8.5, 12, 17 - each word about sqrt(2) bigger than
-     the one below, rounded, and about three times rarer.
+THE WORD, from |z|: 6, 8.5, 12, 17 (LEVELS) - about sqrt(2) apart, each about
+three times rarer than the one below.
 
-THE WINDOW IS CALENDAR TIME, THE SAME FOR EVERY INSTRUMENT. The paper counts
-bars, because its statistics needs enough of them; what the window has to
-follow is the volatility regime, which runs on the world's calendar and not on
-a market's opening hours. Half a year sits inside the paper's valid range for
-every calendar here: sqrt(252 n) to 252 n bars, n bars a day - a fund has about
-880 bars in it (42 to 1,764), a currency pair about 3,130 and a coin about
-4,380 (78 to 6,048).
+THE WINDOW is half a year of calendar time for every instrument (a fund about
+880 bars, a pair 3,130, a coin 4,380), inside the paper's valid range of
+sqrt(252 n) to 252 n bars for n bars a day. A young series scores from the
+paper's minimum and its rows are marked `young`.
 
-A YOUNG SERIES IS SCORED FROM THE PAPER'S MINIMUM, not from a full half-year.
-Thirteen funds' records begin on 2020-02-10, and a half-year warm-up would leave
-them blind through March 2020. So scoring starts once the window holds the
-paper's smallest valid count - the smallest integer above sqrt(252 n) - and the
-window grows with the history until it is half a year long. Rows scored before
-then are marked `young`, so a report can keep them apart.
+THE GAP - a fund's night and weekend, a pair's weekend - is scored by the same
+rules against the gaps of its own kind over the same half-year. A weekend is a
+gap of 48 hours or more; a midweek holiday is a night.
 
-THE GAP (stage 1b) is scored by the same two rules on its own readings. What
-happens while a market is shut arrives as the jump from the last price before
-the close to the first after it: a fund's night and weekend, a currency pair's
-weekend. A night is judged against the nights of the half-year before it, a
-weekend against the weekends: every reading of an instrument - hours, nights,
-weekends - is read against the same half-year of the world's events. A weekend
-is any gap spanning 48 hours or more (a long weekend included); a midweek
-holiday is a night. The yardstick for weekends is the noisiest, 26 readings a
-half-year, against the paper's minimum of 7 for once-a-week data; measured, it
-is no worse than pooling them with the nights (see docs/decisions.md).
+BROKEN PRINTS. A reading beyond MISTAKE_SIGMA, and the stretch after it until
+the price is back (STRETCH_BACK, STRETCH_BARS), is no reading at all. A move a
+second source did not see (tremor.verify) is left out too (without_unconfirmed).
 
-ONE EVENT PER 24 HOURS (stage 1). An instrument's first flagged reading - a gap
-or an hour - opens an event that lasts 24 hours of real time from when it was
-found; every reading found inside them belongs to it, and the first one found
-after them opens the next. The event's word is its rarest reading's, and the
-numbers it shows are its biggest reading's (event_starts, events).
-
-CHANNELS (stage 2). `high` and rarer push at once; `noticeable` goes into the
-weekly note, with a short ping of its own. Each reading carries what the delivery
-layer reads (price_monitor.tremor_delivery): an id, its word as the `tier`, the
-basis `jump`, its channel, its event's start, the move as `r` and the half-year
-sigma as `sigma_lt` - so the message's "N×σ" is exactly |z|.
-
-RAREST SINCE (stage 3). Each flagged reading carries the most recent earlier
-reading of its own kind, in the same direction, at least 95% of its size in
-sigma or bigger, as `since_utc` and `since_z` - or none in the whole record
-since `record_start` (rarest_since).
-
-HELD AT THE CLOSE (stage 4). Each flagged reading is checked at the first NYSE
-close after it was found - a coin and a currency pair too - as `check_utc`, and
-once that close has passed, `held` is the share of the move still there
-(held_at_close).
-
-NOT HERE, deliberately: no time-of-day scale - measured and dropped, a busy hour
-fires more because more happens in it (docs/decisions.md); no block co-jump or own-move
-reading, measured and dropped too.
-The output is a table of every reading that reached `noticeable`.
+EVENTS. An instrument's first flagged reading opens an event of 24 real hours
+from when it was found (event_starts); its word is its rarest reading's, its
+numbers its biggest's. Each reading carries what delivery reads: an id, its word
+as `tier`, its channel, its event's start, `r`, `sigma_lt`, the rarest-since
+reading (`since_utc`, `since_z`; rarest_since) and the check at the first NYSE
+close after it was found (`check_utc`, `held`; held_at_close).
 
     python -m tremor.jumps            reads data/tremor/metrics, writes
                                       data/tremor/jumps.parquet
 
-Every instrument's whole history is scored on every run - a few seconds - so the
-result is exact by construction: there is no warm slice to keep in step.
+The whole history is rescored every run, a few seconds, so the result is exact
+by construction: there is no warm slice to keep in step.
 """
 from __future__ import annotations
 
@@ -100,7 +65,7 @@ WORDS: tuple[str, ...] = ("noticeable", "high", "major", "extreme")
 # The settings, overridable under `detector:` in config/basket.yaml.
 WINDOW_DAYS = 182.6          # half a year of calendar time
 # The four words' thresholds on |z|, in half-year sigmas: about sqrt(2) apart,
-# each word about three times rarer than the one below, rounded (stage 12).
+# each word about three times rarer than the one below, rounded.
 LEVELS: "tuple[float, ...]" = (6.0, 8.5, 12.0, 17.0)
 
 # Bars a day, per calendar, for the paper's minimum window.
@@ -353,7 +318,7 @@ def event_starts(found, anchors=()) -> np.ndarray:
     return starts
 
 
-# STAGE 3: RAREST SINCE. How close an earlier move must come, as a share of this
+# RAREST SINCE. How close an earlier move must come, as a share of this
 # one's size in sigma, to count as at least as rare: a 5.0 sigma move is matched
 # by 4.75 and up, and by anything bigger. The reader's choice: an exact record
 # would pass over a 4.9 half a year ago to name a 5.0 two years ago, and "rarest
@@ -440,7 +405,7 @@ def ended(scored: pd.DataFrame, template: str, now: int) -> pd.DataFrame:
 
 def held_at_close(metrics: pd.DataFrame, flagged: pd.DataFrame, now: int
                   ) -> "tuple[np.ndarray, np.ndarray]":
-    """STAGE 4: HOW MUCH OF THE MOVE WAS STILL THERE AT THE FUNDS' CLOSE.
+    """HOW MUCH OF THE MOVE WAS STILL THERE AT THE FUNDS' CLOSE.
 
     Every reading is checked at the first NYSE close after it was found - for a
     coin and a currency pair too, so every check lands inside its week (the week
@@ -654,7 +619,7 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
 
 
 def main(argv: "list[str] | None" = None) -> int:
-    parser = argparse.ArgumentParser(description="Stage 0 jump detector")
+    parser = argparse.ArgumentParser(description="Tremor jump detector")
     parser.add_argument("--metrics-dir", default=DEFAULT_METRICS_DIR)
     parser.add_argument("--out", default=DEFAULT_OUT)
     args = parser.parse_args(argv)

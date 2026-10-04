@@ -296,9 +296,8 @@ def _pool_one(payload: "tuple[Asset, Basket]") -> "tuple[str, int, bool] | None"
     frame = bars.load(bars.store_path(_POOL_STATE["bars_dir"], asset.file_stem))
 
     # EXTEND WHERE POSSIBLE. The hourly run adds one bar to an archive of up to
-    # 145,000 and used to recompute every one of them: measured, the metric
-    # chain is 76% of this step's cost and the write is the rest, so the whole
-    # saving is here. Falls back to the full chain whenever the store cannot be
+    # 145,000; the metric chain is 76% of this step's cost, so recomputing only
+    # the tail is the whole saving. Falls back to the full chain whenever the store cannot be
     # trusted to be a prefix of the answer - see extend_asset_metrics.
     existing = None
     if not _POOL_STATE["full"] and os.path.exists(path):

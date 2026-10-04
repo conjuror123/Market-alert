@@ -44,11 +44,10 @@ PUSH_TIERS = ("high", "major", "extreme")
 # ONE NOTE A WEEK, turning at the first run after the WEEK'S LAST FUNDS CLOSE -
 # the NYSE close, normally Friday 16:00 New York; Thursday on a Good Friday week,
 # 13:00 on a half day - just after the coming week's economic calendar goes out as
-# its own message (price_monitor.weekly_digest). With the jump detector every
-# word from `high` up pushes, so the note carries only `noticeable` rows and one
-# a week holds them.
+# its own message (price_monitor.weekly_digest). Every word from `high` up
+# pushes, so the note carries only `noticeable` rows and one a week holds them.
 #
-# THE FUNDS' CLOSE, because every move is checked at it (stage 4, tremor.jumps
+# THE FUNDS' CLOSE, because every move is checked at it (tremor.jumps
 # held_at_close): with the week turning just after its last close, every check
 # lands inside its own week. The run that turns the week fills in the old week's
 # checks at that close first; the closing hour itself is found in that run and

@@ -6,10 +6,11 @@ that are run by hand.
 THE HOURLY PATH asks each instrument only for what it can be missing: the walk
 starts at its newest stored bar minus three hours, and an instrument whose market
 has been shut since that bar is not asked at all (see nothing_can_have_appeared).
-Providers are chosen per instrument by `provider` in config/basket.yaml - Tiingo,
-Alpaca (IEX), Twelve Data, Yahoo, SiftingIO, Coinbase, Kitco for nickel and
-Google Finance's quote page for TUR - and
-only Twelve Data is paced, because only its free tier enforces one.
+Providers are chosen per instrument by `provider` in config/basket.yaml (Tiingo,
+Alpaca, Twelve Data, Yahoo, Sina, SiftingIO, Binance, Google Finance for TUR;
+docs/manual.md, "Data in"), and only Twelve Data is paced, because only its free
+tier enforces a per-minute limit. After the fetch, the far moves are put to a
+second source (tremor.verify).
 
 US EQUITY ETFs ARE REQUESTED AS HALF-HOURLY BARS and folded onto the round UTC
 hour (see bars.to_hourly): their own grid runs on the :30 and would not line up
@@ -679,7 +680,7 @@ def missing_hours(path: str, table: dict) -> list[int]:
     between consecutive STORED bars, so a missing hour does not shrink the
     series, it silently turns a one-hour return into a two-hour one - a larger
     move measured against a one-hour scale. The holes are rare, but they
-    inflate exactly the quantity the ladder ranks.
+    inflate exactly the quantity the detector scores.
     """
     stored = bars.load(path)
     if stored.empty:

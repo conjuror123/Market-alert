@@ -14,9 +14,8 @@ so dropping it from git is not an option - sharding is. See store_path.
 
 The time convention is the one thing here that cannot be changed later:
 hour_utc stores the bar's OPENING moment, and the closing moment is
-t = hour_utc + 1 hour. This is the same
-convention already used by the existing monitor's candle_store (open_time), so
-the accumulated history imports without a shift.
+t = hour_utc + 1 hour, the same convention as every provider's candles
+(open_time).
 """
 from __future__ import annotations
 
