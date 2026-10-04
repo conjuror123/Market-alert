@@ -296,19 +296,21 @@ Each feed is compared with itself, so a steady offset between them is not a move
 is **confirmed** if the second source moved the same way at least half as far, from its
 closes up to an hour before the move to its closes up to an hour after — two feeds do not
 always print a move in the same hour — and an hour it has no bar for is bridged by its
-nearest bars within 12 hours. Otherwise it is **unconfirmed**. With no bar after the move
-yet it is asked again next run; after 24 hours of that, or with the second source silent
-for 12 hours before, it is **unknown** and scored as usual.
+nearest bars within 12 hours. Otherwise it is **unconfirmed** — but only once the second
+source's bar after the lag has ended too; until then it is **pending**. With the second
+source silent for 12 hours around the move it is **unknown**. Pending and unknown moves
+are scored as usual.
 
 **An unconfirmed move is not scored, and nothing is deleted.** `jumps` leaves its reading
 out — not flagged, and not in any yardstick — while its bar stays in the store as the
 provider served it, and in the price path the close check reads. A message already sent for it says so (Delivery, above). Which feed
 was wrong two feeds cannot always tell, so the verdict is "not seen elsewhere", never "a
-mistake". The verdicts are in `data/tremor/verified.csv`, each with the stored prices it
-was reached on: a settled one is asked again only when the bar heals (a run that lost its
-fetch judged the :05 snapshot), and dropped when it heals into no far move at all. An
-unconfirmed one is kept for good (the detector rescores all history every run), the rest
-for 30 days. `python -m tremor.verify --history` asks about everything within
+mistake". Every reading is judged again on every run while it is inside its 24 hours,
+from the bars as they then are — a bar that heals gets a new verdict, one that heals into
+no far move loses its verdict — and its last verdict stands after that; about six
+requests a run, the instruments with a reading not yet judged asked first. The verdicts
+are in `data/tremor/verified.csv`: an unconfirmed one is kept for good (the detector
+rescores all history every run), the rest for 30 days. `python -m tremor.verify --history` asks about everything within
 reach.
 
 `source` in `config/basket.yaml` names the store — `asset_id` and the file on disk are

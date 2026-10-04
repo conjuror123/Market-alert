@@ -37,15 +37,17 @@ its closes up to LAG_HOURS after: USD/TRY came back at 11:00 on SiftingIO and
 at 12:00 on Yahoo (2025-03-14). An hour it has no bar for is bridged by its
 nearest bars within STALE_HOURS: on the night of Seoul's martial law
 (2024-12-03) Yahoo has no USD/KRW bar between 07:00 and 15:00, and still
-confirms the +2.5%. UNCONFIRMED if it did not move with it. PENDING while it has
-no bar after the move yet, asked again next run; UNKNOWN after PENDING_HOURS of
-that, or with it silent for STALE_HOURS before the move - scored as usual.
+confirms the +2.5%. UNCONFIRMED if it did not move with it - but only once its
+bar after the lag has ended too; until then, and while it has no bar after the
+move at all, PENDING. UNKNOWN with it silent for STALE_HOURS around the move -
+scored as usual.
 
-THE RECORD (VERIFIED_PATH) is what the detector and delivery read. A settled
-verdict is not asked again unless the bar heals - its stored prices are kept
-with it, and a run that lost its fetch judged the :05 snapshot. An unconfirmed
-one is kept for good, because the detector rescores the whole history every
-run; the rest, pending included, go after KEEP_DAYS.
+THE RECORD (VERIFIED_PATH) is what the detector and delivery read. Every
+reading is judged again on every run while it is inside its PENDING_HOURS, from
+the bars as they now are - a bar that heals gets a new verdict, and one that
+heals into no far move loses its verdict - and its last verdict stands after
+that. An unconfirmed one is kept for good, because the detector rescores the
+whole history every run; the rest go after KEEP_DAYS.
 
     python -m tremor.verify --history     every far move within the second
                                           source's reach (FX 699 days, funds
@@ -72,7 +74,7 @@ log = logging.getLogger("tremor.verify")
 HOUR = 3600
 VERIFIED_PATH = os.path.join("data", "tremor", "verified.csv")
 COLUMNS = ["asset_id", "hour_utc", "check", "verdict", "provider", "verifier",
-           "stored_move", "verifier_move", "prices", "checked_utc"]
+           "stored_move", "verifier_move", "checked_utc"]
 
 CANDIDATE_SIGMA = 4.0
 REAL_SHARE = 0.5
@@ -85,7 +87,6 @@ KEEP_DAYS = 30
 SINA_DAYS = 77                    # how far Sina's US half-hour bars reach back
 
 CONFIRMED, UNCONFIRMED, PENDING, UNKNOWN = "confirmed", "unconfirmed", "pending", "unknown"
-SETTLED = (CONFIRMED, UNCONFIRMED, UNKNOWN)
 CLOSE, OPEN = "close", "open"     # the check: the hour's reading, or the gap's
 
 # Funds' second source is whichever consolidated-tape feed is not serving them.
@@ -181,12 +182,6 @@ def candidates(asset: Asset, frame: pd.DataFrame, table, now: int,
     return out
 
 
-def prices(c: dict) -> str:
-    """The stored prices a verdict was reached on: when the bar heals, the
-    verdict is asked again."""
-    return f"{c['prev_close']:.10g}>{c['price']:.10g}"
-
-
 # --- the verdict ---------------------------------------------------------------
 
 def judge(c: dict, v: pd.DataFrame, now: int) -> "tuple[str, float, float]":
@@ -227,6 +222,10 @@ def judge(c: dict, v: pd.DataFrame, now: int) -> "tuple[str, float, float]":
 
     moves = [math.log(b / a) for a in befores for b in afters]
     with_it = max(moves, key=lambda m: m * np.sign(p))
+    # Not seen is not a verdict until the second source's next bar is in too:
+    # a feed that prints the move an hour late would otherwise read as a
+    # mistake at the first look (USD/TRY 2025-03-14 11:00, Yahoo at 12:00).
+    lag_passed = now >= h + (LAG_HOURS + 1) * HOUR
     # The move it is reported with is the second source's over the same span
     # - or its nearest bars either side; the lag window only decides.
     start = befores[0] if c.get("from_open") else \
@@ -236,7 +235,7 @@ def judge(c: dict, v: pd.DataFrame, now: int) -> "tuple[str, float, float]":
     direct = math.log(end / start)
     if with_it * p > 0 and abs(with_it) >= REAL_SHARE * abs(p):
         return CONFIRMED, p, direct
-    return UNCONFIRMED, p, direct
+    return (UNCONFIRMED if lag_passed else PENDING), p, direct
 
 
 # --- the record ----------------------------------------------------------------
@@ -285,9 +284,9 @@ def write(record: dict, now: int, path: "str | None" = None) -> None:
 def verify(instruments, bars_dir: str, table, session=None, now: "datetime | None" = None,
            path: "str | None" = None, blocked: "set[str] | None" = None,
            history: bool = False) -> dict:
-    """One pass over the far moves not yet settled: the last PENDING_HOURS', or
-    with `history` everything within the second source's reach. Returns how
-    many of each verdict."""
+    """One pass: every reading still inside its last PENDING_HOURS is judged
+    again from the bars as they now are - or, with `history`, everything
+    within the second source's reach. Returns how many of each verdict."""
     from price_monitor import yahoo
     from tremor import corporate_actions
     from tremor.basket import load_basket
@@ -297,39 +296,41 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
     record = load(path)
     basket = load_basket()
     dividends = corporate_actions.load_dividends()
-    counts = {CONFIRMED: 0, UNCONFIRMED: 0, PENDING: 0, UNKNOWN: 0}
-    requests_left = 10 ** 6 if history else MAX_REQUESTS
     blocked = set(blocked or ())
-    doubted: list[str] = []
+
+    # Which readings each instrument has in the window. A verdict there whose
+    # reading is no longer a far move - its bar healed - no longer applies.
+    due = []
     for asset in instruments:
         who = verifier_for(asset)
-        if who is None or who[0] in blocked or requests_left <= 0:
+        if who is None or who[0] in blocked:
             continue
-        since = now_ts - reach_days(who) * 86400 if history else None
+        since = now_ts - reach_days(who) * 86400 if history else now_ts - PENDING_HOURS * HOUR
         frame = bars.load(bars.store_path(bars_dir, asset.file_stem),
-                          (since or now_ts - PENDING_HOURS * HOUR) - TAIL_DAYS * 86400)
+                          since - TAIL_DAYS * 86400)
         if frame.empty:
             continue
-        # Asked once - and again if the bar has healed since (a run that lost
-        # its fetch judges the snapshot stored at :05, invariant 7). A verdict
-        # whose bar healed into no far move at all no longer applies.
         found = candidates(asset, frame, table, now_ts, since, basket, dividends)
-        window = since if since is not None else now_ts - PENDING_HOURS * HOUR
         current = {(asset.asset_id, c["hour"], c["check"]) for c in found}
-        for key in [k for k in record if k[0] == asset.asset_id and k[1] >= window]:
+        for key in [k for k in record if k[0] == asset.asset_id and k[1] >= since]:
             if key not in current:
                 del record[key]
-        todo = []
-        for c in found:
-            row = record.get((asset.asset_id, c["hour"], c["check"]), {})
-            if row.get("verdict") not in SETTLED or row.get("prices") != prices(c):
-                todo.append(c)
-        if not todo:
+        if found:
+            fresh = any(record.get((asset.asset_id, c["hour"], c["check"]), {}).get("verdict")
+                        in (None, PENDING) for c in found)
+            due.append((not fresh, asset, who, found))
+
+    # One request per instrument; the ones with a reading not yet judged first,
+    # so a busy hour cannot leave the same instruments unasked run after run.
+    counts = {CONFIRMED: 0, UNCONFIRMED: 0, PENDING: 0, UNKNOWN: 0}
+    requests_left = 10 ** 6 if history else MAX_REQUESTS
+    doubted: list[str] = []
+    for _, asset, (name, symbol, interval), found in sorted(due, key=lambda d: d[0]):
+        if requests_left <= 0 or name in blocked:
             continue
-        name, symbol, interval = who
         # From before the earliest bar a move starts at: a Monday gap starts at
         # Friday's close.
-        days = (now_ts - min(c["prev_hour"] for c in todo)) / 86400 + 1
+        days = (now_ts - min(c["prev_hour"] for c in found)) / 86400 + 1
         requests_left -= 1
         try:
             v = fetch_verifier(name, symbol, interval, days, session, now_dt)
@@ -338,14 +339,14 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
             if isinstance(exc, yahoo.RateLimited):
                 blocked.add(name)
             continue
-        for c in todo:
+        for c in found:
             verdict, stored, theirs = judge(c, v, now_ts)
             counts[verdict] += 1
             record[(asset.asset_id, c["hour"], c["check"])] = {
                 "asset_id": asset.asset_id, "hour_utc": c["hour"], "check": c["check"],
                 "verdict": verdict, "provider": asset.fetched_from, "verifier": name,
                 "stored_move": f"{stored:.6f}", "verifier_move": f"{theirs:.6f}",
-                "prices": prices(c), "checked_utc": now_ts}
+                "checked_utc": now_ts}
             if verdict == UNCONFIRMED:
                 doubted.append(f"{asset.ticker} {datetime.fromtimestamp(c['hour'], timezone.utc):%Y-%m-%d %H:%M}"
                                f" {c['check']} ({asset.fetched_from} {100 * stored:+.2f}%,"

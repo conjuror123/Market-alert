@@ -52,7 +52,7 @@ seconds, so it has no warm state to lose.
 | **Twelve Data** | 800/day, 8/min | 8 funds — one batched request a run, in the background; ~65 credits a day; plus archive and gap-fill |
 | **SiftingIO** | 10,000/**month**, a few a second | 17 FX pairs — about 8,500 a month (85%); USD/BRL only in its B3 session |
 | **Sina Finance** | none published; wants a Referer | 33 funds (half-hour bars), the LME's tin, nickel and aluminium, and the second source for the 34 Yahoo funds |
-| **Yahoo** | none published | 34 funds, 4 futures, the dividend check, and the second source for the pairs and 99 funds (one request per instrument with a far move — one or two a run, at most 40) |
+| **Yahoo** | none published | 34 funds, 4 futures, the dividend check, and the second source for the pairs and 99 funds (one request per instrument with a far move in its last 24 hours — about six a run, at most 40) |
 | **Google Finance** | none — a web page, read against its terms | TUR, one page a run |
 | **Yahoo futures** | as Yahoo | 4 commodities, one request each a run in session; live from the front contract (`tremor.futures.front_contract`) |
 | **Binance** | no key; 6,000 request weight a minute per address | 16 coins, one request each a run |

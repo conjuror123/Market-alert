@@ -248,22 +248,27 @@ def test_a_pairs_weekend_gap_is_asked_about_at_its_open_and_from_fridays_close(
 
 # --- a pass, and what it leaves out -----------------------------------------------
 
-def test_a_pass_records_the_verdict_and_asks_once(monkeypatch, tmp_path, basket):
+def _inr_store(tmp_path, basket, bad_share=0.995):
+    """Two months of USD/INR hours to a bad print's week - enough for the
+    detector's smallest window; the gate drops the weekends - and a tape that
+    never went there."""
     asset = basket["USD/INR"]
-    # Two months of hours to the bad print's week, enough for the detector's
-    # smallest window; the gate drops the weekends.
     hours = ts("2026-08-03 00:00") + HOUR * np.arange(24 * 7 * 8 + 80)
     rng = np.random.default_rng(1)
     closes = 84.0 * np.exp(np.cumsum(rng.normal(0, 0.0003, len(hours))))
-    bad = len(hours) - 10
-    closes[bad] *= 0.995                                           # a bad print
+    bad = len(hours) - 10                                    # a Wednesday, 22:00
+    market = pd.DataFrame({"hour_utc": hours, "open": closes, "close": closes.copy()})
+    closes[bad] *= bad_share
     frame = pd.DataFrame({"hour_utc": hours, "open": np.r_[closes[0], closes[:-1]],
                           "close": closes, "volume": 0.0, "n_src": 1})
     frame["high"] = frame[["open", "close"]].max(axis=1)
     frame["low"] = frame[["open", "close"]].min(axis=1)
     bars.write(bars.store_path(str(tmp_path / "bars"), asset.file_stem), frame)
-    market = pd.DataFrame({"hour_utc": hours, "open": closes, "close": closes})
-    market.loc[bad, "close"] = closes[bad] / 0.995                   # the tape never went there
+    return asset, hours, bad, frame, market
+
+
+def test_a_pass_judges_every_reading_in_its_day_again_each_run(monkeypatch, tmp_path, basket):
+    asset, hours, bad, frame, market = _inr_store(tmp_path, basket)
     asked = []
 
     def fetch(name, symbol, interval, days, session, now):
@@ -276,26 +281,56 @@ def test_a_pass_records_the_verdict_and_asks_once(monkeypatch, tmp_path, basket)
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
     assert asked == [("yahoo", "USDINR=X")]
     # The bad print, and the hour back from it, which did not happen either.
-    assert set(verify.unconfirmed(path)) == {(asset.asset_id, int(hours[bad]), "close"),
-                                             (asset.asset_id, int(hours[bad + 1]), "close")}
-    asked.clear()
+    unseen = {(asset.asset_id, int(hours[bad]), "close"),
+              (asset.asset_id, int(hours[bad + 1]), "close")}
+    assert set(verify.unconfirmed(path)) == unseen
+    # Asked again next run - and the same answer.
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
-    assert asked == []
-    # A bar that changes but is still far is asked again.
-    frame.loc[bad, "close"] = closes[bad] * 0.999
-    frame.loc[bad, "low"] = frame.loc[bad, "close"]
+    assert len(asked) == 2 and set(verify.unconfirmed(path)) == unseen
+    # The bar heals into no far move (a run that lost its fetch had judged the
+    # :05 snapshot): its verdict no longer applies, and it is scored.
+    frame.loc[bad, "close"] = market.loc[bad, "close"]
     frame.loc[bad + 1, "open"] = frame.loc[bad, "close"]
-    bars.write(bars.store_path(str(tmp_path / "bars"), asset.file_stem), frame)
-    verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
-    assert asked == [("yahoo", "USDINR=X")]
-    asked.clear()
-    # The bar heals - a run that lost its fetch had judged the :05 snapshot -
-    # into no far move at all: the verdict no longer applies, and it is scored.
-    frame.loc[bad, "close"] = closes[bad] / 0.995
-    frame.loc[bad + 1, "open"] = frame.loc[bad, "close"]
+    frame["high"] = frame[["open", "close"]].max(axis=1)
+    frame["low"] = frame[["open", "close"]].min(axis=1)
     bars.write(bars.store_path(str(tmp_path / "bars"), asset.file_stem), frame)
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
     assert verify.unconfirmed(path) == {}
+
+
+def test_not_seen_waits_for_the_second_sources_next_bar(monkeypatch, tmp_path, basket):
+    # USD/TRY 2025-03-14: SiftingIO came back at 11:00, Yahoo only at 12:00.
+    rows = {"2025-03-14 10:00": 36.5290, "2025-03-14 11:00": 36.5270}
+    assert judge("2025-03-14 11:00", 36.5640, 36.6741, rows,
+                 "2025-03-14 12:05")[0] == verify.PENDING
+    rows["2025-03-14 12:00"] = 36.6420
+    assert judge("2025-03-14 11:00", 36.5640, 36.6741, rows,
+                 "2025-03-14 13:05")[0] == verify.CONFIRMED
+    # Had Yahoo stayed put, not seen - once its 12:00 bar has ended.
+    rows["2025-03-14 12:00"] = 36.5280
+    assert judge("2025-03-14 11:00", 36.5640, 36.6741, rows,
+                 "2025-03-14 13:05")[0] == verify.UNCONFIRMED
+
+
+def test_a_busy_hour_asks_the_not_yet_judged_first(monkeypatch, tmp_path, basket):
+    asset, hours, bad, frame, market = _inr_store(tmp_path, basket)
+    other = basket["USD/TRY"]
+    bars.write(bars.store_path(str(tmp_path / "bars"), other.file_stem), frame)
+    asked = []
+
+    def fetch(name, symbol, interval, days, session, now):
+        asked.append(symbol)
+        return market
+
+    monkeypatch.setattr(verify, "fetch_verifier", fetch)
+    monkeypatch.setattr(verify, "MAX_REQUESTS", 1)
+    now = datetime.fromtimestamp(int(hours[bad + 5]) + 300, timezone.utc)
+    path = str(tmp_path / "verified.csv")
+    verify.verify([asset, other], str(tmp_path / "bars"), None, now=now, path=path)
+    verify.verify([asset, other], str(tmp_path / "bars"), None, now=now, path=path)
+    # USD/INR comes first in the basket and was judged the first run: the
+    # second run's one request goes to USD/TRY, which was not.
+    assert asked == ["USDINR=X", "USDTRY=X"]
 
 
 def test_an_unconfirmed_verdict_outlives_the_rest_of_the_record(tmp_path):
