@@ -139,7 +139,7 @@ def test_report_includes_both_sections_and_the_vix_line():
     )
 
     assert "## Basket" in report
-    assert "## Outside the basket (SAED only)" in report
+    assert "## Tracked outside the basket" in report
     assert "VIXCLS" in report
 
 
