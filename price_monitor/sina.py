@@ -4,13 +4,9 @@ THE LME METALS - tin (SND), nickel (NID), aluminium (AHD) - come from the chart
 endpoint behind Sina's global futures pages (gu.sina.cn GlobalService.getMink,
 type 60): the three-month contract's traded hourly bars, in dollars a tonne,
 with volume. Only the last 1,023 are served - about three months - and nothing
-older by any parameter tried, so each record starts 2026-07. Chosen over what
-they replaced (2026-10-02): Kitco's nickel quote did not move in 20% of hours
-(Sina's 2%) and sat 98 bp below the LME's three-month price, correlating 0.61
-with it hour to hour and 0.64 day to day; COMEX aluminium traded a median 5
-contracts an hour against the LME's 901 lots; Shanghai's tin is a different
-market (0.85 hourly correlation), in yuan with VAT. The bar served by :05 was
-measured at 07:05 UTC. A few bars fall outside LMEselect's hours and are left
+older by any parameter tried, so each record starts 2026-07: the LME's own
+instrument over a longer record of another (docs/decisions.md, "Data and
+providers"). The bar that ended at :00 is served by :05. A few bars fall outside LMEselect's hours and are left
 to the session gate.
 
 SHANGHAI'S FUTURES, the first use (InnerFuturesNewService.getFewMinLine): a

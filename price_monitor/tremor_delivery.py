@@ -362,15 +362,9 @@ def rarest_line(event: dict) -> str:
 # whole expected of the near future - and "SPY fell 1.8%" reads completely
 # differently at a VIX of 13 and at a VIX of 38.
 #
-# It has been computed since the beginning and shown to nobody. The daily FRED
-# series feeds a stress multiplier that raises the weight of clustered moves for
-# a day after a spike, and that multiplier feeds the SI-Index, which feeds the
-# cluster channel, which is not delivered. So the whole of it has been invisible.
-# This is where it becomes a line in a message.
-#
 # WHY THE DAILY INDEX AND NOT AN HOURLY PRODUCT. Twelve Data does not carry the
 # VIX index at all, and the tradable futures ETF that tracks it does not stand in
-# for it - see config/basket.yaml for the measurements. What a reader wants here
+# for it. What a reader wants here
 # is the regime, and a regime is slow: an index that updates
 # once a day and reaches back to 1990 describes it better than a decaying
 # futures product that starts in 2011.
@@ -406,7 +400,7 @@ def _vix_scored() -> "pd.DataFrame | None":
 def _stress_open_since(scored: "pd.DataFrame", hour_utc: int) -> "int | None":
     """When the stress episode covering this hour began, if one does.
 
-    The multiplier's window is twenty-four REFERENCE hours long - the hours the
+    The window is twenty-four REFERENCE hours long - the hours the
     basket's anchor exchange is open - rather than twenty-four clock hours, so a
     Friday spike is still live on Monday morning. Counted by walking those hours
     forward from the spike, which is at most a few dozen steps, rather than by

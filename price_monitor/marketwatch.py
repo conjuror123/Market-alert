@@ -7,13 +7,11 @@ continuous contract. Each tick is the start of its bar in UTC milliseconds -
 against the stored bars, no shift (2026-10-04) - and a bar with no price comes
 as nulls.
 
-Measured against the stored bars over ten days to 2026-10-02: every stored hour
-of the 17 pairs is there (Yahoo's hourly FX has 21% of USD/INR's, 60-72% of the
-others'), 0-0.6 bp from them at the median; SiftingIO's jump-and-back on
-USD/TRY 2026-09-24 19:00 is not, as it is not on Yahoo - its quotes are its own.
-Live cattle's continuous contract: hourly moves correlated 0.92 with the
-stored front contract, 1.4% apart (another month). Its coffee is Yahoo's to
-the basis point - one upstream - so it is no second source for the softs.
+It has every hour of the 17 pairs, 0-0.6 bp from the stored bars at the
+median, and its quotes are its own; live cattle's continuous contract moves
+with the stored front contract at 0.92 hour by hour (docs/decisions.md, "The
+second source"). Its coffee is Yahoo's, one upstream, so not a second source
+for the softs.
 
 AND THE STANDING RISK. An undocumented endpoint that wants the access token
 MarketWatch's own pages send with every chart: public, in their page, not a

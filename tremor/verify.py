@@ -26,9 +26,10 @@ Coffee, cocoa and cotton, served by Yahoo: Sina's global futures
 coins - Binance's prices are its own trades - and the LME's metals, which have
 no free independent feed found.
 
-WITH TWO SOURCES (combine), a move is confirmed if either saw it, pending while
-either still waits for its next bar, and unconfirmed only if one answered and
-none saw it. A source that fails to answer leaves the other to.
+WITH TWO SOURCES (judge_all, combine), a move is confirmed if either saw it,
+pending while either still waits for its next bar, and unconfirmed only if one
+answered and none saw it. A source with bars around the move outweighs one that
+only bridges it. A source that fails to answer leaves the other to.
 
 WHICH BARS (candidates). The detector's own readings, ended within the last
 PENDING_HOURS, at CANDIDATE_SIGMA or more of their own kind: an hour's move as
