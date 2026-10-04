@@ -60,6 +60,17 @@ def test_outside_basket_instruments_are_instruments_but_not_assets(tmp_path):
     assert "twelvedata:Z" in {a.asset_id for a in basket.instruments}
 
 
+def test_a_provider_change_keeps_the_instruments_identity(tmp_path):
+    # source names the store, provider the server: moving a fund to another
+    # provider must not orphan its bars or its verdicts.
+    raw = two_block_config()
+    first = load_basket(write(tmp_path, raw)).assets[0]
+    raw["assets"][0]["provider"] = "yahoo"
+    moved = load_basket(write(tmp_path, raw)).assets[0]
+    assert moved.fetched_from == "yahoo" != first.fetched_from
+    assert (moved.asset_id, moved.file_stem) == (first.asset_id, first.file_stem)
+
+
 def test_file_stem_is_filesystem_safe(tmp_path):
     raw = two_block_config()
     raw["assets"][2]["ticker"] = "EUR/USD"

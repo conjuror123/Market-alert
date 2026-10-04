@@ -1566,3 +1566,33 @@ def test_only_a_history_walk_takes_the_archive_share(mode, walk, monkeypatch):
     with pytest.raises(SystemExit):
         backfill.main([mode])
     assert twelvedata.archive_mode is walk
+
+
+def test_a_run_seeds_at_most_four_new_instruments(tmp_path, monkeypatch):
+    # Thirty-eight empty stores in one run would spend the day's credits and
+    # overrun the job; new instruments are seeded a few a run.
+    from tremor import backfill
+    from tremor.basket import Basket, VolatilityIndex
+
+    asked = []
+
+    def fake_backfill(asset, *a, **k):
+        asked.append(asset.ticker)
+        return {"asset_id": asset.asset_id, "rows": 1, "first": 1, "last": 1,
+                "from_api": 1}
+
+    tickers = ["A", "B", "C", "D", "E", "F"]
+    basket = Basket(
+        assets=tuple(_yahoo_asset(t) for t in tickers), outside=(),
+        volatility_index=VolatilityIndex("VIXCLS", "fred", "1d", "VIX", date(1990, 1, 1)),
+        anchor_exchange_tz="America/New_York", history_since=date(2021, 1, 1),
+        session_templates={"us_equity": {}})
+    monkeypatch.setattr(backfill, "load_basket", lambda: basket)
+    monkeypatch.setattr(backfill, "backfill_instrument", fake_backfill)
+    monkeypatch.setattr(backfill._sessions, "load_sessions",
+                        lambda: (_ for _ in ()).throw(FileNotFoundError()))
+    monkeypatch.setattr(backfill, "send_ops_alert", lambda *a, **k: None)
+
+    backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
+
+    assert asked == tickers[:backfill.SEED_PER_RUN] and backfill.SEED_PER_RUN == 4

@@ -375,3 +375,19 @@ def test_the_hourly_run_neither_waits_nor_counts(monkeypatch):
     fetch_full_history("SPY", "30min", days=10, base_url="https://x", api_key="k",
                        session=session, request_delay_seconds=0)
     assert slept == [] and len(session.calls) == 1
+
+
+def test_the_hourly_batch_waits_a_whole_minute_between_tries(monkeypatch):
+    # Each try spends the minute's eight credits, so an eight-second backoff
+    # would only meet the limit again: two retries, 61 s apart, then it gives up.
+    slept = []
+    monkeypatch.setattr(twelvedata.time, "sleep", slept.append)
+    minute = {"status": "error", "code": 429, "message": (
+        "You have run out of API credits for the current minute. 9 API credits "
+        "were used, with the current limit being 8.")}
+    session = FakeSession([(429, minute)] * 3)
+    start = datetime(2026, 10, 5, 13, tzinfo=timezone.utc)
+    with pytest.raises(ExchangeError):
+        twelvedata.fetch_batch(["SLV", "GLD"], "30min", start, start, "https://x", "k",
+                               session)
+    assert slept == [61.0, 61.0] and len(session.calls) == 3

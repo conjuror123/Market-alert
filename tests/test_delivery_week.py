@@ -382,6 +382,13 @@ def test_a_moved_yardstick_says_sigma_corrected(monkeypatch, channel, week):
     assert story(channel.note()).endswith("⬜ 5.0×σ 10:00 σ corrected")
 
 
+def test_a_revised_price_says_price_corrected(monkeypatch, channel, week):
+    run(monkeypatch, channel, [ev(at(0, 10))], run_at(0, 11), week)
+    revised = dict(ev(at(0, 10)), r=SIGMA * 5.0, z=5.0)
+    run(monkeypatch, channel, [revised], run_at(0, 12), week)
+    assert story(channel.note()).endswith("⬜ 5.0×σ 10:00 price corrected")
+
+
 def test_an_event_is_24_hours_so_the_next_move_is_a_new_event(monkeypatch, channel, week):
     run(monkeypatch, channel, [ev(at(0, 10))], run_at(0, 11), week)
     again = [ev(at(0, 10)), ev(at(1, 12))]           # 26 hours on

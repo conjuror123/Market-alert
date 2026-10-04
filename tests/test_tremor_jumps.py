@@ -200,6 +200,13 @@ def test_weekends_are_scored_from_seven():
     assert first == jumps.GAP_MIN_COUNT["weekend"] + 1
 
 
+def test_nights_are_scored_from_sixteen():
+    scored = jumps.score_gaps(_sessions())
+    nights = scored[scored["reading"] == "night"]
+    first = int(np.flatnonzero(np.isfinite(nights["sigma"].to_numpy(dtype=float)))[0])
+    assert first == 16 + 1          # the paper's minimum at one reading a day
+
+
 def _flags(rows):
     return pd.DataFrame([{"hour_utc": int(pd.Timestamp(t, tz="UTC").timestamp()),
                           "reading": reading, "word": word} for t, reading, word in rows])
