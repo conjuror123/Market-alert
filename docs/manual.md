@@ -104,7 +104,7 @@ standing in, a few minutes of it; that bar heals on the next fetch.
 | Binance | 16 coins | each coin as its USDT pair, via `data-api.binance.vision` (reachable from US runners) |
 | Dukascopy, HF Data, Bitstamp, Bitfinex | — | history only |
 
-Each fund's feed is chosen by measurement; see `docs/decisions.md`, "Feeds".
+Each fund's feed is chosen by measurement; see `docs/decisions.md`, "Data and providers".
 
 **Rule.** `source` is identity, `provider` is who is asked. In `config/basket.yaml`,
 `asset_id` and the file on disk are built from `source`; changing it orphans every stored
@@ -120,7 +120,8 @@ instrument is skipped when its calendar says no bar can have appeared since its 
 in-session bar (`nothing_can_have_appeared`): funds by the NYSE table, pairs outside the
 Sun 17:00 → Fri 17:00 New York week, daily-session markets outside their session. Coins
 are never skipped. At most 4 never-seen instruments are seeded per run. Clients retry
-three times (2 s, 4 s); a rate limit stops that provider for the run.
+three times (2 s, 4 s); a rate limit stops that provider for the run. Twelve Data's batch
+is retried twice, 61 s apart, on its own thread.
 
 **Sessions** (`tremor/sessions.py`): the NYSE table (`data/tremor/sessions/nyse.csv`),
 the FX week, and each daily-session market's hours (LME, ICE, CME, B3). The NYSE table
@@ -205,9 +206,10 @@ The pipeline extends stored metrics rather than rebuilding them.
 trusted, because the stored bars heal. An instrument whose store gained bars under its
 metrics (`bars_upto`) is rebuilt.
 
-**Rule.** A change to a formula moves `config_version` (`tremor/versioning.py`, a hash of
-the parsed code and config), and the pipeline then rebuilds cold. The first run after such
-a change is slow by design. Comments and docstrings don't count: code is hashed parsed.
+**Rule.** A change to a formula moves `config_version` (`tremor/versioning.py`), and the
+pipeline then rebuilds cold. The first run after such a change is slow by design. Python
+is hashed parsed, so its comments and docstrings don't count; `config/basket.yaml` is
+hashed as bytes, so any edit to it, a comment included, rebuilds once.
 
 ## 7. The detector
 
@@ -283,7 +285,7 @@ channel in line with them.
 **A push** (`high` and up):
 
 ```
-🟨 LTC-USD · Litecoin +5.76% · 11.0×σ
+🟨 LTC/USDT · Litecoin +5.76% · 11.0×σ
 📈 Rarest hour in 7 months (then 10.7×σ)
 🕐 24.09.2026 02:00 UTC · close in 5h
 Nearby economic events (...)
@@ -296,7 +298,7 @@ the move follow.
 **A note row** (`noticeable`) goes into the weekly note, and a ping line points at it:
 
 ```
-⬜ LTC-USD · Litecoin +3.40% · 6.3×σ
+⬜ LTC/USDT · Litecoin +3.40% · 6.3×σ
 Added to digest👆🏻👆🏻
 ```
 
