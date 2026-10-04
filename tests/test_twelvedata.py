@@ -238,9 +238,8 @@ def test_the_no_data_answer_is_not_retried(monkeypatch):
 
 
 def test_a_failure_part_way_back_keeps_what_was_already_paid_for(monkeypatch):
-    # This used to propagate and take the whole dict with it: a walk that
-    # succeeded for years and then hit one bad chunk returned NOTHING,
-    # discarding every candle fetched and every credit spent on them.
+    # One bad chunk must not discard every candle fetched before it, and every
+    # credit spent on them.
     monkeypatch.setattr(twelvedata.time, "sleep", lambda *_: None)
     session = _Walk(good=2, status=503, message="upstream unavailable")
     candles = twelvedata.fetch_full_history(

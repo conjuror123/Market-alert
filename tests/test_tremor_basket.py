@@ -94,8 +94,7 @@ def test_rejects_basket_where_quorum_is_unreachable(tmp_path):
 
 
 def test_a_thin_block_is_rejected_by_size_before_quorum(tmp_path):
-    # Same config the quorum test used to carry. It is still refused; the message
-    # is just the more specific one now.
+    # Refused for the block's size before the quorum check is reached.
     raw = MINIMAL | {"assets": [
         asset("A", "equity"), asset("B", "equity", tier=2),
         asset("C", "FX"), asset("D", "rates"), asset("E", "credit"),
@@ -133,20 +132,8 @@ def test_a_one_member_block_does_not_load(tmp_path):
 
 
 def test_the_thin_blocks_are_the_ones_we_know_about():
-    # Not a floor - a tripwire. Measured on this basket, mean |correlation
-    # between members' residuals|, which is the thing a block exists to remove,
-    # runs about 0.43-0.74 at two members, 0.32 at four, 0.25 at six and 0.23 at
-    # eight and above, flat thereafter. So a block under six degrades quickly and
-    # a block under eight is leaving something on the table.
-    #
-    # Two blocks are under six today and that is a known, deliberate state, not
-    # a warning worth printing on every load. This test fails when the set
-    # changes in EITHER direction: adding a new thin block, or fixing one of
-    # these and forgetting to say so here. The widening of 2026-09-30 brought
-    # energy and precious metals to eight; the metals' ETNs no longer trade and
-    # agriculture's did not either. Nickel itself (Kitco, 2026-10-01) brought
-    # industrial metals to six, and the futures (2026-10-02) agriculture to
-    # nine and industrial metals to seven: no block is thin now.
+    # A tripwire: no block has fewer than six members, and this fails when
+    # that changes, so a thin block is a decision rather than an accident.
     basket = load_basket()
     thin = {b for b, m in basket.by_block().items() if len(m) < 6}
     assert thin == set()

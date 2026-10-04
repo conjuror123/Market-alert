@@ -66,7 +66,7 @@ def test_a_bar_leaving_the_window_barely_moves_the_yardstick():
     # entirely while the window is bounded, only reduced to the weight the
     # oldest bar carries, which at six half-lives is a sixty-fourth.
     #
-    # Measured at production proportions on a twenty-sigma bar: the box steps
+    # Measured at the live proportions on a twenty-sigma bar: the box steps
     # 16.8%, this steps 1.5%.
     half_life = 137
     span = windows.SIGMA_LT_SPAN_HALFLIVES * half_life
@@ -95,7 +95,7 @@ def test_a_gap_in_the_data_is_not_a_period_of_calm():
 
 def test_nothing_is_said_before_there_is_enough_to_say_it_with():
     # min_periods counts real observations inside the span, so it is only
-    # reachable when the span is at least that long - as it is in production,
+    # reachable when the span is at least that long - as it is live,
     # where 8,400 bars of span sit over a 720-bar floor.
     got = ewma.long_run_sigma(noise(), 137, 1000, 720)
     assert got.iloc[:720].isna().all()

@@ -68,11 +68,8 @@ def test_the_very_first_bar_of_history_has_no_return():
 
 def test_an_ex_dividend_drop_cannot_reach_the_return():
     # The price drop on an ex-date is mechanical, not a market move, and it
-    # happens between sessions. It used to be excluded by flagging the ex-dates
-    # from the corporate-actions table; it is now excluded by construction,
-    # because nothing that happens between sessions is a return here. The test
-    # is the same either way: whatever the price did overnight, r is measured
-    # from the session's own open.
+    # happens between sessions, so it is excluded by construction: whatever the
+    # price did overnight, r is measured from the session's own open.
     day_two_opens_far_below = frame([
         (et(2021, 3, 1, 10), 100.0, 101.0, 99.5, 100.5, 1.0, 2),
         (et(2021, 3, 1, 11), 100.5, 101.5, 100.0, 101.0, 1.0, 2),

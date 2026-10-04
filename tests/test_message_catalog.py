@@ -94,7 +94,7 @@ def test_every_message_shape_follows_the_copy_rules(monkeypatch, tmp_path):
     assert push.splitlines()[2] == "🕐 <b>14.09.2026 17:00 UTC</b>"
     assert "Lagarde" in push
 
-    # Stage 3: how long since the instrument was at least this rare, among
+    # Rarest since: how long since the instrument was at least this rare, among
     # readings of its own kind; the note row says it too, the ping does not.
     assert "📉 Rarest hour in 9 days (then 4.1×σ)" in digest
     assert "Rarest" not in ping

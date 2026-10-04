@@ -1,4 +1,4 @@
-"""Stage 0 of the jump detector: the score and the word, and nothing else."""
+"""The jump detector: the score, the word, gaps, events, rarest since, held at the close."""
 import math
 
 import numpy as np
@@ -347,7 +347,7 @@ def test_a_reading_is_named_by_its_instrument_reading_and_hour():
     assert out["sigma_lt"].iloc[0] == 0.002
 
 
-# --- stage 3: rarest since ---------------------------------------------------
+# --- rarest since ------------------------------------------------------------
 
 def test_the_answer_is_the_most_recent_move_at_least_95_percent_as_big():
     hours = [0, 1, 2, 3]
@@ -389,7 +389,7 @@ def test_a_smaller_move_in_between_does_not_hide_the_answer():
     assert hour[3] == 2 and match[3] == 8.0
 
 
-# --- stage 4: held at the funds' close ----------------------------------------
+# --- held at the funds' close -------------------------------------------------
 
 def _bars(start, moves, gaps=None):
     hours = [start + i * HOUR for i in range(len(moves))]

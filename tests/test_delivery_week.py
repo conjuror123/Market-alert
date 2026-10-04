@@ -540,7 +540,7 @@ def test_the_previous_delivery_state_is_taken_over_as_an_update(monkeypatch, cha
     old_push = channel.send("", "", "🟨 <b>GLD</b> · Gold")
     older_push = channel.send("", "", "🟨 <b>SPY</b>")
     ping = channel.send("", "", "⬜ x\nAdded to digest👆🏻👆🏻")
-    saturday = SLOT - 24 * HOUR               # production's notes open on Saturday
+    saturday = SLOT - 24 * HOUR               # a note opened on a Saturday
     state = {md.STATE_KEY: {
         "digests": {str(saturday): {"ids": [old_note], "hashes": ["h"]}},
         "sent": {"a": {"hour": saturday + 5 * HOUR, "id": old_push},
@@ -555,7 +555,7 @@ def test_the_previous_delivery_state_is_taken_over_as_an_update(monkeypatch, cha
     assert md.note_due(state, run_at(1, 11)) is False
 
 
-# --- stage 4: held at the funds' close ------------------------------------------
+# --- held at the funds' close ------------------------------------------
 
 def time_line(text):
     return [line for line in text.split("\n") if line.startswith("🕐")][0]

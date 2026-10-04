@@ -136,11 +136,9 @@ def test_the_data_never_has_a_day_the_calendar_does_not():
 
 
 def test_the_missing_sessions_stay_a_handful_and_none_are_recent():
-    # This direction used to be absolute too, and deepening the archive to 2020
-    # broke it: 2020-02-18 is absent from all twelve instruments, plus a few
-    # scattered days per symbol.
-    #
-    # It was not weakened to make red go away. Every missing day was re-fetched
+    # Not absolute: 2020-02-18 is absent from all twelve instruments, plus a
+    # few scattered days per symbol.
+    # Every missing day was re-fetched
     # individually from Twelve Data (tremor.backfill --fill-gaps, run 33994110137)
     # and the answer was 0 recovered, 21 confirmed missing at the source. So the
     # holes are the provider's and no amount of asking will close them.
@@ -311,8 +309,8 @@ def test_an_exchange_day_is_closed_on_its_last_session_bar():
 
 
 def test_no_calendar_means_no_day_can_be_called_closed():
-    # The safe direction: a check-in shown as still due is recoverable, a number
-    # the reader believes is not.
+    # The safe direction: an answer withheld is recoverable, a number the reader
+    # believes is not.
     last = int(datetime(2026, 9, 4, 19, tzinfo=timezone.utc).timestamp())
     assert not sessions.day_is_closed(last, "us_equity", {})
 

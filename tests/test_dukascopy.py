@@ -133,7 +133,7 @@ def test_filler_hours_are_dropped_rather_than_stored_as_flat_bars(monkeypatch):
     # The archive emits a record for every hour of the month including the ones
     # the market was shut: volume 0, OHLC all the last traded price. Merging
     # those writes exactly-zero returns into the store, which DEFLATES the
-    # volatility the severity ladder is fitted to.
+    # volatility every move is measured against.
     monkeypatch.setattr(dukascopy.time, "sleep", lambda *_: None)
     traded = (3600, 120000, 121000, 119500, 121500, 8.0)
     filler = (7200, 121000, 121000, 121000, 121000, 0.0)

@@ -40,11 +40,8 @@ def test_a_push_names_the_scheduled_news_behind_it():
 
 
 def test_a_push_with_nothing_scheduled_prints_no_calendar_line_at_all():
-    # It used to say "none scheduled", and the statistic behind that is real:
-    # 55% of pushes in the record have no Medium or High release in the window.
-    # Which is exactly why the line went - on more than half of all messages it
-    # was a line saying nothing had happened, and a line that usually says
-    # nothing stops being read. The absence is carried by the absence.
+    # 55% of pushes have no Medium or High release in the window, and a line
+    # that usually says nothing stops being read. The absence says it.
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
     elsewhere = _cal([("2026-05-01T12:00:00+00:00", "USD", "Old CPI", "High")])
     assert md.calendar_context(hour, elsewhere) == ""
@@ -116,9 +113,8 @@ def test_news_outside_the_window_is_not_claimed_as_context():
 
 
 def test_a_release_just_after_the_move_is_named():
-    # The window used to end exactly where the move did, which excluded the
-    # releases a reader would blame first: a print five minutes after the hour
-    # closed is a cause, not a coincidence.
+    # The window reaches past the move: a release five minutes after the hour
+    # closed is a cause a reader would blame first, not a coincidence.
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
     cal = _cal([("2026-06-10T14:30:00+00:00", "USD", "FOMC Statement", "High")])
     assert "FOMC Statement" in md.calendar_context(hour, cal)
@@ -171,8 +167,7 @@ def test_a_move_carries_its_tier_as_a_colour():
 
 def test_the_headline_leads_with_the_rarity_the_ticker_and_the_move():
     # The rarity is a colour so it reads before any word does; the ticker is
-    # what a reader types into a chart; the move is the number they came for and
-    # it used to be on the second line.
+    # what a reader types into a chart; the move is the number they came for.
     text = md.describe(event(asset_id="twelvedata:GLD"), LABELS)
     first = text.split("\n")[0]
     assert first == md.TIER_EMOJI["major"] + " <b>GLD</b> · Gold +2.10% · 7.0×σ"
@@ -394,13 +389,13 @@ def test_a_jump_ping_says_its_size_in_sigma():
 
 
 def test_a_gap_jump_names_no_yardstick_either():
-    # Hour or gap shows in the "biggest since" line (stage 3), not here.
+    # Hour or gap shows in the rarest-since line, not here.
     text = md.format_push(jump(overnight=True, gap_kind="weekend"), LABELS)
     assert text.splitlines()[0].endswith(" · 6.0×σ")
     assert "usual" not in text
 
 
-# --- stage 3: the rarest-since line ------------------------------------------
+# --- the rarest-since line ---------------------------------------------------
 
 def rare(**over):
     return jump(reading="hour", record_start=int(NOW.timestamp()) - 6 * 366 * 24 * HOUR,
@@ -439,7 +434,7 @@ def test_no_stage_3_columns_no_line():
     assert "Rarest" not in md.format_push(jump(), LABELS)
 
 
-# --- stage 4: the check on the time line --------------------------------------
+# --- the check on the time line -----------------------------------------------
 
 def checked(**over):
     found = int(datetime(2026, 9, 8, 15, tzinfo=timezone.utc).timestamp())
