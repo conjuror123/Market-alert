@@ -100,15 +100,6 @@
           "today",
           "settled"
         ]
-      },
-      "twelvedata_USD_CHF:1790233200": {
-        "hour_utc": 1790233200,
-        "message_id": 44,
-        "text_hash": "2905005d2ad46e33",
-        "written": [
-          "today",
-          "settled"
-        ]
       }
     }
   },
