@@ -25,6 +25,10 @@ data/tremor/jumps.parquet
 # (tremor/bars.py).
 data/tremor/bars/*/*.open.csv
 
+# A write killed half way (tremor/atomic.py) leaves its temp file behind; the
+# original is intact, and the leftover must not reach git with the next commit.
+*.tmp
+
 # Outputs of detectors that no longer run on this branch. Nothing writes them;
 # the rules stay so a working copy that still holds the files cannot commit them.
 data/tremor/events/
