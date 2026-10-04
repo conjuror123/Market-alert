@@ -47,12 +47,6 @@ class Config:
     # has already sent.
     tremor_events_path: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(__file__), "..", "data", "tremor", "jumps.parquet"))
-    # Kept because tremor/backfill.py fetches through these clients.
-    coinbase_base_url: str = "https://api.exchange.coinbase.com"
-    twelvedata_base_url: str = "https://api.twelvedata.com"
-    # Free key from twelvedata.com. Never read from config.yaml; it comes from
-    # the TWELVEDATA_API_KEY secret only, so that it cannot be committed.
-    twelvedata_api_key: str = ""
 
 
 def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
@@ -81,5 +75,4 @@ def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
         telegram_bot_token=os.environ.get("TELEGRAM_BOT_TOKEN", ""),
         telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID", ""),
         telegram_health_chat_id=os.environ.get("TELEGRAM_HEALTH_CHAT_ID", ""),
-        twelvedata_api_key=os.environ.get("TWELVEDATA_API_KEY", ""),
     )

@@ -183,39 +183,6 @@ def _request(
     raise ExchangeError(f"Failed to fetch klines for {symbol} after {retries} attempts: {last_error}")
 
 
-def fetch_klines(
-    symbol: str,
-    interval: str,
-    limit: int,
-    base_url: str,
-    api_key: str,
-    retries: int = 3,
-    backoff_seconds: float = 2.0,
-    session: requests.Session | None = None,
-) -> list[Candle]:
-    """Fetch the most recent `limit` candles for `symbol`/`interval`, oldest first.
-
-    `symbol` is a Twelve Data forex pair, e.g. "EUR/USD". A single request
-    covers up to MAX_OUTPUTSIZE candles - comfortably more than this app's
-    lookback needs - so no pagination is needed for live use.
-    """
-    if not api_key:
-        raise ExchangeError("No Twelve Data API key configured (TWELVEDATA_API_KEY)")
-
-    granularity_seconds = _granularity_seconds(interval)
-    url = f"{base_url}{TIME_SERIES_ENDPOINT}"
-    params = {
-        "symbol": symbol,
-        "interval": _interval_code(interval),
-        "outputsize": min(limit, MAX_OUTPUTSIZE),
-        "timezone": "UTC",
-        "apikey": api_key,
-    }
-    sess = session or requests
-    candles = _request(sess, url, params, granularity_seconds, retries, backoff_seconds, symbol)
-    return candles[-limit:]
-
-
 def fetch_full_history(
     symbol: str,
     interval: str,
@@ -227,8 +194,8 @@ def fetch_full_history(
     chunk_days: int = 150,
     end: datetime | None = None,
 ) -> list[Candle]:
-    """Page through date ranges to build up to `days` of history - only meant
-    for offline backtesting, which wants a full year even though a single
+    """Page through date ranges to build up to `days` of history - the archive
+    and gap-fill path (the hourly fetch is fetch_batch), since a single
     request caps out at MAX_OUTPUTSIZE candles. Chunked by calendar days
     (not candle count, since a chunk may span a weekend with no candles) and
     paced well under the 8-credits/minute free-tier limit by default.

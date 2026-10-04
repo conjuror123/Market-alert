@@ -43,8 +43,8 @@ import requests
 from tremor import atomic, bars, cboe, corporate_actions, fred, futures, quality, verify
 from tremor import sessions as _sessions
 from tremor.basket import Asset, Basket, load_basket
-from price_monitor import (alpaca, binance, candle_store, coinbase, dukascopy, google,
-                           hfdata, kitco, sifting, sina, tiingo, twelvedata, yahoo)
+from price_monitor import (alpaca, binance, candle_store, dukascopy, google, hfdata,
+                           sifting, sina, tiingo, twelvedata, yahoo)
 from price_monitor.models import ExchangeError
 from price_monitor.notifier import TelegramError, redact_secrets, send_telegram_message
 
@@ -52,7 +52,6 @@ log = logging.getLogger("tremor.backfill")
 
 LEGACY_HISTORY_DIR = os.path.join("data", "candle_history")
 
-COINBASE_BASE_URL = "https://api.exchange.coinbase.com"
 TWELVEDATA_BASE_URL = "https://api.twelvedata.com"
 TIINGO_BASE_URL = tiingo.BASE_URL
 YAHOO_BASE_URL = yahoo.BASE_URL
@@ -245,11 +244,6 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
             symbol=asset.ticker, interval=asset.fetch_interval, days=days,
             session=session, end=end,
         )
-    elif provider == "coinbase":
-        candles = coinbase.fetch_full_history(
-            symbol=asset.ticker, interval=asset.fetch_interval, days=days,
-            base_url=COINBASE_BASE_URL, session=session,
-        )
     elif provider == "tiingo":
         candles = tiingo.fetch_full_history(
             symbol=asset.ticker, interval=asset.fetch_interval, days=days,
@@ -292,12 +286,6 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
     elif provider == "sina":
         # A Shanghai future: its last 1,023 hourly bars, about six months.
         candles = sina.fetch_bars(asset.ticker, session)
-    elif provider == "kitco":
-        # Five-minute quotes, both for history (from 2020-11) and the hour.
-        candles = kitco.fetch_full_history(
-            symbol=asset.ticker, interval=asset.fetch_interval, days=days,
-            session=session, end=end,
-        )
     elif provider == "google":
         # The latest session, whatever `days` asks: the page holds no more.
         candles = google.fetch_full_history(

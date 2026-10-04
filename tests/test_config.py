@@ -26,14 +26,13 @@ def test_secrets_never_come_from_the_file(tmp_path, monkeypatch):
     # The repository is public. A token in config.yaml would be committed, so
     # these are read from the environment and nowhere else.
     path = tmp_path / "config.yaml"
-    path.write_text("telegram_bot_token: leaked\ntwelvedata_api_key: leaked\n",
+    path.write_text("telegram_bot_token: leaked\ntelegram_chat_id: leaked\n",
                     encoding="utf-8")
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
-    monkeypatch.delenv("TWELVEDATA_API_KEY", raising=False)
     monkeypatch.delenv("TELEGRAM_HEALTH_CHAT_ID", raising=False)
     monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
     cfg = load_config(str(path))
-    assert cfg.telegram_bot_token == "" and cfg.twelvedata_api_key == ""
+    assert cfg.telegram_bot_token == "" and cfg.telegram_chat_id == ""
     assert cfg.telegram_health_chat_id == ""
 
 

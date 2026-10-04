@@ -5,7 +5,19 @@ import pytest
 
 from price_monitor import twelvedata
 from price_monitor.models import ExchangeError
-from price_monitor.twelvedata import fetch_full_history, fetch_klines
+from price_monitor.twelvedata import fetch_full_history
+
+
+def fetch_klines(symbol, interval, limit, base_url, api_key, session=None, retries=3,
+                 backoff_seconds=2.0):
+    """One request through the client's shared core (twelvedata._request), as
+    every fetch makes it: the last `limit` candles, oldest first."""
+    params = {"symbol": symbol, "interval": twelvedata._interval_code(interval),
+              "outputsize": min(limit, twelvedata.MAX_OUTPUTSIZE), "timezone": "UTC",
+              "apikey": api_key}
+    return twelvedata._request(session, f"{base_url}{twelvedata.TIME_SERIES_ENDPOINT}",
+                               params, twelvedata._granularity_seconds(interval),
+                               retries, backoff_seconds, symbol)[-limit:]
 
 
 class FakeResponse:
@@ -38,11 +50,6 @@ def ok_payload(rows):
             for dt, o, h, l, c in rows
         ],
     }
-
-
-def test_fetch_klines_requires_api_key():
-    with pytest.raises(ExchangeError, match="API key"):
-        fetch_klines("EUR/USD", "1h", limit=10, base_url="https://x", api_key="")
 
 
 def test_fetch_klines_sorts_ascending_and_sets_utc_timestamp():
@@ -249,11 +256,11 @@ def test_a_failure_part_way_back_keeps_what_was_already_paid_for(monkeypatch):
 
 
 def test_a_permanent_error_still_raises_for_a_single_fetch(monkeypatch):
-    # fetch_klines is the live path, where a bad request must be loud.
+    # A single request, outside a history walk, must be loud about a bad request.
     monkeypatch.setattr(twelvedata.time, "sleep", lambda *_: None)
     session = _Walk(good=0, status=400)
     with pytest.raises(twelvedata.NoDataInRange):
-        twelvedata.fetch_klines(symbol="SPY", interval="30min", limit=10,
+        fetch_klines(symbol="SPY", interval="30min", limit=10,
                                 base_url="https://x", api_key="k", session=session)
     assert session.calls == 1
 
@@ -265,7 +272,7 @@ def test_the_no_data_message_alone_does_not_make_an_error_permanent(monkeypatch)
     session = _Walk(good=0, status=429,
                     message="No data is available - rate limited")
     with pytest.raises(ExchangeError):
-        twelvedata.fetch_klines(symbol="SPY", interval="30min", limit=10,
+        fetch_klines(symbol="SPY", interval="30min", limit=10,
                                 base_url="https://x", api_key="k", session=session,
                                 retries=2, backoff_seconds=0)
     assert session.calls == 2
@@ -280,7 +287,7 @@ def test_a_rate_limit_is_still_retried(monkeypatch):
         "You have run out of API credits for the current minute. 9 API credits "
         "were used, with the current limit being 8."))
     with pytest.raises(ExchangeError):
-        twelvedata.fetch_klines(symbol="SPY", interval="30min", limit=10,
+        fetch_klines(symbol="SPY", interval="30min", limit=10,
                                 base_url="https://x", api_key="k", session=session,
                                 retries=3, backoff_seconds=0)
     assert session.calls == 3
@@ -296,7 +303,7 @@ def test_the_daily_budget_running_out_is_not_retried(monkeypatch):
         "You have run out of API credits for the day. 1750 API credits were "
         "used, with the current limit being 800."))
     with pytest.raises(twelvedata.DailyQuotaExhausted):
-        twelvedata.fetch_klines(symbol="SPY", interval="30min", limit=10,
+        fetch_klines(symbol="SPY", interval="30min", limit=10,
                                 base_url="https://x", api_key="k", session=session,
                                 retries=3, backoff_seconds=0)
     assert session.calls == 1

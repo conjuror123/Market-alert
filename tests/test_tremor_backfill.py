@@ -21,8 +21,8 @@ def asset(**over):
     return Asset(**(base | over))
 
 
-class _CoinbaseRows:
-    """What Coinbase's candles endpoint looks like to the client: status and json."""
+class _Rows:
+    """What a provider's candles endpoint looks like to its client: status and json."""
 
     def __init__(self, rows):
         self.status_code = 200
@@ -173,19 +173,16 @@ def test_the_hourly_crypto_fetch_survives_one_dropped_connection(
         tmp_path, monkeypatch):
     """A reset mid-fetch costs a retry, not the instrument.
 
-    Nothing below fetch_missing is faked on purpose: the bug was the wiring.
-    Crypto reaches Coinbase through coinbase.fetch_full_history, whose docstring
-    said only the backtester came that way, so its one request was written
-    without the retry the rest of that client has. On 2026-09-21 a single
-    'Connection reset by peer' on BTC-USD escaped it, turned the hourly run red
-    and left that instrument an hour behind until the next run healed it.
+    Nothing below fetch_missing is faked on purpose: what is tested is the
+    wiring from the hourly fetch through binance.fetch_full_history to the
+    client's retry.
     """
     from tremor import backfill
-    from price_monitor import coinbase
+    from price_monitor import binance
 
     newest = datetime(2026, 9, 21, 1, tzinfo=timezone.utc)
     now = datetime(2026, 9, 21, 2, tzinfo=timezone.utc)
-    path = tmp_path / "coinbase_BTC-USD.parquet"
+    path = tmp_path / "binance_BTC_USDT"
     bars.merge(str(path), bars.to_hourly(bars.candles_to_frame([
         Candle(open_time=int(newest.timestamp()), open=1.0, high=1.0, low=1.0,
                close=1.0, volume=0.0,
@@ -197,16 +194,16 @@ def test_the_hourly_crypto_fetch_survives_one_dropped_connection(
     class Socket:
         """The real client, a faked wire: the first call is reset, the retry answers."""
 
-        def get(self, url, params, timeout, headers):
+        def get(self, url, params, timeout):
             calls.append(dict(params))
             if len(calls) == 1:
                 raise requests.exceptions.ConnectionError(
                     "('Connection aborted.', "
                     "ConnectionResetError(104, 'Connection reset by peer'))")
-            return _CoinbaseRows([[fresh, 1.0, 2.0, 1.5, 1.8, 3.0]])
+            return _Rows([[fresh * 1000, "1.0", "2.0", "1.5", "1.8", "3.0"]])
 
-    monkeypatch.setattr(coinbase.time, "sleep", lambda *_: None)
-    crypto = Asset(ticker="BTC-USD", source="coinbase", tier=1, block="crypto",
+    monkeypatch.setattr(binance.time, "sleep", lambda *_: None)
+    crypto = Asset(ticker="BTC/USDT", source="binance", tier=1, block="crypto",
                    has_volume=True, tick_size=0.01,
                    session_template="crypto_24_7", fetch_interval="1h",
                    label="Bitcoin", in_basket=True)
@@ -982,7 +979,7 @@ def test_crypto_is_never_skipped():
         table = _table([date(2026, 4, 3), date(2026, 4, 6)])
         now = datetime(2026, 4, 4, 15, tzinfo=timezone.utc)
         assert nothing_can_have_appeared(
-            asset(source="coinbase", session_template="crypto_24_7"),
+            asset(source="binance", session_template="crypto_24_7"),
             path, table, now) is False
 
 
@@ -1205,7 +1202,7 @@ def test_a_yahoo_rate_limit_skips_remaining_yahoo_instruments(tmp_path, monkeypa
 
     basket = Basket(
         assets=(_yahoo_asset("UGA"), _yahoo_asset("UNG"), _yahoo_asset("CPER"),
-                Asset(ticker="BTC-USD", source="coinbase", tier=1, block="crypto",
+                Asset(ticker="BTC/USDT", source="binance", tier=1, block="crypto",
                       has_volume=True, tick_size=0.01, session_template="crypto_24_7",
                       fetch_interval="1h", label="Bitcoin", in_basket=True)),
         outside=(),
@@ -1224,7 +1221,7 @@ def test_a_yahoo_rate_limit_skips_remaining_yahoo_instruments(tmp_path, monkeypa
     rc = backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
 
     assert rc == 0
-    assert asked == ["UGA", "BTC-USD"]
+    assert asked == ["UGA", "BTC/USDT"]
     assert "2 remaining Yahoo" in alerts[0]
     assert "UGA" in alerts[0]
 
@@ -1354,24 +1351,6 @@ def test_the_fetch_asks_google_for_a_google_fund(tmp_path, monkeypatch):
     backfill.fetch_missing(asset, str(tmp_path / "p"), date(2021, 1, 1), "td",
                            requests.Session())
     assert seen["symbol"] == "TUR" and seen["interval"] == "30min"
-
-
-def test_the_fetch_asks_kitco_for_nickel(tmp_path, monkeypatch):
-    from tremor import backfill
-
-    seen = {}
-
-    def fake(**kwargs):
-        seen.update(kwargs)
-        return []
-
-    monkeypatch.setattr(backfill.kitco, "fetch_full_history", fake)
-    asset = Asset(ticker="NI", source="kitco", tier=2, block="industrial_metals",
-                  has_volume=False, tick_size=5.0, session_template="lme",
-                  fetch_interval="1h", label="Nickel", in_basket=True)
-    backfill.fetch_missing(asset, str(tmp_path / "p"), date(2021, 1, 1), "td",
-                           requests.Session())
-    assert seen["symbol"] == "NI"
 
 
 # --- Alpaca deepening ---------------------------------------------------------
@@ -1599,7 +1578,7 @@ def test_an_alpaca_rate_limit_skips_remaining_alpaca_instruments(tmp_path, monke
 
     basket = Basket(
         assets=(fund("LQD"), fund("HYG"), fund("JNK"),
-                Asset(ticker="BTC-USD", source="coinbase", tier=1, block="crypto",
+                Asset(ticker="BTC/USDT", source="binance", tier=1, block="crypto",
                       has_volume=True, tick_size=0.01, session_template="crypto_24_7",
                       fetch_interval="1h", label="Bitcoin", in_basket=True)),
         outside=(),
@@ -1620,5 +1599,5 @@ def test_an_alpaca_rate_limit_skips_remaining_alpaca_instruments(tmp_path, monke
     backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
 
     # Asked once; HYG and JNK skipped rather than each waiting out Alpaca's retries.
-    assert asked == ["LQD", "BTC-USD"]
+    assert asked == ["LQD", "BTC/USDT"]
     assert any("alpaca" in a.lower() for a in alerts)

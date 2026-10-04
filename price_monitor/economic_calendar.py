@@ -310,19 +310,6 @@ def merge_events(path: str, events: list[dict]) -> int:
 
 # --- Historical import ---------------------------------------------------
 
-def _request(url: str, timeout: int, session: requests.Session | None = None,
-             headers: dict | None = None) -> requests.Response:
-    """A single HTTP request with a clear error instead of a bare requests exception."""
-    get = session.get if session is not None else requests.get
-    try:
-        resp = get(url, timeout=timeout,
-                   headers=headers or {"User-Agent": "market-alert-bot"})
-        resp.raise_for_status()
-        return resp
-    except requests.RequestException as exc:
-        raise CalendarError(f"could not fetch {url}: {exc}") from exc
-
-
 # ForexFactory serves a whole month at an address of the form ?month=mar.2026,
 # and the data sits right inside the page as ready JSON. The times in it are unix
 # timestamps - unambiguous by construction, which is what the dedup key needs.
