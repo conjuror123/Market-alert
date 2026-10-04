@@ -217,7 +217,7 @@ new event, even inside the 24 hours of one from the week before. Per event:
 | milder | edited: a push falls a colour, to ⬜ at `noticeable` | the same |
 | same word, other numbers (a bigger hour, a fix) | edited | edited |
 | gone | taken out of its message (and the note); it can come back and ring | taken out, for good |
-| unconfirmed — a second source did not see the move | not scored; on the channel, its line stays with `⚠️ unconfirmed: Yahoo shows +0.03%` under it, silently; a row leaves the note; never touched again, and a move of the same instrument inside its 24 hours is an event of its own | the same |
+| unconfirmed — a second source did not see the move | not scored; on the channel, its line stays with `⚠️ unconfirmed: Yahoo shows +0.03%` under it, silently; a row leaves the note. If a reading of it comes back (the bar healed and was confirmed) or a new move comes inside its 24 hours, it is handled like any other change | the same |
 
 A message is edited whenever what it carries changes, and deleted once nothing is left in
 it.
@@ -277,11 +277,13 @@ headroom — is in `decisions.md` ("The data").
 ### A second source
 
 **A real trade shows up on another feed; a source's bad print does not.** Right after
-each run's fetch, every reading of the last 24 hours at 4σ or more of its own kind is asked
-of a second, independent feed (`tremor/verify.py`): an hour's move as the detector
-measures it (from the previous close, or from its own open on a session's first bar and
-after a hole) against the instrument's earlier hours, and a session's gap against its
-earlier gaps — a few a day across the basket, one request per instrument:
+each run's fetch, every reading of the last 24 hours at 4σ or more is asked of a second,
+independent feed (`tremor/verify.py`). The readings are the detector's own: the metrics
+built as the pipeline builds them and scored as `jumps` scores them, against the same
+half-year σ and gap kinds, each asked when the detector finds it (a pair's weekend gap at
+its open). That is below the 6σ bottom word, so every flagged reading is asked about —
+543 of 543 over the reach below — and about 55 readings a week across the basket, one
+request per instrument:
 
 | served by | asked of |
 |---|---|
@@ -300,7 +302,7 @@ for 12 hours before, it is **unknown** and scored as usual.
 
 **An unconfirmed move is not scored, and nothing is deleted.** `jumps` leaves its reading
 out — not flagged, and not in any yardstick — while its bar stays in the store as the
-provider served it. A message already sent for it says so (Delivery, above). Which feed
+provider served it, and in the price path the close check reads. A message already sent for it says so (Delivery, above). Which feed
 was wrong two feeds cannot always tell, so the verdict is "not seen elsewhere", never "a
 mistake". The verdicts are in `data/tremor/verified.csv`, each with the stored prices it
 was reached on: a settled one is asked again only when the bar heals (a run that lost its

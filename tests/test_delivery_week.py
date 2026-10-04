@@ -220,8 +220,8 @@ def test_a_push_not_seen_by_a_second_source_stays_marked_silently(monkeypatch, c
     run(monkeypatch, channel, [BYSTANDER], run_at(0, 12), week)
     marked = md.format_push(push, LABELS) + "\n⚠️ unconfirmed: Yahoo shows +0.03%"
     assert channel.pushes() == [marked] and channel.rings_since(rang) == []
-    # Settled for good: nothing brings it back or changes it.
-    run(monkeypatch, channel, [push], run_at(0, 13), week)
+    # It stays so while nothing of it comes back.
+    run(monkeypatch, channel, [BYSTANDER], run_at(0, 13), week)
     assert channel.pushes() == [marked] and channel.rings_since(rang) == []
 
 
@@ -247,7 +247,7 @@ def test_a_gap_is_marked_by_the_opening_check_not_the_hours(monkeypatch, channel
     assert channel.pushes()[0].endswith("⚠️ unconfirmed: Yahoo shows +0.03%")
 
 
-def test_a_real_move_inside_a_marked_events_day_is_an_event_of_its_own(
+def test_a_real_move_inside_a_marked_events_day_takes_it_over_and_rings(
         monkeypatch, channel, week):
     run(monkeypatch, channel, [ev(at(0, 10), "high")], run_at(0, 11), week)
     _unseen(at(0, 10))
@@ -256,7 +256,21 @@ def test_a_real_move_inside_a_marked_events_day_is_an_event_of_its_own(
     real = ev(at(0, 15), "major")
     run(monkeypatch, channel, [real], run_at(0, 16), week)
     assert len(channel.rings_since(rang)) == 1
-    assert md.format_push(real, LABELS) in channel.pushes()
+    (push,) = channel.pushes()
+    assert push.startswith(md.format_push(real, LABELS)) and "unconfirmed" in story(push)
+    assert "⚠️" not in push
+
+
+def test_a_marked_move_confirmed_after_all_is_unmarked_silently(monkeypatch, channel, week):
+    push = ev(at(0, 10), "high")
+    run(monkeypatch, channel, [push], run_at(0, 11), week)
+    _unseen(at(0, 10))
+    run(monkeypatch, channel, [BYSTANDER], run_at(1, 12), week)          # after its 24 hours
+    rang = len(channel.rang)
+    run(monkeypatch, channel, [push], run_at(1, 13), week)               # healed, confirmed
+    assert channel.rings_since(rang) == []
+    (shown,) = channel.pushes()
+    assert "⚠️" not in shown and shown.startswith(md._first(md.format_push(push, LABELS)))
 
 
 # --- inside its 24 hours --------------------------------------------------------

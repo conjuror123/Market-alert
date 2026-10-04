@@ -803,8 +803,10 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
 #
 # UNCONFIRMED: an event whose move a second source did not see is no longer
 # scored (tremor.verify); if it is on the channel, its line stays where it is
-# with `⚠️ unconfirmed: Yahoo shows +0.03%` under it, silently, and is not
-# touched again. A row leaves the note.
+# with `⚠️ unconfirmed: Yahoo shows +0.03%` under it, silently; a row leaves
+# the note. Should a reading of it come back - the bar healed and was
+# confirmed - or a new move come inside its 24 hours, it is an event like any
+# other again.
 #
 # A detector update (a new tremor.jumps.detector_version) starts the week over at
 # that run: every alert message of the week is deleted, the note stays and shows
@@ -1060,10 +1062,7 @@ def _group(readings: "list[dict]", week: dict) -> "dict[str, list[dict]]":
         by_asset.setdefault(str(reading.get("asset_id", "")), []).append(reading)
     out: dict = {key: [] for key in tracked}
     for asset, rows in by_asset.items():
-        # An event marked unconfirmed holds nothing: a move inside its 24
-        # hours is an event of its own.
-        anchors = [rec["start"] for rec in tracked.values()
-                   if rec["asset"] == asset and not rec.get("doubt")]
+        anchors = [rec["start"] for rec in tracked.values() if rec["asset"] == asset]
         starts = event_starts([_found(r) for r in rows], anchors)
         for reading, start in zip(rows, starts):
             out.setdefault(f"{asset}|{int(start)}", []).append(reading)
@@ -1139,8 +1138,8 @@ def unconfirmed_line(row: dict) -> str:
 
 def _mark(rec: dict, row: dict) -> None:
     """The move was not seen by a second source: its line stays in its
-    message with the mark under it, a row leaves the note, and it is not
-    touched again."""
+    message with the mark under it, and a row leaves the note - until a
+    reading of the event is back (_step)."""
     mark = unconfirmed_line(row)
     body = rec.get("body", "")
     rec.update(doubt={k: row.get(k) for k in ("verifier", "verifier_move")},
@@ -1165,7 +1164,11 @@ def _step(week: dict, key: str, readings: "list[dict]", now_ts: int,
     asset, start = key.rsplit("|", 1)
     rec = tracked.get(key)
     if rec is not None and rec.get("doubt"):
-        return 0                       # marked unconfirmed: settled for good
+        if not readings:
+            return 0                   # marked unconfirmed, and still nothing
+        # A reading is back - the bar healed and was confirmed - or a new move
+        # came inside its 24 hours: an event like any other again.
+        rec.pop("doubt")
     open_ = now_ts < int(start) + PUSH_WINDOW_HOURS * 3600
     members = {str(r["reading_id"]): r for r in readings}
     peak = max(readings, key=_size) if readings else None

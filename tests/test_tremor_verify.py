@@ -188,35 +188,82 @@ def _fund_store(basket, days=120, gap_day=None, gap=0.0, first_hour=0.0):
 
 def test_an_ordinary_night_is_not_asked_about_and_a_far_one_is(basket):
     from datetime import date
+
+    from tremor.corporate_actions import Dividends
     day = date(2026, 9, 29)
     asset, table, frame = _fund_store(basket)
+    # The gap is the pipeline's: scored only on dates the fund's payouts are
+    # confirmed through, as the detector scores it.
+    paid = Dividends(steps={}, splits={}, checked_through={asset.ticker: "2026-12-31"})
     now = ts("2026-09-29 20:05")
-    assert [c for c in verify.candidates(asset, frame, table, now) if c["check"] == "open"] == []
+
+    def asked(frame):
+        return verify.candidates(asset, frame, table, now, basket=load_basket(), dividends=paid)
+
+    assert [c for c in asked(frame) if c["check"] == "open"] == []
     asset, table, frame = _fund_store(basket, gap_day=day, gap=0.03)
-    found = verify.candidates(asset, frame, table, now)
-    assert [c["check"] for c in found] == ["open"]
+    assert [c["check"] for c in asked(frame)] == ["open"]
     # The quiet first hour after it is not a far move: the detector reads it
-    # open to close.
+    # open to close. A far first hour is, from its own open.
     asset, table, frame = _fund_store(basket, gap_day=day, gap=0.0, first_hour=0.02)
-    hour = [c for c in verify.candidates(asset, frame, table, now) if c["check"] == "close"]
+    hour = [c for c in asked(frame) if c["check"] == "close"]
     assert len(hour) == 1 and hour[0]["from_open"] and hour[0]["prev_hour"] == hour[0]["hour"]
+
+
+def test_a_pairs_weekend_gap_is_asked_about_at_its_open_and_from_fridays_close(
+        monkeypatch, tmp_path, basket):
+    # The detector judges a pair's weekend gap at its open (jumps.found_times),
+    # so it is asked about then - and the second source is fetched from before
+    # Friday's close, the price the gap starts at.
+    asset = basket["USD/INR"]
+    hours = ts("2026-08-03 00:00") + HOUR * np.arange(24 * 7 * 9)
+    rng = np.random.default_rng(2)
+    closes = 84.0 * np.exp(np.cumsum(rng.normal(0, 0.0003, len(hours))))
+    reopen = int(np.flatnonzero(hours == ts("2026-10-04 21:00"))[0])
+    closes[reopen:] *= 1.02                                       # a 2% weekend gap
+    frame = pd.DataFrame({"hour_utc": hours, "open": closes, "close": closes,
+                          "volume": 0.0, "n_src": 1})
+    frame.loc[reopen + 1:, "open"] = closes[reopen:-1]
+    frame["high"] = frame[["open", "close"]].max(axis=1)
+    frame["low"] = frame[["open", "close"]].min(axis=1)
+    frame = frame[frame["hour_utc"] <= ts("2026-10-04 21:00")]    # the run at 21:05
+    bars.write(bars.store_path(str(tmp_path / "bars"), asset.file_stem), frame)
+    spans = []
+
+    def fetch(name, symbol, interval, days, session, now):
+        spans.append(days)
+        return pd.DataFrame({"hour_utc": frame["hour_utc"], "open": frame["open"],
+                             "close": frame["close"]})
+
+    monkeypatch.setattr(verify, "fetch_verifier", fetch)
+    now = datetime.fromtimestamp(ts("2026-10-04 21:05"), timezone.utc)
+    path = str(tmp_path / "verified.csv")
+    verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
+    record = verify.load(path)
+    gap = record[(asset.asset_id, ts("2026-10-04 21:00"), "open")]
+    assert gap["verdict"] == verify.CONFIRMED
+    friday = int(frame["hour_utc"][frame["hour_utc"] < ts("2026-10-03 00:00")].max())
+    assert spans[0] * 86400 >= ts("2026-10-04 21:05") - friday
 
 
 # --- a pass, and what it leaves out -----------------------------------------------
 
 def test_a_pass_records_the_verdict_and_asks_once(monkeypatch, tmp_path, basket):
     asset = basket["USD/INR"]
-    hours = ts("2026-09-28 00:00") + HOUR * np.arange(80)        # Monday on
+    # Two months of hours to the bad print's week, enough for the detector's
+    # smallest window; the gate drops the weekends.
+    hours = ts("2026-08-03 00:00") + HOUR * np.arange(24 * 7 * 8 + 80)
     rng = np.random.default_rng(1)
-    closes = 84.0 * np.exp(np.cumsum(rng.normal(0, 0.0003, 80)))
-    closes[70] *= 0.995                                            # a bad print
+    closes = 84.0 * np.exp(np.cumsum(rng.normal(0, 0.0003, len(hours))))
+    bad = len(hours) - 10
+    closes[bad] *= 0.995                                           # a bad print
     frame = pd.DataFrame({"hour_utc": hours, "open": np.r_[closes[0], closes[:-1]],
                           "close": closes, "volume": 0.0, "n_src": 1})
     frame["high"] = frame[["open", "close"]].max(axis=1)
     frame["low"] = frame[["open", "close"]].min(axis=1)
     bars.write(bars.store_path(str(tmp_path / "bars"), asset.file_stem), frame)
     market = pd.DataFrame({"hour_utc": hours, "open": closes, "close": closes})
-    market.loc[70, "close"] = closes[70] / 0.995                   # the tape never went there
+    market.loc[bad, "close"] = closes[bad] / 0.995                   # the tape never went there
     asked = []
 
     def fetch(name, symbol, interval, days, session, now):
@@ -224,32 +271,31 @@ def test_a_pass_records_the_verdict_and_asks_once(monkeypatch, tmp_path, basket)
         return market
 
     monkeypatch.setattr(verify, "fetch_verifier", fetch)
-    now = datetime.fromtimestamp(int(hours[75]) + 300, timezone.utc)
+    now = datetime.fromtimestamp(int(hours[bad + 5]) + 300, timezone.utc)
     path = str(tmp_path / "verified.csv")
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
     assert asked == [("yahoo", "USDINR=X")]
     # The bad print, and the hour back from it, which did not happen either.
-    assert set(verify.unconfirmed(path)) == {(asset.asset_id, int(hours[70]), "close"),
-                                             (asset.asset_id, int(hours[71]), "close")}
+    assert set(verify.unconfirmed(path)) == {(asset.asset_id, int(hours[bad]), "close"),
+                                             (asset.asset_id, int(hours[bad + 1]), "close")}
     asked.clear()
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
     assert asked == []
+    # A bar that changes but is still far is asked again.
+    frame.loc[bad, "close"] = closes[bad] * 0.999
+    frame.loc[bad, "low"] = frame.loc[bad, "close"]
+    frame.loc[bad + 1, "open"] = frame.loc[bad, "close"]
+    bars.write(bars.store_path(str(tmp_path / "bars"), asset.file_stem), frame)
+    verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
+    assert asked == [("yahoo", "USDINR=X")]
+    asked.clear()
     # The bar heals - a run that lost its fetch had judged the :05 snapshot -
     # into no far move at all: the verdict no longer applies, and it is scored.
-    frame.loc[70, "close"] = closes[70] / 0.995
-    frame.loc[71, "open"] = frame.loc[70, "close"]
+    frame.loc[bad, "close"] = closes[bad] / 0.995
+    frame.loc[bad + 1, "open"] = frame.loc[bad, "close"]
     bars.write(bars.store_path(str(tmp_path / "bars"), asset.file_stem), frame)
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
     assert verify.unconfirmed(path) == {}
-
-
-def test_a_healed_bar_still_far_is_asked_again(monkeypatch, tmp_path, basket):
-    c = {"hour": 100 * HOUR, "check": "close", "prev_hour": 99 * HOUR, "prev_close": 84.0,
-         "price": 83.5, "from_open": False}
-    record = {("x", c["hour"], "close"): {"verdict": verify.UNCONFIRMED,
-                                          "prices": verify.prices(c)}}
-    assert record[("x", c["hour"], "close")]["prices"] == verify.prices(dict(c))
-    assert verify.prices(dict(c, price=83.4)) != verify.prices(c)
 
 
 def test_an_unconfirmed_verdict_outlives_the_rest_of_the_record(tmp_path):
@@ -281,3 +327,34 @@ def test_an_unconfirmed_move_is_not_scored_and_not_in_the_yardstick():
     assert np.allclose(scored["sigma"], clean["sigma"], equal_nan=True)
     # Another instrument's verdict leaves this one alone.
     assert jumps.without_unconfirmed(metrics, "x:Z", doubts) is metrics
+
+
+def test_the_close_check_follows_the_price_as_stored(tmp_path, basket):
+    # An unconfirmed move is not a reading, but the price did what the store
+    # says; leaving it out of the path would misstate how much of a real move
+    # held at the close.
+    asset = basket["BTC/USDT"] if "BTC/USDT" in basket else next(
+        a for a in basket.values() if a.session_template == "crypto_24_7")
+    start = ts("2026-03-02 00:00")
+    rng = np.random.default_rng(5)
+    r = rng.normal(0, 0.001, 24 * 200)
+    hours = start + HOUR * np.arange(len(r))
+    k = len(r) - 30
+    r[k] = 0.03                                         # a real 30-sigma hour
+    r[k + 2] = 0.01                                     # then an unconfirmed step
+    metrics = pd.DataFrame({"hour_utc": hours, "r": r, "hole": np.nan, "gap": np.nan})
+    os_dir = tmp_path / "metrics"
+    os_dir.mkdir()
+    metrics.to_parquet(os_dir / f"{asset.file_stem}.parquet")
+    path = str(tmp_path / "verified.csv")
+    verify.write({(asset.asset_id, int(hours[k + 2]), "close"): {
+        "asset_id": asset.asset_id, "hour_utc": int(hours[k + 2]), "check": "close",
+        "verdict": verify.UNCONFIRMED}}, int(hours[-1]), path)
+    flagged = jumps.run(str(os_dir), now=int(hours[-1]) + 3600, verified_path=path)
+    mine = flagged[flagged["asset_id"] == asset.asset_id]
+    assert int(hours[k + 2]) not in set(mine["hour_utc"])
+    held = mine.loc[mine["hour_utc"] == int(hours[k]), "held"].iloc[0]
+    from tremor import routing
+    close = routing.next_close(int(hours[k]) + 3600)
+    upto = np.searchsorted(hours + 3600, close, side="right") - 1
+    assert held == pytest.approx(np.sum(r[k:upto + 1]) / r[k])

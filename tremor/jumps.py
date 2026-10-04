@@ -625,9 +625,8 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
         if not os.path.exists(path):
             log.warning("no metrics for %s", asset.asset_id)
             continue
-        metrics = without_unconfirmed(
-            pd.read_parquet(path, columns=["hour_utc", "r", "hole", "gap"]),
-            asset.asset_id, doubts)
+        stored = pd.read_parquet(path, columns=["hour_utc", "r", "hole", "gap"])
+        metrics = without_unconfirmed(stored, asset.asset_id, doubts)
         readings = [score(metrics, asset.session_template, window, ladder),
                     score_gaps(metrics, window, ladder, asset.session_template)]
         scored = pd.concat([f for f in readings if not f.empty], ignore_index=True)
@@ -637,7 +636,10 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
         scored["record_start"] = int(metrics["hour_utc"].min())
         flagged = scored[scored["word"].notna()].sort_values("found_utc").reset_index(drop=True)
         flagged["event_start"] = event_starts(flagged["found_utc"])
-        check, held = held_at_close(metrics, flagged, now)
+        # The close check follows the price as stored: an unconfirmed move is
+        # not a reading, but leaving it out of the path would shift every
+        # price after it.
+        check, held = held_at_close(stored, flagged, now)
         flagged["check_utc"] = pd.arrays.IntegerArray(check, check < 0)
         flagged["held"] = held
         flagged.insert(1, "asset_id", asset.asset_id)

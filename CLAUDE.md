@@ -90,7 +90,8 @@ Break one of these and the system is wrong rather than merely broken.
    event carries its story on one line; a clean one says nothing. A ping line lives
    exactly as long as its row. A move a second source did not see (`tremor.verify`,
    `verified.csv`) is not scored and stays out of every yardstick; if it already went
-   out, its line stays with `⚠️ unconfirmed` under it, silently, and its row leaves the note.
+   out, its line stays with `⚠️ unconfirmed` under it, silently, and its row leaves the note
+   — until a reading of it comes back.
    Every move — a coin's and a pair's too — is checked at the first NYSE close after it
    was found (`jumps.held_at_close`): its time line counts down, then says how much held.
 6. **A detector update restarts the week.** When `jumps.detector_version()` changes, every

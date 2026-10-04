@@ -79,9 +79,7 @@ REAL_SHARE = 0.5
 LAG_HOURS = 1
 PENDING_HOURS = 24
 STALE_HOURS = 12
-SIGMA_MOVES = 500
-SIGMA_GAPS = 60
-TAIL_DAYS = 150                   # bars looked at before the window: enough for both sigmas
+TAIL_DAYS = 200                   # bars read before the window: the detector's half-year and more
 MAX_REQUESTS = 40
 KEEP_DAYS = 30
 SINA_DAYS = 77                    # how far Sina's US half-hour bars reach back
@@ -133,55 +131,53 @@ def fetch_verifier(name: str, symbol: str, interval: str, days: float,
 
 # --- which bars ----------------------------------------------------------------
 
-def _sigma(moves: np.ndarray) -> float:
-    """Bipower sigma of a run of moves: one jump among them cannot inflate it."""
-    m = np.abs(moves[np.isfinite(moves)])
-    if len(m) < 20:
-        return float("nan")
-    return float(math.sqrt(math.pi / 2 * np.mean(m[1:] * m[:-1])))
-
-
 def candidates(asset: Asset, frame: pd.DataFrame, table, now: int,
-               since: "int | None" = None) -> "list[dict]":
-    """The detector's own readings, ended from `since` on (default
-    PENDING_HOURS ago), that moved far enough to be asked about: an hour's
-    move as tremor.returns measures it - from the previous close, or from its
-    own open on a session's first bar and after a hole - against the bipower
-    sigma of the instrument's earlier hours, and a session's gap against its
-    earlier gaps. Only the recent bars are read: TAIL_DAYS before the window."""
-    from tremor import returns
+               since: "int | None" = None, basket=None, dividends=None) -> "list[dict]":
+    """The detector's own readings, judgeable from `since` on (default
+    PENDING_HOURS ago), at CANDIDATE_SIGMA or more: the metrics built as the
+    pipeline builds them (pipeline.build_asset_metrics - the hour's move from
+    the previous close, or from its own open on a session's first bar and
+    after a hole; the gap dividend-adjusted, unscored where the pipeline
+    leaves it so), scored as tremor.jumps scores them, and found when it
+    finds them (jumps.ended: an hour once it has ended, a pair's gap at its
+    open). Only the recent bars are read: TAIL_DAYS before the window, more
+    than the detector's half-year."""
+    from tremor import jumps, pipeline
+    from tremor.basket import load_basket
 
     since = int(now) - PENDING_HOURS * HOUR if since is None else int(since)
     recent = frame[frame["hour_utc"] >= since - TAIL_DAYS * 86400]
-    gated = quality.apply_gate(asset, recent, table)
-    usable = gated[gated["is_usable"]].sort_values("hour_utc").reset_index(drop=True)
-    if len(usable) < 30:
+    metrics = pipeline.build_asset_metrics(asset, basket or load_basket(), recent, table,
+                                           dividends)
+    if len(metrics) < 30:
         return []
-    scored = returns.split_channels(asset, usable)
-    h = scored["hour_utc"].to_numpy(dtype="int64")
-    close = scored["close"].to_numpy(dtype="float64")
-    opened = scored["open"].to_numpy(dtype="float64")
-    r = scored["r"].to_numpy(dtype="float64")
-    is_open = scored["is_session_open"].to_numpy(dtype=bool)
-    own = is_open | np.concatenate([[True], np.diff(h) > HOUR])
-    with np.errstate(divide="ignore", invalid="ignore"):
-        gap = np.where(is_open, np.log(opened / np.concatenate([[np.nan], close[:-1]])), np.nan)
+    metrics = metrics.sort_values("hour_utc").reset_index(drop=True)
+    template = asset.session_template
+    readings = [jumps.score(metrics[["hour_utc", "r"]], template),
+                jumps.score_gaps(metrics[["hour_utc", "gap"]], template=template)]
+    readings = jumps.ended(pd.concat([f for f in readings if not f.empty], ignore_index=True),
+                           template, now)
+    far = readings[(readings["hour_utc"] >= since)
+                   & (readings["z"].abs() >= CANDIDATE_SIGMA)]
+    h = metrics["hour_utc"].to_numpy(dtype="int64")
+    close = metrics["close"].to_numpy(dtype="float64")
+    opened = metrics["open"].to_numpy(dtype="float64")
+    own = (metrics["is_session_open"].to_numpy(dtype=bool)
+           | np.isfinite(metrics["hole"].to_numpy(dtype="float64")))
+    at = {int(hour): i for i, hour in enumerate(h)}
     out = []
-    for i in np.flatnonzero((h >= since) & (h + HOUR <= now)):
+    for hour, kind in zip(far["hour_utc"].astype("int64"), far["reading"]):
+        i = at[int(hour)]
         if i == 0:
             continue
-        sigma = _sigma(r[max(0, i - SIGMA_MOVES - 24):max(0, i - 24)])
-        if np.isfinite(sigma) and sigma > 0 and abs(r[i]) >= CANDIDATE_SIGMA * sigma:
+        if kind == jumps.HOUR:
             start = (int(h[i]), float(opened[i])) if own[i] else (int(h[i - 1]), float(close[i - 1]))
             out.append({"hour": int(h[i]), "check": CLOSE, "from_open": bool(own[i]),
                         "prev_hour": start[0], "prev_close": start[1], "price": float(close[i])})
-        if is_open[i]:
-            earlier = gap[:i][np.isfinite(gap[:i])][-SIGMA_GAPS:]
-            sigma = _sigma(earlier)
-            if np.isfinite(sigma) and sigma > 0 and abs(gap[i]) >= CANDIDATE_SIGMA * sigma:
-                out.append({"hour": int(h[i]), "check": OPEN, "from_open": False,
-                            "prev_hour": int(h[i - 1]), "prev_close": float(close[i - 1]),
-                            "price": float(opened[i])})
+        else:
+            out.append({"hour": int(h[i]), "check": OPEN, "from_open": False,
+                        "prev_hour": int(h[i - 1]), "prev_close": float(close[i - 1]),
+                        "price": float(opened[i])})
     return out
 
 
@@ -293,10 +289,14 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
     with `history` everything within the second source's reach. Returns how
     many of each verdict."""
     from price_monitor import yahoo
+    from tremor import corporate_actions
+    from tremor.basket import load_basket
 
     now_dt = now or datetime.now(timezone.utc)
     now_ts = int(now_dt.timestamp())
     record = load(path)
+    basket = load_basket()
+    dividends = corporate_actions.load_dividends()
     counts = {CONFIRMED: 0, UNCONFIRMED: 0, PENDING: 0, UNKNOWN: 0}
     requests_left = 10 ** 6 if history else MAX_REQUESTS
     blocked = set(blocked or ())
@@ -313,7 +313,7 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
         # Asked once - and again if the bar has healed since (a run that lost
         # its fetch judges the snapshot stored at :05, invariant 7). A verdict
         # whose bar healed into no far move at all no longer applies.
-        found = candidates(asset, frame, table, now_ts, since)
+        found = candidates(asset, frame, table, now_ts, since, basket, dividends)
         window = since if since is not None else now_ts - PENDING_HOURS * HOUR
         current = {(asset.asset_id, c["hour"], c["check"]) for c in found}
         for key in [k for k in record if k[0] == asset.asset_id and k[1] >= window]:
@@ -327,7 +327,9 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
         if not todo:
             continue
         name, symbol, interval = who
-        days = (now_ts - min(c["hour"] for c in todo)) / 86400 + 2
+        # From before the earliest bar a move starts at: a Monday gap starts at
+        # Friday's close.
+        days = (now_ts - min(c["prev_hour"] for c in todo)) / 86400 + 1
         requests_left -= 1
         try:
             v = fetch_verifier(name, symbol, interval, days, session, now_dt)

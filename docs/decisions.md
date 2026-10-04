@@ -327,12 +327,15 @@ inflate the next half-year's σ; a message already sent says `⚠️ unconfirmed
 disappearing, because a wrong verdict should cost a line, not a real move. Only feeds with
 a free independent second source are asked: a coin's price is its exchange's own trades,
 and the futures and the LME have none.
-Over the 699 days Yahoo reaches (2026-10-04) it asked about 2,135 far readings and did not
-see 109; 55 of those were flagged - 44 of them SiftingIO's USD/INR, mostly between 22:00
-and 01:00 UTC, and six USD/BRL session openings whose first print was a stale pre-market
-quote - and with them out of the yardstick 17 real moves of the same pairs now read as
-flags. The candidates are the detector's own readings, each against its own kind: asked
-against the hourly σ, ordinary overnight gaps put 84 funds into one Monday-open run. The martial-law hours stay (`major`, `high`). The closest call
+Over the 699 days Yahoo reaches (2026-10-04) it asked about 2,034 readings - every one of
+the 543 the detector flags there among them - and did not see 115; 60 of those were
+flagged - 49 of them SiftingIO's USD/INR, mostly between 22:00 and 01:00 UTC, and six
+USD/BRL session openings whose first print was a stale pre-market quote - and with them
+out of the yardstick 19 real moves of the same pairs now read as flags. The candidates are
+the detector's own readings, built and scored by its own code: a check's own sigma of the
+last few months missed 23 of the 543 after a calm stretch, and gaps against the hourly
+sigma put 84 funds into one Monday-open run.
+The martial-law hours stay (`major`, `high`). The closest call
 left out: USD/TRY's +1.46% Sunday reopen on 2025-03-23, where Yahoo shows +0.61%.
 
 **A day is not a unit of completeness.** Gap detection asks about hours: a day present with
