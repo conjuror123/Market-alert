@@ -2,19 +2,17 @@
 
 The NYSE schedule comes from the exchange_calendars library, but NOT on every
 run: the library acts as a generator, and the result of its work lives in the
-repository as a table committed alongside the code. There are three reasons.
+repository as a table committed alongside the code. There are two reasons.
 
 1. Reproducibility. A test must yield an identical set of events on a
    repeat run of the same period under the same config_version. If the schedule
    is computed by the library at launch time, an update to it can move historical
    sessions - and a past backtest stops reproducing, although not a single
    configuration parameter was touched.
-2. The export schema explicitly requires holidays and half_sessions tables - that
-   is, data, not a function call.
-3. The hourly run then needs no calendar library at all, only a ready CSV. Fewer
+2. The hourly run then needs no calendar library at all, only a ready CSV. Fewer
    dependencies in the hourly run, faster installs.
 
-There are deliberately no separate holidays and half_sessions tables in the
+There are deliberately no separate holiday or half-session tables in the
 store: both are derived from the session table without loss - a business day that
 is absent is a holiday, and a row with is_early_close is a half session. Storing
 one and the same fact twice means getting two diverging answers sooner or later.

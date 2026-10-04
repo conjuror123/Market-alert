@@ -19,7 +19,7 @@ different things in the cross-section. It costs nothing extra - the providers
 count requests, not rows.
 
 THE DEEPENING MODES (--extend-history, --deepen-etfs, --deepen-alpaca,
---deepen-fx, --deepen-dukascopy, --fill-gaps) reach back past what the live providers serve,
+--deepen-dukascopy, --fill-gaps) reach back past what the live providers serve,
 and are routed to `source` rather than `provider`: Yahoo serves 55 days of
 half-hourly bars and Tiingo caps a response at 10000 rows, so only the archive
 provider can answer a walk backwards. An import from HF Data is un-adjusted

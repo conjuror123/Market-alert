@@ -328,7 +328,7 @@ def test_an_ordinary_midweek_hole_is_not_a_closure_for_a_currency_pair():
 # --- nickel: the LME's day ----------------------------------------------------
 
 def nickel():
-    return asset(ticker="NI", source="kitco", block="industrial_metals",
+    return asset(ticker="NID", source="sina", block="industrial_metals",
                  has_volume=False, tick_size=5.0, session_template="lme",
                  fetch_interval="1h")
 
