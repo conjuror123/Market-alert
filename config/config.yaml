@@ -1,9 +1,6 @@
 # What the hourly run needs, and nothing else.
 #
-# This file used to configure a detector: sixteen assets, and for each of them a
-# dial on every threshold it had. That detector is gone - Tremor replaced it, and
-# Tremor keeps its instruments in config/basket.yaml in a form that needs no
-# hand-typed threshold at all. See price_monitor/__main__.py.
+# The instruments and the detector's settings are in config/basket.yaml.
 #
 # Secrets are NOT here and must never be. The repository is public; the Telegram
 # token and chat ids and every provider key are read from the environment, which
@@ -28,6 +25,6 @@ tremor_alerts_muted: false
 # repeats itself afterwards. It reports runs that FAILED, which is all a check
 # living inside the run can report: a run that never happened increments
 # nothing. Runs that never happen are cron-job.org's to notice, since the
-# trigger is its call to make - see docs/operations.md.
+# trigger is its call to make - see docs/manual.md, "Running it".
 health_alert_after_failures: 3
 health_reminder_every_failures: 24

@@ -1,55 +1,25 @@
-# Tremor basket configuration.
+# Tremor basket configuration: the instruments, their blocks and providers, and
+# the detector's settings. The source of truth; docs/manual.md describes it.
 #
-# WHAT A BLOCK IS FOR. A block is a claim that its members respond to the same
-# thing with the same sign. The jump detector reads each instrument on its own;
-# the blocks group the reports (tools/stage_report.py). The co-jump and own-move
-# stages that would have tested against them were measured and dropped
-# (docs/decisions.md, "Settled and closed").
-# The previous detector modelled every instrument against its block's median,
-# and the measurements behind the composition below come from that; its notes
-# on the model are on the production branch.
-#
-# WHY THE BLOCKS LOOK LIKE THIS. Commercial multi-asset risk models do not use
-# one global factor either: they build a factor block per asset class and model
-# the blocks jointly, on the stated assumption that all the risk factors inside a
-# block share their time-series behaviour. Within equity the standard
-# substructure is the eleven GICS sectors; within commodities it is the GSCI
-# sectors - energy, precious metals, industrial metals, agriculture. That is what
-# is below.
-#
-# The one block that used to break its own rule was rates, which held HYG. High
-# yield is credit risk, and credit risk trades like equity, not like duration:
-# HYG's block factor explained 8% of its spread against SPY's 63%, and the basket
-# factor was the only thing carrying it - which is exactly why it looked like the
-# best argument for keeping the basket. It now sits in a credit block beside JNK,
-# LQD, EMB, BKLN and PFF, where its peers are actually its peers.
-#
-# Weights are DELIBERATELY absent. They are derived from the composition under
-# the equality rule
-#     weight_i = 1 / (N_blocks * N_assets_block)
-# and a stored weight could be hand-edited out of line with the rule, so the only
-# way never to diverge is not to store it. Nothing in the jump detector reads
-# them.
-#
-# Which provider carries what, and why, is below (WHAT THIS COSTS, HOURLY) and in
-# docs/decisions.md ("The data").
+# BLOCKS group instruments that answer to the same news: the GICS sectors within
+# equity, the GSCI sectors within commodities (energy, precious metals,
+# industrial metals, agriculture), credit apart from rates because high yield
+# trades like equity, not duration. The detector reads each instrument on its
+# own; blocks group the reports (tools/stage_report.py) and the alternation of
+# the funds' feeds.
 
 # Anchor exchange of the basket's reference calendar: Sun 17:00 .. Fri 17:00
 # local time. The bounds are stored in this timezone and converted to UTC on the
 # fly - they must not be stored as UTC.
 anchor_exchange_tz: America/New_York
 
-# Start of history. Matches the train period - this is the ANALYSIS floor, and
-# moving it moves the evaluation window.
+# history_since: required; the fallback for fetch_since.
 history_since: "2015-01-01"
 
-# The ACQUISITION floor, which is a different question: take whatever the
-# sources will still give, whether or not the analysis reaches it yet. Free
-# archives freeze, so bars not taken now may not be takeable later, and storing
-# history the analysis does not use costs nothing but disk. Each source stops at
-# its own limit on its own (see tremor.backfill and price_monitor.dukascopy), so
-# a floor deeper than anything
-# available is simply the instruction "as deep as you can".
+# fetch_since: how deep to acquire history. Take whatever the sources will still
+# give: free archives freeze, and bars not taken now may not be takeable later.
+# Each source stops at its own limit, so a floor deeper than anything available
+# means "as deep as you can".
 #
 # WHICH SOURCE REACHES HOW FAR BACK, because it is not one answer and getting it
 # wrong wastes a day of credits:
@@ -67,23 +37,21 @@ history_since: "2015-01-01"
 fetch_since: "2002-01-01"
 
 # ---------------------------------------------------------------------------
-# THE JUMP DETECTOR (tremor/jumps.py), built in stages (docs/architecture.md).
-# Its score is the jump test of Lee & Mykland (2008):
+# THE JUMP DETECTOR (tremor/jumps.py), the jump test of Lee & Mykland (2008):
 #
-#   z = the hour's move / the instrument's bipower volatility over the
-#       window_days before it (calendar time, the same for every instrument)
+#   z = the move / the instrument's bipower volatility over the window_days
+#       before it (calendar time, the same for every instrument)
 #   the word from |z|: noticeable, high, major, extreme at the four `levels`.
 #
 # window_days: half a year, inside the paper's valid range for every calendar.
-# levels: the owner's choice from the measured volumes (stage 12,
-#   docs/decisions.md) - about sqrt(2) apart, rounded, each word about three
-#   times rarer than the one below.
+# levels: about sqrt(2) apart, each word about three times rarer than the one
+#   below; the bottom sets the volume (docs/decisions.md, "The detector").
 detector:
   window_days: 182.6
   levels: [6.0, 8.5, 12.0, 17.0]
 
-# Session templates are filled in during phase 1 (holiday and half-session
-# calendars); here only the names the assets refer to.
+# Session templates: here only the names the assets refer to; the calendars
+# are in tremor/sessions.py and data/tremor/sessions/.
 session_templates:
   us_equity:
     exchange: NYSE
@@ -132,16 +100,11 @@ session_templates:
     tz: America/Sao_Paulo
     description: "09:00-18:00 Sao Paulo on weekdays, the onshore dollar market"
 
-# tick_size is the exchange price step, needed by the winsorization (the eps_MAD
-# floor includes the return on half a tick). It is stated explicitly rather than
-# measured from the data: the source serves ETF prices with a floating tail -
-# 769.53992 where the exchange shows 769.54 - so a measured precision of 1e-7
-# describes the vendor's storage format, not the trading step. For currency pairs
-# the source precision and the step coincide: five decimals, the yen included
-# (verified on real data). For crypto the step is the pair's own tick size
-# as Binance publishes it (exchangeInfo PRICE_FILTER), which is not 0.01 for every
-# pair - DOGE and POL quote to five decimals. The audit cross-checks the two and complains if the step is
-# finer than the precision.
+# tick_size is the exchange price step, stated rather than measured: a source
+# serves ETF prices with a floating tail (769.53992 for 769.54). The bar gate
+# allows half a tick of rounding between a bar's fields (tremor.quality), and the
+# coverage report flags a step finer than the source's precision. For crypto it
+# is the pair's tick on Binance (exchangeInfo PRICE_FILTER).
 #
 # fetch_interval is the interval at which the instrument is REQUESTED from the
 # source; it is not the system's working interval. ETF bars run on the :30
@@ -150,54 +113,28 @@ session_templates:
 # on series offset from one another by half an hour. This costs no credits: the
 # plan counts requests, not rows.
 #
-# WHAT THIS COSTS, HOURLY - each quota kept well under its limit, so tests and
-# backfills have room (docs/architecture.md, "Where the bars come from"):
-#   Tiingo       27 IEX-safe funds of its 50 requests an hour (shared with
-#                production until the switch);
+# WHAT THIS COSTS, HOURLY - each quota kept under about 85%, so tests and
+# backfills have room (docs/manual.md, "Running it"):
+#   Tiingo       27 IEX-safe funds, of its 50 requests an hour;
 #   Alpaca       30 more IEX-safe funds, free IEX bars, 30 of 200 a minute;
-#   Twelve Data  8 thin funds that need the consolidated tape, one or two in
-#                each commodity block - one batched request a run (its 8
-#                credits a minute), in a thread beside the other providers,
-#                ~65 of 800 credits a day;
-#   SiftingIO    the 17 FX pairs, ~520 a month each (USD/BRL in its session), ~85% of 10,000;
-#   Sina, Yahoo  the remaining 67 thin funds, split within each block so an
-#                outage of either leaves every block reporting - both the
-#                consolidated tape, both undocumented, neither with a quota;
-#   Google TUR; Sina the LME metals; Yahoo 4 futures; Binance the 16 coins (USDT pairs).
-# US-session names skip when the NYSE calendar says no bar can have appeared;
-# FX skips when the Sun 17:00-Fri 17:00 New York week is shut - see
-# tremor.backfill.nothing_can_have_appeared. History below 2020-02 is HF Data
-# (2002) and Alpaca's SIP (2016), once.
+#   Twelve Data  8 thin funds that need the consolidated tape - one batched
+#                request a run (its 8 credits a minute), in a thread beside the
+#                other providers;
+#   SiftingIO    the 17 FX pairs, ~85% of 10,000 a month;
+#   Sina, Yahoo  the remaining 67 funds, alternating within each block so an
+#                outage of either leaves every block reporting;
+#   Google TUR; Sina the LME metals; Yahoo 4 futures; Binance the 16 coins.
+# Instruments whose market is shut are not asked
+# (tremor.backfill.nothing_can_have_appeared).
 #
-# SOURCE IS THE STORE; PROVIDER IS THE SERVER. `source` names the identity: both
-# the asset_id and the file on disk are built from it, so every bar ever stored,
-# every exported event is keyed by it. It is not
-# edited when the fetch moves. `provider` says who is actually asked, and it can
-# change freely - the bars land in the same place either way.
+# SOURCE IS THE STORE; PROVIDER IS THE SERVER. `source` is the identity: the
+# asset_id and the file on disk are built from it, so it is never edited when
+# the fetch moves. `provider` says who is asked, and changes freely.
 #
-# WHY THEY DIFFER NOW. Twelve Data's free tier allows 8 requests a minute, which
-# the backfill honours with an 8-second pause between instruments. For 52 symbols
-# that pause was the entire run: 416 seconds of deliberate waiting. The other two
-# providers have no enforced pace, so the run is now about 12 seconds.
-#
-# WHICH PROVIDER, AND ON WHAT EVIDENCE. Each instrument was fetched from both
-# candidates and compared against the bars already stored, hour by hour, in basis
-# points - the full table is in docs/tiingo-findings.md.
-#
-#   tiingo  the ETFs whose IEX-only price matches the consolidated tape.
-#   sifting the currency pairs, since 2026-09-30: against the stored bars over
-#           300 hours, 0.11-0.35 bps median (Tiingo measured 0.43-1.57), the
-#           bar closed at :00 is served by :05 on the free tier, and it carries
-#           the EM pairs nothing else here does (price_monitor/sifting.py).
-#   yahoo   the fifteen ETFs where IEX is NOT the same price. These are thin
-#           commodity and credit funds where one exchange's slice of the tape
-#           diverges: SOYB by 7.2 bps, UGA by 7.97 with a worst hour of 76.8,
-#           which is about two sigma and would be delivered as a move that never
-#           happened. Yahoo matches the store at 0.00 bps median on all of them.
-#
-# Twelve Data still holds the archive and still serves --fill-gaps and
-# --extend-history: Yahoo caps intraday lookback at 55 days and Tiingo caps a
-# response at 10000 rows, so neither can deepen history however fast they answer.
+# WHICH PROVIDER: measured against the stored bars hour by hour in basis points
+# (docs/decisions.md, "Data and providers"). A fund goes to an IEX-only feed
+# (Tiingo, Alpaca) only where IEX prices it like the consolidated tape.
+# Twelve Data keeps the archive and serves --fill-gaps and --extend-history.
 assets:
   # --- equity ----------------------------------------------------------------
   # US and developed-market equity, the eleven GICS sectors first.
@@ -840,8 +777,9 @@ assets:
     session_template: crypto_24_7
     fetch_interval: 1h
     label: "Avalanche"
-  # Commodities themselves, now that their iPath ETNs no longer trade: Yahoo's
-  # continuous futures, hourly from 2024-05. Each its exchange's session; a
+  # Futures, live from Yahoo. History: coffee, cocoa and cotton from Dukascopy's
+  # single-contract CFDs (2018), live cattle from Yahoo (2024-05). Each in its
+  # exchange's session; a
   # roll's jump is left unscored and a bar too thin to be a trade dropped
   # (tremor/futures.py). Prices in the contract's own unit.
   - ticker: KC=F
@@ -893,16 +831,11 @@ assets:
     session_template: b3_fx
     fetch_interval: 1h
     label: "Brazilian real"
-  # --- the widening (2026-09-30) ---------------------------------------------
-  # Added on the development branch to take their history: funds from Twelve
-  # Data (2020-02 on) and HF Data's consolidated tape (before), live on Yahoo,
-  # which agrees with the consolidated tape on each of them; pairs from Twelve
-  # Data and Dukascopy, live on SiftingIO; coins from Binance. Blocked into the
-  # existing blocks for now. TUR is live on Google Finance's quote page, the
-  # one feed whose hourly closes match the tape on it (price_monitor/google.py);
-  # RWX on Yahoo, which matches the tape but lacks 3% of its hours - skipped as
-  # holes since 2026-10-01. Left out: the seven iPath ETNs (no longer trade) and
-  # USD/BRL (its session and history are still open) - docs/concerns-for-later.md.
+  # --- further funds, by block -------------------------------------------------
+  # History from Twelve Data (2020-02 on) and HF Data's consolidated tape before
+  # it. TUR is on Google Finance's quote page, the one feed whose hourly closes
+  # match the tape on it (price_monitor/google.py); RWX on Yahoo, which matches
+  # the tape but lacks 3% of its hours, skipped as holes.
   - ticker: KRE
     source: twelvedata
     provider: alpaca
@@ -1937,16 +1870,10 @@ assets:
     fetch_interval: 1h
     label: "Aave"
 
-# Instruments outside the basket: they take no part in the quorum, the weights or
-# breadth, but they get residuals and events like anything else. block is
-# mandatory - it decides which block factor they are modelled against, and unlike
-# a basket member they use the WHOLE block median, since there is nothing of
-# theirs in it to leave out.
+# Instruments outside the basket: scored and delivered like any other, but kept
+# out of the basket's block counts. block is still required.
 outside_basket:
-  # A broad commodity index is roughly 55% energy, the rest metals and
-  # agriculture, so it belongs to no block and cannot be a member of one without
-  # dragging that block's median toward the others. Out here it keeps its alerts
-  # and is modelled against energy, the largest thing inside it.
+  # A broad commodity index, about 55% energy: it belongs to no one block.
   - ticker: DBC
     source: twelvedata
     provider: twelvedata
@@ -1958,46 +1885,12 @@ outside_basket:
     fetch_interval: 30min
     label: "Broad commodity basket"
 
-# External one-sided stress indicator. Not part of the basket and takes no part
-# in the quorum. Source: FRED, series VIXCLS - the real index going back to 1990,
-# without the contango drift of ETFs on VIX futures.
-#
-# THE LEVEL OF FEAR, AND NOTHING ELSE. VIXY, the tradable futures product, was
-# briefly listed as a watched instrument here so that fear could be read in the
-# same hour as a move. It was removed, on two grounds measured rather than
-# assumed.
-#
-# It could not have earned a message. It belongs to the equity block, so its
-# events land on the days the equity block moves and collapse into that push -
-# it would have contributed one more line, never an interruption of its own.
-#
-# And that line would have been the least trustworthy in the block. Measured
-# across 5956 trading days, the residual a linear beta leaves on days the S&P
-# moved more than 3% is systematically signed: -2.35 sigma on the down days and
-# +4.18 sigma on the up ones. Ordinary members show the same shape - XLF is
-# -1.63 and +2.10, IEF +2.19 and -1.65 - so this is a difference of degree and
-# not of kind, but VIX is the worst of them by roughly a factor of two, and what
-# the residual would mostly be reporting is that the beta was fitted on quiet
-# hours.
-#
-# What a reader wants from VIX is the regime, not a residual: "this happened
-# with VIX at 34, having been 17 last week". That is a level, it moves slowly
-# enough for a daily series to carry it, and FRED serves it back to 1990.
-#
-# Two peculiarities of the FRED series, both departures from the letter of the
-# spec:
-#   1. It is DAILY, so a spike is identified on daily bars, not hourly ones.
-#   2. It is published with a one- to two-business-day delay, so the multiplier
-#      window is counted from the moment the value became known to the system,
-#      not from the observation date. Otherwise the backtest would look ahead.
-# history_since here is ITS OWN, different from the basket's, and that is not
-# sloppiness. The burn-in needs 720 observations before sigma_LT appears, and for
-# a daily series that is almost three years. Starting from 2021 we would get a
-# working multiplier only from October 2023 - that is, across the entire train
-# period it would silently equal one, and threshold calibration would run on a
-# series in which stress regimes appear not to exist. VIX is not in the basket,
-# so the limit on the basket's history depth does not apply to it, and FRED
-# serves the series from 1990 for free.
+# The VIX: FRED's VIXCLS, the index itself from 1990, shown on the weekly note
+# as a level ranked in its own history - the regime the week's moves happened
+# in (price_monitor.tremor_delivery.vix_context). Daily,
+# and published a business day or two late, so each value is used from when it
+# became known (`available_at`), never from its observation date. Its own
+# history_since: the series is free back to 1990.
 volatility_index:
   series_id: VIXCLS
   source: fred
