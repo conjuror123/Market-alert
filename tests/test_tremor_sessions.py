@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
@@ -315,3 +315,61 @@ def test_no_calendar_means_no_day_can_be_called_closed():
     # the reader believes is not.
     last = int(datetime(2026, 9, 4, 19, tzinfo=timezone.utc).timestamp())
     assert not sessions.day_is_closed(last, "us_equity", {})
+
+
+# --- the table extends itself, append-only ------------------------------------
+
+def _table_until(path, last):
+    from tremor.sessions import Session, write_sessions
+    days = [last - timedelta(days=k) for k in range(10) if (last - timedelta(days=k)).weekday() < 5]
+    # A past row the library would describe differently today: it must survive.
+    odd = Session(day=days[-1], local_open="09:30", local_close="13:00", is_early_close=True)
+    rows = [Session(day=d, local_open="09:30", local_close="16:00", is_early_close=False)
+            for d in days[:-1]] + [odd]
+    write_sessions(str(path), rows)
+    return odd
+
+
+def _fake_generate(start, end):
+    from tremor.sessions import Session
+    out, d = [], start
+    while d <= end:
+        if d.weekday() < 5:
+            out.append(Session(day=d, local_open="09:30", local_close="16:00",
+                               is_early_close=False))
+        d += timedelta(days=1)
+    return out
+
+
+def test_a_short_table_is_extended_three_years_and_its_rows_kept(tmp_path):
+    from tremor.sessions import extend_sessions, load_sessions
+    path = tmp_path / "nyse.csv"
+    odd = _table_until(path, date(2027, 12, 31))
+    before = load_sessions(str(path))
+    added = extend_sessions(str(path), today=date(2026, 10, 4), generate=_fake_generate)
+    after = load_sessions(str(path))
+    assert added > 0 and max(after) == date(2029, 12, 31)
+    assert all(after[d] == s for d, s in before.items())    # nothing already there moved
+    assert after[odd.day].is_early_close
+
+
+def test_a_table_that_reaches_far_enough_is_left_alone(tmp_path):
+    from tremor.sessions import extend_sessions, needs_extension
+    path = tmp_path / "nyse.csv"
+    _table_until(path, date(2029, 6, 30))
+    assert needs_extension(str(path), today=date(2026, 10, 4)) is False
+    def never(*a):
+        raise AssertionError("the calendar library was asked for nothing")
+    assert extend_sessions(str(path), today=date(2026, 10, 4), generate=never) == 0
+
+
+def test_the_extension_with_the_real_calendar_library(tmp_path):
+    pytest.importorskip("exchange_calendars")
+    from tremor.sessions import extend_sessions, load_sessions
+    path = tmp_path / "nyse.csv"
+    _table_until(path, date(2028, 12, 29))
+    extend_sessions(str(path), today=date(2027, 6, 1))
+    table = load_sessions(str(path))
+    assert date(2029, 1, 1) not in table                  # New Year's Day
+    assert date(2029, 1, 2) in table and max(table) == date(2030, 12, 31)
+    assert table[date(2029, 11, 23)].is_early_close        # the day after Thanksgiving

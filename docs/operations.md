@@ -92,6 +92,12 @@ never rewritten (`tremor/bars.py`): about 1 MB for all instruments. A year enter
 more, as `YYYY.parquet`, on the first run a week into January, and its months leave the
 tree: about 16 MB.
 
+**The NYSE session table extends itself.** `data/tremor/sessions/nyse.csv` reaches
+2028-12-29; once under two years remain the hourly run installs exchange_calendars and
+appends the years to three ahead (`tremor.sessions.extend_sessions`, append-only - the rows
+already there never move), and commits the table with the state. About once a year, first at
+the end of 2026.
+
 **Never in git: the open months** (`YYYY-MM.open.csv`, gitignored). They are one archive,
 `bars-live-<run>.tar.gz`, on the prerelease `bars-live-<branch>` of this repository
 (`tools/hot_bars.sh`). Each run restores it before the backfill and saves it straight

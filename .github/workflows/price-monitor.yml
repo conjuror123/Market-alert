@@ -35,6 +35,21 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # The NYSE session table extends itself, append-only, once under two
+      # years remain (tremor/sessions.py) - about once a year. The calendar
+      # library is installed only then; the hourly run never needs it otherwise.
+      # continue-on-error: a table with a year or more left is no reason to
+      # stop the run, and the next hour tries again.
+      - name: Extend the session table when it runs short
+        continue-on-error: true
+        run: |
+          if python -c "import sys; from tremor import sessions; sys.exit(0 if sessions.needs_extension() else 1)"; then
+            pip install "exchange-calendars>=4.13,<5"
+            python -m tremor.sessions --extend-if-short
+          else
+            echo "session table reaches far enough"
+          fi
+
       - name: Restore gitignored Tremor parquet
         uses: actions/cache/restore@v4
         with:
@@ -147,7 +162,7 @@ jobs:
           mkdir -p data/economic_calendar
           git config user.name "price-monitor-bot"
           git config user.email "actions@github.com"
-          git add data/state.json data/economic_calendar config/basket.yaml
+          git add data/state.json data/economic_calendar config/basket.yaml data/tremor/sessions
           # Every run, and small: which payouts are known and how far each
           # fund's record is confirmed. An overnight gap is scored only on a
           # date its fund has been checked through, and a runner is thrown

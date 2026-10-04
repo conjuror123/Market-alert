@@ -76,15 +76,56 @@ def generate_nyse_sessions(start: date, end: date) -> list[Session]:
 
 
 def write_sessions(path: str, sessions: list[Session]) -> None:
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    with open(path, "w", encoding="utf-8", newline="") as f:
-        # \n rather than the default \r\n: the file lives in the repository, and
-        # a carriage return on every line would clutter diffs on each regeneration.
-        writer = csv.writer(f, lineterminator="\n")
-        writer.writerow(["date", "local_open", "local_close", "is_early_close"])
-        for s in sorted(sessions, key=lambda s: s.day):
-            writer.writerow([s.day.isoformat(), s.local_open, s.local_close,
-                             "1" if s.is_early_close else "0"])
+    from tremor import atomic
+
+    def _write(tmp: str) -> None:
+        with open(tmp, "w", encoding="utf-8", newline="") as f:
+            # \n rather than the default \r\n: the file lives in the repository,
+            # and a carriage return on every line would clutter diffs.
+            writer = csv.writer(f, lineterminator="\n")
+            writer.writerow(["date", "local_open", "local_close", "is_early_close"])
+            for s in sorted(sessions, key=lambda s: s.day):
+                writer.writerow([s.day.isoformat(), s.local_open, s.local_close,
+                                 "1" if s.is_early_close else "0"])
+
+    atomic.write_replacing(path, _write)
+
+
+# THE TABLE EXTENDS ITSELF, APPEND-ONLY. Past its last row every weekday would
+# read as a holiday: no fund gap scored, no fund ever skipped. So the hourly run
+# checks how far it reaches (needs_extension, no calendar library needed) and,
+# once under EXTEND_WHEN_YEARS_LEFT years remain, the workflow installs
+# exchange_calendars and appends the years up to EXTEND_YEARS ahead - about
+# once a year. Only days AFTER the last row are written: the rows already there
+# are the schedule every stored reading was judged against, and a newer library
+# that revised a past session must not move them (reason 1 above).
+EXTEND_WHEN_YEARS_LEFT = 2
+EXTEND_YEARS = 3
+
+
+def needs_extension(path: str = DEFAULT_SESSIONS_PATH, today: "date | None" = None) -> bool:
+    """Whether the table ends within EXTEND_WHEN_YEARS_LEFT years of today."""
+    today = today or date.today()
+    last = max(load_sessions(path))
+    return last < today + timedelta(days=round(365.25 * EXTEND_WHEN_YEARS_LEFT))
+
+
+def extend_sessions(path: str = DEFAULT_SESSIONS_PATH, today: "date | None" = None,
+                    generate=None) -> int:
+    """Appends the sessions after the table's last row through the end of the
+    year EXTEND_YEARS from now, if it is short. Returns how many days were added;
+    the rows already in the table are left exactly as they are."""
+    today = today or date.today()
+    if not needs_extension(path, today):
+        return 0
+    table = load_sessions(path)
+    last = max(table)
+    until = date(today.year + EXTEND_YEARS, 12, 31)
+    new = [s for s in (generate or generate_nyse_sessions)(last + timedelta(days=1), until)
+           if s.day > last]
+    if new:
+        write_sessions(path, list(table.values()) + new)
+    return len(new)
 
 
 def load_sessions(path: str = DEFAULT_SESSIONS_PATH) -> dict[date, Session]:
@@ -416,10 +457,21 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(
         description="Generate the NYSE session table")
-    parser.add_argument("--start", default="2021-01-01")
+    # The table starts with the store's oldest bars. A narrower --start rewrites
+    # it without the years before, which every fund's history was judged against.
+    parser.add_argument("--start", default="2002-01-01")
     parser.add_argument("--end", default="2028-12-31")
     parser.add_argument("--out", default=DEFAULT_SESSIONS_PATH)
+    parser.add_argument("--extend-if-short", action="store_true",
+                        help="append the coming years when under two remain "
+                             "(append-only; what the hourly workflow runs)")
     args = parser.parse_args(argv)
+
+    if args.extend_if_short:
+        added = extend_sessions(args.out)
+        print(f"{args.out}: {added} trading days appended" if added
+              else f"{args.out}: reaches far enough, nothing appended")
+        return 0
 
     sessions = generate_nyse_sessions(date.fromisoformat(args.start),
                                       date.fromisoformat(args.end))

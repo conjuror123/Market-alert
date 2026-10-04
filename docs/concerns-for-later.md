@@ -126,9 +126,6 @@ lives"), what is missing and what was tried:
   most rolls through 2025-2026 too, not only 2018: cocoa lacks 41% of its 2026 trading
   days, coffee 23%, cattle 21% (its interleaved stretches). Live bars come from the front
   contract and do not add holes; the history keeps them.
-- **The NYSE session table ends 2028-12-29** (`data/tremor/sessions/nyse.csv`), and
-  nothing warns before it does: regenerate it with `python -m tremor.sessions --end ...`
-  during 2028. Past its end no fund gap is scored and the funds are never skipped.
 - **A two-part weekly calendar whose second send fails** resends its first part the next
   hour (`weekly_digest._post` marks the week only when every part went).
 
