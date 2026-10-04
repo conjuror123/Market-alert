@@ -233,10 +233,11 @@ def test_the_detector_version_ignores_comments_and_follows_the_settings(tmp_path
     root = tmp_path / "repo"
     (root / "tremor").mkdir(parents=True)
     (root / "config").mkdir()
-    for name in ("jumps.py", "returns.py", "pipeline.py", "quality.py", "routing.py",
-                 "windows.py"):
+    for name in jumps.DETECTOR_CODE:
         shutil.copy(f"tremor/{name}", root / "tremor" / name)
     shutil.copy(jumps.DEFAULT_BASKET_PATH, root / "config" / "basket.yaml")
+    (root / "data" / "tremor").mkdir(parents=True)
+    shutil.copy("data/tremor/rolls.csv", root / "data" / "tremor" / "rolls.csv")
     before = jumps.detector_version(str(root))
 
     code = root / "tremor" / "routing.py"
@@ -253,6 +254,34 @@ def test_the_detector_version_ignores_comments_and_follows_the_settings(tmp_path
 
     basket.write_text(basket.read_text().replace("noticeable_sigma: 6.0",
                                                  "noticeable_sigma: 6.5"))
+    assert jumps.detector_version(str(root)) != before
+
+
+def test_a_new_session_or_roll_is_a_detector_update(tmp_path):
+    # Which hours a market trades and which nights are rolls decide the events
+    # as surely as the score does: the metrics rebuild for them
+    # (versioning.CONFIG_INPUTS), so the week must restart for them too.
+    import shutil
+
+    root = tmp_path / "repo"
+    (root / "tremor").mkdir(parents=True)
+    (root / "config").mkdir()
+    (root / "data" / "tremor").mkdir(parents=True)
+    for name in jumps.DETECTOR_CODE:
+        shutil.copy(f"tremor/{name}", root / "tremor" / name)
+    shutil.copy(jumps.DEFAULT_BASKET_PATH, root / "config" / "basket.yaml")
+    shutil.copy("data/tremor/rolls.csv", root / "data" / "tremor" / "rolls.csv")
+    before = jumps.detector_version(str(root))
+
+    sessions = root / "tremor" / "sessions.py"
+    sessions.write_text(sessions.read_text().replace('"lme": ("Europe/London", (1, 0), (19, 0))',
+                                                     '"lme": ("Europe/London", (1, 0), (18, 0))'))
+    assert jumps.detector_version(str(root)) != before
+    shutil.copy("tremor/sessions.py", sessions)
+    assert jumps.detector_version(str(root)) == before
+
+    rolls = root / "data" / "tremor" / "rolls.csv"
+    rolls.write_text(rolls.read_text() + "KC=F,2030-01-02\n")
     assert jumps.detector_version(str(root)) != before
 
 

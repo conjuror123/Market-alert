@@ -239,7 +239,8 @@ the note no longer needs is deleted. The bot is an administrator of a public cha
 delete it is refused anyway is struck through by an edit.
 
 **A detector update** — a new `jumps.detector_version()`, the hash of the detector's parsed
-code and the basket — restarts the week at that run: every push and ping message of the week is
+code (the sessions and the futures rolls included, `jumps.DETECTOR_CODE`), the roll table and
+the basket — restarts the week at that run: every push and ping message of the week is
 deleted, the note and the calendar stay, and the note shows only what is found from then
 on. The first run of this delivery on the previous one's state is handled the same way.
 

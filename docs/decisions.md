@@ -234,8 +234,8 @@ weekend gap at its open, which is the whole of it.
 not the old one's, so correcting the old messages against them would be rewriting them with
 another instrument's readings. The reader's rule: delete the week's pushes and pings, keep
 the note and the calendar, and go on from that run as if on a new channel — nothing found
-before the update rings. The update is a hash of the parsed code and the basket, so a
-comment does not count.
+before the update rings. The update is a hash of the parsed code (sessions and rolls
+included), the roll table and the basket, so a comment does not count.
 
 **The size is said in σ, and the word is the colour.** `|move| / σ` over the instrument's own
 half-year, to one decimal, at the end of the first line — `11.0×σ` — in the push and the

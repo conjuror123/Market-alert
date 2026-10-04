@@ -452,6 +452,14 @@ def held_at_close(metrics: pd.DataFrame, flagged: pd.DataFrame, now: int
     return check, held
 
 
+# What decides the set of events, for detector_version: the score and the
+# routing, and - as for the metrics' own version (tremor.versioning.CONFIG_INPUTS)
+# - which hours each market trades and which nights are contract rolls.
+DETECTOR_CODE = ("jumps.py", "returns.py", "pipeline.py", "quality.py", "routing.py",
+                 "windows.py", "sessions.py", "futures.py")
+DETECTOR_DATA = (os.path.join("data", "tremor", "rolls.csv"),)
+
+
 def detector_version(root: "str | None" = None) -> str:
     """A hash of what decides the set of events: the detector's code, parsed
     with docstrings stripped, and the basket and its settings, parsed so that a
@@ -465,10 +473,14 @@ def detector_version(root: "str | None" = None) -> str:
 
     root = root or os.path.join(os.path.dirname(__file__), "..")
     digest = hashlib.sha256()
-    for name in ("jumps.py", "returns.py", "pipeline.py", "quality.py", "routing.py",
-                 "windows.py"):
+    for name in DETECTOR_CODE:
         with open(os.path.join(root, "tremor", name), "rb") as f:
             digest.update(versioning._code(f.read()))
+    for relative in DETECTOR_DATA:
+        path = os.path.join(root, relative)
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                digest.update(f.read())
     with open(os.path.join(root, "config", "basket.yaml"), encoding="utf-8") as f:
         basket = yaml.safe_load(f) or {}
     # Who serves an instrument and what it is called cannot change an event, so
