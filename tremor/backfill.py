@@ -1166,6 +1166,9 @@ def main(argv: list[str] | None = None) -> int:
                              "consolidated tape with the tape's bars. Overwrites "
                              "stored history: name the funds with --instruments.")
     args = parser.parse_args(argv)
+    # A history walk shares the Twelve Data key with the hourly run: it leaves
+    # the run its minutes and its share of the day (twelvedata.ARCHIVE_CREDIT_CAP).
+    twelvedata.archive_mode = bool(args.extend_history or args.fill_gaps)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     if args.live_pass:
@@ -1499,7 +1502,7 @@ def main(argv: list[str] | None = None) -> int:
             # one fails too; asking them anyway cost 32 seconds each and pushed
             # the job past its timeout, which skipped delivery entirely.
             quota_gone = True
-            log.error("Twelve Data daily credits are gone - %s", exc)
+            log.error("Twelve Data credits are spent - %s", exc)
             log.error("Stopping the fetch here. %d instrument(s) not asked for; "
                       "the pipeline continues on the bars already stored.",
                       len(instruments) - i - 1)

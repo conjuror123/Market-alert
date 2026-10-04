@@ -319,3 +319,59 @@ def test_the_daily_budget_stops_a_history_walk_rather_than_ending_it_quietly():
         twelvedata.fetch_full_history(
             symbol="SPY", interval="1h", days=900, base_url="https://x",
             api_key="k", session=session, request_delay_seconds=0, chunk_days=150)
+
+
+# --- the archive's share of the key -------------------------------------------
+
+@pytest.fixture
+def archive(monkeypatch):
+    """A history walk: archive mode on, nothing spent yet, a fake clock and sleep."""
+    monkeypatch.setattr(twelvedata, "archive_mode", True)
+    monkeypatch.setattr(twelvedata, "archive_credits", 0)
+    slept = []
+    monkeypatch.setattr(twelvedata.time, "sleep", slept.append)
+    return slept
+
+
+def _at(minute, second=0):
+    return lambda: datetime(2026, 10, 5, 14, minute, second, tzinfo=timezone.utc)
+
+
+def test_a_walk_waits_out_the_hourly_runs_minutes(monkeypatch, archive):
+    # The hourly batch spends a whole minute's eight credits at about :05.
+    monkeypatch.setattr(twelvedata, "_now", _at(5, 30))
+    session = FakeSession([(200, ok_payload([("2026-06-01 00:00:00", 1, 1, 1, 1)]))])
+    fetch_full_history("SPY", "30min", days=10, base_url="https://x", api_key="k",
+                       session=session, request_delay_seconds=0)
+    assert archive[0] == (12 - 5) * 60 - 30
+    assert twelvedata.archive_credits == 1
+
+
+def test_a_walk_outside_those_minutes_does_not_wait(monkeypatch, archive):
+    monkeypatch.setattr(twelvedata, "_now", _at(20))
+    session = FakeSession([(200, ok_payload([("2026-06-01 00:00:00", 1, 1, 1, 1)]))])
+    fetch_full_history("SPY", "30min", days=10, base_url="https://x", api_key="k",
+                       session=session, request_delay_seconds=0)
+    assert archive == []
+
+
+def test_a_walk_stops_at_its_share_of_the_day(monkeypatch, archive):
+    monkeypatch.setattr(twelvedata, "_now", _at(20))
+    monkeypatch.setattr(twelvedata, "archive_credits", twelvedata.ARCHIVE_CREDIT_CAP)
+    session = FakeSession([])
+    with pytest.raises(twelvedata.DailyQuotaExhausted, match="share"):
+        fetch_full_history("SPY", "30min", days=10, base_url="https://x", api_key="k",
+                           session=session, request_delay_seconds=0)
+    assert session.calls == []
+
+
+def test_the_hourly_run_neither_waits_nor_counts(monkeypatch):
+    monkeypatch.setattr(twelvedata, "archive_mode", False)
+    monkeypatch.setattr(twelvedata, "archive_credits", twelvedata.ARCHIVE_CREDIT_CAP)
+    monkeypatch.setattr(twelvedata, "_now", _at(5))
+    slept = []
+    monkeypatch.setattr(twelvedata.time, "sleep", slept.append)
+    session = FakeSession([(200, ok_payload([("2026-06-01 00:00:00", 1, 1, 1, 1)]))])
+    fetch_full_history("SPY", "30min", days=10, base_url="https://x", api_key="k",
+                       session=session, request_delay_seconds=0)
+    assert slept == [] and len(session.calls) == 1

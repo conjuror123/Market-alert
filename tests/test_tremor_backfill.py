@@ -1553,3 +1553,16 @@ def test_an_alpaca_rate_limit_skips_remaining_alpaca_instruments(tmp_path, monke
     # Asked once; HYG and JNK skipped rather than each waiting out Alpaca's retries.
     assert asked == ["LQD", "BTC/USDT"]
     assert any("alpaca" in a.lower() for a in alerts)
+
+
+@pytest.mark.parametrize("mode, walk", [("--extend-history", True), ("--fill-gaps", True),
+                                        ("--live-pass", False)])
+def test_only_a_history_walk_takes_the_archive_share(mode, walk, monkeypatch):
+    from price_monitor import twelvedata
+    from tremor import backfill
+    monkeypatch.setattr(twelvedata, "archive_mode", not walk)
+    monkeypatch.delenv("TWELVEDATA_API_KEY", raising=False)
+    monkeypatch.setattr(backfill, "load_basket", lambda: (_ for _ in ()).throw(SystemExit(0)))
+    with pytest.raises(SystemExit):
+        backfill.main([mode])
+    assert twelvedata.archive_mode is walk

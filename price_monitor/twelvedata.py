@@ -1,18 +1,10 @@
-"""Twelve Data REST client (spot forex pairs), used in place of Yahoo Finance
-for this asset class.
+"""Twelve Data REST client: the hourly batch of the thin funds (fetch_batch)
+and the archive walk behind history and gap-filling (fetch_full_history).
 
-Unlike Yahoo's unofficial chart endpoint (used elsewhere in this app for
-futures/indices), this is a documented, officially supported API - a second,
-independent provider so a Yahoo outage doesn't take every asset down at once.
-Needs a free API key (see README): the free tier is 800 API credits/day and
-8/minute, one credit per symbol per request - which is why config.yaml caps
-forex at exactly 8 pairs, to use the whole per-minute budget in one run
-without tripping the limit.
-
-As with spot FX on Yahoo, there is no centralized trade volume for currency
-pairs - `volume` is always 0.0 for them here too, and that's expected, not a
-bug. Exchange-traded funds served by the same API do carry real hourly volume,
-and it is parsed when present.
+The free tier is 800 credits a day and 8 a minute, one credit per symbol per
+request, and the key is shared between the hourly run and any history walk:
+see ARCHIVE_CREDIT_CAP for how a walk leaves the hourly run its share. Funds
+carry real hourly volume, and it is parsed when present.
 """
 from __future__ import annotations
 
@@ -94,6 +86,48 @@ class DailyQuotaExhausted(PermanentExchangeError):
     """
 
 
+# --- the archive's share of the key -------------------------------------------
+#
+# The hourly run asks for its eight funds in one request that spends a whole
+# minute's eight credits, at about :05 past the hour, and needs up to 8 x 24
+# credits a day. A history walk (tremor.backfill --extend-history, --fill-gaps)
+# on the same key paces itself to about seven a minute and would otherwise run
+# until the day's 800 are gone - leaving the hourly run's funds stale every hour
+# it overlapped and dark until midnight UTC after it. So a walk, and only a
+# walk, sets `archive_mode`: it waits out LIVE_SLOT_MINUTES past each hour and
+# stops at ARCHIVE_CREDIT_CAP. One walk a day keeps the hourly run whole.
+ARCHIVE_CREDIT_CAP = 600
+LIVE_SLOT_MINUTES = (3, 12)
+archive_mode = False
+archive_credits = 0
+
+
+class ArchiveShareSpent(DailyQuotaExhausted):
+    """A history walk has spent its share of the day; the rest is the hourly run's."""
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _archive_turn(symbol: str) -> None:
+    """Before an archive request: stop at the walk's share of the day, and wait
+    out the minutes the hourly batch spends its credits in. A no-op outside
+    archive mode, which is how the hourly run calls this module."""
+    global archive_credits
+    if not archive_mode:
+        return
+    if archive_credits >= ARCHIVE_CREDIT_CAP:
+        raise ArchiveShareSpent(
+            f"{symbol}: the walk has spent its share of the day ({ARCHIVE_CREDIT_CAP} "
+            "credits); the rest is left to the hourly run")
+    now = _now()
+    first, last = LIVE_SLOT_MINUTES
+    if first <= now.minute < last:
+        time.sleep((last - now.minute) * 60 - now.second)
+    archive_credits += 1
+
+
 def _interval_code(interval: str) -> str:
     try:
         return INTERVAL_CODES[interval]
@@ -146,6 +180,7 @@ def _request(
 ) -> list[Candle]:
     last_error: Exception | None = None
     for attempt in range(1, retries + 1):
+        _archive_turn(symbol)
         try:
             resp = sess.get(url, params=params, timeout=15, headers={"User-Agent": "market-alert-bot"})
             if resp.status_code != 200:

@@ -388,7 +388,7 @@ whole job ~2 min, timeout 20 min.
 |---|---|---|
 | Tiingo | 50/hour, 1,000/day | 27 requests a run |
 | Alpaca | 200/min | 30 a run |
-| Twelve Data | 800/day, 8/min | one batch of 8 a run, in a background thread |
+| Twelve Data | 800/day, 8/min | one batch of 8 a run, in a background thread; a history walk (`--extend-history`, `--fill-gaps`) waits out :03–:12 past each hour and stops at 600 a day (`twelvedata.ARCHIVE_CREDIT_CAP`), so run one a day |
 | SiftingIO | 10,000/month | ~8,500/month (17 pairs, skipped outside the FX week) |
 | Yahoo, Sina, Google, MarketWatch | none published | live fetch, dividend check, second source (a few requests a run) |
 | Binance | 6,000 weight/min per address | 16 a run |
