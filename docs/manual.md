@@ -144,8 +144,10 @@ once a day.
 A real trade shows up on another feed; a source's bad print does not. Right after the
 fetch, every reading of the last 24 hours at **4σ or more** is asked of a second,
 independent feed (`tremor/verify.py`). The readings are the detector's own, built by
-`pipeline.build_asset_metrics` and scored by `jumps`, each asked when the detector finds
-it. Every flagged reading (6σ and up) is therefore asked about.
+`pipeline.build_asset_metrics` and scored by `jumps` with the detector's settings
+(`detector:` in `config/basket.yaml`), each asked when the detector finds it. Every
+reading the detector can flag is therefore asked about; with a bottom level under 4σ,
+the line follows it down.
 
 | served by | asked of |
 |---|---|

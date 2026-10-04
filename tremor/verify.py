@@ -32,7 +32,8 @@ answered and none saw it. A source with bars around the move outweighs one that
 only bridges it. A source that fails to answer leaves the other to.
 
 WHICH BARS (candidates). The detector's own readings, ended within the last
-PENDING_HOURS, at CANDIDATE_SIGMA or more of their own kind: an hour's move as
+PENDING_HOURS, at CANDIDATE_SIGMA (or the detector's bottom level, if set lower)
+or more of their own kind, scored with the detector's own window: an hour's move as
 tremor.returns measures it (`close`: from the previous close, or from its own
 open on a session's first bar and after a hole) against the instrument's
 earlier hours, and a session's gap (`open`) against its earlier gaps. That is
@@ -169,34 +170,50 @@ def fetch_verifier(name: str, symbol: str, interval: str, days: float,
 
 # --- which bars ----------------------------------------------------------------
 
+def tail_days(window: float) -> float:
+    """Days of bars read before the window: the detector's own window
+    (detector.window_days in config/basket.yaml) and more."""
+    return max(float(TAIL_DAYS), float(window) + 18.0)
+
+
+def candidate_line(levels) -> float:
+    """The |z| a reading is asked about from: CANDIDATE_SIGMA, or the
+    detector's bottom level if that is set lower, so every reading the
+    detector can flag is asked about."""
+    return min(CANDIDATE_SIGMA, float(levels[0]))
+
+
 def candidates(asset: Asset, frame: pd.DataFrame, table, now: int,
-               since: "int | None" = None, basket=None, dividends=None) -> "list[dict]":
+               since: "int | None" = None, basket=None, dividends=None,
+               settings=None) -> "list[dict]":
     """The detector's own readings, judgeable from `since` on (default
-    PENDING_HOURS ago), at CANDIDATE_SIGMA or more: the metrics built as the
+    PENDING_HOURS ago), at candidate_line or more: the metrics built as the
     pipeline builds them (pipeline.build_asset_metrics - the hour's move from
     the previous close, or from its own open on a session's first bar and
     after a hole; the gap dividend-adjusted, unscored where the pipeline
     leaves it so), scored as tremor.jumps scores them, and found when it
     finds them (jumps.ended: an hour once it has ended, a pair's gap at its
-    open). Only the recent bars are read: TAIL_DAYS before the window, more
-    than the detector's half-year."""
+    open), with the detector's window and levels (`settings`, read from
+    config/basket.yaml once per pass). Only the recent bars are read:
+    tail_days before the window, more than the detector's own."""
     from tremor import jumps, pipeline
     from tremor.basket import load_basket
 
     since = int(now) - PENDING_HOURS * HOUR if since is None else int(since)
-    recent = frame[frame["hour_utc"] >= since - TAIL_DAYS * 86400]
+    window, levels = settings or jumps.settings()
+    recent = frame[frame["hour_utc"] >= since - tail_days(window) * 86400]
     metrics = pipeline.build_asset_metrics(asset, basket or load_basket(), recent, table,
                                            dividends)
     if len(metrics) < 30:
         return []
     metrics = metrics.sort_values("hour_utc").reset_index(drop=True)
     template = asset.session_template
-    readings = [jumps.score(metrics[["hour_utc", "r"]], template),
-                jumps.score_gaps(metrics[["hour_utc", "gap"]], template=template)]
+    readings = [jumps.score(metrics[["hour_utc", "r"]], template, window, levels),
+                jumps.score_gaps(metrics[["hour_utc", "gap"]], window, levels, template)]
     readings = jumps.ended(pd.concat([f for f in readings if not f.empty], ignore_index=True),
                            template, now)
     far = readings[(readings["hour_utc"] >= since)
-                   & (readings["z"].abs() >= CANDIDATE_SIGMA)]
+                   & (readings["z"].abs() >= candidate_line(levels))]
     h = metrics["hour_utc"].to_numpy(dtype="int64")
     close = metrics["close"].to_numpy(dtype="float64")
     opened = metrics["open"].to_numpy(dtype="float64")
@@ -363,7 +380,7 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
     again from the bars as they now are - or, with `history`, everything
     within the second source's reach. Returns how many of each verdict."""
     from price_monitor import yahoo
-    from tremor import corporate_actions
+    from tremor import corporate_actions, jumps
     from tremor.basket import load_basket
 
     now_dt = now or datetime.now(timezone.utc)
@@ -371,6 +388,7 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
     record = load(path)
     basket = load_basket()
     dividends = corporate_actions.load_dividends()
+    settings = jumps.settings()
     blocked = set(blocked or ())
 
     # Which readings each instrument has in the window. A verdict there whose
@@ -383,10 +401,10 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
         reach = max(reach_days(w) for w in sources)
         since = now_ts - reach * 86400 if history else now_ts - PENDING_HOURS * HOUR
         frame = bars.load(bars.store_path(bars_dir, asset.file_stem),
-                          since - TAIL_DAYS * 86400)
+                          since - tail_days(settings[0]) * 86400)
         if frame.empty:
             continue
-        found = candidates(asset, frame, table, now_ts, since, basket, dividends)
+        found = candidates(asset, frame, table, now_ts, since, basket, dividends, settings)
         current = {(asset.asset_id, c["hour"], c["check"]) for c in found}
         for key in [k for k in record if k[0] == asset.asset_id and k[1] >= since]:
             if key not in current:

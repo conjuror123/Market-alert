@@ -491,3 +491,32 @@ def test_the_close_check_follows_the_price_as_stored(tmp_path, basket):
     close = routing.next_close(int(hours[k]) + 3600)
     upto = np.searchsorted(hours + 3600, close, side="right") - 1
     assert held == pytest.approx(np.sum(r[k:upto + 1]) / r[k])
+
+
+def test_the_check_follows_the_detectors_settings(monkeypatch, basket):
+    # basket.yaml's detector: window_days and levels are the detector's; the
+    # check asks about everything the detector could flag under them.
+    from datetime import date
+
+    from tremor.corporate_actions import Dividends
+    day = date(2026, 9, 29)
+    asset, table, frame = _fund_store(basket, gap_day=day, first_hour=0.0035)
+    paid = Dividends(steps={}, splits={}, checked_through={asset.ticker: "2026-12-31"})
+    now = ts("2026-09-29 20:05")
+
+    def asked():
+        return [c for c in verify.candidates(asset, frame, table, now, basket=load_basket(),
+                                             dividends=paid) if c["check"] == "close"]
+
+    assert asked() == []                    # about 3.5 sigma: below the 4-sigma line
+    monkeypatch.setattr(jumps, "settings", lambda *a, **k: (182.6, (3.0, 8.5, 12.0, 17.0)))
+    assert len(asked()) == 1                # a bottom of 3 is flagged, so it is asked about
+
+    windows = []
+    score = jumps.score
+    monkeypatch.setattr(jumps, "score", lambda f, t, w=jumps.WINDOW_DAYS, l=jumps.LEVELS:
+                        windows.append(w) or score(f, t, w, l))
+    monkeypatch.setattr(jumps, "settings", lambda *a, **k: (365.0, jumps.LEVELS))
+    asked()
+    assert windows == [365.0]
+    assert verify.tail_days(365.0) >= 365.0
