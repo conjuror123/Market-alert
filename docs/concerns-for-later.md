@@ -109,8 +109,11 @@ lives"), what is missing and what was tried:
   ex-dividend; check that Yahoo lists them by the 10:05 New York run, or their gaps stay
   unscored that day. (Due 2026-10-01, but this branch was not running then.)
 - **Bad prints on the feeds without a second source.** The second source
-  (`tremor/verify.py`) asks about the pairs and the funds; a coin's, a future's or an LME
-  metal's bad print is caught only beyond 1,000σ, with the stretch after it. History
+  (`tremor/verify.py`) asks about the pairs, the funds and the softs; a coin's, live
+  cattle's or an LME metal's bad print is caught only beyond 1,000σ, with the stretch
+  after it. The softs' second source rolls to the next contract on its own days (coffee
+  sat 5% apart for a week in 2026-08); a move in its roll hour could be misjudged, about
+  five times a year each - none of the 19 far moves since 2026-05 was. History
   before the second source's reach (the pairs before 2024-10, the funds before August
   2026) keeps its readings too: LMBS's nights on Alpaca's IEX open (22.6σ on 2026-08-07,
   19.5σ on 2026-01-14) among them. They never ring again, and touch only the yardsticks

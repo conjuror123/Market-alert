@@ -19,8 +19,9 @@ ticks - so the verdict is "not seen elsewhere", never "a mistake".
 WHO IS ASKED (verifier_for). The currency pairs and the real, served by
 SiftingIO: Yahoo's hourly FX. Funds served by Alpaca, Tiingo, Sina, Twelve Data
 or Google: Yahoo's 30-minute bars, the consolidated tape. Funds served by Yahoo:
-Sina's. Not asked: the coins - Binance's prices are its own trades - and the
-futures and the LME's metals, which have no free independent feed.
+Sina's. Coffee, cocoa and cotton, served by Yahoo: Sina's global futures
+(SINA_FUTURES). Not asked: the coins - Binance's prices are its own trades -
+live cattle and the LME's metals, which have no free independent feed found.
 
 WHICH BARS (candidates). The detector's own readings, ended within the last
 PENDING_HOURS, at CANDIDATE_SIGMA or more of their own kind: an hour's move as
@@ -92,6 +93,14 @@ CLOSE, OPEN = "close", "open"     # the check: the hour's reading, or the gap's
 # Funds' second source is whichever consolidated-tape feed is not serving them.
 _FUND_PROVIDERS_CHECKED_BY_YAHOO = ("alpaca", "tiingo", "sina", "twelvedata", "google")
 
+# The softs Yahoo serves, as Sina's global futures name them (the same endpoint
+# the LME's metals come from): against the stored bars over 2026-05 to 10,
+# 0.2-2.2 bp apart at the median, hourly moves correlated 0.96-0.99, no hour
+# missing. Live cattle is there too (LE), but as quotes without volume whose
+# hours correlate 0.80 with the store's: not used.
+SINA_FUTURES = {"KC=F": "KC", "CC=F": "CC", "CT=F": "CT"}
+SINA_FUTURES_DAYS = 30            # inside the 1,023 hourly bars Sina serves
+
 
 def verifier_for(asset: Asset) -> "tuple[str, str, str] | None":
     """(second source, its symbol, interval) for an instrument, or None if it
@@ -104,6 +113,8 @@ def verifier_for(asset: Asset) -> "tuple[str, str, str] | None":
             return "sina", asset.ticker, "30min"
         if asset.fetched_from in _FUND_PROVIDERS_CHECKED_BY_YAHOO:
             return "yahoo", asset.ticker, "30min"
+    if asset.ticker in SINA_FUTURES and asset.fetched_from == "yahoo":
+        return "sina", SINA_FUTURES[asset.ticker], "1h"
     return None
 
 
@@ -111,7 +122,9 @@ def reach_days(who: "tuple[str, str, str]") -> int:
     """How far back the second source serves bars."""
     from price_monitor import yahoo
 
-    return yahoo.MAX_LOOKBACK_DAYS[who[2]] - 1 if who[0] == "yahoo" else SINA_DAYS
+    if who[0] == "yahoo":
+        return yahoo.MAX_LOOKBACK_DAYS[who[2]] - 1
+    return SINA_DAYS if who[2] == "30min" else SINA_FUTURES_DAYS
 
 
 def fetch_verifier(name: str, symbol: str, interval: str, days: float,
@@ -123,8 +136,10 @@ def fetch_verifier(name: str, symbol: str, interval: str, days: float,
         days = min(max(days, 1.0), float(yahoo.MAX_LOOKBACK_DAYS[interval]))
         candles = yahoo.fetch_full_history(symbol, interval, days=days, session=session,
                                            end=now)
-    elif name == "sina":
+    elif name == "sina" and interval == "30min":
         candles = sina.fetch_us_bars(symbol, session, now)
+    elif name == "sina":
+        candles = sina.fetch_bars(symbol, session, now, url=sina.GLOBAL_URL)
     else:
         raise ValueError(f"unknown verifier {name}")
     return bars.to_hourly(bars.candles_to_frame(candles))

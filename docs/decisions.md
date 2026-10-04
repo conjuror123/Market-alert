@@ -325,8 +325,12 @@ it? - with an hour of lag allowed and a missing hour bridged by the bars either 
 unconfirmed move is left out of scoring and out of the yardstick, so a bad print cannot
 inflate the next half-year's σ; a message already sent says `⚠️ unconfirmed` rather than
 disappearing, because a wrong verdict should cost a line, not a real move. Only feeds with
-a free independent second source are asked: a coin's price is its exchange's own trades,
-and the futures and the LME have none.
+a free independent second source are asked: a coin's price is its exchange's own trades.
+Coffee, cocoa and cotton are asked of Sina's global futures (2026-10-04): against the stored
+bars from 2026-05, 0.2-2.2 bp apart at the median, hourly moves correlated 0.96-0.99, no
+hour missing, and all 19 far moves since confirmed. Its live cattle is quotes without volume
+correlated 0.80 hour by hour, and not used; no second free hourly feed of the LME's metals
+was found.
 Over the 699 days Yahoo reaches (2026-10-04) it asked about 2,034 readings - every one of
 the 543 the detector flags there among them - and did not see 115; 60 of those were
 flagged - 49 of them SiftingIO's USD/INR, mostly between 22:00 and 01:00 UTC, and six

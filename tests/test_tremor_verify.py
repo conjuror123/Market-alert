@@ -46,12 +46,28 @@ def test_every_feed_with_a_free_second_source_is_checked_by_one(basket):
     for fund in (a for a in basket.values() if a.session_template == "us_equity"):
         name, symbol, interval = verify.verifier_for(fund)
         assert name != fund.fetched_from and symbol == fund.ticker and interval == "30min"
-    # A coin's price is its exchange's own trades; the futures and the LME's
-    # metals have no independent free feed.
+    # The softs Yahoo serves: Sina's global futures, hourly.
+    assert verify.verifier_for(basket["KC=F"]) == ("sina", "KC", "1h")
+    assert verify.verifier_for(basket["CC=F"]) == ("sina", "CC", "1h")
+    assert verify.verifier_for(basket["CT=F"]) == ("sina", "CT", "1h")
+    # A coin's price is its exchange's own trades; live cattle and the LME's
+    # metals have no independent free feed found.
     for asset in basket.values():
-        if asset.session_template == "crypto_24_7" or asset.session_template == "lme" \
-                or asset.session_template.startswith(("ice_", "cme_")):
+        if asset.session_template in ("crypto_24_7", "lme", "cme_cattle"):
             assert verify.verifier_for(asset) is None
+
+
+def test_sinas_global_futures_and_us_funds_are_different_feeds(monkeypatch):
+    from price_monitor import sina
+    calls = []
+    monkeypatch.setattr(sina, "fetch_bars",
+                        lambda symbol, session, now, url: calls.append((symbol, url)) or [])
+    monkeypatch.setattr(sina, "fetch_us_bars",
+                        lambda symbol, session, now: calls.append((symbol, "us")) or [])
+    now = datetime(2026, 10, 5, 15, 5, tzinfo=timezone.utc)
+    verify.fetch_verifier("sina", "KC", "1h", 2, None, now)
+    verify.fetch_verifier("sina", "SLQD", "30min", 2, None, now)
+    assert calls == [("KC", sina.GLOBAL_URL), ("SLQD", "us")]
 
 
 # --- the verdict ----------------------------------------------------------------

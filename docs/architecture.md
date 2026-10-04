@@ -290,7 +290,8 @@ request per instrument:
 | SiftingIO (the 17 pairs and the real) | Yahoo's hourly FX (`USDINR=X`), 699 days back |
 | Alpaca, Tiingo, Sina, Twelve Data, Google (funds) | Yahoo's 30-minute bars, folded to the hour, 54 days back |
 | Yahoo (funds) | Sina's 30-minute US bars, 77 days back |
-| Binance, the futures, the LME | not asked: a coin's price is its exchange's own trades, and the others have no free independent feed |
+| Yahoo (coffee, cocoa, cotton) | Sina's global futures, hourly, 30 days back |
+| Binance, live cattle, the LME | not asked: a coin's price is its exchange's own trades, and the others have no free independent feed found |
 
 Each feed is compared with itself, so a steady offset between them is not a move. The move
 is **confirmed** if the second source moved the same way at least half as far, from its
