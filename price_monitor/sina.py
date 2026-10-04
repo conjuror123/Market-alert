@@ -1,4 +1,4 @@
-"""Sina Finance's bars: the LME's metals, US funds, and Shanghai's futures.
+"""Sina Finance's bars: the LME's metals and US funds.
 
 THE LME METALS - tin (SND), nickel (NID), aluminium (AHD) - come from the chart
 endpoint behind Sina's global futures pages (gu.sina.cn GlobalService.getMink,
@@ -9,19 +9,11 @@ instrument over a longer record of another (docs/decisions.md, "Data and
 providers"). The bar that ended at :00 is served by :05. A few bars fall outside LMEselect's hours and are left
 to the session gate.
 
-SHANGHAI'S FUTURES, the first use (InnerFuturesNewService.getFewMinLine): a
-delivery month (SN2611) serves its own last 1,023 hourly bars, so contracts can
-be chained into a history (tools/sina_history.py). Not in the basket now.
-
-THE BARS of both endpoints are labelled by their END, in Beijing time - for the
-LME's metals too: the first bar of a summer day is 09:00, LMEselect's 01:00 to
-02:00 London. On Shanghai's own grid
-(22:00, 23:00, 00:00, 01:00 at night; 10:00, 11:15, 14:15, 15:00 by day, the
-first day bar from 09:00 and the 11:15 one across the 10:15 break). Each is
-stamped at the hour its first minute falls in - its label less an hour,
-floored - so the day's bars are 09, 10, 13 and 14 and the lunch hours are
-missing ones. A bar whose label is still ahead of now has not ended, and is
-left for the next run.
+THE BARS are labelled by their END, in Beijing time: the LME's first bar of a
+summer day is 09:00, LMEselect's 01:00 to 02:00 London. Each is stamped at the
+hour its first minute falls in - its label less an hour, floored, so an
+off-grid label (11:15) lands on the hour it started in. A bar whose label is
+still ahead of now has not ended, and is left for the next run.
 
 AND THE STANDING RISK. An undocumented endpoint that wants a Referer, with the
 answer wrapped in a JavaScript callback. A response without it raises.
@@ -38,8 +30,6 @@ import requests
 
 from price_monitor.models import Candle, ExchangeError
 
-URL = ("https://stock2.finance.sina.com.cn/futures/api/jsonp.php/var%20t=/"
-       "InnerFuturesNewService.getFewMinLine")
 HEADERS = {"Referer": "https://finance.sina.com.cn", "User-Agent": "Mozilla/5.0"}
 BEIJING = ZoneInfo("Asia/Shanghai")
 _PAYLOAD = re.compile(r"var t=\((.*)\);", re.S)
@@ -77,9 +67,9 @@ GLOBAL_URL = "https://gu.sina.cn/ft/api/jsonp.php/var%20t=/GlobalService.getMink
 
 
 def fetch_bars(symbol: str, session: requests.Session | None = None,
-               now: datetime | None = None, url: str = URL) -> list[Candle]:
-    """The last 1,023 hourly bars of `symbol` that have ended: a Shanghai
-    contract by default, an LME metal with url=GLOBAL_URL."""
+               now: datetime | None = None, url: str = GLOBAL_URL) -> list[Candle]:
+    """The last 1,023 hourly bars of a global future that have ended: an LME
+    metal (SND), or a soft (KC) for the second source."""
     last: Exception | None = None
     for attempt in range(MAX_ATTEMPTS):
         if attempt:

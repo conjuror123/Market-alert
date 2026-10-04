@@ -73,13 +73,10 @@ BARS_PER_DAY: "dict[str, int]" = {"us_equity": 7, "fx_continuous": 24, "crypto_2
 
 
 def bars_per_day(template: str) -> int:
-    from tremor.sessions import (DAILY_SESSIONS, SEGMENTED_SESSIONS, daily_bars_per_day,
-                                 segmented_bars_per_day)
+    from tremor.sessions import DAILY_SESSIONS, daily_bars_per_day
 
     if template in DAILY_SESSIONS:
         return daily_bars_per_day(template)
-    if template in SEGMENTED_SESSIONS:
-        return segmented_bars_per_day(template)
     return BARS_PER_DAY[template]
 
 # The three readings, and each gap kind's minimum window from the paper's rule

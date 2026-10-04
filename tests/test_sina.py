@@ -1,12 +1,9 @@
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-import numpy as np
-import pandas as pd
 import pytest
 
 from price_monitor import sina
-from tremor import bars, returns, sessions
 from tremor.basket import Asset
 
 BJ = ZoneInfo("Asia/Shanghai")
@@ -47,35 +44,10 @@ def test_an_answer_without_bars_raises_and_null_is_empty():
     assert sina.parse("var t=(null);", "SN2801") == []
 
 
-def test_shanghai_has_a_night_and_a_day_session():
-    assert sessions.segment_of(bj(2026, 9, 29, 21), "shfe") == "2026-09-29 21:00"
-    assert sessions.segment_of(bj(2026, 9, 30, 0), "shfe") == "2026-09-29 21:00"
-    assert sessions.segment_of(bj(2026, 9, 30, 1), "shfe") is None
-    assert sessions.segment_of(bj(2026, 9, 30, 12), "shfe") == "2026-09-30 09:00"
-    assert sessions.segment_of(bj(2026, 10, 2, 21), "shfe") == "2026-10-02 21:00"   # Friday night
-    assert sessions.segment_of(bj(2026, 10, 3, 9), "shfe") is None                   # Saturday
-
-
-def _tin():
-    return Asset(ticker="SN0", source="sina", tier=2, block="industrial_metals",
-                 has_volume=True, tick_size=10.0, session_template="shfe",
-                 fetch_interval="1h", label="Tin", in_basket=True)
-
-
-def test_both_of_shanghais_pauses_are_scored_gaps_and_lunch_is_a_hole():
-    from tremor.corporate_actions import Dividends
-    rows = [(bj(2026, 9, 29, h), 400, 401, 399, p, 9.0, 1) for h, p in
-            ((9, 400), (10, 400), (13, 401), (14, 402))]                 # day
-    rows += [(bj(2026, 9, 29, 21), 404, 405, 403, 404, 9.0, 1),          # night
-             (bj(2026, 9, 30, 0), 404, 405, 403, 405, 9.0, 1),
-             (bj(2026, 9, 30, 9), 410, 411, 409, 410, 9.0, 1)]           # next day
-    frame = pd.DataFrame(rows, columns=list(bars.SCHEMA)).astype(bars.SCHEMA)
-    out = returns.split_channels(_tin(), frame,
-                                 dividends=Dividends(steps={}, splits={}, checked_through={}))
-    gaps = out.set_index("hour_utc")["gap"].dropna()
-    assert gaps.loc[bj(2026, 9, 29, 21)] == pytest.approx(np.log(404 / 402))
-    assert gaps.loc[bj(2026, 9, 30, 9)] == pytest.approx(np.log(410 / 405))
-    assert np.isfinite(out.set_index("hour_utc").loc[bj(2026, 9, 29, 13), "hole"])
+def _nickel():
+    return Asset(ticker="NID", source="sina", tier=2, block="industrial_metals",
+                 has_volume=True, tick_size=5.0, session_template="lme",
+                 fetch_interval="1h", label="Nickel", in_basket=True)
 
 
 NY = ZoneInfo("America/New_York")
@@ -106,13 +78,14 @@ def test_the_fetch_asks_sina_for_a_sina_fund(tmp_path, monkeypatch):
     monkeypatch.setattr(backfill.sina, "fetch_us_bars",
                         lambda symbol, session=None, now=None: seen.setdefault("us", symbol) and [])
     monkeypatch.setattr(backfill.sina, "fetch_bars",
-                        lambda symbol, session=None, now=None: seen.setdefault("fut", symbol) and [])
+                        lambda symbol, session=None, now=None, url=None:
+                        seen.setdefault("lme", (symbol, url)) and [])
     fund = Asset(ticker="RWX", source="twelvedata", provider="sina", tier=2, block="equity",
                  has_volume=True, tick_size=0.01, session_template="us_equity",
                  fetch_interval="30min", label="RWX", in_basket=True)
     backfill.fetch_missing(fund, str(tmp_path / "a"), date(2021, 1, 1), "", requests.Session())
-    backfill.fetch_missing(_tin(), str(tmp_path / "b"), date(2021, 1, 1), "", requests.Session())
-    assert seen == {"us": "RWX", "fut": "SN0"}
+    backfill.fetch_missing(_nickel(), str(tmp_path / "b"), date(2021, 1, 1), "", requests.Session())
+    assert seen == {"us": "RWX", "lme": ("NID", sina.GLOBAL_URL)}
 
 
 def test_a_negative_volume_is_unknown_not_a_broken_bar():

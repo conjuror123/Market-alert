@@ -87,14 +87,6 @@ session_templates:
     exchange: CME
     tz: America/Chicago
     description: "08:30-13:05 Chicago on weekdays"
-  comex:
-    exchange: COMEX
-    tz: America/New_York
-    description: "18:00-17:00 New York, Sunday evening to Friday"
-  shfe:
-    exchange: SHFE
-    tz: Asia/Shanghai
-    description: "21:00-01:00 and 09:00-15:00 Beijing, each its own session (tremor/sessions.py SEGMENTED_SESSIONS)"
   b3_fx:
     exchange: B3
     tz: America/Sao_Paulo

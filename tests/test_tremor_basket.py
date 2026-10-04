@@ -183,8 +183,7 @@ def test_real_config_tick_sizes_are_plausible(tmp_path):
     basket = load_basket()
     for a in basket.instruments:
         # Nickel is quoted in dollars a tonne and steps by the LME's $5; the
-        # futures by their contracts' ticks (cocoa $1 a tonne); Shanghai tin
-        # by 10 yuan a tonne.
+        # futures by their contracts' ticks (cocoa $1 a tonne).
         limit = 0.01 if a.session_template in ("us_equity", "fx_continuous",
                                                "crypto_24_7") else 10.0
         assert 0 < a.tick_size <= limit, a.ticker
