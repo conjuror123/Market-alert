@@ -1,6 +1,6 @@
 # Tremor data coverage
 
-Generated 2026-10-04 17:26 UTC by `python -m tremor.audit`. One row per instrument: its provider, how far back its bars reach, its hourly volume, and anything wrong with the series (Notes; `—` is sound). Periods end where the bars on disk end: without the open months (`tools/hot_bars.sh restore`), at the last settled month.
+Generated 2026-10-04 19:11 UTC by `python -m tremor.audit`. One row per instrument: its provider, how far back its bars reach, its hourly volume, and anything wrong with the series (Notes; `—` is sound). Periods end where the bars on disk end: without the open months (`tools/hot_bars.sh restore`), at the last settled month.
 
 ## Basket
 
@@ -59,18 +59,18 @@ Generated 2026-10-04 17:26 UTC by `python -m tremor.audit`. One row per instrume
 | `VCSH` | credit | alpaca | 30min | 18,823 | 2016-01-04 .. 2026-10-02 | 2,701 | 7 | 0.01 | 1e-08 | 0% | 123 | — |
 | `VWOB` | credit | yahoo | 30min | 18,801 | 2016-01-04 .. 2026-09-30 | 2,699 | 7 | 0.01 | 1e-08 | 1% | 123 | — |
 | `AAVE/USDT` | crypto | binance | 1h | 52,269 | 2020-10-15 .. 2026-10-02 | 2,179 | 24 | 0.01 | 0.01 | 0% | 5 | — |
-| `ADA/USDT` | crypto | binance | 1h | 77,346 | 2017-12-01 .. 2026-10-02 | 3,228 | 24 | 1e-05 | 0.0001 | 0% | 34 | step 1e-05 finer than source precision 0.0001 |
+| `ADA/USDT` | crypto | binance | 1h | 77,346 | 2017-12-01 .. 2026-10-02 | 3,228 | 24 | 0.0001 | 0.0001 | 0% | 34 | — |
 | `ATOM/USDT` | crypto | binance | 1h | 65,074 | 2019-04-29 .. 2026-10-02 | 2,714 | 24 | 0.001 | 0.001 | 0% | 11 | — |
 | `AVAX/USDT` | crypto | binance | 1h | 52,818 | 2020-09-22 .. 2026-10-02 | 2,202 | 24 | 0.001 | 0.001 | 0% | 5 | — |
-| `BCH/USDT` | crypto | binance | 1h | 76,524 | 2018-01-01 .. 2026-10-02 | 3,193 | 24 | 0.01 | 0.1 | 0% | 126 | step 0.01 finer than source precision 0.1 |
+| `BCH/USDT` | crypto | binance | 1h | 76,524 | 2018-01-01 .. 2026-10-02 | 3,193 | 24 | 0.1 | 0.1 | 0% | 126 | — |
 | `BTC/USDT` | crypto | binance | 1h | 119,564 | 2013-02-01 .. 2026-10-02 | 4,989 | 24 | 0.01 | 0.01 | 0% | 108 | — |
 | `DOGE/USDT` | crypto | binance | 1h | 63,468 | 2019-07-05 .. 2026-10-02 | 2,647 | 24 | 1e-05 | 1e-05 | 0% | 9 | — |
 | `DOT/USDT` | crypto | binance | 1h | 53,641 | 2020-08-18 .. 2026-10-02 | 2,237 | 24 | 0.001 | 0.001 | 0% | 5 | — |
 | `ETH/USDT` | crypto | binance | 1h | 91,672 | 2016-04-01 .. 2026-10-02 | 3,830 | 24 | 0.01 | 0.01 | 0% | 189 | — |
-| `FIL/USDT` | crypto | binance | 1h | 52,255 | 2020-10-15 .. 2026-10-02 | 2,179 | 24 | 0.001 | 0.0001 | 0% | 5 | — |
+| `FIL/USDT` | crypto | binance | 1h | 52,255 | 2020-10-15 .. 2026-10-02 | 2,179 | 24 | 0.0001 | 0.0001 | 0% | 5 | — |
 | `LINK/USDT` | crypto | binance | 1h | 78,810 | 2017-10-01 .. 2026-10-02 | 3,289 | 24 | 0.001 | 0.001 | 0% | 34 | — |
-| `LTC/USDT` | crypto | binance | 1h | 109,766 | 2013-12-01 .. 2026-10-02 | 4,682 | 24 | 0.001 | 0.01 | 0% | 191 | step 0.001 finer than source precision 0.01 |
-| `POL/USDT` | crypto | binance | 1h | 65,056 | 2019-04-26 .. 2026-10-02 | 2,715 | 24 | 0.0001 | 1e-05 | 0% | 80 | — |
+| `LTC/USDT` | crypto | binance | 1h | 109,766 | 2013-12-01 .. 2026-10-02 | 4,682 | 24 | 0.01 | 0.01 | 0% | 191 | — |
+| `POL/USDT` | crypto | binance | 1h | 65,056 | 2019-04-26 .. 2026-10-02 | 2,715 | 24 | 1e-05 | 1e-05 | 0% | 80 | — |
 | `SOL/USDT` | crypto | binance | 1h | 53,826 | 2020-08-11 .. 2026-10-02 | 2,244 | 24 | 0.01 | 0.01 | 0% | 5 | — |
 | `UNI/USDT` | crypto | binance | 1h | 52,941 | 2020-09-17 .. 2026-10-02 | 2,207 | 24 | 0.001 | 0.001 | 0% | 5 | — |
 | `XRP/USDT` | crypto | binance | 1h | 83,917 | 2017-03-01 .. 2026-10-02 | 3,503 | 24 | 0.0001 | 0.0001 | 0% | 11 | — |
@@ -157,7 +157,7 @@ Generated 2026-10-04 17:26 UTC by `python -m tremor.audit`. One row per instrume
 | `PPLT` | precious_metals | yahoo | 30min | 18,830 | 2016-01-04 .. 2026-10-02 | 2,702 | 7 | 0.01 | 1e-08 | 1% | 123 | — |
 | `SGOL` | precious_metals | sina | 30min | 18,806 | 2016-01-04 .. 2026-10-02 | 2,702 | 7 | 0.01 | 1e-08 | 0% | 123 | — |
 | `SIVR` | precious_metals | yahoo | 30min | 18,832 | 2016-01-04 .. 2026-10-02 | 2,702 | 7 | 0.01 | 1e-08 | 0% | 123 | — |
-| `SLV` | precious_metals | twelvedata | 30min | 35,839 | 2006-04-28 .. 2026-10-02 | 5,137 | 7 | 0.01 | 1e-08 | 1% | 114 | OHLC: 2 |
+| `SLV` | precious_metals | twelvedata | 30min | 35,839 | 2006-04-28 .. 2026-10-02 | 5,137 | 7 | 0.01 | 1e-08 | 1% | 114 | — |
 | `BWX` | rates | yahoo | 30min | 33,243 | 2007-10-05 .. 2026-09-30 | 4,775 | 7 | 0.01 | 1e-08 | 1% | 123 | — |
 | `GOVT` | rates | alpaca | 30min | 18,818 | 2016-01-04 .. 2026-10-02 | 2,702 | 7 | 0.01 | 1e-08 | 0% | 123 | — |
 | `IEF` | rates | tiingo | 30min | 41,632 | 2002-12-30 .. 2026-09-25 | 5,970 | 7 | 0.01 | 1e-08 | 0% | 114 | — |
@@ -191,4 +191,4 @@ Generated 2026-10-04 17:26 UTC by `python -m tremor.audit`. One row per instrume
 
 ## Totals
 
-Instruments: 173. Bars: 7,035,143. Rows with issues: 7.
+Instruments: 173. Bars: 7,035,143. Rows with issues: 3.

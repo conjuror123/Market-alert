@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
-from tremor import bars
+from tremor import bars, quality
 from tremor.basket import Asset, load_basket
 
 HOUR = 3600
@@ -76,15 +76,8 @@ def audit_instrument(asset: Asset, frame: pd.DataFrame) -> dict:
     volume = frame["volume"].astype("float64")
     zero_pct = float((volume == 0).mean() * 100)
 
-    # OHLC consistency, with a half-tick tolerance: sources round a bar's
-    # fields independently (TLT close 92.42 against high 92.415), and a
-    # sub-tick difference is rounding, not a broken bar - the same tolerance
-    # as tremor.quality.
-    tol = asset.tick_size / 2
-    ohlc_bad = int((
-        (frame["low"] > frame[["open", "close"]].min(axis=1) + tol)
-        | (frame[["open", "close"]].max(axis=1) > frame["high"] + tol)
-    ).sum())
+    # OHLC consistency, by the bar gate's own rule (tremor.quality).
+    ohlc_bad = int(quality.ohlc_inconsistent(frame, asset.tick_size).sum())
 
     return row | {
         "first": _day(hours.min()),

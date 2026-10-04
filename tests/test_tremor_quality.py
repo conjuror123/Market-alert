@@ -101,6 +101,16 @@ def test_ohlc_tolerance_matches_the_audit():
     assert quality.invalid_reasons(asset(), almost).iloc[0] == ""
 
 
+def test_exactly_half_a_tick_is_rounding_whatever_the_float_says():
+    # SLV 2024-05-29 16:00: close 29.37 over a high of 29.365 is half a cent,
+    # but 29.365 + 0.005 is 29.369999999999997 in floating point.
+    exact = frame([(HOUR, 29.29, 29.365, 29.1801, 29.37, 1.0, 2)])
+    assert quality.invalid_reasons(asset(), exact).iloc[0] == ""
+    # ANGL 2025-03-19 18:00: Sina's 29.040001 over 29.035 is past half a cent.
+    past = frame([(HOUR, 28.93, 29.035, 28.93, 29.040001, 1.0, 2)])
+    assert quality.invalid_reasons(asset(), past).iloc[0] == "OHLC inconsistent"
+
+
 def test_gate_marks_usable_bars_only():
     hours = [hour_at(2021, 11, 26, h, "America/New_York") for h in (11, 14)]
     data = frame([(hours[0], 1.0, 2.0, 0.5, 1.5, 10.0, 2),

@@ -79,6 +79,18 @@ def in_session(asset: Asset, hours: pd.Series,
                      index=hours.index)
 
 
+def ohlc_inconsistent(frame: pd.DataFrame, tick_size: float) -> pd.Series:
+    """Bars whose open or close lies outside their low-high range by more than
+    half a tick. Sources round a bar's fields independently (TLT close 92.42
+    against high 92.415), so up to half a tick is rounding, not a broken bar.
+    The tolerance carries a hair of slack so that exactly half a tick is not
+    lost to floating point (29.365 + 0.005 < 29.37 in binary)."""
+    tolerance = tick_size / 2 * (1 + 1e-9)
+    body_low = frame[["open", "close"]].min(axis=1)
+    body_high = frame[["open", "close"]].max(axis=1)
+    return (frame["low"] > body_low + tolerance) | (body_high > frame["high"] + tolerance)
+
+
 def invalid_reasons(asset: Asset, frame: pd.DataFrame) -> pd.Series:
     """Reason each bar is invalid, empty string for sound ones.
 
@@ -92,14 +104,7 @@ def invalid_reasons(asset: Asset, frame: pd.DataFrame) -> pd.Series:
     prices = frame[["open", "high", "low", "close"]]
     reasons[prices.le(0).any(axis=1)] = "price not positive"
 
-    # OHLC consistency with a half-tick tolerance: the source rounds the bar's
-    # fields independently, and a discrepancy smaller than a tick is a rounding
-    # artefact, not a broken bar.
-    tolerance = asset.tick_size / 2
-    inconsistent = (
-        (frame["low"] > prices[["open", "close"]].min(axis=1) + tolerance)
-        | (prices[["open", "close"]].max(axis=1) > frame["high"] + tolerance)
-    )
+    inconsistent = ohlc_inconsistent(frame, asset.tick_size)
     reasons[inconsistent & (reasons == "")] = "OHLC inconsistent"
 
     reasons[(frame["volume"] < 0) & (reasons == "")] = "volume negative"
