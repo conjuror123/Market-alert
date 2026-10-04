@@ -45,7 +45,10 @@ Thirteen funds' records begin on 2020-02-10; a strict warm-up would have left th
 through March 2020. Scoring starts at 42 bars (a fund) or 78 (a 24-hour market) and the
 window grows; those rows are marked `young` and reported apart.
 
-**The words are √2 apart, half an earthquake magnitude.** Measured on the basket, doubling
+**The words are about √2 apart, half an earthquake magnitude, rounded to 6 / 8.5 / 12 / 17.**
+Rounded so the levels are the numbers the docs and the reader use (an exact √2 put them at
+8.485 and 16.97; rounding moved 32 readings in all history from high to noticeable and 5
+from extreme to major). Measured on the basket, doubling
 a move's size (in half-year sigmas) makes it about ten times rarer — a Gutenberg–Richter
 law with a slope near one — so a √2 step makes each word about three times rarer than the
 one below: over five years the levels that make each word exactly three times rarer from

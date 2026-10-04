@@ -85,12 +85,19 @@ def test_a_cut_history_scores_the_shared_hours_the_same():
                                cut["z"].to_numpy()[settled.to_numpy()], rtol=1e-12)
 
 
-def test_each_word_is_root_two_bigger_than_the_one_below():
-    assert jumps.levels(6.0, math.sqrt(2)) == pytest.approx((6.0, 8.485, 12.0, 16.97), abs=1e-3)
-    # The code's default is the setting.
-    assert jumps.levels() == pytest.approx(jumps.levels(*jumps.settings()[1:]), abs=0.01)
-    words = jumps.word_of([5.9, -6.0, 8.6, -12.1, 17.0, np.nan])
-    assert list(words) == [None, "noticeable", "high", "major", "extreme", None]
+def test_the_words_sit_at_exactly_6_8_5_12_and_17():
+    assert jumps.levels() == (6.0, 8.5, 12.0, 17.0)
+    assert jumps.LEVELS == jumps.settings()[1]          # the code's default is the setting
+    words = jumps.word_of([5.99, -6.0, 8.49, 8.5, -11.99, 12.0, 16.99, 17.0, np.nan])
+    assert list(words) == [None, "noticeable", "noticeable", "high", "high", "major",
+                           "major", "extreme", None]
+
+
+def test_levels_out_of_order_are_refused(tmp_path):
+    basket = tmp_path / "basket.yaml"
+    basket.write_text("detector:\n  levels: [6.0, 12.0, 8.5, 17.0]\n")
+    with pytest.raises(ValueError):
+        jumps.settings(str(basket))
 
 
 def test_the_young_stretch_is_marked():
@@ -252,8 +259,8 @@ def test_the_detector_version_ignores_comments_and_follows_the_settings(tmp_path
                       .replace('label: "Gold"', 'label: "Gold bullion"'))
     assert jumps.detector_version(str(root)) == before
 
-    basket.write_text(basket.read_text().replace("noticeable_sigma: 6.0",
-                                                 "noticeable_sigma: 6.5"))
+    basket.write_text(basket.read_text().replace("levels: [6.0, 8.5, 12.0, 17.0]",
+                                                 "levels: [6.5, 8.5, 12.0, 17.0]"))
     assert jumps.detector_version(str(root)) != before
 
 

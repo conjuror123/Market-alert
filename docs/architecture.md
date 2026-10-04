@@ -33,7 +33,7 @@ Each stage has a named source and a measured effect; `decisions.md` records why.
    `σ = √(π/2 · mean(|r_j|·|r_(j−1)|))`. Products of neighbouring moves, so one jump in the
    window cannot inflate the yardstick. The hour being judged never enters its own `σ`.
 2. **The word**, from `|z|`: `noticeable` 6, `high` 8.5, `major` 12, `extreme` 17 —
-   each √2 bigger than the one below, and about three times rarer (stage 12).
+   about √2 apart, rounded, and each about three times rarer than the one below (stage 12).
 
 A young series is scored as soon as its window holds the paper's minimum count (42 bars for
 a fund, 78 for a 24-hour market); the window then grows to half a year. Rows scored before
@@ -148,7 +148,7 @@ reviewed:
 
 | | stage | source | state |
 |---|---|---|---|
-| 0 | the score and the word: half-year bipower σ, four words √2 apart | Lee & Mykland (2008) | built |
+| 0 | the score and the word: half-year bipower σ, four words about √2 apart | Lee & Mykland (2008) | built |
 | 1b | the gap: nights and weekends, each against its own kind (was stage 6) | Lee & Mykland (2008) | built |
 | 1 | one event per 24 hours | — | built |
 | 2 | channels, the weekly note, delivery and curation | — | built |
@@ -163,8 +163,7 @@ dropped (`decisions.md`, "Settled
 and closed"). The blocks never enter the detector: each instrument is judged on its own
 history alone.
 
-Settings live under `detector:` in `config/basket.yaml`: `window_days`,
-`noticeable_sigma`, `step`.
+Settings live under `detector:` in `config/basket.yaml`: `window_days` and `levels`.
 
 ---
 

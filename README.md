@@ -73,16 +73,15 @@ Notification → Run workflow**.
 
 ## Turning it up or down
 
-Three settings, under `detector:` in `config/basket.yaml`:
+Two settings, under `detector:` in `config/basket.yaml`:
 
 ```yaml
 detector:
-  window_days: 182.6       # how far back "usual" reaches, the same calendar span for all
-  noticeable_sigma: 6.0    # the lowest word; every word above is `step` times bigger
-  step: 1.414
+  window_days: 182.6              # how far back "usual" reaches, the same span for all
+  levels: [6.0, 8.5, 12.0, 17.0]  # noticeable, high, major, extreme, in half-year sigmas
 ```
 
-`noticeable_sigma` is the one that sets how much you hear: 6 is about 9 messages a week, 5
+The bottom level is the one that sets how much you hear: 6 is about 9 messages a week, 5
 about 15 and 3.9 about 29 (delivery replayed over the year to 2026-10-01,
 `docs/decisions.md`). Which words push is `PUSH_TIERS` in `tremor/routing.py`. All take
 effect on the next hourly run.

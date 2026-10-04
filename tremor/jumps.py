@@ -14,9 +14,8 @@ exactly two rules and nothing else:
      window cannot inflate the yardstick it is later measured against: a jump
      multiplies with an ordinary move on either side of it, not with itself.
 
-  2. THE WORD, from |z|: noticeable at 6, and each word above it sqrt(2) times
-     bigger - 6, 8.5, 12, 17 - each word about three times rarer than the one
-     below.
+  2. THE WORD, from |z|: 6, 8.5, 12, 17 - each word about sqrt(2) bigger than
+     the one below, rounded, and about three times rarer.
 
 THE WINDOW IS CALENDAR TIME, THE SAME FOR EVERY INSTRUMENT. The paper counts
 bars, because its statistics needs enough of them; what the window has to
@@ -100,8 +99,9 @@ WORDS: tuple[str, ...] = ("noticeable", "high", "major", "extreme")
 
 # The settings, overridable under `detector:` in config/basket.yaml.
 WINDOW_DAYS = 182.6          # half a year of calendar time
-NOTICEABLE_SIGMA = 6.0       # the bottom word, in half-year sigmas
-STEP = math.sqrt(2)          # each word this many times bigger than the one below
+# The four words' thresholds on |z|, in half-year sigmas: about sqrt(2) apart,
+# each word about three times rarer than the one below, rounded (stage 12).
+LEVELS: "tuple[float, ...]" = (6.0, 8.5, 12.0, 17.0)
 
 # Bars a day, per calendar, for the paper's minimum window.
 BARS_PER_DAY: "dict[str, int]" = {"us_equity": 7, "fx_continuous": 24, "crypto_24_7": 24}
@@ -140,25 +140,26 @@ def minimum_count(bars_per_day: int) -> int:
     return math.ceil(math.sqrt(252 * bars_per_day))
 
 
-def settings(path: str = DEFAULT_BASKET_PATH) -> "tuple[float, float, float]":
-    """(window_days, noticeable_sigma, step) from config/basket.yaml, or the defaults."""
+def settings(path: str = DEFAULT_BASKET_PATH) -> "tuple[float, tuple[float, ...]]":
+    """(window_days, levels) from config/basket.yaml, or the defaults. The levels
+    are the four words' thresholds on |z|, rising."""
     try:
         with open(path, "r", encoding="utf-8") as f:
             raw = (yaml.safe_load(f) or {}).get("detector") or {}
     except OSError:
         raw = {}
     window = float(raw.get("window_days", WINDOW_DAYS))
-    bottom = float(raw.get("noticeable_sigma", NOTICEABLE_SIGMA))
-    step = float(raw.get("step", STEP))
-    if not (window > 0 and bottom > 0 and step > 1):
+    found = tuple(float(x) for x in (raw.get("levels") or LEVELS))
+    if not (window > 0 and len(found) == len(WORDS) and found[0] > 0
+            and all(a < b for a, b in zip(found, found[1:]))):
         raise ValueError(f"detector settings out of range: window_days={window}, "
-                         f"noticeable_sigma={bottom}, step={step}")
-    return window, bottom, step
+                         f"levels={list(found)}")
+    return window, found
 
 
-def levels(bottom: float = NOTICEABLE_SIGMA, step: float = STEP) -> "tuple[float, ...]":
-    """The four words' thresholds on |z|: bottom * step**k."""
-    return tuple(bottom * step ** k for k in range(len(WORDS)))
+def levels() -> "tuple[float, ...]":
+    """The four words' thresholds on |z|, as configured."""
+    return settings()[1]
 
 
 def half_year_sigma(hour_utc, values, window_days: float = WINDOW_DAYS,
@@ -204,17 +205,17 @@ def trusted_sigma(hour_utc, values, window_days: float = WINDOW_DAYS,
         values[wrong] = np.nan
 
 
-def word_of(z, bottom: float = NOTICEABLE_SIGMA, step: float = STEP) -> np.ndarray:
+def word_of(z, levels: "tuple[float, ...]" = LEVELS) -> np.ndarray:
     """The word each |z| reaches, or None below the bottom one."""
     magnitude = np.abs(np.asarray(z, dtype="float64"))
     out = np.full(len(magnitude), None, dtype=object)
-    for name, level in zip(WORDS, levels(bottom, step)):
+    for name, level in zip(WORDS, levels):
         out[np.nan_to_num(magnitude, nan=0.0) >= level] = name
     return out
 
 
 def score(frame: pd.DataFrame, template: str, window_days: float = WINDOW_DAYS,
-          bottom: float = NOTICEABLE_SIGMA, step: float = STEP) -> pd.DataFrame:
+          levels: "tuple[float, ...]" = LEVELS) -> pd.DataFrame:
     """Every hour of one instrument, with its sigma, z, word and whether its
     window was still shorter than `window_days` (`young`)."""
     frame = frame.sort_values("hour_utc").reset_index(drop=True)
@@ -227,7 +228,7 @@ def score(frame: pd.DataFrame, template: str, window_days: float = WINDOW_DAYS,
     first = hours[finite][0] if finite.any() else 0
     young = (hours - first) < window_days * SECONDS_PER_DAY
     return pd.DataFrame({"hour_utc": hours, "reading": HOUR, "r": r, "sigma": sigma,
-                         "z": z, "word": pd.array(word_of(z, bottom, step), dtype="string"),
+                         "z": z, "word": pd.array(word_of(z, levels), dtype="string"),
                          "young": young})
 
 
@@ -243,7 +244,7 @@ def gap_kinds(elapsed_hours, template: "str | None" = None) -> np.ndarray:
 
 
 def score_gaps(frame: pd.DataFrame, window_days: float = WINDOW_DAYS,
-               bottom: float = NOTICEABLE_SIGMA, step: float = STEP,
+               levels: "tuple[float, ...]" = LEVELS,
                template: "str | None" = None) -> pd.DataFrame:
     """Every gap of one instrument, each judged against the earlier gaps of its
     own kind within `window_days`. `frame` holds the metrics' `hour_utc` and
@@ -273,7 +274,7 @@ def score_gaps(frame: pd.DataFrame, window_days: float = WINDOW_DAYS,
     kept = np.isfinite(move)
     when, kind, move, sigma, z, young = (x[kept] for x in (when, kind, move, sigma, z, young))
     return pd.DataFrame({"hour_utc": when, "reading": kind, "r": move, "sigma": sigma,
-                         "z": z, "word": pd.array(word_of(z, bottom, step), dtype="string"),
+                         "z": z, "word": pd.array(word_of(z, levels), dtype="string"),
                          "young": young})[columns]
 
 
@@ -326,7 +327,7 @@ def event_starts(found, anchors=()) -> np.ndarray:
 RARE_SHARE = 0.95
 
 
-def rarest_since(scored: pd.DataFrame, bottom: float = NOTICEABLE_SIGMA,
+def rarest_since(scored: pd.DataFrame, bottom: float = LEVELS[0],
                  share: float = RARE_SHARE) -> pd.DataFrame:
     """Adds `since_utc` and `since_z` to one instrument's readings: the most
     recent EARLIER reading OF THE SAME KIND, in the same direction, at least
@@ -347,7 +348,7 @@ def rarest_since(scored: pd.DataFrame, bottom: float = NOTICEABLE_SIGMA,
         since_utc=pd.arrays.IntegerArray(since_hour, since_hour < 0), since_z=since_z)
 
 
-def matches(hours, z, share: float = RARE_SHARE, bottom: float = NOTICEABLE_SIGMA
+def matches(hours, z, share: float = RARE_SHARE, bottom: float = LEVELS[0]
             ) -> "tuple[np.ndarray, np.ndarray]":
     """For each reading, in time order, the most recent EARLIER one in the same
     direction whose size is at least `share` of its own: (its hour, its z), or
@@ -564,7 +565,7 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
 
     now = int(time.time()) if now is None else int(now)
     basket = load_basket(basket_path)
-    window, bottom, step = settings(basket_path)
+    window, ladder = settings(basket_path)
     parts = []
     for asset in basket.instruments:
         path = os.path.join(metrics_dir, f"{asset.file_stem}.parquet")
@@ -572,12 +573,12 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
             log.warning("no metrics for %s", asset.asset_id)
             continue
         metrics = pd.read_parquet(path, columns=["hour_utc", "r", "hole", "gap"])
-        readings = [score(metrics, asset.session_template, window, bottom, step),
-                    score_gaps(metrics, window, bottom, step, asset.session_template)]
+        readings = [score(metrics, asset.session_template, window, ladder),
+                    score_gaps(metrics, window, ladder, asset.session_template)]
         scored = pd.concat([f for f in readings if not f.empty], ignore_index=True)
         if scored.empty:
             continue
-        scored = rarest_since(ended(scored, asset.session_template, now), bottom)
+        scored = rarest_since(ended(scored, asset.session_template, now), ladder[0])
         scored["record_start"] = int(metrics["hour_utc"].min())
         flagged = scored[scored["word"].notna()].sort_values("found_utc").reset_index(drop=True)
         flagged["event_start"] = event_starts(flagged["found_utc"])

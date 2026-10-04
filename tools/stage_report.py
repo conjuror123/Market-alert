@@ -38,15 +38,15 @@ BIGGEST_SHARE = 1e-4          # the top 0.01% of an instrument's hours
 
 def scored_basket(metrics_dir: str) -> pd.DataFrame:
     basket = load_basket()
-    window, bottom, step = jumps.settings()
+    window, ladder = jumps.settings()
     parts = []
     for asset in basket.instruments:
         path = os.path.join(metrics_dir, f"{asset.file_stem}.parquet")
         if not os.path.exists(path):
             continue
         metrics = pd.read_parquet(path, columns=["hour_utc", "r", "gap"])
-        parts_one = [jumps.score(metrics, asset.session_template, window, bottom, step),
-                     jumps.score_gaps(metrics, window, bottom, step,
+        parts_one = [jumps.score(metrics, asset.session_template, window, ladder),
+                     jumps.score_gaps(metrics, window, ladder,
                                       asset.session_template)]
         frame = pd.concat([f for f in parts_one if not f.empty], ignore_index=True)
         frame = frame[np.isfinite(frame["z"].astype("float64"))]
