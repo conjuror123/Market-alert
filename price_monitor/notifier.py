@@ -39,6 +39,11 @@ def redact_secrets(text: str) -> str:
 # is an error like any other and the message is retried by the next run.
 RETRY_AFTER_CAP_SECONDS = 60
 RETRIES_ON_429 = 3
+# And all the waiting of one run together: a long ban met by many edits would
+# otherwise wait 3 x 60 s per message, past the job's timeout. Once spent, a
+# 429 fails at once and the next run tries again.
+WAIT_BUDGET_SECONDS = 180
+_waited = [0.0]
 
 
 def _retry_after(resp) -> "float | None":
@@ -56,9 +61,11 @@ def _post(url: str, payload: dict, timeout: int):
         if resp.status_code != 429 or attempt == RETRIES_ON_429:
             return resp
         wait = _retry_after(resp)
-        if wait is None or wait > RETRY_AFTER_CAP_SECONDS:
+        if (wait is None or wait > RETRY_AFTER_CAP_SECONDS
+                or _waited[0] + wait > WAIT_BUDGET_SECONDS):
             return resp
         log.warning("Telegram says too many requests: waiting %.0f s", wait)
+        _waited[0] += wait + 0.5
         time.sleep(wait + 0.5)
     return resp                                  # pragma: no cover - loop returns
 

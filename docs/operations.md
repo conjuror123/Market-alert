@@ -185,9 +185,9 @@ through by an edit instead, and Telegram's reason is logged.
 
 **Too many requests.** Telegram takes about twenty messages a minute into a channel, edits
 included, and answers more with 429 and how long to wait. The notifier waits that long and
-tries again, up to three times and never more than 60 s at once
-(`notifier.RETRIES_ON_429`, `RETRY_AFTER_CAP_SECONDS`); past that the message fails like any
-other and the next run sends it.
+tries again, up to three times, never more than 60 s at once and 180 s in a whole run
+(`notifier.RETRIES_ON_429`, `RETRY_AFTER_CAP_SECONDS`, `WAIT_BUDGET_SECONDS`); past that the
+message fails like any other and the next run sends it.
 
 ---
 

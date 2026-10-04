@@ -135,6 +135,7 @@ def test_fetch_updates_passes_the_offset(monkeypatch):
 
 
 def test_a_429_is_waited_out_and_the_message_goes(monkeypatch):
+    monkeypatch.setattr(notifier, "_waited", [0.0])
     answers = [FakeResponse(429, {"ok": False, "parameters": {"retry_after": 3}}),
                FakeResponse(200, {"ok": True, "result": {"message_id": 7}})]
     slept = []
@@ -154,6 +155,7 @@ def test_a_429_past_the_cap_is_an_error_not_a_long_wait(monkeypatch):
 
 
 def test_429s_are_retried_a_bounded_number_of_times(monkeypatch):
+    monkeypatch.setattr(notifier, "_waited", [0.0])
     calls = []
 
     def fake_post(url, json, timeout):
@@ -179,3 +181,16 @@ def test_a_silent_send_asks_for_no_sound(monkeypatch):
     send_telegram_message("token", "@chan", "b", silent=True)
     assert "disable_notification" not in seen[0]
     assert seen[1]["disable_notification"] is True
+
+
+def test_the_waiting_of_one_run_is_bounded(monkeypatch):
+    monkeypatch.setattr(notifier, "_waited", [0.0])
+    monkeypatch.setattr(notifier.requests, "post", lambda url, json, timeout: FakeResponse(
+        429, {"ok": False, "parameters": {"retry_after": 50}}))
+    slept = []
+    monkeypatch.setattr(notifier.time, "sleep", slept.append)
+    for _ in range(5):
+        with pytest.raises(TelegramError):
+            send_telegram_message("token", "@chan", "hello")
+    assert sum(slept) <= notifier.WAIT_BUDGET_SECONDS
+    assert len(slept) == 3                    # 3 x 50.5 s, then no more waiting

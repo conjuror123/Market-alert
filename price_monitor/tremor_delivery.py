@@ -621,7 +621,7 @@ def format_message(members: "list[dict]") -> str:
     Pushes first, then pings, each by size, biggest first. The news scheduled
     around the pushes follows them, each list once: a run's pushes are nearly
     always the same hour, so it is usually one list. When they are not, each
-    list names the hour it is around. The pings share one pointer up at the
+    list names the hour it is around - even when only one of the hours had any. The pings share one pointer up at the
     note."""
     pushes = sorted((m for m in members if m["form"] == PUSH), key=lambda m: -m["size"])
     rows = sorted((m for m in members if m["form"] == ROW), key=lambda m: -m["size"])
@@ -632,8 +632,10 @@ def format_message(members: "list[dict]") -> str:
         for m in sorted(pushes, key=lambda m: int(m.get("hour") or 0)):
             if m["context"]:
                 news.setdefault(m["context"], int(m.get("hour") or 0))
-        if len(news) == 1:
-            blocks.append(next(iter(news)))
+        # Named by hour whenever the pushes are of more than one hour: a single
+        # list under moves of 09:00 and 10:00 would read as the news of both.
+        if len({int(m.get("hour") or 0) for m in pushes}) == 1:
+            blocks.extend(news)
         else:
             days = {datetime.fromtimestamp(h, tz=timezone.utc).date() for h in news.values()}
             for context, hour in news.items():

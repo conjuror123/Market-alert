@@ -632,3 +632,14 @@ def test_a_part_the_note_grows_is_silent(monkeypatch, channel, week):
     assert len(channel.notes()) == 1 and len(channel.note()) > 0
     assert [t for t in channel.messages.values() if "<i>part " in t]
     assert len(channel.rings_since(rang)) == 1 and "Added to digest" in channel.rang[-1]
+
+
+def test_news_of_one_hour_under_pushes_of_two_says_which_hour(monkeypatch, channel, week):
+    monkeypatch.setattr(md, "calendar_context", lambda hour, cal: (
+        "Nearby economic events (-2h+1h):\n     CPI"
+        if datetime.fromtimestamp(hour, timezone.utc).hour == 9 else ""))
+    run(monkeypatch, channel, [ev(at(1, 9), "high", asset=FUNDS[2]),
+                               ev(at(1, 10), "major", asset=FUNDS[3], found=at(1, 11))],
+        run_at(1, 11), week)
+    [message] = alerts(channel)
+    assert "Nearby economic events around 09:00 UTC (-2h+1h):\n     CPI" in message

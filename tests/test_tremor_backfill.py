@@ -1552,3 +1552,51 @@ def test_a_batched_answer_is_split_by_symbol():
                                  "https://x", "key", S())
     assert len(got["USO"]) == 1 and got["USO"][0].volume == 5.0
     assert isinstance(got["GLD"], Exception)
+
+
+def test_an_alpaca_rate_limit_skips_remaining_alpaca_instruments(tmp_path, monkeypatch):
+    from tremor import backfill
+    from tremor.basket import Basket, VolatilityIndex
+    from price_monitor import alpaca
+
+    asked = []
+    alerts = []
+
+    def fake_backfill(asset, *a, **k):
+        asked.append(asset.ticker)
+        if asset.ticker == "LQD":
+            raise alpaca.RateLimited("LQD: Alpaca answered 429")
+        return {"asset_id": asset.asset_id, "rows": 1, "first": 1, "last": 1,
+                "from_legacy": 0, "from_api": 1}
+
+    def fund(ticker):
+        return Asset(ticker=ticker, source="twelvedata", provider="alpaca",
+                     tier=2, block="credit", has_volume=True, tick_size=0.01,
+                     session_template="us_equity", fetch_interval="30min",
+                     label=ticker, in_basket=True)
+
+    basket = Basket(
+        assets=(fund("LQD"), fund("HYG"), fund("JNK"),
+                Asset(ticker="BTC-USD", source="coinbase", tier=1, block="crypto",
+                      has_volume=True, tick_size=0.01, session_template="crypto_24_7",
+                      fetch_interval="1h", label="Bitcoin", in_basket=True)),
+        outside=(),
+        volatility_index=VolatilityIndex(
+            "VIXCLS", "fred", "1d", "VIX", date(1990, 1, 1)),
+        anchor_exchange_tz="America/New_York",
+        history_since=date(2021, 1, 1), session_templates={
+            "us_equity": {}, "crypto_24_7": {}},
+    )
+    monkeypatch.setenv("ALPACA_KEY_ID", "k")
+    monkeypatch.setenv("ALPACA_SECRET_KEY", "s")
+    monkeypatch.setattr(backfill, "load_basket", lambda: basket)
+    monkeypatch.setattr(backfill, "backfill_instrument", fake_backfill)
+    monkeypatch.setattr(backfill._sessions, "load_sessions",
+                        lambda: (_ for _ in ()).throw(FileNotFoundError()))
+    monkeypatch.setattr(backfill, "send_ops_alert", alerts.append)
+
+    backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
+
+    # Asked once; HYG and JNK skipped rather than each waiting out Alpaca's retries.
+    assert asked == ["LQD", "BTC-USD"]
+    assert any("alpaca" in a.lower() for a in alerts)

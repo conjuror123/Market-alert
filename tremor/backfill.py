@@ -359,12 +359,6 @@ def check_dividends(funds: "list[Asset]", table: "dict | None",
         try:
             pairs = yahoo.fetch_dividends(asset.ticker, since, session=session,
                                           now=now)
-        except alpaca.RateLimited as exc:
-            alpaca_gone = True
-            dark.append((asset.asset_id, "alpaca", str(exc)))
-            log.error("Alpaca's rate limit is spent - %s", exc)
-            log.error("Skipping the remaining Alpaca instruments; the other "
-                      "providers continue.")
         except yahoo.RateLimited as exc:
             log.warning("dividend check: Yahoo rate-limited at %s - %s",
                         asset.ticker, exc)
@@ -1555,6 +1549,13 @@ def main(argv: list[str] | None = None) -> int:
             log.error("SiftingIO's request budget is spent (quota left: %s) - %s",
                       getattr(exc, "remaining", None), exc)
             log.error("Skipping the remaining SiftingIO instruments; the other "
+                      "providers continue.")
+        except alpaca.RateLimited as exc:
+            # Same reasoning: Alpaca's limit does not clear inside the run.
+            alpaca_gone = True
+            dark.append((asset.asset_id, "alpaca", str(exc)))
+            log.error("Alpaca's rate limit is spent - %s", exc)
+            log.error("Skipping the remaining Alpaca instruments; the other "
                       "providers continue.")
         except yahoo.RateLimited as exc:
             yahoo_gone = True
