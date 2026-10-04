@@ -11,17 +11,24 @@ hourly fetch and before anything is scored:
 AN UNCONFIRMED MOVE IS NOT SCORED, AND NOTHING IS DELETED. The detector leaves
 its reading out - not flagged, and not in any yardstick (tremor.jumps) - but
 its bar stays in the store as the provider served it. A message already sent
-for it stays on the channel and says `⚠️ unconfirmed: Yahoo shows +0.03%`
+for it stays on the channel and says `⚠️ unconfirmed: Yahoo +0.03%`
 (price_monitor.tremor_delivery). Which feed was wrong two feeds cannot always
 tell - the second source lags by an hour, misses hours and prints its own bad
 ticks - so the verdict is "not seen elsewhere", never "a mistake".
 
-WHO IS ASKED (verifier_for). The currency pairs and the real, served by
-SiftingIO: Yahoo's hourly FX. Funds served by Alpaca, Tiingo, Sina, Twelve Data
-or Google: Yahoo's 30-minute bars, the consolidated tape. Funds served by Yahoo:
-Sina's. Coffee, cocoa and cotton, served by Yahoo: Sina's global futures
-(SINA_FUTURES). Not asked: the coins - Binance's prices are its own trades -
-live cattle and the LME's metals, which have no free independent feed found.
+WHO IS ASKED (verifiers_for). The currency pairs and the real, served by
+SiftingIO: Yahoo's hourly FX and MarketWatch's - Yahoo reaches back two years
+but has as little as a fifth of USD/INR's hours, MarketWatch has every hour of
+the last ten days. Funds served by Alpaca, Tiingo, Sina, Twelve Data or Google:
+Yahoo's 30-minute bars, the consolidated tape. Funds served by Yahoo: Sina's.
+Coffee, cocoa and cotton, served by Yahoo: Sina's global futures
+(SINA_FUTURES). Live cattle: MarketWatch's continuous contract. Not asked: the
+coins - Binance's prices are its own trades - and the LME's metals, which have
+no free independent feed found.
+
+WITH TWO SOURCES (combine), a move is confirmed if either saw it, pending while
+either still waits for its next bar, and unconfirmed only if one answered and
+none saw it. A source that fails to answer leaves the other to.
 
 WHICH BARS (candidates). The detector's own readings, ended within the last
 PENDING_HOURS, at CANDIDATE_SIGMA or more of their own kind: an hour's move as
@@ -102,20 +109,30 @@ SINA_FUTURES = {"KC=F": "KC", "CC=F": "CC", "CT=F": "CT"}
 SINA_FUTURES_DAYS = 30            # inside the 1,023 hourly bars Sina serves
 
 
-def verifier_for(asset: Asset) -> "tuple[str, str, str] | None":
-    """(second source, its symbol, interval) for an instrument, or None if it
-    is not asked."""
+# The pairs MarketWatch is asked about besides Yahoo, and live cattle's
+# continuous contract there (price_monitor/marketwatch.py).
+MARKETWATCH_CATTLE = "FUTURE/US/XCME/LC00"
+MARKETWATCH_DAYS = 9              # inside the ten days of hourly bars it serves
+
+
+def verifiers_for(asset: Asset) -> "list[tuple[str, str, str]]":
+    """The second sources of an instrument, each (name, its symbol, interval);
+    empty if none is asked."""
     if asset.session_template in ("fx_continuous", "b3_fx") \
             and asset.fetched_from == "sifting":
-        return "yahoo", asset.ticker.replace("/", "").upper() + "=X", "1h"
+        pair = asset.ticker.replace("/", "").upper()
+        return [("yahoo", pair + "=X", "1h"),
+                ("marketwatch", "CURRENCY/US/XTUP/" + pair, "1h")]
     if asset.session_template == "us_equity":
         if asset.fetched_from == "yahoo":
-            return "sina", asset.ticker, "30min"
+            return [("sina", asset.ticker, "30min")]
         if asset.fetched_from in _FUND_PROVIDERS_CHECKED_BY_YAHOO:
-            return "yahoo", asset.ticker, "30min"
+            return [("yahoo", asset.ticker, "30min")]
     if asset.ticker in SINA_FUTURES and asset.fetched_from == "yahoo":
-        return "sina", SINA_FUTURES[asset.ticker], "1h"
-    return None
+        return [("sina", SINA_FUTURES[asset.ticker], "1h")]
+    if asset.session_template == "cme_cattle" and asset.fetched_from == "yahoo":
+        return [("marketwatch", MARKETWATCH_CATTLE, "1h")]
+    return []
 
 
 def reach_days(who: "tuple[str, str, str]") -> int:
@@ -124,15 +141,19 @@ def reach_days(who: "tuple[str, str, str]") -> int:
 
     if who[0] == "yahoo":
         return yahoo.MAX_LOOKBACK_DAYS[who[2]] - 1
+    if who[0] == "marketwatch":
+        return MARKETWATCH_DAYS
     return SINA_DAYS if who[2] == "30min" else SINA_FUTURES_DAYS
 
 
 def fetch_verifier(name: str, symbol: str, interval: str, days: float,
                    session: "requests.Session | None", now: datetime) -> pd.DataFrame:
     """The second source's bars folded onto the store's hourly grid."""
-    from price_monitor import sina, yahoo
+    from price_monitor import marketwatch, sina, yahoo
 
-    if name == "yahoo":
+    if name == "marketwatch":
+        candles = marketwatch.fetch_hourly(symbol, session, now)
+    elif name == "yahoo":
         days = min(max(days, 1.0), float(yahoo.MAX_LOOKBACK_DAYS[interval]))
         candles = yahoo.fetch_full_history(symbol, interval, days=days, session=session,
                                            end=now)
@@ -253,6 +274,44 @@ def judge(c: dict, v: pd.DataFrame, now: int) -> "tuple[str, float, float]":
     return (UNCONFIRMED if lag_passed else PENDING), p, direct
 
 
+def combine(verdicts: "list[tuple[str, str, float, float]]") -> "tuple[str, float, list, list]":
+    """One verdict from every second source that answered, each (name,
+    verdict, stored move, its move): confirmed if any saw the move; pending
+    while any is still waiting for its next bar; unconfirmed if any answered
+    and none saw it; else unknown. Returns (verdict, stored move, the names it
+    rests on, their moves)."""
+    stored = verdicts[0][2] if verdicts else 0.0
+    for verdict in (CONFIRMED, PENDING, UNCONFIRMED):
+        mine = [v for v in verdicts if v[1] == verdict]
+        if mine:
+            chosen = mine[:1] if verdict == CONFIRMED else mine
+            return verdict, stored, [v[0] for v in chosen], [v[3] for v in chosen]
+    return UNKNOWN, stored, [v[0] for v in verdicts], [v[3] for v in verdicts]
+
+
+def _around(c: dict, v: pd.DataFrame) -> bool:
+    """Whether a source has bars of its own around the move: within LAG_HOURS
+    of where it starts and of where it ends - not just a bridge across hours
+    it has no bar for."""
+    stamps = v["hour_utc"].to_numpy(dtype="int64")
+    h, hp, lag = c["hour"], c["prev_hour"], LAG_HOURS * HOUR
+    before = (h in set(stamps.tolist())) if c.get("from_open") else \
+        bool(((stamps >= hp - lag) & (stamps <= hp)).any())
+    return before and bool(((stamps >= h) & (stamps <= h + lag)).any())
+
+
+def judge_all(c: dict, answers: "list[tuple[str, pd.DataFrame]]",
+              now: int) -> "tuple[str, float, list, list]":
+    """One candidate against every source that answered, combined. A source
+    with bars of its own around the move outweighs one bridging hours it has
+    none for: USD/INR's night, where Yahoo's last bar is 10:00 and
+    MarketWatch has every hour, is MarketWatch's to judge - a seventeen-hour
+    bridge would hold the verdict till morning and then read the night's
+    drift as the move."""
+    direct = [(name, v) for name, v in answers if _around(c, v)]
+    return combine([(name,) + judge(c, v, now) for name, v in (direct or answers)])
+
+
 # --- the record ----------------------------------------------------------------
 
 def load(path: "str | None" = None) -> "dict[tuple[str, int, str], dict]":
@@ -317,10 +376,11 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
     # reading is no longer a far move - its bar healed - no longer applies.
     due = []
     for asset in instruments:
-        who = verifier_for(asset)
-        if who is None or who[0] in blocked:
+        sources = [w for w in verifiers_for(asset) if w[0] not in blocked]
+        if not sources:
             continue
-        since = now_ts - reach_days(who) * 86400 if history else now_ts - PENDING_HOURS * HOUR
+        reach = max(reach_days(w) for w in sources)
+        since = now_ts - reach * 86400 if history else now_ts - PENDING_HOURS * HOUR
         frame = bars.load(bars.store_path(bars_dir, asset.file_stem),
                           since - TAIL_DAYS * 86400)
         if frame.empty:
@@ -333,39 +393,47 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
         if found:
             fresh = any(record.get((asset.asset_id, c["hour"], c["check"]), {}).get("verdict")
                         in (None, PENDING) for c in found)
-            due.append((not fresh, asset, who, found))
+            due.append((not fresh, asset, found))
 
-    # One request per instrument; the ones with a reading not yet judged first,
-    # so a busy hour cannot leave the same instruments unasked run after run.
+    # One request per source and instrument; the instruments with a reading not
+    # yet judged first, so a busy hour cannot leave the same ones unasked run
+    # after run. A source that fails leaves the others to answer; a rate limit
+    # stops that source for the rest of the run.
     counts = {CONFIRMED: 0, UNCONFIRMED: 0, PENDING: 0, UNKNOWN: 0}
     requests_left = 10 ** 6 if history else MAX_REQUESTS
     doubted: list[str] = []
-    for _, asset, (name, symbol, interval), found in sorted(due, key=lambda d: d[0]):
-        if requests_left <= 0 or name in blocked:
-            continue
+    for _, asset, found in sorted(due, key=lambda d: d[0]):
         # From before the earliest bar a move starts at: a Monday gap starts at
         # Friday's close.
         days = (now_ts - min(c["prev_hour"] for c in found)) / 86400 + 1
-        requests_left -= 1
-        try:
-            v = fetch_verifier(name, symbol, interval, days, session, now_dt)
-        except Exception as exc:
-            log.warning("verify: %s from %s failed - %s", asset.ticker, name, exc)
-            if isinstance(exc, yahoo.RateLimited):
-                blocked.add(name)
+        answers = []
+        for name, symbol, interval in verifiers_for(asset):
+            if requests_left <= 0 or name in blocked:
+                continue
+            requests_left -= 1
+            try:
+                answers.append((name, fetch_verifier(name, symbol, interval, days, session,
+                                                     now_dt)))
+            except Exception as exc:
+                log.warning("verify: %s from %s failed - %s", asset.ticker, name, exc)
+                if isinstance(exc, yahoo.RateLimited) or "answered 429" in str(exc):
+                    blocked.add(name)
+        if not answers:
             continue
         for c in found:
-            verdict, stored, theirs = judge(c, v, now_ts)
+            verdict, stored, names, moves = judge_all(c, answers, now_ts)
             counts[verdict] += 1
             record[(asset.asset_id, c["hour"], c["check"])] = {
                 "asset_id": asset.asset_id, "hour_utc": c["hour"], "check": c["check"],
-                "verdict": verdict, "provider": asset.fetched_from, "verifier": name,
-                "stored_move": f"{stored:.6f}", "verifier_move": f"{theirs:.6f}",
+                "verdict": verdict, "provider": asset.fetched_from,
+                "verifier": ",".join(names),
+                "stored_move": f"{stored:.6f}",
+                "verifier_move": ",".join(f"{m:.6f}" for m in moves),
                 "checked_utc": now_ts}
             if verdict == UNCONFIRMED:
+                theirs = ", ".join(f"{n} {100 * m:+.2f}%" for n, m in zip(names, moves))
                 doubted.append(f"{asset.ticker} {datetime.fromtimestamp(c['hour'], timezone.utc):%Y-%m-%d %H:%M}"
-                               f" {c['check']} ({asset.fetched_from} {100 * stored:+.2f}%,"
-                               f" {name} {100 * theirs:+.2f}%)")
+                               f" {c['check']} ({asset.fetched_from} {100 * stored:+.2f}%; {theirs})")
     write(record, now_ts, path)
     if doubted:
         log.warning("verify: not seen by the second source - %s", "; ".join(doubted))

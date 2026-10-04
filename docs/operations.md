@@ -54,6 +54,7 @@ seconds, so it has no warm state to lose.
 | **Sina Finance** | none published; wants a Referer | 33 funds (half-hour bars), the LME's tin, nickel and aluminium, and the second source for the 34 Yahoo funds and for coffee, cocoa and cotton |
 | **Yahoo** | none published | 34 funds, 4 futures, the dividend check, and the second source for the pairs and 99 funds (one request per instrument with a far move in its last 24 hours — about six a run, at most 40) |
 | **Google Finance** | none — a web page, read against its terms | TUR, one page a run |
+| **MarketWatch** | none published; its own pages' public token | the second source for the 17 pairs (beside Yahoo) and for live cattle — one request per instrument with a far move in its last 24 hours, a few a run. Should the token or the endpoint change, its checks come back empty and those moves are scored as before |
 | **Yahoo futures** | as Yahoo | 4 commodities, one request each a run in session; live from the front contract (`tremor.futures.front_contract`) |
 | **Binance** | no key; 6,000 request weight a minute per address | 16 coins, one request each a run |
 | GitHub Actions minutes | unlimited (public repo) | — |

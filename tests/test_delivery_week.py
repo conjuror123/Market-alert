@@ -203,11 +203,11 @@ def test_a_move_found_more_than_a_day_ago_is_never_sent(monkeypatch, channel, we
 BYSTANDER = ev(at(0, 3), asset="coinbase:BTC-USD", found=at(-3, 0))
 
 
-def _unseen(at_hour, asset="twelvedata:GLD", check="close", move=0.0003):
+def _unseen(at_hour, asset="twelvedata:GLD", check="close", move=0.0003, verifier="yahoo"):
     hour = int(at_hour.timestamp())
     record = verify.load()
     record[(asset, hour, check)] = {"asset_id": asset, "hour_utc": hour, "check": check,
-                                    "verdict": verify.UNCONFIRMED, "verifier": "yahoo",
+                                    "verdict": verify.UNCONFIRMED, "verifier": verifier,
                                     "stored_move": "0.018", "verifier_move": str(move)}
     verify.write(record, hour)
 
@@ -223,6 +223,15 @@ def test_a_push_not_seen_by_a_second_source_stays_marked_silently(monkeypatch, c
     # It stays so while nothing of it comes back.
     run(monkeypatch, channel, [BYSTANDER], run_at(0, 13), week)
     assert channel.pushes() == [marked] and channel.rings_since(rang) == []
+
+
+def test_a_mark_names_every_source_that_did_not_see_the_move(monkeypatch, channel, week):
+    push = ev(at(0, 10), "high")
+    run(monkeypatch, channel, [push], run_at(0, 11), week)
+    _unseen(at(0, 10), move="0.000300,0.000200", verifier="yahoo,marketwatch")
+    run(monkeypatch, channel, [BYSTANDER], run_at(0, 12), week)
+    assert channel.pushes()[0].endswith(
+        "\n⚠️ unconfirmed: Yahoo +0.03%, MarketWatch +0.02%")
 
 
 def test_a_row_not_seen_leaves_the_note_and_its_ping_line_is_marked(monkeypatch, channel, week):

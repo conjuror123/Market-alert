@@ -1124,16 +1124,27 @@ def _doubt(asset: str, reading_ids, doubts: "dict | None") -> "dict | None":
     return None
 
 
+# How each second source is named on the channel (tremor.verify).
+SOURCE_NAMES = {"yahoo": "Yahoo", "sina": "Sina", "marketwatch": "MarketWatch"}
+
+
 def unconfirmed_line(row: dict) -> str:
-    """⚠️ unconfirmed: Yahoo shows +0.03%"""
+    """⚠️ unconfirmed: Yahoo shows +0.03% - or, with two sources,
+    ⚠️ unconfirmed: Yahoo +0.03%, MarketWatch +0.02%."""
     import math
 
-    try:
-        shown = f" {(math.exp(float(row.get('verifier_move'))) - 1) * 100:+.2f}%"
-    except (TypeError, ValueError):
-        shown = " nothing"
-    verifier = str(row.get("verifier") or "the second source").capitalize()
-    return f"⚠️ {UNSEEN}: {_escape(verifier)} shows{shown}"
+    names = [n for n in str(row.get("verifier") or "").split(",") if n]
+    moves = str(row.get("verifier_move") or "").split(",")
+    shown = []
+    for i, name in enumerate(names or ["the second source"]):
+        label = _escape(SOURCE_NAMES.get(name, name.capitalize()))
+        try:
+            shown.append((label, f"{(math.exp(float(moves[i])) - 1) * 100:+.2f}%"))
+        except (IndexError, TypeError, ValueError):
+            shown.append((label, "nothing"))
+    if len(shown) == 1:
+        return f"⚠️ {UNSEEN}: {shown[0][0]} shows {shown[0][1]}"
+    return f"⚠️ {UNSEEN}: " + ", ".join(f"{label} {move}" for label, move in shown)
 
 
 def _mark(rec: dict, row: dict) -> None:

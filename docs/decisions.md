@@ -331,6 +331,18 @@ bars from 2026-05, 0.2-2.2 bp apart at the median, hourly moves correlated 0.96-
 hour missing, and all 19 far moves since confirmed. Its live cattle is quotes without volume
 correlated 0.80 hour by hour, and not used; no second free hourly feed of the LME's metals
 was found.
+MarketWatch (its chart endpoint, `price_monitor/marketwatch.py`) is asked beside Yahoo
+for the pairs, and alone for live cattle (2026-10-04). Over its ten days it had every
+stored hour of the 17 pairs (Yahoo's hourly FX has 21% of USD/INR's, 60-72% of the
+others'), 0-0.6 bp from them at the median, and not SiftingIO's jump-and-back on USD/TRY
+2026-09-24 19:00 - its quotes are its own. Its live cattle (continuous contract) moves with
+the stored front month at 0.92 hour by hour. Its coffee is Yahoo's to the basis point, one
+upstream, so the softs stay on Sina. Replayed over the ten days: 27 readings, 26
+confirmed with both sources against 24 with Yahoo alone; the one Yahoo alone left
+unconfirmed (USD/TRY +0.09%, 2026-09-24 19:00) MarketWatch shows an hour later, inside
+the lag allowed. FT's chart endpoint also serves hourly USD/INR (five days), untried as a
+source; CNBC, Barchart and Boursorama refuse readers, CME forbids them, and the WisdomTree
+metal ETCs correlate with the LME at -0.25 to 0.54 hour by hour.
 Over the 699 days Yahoo reaches (2026-10-04) it asked about 2,034 readings - every one of
 the 543 the detector flags there among them - and did not see 115; 60 of those were
 flagged - 49 of them SiftingIO's USD/INR, mostly between 22:00 and 01:00 UTC, and six

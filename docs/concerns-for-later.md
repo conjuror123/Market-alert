@@ -109,9 +109,11 @@ lives"), what is missing and what was tried:
   ex-dividend; check that Yahoo lists them by the 10:05 New York run, or their gaps stay
   unscored that day. (Due 2026-10-01, but this branch was not running then.)
 - **Bad prints on the feeds without a second source.** The second source
-  (`tremor/verify.py`) asks about the pairs, the funds and the softs; a coin's, live
-  cattle's or an LME metal's bad print is caught only beyond 1,000σ, with the stretch
-  after it. The softs' second source rolls to the next contract on its own days (coffee
+  (`tremor/verify.py`) asks about the pairs, the funds, the softs and live cattle; a
+  coin's or an LME metal's bad print is caught only beyond 1,000σ, with the stretch
+  after it. MarketWatch, the pairs' second second source and live cattle's only one,
+  is read with the public token its own pages send - a terms-of-use grey area like
+  Google Finance's page, and one that can change without notice. The softs' second source rolls to the next contract on its own days (coffee
   sat 5% apart for a week in 2026-08); a move in its roll hour could be misjudged, about
   five times a year each - none of the 19 far moves since 2026-05 was. History
   before the second source's reach (the pairs before 2024-10, the funds before August

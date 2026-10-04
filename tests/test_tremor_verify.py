@@ -41,20 +41,26 @@ def judge(hour, prev, price, rows, now, *, check="close", prev_hour=None, from_o
 # --- who checks whom ------------------------------------------------------------
 
 def test_every_feed_with_a_free_second_source_is_checked_by_one(basket):
-    assert verify.verifier_for(basket["USD/INR"]) == ("yahoo", "USDINR=X", "1h")
-    assert verify.verifier_for(basket["USD/BRL"]) == ("yahoo", "USDBRL=X", "1h")
+    # The pairs: Yahoo, and MarketWatch for the hours Yahoo lacks.
+    assert verify.verifiers_for(basket["USD/INR"]) == [
+        ("yahoo", "USDINR=X", "1h"), ("marketwatch", "CURRENCY/US/XTUP/USDINR", "1h")]
+    assert verify.verifiers_for(basket["USD/BRL"])[1] == (
+        "marketwatch", "CURRENCY/US/XTUP/USDBRL", "1h")
     for fund in (a for a in basket.values() if a.session_template == "us_equity"):
-        name, symbol, interval = verify.verifier_for(fund)
+        [(name, symbol, interval)] = verify.verifiers_for(fund)
         assert name != fund.fetched_from and symbol == fund.ticker and interval == "30min"
     # The softs Yahoo serves: Sina's global futures, hourly.
-    assert verify.verifier_for(basket["KC=F"]) == ("sina", "KC", "1h")
-    assert verify.verifier_for(basket["CC=F"]) == ("sina", "CC", "1h")
-    assert verify.verifier_for(basket["CT=F"]) == ("sina", "CT", "1h")
-    # A coin's price is its exchange's own trades; live cattle and the LME's
-    # metals have no independent free feed found.
+    assert verify.verifiers_for(basket["KC=F"]) == [("sina", "KC", "1h")]
+    assert verify.verifiers_for(basket["CC=F"]) == [("sina", "CC", "1h")]
+    assert verify.verifiers_for(basket["CT=F"]) == [("sina", "CT", "1h")]
+    # Live cattle: MarketWatch's continuous contract.
+    assert verify.verifiers_for(basket["LE=F"]) == [
+        ("marketwatch", "FUTURE/US/XCME/LC00", "1h")]
+    # A coin's price is its exchange's own trades; the LME's metals have no
+    # independent free feed found.
     for asset in basket.values():
-        if asset.session_template in ("crypto_24_7", "lme", "cme_cattle"):
-            assert verify.verifier_for(asset) is None
+        if asset.session_template in ("crypto_24_7", "lme"):
+            assert verify.verifiers_for(asset) == []
 
 
 def test_sinas_global_futures_and_us_funds_are_different_feeds(monkeypatch):
@@ -295,14 +301,14 @@ def test_a_pass_judges_every_reading_in_its_day_again_each_run(monkeypatch, tmp_
     now = datetime.fromtimestamp(int(hours[bad + 5]) + 300, timezone.utc)
     path = str(tmp_path / "verified.csv")
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
-    assert asked == [("yahoo", "USDINR=X")]
+    assert asked == [("yahoo", "USDINR=X"), ("marketwatch", "CURRENCY/US/XTUP/USDINR")]
     # The bad print, and the hour back from it, which did not happen either.
     unseen = {(asset.asset_id, int(hours[bad]), "close"),
               (asset.asset_id, int(hours[bad + 1]), "close")}
     assert set(verify.unconfirmed(path)) == unseen
     # Asked again next run - and the same answer.
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
-    assert len(asked) == 2 and set(verify.unconfirmed(path)) == unseen
+    assert len(asked) == 4 and set(verify.unconfirmed(path)) == unseen
     # The bar heals into no far move (a run that lost its fetch had judged the
     # :05 snapshot): its verdict no longer applies, and it is scored.
     frame.loc[bad, "close"] = market.loc[bad, "close"]
@@ -347,6 +353,82 @@ def test_a_busy_hour_asks_the_not_yet_judged_first(monkeypatch, tmp_path, basket
     # USD/INR comes first in the basket and was judged the first run: the
     # second run's one request goes to USD/TRY, which was not.
     assert asked == ["USDINR=X", "USDTRY=X"]
+
+
+def test_two_sources_combine_any_seen_confirms():
+    C, U, P, K = verify.CONFIRMED, verify.UNCONFIRMED, verify.PENDING, verify.UNKNOWN
+    one = lambda name, verdict, move: (name, verdict, 0.005, move)
+    assert verify.combine([one("yahoo", U, 0.0), one("marketwatch", C, 0.004)])[:3] == (
+        C, 0.005, ["marketwatch"])
+    # Still waiting on one of them: not a verdict yet.
+    assert verify.combine([one("yahoo", P, 0.0), one("marketwatch", U, 0.0)])[0] == P
+    verdict, _, names, moves = verify.combine([one("yahoo", U, 0.0003),
+                                              one("marketwatch", U, 0.0001)])
+    assert (verdict, names, moves) == (U, ["yahoo", "marketwatch"], [0.0003, 0.0001])
+    # One with no bars around the move (unknown) and one that did not see it.
+    assert verify.combine([one("yahoo", K, 0.0), one("marketwatch", U, 0.0)])[0] == U
+    assert verify.combine([one("yahoo", K, 0.0)])[0] == K
+    assert verify.combine([])[0] == K
+
+
+def test_a_source_with_bars_around_the_move_outweighs_one_bridging_a_gap():
+    # USD/INR's bad print at 22:00: Yahoo's last bar is 10:00, MarketWatch has
+    # every hour and stayed flat. Yahoo would wait for its 03:00 bar and then
+    # bridge seventeen hours; MarketWatch's own hours decide, at once.
+    def bars_(hours, price=96.1):
+        return pd.DataFrame({"hour_utc": [ts(h) for h in hours], "open": price, "close": price})
+    c = {"hour": ts("2026-09-30 22:00"), "check": "close", "from_open": False,
+         "prev_hour": ts("2026-09-30 21:00"), "prev_close": 96.10, "price": 96.40}
+    yahoo = bars_(["2026-09-30 10:00"])
+    mw = bars_([f"2026-09-30 {h}:00" for h in range(19, 24)])
+    now = ts("2026-10-01 00:05")
+    assert verify.judge_all(c, [("yahoo", yahoo), ("marketwatch", mw)], now)[0] == \
+        verify.UNCONFIRMED
+    # Yahoo's 03:00 bar, 0.3% up after the night's drift, does not turn it.
+    yahoo = bars_(["2026-09-30 10:00"]).pipe(
+        lambda f: pd.concat([f, bars_(["2026-10-01 03:00"], 96.40)], ignore_index=True))
+    assert verify.judge_all(c, [("yahoo", yahoo), ("marketwatch", mw)],
+                            ts("2026-10-01 03:05"))[0] == verify.UNCONFIRMED
+    # With nobody's bars around the move, the bridge is all there is.
+    assert verify.judge_all(c, [("yahoo", yahoo)], ts("2026-10-01 03:05"))[0] == \
+        verify.CONFIRMED
+
+
+def test_one_source_failing_leaves_the_other_to_answer(monkeypatch, tmp_path, basket):
+    from price_monitor.models import ExchangeError
+    asset, hours, bad, frame, market = _inr_store(tmp_path, basket)
+
+    def fetch(name, symbol, interval, days, session, now):
+        if name == "yahoo":
+            raise ExchangeError("USDINR=X: no response")
+        return market
+
+    monkeypatch.setattr(verify, "fetch_verifier", fetch)
+    now = datetime.fromtimestamp(int(hours[bad + 5]) + 300, timezone.utc)
+    path = str(tmp_path / "verified.csv")
+    verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
+    row = verify.unconfirmed(path)[(asset.asset_id, int(hours[bad]), "close")]
+    assert row["verifier"] == "marketwatch"
+
+
+def test_a_rate_limit_stops_that_source_only(monkeypatch, tmp_path, basket):
+    from price_monitor.models import ExchangeError
+    asset, hours, bad, frame, market = _inr_store(tmp_path, basket)
+    other = basket["USD/TRY"]
+    bars.write(bars.store_path(str(tmp_path / "bars"), other.file_stem), frame)
+    asked = []
+
+    def fetch(name, symbol, interval, days, session, now):
+        asked.append(name)
+        if name == "marketwatch":
+            raise ExchangeError(f"{symbol}: MarketWatch answered 429")
+        return market
+
+    monkeypatch.setattr(verify, "fetch_verifier", fetch)
+    now = datetime.fromtimestamp(int(hours[bad + 5]) + 300, timezone.utc)
+    verify.verify([asset, other], str(tmp_path / "bars"), None, now=now,
+                  path=str(tmp_path / "verified.csv"))
+    assert asked == ["yahoo", "marketwatch", "yahoo"]
 
 
 def test_an_unconfirmed_verdict_outlives_the_rest_of_the_record(tmp_path):

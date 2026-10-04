@@ -283,15 +283,24 @@ built as the pipeline builds them and scored as `jumps` scores them, against the
 half-year σ and gap kinds, each asked when the detector finds it (a pair's weekend gap at
 its open). That is below the 6σ bottom word, so every flagged reading is asked about —
 543 of 543 over the reach below — and about 55 readings a week across the basket, one
-request per instrument:
+request per source and instrument:
 
 | served by | asked of |
 |---|---|
-| SiftingIO (the 17 pairs and the real) | Yahoo's hourly FX (`USDINR=X`), 699 days back |
+| SiftingIO (the 17 pairs and the real) | Yahoo's hourly FX (`USDINR=X`), 699 days back, and MarketWatch's (`CURRENCY/US/XTUP/USDINR`), every hour of the last 10 days — Yahoo's has as little as a fifth of USD/INR's hours |
 | Alpaca, Tiingo, Sina, Twelve Data, Google (funds) | Yahoo's 30-minute bars, folded to the hour, 54 days back |
 | Yahoo (funds) | Sina's 30-minute US bars, 77 days back |
 | Yahoo (coffee, cocoa, cotton) | Sina's global futures, hourly, 30 days back |
-| Binance, live cattle, the LME | not asked: a coin's price is its exchange's own trades, and the others have no free independent feed found |
+| Yahoo (live cattle) | MarketWatch's continuous contract, hourly, 10 days back |
+| Binance, the LME | not asked: a coin's price is its exchange's own trades, and the LME has no free independent feed found |
+
+With two sources a move is **confirmed** if either saw it, **pending** while either is
+still waiting for its next bar, and **unconfirmed** only if one answered and none saw it —
+and a source with bars of its own around the move outweighs one bridging hours it has none
+for: USD/INR's night, where Yahoo's last bar is 10:00 and MarketWatch has every hour, is
+MarketWatch's to judge (`verify.judge_all`).
+A source that fails leaves the other to answer, and a rate limit stops that source for the
+rest of the run.
 
 Each feed is compared with itself, so a steady offset between them is not a move. The move
 is **confirmed** if the second source moved the same way at least half as far, from its
