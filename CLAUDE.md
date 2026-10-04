@@ -1,130 +1,68 @@
-# Tremor — orientation for an agent
+# How an agent works here
 
-> **Holds** what an agent needs in the first minute: the command order, the invariants,
-> the map, and how to run the tests. It is loaded automatically, so it stays short.
-> **Does not hold** anything explained elsewhere. It is the canonical copy of the hourly
-> pass and of local setup; everything else here is a pointer.
-> **Add to it only** what would cause a wrong change if it were not known immediately.
+Tremor is an hourly Telegram bot on GitHub Actions that writes when one of 173 market
+instruments moves unusually for itself. `README.md` says what it is and maps the files;
+`docs/manual.md` says how every part works; `docs/decisions.md` says why, and what not to
+reopen.
 
-An hourly Telegram bot. It watches 173 market instruments and writes when one moves
-unusually **for itself**, measured against its own history rather than a shared
-percentage. It runs entirely on GitHub Actions.
+**Before changing code, read the section of `docs/manual.md` that covers it.** Its
+**Rule.** lines are invariants: a change that breaks one makes the system wrong, not
+merely broken. A change to behaviour updates the manual (what it does) and, where a choice
+was made, `docs/decisions.md` (why), in the same commit.
 
-**This branch is the replacement detector.** A jump detector copied from Lee & Mykland
-(2008), built stage by stage in `tremor/jumps.py` on `claude/youthful-pascal-u0rx7u`, as it
-will run live. Production still runs the previous detector from
-`claude/price-spike-monitoring-app-yyg2jg` until the switch; its code is not on this branch
-— read it there when a stage needs a piece of it. Each stage is reviewed before the next;
-`docs/architecture.md` has the stage list and `docs/decisions.md` the reasons.
+## Boundaries
 
-**Where it posts: a PUBLIC Telegram channel, not a private chat.** Anyone can join it. The
-bot is an administrator there. A bot can edit its own messages at any age, and as a
-channel admin with "Delete messages" (`can_delete_messages`) it can delete any message
-there — the Bot API's 48-hour delete limit does not bind it. Never reason, write or log as
-if this were a private chat. Health and provider failures never go there: without
-`TELEGRAM_HEALTH_CHAT_ID` they are only logged.
+- **The channel is public.** Anyone can read it. Never write, log or test as if it were a
+  private chat. Health and provider failures go to `TELEGRAM_HEALTH_CHAT_ID` only.
+- **Secrets never enter the repository.** It is public. Keys live in GitHub Actions
+  secrets and are read from the environment; `config/config.yaml` may name a secret,
+  never hold one.
+- **Push only to the branch you were asked to**, and open a pull request only when asked.
+  The live branch runs the bot: a push there reaches the channel within the hour.
+- **Confirm before anything outward-facing or hard to reverse:** a push to the live
+  branch, unmuting, deleting data or channel messages, rewriting history. One approval
+  does not cover the next.
+- **Do not spend a provider's quota on experiments.** Tiingo and SiftingIO run near their
+  limits for the live run; probe free sources instead.
 
-Read this file first, then the one doc that covers your task:
+## Scope
 
-| you need | read |
-|---|---|
-| what it does, how to set it up, how to tune it | `README.md` |
-| how a bar becomes a message, module by module | `docs/architecture.md` |
-| why it is built this way, and what not to re-litigate | `docs/decisions.md` |
-| quotas, failure modes, what is committed when | `docs/operations.md` |
-| the rules you work under here | `docs/working-agreement.md` |
-| what is known, open, and deliberately not being worked on | `docs/concerns-for-later.md` |
-| which instruments, in which blocks | `config/basket.yaml` — the source of truth |
+- **Do what was asked, then stop.** Fixing a thing is not a request to refactor its file.
+- **Finish it.** If part is blocked, do the rest and say what was left and why.
+- **A second problem found on the way is reported, not silently fixed.** Two changes in
+  one commit cannot be reviewed or reverted apart.
+- **Stop for a go before a change to what the detector flags or what the channel
+  shows.** Present the measured before/after first.
 
-## The hourly pass
+## Evidence
 
-Four commands. **The order is load-bearing.**
+- **Measure the thing you are about to claim**, not something adjacent. A plausible
+  mechanism is not evidence.
+- **Quote a number with its window** ("4 pushes a week, over the year to 2026-10-01").
+  Re-derive rather than copying a figure forward across a change.
+- **Never a percentage across instruments.** 5% is a quiet hour for a coin and a crash
+  for short Treasuries. Per instrument, in σ, or nothing.
+- **Never present a partial run as complete.** A killed job, a rate limit or a skipped
+  stage is said in the same breath as the result.
+- **When told you are wrong, check, then answer.** Neither fold nor dig in. When wrong,
+  say so in one sentence.
 
-```
-tremor.backfill   fetch new bars into data/tremor/bars/, then ask a second
-                  source about the far moves (tremor.verify)
-tremor.pipeline   per-instrument metrics: the move and the gap
-tremor.jumps      score, words, 24-hour events, channels    <- the product
-price_monitor     deliver what is due to Telegram
-```
+## Changing it safely
 
-- `jumps` reads what `pipeline` wrote and rescores the whole history every run.
-- `price_monitor` is last: delivery reads `jumps.parquet` off disk.
-- Around `backfill`, the open months of the bars (`YYYY-MM.open.csv`, gitignored) are restored
-  from and saved to a release, `tools/hot_bars.sh`; only settled months are in git.
+- **Run the whole hourly pass, not one stage** (`docs/manual.md`, "The hourly pass").
+  A stage alone leaves the next reading stale data.
+- **A formula change moves `config_version` and forces a cold rebuild.** Run it, and
+  check the diff in events is what you expected.
+- **No window may see past the bar it judges.** The easiest rule to break by accident and
+  the hardest to notice.
+- **A regression test must fail without the fix.** One that passes either way looks like
+  cover and is not.
+- **A rewrite claiming to be exact is checked against the old code on real data.**
+- **Run the tests alone:** `pytest -q`, about 720 tests in 1.5 minutes. Several load large
+  parquet files, and concurrent runs thrash.
 
-## Invariants
+## What cannot be self-reported
 
-Break one of these and the system is wrong rather than merely broken.
-
-1. **`source` is identity, `provider` is who is asked.** In `config/basket.yaml`,
-   `asset_id` and the file on disk are built from `source`. Editing it to follow a
-   provider change orphans every stored bar and every recorded verdict. `provider`
-   changes freely.
-2. **Rolling windows end before the bar being judged.** A full-sample fit labels a 2016
-   move knowing 2020 is coming, and the backtest then flatters a system nobody can run.
-3. **Everything internal is UTC seconds, named `hour_utc`.** Local time appears where a
-   day is a local thing — a fund's trading day and session, in New York — resolved
-   through `ZoneInfo`. The weekly note's slot is UTC.
-4. **An event is 24 real hours from its first move being found** (`jumps.event_starts`),
-   for every instrument — not a trading day, not a count of candles. Its word is its
-   rarest reading's, its numbers its biggest reading's. A move found after the 24 hours
-   opens the next event; one found after the week's note opened opens a new event even
-   inside them. Events already on the channel hold their 24 hours (delivery's anchors).
-5. **One note a week, curated for that week and never after.** It opens at the first run
-   after the week's last NYSE close (normally Friday 16:05 New York; `routing.digest_slot`),
-   right after the calendar's own message. That run first finishes the old week — its
-   moves' checks at that close land — then opens the new note; the closing hour is found
-   in it and goes into the new week. A move belongs to the note open when it is
-   **found**; for that week every run brings every message in line with the events table
-   (`tremor_delivery` "the week"). Anything of an earlier week is history and is never
-   touched: at the next note only the old week's pings are taken down. **The moves one
-   run finds share messages** — its pushes in one, its pings in one more, biggest σ
-   first — and only the run's first message rings; a message is edited as what it
-   carries changes and deleted once it carries nothing. **Inside its 24 hours** an event
-   that turns rarer leaves its message and goes out again in the run's new one at the
-   new word, and rings; one that turns milder is edited (a push that falls to
-   `noticeable` shows ⬜, a `noticeable` that falls away is taken out). **After them** it
-   changes only by a fix, silently: rarer or milder is an edit (a row turning `high`
-   leaves the note and its ping line becomes the push), gone is gone for good. A changed
-   event carries its story on one line; a clean one says nothing. A ping line lives
-   exactly as long as its row. A move a second source did not see (`tremor.verify`,
-   `verified.csv`) is not scored and stays out of every yardstick; if it already went
-   out, its line stays with `⚠️ unconfirmed` under it, silently, and its row leaves the note
-   — until a reading of it comes back.
-   Every move — a coin's and a pair's too — is checked at the first NYSE close after it
-   was found (`jumps.held_at_close`): its time line counts down, then says how much held.
-6. **A detector update restarts the week.** When `jumps.detector_version()` changes, every
-   push and ping message of the week is deleted; the note (and the calendar) stay, and the week
-   continues with what is found from that run on. Nothing found before the update rings.
-7. **A reading is judged only once it can be.** The run fires at :05 and stores the hour
-   it is standing in — a few per cent of its volume — so `jumps.ended` scores an hour
-   only after it ends, a fund's gap with its first bar, once that bar has ended, and a
-   currency pair's weekend gap at its open. The stored bars heal on the next fetch, so
-   the metrics must too: `extend_asset_metrics` re-scores its last `RECOMPUTE_TAIL_BARS`
-   rows instead of trusting them.
-8. **Tables are written through a temp file and `os.replace`** (`tremor/atomic.py`), so a
-   killed run cannot truncate one in place.
-9. **Secrets never enter the repository.** The repo is public. `config.yaml` may name a
-   secret; it may never hold one.
-10. **A change to a formula moves `config_version`**, and `pipeline` then rebuilds cold
-    instead of extending. The first run after such a change is slow by design. A comment
-    does not: the inputs are hashed as parsed code, docstrings stripped, so rewriting
-    prose cannot force a rebuild or move an event's stamp.
-
-## Working locally
-
-```bash
-pip install -r requirements-dev.txt
-pytest -q                     # ~710 tests, about a minute and a half
-```
-
-Run the tests alone — several load large parquet files, and concurrent runs thrash.
-
-To exercise the real pipeline you need `TIINGO_API_KEY`, `ALPACA_KEY_ID` and
-`ALPACA_SECRET_KEY`, `TWELVEDATA_API_KEY` (hourly bars: funds) and `SIFTING_API_KEY` (FX),
-plus `FRED_API_KEY` for the VIX series. The other providers need no key. Derived data under
-`data/tremor/metrics/` and `jumps.parquet` is gitignored and rebuilds from the committed
-bars in about fifteen seconds. The open months are not in a clone: `tools/hot_bars.sh restore`
-(with `gh` logged in, `GITHUB_REPOSITORY` and `GITHUB_REF_NAME` set) lays them down.
-
+State these plainly rather than guess: effort or reasoning depth, billing and usage, and
+anything not verified in this session — including earlier numbers, if the code has
+changed since.
