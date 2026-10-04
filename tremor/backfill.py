@@ -386,6 +386,11 @@ def check_dividends(funds: "list[Asset]", table: "dict | None",
                             if checks.get(a.ticker, "") < horizon) if first_run else []}
 
 
+# How far back the skip looks for the newest in-session bar: more than a
+# weekend's worth of hourly bars served while the market was shut.
+SKIP_LOOKBACK_BARS = 240
+
+
 def nothing_can_have_appeared(asset: Asset, path: str,
                               table: "dict | None",
                               now: datetime | None = None) -> bool:
@@ -424,7 +429,14 @@ def nothing_can_have_appeared(asset: Asset, path: str,
         return False
 
     now = now or datetime.now(timezone.utc)
-    newest = int(stored["hour_utc"].max())
+    # The newest bar INSIDE the session. A provider may serve bars while the
+    # market is shut - SiftingIO through the FX weekend, the real round the
+    # clock - and they are stored for the quality gate to drop. Measured from
+    # them, the newest bar is always an hour old and the instrument is asked
+    # every closed hour: for the currency pairs, past SiftingIO's monthly quota.
+    recent = stored["hour_utc"].astype("int64").tail(SKIP_LOOKBACK_BARS)
+    inside = recent[quality.in_session(asset, recent, table).to_numpy(dtype=bool)]
+    newest = int((inside if not inside.empty else recent).max())
     if now.timestamp() - newest < SETTLE_HOURS * 3600:
         return False
     if template == "us_equity" and max(table) < now.date():

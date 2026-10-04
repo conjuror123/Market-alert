@@ -951,6 +951,28 @@ def test_fx_is_asked_when_the_week_has_reopened():
         assert nothing_can_have_appeared(asset(), path, table, now) is False
 
 
+def test_fx_weekend_bars_a_provider_serves_do_not_keep_the_pair_asked_for():
+    # SiftingIO serves bars through the weekend, and they are stored (the quality
+    # gate drops them later). Measured from them, the newest bar is always an
+    # hour old and the pair was asked every weekend hour - 16 pairs x 48 hours,
+    # past the provider's monthly quota.
+    from tremor.backfill import nothing_can_have_appeared
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as tmp:
+        friday = int(datetime(2026, 4, 3, 20, tzinfo=timezone.utc).timestamp())
+        path = _equity_store(pathlib.Path(tmp), friday)
+        saturday = int(datetime(2026, 4, 4, 14, tzinfo=timezone.utc).timestamp())
+        bars.merge(path, bars.to_hourly(bars.candles_to_frame(
+            [Candle(open_time=saturday, open=1.5, high=1.5, low=1.5, close=1.5,
+                    volume=0.0, close_time=saturday + HOUR)])))
+        table = _table([date(2026, 4, 3), date(2026, 4, 6)])
+        now = datetime(2026, 4, 4, 15, 5, tzinfo=timezone.utc)
+        assert nothing_can_have_appeared(asset(), path, table, now) is True
+        # ...and the week reopening is still seen.
+        sunday = datetime(2026, 4, 5, 22, 5, tzinfo=timezone.utc)
+        assert nothing_can_have_appeared(asset(), path, table, sunday) is False
+
+
 def test_crypto_is_never_skipped():
     from tremor.backfill import nothing_can_have_appeared
     import tempfile, pathlib
