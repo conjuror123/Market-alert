@@ -62,7 +62,6 @@ SPECS: "dict[str, dict]" = {
                  continuous_history=False),
     "LE=F": dict(listed="GJMQVZ", ltd_back=0, held="GJMQVZ", roll_back=None, suffix="CME"),
 }
-CONTRACTS = SPECS
 
 # Volume under this share of the series' trailing median is a quote, not a
 # trade. The median is of the nonzero volumes among the THIN_WINDOW bars before

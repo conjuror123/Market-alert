@@ -199,8 +199,6 @@ def versions_for(data_paths=RAW_INPUTS, root: str = ".") -> tuple[str, str]:
 
 # --- stamping the versions onto what the run writes -----------------------
 
-VERSION_COLUMNS = ("config_version", "run_version")
-
 
 def stamp(frame, config: str, run: str):
     """Writes both versions into every row.

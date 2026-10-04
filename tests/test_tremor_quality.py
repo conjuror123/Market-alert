@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 
 import pandas as pd
 import pytest
@@ -110,7 +110,7 @@ def test_gate_marks_usable_bars_only():
     assert list(gated["is_usable"]) == [True, False]
 
 
-def test_expected_hours_are_the_session_hours():
+def test_a_half_day_has_four_session_hours():
     first = hour_at(2021, 11, 26, 0, "America/New_York")
-    last = hour_at(2021, 11, 26, 23, "America/New_York")
-    assert len(quality.expected_hours(asset(), first, last, TABLE)) == 4
+    hours = pd.Series(range(first, first + 24 * 3600, 3600))
+    assert int(quality.in_session(asset(), hours, TABLE).sum()) == 4

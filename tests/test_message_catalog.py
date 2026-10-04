@@ -63,7 +63,7 @@ def catalog(monkeypatch) -> dict[str, str]:
                         hour_utc=hour, overnight=True, gap_kind="weekend")
     digest_now = datetime(2026, 9, 16, 10, tzinfo=timezone.utc)
     return {
-        "digest": md.format_digest([dbb], labels, routing.digest_window(SLOT), cal,
+        "digest": md.format_digest([dbb], labels, (SLOT, routing.next_digest_slot(SLOT)), cal,
                                    digest_now)[0],
         "ping": md.format_ping(dbb, labels),
         "push_high_gap_night": md.format_push(spy_night, labels),

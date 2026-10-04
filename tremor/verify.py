@@ -75,7 +75,7 @@ import numpy as np
 import pandas as pd
 import requests
 
-from tremor import atomic, bars, quality
+from tremor import atomic, bars
 from tremor.basket import Asset
 
 log = logging.getLogger("tremor.verify")

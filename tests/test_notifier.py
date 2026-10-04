@@ -3,8 +3,7 @@ import requests
 
 from price_monitor import notifier
 from price_monitor.notifier import (
-    TelegramError, edit_telegram_message, fetch_telegram_updates,
-    send_telegram_message,
+    TelegramError, edit_telegram_message, send_telegram_message,
 )
 
 
@@ -119,19 +118,6 @@ def test_an_unmodified_edit_is_not_an_error(monkeypatch):
 
     monkeypatch.setattr(notifier.requests, "post", fake_post)
     edit_telegram_message("token", "@chan", 99, "same text")
-
-
-def test_fetch_updates_passes_the_offset(monkeypatch):
-    calls = []
-
-    def fake_get(url, params, timeout):
-        calls.append((url, params))
-        return FakeResponse(200, {"ok": True, "result": [{"update_id": 4}]})
-
-    monkeypatch.setattr(notifier.requests, "get", fake_get)
-    assert fetch_telegram_updates("token", offset=5) == [{"update_id": 4}]
-    assert calls[0][0].endswith("/bottoken/getUpdates")
-    assert calls[0][1]["offset"] == 5
 
 
 def test_a_429_is_waited_out_and_the_message_goes(monkeypatch):

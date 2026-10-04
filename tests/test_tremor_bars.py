@@ -197,26 +197,6 @@ def test_a_settled_year_is_not_rewritten_when_a_new_hour_arrives(tmp_path):
     assert len(bars.load(store)) == 3
 
 
-def test_a_legacy_single_file_is_read_and_then_folded_in(tmp_path):
-    # The migration is the ordinary write path rather than a script somebody has
-    # to remember to run: the first merge reads the old file, lays the union down
-    # as shards and removes it.
-    import os
-
-    store = bars.store_path(str(tmp_path), "twelvedata_SPY")
-    legacy = f"{store}.parquet"
-    os.makedirs(str(tmp_path), exist_ok=True)
-    bars.write(legacy, _rows([_hour(2003), _hour(2004)]))
-
-    assert len(bars.load(store)) == 2
-    bars.merge(store, _rows([_hour(2026)]))
-
-    assert not os.path.exists(legacy)
-    assert sorted(os.listdir(store)) == [
-        "2003.parquet", "2004.parquet", "2026-01.open.csv"]
-    assert sorted(bars.load(store)["hour_utc"]) == [_hour(2003), _hour(2004), _hour(2026)]
-
-
 def test_a_revised_bar_wins_over_the_stored_one(tmp_path):
     store = bars.store_path(str(tmp_path), "twelvedata_SPY")
     bars.write(store, _rows([_hour(2026)]))

@@ -114,16 +114,6 @@ def invalid_reasons(asset: Asset, frame: pd.DataFrame) -> pd.Series:
     return reasons
 
 
-def expected_hours(asset: Asset, first_hour: int, last_hour: int,
-                   session_table: dict[date, sessions_mod.Session] | None = None,
-                   anchor_tz: str = "America/New_York") -> list[int]:
-    """Hours the asset SHOULD have in the range - that is, every hour of its
-    session. The difference from what actually arrived is is_missing."""
-    hours = pd.Series(range(first_hour - first_hour % HOUR, last_hour + HOUR, HOUR))
-    mask = in_session(asset, hours, session_table, anchor_tz)
-    return [int(h) for h in hours[mask]]
-
-
 def apply_gate(asset: Asset, frame: pd.DataFrame,
                session_table: dict[date, sessions_mod.Session] | None = None,
                anchor_tz: str = "America/New_York") -> pd.DataFrame:

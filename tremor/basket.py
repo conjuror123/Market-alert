@@ -31,7 +31,6 @@ BLOCKS = ("equity", "rates", "credit", "energy", "precious_metals",
 
 # A block of one is a typo in basket.yaml, not a group.
 BLOCK_MIN_MEMBERS = 2
-BLOCK_ADVISED_MEMBERS = 8
 TIERS = (1, 2)
 # WHAT `source` IS, AND WHAT IT IS NOT. It names the store, not the server.
 # `asset_id` and `file_stem` are both built from it, so every bar on disk, every

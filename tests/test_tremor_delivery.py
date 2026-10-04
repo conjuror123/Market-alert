@@ -319,7 +319,7 @@ def test_a_ticker_ping_puts_percent_and_size_after_the_name():
 def header_for(y, m, d):
     """The header of the note open on that day."""
     opens = routing.digest_slot(int(datetime(y, m, d, 12, tzinfo=timezone.utc).timestamp()))
-    return md.format_digest([], LABELS, routing.digest_window(opens),
+    return md.format_digest([], LABELS, (opens, routing.next_digest_slot(opens)),
                             None, NOW)[0].splitlines()[0]
 
 

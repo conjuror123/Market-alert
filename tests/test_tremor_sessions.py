@@ -33,21 +33,18 @@ def test_half_sessions_are_marked():
     # Counted rather than fixed: the table's span is a configuration choice - it
     # now reaches back to 2015 - and a literal here would fail every time the
     # history is deepened without anything being wrong.
-    early = sessions.half_sessions(table)
+    early = [s for s in table.values() if s.is_early_close]
     assert all(s.is_early_close and s.local_close == "13:00" for s in early)
     # Roughly two or three a year over the table's span, never none.
     years = len({day.year for day in table})
     assert years <= len(early) <= 4 * years
 
 
-def test_holiday_is_a_weekday_absent_from_the_table():
+def test_a_holiday_is_a_weekday_absent_from_the_table():
     table = sessions.load_sessions()
     # Christmas 2023 falls on a Monday, the exchange is closed.
-    assert sessions.is_holiday(date(2023, 12, 25), table)
-    # An ordinary Tuesday is not a holiday.
-    assert not sessions.is_holiday(date(2023, 12, 26), table)
-    # Weekends do not count as holidays: that is the ordinary close of the week.
-    assert not sessions.is_holiday(date(2023, 12, 23), table)
+    assert date(2023, 12, 25) not in table
+    assert date(2023, 12, 26) in table
 
 
 def test_reference_week_is_exactly_120_hours():
@@ -55,7 +52,7 @@ def test_reference_week_is_exactly_120_hours():
     # are not subtracted from it.
     opened, closed = sessions.reference_week_bounds(
         datetime(2026, 8, 26, 12, tzinfo=timezone.utc), ANCHOR)
-    assert (closed - opened) / 3600 == sessions.REFERENCE_WEEK_HOURS
+    assert (closed - opened) / 3600 == 120
 
 
 def test_reference_week_bounds_shift_with_daylight_saving():
@@ -225,94 +222,6 @@ def _table(days):
 
     return {d: Session(day=d, local_open="09:30", local_close="16:00",
                        is_early_close=False) for d in days}
-
-
-def test_bars_after_crosses_a_closed_day_rather_than_counting_through_it():
-    # Friday's last bar plus two is Monday morning, not Friday evening. Nothing
-    # trades in between, so nothing can revert in between either.
-    from tremor.sessions import bars_after
-
-    table = _table([date(2026, 9, 3), date(2026, 9, 4), date(2026, 9, 8)])
-    friday_last = int(datetime(2026, 9, 4, 19, 0, tzinfo=timezone.utc).timestamp())
-    stamp = bars_after(friday_last, 2, "us_equity", table)
-    assert datetime.fromtimestamp(stamp, tz=timezone.utc) == datetime(
-        2026, 9, 8, 14, 0, tzinfo=timezone.utc)
-
-
-def test_a_day_missing_from_the_table_is_a_day_that_does_not_exist():
-    # A holiday is simply an absent row, so the walk needs to know nothing about
-    # what kind of closure it is.
-    from tremor.sessions import bars_after, next_close_after
-
-    table = _table([date(2026, 9, 4), date(2026, 9, 8)])
-    friday_last = int(datetime(2026, 9, 4, 19, 0, tzinfo=timezone.utc).timestamp())
-    for stamp in (bars_after(friday_last, 1, "us_equity", table),
-                  next_close_after(friday_last, "us_equity", table)):
-        assert datetime.fromtimestamp(stamp, tz=timezone.utc).day == 8
-
-
-def test_a_round_the_clock_bar_is_an_hour():
-    from tremor.sessions import bars_after
-
-    start = int(datetime(2026, 9, 4, 20, 0, tzinfo=timezone.utc).timestamp())
-    assert bars_after(start, 6, "crypto_24_7") == start + 6 * 3600
-
-
-def test_a_currency_pair_waits_for_the_week_to_reopen():
-    # The FX week runs Sunday 17:00 to Friday 17:00 in the anchor exchange's
-    # time, so a Friday-evening bar's successor is on the Sunday.
-    from tremor.sessions import bars_after
-
-    friday = int(datetime(2026, 9, 4, 20, 0, tzinfo=timezone.utc).timestamp())
-    stamp = bars_after(friday, 1, "fx_continuous")
-    assert datetime.fromtimestamp(stamp, tz=timezone.utc) == datetime(
-        2026, 9, 6, 21, 0, tzinfo=timezone.utc)
-
-
-def test_the_walk_gives_up_rather_than_looping_past_the_table():
-    # Past the end of the session table there is no answer, and saying so is the
-    # honest result - the caller renders less rather than something wrong.
-    from tremor.sessions import bars_after
-
-    table = _table([date(2026, 9, 4)])
-    friday_last = int(datetime(2026, 9, 4, 19, 0, tzinfo=timezone.utc).timestamp())
-    assert bars_after(friday_last, 2, "us_equity", table) is None
-
-
-def test_next_close_after_is_the_end_of_the_following_session():
-    from tremor.sessions import next_close_after
-
-    table = _table([date(2026, 9, 8), date(2026, 9, 9)])
-    hour = int(datetime(2026, 9, 8, 14, 0, tzinfo=timezone.utc).timestamp())
-    assert datetime.fromtimestamp(next_close_after(hour, "us_equity", table),
-                                  tz=timezone.utc) == datetime(
-        2026, 9, 9, 20, 0, tzinfo=timezone.utc)
-
-
-# --- is that day over? ------------------------------------------------------
-
-def test_a_day_is_closed_only_on_its_last_bar():
-    # What decides whether a close reading may be taken at all. A store ends
-    # with the hour the run is standing in, so asking this of the newest bar is
-    # asking whether the newest day is finished.
-    friday = int(datetime(2026, 9, 4, 23, tzinfo=timezone.utc).timestamp())
-    assert sessions.day_is_closed(friday, "crypto_24_7")
-    assert not sessions.day_is_closed(friday - 3600, "crypto_24_7")
-
-
-def test_an_exchange_day_is_closed_on_its_last_session_bar():
-    table = sessions.cached_sessions()
-    # 15:00 New York is the last bar of an ordinary session; 14:00 is not.
-    last = int(datetime(2026, 9, 4, 19, tzinfo=timezone.utc).timestamp())
-    assert sessions.day_is_closed(last, "us_equity", table)
-    assert not sessions.day_is_closed(last - 3600, "us_equity", table)
-
-
-def test_no_calendar_means_no_day_can_be_called_closed():
-    # The safe direction: an answer withheld is recoverable, a number the reader
-    # believes is not.
-    last = int(datetime(2026, 9, 4, 19, tzinfo=timezone.utc).timestamp())
-    assert not sessions.day_is_closed(last, "us_equity", {})
 
 
 # --- the table extends itself, append-only ------------------------------------

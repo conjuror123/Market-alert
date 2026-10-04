@@ -78,20 +78,13 @@ def store_path(base_dir: str, file_stem: str) -> str:
     month's end, measured against the newest bar the store holds.
 
     The path is still handed around as one string, so nothing above this module
-    has to know. `load` also reads the legacy single file where one is still
-    lying about, and the next `write` folds it into the shards and deletes it -
-    the migration is the ordinary write path, not a script somebody has to
-    remember to run.
+    has to know.
     """
     return os.path.join(base_dir, file_stem)
 
 
 def empty_frame() -> pd.DataFrame:
     return pd.DataFrame({name: pd.Series(dtype=dt) for name, dt in SCHEMA.items()})
-
-
-def _legacy_path(store: str) -> str:
-    return f"{store}.parquet"
 
 
 # A week: what still reaches a closed month after its end is a hole filled late
@@ -208,9 +201,6 @@ def _shards(store: str) -> list[str]:
     if store.endswith(".parquet"):
         return [store] if os.path.exists(store) else []
     found = []
-    legacy = _legacy_path(store)
-    if os.path.exists(legacy):
-        found.append(legacy)
     if os.path.isdir(store):
         found.extend(sorted((os.path.join(store, name) for name in os.listdir(store)
                              if _is_shard(name)), key=_shard_key))
@@ -219,8 +209,8 @@ def _shards(store: str) -> list[str]:
 
 def _reaches(path: str, year: int, month: int) -> bool:
     """Whether a shard can hold bars of that month or later: a year's shard
-    through its December, a month's its own; anything else (a legacy file,
-    a named parquet) is read."""
+    through its December, a month's its own; anything else (a named
+    parquet) is read."""
     shard_year, shard_month = _shard_key(path)
     return shard_year >= (1 << 30) or (shard_year, shard_month or 12) >= (year, month)
 
@@ -232,10 +222,6 @@ def _normalise(frame: pd.DataFrame) -> pd.DataFrame:
 def load(store: str, since: "int | None" = None) -> pd.DataFrame:
     """The whole instrument, every shard concatenated - or, with `since`, its
     bars from that hour on, read from the shards that can hold them.
-
-    A legacy file is read FIRST so that a shard covering the same hour wins the
-    de-duplication - during a migration the shard is the newer copy by
-    construction, and reading it second would resurrect stale rows.
     """
     paths = _shards(store)
     if since is not None:
@@ -288,11 +274,6 @@ def write(store: str, frame: pd.DataFrame) -> None:
         # told to drop.
         if name not in files:
             os.remove(os.path.join(store, name))
-    legacy = _legacy_path(store)
-    if os.path.exists(legacy):
-        # Everything it held is now in the shards - load() read it before this
-        # write and write() has just laid the union back down.
-        os.remove(legacy)
 
 
 def merge(store: str, frame: pd.DataFrame, revise_settled: bool = False) -> int:

@@ -110,6 +110,3 @@ def next_digest_slot(hour_utc: int) -> int:
     return turns[at]
 
 
-def digest_window(slot_utc: int) -> tuple[int, int]:
-    """The period a note covers: from when it opened to when the next one does."""
-    return int(slot_utc), next_digest_slot(int(slot_utc))

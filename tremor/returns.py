@@ -31,7 +31,7 @@ from __future__ import annotations
 import bisect
 import logging
 import math
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import numpy as np

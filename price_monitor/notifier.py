@@ -97,29 +97,6 @@ def send_telegram_message(bot_token: str, chat_id: str, text: str, timeout: int 
     return resp.json()["result"]["message_id"]
 
 
-def fetch_telegram_updates(bot_token: str, offset: int | None = None,
-                           timeout: int = 15) -> list[dict]:
-    """Pending updates for this bot, oldest first. Empty when nothing is waiting.
-
-    Long-polling is not used: the hourly job asks once and moves on. `offset`
-    is the next update_id to read, so a processed batch is not seen again.
-    """
-    if not bot_token:
-        raise TelegramError("TELEGRAM_BOT_TOKEN is not configured")
-
-    url = f"https://api.telegram.org/bot{bot_token}/getUpdates"
-    params = {"timeout": 0}
-    if offset is not None:
-        params["offset"] = int(offset)
-    try:
-        resp = requests.get(url, params=params, timeout=timeout)
-    except requests.RequestException:
-        raise TelegramError("Telegram request failed") from None
-    if resp.status_code != 200:
-        raise TelegramError(f"Telegram API error {resp.status_code}: {resp.text[:300]}")
-    return list(resp.json().get("result") or [])
-
-
 def edit_telegram_message(
     bot_token: str, chat_id: str, message_id: int, text: str, timeout: int = 15
 ) -> None:

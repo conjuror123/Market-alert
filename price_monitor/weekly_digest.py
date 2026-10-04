@@ -139,15 +139,6 @@ def _is_digest_window(now: datetime) -> bool:
     return 0 <= now.timestamp() - _weekend_slot(now) < _DIGEST_WITHIN_HOURS * 3600
 
 
-def _week_identifier(now: datetime) -> str:
-    """Dedup key: the note-opening this digest belongs to.
-
-    The slot it is sent for rather than anything read out of the data, because
-    the grace window means several runs can qualify and only the first may send.
-    """
-    return str(_weekend_slot(now))
-
-
 def coming_week(now: datetime) -> "tuple[datetime, datetime]":
     """The period this digest speaks for: the next whole week, Monday to Monday.
 

@@ -34,10 +34,6 @@ from functools import lru_cache
 HOUR = 3600
 DEFAULT_SESSIONS_PATH = os.path.join("data", "tremor", "sessions", "nyse.csv")
 
-# The basket's reference calendar: the continuous trading week of the
-# anchor exchange, from Sun 17:00 to Fri 17:00 of its LOCAL time. Exactly 120
-# hours; holidays are not subtracted from the week.
-REFERENCE_WEEK_HOURS = 120
 REFERENCE_OPEN_HOUR = 17   # Sunday, anchor exchange local time
 REFERENCE_CLOSE_HOUR = 17  # Friday
 
@@ -144,16 +140,6 @@ def load_sessions(path: str = DEFAULT_SESSIONS_PATH) -> dict[date, Session]:
     return sessions
 
 
-def is_holiday(day: date, sessions: dict[date, Session]) -> bool:
-    """A business day absent from the session table. Weekends do not count as
-    holidays - that is the ordinary close of the week."""
-    return day.weekday() < 5 and day not in sessions
-
-
-def half_sessions(sessions: dict[date, Session]) -> list[Session]:
-    return [s for s in sessions.values() if s.is_early_close]
-
-
 EXCHANGE_TZ = "America/New_York"
 
 
@@ -207,58 +193,6 @@ def _load_sessions_cached(path: str) -> dict[date, Session]:
     return load_sessions(path)
 
 
-# How far forward the bar walk will look before giving up. Three weeks is far
-# past any weekend, holiday or exchange closure the table describes, and the
-# ceiling exists only so a template whose days are all empty - a session table
-# that has run out of years, say - returns "no answer" instead of looping.
-MAX_LOOKAHEAD_DAYS = 21
-
-
-def day_tz(template: str, tz_name: str = EXCHANGE_TZ) -> "str | None":
-    """The timezone whose calendar day IS this instrument's trading day.
-
-    None for an instrument with no daily close to speak of, which is what every
-    caller downstream reads as "the UTC day". One function rather than the same
-    conditional written out in four modules, because the answer has to be the
-    same in all of them: it decides when the settled retention reading lands,
-    when an instrument becomes eligible to fire again, and where a block's day
-    ends, and those three drifting apart would be invisible.
-
-    A CURRENCY PAIR TAKES THE UTC DAY TOO, which is a measured choice rather
-    than an oversight. The FX day properly rolls at 17:00 in New York, and the
-    bars themselves keep that week (Sunday 17:00 through Friday 16:00) - but
-    that boundary is no better here and worse where it fails. Over the whole
-    record each rule leaves exactly two currency repeats inside thirteen hours; the UTC day splits an overnight story at midnight (the
-    referendum result reached the market at 21:00 UTC on 23 June 2016 and
-    sterling was still falling at 01:00), and the 17:00 roll splits USD/CNH
-    between two CONSECUTIVE bars, because 17:00 in New York is not the quiet
-    hour it sounds like: it carries 76 events against 23 at 16:00 and 30 at
-    18:00, the liquidity gap at the daily roll showing up as moves. A boundary
-    belongs where the market is thin, and for FX that is neither of these - so
-    take the simpler of the two.
-    """
-    return tz_name if template == "us_equity" else None
-
-
-def instrument_day(hour_utc: int, template: str,
-                   tz_name: str = EXCHANGE_TZ) -> date:
-    """The day an hour belongs to, in the calendar this instrument's day uses.
-
-    An exchange-listed instrument's day is the exchange's local day; everything
-    else gets the UTC one. Note that this is the BAR WALK's notion of a day - an
-    enumeration device for "which stamps come next", nothing more. Where a bar
-    BELONGS, which is what the retention horizons and the event automaton ask,
-    is day_tz's question. They agree today; they are separate because they are
-    asked for different reasons.
-    """
-    moment = datetime.fromtimestamp(int(hour_utc), tz=timezone.utc)
-    if template == "us_equity":
-        from zoneinfo import ZoneInfo
-
-        return moment.astimezone(ZoneInfo(tz_name)).date()
-    return moment.date()
-
-
 def instrument_day_hours(day: date, template: str,
                          table: "dict[date, Session] | None" = None,
                          tz_name: str = EXCHANGE_TZ) -> list[int]:
@@ -281,80 +215,6 @@ def instrument_day_hours(day: date, template: str,
     if template in DAILY_SESSIONS:
         return [h for h in hours if session_key(h, template) is not None]
     raise ValueError(f"unknown session template '{template}'")
-
-
-def bars_after(hour_utc: int, count: int, template: str,
-               table: "dict[date, Session] | None" = None,
-               tz_name: str = EXCHANGE_TZ) -> "int | None":
-    """The stamp of the bar `count` bars after the one opening at `hour_utc`.
-
-    Bars, not hours: the answer to "two bars after Friday's last one" is Monday
-    morning, and every horizon in this system is counted the same way. Returns
-    None when the calendar cannot reach that far -
-    the honest answer for an instrument whose session table has run out.
-    """
-    if count <= 0:
-        return int(hour_utc)
-    day = instrument_day(hour_utc, template, tz_name)
-    seen = 0
-    for _ in range(MAX_LOOKAHEAD_DAYS):
-        for stamp in instrument_day_hours(day, template, table, tz_name):
-            if stamp <= hour_utc:
-                continue
-            seen += 1
-            if seen == count:
-                return stamp
-        day += timedelta(days=1)
-    return None
-
-
-def today_close_after(hour_utc: int, template: str,
-                      table: "dict[date, Session] | None" = None,
-                      tz_name: str = EXCHANGE_TZ) -> "int | None":
-    """When the instrument's OWN day ends, as an epoch UTC moment.
-
-    Equal to the end of the bar itself when the bar is the day's closing hour.
-    """
-    day = instrument_day(hour_utc, template, tz_name)
-    hours = instrument_day_hours(day, template, table, tz_name)
-    later = [h for h in hours if h >= int(hour_utc)]
-    return (later[-1] + HOUR) if later else None
-
-
-def day_is_closed(hour_utc: int, template: str,
-                  table: "dict[date, Session] | None" = None,
-                  tz_name: str = EXCHANGE_TZ) -> bool:
-    """Whether `hour_utc` is the LAST bar its instrument trades that day.
-
-    The question anything reading "at this day's close" has to answer first. A
-    store ends with the hour the run is standing in, so its newest day is
-    usually half a day - and a reading taken to the newest bar available is a
-    reading to nowhere in particular, whatever it is labelled.
-
-    False where the calendar cannot say, which is the safe direction: an answer
-    withheld waits, an answer invented is a number the reader believes.
-    """
-    close = today_close_after(hour_utc, template, table, tz_name)
-    return close is not None and close <= int(hour_utc) + HOUR
-
-
-def next_close_after(hour_utc: int, template: str,
-                     table: "dict[date, Session] | None" = None,
-                     tz_name: str = EXCHANGE_TZ) -> "int | None":
-    """When the instrument's NEXT trading day ends, as an epoch UTC moment.
-
-    The moment the settled reading becomes measurable: the last bar of that day
-    has closed. Which day is "next" is read off the trading calendar, so a
-    Friday move settles at Monday's close and a move on the eve of a holiday at
-    the close after it.
-    """
-    day = instrument_day(hour_utc, template, tz_name)
-    for _ in range(MAX_LOOKAHEAD_DAYS):
-        day += timedelta(days=1)
-        hours = instrument_day_hours(day, template, table, tz_name)
-        if hours:
-            return hours[-1] + HOUR
-    return None
 
 
 # The reference week runs Sunday 17:00 to Friday 17:00 local: five days on.
@@ -559,15 +419,6 @@ def daily_bars_per_day(name: str) -> int:
     first = int(opened.timestamp()) // HOUR * HOUR - HOUR
     return sum(daily_session_of(h, name) == day
                for h in range(first, int(closed.timestamp()) + HOUR, HOUR))
-
-
-def daily_hours_mask(hours_utc, name: str) -> "pd.Series":
-    """Which of these hours are in the named daily session."""
-    import pandas as pd
-
-    hours = hours_utc if isinstance(hours_utc, pd.Series) else pd.Series(
-        list(hours_utc), dtype="int64")
-    return hours.map(lambda h: daily_session_of(int(h), name) is not None).astype(bool)
 
 
 def session_key(hour_utc: int, template: str) -> "str | None":

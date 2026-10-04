@@ -74,16 +74,6 @@ def test_a_missed_run_at_the_opening_does_not_cost_the_week(monkeypatch):
     assert weekly_digest._is_digest_window(WEEKEND_EVENING) is False
 
 
-def test_the_week_key_is_the_note_opening_it_belongs_to():
-    # It has to de-duplicate the grace window: several runs qualify and only the
-    # first may send. The slot rather than a date, because the slot is exact and
-    # needs no timezone to say which one it means.
-    assert (weekly_digest._week_identifier(WEEKEND_OPEN)
-            == str(int(WEEKEND_OPEN.timestamp())))
-    assert (weekly_digest._week_identifier(WEEKEND_LATE)
-            == weekly_digest._week_identifier(WEEKEND_OPEN))
-
-
 def test_the_grace_window_does_not_send_twice(tmp_path, monkeypatch):
     cfg = make_config(tmp_path)
     state = {}

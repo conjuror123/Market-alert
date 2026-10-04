@@ -15,7 +15,7 @@ dropped, and the hour is a hole like any other missing one.
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 
 import requests
 
