@@ -292,8 +292,8 @@ Nearby economic events (...)
 ```
 
 The time line counts down to the close the move is checked at, then shows how much held
-(`close 80%`, `next close in 72h`). Scheduled releases from 2 hours before to 1 hour after
-the move follow.
+(`close 80%`, `next close in 72h`). Scheduled releases from 2 hours before the moved bar to
+its close follow (a release after the close came after the move).
 
 **A note row** (`noticeable`) goes into the weekly note, and a ping line points at it:
 

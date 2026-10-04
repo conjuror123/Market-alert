@@ -112,12 +112,21 @@ def test_news_outside_the_window_is_not_claimed_as_context():
     assert "Old News" not in out and "Much Later News" not in out
 
 
-def test_a_release_just_after_the_move_is_named():
-    # The window reaches past the move: a release five minutes after the hour
-    # closed is a cause a reader would blame first, not a coincidence.
+def test_a_release_inside_the_moved_hour_is_named():
+    # hour_utc is the bar's start: a release at 14:30 falls inside the 14:00
+    # bar's move, and is the cause a reader would blame first.
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
     cal = _cal([("2026-06-10T14:30:00+00:00", "USD", "FOMC Statement", "High")])
     assert "FOMC Statement" in md.calendar_context(hour, cal)
+
+
+def test_the_window_runs_from_two_hours_before_the_bar_to_its_close():
+    hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
+    edges = {"2026-06-10T11:59:00+00:00": False, "2026-06-10T12:00:00+00:00": True,
+             "2026-06-10T15:00:00+00:00": True, "2026-06-10T15:01:00+00:00": False}
+    for when, named in edges.items():
+        cal = _cal([(when, "USD", "CPI m/m", "High")])
+        assert ("CPI m/m" in md.calendar_context(hour, cal)) is named, when
 
 
 def test_a_crowded_window_is_listed_in_full():

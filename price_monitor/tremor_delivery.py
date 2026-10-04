@@ -484,20 +484,21 @@ def _vix_since(known: "pd.DataFrame") -> int:
     return datetime.fromtimestamp(int(known["day"].iloc[0]), tz=timezone.utc).year
 
 
-# How far back to look for scheduled news when a push goes out. Three hours
-# because that is long enough to cover a release the instrument was still
-# digesting and short enough that what it names is plausibly the cause;
+# The window for scheduled news on a push, around the moved bar (`hour_utc` is
+# its start): from two hours before it to its close, three hours in all - long
+# enough to cover a release the instrument was still digesting and short enough
+# that what it names is plausibly the cause;
 # measured over every push in the record, a three-hour window holds a median of
 # zero high-impact events and three at the ninetieth percentile, so the line
 # stays readable.
 CALENDAR_LOOKBACK_HOURS = 2
-# And an hour AFTER: a release five minutes after the hour closed is a cause,
-# not a coincidence, and a window ending where the move does excludes precisely
-# the releases a reader would blame first.
+# And the bar's own hour after its start: a release at 14:30 is the cause of
+# the 14:00 bar's move. One after the bar closed came after the move and cannot
+# have caused it, so the window ends at the close.
 #
 # This costs no waiting. The archive is a SCHEDULE, not a log: it carries the
 # releases announced ahead of time, currently a few hundred of them reaching
-# weeks into the future. So the hour after a move is already known when the
+# weeks into the future. So the bar's hour is already known when the
 # push is written, and the line is complete in the first message rather than
 # arriving with a later edit.
 CALENDAR_LOOKAHEAD_HOURS = 1
