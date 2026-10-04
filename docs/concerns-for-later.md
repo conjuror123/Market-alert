@@ -108,6 +108,29 @@ lives"), what is missing and what was tried:
 - **To watch at the first month start after the switch:** the monthly payers go
   ex-dividend; check that Yahoo lists them by the 10:05 New York run, or their gaps stay
   unscored that day. (Due 2026-10-01, but this branch was not running then.)
+- **A broken stretch inside the 1,000σ line, again.** USD/KRW on 2024-01-01/02 sat at
+  2.305-2.405 for three hours (the market was at 1,294): the lines into and out of it are
+  dropped, the +4.25% hour inside it read as 32.8σ, `extreme`. A level check (30% from
+  the two days' median) would also drop real crypto crashes (2020-03-13, 2021-05-19), so
+  the three bars are a data fix, not a detector change.
+- **Isolated moves taken straight back** (found 2026-10-04): 164 flagged readings in 22
+  years undone within the next hour or session with at most one other instrument flagged
+  that hour - 10 to 21 a year lately. USD/INR (23) and USD/TRY (22) cluster in their
+  markets' dead hours (22:00-00:00 UTC), on SiftingIO's thin quote; LMBS's nights on
+  Alpaca's IEX open (22.6σ on 2026-08-07, 19.5σ on 2026-01-14); single coins. A
+  per-instrument data question, not yet decided.
+- **Weekend yardsticks near zero.** 11 weekend gaps in the record were flagged on moves
+  of 0.02-0.2% against a σ under 0.01% - eight of them USD/KRW, whose weekend gap is
+  usually nil on SiftingIO.
+- **Cocoa's and coffee's roll weeks.** The Dukascopy-built history drops the weeks around
+  most rolls through 2025-2026 too, not only 2018: cocoa lacks 41% of its 2026 trading
+  days, coffee 23%, cattle 21% (its interleaved stretches). Live bars come from the front
+  contract and do not add holes; the history keeps them.
+- **The NYSE session table ends 2028-12-29** (`data/tremor/sessions/nyse.csv`), and
+  nothing warns before it does: regenerate it with `python -m tremor.sessions --end ...`
+  during 2028. Past its end no fund gap is scored and the funds are never skipped.
+- **A two-part weekly calendar whose second send fails** resends its first part the next
+  hour (`weekly_digest._post` marks the week only when every part went).
 
 ---
 

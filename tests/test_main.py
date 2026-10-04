@@ -128,3 +128,30 @@ def test_a_broken_weekly_digest_is_also_carried_into_health(tmp_path, monkeypatc
     monkeypatch.setattr(entry.weekly_digest, "maybe_send_weekly_digest", boom)
     monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", lambda cfg, state: 0)
     assert entry.main() == 1
+
+
+def test_a_pipeline_that_crashed_is_a_failure_and_alerts_after_the_streak(
+        tmp_path, monkeypatch, _quiet):
+    # A backfill that lost an instrument is not a failure of the run - its own
+    # alert names who went dark. A pipeline or detector that crashed refreshed
+    # no events at all, and that must reach the health chat like any failure.
+    monkeypatch.setattr(entry, "load_config", lambda: _cfg(tmp_path))
+    monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", lambda cfg, state: 0)
+    monkeypatch.setenv("TREMOR_STEP_FAILED", "true")
+    monkeypatch.setenv("TREMOR_PIPELINE_CRASHED", "true")
+    assert entry.main() == 1
+    assert _quiet == []                          # the first failure waits for the streak
+    assert entry.main() == 1
+    assert len(_quiet) == 1 and _quiet[0][0] == "ops"
+    assert "events were not refreshed" in _quiet[0][1]
+
+
+def test_a_backfill_failure_alone_is_neither_clean_nor_a_failure(
+        tmp_path, monkeypatch, _quiet):
+    monkeypatch.setattr(entry, "load_config", lambda: _cfg(tmp_path))
+    monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", lambda cfg, state: 0)
+    monkeypatch.setenv("TREMOR_STEP_FAILED", "true")
+    monkeypatch.setenv("TREMOR_PIPELINE_CRASHED", "false")
+    for _ in range(3):
+        assert entry.main() == 0
+    assert _quiet == []

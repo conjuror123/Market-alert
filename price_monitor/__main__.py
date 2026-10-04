@@ -8,17 +8,18 @@ Detection lives in `tremor`; this module decides nothing. Four things run:
   a schedule fetched last Friday does not have the speech added on Wednesday.
 
   the weekly calendar digest - a forecast of the coming week's scheduled
-  releases, on Friday at 12:00 Israel time. Once a week, a no-op every other
-  hour (see weekly_digest.py). It runs FIRST, and that is the point of the
-  order: the price note goes out in the same run, and it is the one that keeps
-  changing for the next three days, so it belongs last in the chat.
+  releases, in the run that opens the week's note (after the week's last NYSE
+  close, tremor.routing). Once a week, a no-op every other hour (see
+  weekly_digest.py). It runs FIRST, and that is the point of the order: the
+  note goes out in the same run, and it is the one that keeps changing all
+  week, so it belongs last in the chat.
 
-  Tremor delivery - the pushes, and the running Tuesday/Friday note that is
-  opened at the start of its period and edited in place for the rest of it. Read
-  off the event table the pipeline wrote earlier in this same workflow run. If
-  that pipeline did not run, the events are stale and delivery's own rules - a
-  48-hour ceiling on a push, and never opening a note for a period that has
-  already closed - send nothing, which is the safe direction.
+  Tremor delivery - the pushes and pings, and the weekly note opened at the
+  start of its week and edited in place for the rest of it. Read off the event
+  table the pipeline wrote earlier in this same workflow run. If that pipeline
+  did not run, the events are stale and delivery's own rules - nothing rings
+  more than 24 hours after it was found - send nothing new, which is the safe
+  direction; the crash itself is reported as a failure.
 
   the health report - whether the previous runs failed, and a message when that
   changes. It reports runs that FAILED, which is all a check living inside the
@@ -68,6 +69,15 @@ def tremor_step_failed() -> bool:
     return value in ("1", "true", "yes")
 
 
+def tremor_pipeline_crashed() -> bool:
+    """True when the pipeline or the detector itself died, so no events were
+    written this run - as opposed to a backfill that lost an instrument, which
+    names who went dark in its own alert. The workflow tells them apart: a
+    crash exits before the step writes its `failed` output."""
+    value = os.environ.get("TREMOR_PIPELINE_CRASHED", "").strip().lower()
+    return value in ("1", "true", "yes")
+
+
 def main() -> int:
     cfg = load_config()
     try:
@@ -80,10 +90,6 @@ def main() -> int:
     had_error = False
     error_details: list[str] = []
 
-    # No-op except in the 12:00 Israel-time hour on Friday, and then only once a
-    # week - see weekly_digest.py's module docstring for why this piggybacks on
-    # the hourly trigger instead of taking a schedule of its own. Sent BEFORE the
-    # price note, deliberately: see this module's docstring.
     # Once a day, and nothing to do on the other twenty-three runs. Separate
     # from the digest because it serves the PUSHES: they name the releases in
     # the three hours around a move, every day of the week, and the digest's own
@@ -95,6 +101,8 @@ def main() -> int:
         had_error = True
         error_details.append(f"calendar refresh failed ({exc})")
 
+    # Once a week, in the run that opens the week's note, and before it: see
+    # this module's docstring for the order.
     try:
         weekly_digest.maybe_send_weekly_digest(cfg, state, session)
     except Exception as exc:                     # pragma: no cover - defensive
@@ -112,6 +120,11 @@ def main() -> int:
         log.error("Tremor delivery failed: %s", exc)
         had_error = True
         error_details.append(f"Tremor delivery failed ({exc})")
+
+    if tremor_pipeline_crashed():
+        had_error = True
+        error_details.append("the Tremor pipeline or detector crashed: events were "
+                             "not refreshed")
 
     if had_error:
         streak = health.record_failure(state)

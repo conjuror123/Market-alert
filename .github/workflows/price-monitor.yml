@@ -123,6 +123,9 @@ jobs:
           TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
           TREMOR_STEP_FAILED: ${{ steps.tremor.outputs.failed == 'true' || steps.tremor.outcome == 'failure' }}
+          # The pipeline or the detector died: the step failed before writing
+          # its `failed` output, which the backfill's own failure always writes.
+          TREMOR_PIPELINE_CRASHED: ${{ steps.tremor.outcome == 'failure' && steps.tremor.outputs.failed == '' }}
         run: python -m price_monitor
 
       # Every run: the small state. data/state.json carries which Tremor events

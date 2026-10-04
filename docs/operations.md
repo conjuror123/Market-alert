@@ -65,8 +65,11 @@ Twelve Data allows eight symbols a minute, so its funds go eight to a request, a
 apart, in a thread started before the other providers are asked
 (`tremor.backfill.fetch_twelvedata_live`): the wait overlaps their work instead of adding
 to it. The US-session funds skip when the NYSE calendar says no bar can have appeared since the newest
-stored one; the 8 FX pairs skip when the Sun 17:00 → Fri 17:00 New York week is shut
-(`tremor.backfill.nothing_can_have_appeared`). Crypto is never skipped.
+stored one; the 16 currency pairs skip when the Sun 17:00 → Fri 17:00 New York week is shut,
+and every daily-session market outside its session
+(`tremor.backfill.nothing_can_have_appeared`) - measured from the newest bar inside the
+session, because SiftingIO serves bars through the FX weekend and asking for them every
+weekend hour would spend its monthly quota. Crypto is never skipped.
 
 ---
 
@@ -131,7 +134,10 @@ prevent.
 If a fetch fails, `pipeline` and `jumps` still run on the bars already stored, so healthy
 instruments still get events. Delivery sends a move only within 24 hours of its being
 found, so what did not refresh in time is not sent late. Health does not record a clean run or send "recovered" while the Tremor step is
-red — empty events would otherwise look like a quiet hour.
+red — empty events would otherwise look like a quiet hour. A backfill that lost
+instruments names them in its own message; a pipeline or detector that crashed refreshed
+no events at all, and counts as a failed run toward the health streak
+(`TREMOR_PIPELINE_CRASHED`, `price_monitor.__main__.tremor_pipeline_crashed`).
 
 A provider failure names the instruments and their providers in a message to
 `TELEGRAM_HEALTH_CHAT_ID`. The provider is not switched automatically. A Yahoo, Tiingo or
