@@ -1,7 +1,7 @@
 """What can SiftingIO serve this project, on the key we have?
 
 The widening needs a LIVE source for about 96 more US-listed funds and 9 FX
-pairs (docs/decisions.md, "The data"). The four questions, cheapest
+pairs (docs/decisions.md, "Data and providers"). The four questions, cheapest
 disqualifier first:
 
   FRESHNESS  how old is the newest bar it serves? The run fires at :05 and

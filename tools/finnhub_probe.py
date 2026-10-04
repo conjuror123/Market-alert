@@ -1,7 +1,7 @@
 """What can Finnhub serve this project, on the key we have?
 
 The widening needs a LIVE source for about 96 more US-listed funds and 9 FX
-pairs (docs/decisions.md, "The data"). This asks Finnhub the four questions
+pairs (docs/decisions.md, "Data and providers"). This asks Finnhub the four questions
 in the order that disqualifies cheapest:
 
   ACCESS     which endpoints this key may call at all: hourly stock candles,

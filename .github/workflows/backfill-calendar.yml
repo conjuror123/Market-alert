@@ -1,17 +1,13 @@
 name: Backfill Economic Calendar
 
-# Manual rebuild of the local calendar archive (data/economic_calendar/, see
-# README). Routine topping-up works differently: weekly_digest adds the current
+# Manual rebuild of the local calendar archive (data/economic_calendar/). Routine topping-up works differently: weekly_digest adds the current
 # week from the live ForexFactory feed once a week and reads back the actual for
 # the current and previous month from the monthly pages. This workflow is for when
 # the archive has to be rebuilt whole or a large gap closed.
 #
-# There is one source - ForexFactory's own monthly pages, no key. Third-party ones
-# were all tried and dropped: three ready-made dumps (spoluan, ehsan) gave a
-# quarter of shifted copies, and the Kaggle dataset diverged from ForexFactory on
-# taxonomy - nine times more Medium events, which gave an archive built from two
-# sources a seam down the middle. See economic_calendar.py and
-# docs/decisions.md.
+# One source, ForexFactory's own monthly pages, no key: third-party dumps shift
+# events or disagree with it on impact, and two sources leave a seam
+# (economic_calendar.py).
 #
 # A full rebuild is ~69 requests with a two-second pause, about four minutes.
 

@@ -4,7 +4,7 @@ WHY. Yahoo's continuous series, which the first history came from
 (tools/futures_history.py), switches between two contract months within days:
 on 2026-07-31, 08-03 and 08-05 coffee's held December's prices and September's
 on the days between, and the store showed it as runs of same-hour moves the
-size of the spread (docs/concerns-for-later.md). Dukascopy's CFD holds one
+size of the spread (docs/decisions.md, "Open questions"). Dukascopy's CFD holds one
 contract at a time and switches once - coffee onto December on 2026-08-11,
 matching KCZ26.NYB to 0 bp from that day - and reaches back to 2018.
 

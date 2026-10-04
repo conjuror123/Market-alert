@@ -1,6 +1,6 @@
 """What Financial Modeling Prep's key serves for what is still unsourced.
 
-The needed list (docs/concerns-for-later.md) after every other source: TUR and
+The needed list (docs/decisions.md, "Open questions") after every other source: TUR and
 RWX (no live feed agrees with the consolidated tape), USD/BRL's history before
 2025, and seven commodities whose ETNs no longer trade - coffee, cocoa, cotton,
 live cattle, nickel, aluminium, tin. This asks FMP, on whatever plan the key

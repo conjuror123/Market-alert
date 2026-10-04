@@ -1,6 +1,6 @@
 """The fund verdict table: which live source can carry each fund, measured.
 
-The widening (docs/decisions.md, "The data") needs a live hourly source for
+The widening (docs/decisions.md, "Data and providers") needs a live hourly source for
 96 more US-listed funds. A source qualifies for a fund when its hourly closes
 agree with the consolidated tape - median <= 2 bps and p90 <= 5, the line
 tools/alpaca_compare.py holds every feed to - and when it does not skip hours
@@ -16,7 +16,7 @@ asked only what it alone can answer, at the lowest cost it can answer it:
   Alpaca IEX   the same exchange Tiingo's intraday feed is, so it stands in for
                Tiingo too: on the 44 held funds both failed exactly the fourteen
                thin commodity funds. Batched like SIP. Tiingo itself is not
-               called - its 50 an hour are shared with production.
+               called - its 50 an hour are the live run's.
   SiftingIO    measured directly, one call a fund, ~100 of the monthly 10,000.
   Yahoo        measured directly, one call a fund, no key and no quota.
   Twelve Data  consolidated, like Yahoo; eight credits check that on the names
@@ -62,9 +62,8 @@ SAFE_MEDIAN_BPS, SAFE_P90_BPS = 2.0, 5.0
 # however well it agrees on the hours it has.
 SAFE_MISSING = 0.02
 
-# The new members of the target block map (docs/concerns-for-later.md, "The
-# blocks are still the nine broad ones"), and the three broad benchmarks
-# watched beside it.
+# Candidate funds for a finer block map, and three broad benchmarks watched
+# beside them.
 CANDIDATES = {
     "US cyclicals": "KRE XRT ITB IYT XME",
     "US defensives": "XBI XPH IHI VDC VHT VPU",

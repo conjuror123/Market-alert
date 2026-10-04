@@ -1,4 +1,4 @@
-"""Two things Tiingo may fix outright, both currently open in docs/decisions.md.
+"""Two things Tiingo may fix outright, both open questions when written.
 
 ONE - the FX pairs. They are 41% of all requests the monitor makes (24 a day
 each, never skipped, because FX has no session table to skip by) while being

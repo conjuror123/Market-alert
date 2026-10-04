@@ -13,7 +13,7 @@ prints, as Markdown:
   - the events: an instrument's flags grouped into 24 hours of real time from
     the first one found, each worded by its rarest flag (tremor.jumps.event_starts);
   - the events by channel: pushed, or a row in the weekly note;
-  - rarest since (stage 3): how far back the line reaches, by kind and word,
+  - rarest since: how far back the line reaches, by kind and word,
     over the last year's flags;
   - ten flagged hours picked at random, for a sanity read.
 
@@ -109,7 +109,7 @@ def event_section(scored: pd.DataFrame) -> "list[str]":
         lines.append(f"| {block} | {v.median():.1f} | {v.quantile(.1):.1f}–{v.quantile(.9):.1f} |")
     lines.append(f"| **all** | {per.median():.1f} | {per.quantile(.1):.1f}–{per.quantile(.9):.1f} |")
 
-    # The channels (stage 2): which of those events interrupt at once and which
+    # The channels: which of those events interrupt at once and which
     # go into the weekly note, each row with its own small ping.
     pushed = events["word"].isin(routing.PUSH_TIERS)
     lines += ["", "## Channels", "",
@@ -133,7 +133,7 @@ def rarest_section(scored: pd.DataFrame) -> "list[str]":
     rows = pd.concat(parts, ignore_index=True)
     flagged = rows[rows["word"].notna() & (rows["hour_utc"] >= rows["hour_utc"].max() - YEAR)]
     days = (flagged["hour_utc"] - flagged["since_utc"].astype("float64")) / 86400
-    lines = ["## Rarest since (stage 3)", "",
+    lines = ["## Rarest since", "",
              "The last year's flags: how far back the most recent earlier reading of the "
              "same kind, same direction, at least 95% as big reaches. Records have none in "
              "the whole history.", "",

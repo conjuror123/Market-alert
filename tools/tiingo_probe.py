@@ -1,7 +1,7 @@
 """Ask Tiingo what it actually serves on a free key, and print the answer.
 
 Read-only: it fetches, measures and reports. Nothing here writes to the store
-or to config, so it is safe to run against production secrets.
+or to config, so it is safe to run with the live secrets.
 
 WHY THIS EXISTS. Tiingo's pricing page lists what a free key includes in
 marketing terms ("EOD composite prices, crypto, IEX feed, and news") and the

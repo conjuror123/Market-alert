@@ -3,10 +3,9 @@ name: Price Spike Monitor
 on:
   # An external service (cron-job.org) triggers the hourly run by calling
   # workflow_dispatch through the GitHub API. GitHub's own schedule: is not used
-  # and should not be added back - it was measured firing roughly once every ten
-  # hours on this repository rather than once an hour, and a trigger that
-  # unpredictably does not fire is worse than no trigger at all, because the
-  # silence looks identical to a quiet market. See README, on schedule reliability.
+  # and should not be added: it fires unreliably (about once every ten hours
+  # on this repository), and a missed run looks identical to a quiet market.
+  # See docs/manual.md, "Running it".
   workflow_dispatch: {}
 
 permissions:
@@ -87,11 +86,10 @@ jobs:
       # pipeline turns them into per-asset metrics (the move and the gap), and
       # jumps scores every instrument's whole history and writes the events.
       #
-      # continue-on-error so delivery still runs. A fetch failure used to abort
-      # this whole script under bash -e, so nothing downstream wrote events
-      # (gitignored; a fresh runner has no previous table) and delivery sent
-      # nothing. Now pipeline and jumps always run on whatever bars are stored;
-      # the step still exits nonzero so the job goes red at the end.
+      # continue-on-error so delivery still runs: a fetch failure does not
+      # stop pipeline and jumps, which run on whatever bars are stored (the
+      # events table is gitignored, so a fresh runner has none otherwise). The
+      # step still exits nonzero so the job goes red at the end.
       - name: Tremor pipeline
         id: tremor
         continue-on-error: true
@@ -173,9 +171,8 @@ jobs:
           # The detector leaves the unconfirmed moves out on every runner, so
           # an uncommitted verdict would be a move scored again.
           if [ -f data/tremor/verified.csv ]; then git add data/tremor/verified.csv; fi
-          # The open months used to be committed, before they moved to the
-          # release. Once the release holds them, git lets go of them: the
-          # files stay on disk, gitignored, and leave the tree. A no-op after.
+          # Open months live on the release, not in git: once it holds them,
+          # any still tracked leave the tree (they stay on disk, gitignored).
           if [ "${{ steps.hot_save.outcome }}" = "success" ]; then
             git rm -r -q --cached --ignore-unmatch 'data/tremor/bars/*/*.open.csv'
           fi

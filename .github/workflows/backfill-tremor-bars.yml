@@ -40,7 +40,7 @@ name: Backfill Tremor Bars
 #                   Only for the funds named in `instruments`.
 #   live-pass       the ordinary hourly fetch (no VIX) for the named
 #                   instruments, to try a provider change before it goes live.
-#                   Name few: Tiingo's 50 an hour are shared with production.
+#                   Name few: Tiingo's 50 an hour are the live run's.
 #   corporate-actions
 #                   rebuild the ex-date table from Tiingo's declared divCash /
 #                   splitFactor (needs TIINGO_API_KEY). It must reach at least
@@ -81,8 +81,7 @@ permissions:
 
 # Its own group, not price-monitor's: concurrency groups are repository-wide, so
 # sharing one would hold the live hourly run on the default branch behind a
-# backfill of several hours here. The live run no longer asks Twelve Data for
-# anything, so the credit collision the shared group once prevented is gone.
+# backfill of several hours here.
 concurrency:
   group: tremor-backfill
   cancel-in-progress: false

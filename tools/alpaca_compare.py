@@ -6,7 +6,7 @@ where a thin ETF closed at 14:00, because they saw different prints. A few basis
 points is nothing to a human and a fabricated event to a detector whose hourly
 sigma is 20-40 bps. That is the "fires without meaning" failure arriving through
 the data rather than through the arithmetic, and it is the one worth paying to
-avoid - see docs/decisions.md, "The data".
+avoid - see docs/decisions.md, "Data and providers".
 
 WHY THIS ASKS THE QUESTION TWICE. Alpaca serves two feeds and the difference
 between them is the whole decision:
