@@ -31,9 +31,10 @@ def bars_of(rows):
                          "close": [c for _, c in pairs.values()]})
 
 
-def judge(hour, prev, price, rows, now, *, check="close", prev_hour=None):
+def judge(hour, prev, price, rows, now, *, check="close", prev_hour=None, from_open=False):
     c = {"hour": ts(hour), "check": check, "prev_close": prev, "price": price,
-         "prev_hour": ts(prev_hour) if prev_hour else ts(hour) - HOUR}
+         "prev_hour": ts(hour) if from_open else ts(prev_hour) if prev_hour else ts(hour) - HOUR,
+         "from_open": from_open}
     return verify.judge(c, bars_of(rows), ts(now))
 
 
@@ -136,6 +137,71 @@ def test_a_bad_opening_print_is_unconfirmed_and_a_real_one_confirmed():
                  check="open", prev_hour="2026-02-03 20:00")[0] == verify.CONFIRMED
 
 
+def test_an_hour_measured_from_its_own_open_is_judged_from_the_second_sources_open():
+    # A fund's first hour: the detector reads open to close, so the night's
+    # gap is not part of it.
+    rows = {"2026-02-03 20:00": 84.20, "2026-02-04 14:00": (82.00, 82.85)}
+    assert judge("2026-02-04 14:00", 82.0, 82.9, rows, "2026-02-04 16:00",
+                 from_open=True)[0] == verify.CONFIRMED
+    rows["2026-02-04 14:00"] = (82.00, 82.02)
+    assert judge("2026-02-04 14:00", 82.0, 82.9, rows, "2026-02-04 16:00",
+                 from_open=True)[0] == verify.UNCONFIRMED
+    # No open of its own on the second source: nothing to compare with.
+    assert judge("2026-02-04 14:00", 82.0, 82.9, {"2026-02-03 20:00": 84.2},
+                 "2026-02-04 16:00", from_open=True)[0] == verify.UNKNOWN
+
+
+def test_the_move_reported_is_the_second_sources_over_the_same_hours():
+    # Within the lag window Yahoo's best move is its 08:00-10:00 one; the
+    # message reports 08:00 to 09:00, the hours the stored move spans.
+    verdict, _, theirs = judge("2024-12-17 09:00", 84.9198, 84.51605,
+                               {"2024-12-17 07:00": 84.95, "2024-12-17 08:00": 84.900,
+                                "2024-12-17 09:00": 84.9255, "2024-12-17 10:00": 84.95},
+                               "2025-01-08 00:00")
+    assert verdict == verify.UNCONFIRMED
+    assert theirs == pytest.approx(np.log(84.9255 / 84.900))
+
+
+# --- which bars -------------------------------------------------------------------
+
+def _fund_store(basket, days=120, gap_day=None, gap=0.0, first_hour=0.0):
+    """A Yahoo-served fund's bars, quiet: 0.1% hours, 0.3% nights."""
+    asset = next(a for a in basket.values()
+                 if a.session_template == "us_equity" and a.fetched_from == "alpaca")
+    from tremor import sessions
+    table = sessions.load_sessions()
+    rng = np.random.default_rng(7)
+    rows, price = [], 100.0
+    for day in sorted(d for d in table if ts("2026-05-01 00:00") <= ts(f"{d} 00:00")
+                      <= ts("2026-09-30 00:00"))[-days:]:
+        hours = sessions.session_hours(table[day])
+        night = gap if day == gap_day else rng.normal(0, 0.003)
+        price *= np.exp(night)
+        for k, h in enumerate(hours):
+            o = price
+            move = first_hour if (day == gap_day and k == 0) else rng.normal(0, 0.001)
+            price *= np.exp(move)
+            rows.append({"hour_utc": h, "open": o, "high": max(o, price), "low": min(o, price),
+                         "close": price, "volume": 1000.0, "n_src": 1})
+    return asset, table, pd.DataFrame(rows)
+
+
+def test_an_ordinary_night_is_not_asked_about_and_a_far_one_is(basket):
+    from datetime import date
+    day = date(2026, 9, 29)
+    asset, table, frame = _fund_store(basket)
+    now = ts("2026-09-29 20:05")
+    assert [c for c in verify.candidates(asset, frame, table, now) if c["check"] == "open"] == []
+    asset, table, frame = _fund_store(basket, gap_day=day, gap=0.03)
+    found = verify.candidates(asset, frame, table, now)
+    assert [c["check"] for c in found] == ["open"]
+    # The quiet first hour after it is not a far move: the detector reads it
+    # open to close.
+    asset, table, frame = _fund_store(basket, gap_day=day, gap=0.0, first_hour=0.02)
+    hour = [c for c in verify.candidates(asset, frame, table, now) if c["check"] == "close"]
+    assert len(hour) == 1 and hour[0]["from_open"] and hour[0]["prev_hour"] == hour[0]["hour"]
+
+
 # --- a pass, and what it leaves out -----------------------------------------------
 
 def test_a_pass_records_the_verdict_and_asks_once(monkeypatch, tmp_path, basket):
@@ -168,16 +234,33 @@ def test_a_pass_records_the_verdict_and_asks_once(monkeypatch, tmp_path, basket)
     asked.clear()
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
     assert asked == []
+    # The bar heals - a run that lost its fetch had judged the :05 snapshot -
+    # into no far move at all: the verdict no longer applies, and it is scored.
+    frame.loc[70, "close"] = closes[70] / 0.995
+    frame.loc[71, "open"] = frame.loc[70, "close"]
+    bars.write(bars.store_path(str(tmp_path / "bars"), asset.file_stem), frame)
+    verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
+    assert verify.unconfirmed(path) == {}
+
+
+def test_a_healed_bar_still_far_is_asked_again(monkeypatch, tmp_path, basket):
+    c = {"hour": 100 * HOUR, "check": "close", "prev_hour": 99 * HOUR, "prev_close": 84.0,
+         "price": 83.5, "from_open": False}
+    record = {("x", c["hour"], "close"): {"verdict": verify.UNCONFIRMED,
+                                          "prices": verify.prices(c)}}
+    assert record[("x", c["hour"], "close")]["prices"] == verify.prices(dict(c))
+    assert verify.prices(dict(c, price=83.4)) != verify.prices(c)
 
 
 def test_an_unconfirmed_verdict_outlives_the_rest_of_the_record(tmp_path):
     path = str(tmp_path / "verified.csv")
     old, now = ts("2025-01-01 00:00"), ts("2026-10-01 00:00")
-    rows = {("a", old, "close"): {"asset_id": "a", "hour_utc": old, "check": "close",
-                                  "verdict": verify.UNCONFIRMED},
-            ("b", old, "close"): {"asset_id": "b", "hour_utc": old, "check": "close",
-                                  "verdict": verify.CONFIRMED}}
+    rows = {(name, old, "close"): {"asset_id": name, "hour_utc": old, "check": "close",
+                                   "verdict": verdict}
+            for name, verdict in (("a", verify.UNCONFIRMED), ("b", verify.CONFIRMED),
+                                  ("c", verify.PENDING), ("d", verify.UNKNOWN))}
     verify.write(rows, now, path)
+    # Pending too goes: a bar older than its 24 hours is never asked again.
     assert set(verify.load(path)) == {("a", old, "close")}
 
 

@@ -21,6 +21,7 @@ the accumulated history imports without a shift.
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
 
 from tremor import atomic
 
@@ -217,22 +218,37 @@ def _shards(store: str) -> list[str]:
     return found
 
 
+def _reaches(path: str, year: int, month: int) -> bool:
+    """Whether a shard can hold bars of that month or later: a year's shard
+    through its December, a month's its own; anything else (a legacy file,
+    a named parquet) is read."""
+    shard_year, shard_month = _shard_key(path)
+    return shard_year >= (1 << 30) or (shard_year, shard_month or 12) >= (year, month)
+
+
 def _normalise(frame: pd.DataFrame) -> pd.DataFrame:
     return frame.astype(SCHEMA).sort_values("hour_utc").reset_index(drop=True)
 
 
-def load(store: str) -> pd.DataFrame:
-    """The whole instrument, every shard concatenated.
+def load(store: str, since: "int | None" = None) -> pd.DataFrame:
+    """The whole instrument, every shard concatenated - or, with `since`, its
+    bars from that hour on, read from the shards that can hold them.
 
     A legacy file is read FIRST so that a shard covering the same hour wins the
     de-duplication - during a migration the shard is the newer copy by
     construction, and reading it second would resurrect stale rows.
     """
-    parts = [_read_shard(path) for path in _shards(store)]
+    paths = _shards(store)
+    if since is not None:
+        first = datetime.fromtimestamp(int(since), tz=timezone.utc)
+        paths = [p for p in paths if _reaches(p, first.year, first.month)]
+    parts = [_read_shard(path) for path in paths]
     if not parts:
         return empty_frame()
     combined = pd.concat(parts, ignore_index=True)
     combined = combined.drop_duplicates(subset="hour_utc", keep="last")
+    if since is not None:
+        combined = combined[combined["hour_utc"] >= int(since)]
     return _normalise(combined)
 
 

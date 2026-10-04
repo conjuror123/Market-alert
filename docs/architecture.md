@@ -277,10 +277,11 @@ headroom — is in `decisions.md` ("The data").
 ### A second source
 
 **A real trade shows up on another feed; a source's bad print does not.** Right after
-each run's fetch, every bar of the last 24 hours that moved at least 4σ of its
-instrument's recent hourly bipower σ — close to close (the hour's reading), or a session's
-first print against the close before (the gap's) — is asked of a second, independent feed
-(`tremor/verify.py`):
+each run's fetch, every reading of the last 24 hours at 4σ or more of its own kind is asked
+of a second, independent feed (`tremor/verify.py`): an hour's move as the detector
+measures it (from the previous close, or from its own open on a session's first bar and
+after a hole) against the instrument's earlier hours, and a session's gap against its
+earlier gaps — a few a day across the basket, one request per instrument:
 
 | served by | asked of |
 |---|---|
@@ -301,9 +302,11 @@ for 12 hours before, it is **unknown** and scored as usual.
 out — not flagged, and not in any yardstick — while its bar stays in the store as the
 provider served it. A message already sent for it says so (Delivery, above). Which feed
 was wrong two feeds cannot always tell, so the verdict is "not seen elsewhere", never "a
-mistake". The verdicts are in `data/tremor/verified.csv`: a settled one is never asked
-again, an unconfirmed one is kept for good (the detector rescores all history every run),
-the rest for 30 days. `python -m tremor.verify --history` asks about everything within
+mistake". The verdicts are in `data/tremor/verified.csv`, each with the stored prices it
+was reached on: a settled one is asked again only when the bar heals (a run that lost its
+fetch judged the :05 snapshot), and dropped when it heals into no far move at all. An
+unconfirmed one is kept for good (the detector rescores all history every run), the rest
+for 30 days. `python -m tremor.verify --history` asks about everything within
 reach.
 
 `source` in `config/basket.yaml` names the store — `asset_id` and the file on disk are

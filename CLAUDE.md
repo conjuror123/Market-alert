@@ -115,7 +115,7 @@ Break one of these and the system is wrong rather than merely broken.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q                     # ~640 tests, about a minute and a half
+pytest -q                     # ~710 tests, about a minute and a half
 ```
 
 Run the tests alone — several load large parquet files, and concurrent runs thrash.

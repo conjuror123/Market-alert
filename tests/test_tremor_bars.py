@@ -164,6 +164,21 @@ def test_a_settled_year_lands_in_one_file_and_the_live_one_in_months(tmp_path):
     assert not any(name.endswith(".tmp") for name in os.listdir(store))
 
 
+def test_a_load_from_an_hour_on_reads_only_the_shards_that_can_hold_it(tmp_path, monkeypatch):
+    store = bars.store_path(str(tmp_path), "twelvedata_SPY")
+    hours = [_hour(2003), _hour(2025, 3), _hour(2025, 11), _hour(2026, 1), _hour(2026, 8, 15),
+             _hour(2026, 9)]
+    bars.write(store, _rows(hours))
+    read = []
+    real = bars._read_shard
+    monkeypatch.setattr(bars, "_read_shard", lambda path: read.append(path) or real(path))
+    got = bars.load(store, since=_hour(2026, 8, 10))
+    assert list(got["hour_utc"]) == [_hour(2026, 8, 15), _hour(2026, 9)]
+    assert sorted(p.rsplit("/", 1)[1] for p in read) == ["2026-08.open.csv", "2026-09.open.csv"]
+    # A year's shard is read when the hour falls inside it.
+    assert list(bars.load(store, since=_hour(2025, 6))["hour_utc"]) == hours[2:]
+
+
 def test_a_settled_year_is_not_rewritten_when_a_new_hour_arrives(tmp_path):
     # The whole reason the store is sharded: parquet rewrites a file whole, and
     # settled months are committed. A year whose bars are long finished must

@@ -22,12 +22,13 @@ or Google: Yahoo's 30-minute bars, the consolidated tape. Funds served by Yahoo:
 Sina's. Not asked: the coins - Binance's prices are its own trades - and the
 futures and the LME's metals, which have no free independent feed.
 
-WHICH BARS (candidates). A bar that has ended within the last PENDING_HOURS and
-moved at least CANDIDATE_SIGMA of the instrument's recent hourly bipower sigma -
-its close against the previous usable close (`close`, the hour's reading), or a
-session's first print against it (`open`, the gap's). That is below the
-detector's bottom word, so nothing it flags is missed: about one or two a run,
-one request each.
+WHICH BARS (candidates). The detector's own readings, ended within the last
+PENDING_HOURS, at CANDIDATE_SIGMA or more of their own kind: an hour's move as
+tremor.returns measures it (`close`: from the previous close, or from its own
+open on a session's first bar and after a hole) against the instrument's
+earlier hours, and a session's gap (`open`) against its earlier gaps. That is
+below the detector's bottom word, so nothing it flags is missed: a few a day
+across the basket, one request per instrument.
 
 THE VERDICT (judge). Each feed is compared with itself, so a steady offset
 between them is not a move. CONFIRMED if the second source moved the same way
@@ -41,8 +42,10 @@ no bar after the move yet, asked again next run; UNKNOWN after PENDING_HOURS of
 that, or with it silent for STALE_HOURS before the move - scored as usual.
 
 THE RECORD (VERIFIED_PATH) is what the detector and delivery read. A settled
-verdict is never asked again; an unconfirmed one is kept for good, because the
-detector rescores the whole history every run; the rest go after KEEP_DAYS.
+verdict is not asked again unless the bar heals - its stored prices are kept
+with it, and a run that lost its fetch judged the :05 snapshot. An unconfirmed
+one is kept for good, because the detector rescores the whole history every
+run; the rest, pending included, go after KEEP_DAYS.
 
     python -m tremor.verify --history     every far move within the second
                                           source's reach (FX 699 days, funds
@@ -69,7 +72,7 @@ log = logging.getLogger("tremor.verify")
 HOUR = 3600
 VERIFIED_PATH = os.path.join("data", "tremor", "verified.csv")
 COLUMNS = ["asset_id", "hour_utc", "check", "verdict", "provider", "verifier",
-           "stored_move", "verifier_move", "checked_utc"]
+           "stored_move", "verifier_move", "prices", "checked_utc"]
 
 CANDIDATE_SIGMA = 4.0
 REAL_SHARE = 0.5
@@ -77,6 +80,8 @@ LAG_HOURS = 1
 PENDING_HOURS = 24
 STALE_HOURS = 12
 SIGMA_MOVES = 500
+SIGMA_GAPS = 60
+TAIL_DAYS = 150                   # bars looked at before the window: enough for both sigmas
 MAX_REQUESTS = 40
 KEEP_DAYS = 30
 SINA_DAYS = 77                    # how far Sina's US half-hour bars reach back
@@ -138,37 +143,52 @@ def _sigma(moves: np.ndarray) -> float:
 
 def candidates(asset: Asset, frame: pd.DataFrame, table, now: int,
                since: "int | None" = None) -> "list[dict]":
-    """The ended bars that moved far enough to be asked about, from `since`
-    (default PENDING_HOURS ago)."""
+    """The detector's own readings, ended from `since` on (default
+    PENDING_HOURS ago), that moved far enough to be asked about: an hour's
+    move as tremor.returns measures it - from the previous close, or from its
+    own open on a session's first bar and after a hole - against the bipower
+    sigma of the instrument's earlier hours, and a session's gap against its
+    earlier gaps. Only the recent bars are read: TAIL_DAYS before the window."""
     from tremor import returns
 
-    gated = quality.apply_gate(asset, frame, table)
+    since = int(now) - PENDING_HOURS * HOUR if since is None else int(since)
+    recent = frame[frame["hour_utc"] >= since - TAIL_DAYS * 86400]
+    gated = quality.apply_gate(asset, recent, table)
     usable = gated[gated["is_usable"]].sort_values("hour_utc").reset_index(drop=True)
     if len(usable) < 30:
         return []
-    h = usable["hour_utc"].to_numpy(dtype="int64")
-    close = usable["close"].to_numpy(dtype="float64")
-    opened = usable["open"].to_numpy(dtype="float64")
-    session = returns.session_ids(asset, usable["hour_utc"])
-    is_open = (session != session.shift(1)).to_numpy()
+    scored = returns.split_channels(asset, usable)
+    h = scored["hour_utc"].to_numpy(dtype="int64")
+    close = scored["close"].to_numpy(dtype="float64")
+    opened = scored["open"].to_numpy(dtype="float64")
+    r = scored["r"].to_numpy(dtype="float64")
+    is_open = scored["is_session_open"].to_numpy(dtype=bool)
+    own = is_open | np.concatenate([[True], np.diff(h) > HOUR])
     with np.errstate(divide="ignore", invalid="ignore"):
-        move = np.concatenate([[np.nan], np.diff(np.log(close))])
-        gap = np.concatenate([[np.nan], np.log(opened[1:] / close[:-1])])
-    since = int(now) - PENDING_HOURS * HOUR if since is None else int(since)
+        gap = np.where(is_open, np.log(opened / np.concatenate([[np.nan], close[:-1]])), np.nan)
     out = []
     for i in np.flatnonzero((h >= since) & (h + HOUR <= now)):
         if i == 0:
             continue
-        sigma = _sigma(move[max(1, i - SIGMA_MOVES - 24):max(1, i - 24)])
-        if not np.isfinite(sigma) or sigma <= 0:
-            continue
-        for check, size, price in ((CLOSE, move[i], close[i]), (OPEN, gap[i], opened[i])):
-            if check == OPEN and not is_open[i]:
-                continue
-            if abs(size) >= CANDIDATE_SIGMA * sigma:
-                out.append({"hour": int(h[i]), "check": check, "prev_hour": int(h[i - 1]),
-                            "prev_close": float(close[i - 1]), "price": float(price)})
+        sigma = _sigma(r[max(0, i - SIGMA_MOVES - 24):max(0, i - 24)])
+        if np.isfinite(sigma) and sigma > 0 and abs(r[i]) >= CANDIDATE_SIGMA * sigma:
+            start = (int(h[i]), float(opened[i])) if own[i] else (int(h[i - 1]), float(close[i - 1]))
+            out.append({"hour": int(h[i]), "check": CLOSE, "from_open": bool(own[i]),
+                        "prev_hour": start[0], "prev_close": start[1], "price": float(close[i])})
+        if is_open[i]:
+            earlier = gap[:i][np.isfinite(gap[:i])][-SIGMA_GAPS:]
+            sigma = _sigma(earlier)
+            if np.isfinite(sigma) and sigma > 0 and abs(gap[i]) >= CANDIDATE_SIGMA * sigma:
+                out.append({"hour": int(h[i]), "check": OPEN, "from_open": False,
+                            "prev_hour": int(h[i - 1]), "prev_close": float(close[i - 1]),
+                            "price": float(opened[i])})
     return out
+
+
+def prices(c: dict) -> str:
+    """The stored prices a verdict was reached on: when the bar heals, the
+    verdict is asked again."""
+    return f"{c['prev_close']:.10g}>{c['price']:.10g}"
 
 
 # --- the verdict ---------------------------------------------------------------
@@ -182,9 +202,15 @@ def judge(c: dict, v: pd.DataFrame, now: int) -> "tuple[str, float, float]":
     h, hp, lag, stale = c["hour"], c["prev_hour"], LAG_HOURS * HOUR, STALE_HOURS * HOUR
     p = math.log(c["price"] / c["prev_close"])
 
-    # Where the market was before the move: its closes up to an hour before,
-    # or else its last one, if recent enough.
-    befores = [vclose[int(t)] for t in stamps[(stamps >= hp - lag) & (stamps <= hp)]]
+    # Where the market was before the move: for an hour measured from its own
+    # open, the second source's open of that hour; else its closes up to an
+    # hour before, or else its last one, if recent enough.
+    if c.get("from_open"):
+        if h not in vopen:
+            return UNKNOWN, p, 0.0
+        befores = [vopen[h]]
+    else:
+        befores = [vclose[int(t)] for t in stamps[(stamps >= hp - lag) & (stamps <= hp)]]
     if not befores:
         earlier = stamps[stamps <= hp]
         if not len(earlier) or hp - int(earlier[-1]) > stale:
@@ -205,9 +231,16 @@ def judge(c: dict, v: pd.DataFrame, now: int) -> "tuple[str, float, float]":
 
     moves = [math.log(b / a) for a in befores for b in afters]
     with_it = max(moves, key=lambda m: m * np.sign(p))
+    # The move it is reported with is the second source's over the same span
+    # - or its nearest bars either side; the lag window only decides.
+    start = befores[0] if c.get("from_open") else \
+        vclose.get(hp, vclose[int(stamps[stamps <= hp][-1])] if (stamps <= hp).any() else befores[-1])
+    end = vopen[h] if c["check"] == OPEN and h in vopen else \
+        vclose.get(h, vclose[int(stamps[stamps >= h][0])] if (stamps >= h).any() else afters[0])
+    direct = math.log(end / start)
     if with_it * p > 0 and abs(with_it) >= REAL_SHARE * abs(p):
-        return CONFIRMED, p, with_it
-    return UNCONFIRMED, p, with_it
+        return CONFIRMED, p, direct
+    return UNCONFIRMED, p, direct
 
 
 # --- the record ----------------------------------------------------------------
@@ -236,7 +269,7 @@ def unconfirmed(path: "str | None" = None) -> "dict[tuple[str, int, str], dict]"
 def write(record: dict, now: int, path: "str | None" = None) -> None:
     path = path or VERIFIED_PATH
     keep = [row for row in record.values()
-            if row["verdict"] in (UNCONFIRMED, PENDING)
+            if row["verdict"] == UNCONFIRMED
             or int(row["hour_utc"]) >= now - KEEP_DAYS * 86400]
 
     def _write(tmp: str) -> None:
@@ -272,13 +305,25 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
         who = verifier_for(asset)
         if who is None or who[0] in blocked or requests_left <= 0:
             continue
-        frame = bars.load(bars.store_path(bars_dir, asset.file_stem))
+        since = now_ts - reach_days(who) * 86400 if history else None
+        frame = bars.load(bars.store_path(bars_dir, asset.file_stem),
+                          (since or now_ts - PENDING_HOURS * HOUR) - TAIL_DAYS * 86400)
         if frame.empty:
             continue
-        since = now_ts - reach_days(who) * 86400 if history else None
-        todo = [c for c in candidates(asset, frame, table, now_ts, since)
-                if record.get((asset.asset_id, c["hour"], c["check"]),
-                              {}).get("verdict") not in SETTLED]
+        # Asked once - and again if the bar has healed since (a run that lost
+        # its fetch judges the snapshot stored at :05, invariant 7). A verdict
+        # whose bar healed into no far move at all no longer applies.
+        found = candidates(asset, frame, table, now_ts, since)
+        window = since if since is not None else now_ts - PENDING_HOURS * HOUR
+        current = {(asset.asset_id, c["hour"], c["check"]) for c in found}
+        for key in [k for k in record if k[0] == asset.asset_id and k[1] >= window]:
+            if key not in current:
+                del record[key]
+        todo = []
+        for c in found:
+            row = record.get((asset.asset_id, c["hour"], c["check"]), {})
+            if row.get("verdict") not in SETTLED or row.get("prices") != prices(c):
+                todo.append(c)
         if not todo:
             continue
         name, symbol, interval = who
@@ -298,7 +343,7 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
                 "asset_id": asset.asset_id, "hour_utc": c["hour"], "check": c["check"],
                 "verdict": verdict, "provider": asset.fetched_from, "verifier": name,
                 "stored_move": f"{stored:.6f}", "verifier_move": f"{theirs:.6f}",
-                "checked_utc": now_ts}
+                "prices": prices(c), "checked_utc": now_ts}
             if verdict == UNCONFIRMED:
                 doubted.append(f"{asset.ticker} {datetime.fromtimestamp(c['hour'], timezone.utc):%Y-%m-%d %H:%M}"
                                f" {c['check']} ({asset.fetched_from} {100 * stored:+.2f}%,"
