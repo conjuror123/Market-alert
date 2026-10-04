@@ -133,7 +133,6 @@ assets:
   - ticker: XLK
     source: twelvedata
     provider: tiingo
-    tier: 1
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -143,7 +142,6 @@ assets:
   - ticker: XLF
     source: twelvedata
     provider: tiingo
-    tier: 1
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -153,7 +151,6 @@ assets:
   - ticker: XLY
     source: twelvedata
     provider: tiingo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -163,7 +160,6 @@ assets:
   - ticker: XLP
     source: twelvedata
     provider: tiingo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -173,7 +169,6 @@ assets:
   - ticker: XLE
     source: twelvedata
     provider: tiingo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -183,7 +178,6 @@ assets:
   - ticker: XLV
     source: twelvedata
     provider: tiingo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -193,7 +187,6 @@ assets:
   - ticker: XLI
     source: twelvedata
     provider: tiingo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -203,7 +196,6 @@ assets:
   - ticker: XLB
     source: twelvedata
     provider: tiingo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -213,7 +205,6 @@ assets:
   - ticker: XLU
     source: twelvedata
     provider: tiingo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -223,7 +214,6 @@ assets:
   - ticker: XLRE
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -233,7 +223,6 @@ assets:
   - ticker: XLC
     source: twelvedata
     provider: tiingo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -243,7 +232,6 @@ assets:
   - ticker: SPY
     source: twelvedata
     provider: tiingo
-    tier: 1
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -253,7 +241,6 @@ assets:
   - ticker: QQQ
     source: twelvedata
     provider: tiingo
-    tier: 1
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -263,7 +250,6 @@ assets:
   - ticker: IWM
     source: twelvedata
     provider: tiingo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -273,7 +259,6 @@ assets:
   - ticker: EFA
     source: twelvedata
     provider: tiingo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -283,7 +268,6 @@ assets:
   - ticker: EEM
     source: twelvedata
     provider: tiingo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -295,7 +279,6 @@ assets:
   - ticker: SHY
     source: twelvedata
     provider: tiingo
-    tier: 2
     block: rates
     has_volume: true
     tick_size: 0.01
@@ -305,7 +288,6 @@ assets:
   - ticker: IEI
     source: twelvedata
     provider: tiingo
-    tier: 2
     block: rates
     has_volume: true
     tick_size: 0.01
@@ -315,7 +297,6 @@ assets:
   - ticker: IEF
     source: twelvedata
     provider: tiingo
-    tier: 1
     block: rates
     has_volume: true
     tick_size: 0.01
@@ -325,7 +306,6 @@ assets:
   - ticker: TLH
     source: twelvedata
     provider: tiingo
-    tier: 2
     block: rates
     has_volume: true
     tick_size: 0.01
@@ -335,7 +315,6 @@ assets:
   - ticker: TLT
     source: twelvedata
     provider: tiingo
-    tier: 1
     block: rates
     has_volume: true
     tick_size: 0.01
@@ -345,7 +324,6 @@ assets:
   - ticker: TIP
     source: twelvedata
     provider: tiingo
-    tier: 2
     block: rates
     has_volume: true
     tick_size: 0.01
@@ -355,7 +333,6 @@ assets:
   - ticker: MBB
     source: twelvedata
     provider: tiingo
-    tier: 2
     block: rates
     has_volume: true
     tick_size: 0.01
@@ -367,7 +344,6 @@ assets:
   - ticker: LQD
     source: twelvedata
     provider: tiingo
-    tier: 1
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -377,7 +353,6 @@ assets:
   - ticker: HYG
     source: twelvedata
     provider: tiingo
-    tier: 1
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -387,7 +362,6 @@ assets:
   - ticker: JNK
     source: twelvedata
     provider: tiingo
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -397,7 +371,6 @@ assets:
   - ticker: EMB
     source: twelvedata
     provider: tiingo
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -407,7 +380,6 @@ assets:
   - ticker: BKLN
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -417,7 +389,6 @@ assets:
   - ticker: PFF
     source: twelvedata
     provider: tiingo
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -429,7 +400,6 @@ assets:
   - ticker: USO
     source: twelvedata
     provider: twelvedata
-    tier: 1
     block: energy
     has_volume: true
     tick_size: 0.01
@@ -439,7 +409,6 @@ assets:
   - ticker: BNO
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: energy
     has_volume: true
     tick_size: 0.01
@@ -449,7 +418,6 @@ assets:
   - ticker: UGA
     source: twelvedata
     provider: sina
-    tier: 2
     block: energy
     has_volume: true
     tick_size: 0.01
@@ -459,7 +427,6 @@ assets:
   - ticker: UNG
     source: twelvedata
     provider: twelvedata
-    tier: 2
     block: energy
     has_volume: true
     tick_size: 0.01
@@ -471,7 +438,6 @@ assets:
   - ticker: GLD
     source: twelvedata
     provider: twelvedata
-    tier: 1
     block: precious_metals
     has_volume: true
     tick_size: 0.01
@@ -481,7 +447,6 @@ assets:
   - ticker: SLV
     source: twelvedata
     provider: twelvedata
-    tier: 1
     block: precious_metals
     has_volume: true
     tick_size: 0.01
@@ -491,7 +456,6 @@ assets:
   - ticker: PPLT
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: precious_metals
     has_volume: true
     tick_size: 0.01
@@ -501,7 +465,6 @@ assets:
   - ticker: PALL
     source: twelvedata
     provider: sina
-    tier: 2
     block: precious_metals
     has_volume: true
     tick_size: 0.01
@@ -513,7 +476,6 @@ assets:
   - ticker: DBB
     source: twelvedata
     provider: yahoo
-    tier: 1
     block: industrial_metals
     has_volume: true
     tick_size: 0.01
@@ -523,7 +485,6 @@ assets:
   - ticker: CPER
     source: twelvedata
     provider: twelvedata
-    tier: 2
     block: industrial_metals
     has_volume: true
     tick_size: 0.01
@@ -536,7 +497,6 @@ assets:
   # bars, so each record starts 2026-07. Ticks are the LME's.
   - ticker: SND
     source: sina
-    tier: 2
     block: industrial_metals
     has_volume: true
     tick_size: 5.0
@@ -545,7 +505,6 @@ assets:
     label: "Tin (LME)"
   - ticker: NID
     source: sina
-    tier: 2
     block: industrial_metals
     has_volume: true
     tick_size: 5.0
@@ -554,7 +513,6 @@ assets:
     label: "Nickel (LME)"
   - ticker: AHD
     source: sina
-    tier: 2
     block: industrial_metals
     has_volume: true
     tick_size: 0.5
@@ -566,7 +524,6 @@ assets:
   - ticker: DBA
     source: twelvedata
     provider: twelvedata
-    tier: 1
     block: agriculture
     has_volume: true
     tick_size: 0.01
@@ -576,7 +533,6 @@ assets:
   - ticker: CORN
     source: twelvedata
     provider: twelvedata
-    tier: 2
     block: agriculture
     has_volume: true
     tick_size: 0.01
@@ -586,7 +542,6 @@ assets:
   - ticker: WEAT
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: agriculture
     has_volume: true
     tick_size: 0.01
@@ -596,7 +551,6 @@ assets:
   - ticker: SOYB
     source: twelvedata
     provider: sina
-    tier: 2
     block: agriculture
     has_volume: true
     tick_size: 0.01
@@ -608,7 +562,6 @@ assets:
   - ticker: EUR/USD
     source: twelvedata
     provider: sifting
-    tier: 1
     block: FX
     has_volume: false
     tick_size: 0.00001
@@ -618,7 +571,6 @@ assets:
   - ticker: USD/JPY
     source: twelvedata
     provider: sifting
-    tier: 1
     block: FX
     has_volume: false
     tick_size: 0.00001
@@ -628,7 +580,6 @@ assets:
   - ticker: GBP/USD
     source: twelvedata
     provider: sifting
-    tier: 2
     block: FX
     has_volume: false
     tick_size: 0.00001
@@ -638,7 +589,6 @@ assets:
   - ticker: AUD/USD
     source: twelvedata
     provider: sifting
-    tier: 2
     block: FX
     has_volume: false
     tick_size: 0.00001
@@ -648,7 +598,6 @@ assets:
   - ticker: NZD/USD
     source: twelvedata
     provider: sifting
-    tier: 2
     block: FX
     has_volume: false
     tick_size: 0.00001
@@ -658,7 +607,6 @@ assets:
   - ticker: USD/CHF
     source: twelvedata
     provider: sifting
-    tier: 2
     block: FX
     has_volume: false
     tick_size: 0.00001
@@ -668,7 +616,6 @@ assets:
   - ticker: USD/CAD
     source: twelvedata
     provider: sifting
-    tier: 2
     block: FX
     has_volume: false
     tick_size: 0.00001
@@ -678,7 +625,6 @@ assets:
   - ticker: USD/CNH
     source: twelvedata
     provider: sifting
-    tier: 2
     block: FX
     has_volume: false
     tick_size: 0.00001
@@ -690,7 +636,6 @@ assets:
   # USDT pair on Binance, one exchange and one quote currency (price_monitor/binance.py).
   - ticker: BTC/USDT
     source: binance
-    tier: 1
     block: crypto
     has_volume: true
     tick_size: 0.01
@@ -699,7 +644,6 @@ assets:
     label: "Bitcoin"
   - ticker: ETH/USDT
     source: binance
-    tier: 1
     block: crypto
     has_volume: true
     tick_size: 0.01
@@ -708,7 +652,6 @@ assets:
     label: "Ethereum"
   - ticker: SOL/USDT
     source: binance
-    tier: 2
     block: crypto
     has_volume: true
     tick_size: 0.01
@@ -717,7 +660,6 @@ assets:
     label: "Solana"
   - ticker: LTC/USDT
     source: binance
-    tier: 2
     block: crypto
     has_volume: true
     tick_size: 0.001
@@ -726,7 +668,6 @@ assets:
     label: "Litecoin"
   - ticker: BCH/USDT
     source: binance
-    tier: 2
     block: crypto
     has_volume: true
     tick_size: 0.01
@@ -735,7 +676,6 @@ assets:
     label: "Bitcoin Cash"
   - ticker: LINK/USDT
     source: binance
-    tier: 2
     block: crypto
     has_volume: true
     tick_size: 0.001
@@ -744,7 +684,6 @@ assets:
     label: "Chainlink"
   - ticker: ADA/USDT
     source: binance
-    tier: 2
     block: crypto
     has_volume: true
     tick_size: 0.00001
@@ -753,7 +692,6 @@ assets:
     label: "Cardano"
   - ticker: DOGE/USDT
     source: binance
-    tier: 2
     block: crypto
     has_volume: true
     tick_size: 0.00001
@@ -762,7 +700,6 @@ assets:
     label: "Dogecoin"
   - ticker: AVAX/USDT
     source: binance
-    tier: 2
     block: crypto
     has_volume: true
     tick_size: 0.001
@@ -776,7 +713,6 @@ assets:
   # (tremor/futures.py). Prices in the contract's own unit.
   - ticker: KC=F
     source: yahoo
-    tier: 2
     block: agriculture
     has_volume: true
     tick_size: 0.05
@@ -785,7 +721,6 @@ assets:
     label: "Coffee (ICE)"
   - ticker: CC=F
     source: yahoo
-    tier: 2
     block: agriculture
     has_volume: true
     tick_size: 1.0
@@ -794,7 +729,6 @@ assets:
     label: "Cocoa (ICE)"
   - ticker: CT=F
     source: yahoo
-    tier: 2
     block: agriculture
     has_volume: true
     tick_size: 0.01
@@ -803,7 +737,6 @@ assets:
     label: "Cotton (ICE)"
   - ticker: LE=F
     source: yahoo
-    tier: 2
     block: agriculture
     has_volume: true
     tick_size: 0.025
@@ -816,7 +749,6 @@ assets:
   - ticker: USD/BRL
     source: twelvedata
     provider: sifting
-    tier: 2
     block: FX
     has_volume: false
     tick_size: 0.0001
@@ -831,7 +763,6 @@ assets:
   - ticker: KRE
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -841,7 +772,6 @@ assets:
   - ticker: XRT
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -851,7 +781,6 @@ assets:
   - ticker: ITB
     source: twelvedata
     provider: sina
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -861,7 +790,6 @@ assets:
   - ticker: IYT
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -871,7 +799,6 @@ assets:
   - ticker: XME
     source: twelvedata
     provider: sina
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -881,7 +808,6 @@ assets:
   - ticker: XBI
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -891,7 +817,6 @@ assets:
   - ticker: XPH
     source: twelvedata
     provider: sina
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -901,7 +826,6 @@ assets:
   - ticker: IHI
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -911,7 +835,6 @@ assets:
   - ticker: VDC
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -921,7 +844,6 @@ assets:
   - ticker: VHT
     source: twelvedata
     provider: sina
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -931,7 +853,6 @@ assets:
   - ticker: VPU
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -941,7 +862,6 @@ assets:
   - ticker: SMH
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -951,7 +871,6 @@ assets:
   - ticker: SOXX
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -961,7 +880,6 @@ assets:
   - ticker: IGV
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -971,7 +889,6 @@ assets:
   - ticker: FDN
     source: twelvedata
     provider: sina
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -981,7 +898,6 @@ assets:
   - ticker: CIBR
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -991,7 +907,6 @@ assets:
   - ticker: SKYY
     source: twelvedata
     provider: sina
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1001,7 +916,6 @@ assets:
   - ticker: DIA
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1011,7 +925,6 @@ assets:
   - ticker: RSP
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1021,7 +934,6 @@ assets:
   - ticker: MDY
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1031,7 +943,6 @@ assets:
   - ticker: EWJ
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1041,7 +952,6 @@ assets:
   - ticker: EWG
     source: twelvedata
     provider: sina
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1051,7 +961,6 @@ assets:
   - ticker: EWU
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1061,7 +970,6 @@ assets:
   - ticker: EWQ
     source: twelvedata
     provider: sina
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1071,7 +979,6 @@ assets:
   - ticker: EWC
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1081,7 +988,6 @@ assets:
   - ticker: EWA
     source: twelvedata
     provider: sina
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1091,7 +997,6 @@ assets:
   - ticker: EWL
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1101,7 +1006,6 @@ assets:
   - ticker: EWN
     source: twelvedata
     provider: sina
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1111,7 +1015,6 @@ assets:
   - ticker: EZU
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1121,7 +1024,6 @@ assets:
   - ticker: FXI
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1131,7 +1033,6 @@ assets:
   - ticker: EWZ
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1141,7 +1042,6 @@ assets:
   - ticker: EWW
     source: twelvedata
     provider: sina
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1151,7 +1051,6 @@ assets:
   - ticker: INDA
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1161,7 +1060,6 @@ assets:
   - ticker: EWY
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1171,7 +1069,6 @@ assets:
   - ticker: EWT
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1181,7 +1078,6 @@ assets:
   - ticker: EZA
     source: twelvedata
     provider: sina
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1191,7 +1087,6 @@ assets:
   - ticker: TUR
     source: twelvedata
     provider: google
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1201,7 +1096,6 @@ assets:
   - ticker: EPI
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1211,7 +1105,6 @@ assets:
   - ticker: VNQ
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1221,7 +1114,6 @@ assets:
   - ticker: IYR
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1231,7 +1123,6 @@ assets:
   - ticker: RWR
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1241,7 +1132,6 @@ assets:
   - ticker: SCHH
     source: twelvedata
     provider: sina
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1251,7 +1141,6 @@ assets:
   - ticker: REM
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1261,7 +1150,6 @@ assets:
   - ticker: VNQI
     source: twelvedata
     provider: sina
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1271,7 +1159,6 @@ assets:
   - ticker: RWX
     source: twelvedata
     provider: sina
-    tier: 2
     block: equity
     has_volume: true
     tick_size: 0.01
@@ -1281,7 +1168,6 @@ assets:
   - ticker: GOVT
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: rates
     has_volume: true
     tick_size: 0.01
@@ -1291,7 +1177,6 @@ assets:
   - ticker: SCHO
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: rates
     has_volume: true
     tick_size: 0.01
@@ -1301,7 +1186,6 @@ assets:
   - ticker: VGIT
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: rates
     has_volume: true
     tick_size: 0.01
@@ -1311,7 +1195,6 @@ assets:
   - ticker: VGLT
     source: twelvedata
     provider: sina
-    tier: 2
     block: rates
     has_volume: true
     tick_size: 0.01
@@ -1321,7 +1204,6 @@ assets:
   - ticker: SPTL
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: rates
     has_volume: true
     tick_size: 0.01
@@ -1331,7 +1213,6 @@ assets:
   - ticker: BWX
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: rates
     has_volume: true
     tick_size: 0.01
@@ -1341,7 +1222,6 @@ assets:
   - ticker: VTIP
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: rates
     has_volume: true
     tick_size: 0.01
@@ -1351,7 +1231,6 @@ assets:
   - ticker: SCHP
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: rates
     has_volume: true
     tick_size: 0.01
@@ -1361,7 +1240,6 @@ assets:
   - ticker: STIP
     source: twelvedata
     provider: sina
-    tier: 2
     block: rates
     has_volume: true
     tick_size: 0.01
@@ -1371,7 +1249,6 @@ assets:
   - ticker: VMBS
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: rates
     has_volume: true
     tick_size: 0.01
@@ -1381,7 +1258,6 @@ assets:
   - ticker: SPMB
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: rates
     has_volume: true
     tick_size: 0.01
@@ -1391,7 +1267,6 @@ assets:
   - ticker: LMBS
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: rates
     has_volume: true
     tick_size: 0.01
@@ -1401,7 +1276,6 @@ assets:
   - ticker: JMBS
     source: twelvedata
     provider: sina
-    tier: 2
     block: rates
     has_volume: true
     tick_size: 0.01
@@ -1411,7 +1285,6 @@ assets:
   - ticker: VCIT
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -1421,7 +1294,6 @@ assets:
   - ticker: VCSH
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -1431,7 +1303,6 @@ assets:
   - ticker: IGIB
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -1441,7 +1312,6 @@ assets:
   - ticker: SPIB
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -1451,7 +1321,6 @@ assets:
   - ticker: USIG
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -1461,7 +1330,6 @@ assets:
   - ticker: QLTA
     source: twelvedata
     provider: sina
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -1471,7 +1339,6 @@ assets:
   - ticker: GIGB
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -1481,7 +1348,6 @@ assets:
   - ticker: SLQD
     source: twelvedata
     provider: sina
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -1491,7 +1357,6 @@ assets:
   - ticker: SHYG
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -1501,7 +1366,6 @@ assets:
   - ticker: USHY
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -1511,7 +1375,6 @@ assets:
   - ticker: ANGL
     source: twelvedata
     provider: sina
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -1521,7 +1384,6 @@ assets:
   - ticker: SRLN
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -1531,7 +1393,6 @@ assets:
   - ticker: FALN
     source: twelvedata
     provider: sina
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -1541,7 +1402,6 @@ assets:
   - ticker: EMLC
     source: twelvedata
     provider: alpaca
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -1551,7 +1411,6 @@ assets:
   - ticker: VWOB
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -1561,7 +1420,6 @@ assets:
   - ticker: PCY
     source: twelvedata
     provider: sina
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -1571,7 +1429,6 @@ assets:
   - ticker: EBND
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -1581,7 +1438,6 @@ assets:
   - ticker: LEMB
     source: twelvedata
     provider: sina
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -1591,7 +1447,6 @@ assets:
   - ticker: EMHY
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -1601,7 +1456,6 @@ assets:
   - ticker: CEMB
     source: twelvedata
     provider: sina
-    tier: 2
     block: credit
     has_volume: true
     tick_size: 0.01
@@ -1611,7 +1465,6 @@ assets:
   - ticker: DBO
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: energy
     has_volume: true
     tick_size: 0.01
@@ -1621,7 +1474,6 @@ assets:
   - ticker: DBE
     source: twelvedata
     provider: sina
-    tier: 2
     block: energy
     has_volume: true
     tick_size: 0.01
@@ -1631,7 +1483,6 @@ assets:
   - ticker: UNL
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: energy
     has_volume: true
     tick_size: 0.01
@@ -1641,7 +1492,6 @@ assets:
   - ticker: IAU
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: precious_metals
     has_volume: true
     tick_size: 0.01
@@ -1651,7 +1501,6 @@ assets:
   - ticker: SGOL
     source: twelvedata
     provider: sina
-    tier: 2
     block: precious_metals
     has_volume: true
     tick_size: 0.01
@@ -1661,7 +1510,6 @@ assets:
   - ticker: SIVR
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: precious_metals
     has_volume: true
     tick_size: 0.01
@@ -1671,7 +1519,6 @@ assets:
   - ticker: GLTR
     source: twelvedata
     provider: sina
-    tier: 2
     block: precious_metals
     has_volume: true
     tick_size: 0.01
@@ -1681,7 +1528,6 @@ assets:
   - ticker: LIT
     source: twelvedata
     provider: sina
-    tier: 2
     block: industrial_metals
     has_volume: true
     tick_size: 0.01
@@ -1691,7 +1537,6 @@ assets:
   - ticker: REMX
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: industrial_metals
     has_volume: true
     tick_size: 0.01
@@ -1701,7 +1546,6 @@ assets:
   - ticker: SLX
     source: twelvedata
     provider: sina
-    tier: 2
     block: industrial_metals
     has_volume: true
     tick_size: 0.01
@@ -1711,7 +1555,6 @@ assets:
   - ticker: CANE
     source: twelvedata
     provider: yahoo
-    tier: 2
     block: agriculture
     has_volume: true
     tick_size: 0.01
@@ -1721,7 +1564,6 @@ assets:
   - ticker: USD/SEK
     source: twelvedata
     provider: sifting
-    tier: 2
     block: FX
     has_volume: false
     tick_size: 0.00001
@@ -1731,7 +1573,6 @@ assets:
   - ticker: USD/NOK
     source: twelvedata
     provider: sifting
-    tier: 2
     block: FX
     has_volume: false
     tick_size: 0.00001
@@ -1741,7 +1582,6 @@ assets:
   - ticker: USD/MXN
     source: twelvedata
     provider: sifting
-    tier: 2
     block: FX
     has_volume: false
     tick_size: 0.00001
@@ -1751,7 +1591,6 @@ assets:
   - ticker: USD/ZAR
     source: twelvedata
     provider: sifting
-    tier: 2
     block: FX
     has_volume: false
     tick_size: 0.00001
@@ -1761,7 +1600,6 @@ assets:
   - ticker: USD/TRY
     source: twelvedata
     provider: sifting
-    tier: 2
     block: FX
     has_volume: false
     tick_size: 0.00001
@@ -1771,7 +1609,6 @@ assets:
   - ticker: USD/PLN
     source: twelvedata
     provider: sifting
-    tier: 2
     block: FX
     has_volume: false
     tick_size: 0.00001
@@ -1781,7 +1618,6 @@ assets:
   - ticker: USD/INR
     source: twelvedata
     provider: sifting
-    tier: 2
     block: FX
     has_volume: false
     tick_size: 0.0001
@@ -1791,7 +1627,6 @@ assets:
   - ticker: USD/KRW
     source: twelvedata
     provider: sifting
-    tier: 2
     block: FX
     has_volume: false
     tick_size: 0.01
@@ -1800,7 +1635,6 @@ assets:
     label: "Dollar / Korean won"
   - ticker: XRP/USDT
     source: binance
-    tier: 2
     block: crypto
     has_volume: true
     tick_size: 0.0001
@@ -1809,7 +1643,6 @@ assets:
     label: "XRP"
   - ticker: DOT/USDT
     source: binance
-    tier: 2
     block: crypto
     has_volume: true
     tick_size: 0.001
@@ -1818,7 +1651,6 @@ assets:
     label: "Polkadot"
   - ticker: POL/USDT
     source: binance
-    tier: 2
     block: crypto
     has_volume: true
     tick_size: 0.0001
@@ -1827,7 +1659,6 @@ assets:
     label: "Polygon (POL, formerly MATIC)"
   - ticker: UNI/USDT
     source: binance
-    tier: 2
     block: crypto
     has_volume: true
     tick_size: 0.001
@@ -1836,7 +1667,6 @@ assets:
     label: "Uniswap"
   - ticker: ATOM/USDT
     source: binance
-    tier: 2
     block: crypto
     has_volume: true
     tick_size: 0.001
@@ -1845,7 +1675,6 @@ assets:
     label: "Cosmos"
   - ticker: FIL/USDT
     source: binance
-    tier: 2
     block: crypto
     has_volume: true
     tick_size: 0.001
@@ -1854,7 +1683,6 @@ assets:
     label: "Filecoin"
   - ticker: AAVE/USDT
     source: binance
-    tier: 2
     block: crypto
     has_volume: true
     tick_size: 0.01
@@ -1869,7 +1697,6 @@ outside_basket:
   - ticker: DBC
     source: twelvedata
     provider: twelvedata
-    tier: 2
     block: energy
     has_volume: true
     tick_size: 0.01

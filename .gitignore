@@ -5,8 +5,6 @@ venv/
 .env
 .pytest_cache/
 *.egg-info/
-data/backtest_results.json
-data/calibration_review/
 
 # Fully derived Tremor outputs, rebuilt from the committed bars by the run that
 # reads them - delivery reads the events table the same run just wrote. Git
@@ -28,14 +26,4 @@ data/tremor/bars/*/*.open.csv
 # A write killed half way (tremor/atomic.py) leaves its temp file behind; the
 # original is intact, and the leftover must not reach git with the next commit.
 *.tmp
-
-# Outputs of detectors that no longer run on this branch. Nothing writes them;
-# the rules stay so a working copy that still holds the files cannot commit them.
-data/tremor/events/
-data/tremor/residuals/
-data/tremor/metrics_basket_hour.parquet
-data/tremor/decision_log.parquet
-data/tremor/saed_events.parquet
-data/tremor/saed_events_archive.parquet
-data/tremor/record_book.parquet
 .claude/settings.local.json

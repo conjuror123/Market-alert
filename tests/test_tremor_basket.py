@@ -12,8 +12,8 @@ MINIMAL = {
 }
 
 
-def asset(ticker, block, tier=1, **over):
-    return {"ticker": ticker, "source": "twelvedata", "tier": tier, "block": block,
+def asset(ticker, block, **over):
+    return {"ticker": ticker, "source": "twelvedata", "block": block,
             "has_volume": True, "tick_size": 0.01, "session_template": "s",
             "fetch_interval": "1h"} | over
 
@@ -26,37 +26,9 @@ def write(tmp_path, raw):
 
 def two_block_config(**extra):
     return MINIMAL | {"assets": [
-        asset("A", "equity"), asset("B", "equity", tier=2),
-        asset("C", "FX"), asset("D", "FX", tier=2),
+        asset("A", "equity"), asset("B", "equity"),
+        asset("C", "FX"), asset("D", "FX"),
     ]} | extra
-
-
-def test_weights_follow_the_equal_weight_rule(tmp_path):
-    # Three assets in equity against one in FX: the blocks still weigh the same,
-    # and within a block the assets split the block's weight between them.
-    raw = MINIMAL | {"assets": [
-        asset("A", "equity"), asset("B", "equity", tier=2), asset("C", "equity", tier=2),
-        asset("D", "FX"), asset("E", "FX", tier=2),
-    ]}
-    basket = load_basket(write(tmp_path, raw))
-    w = basket.weights()
-
-    equity = [w["twelvedata:A"], w["twelvedata:B"], w["twelvedata:C"]]
-    assert equity == pytest.approx([1 / 6] * 3)
-    assert w["twelvedata:D"] == pytest.approx(1 / 4)
-    assert sum(w.values()) == pytest.approx(1.0)
-    # Blocks are equal to one another - the rule's main property.
-    assert sum(equity) == pytest.approx(w["twelvedata:D"] + w["twelvedata:E"])
-
-
-def test_weight_is_not_readable_from_the_file(tmp_path):
-    # The weight is derived. Even if it is written into the
-    # configuration, the system must compute by the rule rather than trust the
-    # stored number.
-    raw = two_block_config()
-    raw["assets"][0]["weight"] = 0.99
-    basket = load_basket(write(tmp_path, raw))
-    assert basket.weights()["twelvedata:A"] == pytest.approx(1 / 4)
 
 
 def test_rejects_block_outside_the_taxonomy(tmp_path):
@@ -68,7 +40,7 @@ def test_rejects_block_outside_the_taxonomy(tmp_path):
 
 def test_rejects_duplicate_instrument(tmp_path):
     raw = two_block_config()
-    raw["assets"].append(asset("A", "FX", tier=2))
+    raw["assets"].append(asset("A", "FX"))
     with pytest.raises(BasketConfigError, match="listed twice"):
         load_basket(write(tmp_path, raw))
 
@@ -80,33 +52,10 @@ def test_rejects_unknown_session_template(tmp_path):
         load_basket(write(tmp_path, raw))
 
 
-def test_rejects_basket_where_quorum_is_unreachable(tmp_path):
-    # The hourly quorum requires two blocks of two. With the per-block floor in
-    # front of it, the only way left to reach this check is a basket that holds
-    # ONE block - a thinner arrangement is rejected earlier, and by a message
-    # that names the block rather than the quorum.
-    raw = MINIMAL | {"assets": [
-        asset("A", "equity"), asset("B", "equity", tier=2),
-        asset("C", "equity", tier=2),
-    ]}
-    with pytest.raises(BasketConfigError, match="Quorum unreachable"):
-        load_basket(write(tmp_path, raw))
-
-
-def test_a_thin_block_is_rejected_by_size_before_quorum(tmp_path):
-    # Refused for the block's size before the quorum check is reached.
-    raw = MINIMAL | {"assets": [
-        asset("A", "equity"), asset("B", "equity", tier=2),
-        asset("C", "FX"), asset("D", "rates"), asset("E", "credit"),
-    ]}
-    with pytest.raises(BasketConfigError, match="below the minimum"):
-        load_basket(write(tmp_path, raw))
-
-
-def test_outside_basket_instruments_are_not_weighted(tmp_path):
-    raw = two_block_config(outside_basket=[asset("Z", "FX", tier=2)])
+def test_outside_basket_instruments_are_instruments_but_not_assets(tmp_path):
+    raw = two_block_config(outside_basket=[asset("Z", "FX")])
     basket = load_basket(write(tmp_path, raw))
-    assert "twelvedata:Z" not in basket.weights()
+    assert "Z" not in [a.ticker for a in basket.assets]
     assert [a.ticker for a in basket.outside] == ["Z"]
     assert "twelvedata:Z" in {a.asset_id for a in basket.instruments}
 
@@ -121,10 +70,7 @@ def test_file_stem_is_filesystem_safe(tmp_path):
 
 
 def test_a_one_member_block_does_not_load(tmp_path):
-    # The floor was asserted below, against the REAL config, and nowhere else -
-    # so a hand-edited basket could load a one-member block and go quiet exactly
-    # where it should have shouted. A block's factor is a leave-one-out median of
-    # its other members; with one member there is nothing to take a median of.
+    # A block of one is a typo in basket.yaml, not a group.
     raw = two_block_config()
     raw["assets"].append(asset("Z", "crypto"))
     with pytest.raises(BasketConfigError, match="crypto"):
@@ -144,21 +90,8 @@ def test_real_basket_config_is_valid():
     assert set(basket.by_block()) == {
         "equity", "rates", "credit", "energy", "precious_metals",
         "industrial_metals", "agriculture", "FX", "crypto"}
-    # Every block needs two members or it can never be active (the
-    # BLOCK_ACTIVE_MIN), and a block that can never be active contributes exactly
-    # nothing to the quorum - measured: one crypto asset instead of two takes the
-    # share of hours passing quorum from 70.6% to 19.9%, losing every overnight
-    # hour. Two is also the floor at which the leave-one-out block factor exists
-    # at all: drop a block to one member and that member has no peers to be
-    # compared with and no model but its own drift.
     for block, members in basket.by_block().items():
         assert len(members) >= 2, block
-    assert sum(basket.weights().values()) == pytest.approx(1.0)
-    # At night only FX and crypto remain in session - together they must make the
-    # quorum, or the system is blind outside the US session.
-    night = [a for a in basket.assets if a.block in ("FX", "crypto")]
-    assert len(night) >= 8
-    assert sum(1 for a in night if a.tier == 1) >= 2
 
 
 def test_rejects_a_nonpositive_tick_size(tmp_path):

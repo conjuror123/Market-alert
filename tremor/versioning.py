@@ -42,11 +42,11 @@ CONFIG_INPUTS = (
 )
 
 # Raw inputs of the calculation: everything that arrives from outside and is not
-# a product of the system itself. Derived files - asset metrics, basket metrics,
-# residuals - are NOT included here, and that is essential. The basket metrics are
-# both input and output for the cluster run: include them in the fingerprint and a
-# repeat run over the same data would get a new run_version simply because the
-# previous run rewrote the file. Idempotency rests on exactly this:
+# a product of the system itself. Derived files - the metrics, the events table -
+# are NOT included here, and that is essential: they are rewritten by every run,
+# so in the fingerprint a repeat run over the same data would get a new
+# run_version simply because the previous run rewrote them. Idempotency rests on
+# exactly this:
 # the version depends only on the raw data and the configuration, and everything
 # else is a function of those.
 RAW_INPUTS = (

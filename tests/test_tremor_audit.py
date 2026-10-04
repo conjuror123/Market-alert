@@ -8,7 +8,7 @@ HOUR = 3600
 
 
 def asset(**over):
-    base = dict(ticker="SPY", source="twelvedata", tier=1, block="equity",
+    base = dict(ticker="SPY", source="twelvedata", block="equity",
                 has_volume=True, tick_size=0.01, session_template="us_equity",
                 fetch_interval="30min", label="S&P 500", in_basket=True)
     return Asset(**(base | over))

@@ -15,7 +15,7 @@ TABLE = {DAY: Session(DAY, "09:30", "16:00", False)}
 
 
 def fund(ticker):
-    return Asset(ticker=ticker, source="twelvedata", tier=2, block="credit",
+    return Asset(ticker=ticker, source="twelvedata", block="credit",
                  has_volume=True, tick_size=0.01, session_template="us_equity",
                  fetch_interval="30min", label=ticker, in_basket=True)
 

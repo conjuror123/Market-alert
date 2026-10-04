@@ -50,7 +50,6 @@ def build_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
 
     scored["asset_id"] = asset.asset_id
     scored["block"] = asset.block
-    scored["tier"] = asset.tier
     scored["bars_upto"] = bars_upto(scored["hour_utc"], frame)
     return scored
 
@@ -65,7 +64,7 @@ def bars_upto(hours: pd.Series, frame: pd.DataFrame) -> np.ndarray:
 
 
 METRIC_COLUMNS = [
-    "hour_utc", "asset_id", "block", "tier", "close", "volume",
+    "hour_utc", "asset_id", "block", "close", "volume",
     "r", "is_session_open", "hole", "gap", "bars_upto",
 ]
 

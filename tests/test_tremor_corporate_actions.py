@@ -10,7 +10,7 @@ from tremor.basket import Asset, Basket, VolatilityIndex
 
 
 def _etf(ticker):
-    return Asset(ticker=ticker, source="twelvedata", tier=1, block="equity",
+    return Asset(ticker=ticker, source="twelvedata", block="equity",
                  has_volume=True, tick_size=0.01, session_template="us_equity",
                  fetch_interval="1h", label=ticker, in_basket=True)
 

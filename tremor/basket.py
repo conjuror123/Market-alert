@@ -1,15 +1,10 @@
-"""Basket configuration: assets, blocks, tiers, derived weights.
+"""Basket configuration: the instruments, their blocks and providers, and the
+detector's settings (config/basket.yaml).
 
 An asset has no thresholds of its own, and cannot have any: every instrument is
 judged against its own half-year by the same rule (tremor.jumps, whose settings
 sit under `detector:`), so the configuration describes only the COMPOSITION and
 the PROPERTIES of the instruments, not the sensitivity to them.
-
-The weight is not a configuration field either. It is derived:
-    weight_i = 1 / (N_blocks * N_assets_block)
-and if a stored weight diverges from the rule, the configuration counts as
-invalid. The only reliable way never to diverge is not to store the weight at all
-but to compute it from the composition. That is exactly what is done here.
 """
 from __future__ import annotations
 
@@ -31,7 +26,7 @@ BLOCKS = ("equity", "rates", "credit", "energy", "precious_metals",
 
 # A block of one is a typo in basket.yaml, not a group.
 BLOCK_MIN_MEMBERS = 2
-TIERS = (1, 2)
+
 # WHAT `source` IS, AND WHAT IT IS NOT. It names the store, not the server.
 # `asset_id` and `file_stem` are both built from it, so every bar on disk, every
 # event ever exported is keyed by it - which makes
@@ -61,7 +56,6 @@ class Asset:
     ticker: str
     # The store's identity. See SOURCES - this is not necessarily who serves it.
     source: str
-    tier: int
     block: str
     has_volume: bool
     session_template: str
@@ -150,37 +144,19 @@ class Basket:
             blocks.setdefault(a.block, []).append(a)
         return blocks
 
-    def weights(self) -> dict[str, float]:
-        """Weights under the equality rule: blocks are equal to one
-        another, and assets within a block are equal to one another.
-
-        Computed over the whole basket composition. When active_from / active_to
-        appear in phase 1, a date argument will be added here - the rule itself
-        does not change, only which assets count as active.
-        """
-        blocks = self.by_block()
-        n_blocks = len(blocks)
-        return {
-            a.asset_id: 1.0 / (n_blocks * len(members))
-            for members in blocks.values()
-            for a in members
-        }
-
 
 def _as_date(value) -> date:
     return value if isinstance(value, date) else datetime.strptime(str(value), "%Y-%m-%d").date()
 
 
 def _asset(raw: dict, *, in_basket: bool) -> Asset:
-    missing = {"ticker", "source", "tier", "block", "has_volume", "session_template",
+    missing = {"ticker", "source", "block", "has_volume", "session_template",
                "fetch_interval", "tick_size"} - set(raw)
     if missing:
         raise BasketConfigError(f"{raw.get('ticker', '?')}: missing fields {sorted(missing)}")
     if raw["block"] not in BLOCKS:
         raise BasketConfigError(
             f"{raw['ticker']}: block '{raw['block']}' is not one of {list(BLOCKS)}")
-    if raw["tier"] not in TIERS:
-        raise BasketConfigError(f"{raw['ticker']}: tier must be 1 or 2, not {raw['tier']!r}")
     if raw["source"] not in SOURCES:
         raise BasketConfigError(
             f"{raw['ticker']}: source '{raw['source']}' is not one of {list(SOURCES)}")
@@ -199,7 +175,7 @@ def _asset(raw: dict, *, in_basket: bool) -> Asset:
             f"{raw['ticker']}: tick_size must be a positive number, "
             f"not {raw['tick_size']!r}")
     return Asset(
-        ticker=raw["ticker"], source=raw["source"], tier=int(raw["tier"]),
+        ticker=raw["ticker"], source=raw["source"],
         block=raw["block"], has_volume=bool(raw["has_volume"]),
         session_template=raw["session_template"], fetch_interval=raw["fetch_interval"],
         tick_size=float(raw["tick_size"]),
@@ -230,8 +206,6 @@ def load_basket(path: str = DEFAULT_BASKET_PATH) -> Basket:
                 f"{a.ticker}: session template '{a.session_template}' is not "
                 f"described in session_templates")
 
-    # At least two blocks of two members each: a basket below that is a broken
-    # config, not a small one.
     by_block = Basket(
         assets, outside, VolatilityIndex("", "", "", "", date.today()), "",
         date.today(), templates
@@ -244,14 +218,6 @@ def load_basket(path: str = DEFAULT_BASKET_PATH) -> Basket:
         raise BasketConfigError(
             f"Block below the minimum of {BLOCK_MIN_MEMBERS} members: {listed}. "
             "A block groups instruments; one member is a typo.")
-
-    # At least two blocks of two members each: a basket below that is a broken
-    # config, not a small one.
-    populated = [b for b, members in by_block.items() if len(members) >= 2]
-    if len(populated) < 2:
-        raise BasketConfigError(
-            "Quorum unreachable: at least two blocks of no fewer than two assets "
-            f"each are needed, and there are {len(populated)} such blocks")
 
     vix_raw = raw.get("volatility_index") or {}
     if not vix_raw.get("series_id"):

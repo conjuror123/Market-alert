@@ -45,7 +45,7 @@ def test_an_answer_without_bars_raises_and_null_is_empty():
 
 
 def _nickel():
-    return Asset(ticker="NID", source="sina", tier=2, block="industrial_metals",
+    return Asset(ticker="NID", source="sina", block="industrial_metals",
                  has_volume=True, tick_size=5.0, session_template="lme",
                  fetch_interval="1h", label="Nickel", in_basket=True)
 
@@ -80,7 +80,7 @@ def test_the_fetch_asks_sina_for_a_sina_fund(tmp_path, monkeypatch):
     monkeypatch.setattr(backfill.sina, "fetch_bars",
                         lambda symbol, session=None, now=None, url=None:
                         seen.setdefault("lme", (symbol, url)) and [])
-    fund = Asset(ticker="RWX", source="twelvedata", provider="sina", tier=2, block="equity",
+    fund = Asset(ticker="RWX", source="twelvedata", provider="sina", block="equity",
                  has_volume=True, tick_size=0.01, session_template="us_equity",
                  fetch_interval="30min", label="RWX", in_basket=True)
     backfill.fetch_missing(fund, str(tmp_path / "a"), date(2021, 1, 1), "", requests.Session())

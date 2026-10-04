@@ -58,12 +58,11 @@ def test_rewriting_a_file_with_the_same_bytes_keeps_the_version(tmp_path):
 
 
 def test_derived_files_are_not_part_of_the_fingerprint():
-    # The basket metrics are both input and output for the cluster run. Were they
-    # in the fingerprint, a repeat run over the same data would get a new version
-    # simply because the previous one rewrote the file.
+    # Derived files are rewritten by every run. Were they in the fingerprint, a
+    # repeat run over the same data would get a new version simply because the
+    # previous one rewrote them.
     raw = set(versioning.RAW_INPUTS)
-    for derived in ("data/tremor/metrics_basket_hour.parquet", "data/tremor/metrics",
-                    "data/tremor/residuals", "data/tremor/decision_log.parquet"):
+    for derived in ("data/tremor/metrics", "data/tremor/jumps.parquet"):
         assert derived not in raw
 
 

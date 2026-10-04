@@ -100,7 +100,7 @@ def test_the_real_trades_twelve_to_twenty_one_utc():
 
 
 def _future(ticker="KC=F", template="ice_coffee"):
-    return Asset(ticker=ticker, source="yahoo", tier=2, block="agriculture",
+    return Asset(ticker=ticker, source="yahoo", block="agriculture",
                  has_volume=True, tick_size=0.05, session_template=template,
                  fetch_interval="1h", label=ticker, in_basket=True)
 

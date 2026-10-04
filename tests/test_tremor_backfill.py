@@ -13,7 +13,7 @@ HOUR = 3600
 
 
 def asset(**over):
-    base = dict(ticker="EUR/USD", source="twelvedata", tier=1, block="FX",
+    base = dict(ticker="EUR/USD", source="twelvedata", block="FX",
                 has_volume=False, tick_size=0.00001, session_template="fx_continuous",
                 fetch_interval="1h", label="Euro / dollar", in_basket=True)
     return Asset(**(base | over))
@@ -59,7 +59,7 @@ def test_deepening_starts_at_the_oldest_stored_bar_not_at_today(tmp_path, monkey
         return []
 
     monkeypatch.setattr(backfill.twelvedata, "fetch_full_history", fake_history)
-    asset = Asset(ticker="SPY", source="twelvedata", tier=1, block="equity",
+    asset = Asset(ticker="SPY", source="twelvedata", block="equity",
                   has_volume=True, tick_size=0.01, session_template="us_equity",
                   fetch_interval="30min", label="S&P 500", in_basket=True)
 
@@ -81,7 +81,7 @@ def test_a_first_ever_fetch_still_walks_back_from_today(tmp_path, monkeypatch):
         return []
 
     monkeypatch.setattr(backfill.twelvedata, "fetch_full_history", fake_history)
-    asset = Asset(ticker="SPY", source="twelvedata", tier=1, block="equity",
+    asset = Asset(ticker="SPY", source="twelvedata", block="equity",
                   has_volume=True, tick_size=0.01, session_template="us_equity",
                   fetch_interval="30min", label="S&P 500", in_basket=True)
 
@@ -108,7 +108,7 @@ def test_a_forward_fetch_asks_from_the_settle_window_not_an_extra_day(
         Candle(open_time=int(newest.timestamp()), open=1.0, high=1.0, low=1.0,
                close=1.0, volume=0.0,
                close_time=int(newest.timestamp()) + HOUR)])))
-    asset = Asset(ticker="SPY", source="twelvedata", tier=1, block="equity",
+    asset = Asset(ticker="SPY", source="twelvedata", block="equity",
                   has_volume=True, tick_size=0.01, session_template="us_equity",
                   fetch_interval="30min", label="S&P 500", in_basket=True)
 
@@ -155,7 +155,7 @@ def test_the_hourly_crypto_fetch_survives_one_dropped_connection(
             return _Rows([[fresh * 1000, "1.0", "2.0", "1.5", "1.8", "3.0"]])
 
     monkeypatch.setattr(binance.time, "sleep", lambda *_: None)
-    crypto = Asset(ticker="BTC/USDT", source="binance", tier=1, block="crypto",
+    crypto = Asset(ticker="BTC/USDT", source="binance", block="crypto",
                    has_volume=True, tick_size=0.01,
                    session_template="crypto_24_7", fetch_interval="1h",
                    label="Bitcoin", in_basket=True)
@@ -176,7 +176,7 @@ def backfill_runs(days):
 
 
 def _etf(**over):
-    base = dict(ticker="SPY", source="twelvedata", tier=1, block="equity",
+    base = dict(ticker="SPY", source="twelvedata", block="equity",
                 has_volume=True, tick_size=0.01, session_template="us_equity",
                 fetch_interval="30min", label="S&P 500", in_basket=True)
     return Asset(**(base | over))
@@ -720,7 +720,7 @@ def test_the_gap_fill_recovers_hours_inside_a_day_that_is_already_present(
 
 
 def _fx_asset(ticker="EUR/USD"):
-    return Asset(ticker=ticker, source="twelvedata", tier=1, block="FX",
+    return Asset(ticker=ticker, source="twelvedata", block="FX",
                  has_volume=False, tick_size=0.00001, session_template="fx",
                  fetch_interval="1h", label=ticker, in_basket=True)
 
@@ -1003,7 +1003,7 @@ def test_an_empty_store_takes_one_chunk_not_the_whole_archive(monkeypatch, tmp_p
         return []
 
     monkeypatch.setattr(backfill.twelvedata, "fetch_full_history", fake)
-    asset = Asset(ticker="XLK", source="twelvedata", tier=1, block="equity",
+    asset = Asset(ticker="XLK", source="twelvedata", block="equity",
                   has_volume=True, session_template="us_equity",
                   fetch_interval="30min", label="Technology", in_basket=True,
                   tick_size=0.01)
@@ -1026,7 +1026,7 @@ def test_extending_history_still_asks_for_the_whole_archive(monkeypatch, tmp_pat
         return []
 
     monkeypatch.setattr(backfill.twelvedata, "fetch_full_history", fake)
-    asset = Asset(ticker="XLK", source="twelvedata", tier=1, block="equity",
+    asset = Asset(ticker="XLK", source="twelvedata", block="equity",
                   has_volume=True, session_template="us_equity",
                   fetch_interval="30min", label="Technology", in_basket=True,
                   tick_size=0.01)
@@ -1132,7 +1132,7 @@ def test_vix_asks_fred_from_a_recent_start_not_from_nineteen_ninety(
 
 def _yahoo_asset(ticker):
     return Asset(ticker=ticker, source="twelvedata", provider="yahoo",
-                 tier=2, block="energy", has_volume=True, tick_size=0.01,
+                 block="energy", has_volume=True, tick_size=0.01,
                  session_template="us_equity", fetch_interval="30min",
                  label=ticker, in_basket=True)
 
@@ -1154,7 +1154,7 @@ def test_a_yahoo_rate_limit_skips_remaining_yahoo_instruments(tmp_path, monkeypa
 
     basket = Basket(
         assets=(_yahoo_asset("UGA"), _yahoo_asset("UNG"), _yahoo_asset("CPER"),
-                Asset(ticker="BTC/USDT", source="binance", tier=1, block="crypto",
+                Asset(ticker="BTC/USDT", source="binance", block="crypto",
                       has_volume=True, tick_size=0.01, session_template="crypto_24_7",
                       fetch_interval="1h", label="Bitcoin", in_basket=True)),
         outside=(),
@@ -1215,7 +1215,7 @@ def test_a_yahoo_404_stays_per_instrument_and_does_not_skip_the_rest(
 
 def _sifting_pair(ticker):
     return Asset(ticker=ticker, source="twelvedata", provider="sifting",
-                 tier=2, block="FX", has_volume=False, tick_size=0.00001,
+                 block="FX", has_volume=False, tick_size=0.00001,
                  session_template="fx_continuous", fetch_interval="1h",
                  label=ticker, in_basket=True)
 
@@ -1296,7 +1296,7 @@ def test_the_fetch_asks_google_for_a_google_fund(tmp_path, monkeypatch):
         return []
 
     monkeypatch.setattr(backfill.google, "fetch_full_history", fake)
-    asset = Asset(ticker="TUR", source="twelvedata", provider="google", tier=2,
+    asset = Asset(ticker="TUR", source="twelvedata", provider="google", 
                   block="equity", has_volume=True, tick_size=0.01,
                   session_template="us_equity", fetch_interval="30min",
                   label="TUR", in_basket=True)
@@ -1308,7 +1308,7 @@ def test_the_fetch_asks_google_for_a_google_fund(tmp_path, monkeypatch):
 # --- Alpaca deepening ---------------------------------------------------------
 
 def _fund():
-    return Asset(ticker="VCIT", source="twelvedata", provider="yahoo", tier=2,
+    return Asset(ticker="VCIT", source="twelvedata", provider="yahoo", 
                  block="credit", has_volume=True, tick_size=0.01,
                  session_template="us_equity", fetch_interval="30min",
                  label="VCIT", in_basket=True)
@@ -1412,7 +1412,7 @@ def test_the_fetch_asks_alpaca_iex_for_an_alpaca_fund(tmp_path, monkeypatch):
         return []
 
     monkeypatch.setattr(backfill.alpaca, "fetch_history", fake)
-    asset = Asset(ticker="KRE", source="twelvedata", provider="alpaca", tier=2,
+    asset = Asset(ticker="KRE", source="twelvedata", provider="alpaca", 
                   block="equity", has_volume=True, tick_size=0.01,
                   session_template="us_equity", fetch_interval="30min",
                   label="KRE", in_basket=True)
@@ -1424,7 +1424,7 @@ def test_the_fetch_asks_alpaca_iex_for_an_alpaca_fund(tmp_path, monkeypatch):
 def test_alpaca_funds_need_the_alpaca_keys(tmp_path, monkeypatch):
     from tremor import backfill
     from tremor.basket import Basket, VolatilityIndex
-    fund = Asset(ticker="KRE", source="twelvedata", provider="alpaca", tier=2,
+    fund = Asset(ticker="KRE", source="twelvedata", provider="alpaca", 
                  block="equity", has_volume=True, tick_size=0.01,
                  session_template="us_equity", fetch_interval="30min",
                  label="KRE", in_basket=True)
@@ -1441,7 +1441,7 @@ def test_alpaca_funds_need_the_alpaca_keys(tmp_path, monkeypatch):
 # --- Twelve Data live: batched, in the background -----------------------------
 
 def _td_fund(t):
-    return Asset(ticker=t, source="twelvedata", provider="twelvedata", tier=2,
+    return Asset(ticker=t, source="twelvedata", provider="twelvedata", 
                  block="energy", has_volume=True, tick_size=0.01,
                  session_template="us_equity", fetch_interval="30min",
                  label=t, in_basket=True)
@@ -1524,13 +1524,13 @@ def test_an_alpaca_rate_limit_skips_remaining_alpaca_instruments(tmp_path, monke
 
     def fund(ticker):
         return Asset(ticker=ticker, source="twelvedata", provider="alpaca",
-                     tier=2, block="credit", has_volume=True, tick_size=0.01,
+                     block="credit", has_volume=True, tick_size=0.01,
                      session_template="us_equity", fetch_interval="30min",
                      label=ticker, in_basket=True)
 
     basket = Basket(
         assets=(fund("LQD"), fund("HYG"), fund("JNK"),
-                Asset(ticker="BTC/USDT", source="binance", tier=1, block="crypto",
+                Asset(ticker="BTC/USDT", source="binance", block="crypto",
                       has_volume=True, tick_size=0.01, session_template="crypto_24_7",
                       fetch_interval="1h", label="Bitcoin", in_basket=True)),
         outside=(),

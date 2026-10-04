@@ -51,7 +51,7 @@ def measure_precision(closes: pd.Series, sample: int = 5000) -> float | None:
 def audit_instrument(asset: Asset, frame: pd.DataFrame) -> dict:
     row = {
         "asset_id": asset.asset_id, "ticker": asset.ticker, "block": asset.block,
-        "tier": asset.tier, "source": asset.source, "provider": asset.fetched_from,
+        "source": asset.source, "provider": asset.fetched_from,
         "interval": asset.fetch_interval,
         "in_basket": asset.in_basket, "has_volume_declared": asset.has_volume,
         "tick_size": asset.tick_size, "rows": len(frame),
