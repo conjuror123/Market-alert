@@ -134,14 +134,9 @@ def fetch_full_history(
     """Page through Coinbase's 300-candle-per-request cap with explicit start/end
     windows to build up to `days` of history.
 
-    THE HOURLY RUN COMES THROUGH HERE, not through `fetch_klines`. This docstring
-    used to say the opposite - "only meant for offline backtesting" - and that
-    claim is why the one request in this function was written bare while every
-    other call in this file goes through `_request_candles`. On 2026-09-21 a
-    single connection reset from Coinbase on BTC-USD propagated out of it, turned
-    the hourly run red and left that instrument an hour behind until the next
-    run healed it. `tremor.backfill.fetch_missing` asks every provider for the
-    days since its newest stored bar, so "N days" IS the production shape here.
+    tremor.backfill.fetch_missing comes through here, not through
+    `fetch_klines`, asking for the days since the newest stored bar; every
+    request goes through `_request_candles` and its retries.
     """
     granularity = _granularity_seconds(interval)
     sess = session or requests

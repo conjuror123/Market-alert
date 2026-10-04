@@ -1,22 +1,7 @@
-"""Permanent local history of every candle the monitor has ever seen, plus
-resampling that history into daily candles.
+"""NDJSON candle files, one per asset, one JSON object per line.
 
-Stored one file per asset, one JSON object per line (NDJSON) - an hourly
-production run only ever appends a line, so git diffs stay tiny no matter how
-many years of history pile up (see README). Two things build on top of this:
-
-- The daily signal (see __main__.py) needs day-scale history far longer than
-  any single API call returns - it reads the full local file and resamples it
-  into daily closes itself, rather than asking a provider for a native daily
-  series (which would cost extra API credits every run - see README).
-- Running a backtest (price_monitor/backtest.py) already fetches months of
-  real history per asset anyway, so it merges that fetch into this same local
-  store as a side effect - that's how the store gets seeded with enough
-  history to be useful immediately, rather than waiting to accumulate one
-  hour at a time.
-
-Storage growth over years isn't addressed here - deliberately deferred until
-it's an actual problem, not a hypothetical one.
+tremor.backfill.import_legacy reads them into the bar store, and
+price_monitor.economic_calendar keeps its event store in the same format.
 """
 from __future__ import annotations
 
@@ -64,8 +49,7 @@ def load_candles(path: str) -> list[Candle]:
 
 def append_candles(path: str, candles: list[Candle]) -> None:
     """Appends `candles` as-is, in open_time order. Callers are responsible
-    for only passing candles not already stored (the production monitor
-    tracks this in state.json - see __main__.py - rather than this module
+    for only passing candles not already stored (rather than this module
     re-reading a growing file every run just to check the last line)."""
     if not candles:
         return
@@ -84,7 +68,7 @@ def merge_history(path: str, candles: list[Candle]) -> int:
     (e.g. every time a backtest is re-run and re-fetches months of history) -
     it never produces duplicate rows. This does rewrite the whole file rather
     than only appending, so it's meant for occasional, manual/backtest use,
-    not the hourly production path. Returns how many new rows were added.
+    not the hourly path. Returns how many new rows were added.
     """
     by_time: dict[int, Candle] = {c.open_time: c for c in load_candles(path)}
     before = len(by_time)

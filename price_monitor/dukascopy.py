@@ -36,8 +36,8 @@ month, including the ones the market was shut: volume 0.0, and open, high, low
 and close all equal to the last traded price. EUR/USD's first quarter of 2013
 returns 2160 records for 1516 traded hours. Merging the other 644 would write
 thousands of exactly-zero returns into the store, which does not merely add
-noise - it DEFLATES the volatility estimate the severity ladder is fitted to,
-and a ladder fitted to fabricated calm fires too easily. They are dropped on
+noise - it DEFLATES the volatility each move is measured against,
+and a yardstick of fabricated calm fires too easily. They are dropped on
 volume.
 
 TIMESTAMPS ARE UTC, measured against the bars already stored, on EUR/USD's

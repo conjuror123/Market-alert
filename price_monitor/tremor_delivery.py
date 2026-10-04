@@ -277,7 +277,7 @@ def describe(event: dict, labels: dict[str, str]) -> str:
 
 
 def check_suffix(event: dict) -> str:
-    """ · close in 5h, then · close 80% - STAGE 4 on the time line.
+    """ · close in 5h, then · close 80% - the held check, on the time line.
 
     Every move is checked at the funds' close after it was found
     (tremor.jumps.held_at_close): "close" when that is the close of the day it
@@ -335,7 +335,7 @@ def rarest_line(event: dict) -> str:
     """📈 Rarest hour in 6 months (then 7.1×σ) - or, with nothing at least as
     rare in the whole record, 📉 Rarest weekend in 6 years of record.
 
-    STAGE 3 (tremor.jumps.rarest_since). How long since the instrument last
+    tremor.jumps.rarest_since. How long since the instrument last
     moved at least this rarely: the most recent earlier reading of the SAME
     KIND - an hour, a night, a weekend, each in its own σ - in the same
     direction, at least 95% of this size or bigger. "Then" is that reading's
@@ -772,7 +772,7 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
 # turns the week first finishes the old one - its checks at that close are in -
 # and only then closes it and opens the new note.
 #
-# HELD AT THE CLOSE (stage 4). Every message counts down on its time line to
+# HELD AT THE CLOSE. Every message counts down on its time line to
 # the funds' close its move is checked at, and then says how much of the move
 # was still there (check_suffix). The edits are silent and are not a change to
 # the event: they add no story.

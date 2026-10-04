@@ -55,7 +55,7 @@ CONSOLIDATED_SOURCE = "pitrading"
 # Their cleaned version applies a nine-step outlier and quality filter. Taking
 # it rather than "raw" because this project has no way to tell an erroneous
 # print from a real once-a-decade move, and a bad print is exactly what the
-# severity ladder would promote to an extreme alert.
+# detector would call an extreme move.
 DEFAULT_VERSION = "clean"
 
 # The parquet's own column names are not documented, so each field is found by

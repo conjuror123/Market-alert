@@ -2,7 +2,7 @@
 TUR.
 
 WHY TUR. Every other feed was held to the consolidated tape and missed it
-(docs/decisions.md, "The data"): IEX sees a sliver of its trades, and Yahoo's and
+(docs/decisions.md, "Data and providers"): IEX sees a sliver of its trades, and Yahoo's and
 Twelve Data's hourly closes stray from the tape by p90 5.6 bp. Google's page did
 not - on 2026-09-30, against Alpaca's SIP minute bars, 72 of 77 five-minute
 closes identical and the hourly closes 0.0 / 0.0 bp (median / p90), no hour
