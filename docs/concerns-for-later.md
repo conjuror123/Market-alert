@@ -108,17 +108,18 @@ lives"), what is missing and what was tried:
 - **To watch at the first month start after the switch:** the monthly payers go
   ex-dividend; check that Yahoo lists them by the 10:05 New York run, or their gaps stay
   unscored that day. (Due 2026-10-01, but this branch was not running then.)
-- **A broken stretch inside the 1,000σ line, again.** USD/KRW on 2024-01-01/02 sat at
-  2.305-2.405 for three hours (the market was at 1,294): the lines into and out of it are
-  dropped, the +4.25% hour inside it read as 32.8σ, `extreme`. A level check (30% from
-  the two days' median) would also drop real crypto crashes (2020-03-13, 2021-05-19), so
-  the three bars are a data fix, not a detector change.
-- **Isolated moves taken straight back** (found 2026-10-04): 164 flagged readings in 22
-  years undone within the next hour or session with at most one other instrument flagged
-  that hour - 10 to 21 a year lately. USD/INR (23) and USD/TRY (22) cluster in their
-  markets' dead hours (22:00-00:00 UTC), on SiftingIO's thin quote; LMBS's nights on
-  Alpaca's IEX open (22.6σ on 2026-08-07, 19.5σ on 2026-01-14); single coins. A
-  per-instrument data question, not yet decided.
+- **Bad prints on the feeds without a second source.** The second source
+  (`tremor/verify.py`) asks about the pairs and the funds; a coin's, a future's or an LME
+  metal's bad print is caught only beyond 1,000σ, with the stretch after it. History
+  before the second source's reach (the pairs before 2024-10, the funds before August
+  2026) keeps its readings too: LMBS's nights on Alpaca's IEX open (22.6σ on 2026-08-07,
+  19.5σ on 2026-01-14) among them. They never ring again, and touch only the yardsticks
+  of the half-year after them.
+- **B3's holidays are trading hours to the session table.** On 2024-12-25 SiftingIO
+  served USD/BRL at 6.37 and 6.72 (the market was at 6.19, B3 shut); the 2024-12-26 open
+  coming back reads as a -2.5% night, `major`. Yahoo has no bar for 32 hours either side,
+  so the second source leaves it unknown. A B3 holiday calendar in `b3_fx` would drop
+  the day.
 - **Weekend yardsticks near zero.** 11 weekend gaps in the record were flagged on moves
   of 0.02-0.2% against a σ under 0.01% - eight of them USD/KRW, whose weekend gap is
   usually nil on SiftingIO.

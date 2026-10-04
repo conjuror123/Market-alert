@@ -41,7 +41,8 @@ Read this file first, then the one doc that covers your task:
 Four commands. **The order is load-bearing.**
 
 ```
-tremor.backfill   fetch new bars into data/tremor/bars/
+tremor.backfill   fetch new bars into data/tremor/bars/, then ask a second
+                  source about the far moves (tremor.verify)
 tremor.pipeline   per-instrument metrics: the move and the gap
 tremor.jumps      score, words, 24-hour events, channels    <- the product
 price_monitor     deliver what is due to Telegram
@@ -87,7 +88,9 @@ Break one of these and the system is wrong rather than merely broken.
    changes only by a fix, silently: rarer or milder is an edit (a row turning `high`
    leaves the note and its ping line becomes the push), gone is gone for good. A changed
    event carries its story on one line; a clean one says nothing. A ping line lives
-   exactly as long as its row.
+   exactly as long as its row. A move a second source did not see (`tremor.verify`,
+   `verified.csv`) is not scored and stays out of every yardstick; if it already went
+   out, its line stays with `⚠️ unconfirmed` under it, silently, and its row leaves the note.
    Every move — a coin's and a pair's too — is checked at the first NYSE close after it
    was found (`jumps.held_at_close`): its time line counts down, then says how much held.
 6. **A detector update restarts the week.** When `jumps.detector_version()` changes, every

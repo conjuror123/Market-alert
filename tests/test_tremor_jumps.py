@@ -144,13 +144,39 @@ def test_a_broken_price_is_not_a_reading_and_not_in_the_yardstick():
     start = int(pd.Timestamp("2026-01-05 00:00", tz="UTC").timestamp())
     rng = np.random.default_rng(3)
     r = rng.normal(0, 0.01, 3000)
-    r[2000] = 9.9                                    # a $0.06 print: thousands of sigmas
+    r[2000] = -9.9                                   # a $0.06 print: thousands of sigmas
+    r[2001] = 9.9                                    # and straight back
     frame = pd.DataFrame({"hour_utc": start + HOUR * np.arange(3000), "r": r})
     scored = jumps.score(frame, "crypto_24_7")
-    assert np.isnan(scored["z"].iloc[2000]) and pd.isna(scored["word"].iloc[2000])
-    clean = frame.assign(r=np.where(np.arange(3000) == 2000, np.nan, r))
+    assert scored["z"].iloc[2000:2002].isna().all() and scored["word"].iloc[2000:2002].isna().all()
+    # In and straight out takes nothing more with it.
+    assert np.isfinite(scored["z"].iloc[2002])
+    clean = frame.assign(r=np.where(np.isin(np.arange(3000), [2000, 2001]), np.nan, r))
     expected = jumps.score(clean, "crypto_24_7")["sigma"]
     assert np.allclose(scored["sigma"], expected, equal_nan=True)
+
+
+def test_a_broken_stretch_goes_with_its_break():
+    # USD/KRW on 2024-01-01: quoted 2.3 instead of 1,294 for hours. Inside the
+    # stretch the price wanders on a scale the yardstick has never seen.
+    start = int(pd.Timestamp("2026-01-05 00:00", tz="UTC").timestamp())
+    rng = np.random.default_rng(4)
+    r = rng.normal(0, 0.001, 3000)
+    r[2000] = -6.33                                  # 1,294 -> 2.3
+    r[2003] = 0.03                                   # 30 sigma inside the stretch
+    r[2006] = 6.33                                   # back
+    frame = pd.DataFrame({"hour_utc": start + HOUR * np.arange(3000), "r": r})
+    scored = jumps.score(frame, "fx_continuous")
+    assert scored["z"].iloc[2000:2007].isna().all()
+    assert np.isfinite(scored["z"].iloc[2007])
+    # Never back: at most STRETCH_BARS go with it.
+    r[2006] = 0.0
+    scored = jumps.score(frame.assign(r=r), "fx_continuous")
+    gone = scored["z"].iloc[2000:].isna()
+    assert gone.iloc[:1 + jumps.STRETCH_BARS].all() and not gone.iloc[1 + jumps.STRETCH_BARS:].any()
+    # Gaps are not consecutive hours: no stretch there.
+    values, _ = jumps.trusted_sigma(frame["hour_utc"], r, min_count=78)
+    assert np.isfinite(values[2003])
 
 
 def test_a_currency_pair_has_no_nights():

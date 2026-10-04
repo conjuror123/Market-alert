@@ -51,8 +51,8 @@ seconds, so it has no warm state to lose.
 | **Alpaca** | 200/min, IEX live free; SIP to 15 min back | 30 funds — 30 requests a run |
 | **Twelve Data** | 800/day, 8/min | 8 funds — one batched request a run, in the background; ~65 credits a day; plus archive and gap-fill |
 | **SiftingIO** | 10,000/**month**, a few a second | 17 FX pairs — about 8,500 a month (85%); USD/BRL only in its B3 session |
-| **Sina Finance** | none published; wants a Referer | 33 funds (half-hour bars) and the LME's tin, nickel and aluminium |
-| **Yahoo** | none published | 34 funds, 4 futures and the dividend check |
+| **Sina Finance** | none published; wants a Referer | 33 funds (half-hour bars), the LME's tin, nickel and aluminium, and the second source for the 34 Yahoo funds |
+| **Yahoo** | none published | 34 funds, 4 futures, the dividend check, and the second source for the pairs and 99 funds (one request per instrument with a far move — one or two a run, at most 40) |
 | **Google Finance** | none — a web page, read against its terms | TUR, one page a run |
 | **Yahoo futures** | as Yahoo | 4 commodities, one request each a run in session; live from the front contract (`tremor.futures.front_contract`) |
 | **Binance** | no key; 6,000 request weight a minute per address | 16 coins, one request each a run |
@@ -85,6 +85,13 @@ A fund's overnight gap is not scored on a day its dividend is unconfirmed. When 
 five or more days behind, one line a day goes to the health chat. The push rebases and retries if the branch moved, because a
 rejected push is the same as losing that record. A truncated `state.json` fails the run
 rather than being read as a cold start.
+
+**Every run, and small: the second source's verdicts,** `data/tremor/verified.csv`
+(`architecture.md`, "A second source"). The detector leaves out the moves it marks
+unconfirmed, on every runner, so an uncommitted verdict would be a move scored again. The
+check runs inside `tremor.backfill` after the fetch; if it fails it is logged and every
+move is scored as before. Yahoo's rate limit, once hit by the fetch, is not spent again:
+Sina still checks the Yahoo funds.
 
 **Every run, but almost always nothing: settled bars in `data/tremor/bars/`.** A month
 enters git once, as `YYYY-MM.csv`, on the first run at least a week after it ends, and is
@@ -187,7 +194,10 @@ the channel in line with the events table (`architecture.md`, "The week"):
 - **edited** — everything else that changes: a push whose numbers moved or whose word
   fell (⬜ at `noticeable`), the note, a ping line whose numbers moved, and — after an
   event's 24 hours — a row's ping line that becomes a push in the same message. An edited
-  or re-sent event says why on its `✏️` line.
+  or re-sent event says why on its `✏️` line;
+- **marked** — an event whose move a second source did not see: its line stays in its
+  message with `⚠️ unconfirmed: Yahoo shows …` under it, silently, inside its 24 hours or
+  after them; its row leaves the note.
 
 Nothing of an earlier week is touched. **A detector update** (a new
 `jumps.detector_version()`) deletes every push and ping message of the current week, keeps the note

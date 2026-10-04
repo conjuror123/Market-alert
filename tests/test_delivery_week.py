@@ -11,7 +11,7 @@ from price_monitor import notifier
 from price_monitor import tremor_delivery as md
 from price_monitor.config import Config
 from price_monitor.notifier import TelegramError
-from tremor import jumps, routing
+from tremor import jumps, routing, verify
 
 HOUR = 3600
 # The week under test: from the run after Friday 4 September 2026's close
@@ -81,6 +81,7 @@ def channel(monkeypatch, tmp_path):
     monkeypatch.setattr(md, "_calendar", lambda cfg: None)
     monkeypatch.setattr(md, "vix_context", lambda hour: "")
     monkeypatch.setattr(jumps, "detector_version", lambda root=None: "v1")
+    monkeypatch.setattr(verify, "VERIFIED_PATH", str(tmp_path / "verified.csv"))
     ch.path = str(tmp_path / "state.json")
     return ch
 
@@ -193,6 +194,69 @@ def test_a_move_found_more_than_a_day_ago_is_never_sent(monkeypatch, channel, we
     late = [ev(at(0, 1), "high"), ev(at(0, 2), asset="coinbase:BTC-USD")]
     run(monkeypatch, channel, late, run_at(1, 5), week)
     assert channel.pushes() == [] and channel.pings() == []
+
+
+# --- not seen by a second source --------------------------------------------------
+
+# Some other instrument's old move, so the table is not empty (an empty one is
+# "the pipeline did not run" and changes nothing).
+BYSTANDER = ev(at(0, 3), asset="coinbase:BTC-USD", found=at(-3, 0))
+
+
+def _unseen(at_hour, asset="twelvedata:GLD", check="close", move=0.0003):
+    hour = int(at_hour.timestamp())
+    record = verify.load()
+    record[(asset, hour, check)] = {"asset_id": asset, "hour_utc": hour, "check": check,
+                                    "verdict": verify.UNCONFIRMED, "verifier": "yahoo",
+                                    "stored_move": "0.018", "verifier_move": str(move)}
+    verify.write(record, hour)
+
+
+def test_a_push_not_seen_by_a_second_source_stays_marked_silently(monkeypatch, channel, week):
+    push = ev(at(0, 10), "high")
+    run(monkeypatch, channel, [push], run_at(0, 11), week)
+    rang = len(channel.rang)
+    _unseen(at(0, 10))
+    run(monkeypatch, channel, [BYSTANDER], run_at(0, 12), week)
+    marked = md.format_push(push, LABELS) + "\n⚠️ unconfirmed: Yahoo shows +0.03%"
+    assert channel.pushes() == [marked] and channel.rings_since(rang) == []
+    # Settled for good: nothing brings it back or changes it.
+    run(monkeypatch, channel, [push], run_at(0, 13), week)
+    assert channel.pushes() == [marked] and channel.rings_since(rang) == []
+
+
+def test_a_row_not_seen_leaves_the_note_and_its_ping_line_is_marked(monkeypatch, channel, week):
+    row = ev(at(0, 10))
+    run(monkeypatch, channel, [row], run_at(0, 11), week)
+    _unseen(at(0, 10))
+    run(monkeypatch, channel, [BYSTANDER], run_at(1, 14), week)    # after its 24 hours too
+    assert "Gold" not in channel.note()
+    assert channel.pings() == ["⬜ <b>GLD</b> · Gold +1.35% · 4.5×σ ⚠️ unconfirmed: Yahoo "
+                               "shows +0.03%\nAdded to digest👆🏻👆🏻"]
+
+
+def test_a_gap_is_marked_by_the_opening_check_not_the_hours(monkeypatch, channel, week):
+    gap = ev(at(0, 13), "high", reading="night")
+    run(monkeypatch, channel, [gap], run_at(0, 14), week)
+    _unseen(at(0, 13), check="close")
+    run(monkeypatch, channel, [BYSTANDER], run_at(0, 15), week)
+    assert channel.pushes() == []                                 # just gone
+    run(monkeypatch, channel, [gap], run_at(0, 16), week)
+    _unseen(at(0, 13), check="open")
+    run(monkeypatch, channel, [BYSTANDER], run_at(0, 17), week)
+    assert channel.pushes()[0].endswith("⚠️ unconfirmed: Yahoo shows +0.03%")
+
+
+def test_a_real_move_inside_a_marked_events_day_is_an_event_of_its_own(
+        monkeypatch, channel, week):
+    run(monkeypatch, channel, [ev(at(0, 10), "high")], run_at(0, 11), week)
+    _unseen(at(0, 10))
+    run(monkeypatch, channel, [BYSTANDER], run_at(0, 12), week)
+    rang = len(channel.rang)
+    real = ev(at(0, 15), "major")
+    run(monkeypatch, channel, [real], run_at(0, 16), week)
+    assert len(channel.rings_since(rang)) == 1
+    assert md.format_push(real, LABELS) in channel.pushes()
 
 
 # --- inside its 24 hours --------------------------------------------------------

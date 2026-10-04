@@ -133,6 +133,18 @@ SECONDS_PER_DAY = 86400.0
 # reopening on a $0.06 bitcoin print on 2017-04-15 (+1,526).
 MISTAKE_SIGMA = 1000.0
 
+# A broken price can STAY broken: USD/KRW quoted 2.3 instead of 1,294 for a
+# stretch on 2024-01-01, and the hours inside it moved 30 sigma against a
+# yardstick the stretch itself had not yet reached. So after an hour's reading
+# beyond MISTAKE_SIGMA, the hours that follow are not readings either until the
+# price is back within STRETCH_BACK of the break - the bar that brings it back
+# included - for at most STRETCH_BARS. An isolated bad tick, in and straight
+# out, takes nothing more with it. The second source does this better where
+# there is one (tremor.verify); this is all the futures and the LME's metals
+# have.
+STRETCH_BACK = 0.5
+STRETCH_BARS = 24
+
 
 def minimum_count(bars_per_day: int) -> int:
     """Lee & Mykland's smallest valid window: the smallest integer above
@@ -189,12 +201,14 @@ def half_year_sigma(hour_utc, values, window_days: float = WINDOW_DAYS,
 
 
 def trusted_sigma(hour_utc, values, window_days: float = WINDOW_DAYS,
-                  min_count: int = 78) -> "tuple[np.ndarray, np.ndarray]":
+                  min_count: int = 78,
+                  stretch: bool = False) -> "tuple[np.ndarray, np.ndarray]":
     """half_year_sigma with the impossible readings taken out: (values, sigma),
     where a reading beyond MISTAKE_SIGMA is NaN in both and never reaches a
     later reading's yardstick either. Taking one out can only shrink the
     yardsticks after it, so the next pass may find another; it stops when a
-    pass finds none."""
+    pass finds none. With `stretch` (consecutive hours, not gaps), the broken
+    stretch after each one goes too (STRETCH_BARS)."""
     values = np.array(values, dtype="float64")
     while True:
         sigma = half_year_sigma(hour_utc, values, window_days, min_count)
@@ -202,7 +216,27 @@ def trusted_sigma(hour_utc, values, window_days: float = WINDOW_DAYS,
             wrong = np.abs(np.where(sigma > 0, values / sigma, np.nan)) > MISTAKE_SIGMA
         if not wrong.any():
             return values, sigma
+        if stretch:
+            wrong = wrong | broken_stretch(values, wrong)
         values[wrong] = np.nan
+
+
+def broken_stretch(values: np.ndarray, breaks: np.ndarray) -> np.ndarray:
+    """The readings after each break until the price is back within
+    STRETCH_BACK of it (the returning one included), at most STRETCH_BARS."""
+    out = np.zeros(len(values), dtype=bool)
+    for k in np.flatnonzero(breaks):
+        if out[k]:
+            continue                 # the bar that comes back, or one inside
+        size = abs(values[k])
+        moved = values[k]
+        for j in range(k + 1, min(k + 1 + STRETCH_BARS, len(values))):
+            if np.isfinite(values[j]):
+                moved += values[j]
+            out[j] = True
+            if abs(moved) <= STRETCH_BACK * size:
+                break
+    return out
 
 
 def word_of(z, levels: "tuple[float, ...]" = LEVELS) -> np.ndarray:
@@ -221,7 +255,7 @@ def score(frame: pd.DataFrame, template: str, window_days: float = WINDOW_DAYS,
     frame = frame.sort_values("hour_utc").reset_index(drop=True)
     hours = frame["hour_utc"].to_numpy(dtype="int64")
     r, sigma = trusted_sigma(hours, frame["r"].to_numpy(dtype="float64"), window_days,
-                             minimum_count(bars_per_day(template)))
+                             minimum_count(bars_per_day(template)), stretch=True)
     with np.errstate(divide="ignore", invalid="ignore"):
         z = np.where(sigma > 0, r / sigma, np.nan)
     finite = np.isfinite(r)
@@ -557,22 +591,43 @@ def events(readings: pd.DataFrame) -> pd.DataFrame:
     return readings.loc[top.to_numpy()].reset_index(drop=True)
 
 
+def without_unconfirmed(metrics: pd.DataFrame, asset_id: str, doubts: dict) -> pd.DataFrame:
+    """The metrics with the moves a second source did not see taken out: an
+    hour's move (`close`) or a session's gap (`open`), NaN like a hole - not
+    a reading, and not in any yardstick (tremor.verify). The bar itself is
+    untouched in the store."""
+    hours = {check: {h for a, h, c in doubts if a == asset_id and c == check}
+             for check in ("close", "open")}
+    if not hours["close"] and not hours["open"]:
+        return metrics
+    out = metrics.copy()
+    stamps = out["hour_utc"].astype("int64")
+    out.loc[stamps.isin(hours["close"]), "r"] = np.nan
+    out.loc[stamps.isin(hours["open"]), "gap"] = np.nan
+    return out
+
+
 def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKET_PATH,
-        now: "int | None" = None) -> pd.DataFrame:
+        now: "int | None" = None, verified_path: "str | None" = None) -> pd.DataFrame:
     """Every instrument's flagged readings that can be judged at `now` - hour,
     night or weekend - each with the start of its 24-hour event."""
     import time
 
+    from tremor import verify
+
     now = int(time.time()) if now is None else int(now)
     basket = load_basket(basket_path)
     window, ladder = settings(basket_path)
+    doubts = verify.unconfirmed(verified_path)
     parts = []
     for asset in basket.instruments:
         path = os.path.join(metrics_dir, f"{asset.file_stem}.parquet")
         if not os.path.exists(path):
             log.warning("no metrics for %s", asset.asset_id)
             continue
-        metrics = pd.read_parquet(path, columns=["hour_utc", "r", "hole", "gap"])
+        metrics = without_unconfirmed(
+            pd.read_parquet(path, columns=["hour_utc", "r", "hole", "gap"]),
+            asset.asset_id, doubts)
         readings = [score(metrics, asset.session_template, window, ladder),
                     score_gaps(metrics, window, ladder, asset.session_template)]
         scored = pd.concat([f for f in readings if not f.empty], ignore_index=True)

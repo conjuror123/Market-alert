@@ -801,6 +801,11 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
 # A CHANGED EVENT TELLS ITS STORY: one line under the time, every state it has
 # been in with why it moved (story_line). A clean event says nothing.
 #
+# UNCONFIRMED: an event whose move a second source did not see is no longer
+# scored (tremor.verify); if it is on the channel, its line stays where it is
+# with `⚠️ unconfirmed: Yahoo shows +0.03%` under it, silently, and is not
+# touched again. A row leaves the note.
+#
 # A detector update (a new tremor.jumps.detector_version) starts the week over at
 # that run: every alert message of the week is deleted, the note stays and shows
 # only what is found from then on.
@@ -824,6 +829,7 @@ LATE = "arrived late"             # a bar or gap that was missing came in
 PRICE = "price corrected"         # the provider revised the bar
 SIGMA = "σ corrected"             # older bars revised, so the half-year yardstick moved
 AWAY = "corrected away"           # no longer a jump
+UNSEEN = "unconfirmed"            # a second source did not see the move (tremor.verify)
 
 
 def _fingerprint(text: str) -> str:
@@ -1054,7 +1060,10 @@ def _group(readings: "list[dict]", week: dict) -> "dict[str, list[dict]]":
         by_asset.setdefault(str(reading.get("asset_id", "")), []).append(reading)
     out: dict = {key: [] for key in tracked}
     for asset, rows in by_asset.items():
-        anchors = [rec["start"] for rec in tracked.values() if rec["asset"] == asset]
+        # An event marked unconfirmed holds nothing: a move inside its 24
+        # hours is an event of its own.
+        anchors = [rec["start"] for rec in tracked.values()
+                   if rec["asset"] == asset and not rec.get("doubt")]
         starts = event_starts([_found(r) for r in rows], anchors)
         for reading, start in zip(rows, starts):
             out.setdefault(f"{asset}|{int(start)}", []).append(reading)
@@ -1073,14 +1082,16 @@ def _moved(before: "list[float]", reading: dict) -> "str | None":
     return None
 
 
-def _why(rec: dict, members: "dict[str, dict]", peak: "dict | None") -> str:
+def _why(rec: dict, members: "dict[str, dict]", peak: "dict | None",
+         doubts: "dict | None" = None) -> str:
     """Why the event now shows `peak` rather than what it showed."""
     if peak is None:
         return AWAY
     seen, old_peak = rec["members"], rec.get("peak")
     pid = str(peak["reading_id"])
     if old_peak and old_peak not in members:
-        return f"{_clock(_hour_of(old_peak), int(peak['hour_utc']))} {AWAY}"
+        gone = UNSEEN if _doubt(rec["asset"], [old_peak], doubts) else AWAY
+        return f"{_clock(_hour_of(old_peak), int(peak['hour_utc']))} {gone}"
     if old_peak and old_peak in seen:
         moved = _moved(seen[old_peak], members[old_peak])
         if moved:
@@ -1103,6 +1114,40 @@ def _render(rec: dict, peak: dict) -> dict:
 
 
 
+def _doubt(asset: str, reading_ids, doubts: "dict | None") -> "dict | None":
+    """The second source's verdict that took one of these readings out, if
+    one did: an hour's reading by the `close` check, a gap's by the `open`."""
+    for reading_id in reading_ids:
+        _, _, kind, hour = str(reading_id).rsplit(":", 3)
+        row = (doubts or {}).get((asset, int(hour), "close" if kind == "hour" else "open"))
+        if row:
+            return row
+    return None
+
+
+def unconfirmed_line(row: dict) -> str:
+    """⚠️ unconfirmed: Yahoo shows +0.03%"""
+    import math
+
+    try:
+        shown = f" {(math.exp(float(row.get('verifier_move'))) - 1) * 100:+.2f}%"
+    except (TypeError, ValueError):
+        shown = " nothing"
+    verifier = str(row.get("verifier") or "the second source").capitalize()
+    return f"⚠️ {UNSEEN}: {_escape(verifier)} shows{shown}"
+
+
+def _mark(rec: dict, row: dict) -> None:
+    """The move was not seen by a second source: its line stays in its
+    message with the mark under it, a row leaves the note, and it is not
+    touched again."""
+    mark = unconfirmed_line(row)
+    body = rec.get("body", "")
+    rec.update(doubt={k: row.get(k) for k in ("verifier", "verifier_move")},
+               body=f"{body}\n{mark}" if rec.get("form") == PUSH else f"{body} {mark}",
+               context="")
+
+
 def _leave(rec: dict) -> None:
     """The event comes off the channel: out of its message, and out of the
     note with the next render. Its message is edited without it, or deleted
@@ -1111,7 +1156,7 @@ def _leave(rec: dict) -> None:
 
 
 def _step(week: dict, key: str, readings: "list[dict]", now_ts: int,
-          fresh: "list[tuple]") -> int:
+          fresh: "list[tuple]", doubts: "dict | None" = None) -> int:
     """One event, one run: its state brought in line with the table. What has
     to go out in a new message is appended to `fresh` as (key, rec, before) -
     `before` the record to fall back to should the send fail, None for an
@@ -1119,6 +1164,8 @@ def _step(week: dict, key: str, readings: "list[dict]", now_ts: int,
     tracked = week["events"]
     asset, start = key.rsplit("|", 1)
     rec = tracked.get(key)
+    if rec is not None and rec.get("doubt"):
+        return 0                       # marked unconfirmed: settled for good
     open_ = now_ts < int(start) + PUSH_WINDOW_HOURS * 3600
     members = {str(r["reading_id"]): r for r in readings}
     peak = max(readings, key=_size) if readings else None
@@ -1145,13 +1192,19 @@ def _step(week: dict, key: str, readings: "list[dict]", now_ts: int,
         return 0
 
     before = dict(rec)
-    why = _why(rec, members, peak)
+    why = _why(rec, members, peak, doubts)
     rec["story"] = rec["story"] + [shown[:3] + [why] if peak is not None
                                    else [None, None, None, why]]
     changed = 0
     promoted = _rank(shown[0]) > _rank(rec.get("tier"))
 
-    if peak is None:
+    doubt = _doubt(asset, rec["members"], doubts) if peak is None and rec.get("form") else None
+    if doubt:
+        # Silent, inside its 24 hours or after them: an edit never rings.
+        rec["story"][-1][3] = UNSEEN
+        _mark(rec, doubt)
+        changed += 1
+    elif peak is None:
         _leave(rec)
         changed += 1
     elif promoted and open_:
@@ -1364,15 +1417,18 @@ def _pass(cfg: Config, state: dict, week: dict, readings: "list[dict]", labels: 
     for message_id, first_line in orphans:
         _discard(cfg, week, message_id, first_line)
 
+    from tremor import verify
+
     groups = _group([r for r in readings if _in_week(r, week)], week)
+    doubts = verify.unconfirmed()
     fresh: list = []
     for key in sorted(groups, key=lambda k: int(k.rsplit("|", 1)[1])):
-        changed += _step(week, key, groups[key], now_ts, fresh)
+        changed += _step(week, key, groups[key], now_ts, fresh, doubts)
     # What stays where it is shows its moves as they now stand.
     moving = {key for key, _, _ in fresh}
     for key, rec in week["events"].items():
         rows = groups.get(key) or []
-        if rows and rec.get("form") and key not in moving:
+        if rows and rec.get("form") and key not in moving and not rec.get("doubt"):
             _member(rec, max(rows, key=_size), rec["form"], labels, calendar)
     changed += _post_new(cfg, state, week, fresh, groups, labels, calendar, ring)
     changed += _sync_messages(cfg, week)
@@ -1380,7 +1436,7 @@ def _pass(cfg: Config, state: dict, week: dict, readings: "list[dict]", labels: 
 
     note_rows = [_render(rec, max(groups[key], key=_size))
                  for key, rec in week["events"].items()
-                 if rec.get("form") == ROW and groups.get(key)]
+                 if rec.get("form") == ROW and groups.get(key) and not rec.get("doubt")]
     changed += _write_note(cfg, week, format_digest(note_rows, labels, window, calendar, now))
     save_state(cfg.state_path, state)
     return changed

@@ -300,7 +300,38 @@ yardstick for half a year, hiding 24 of its hours. The line sits well above the 
 real readings in the history - PFF's open on 2015-08-24 (-207σ as a weekend, +147σ as an
 hour) and the Swiss franc's unpegging on 2015-01-15 (-118σ) - which a 100σ line would have
 thrown away. Dropping one can only shrink the yardsticks after it, so the check repeats
-until it finds none.
+until it finds none. A break can last: USD/KRW sat at 2.3 instead of 1,294 for three
+hours on 2024-01-01, and the hour inside read 32.8σ against a yardstick the stretch had not
+reached - so the hours after a break go with it until the price is back within half of it,
+at most 24 (`jumps.STRETCH_BARS`). In all history that removes that one reading. A level
+check (30% off the two days' median) was weighed and dropped: it also drops real crypto
+crashes (2020-03-13, 2021-05-19).
+
+**A move another feed did not see is not scored - and is marked, not deleted.** A real
+trade shows up on another feed; a source's bad print does not (`tremor/verify.py`). The
+shape was tried first and dropped: "an isolated move taken straight back" marks 157 bars in
+the record, but USD/TRY's -0.42% on 2025-03-14 20:00 was taken back within the hour and
+Yahoo shows -0.58% - real - while SiftingIO's USD/INR sitting 0.3% over the market for two
+hours passes it. Holding every isolated move until the next bar was dropped too: a third of
+events are isolated, so a third of alerts would arrive an hour late.
+
+Deciding *which* feed was wrong was tried and dropped as well (2026-10-04). Each fix for
+one case broke another: the second source lags by an hour (USD/TRY came back at 11:00 on
+SiftingIO, 12:00 on Yahoo), misses hours (no USD/KRW bar between 07:00 and 15:00 on the
+night of Seoul's martial law, 2024-12-03 - a +2.5% that a stricter rule called a mistake),
+and prints its own bad ticks (Yahoo's USD/TRY dipped 0.4% for two hours on 2026-09-17). So
+the verdict stays the one question two feeds can answer - did the other feed move with
+it? - with an hour of lag allowed and a missing hour bridged by the bars either side. An
+unconfirmed move is left out of scoring and out of the yardstick, so a bad print cannot
+inflate the next half-year's σ; a message already sent says `⚠️ unconfirmed` rather than
+disappearing, because a wrong verdict should cost a line, not a real move. Only feeds with
+a free independent second source are asked: a coin's price is its exchange's own trades,
+and the futures and the LME have none.
+Over the 699 days Yahoo reaches (2026-10-04) it asked about 3,076 far moves and did not
+see 125; 51 of those were flagged readings - 43 of them SiftingIO's USD/INR, mostly
+between 22:00 and 01:00 UTC - and with them out of the yardstick 18 real moves of the same
+pairs now read as flags. The martial-law hours stay (`major`, `high`). The closest call
+left out: USD/TRY's +1.46% Sunday reopen on 2025-03-23, where Yahoo shows +0.61%.
 
 **A day is not a unit of completeness.** Gap detection asks about hours: a day present with
 three of its seven hours is a hole a day-level check cannot see.

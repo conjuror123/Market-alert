@@ -169,6 +169,10 @@ jobs:
           # away after each run - so an uncommitted check is one that never
           # happened, and the next morning would ask again from the old date.
           git add data/tremor/corporate_actions.csv data/tremor/dividend_checks.csv
+          # Every run, and small: the second source's verdicts (tremor.verify).
+          # The detector leaves the unconfirmed moves out on every runner, so
+          # an uncommitted verdict would be a move scored again.
+          if [ -f data/tremor/verified.csv ]; then git add data/tremor/verified.csv; fi
           # The open months used to be committed, before they moved to the
           # release. Once the release holds them, git lets go of them: the
           # files stay on disk, gitignored, and leave the tree. A no-op after.

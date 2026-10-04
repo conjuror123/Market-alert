@@ -39,7 +39,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import requests
 
-from tremor import atomic, bars, cboe, corporate_actions, fred, futures, quality
+from tremor import atomic, bars, cboe, corporate_actions, fred, futures, quality, verify
 from tremor import sessions as _sessions
 from tremor.basket import Asset, Basket, load_basket
 from price_monitor import (alpaca, binance, candle_store, coinbase, dukascopy, google,
@@ -1640,6 +1640,19 @@ def main(argv: list[str] | None = None) -> int:
             # Warned, not failed: the cost is gaps left unscored, which is what
             # the check exists to guarantee rather than a breakage.
             log.warning("dividend check failed - %s", exc)
+
+    # A SECOND SOURCE ON THE FAR MOVES, on the ordinary pass over the whole
+    # basket, before anything is scored: a move it did not see is not scored
+    # and its message says so (tremor.verify). Yahoo is not asked again once
+    # it has said stop; Sina still checks the Yahoo-fed funds.
+    if session_table and not args.instruments and not args.extend_history:
+        try:
+            verify.verify(basket.instruments, args.bars_dir, session_table, session,
+                          blocked={"yahoo"} if yahoo_gone else None)
+        except Exception as exc:
+            # Warned, not failed: an unchecked move is scored, which is how
+            # every move was treated before the check existed.
+            log.warning("second-source check failed - %s", exc)
 
     if not args.skip_vix:
         try:

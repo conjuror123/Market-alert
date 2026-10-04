@@ -64,7 +64,12 @@ the hole (`hole` in the metrics) is never scored, and counts only toward the pri
 close check reads.
 
 **A reading beyond 1,000σ is a broken price, not a market.** It is not a reading at all,
-and it never enters a later reading's yardstick (`jumps.MISTAKE_SIGMA`).
+and it never enters a later reading's yardstick (`jumps.MISTAKE_SIGMA`). A broken price can
+stay broken — USD/KRW quoted 2.3 instead of 1,294 for three hours on 2024-01-01 — so the
+hours after such a break are not readings either until the price is back within half of
+it, the returning hour included, for at most 24 (`jumps.STRETCH_BARS`). Gaps are not
+consecutive hours and have no stretch. It is the only guard the feeds without a second
+source have (below, "A second source").
 
 **Stage 1, one event per 24 hours — built.** An instrument's first flagged reading, a gap
 or an hour, opens an event that lasts 24 hours of real time from when it was found — not a
@@ -212,6 +217,7 @@ new event, even inside the 24 hours of one from the week before. Per event:
 | milder | edited: a push falls a colour, to ⬜ at `noticeable` | the same |
 | same word, other numbers (a bigger hour, a fix) | edited | edited |
 | gone | taken out of its message (and the note); it can come back and ring | taken out, for good |
+| unconfirmed — a second source did not see the move | not scored; on the channel, its line stays with `⚠️ unconfirmed: Yahoo shows +0.03%` under it, silently; a row leaves the note; never touched again, and a move of the same instrument inside its 24 hours is an event of its own | the same |
 
 A message is edited whenever what it carries changes, and deleted once nothing is left in
 it.
@@ -268,6 +274,38 @@ move.
 Which feed each fund is on, and why — the IEX line, the order of preference, the quota
 headroom — is in `decisions.md` ("The data").
 
+### A second source
+
+**A real trade shows up on another feed; a source's bad print does not.** Right after
+each run's fetch, every bar of the last 24 hours that moved at least 4σ of its
+instrument's recent hourly bipower σ — close to close (the hour's reading), or a session's
+first print against the close before (the gap's) — is asked of a second, independent feed
+(`tremor/verify.py`):
+
+| served by | asked of |
+|---|---|
+| SiftingIO (the 17 pairs and the real) | Yahoo's hourly FX (`USDINR=X`), 699 days back |
+| Alpaca, Tiingo, Sina, Twelve Data, Google (funds) | Yahoo's 30-minute bars, folded to the hour, 54 days back |
+| Yahoo (funds) | Sina's 30-minute US bars, 77 days back |
+| Binance, the futures, the LME | not asked: a coin's price is its exchange's own trades, and the others have no free independent feed |
+
+Each feed is compared with itself, so a steady offset between them is not a move. The move
+is **confirmed** if the second source moved the same way at least half as far, from its
+closes up to an hour before the move to its closes up to an hour after — two feeds do not
+always print a move in the same hour — and an hour it has no bar for is bridged by its
+nearest bars within 12 hours. Otherwise it is **unconfirmed**. With no bar after the move
+yet it is asked again next run; after 24 hours of that, or with the second source silent
+for 12 hours before, it is **unknown** and scored as usual.
+
+**An unconfirmed move is not scored, and nothing is deleted.** `jumps` leaves its reading
+out — not flagged, and not in any yardstick — while its bar stays in the store as the
+provider served it. A message already sent for it says so (Delivery, above). Which feed
+was wrong two feeds cannot always tell, so the verdict is "not seen elsewhere", never "a
+mistake". The verdicts are in `data/tremor/verified.csv`: a settled one is never asked
+again, an unconfirmed one is kept for good (the detector rescores all history every run),
+the rest for 30 days. `python -m tremor.verify --history` asks about everything within
+reach.
+
 `source` in `config/basket.yaml` names the store — `asset_id` and the file on disk are
 built from it, so it never changes when the fetch moves. `provider` is who is asked, and
 changes freely.
@@ -283,7 +321,8 @@ repair modes) · `sessions` (NYSE calendar, the FX reference week, and the futur
 and B3's own sessions) · `futures` (contract rolls, the front contract, thin bars, the
 continuous history's one cleaning) · `corporate_actions` (ex-dates and splits) · `cboe` + `fred` + `vix` (the daily VIX
 series and the fear-gauge line) · `quality` (bar quality gate) · `audit` (coverage table) ·
-`atomic` (write through a temp file, so a killed run cannot truncate a table in place)
+`atomic` (write through a temp file, so a killed run cannot truncate a table in place) ·
+`verify` (a second source's verdict on each far move; `jumps` leaves the unconfirmed out)
 
 **Per instrument**
 `returns` (the move and the gap) · `pipeline` (assembles them, extending stored metrics
@@ -323,6 +362,7 @@ data/tremor/bars/*/YYYY-MM.open.csv the open months             release bars-liv
 data/tremor/vix/                   daily VIX close                                   TRACKED
 data/tremor/corporate_actions.csv  ex-dates and splits                               TRACKED
 data/tremor/dividend_checks.csv    how far each fund's dividends are confirmed       TRACKED
+data/tremor/verified.csv           the second source's verdicts on far moves         TRACKED
 data/tremor/sessions/              the NYSE schedule                                 TRACKED
 data/state.json                    what has been sent, and the open note             TRACKED
 data/tremor/metrics/               per-instrument metrics: the move and the gap gitignored
@@ -331,7 +371,7 @@ config/basket.yaml                 the instruments, blocks and the detector sett
 config/config.yaml                 the mute and the health thresholds
 ```
 
-Only the bars are committed, and of them only settled months: the open ones are kept
+Only the bars and the small records beside them are committed, and of the bars only settled months: the open ones are kept
 between runs on a release, which every run restores before the backfill and saves after it.
 Everything computed from them is gitignored; the hourly job
 keeps the metrics in the Actions cache and extends them, and rebuilds an instrument from
