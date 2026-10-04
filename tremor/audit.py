@@ -1,13 +1,9 @@
-"""Phase 0: the data-coverage table.
+"""The data-coverage report, data/tremor/coverage.md.
 
-The basket composition is not approved without this table, and that is
-no formality: almost every window parameter is expressed in an asset's
-VALID TRADING BARS rather than in calendar time, so how many bars an instrument
-has in a day decides how much history each window really covers.
-
-The report answers three questions - depth of history, presence and
-comparability of hourly volume, integrity of the series - and prints them as
-Markdown so it can be attached to the decision about the basket composition.
+For every instrument: how deep its history is, whether it carries hourly
+volume, and whether the series is sound (OHLC consistency, prices, duplicates,
+the longest gap). Run `python -m tremor.audit` after changing the basket or
+deepening history.
 """
 from __future__ import annotations
 
@@ -38,10 +34,9 @@ def measure_precision(closes: pd.Series, sample: int = 5000) -> float | None:
     measured precision of 1e-7 describes the vendor's storage format, not the
     trading step, which is one cent.
 
-    That is why tick_size is stated explicitly in the configuration, and this
-    quantity is needed for a check: if the declared step turns out to be FINER
-    than the measured precision, the configuration promises a resolution the data
-    does not have.
+    So tick_size is declared in the configuration, and this measures only a
+    check on it: a declared step FINER than the measured precision promises a
+    resolution the data does not have.
     """
     if closes.empty:
         return None
@@ -56,7 +51,8 @@ def measure_precision(closes: pd.Series, sample: int = 5000) -> float | None:
 def audit_instrument(asset: Asset, frame: pd.DataFrame) -> dict:
     row = {
         "asset_id": asset.asset_id, "ticker": asset.ticker, "block": asset.block,
-        "tier": asset.tier, "source": asset.source, "interval": asset.fetch_interval,
+        "tier": asset.tier, "source": asset.source, "provider": asset.fetched_from,
+        "interval": asset.fetch_interval,
         "in_basket": asset.in_basket, "has_volume_declared": asset.has_volume,
         "tick_size": asset.tick_size, "rows": len(frame),
     }
@@ -80,12 +76,10 @@ def audit_instrument(asset: Asset, frame: pd.DataFrame) -> dict:
     volume = frame["volume"].astype("float64")
     zero_pct = float((volume == 0).mean() * 100)
 
-    # OHLC consistency - with a half-tick tolerance. The source rounds a
-    # bar's fields independently and inconsistently: TLT shows close 92.42 against
-    # high 92.415, EUR/USD open 1.0886 against low 1.08862. That is a difference
-    # smaller than one tick, a rounding artefact rather than a broken bar, and a
-    # check without tolerance would mark such bars is_invalid and throw perfectly
-    # normal hours out of the calculations.
+    # OHLC consistency, with a half-tick tolerance: sources round a bar's
+    # fields independently (TLT close 92.42 against high 92.415), and a
+    # sub-tick difference is rounding, not a broken bar - the same tolerance
+    # as tremor.quality.
     tol = asset.tick_size / 2
     ohlc_bad = int((
         (frame["low"] > frame[["open", "close"]].min(axis=1) + tol)
@@ -137,29 +131,32 @@ def _flag(row: dict) -> str:
                          ("negative_volume", "volume<0"), ("duplicate_hours", "duplicates")):
         if row[field]:
             notes.append(f"{label}: {row[field]}")
-    # A price step finer than anything the source can emit: half_tick_return in
-    # The winsorization floor would then be computed against a resolution that does not exist.
+    # A declared price step finer than anything the source emits.
     if row["precision"] and row["tick_size"] < row["precision"]:
         notes.append(f"step {row['tick_size']:g} finer than source precision {row['precision']:g}")
     return ", ".join(notes)
 
 
 def render(rows: list[dict], vix: dict | None) -> str:
-    out = ["# Tremor data coverage table", "",
-           f"Compiled {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC. "
-           "The basket composition is not approved without this table.", ""]
+    out = ["# Tremor data coverage", "",
+           f"Generated {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC by "
+           "`python -m tremor.audit`. One row per instrument: its provider, "
+           "how far back its bars reach, its hourly volume, and anything wrong "
+           "with the series (Notes; `—` is sound). Periods end where the "
+           "bars on disk end: without the open months (`tools/hot_bars.sh "
+           "restore`), at the last settled month.", ""]
 
-    for in_basket, title in ((True, "Basket"), (False, "Outside the basket (SAED only)")):
+    for in_basket, title in ((True, "Basket"), (False, "Tracked outside the basket")):
         subset = [r for r in rows if r["in_basket"] == in_basket]
         if not subset:
             continue
         out += [f"## {title}", "",
-                "| Instrument | Block | Tier | Interval | Bars | Period | Days | "
+                "| Instrument | Block | Provider | Interval | Bars | Period | Days | "
                 "Bars per day | Price step | Source precision | "
                 "Volume=0 | Max gap, h | Notes |",
-                "|---|---|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---|"]
-        for r in sorted(subset, key=lambda x: (x["block"], -x["tier"], x["ticker"])):
-            head = (f"| `{r['ticker']}` | {r['block']} | {r['tier']} | {r['interval']} | "
+                "|---|---|---|---|---:|---|---:|---:|---:|---:|---:|---:|---|"]
+        for r in sorted(subset, key=lambda x: (x["block"], x["ticker"])):
+            head = (f"| `{r['ticker']}` | {r['block']} | {r['provider']} | {r['interval']} | "
                     f"{r['rows']:,} |")
             if not r["rows"]:
                 # An instrument without a single bar is a result in itself, not
@@ -181,7 +178,7 @@ def render(rows: list[dict], vix: dict | None) -> str:
                 f"`{vix['series_id']}`: {vix['rows']:,} daily values, "
                 f"{vix['first']} .. {vix['last']}. Median publication lag — "
                 f"{vix['median_lag_hours']:.0f} h from midnight of the observation day "
-                "(the departure is recorded in basket.yaml).", ""]
+                "(set in config/basket.yaml).", ""]
 
     total = sum(r["rows"] for r in rows)
     out += ["## Totals", "",
@@ -191,7 +188,7 @@ def render(rows: list[dict], vix: dict | None) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Phase 0: Tremor data coverage table")
+    parser = argparse.ArgumentParser(description="Tremor data coverage report")
     parser.add_argument("--bars-dir", default=bars.DEFAULT_BARS_DIR)
     parser.add_argument("--vix-dir", default=bars.DEFAULT_VIX_DIR)
     parser.add_argument("--out", default=os.path.join("data", "tremor", "coverage.md"))
