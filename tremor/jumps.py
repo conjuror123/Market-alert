@@ -383,9 +383,8 @@ def matches(hours, z, share: float = RARE_SHARE, bottom: float = LEVELS[0]
 def found_times(scored: pd.DataFrame, template: str) -> np.ndarray:
     """When each reading became judgeable: an hour once it has ended; a fund's
     gap with its first bar, once that bar has ended (the first half-hour, as
-    the bar is stamped on the hour); a currency pair's weekend gap and
-    nickel's overnight one at their open, which is the whole of them - Kitco's
-    first quote of the day is the open."""
+    the bar is stamped on the hour); a currency pair's weekend gap and a
+    daily-session market's night at their open, which is the whole of them."""
     hours = scored["hour_utc"].astype("int64").to_numpy()
     fx_gap = (scored["reading"] != HOUR).to_numpy() & (template != "us_equity")
     return np.where(fx_gap, hours, hours + 3600)

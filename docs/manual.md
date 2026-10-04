@@ -63,7 +63,7 @@ pytest -q          # ~720 tests, about 1.5 minutes; run alone, several load larg
 ```
 
 The derived data (`data/tremor/metrics/`, `jumps.parquet`) rebuilds from the committed
-bars in about 15 s. The open months of the bars are not in git: `tools/hot_bars.sh
+bars in under a minute. The open months of the bars are not in git: `tools/hot_bars.sh
 restore` lays them down (needs `gh`, `GITHUB_REPOSITORY`, `GITHUB_REF_NAME`).
 
 To add a provider: a client in `price_monitor/` returning `Candle` lists, its name in
@@ -115,13 +115,15 @@ CSV per settled month of the current year (settled a week after the month ends),
 open months as `YYYY-MM.open.csv` on a release, not in git. `bars.load(store, since)`
 reads only the files that can hold the hours asked for.
 
-**Fetch** (`tremor/backfill.py`): each instrument is asked from its newest stored bar. An
+**Fetch** (`tremor/backfill.py`): each instrument is asked from its newest stored bar less
+three hours (`SETTLE_HOURS`), so a bar stored part-way through heals. An
 instrument is skipped when its calendar says no bar can have appeared since its newest
 in-session bar (`nothing_can_have_appeared`): funds by the NYSE table, pairs outside the
 Sun 17:00 → Fri 17:00 New York week, daily-session markets outside their session. Coins
 are never skipped. At most 4 never-seen instruments are seeded per run. Clients retry
-three times (2 s, 4 s); a rate limit stops that provider for the run. Twelve Data's batch
-is retried twice, 61 s apart, on its own thread.
+three times (2 s, 4 s). A rate limit from Yahoo, Tiingo, SiftingIO or Alpaca stops that
+provider for the run, as does Twelve Data's spent day; from the others a 429 fails only
+that instrument. Twelve Data's batch is retried twice, 61 s apart, on its own thread.
 
 **Sessions** (`tremor/sessions.py`): the NYSE table (`data/tremor/sessions/nyse.csv`),
 the FX week, and each daily-session market's hours (LME, ICE, CME, B3). The NYSE table
@@ -213,7 +215,7 @@ hashed as bytes, so any edit to it, a comment included, rebuilds once.
 
 ## 7. The detector
 
-`tremor/jumps.py`, rescored over all history every run (about 3 s), output
+`tremor/jumps.py`, rescored over all history every run (about 9 s), output
 `data/tremor/jumps.parquet`.
 
 **Score.** `z = r / σ`, where `σ` is the instrument's bipower volatility,
@@ -379,8 +381,8 @@ day, so it doesn't age out.
 hour (`POST /repos/<owner>/<repo>/actions/workflows/price-monitor.yml/dispatches` with a
 PAT and the branch as `ref`). GitHub's `schedule:` is not used: it fires unreliably.
 
-**Cost.** Fetch ~15 s, second source ~11 s, metrics and events ~5 s warm (~15 s cold),
-whole job ~2 min, timeout 20 min.
+**Cost.** Fetch ~15 s, second source ~11 s, metrics ~11 s warm (~30 s cold) and events
+~9 s (measured on 4 cores, 2026-10-04), whole job ~2 min, timeout 20 min.
 
 **Quotas.**
 

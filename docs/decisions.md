@@ -194,7 +194,7 @@ of 543 flagged readings after a calm stretch.
 
 ## The repository
 
-**Derived data is not tracked**: it rebuilds from the bars in about fifteen seconds.
+**Derived data is not tracked**: it rebuilds from the bars in under a minute.
 
 **The open month lives on a release; a month enters git once, settled.** Git stores
 snapshots, so hourly commits into per-instrument files cost 124 MiB a year; replacing a
