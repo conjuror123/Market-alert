@@ -48,9 +48,23 @@ window grows; those rows are marked `young` and reported apart.
 **The words are √2 apart, half an earthquake magnitude.** Measured on the basket, doubling
 a move's size (in half-year sigmas) makes it about ten times rarer — a Gutenberg–Richter
 law with a slope near one — so a √2 step makes each word about three times rarer than the
-one below. The bottom is 3.9σ for now; the exact 99% level is 3.2σ for a fund's day and
-3.5σ for a 24-hour day, and the choice between them is the last stage, once the flags mean
-what they should.
+one below: over five years the levels that make each word exactly three times rarer from
+6σ are 6 / 8.4 / 11.7 / 16.8. A step of 1.5 would make it about four times, 2 about ten
+times (whole magnitudes) — and with 2, pushes all but vanish (1.7 a week).
+
+**The bottom is 6σ (stage 12), the owner's choice from measured volumes.** The bell curve's
+"3.9σ is one hour in 10,000" does not hold: against its own half-year σ an hour of every
+class reaches 3.9σ about one time in 115 (stage 10, below). Small and big moves hold at the
+close alike — 76-78% of moves of 3.9-4.5σ still had half their move at the next close,
+against 76-80% at every larger size — so a higher bottom buys fewer messages, not better
+ones, and it is set by how much the reader wants to hear. Delivery replayed hour by hour
+over the year to 2026-10-01: 29.1 messages a week at 3.9, 21.1 at 4.5 (bottom only), 15.1 at
+5 / 7.1 / 10 / 14.1, 9.0 at 6 / 8.5 / 12 / 17 (7.9 ringing). Over all the history,
+2004-2026, with the instruments that did not yet exist filled in from their own rate times
+their class's turbulence that year: about 10 messages a week, from 4.4 (2009, judged against
+the half-year after the 2008 crash) to 17.9 (2008); the busiest week, 9-15 March 2020,
+about 107. For one instrument the words come about every 3 months (noticeable or rarer), 7
+months, 21 months and 4 years.
 
 **What the papers say about using what we know of an asset.** Model known repeating
 patterns — the time of day (Boudt, Croux & Laurent find it recovers small jumps in quiet
@@ -87,14 +101,14 @@ by its biggest hour and worded by its rarest. Real hours, not a trading day or a
 candles: the same span for a coin, a pair and a fund, whose afternoon move and next
 morning's open then read as one story. It replaced "one event a day unless the day grows",
 which split a storm at midnight New York and sent a second message for each rise. Over the
-record 28,095 flags become 19,185 events.
+record 16,897 flags become 12,662 events.
 
 **`high` and up push; `noticeable` goes into the note.** The reader's choice, to try: more
 messages than the previous detector's one a week was the point of the change. For today's
-basket of 173 that is about 22 pushes a week and about 49 note rows a week, each row with its
-own small ping, over the year to 2026-10-01; the busiest week had 87 pushes and 142 rows. `noticeable`
-alone is two thirds of the events, so it is the one word worth reading in a batch; `high` (5.5σ) is where a move stops being routine for its instrument.
-To be tuned with the threshold at stage 12, against a few weeks of real messages.
+basket of 173 that is about 4 pushes a week and about 11 note rows a week, each row with its
+own ping line, over the year to 2026-10-01; the busiest week of that year had 22 pushes and
+43 rows. `noticeable` alone is about two thirds of the events, so it is the one word worth
+reading in a batch; `high` (8.5σ) is a move its instrument makes about twice a year.
 
 **One note a week.** With every word from `high` up pushed, the note holds only
 `noticeable` rows, and one note a week holds them (it used to be two, Monday and Saturday).
@@ -199,12 +213,13 @@ twenty messages a minute into a channel, so one message per move arrived over ho
 and out of order. The moves one run finds share messages instead — its pushes in one, its
 pings in one more — ordered by size in σ, largest first: a message is an alarm, and leads
 with what matters most, where the note is a record and runs by time (by size only inside
-an hour). Delivery replayed hour by hour over the year to 2026-10-01: 29.1 messages a week
-(9.2 of pushes, 16.6 of pings, 3.3 note parts) for 69 events a week, and the FOMC hour of
-2024-12-18 in 6 alert messages instead of 130. Each move keeps its own life inside its message; turning rarer inside
+an hour). Measured at the 3.9σ bottom of the time, delivery replayed hour by hour over the
+year to 2026-10-01: 29.1 messages a week (9.2 of pushes, 16.6 of pings, 3.3 note parts) for
+69 events a week, and the FOMC hour of 2024-12-18 in 6 alert messages instead of 130. Each move keeps its own life inside its message; turning rarer inside
 its 24 hours takes it out and rings it again in the run that finds that. **Only the run's
 first message rings**: after it the reader is on the channel, so the pings after a push, a
-flood's further messages and a part the note grows by are silent — 21.8 rings a week.
+flood's further messages and a part the note grows by are silent — 21.8 rings a week then,
+7.9 at today's 6σ.
 Grouping by block (stage 7) was the other way to fold a flood, and was measured worse: by
 the same estimate from the events table, 25.7 messages a week against 22.9 for one message
 a run, and 9 in the worst hour against 6.

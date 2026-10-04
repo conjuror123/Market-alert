@@ -193,11 +193,12 @@ other and the next run sends it.
 
 ## Silence is the normal state
 
-About 22 pushes a week across today's 173 instruments and about 49 note rows, each with a
-ping line, over the year to 2026-10-01; the busiest week had 87 pushes and 142 rows
+About 4 pushes a week across today's 173 instruments and about 11 note rows, each with a
+ping line, over the year to 2026-10-01; the busiest week had 22 pushes and 43 rows
 (`decisions.md`). The moves one run finds share messages — one for the pushes, one for the
-pings — so that is about 29 messages a week, 22 of them ringing (only a run's first message
-rings; delivery replayed hour by hour over that year).
+pings — so that is about 9 messages a week, 8 of them ringing (only a run's first message
+rings; delivery replayed hour by hour over that year). A quiet week can carry two; the
+busiest week since 2004, 9-15 March 2020, about a hundred.
 One note a week opens at the first run after the week's last NYSE close — normally Friday
 16:05 New York, 20:05 UTC in summer and 21:05 in winter; Thursday on a Good Friday week,
 13:05 on a half day — and fills as moves are found; it opens even when nothing has happened

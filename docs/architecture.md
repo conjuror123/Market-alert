@@ -32,8 +32,8 @@ Each stage has a named source and a measured effect; `decisions.md` records why.
    half-year of calendar time before this hour:
    `σ = √(π/2 · mean(|r_j|·|r_(j−1)|))`. Products of neighbouring moves, so one jump in the
    window cannot inflate the yardstick. The hour being judged never enters its own `σ`.
-2. **The word**, from `|z|`: `noticeable` 3.9, `high` 5.5, `major` 7.8, `extreme` 11.0 —
-   each √2 bigger than the one below.
+2. **The word**, from `|z|`: `noticeable` 6, `high` 8.5, `major` 12, `extreme` 17 —
+   each √2 bigger than the one below, and about three times rarer (stage 12).
 
 A young series is scored as soon as its window holds the paper's minimum count (42 bars for
 a fund, 78 for a 24-hour market); the window then grows to half a year. Rows scored before
@@ -72,7 +72,7 @@ trading day and not a count of candles, so a fund's afternoon move and the next 
 open are one event. Every reading found inside them belongs to it; the first found after
 them opens the next. The event's word is its rarest reading's, and the numbers it shows
 are its biggest reading's (`jumps.event_starts`, `jumps.events`). Over the record this
-turns 28,095 settled flags into 19,185 events.
+turns 16,897 settled flags into 12,662 events.
 
 **Stage 2, channels — built.** `high`, `major` and `extreme` push: they go out at once.
 `noticeable` goes into the weekly note, with a small ping that points at it
@@ -85,7 +85,7 @@ says only what the detector measured: the colour of the square is the word, and 
 gap — at the end of the first line:
 
 ```
-🟥 LTC-USD · Litecoin +5.76% · 11.0×σ
+🟨 LTC-USD · Litecoin +5.76% · 11.0×σ
 📈 Rarest hour in 7 months (then 10.7×σ)
 🕐 24.09.2026 02:00 UTC
 ```
@@ -93,7 +93,7 @@ gap — at the end of the first line:
 and a note row's ping:
 
 ```
-⬜ LTC-USD · Litecoin +2.89% · 5.3×σ
+⬜ LTC-USD · Litecoin +3.40% · 6.3×σ
 Added to digest👆🏻👆🏻
 ```
 
@@ -105,16 +105,17 @@ bigger (`jumps.rarest_since`, `RARE_SHARE`). It reads the whole stored history, 
 that reading's size:
 
 ```
-📈 Rarest hour in 6 months (then 7.1×σ)
-📉 Rarest night in 3 years (then 6.1×σ)
+📈 Rarest hour in 6 months (then 9.1×σ)
+📉 Rarest night in 3 years (then 6.4×σ)
 📉 Rarest weekend in 6 years of record
 ```
 
 The last form is a record: nothing at least as rare since the instrument's first bar. The
 span is rounded down — hours under two days, days under two months, months under two
 years, then years — so "in 2 years" holds for 2.6 of them. Over the last year the median
-line reads 11 days for a `noticeable` hour, 49 for a `high` one and 258 for a `major`;
-nights and weekends reach back about a year or more, being one a day and one a week.
+line reads 76 days for a `noticeable` hour, 299 for a `high` one, 400 for a `major` and 623
+for an `extreme`; nights and weekends reach back about four years, being one a day and one
+a week.
 
 **Stage 4, held at the close — built.** Every flagged reading — a coin's and a currency
 pair's too — is checked at the first NYSE close after it was found; a move in the closing
@@ -130,8 +131,9 @@ answer:
 ```
 
 "Next close" when the close is on a later New York day than the move was found. Over the
-record, `high` hours are still at least half there at the close 69–78% of the time (median
-93–100%), fund gaps 76–83%, and an FX weekend gap is half gone by Monday's close.
+record, flagged hours are still at least half there at the close 73–76% of the time, at
+every word (median 92–100%), fund gaps 76–79%, and an FX weekend gap keeps a median 66% by
+Monday's close.
 
 The output is `data/tremor/jumps.parquet`, every instrument's events — hour, night or
 weekend — each with `found_utc` and its 24-hour event's `event_start`, and the columns
@@ -146,13 +148,13 @@ reviewed:
 
 | | stage | source | state |
 |---|---|---|---|
-| 0 | the score and the word: half-year bipower σ, 3.9 / 5.5 / 7.8 / 11.0 | Lee & Mykland (2008) | built |
+| 0 | the score and the word: half-year bipower σ, four words √2 apart | Lee & Mykland (2008) | built |
 | 1b | the gap: nights and weekends, each against its own kind (was stage 6) | Lee & Mykland (2008) | built |
 | 1 | one event per 24 hours | — | built |
 | 2 | channels, the weekly note, delivery and curation | — | built |
 | 3 | rarest since | — | built |
 | 4 | held at the funds' close | — | built |
-| 12 | tuning the threshold and the step | — | to come |
+| 12 | the threshold and the step: 6 / 8.5 / 12 / 17 | measured volumes, the owner's choice | built |
 
 Stages 1–4 were what the switch to production waited on. Stages 5 (time of day), 7 (block
 co-jumps), 8 (the own move after the block), 9 (labelling news), 10 (a tail shape per
@@ -190,10 +192,10 @@ names the hour it is around. A message is cut at 3,000 characters when it is fir
 (`MESSAGE_BUDGET`), below Telegram's 4,096, so the moves in it stay there for their lives
 and a story line or a filled-in close still fits. Only the run's first message rings — the
 pings stay silent after a push, and so do a flood's further messages and a part the note
-grows by. Replayed hour by hour over the year to 2026-10-01, delivery sent 29.1 messages a
-week — 9.2 of pushes, 16.6 of pings, 3.3 note parts — 21.8 of them ringing, for 69 events a
-week; the FOMC hour of 2024-12-18, 108 pushes and 67 rows, went out in 5 push messages and
-one of pings.
+grows by. Replayed hour by hour over the year to 2026-10-01, delivery sent 9.0 messages a
+week — 2.2 of pushes, 5.6 of pings, 1.2 note parts — 7.9 of them ringing, for 14.8 events a
+week (at the earlier 3.9σ bottom: 29.1 messages for 69 events). The FOMC hour of
+2024-12-18, then 108 pushes and 67 rows, went out in 5 push messages and one of pings.
 
 **The week** (`tremor_delivery`). The note opens at the first run after the week's last NYSE
 close, just after the economic calendar's own message, and a move belongs to the note open
@@ -219,9 +221,9 @@ it.
 the push or the note row (not the ping); a clean event says nothing:
 
 ```
-✏️ ⬜ 4.0×σ 10:00 → 🟧 7.9×σ 12:00 bigger jump
-✏️ 🟨 6.0×σ 10:00 → ⬜ 4.6×σ 10:00 price corrected
-✏️ 🟨 6.0×σ 10:00 → ✖ corrected away → 🟨 6.0×σ 10:00 price corrected
+✏️ ⬜ 6.2×σ 10:00 → 🟧 12.4×σ 12:00 bigger jump
+✏️ 🟨 9.0×σ 10:00 → ⬜ 7.1×σ 10:00 price corrected
+✏️ 🟨 9.0×σ 10:00 → ✖ corrected away → 🟨 9.0×σ 10:00 price corrected
 ```
 
 Each state is its colour, size and hour, and why it moved there, in the jump detector's

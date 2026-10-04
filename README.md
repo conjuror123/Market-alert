@@ -15,16 +15,19 @@ move is measured against the instrument's own last half-year — the jump test o
 Mykland (2008) — and the message says how big it was in those terms:
 
 ```
-🟥 LTC-USD · Litecoin +5.76% · 11.0×σ
+🟨 LTC-USD · Litecoin +5.76% · 11.0×σ
 🕐 24.09.2026 02:00 UTC
 ```
 
-The square's colour is the word: ⬜ noticeable at 3.9σ, 🟨 high at 5.5σ, 🟧 major at 7.8σ,
-🟥 extreme at 11.0σ. An instrument's event is the 24 hours from its first move, worded by
-its rarest hour. `high` and up arrive at once, about 22 a week for today's basket;
-`noticeable` goes into one weekly note, about 49 rows a week, each with a ping line (the
-year to 2026-10-01). What one hourly run finds goes out together — one message for its
-pushes, one for its pings, biggest first — about 29 messages a week. The detector is built in stages (`docs/architecture.md`); this branch is it as it
+The square's colour is the word: ⬜ noticeable at 6σ, 🟨 high at 8.5σ, 🟧 major at 12σ,
+🟥 extreme at 17σ — each about three times rarer than the one below. For one instrument
+that is a noticeable move about once a season, a high one twice a year, a major one every
+couple of years and an extreme one every four. An instrument's event is the 24 hours from
+its first move, worded by its rarest hour. `high` and up arrive at once, about 4 a week for
+today's basket; `noticeable` goes into one weekly note, about 11 rows a week, each with a
+ping line (the year to 2026-10-01). What one hourly run finds goes out together — one
+message for its pushes, one for its pings, biggest first — about 9 messages a week, from
+about 4 in a calm year to 18 in 2008. The detector is built in stages (`docs/architecture.md`); this branch is it as it
 will run live, and production runs the previous detector until the switch.
 
 It runs entirely on GitHub Actions. Nothing extra needs hosting.
@@ -75,12 +78,13 @@ Three settings, under `detector:` in `config/basket.yaml`:
 ```yaml
 detector:
   window_days: 182.6       # how far back "usual" reaches, the same calendar span for all
-  noticeable_sigma: 3.9    # the lowest word; every word above is `step` times bigger
+  noticeable_sigma: 6.0    # the lowest word; every word above is `step` times bigger
   step: 1.414
 ```
 
-`noticeable_sigma` is the one that sets how much you hear; it is to be tuned last, against
-the exact 99% level. Which words push is `PUSH_TIERS` in `tremor/routing.py`. All take
+`noticeable_sigma` is the one that sets how much you hear: 6 is about 9 messages a week, 5
+about 15 and 3.9 about 29 (delivery replayed over the year to 2026-10-01,
+`docs/decisions.md`). Which words push is `PUSH_TIERS` in `tremor/routing.py`. All take
 effect on the next hourly run.
 
 Nothing records whether a message was worth reading; the settings are turned by reading

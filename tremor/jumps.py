@@ -14,8 +14,9 @@ exactly two rules and nothing else:
      window cannot inflate the yardstick it is later measured against: a jump
      multiplies with an ordinary move on either side of it, not with itself.
 
-  2. THE WORD, from |z|: noticeable at 3.9, and each word above it sqrt(2) times
-     bigger - 3.9, 5.5, 7.8, 11.0 - half an earthquake magnitude per word.
+  2. THE WORD, from |z|: noticeable at 6, and each word above it sqrt(2) times
+     bigger - 6, 8.5, 12, 17 - each word about three times rarer than the one
+     below.
 
 THE WINDOW IS CALENDAR TIME, THE SAME FOR EVERY INSTRUMENT. The paper counts
 bars, because its statistics needs enough of them; what the window has to
@@ -99,7 +100,7 @@ WORDS: tuple[str, ...] = ("noticeable", "high", "major", "extreme")
 
 # The settings, overridable under `detector:` in config/basket.yaml.
 WINDOW_DAYS = 182.6          # half a year of calendar time
-NOTICEABLE_SIGMA = 3.9       # the bottom word, in half-year sigmas
+NOTICEABLE_SIGMA = 6.0       # the bottom word, in half-year sigmas
 STEP = math.sqrt(2)          # each word this many times bigger than the one below
 
 # Bars a day, per calendar, for the paper's minimum window.

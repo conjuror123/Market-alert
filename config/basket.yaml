@@ -73,14 +73,15 @@ fetch_since: "2002-01-01"
 #   z = the hour's move / the instrument's bipower volatility over the
 #       window_days before it (calendar time, the same for every instrument)
 #   the word from |z|: noticeable at noticeable_sigma, and each word above it
-#       `step` times bigger - 3.9, 5.5, 7.8, 11.0 with the settings below.
+#       `step` times bigger - 6, 8.5, 12, 17 with the settings below.
 #
 # window_days: half a year, inside the paper's valid range for every calendar.
-# noticeable_sigma: 3.9 for now, to be tuned at the end against the exact 99%
-#   level. step: sqrt(2), half an earthquake magnitude per word.
+# noticeable_sigma: 6, the owner's choice from the measured volumes (stage 12,
+#   docs/decisions.md). step: sqrt(2), each word about three times rarer than
+#   the one below.
 detector:
   window_days: 182.6
-  noticeable_sigma: 3.9
+  noticeable_sigma: 6.0
   step: 1.414
 
 # Session templates are filled in during phase 1 (holiday and half-session

@@ -86,8 +86,10 @@ def test_a_cut_history_scores_the_shared_hours_the_same():
 
 
 def test_each_word_is_root_two_bigger_than_the_one_below():
-    assert jumps.levels(3.9, math.sqrt(2)) == pytest.approx((3.9, 5.515, 7.8, 11.03), abs=1e-3)
-    words = jumps.word_of([3.8, -3.9, 5.6, -8.0, 12.0, np.nan])
+    assert jumps.levels(6.0, math.sqrt(2)) == pytest.approx((6.0, 8.485, 12.0, 16.97), abs=1e-3)
+    # The code's default is the setting.
+    assert jumps.levels() == pytest.approx(jumps.levels(*jumps.settings()[1:]), abs=0.01)
+    words = jumps.word_of([5.9, -6.0, 8.6, -12.1, 17.0, np.nan])
     assert list(words) == [None, "noticeable", "high", "major", "extreme", None]
 
 
@@ -249,8 +251,8 @@ def test_the_detector_version_ignores_comments_and_follows_the_settings(tmp_path
                       .replace('label: "Gold"', 'label: "Gold bullion"'))
     assert jumps.detector_version(str(root)) == before
 
-    basket.write_text(basket.read_text().replace("noticeable_sigma: 3.9",
-                                                 "noticeable_sigma: 4.0"))
+    basket.write_text(basket.read_text().replace("noticeable_sigma: 6.0",
+                                                 "noticeable_sigma: 6.5"))
     assert jumps.detector_version(str(root)) != before
 
 
@@ -288,12 +290,12 @@ def test_a_reading_is_named_by_its_instrument_reading_and_hour():
 def test_the_answer_is_the_most_recent_move_at_least_95_percent_as_big():
     hours = [0, 1, 2, 3]
     z = [7.0, 4.9, 3.0, 5.0]           # 4.9 >= 4.75: it answers the 5.0, not the older 7.0
-    hour, match = jumps.matches(hours, z)
+    hour, match = jumps.matches(hours, z, bottom=3.9)
     assert hour[3] == 1 and match[3] == 4.9
 
 
 def test_a_bigger_move_counts_when_nothing_close_is_more_recent():
-    hour, match = jumps.matches([0, 1, 2], [7.0, 4.7, 5.0])   # 4.7 < 4.75
+    hour, match = jumps.matches([0, 1, 2], [7.0, 4.7, 5.0], bottom=3.9)   # 4.7 < 4.75
     assert hour[2] == 0 and match[2] == 7.0
 
 
@@ -312,7 +314,7 @@ def test_each_kind_is_read_against_its_own_kind():
     scored = pd.DataFrame({"hour_utc": [0, HOUR, 2 * HOUR, 3 * HOUR],
                            "reading": ["hour", "night", "hour", "night"],
                            "z": [6.0, 6.5, 5.0, 6.2]})
-    out = jumps.rarest_since(scored)
+    out = jumps.rarest_since(scored, bottom=3.9)
     assert out["since_utc"].tolist()[2] == 0
     assert out["since_utc"].tolist()[3] == HOUR
     assert pd.isna(out["since_utc"].iloc[1])
