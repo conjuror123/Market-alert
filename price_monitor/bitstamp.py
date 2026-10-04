@@ -5,7 +5,7 @@ WHY. Coinbase suspended XRP from 2021-01-19 to 2023-07-13 (the SEC's case), so
 the store's XRP has a 905-day hole, and it begins at Coinbase's listing,
 2019-02-26. Bitstamp kept trading XRP/USD through the suspension (for clients
 outside the US) and has hourly bars from 2017, in dollars, no key. The splice
-is gated on the hours both exchanges hold (tools/bitstamp_fill.py).
+is gated on the hours both exchanges hold (tools/binance_history.py).
 
 WHAT IS ASKED. /api/v2/ohlc/{pair}/, step 3600, up to 1,000 bars a request from
 `start`. Each bar is stamped at its start, UTC. An hour with no trade is

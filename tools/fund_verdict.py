@@ -2,8 +2,8 @@
 
 The widening (docs/decisions.md, "Data and providers") needs a live hourly source for
 96 more US-listed funds. A source qualifies for a fund when its hourly closes
-agree with the consolidated tape - median <= 2 bps and p90 <= 5, the line
-tools/alpaca_compare.py holds every feed to - and when it does not skip hours
+agree with the consolidated tape - median <= 2 bps and p90 <= 5 - and when it
+does not skip hours
 the tape has, because a skipped hour folds two hours of move into one reading.
 
 WHY THE PULLS ARE SHAPED THIS WAY. Eight sources were on the table; each is

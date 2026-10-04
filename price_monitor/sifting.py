@@ -1,6 +1,6 @@
 """SiftingIO REST client, used for the currency pairs.
 
-WHY THE PAIRS LIVE HERE. Measured on 2026-09-30 (tools/sifting_probe.py): the
+WHY THE PAIRS LIVE HERE. Measured on 2026-09-30: the
 free tier serves the bar of the hour that is still forming, so the bar that
 closed at :00 is there by :05; it carries every pair the basket holds or plans
 to - the Nordic and EM ones Tiingo and Dukascopy do not (BRL, INR, KRW); and

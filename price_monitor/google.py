@@ -6,7 +6,7 @@ WHY TUR. Every other feed was held to the consolidated tape and missed it
 Twelve Data's hourly closes stray from the tape by p90 5.6 bp. Google's page did
 not - on 2026-09-30, against Alpaca's SIP minute bars, 72 of 77 five-minute
 closes identical and the hourly closes 0.0 / 0.0 bp (median / p90), no hour
-missing. Measured with tools/google_probe.py.
+missing.
 
 AND WHY NOT MORE. Google sees exchange trades, not off-exchange ones: 91% of
 TUR's volume, but 19% of RWX's and 22% of SPY's. On a fund that trades mostly
