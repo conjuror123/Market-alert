@@ -1,10 +1,10 @@
 {
   "_monitoring_health": {
-    "consecutive_failures": 0
+    "consecutive_failures": 0,
+    "last_run_utc": 1791231986
   },
   "floor_pending_replies": [],
-  "telegram_update_offset": 688283215,
-  "tremor_delivery": {
+  "jump_delivery": {
     "digests": {
       "1790381100": {
         "events": [],
@@ -122,6 +122,7 @@
       }
     }
   },
+  "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-10-05",
   "weekly_digest:last_sent_week": "1790985900"
 }
