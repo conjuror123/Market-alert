@@ -69,18 +69,26 @@
         "to": 1791158700
       },
       "1791158700": {
-        "events": [],
+        "events": [
+          "twelvedata_EUR_USD:1791165600"
+        ],
         "from": 1791158700,
         "hashes": [
-          "86b1cb18f2adfdfe"
+          "d65cfbe0a0e96b7e"
         ],
         "ids": [
           89
         ],
+        "rows": 1,
         "to": 1791590700
       }
     },
-    "pings": {},
+    "pings": {
+      "twelvedata_EUR_USD:1791165600": {
+        "hash": "bceaf60cca4162dc",
+        "id": 90
+      }
+    },
     "sent": {
       "twelvedata_CORN:1790784000": {
         "hash": "008a1913124e384f",
