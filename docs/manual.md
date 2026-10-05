@@ -118,8 +118,9 @@ reads only the files that can hold the hours asked for.
 **Fetch** (`tremor/backfill.py`): each instrument is asked from its newest stored bar less
 three hours (`SETTLE_HOURS`), so a bar stored part-way through heals. An
 instrument is skipped when its calendar says no bar can have appeared since its newest
-in-session bar (`nothing_can_have_appeared`): funds by the NYSE table, pairs outside the
-Sun 17:00 → Fri 17:00 New York week, daily-session markets outside their session. Coins
+in-session bar, no session hour since having begun (`nothing_can_have_appeared`): funds
+by the NYSE table, pairs outside the Sun 17:00 → Fri 17:00 New York week, daily-session
+markets outside their session. Coins
 are never skipped. At most 4 never-seen instruments are seeded per run. Clients retry
 three times (2 s, 4 s). A rate limit from Yahoo, Tiingo, SiftingIO or Alpaca stops that
 provider for the run, as does Twelve Data's spent day; from the others a 429 fails only
@@ -391,10 +392,10 @@ PAT and the branch as `ref`). GitHub's `schedule:` is not used: it fires unrelia
 
 | provider | limit | use |
 |---|---|---|
-| Tiingo | 50/hour, 1,000/day | 27 requests a run; the full dividend refresh (backfill workflow, `corporate-actions`) asks all 133 funds at 45 an hour, about 3 hours, and starts only when the hourly run leaves Tiingo alone that long: a weekend, Friday close + 3 h to Monday 00:05 UTC |
+| Tiingo | 50/hour, 1,000/day | 27 requests a run in session, ~245 a day; the full dividend refresh (backfill workflow, `corporate-actions`) asks all 133 funds at 45 an hour, about 3 hours, and starts only when the hourly run leaves Tiingo alone that long: from 3 h after a close to the next session's first hour |
 | Alpaca | 200/min | 30 a run |
 | Twelve Data | 800/day, 8/min | one batch of 8 a run, in a background thread: keep at most 8 instruments on it, as one batch is a minute's credits; a history walk (`--extend-history`, `--fill-gaps`) waits out :03–:12 past each hour and stops at 600 a day (`twelvedata.ARCHIVE_CREDIT_CAP`), so run one a day |
-| SiftingIO | 10,000/month | ~8,500/month (17 pairs, skipped outside the FX week) |
+| SiftingIO | 10,000/month | ~8,700/month (17 pairs, skipped outside the FX week and USD/BRL's session) |
 | Yahoo, Sina, Google, MarketWatch | none published | live fetch, dividend check, second source (a few requests a run) |
 | Binance | 6,000 weight/min per address | 16 a run |
 

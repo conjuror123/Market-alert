@@ -236,8 +236,9 @@ def _store_to_friday_close(bars_dir, asset):
 @pytest.mark.parametrize("now, runs", [
     ((2026, 10, 3, 12, 0), True),      # Saturday: the hourly run leaves Tiingo alone
     ((2026, 10, 2, 20, 0), False),     # Friday evening: still re-asking the close
-    ((2026, 10, 4, 23, 30), False),    # Sunday night: Monday's run asks at 00:05,
-                                       # inside the 55 minutes 41 funds take
+    ((2026, 10, 4, 23, 30), True),     # Sunday night: quiet until Monday's open
+    ((2026, 10, 5, 12, 30), False),    # Monday's 13:05 run asks, inside the
+                                       # 55 minutes 41 funds take
 ])
 def test_the_full_refresh_runs_only_while_the_hourly_run_leaves_tiingo_alone(
         tmp_path, monkeypatch, now, runs):

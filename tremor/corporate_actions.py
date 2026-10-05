@@ -61,9 +61,9 @@ SPLIT_THRESHOLD = 0.20
 REQUEST_DELAY_SECONDS = 8.0
 # Tiingo's free plan: 50 requests an hour, shared with the hourly run, which
 # asks for its 27 funds every hour the NYSE is open or just closed. So the full
-# refresh runs only while the hourly run leaves Tiingo alone - a weekend, from
-# the Friday close plus three hours to Monday 00:05 UTC (hourly_run_asks_tiingo)
-# - and keeps to 45 an hour itself, room for a retry: 133 funds take about three
+# refresh runs only while the hourly run leaves Tiingo alone - from three hours
+# after a close to the next session's first hour, a night or a weekend
+# (hourly_run_asks_tiingo) - and keeps to 45 an hour itself, room for a retry: 133 funds take about three
 # hours. RateLimited does not retry, so a collision aborts rather than writing a
 # truncated table.
 TIINGO_HOURLY_LIMIT = 50
@@ -532,8 +532,8 @@ def main(argv: list[str] | None = None) -> int:
                 log.error(
                     "Not started: the hourly run asks Tiingo at %s, inside this "
                     "refresh's %.1f hours, and the two together pass Tiingo's %d an "
-                    "hour. Run it on a weekend: from three hours after the Friday "
-                    "close to Monday 00:05 UTC.",
+                    "hour. Run it from three hours after a close to the next "
+                    "session's first hour: a night or a weekend.",
                     clash.strftime("%a %Y-%m-%d %H:%M UTC"), takes / 3600,
                     TIINGO_HOURLY_LIMIT)
                 return 2

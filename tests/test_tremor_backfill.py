@@ -1012,6 +1012,46 @@ def test_an_open_market_is_always_asked_for():
         assert nothing_can_have_appeared(_equity(), path, table, now) is False
 
 
+# Before the open nothing can exist yet, though the day's session hours are on
+# the calendar. Asked anyway, every run from 00:05 UTC cost a request per
+# instrument: SiftingIO's pairs past their monthly quota (~10,400 of 10,000).
+
+def test_a_fund_is_not_asked_before_the_open_of_a_trading_day():
+    from tremor.backfill import nothing_can_have_appeared
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as tmp:
+        # Friday's closing hour stored; Monday 05:05 UTC, the open is 13:30.
+        stored = int(datetime(2026, 4, 3, 19, tzinfo=timezone.utc).timestamp())
+        path = _equity_store(pathlib.Path(tmp), stored)
+        table = _table([date(2026, 4, 3), date(2026, 4, 6)])
+        now = datetime(2026, 4, 6, 5, 5, tzinfo=timezone.utc)
+        assert nothing_can_have_appeared(_equity(), path, table, now) is True
+
+
+def test_a_fund_is_asked_from_the_run_in_its_first_hour():
+    from tremor.backfill import nothing_can_have_appeared
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as tmp:
+        # 13:05 UTC: the hour holding the 09:30 New York open has begun.
+        stored = int(datetime(2026, 4, 3, 19, tzinfo=timezone.utc).timestamp())
+        path = _equity_store(pathlib.Path(tmp), stored)
+        table = _table([date(2026, 4, 3), date(2026, 4, 6)])
+        now = datetime(2026, 4, 6, 13, 5, tzinfo=timezone.utc)
+        assert nothing_can_have_appeared(_equity(), path, table, now) is False
+
+
+def test_fx_is_not_asked_on_sunday_before_the_week_reopens():
+    from tremor.backfill import nothing_can_have_appeared
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as tmp:
+        # Sunday 12:05 UTC; the week reopens at 21:00 UTC (17:00 New York).
+        stored = int(datetime(2026, 4, 3, 20, tzinfo=timezone.utc).timestamp())
+        path = _equity_store(pathlib.Path(tmp), stored)
+        table = _table([date(2026, 4, 3), date(2026, 4, 6)])
+        now = datetime(2026, 4, 5, 12, 5, tzinfo=timezone.utc)
+        assert nothing_can_have_appeared(asset(), path, table, now) is True
+
+
 def test_fx_is_skipped_when_the_reference_week_is_shut():
     # Saturday afternoon: the FX week is Sun 17:00 → Fri 17:00 New York.
     from tremor.backfill import nothing_can_have_appeared

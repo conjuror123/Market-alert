@@ -21,7 +21,7 @@ at most 2000 bars and carries `meta.next_cursor` while more remain.
 
 LIMITS. The free tier is 10,000 calls a MONTH and a few a second; the response
 says how many remain (`X-Quota-Remaining`). Sixteen pairs asked once an hour
-through the FX week, and USD/BRL in its session, is about 8,500 a month -
+through the FX week, and USD/BRL in its session, is about 8,700 a month -
 inside it, without much room. A
 429 means the budget or the burst is spent, and RateLimited stops the run for
 this provider rather than retrying into it.

@@ -46,9 +46,9 @@ name: Backfill Tremor Bars
 #                   rebuild the ex-date table from Tiingo's declared divCash /
 #                   splitFactor (needs TIINGO_API_KEY). It must reach at least
 #                   as far back as the bars, or an older payout arrives as an
-#                   unexplained price drop. Weekends only: it takes about three
-#                   hours of Tiingo's 50 an hour, and refuses to start while the
-#                   hourly run is asking Tiingo too. Twelve Data remains a labelled
+#                   unexplained price drop. Nights and weekends only: it takes
+#                   about three hours of Tiingo's 50 an hour, and refuses to
+#                   start while the hourly run is asking Tiingo too. Twelve Data remains a labelled
 #                   fallback (`--source twelvedata`) that cannot see splits.
 #   probe-hfdata    print one HF Data ticker's schema and first timestamps and
 #                   stop. Their columns and timezone are undocumented, and

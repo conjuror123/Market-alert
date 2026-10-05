@@ -419,7 +419,9 @@ def nothing_can_have_appeared(asset: Asset, path: str,
     while day <= now.date():
         expected.extend(_sessions.instrument_day_hours(day, template, table))
         day += timedelta(days=1)
-    return not any(hour > newest for hour in expected)
+    # Only hours already begun: the day's later session hours are on the
+    # calendar from 00:00 UTC, but nothing of them can exist before they start.
+    return not any(newest < hour <= now.timestamp() for hour in expected)
 
 
 # A minute and a second between batched Twelve Data requests: each spends the
