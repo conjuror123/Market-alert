@@ -61,12 +61,23 @@
         "events": [],
         "from": 1790985900,
         "hashes": [
-          "bee8994d7f94d9d6"
+          "6660b4ff6e16c732"
         ],
         "ids": [
           88
         ],
         "to": 1791158700
+      },
+      "1791158700": {
+        "events": [],
+        "from": 1791158700,
+        "hashes": [
+          "86b1cb18f2adfdfe"
+        ],
+        "ids": [
+          89
+        ],
+        "to": 1791590700
       }
     },
     "pings": {},
@@ -103,6 +114,6 @@
       }
     }
   },
-  "weekly_digest:last_refreshed": "2026-10-04",
+  "weekly_digest:last_refreshed": "2026-10-05",
   "weekly_digest:last_sent_week": "1790985900"
 }
