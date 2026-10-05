@@ -670,13 +670,16 @@ def _runs(days: list[date]) -> list[tuple[date, date]]:
 
 
 def fill_gaps(asset: Asset, path: str, table: dict, api_key: str,
-              session: requests.Session) -> dict:
+              session: requests.Session, ask: bool = True) -> dict:
     """Re-asks the provider for the sessions the store is missing.
 
     Whether the day is recoverable at all is the point of running this: the
     provider may simply not hold it, in which case the request comes back empty
     and the gap is confirmed as theirs rather than ours. Either answer is worth
-    having, and only one of them costs a credit.
+    having, and only one of them costs a credit. With `ask` false nothing is
+    requested and the gaps are only listed (Twelve Data's credits are spent).
+    A spent budget raises DailyQuotaExhausted: every later request would be
+    refused the same way.
     """
     if asset.session_template != CALENDAR_TEMPLATE:
         return {"skipped": "no authoritative calendar", "added": 0, "gaps": 0}
@@ -692,6 +695,8 @@ def fill_gaps(asset: Asset, path: str, table: dict, api_key: str,
     gaps = missing_sessions(path, table)
     if not gaps:
         return {"skipped": None, "added": 0, "gaps": 0, "still_missing": []}
+    if not ask:
+        return {"skipped": None, "added": 0, "gaps": len(gaps), "still_missing": gaps}
 
     added = 0
     for start, end in _runs(gaps):
@@ -705,6 +710,8 @@ def fill_gaps(asset: Asset, path: str, table: dict, api_key: str,
                 base_url=TWELVEDATA_BASE_URL, api_key=api_key, session=session,
                 request_delay_seconds=TWELVEDATA_DELAY_SECONDS,
                 chunk_days=CHUNK_DAYS[asset.fetch_interval], end=window_end)
+        except twelvedata.DailyQuotaExhausted:
+            raise
         except ExchangeError as exc:
             log.warning("%s: %s..%s could not be re-fetched: %s",
                         asset.asset_id, start, end, exc)
@@ -1250,10 +1257,19 @@ def main(argv: list[str] | None = None) -> int:
         table = _sessions.load_sessions()
         session = requests.Session()
         filled = unfilled = 0
+        td_spent = False
         for asset in instruments:
             path = bars.store_path(args.bars_dir, asset.file_stem)
             try:
-                out = fill_gaps(asset, path, table, api_key, session)
+                try:
+                    out = fill_gaps(asset, path, table, api_key, session, ask=not td_spent)
+                except twelvedata.DailyQuotaExhausted as exc:
+                    # Said once: every later request would be refused the same
+                    # way. The gaps still go to HF Data below.
+                    td_spent = True
+                    log.warning("Twelve Data stops here - %s. The remaining gaps go "
+                                "to HF Data only.", exc)
+                    out = fill_gaps(asset, path, table, api_key, session, ask=False)
             except Exception as exc:
                 log.error("%s: gap fill failed - %s", asset.asset_id, exc)
                 continue
@@ -1419,6 +1435,7 @@ def main(argv: list[str] | None = None) -> int:
     skipped = 0
     seeded = 0
     quota_gone = False
+    share_spent = False         # a history walk's share of the day, not the day
     tiingo_gone = False
     tiingo_skipped = 0
     tiingo_trip = None
@@ -1502,6 +1519,7 @@ def main(argv: list[str] | None = None) -> int:
             # one fails too; asking them anyway cost 32 seconds each and pushed
             # the job past its timeout, which skipped delivery entirely.
             quota_gone = True
+            share_spent = isinstance(exc, twelvedata.ArchiveShareSpent)
             log.error("Twelve Data credits are spent - %s", exc)
             log.error("Stopping the fetch here. %d instrument(s) not asked for; "
                       "the pipeline continues on the bars already stored.",
@@ -1578,7 +1596,11 @@ def main(argv: list[str] | None = None) -> int:
     # Not counted as a failure: a spent budget is a known limit being reached,
     # not a breakage, and failing the run would turn a daily certainty into a
     # daily red cross. It is logged loudly instead - and the run still delivers.
-    if quota_gone:
+    if quota_gone and share_spent:
+        log.warning("This walk has spent its share of the day's Twelve Data credits "
+                    "(%d); the rest is left to the hourly run. Run it again tomorrow "
+                    "to go on.", twelvedata.ARCHIVE_CREDIT_CAP)
+    elif quota_gone:
         log.warning("The Twelve Data budget is spent for the UTC day. "
                     "Bars will resume at midnight.")
     if tiingo_gone:

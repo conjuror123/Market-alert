@@ -311,6 +311,102 @@ def test_a_failed_request_does_not_abandon_the_other_gaps(tmp_path, monkeypatch)
     assert len(calls) == 2
 
 
+def test_a_spent_share_stops_the_gap_walk_rather_than_warning_per_gap(tmp_path, monkeypatch):
+    # Once the walk's share of the day is spent, every later request would be
+    # refused the same way: the walk stops, and says so once (main).
+    from tremor import backfill
+
+    path = tmp_path / "twelvedata_SPY.parquet"
+    _store_days(path, [_day(2024, 3, 4), _day(2024, 9, 20)])
+    table = {date(2024, 3, 4): object(), date(2024, 3, 5): object(),
+             date(2024, 9, 19): object(), date(2024, 9, 20): object()}
+    calls = []
+
+    def spent(**k):
+        calls.append(k["end"])
+        raise backfill.twelvedata.ArchiveShareSpent("SPY: share spent")
+
+    monkeypatch.setattr(backfill.twelvedata, "fetch_full_history", spent)
+    monkeypatch.setattr(backfill.time, "sleep", lambda *_: None)
+    with pytest.raises(backfill.twelvedata.DailyQuotaExhausted):
+        backfill.fill_gaps(_etf(), str(path), table, "key", None)
+    assert len(calls) == 1
+
+
+def test_a_gap_walk_told_not_to_ask_only_lists_the_gaps(tmp_path, monkeypatch):
+    from tremor import backfill
+
+    path = tmp_path / "twelvedata_SPY.parquet"
+    _store_days(path, [_day(2024, 3, 4), _day(2024, 3, 6)])
+    table = {date(2024, 3, i): object() for i in (4, 5, 6)}
+    monkeypatch.setattr(backfill.twelvedata, "fetch_full_history",
+                        lambda **k: pytest.fail("asked Twelve Data"))
+    out = backfill.fill_gaps(_etf(), str(path), table, "key", None, ask=False)
+    assert out["gaps"] == 1 and out["added"] == 0
+    assert out["still_missing"] == [date(2024, 3, 5)]
+
+
+def test_after_the_share_is_spent_the_gaps_go_to_hf_data_only(tmp_path, monkeypatch):
+    from tremor import backfill
+    from tremor.basket import Basket, VolatilityIndex
+
+    basket = Basket(
+        assets=(_etf(ticker="SPY"), _etf(ticker="QQQ"), _etf(ticker="IWM")), outside=(),
+        volatility_index=VolatilityIndex("VIXCLS", "fred", "1d", "VIX", date(1990, 1, 1)),
+        anchor_exchange_tz="America/New_York", history_since=date(2021, 1, 1),
+        session_templates={"us_equity": {}})
+    asked, hf = [], []
+
+    def fake_fill(asset, path, table, api_key, session, ask=True):
+        asked.append((asset.ticker, ask))
+        if ask and asset.ticker == "QQQ":
+            raise backfill.twelvedata.ArchiveShareSpent("QQQ: share spent")
+        return {"skipped": None, "added": 0, "gaps": 1, "still_missing": [date(2024, 3, 5)]}
+
+    def fake_hf(asset, path, table, key, session):
+        hf.append(asset.ticker)
+        return {"skipped": None, "added": 0, "still_missing": [], "still_missing_hours": 0}
+
+    monkeypatch.setenv("TWELVEDATA_API_KEY", "k")
+    monkeypatch.setenv("HFDATA_API_KEY", "h")
+    monkeypatch.setattr(backfill, "load_basket", lambda: basket)
+    monkeypatch.setattr(backfill._sessions, "load_sessions", lambda: {})
+    monkeypatch.setattr(backfill, "fill_gaps", fake_fill)
+    monkeypatch.setattr(backfill, "fill_gaps_from_hfdata", fake_hf)
+    monkeypatch.setattr(backfill, "missing_hours", lambda path, table: [])
+    monkeypatch.setattr(backfill.twelvedata, "archive_mode", False)
+
+    assert backfill.main(["--fill-gaps", "--bars-dir", str(tmp_path)]) == 0
+    assert asked == [("SPY", True), ("QQQ", True), ("QQQ", False), ("IWM", False)]
+    assert hf == ["SPY", "QQQ", "IWM"]
+
+
+def test_a_spent_share_is_reported_as_the_walks_not_the_days(tmp_path, monkeypatch, caplog):
+    from tremor import backfill
+    from tremor.basket import Basket, VolatilityIndex
+
+    basket = Basket(
+        assets=(_yahoo_asset("UGA"),), outside=(),
+        volatility_index=VolatilityIndex("VIXCLS", "fred", "1d", "VIX", date(1990, 1, 1)),
+        anchor_exchange_tz="America/New_York", history_since=date(2021, 1, 1),
+        session_templates={"us_equity": {}})
+
+    def spent(asset, *a, **k):
+        raise backfill.twelvedata.ArchiveShareSpent("UGA: share spent")
+
+    monkeypatch.setattr(backfill, "load_basket", lambda: basket)
+    monkeypatch.setattr(backfill, "backfill_instrument", spent)
+    monkeypatch.setattr(backfill._sessions, "load_sessions",
+                        lambda: (_ for _ in ()).throw(FileNotFoundError()))
+    monkeypatch.setattr(backfill, "send_ops_alert", lambda *a, **k: None)
+    monkeypatch.setattr(backfill.twelvedata, "archive_mode", False)
+
+    with caplog.at_level("WARNING", logger="tremor.backfill"):
+        backfill.main(["--extend-history", "--skip-vix", "--bars-dir", str(tmp_path)])
+    text = caplog.text
+    assert "share" in text and "tomorrow" in text and "midnight" not in text
+
+
 # --- the ETF import, and the check that gates it ---------------------------
 
 def _hf_minutes(start_hour, n, prices=None, step=60):
