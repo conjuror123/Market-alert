@@ -129,6 +129,7 @@ jobs:
       # inside it reads jumps.parquet off disk, so it must read the file
       # this run just wrote rather than the one the last commit happened to carry.
       - name: Run monitor
+        id: monitor
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -155,7 +156,14 @@ jobs:
       # pipeline recomputes in full shares no bytes with its previous version,
       # so git would store the whole thing again every time; they are rebuilt
       # by the run that reads them. Metrics persist in the Actions cache.
+      #
+      # Whenever the monitor ran, failed or not. A run with an error exits 1,
+      # and its state is the one that matters most: the health streak it just
+      # counted, and what it sent. Skipped with it, the streak never reached
+      # the alert and the next run sent the same messages again. The job
+      # still ends red.
       - name: Commit updated state
+        if: always() && (steps.monitor.outcome == 'success' || steps.monitor.outcome == 'failure')
         run: |
           mkdir -p data/economic_calendar
           git config user.name "price-monitor-bot"

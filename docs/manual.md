@@ -373,7 +373,8 @@ from the live feed.
 so a killed run cannot truncate one.
 
 A truncated `state.json` fails the run rather than read as a cold start. The commit step
-rebases and retries if the branch moved. A release that exists but can't be read fails
+runs whenever the monitor ran, failed or not, so a failed run's health streak and what it
+sent are kept; it rebases and retries if the branch moved. A release that exists but can't be read fails
 the run before anything is scored. The metrics cache is uploaded when changed and once a
 day, so it doesn't age out.
 
