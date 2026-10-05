@@ -418,7 +418,7 @@ message past Telegram's 4,096 characters is cut between lines, ending "…and N 
 | where | what goes wrong | what tells you | how often |
 |---|---|---|---|
 | trigger | no run starts | cron-job.org, if its call failed; the first run after a gap of over 90 minutes names the hours (`health.missed_runs`) | once, when runs resume |
-| checkout, setup, the open months' restore | the run stops before delivery: nothing sent or counted | the last step, with the step's name (`tools/run_died.sh`) | first such run, then every 24 in a row |
+| checkout, setup, the open months' restore | the run stops before delivery: nothing sent or counted | the last step, with the step's name (`tools/run_died.sh`) | 1 h after the last run that delivered, then every 24 h |
 | session table extension | the table is not extended (under two years left) | streak, named | while it fails |
 | fetch: a provider fails or rate-limits | its instruments keep their stored bars | "went dark" / "rate limit" message | every run it happens |
 | fetch: a provider does not answer twice in a row | stopped for the run, left out of the dividend check and the second source | "did not answer" message | every run it happens |
@@ -429,7 +429,7 @@ message past Telegram's 4,096 characters is cut between lines, ending "…and N 
 | pipeline, jumps, or the step's 12 minutes | no new events | streak, named with the part it stopped in and its minutes | while it fails |
 | open months' save | the next run restores an older copy and fetches the difference | streak, named | while it fails |
 | delivery, calendar, digest | an exception in the monitor | streak, with the error | while it fails |
-| state commit | what the run sent and counted is lost; the next run may resend | the last step (`tools/run_died.sh`) | first such run, then every 24 in a row |
+| state commit | what the run sent and counted is lost; the next run may resend | the last step (`tools/run_died.sh`) | 1 h after the last run that delivered, then every 24 h |
 | Telegram itself | the token revoked or Telegram down | nothing can reach the chat; the job goes red | — |
 
 Not a health matter: a delete Telegram refuses is struck through instead, and a detector

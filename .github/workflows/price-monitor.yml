@@ -10,8 +10,6 @@ on:
 
 permissions:
   contents: write
-  # tools/run_died.sh reads the earlier runs to count an outage.
-  actions: read
 
 concurrency:
   group: price-monitor
@@ -280,18 +278,17 @@ jobs:
             data/tremor/metrics
           key: tremor-derived-${{ github.ref_name }}-${{ github.run_id }}
 
-      # Last, whatever happened: a run whose monitor never ran (a step before it
-      # failed) delivered nothing and counted nothing, and one whose state was
-      # not committed lost what it sent and the health it counted. Neither can
-      # say so from inside Python; this says it with curl, once and then daily
-      # while it lasts (tools/run_died.sh).
+      # Last, whatever happened: a run whose state was not committed - its
+      # monitor never ran (a step before it failed), or the commit did not
+      # succeed - lost what it sent and the health it counted. It cannot say so
+      # from inside Python; this says it with curl, at the first such hour and
+      # then daily while it lasts (tools/run_died.sh).
       - name: Tell the health chat when the run could not deliver
-        if: ${{ always() && ((steps.monitor.outcome != 'success' && steps.monitor.outcome != 'failure') || steps.commit.outcome == 'failure') }}
+        if: ${{ always() && steps.commit.outcome != 'success' }}
         env:
           STEPS: ${{ toJSON(steps) }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_HEALTH_CHAT_ID: ${{ secrets.TELEGRAM_HEALTH_CHAT_ID }}
-          GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         # Without a checkout there is no script: say that much directly.
         run: |

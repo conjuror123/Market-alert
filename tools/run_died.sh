@@ -1,30 +1,25 @@
 #!/usr/bin/env bash
-# Tells the health chat that an hourly run could not do its job, from outside
-# Python: the last step of .github/workflows/price-monitor.yml, run when
+# Tells the health chat that an hourly run's state was not committed, from
+# outside Python: the last step of .github/workflows/price-monitor.yml. Either
 #
 #   the monitor never ran - a step before it failed (checkout, setup, the open
 #   months of the bars) - so nothing was delivered and nothing was counted; or
-#   the state was not committed, so what the run sent and the health streak it
+#   it ran but the commit did not succeed, so what it sent and the health it
 #   counted are lost, and the next run may send the same messages again.
 #
-# The monitor's own health report cannot say either: in the first case it did
-# not run, in the second its record is the thing that was lost.
+# The monitor cannot say either: in the first case it did not run, in the
+# second its record is the thing that was lost.
 #
-# Once on the first such run, then every REMIND_EVERY in a row: how many in a
-# row is read off the earlier runs of this workflow, as the runs in which this
-# step ran (the workflow runs it only on such a run). Any doubt there - an API error, a run still going - counts as
-# a fresh outage, so the message goes out.
+# TIMED BY THE ONE CLOCK the missed-runs check reads: last_run_utc in the
+# state this run started from - the last run whose state was committed. Sent
+# when that is 1, 25, 49... hours ago: on the first such run, then daily.
+# With no record to read, sent.
 #
 # Needs STEPS (the workflow's toJSON(steps)), TELEGRAM_BOT_TOKEN,
-# TELEGRAM_HEALTH_CHAT_ID, GH_TOKEN with actions: read, RUN_URL, and
-# GITHUB_REPOSITORY, GITHUB_REF_NAME, GITHUB_RUN_ID. Never prints the token.
+# TELEGRAM_HEALTH_CHAT_ID, RUN_URL and GITHUB_SHA. Never prints the token.
 set -uo pipefail
 
-REPORT_STEP="Tell the health chat when the run could not deliver"
-WORKFLOW_FILE="price-monitor.yml"
-REMIND_EVERY=24
-
-# The steps whose failure ends the run before delivery, by id, as named in the
+# The steps that can stop the run before delivery, by id, as named in the
 # workflow.
 name_of() {
   case "$1" in
@@ -46,8 +41,10 @@ name_of() {
 outcome() { jq -r --arg id "$1" '.[$id].outcome // ""' <<<"$STEPS"; }
 
 monitor=$(outcome monitor)
-commit=$(outcome commit)
-if [ "$monitor" != "success" ] && [ "$monitor" != "failure" ]; then
+if [ "$(outcome commit)" = "success" ]; then
+  echo "the state was committed: nothing to report"
+  exit 0
+elif [ "$monitor" != "success" ] && [ "$monitor" != "failure" ]; then
   # Not the continue-on-error steps: their failure does not stop the run.
   first=$(jq -r '[to_entries[] | select(.key != "sessions" and .key != "tremor")
                  | select(.value.outcome == "failure" or .value.outcome == "cancelled")
@@ -58,29 +55,22 @@ if [ "$monitor" != "success" ] && [ "$monitor" != "failure" ]; then
     why="it was cancelled or ran out of time before the monitor"
   fi
   text="⚠️ Hourly run could not deliver: ${why}. Nothing was sent to the channel and no health was counted."
-elif [ "$commit" = "failure" ]; then
-  text="⚠️ Hourly run delivered but could not commit its state (\"$(name_of commit)\" failed). What it sent and the health it counted are lost; the next run may send the same messages again."
 else
-  echo "the monitor ran and its state was committed: nothing to report"
-  exit 0
+  text="⚠️ Hourly run delivered but could not commit its state (\"$(name_of commit)\" did not succeed). What it sent and the health it counted are lost; the next run may send the same messages again."
 fi
 
-# How many runs in a row this step has reported, this one included.
-streak=1
-runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$WORKFLOW_FILE/runs?branch=$GITHUB_REF_NAME&per_page=$((REMIND_EVERY + 1))" \
-         --jq ".workflow_runs[] | select(.id != $GITHUB_RUN_ID) | .id" 2>/dev/null) || runs=""
-for id in $runs; do
-  reported=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs" \
-               --jq "[.jobs[].steps[] | select(.name == \"$REPORT_STEP\") | .conclusion][0] // \"\"" \
-               2>/dev/null) || break
-  [ "$reported" = "success" ] || break
-  streak=$((streak + 1))
-done
-if [ "$streak" -gt 1 ] && [ $(((streak - 1) % REMIND_EVERY)) -ne 0 ]; then
-  echo "run $streak in a row that could not deliver; reminded every $REMIND_EVERY"
-  exit 0
+# The state this run started from: after a failed commit the file on disk is
+# already this run's own.
+last=$(git show "${GITHUB_SHA}:data/state.json" 2>/dev/null \
+         | jq -r '._monitoring_health.last_run_utc // empty' 2>/dev/null)
+if [ -n "$last" ]; then
+  hours=$((($(date +%s) - last + 1800) / 3600))
+  if [ $((hours % 24)) -ne 1 ]; then
+    echo "$hours h since the last run that delivered; said at 1 h, then every 24"
+    exit 0
+  fi
+  text="$text ($hours h since the last run that delivered.)"
 fi
-[ "$streak" -gt 1 ] && text="$text ($streak runs in a row.)"
 text="$text
 $RUN_URL"
 

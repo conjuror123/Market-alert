@@ -216,7 +216,9 @@ month is too small for Parquet; a year is not. About 28 MB of git a year.
 **Health reaches the chat from wherever the run can still speak.** The streak lives in the
 monitor, so what happens before it - a setup step, the open months' restore - or after it -
 the commit - is said by the workflow's last step with curl, and hours with no run by the
-next run. A step that does not stop the run (the session table, the open months' save) is a
+next run. Both time an outage by one clock, the last run whose state was committed
+(`last_run_utc`), not by counting runs: a count read off the run history is capped by its
+page and stops moving. A step that does not stop the run (the session table, the open months' save) is a
 failed run in the streak: broken, if not yet urgent. Per-instrument problems (a provider
 down, a stale instrument) go out every run or daily, never through the streak, because the
 streak is about the run and one instrument rarely fails three hours alike.
