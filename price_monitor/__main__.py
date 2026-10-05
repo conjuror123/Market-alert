@@ -23,8 +23,10 @@ Detection lives in `tremor`; this module decides nothing. Four things run:
 
   the health report - whether the previous runs failed, and a message when that
   changes. It reports runs that FAILED, which is all a check living inside the
-  run can report: a run that never happened increments nothing. Runs that never
-  happen are the trigger's own to notice - see docs/manual.md, "Running it".
+  run can report: a run that never happened increments nothing. Hours with no
+  run at all are named by the first run after them; a run that died before
+  this module is named by the workflow's last step (tools/run_died.sh) - see
+  docs/manual.md, "Running it".
 """
 from __future__ import annotations
 

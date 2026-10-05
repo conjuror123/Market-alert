@@ -408,22 +408,30 @@ PAT and the branch as `ref`). GitHub's `schedule:` is not used: it fires unrelia
 | Yahoo, Sina, Google, MarketWatch | none published | live fetch, dividend check, second source (a few requests a run) |
 | Binance | 6,000 weight/min per address | 16 a run |
 
-**Failure modes.**
+**Health, in the order of the hourly run.** Everything below goes to the health chat
+(`TELEGRAM_HEALTH_CHAT_ID`), never the channel. "Streak" means a failed run: the down
+alert comes on the 3rd in a row (`health_alert_after_failures`) and again every 24
+(`health_reminder_every_failures`), and "recovered" when they stop.
 
-| symptom | effect | action |
-|---|---|---|
-| a provider fails or rate-limits | its instruments keep their stored bars; the health chat names them | none, unless it persists |
-| a provider answers but serves nothing new | the instrument goes stale; named past its limit, then daily | check the symbol and contract |
-| backfill fails | pipeline and jumps still run on stored bars; the job ends red | read the health message |
-| pipeline or jumps crash, or the step runs out of its 12 minutes | no new events; counts as a failed run (`TREMOR_PIPELINE_CRASHED`), named with the part and minutes | fix and rerun |
-| a second source fails | its moves are judged by the other source, or scored unchecked; a source stopped for the run, or the whole check failing, is named on the health chat | none, unless it persists |
-| the session table can't be extended, or the open months can't be saved | the run goes on; counts as a failed run, named | fix the step |
-| a step before delivery fails (checkout, setup, the open months) | nothing is sent or counted; the last step tells the health chat which step, once and then every 24 runs in a row (`tools/run_died.sh`) | look at Actions |
-| the state commit fails | what the run sent and counted is lost, and the next run may send it again; the last step tells the health chat | look at Actions |
-| run never starts | cron-job.org emails; the first run after a gap of over 90 minutes names it on the health chat (`health.missed_runs`) | check the trigger |
-| N failed runs in a row | health chat (`health_alert_after_failures` 3, repeat every 24) | look at Actions |
-| Telegram refuses a delete | struck through instead | none |
-| detector or basket changed | the week's pushes and pings deleted once | expected |
+| where | what goes wrong | what tells you | how often |
+|---|---|---|---|
+| trigger | no run starts | cron-job.org, if its call failed; the first run after a gap of over 90 minutes names the hours (`health.missed_runs`) | once, when runs resume |
+| checkout, setup, the open months' restore | the run stops before delivery: nothing sent or counted | the last step, with the step's name (`tools/run_died.sh`) | first such run, then every 24 in a row |
+| session table extension | the table is not extended (under two years left) | streak, named | while it fails |
+| fetch: a provider fails or rate-limits | its instruments keep their stored bars | "went dark" / "rate limit" message | every run it happens |
+| fetch: a provider does not answer twice in a row | stopped for the run, left out of the dividend check and the second source | "did not answer" message | every run it happens |
+| fetch: answered, but no new bar | the instrument goes stale (`stale_hours`) | "no new bar though asked" | past its limit, then daily |
+| dividend check | a fund's payouts unconfirmed 5+ days: its overnight gaps go unscored | "Dividend check behind" | daily |
+| second source | a source stopped for the run, or the pass crashed: moves judged by the other source or scored unchecked | "Second source" lines | every run it happens |
+| VIX | both sources failed | "went dark" | every run it happens |
+| pipeline, jumps, or the step's 12 minutes | no new events | streak, named with the part it stopped in and its minutes | while it fails |
+| open months' save | the next run restores an older copy and fetches the difference | streak, named | while it fails |
+| delivery, calendar, digest | an exception in the monitor | streak, with the error | while it fails |
+| state commit | what the run sent and counted is lost; the next run may resend | the last step (`tools/run_died.sh`) | first such run, then every 24 in a row |
+| Telegram itself | the token revoked or Telegram down | nothing can reach the chat; the job goes red | — |
+
+Not a health matter: a delete Telegram refuses is struck through instead, and a detector
+or basket change deletes the week's pushes and pings once, as expected.
 
 The Tremor steps are `continue-on-error` so delivery still runs, and the job is failed at
 the end anyway. Health doesn't report "recovered" while the Tremor step is red. The step
@@ -462,7 +470,7 @@ health and the calendar go out, Tremor's pushes, note and pings do not.
 | `price_monitor/weekly_digest.py`, `economic_calendar.py` | the calendar |
 | `price_monitor/notifier.py`, `health.py`, `__main__.py` | Telegram calls, health, the delivery entry point |
 | `price_monitor/<provider>.py` | one client per provider |
-| `tools/` | history builders (they rewrite stores, so each runs only on the instruments named; `binance_history --all` for every coin), `stage_report.py`, `hot_bars.sh`; `fund_verdict.py` and `sina_probe.py`, the feed checks the Research workflow (`alpaca-probe.yml`) runs |
+| `tools/` | history builders (they rewrite stores, so each runs only on the instruments named; `binance_history --all` for every coin), `stage_report.py`, `hot_bars.sh`, `run_died.sh` (the health line for a run that could not deliver); `fund_verdict.py` and `sina_probe.py`, the feed checks the Research workflow (`alpaca-probe.yml`) runs |
 
 How far back each record reaches:
 
