@@ -4,50 +4,8 @@
   },
   "floor_pending_replies": [],
   "telegram_update_offset": 688283215,
-  "jump_delivery": {
+  "tremor_delivery": {
     "digests": {
-      "1789776300": {
-        "events": [
-          "coinbase_AVAX-USD:1789866000"
-        ],
-        "from": 1789776300,
-        "hashes": [
-          "4f6bd031dc45f943"
-        ],
-        "ids": [
-          26
-        ],
-        "rows": 1,
-        "to": 1789949100
-      },
-      "1789949100": {
-        "events": [
-          "twelvedata_SHY:1790168400",
-          "twelvedata_IEI:1790168400",
-          "twelvedata_IEF:1790168400",
-          "twelvedata_IEF:1790258400",
-          "twelvedata_TLH:1790258400",
-          "twelvedata_TLT:1790258400",
-          "twelvedata_MBB:1790258400",
-          "twelvedata_LQD:1790168400",
-          "twelvedata_BKLN:1790348400",
-          "twelvedata_UNG:1790258400",
-          "twelvedata_NZD_USD:1790042400",
-          "coinbase_LTC-USD:1790215200",
-          "coinbase_LINK-USD:1790272800"
-        ],
-        "from": 1789949100,
-        "hashes": [
-          "d4decbc1b4d2e54a",
-          "cea88519de919398"
-        ],
-        "ids": [
-          30,
-          50
-        ],
-        "rows": 13,
-        "to": 1790381100
-      },
       "1790381100": {
         "events": [],
         "from": 1790381100,
@@ -60,44 +18,103 @@
         "to": 1790553900
       },
       "1790553900": {
-        "events": [],
+        "events": [
+          "twelvedata_SHY:1790859600",
+          "twelvedata_IEI:1790604000",
+          "twelvedata_IEI:1790866800",
+          "twelvedata_IEI:1790949600",
+          "twelvedata_IEF:1790604000",
+          "twelvedata_IEF:1790866800",
+          "twelvedata_TLH:1790604000",
+          "twelvedata_TLT:1790604000",
+          "twelvedata_TLT:1790866800",
+          "twelvedata_TIP:1790604000",
+          "twelvedata_TIP:1790866800",
+          "twelvedata_MBB:1790604000",
+          "twelvedata_MBB:1790866800",
+          "twelvedata_MBB:1790949600",
+          "twelvedata_LQD:1790604000",
+          "twelvedata_JNK:1790859600",
+          "twelvedata_JNK:1790946000",
+          "twelvedata_EMB:1790859600",
+          "twelvedata_AUD_USD:1790658000",
+          "twelvedata_USD_CHF:1790838000",
+          "coinbase_LINK-USD:1790611200"
+        ],
         "from": 1790553900,
         "hashes": [
-          "6dec0c77447f9797"
+          "d7021db2fe260a94",
+          "1ee75f60fd14a0c5",
+          "de03d3773ad0f221",
+          "1d008f105b07fce9"
         ],
         "ids": [
-          55
+          55,
+          69,
+          82,
+          86
         ],
+        "rows": 21,
         "to": 1790985900
+      },
+      "1790985900": {
+        "events": [],
+        "from": 1790985900,
+        "hashes": [
+          "6660b4ff6e16c732"
+        ],
+        "ids": [
+          88
+        ],
+        "to": 1791158700
+      },
+      "1791158700": {
+        "events": [
+          "twelvedata_EUR_USD:1791165600"
+        ],
+        "from": 1791158700,
+        "hashes": [
+          "d65cfbe0a0e96b7e"
+        ],
+        "ids": [
+          89
+        ],
+        "rows": 1,
+        "to": 1791590700
       }
     },
-    "pings": {},
+    "pings": {
+      "twelvedata_EUR_USD:1791165600": {
+        "hash": "bceaf60cca4162dc",
+        "id": 90
+      }
+    },
     "sent": {
-      "coinbase_BCH-USD:1790078400": {
-        "hash": "defa61dd4ff88ec8",
-        "hour": 1790078400,
-        "id": 38
+      "twelvedata_CORN:1790784000": {
+        "hash": "008a1913124e384f",
+        "hour": 1790784000,
+        "id": 72
       },
-      "twelvedata_USD_CHF:1790233200": {
-        "hash": "2905005d2ad46e33",
-        "hour": 1790233200,
-        "id": 44
+      "twelvedata_EMB:1790600400": {
+        "hash": "922b9cb227c3079f",
+        "hour": 1790600400,
+        "id": 56
       }
     },
     "tracked": {
-      "coinbase_BCH-USD:1790078400": {
-        "hour_utc": 1790078400,
-        "message_id": 38,
-        "text_hash": "defa61dd4ff88ec8",
+      "twelvedata_CORN:1790784000": {
+        "hour_utc": 1790784000,
+        "message_id": 72,
+        "text_hash": "008a1913124e384f",
         "written": [
           "today",
           "settled"
         ]
       },
-      "twelvedata_USD_CHF:1790233200": {
-        "hour_utc": 1790233200,
-        "message_id": 44,
-        "text_hash": "2905005d2ad46e33",
+      "twelvedata_EMB:1790600400": {
+        "hour_utc": 1790600400,
+        "message_id": 56,
+        "text_hash": "922b9cb227c3079f",
         "written": [
           "today",
           "settled"
@@ -105,6 +122,6 @@
       }
     }
   },
-  "weekly_digest:last_refreshed": "2026-09-28",
-  "weekly_digest:last_sent_week": "1790381100"
+  "weekly_digest:last_refreshed": "2026-10-05",
+  "weekly_digest:last_sent_week": "1790985900"
 }
