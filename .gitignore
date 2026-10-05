@@ -6,24 +6,24 @@ venv/
 .pytest_cache/
 *.egg-info/
 
-# Fully derived Tremor outputs, rebuilt from the committed bars by the run that
+# Fully derived Jump outputs, rebuilt from the committed bars by the run that
 # reads them - delivery reads the events table the same run just wrote. Git
 # cannot delta parquet, so committing them would store every byte again on
 # every run without a single new fact.
 #
-#   metrics/        - per-asset metrics (the move and the gap), python -m tremor.pipeline;
+#   metrics/        - per-asset metrics (the move and the gap), python -m jump.pipeline;
 #                     kept between runs in the Actions cache.
-#   jumps.parquet   - the events, python -m tremor.jumps, rescored whole every run.
-data/tremor/metrics/
-data/tremor/jumps.parquet
+#   jumps.parquet   - the events, python -m jump.jumps, rescored whole every run.
+data/jump/metrics/
+data/jump/jumps.parquet
 
 # The open months of the bar store, appended every hour. Kept between runs on a
 # GitHub release (tools/hot_bars.sh), where replacing a file costs the
 # repository nothing; a month enters git once, settled, as YYYY-MM.csv
-# (tremor/bars.py).
-data/tremor/bars/*/*.open.csv
+# (jump/bars.py).
+data/jump/bars/*/*.open.csv
 
-# A write killed half way (tremor/atomic.py) leaves its temp file behind; the
+# A write killed half way (jump/atomic.py) leaves its temp file behind; the
 # original is intact, and the leftover must not reach git with the next commit.
 *.tmp
 .claude/settings.local.json

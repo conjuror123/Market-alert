@@ -1,7 +1,7 @@
 """Tracks consecutive failed monitoring runs and decides when to page about it.
 
-A "failed run" is one where the calendar or Tremor's delivery raised, or the
-Tremor pipeline crashed (price_monitor.__main__). Without this, a broken data source or a
+A "failed run" is one where the calendar or Jump's delivery raised, or the
+Jump pipeline crashed (price_monitor.__main__). Without this, a broken data source or a
 revoked Telegram token would fail silently forever - GitHub Actions would show a
 red X on the workflow, but nobody would notice unless they went looking.
 """

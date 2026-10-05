@@ -17,7 +17,7 @@ DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "c
 
 @dataclass
 class Config:
-    # Silence for the Tremor side: the pushes, the weekly note and the pings.
+    # Silence for the Jump side: the pushes, the weekly note and the pings.
     # DEFAULT ON - that is, silent - because wiring the delivery is not the same
     # act as deciding to be interrupted by it, and running the pipeline with
     # nothing going out is a state worth being able to hold on purpose.
@@ -27,7 +27,7 @@ class Config:
     # project and must be visible where the code is. A cron job disabled on
     # someone else's website looks like a breakage a month later, and there is
     # nobody left to work out which it was.
-    tremor_alerts_muted: bool = True
+    jump_alerts_muted: bool = True
     health_alert_after_failures: int = 3
     health_reminder_every_failures: int = 24
     telegram_bot_token: str = ""
@@ -41,12 +41,12 @@ class Config:
     # Local store for economic_calendar.py / weekly_digest.py.
     calendar_dir: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(__file__), "..", "data", "economic_calendar"))
-    # Routed Tremor events, written by python -m tremor.jumps and read by
-    # tremor_delivery.py. Each row carries the channel and digest slot the
+    # Routed Jump events, written by python -m jump.jumps and read by
+    # jump_delivery.py. Each row carries the channel and digest slot the
     # detector decided on; the delivery layer decides nothing except what it
     # has already sent.
-    tremor_events_path: str = field(default_factory=lambda: os.path.join(
-        os.path.dirname(__file__), "..", "data", "tremor", "jumps.parquet"))
+    jump_events_path: str = field(default_factory=lambda: os.path.join(
+        os.path.dirname(__file__), "..", "data", "jump", "jumps.parquet"))
 
 
 def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
@@ -66,8 +66,8 @@ def load_config(path: str = DEFAULT_CONFIG_PATH) -> Config:
         return value.strip().lower() in ("1", "true", "yes", "on")
 
     return Config(
-        tremor_alerts_muted=env_bool("TREMOR_ALERTS_MUTED",
-                                     raw.get("tremor_alerts_muted", True)),
+        jump_alerts_muted=env_bool("JUMP_ALERTS_MUTED",
+                                     raw.get("jump_alerts_muted", True)),
         health_alert_after_failures=env_int(
             "HEALTH_ALERT_AFTER_FAILURES", raw.get("health_alert_after_failures", 3)),
         health_reminder_every_failures=env_int(

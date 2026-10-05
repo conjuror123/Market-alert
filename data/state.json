@@ -4,7 +4,7 @@
   },
   "floor_pending_replies": [],
   "telegram_update_offset": 688283215,
-  "tremor_delivery": {
+  "jump_delivery": {
     "digests": {
       "1789776300": {
         "events": [

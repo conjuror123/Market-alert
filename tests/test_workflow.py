@@ -36,23 +36,23 @@ def test_the_fetch_and_score_step_runs_out_of_time_before_the_job_does():
     # line, no commit (28 runs on 2026-09-09..11). The step's limit leaves the
     # rest of the job its turn.
     job, steps = _job(), _steps()
-    tremor = steps["Tremor pipeline"]
-    assert tremor.get("timeout-minutes")
-    assert job["timeout-minutes"] - tremor["timeout-minutes"] >= 6
+    jump = steps["Jump pipeline"]
+    assert jump.get("timeout-minutes")
+    assert job["timeout-minutes"] - jump["timeout-minutes"] >= 6
 
 
 def test_delivery_runs_after_a_fetch_and_score_step_that_ran_out_of_time():
     # A step that timed out may end the job's success(); delivery and health
     # must still run, unless the step never started (setup failed before it).
     steps = _steps()
-    tremor_id = steps["Tremor pipeline"]["id"]
+    jump_id = steps["Jump pipeline"]["id"]
     condition = str(steps["Run monitor"].get("if", ""))
     assert "!cancelled()" in condition
-    assert f"steps.{tremor_id}.outcome != 'skipped'" in condition
+    assert f"steps.{jump_id}.outcome != 'skipped'" in condition
     env = steps["Run monitor"]["env"]
     # Not only 'failure': a step stopped for time must count as not completed.
-    assert f"steps.{tremor_id}.outcome != 'success'" in env["TREMOR_PIPELINE_CRASHED"]
-    assert "TREMOR_STAGE_FILE" in env
+    assert f"steps.{jump_id}.outcome != 'success'" in env["JUMP_PIPELINE_CRASHED"]
+    assert "JUMP_STAGE_FILE" in env
 
 
 def test_the_monitor_hears_how_the_side_steps_went():

@@ -17,7 +17,7 @@ basket. Twelve Data's intraday archive stops at 2020-02 and HF Data does not
 carry about sixty of the funds, so this is what takes those back to 2016.
 
 ADJUSTMENT. `split`: split-adjusted, dividends left in, which is the store's
-convention (tremor/returns.py takes each payout out of its overnight gap). The
+convention (jump/returns.py takes each payout out of its overnight gap). The
 deepening that uses this still checks the levels against the stored bars over
 an overlap and refuses a series that disagrees on price.
 

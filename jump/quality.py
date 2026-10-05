@@ -1,0 +1,131 @@
+"""Data-quality gate and session membership of an hour.
+
+Two different things, convenient to compute together because both answer the
+question "does this bar take part in the calculations":
+
+- VALIDITY is a property of the bar itself: prices positive, OHLC consistent,
+  volume non-negative, timestamp not repeated. An invalid bar takes part in
+  nothing and updates no state.
+- SESSION MEMBERSHIP is a property of the hour: hours outside an
+  asset's trading session take part in no metric and no yardstick.
+
+The second is not a formality. Sources keep serving bars after a half session
+closes - on 26 November 2021 the exchange shut at 13:00 New York time and bars
+for 14:00 and 15:00 arrived anyway, with zero volume and a creeping price.
+Without the session filter those hours would be scored as genuine trading.
+"""
+from __future__ import annotations
+
+from datetime import date, datetime, time
+from zoneinfo import ZoneInfo
+
+import pandas as pd
+
+from jump import sessions as sessions_mod
+from jump.basket import Asset
+
+HOUR = 3600
+NYSE_TZ = ZoneInfo("America/New_York")
+
+
+def _session_bounds_utc(day: date, session: sessions_mod.Session) -> tuple[int, int]:
+    """Session bounds in epoch UTC. They are stored in the exchange's local time
+    and converted on the fly - storing them as UTC is forbidden."""
+    def at(hhmm: str) -> int:
+        hour, minute = (int(x) for x in hhmm.split(":"))
+        return int(datetime.combine(day, time(hour, minute), tzinfo=NYSE_TZ).timestamp())
+    return at(session.local_open), at(session.local_close)
+
+
+def in_session(asset: Asset, hours: pd.Series,
+               session_table: dict[date, sessions_mod.Session] | None = None,
+               anchor_tz: str = "America/New_York") -> pd.Series:
+    """Whether an hour (by the bar's OPENING moment) falls in the asset's session.
+
+    An hour counts as trading if the interval [h, h+1) overlaps the session under
+    a HALF-OPEN rule: h < close and h + hour > open. The closing auction is not
+    lost by this - it prints before the closing moment and therefore lands in the
+    last bar that lies wholly inside the session. But an hour that STARTS exactly
+    at the close is already after-hours trading, and the rule discards it.
+    """
+    if asset.session_template == "crypto_24_7":
+        return pd.Series(True, index=hours.index)
+
+    if asset.session_template == "fx_continuous":
+        # Spot FX trades continuously from Sun 17:00 to Fri 17:00 in the anchor
+        # exchange's time - exactly the basket's reference week.
+        return sessions_mod.reference_hours_mask(hours, anchor_tz)
+
+    if sessions_mod.is_calendar_template(asset.session_template):
+        return sessions_mod.hours_mask(hours, asset.session_template)
+
+    if asset.session_template != "us_equity":
+        raise ValueError(f"{asset.ticker}: unknown session template "
+                         f"'{asset.session_template}'")
+
+    table = session_table if session_table is not None else sessions_mod.load_sessions()
+    local_days = pd.to_datetime(hours, unit="s", utc=True).dt.tz_convert(NYSE_TZ).dt.date
+    bounds = {d: _session_bounds_utc(d, s) for d, s in table.items()}
+
+    def inside(hour: int, day: date) -> bool:
+        window = bounds.get(day)
+        if window is None:
+            return False
+        opened, closed = window
+        return hour < closed and hour + HOUR > opened
+
+    return pd.Series([inside(int(h), d) for h, d in zip(hours, local_days)],
+                     index=hours.index)
+
+
+def ohlc_inconsistent(frame: pd.DataFrame, tick_size: float) -> pd.Series:
+    """Bars whose open or close lies outside their low-high range by more than
+    half a tick. Sources round a bar's fields independently (TLT close 92.42
+    against high 92.415), so up to half a tick is rounding, not a broken bar.
+    The tolerance carries a hair of slack so that exactly half a tick is not
+    lost to floating point (29.365 + 0.005 < 29.37 in binary)."""
+    tolerance = tick_size / 2 * (1 + 1e-9)
+    body_low = frame[["open", "close"]].min(axis=1)
+    body_high = frame[["open", "close"]].max(axis=1)
+    return (frame["low"] > body_low + tolerance) | (body_high > frame["high"] + tolerance)
+
+
+def invalid_reasons(asset: Asset, frame: pd.DataFrame) -> pd.Series:
+    """Reason each bar is invalid, empty string for sound ones.
+
+    A string rather than a flag: when a bar is dropped from the calculations you
+    need to be able to say why without reopening the data.
+    """
+    reasons = pd.Series("", index=frame.index, dtype="object")
+    if frame.empty:
+        return reasons
+
+    prices = frame[["open", "high", "low", "close"]]
+    reasons[prices.le(0).any(axis=1)] = "price not positive"
+
+    inconsistent = ohlc_inconsistent(frame, asset.tick_size)
+    reasons[inconsistent & (reasons == "")] = "OHLC inconsistent"
+
+    reasons[(frame["volume"] < 0) & (reasons == "")] = "volume negative"
+
+    from jump import futures
+    if futures.is_continuous(asset.ticker):
+        ordered = frame.sort_values("hour_utc")
+        thin = pd.Series(futures.thin(ordered["volume"]), index=ordered.index)
+        reasons[thin.reindex(frame.index).to_numpy(dtype=bool) & (reasons == "")] = \
+            "volume too thin to be a trade"
+    reasons[frame["hour_utc"].duplicated(keep="last") & (reasons == "")] = "duplicate hour"
+    return reasons
+
+
+def apply_gate(asset: Asset, frame: pd.DataFrame,
+               session_table: dict[date, sessions_mod.Session] | None = None,
+               anchor_tz: str = "America/New_York") -> pd.DataFrame:
+    """Adds the gate columns to the bars: invalidity reason, session flag and the
+    resulting is_usable. Only rows with is_usable enter the calculations."""
+    out = frame.copy()
+    out["invalid_reason"] = invalid_reasons(asset, frame)
+    out["in_session"] = (in_session(asset, frame["hour_utc"], session_table, anchor_tz)
+                         if not frame.empty else pd.Series(dtype=bool))
+    out["is_usable"] = (out["invalid_reason"] == "") & out["in_session"]
+    return out

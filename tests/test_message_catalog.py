@@ -5,9 +5,9 @@ import os
 import re
 from datetime import datetime, timezone
 
-from price_monitor import tremor_delivery as md
-from tests.test_tremor_delivery import HOUR, LABELS, SLOT, _cal, event, use_vix, vix_frame
-from tremor import routing
+from price_monitor import jump_delivery as md
+from tests.test_jump_delivery import HOUR, LABELS, SLOT, _cal, event, use_vix, vix_frame
+from jump import routing
 
 _ISO_STAMP = re.compile(r"\d{4}-\d{2}-\d{2}")
 _FIRST_LINE = re.compile(r"^(⬜|🟨|🟧|🟥) <b>[^<]+</b> · .+ [+-]\d+\.\d\d%.* · \d+\.\d×σ$")
@@ -127,7 +127,7 @@ def test_every_message_shape_follows_the_copy_rules(monkeypatch, tmp_path):
 
 
 def _as_text(samples: dict[str, str]) -> str:
-    parts = ["# Tremor Telegram catalog\n"]
+    parts = ["# Jump Telegram catalog\n"]
     for name, text in samples.items():
         parts.append(f"\n===== {name} =====\n")
         parts.append(text)

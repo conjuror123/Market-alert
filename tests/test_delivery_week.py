@@ -1,4 +1,4 @@
-"""What is on the channel, and when: the week's curation (tremor_delivery).
+"""What is on the channel, and when: the week's curation (jump_delivery).
 
 A fake channel stands in for Telegram. It holds the messages by id, so each
 test states what the reader would see, not which calls were made.
@@ -8,10 +8,10 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from price_monitor import notifier
-from price_monitor import tremor_delivery as md
+from price_monitor import jump_delivery as md
 from price_monitor.config import Config
 from price_monitor.notifier import TelegramError
-from tremor import jumps, routing, verify
+from jump import jumps, routing, verify
 
 HOUR = 3600
 # The week under test: from the run after Friday 4 September 2026's close
@@ -88,13 +88,13 @@ def channel(monkeypatch, tmp_path):
 
 def cfg(channel, **over):
     base = dict(telegram_bot_token="t", telegram_chat_id="c",
-                tremor_alerts_muted=False, state_path=channel.path)
+                jump_alerts_muted=False, state_path=channel.path)
     return Config(**(base | over))
 
 
 def ev(at, tier="noticeable", *, asset="twelvedata:GLD", size=None, found=None,
        sigma=SIGMA, reading="hour", check=None, held=None):
-    """A flagged reading as tremor.jumps writes it; `at` is the hour's start."""
+    """A flagged reading as jump.jumps writes it; `at` is the hour's start."""
     hour = int(at.timestamp())
     size = SIZE[tier] if size is None else size
     return dict(reading_id=f"jump:{asset}:{reading}:{hour}", asset_id=asset,
@@ -147,7 +147,7 @@ def test_an_empty_events_table_changes_nothing(monkeypatch, channel):
 
 
 def test_nothing_goes_out_while_muted(monkeypatch, channel):
-    run(monkeypatch, channel, [ev(OPEN)], OPEN, {}, tremor_alerts_muted=True)
+    run(monkeypatch, channel, [ev(OPEN)], OPEN, {}, jump_alerts_muted=True)
     assert channel.messages == {}
 
 

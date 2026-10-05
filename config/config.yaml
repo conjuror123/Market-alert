@@ -10,14 +10,14 @@
 #
 # true - the hourly run proceeds as usual: bars are fetched, the pipeline runs,
 # events are routed and written, the weekly calendar digest goes out and so does
-# the bot's own health alert. The only thing that does not go out is Tremor's own
+# the bot's own health alert. The only thing that does not go out is Jump's own
 # pushes, its weekly note and the pings.
 #
 # It lives here rather than on the external scheduler's side, deliberately: "we
 # are deliberately silent" is a state of the project and must be visible where
 # the code is. A cron job disabled on someone else's website is indistinguishable
 # from a breakage a month later.
-tremor_alerts_muted: false
+jump_alerts_muted: false
 
 # --- Health ------------------------------------------------------------------
 #

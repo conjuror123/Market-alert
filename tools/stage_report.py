@@ -2,7 +2,7 @@
 
     PYTHONPATH=. python tools/stage_report.py [--metrics-dir DIR] [--seed N]
 
-Scores every instrument's whole history with tremor.jumps (a second or two) and
+Scores every instrument's whole history with jump.jumps (a second or two) and
 prints, as Markdown:
 
   - flags a week for the whole basket, by word;
@@ -11,7 +11,7 @@ prints, as Markdown:
     how many were flagged, and at which word;
   - the gaps (nights and weekends) by kind: per instrument a year and by word;
   - the events: an instrument's flags grouped into 24 hours of real time from
-    the first one found, each worded by its rarest flag (tremor.jumps.event_starts);
+    the first one found, each worded by its rarest flag (jump.jumps.event_starts);
   - the events by channel: pushed, or a row in the weekly note;
   - rarest since: how far back the line reaches, by kind and word,
     over the last year's flags;
@@ -29,8 +29,8 @@ import os
 import numpy as np
 import pandas as pd
 
-from tremor import jumps, routing
-from tremor.basket import load_basket
+from jump import jumps, routing
+from jump.basket import load_basket
 
 YEAR = 365.25 * 86400
 BIGGEST_SHARE = 1e-4          # the top 0.01% of an instrument's hours

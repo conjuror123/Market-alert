@@ -1,4 +1,4 @@
-# Tremor manual
+# Jump manual
 
 How the bot works and how to run it. Lines starting **Rule.** are invariants: break one
 and the system is wrong rather than merely broken. Why each choice was made is in
@@ -62,12 +62,12 @@ pip install -r requirements-dev.txt
 pytest -q          # ~700 tests, about 2 minutes; run alone, several load large parquet files
 ```
 
-The derived data (`data/tremor/metrics/`, `jumps.parquet`) rebuilds from the committed
+The derived data (`data/jump/metrics/`, `jumps.parquet`) rebuilds from the committed
 bars in under a minute. The open months of the bars are not in git: `tools/hot_bars.sh
 restore` lays them down (needs `gh`, `GITHUB_REPOSITORY`, `GITHUB_REF_NAME`).
 
 To add a provider: a client in `price_monitor/` returning `Candle` lists, its name in
-`PROVIDERS` (`tremor/basket.py`), a branch in `backfill.fetch_missing`, its secret in the
+`PROVIDERS` (`jump/basket.py`), a branch in `backfill.fetch_missing`, its secret in the
 workflow's `env:`.
 
 ## 3. The hourly pass
@@ -75,9 +75,9 @@ workflow's `env:`.
 Four commands, in `.github/workflows/price-monitor.yml`. **The order is load-bearing.**
 
 ```
-python -m tremor.backfill   fetch new bars; ask a second source about far moves
-python -m tremor.pipeline   per-instrument metrics: the move r and the gap
-python -m tremor.jumps      score all history, words, 24-hour events -> jumps.parquet
+python -m jump.backfill   fetch new bars; ask a second source about far moves
+python -m jump.pipeline   per-instrument metrics: the move r and the gap
+python -m jump.jumps      score all history, words, 24-hour events -> jumps.parquet
 python -m price_monitor     deliver what is due to Telegram
 ```
 
@@ -98,7 +98,7 @@ standing in, a few minutes of it; that bar heals on the next fetch.
 | Alpaca | 30 funds | free IEX bars live; consolidated (SIP) history from 2016 |
 | Twelve Data | 8 funds (USO UNG GLD SLV CPER DBA CORN DBC) | consolidated tape for thin funds; one batched request a run |
 | Sina Finance | 33 funds; LME tin, nickel, aluminium | US half-hour bars (consolidated); LME three-month contract, last 1,023 hourly bars |
-| Yahoo | 34 funds; coffee, cocoa, cotton, live cattle | futures from the front contract, rolled before first notice (`tremor/futures.py`) |
+| Yahoo | 34 funds; coffee, cocoa, cotton, live cattle | futures from the front contract, rolled before first notice (`jump/futures.py`) |
 | Google Finance | TUR | read off the quote page |
 | SiftingIO | 17 FX pairs | the bar closed at :00 is served by :05 |
 | Binance | 16 coins | each coin as its USDT pair, via `data-api.binance.vision` (reachable from US runners) |
@@ -110,12 +110,12 @@ Each fund's feed is chosen by measurement; see `docs/decisions.md`, "Data and pr
 `asset_id` and the file on disk are built from `source`; changing it orphans every stored
 bar and verdict. `provider` changes freely.
 
-**The store** (`tremor/bars.py`), per instrument: one Parquet file per finished year, one
+**The store** (`jump/bars.py`), per instrument: one Parquet file per finished year, one
 CSV per settled month of the current year (settled a week after the month ends), and the
 open months as `YYYY-MM.open.csv` on a release, not in git. `bars.load(store, since)`
 reads only the files that can hold the hours asked for.
 
-**Fetch** (`tremor/backfill.py`): each instrument is asked from its newest stored bar less
+**Fetch** (`jump/backfill.py`): each instrument is asked from its newest stored bar less
 three hours (`SETTLE_HOURS`), so a bar stored part-way through heals. An
 instrument is skipped when its calendar says no bar can have appeared since its newest
 in-session bar, no session hour since having begun (`nothing_can_have_appeared`): funds
@@ -133,16 +133,16 @@ calendar allows is named on the health chat on the run it passes its limit, then
 and only on a run its count moved, so not through the night (`stale_hours`): 3 session hours for a coin, 6 for a pair, 7 for a fund, two sessions for a
 daily-session market (whose calendars don't know holidays).
 
-**Sessions** (`tremor/sessions.py`): the NYSE table (`data/tremor/sessions/nyse.csv`),
+**Sessions** (`jump/sessions.py`): the NYSE table (`data/jump/sessions/nyse.csv`),
 the FX week, and each daily-session market's hours (LME, ICE, CME, B3). The NYSE table
 extends itself: when under two years remain, the hourly run appends three more years,
 leaving existing rows untouched.
 
-**Quality gate** (`tremor/quality.py`): a bar is unusable if a price is not positive,
+**Quality gate** (`jump/quality.py`): a bar is unusable if a price is not positive,
 OHLC is inconsistent beyond half a tick, volume is negative, it duplicates an hour, it is a
 future's thin bar, or it falls outside its session.
 
-**Dividends** (`tremor/corporate_actions.py`): on the first run after 09:30 New York,
+**Dividends** (`jump/corporate_actions.py`): on the first run after 09:30 New York,
 Yahoo is asked for each paying fund's payouts; two funds in a row unanswered end the check
 until the next run. A fund's overnight gap is scored only on a date its payouts are
 confirmed through; five or more days behind, the health chat is told
@@ -152,7 +152,7 @@ once a day.
 
 A real trade shows up on another feed; a source's bad print does not. Right after the
 fetch, every reading of the last 24 hours at **4σ or more** is asked of a second,
-independent feed (`tremor/verify.py`). The readings are the detector's own, built by
+independent feed (`jump/verify.py`). The readings are the detector's own, built by
 `pipeline.build_asset_metrics` and scored by `jumps` with the detector's settings
 (`detector:` in `config/basket.yaml`), each asked when the detector finds it. Every
 reading the detector can flag is therefore asked about; with a bottom level under 4σ,
@@ -191,15 +191,15 @@ and unknown moves are scored as usual.
 Every reading is judged again on every run while it is inside its 24 hours, from the bars
 as they then are. A bar that heals gets a new verdict; one that heals into no far move
 loses its verdict. After 24 hours the last verdict stands. Verdicts live in
-`data/tremor/verified.csv`: unconfirmed ones are kept for good (the detector rescores all
+`data/jump/verified.csv`: unconfirmed ones are kept for good (the detector rescores all
 history), the rest for 30 days. Instruments with a reading not yet judged are asked
-first; at most 40 requests a run. `python -m tremor.verify --history` checks everything
+first; at most 40 requests a run. `python -m jump.verify --history` checks everything
 within each source's reach.
 
 ## 6. Metrics
 
-`tremor/pipeline.py` turns usable bars into per-instrument metrics
-(`data/tremor/metrics/<stem>.parquet`), via `tremor/returns.py`:
+`jump/pipeline.py` turns usable bars into per-instrument metrics
+(`data/jump/metrics/<stem>.parquet`), via `jump/returns.py`:
 
 - **`r`, the hour's move:** close against the previous close. On a session's first bar,
   and on the bar after a missing hour, it is that bar's own open to close.
@@ -212,7 +212,7 @@ within each source's reach.
 A missing in-session hour is skipped, as if it were not there. Only closures the calendar
 knows are gaps: a fund's nights and weekends, a pair's weekends and its Christmas and New
 Year closures, a daily-session market's nights and weekends. Crypto never closes. A
-future's roll night is not scored (`tremor/futures.py`, `data/tremor/rolls.csv`).
+future's roll night is not scored (`jump/futures.py`, `data/jump/rolls.csv`).
 
 The pipeline extends stored metrics rather than rebuilding them.
 
@@ -220,15 +220,15 @@ The pipeline extends stored metrics rather than rebuilding them.
 trusted, because the stored bars heal. An instrument whose store gained bars under its
 metrics (`bars_upto`) is rebuilt.
 
-**Rule.** A change to a formula moves `config_version` (`tremor/versioning.py`), and the
+**Rule.** A change to a formula moves `config_version` (`jump/versioning.py`), and the
 pipeline then rebuilds cold. The first run after such a change is slow by design. Python
 is hashed parsed, so its comments and docstrings don't count; `config/basket.yaml` is
 hashed as bytes, so any edit to it, a comment included, rebuilds once.
 
 ## 7. The detector
 
-`tremor/jumps.py`, rescored over all history every run (about 9 s), output
-`data/tremor/jumps.parquet`.
+`jump/jumps.py`, rescored over all history every run (about 9 s), output
+`data/jump/jumps.parquet`.
 
 **Score.** `z = r / σ`, where `σ` is the instrument's bipower volatility,
 `√(π/2 · mean(|r_j|·|r_(j−1)|))`, over the 182.6 days before the hour. Bipower uses
@@ -293,7 +293,7 @@ next one). `held` is the share of the move still there then: 1.0 held, 1.2 kept 
 
 ## 8. Delivery
 
-`price_monitor/tremor_delivery.py` reads `jumps.parquet` and the verdicts, and keeps the
+`price_monitor/jump_delivery.py` reads `jumps.parquet` and the verdicts, and keeps the
 channel in line with them.
 
 **A push** (`high` and up):
@@ -371,15 +371,15 @@ from the live feed.
 |---|---|---|
 | `data/state.json` | the week's messages on the channel, the open note | every run |
 | `data/economic_calendar/` | release archive | every run |
-| `data/tremor/corporate_actions.csv`, `dividend_checks.csv` | payouts, how far each fund is confirmed | every run |
-| `data/tremor/verified.csv` | second-source verdicts | every run |
-| `data/tremor/sessions/nyse.csv` | NYSE schedule | when extended |
-| `data/tremor/bars/*/YYYY-MM.csv`, `YYYY.parquet` | settled bars | when a month or year settles |
-| `data/tremor/bars/*/YYYY-MM.open.csv` | open months | no: release `bars-live-<branch>` |
-| `data/tremor/vix/` | daily VIX | Saturday 04:00 UTC |
-| `data/tremor/metrics/`, `jumps.parquet` | derived | no: Actions cache / rebuilt |
+| `data/jump/corporate_actions.csv`, `dividend_checks.csv` | payouts, how far each fund is confirmed | every run |
+| `data/jump/verified.csv` | second-source verdicts | every run |
+| `data/jump/sessions/nyse.csv` | NYSE schedule | when extended |
+| `data/jump/bars/*/YYYY-MM.csv`, `YYYY.parquet` | settled bars | when a month or year settles |
+| `data/jump/bars/*/YYYY-MM.open.csv` | open months | no: release `bars-live-<branch>` |
+| `data/jump/vix/` | daily VIX | Saturday 04:00 UTC |
+| `data/jump/metrics/`, `jumps.parquet` | derived | no: Actions cache / rebuilt |
 
-**Rule.** Tables are written through a temp file and `os.replace` (`tremor/atomic.py`),
+**Rule.** Tables are written through a temp file and `os.replace` (`jump/atomic.py`),
 so a killed run cannot truncate one.
 
 A truncated `state.json` fails the run rather than read as a cold start. The commit step
@@ -435,7 +435,7 @@ message past Telegram's 4,096 characters is cut between lines, ending "…and N 
 Not a health matter: a delete Telegram refuses is struck through instead, and a detector
 or basket change deletes the week's pushes and pings once, as expected.
 
-The Tremor steps are `continue-on-error` so delivery still runs, and the job is failed at
+The Jump steps are `continue-on-error` so delivery still runs, and the job is failed at
 the end anyway. The streak counts what fails the run, never one instrument: a fund that
 went dark has its own line every run, and a run that delivered without it is clean. The step
 has 12 of the job's 20 minutes: past them it is stopped, and delivery, health and the
@@ -449,27 +449,27 @@ them ringing. A quiet day is normal: green runs mean it looked and found nothing
 block and channel, and the biggest hours. To run the pass by hand, export the keys and
 run the four commands of section 3.
 
-**The mute.** `tremor_alerts_muted: true` in `config/config.yaml`: the run proceeds, the
-health and the calendar go out, Tremor's pushes, note and pings do not.
+**The mute.** `jump_alerts_muted: true` in `config/config.yaml`: the run proceeds, the
+health and the calendar go out, Jump's pushes, note and pings do not.
 
 ## 11. Modules and data layout
 
 | module | does |
 |---|---|
-| `tremor/backfill.py` | fetch and merge, skip rules, dividend check, the second-source call; deepening and repair modes |
-| `tremor/bars.py` | the bar store |
-| `tremor/sessions.py`, `futures.py` | calendars and sessions; contract rolls and the front contract |
-| `tremor/quality.py` | the bar gate |
-| `tremor/corporate_actions.py` | payouts and splits |
-| `tremor/verify.py` | the second source |
-| `tremor/returns.py`, `pipeline.py` | metrics |
-| `tremor/jumps.py`, `routing.py` | detector; which words push, the note's slot |
-| `tremor/basket.py` | instruments and `detector:` settings |
-| `tremor/versioning.py`, `windows.py` | config hashes; the pipeline's warm lead |
-| `tremor/cboe.py`, `fred.py`, `vix.py`, `ewma.py`, `zscore.py` | the VIX line on the note |
-| `tremor/atomic.py` | safe writes |
-| `tremor/audit.py` | the coverage report, `data/tremor/coverage.md` |
-| `price_monitor/tremor_delivery.py` | messages and the week |
+| `jump/backfill.py` | fetch and merge, skip rules, dividend check, the second-source call; deepening and repair modes |
+| `jump/bars.py` | the bar store |
+| `jump/sessions.py`, `futures.py` | calendars and sessions; contract rolls and the front contract |
+| `jump/quality.py` | the bar gate |
+| `jump/corporate_actions.py` | payouts and splits |
+| `jump/verify.py` | the second source |
+| `jump/returns.py`, `pipeline.py` | metrics |
+| `jump/jumps.py`, `routing.py` | detector; which words push, the note's slot |
+| `jump/basket.py` | instruments and `detector:` settings |
+| `jump/versioning.py`, `windows.py` | config hashes; the pipeline's warm lead |
+| `jump/cboe.py`, `fred.py`, `vix.py`, `ewma.py`, `zscore.py` | the VIX line on the note |
+| `jump/atomic.py` | safe writes |
+| `jump/audit.py` | the coverage report, `data/jump/coverage.md` |
+| `price_monitor/jump_delivery.py` | messages and the week |
 | `price_monitor/weekly_digest.py`, `economic_calendar.py` | the calendar |
 | `price_monitor/notifier.py`, `health.py`, `__main__.py` | Telegram calls, health, the delivery entry point |
 | `price_monitor/<provider>.py` | one client per provider |

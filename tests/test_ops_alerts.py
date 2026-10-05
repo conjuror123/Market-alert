@@ -1,5 +1,5 @@
 """Operational Telegram: name who went dark, and keep it off the product channel."""
-from tremor.backfill import format_provider_failure, send_ops_alert
+from jump.backfill import format_provider_failure, send_ops_alert
 
 
 def test_a_dead_instrument_is_named_with_its_provider():

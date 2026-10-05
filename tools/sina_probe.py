@@ -27,8 +27,8 @@ import pandas as pd
 import requests
 
 from tools import fund_verdict as fv
-from tremor import bars
-from tremor.basket import load_basket
+from jump import bars
+from jump.basket import load_basket
 
 URL = "https://stock.finance.sina.com.cn/usstock/api/jsonp.php/var%20t=/US_MinKService.getMinK"
 HEADERS = {"Referer": "https://finance.sina.com.cn", "User-Agent": "Mozilla/5.0"}

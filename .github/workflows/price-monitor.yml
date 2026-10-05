@@ -38,7 +38,7 @@ jobs:
         run: pip install -r requirements.txt
 
       # The NYSE session table extends itself, append-only, once under two
-      # years remain (tremor/sessions.py) - about once a year. The calendar
+      # years remain (jump/sessions.py) - about once a year. The calendar
       # library is installed only then; the hourly run never needs it otherwise.
       # continue-on-error: a table with a year or more left is no reason to
       # stop the run, and the next hour tries again.
@@ -46,18 +46,18 @@ jobs:
         id: sessions
         continue-on-error: true
         run: |
-          if python -c "import sys; from tremor import sessions; sys.exit(0 if sessions.needs_extension() else 1)"; then
+          if python -c "import sys; from jump import sessions; sys.exit(0 if sessions.needs_extension() else 1)"; then
             pip install "exchange-calendars>=4.13,<5"
-            python -m tremor.sessions --extend-if-short
+            python -m jump.sessions --extend-if-short
           else
             echo "session table reaches far enough"
           fi
 
-      - name: Restore gitignored Tremor parquet
+      - name: Restore gitignored Jump parquet
         id: cache
         uses: actions/cache/restore@v4
         with:
-          # metrics/ so `python -m tremor.pipeline` can extend instead of
+          # metrics/ so `python -m jump.pipeline` can extend instead of
           # rebuilding every instrument. Gitignored (parquet does not delta).
           # jumps.parquet is rescored from the whole history every run and is
           # not cached.
@@ -67,10 +67,10 @@ jobs:
           # already written. cache@v4 skips save on failure, and the next hour
           # would then rebuild every metric — scoring the whole archive.
           path: |
-            data/tremor/metrics
-          key: tremor-derived-${{ github.ref_name }}-${{ github.run_id }}
+            data/jump/metrics
+          key: jump-derived-${{ github.ref_name }}-${{ github.run_id }}
           restore-keys: |
-            tremor-derived-${{ github.ref_name }}-
+            jump-derived-${{ github.ref_name }}-
 
       # What the cache held when it landed, so the save at the end can tell
       # whether this run actually changed any of it.
@@ -79,7 +79,7 @@ jobs:
         run: touch /tmp/cache-restored
 
       # The open months of the bar store live on a release, not in git
-      # (tools/hot_bars.sh, tremor/bars.py). No continue-on-error: a store
+      # (tools/hot_bars.sh, jump/bars.py). No continue-on-error: a store
       # missing its last weeks would score every recent move as gone, and
       # delivery would take their messages down. Better no run than that one.
       - name: Restore the open months of the bars
@@ -101,8 +101,8 @@ jobs:
       # after it, so a slow hour delivered nothing and told no one (28 runs on
       # 2026-09-09..11). Stopped here, the rest still runs and the monitor
       # reports it; the stage file says which part was running.
-      - name: Tremor pipeline
-        id: tremor
+      - name: Jump pipeline
+        id: jump
         continue-on-error: true
         timeout-minutes: 12
         env:
@@ -116,16 +116,16 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_HEALTH_CHAT_ID: ${{ secrets.TELEGRAM_HEALTH_CHAT_ID }}
         run: |
-          stage() { echo "$1 $(date +%s)" >> "$RUNNER_TEMP/tremor-stages"; }
+          stage() { echo "$1 $(date +%s)" >> "$RUNNER_TEMP/jump-stages"; }
           stage fetch
           set +e
-          python -m tremor.backfill
+          python -m jump.backfill
           bf=$?
           set -e
           stage pipeline
-          python -m tremor.pipeline
+          python -m jump.pipeline
           stage jumps
-          python -m tremor.jumps
+          python -m jump.jumps
           stage done
           if [ "$bf" -ne 0 ]; then
             echo "failed=true" >> "$GITHUB_OUTPUT"
@@ -146,12 +146,12 @@ jobs:
       # inside it reads jumps.parquet off disk, so it must read the file
       # this run just wrote rather than the one the last commit happened to carry.
       #
-      # Whenever the Tremor step got to start, finished or not: one that ran
+      # Whenever the Jump step got to start, finished or not: one that ran
       # out of time may count as failing the job, and the hour must still
       # deliver what it has and report it. Not after a cancel by hand.
       - name: Run monitor
         id: monitor
-        if: ${{ !cancelled() && steps.tremor.outcome != 'skipped' }}
+        if: ${{ !cancelled() && steps.jump.outcome != 'skipped' }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -161,19 +161,19 @@ jobs:
           # The step stopped before its end - a crash, or its time limit -
           # before writing its `failed` output, which the backfill's own
           # failure always writes.
-          TREMOR_PIPELINE_CRASHED: ${{ steps.tremor.outcome != 'success' && steps.tremor.outputs.failed == '' }}
-          TREMOR_STAGE_FILE: ${{ runner.temp }}/tremor-stages
+          JUMP_PIPELINE_CRASHED: ${{ steps.jump.outcome != 'success' && steps.jump.outputs.failed == '' }}
+          JUMP_STAGE_FILE: ${{ runner.temp }}/jump-stages
           # Steps that do not stop the run, so only this can report them.
           SESSIONS_STEP_OUTCOME: ${{ steps.sessions.outcome }}
           HOT_SAVE_STEP_OUTCOME: ${{ steps.hot_save.outcome }}
         run: python -m price_monitor
 
-      # Every run: the small state. data/state.json carries which Tremor events
+      # Every run: the small state. data/state.json carries which Jump events
       # have already been sent, so losing it means sending them all again.
       #
       # The bars that reach git: only settled months, once each, as plain CSV,
-      # and each finished year once more as one Parquet file (tremor/bars.py) - the open ones are on the release, saved above, and
-      # gitignored. So `git add data/tremor/bars` stages nothing on almost every
+      # and each finished year once more as one Parquet file (jump/bars.py) - the open ones are on the release, saved above, and
+      # gitignored. So `git add data/jump/bars` stages nothing on almost every
       # run, and a month's worth on the run that settles it. The bars cannot be
       # rebuilt: the providers do not serve 2003 on the free plan. Weekly: VIX,
       # so skip-if-fresh can see a recent close and skip CBOE's full 1990 file.
@@ -195,27 +195,27 @@ jobs:
           mkdir -p data/economic_calendar
           git config user.name "price-monitor-bot"
           git config user.email "actions@github.com"
-          git add data/state.json data/economic_calendar data/tremor/sessions
+          git add data/state.json data/economic_calendar data/jump/sessions
           # Every run, and small: which payouts are known and how far each
           # fund's record is confirmed. An overnight gap is scored only on a
           # date its fund has been checked through, and a runner is thrown
           # away after each run - so an uncommitted check is one that never
           # happened, and the next morning would ask again from the old date.
-          git add data/tremor/corporate_actions.csv data/tremor/dividend_checks.csv
-          # Every run, and small: the second source's verdicts (tremor.verify).
+          git add data/jump/corporate_actions.csv data/jump/dividend_checks.csv
+          # Every run, and small: the second source's verdicts (jump.verify).
           # The detector leaves the unconfirmed moves out on every runner, so
           # an uncommitted verdict would be a move scored again.
-          if [ -f data/tremor/verified.csv ]; then git add data/tremor/verified.csv; fi
+          if [ -f data/jump/verified.csv ]; then git add data/jump/verified.csv; fi
           # Open months live on the release, not in git: once it holds them,
           # any still tracked leave the tree (they stay on disk, gitignored).
           if [ "${{ steps.hot_save.outcome }}" = "success" ]; then
-            git rm -r -q --cached --ignore-unmatch 'data/tremor/bars/*/*.open.csv'
+            git rm -r -q --cached --ignore-unmatch 'data/jump/bars/*/*.open.csv'
           fi
-          git add data/tremor/bars
+          git add data/jump/bars
           # VIX is one parquet file rewritten daily; it stays weekly, on
           # Saturday 04:00 UTC, when every market that keeps a session is shut.
           if [ "$(date -u +%H)" = "04" ] && [ "$(date -u +%u)" = "6" ]; then
-            git add data/tremor/vix 2>/dev/null || true
+            git add data/jump/vix 2>/dev/null || true
           fi
           if git diff --cached --quiet; then
             echo "No state changes to commit."
@@ -237,14 +237,14 @@ jobs:
             exit 1
           fi
 
-      # Last, so that a Tremor failure still leaves the monitor's own work done
+      # Last, so that a Jump failure still leaves the monitor's own work done
       # and committed - but the run goes red, because the alternative is a
       # pipeline that quietly stops updating while the repository looks healthy.
       # That is the exact shape of the failure this whole workflow exists to fix.
-      - name: Fail the run if the Tremor pipeline did not complete
-        if: ${{ !cancelled() && steps.tremor.outcome != 'success' && steps.tremor.outcome != 'skipped' }}
+      - name: Fail the run if the Jump pipeline did not complete
+        if: ${{ !cancelled() && steps.jump.outcome != 'success' && steps.jump.outcome != 'skipped' }}
         run: |
-          echo "::error::The Tremor pipeline failed; events were not refreshed."
+          echo "::error::The Jump pipeline failed; events were not refreshed."
           exit 1
 
       # 232 MiB went up on every run of every hour - 5.4 GiB a day spent
@@ -257,7 +257,7 @@ jobs:
         id: derived
         if: always()
         run: |
-          changed=$(find data/tremor/metrics \
+          changed=$(find data/jump/metrics \
                       -newer /tmp/cache-restored -type f -print -quit 2>/dev/null || true)
           # Once a day whatever happened, so a long quiet stretch cannot let the
           # entry age out from under us: GitHub drops a cache nothing has
@@ -270,13 +270,13 @@ jobs:
             echo "nothing written this run; keeping the restored cache as it is"
           fi
 
-      - name: Persist gitignored Tremor parquet
+      - name: Persist gitignored Jump parquet
         if: always() && steps.derived.outputs.changed == 'true'
         uses: actions/cache/save@v4
         with:
           path: |
-            data/tremor/metrics
-          key: tremor-derived-${{ github.ref_name }}-${{ github.run_id }}
+            data/jump/metrics
+          key: jump-derived-${{ github.ref_name }}-${{ github.run_id }}
 
       # Last, whatever happened: a run whose state was not committed - its
       # monitor never ran (a step before it failed), or the commit did not

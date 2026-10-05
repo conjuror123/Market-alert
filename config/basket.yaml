@@ -1,4 +1,4 @@
-# Tremor basket configuration: the instruments, their blocks and providers, and
+# Jump basket configuration: the instruments, their blocks and providers, and
 # the detector's settings. The source of truth; docs/manual.md describes it.
 #
 # BLOCKS group instruments that answer to the same news: the GICS sectors within
@@ -37,7 +37,7 @@ history_since: "2015-01-01"
 fetch_since: "2002-01-01"
 
 # ---------------------------------------------------------------------------
-# THE JUMP DETECTOR (tremor/jumps.py), the jump test of Lee & Mykland (2008):
+# THE JUMP DETECTOR (jump/jumps.py), the jump test of Lee & Mykland (2008):
 #
 #   z = the move / the instrument's bipower volatility over the window_days
 #       before it (calendar time, the same for every instrument)
@@ -51,7 +51,7 @@ detector:
   levels: [6.0, 8.5, 12.0, 17.0]
 
 # Session templates: here only the names the assets refer to; the calendars
-# are in tremor/sessions.py and data/tremor/sessions/.
+# are in jump/sessions.py and data/jump/sessions/.
 session_templates:
   us_equity:
     exchange: NYSE
@@ -65,7 +65,7 @@ session_templates:
     exchange: BINANCE
     tz: UTC
     description: "around the clock, no weekends"
-  # The daily sessions below are defined in tremor/sessions.py DAILY_SESSIONS;
+  # The daily sessions below are defined in jump/sessions.py DAILY_SESSIONS;
   # here only named, for the instruments to refer to.
   lme:
     exchange: LME
@@ -94,7 +94,7 @@ session_templates:
 
 # tick_size is the exchange price step, stated rather than measured: a source
 # serves ETF prices with a floating tail (769.53992 for 769.54). The bar gate
-# allows half a tick of rounding between a bar's fields (tremor.quality), and the
+# allows half a tick of rounding between a bar's fields (jump.quality), and the
 # coverage report flags a step finer than the source's precision. For crypto it
 # is the pair's tick on Binance (exchangeInfo PRICE_FILTER).
 #
@@ -117,7 +117,7 @@ session_templates:
 #                outage of either leaves every block reporting;
 #   Google TUR; Sina the LME metals; Yahoo 4 futures; Binance the 16 coins.
 # Instruments whose market is shut are not asked
-# (tremor.backfill.nothing_can_have_appeared).
+# (jump.backfill.nothing_can_have_appeared).
 #
 # SOURCE IS THE STORE; PROVIDER IS THE SERVER. `source` is the identity: the
 # asset_id and the file on disk are built from it, so it is never edited when
@@ -710,7 +710,7 @@ assets:
   # single-contract CFDs (2018), live cattle from Yahoo (2024-05). Each in its
   # exchange's session; a
   # roll's jump is left unscored and a bar too thin to be a trade dropped
-  # (tremor/futures.py). Prices in the contract's own unit.
+  # (jump/futures.py). Prices in the contract's own unit.
   - ticker: KC=F
     source: yahoo
     block: agriculture
@@ -1706,7 +1706,7 @@ outside_basket:
 
 # The VIX: FRED's VIXCLS, the index itself from 1990, shown on the weekly note
 # as a level ranked in its own history - the regime the week's moves happened
-# in (price_monitor.tremor_delivery.vix_context). Daily,
+# in (price_monitor.jump_delivery.vix_context). Daily,
 # and published a business day or two late, so each value is used from when it
 # became known (`available_at`), never from its observation date. Its own
 # history_since: the series is free back to 1990.

@@ -90,7 +90,7 @@ class DailyQuotaExhausted(PermanentExchangeError):
 #
 # The hourly run asks for its eight funds in one request that spends a whole
 # minute's eight credits, at about :05 past the hour, and needs up to 8 x 24
-# credits a day. A history walk (tremor.backfill --extend-history, --fill-gaps)
+# credits a day. A history walk (jump.backfill --extend-history, --fill-gaps)
 # on the same key paces itself to about seven a minute and would otherwise run
 # until the day's 800 are gone - leaving the hourly run's funds stale every hour
 # it overlapped and dark until midnight UTC after it. So a walk, and only a

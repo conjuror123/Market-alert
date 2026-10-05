@@ -5,7 +5,7 @@ import pytest
 from price_monitor import weekly_digest
 from price_monitor.config import Config
 from price_monitor.notifier import TelegramError
-from tremor import routing
+from jump import routing
 
 # The moment the weekly price note opens: the run after Friday's funds close. The digest goes
 # out in the same run and immediately before it, so the note - which keeps
@@ -314,14 +314,14 @@ def test_a_week_opened_while_the_runs_were_down_gets_the_outage_calendar(
 def test_the_calendar_goes_out_only_in_the_run_that_opens_a_note(tmp_path, monkeypatch):
     # Not mid-week once the note is up, and not on the run that takes over the
     # previous delivery's note.
-    from price_monitor import tremor_delivery
+    from price_monitor import jump_delivery
 
     cfg = make_config(tmp_path)
     monkeypatch.setattr(weekly_digest, "send_telegram_message", lambda *a, **k: (_ for _ in ()).throw(
         AssertionError("no calendar when no note opens")))
     slot = int(WEEKEND_OPEN.timestamp())
-    open_week = {tremor_delivery.STATE_KEY: {tremor_delivery.WEEK: {"slot": slot}}}
-    taken_over = {tremor_delivery.STATE_KEY: {"digests": {}, "sent": {}}}
+    open_week = {jump_delivery.STATE_KEY: {jump_delivery.WEEK: {"slot": slot}}}
+    taken_over = {jump_delivery.STATE_KEY: {"digests": {}, "sent": {}}}
     for state in (open_week, taken_over):
         assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None,
                                                       now=MIDWEEK) is False

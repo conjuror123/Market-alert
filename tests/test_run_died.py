@@ -26,7 +26,7 @@ def _steps(**outcomes):
                        for k, v in outcomes.items()})
 
 
-DEAD = _steps(checkout="success", hot="failure", tremor="skipped", monitor="skipped",
+DEAD = _steps(checkout="success", hot="failure", jump="skipped", monitor="skipped",
               commit="skipped")
 
 

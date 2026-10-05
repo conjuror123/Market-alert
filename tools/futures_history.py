@@ -2,13 +2,13 @@
 
 Yahoo keeps hourly bars for 730 days and serves only the contracts still
 listed. So the store is Yahoo's continuous series back to 2024-05, cleaned
-once of its other-contract prints (tremor.futures.clean_history), with every
+once of its other-contract prints (jump.futures.clean_history), with every
 still-listed contract's own bars laid over its own front window
 (futures.roll_days) - those weeks are then exactly what the live fetch would
 have stored. Coffee, cocoa and cotton are built from Dukascopy instead
 (tools/dukascopy_futures.py), which leaves live cattle.
 
-Rewrites the named stores under data/tremor/bars, so they must be named. Run
+Rewrites the named stores under data/jump/bars, so they must be named. Run
 from the repository root:
     python -m tools.futures_history LE=F
 """
@@ -20,8 +20,8 @@ import sys
 from datetime import datetime, timezone
 
 from price_monitor import yahoo
-from tremor import bars, futures, sessions
-from tremor.basket import load_basket
+from jump import bars, futures, sessions
+from jump.basket import load_basket
 
 
 def chart(symbol: str):

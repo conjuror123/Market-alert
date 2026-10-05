@@ -216,7 +216,7 @@ def _parse_dividends(payload: dict, symbol: str) -> "list[tuple[date, float]]":
     """(ex-date, step) pairs, the step in the corporate-actions table's form.
 
     The table stores d / (1 - d) with d the payout over the PREVIOUS close (see
-    tremor.corporate_actions.derive_actions_tiingo), so that is what this
+    jump.corporate_actions.derive_actions_tiingo), so that is what this
     returns. Yahoo's daily closes are split-adjusted and so are its payouts, so
     the ratio is the same one the raw Tiingo figures give.
     """
@@ -253,7 +253,7 @@ def fetch_dividends(symbol: str, since: date, base_url: str = BASE_URL,
     """Every payout from `since` to today, as (ex-date, step).
 
     For the overnight gap, which may only be scored on a day whose payout is
-    known (tremor.backfill.check_dividends). Daily bars come back with the
+    known (jump.backfill.check_dividends). Daily bars come back with the
     events so the previous close is in the same answer; the window starts a
     week before `since` so an ex-date on `since` still has a close before it.
     Raises on a failed request - an empty list means "asked, and none", which

@@ -46,8 +46,8 @@ import requests
 
 from price_monitor import twelvedata, yahoo
 from price_monitor.models import Candle
-from tremor import bars
-from tremor.basket import load_basket
+from jump import bars
+from jump.basket import load_basket
 
 ALPACA = "https://data.alpaca.markets/v2"
 SIFTING = "https://api.sifting.io/v1"

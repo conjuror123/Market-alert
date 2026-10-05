@@ -12,9 +12,9 @@
 # on a GitHub release of this repository (a prerelease, one per branch), and
 # replacing a release's file costs the repository nothing - release files are
 # not part of it. Months enter git once, settled, as plain CSV, and a finished
-# year as one Parquet file (tremor/bars.py).
+# year as one Parquet file (jump/bars.py).
 #
-# THE ARCHIVE is every data/tremor/bars/*/*.open.csv, 0.5 to 1.5 MB gzipped.
+# THE ARCHIVE is every data/jump/bars/*/*.open.csv, 0.5 to 1.5 MB gzipped.
 # Each save uploads a new file named for its run and then deletes the older ones, so a
 # save that dies half way leaves the previous archive, not none. Restore takes
 # the newest.
@@ -29,7 +29,7 @@
 # GITHUB_REPOSITORY and GITHUB_REF_NAME.
 set -euo pipefail
 
-BARS=data/tremor/bars
+BARS=data/jump/bars
 TAG="bars-live-${GITHUB_REF_NAME//\//-}"
 API="repos/${GITHUB_REPOSITORY}/releases"
 

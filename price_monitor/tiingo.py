@@ -1,5 +1,5 @@
 """Tiingo REST client: 27 liquid funds live, and the declared dividends and
-splits (fetch_daily_history, tremor.corporate_actions).
+splits (fetch_daily_history, jump.corporate_actions).
 
 THE PAIRS USED TO LIVE HERE, and moved to SiftingIO (price_monitor/sifting.py),
 which serves the bar closed at :00 by :05. Why they came here from Twelve Data

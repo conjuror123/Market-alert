@@ -25,7 +25,7 @@ class Unreachable(ExchangeError):
 
     Each costs about a minute and a half of timeouts and retries, and the hourly
     job has twenty, so a provider that does this to UNANSWERED_IN_A_ROW requests
-    in a row is not asked again in the run (tremor.backfill, tremor.verify)."""
+    in a row is not asked again in the run (jump.backfill, jump.verify)."""
 
 
 UNANSWERED_IN_A_ROW = 2

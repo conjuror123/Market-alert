@@ -1,6 +1,6 @@
-"""One hourly pass: deliver what Tremor found, and say so if something broke.
+"""One hourly pass: deliver what Jump found, and say so if something broke.
 
-Detection lives in `tremor`; this module decides nothing. Four things run:
+Detection lives in `jump`; this module decides nothing. Four things run:
 
   a daily top-up of the economic-calendar archive from the live weekly feed.
   Not for the digest, which refreshes the archive itself when it sends, but for
@@ -9,12 +9,12 @@ Detection lives in `tremor`; this module decides nothing. Four things run:
 
   the weekly calendar digest - a forecast of the coming week's scheduled
   releases, in the run that opens the week's note (after the week's last NYSE
-  close, tremor.routing). Once a week, a no-op every other hour (see
+  close, jump.routing). Once a week, a no-op every other hour (see
   weekly_digest.py). It runs FIRST, and that is the point of the order: the
   note goes out in the same run, and it is the one that keeps changing all
   week, so it belongs last in the chat.
 
-  Tremor delivery - the pushes and pings, and the weekly note opened at the
+  Jump delivery - the pushes and pings, and the weekly note opened at the
   start of its week and edited in place for the rest of it. Read off the event
   table the pipeline wrote earlier in this same workflow run. If that pipeline
   did not run, the events are stale and delivery's own rules - nothing rings
@@ -38,7 +38,7 @@ from datetime import datetime, timezone
 
 import requests
 
-from price_monitor import health, tremor_delivery, weekly_digest
+from price_monitor import health, jump_delivery, weekly_digest
 from price_monitor.config import load_config
 from price_monitor.notifier import quote, send_health
 from price_monitor.state import CorruptState, load_state, save_state
@@ -71,12 +71,12 @@ def format_health_recovered(streak: int) -> str:
     return f"✅ Monitoring recovered after {streak} failed run(s) in a row."
 
 
-def tremor_pipeline_crashed() -> bool:
+def jump_pipeline_crashed() -> bool:
     """True when the pipeline or the detector itself died, so no events were
     written this run - as opposed to a backfill that lost an instrument, which
     names who went dark in its own alert. The workflow tells them apart: a
     crash exits before the step writes its `failed` output."""
-    value = os.environ.get("TREMOR_PIPELINE_CRASHED", "").strip().lower()
+    value = os.environ.get("JUMP_PIPELINE_CRASHED", "").strip().lower()
     return value in ("1", "true", "yes")
 
 
@@ -85,7 +85,7 @@ def tremor_pipeline_crashed() -> bool:
 SIDE_STEPS = {
     "SESSIONS_STEP_OUTCOME":
         "the session table could not be extended: it has under two years left "
-        "(tremor/sessions.py)",
+        "(jump/sessions.py)",
     "HOT_SAVE_STEP_OUTCOME":
         "the open months of the bars were not saved to the release: the next run "
         "restores an older copy and fetches the difference again",
@@ -97,14 +97,14 @@ def failed_side_steps() -> list[str]:
             if os.environ.get(env, "").strip().lower() in ("failure", "cancelled")]
 
 
-def tremor_stopped_at(now: float | None = None) -> "tuple[str, int] | None":
-    """Where the Tremor step was when it stopped short, and about how many
+def jump_stopped_at(now: float | None = None) -> "tuple[str, int] | None":
+    """Where the Jump step was when it stopped short, and about how many
     minutes into it (counted to now): (stage, minutes), or None if it reached
     its end or left no readable record. The step appends "<stage> <epoch>" as
     each part starts. Never raises: it is read after delivery and before the
     state is saved, where a raise would lose what the run sent."""
     try:
-        with open(os.environ.get("TREMOR_STAGE_FILE", ""), encoding="utf-8") as f:
+        with open(os.environ.get("JUMP_STAGE_FILE", ""), encoding="utf-8") as f:
             rows = [line.split() for line in f if line.strip()]
         if not rows or rows[-1][0] == "done":
             return None
@@ -159,23 +159,23 @@ def main() -> int:
     # not cost the run its health reporting, which is the thing that would tell
     # anyone the fault exists.
     try:
-        sent = tremor_delivery.maybe_deliver(cfg, state)
-        log.info("Tremor delivery: %d message(s) sent", sent)
+        sent = jump_delivery.maybe_deliver(cfg, state)
+        log.info("Jump delivery: %d message(s) sent", sent)
     except Exception as exc:                     # pragma: no cover - defensive
-        log.error("Tremor delivery failed: %s", exc)
+        log.error("Jump delivery failed: %s", exc)
         had_error = True
-        error_details.append(f"Tremor delivery failed ({exc})")
+        error_details.append(f"Jump delivery failed ({exc})")
 
-    if tremor_pipeline_crashed():
+    if jump_pipeline_crashed():
         had_error = True
-        stopped = tremor_stopped_at()
+        stopped = jump_stopped_at()
         if stopped:
             # Its time limit, or a crash: the minutes say which.
-            error_details.append(f"the Tremor step stopped during {stopped[0]}, "
+            error_details.append(f"the Jump step stopped during {stopped[0]}, "
                                  f"about {stopped[1]} min into the step: events were "
                                  "not refreshed")
         else:
-            error_details.append("the Tremor pipeline or detector crashed: events "
+            error_details.append("the Jump pipeline or detector crashed: events "
                                  "were not refreshed")
 
     for text in failed_side_steps():

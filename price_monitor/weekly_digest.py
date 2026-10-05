@@ -11,13 +11,13 @@ window - or the external trigger firing a little early or late - never posts the
 digest twice.
 
 IMMEDIATELY BEFORE THE WEEKLY PRICE NOTE, and that ordering is the reason for
-the day. __main__ calls this first and tremor_delivery second, so in the one run
+the day. __main__ calls this first and jump_delivery second, so in the one run
 that opens the note both go out in that order and the running price
 note is the last message in the chat - which is where it should be, because it
 is the one that keeps changing for the next week. Two messages, not one: the
 calendar is a forecast of what is scheduled, the note a report of what moved.
 
-THE MOMENT IS NOT WRITTEN DOWN HERE. It is read off tremor.routing, which owns
+THE MOMENT IS NOT WRITTEN DOWN HERE. It is read off jump.routing, which owns
 the note boundaries - the first run after the week's last funds close, normally
 Friday evening - so the two messages cannot drift apart. A forecast wants to
 arrive before the week it forecasts, and the weekend is there to read it in.
@@ -51,7 +51,7 @@ import requests
 from price_monitor import economic_calendar
 from price_monitor.config import Config
 from price_monitor.notifier import TelegramError, send_telegram_message
-from tremor import routing
+from jump import routing
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("price_monitor.weekly_digest")
@@ -421,16 +421,16 @@ def maybe_send_weekly_digest(
     cfg: Config, state: dict, session: requests.Session, now: datetime | None = None,
 ) -> bool:
     """The calendar goes out in the run that opens the weekly note, just before
-    it (tremor_delivery.note_due), once a week. Inside the opening's grace
+    it (jump_delivery.note_due), once a week. Inside the opening's grace
     hours it is the real calendar; later - the runs were down when the week
     opened - it is the empty calendar that says there was an outage. Returns
     True if one actually went."""
-    from price_monitor import tremor_delivery
+    from price_monitor import jump_delivery
 
     now = now or datetime.now(timezone.utc)
     slot = routing.digest_slot(int(now.timestamp()))
     week_id = str(slot)
-    if state.get(_STATE_KEY) == week_id or not tremor_delivery.note_due(state, now):
+    if state.get(_STATE_KEY) == week_id or not jump_delivery.note_due(state, now):
         return False
     if _is_digest_window(now):
         sent = _send_digest(cfg, session, now)

@@ -27,10 +27,10 @@ name_of() {
     python) echo "Set up Python" ;;
     deps) echo "Install dependencies" ;;
     sessions) echo "Extend the session table when it runs short" ;;
-    cache) echo "Restore gitignored Tremor parquet" ;;
+    cache) echo "Restore gitignored Jump parquet" ;;
     cache_mark) echo "Mark when the cache landed" ;;
     hot) echo "Restore the open months of the bars" ;;
-    tremor) echo "Tremor pipeline" ;;
+    jump) echo "Jump pipeline" ;;
     hot_save) echo "Save the open months of the bars" ;;
     monitor) echo "Run monitor" ;;
     commit) echo "Commit updated state" ;;
@@ -46,7 +46,7 @@ if [ "$(outcome commit)" = "success" ]; then
   exit 0
 elif [ "$monitor" != "success" ] && [ "$monitor" != "failure" ]; then
   # Not the continue-on-error steps: their failure does not stop the run.
-  first=$(jq -r '[to_entries[] | select(.key != "sessions" and .key != "tremor")
+  first=$(jq -r '[to_entries[] | select(.key != "sessions" and .key != "jump")
                  | select(.value.outcome == "failure" or .value.outcome == "cancelled")
                  | .key][0] // ""' <<<"$STEPS")
   if [ -n "$first" ]; then

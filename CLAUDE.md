@@ -1,6 +1,6 @@
 # How an agent works here
 
-Tremor is an hourly Telegram bot on GitHub Actions that writes when one of 173 market
+Jump is an hourly Telegram bot on GitHub Actions that writes when one of 173 market
 instruments moves unusually for itself. `README.md` says what it is and maps the files;
 `docs/manual.md` says how every part works; `docs/decisions.md` says why, and what not to
 reopen.

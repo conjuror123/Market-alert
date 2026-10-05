@@ -1,4 +1,4 @@
-# Tremor
+# Jump
 
 An hourly Telegram bot that watches 173 market instruments (US funds across equity,
 credit, rates and commodities, futures, LME metals, FX pairs, coins) and writes when one
@@ -45,8 +45,8 @@ detector:
 ```
 
 The bottom level sets how much you hear: 6 gives about 9 messages a week, 5 about 15,
-3.9 about 29. Which words push is `PUSH_TIERS` in `tremor/routing.py`. To silence the
-channel without stopping the bot, set `tremor_alerts_muted: true` in
+3.9 about 29. Which words push is `PUSH_TIERS` in `jump/routing.py`. To silence the
+channel without stopping the bot, set `jump_alerts_muted: true` in
 `config/config.yaml`.
 
 ## Where to find what
@@ -58,9 +58,9 @@ channel without stopping the bot, set `tremor_alerts_muted: true` in
 | how an agent works on this repository | `CLAUDE.md` |
 | which instruments, in which blocks, from which provider | `config/basket.yaml` (the source of truth) |
 | run settings: health alerts, the mute, the calendar | `config/config.yaml` |
-| how much history each instrument has | `data/tremor/coverage.md` |
-| the detector | `tremor/jumps.py` |
-| fetching bars, and the second-source check | `tremor/backfill.py`, `tremor/verify.py` |
-| what goes to Telegram | `price_monitor/tremor_delivery.py` |
+| how much history each instrument has | `data/jump/coverage.md` |
+| the detector | `jump/jumps.py` |
+| fetching bars, and the second-source check | `jump/backfill.py`, `jump/verify.py` |
+| what goes to Telegram | `price_monitor/jump_delivery.py` |
 | the hourly workflow | `.github/workflows/price-monitor.yml` |
 | rates by word and block, the biggest hours | `tools/stage_report.py` |

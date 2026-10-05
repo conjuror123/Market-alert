@@ -58,7 +58,7 @@ def test_an_unconfigured_ticker_raises_before_asking():
 
 
 def test_the_hour_folds_like_any_finer_grid():
-    from tremor import bars
+    from jump import bars
     hourly = bars.to_hourly(bars.candles_to_frame(google.parse(DAY, "RWX", "NYSEARCA")))
     assert list(hourly["hour_utc"]) == [_utc(2026, 9, 30, 13), _utc(2026, 9, 30, 15),
                                         _utc(2026, 9, 30, 19)]

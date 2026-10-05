@@ -18,7 +18,7 @@ in late 2018 (seams from 2018-12 fail the level gate). BCH's is 2019-01-15:
 Binance lists it only from 2018-11. The dollar prices are scaled by the median
 ratio of Binance's to theirs over the SEAM_CALIBRATION days after the seam, so
 there is no step at it, and the splice is refused unless the next two months
-pass the gates every splice passes (tremor.backfill.verify_alignment).
+pass the gates every splice passes (jump.backfill.verify_alignment).
 Measured 2026-10-02, return correlation and median level gap after the ratio:
 
     BTC  Bitstamp   from 2011    0.989   8.7 bp
@@ -43,7 +43,7 @@ Each dollar record starts at its first month traded in at least
 MIN_MONTH_COVERAGE of its hours: a market trading in fits is stale prices and
 catch-ups, which read as moves.
 
-Rewrites data/tremor/bars/binance_* for the coins named, or every coin with
+Rewrites data/jump/bars/binance_* for the coins named, or every coin with
 --all; run bare it refuses. From the repository root:
     python -m tools.binance_history LINK/USDT ADA/USDT
     python -m tools.binance_history --all
@@ -60,9 +60,9 @@ import pandas as pd
 import requests
 
 from price_monitor import binance, bitfinex, bitstamp
-from tremor import bars
-from tremor.backfill import verify_alignment
-from tremor.basket import load_basket
+from jump import bars
+from jump.backfill import verify_alignment
+from jump.basket import load_basket
 
 START = datetime(2017, 1, 1, tzinfo=timezone.utc)
 BEFORE = {"POL/USDT": "MATICUSDT", "BCH/USDT": "BCHABCUSDT"}

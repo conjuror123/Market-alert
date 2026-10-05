@@ -1,0 +1,177 @@
+name: Backfill Jump Bars
+
+# A manual, one-off deepening of the Jump hourly store (data/jump/bars/) to
+# whatever depth config/basket.yaml's fetch_since sets. The ordinary backfill
+# only ever reaches FORWARD from the newest stored bar, so lowering
+# fetch_since changes nothing on its own - --extend-history is what asks the
+# source for the older end.
+#
+# The provider keys are Actions secrets, which cannot be read back out, so this
+# is the way to deepen the archive without a key passing through a chat. The
+# Twelve Data key is shared with the hourly run: a history walk leaves the run
+# its minutes and its share of the day (price_monitor/twelvedata.py,
+# ARCHIVE_CREDIT_CAP).
+#
+# The crypto instruments need no key and can be pulled locally instead.
+#
+# Modes, chosen at dispatch:
+#   extend-history  deepen the archive backwards to basket.fetch_since
+#   fill-gaps       re-ask for trading days the NYSE calendar has and the store
+#                   does not; an empty answer confirms the hole is the
+#                   provider's rather than something our fetching skipped
+#   deepen-dukascopy
+#                   fill the currency pairs below what is stored, from
+#                   Dukascopy, which reaches 2003 and also carries USD/CNH.
+#                   Needs no key. Run it ONE PAIR AT A TIME via `instruments`:
+#                   a pair is a few hundred requests, and a failure part way
+#                   through then costs one pair rather than all of them
+#   deepen-etfs     the same for the US-equity instruments, from HF Data's
+#                   consolidated-tape minute bars (needs HFDATA_API_KEY).
+#                   NOT optional for a newly added ETF: Twelve Data's intraday
+#                   archive stops at 2020-02 for every ticker at once, so
+#                   extend-history alone leaves a new instrument with six years
+#                   where SPY has twenty-three. Run extend-history first, then
+#                   this. It spends no Twelve Data credits.
+#   deepen-alpaca   the US funds below what is stored, from Alpaca's consolidated
+#                   tape (SIP), 2016 on - for the funds HF Data does not carry,
+#                   which otherwise start 2020-02. Gated on an overlap with the
+#                   store, like the others. Run after deepen-etfs.
+#   repair-alpaca   deepen-alpaca that first overwrites stored overlap hours
+#                   whose close is more than 50 bp off the tape (bad prints).
+#                   Only for the funds named in `instruments`.
+#   live-pass       the ordinary hourly fetch (no VIX) for the named
+#                   instruments, to try a provider change before it goes live.
+#                   Name few: Tiingo's 50 an hour are the live run's.
+#   corporate-actions
+#                   rebuild the ex-date table from Tiingo's declared divCash /
+#                   splitFactor (needs TIINGO_API_KEY). It must reach at least
+#                   as far back as the bars, or an older payout arrives as an
+#                   unexplained price drop. Nights and weekends only: it takes
+#                   about three hours of Tiingo's 50 an hour, and refuses to
+#                   start while the hourly run is asking Tiingo too. Twelve Data remains a labelled
+#                   fallback (`--source twelvedata`) that cannot see splits.
+#   probe-hfdata    print one HF Data ticker's schema and first timestamps and
+#                   stop. Their columns and timezone are undocumented, and
+#                   deepen-etfs refuses to run until the zone has been read off
+#                   this rather than assumed. Put the ticker in `instruments`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      instruments:
+        description: 'Comma-separated tickers; empty means the whole basket'
+        required: false
+        default: ''
+        type: string
+      mode:
+        description: 'What to run'
+        required: false
+        default: extend-history
+        type: choice
+        options:
+          - extend-history
+          - fill-gaps
+          - deepen-dukascopy
+          - deepen-etfs
+          - deepen-alpaca
+          - repair-alpaca
+          - live-pass
+          - probe-hfdata
+          - corporate-actions
+
+permissions:
+  contents: write
+
+# Its own group, not price-monitor's: concurrency groups are repository-wide, so
+# sharing one would hold the live hourly run on the default branch behind a
+# backfill of several hours here.
+concurrency:
+  group: jump-backfill
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    # A deepening is many sequential requests - Twelve Data's at most 600 a
+    # day (ARCHIVE_CREDIT_CAP), Dukascopy's throttled archive - and a partial
+    # run is fine because the commit step keeps whatever arrived.
+    timeout-minutes: 330
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Read only, never saved back: deepening writes history, not the open
+      # months, and only the hourly run may replace them (tools/hot_bars.sh).
+      # They are restored so the store is whole when a deepening compares
+      # against it, and so its newest month reads as what it is.
+      - name: Restore the open months of the bars
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: tools/hot_bars.sh restore
+
+      - name: Deepen the bar store
+        env:
+          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          HFDATA_API_KEY: ${{ secrets.HFDATA_API_KEY }}
+          # Deepening asks each pair's archive source, not SiftingIO, but the
+          # backfill refuses up front a list holding SiftingIO pairs without it.
+          SIFTING_API_KEY: ${{ secrets.SIFTING_API_KEY }}
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          # probe-hfdata takes its ticker as the flag's value rather than as a
+          # separate --instruments, so it is spelled out on its own.
+          if [ "${{ github.event.inputs.mode }}" = "corporate-actions" ]; then
+            python -m jump.corporate_actions
+          elif [ "${{ github.event.inputs.mode }}" = "probe-hfdata" ]; then
+            python -m jump.backfill --probe-hfdata "${{ github.event.inputs.instruments || 'SPY' }}"
+          else
+            python -m jump.backfill --${{ github.event.inputs.mode || 'extend-history' }} \
+              ${{ github.event.inputs.instruments && format('--instruments "{0}"', github.event.inputs.instruments) || '' }}
+          fi
+
+      - name: Commit the deepened store
+        # Runs even on failure: whatever was fetched before a rate limit or a
+        # timeout already cost real credits and must not be discarded because a
+        # later instrument in the same run failed.
+        if: always()
+        run: |
+          if [ -z "$(git status --porcelain data/jump)" ]; then
+            echo "No new bars to commit."
+            exit 0
+          fi
+          git config user.name "price-monitor-bot"
+          git config user.email "actions@github.com"
+          git add data/jump
+          git commit -m "chore: deepen Jump bar store [skip ci]"
+
+          # A plain push loses the whole run to a race. These runs last tens of
+          # minutes and the branch is worked on meanwhile, so by the time this
+          # step arrives the ref has often moved - and a rejected push discards
+          # bars that cost real credits and real archive requests to fetch,
+          # with the container. Rebase onto whatever landed and try again.
+          # This commit touches only data/jump. The hourly run writes there
+          # too, but other files as a rule; a rebase that does conflict stops
+          # the step rather than guessing.
+          for attempt in 1 2 3 4 5; do
+            if git push origin "HEAD:${{ github.ref_name }}"; then
+              echo "pushed on attempt $attempt"
+              exit 0
+            fi
+            echo "push rejected, rebasing onto origin/${{ github.ref_name }}"
+            git pull --rebase origin "${{ github.ref_name }}" || exit 1
+            sleep $((attempt * 3))
+          done
+          echo "::error::could not push the deepened store after 5 attempts"
+          exit 1

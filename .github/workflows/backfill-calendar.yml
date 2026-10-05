@@ -62,7 +62,7 @@ jobs:
             ${{ github.event.inputs.to_month != '' && format('--to-month {0}', github.event.inputs.to_month) || '' }}
 
       - name: Commit updated calendar history
-        # Same reasoning as backfill-tremor-bars.yml's commit step: keep whatever
+        # Same reasoning as backfill-jump-bars.yml's commit step: keep whatever
         # was fetched and merged so far in this run even if a later step
         # fails partway through.
         if: always()

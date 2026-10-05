@@ -1,5 +1,5 @@
 requests>=2.31,<3
 PyYAML>=6.0,<7
-# Tremor: the vectorised layer for computing metrics and the columnar bar store.
+# Jump: the vectorised layer for computing metrics and the columnar bar store.
 pandas>=2.2,<3
 pyarrow>=16

@@ -55,7 +55,7 @@ def parse(text: str, symbol: str, now: datetime | None = None) -> list[Candle]:
         # count, and goes negative in the first hour of the London day, where
         # the count restarts - 26 of nickel's 64 days to 2026-10-02. The price
         # bar is real; its volume is unknown, and recorded as 0 rather than
-        # voiding the bar (tremor.quality reads a negative volume as broken).
+        # voiding the bar (jump.quality reads a negative volume as broken).
         volume = max(float(row.get("v") or 0.0), 0.0)
         out.append(Candle(open_time=t, open=float(row["o"]), high=float(row["h"]),
                           low=float(row["l"]), close=float(row["c"]),

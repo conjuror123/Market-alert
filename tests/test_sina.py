@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from price_monitor import sina
-from tremor.basket import Asset
+from jump.basket import Asset
 
 BJ = ZoneInfo("Asia/Shanghai")
 
@@ -73,7 +73,7 @@ def test_a_us_half_hour_still_running_is_left_out():
 def test_the_fetch_asks_sina_for_a_sina_fund(tmp_path, monkeypatch):
     import requests
     from datetime import date
-    from tremor import backfill
+    from jump import backfill
     seen = {}
     monkeypatch.setattr(backfill.sina, "fetch_us_bars",
                         lambda symbol, session=None, now=None: seen.setdefault("us", symbol) and [])

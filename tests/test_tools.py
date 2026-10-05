@@ -6,7 +6,7 @@ import importlib
 import pytest
 import requests
 
-from tremor import bars
+from jump import bars
 
 
 @pytest.fixture

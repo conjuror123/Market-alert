@@ -14,8 +14,8 @@ into a contract the CFD was already on and the store holds clean - coffee
 2026-08-14 (KCZ26), cotton 2026-06-17 (CTZ26), cocoa 2026-08-11 (CCZ26). The
 CFD is quoted in hundredths of the contract's unit; the splice is refused unless, over the SEAM_CHECK
 days after the seam, the two pass the gates every splice passes
-(tremor.backfill.verify_alignment). Volume, the CFD's tick count, is scaled to
-the contracts' median over those days, so the thin-bar rule (tremor.futures)
+(jump.backfill.verify_alignment). Volume, the CFD's tick count, is scaled to
+the contracts' median over those days, so the thin-bar rule (jump.futures)
 reads both sides alike.
 
 STRAY CLOSES - a session's last hour closing far off and the next session
@@ -27,13 +27,13 @@ business days before it. Each is looked for in the weeks before each of this
 series' rolls, [roll - ROLL_BEFORE, roll + ROLL_AFTER] business days, as the
 largest gap between two sessions there. Where it stands out - ROLL_CLEAR times
 the next largest and ROLL_TYPICAL times a typical session's gap - its session
-goes into data/tremor/rolls.csv and its opening gap is left unscored
+goes into data/jump/rolls.csv and its opening gap is left unscored
 (futures.roll_sessions); every bar is kept. Where none stands out the whole
 window is dropped: whichever night the switch fell on is then inside a hole too
 long for a gap to be scored across.
 
 Input: the CSVs tools/dukascopy_dump.py writes (alpaca-probe.yml,
-only=dukascopy-dump). Rewrites the store under data/tremor/bars. Run from the
+only=dukascopy-dump). Rewrites the store under data/jump/bars. Run from the
 repository root:
     python -m tools.dukascopy_futures KC=F path/to/dumps
 """
@@ -48,9 +48,9 @@ from datetime import date, datetime, timedelta, timezone
 import numpy as np
 import pandas as pd
 
-from tremor import bars, futures, sessions
-from tremor.backfill import verify_alignment
-from tremor.basket import load_basket
+from jump import bars, futures, sessions
+from jump.backfill import verify_alignment
+from jump.basket import load_basket
 
 SPEC = {
     "KC=F": dict(symbol="COFFEECMDUSX", seam=date(2026, 8, 14)),

@@ -1,5 +1,5 @@
 """One-off: drop the stretches where a stored continuous future interleaves two
-contract months (tremor.futures.drop_mixed), and reset its stray opens on the
+contract months (jump.futures.drop_mixed), and reset its stray opens on the
 series' own line (reset_stray_opens). Live cattle's history is Yahoo's
 continuous series, which Dukascopy cannot replace (it has no cattle).
 
@@ -10,8 +10,8 @@ from __future__ import annotations
 import argparse
 import sys
 
-from tremor import bars, futures
-from tremor.basket import load_basket
+from jump import bars, futures
+from jump.basket import load_basket
 
 
 def main(argv: "list[str] | None" = None) -> int:

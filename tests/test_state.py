@@ -7,7 +7,7 @@ from price_monitor.state import CorruptState, load_state, save_state
 
 def test_save_and_load_roundtrip(tmp_path):
     path = os.path.join(tmp_path, "state.json")
-    state = {"tremor_delivery": {"sent": {"twelvedata:SPY:1767225600": 1767225600}}}
+    state = {"jump_delivery": {"sent": {"twelvedata:SPY:1767225600": 1767225600}}}
     save_state(path, state)
     assert load_state(path) == state
     assert not os.path.exists(path + ".tmp")

@@ -1,5 +1,5 @@
 """A provider that does not answer: what each client raises once its retries are
-spent, so the run can stop asking it (tremor.backfill, tremor.verify)."""
+spent, so the run can stop asking it (jump.backfill, jump.verify)."""
 import pytest
 import requests
 

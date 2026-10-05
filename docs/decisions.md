@@ -16,7 +16,7 @@ measured reason; a hand-made threshold table has only taste.
 
 **Bipower σ, not a standard deviation.** It averages products of neighbouring moves (L&M
 eq. 8), so a jump in the window never pairs with itself. With squares, one 0.05 jump among
-0.001 moves inflates σ more than 1.5× (`tests/test_tremor_jumps.py`).
+0.001 moves inflates σ more than 1.5× (`tests/test_jump_jumps.py`).
 
 **Half a year of calendar time, for every instrument.** Volatility regimes follow the
 world's calendar, not a market's hours. Half a year is 880 bars for a fund, 3,130 for a
@@ -267,7 +267,7 @@ the next one, while the feeds still serve it (Yahoo ~55 days, Sina ~78).
 
 **Weekend yardsticks are the noisiest** (±16%, against ±3% for hours). Pooling a fund's
 weekends with its nights predicts a little better (QLIKE 1.94 against 2.10), a 2-year window
-better still for pairs (2.96 against 3.90). To act: a one-line change in `tremor/jumps.py`,
+better still for pairs (2.96 against 3.90). To act: a one-line change in `jump/jumps.py`,
 then `tools/stage_report.py`.
 
 **Repository size**, about 640 MiB packed, mostly superseded Parquet in history; GitHub
