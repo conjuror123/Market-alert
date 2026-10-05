@@ -196,3 +196,39 @@ def test_side_steps_that_succeeded_or_did_not_run_are_clean(tmp_path, monkeypatc
     monkeypatch.setenv("SESSIONS_STEP_OUTCOME", "success")
     monkeypatch.setenv("HOT_SAVE_STEP_OUTCOME", "skipped")
     assert entry.main() == 0
+
+
+def test_hours_without_a_run_are_named_by_the_next_run(tmp_path, monkeypatch, _quiet):
+    # 761 runs from 2026-08-28 to 10-05 began 60 min apart, but for three
+    # stretches none began at all - one of them six days long - and no message
+    # said so: the runs that would have were the ones missing.
+    import time
+    monkeypatch.setattr(entry, "load_config", lambda: _cfg(tmp_path))
+    monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", lambda cfg, state: 0)
+    state = {"_monitoring_health": {"consecutive_failures": 0,
+                                    "last_run_utc": int(time.time()) - 5 * 3600}}
+    entry.save_state(str(tmp_path / "state.json"), state)
+    assert entry.main() == 0
+    assert len(_quiet) == 1 and "4 hourly run(s) missing" in _quiet[0][1]
+    # The next run, an hour on, has nothing to say.
+    assert entry.main() == 0
+    assert len(_quiet) == 1
+
+
+def test_an_hour_and_a_bit_between_runs_is_not_a_missed_run(tmp_path, monkeypatch, _quiet):
+    import time
+    monkeypatch.setattr(entry, "load_config", lambda: _cfg(tmp_path))
+    monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", lambda cfg, state: 0)
+    state = {"_monitoring_health": {"consecutive_failures": 0,
+                                    "last_run_utc": int(time.time()) - 72 * 60}}
+    entry.save_state(str(tmp_path / "state.json"), state)
+    assert entry.main() == 0
+    assert _quiet == []
+
+
+def test_the_first_run_ever_names_no_gap(tmp_path, monkeypatch, _quiet):
+    monkeypatch.setattr(entry, "load_config", lambda: _cfg(tmp_path))
+    monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", lambda cfg, state: 0)
+    assert entry.main() == 0
+    assert _quiet == []
+    assert entry.load_state(str(tmp_path / "state.json"))["_monitoring_health"]["last_run_utc"]

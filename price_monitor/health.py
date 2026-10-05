@@ -42,3 +42,24 @@ def should_alert_down(streak: int, alert_after: int, reminder_every: int) -> boo
     if reminder_every <= 0:
         return streak == alert_after
     return (streak - alert_after) % reminder_every == 0
+
+
+# Runs begin at :05 every hour (2026-08-28..10-05: 761 runs, every gap 60 min
+# but three outages); the monitor reaches this point 2 to 12 minutes in. A
+# gap past 90 minutes is a run that never began or never saved its state.
+MISSED_RUN_GAP_SECONDS = 90 * 60
+
+
+def record_run(state: dict, now: int) -> int | None:
+    """Note this run's time. Returns the previous run's, or None on the first."""
+    h = _health(state)
+    previous = h.get("last_run_utc")
+    h["last_run_utc"] = int(now)
+    return previous
+
+
+def missed_runs(previous: int | None, now: int) -> int:
+    """How many hourly runs are missing between the previous run and this one."""
+    if previous is None or now - previous <= MISSED_RUN_GAP_SECONDS:
+        return 0
+    return max(1, round((now - previous) / 3600) - 1)

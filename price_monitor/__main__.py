@@ -32,6 +32,7 @@ import logging
 import os
 import sys
 import time
+from datetime import datetime, timezone
 
 import requests
 
@@ -53,6 +54,14 @@ def format_health_down(streak: int, error_details: list[str]) -> str:
     ]
     lines.extend(f"• {redact_secrets(d)}" for d in error_details[:10])
     return "\n".join(lines)
+
+
+def format_missed_runs(previous: int, now: int, missed: int) -> str:
+    since = datetime.fromtimestamp(previous, timezone.utc)
+    until = datetime.fromtimestamp(now, timezone.utc)
+    return (f"⚠️ <b>No run between {since:%Y-%m-%d %H:%M} and {until:%Y-%m-%d %H:%M} "
+            f"UTC</b>\n{missed} hourly run(s) missing: the trigger did not fire, or the "
+            "runs died before saving. Moves in that time reached no one.")
 
 
 def format_health_recovered(streak: int) -> str:
@@ -120,6 +129,18 @@ def main() -> int:
         log.error("Refusing to run with a corrupt sent map: %s", exc)
         return 2
     session = requests.Session()
+
+    # Hours with no run at all, which no run inside them could report. Said
+    # straight away, by the first run after them, not through the streak.
+    now = int(time.time())
+    previous = health.record_run(state, now)
+    missed = health.missed_runs(previous, now)
+    if missed and cfg.telegram_health_chat_id:
+        try:
+            send_telegram_message(cfg.telegram_bot_token, cfg.telegram_health_chat_id,
+                                  format_missed_runs(previous, now, missed))
+        except TelegramError as exc:
+            log.error("Failed to send the missed-runs alert: %s", exc)
 
     had_error = False
     error_details: list[str] = []

@@ -416,7 +416,7 @@ PAT and the branch as `ref`). GitHub's `schedule:` is not used: it fires unrelia
 | the session table can't be extended, or the open months can't be saved | the run goes on; counts as a failed run, named | fix the step |
 | a step before delivery fails (checkout, setup, the open months) | nothing is sent or counted; the last step tells the health chat which step, once and then every 24 runs in a row (`tools/run_died.sh`) | look at Actions |
 | the state commit fails | what the run sent and counted is lost, and the next run may send it again; the last step tells the health chat | look at Actions |
-| run never starts | cron-job.org emails | check the trigger |
+| run never starts | cron-job.org emails; the first run after a gap of over 90 minutes names it on the health chat (`health.missed_runs`) | check the trigger |
 | N failed runs in a row | health chat (`health_alert_after_failures` 3, repeat every 24) | look at Actions |
 | Telegram refuses a delete | struck through instead | none |
 | detector or basket changed | the week's pushes and pings deleted once | expected |
