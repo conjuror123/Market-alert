@@ -333,6 +333,46 @@ def test_a_spent_share_stops_the_gap_walk_rather_than_warning_per_gap(tmp_path, 
     assert len(calls) == 1
 
 
+def test_bars_fetched_before_the_share_ran_out_are_counted(tmp_path, monkeypatch, caplog):
+    # The first gap comes back with a bar, the second meets the spent share:
+    # the bar is stored, and the log says so rather than "+0".
+    from tremor import backfill
+    from tremor.basket import Basket, VolatilityIndex
+
+    asset = _etf()
+    path = bars.store_path(str(tmp_path), asset.file_stem)
+    _store_days(path, [_day(2024, 3, 4), _day(2024, 3, 6), _day(2024, 9, 20)])
+    table = {date(2024, 3, 4): object(), date(2024, 3, 5): object(),
+             date(2024, 3, 6): object(), date(2024, 9, 19): object(),
+             date(2024, 9, 20): object()}
+    recovered = _day(2024, 3, 5)
+
+    def fetch(**k):
+        if k["end"].month == 3:
+            return [Candle(open_time=recovered, open=1.0, high=1.0, low=1.0, close=1.0,
+                           volume=1.0, close_time=recovered + HOUR)]
+        raise backfill.twelvedata.ArchiveShareSpent("SPY: share spent")
+
+    basket = Basket(
+        assets=(asset,), outside=(),
+        volatility_index=VolatilityIndex("VIXCLS", "fred", "1d", "VIX", date(1990, 1, 1)),
+        anchor_exchange_tz="America/New_York", history_since=date(2021, 1, 1),
+        session_templates={"us_equity": {}})
+    monkeypatch.setenv("TWELVEDATA_API_KEY", "k")
+    monkeypatch.delenv("HFDATA_API_KEY", raising=False)
+    monkeypatch.setattr(backfill, "load_basket", lambda: basket)
+    monkeypatch.setattr(backfill._sessions, "load_sessions", lambda: table)
+    monkeypatch.setattr(backfill.twelvedata, "fetch_full_history", fetch)
+    monkeypatch.setattr(backfill, "missing_hours", lambda path, table: [])
+    monkeypatch.setattr(backfill.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(backfill.twelvedata, "archive_mode", False)
+
+    with caplog.at_level("INFO", logger="tremor.backfill"):
+        backfill.main(["--fill-gaps", "--bars-dir", str(tmp_path)])
+    assert recovered in set(bars.load(path)["hour_utc"])
+    assert "+1 bars from Twelve Data" in caplog.text
+
+
 def test_a_gap_walk_told_not_to_ask_only_lists_the_gaps(tmp_path, monkeypatch):
     from tremor import backfill
 

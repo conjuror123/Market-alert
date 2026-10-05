@@ -710,7 +710,8 @@ def fill_gaps(asset: Asset, path: str, table: dict, api_key: str,
                 base_url=TWELVEDATA_BASE_URL, api_key=api_key, session=session,
                 request_delay_seconds=TWELVEDATA_DELAY_SECONDS,
                 chunk_days=CHUNK_DAYS[asset.fetch_interval], end=window_end)
-        except twelvedata.DailyQuotaExhausted:
+        except twelvedata.DailyQuotaExhausted as exc:
+            exc.added = added           # what the earlier gaps already stored
             raise
         except ExchangeError as exc:
             log.warning("%s: %s..%s could not be re-fetched: %s",
@@ -1270,6 +1271,7 @@ def main(argv: list[str] | None = None) -> int:
                     log.warning("Twelve Data stops here - %s. The remaining gaps go "
                                 "to HF Data only.", exc)
                     out = fill_gaps(asset, path, table, api_key, session, ask=False)
+                    out["added"] = getattr(exc, "added", 0)
             except Exception as exc:
                 log.error("%s: gap fill failed - %s", asset.asset_id, exc)
                 continue
