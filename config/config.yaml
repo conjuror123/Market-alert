@@ -17,7 +17,7 @@
 # are deliberately silent" is a state of the project and must be visible where
 # the code is. A cron job disabled on someone else's website is indistinguishable
 # from a breakage a month later.
-jump_alerts_muted: false
+jump_alerts_muted: true
 
 # --- Health ------------------------------------------------------------------
 #
