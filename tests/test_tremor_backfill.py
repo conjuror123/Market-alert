@@ -1314,6 +1314,40 @@ def test_a_yahoo_rate_limit_skips_remaining_yahoo_instruments(tmp_path, monkeypa
     assert "UGA" in alerts[0]
 
 
+def test_instruments_left_by_a_rate_limit_are_not_blamed_on_the_calendar(
+        tmp_path, monkeypatch, caplog):
+    from tremor import backfill
+    from tremor.basket import Basket, VolatilityIndex
+    from price_monitor import yahoo
+
+    def fake_backfill(asset, *a, **k):
+        if asset.ticker == "UGA":
+            raise yahoo.RateLimited("UGA: status 429")
+        return {"asset_id": asset.asset_id, "rows": 1, "first": 1, "last": 1,
+                "from_api": 1}
+
+    basket = Basket(
+        assets=(_yahoo_asset("UGA"), _yahoo_asset("UNG"), _yahoo_asset("CPER")),
+        outside=(),
+        volatility_index=VolatilityIndex(
+            "VIXCLS", "fred", "1d", "VIX", date(1990, 1, 1)),
+        anchor_exchange_tz="America/New_York",
+        history_since=date(2021, 1, 1), session_templates={"us_equity": {}},
+    )
+    monkeypatch.setattr(backfill, "load_basket", lambda: basket)
+    monkeypatch.setattr(backfill, "backfill_instrument", fake_backfill)
+    monkeypatch.setattr(backfill._sessions, "load_sessions",
+                        lambda: (_ for _ in ()).throw(FileNotFoundError()))
+    monkeypatch.setattr(backfill, "send_ops_alert", lambda *a, **k: None)
+
+    with caplog.at_level("INFO", logger="tremor.backfill"):
+        backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
+
+    assert "the calendar says nothing new can exist" not in caplog.text
+    assert "2 instrument(s) not asked: their provider's rate limit is spent" \
+        in caplog.text
+
+
 def test_a_yahoo_404_stays_per_instrument_and_does_not_skip_the_rest(
         tmp_path, monkeypatch):
     from tremor import backfill
@@ -1732,3 +1766,30 @@ def test_a_run_seeds_at_most_four_new_instruments(tmp_path, monkeypatch):
     backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
 
     assert asked == tickers[:backfill.SEED_PER_RUN] and backfill.SEED_PER_RUN == 4
+
+
+def test_new_instruments_waiting_to_be_seeded_are_not_blamed_on_the_calendar(
+        tmp_path, monkeypatch, caplog):
+    from tremor import backfill
+    from tremor.basket import Basket, VolatilityIndex
+
+    def fake_backfill(asset, *a, **k):
+        return {"asset_id": asset.asset_id, "rows": 1, "first": 1, "last": 1,
+                "from_api": 1}
+
+    basket = Basket(
+        assets=tuple(_yahoo_asset(t) for t in "ABCDEF"), outside=(),
+        volatility_index=VolatilityIndex("VIXCLS", "fred", "1d", "VIX", date(1990, 1, 1)),
+        anchor_exchange_tz="America/New_York", history_since=date(2021, 1, 1),
+        session_templates={"us_equity": {}})
+    monkeypatch.setattr(backfill, "load_basket", lambda: basket)
+    monkeypatch.setattr(backfill, "backfill_instrument", fake_backfill)
+    monkeypatch.setattr(backfill._sessions, "load_sessions",
+                        lambda: (_ for _ in ()).throw(FileNotFoundError()))
+    monkeypatch.setattr(backfill, "send_ops_alert", lambda *a, **k: None)
+
+    with caplog.at_level("INFO", logger="tremor.backfill"):
+        backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
+
+    assert "the calendar says nothing new can exist" not in caplog.text
+    assert "2 new instrument(s) waiting their turn to be seeded" in caplog.text

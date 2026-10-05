@@ -1435,7 +1435,9 @@ def main(argv: list[str] | None = None) -> int:
         session_table = None
 
     failures = 0
-    skipped = 0
+    closed = 0                  # not asked: the calendar says nothing new
+    waiting = 0                 # new, waiting their turn to be seeded
+    limited = 0                 # not asked: their provider's limit is spent
     seeded = 0
     quota_gone = False
     share_spent = False         # a history walk's share of the day, not the day
@@ -1464,7 +1466,7 @@ def main(argv: list[str] | None = None) -> int:
         due = [a for a in live if not nothing_can_have_appeared(
             a, bars.store_path(args.bars_dir, a.file_stem), session_table)]
         background = {a.asset_id for a in live}
-        skipped += len(live) - len(due)
+        closed += len(live) - len(due)
         if due:
             from concurrent.futures import ThreadPoolExecutor
             pool = ThreadPoolExecutor(max_workers=1)
@@ -1483,31 +1485,31 @@ def main(argv: list[str] | None = None) -> int:
             # overrun the job. They are seeded a handful at a time and are all
             # producing bars within a few hours.
             if seeded >= SEED_PER_RUN:
-                skipped += 1
+                waiting += 1
                 log.info("%s: new instrument, waiting its turn to be seeded",
                          asset.asset_id)
                 continue
             seeded += 1
         elif not args.extend_history and nothing_can_have_appeared(
                 asset, path, session_table):
-            skipped += 1
+            closed += 1
             log.info("%s: market closed since the newest stored bar, not asked for",
                      asset.asset_id)
             continue
         if tiingo_gone and asset.fetched_from == "tiingo":
-            skipped += 1
+            limited += 1
             tiingo_skipped += 1
             continue
         if yahoo_gone and asset.fetched_from == "yahoo":
-            skipped += 1
+            limited += 1
             yahoo_skipped += 1
             continue
         if sifting_gone and asset.fetched_from == "sifting":
-            skipped += 1
+            limited += 1
             sifting_skipped += 1
             continue
         if alpaca_gone and asset.fetched_from == "alpaca":
-            skipped += 1
+            limited += 1
             dark.append((asset.asset_id, "alpaca", "skipped: Alpaca's rate limit is spent"))
             continue
         try:
@@ -1594,9 +1596,14 @@ def main(argv: list[str] | None = None) -> int:
                          r["asset_id"], r["rows"], _fmt(r["first"]), _fmt(r["last"]),
                          r["from_api"])
 
-    if skipped:
-        log.info("%d instrument(s) skipped: the calendar says nothing new can exist",
-                 skipped)
+    if closed:
+        log.info("%d instrument(s) not asked: the calendar says nothing new can exist",
+                 closed)
+    if waiting:
+        log.info("%d new instrument(s) waiting their turn to be seeded", waiting)
+    if limited:
+        log.info("%d instrument(s) not asked: their provider's rate limit is spent",
+                 limited)
     # Not counted as a failure: a spent budget is a known limit being reached,
     # not a breakage, and failing the run would turn a daily certainty into a
     # daily red cross. It is logged loudly instead - and the run still delivers.
