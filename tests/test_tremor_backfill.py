@@ -2001,7 +2001,7 @@ def test_stale_instruments_are_named_once_and_not_beside_a_failure(tmp_path, mon
 
     backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
 
-    stale = alerts[0].split("No new bar though asked")[1]
+    stale = alerts[0].split("No new bar though asked")[1].split("\n\n")[0]
     assert "UNG" in stale
     assert "UGA" not in stale and "CPER" not in stale
 

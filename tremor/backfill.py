@@ -101,15 +101,11 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
     `silent` is each provider stopped for not answering: [the instrument it
     was stopped at, how many after it were skipped]. `stale` is each
     instrument asked and answered with nothing new for longer than its limit:
-    (asset_id, provider, session hours since its newest bar)."""
+    (asset_id, provider, session hours since its newest bar).
+
+    The providers first and the instruments last, the long list of errors
+    last of all: a message cut to Telegram's limit loses only its tail."""
     lines = []
-    if dark:
-        lines.append(
-            f"⚠️ <b>Backfill: {len(dark)} instrument(s) went dark</b>")
-        for asset_id, provider, err in dark[:20]:
-            lines.append(f"• {asset_id} ({provider}): {quote(err)}")
-        if len(dark) > 20:
-            lines.append(f"• …and {len(dark) - 20} more")
     if tiingo_gone:
         if lines:
             lines.append("")
@@ -158,6 +154,14 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
             lines.append("")
         lines.append("⚠️ <b>Second source</b>")
         lines.extend(f"• {quote(note)}" for note in second_source)
+    if dark:
+        if lines:
+            lines.append("")
+        lines.append(f"⚠️ <b>Backfill: {len(dark)} instrument(s) went dark</b>")
+        for asset_id, provider, err in dark[:20]:
+            lines.append(f"• {asset_id} ({provider}): {quote(err)}")
+        if len(dark) > 20:
+            lines.append(f"• …and {len(dark) - 20} more")
     return "\n".join(lines)
 
 

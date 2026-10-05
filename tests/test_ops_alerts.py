@@ -96,6 +96,8 @@ def test_a_wide_outage_fits_one_message(monkeypatch):
     assert notifier.send_health(text, "tok", "ops")
     assert len(sent[0]) <= notifier.TELEGRAM_LIMIT
     assert sent[0].splitlines()[-1].startswith("…and ")
+    # The summaries come first; a cut only ever trims the list of instruments.
+    assert "yahoo did not answer" in sent[0] and "sina did not answer" in sent[0]
 
 
 def test_a_health_message_that_cannot_be_sent_does_not_raise(monkeypatch):
