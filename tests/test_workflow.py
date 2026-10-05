@@ -54,3 +54,12 @@ def test_delivery_runs_after_a_fetch_and_score_step_that_ran_out_of_time():
     assert f"steps.{tremor_id}.outcome != 'success'" in env["TREMOR_STEP_FAILED"]
     assert f"steps.{tremor_id}.outcome != 'success'" in env["TREMOR_PIPELINE_CRASHED"]
     assert "TREMOR_STAGE_FILE" in env
+
+
+def test_the_monitor_hears_how_the_side_steps_went():
+    steps = _steps()
+    env = steps["Run monitor"]["env"]
+    sessions = steps["Extend the session table when it runs short"]
+    save = steps["Save the open months of the bars"]
+    assert env["SESSIONS_STEP_OUTCOME"] == "${{ steps.%s.outcome }}" % sessions["id"]
+    assert env["HOT_SAVE_STEP_OUTCOME"] == "${{ steps.%s.outcome }}" % save["id"]

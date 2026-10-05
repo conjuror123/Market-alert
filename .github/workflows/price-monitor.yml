@@ -166,6 +166,9 @@ jobs:
           # failure always writes.
           TREMOR_PIPELINE_CRASHED: ${{ steps.tremor.outcome != 'success' && steps.tremor.outputs.failed == '' }}
           TREMOR_STAGE_FILE: ${{ runner.temp }}/tremor-stages
+          # Steps that do not stop the run, so only this can report them.
+          SESSIONS_STEP_OUTCOME: ${{ steps.sessions.outcome }}
+          HOT_SAVE_STEP_OUTCOME: ${{ steps.hot_save.outcome }}
         run: python -m price_monitor
 
       # Every run: the small state. data/state.json carries which Tremor events

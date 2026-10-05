@@ -173,3 +173,26 @@ def test_a_step_stopped_part_way_says_where_and_after_how_long(
     entry.main()
     entry.main()
     assert "stopped during pipeline, 12 min after it began" in _quiet[0][1]
+
+
+@pytest.mark.parametrize("env, words", [
+    ("SESSIONS_STEP_OUTCOME", "session table could not be extended"),
+    ("HOT_SAVE_STEP_OUTCOME", "open months of the bars were not saved"),
+])
+def test_a_side_step_that_failed_counts_as_a_failed_run(tmp_path, monkeypatch, _quiet,
+                                                       env, words):
+    # Neither stops the run, so nothing else would ever say so.
+    monkeypatch.setattr(entry, "load_config", lambda: _cfg(tmp_path))
+    monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", lambda cfg, state: 0)
+    monkeypatch.setenv(env, "failure")
+    assert entry.main() == 1
+    assert entry.main() == 1
+    assert words in _quiet[0][1]
+
+
+def test_side_steps_that_succeeded_or_did_not_run_are_clean(tmp_path, monkeypatch, _quiet):
+    monkeypatch.setattr(entry, "load_config", lambda: _cfg(tmp_path))
+    monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", lambda cfg, state: 0)
+    monkeypatch.setenv("SESSIONS_STEP_OUTCOME", "success")
+    monkeypatch.setenv("HOT_SAVE_STEP_OUTCOME", "skipped")
+    assert entry.main() == 0

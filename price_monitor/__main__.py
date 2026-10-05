@@ -79,6 +79,23 @@ def tremor_pipeline_crashed() -> bool:
     return value in ("1", "true", "yes")
 
 
+# Steps that do not stop the run when they fail, so nothing else would say so.
+# Each is a failed run here: broken, if not yet urgent.
+SIDE_STEPS = {
+    "SESSIONS_STEP_OUTCOME":
+        "the session table could not be extended: it has under two years left "
+        "(tremor/sessions.py)",
+    "HOT_SAVE_STEP_OUTCOME":
+        "the open months of the bars were not saved to the release: the next run "
+        "restores an older copy and fetches the difference again",
+}
+
+
+def failed_side_steps() -> list[str]:
+    return [text for env, text in SIDE_STEPS.items()
+            if os.environ.get(env, "").strip().lower() in ("failure", "cancelled")]
+
+
 def tremor_stopped_at(now: float | None = None) -> "tuple[str, int] | None":
     """Where the Tremor step was when it stopped short, and how many minutes
     after it began: (stage, minutes), or None if it reached its end or left no
@@ -149,6 +166,10 @@ def main() -> int:
         else:
             error_details.append("the Tremor pipeline or detector crashed: events "
                                  "were not refreshed")
+
+    for text in failed_side_steps():
+        had_error = True
+        error_details.append(text)
 
     if had_error:
         streak = health.record_failure(state)
