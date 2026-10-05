@@ -1943,7 +1943,10 @@ def test_stale_hours_counts_the_session_hours_ended_since_the_newest_bar(tmp_pat
     table = _table([date(2026, 4, 3), date(2026, 4, 6), date(2026, 4, 7)])
     # Monday's seven hours, and Tuesday's 13:00 and 14:00; not 15:00, still open.
     now = datetime(2026, 4, 7, 15, 5, tzinfo=timezone.utc)
-    assert stale_hours(_equity(), path, table, now) == 9
+    assert stale_hours(_equity(), path, table, now) == (9, True)
+    # Overnight the count stands still, and says so.
+    night = datetime(2026, 4, 7, 23, 5, tzinfo=timezone.utc)
+    assert stale_hours(_equity(), path, table, night) == (14, False)
 
 
 def test_an_instrument_dark_for_months_is_not_read_as_fresh(tmp_path):
@@ -1952,17 +1955,33 @@ def test_an_instrument_dark_for_months_is_not_read_as_fresh(tmp_path):
     path = _equity_store(tmp_path, stored)
     table = _table([date(2026, 1, 2), date(2026, 4, 6)])
     now = datetime(2026, 4, 6, 15, 5, tzinfo=timezone.utc)
-    assert stale_hours(_equity(), path, table, now) == 2
+    assert stale_hours(_equity(), path, table, now) == (2, True)
 
 
 def test_a_stale_instrument_is_named_when_it_passes_its_limit_then_daily():
     from tremor.backfill import stale_limit, stale_to_name
     fund = _equity()
     limit = stale_limit("us_equity")
-    assert not stale_to_name(fund, limit)
-    assert stale_to_name(fund, limit + 1)
-    assert not stale_to_name(fund, limit + 2)
-    assert stale_to_name(fund, limit + 1 + 7)          # a session of 7 bars later
+    assert not stale_to_name(fund, limit, True)
+    assert stale_to_name(fund, limit + 1, True)
+    assert not stale_to_name(fund, limit + 2, True)
+    assert stale_to_name(fund, limit + 1 + 7, True)    # a session of 7 bars later
+    assert not stale_to_name(fund, limit + 1, False)   # the count did not move
+
+
+def test_a_stale_fund_is_named_once_a_day_not_every_hour_of_the_night(tmp_path):
+    # Its count stands still overnight while the check runs every hour; one
+    # in seven stop hours left it on a value that names it - 40 lines in three
+    # days for a fund whose last bar was Monday 18:00.
+    from tremor.backfill import stale_hours, stale_to_name
+    path = _equity_store(tmp_path, int(datetime(2026, 4, 6, 18, tzinfo=timezone.utc).timestamp()))
+    table = _table([date(2026, 4, 6) + timedelta(days=i) for i in range(5)])
+    named, run = [], datetime(2026, 4, 6, 19, 5, tzinfo=timezone.utc)
+    while run < datetime(2026, 4, 10, tzinfo=timezone.utc):
+        if stale_to_name(_equity(), *stale_hours(_equity(), path, table, run)):
+            named.append(run.date())
+        run += timedelta(hours=1)
+    assert named == [date(2026, 4, 7), date(2026, 4, 8), date(2026, 4, 9)]
 
 
 def test_stale_instruments_are_named_once_and_not_beside_a_failure(tmp_path, monkeypatch):
@@ -1977,7 +1996,7 @@ def test_stale_instruments_are_named_once_and_not_beside_a_failure(tmp_path, mon
     monkeypatch.setattr(backfill, "check_dividends", lambda *a, **k: {"skipped": "x"})
     monkeypatch.setattr(backfill.verify, "verify", lambda *a, **k: None)
     monkeypatch.setattr(backfill, "stale_hours", lambda asset, *a, **k:
-                        0 if asset.ticker == "CPER" else 8)
+                        (0, True) if asset.ticker == "CPER" else (8, True))
     monkeypatch.setattr(backfill, "send_ops_alert", alerts.append)
 
     backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
@@ -2002,7 +2021,7 @@ def test_a_second_source_check_that_failed_or_stopped_is_named(tmp_path, monkeyp
     monkeypatch.setattr(backfill._sessions, "load_sessions", lambda: {date(2026, 10, 5): None})
     monkeypatch.setattr(backfill, "nothing_can_have_appeared", lambda *a, **k: False)
     monkeypatch.setattr(backfill, "check_dividends", lambda *a, **k: {"skipped": "x"})
-    monkeypatch.setattr(backfill, "stale_hours", lambda *a, **k: 0)
+    monkeypatch.setattr(backfill, "stale_hours", lambda *a, **k: (0, False))
 
     def fake_verify(*a, **k):
         if isinstance(outcome, Exception):

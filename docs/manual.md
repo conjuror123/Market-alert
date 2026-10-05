@@ -129,8 +129,8 @@ timeout, a failed connection or a 5xx, about 96 s each) is stopped for the run t
 left out of the dividend check and the second source; the health chat names it
 (`price_monitor.models.Unreachable`). Twelve Data's batch is retried twice, 61 s apart, on
 its own thread. An instrument asked and answered but with no new bar for longer than its
-calendar allows is named on the health chat when it passes its limit, then once a day
-(`stale_hours`): 3 session hours for a coin, 6 for a pair, 7 for a fund, two sessions for a
+calendar allows is named on the health chat on the run it passes its limit, then once a day,
+and only on a run its count moved, so not through the night (`stale_hours`): 3 session hours for a coin, 6 for a pair, 7 for a fund, two sessions for a
 daily-session market (whose calendars don't know holidays).
 
 **Sessions** (`tremor/sessions.py`): the NYSE table (`data/tremor/sessions/nyse.csv`),

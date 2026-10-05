@@ -477,13 +477,15 @@ def stale_limit(template: str) -> int:
 
 
 def stale_hours(asset: Asset, path: str, table: "dict | None",
-                now: datetime | None = None) -> int:
+                now: datetime | None = None) -> "tuple[int, bool]":
     """How many of the instrument's session hours have ended since its newest
-    stored in-session bar, by the same calendar as the skip rule. 0 without a
-    store or (for funds) without the session table."""
+    stored in-session bar, by the same calendar as the skip rule, and whether
+    the count just moved - one of them ended within the hour. Overnight and at
+    weekends it stands still. (0, False) without a store or (for funds) without
+    the session table."""
     template = asset.session_template
     if template == "us_equity" and not table:
-        return 0
+        return 0, False
     now = now or datetime.now(timezone.utc)
     newest = None
     # The last 40 days answer almost every time; the whole store otherwise, so
@@ -496,22 +498,23 @@ def stale_hours(asset: Asset, path: str, table: "dict | None",
             newest = int(inside.max())
             break
     if newest is None:
-        return 0
-    count, day = 0, datetime.fromtimestamp(newest, tz=timezone.utc).date()
+        return 0, False
+    ended, day = [], datetime.fromtimestamp(newest, tz=timezone.utc).date()
     while day <= now.date():
-        count += sum(1 for h in _sessions.instrument_day_hours(day, template, table)
-                     if newest < h and h + 3600 <= now.timestamp())
+        ended += [h for h in _sessions.instrument_day_hours(day, template, table)
+                  if newest < h and h + 3600 <= now.timestamp()]
         day += timedelta(days=1)
-    return count
+    return len(ended), bool(ended) and max(ended) + 3600 > now.timestamp() - 3600
 
 
-def stale_to_name(asset: Asset, hours: int) -> bool:
-    """Named when it first passes its limit, then about once a day after - a
+def stale_to_name(asset: Asset, hours: int, ticking: bool) -> bool:
+    """Named on the run its count passes the limit, then about once a day - a
     day being the template's bars in one (24 for coins and pairs) - so a long
-    outage is a line a day, not a line an hour. A run missed on the day it
-    passes is caught by the next day's."""
+    outage is a line a day, not a line an hour. Only on a run the count moved
+    (`ticking`): standing still overnight, it would repeat every hour. A run
+    missed on the day it passes is caught by the next day's."""
     limit = stale_limit(asset.session_template)
-    if hours <= limit:
+    if hours <= limit or not ticking:
         return False
     if asset.session_template in ("crypto_24_7", "fx_continuous"):
         per_day = 24
@@ -1731,12 +1734,12 @@ def main(argv: list[str] | None = None) -> int:
             if asset.asset_id in named or asset.fetched_from in stopped:
                 continue
             try:
-                hours = stale_hours(asset, bars.store_path(args.bars_dir, asset.file_stem),
-                                    session_table)
+                hours, ticking = stale_hours(
+                    asset, bars.store_path(args.bars_dir, asset.file_stem), session_table)
             except Exception as exc:
                 log.warning("%s: staleness not checked - %s", asset.asset_id, exc)
                 continue
-            if stale_to_name(asset, hours):
+            if stale_to_name(asset, hours, ticking):
                 stale.append((asset.asset_id, asset.fetched_from, hours))
                 log.error("%s: no new bar for %d session hours though asked",
                           asset.asset_id, hours)
