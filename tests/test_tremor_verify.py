@@ -448,9 +448,11 @@ def test_a_source_that_does_not_answer_twice_in_a_row_is_stopped(monkeypatch, tm
 
     monkeypatch.setattr(verify, "fetch_verifier", fetch)
     now = datetime.fromtimestamp(int(hours[bad + 5]) + 300, timezone.utc)
-    verify.verify([asset, *others], str(tmp_path / "bars"), None, now=now,
-                  path=str(tmp_path / "verified.csv"))
+    r = verify.verify([asset, *others], str(tmp_path / "bars"), None, now=now,
+                      path=str(tmp_path / "verified.csv"))
     assert asked == ["yahoo", "marketwatch", "yahoo", "marketwatch", "yahoo"]
+    # Said, so the health chat can name it.
+    assert r["stopped"] == ["marketwatch"]
 
 
 def test_an_unconfirmed_verdict_outlives_the_rest_of_the_record(tmp_path):

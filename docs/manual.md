@@ -181,7 +181,7 @@ any is still waiting. Otherwise unconfirmed if any answered. Otherwise unknown. 
 with bars of its own around the move outweighs one bridging a gap (USD/INR at night:
 Yahoo's last bar is 10:00, MarketWatch has every hour). A failed source leaves the other
 to answer; a rate limit, or no answer to two requests in a row, stops that source for the
-run.
+run, and the health chat names it.
 
 **An unconfirmed move is not scored, and nothing is deleted.** `jumps` leaves its reading
 out of every word and every yardstick; the bar stays in the store, and in the price path
@@ -416,7 +416,7 @@ PAT and the branch as `ref`). GitHub's `schedule:` is not used: it fires unrelia
 | a provider answers but serves nothing new | the instrument goes stale; named past its limit, then daily | check the symbol and contract |
 | backfill fails | pipeline and jumps still run on stored bars; the job ends red | read the health message |
 | pipeline or jumps crash, or the step runs out of its 12 minutes | no new events; counts as a failed run (`TREMOR_PIPELINE_CRASHED`), named with the part and minutes | fix and rerun |
-| a second source fails | its moves are judged by the other source, or scored unchecked | none |
+| a second source fails | its moves are judged by the other source, or scored unchecked; a source stopped for the run, or the whole check failing, is named on the health chat | none, unless it persists |
 | the session table can't be extended, or the open months can't be saved | the run goes on; counts as a failed run, named | fix the step |
 | a step before delivery fails (checkout, setup, the open months) | nothing is sent or counted; the last step tells the health chat which step, once and then every 24 runs in a row (`tools/run_died.sh`) | look at Actions |
 | the state commit fails | what the run sent and counted is lost, and the next run may send it again; the last step tells the health chat | look at Actions |

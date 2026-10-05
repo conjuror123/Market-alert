@@ -398,6 +398,7 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
     dividends = corporate_actions.load_dividends()
     settings = jumps.settings()
     blocked = set(blocked or ())
+    told = set(blocked)
 
     # Which readings each instrument has in the window. A verdict there whose
     # reading is no longer a far move - its bar healed - no longer applies.
@@ -482,7 +483,8 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
     if doubted:
         log.warning("verify: not seen by the second source - %s", "; ".join(doubted))
     log.info("verify: %s", ", ".join(f"{k} {n}" for k, n in counts.items()))
-    return dict(counts, unconfirmed_moves=doubted)
+    # The sources stopped during this pass, by a rate limit or silence.
+    return dict(counts, unconfirmed_moves=doubted, stopped=sorted(blocked - told))
 
 
 def main(argv: "list[str] | None" = None) -> int:

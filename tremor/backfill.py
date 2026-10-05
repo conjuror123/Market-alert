@@ -94,7 +94,8 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
                             sifting_remaining: str | None = None,
                             sifting_trip: str | None = None,
                             silent: "dict[str, list] | None" = None,
-                            stale: "list[tuple[str, str, int]] | None" = None) -> str:
+                            stale: "list[tuple[str, str, int]] | None" = None,
+                            second_source: "list[str] | None" = None) -> str:
     """One operational message naming who went dark. Does not switch provider.
 
     `silent` is each provider stopped for not answering: [the instrument it
@@ -152,6 +153,11 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
         if len(stale) > 20:
             lines.append(f"• …and {len(stale) - 20} more")
         lines.append("Named when it passes its limit, then once a day.")
+    if second_source:
+        if lines:
+            lines.append("")
+        lines.append("⚠️ <b>Second source</b>")
+        lines.extend(f"• {redact_secrets(note)}" for note in second_source)
     return "\n".join(lines)
 
 
@@ -1800,14 +1806,21 @@ def main(argv: list[str] | None = None) -> int:
     # and its message says so (tremor.verify). A provider is not asked again
     # once it has said stop or stopped answering; Sina still checks the
     # Yahoo-fed funds.
+    second_source: list[str] = []
     if session_table and not args.instruments and not args.extend_history:
         try:
-            verify.verify(basket.instruments, args.bars_dir, session_table, session,
-                          blocked=({"yahoo"} if yahoo_gone else set()) | set(silent))
+            r = verify.verify(basket.instruments, args.bars_dir, session_table, session,
+                              blocked=({"yahoo"} if yahoo_gone else set()) | set(silent))
+            for name in (r or {}).get("stopped", []):
+                second_source.append(f"{name} stopped for the run (a rate limit, or no "
+                                     "answer twice in a row): its moves are judged by the "
+                                     "other source, or scored unchecked")
         except Exception as exc:
-            # Warned, not failed: an unchecked move is scored, which is how
-            # every move was treated before the check existed.
+            # Not a failed run: an unchecked move is scored, which is how every
+            # move was treated before the check existed. Named, though.
             log.warning("second-source check failed - %s", exc)
+            second_source.append(f"the second-source check failed ({exc}): this hour's "
+                                 "far moves are scored unchecked")
 
     if not args.skip_vix:
         try:
@@ -1832,7 +1845,8 @@ def main(argv: list[str] | None = None) -> int:
         yahoo_gone=yahoo_gone, yahoo_skipped=yahoo_skipped,
         yahoo_trip=yahoo_trip, sifting_gone=sifting_gone,
         sifting_skipped=sifting_skipped, sifting_remaining=sifting_remaining,
-        sifting_trip=sifting_trip, silent=silent, stale=stale)
+        sifting_trip=sifting_trip, silent=silent, stale=stale,
+        second_source=second_source)
     if text:
         send_ops_alert(text)
 

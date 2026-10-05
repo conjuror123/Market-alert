@@ -1985,3 +1985,33 @@ def test_stale_instruments_are_named_once_and_not_beside_a_failure(tmp_path, mon
     stale = alerts[0].split("No new bar though asked")[1]
     assert "UNG" in stale
     assert "UGA" not in stale and "CPER" not in stale
+
+
+
+@pytest.mark.parametrize("outcome, words", [
+    (RuntimeError("bad shard"), "second-source check failed"),
+    ({"stopped": ["marketwatch"]}, "marketwatch stopped for the run"),
+])
+def test_a_second_source_check_that_failed_or_stopped_is_named(tmp_path, monkeypatch,
+                                                              outcome, words):
+    from tremor import backfill
+
+    alerts = []
+    monkeypatch.setattr(backfill, "load_basket", lambda: _us_basket(_yahoo_asset("UNG")))
+    monkeypatch.setattr(backfill, "backfill_instrument", _answering_except(set(), []))
+    monkeypatch.setattr(backfill._sessions, "load_sessions", lambda: {date(2026, 10, 5): None})
+    monkeypatch.setattr(backfill, "nothing_can_have_appeared", lambda *a, **k: False)
+    monkeypatch.setattr(backfill, "check_dividends", lambda *a, **k: {"skipped": "x"})
+    monkeypatch.setattr(backfill, "stale_hours", lambda *a, **k: 0)
+
+    def fake_verify(*a, **k):
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    monkeypatch.setattr(backfill.verify, "verify", fake_verify)
+    monkeypatch.setattr(backfill, "send_ops_alert", alerts.append)
+
+    backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
+
+    assert len(alerts) == 1 and words in alerts[0]
