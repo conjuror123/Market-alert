@@ -413,6 +413,8 @@ PAT and the branch as `ref`). GitHub's `schedule:` is not used: it fires unrelia
 | backfill fails | pipeline and jumps still run on stored bars; the job ends red | read the health message |
 | pipeline or jumps crash, or the step runs out of its 12 minutes | no new events; counts as a failed run (`TREMOR_PIPELINE_CRASHED`), named with the part and minutes | fix and rerun |
 | a second source fails | its moves are judged by the other source, or scored unchecked | none |
+| a step before delivery fails (checkout, setup, the open months) | nothing is sent or counted; the last step tells the health chat which step, once and then every 24 runs in a row (`tools/run_died.sh`) | look at Actions |
+| the state commit fails | what the run sent and counted is lost, and the next run may send it again; the last step tells the health chat | look at Actions |
 | run never starts | cron-job.org emails | check the trigger |
 | N failed runs in a row | health chat (`health_alert_after_failures` 3, repeat every 24) | look at Actions |
 | Telegram refuses a delete | struck through instead | none |

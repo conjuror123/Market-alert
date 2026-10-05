@@ -10,6 +10,8 @@ on:
 
 permissions:
   contents: write
+  # tools/run_died.sh reads the earlier runs to count an outage.
+  actions: read
 
 concurrency:
   group: price-monitor
@@ -23,15 +25,18 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
+        id: checkout
         uses: actions/checkout@v6
 
       - name: Set up Python
+        id: python
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: "pip"
 
       - name: Install dependencies
+        id: deps
         run: pip install -r requirements.txt
 
       # The NYSE session table extends itself, append-only, once under two
@@ -40,6 +45,7 @@ jobs:
       # continue-on-error: a table with a year or more left is no reason to
       # stop the run, and the next hour tries again.
       - name: Extend the session table when it runs short
+        id: sessions
         continue-on-error: true
         run: |
           if python -c "import sys; from tremor import sessions; sys.exit(0 if sessions.needs_extension() else 1)"; then
@@ -50,6 +56,7 @@ jobs:
           fi
 
       - name: Restore gitignored Tremor parquet
+        id: cache
         uses: actions/cache/restore@v4
         with:
           # metrics/ so `python -m tremor.pipeline` can extend instead of
@@ -70,6 +77,7 @@ jobs:
       # What the cache held when it landed, so the save at the end can tell
       # whether this run actually changed any of it.
       - name: Mark when the cache landed
+        id: cache_mark
         run: touch /tmp/cache-restored
 
       # The open months of the bar store live on a release, not in git
@@ -181,6 +189,7 @@ jobs:
       # the alert and the next run sent the same messages again. The job
       # still ends red.
       - name: Commit updated state
+        id: commit
         if: always() && (steps.monitor.outcome == 'success' || steps.monitor.outcome == 'failure')
         run: |
           mkdir -p data/economic_calendar
@@ -268,3 +277,27 @@ jobs:
           path: |
             data/tremor/metrics
           key: tremor-derived-${{ github.ref_name }}-${{ github.run_id }}
+
+      # Last, whatever happened: a run whose monitor never ran (a step before it
+      # failed) delivered nothing and counted nothing, and one whose state was
+      # not committed lost what it sent and the health it counted. Neither can
+      # say so from inside Python; this says it with curl, once and then daily
+      # while it lasts (tools/run_died.sh).
+      - name: Tell the health chat when the run could not deliver
+        if: ${{ always() && ((steps.monitor.outcome != 'success' && steps.monitor.outcome != 'failure') || steps.commit.outcome == 'failure') }}
+        env:
+          STEPS: ${{ toJSON(steps) }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_HEALTH_CHAT_ID: ${{ secrets.TELEGRAM_HEALTH_CHAT_ID }}
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        # Without a checkout there is no script: say that much directly.
+        run: |
+          if [ -f tools/run_died.sh ]; then
+            bash tools/run_died.sh
+          else
+            curl -s -o /dev/null --max-time 30 \
+              "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+              --data-urlencode "chat_id=${TELEGRAM_HEALTH_CHAT_ID}" \
+              --data-urlencode "text=⚠️ Hourly run could not deliver: the checkout failed. ${RUN_URL}"
+          fi
