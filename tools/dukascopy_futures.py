@@ -39,6 +39,7 @@ repository root:
 """
 from __future__ import annotations
 
+import argparse
 import glob
 import os
 import sys
@@ -97,8 +98,13 @@ def session_gaps(frame: pd.DataFrame, template: str) -> pd.Series:
     return np.log(first["open"] / prev).dropna()
 
 
-def main() -> int:
-    ticker, folder = sys.argv[1], sys.argv[2]
+def main(argv: "list[str] | None" = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Rebuild a soft's history from Dukascopy CFD dumps (rewrites its store).")
+    parser.add_argument("ticker", choices=sorted(SPEC))
+    parser.add_argument("folder", help="the CSVs tools/dukascopy_dump.py wrote")
+    args = parser.parse_args(argv)
+    ticker, folder = args.ticker, args.folder
     spec = SPEC[ticker]
     asset = next(a for a in load_basket().instruments if a.ticker == ticker)
     template = asset.session_template

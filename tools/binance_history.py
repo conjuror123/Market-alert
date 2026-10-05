@@ -43,12 +43,14 @@ Each dollar record starts at its first month traded in at least
 MIN_MONTH_COVERAGE of its hours: a market trading in fits is stale prices and
 catch-ups, which read as moves.
 
-Writes data/tremor/bars/binance_*. Run from the repository root, for every
-coin or the ones named:
-    python -m tools.binance_history [LINK/USDT ADA/USDT]
+Rewrites data/tremor/bars/binance_* for the coins named, or every coin with
+--all; run bare it refuses. From the repository root:
+    python -m tools.binance_history LINK/USDT ADA/USDT
+    python -m tools.binance_history --all
 """
 from __future__ import annotations
 
+import argparse
 import math
 import sys
 from datetime import datetime, timedelta, timezone
@@ -140,11 +142,21 @@ def splice(ticker: str, top: pd.DataFrame, session) -> pd.DataFrame:
                      ignore_index=True)
 
 
-def main() -> int:
+def main(argv: "list[str] | None" = None) -> int:
+    every = [a for a in load_basket().instruments if a.source == "binance"]
+    parser = argparse.ArgumentParser(
+        description="Rebuild coins' hourly history (rewrites their stores).")
+    parser.add_argument("tickers", nargs="*", metavar="TICKER",
+                        help="coins to rebuild, e.g. LINK/USDT")
+    parser.add_argument("--all", action="store_true", help="rebuild every coin")
+    args = parser.parse_args(argv)
+    if args.all == bool(args.tickers):
+        parser.error("name the coins to rebuild, or pass --all (not both)")
+    unknown = sorted(set(args.tickers) - {a.ticker for a in every})
+    if unknown:
+        parser.error(f"not a coin in the basket: {', '.join(unknown)}")
+    coins = [a for a in every if args.all or a.ticker in args.tickers]
     session = requests.Session()
-    named = set(sys.argv[1:])
-    coins = [a for a in load_basket().instruments
-             if a.source == "binance" and (not named or a.ticker in named)]
     for asset in coins:
         candles = binance.fetch_history(binance.symbol_for(asset.ticker), START,
                                         session=session)

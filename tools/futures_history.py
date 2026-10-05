@@ -1,18 +1,20 @@
-"""One-off: (re)build the continuous futures stores from Yahoo.
+"""One-off: rebuild a continuous future's store from Yahoo.
 
 Yahoo keeps hourly bars for 730 days and serves only the contracts still
-listed. So each store is Yahoo's continuous series (KC=F, ...) back to 2024-05,
-cleaned once of its other-contract prints (tremor.futures.clean_history), with
-every still-listed contract's own bars laid over its own front window
+listed. So the store is Yahoo's continuous series back to 2024-05, cleaned
+once of its other-contract prints (tremor.futures.clean_history), with every
+still-listed contract's own bars laid over its own front window
 (futures.roll_days) - those weeks are then exactly what the live fetch would
-have stored. Aluminium (ALI=F) is Yahoo's series as it is: not rolled here, and
-no flips in it to clean.
+have stored. Coffee, cocoa and cotton are built from Dukascopy instead
+(tools/dukascopy_futures.py), which leaves live cattle.
 
-Rewrites the five stores under data/tremor/bars. Run from the repository root:
-    python -m tools.futures_history
+Rewrites the named stores under data/tremor/bars, so they must be named. Run
+from the repository root:
+    python -m tools.futures_history LE=F
 """
 from __future__ import annotations
 
+import argparse
 import shutil
 import sys
 from datetime import datetime, timezone
@@ -36,14 +38,22 @@ def chart(symbol: str):
 REBUILT_FROM_DUKASCOPY = {"KC=F", "CT=F", "CC=F"}
 
 
-def main() -> int:
+def main(argv: "list[str] | None" = None) -> int:
+    buildable = {a.ticker: a for a in load_basket().instruments
+                 if futures.is_continuous(a.ticker) and a.ticker not in REBUILT_FROM_DUKASCOPY}
+    parser = argparse.ArgumentParser(
+        description="Rebuild continuous futures stores from Yahoo (rewrites them).")
+    parser.add_argument("tickers", nargs="+", metavar="TICKER",
+                        help=f"one of {', '.join(sorted(buildable))}")
+    args = parser.parse_args(argv)
+    for ticker in args.tickers:
+        if ticker not in buildable:
+            why = (" - built from Dukascopy (tools/dukascopy_futures.py)"
+                   if ticker in REBUILT_FROM_DUKASCOPY else "")
+            parser.error(f"{ticker} is not a future this tool builds{why}")
     today = datetime.now(timezone.utc).date()
-    for asset in load_basket().instruments:
-        if not futures.is_continuous(asset.ticker):
-            continue
-        if asset.ticker in REBUILT_FROM_DUKASCOPY:
-            print(f"{asset.ticker}: history from Dukascopy (tools/dukascopy_futures.py); skipped")
-            continue
+    for ticker in args.tickers:
+        asset = buildable[ticker]
         frame = bars.to_hourly(bars.candles_to_frame(chart(asset.ticker)))
         if not futures.SPECS.get(asset.ticker, {}).get("continuous_history", True):
             frame = frame.iloc[0:0]

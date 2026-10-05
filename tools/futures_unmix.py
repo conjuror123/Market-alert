@@ -7,14 +7,20 @@ continuous series, which Dukascopy cannot replace (it has no cattle).
 """
 from __future__ import annotations
 
+import argparse
 import sys
 
 from tremor import bars, futures
 from tremor.basket import load_basket
 
 
-def main() -> int:
-    asset = next(a for a in load_basket().instruments if a.ticker == sys.argv[1])
+def main(argv: "list[str] | None" = None) -> int:
+    continuous = {a.ticker: a for a in load_basket().instruments
+                  if futures.is_continuous(a.ticker)}
+    parser = argparse.ArgumentParser(
+        description="Drop a stored future's interleaved stretches (rewrites its store).")
+    parser.add_argument("ticker", choices=sorted(continuous))
+    asset = continuous[parser.parse_args(argv).ticker]
     path = bars.store_path(bars.DEFAULT_BARS_DIR, asset.file_stem)
     stored = bars.load(path)
     kept, stretches = futures.drop_mixed(stored, asset.session_template)

@@ -10,6 +10,7 @@ caller finds the scale against the store.
 """
 from __future__ import annotations
 
+import argparse
 import csv
 import os
 import sys
@@ -18,8 +19,14 @@ from datetime import datetime, timezone
 from price_monitor import dukascopy
 
 
-def main() -> int:
-    symbol, year, out = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+def main(argv: "list[str] | None" = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Dump one year of a Dukascopy symbol's hourly bid and ask to CSV.")
+    parser.add_argument("symbol", help="Dukascopy's name, e.g. COTTONCMDUSX")
+    parser.add_argument("year", type=int)
+    parser.add_argument("out", help="the folder to write SYMBOL-YEAR.csv into")
+    args = parser.parse_args(argv)
+    symbol, year, out = args.symbol, args.year, args.out
     os.makedirs(out, exist_ok=True)
     now = datetime.now(timezone.utc)
     path = os.path.join(out, f"{symbol}-{year}.csv")

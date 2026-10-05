@@ -444,7 +444,7 @@ health and the calendar go out, Tremor's pushes, note and pings do not.
 | `price_monitor/weekly_digest.py`, `economic_calendar.py` | the calendar |
 | `price_monitor/notifier.py`, `health.py`, `__main__.py` | Telegram calls, health, the delivery entry point |
 | `price_monitor/<provider>.py` | one client per provider |
-| `tools/` | history builders, `stage_report.py`, `hot_bars.sh`; `fund_verdict.py` and `sina_probe.py`, the feed checks the Research workflow (`alpaca-probe.yml`) runs |
+| `tools/` | history builders (they rewrite stores, so each runs only on the instruments named; `binance_history --all` for every coin), `stage_report.py`, `hot_bars.sh`; `fund_verdict.py` and `sina_probe.py`, the feed checks the Research workflow (`alpaca-probe.yml`) runs |
 
 How far back each record reaches:
 
