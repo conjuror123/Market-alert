@@ -390,7 +390,7 @@ PAT and the branch as `ref`). GitHub's `schedule:` is not used: it fires unrelia
 
 | provider | limit | use |
 |---|---|---|
-| Tiingo | 50/hour, 1,000/day | 27 requests a run |
+| Tiingo | 50/hour, 1,000/day | 27 requests a run; the full dividend refresh (backfill workflow, `corporate-actions`) asks all 133 funds at 45 an hour, about 3 hours, and starts only when the hourly run leaves Tiingo alone that long: a weekend, Friday close + 3 h to Monday 00:05 UTC |
 | Alpaca | 200/min | 30 a run |
 | Twelve Data | 800/day, 8/min | one batch of 8 a run, in a background thread: keep at most 8 instruments on it, as one batch is a minute's credits; a history walk (`--extend-history`, `--fill-gaps`) waits out :03–:12 past each hour and stops at 600 a day (`twelvedata.ARCHIVE_CREDIT_CAP`), so run one a day |
 | SiftingIO | 10,000/month | ~8,500/month (17 pairs, skipped outside the FX week) |

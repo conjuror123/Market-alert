@@ -189,3 +189,78 @@ def test_a_partial_fetch_does_not_write_a_truncated_table(tmp_path, monkeypatch)
     assert ca.main(["--out", str(out)]) == 1
     assert out.read_text(encoding="utf-8") == sentinel
     assert calls["n"] == 20
+
+
+# --- the full Tiingo refresh beside the hourly run ------------------------------
+
+def test_the_refresh_alone_stays_inside_tiingos_hourly_limit(monkeypatch):
+    clock = {"t": 0.0}
+    asked = []
+
+    def fake_fetch(symbol, start, api_key="", session=None, end=None, base_url=""):
+        asked.append(clock["t"])
+        return []
+
+    def fake_sleep(seconds):
+        clock["t"] += seconds
+
+    monkeypatch.setattr(ca.tiingo, "fetch_daily_history", fake_fetch)
+    monkeypatch.setattr(ca.time, "sleep", fake_sleep)
+    ca.collect_from_tiingo([_etf(f"T{i:03d}") for i in range(133)],
+                           date(2002, 1, 1), "k", None)
+
+    busiest = max(sum(1 for u in asked if t <= u < t + 3600) for t in asked)
+    assert busiest <= 50
+
+
+def _tiingo_fund(ticker):
+    return Asset(ticker=ticker, source="twelvedata", block="equity",
+                 has_volume=True, tick_size=0.01, session_template="us_equity",
+                 fetch_interval="30min", label=ticker, in_basket=True,
+                 provider="tiingo")
+
+
+def _store_to_friday_close(bars_dir, asset):
+    import pandas as pd
+    from tremor import bars, sessions
+
+    table = sessions.load_sessions()
+    hours = []
+    for day in pd.date_range("2026-09-28", "2026-10-02"):
+        hours += sessions.instrument_day_hours(day.date(), "us_equity", table)
+    bars.write(bars.store_path(str(bars_dir), asset.file_stem), pd.DataFrame({
+        "hour_utc": hours, "open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0,
+        "volume": 1.0, "n_src": 2}))
+
+
+@pytest.mark.parametrize("now, runs", [
+    ((2026, 10, 3, 12, 0), True),      # Saturday: the hourly run leaves Tiingo alone
+    ((2026, 10, 2, 20, 0), False),     # Friday evening: still re-asking the close
+    ((2026, 10, 4, 23, 30), False),    # Sunday night: Monday's run asks at 00:05,
+                                       # inside the 55 minutes 41 funds take
+])
+def test_the_full_refresh_runs_only_while_the_hourly_run_leaves_tiingo_alone(
+        tmp_path, monkeypatch, now, runs):
+    from datetime import datetime, timezone
+
+    live = _tiingo_fund("XLK")
+    _store_to_friday_close(tmp_path / "bars", live)
+    out = tmp_path / "actions.csv"
+    asked = []
+
+    def fake_fetch(symbol, start, api_key="", session=None, end=None, base_url=""):
+        asked.append(symbol)
+        return []
+
+    monkeypatch.setattr(ca.tiingo, "fetch_daily_history", fake_fetch)
+    monkeypatch.setattr(ca.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(ca, "_now", lambda: datetime(*now, tzinfo=timezone.utc),
+                        raising=False)
+    monkeypatch.setattr("tremor.basket.load_basket",
+                        lambda: _basket([live] + [_etf(f"T{i:02d}") for i in range(40)]))
+    monkeypatch.setenv("TIINGO_API_KEY", "k")
+
+    code = ca.main(["--out", str(out), "--bars-dir", str(tmp_path / "bars")])
+
+    assert (code == 0) is runs
+    assert bool(asked) is runs

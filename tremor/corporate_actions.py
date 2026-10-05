@@ -25,7 +25,7 @@ import os
 import time
 import urllib.parse
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import requests
 
@@ -59,11 +59,15 @@ STEP_THRESHOLD = 1e-5
 SPLIT_THRESHOLD = 0.20
 
 REQUEST_DELAY_SECONDS = 8.0
-# 44 funds at 50 requests/hour. Sleeping ~70s keeps the deriver inside the
-# rolling hourly bucket even if the live monitor has just spent 37 of them.
-# RateLimited does not retry, so a collision aborts rather than writing a
+# Tiingo's free plan: 50 requests an hour, shared with the hourly run, which
+# asks for its 27 funds every hour the NYSE is open or just closed. So the full
+# refresh runs only while the hourly run leaves Tiingo alone - a weekend, from
+# the Friday close plus three hours to Monday 00:05 UTC (hourly_run_asks_tiingo)
+# - and keeps to 45 an hour itself, room for a retry: 133 funds take about three
+# hours. RateLimited does not retry, so a collision aborts rather than writing a
 # truncated table.
-TIINGO_REQUEST_DELAY_SECONDS = 70.0
+TIINGO_HOURLY_LIMIT = 50
+TIINGO_REQUEST_DELAY_SECONDS = 80.0
 
 UNADJUST_KINDS = ("dividend",)
 
@@ -439,8 +443,40 @@ def add_missing_from_yahoo(funds, since: date, path: str, session,
     return 0
 
 
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def hourly_run_asks_tiingo(basket, start: datetime, seconds: float, bars_dir: str,
+                           table: "dict | None" = None) -> "datetime | None":
+    """The first hourly run, from `start` through `seconds` later, that would
+    ask Tiingo for a bar - or None if every run in that span leaves it alone.
+
+    Judged by the hourly run's own rule (backfill.nothing_can_have_appeared)
+    against the stores as they are, at each :05 the run fires at. A store that
+    gains no bars while the market is shut stays as it is, so the answer holds
+    for the whole span."""
+    from tremor import backfill, bars, sessions
+
+    table = sessions.load_sessions() if table is None else table
+    live = [a for a in basket.instruments if a.fetched_from == "tiingo"]
+    run = start.replace(minute=5, second=0, microsecond=0)
+    if run < start:
+        run += timedelta(hours=1)
+    end = start + timedelta(seconds=seconds)
+    while run <= end:
+        for asset in live:
+            path = bars.store_path(bars_dir, asset.file_stem)
+            if not backfill.nothing_can_have_appeared(asset, path, table, now=run):
+                return run
+        run += timedelta(hours=1)
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
+
+    from tremor import bars
 
     from tremor.basket import load_basket
 
@@ -460,6 +496,8 @@ def main(argv: list[str] | None = None) -> int:
              "payouts, and keep every existing row. For a widened basket: the full "
              "Tiingo refresh asks for every fund at Tiingo's hourly budget, which the "
              "live run on the default branch shares.")
+    parser.add_argument("--bars-dir", default=bars.DEFAULT_BARS_DIR,
+                        help="the stores the hourly run's skip rule is read from")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -486,6 +524,18 @@ def main(argv: list[str] | None = None) -> int:
             api_key = os.environ.get("TIINGO_API_KEY", "")
             if not api_key:
                 log.error("TIINGO_API_KEY is not set")
+                return 2
+            now = _now()
+            takes = len(funds) * TIINGO_REQUEST_DELAY_SECONDS
+            clash = hourly_run_asks_tiingo(basket, now, takes, args.bars_dir)
+            if clash is not None:
+                log.error(
+                    "Not started: the hourly run asks Tiingo at %s, inside this "
+                    "refresh's %.1f hours, and the two together pass Tiingo's %d an "
+                    "hour. Run it on a weekend: from three hours after the Friday "
+                    "close to Monday 00:05 UTC.",
+                    clash.strftime("%a %Y-%m-%d %H:%M UTC"), takes / 3600,
+                    TIINGO_HOURLY_LIMIT)
                 return 2
             # The ACQUISITION floor, not the analysis one. This table has to
             # reach at least as far back as the bars do or an ex-date older
