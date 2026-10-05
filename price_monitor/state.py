@@ -19,14 +19,25 @@ class CorruptState(ValueError):
     """
 
 
+# Keys a state written before the bot was renamed Jump still carries:
+# production's keeps the week's messages under "tremor_delivery". Moved on
+# load, before the calendar digest or delivery reads it. Removed after the
+# switch to production, with _adopt_old_state (task #99).
+RENAMED_KEYS = {"tremor_delivery": "jump_delivery"}
+
+
 def load_state(path: str) -> dict:
     if not os.path.exists(path):
         return {}
     with open(path, "r", encoding="utf-8") as f:
         try:
-            return json.load(f)
+            state = json.load(f)
         except json.JSONDecodeError as exc:
             raise CorruptState(f"{path} is not valid JSON") from exc
+    for old, new in RENAMED_KEYS.items():
+        if old in state and new not in state:
+            state[new] = state.pop(old)
+    return state
 
 
 def save_state(path: str, state: dict) -> None:

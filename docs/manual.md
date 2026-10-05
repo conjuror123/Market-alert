@@ -66,6 +66,11 @@ The derived data (`data/jump/metrics/`, `jumps.parquet`) rebuilds from the commi
 bars in under a minute. The open months of the bars are not in git: `tools/hot_bars.sh
 restore` lays them down (needs `gh`, `GITHUB_REPOSITORY`, `GITHUB_REF_NAME`).
 
+Until the switch to production, two things still read the bot's old name, Tremor: an
+archive saved under `data/tremor/` is restored into `data/jump/`, and a state's
+`tremor_delivery` key is read as `jump_delivery` (`state.RENAMED_KEYS`). Both go with
+`_adopt_old_state` after the switch.
+
 To add a provider: a client in `price_monitor/` returning `Candle` lists, its name in
 `PROVIDERS` (`jump/basket.py`), a branch in `backfill.fetch_missing`, its secret in the
 workflow's `env:`.
