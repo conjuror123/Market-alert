@@ -411,7 +411,9 @@ PAT and the branch as `ref`). GitHub's `schedule:` is not used: it fires unrelia
 **Health, in the order of the hourly run.** Everything below goes to the health chat
 (`TELEGRAM_HEALTH_CHAT_ID`), never the channel. "Streak" means a failed run: the down
 alert comes on the 3rd in a row (`health_alert_after_failures`) and again every 24
-(`health_reminder_every_failures`), and "recovered" when they stop.
+(`health_reminder_every_failures`), and "recovered" when they stop. One function sends all
+of it (`notifier.send_health`): every quoted error is escaped (`notifier.quote`), and a
+message past Telegram's 4,096 characters is cut between lines, ending "…and N more lines".
 
 | where | what goes wrong | what tells you | how often |
 |---|---|---|---|

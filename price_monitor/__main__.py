@@ -40,7 +40,7 @@ import requests
 
 from price_monitor import health, tremor_delivery, weekly_digest
 from price_monitor.config import load_config
-from price_monitor.notifier import TelegramError, redact_secrets, send_telegram_message
+from price_monitor.notifier import quote, send_health
 from price_monitor.state import CorruptState, load_state, save_state
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -54,7 +54,7 @@ def format_health_down(streak: int, error_details: list[str]) -> str:
         "or the Telegram token may be invalid.",
         "",
     ]
-    lines.extend(f"• {redact_secrets(d)}" for d in error_details[:10])
+    lines.extend(f"• {quote(d)}" for d in error_details[:10])
     return "\n".join(lines)
 
 
@@ -137,12 +137,9 @@ def main() -> int:
     now = int(time.time())
     previous = health.record_run(state, now)
     missed = health.missed_runs(previous, now)
-    if missed and cfg.telegram_health_chat_id:
-        try:
-            send_telegram_message(cfg.telegram_bot_token, cfg.telegram_health_chat_id,
-                                  format_missed_runs(previous, now, missed))
-        except TelegramError as exc:
-            log.error("Failed to send the missed-runs alert: %s", exc)
+    if missed:
+        send_health(format_missed_runs(previous, now, missed),
+                    cfg.telegram_bot_token, cfg.telegram_health_chat_id)
 
     had_error = False
     error_details: list[str] = []
@@ -196,27 +193,17 @@ def main() -> int:
 
     if had_error:
         streak = health.record_failure(state)
-        if not cfg.telegram_health_chat_id:
-            log.warning("TELEGRAM_HEALTH_CHAT_ID is not set; the down alert goes nowhere")
-        elif health.should_alert_down(streak, cfg.health_alert_after_failures,
-                                      cfg.health_reminder_every_failures):
-            try:
-                send_telegram_message(cfg.telegram_bot_token, cfg.telegram_health_chat_id,
-                                      format_health_down(streak, error_details))
-                log.info("Monitoring-down alert sent (streak=%d)", streak)
-            except TelegramError as exc:
-                log.error("Failed to send monitoring-down alert: %s", exc)
+        if health.should_alert_down(streak, cfg.health_alert_after_failures,
+                                    cfg.health_reminder_every_failures):
+            send_health(format_health_down(streak, error_details),
+                        cfg.telegram_bot_token, cfg.telegram_health_chat_id)
     elif tremor_step_failed():
         log.error("Tremor step failed; not recording a clean run")
     else:
         previous_streak = health.record_success(state)
-        if previous_streak >= cfg.health_alert_after_failures and cfg.telegram_health_chat_id:
-            try:
-                send_telegram_message(cfg.telegram_bot_token, cfg.telegram_health_chat_id,
-                                      format_health_recovered(previous_streak))
-                log.info("Monitoring-recovered alert sent")
-            except TelegramError as exc:
-                log.error("Failed to send monitoring-recovered alert: %s", exc)
+        if previous_streak >= cfg.health_alert_after_failures:
+            send_health(format_health_recovered(previous_streak),
+                        cfg.telegram_bot_token, cfg.telegram_health_chat_id)
 
     save_state(cfg.state_path, state)
     log.info("Run complete.")

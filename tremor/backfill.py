@@ -46,7 +46,7 @@ from tremor.basket import Asset, Basket, load_basket
 from price_monitor import (alpaca, binance, dukascopy, google, hfdata, sifting, sina,
                            tiingo, twelvedata, yahoo)
 from price_monitor.models import UNANSWERED_IN_A_ROW, ExchangeError, Unreachable
-from price_monitor.notifier import TelegramError, redact_secrets, send_telegram_message
+from price_monitor.notifier import quote, send_health
 
 log = logging.getLogger("tremor.backfill")
 
@@ -107,7 +107,7 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
         lines.append(
             f"⚠️ <b>Backfill: {len(dark)} instrument(s) went dark</b>")
         for asset_id, provider, err in dark[:20]:
-            lines.append(f"• {asset_id} ({provider}): {redact_secrets(err)}")
+            lines.append(f"• {asset_id} ({provider}): {quote(err)}")
         if len(dark) > 20:
             lines.append(f"• …and {len(dark) - 20} more")
     if tiingo_gone:
@@ -157,22 +157,13 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
         if lines:
             lines.append("")
         lines.append("⚠️ <b>Second source</b>")
-        lines.extend(f"• {redact_secrets(note)}" for note in second_source)
+        lines.extend(f"• {quote(note)}" for note in second_source)
     return "\n".join(lines)
 
 
 def send_ops_alert(text: str) -> None:
-    """The health chat if configured, otherwise only the log - never the
-    channel."""
-    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-    chat = os.environ.get("TELEGRAM_HEALTH_CHAT_ID", "")
-    if not token or not chat:
-        log.warning("No operational Telegram destination configured")
-        return
-    try:
-        send_telegram_message(token, chat, text)
-    except TelegramError as exc:
-        log.error("Failed to send operational alert: %s", exc)
+    """The health chat (price_monitor.notifier.send_health), never the channel."""
+    send_health(text)
 
 
 def _days_since(start: date) -> float:

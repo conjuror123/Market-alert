@@ -19,7 +19,8 @@ def _cfg(tmp_path, health_chat="ops"):
 def _quiet(monkeypatch):
     """Nothing in these tests may reach Telegram or the network."""
     sent = []
-    monkeypatch.setattr(entry, "send_telegram_message",
+    from price_monitor import notifier
+    monkeypatch.setattr(notifier, "send_telegram_message",
                         lambda token, chat, text: sent.append((chat, text)) or 1)
     monkeypatch.setattr(entry.weekly_digest, "maybe_send_weekly_digest",
                         lambda *a, **k: 0)
@@ -36,8 +37,8 @@ def test_health_down_redacts_secrets_in_error_details():
     ])
     assert "bot999:AAA" not in text
     assert "sk-live" not in text
-    assert "bot<redacted>" in text
-    assert "apikey=<redacted>" in text
+    assert "bot&lt;redacted&gt;" in text
+    assert "apikey=&lt;redacted&gt;" in text
 
 
 def test_a_clean_run_delivers_and_reports_nothing(tmp_path, monkeypatch, _quiet):
@@ -232,3 +233,10 @@ def test_the_first_run_ever_names_no_gap(tmp_path, monkeypatch, _quiet):
     assert entry.main() == 0
     assert _quiet == []
     assert entry.load_state(str(tmp_path / "state.json"))["_monitoring_health"]["last_run_utc"]
+
+
+def test_the_down_alert_quotes_its_errors_and_fits():
+    from price_monitor import notifier
+    text = entry.format_health_down(3, ["Tremor delivery failed (<html>" + "x" * 900 + ")"] * 10)
+    assert "<html>" not in text
+    assert len(text) <= notifier.TELEGRAM_LIMIT

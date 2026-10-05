@@ -1,7 +1,9 @@
 """Telegram notification sender."""
 from __future__ import annotations
 
+import html
 import logging
+import os
 import re
 import time
 
@@ -164,3 +166,46 @@ def delete_telegram_message(
                     message_id, redact_secrets(str(why)))
         return False
     raise TelegramError(f"Telegram API error {resp.status_code}: {resp.text[:300]}")
+
+
+# HEALTH. Every health message goes out through send_health, and every error,
+# exception or provider string in one through quote. The messages are HTML: a
+# "<" quoted raw is a tag Telegram refuses, with the whole message. And past
+# Telegram's 4,096 characters it refuses the message too - the wider the
+# outage, the longer the list, the surer the silence.
+TELEGRAM_LIMIT = 4096
+
+
+def quote(text: str, limit: int = 300) -> str:
+    """Outside text, as text: secrets out, HTML escaped, at most `limit` long."""
+    text = redact_secrets(str(text))
+    if len(text) > limit:
+        text = text[:limit - 1] + "…"
+    return html.escape(text, quote=False)
+
+
+def send_health(text: str, token: "str | None" = None, chat: "str | None" = None) -> bool:
+    """Send to the health chat - never the channel - cut to fit. Every line
+    closes its own tags, so the cut falls between lines. Returns whether it went;
+    a failure is logged, not raised: health must not break the run it reports."""
+    token = token if token is not None else os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    chat = chat if chat is not None else os.environ.get("TELEGRAM_HEALTH_CHAT_ID", "")
+    if not token or not chat:
+        log.warning("No health chat configured (TELEGRAM_HEALTH_CHAT_ID); not sent: %s",
+                    text.splitlines()[0] if text else "")
+        return False
+    lines = text.splitlines()
+
+    def first(n: int) -> str:
+        tail = [f"…and {len(lines) - n} more lines"] if n < len(lines) else []
+        return "\n".join(lines[:n] + tail)
+
+    kept = len(lines)
+    while kept and len(first(kept)) > TELEGRAM_LIMIT:
+        kept -= 1
+    try:
+        send_telegram_message(token, chat, first(kept))
+        return True
+    except TelegramError as exc:
+        log.error("Failed to send a health message: %s", exc)
+        return False
