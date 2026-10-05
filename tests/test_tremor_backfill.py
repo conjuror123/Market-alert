@@ -1932,3 +1932,56 @@ def test_new_instruments_waiting_to_be_seeded_are_not_blamed_on_the_calendar(
 
     assert "the calendar says nothing new can exist" not in caplog.text
     assert "2 new instrument(s) waiting their turn to be seeded" in caplog.text
+
+
+# --- Stale: asked, answered, and nothing new for longer than the calendar allows
+
+def test_stale_hours_counts_the_session_hours_ended_since_the_newest_bar(tmp_path):
+    from tremor.backfill import stale_hours
+    stored = int(datetime(2026, 4, 3, 19, tzinfo=timezone.utc).timestamp())
+    path = _equity_store(tmp_path, stored)
+    table = _table([date(2026, 4, 3), date(2026, 4, 6), date(2026, 4, 7)])
+    # Monday's seven hours, and Tuesday's 13:00 and 14:00; not 15:00, still open.
+    now = datetime(2026, 4, 7, 15, 5, tzinfo=timezone.utc)
+    assert stale_hours(_equity(), path, table, now) == 9
+
+
+def test_an_instrument_dark_for_months_is_not_read_as_fresh(tmp_path):
+    from tremor.backfill import stale_hours
+    stored = int(datetime(2026, 1, 2, 20, tzinfo=timezone.utc).timestamp())   # the closing hour
+    path = _equity_store(tmp_path, stored)
+    table = _table([date(2026, 1, 2), date(2026, 4, 6)])
+    now = datetime(2026, 4, 6, 15, 5, tzinfo=timezone.utc)
+    assert stale_hours(_equity(), path, table, now) == 2
+
+
+def test_a_stale_instrument_is_named_when_it_passes_its_limit_then_daily():
+    from tremor.backfill import stale_limit, stale_to_name
+    fund = _equity()
+    limit = stale_limit("us_equity")
+    assert not stale_to_name(fund, limit)
+    assert stale_to_name(fund, limit + 1)
+    assert not stale_to_name(fund, limit + 2)
+    assert stale_to_name(fund, limit + 1 + 7)          # a session of 7 bars later
+
+
+def test_stale_instruments_are_named_once_and_not_beside_a_failure(tmp_path, monkeypatch):
+    from tremor import backfill
+
+    alerts = []
+    monkeypatch.setattr(backfill, "load_basket", lambda: _us_basket(
+        _yahoo_asset("UGA"), _yahoo_asset("UNG"), _yahoo_asset("CPER")))
+    monkeypatch.setattr(backfill, "backfill_instrument", _answering_except({"UGA"}, []))
+    monkeypatch.setattr(backfill._sessions, "load_sessions", lambda: {date(2026, 10, 5): None})
+    monkeypatch.setattr(backfill, "nothing_can_have_appeared", lambda *a, **k: False)
+    monkeypatch.setattr(backfill, "check_dividends", lambda *a, **k: {"skipped": "x"})
+    monkeypatch.setattr(backfill.verify, "verify", lambda *a, **k: None)
+    monkeypatch.setattr(backfill, "stale_hours", lambda asset, *a, **k:
+                        0 if asset.ticker == "CPER" else 8)
+    monkeypatch.setattr(backfill, "send_ops_alert", alerts.append)
+
+    backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
+
+    stale = alerts[0].split("No new bar though asked")[1]
+    assert "UNG" in stale
+    assert "UGA" not in stale and "CPER" not in stale

@@ -93,11 +93,14 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
                             sifting_skipped: int = 0,
                             sifting_remaining: str | None = None,
                             sifting_trip: str | None = None,
-                            silent: "dict[str, list] | None" = None) -> str:
+                            silent: "dict[str, list] | None" = None,
+                            stale: "list[tuple[str, str, int]] | None" = None) -> str:
     """One operational message naming who went dark. Does not switch provider.
 
     `silent` is each provider stopped for not answering: [the instrument it
-    was stopped at, how many after it were skipped]."""
+    was stopped at, how many after it were skipped]. `stale` is each
+    instrument asked and answered with nothing new for longer than its limit:
+    (asset_id, provider, session hours since its newest bar)."""
     lines = []
     if dark:
         lines.append(
@@ -139,6 +142,16 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
         lines.append(f"{UNANSWERED_IN_A_ROW} instruments in a row timed out or got a server "
                      f"error, the last {trip}; {skipped} remaining {provider} "
                      "instrument(s) skipped. Asked again next run.")
+    if stale:
+        if lines:
+            lines.append("")
+        lines.append(f"⚠️ <b>No new bar though asked: {len(stale)} instrument(s)</b>")
+        for asset_id, provider, hours in stale[:20]:
+            lines.append(f"• {asset_id} ({provider}): {hours} session hours since its "
+                         "newest bar")
+        if len(stale) > 20:
+            lines.append(f"• …and {len(stale) - 20} more")
+        lines.append("Named when it passes its limit, then once a day.")
     return "\n".join(lines)
 
 
@@ -446,6 +459,70 @@ def nothing_can_have_appeared(asset: Asset, path: str,
     # Only hours already begun: the day's later session hours are on the
     # calendar from 00:00 UTC, but nothing of them can exist before they start.
     return not any(newest < hour <= now.timestamp() for hour in expected)
+
+
+# How many of an instrument's session hours may end with no bar stored before
+# it is named stale - asked, answered, and nothing new. Over the 90 days to
+# 2026-09-29 the longest such runs were: funds 5 (SLX, a thin day), pairs 3
+# (the week's open), coins 0, and a daily-session market one whole session on
+# a holiday its calendar does not know and then some thin hours - the LME 18
+# on a UK bank holiday, cotton 27 by Monday 10:00 after Independence Day -
+# hence two sessions' bars there. Replayed at every run of those 90 days, the
+# limits name nothing but cocoa's three weeks without a bar (2026-07-21..08-10),
+# which went unnoticed.
+STALE_AFTER_HOURS = {"crypto_24_7": 3, "fx_continuous": 6, "us_equity": 7}
+
+
+def stale_limit(template: str) -> int:
+    if template in STALE_AFTER_HOURS:
+        return STALE_AFTER_HOURS[template]
+    return 2 * _sessions.daily_bars_per_day(template)
+
+
+def stale_hours(asset: Asset, path: str, table: "dict | None",
+                now: datetime | None = None) -> int:
+    """How many of the instrument's session hours have ended since its newest
+    stored in-session bar, by the same calendar as the skip rule. 0 without a
+    store or (for funds) without the session table."""
+    template = asset.session_template
+    if template == "us_equity" and not table:
+        return 0
+    now = now or datetime.now(timezone.utc)
+    newest = None
+    # The last 40 days answer almost every time; the whole store otherwise, so
+    # an instrument dark for months is not read as fresh.
+    for since in (int(now.timestamp()) - 40 * 86400, None):
+        stored = bars.load(path, since=since)
+        recent = stored["hour_utc"].astype("int64")
+        inside = recent[quality.in_session(asset, recent, table).to_numpy(dtype=bool)]
+        if not inside.empty:
+            newest = int(inside.max())
+            break
+    if newest is None:
+        return 0
+    count, day = 0, datetime.fromtimestamp(newest, tz=timezone.utc).date()
+    while day <= now.date():
+        count += sum(1 for h in _sessions.instrument_day_hours(day, template, table)
+                     if newest < h and h + 3600 <= now.timestamp())
+        day += timedelta(days=1)
+    return count
+
+
+def stale_to_name(asset: Asset, hours: int) -> bool:
+    """Named when it first passes its limit, then about once a day after - a
+    day being the template's bars in one (24 for coins and pairs) - so a long
+    outage is a line a day, not a line an hour. A run missed on the day it
+    passes is caught by the next day's."""
+    limit = stale_limit(asset.session_template)
+    if hours <= limit:
+        return False
+    if asset.session_template in ("crypto_24_7", "fx_continuous"):
+        per_day = 24
+    elif asset.session_template == "us_equity":
+        per_day = 7
+    else:
+        per_day = _sessions.daily_bars_per_day(asset.session_template)
+    return (hours - limit - 1) % per_day == 0
 
 
 # A minute and a second between batched Twelve Data requests: each spends the
@@ -1644,6 +1721,29 @@ def main(argv: list[str] | None = None) -> int:
                          r["asset_id"], r["rows"], _fmt(r["first"]), _fmt(r["last"]),
                          r["from_api"])
 
+    # STALE: asked and answered, yet nothing new for longer than its calendar
+    # allows - a provider serving an old series, or a contract it no longer
+    # carries. Not the instruments already named above, as failed or skipped.
+    stale: list[tuple[str, str, int]] = []
+    if session_table and not args.instruments and not args.extend_history:
+        named = {asset_id for asset_id, _, _ in dark}
+        stopped = set(silent) | {p for p, gone in (
+            ("tiingo", tiingo_gone), ("yahoo", yahoo_gone), ("sifting", sifting_gone),
+            ("alpaca", alpaca_gone), ("twelvedata", quota_gone)) if gone}
+        for asset in instruments:
+            if asset.asset_id in named or asset.fetched_from in stopped:
+                continue
+            try:
+                hours = stale_hours(asset, bars.store_path(args.bars_dir, asset.file_stem),
+                                    session_table)
+            except Exception as exc:
+                log.warning("%s: staleness not checked - %s", asset.asset_id, exc)
+                continue
+            if stale_to_name(asset, hours):
+                stale.append((asset.asset_id, asset.fetched_from, hours))
+                log.error("%s: no new bar for %d session hours though asked",
+                          asset.asset_id, hours)
+
     if closed:
         log.info("%d instrument(s) not asked: the calendar says nothing new can exist",
                  closed)
@@ -1732,7 +1832,7 @@ def main(argv: list[str] | None = None) -> int:
         yahoo_gone=yahoo_gone, yahoo_skipped=yahoo_skipped,
         yahoo_trip=yahoo_trip, sifting_gone=sifting_gone,
         sifting_skipped=sifting_skipped, sifting_remaining=sifting_remaining,
-        sifting_trip=sifting_trip, silent=silent)
+        sifting_trip=sifting_trip, silent=silent, stale=stale)
     if text:
         send_ops_alert(text)
 

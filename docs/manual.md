@@ -128,7 +128,10 @@ that instrument. A provider that does not answer two instruments in a row (every
 timeout, a failed connection or a 5xx, about 96 s each) is stopped for the run too, and
 left out of the dividend check and the second source; the health chat names it
 (`price_monitor.models.Unreachable`). Twelve Data's batch is retried twice, 61 s apart, on
-its own thread.
+its own thread. An instrument asked and answered but with no new bar for longer than its
+calendar allows is named on the health chat when it passes its limit, then once a day
+(`stale_hours`): 3 session hours for a coin, 6 for a pair, 7 for a fund, two sessions for a
+daily-session market (whose calendars don't know holidays).
 
 **Sessions** (`tremor/sessions.py`): the NYSE table (`data/tremor/sessions/nyse.csv`),
 the FX week, and each daily-session market's hours (LME, ICE, CME, B3). The NYSE table
@@ -410,6 +413,7 @@ PAT and the branch as `ref`). GitHub's `schedule:` is not used: it fires unrelia
 | symptom | effect | action |
 |---|---|---|
 | a provider fails or rate-limits | its instruments keep their stored bars; the health chat names them | none, unless it persists |
+| a provider answers but serves nothing new | the instrument goes stale; named past its limit, then daily | check the symbol and contract |
 | backfill fails | pipeline and jumps still run on stored bars; the job ends red | read the health message |
 | pipeline or jumps crash, or the step runs out of its 12 minutes | no new events; counts as a failed run (`TREMOR_PIPELINE_CRASHED`), named with the part and minutes | fix and rerun |
 | a second source fails | its moves are judged by the other source, or scored unchecked | none |
