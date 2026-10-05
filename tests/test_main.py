@@ -155,3 +155,21 @@ def test_a_backfill_failure_alone_is_neither_clean_nor_a_failure(
     for _ in range(3):
         assert entry.main() == 0
     assert _quiet == []
+
+
+def test_a_step_stopped_part_way_says_where_and_after_how_long(
+        tmp_path, monkeypatch, _quiet):
+    # A crash and a step out of time look the same to the workflow; the stage
+    # file says which part was running and for how long.
+    import time
+    stages = tmp_path / "stages"
+    start = int(time.time()) - 12 * 60
+    stages.write_text(f"fetch {start}\npipeline {start + 600}\n")
+    monkeypatch.setattr(entry, "load_config", lambda: _cfg(tmp_path))
+    monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", lambda cfg, state: 0)
+    monkeypatch.setenv("TREMOR_STEP_FAILED", "true")
+    monkeypatch.setenv("TREMOR_PIPELINE_CRASHED", "true")
+    monkeypatch.setenv("TREMOR_STAGE_FILE", str(stages))
+    entry.main()
+    entry.main()
+    assert "stopped during pipeline, 12 min after it began" in _quiet[0][1]

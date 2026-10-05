@@ -31,6 +31,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import time
 
 import requests
 
@@ -78,6 +79,22 @@ def tremor_pipeline_crashed() -> bool:
     return value in ("1", "true", "yes")
 
 
+def tremor_stopped_at(now: float | None = None) -> "tuple[str, int] | None":
+    """Where the Tremor step was when it stopped short, and how many minutes
+    after it began: (stage, minutes), or None if it reached its end or left no
+    record. The step appends "<stage> <epoch>" as each part starts."""
+    path = os.environ.get("TREMOR_STAGE_FILE", "")
+    try:
+        with open(path, encoding="utf-8") as f:
+            rows = [line.split() for line in f if line.strip()]
+    except OSError:
+        return None
+    if not rows or rows[-1][0] == "done":
+        return None
+    now = time.time() if now is None else now
+    return rows[-1][0], int((now - int(rows[0][1])) // 60)
+
+
 def main() -> int:
     cfg = load_config()
     try:
@@ -123,8 +140,15 @@ def main() -> int:
 
     if tremor_pipeline_crashed():
         had_error = True
-        error_details.append("the Tremor pipeline or detector crashed: events were "
-                             "not refreshed")
+        stopped = tremor_stopped_at()
+        if stopped:
+            # Its time limit, or a crash: the minutes say which.
+            error_details.append(f"the Tremor step stopped during {stopped[0]}, "
+                                 f"{stopped[1]} min after it began: events were "
+                                 "not refreshed")
+        else:
+            error_details.append("the Tremor pipeline or detector crashed: events "
+                                 "were not refreshed")
 
     if had_error:
         streak = health.record_failure(state)

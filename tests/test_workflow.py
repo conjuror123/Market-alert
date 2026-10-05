@@ -24,3 +24,33 @@ def test_the_state_is_committed_even_when_the_monitor_step_fails():
     condition = str(commit.get("if", ""))
     assert "always()" in condition
     assert monitor.get("id") and f"steps.{monitor['id']}.outcome" in condition
+
+
+def _job():
+    with open(WORKFLOW, encoding="utf-8") as f:
+        return yaml.safe_load(f)["jobs"]["monitor"]
+
+
+def test_the_fetch_and_score_step_runs_out_of_time_before_the_job_does():
+    # The job's own timeout cancels every step after it: no delivery, no health
+    # line, no commit (28 runs on 2026-09-09..11). The step's limit leaves the
+    # rest of the job its turn.
+    job, steps = _job(), _steps()
+    tremor = steps["Tremor pipeline"]
+    assert tremor.get("timeout-minutes")
+    assert job["timeout-minutes"] - tremor["timeout-minutes"] >= 6
+
+
+def test_delivery_runs_after_a_fetch_and_score_step_that_ran_out_of_time():
+    # A step that timed out may end the job's success(); delivery and health
+    # must still run, unless the step never started (setup failed before it).
+    steps = _steps()
+    tremor_id = steps["Tremor pipeline"]["id"]
+    condition = str(steps["Run monitor"].get("if", ""))
+    assert "!cancelled()" in condition
+    assert f"steps.{tremor_id}.outcome != 'skipped'" in condition
+    env = steps["Run monitor"]["env"]
+    # Not only 'failure': a step stopped for time must count as not completed.
+    assert f"steps.{tremor_id}.outcome != 'success'" in env["TREMOR_STEP_FAILED"]
+    assert f"steps.{tremor_id}.outcome != 'success'" in env["TREMOR_PIPELINE_CRASHED"]
+    assert "TREMOR_STAGE_FILE" in env

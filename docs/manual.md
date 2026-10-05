@@ -411,7 +411,7 @@ PAT and the branch as `ref`). GitHub's `schedule:` is not used: it fires unrelia
 |---|---|---|
 | a provider fails or rate-limits | its instruments keep their stored bars; the health chat names them | none, unless it persists |
 | backfill fails | pipeline and jumps still run on stored bars; the job ends red | read the health message |
-| pipeline or jumps crash | no new events; counts as a failed run (`TREMOR_PIPELINE_CRASHED`) | fix and rerun |
+| pipeline or jumps crash, or the step runs out of its 12 minutes | no new events; counts as a failed run (`TREMOR_PIPELINE_CRASHED`), named with the part and minutes | fix and rerun |
 | a second source fails | its moves are judged by the other source, or scored unchecked | none |
 | run never starts | cron-job.org emails | check the trigger |
 | N failed runs in a row | health chat (`health_alert_after_failures` 3, repeat every 24) | look at Actions |
@@ -419,7 +419,10 @@ PAT and the branch as `ref`). GitHub's `schedule:` is not used: it fires unrelia
 | detector or basket changed | the week's pushes and pings deleted once | expected |
 
 The Tremor steps are `continue-on-error` so delivery still runs, and the job is failed at
-the end anyway. Health doesn't report "recovered" while the Tremor step is red.
+the end anyway. Health doesn't report "recovered" while the Tremor step is red. The step
+has 12 of the job's 20 minutes: past them it is stopped, and delivery, health and the
+commit still run. Each part of it (fetch, pipeline, jumps) notes its start, so a step that
+stops short is reported with the part it was in and its minutes.
 
 **Expected volume.** About 4 pushes and 11 note rows a week, about 9 messages a week, 8 of
 them ringing. A quiet day is normal: green runs mean it looked and found nothing.
