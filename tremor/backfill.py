@@ -45,7 +45,7 @@ from tremor import sessions as _sessions
 from tremor.basket import Asset, Basket, load_basket
 from price_monitor import (alpaca, binance, dukascopy, google, hfdata, sifting, sina,
                            tiingo, twelvedata, yahoo)
-from price_monitor.models import ExchangeError
+from price_monitor.models import UNANSWERED_IN_A_ROW, ExchangeError, Unreachable
 from price_monitor.notifier import TelegramError, redact_secrets, send_telegram_message
 
 log = logging.getLogger("tremor.backfill")
@@ -92,8 +92,12 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
                             sifting_gone: bool = False,
                             sifting_skipped: int = 0,
                             sifting_remaining: str | None = None,
-                            sifting_trip: str | None = None) -> str:
-    """One operational message naming who went dark. Does not switch provider."""
+                            sifting_trip: str | None = None,
+                            silent: "dict[str, list] | None" = None) -> str:
+    """One operational message naming who went dark. Does not switch provider.
+
+    `silent` is each provider stopped for not answering: [the instrument it
+    was stopped at, how many after it were skipped]."""
     lines = []
     if dark:
         lines.append(
@@ -128,6 +132,13 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
         lines.append(f"⚠️ <b>SiftingIO request budget spent{who}</b>")
         lines.append(f"{quota}; {sifting_skipped} remaining SiftingIO instrument(s) skipped.")
         lines.append("Provider was not switched automatically.")
+    for provider, (trip, skipped) in (silent or {}).items():
+        if lines:
+            lines.append("")
+        lines.append(f"⚠️ <b>{provider} did not answer</b>")
+        lines.append(f"{UNANSWERED_IN_A_ROW} instruments in a row timed out or got a server "
+                     f"error, the last {trip}; {skipped} remaining {provider} "
+                     "instrument(s) skipped. Asked again next run.")
     return "\n".join(lines)
 
 
@@ -324,6 +335,7 @@ def check_dividends(funds: "list[Asset]", table: "dict | None",
     found: list[corporate_actions.CorporateAction] = []
     failed: list[str] = []
     checked = 0
+    unanswered = 0
     for position, asset in enumerate(due):
         since = (date.fromisoformat(checks[asset.ticker]) + timedelta(days=1)
                  if asset.ticker in checks else today - timedelta(days=30))
@@ -335,10 +347,22 @@ def check_dividends(funds: "list[Asset]", table: "dict | None",
                         asset.ticker, exc)
             failed.extend(a.ticker for a in due[position:])
             break
+        except Unreachable as exc:
+            log.warning("dividend check: %s failed - %s", asset.ticker, exc)
+            failed.append(asset.ticker)
+            unanswered += 1
+            if unanswered >= UNANSWERED_IN_A_ROW:
+                log.warning("dividend check: Yahoo did not answer %d funds in a row; "
+                            "the rest wait for the next run", unanswered)
+                failed.extend(a.ticker for a in due[position + 1:])
+                break
+            continue
         except Exception as exc:
             log.warning("dividend check: %s failed - %s", asset.ticker, exc)
             failed.append(asset.ticker)
+            unanswered = 0
             continue
+        unanswered = 0
         found.extend(corporate_actions.CorporateAction(
             ticker=asset.ticker, day=day, kind="dividend", factor_step=step)
             for day, step in pairs)
@@ -1454,6 +1478,12 @@ def main(argv: list[str] | None = None) -> int:
     sifting_trip = None
     sifting_remaining = None
     yahoo_trip = None
+    # A provider that times out or errors on every attempt costs ~96 s an
+    # instrument (186 s for Alpaca), and the job has 20 minutes: asked one by
+    # one, a silent provider's funds took it past them, and a cancelled job
+    # delivers nothing and tells no one. Stopped after UNANSWERED_IN_A_ROW.
+    unanswered: dict[str, int] = {}       # provider -> instruments in a row
+    silent: dict[str, list] = {}          # provider -> [stopped at, skipped since]
     dark: list[tuple[str, str, str]] = []
 
     # TWELVE DATA FIRST, AND BESIDE THE REST. Its funds are fetched in batches
@@ -1514,11 +1544,15 @@ def main(argv: list[str] | None = None) -> int:
             limited += 1
             dark.append((asset.asset_id, "alpaca", "skipped: Alpaca's rate limit is spent"))
             continue
+        if asset.fetched_from in silent:
+            silent[asset.fetched_from][1] += 1
+            continue
         try:
             r = backfill_instrument(asset, basket, args.bars_dir, api_key, session,
                                     args.extend_history, tiingo_key, sifting_key)
             log.info("%s: %d bars (%s .. %s), %d new", r["asset_id"], r["rows"],
                      _fmt(r["first"]), _fmt(r["last"]), r["from_api"])
+            unanswered.pop(asset.fetched_from, None)
         except twelvedata.DailyQuotaExhausted as exc:
             # STOP THE WHOLE LOOP, and this is the difference between a run that
             # delivers on slightly stale bars and a run that delivers nothing.
@@ -1568,10 +1602,22 @@ def main(argv: list[str] | None = None) -> int:
             log.error("Yahoo's rate limit is spent - %s", exc)
             log.error("Skipping the remaining Yahoo instruments; the other "
                       "providers continue.")
+        except Unreachable as exc:
+            failures += 1
+            dark.append((asset.asset_id, asset.fetched_from, str(exc)))
+            log.error("%s: failed - %s", asset.asset_id, exc)
+            provider = asset.fetched_from
+            unanswered[provider] = unanswered.get(provider, 0) + 1
+            if unanswered[provider] >= UNANSWERED_IN_A_ROW:
+                silent[provider] = [asset.asset_id, 0]
+                log.error("%s did not answer %d instruments in a row; skipping the "
+                          "rest of it this run, the other providers continue.",
+                          provider, unanswered[provider])
         except Exception as exc:
             failures += 1
             dark.append((asset.asset_id, asset.fetched_from, str(exc)))
             log.error("%s: failed - %s", asset.asset_id, exc)
+            unanswered.pop(asset.fetched_from, None)        # it answered
         # The 8-requests-per-minute limit is per key, and the running hourly
         # monitor spends it too - the pause is needed between instruments as well.
         # Only Twelve Data is paced: no other provider here has a per-minute
@@ -1606,6 +1652,9 @@ def main(argv: list[str] | None = None) -> int:
     if limited:
         log.info("%d instrument(s) not asked: their provider's rate limit is spent",
                  limited)
+    if any(skipped for _, skipped in silent.values()):
+        log.info("%d instrument(s) not asked: their provider did not answer",
+                 sum(skipped for _, skipped in silent.values()))
     # Not counted as a failure: a spent budget is a known limit being reached,
     # not a breakage, and failing the run would turn a daily certainty into a
     # daily red cross. It is logged loudly instead - and the run still delivers.
@@ -1624,8 +1673,10 @@ def main(argv: list[str] | None = None) -> int:
                     "were skipped; the other providers continue.")
 
     # Only on the ordinary hourly pass over the whole basket, and never once
-    # Yahoo has said stop: a rate limit is not a reason to spend it again.
-    if session_table and not args.instruments and not yahoo_gone:
+    # Yahoo has said stop or stopped answering: a rate limit is not a reason to
+    # spend it again, nor a silence to wait it out again.
+    if session_table and not args.instruments and not yahoo_gone \
+            and "yahoo" not in silent:
         try:
             r = check_dividends(corporate_actions._funds(basket), session_table,
                                 session)
@@ -1646,12 +1697,13 @@ def main(argv: list[str] | None = None) -> int:
 
     # A SECOND SOURCE ON THE FAR MOVES, on the ordinary pass over the whole
     # basket, before anything is scored: a move it did not see is not scored
-    # and its message says so (tremor.verify). Yahoo is not asked again once
-    # it has said stop; Sina still checks the Yahoo-fed funds.
+    # and its message says so (tremor.verify). A provider is not asked again
+    # once it has said stop or stopped answering; Sina still checks the
+    # Yahoo-fed funds.
     if session_table and not args.instruments and not args.extend_history:
         try:
             verify.verify(basket.instruments, args.bars_dir, session_table, session,
-                          blocked={"yahoo"} if yahoo_gone else None)
+                          blocked=({"yahoo"} if yahoo_gone else set()) | set(silent))
         except Exception as exc:
             # Warned, not failed: an unchecked move is scored, which is how
             # every move was treated before the check existed.
@@ -1680,7 +1732,7 @@ def main(argv: list[str] | None = None) -> int:
         yahoo_gone=yahoo_gone, yahoo_skipped=yahoo_skipped,
         yahoo_trip=yahoo_trip, sifting_gone=sifting_gone,
         sifting_skipped=sifting_skipped, sifting_remaining=sifting_remaining,
-        sifting_trip=sifting_trip)
+        sifting_trip=sifting_trip, silent=silent)
     if text:
         send_ops_alert(text)
 

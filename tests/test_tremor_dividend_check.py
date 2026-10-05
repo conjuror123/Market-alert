@@ -73,6 +73,40 @@ def test_a_failed_fund_is_not_vouched_for(files, monkeypatch):
     assert checks["GLD"] == "2026-10-01"
 
 
+def test_yahoo_not_answering_twice_in_a_row_ends_the_check(files, monkeypatch):
+    # Each unanswered fund costs about 96 s of timeouts and retries; 133 funds
+    # asked one by one would take the job past its 20 minutes.
+    from price_monitor.models import Unreachable
+    asked = []
+
+    def fake(ticker, since, session=None, now=None):
+        asked.append(ticker)
+        raise Unreachable(f"{ticker}: Read timed out")
+
+    monkeypatch.setattr(yahoo, "fetch_dividends", fake)
+    r = run(files, at(10), None, funds=("HYG", "GLD", "SLV", "TLT"))
+
+    assert asked == ["HYG", "GLD"]
+    assert r["failed"] == ["HYG", "GLD", "SLV", "TLT"]
+
+
+def test_one_unanswered_fund_does_not_end_the_check(files, monkeypatch):
+    from price_monitor.models import Unreachable
+    asked = []
+
+    def fake(ticker, since, session=None, now=None):
+        asked.append(ticker)
+        if ticker in ("HYG", "SLV"):
+            raise Unreachable(f"{ticker}: Read timed out")
+        return []
+
+    monkeypatch.setattr(yahoo, "fetch_dividends", fake)
+    r = run(files, at(10), None, funds=("HYG", "GLD", "SLV", "TLT"))
+
+    assert asked == ["HYG", "GLD", "SLV", "TLT"]
+    assert r["failed"] == ["HYG", "SLV"]
+
+
 def test_nothing_is_asked_before_the_open_or_off_a_trading_day(files, monkeypatch):
     monkeypatch.setattr(yahoo, "fetch_dividends",
                         lambda *a, **k: pytest.fail("asked too early"))

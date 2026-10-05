@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 
 import requests
 
-from price_monitor.models import Candle, ExchangeError
+from price_monitor.models import Candle, ExchangeError, Unreachable
 
 URL = "https://api.wsj.net/api/michelangelo/timeseries/history"
 # The token MarketWatch's own chart pages send; public, not this project's.
@@ -83,10 +83,11 @@ def fetch_hourly(key: str, session: requests.Session | None = None,
         try:
             resp = (session or requests).get(URL, params=params, headers=HEADERS, timeout=30)
         except requests.RequestException as exc:
-            last = ExchangeError(f"{key}: {exc}")
+            last = Unreachable(f"{key}: {exc}")
             continue
         if resp.status_code in (429, 500, 502, 503, 504):
-            last = ExchangeError(f"{key}: MarketWatch answered {resp.status_code}")
+            last = (Unreachable if resp.status_code >= 500 else ExchangeError)(
+                f"{key}: MarketWatch answered {resp.status_code}")
             continue
         if resp.status_code != 200:
             raise ExchangeError(f"{key}: MarketWatch answered {resp.status_code}")

@@ -124,7 +124,11 @@ markets outside their session. Coins
 are never skipped. At most 4 never-seen instruments are seeded per run. Clients retry
 three times (2 s, 4 s). A rate limit from Yahoo, Tiingo, SiftingIO or Alpaca stops that
 provider for the run, as does Twelve Data's spent day; from the others a 429 fails only
-that instrument. Twelve Data's batch is retried twice, 61 s apart, on its own thread.
+that instrument. A provider that does not answer two instruments in a row (every attempt a
+timeout, a failed connection or a 5xx, about 96 s each) is stopped for the run too, and
+left out of the dividend check and the second source; the health chat names it
+(`price_monitor.models.Unreachable`). Twelve Data's batch is retried twice, 61 s apart, on
+its own thread.
 
 **Sessions** (`tremor/sessions.py`): the NYSE table (`data/tremor/sessions/nyse.csv`),
 the FX week, and each daily-session market's hours (LME, ICE, CME, B3). The NYSE table
@@ -136,8 +140,9 @@ OHLC is inconsistent beyond half a tick, volume is negative, it duplicates an ho
 future's thin bar, or it falls outside its session.
 
 **Dividends** (`tremor/corporate_actions.py`): on the first run after 09:30 New York,
-Yahoo is asked for each paying fund's payouts. A fund's overnight gap is scored only on a
-date its payouts are confirmed through; five or more days behind, the health chat is told
+Yahoo is asked for each paying fund's payouts; two funds in a row unanswered end the check
+until the next run. A fund's overnight gap is scored only on a date its payouts are
+confirmed through; five or more days behind, the health chat is told
 once a day.
 
 ## 5. The second source
@@ -172,7 +177,8 @@ is not a move.
 any is still waiting. Otherwise unconfirmed if any answered. Otherwise unknown. A source
 with bars of its own around the move outweighs one bridging a gap (USD/INR at night:
 Yahoo's last bar is 10:00, MarketWatch has every hour). A failed source leaves the other
-to answer; a rate limit stops that source for the run.
+to answer; a rate limit, or no answer to two requests in a row, stops that source for the
+run.
 
 **An unconfirmed move is not scored, and nothing is deleted.** `jumps` leaves its reading
 out of every word and every yardstick; the bar stays in the store, and in the price path

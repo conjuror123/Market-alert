@@ -1423,6 +1423,105 @@ def test_a_yahoo_404_stays_per_instrument_and_does_not_skip_the_rest(
     assert asked == ["UGA", "UNG"]
 
 
+# --- A provider that does not answer twice in a row is stopped for the run ---
+
+def _sina_asset(ticker):
+    return Asset(ticker=ticker, source="twelvedata", provider="sina",
+                 block="energy", has_volume=True, tick_size=0.01,
+                 session_template="us_equity", fetch_interval="30min",
+                 label=ticker, in_basket=True)
+
+
+def _answering_except(silent, asked):
+    from price_monitor.models import Unreachable
+
+    def fake_backfill(asset, *a, **k):
+        asked.append(asset.ticker)
+        if asset.ticker in silent:
+            raise Unreachable(f"{asset.ticker}: Read timed out. (read timeout=30)")
+        return {"asset_id": asset.asset_id, "rows": 1, "first": 1, "last": 1,
+                "from_api": 1}
+    return fake_backfill
+
+
+def _us_basket(*assets):
+    from tremor.basket import Basket, VolatilityIndex
+    return Basket(
+        assets=assets, outside=(),
+        volatility_index=VolatilityIndex("VIXCLS", "fred", "1d", "VIX", date(1990, 1, 1)),
+        anchor_exchange_tz="America/New_York",
+        history_since=date(2021, 1, 1), session_templates={"us_equity": {}})
+
+
+def test_a_provider_that_does_not_answer_twice_in_a_row_is_stopped_for_the_run(
+        tmp_path, monkeypatch, caplog):
+    # Each unanswered instrument costs about 96 s of timeouts and retries;
+    # asked one by one, a silent provider's 38 funds took the job past its 20
+    # minutes, and a cancelled job delivers nothing and tells no one.
+    from tremor import backfill
+
+    asked, alerts = [], []
+    monkeypatch.setattr(backfill, "load_basket", lambda: _us_basket(
+        _yahoo_asset("UGA"), _sina_asset("SPY"), _yahoo_asset("UNG"),
+        _yahoo_asset("CPER"), _sina_asset("QQQ"), _yahoo_asset("USO")))
+    monkeypatch.setattr(backfill, "backfill_instrument",
+                        _answering_except({"UGA", "UNG", "CPER", "USO"}, asked))
+    monkeypatch.setattr(backfill, "SEED_PER_RUN", 10)    # every store here is empty
+    monkeypatch.setattr(backfill._sessions, "load_sessions",
+                        lambda: (_ for _ in ()).throw(FileNotFoundError()))
+    monkeypatch.setattr(backfill, "send_ops_alert", alerts.append)
+
+    with caplog.at_level("INFO", logger="tremor.backfill"):
+        rc = backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
+
+    assert rc == 1
+    assert asked == ["UGA", "SPY", "UNG", "QQQ"]
+    assert "yahoo did not answer" in alerts[0]
+    assert "2 remaining" in alerts[0] and "UNG" in alerts[0]
+    assert "2 instrument(s) not asked: their provider did not answer" in caplog.text
+
+
+def test_an_answer_between_two_silences_keeps_the_provider_asked(tmp_path, monkeypatch):
+    from tremor import backfill
+
+    asked, alerts = [], []
+    monkeypatch.setattr(backfill, "load_basket", lambda: _us_basket(
+        _yahoo_asset("UGA"), _yahoo_asset("UNG"), _yahoo_asset("CPER"),
+        _yahoo_asset("USO")))
+    monkeypatch.setattr(backfill, "backfill_instrument",
+                        _answering_except({"UGA", "CPER"}, asked))
+    monkeypatch.setattr(backfill._sessions, "load_sessions",
+                        lambda: (_ for _ in ()).throw(FileNotFoundError()))
+    monkeypatch.setattr(backfill, "send_ops_alert", alerts.append)
+
+    backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
+
+    assert asked == ["UGA", "UNG", "CPER", "USO"]
+    assert "did not answer" not in alerts[0]
+
+
+def test_a_provider_stopped_for_not_answering_is_left_out_of_the_later_passes(
+        tmp_path, monkeypatch):
+    from tremor import backfill
+
+    seen = {}
+    monkeypatch.setattr(backfill, "load_basket", lambda: _us_basket(
+        _yahoo_asset("UGA"), _yahoo_asset("UNG")))
+    monkeypatch.setattr(backfill, "backfill_instrument",
+                        _answering_except({"UGA", "UNG"}, []))
+    monkeypatch.setattr(backfill._sessions, "load_sessions", lambda: {date(2026, 10, 5): None})
+    monkeypatch.setattr(backfill, "nothing_can_have_appeared", lambda *a, **k: False)
+    monkeypatch.setattr(backfill, "check_dividends",
+                        lambda *a, **k: pytest.fail("Yahoo asked for payouts"))
+    monkeypatch.setattr(backfill.verify, "verify",
+                        lambda *a, blocked=None, **k: seen.update(blocked=blocked))
+    monkeypatch.setattr(backfill, "send_ops_alert", lambda *_: None)
+
+    backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
+
+    assert "yahoo" in seen["blocked"]
+
+
 def _sifting_pair(ticker):
     return Asset(ticker=ticker, source="twelvedata", provider="sifting",
                  block="FX", has_volume=False, tick_size=0.00001,

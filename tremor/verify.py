@@ -76,6 +76,7 @@ import numpy as np
 import pandas as pd
 import requests
 
+from price_monitor.models import UNANSWERED_IN_A_ROW, Unreachable
 from tremor import atomic, bars
 from tremor.basket import Asset
 
@@ -424,8 +425,10 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
     # One request per source and instrument; the instruments with a reading not
     # yet judged first, so a busy hour cannot leave the same ones unasked run
     # after run. A source that fails leaves the others to answer; a rate limit
-    # stops that source for the rest of the run.
+    # stops that source for the rest of the run, as does not answering
+    # UNANSWERED_IN_A_ROW requests in a row (~96 s each of a 20-minute job).
     counts = {CONFIRMED: 0, UNCONFIRMED: 0, PENDING: 0, UNKNOWN: 0}
+    unanswered: dict[str, int] = {}
     requests_left = 10 ** 6 if history else MAX_REQUESTS
     doubted: list[str] = []
     for _, asset, found in sorted(due, key=lambda d: d[0]):
@@ -440,10 +443,19 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
             try:
                 answers.append((name, _priced(fetch_verifier(name, symbol, interval, days,
                                                              session, now_dt))))
+                unanswered.pop(name, None)
             except Exception as exc:
                 log.warning("verify: %s from %s failed - %s", asset.ticker, name, exc)
                 if isinstance(exc, yahoo.RateLimited) or "answered 429" in str(exc):
                     blocked.add(name)
+                elif isinstance(exc, Unreachable):
+                    unanswered[name] = unanswered.get(name, 0) + 1
+                    if unanswered[name] >= UNANSWERED_IN_A_ROW:
+                        log.warning("verify: %s did not answer %d requests in a row; "
+                                    "not asked again this run", name, unanswered[name])
+                        blocked.add(name)
+                else:
+                    unanswered.pop(name, None)              # it answered
         if not answers:
             continue
         for c in found:

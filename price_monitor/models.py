@@ -17,3 +17,15 @@ class Candle:
 
 class ExchangeError(RuntimeError):
     pass
+
+
+class Unreachable(ExchangeError):
+    """No answer on any attempt: each timed out, failed to connect or got a
+    server error (5xx). A refusal (404, 400) is an answer, not this.
+
+    Each costs about a minute and a half of timeouts and retries, and the hourly
+    job has twenty, so a provider that does this to UNANSWERED_IN_A_ROW requests
+    in a row is not asked again in the run (tremor.backfill, tremor.verify)."""
+
+
+UNANSWERED_IN_A_ROW = 2

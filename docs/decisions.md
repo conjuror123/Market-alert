@@ -158,6 +158,14 @@ roll is not scored, and a bar under 5% of usual volume is a quote, so a hole.
 seam, before USDT left the dollar, the record is the deepest dollar exchange passing the
 splice gates, scaled to meet without a step.
 
+**A provider that does not answer twice in a row is stopped for the run.** An unanswered
+request costs about 96 s of timeouts and retries (186 s at Alpaca), and the job has 20
+minutes. Asked one by one, a silent Yahoo's 38 funds and 133 dividend lookups come to 274
+minutes on a simulated clock (2026-10-05); stopped after two, to 3. A cancelled job
+delivers nothing and tells no one. One silence can be a blip; two in a row is the provider.
+A wrong stop costs its instruments an hour, and the health chat names it. A refusal (404,
+400) is an answer and stops nothing.
+
 **USD/BRL trades in its own session**, 09:00–18:00 São Paulo (`b3_fx`): outside it real
 moves are under 3.5 bp an hour.
 

@@ -31,7 +31,7 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 
-from price_monitor.models import Candle, ExchangeError
+from price_monitor.models import Candle, ExchangeError, Unreachable
 
 BASE_URL = "https://data-api.binance.vision/api/v3/klines"
 STEP = 3600
@@ -67,10 +67,11 @@ def _get(session, symbol: str, start: int) -> list:
                                   "startTime": start * 1000, "limit": LIMIT},
                 timeout=30)
         except requests.RequestException as exc:
-            last = ExchangeError(f"{symbol}: {exc}")
+            last = Unreachable(f"{symbol}: {exc}")
             continue
         if resp.status_code in (418, 429, 500, 502, 503, 504):
-            last = ExchangeError(f"{symbol}: Binance answered {resp.status_code}")
+            last = (Unreachable if resp.status_code >= 500 else ExchangeError)(
+                f"{symbol}: Binance answered {resp.status_code}")
             continue
         if resp.status_code != 200:
             raise ExchangeError(f"{symbol}: Binance answered {resp.status_code}: "

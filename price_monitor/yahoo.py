@@ -44,7 +44,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 
-from price_monitor.models import Candle, ExchangeError
+from price_monitor.models import Candle, ExchangeError, Unreachable
 
 log = logging.getLogger("price_monitor.yahoo")
 
@@ -154,7 +154,7 @@ def _request(session, url: str, params: dict, granularity: int,
             resp = sess.get(url, params=params, timeout=30,
                             headers={"User-Agent": USER_AGENT})
         except requests.RequestException as exc:
-            last = ExchangeError(f"{symbol}: {exc}")
+            last = Unreachable(f"{symbol}: {exc}")
             continue
         if resp.status_code == 404:
             # Yahoo does not know this ticker. Retrying cannot change that.
@@ -163,7 +163,7 @@ def _request(session, url: str, params: dict, granularity: int,
             last = RateLimited(f"{symbol}: status 429")
             continue
         if resp.status_code in (500, 502, 503, 504):
-            last = ExchangeError(f"{symbol}: status {resp.status_code}")
+            last = Unreachable(f"{symbol}: status {resp.status_code}")
             continue
         if resp.status_code != 200:
             raise ExchangeError(

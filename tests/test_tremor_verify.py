@@ -431,6 +431,28 @@ def test_a_rate_limit_stops_that_source_only(monkeypatch, tmp_path, basket):
     assert asked == ["yahoo", "marketwatch", "yahoo"]
 
 
+def test_a_source_that_does_not_answer_twice_in_a_row_is_stopped(monkeypatch, tmp_path,
+                                                                  basket):
+    from price_monitor.models import Unreachable
+    asset, hours, bad, frame, market = _inr_store(tmp_path, basket)
+    others = [basket["USD/TRY"], basket["USD/MXN"]]
+    for other in others:
+        bars.write(bars.store_path(str(tmp_path / "bars"), other.file_stem), frame)
+    asked = []
+
+    def fetch(name, symbol, interval, days, session, now):
+        asked.append(name)
+        if name == "marketwatch":
+            raise Unreachable(f"{symbol}: Read timed out")
+        return market
+
+    monkeypatch.setattr(verify, "fetch_verifier", fetch)
+    now = datetime.fromtimestamp(int(hours[bad + 5]) + 300, timezone.utc)
+    verify.verify([asset, *others], str(tmp_path / "bars"), None, now=now,
+                  path=str(tmp_path / "verified.csv"))
+    assert asked == ["yahoo", "marketwatch", "yahoo", "marketwatch", "yahoo"]
+
+
 def test_an_unconfirmed_verdict_outlives_the_rest_of_the_record(tmp_path):
     path = str(tmp_path / "verified.csv")
     old, now = ts("2025-01-01 00:00"), ts("2026-10-01 00:00")

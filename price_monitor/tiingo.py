@@ -45,7 +45,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import requests
 
-from price_monitor.models import Candle, ExchangeError
+from price_monitor.models import Candle, ExchangeError, Unreachable
 
 log = logging.getLogger("price_monitor.tiingo")
 
@@ -157,7 +157,7 @@ def _get_json(session, url: str, params: dict, api_key: str, ticker: str):
         try:
             resp = sess.get(url, params=params, headers=headers, timeout=30)
         except requests.RequestException as exc:
-            last = ExchangeError(f"{ticker}: {exc}")
+            last = Unreachable(f"{ticker}: {exc}")
             continue
         if resp.status_code == 429:
             remaining = (resp.headers.get("X-RateLimit-Remaining")
@@ -169,7 +169,7 @@ def _get_json(session, url: str, params: dict, api_key: str, ticker: str):
                 f"{ticker}: Tiingo rejected the request ({resp.status_code}): "
                 f"{resp.text[:200]}")
         if resp.status_code in (500, 502, 503, 504):
-            last = ExchangeError(f"{ticker}: status {resp.status_code}")
+            last = Unreachable(f"{ticker}: status {resp.status_code}")
             continue
         if resp.status_code != 200:
             raise ExchangeError(

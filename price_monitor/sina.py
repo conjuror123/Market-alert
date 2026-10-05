@@ -28,7 +28,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 
-from price_monitor.models import Candle, ExchangeError
+from price_monitor.models import Candle, ExchangeError, Unreachable
 
 HEADERS = {"Referer": "https://finance.sina.com.cn", "User-Agent": "Mozilla/5.0"}
 BEIJING = ZoneInfo("Asia/Shanghai")
@@ -78,10 +78,11 @@ def fetch_bars(symbol: str, session: requests.Session | None = None,
             resp = (session or requests).get(url, params={"symbol": symbol, "type": 60},
                                              headers=HEADERS, timeout=30)
         except requests.RequestException as exc:
-            last = ExchangeError(f"{symbol}: {exc}")
+            last = Unreachable(f"{symbol}: {exc}")
             continue
         if resp.status_code in (429, 500, 502, 503, 504):
-            last = ExchangeError(f"{symbol}: Sina answered {resp.status_code}")
+            last = (Unreachable if resp.status_code >= 500 else ExchangeError)(
+                f"{symbol}: Sina answered {resp.status_code}")
             continue
         if resp.status_code != 200:
             raise ExchangeError(f"{symbol}: Sina answered {resp.status_code}")
@@ -134,10 +135,11 @@ def fetch_us_bars(symbol: str, session: requests.Session | None = None,
             resp = (session or requests).get(US_URL, params={"symbol": symbol.lower(), "type": 30},
                                              headers=HEADERS, timeout=30)
         except requests.RequestException as exc:
-            last = ExchangeError(f"{symbol}: {exc}")
+            last = Unreachable(f"{symbol}: {exc}")
             continue
         if resp.status_code in (429, 500, 502, 503, 504):
-            last = ExchangeError(f"{symbol}: Sina answered {resp.status_code}")
+            last = (Unreachable if resp.status_code >= 500 else ExchangeError)(
+                f"{symbol}: Sina answered {resp.status_code}")
             continue
         if resp.status_code != 200:
             raise ExchangeError(f"{symbol}: Sina answered {resp.status_code}")

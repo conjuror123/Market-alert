@@ -43,7 +43,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 
-from price_monitor.models import Candle, ExchangeError
+from price_monitor.models import Candle, ExchangeError, Unreachable
 
 log = logging.getLogger("price_monitor.google")
 
@@ -117,10 +117,11 @@ def fetch_full_history(symbol: str, interval: str, days: float,
                 f"{base_url}/{symbol}:{exchange}", timeout=30,
                 headers={"User-Agent": USER_AGENT, "Accept-Language": "en-US"})
         except requests.RequestException as exc:
-            last = ExchangeError(f"{symbol}: {exc}")
+            last = Unreachable(f"{symbol}: {exc}")
             continue
         if resp.status_code in (429, 500, 502, 503, 504):
-            last = ExchangeError(f"{symbol}: Google answered {resp.status_code}")
+            last = (Unreachable if resp.status_code >= 500 else ExchangeError)(
+                f"{symbol}: Google answered {resp.status_code}")
             continue
         if resp.status_code != 200:
             raise ExchangeError(f"{symbol}: Google answered {resp.status_code}")

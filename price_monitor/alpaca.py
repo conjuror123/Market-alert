@@ -34,7 +34,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 
-from price_monitor.models import Candle, ExchangeError
+from price_monitor.models import Candle, ExchangeError, Unreachable
 
 BASE_URL = "https://data.alpaca.markets/v2"
 FIRST = datetime(2016, 1, 1, tzinfo=timezone.utc)
@@ -72,13 +72,13 @@ def _get(session, url: str, params: dict, auth: dict, symbol: str) -> dict:
         try:
             resp = (session or requests).get(url, params=params, headers=auth, timeout=60)
         except requests.RequestException as exc:
-            last = ExchangeError(f"{symbol}: {exc}")
+            last = Unreachable(f"{symbol}: {exc}")
             continue
         if resp.status_code == 429:
             last = RateLimited(f"{symbol}: Alpaca answered 429")
             continue
         if resp.status_code in (500, 502, 503, 504):
-            last = ExchangeError(f"{symbol}: Alpaca answered {resp.status_code}")
+            last = Unreachable(f"{symbol}: Alpaca answered {resp.status_code}")
             continue
         if resp.status_code != 200:
             raise ExchangeError(f"{symbol}: Alpaca answered {resp.status_code}: "
