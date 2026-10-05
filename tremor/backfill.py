@@ -1,6 +1,6 @@
 """Fetching hourly bars into the store.
 
-Runs every hour as the second step of the pass, and carries the deepening modes
+Runs every hour as the first step of the pass, and carries the deepening modes
 that are run by hand.
 
 THE HOURLY PATH asks each instrument only for what it can be missing: the walk
@@ -15,7 +15,7 @@ second source (tremor.verify).
 US EQUITY ETFs ARE REQUESTED AS HALF-HOURLY BARS and folded onto the round UTC
 hour (see bars.to_hourly): their own grid runs on the :30 and would not line up
 with the currency pairs and crypto, which would make "the same hour" mean two
-different things in the cross-section. It costs nothing extra - the providers
+different things across instruments. It costs nothing extra - the providers
 count requests, not rows.
 
 THE DEEPENING MODES (--extend-history, --deepen-etfs, --deepen-alpaca,
@@ -66,7 +66,7 @@ TWELVEDATA_DELAY_SECONDS = 8.0
 # default applies.
 CHUNK_DAYS = {"30min": 300, "1h": 150}
 
-# How far back each provider will answer, by interval. Twelve Data and Coinbase
+# How far back each provider will answer, by interval. The archive providers
 # page backwards without a wall and are absent on purpose; the two recent-end
 # providers are not, and a request past their reach returns an empty result,
 # which is indistinguishable from a quiet market.
@@ -170,7 +170,7 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
     `extend_history` asks from `since` even when the store already has data. The
     ordinary path only ever reaches FORWARD from the last saved bar, which is
     right for a daily top-up and useless for deepening the archive: moving
-    history_since earlier changes nothing without it, because the store is not
+    fetch_since earlier changes nothing without it, because the store is not
     empty and the window is measured from its newest bar rather than its oldest.
     bars.merge takes the union, so the old rows survive and only genuinely new
     ones are added.
@@ -874,8 +874,8 @@ def deepen_from_hfdata(asset: Asset, path: str, since: date, api_key: str,
                        timezone_name: str | None = HFDATA_TIMEZONE) -> dict:
     """Fills a US-equity instrument's history below what is already stored.
 
-    Same shape as the FX deepening: Twelve Data stays the live source and this
-    reaches under it, so the two never compete for an hour. The minute bars are
+    Same shape as the FX deepening: the live provider keeps the recent end and
+    this reaches under it, so the two never compete for an hour. The minute bars are
     folded to the store's hourly grid by bars.to_hourly, which sums volume - so
     the consolidated-tape filter in hfdata.to_minute_frame has to have run
     first, or an hour would mix full-tape and IEX volume in one figure.
@@ -1013,8 +1013,8 @@ def deepen_from_dukascopy(asset: Asset, path: str, since: date,
     a wrong point size is a factor of a thousand.
 
     Nothing is written unless both pass, and nothing is written at or above the
-    oldest stored bar even then: Twelve Data stays the live source, and a merge
-    lets the incoming row win.
+    oldest stored bar even then: the live provider keeps the recent end, and a
+    merge lets the incoming row win.
     """
     symbol = dukascopy.symbol_for(asset.ticker)
     if symbol is None:
@@ -1130,14 +1130,14 @@ def deepen_from_alpaca(asset: Asset, path: str, since: date, auth: dict,
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Phase 0: backfill of Tremor hourly history")
+    parser = argparse.ArgumentParser(description="Fetch Tremor's hourly bars into the store")
     parser.add_argument("--instruments", default="",
                         help="Comma-separated tickers; the whole basket by default")
     parser.add_argument("--bars-dir", default=bars.DEFAULT_BARS_DIR)
     parser.add_argument("--vix-dir", default=bars.DEFAULT_VIX_DIR)
     parser.add_argument("--skip-vix", action="store_true")
     parser.add_argument("--extend-history", action="store_true",
-                        help="ask from basket.history_since even where the store "
+                        help="ask from basket.fetch_since even where the store "
                              "already has bars, to deepen the archive backwards")
     parser.add_argument("--probe-hfdata", default="",
                         help="print the schema, source values and first "
@@ -1149,10 +1149,11 @@ def main(argv: list[str] | None = None) -> int:
                              "what Twelve Data's plan serves, from HF Data's "
                              "consolidated-tape minute bars.")
     parser.add_argument("--fill-gaps", action="store_true",
-                        help="re-ask Twelve Data for trading days the NYSE "
-                             "calendar has and the store does not. Whether a "
-                             "day is recoverable is the point: an empty answer "
-                             "confirms the hole is the provider's.")
+                        help="re-ask Twelve Data, then HF Data, for trading "
+                             "days and hours the NYSE calendar has and the store "
+                             "does not. Whether a day is recoverable is the "
+                             "point: an empty answer confirms the hole is the "
+                             "provider's.")
     parser.add_argument("--deepen-dukascopy", action="store_true",
                         help="fill the FX pairs' history below what is stored "
                              "from Dukascopy's public archive, which reaches "
@@ -1376,7 +1377,7 @@ def main(argv: list[str] | None = None) -> int:
         # API key, spends no credits, and touches only the pairs the archive
         # carries. Run per pair from the workflow - each is a few hundred
         # requests, and a failure part way through then costs one pair rather
-        # than all eight.
+        # than all of them.
         session = requests.Session()
         total = 0
         for asset in instruments:
@@ -1569,8 +1570,9 @@ def main(argv: list[str] | None = None) -> int:
             log.error("%s: failed - %s", asset.asset_id, exc)
         # The 8-requests-per-minute limit is per key, and the running hourly
         # monitor spends it too - the pause is needed between instruments as well.
-        # Only Twelve Data is paced: Coinbase, Tiingo and Yahoo have no enforced
-        # rate, and pausing after them would spend the wait twice over.
+        # Only Twelve Data is paced: no other provider here has a per-minute
+        # limit this pass can reach, and pausing after them would spend the wait
+        # twice over.
         if asset.fetched_from == "twelvedata" and i < len(instruments) - 1:
             time.sleep(TWELVEDATA_DELAY_SECONDS)
 

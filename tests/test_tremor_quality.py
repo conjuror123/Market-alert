@@ -33,8 +33,8 @@ TABLE = {
 
 def test_post_close_hours_of_a_half_session_are_not_in_session():
     # On 26 November 2021 the exchange closed at 13:00, yet the source served bars
-    # for 13:00, 14:00 and 15:00. Without the filter they would enter the EWMA and
-    # the volume profile.
+    # for 13:00, 14:00 and 15:00. Without the filter they would be scored as
+    # trading hours.
     hours = pd.Series([hour_at(2021, 11, 26, h, "America/New_York")
                        for h in (11, 12, 13, 14, 15)])
     flags = list(quality.in_session(asset(), hours, TABLE))

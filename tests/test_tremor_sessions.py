@@ -126,7 +126,7 @@ def _missing_sessions(stem):
 def test_the_data_never_has_a_day_the_calendar_does_not():
     # This direction stays absolute. A bar on a day the exchange was shut means
     # the calendar is wrong or the bars are misdated, and either would poison
-    # quorum and the cross-section underneath everything else.
+    # every gap and every skip that reads the calendar.
     for stem in CALENDAR_INSTRUMENTS:
         observed, scheduled = _missing_sessions(stem)
         assert observed - scheduled == set(), f"{stem} has bars outside the calendar"

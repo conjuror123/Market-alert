@@ -1,10 +1,8 @@
 """Tremor hourly bar store: one directory of shards per instrument - the open
 months as CSV outside git, settled months as CSV, settled years as Parquet.
 
-Why Parquet rather than the NDJSON of the existing monitor: there a file is only
-appended one row per hour and grows slowly, whereas here sixty-two instruments
-back to 2003 amount to several million bars, and they must be read in full on
-every run of the PCA and the regressions. A typed columnar format reads an order
+Why Parquet for the settled years: 173 instruments back to 2003 amount to
+several million bars, read on every run. A typed columnar format reads an order
 of magnitude faster and takes several times less space.
 
 Why sharded rather than one file per instrument: parquet rewrites a file whole,
@@ -30,11 +28,9 @@ from price_monitor.models import Candle
 
 HOUR = 3600
 
-# n_src - how many source bars folded into this hourly bar.
-# Needed from phase 1 onward: for ETFs the first half hour of a session produces
-# an hourly bar out of a single half-hourly one, and that is precisely the "first
-# bar of the session" that tremor.returns splits into the gap channel and the intra-hour
-# return. Without this field it could not be told apart from a full hour.
+# n_src - how many source bars folded into this hourly bar. A fund's first hour
+# of a session is a single half-hour bar (09:30-10:00); the coverage report
+# (tremor.audit) counts such hours apart from full ones.
 SCHEMA = {
     "hour_utc": "int64",
     "open": "float64",
@@ -328,10 +324,9 @@ def to_hourly(frame: pd.DataFrame) -> pd.DataFrame:
     boundary of the round UTC hour.
 
     Needed because the sources' grids do not coincide: ETF bars run on the :30
-    (09:30, 10:30, ...), currency pairs and crypto on the round hour. The
-    cross-section - weighted median, CSV, PCA, correlation matrix - requires "the
-    same hour" to mean the same thing for every series, otherwise synchrony is
-    measured on series offset from one another. So the ETFs are requested as
+    (09:30, 10:30, ...), currency pairs and crypto on the round hour. "The same
+    hour" must mean the same thing for every series - in the store, in the
+    messages, in a second source's check - so the ETFs are requested as
     half-hourly bars and folded here.
 
     For series already sitting on the round hour the operation is the identity.

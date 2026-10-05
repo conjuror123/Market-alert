@@ -4,8 +4,8 @@ Twelve Data's plan stops at 2020-02 for every ETF at once, and no other free
 source found carried US-equity INTRADAY history further back - Dukascopy's ETF
 CFDs are patchy and volume-incompatible, and no public FX archive carries
 equities. This one
-does, for all twelve instruments in the basket including SHY, HYG and DBC,
-which nothing else had.
+does, for 73 of the basket's funds back to 2002-2011, including SHY, HYG and
+DBC, which nothing else had.
 
 THE PART THAT MATTERS MOST. The library changes source in March 2022:
 
@@ -15,9 +15,9 @@ THE PART THAT MATTERS MOST. The library changes source in March 2022:
 
 Their own note puts it plainly: daily volume for a stock like AAPL on IEX may
 be 2-5 million shares against 50-80 million on the full tape. Splicing across
-that boundary would drop every ETF's volume by ~97% on a fixed date, and the
-volume profile is built on exactly that series - it would read the
-change of vendor as the largest liquidity event in the basket's history.
+that boundary would drop every ETF's volume by ~97% on a fixed date - the
+change of vendor would read as the largest liquidity event in the basket's
+history.
 
 We do not need to go near it: Twelve Data already holds everything from
 2020-02, so the useful window ends twenty-six months BEFORE the break. But

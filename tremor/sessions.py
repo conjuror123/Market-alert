@@ -47,9 +47,10 @@ class Session:
 def generate_nyse_sessions(start: date, end: date) -> list[Session]:
     """Builds the NYSE schedule with the exchange_calendars library.
 
-    Called by hand only, when the table is refreshed (see main). It is not used in
-    the hourly run, so exchange_calendars stays a development dependency rather
-    than a runtime one.
+    Called when the table is refreshed by hand (see main) or extended
+    (extend_sessions, which the hourly workflow runs about once a year and
+    installs exchange_calendars for), so the library stays a development
+    dependency rather than a runtime one.
     """
     import exchange_calendars as xcals  # local import: generation only
 
@@ -179,9 +180,9 @@ def expected_hours(sessions: dict[date, Session], first: date, last: date,
 def cached_sessions(path: str = DEFAULT_SESSIONS_PATH) -> dict[date, Session]:
     """load_sessions, read once per process.
 
-    The delivery layer asks the same question of the same table once per event
-    per horizon, and the table is a static file of several thousand rows that
-    only ever changes when someone regenerates it by hand.
+    The week boundaries (tremor.routing) read the NYSE closes from it many
+    times a run, and the table is a static file of several thousand rows that
+    changes only when it is regenerated or extended, never inside a run.
     """
     return _load_sessions_cached(os.path.abspath(path))
 

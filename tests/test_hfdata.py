@@ -57,7 +57,7 @@ def test_no_key_is_refused_before_any_request():
 def test_only_consolidated_tape_bars_survive():
     # The library switches to IEX-only in March 2022, about 2-3% of consolidated
     # volume. Splicing across that boundary would drop every ETF's volume by
-    # ~97% on a fixed date, and the volume profile is built on that series.
+    # ~97% on a fixed date.
     mixed = pd.concat([
         pd.read_parquet(io.BytesIO(bars(2, "pitrading"))),
         pd.read_parquet(io.BytesIO(bars(3, "iex", "2023-03-02 09:30:00"))),

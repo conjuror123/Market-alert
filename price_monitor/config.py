@@ -3,7 +3,7 @@
 Deliberately small. The basket lives in config/basket.yaml, per instrument, in
 a form that needs no threshold typed in by hand; what is here is what the
 delivery pass needs and nothing else - who to message, where the state and event
-tables live, and the two mutes.
+tables live, the mute and the health settings.
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "c
 
 @dataclass
 class Config:
-    # Silence for the Tremor side: the pushes and the Monday/Saturday digest.
+    # Silence for the Tremor side: the pushes, the weekly note and the pings.
     # DEFAULT ON - that is, silent - because wiring the delivery is not the same
     # act as deciding to be interrupted by it, and running the pipeline with
     # nothing going out is a state worth being able to hold on purpose.
@@ -38,7 +38,7 @@ class Config:
     telegram_health_chat_id: str = ""
     state_path: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(__file__), "..", "data", "state.json"))
-    # Local store for economic_calendar.py / weekly_digest.py - see README.
+    # Local store for economic_calendar.py / weekly_digest.py.
     calendar_dir: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(__file__), "..", "data", "economic_calendar"))
     # Routed Tremor events, written by python -m tremor.jumps and read by

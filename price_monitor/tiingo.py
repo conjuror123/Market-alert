@@ -1,7 +1,10 @@
-"""Tiingo REST client, used for the currency pairs and the liquid ETFs.
+"""Tiingo REST client: 27 liquid funds live, and the declared dividends and
+splits (fetch_daily_history, tremor.corporate_actions).
 
-WHY THE PAIRS LIVE HERE. Eight currency pairs are 15% of the basket and 41% of
-every request the monitor makes, because FX has no session table to skip by and
+THE PAIRS USED TO LIVE HERE, and moved to SiftingIO (price_monitor/sifting.py),
+which serves the bar closed at :00 by :05. Why they came here from Twelve Data
+in the first place: eight currency pairs were 15% of the basket and 41% of
+every request the monitor made, because FX has no session table to skip by and
 so is asked twenty-four times a day each. On Twelve Data that is 192 credits of
 an 800-credit budget and 64 seconds of enforced pacing. Tiingo serves the same
 pairs with no pacing at all, at 0.281 seconds a request.
@@ -29,7 +32,7 @@ at all unless `columns` names it - not zero, absent. Callers that forget get
 bars that look complete and silently carry 0.0.
 
 LIMITS. 50 requests/hour and 1000/day on the free tier. The hourly bucket is
-the binding one and it is small: 37 symbols a run leaves 13 spare. Both limits
+the binding one and it is small: 27 symbols a run leaves 23 spare. Both limits
 answer 429, which is why RateLimited stops the run for this provider rather
 than retrying into a wall.
 """

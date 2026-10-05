@@ -9,9 +9,9 @@ percentage works. Each move is measured against the instrument's own last half-y
 with the jump test of Lee & Mykland (2008), and the message says how far out it is:
 
 ```
-🟨 LTC/USDT · Litecoin +5.76% · 11.0×σ
-📈 Rarest hour in 8 months (then 11.6×σ)
-🕐 24.09.2026 02:00 UTC
+🟨 LTC/USDT · Litecoin +5.77% · 11.1×σ
+📈 Rarest hour in 16 days (then 11.5×σ)
+🕐 24.09.2026 02:00 UTC · next close 242%
 ```
 
 The colour is the word: ⬜ noticeable at 6σ, 🟨 high at 8.5σ, 🟧 major at 12σ, 🟥 extreme

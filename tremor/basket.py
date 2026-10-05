@@ -62,12 +62,11 @@ class Asset:
     fetch_interval: str
     label: str
     in_basket: bool
-    # The source's quote step. Needed by the winsorization: the eps_MAD
-    # floor includes the return on half a tick, without which, in quiet hours when
-    # the price stands still, MAD collapses to zero and an ordinary move looks
-    # extreme. It is measured against real data (tremor.audit) rather than taken
-    # from the exchange specification: the value must match the quote format the
-    # source actually serves.
+    # The source's quote step. The bar gate allows half of it as rounding when
+    # it checks a bar's OHLC (tremor.quality.ohlc_inconsistent). It is checked
+    # against real data (tremor.audit) rather than taken from the exchange
+    # specification: the value must match the quote format the source actually
+    # serves.
     tick_size: float
     # Who is asked for the bars. Defaults to `source` when the configuration
     # does not say otherwise.
@@ -98,9 +97,8 @@ class VolatilityIndex:
     interval: str
     label: str
     # Its own history depth: a daily series needs 720 observations to warm up,
-    # which is almost three years, and a start shared with the basket in 2021
-    # would leave the multiplier equal to one across the whole train period. See
-    # basket.yaml.
+    # almost three years, before the fear-gauge line on the weekly note can
+    # speak (tremor.vix). See basket.yaml.
     history_since: date
 
     @property
@@ -116,21 +114,18 @@ class Basket:
     anchor_exchange_tz: str
     history_since: date
     session_templates: dict
-    # How far back to ACQUIRE, which is not the same question as how far back
-    # to ANALYSE. history_since is tied to the training period and moving it
-    # moves the evaluation window; this only says "take whatever the sources
-    # will still give". Free archives freeze - Dukascopy publishes whole months
-    # only, and a file not taken now may not be takeable later - so bars not
-    # stored now may not be recoverable later, and there is no cost to holding
-    # history the analysis does not yet use.
+    # How far back to ACQUIRE: "take whatever the sources will still give".
+    # Free archives freeze - Dukascopy publishes whole months only, and a file
+    # not taken now may not be takeable later - so bars not stored now may not
+    # be recoverable later. history_since is only its fallback.
     #
-    # Last and optional so that a hand-built Basket falls back to the analysis
-    # floor.
+    # Last and optional so that a hand-built Basket falls back to
+    # history_since.
     fetch_since: date | None = None
 
     @property
     def acquire_since(self) -> date:
-        """The acquisition floor, or the analysis one where none is configured."""
+        """The acquisition floor: fetch_since, or history_since where none is set."""
         return self.fetch_since or self.history_since
 
     @property

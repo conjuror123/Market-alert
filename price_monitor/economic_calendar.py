@@ -4,10 +4,9 @@ over time as the weekly digest (weekly_digest.py) fetches them.
 
 Only a "this week" feed exists at
 https://nfs.faireconomy.media/ff_calendar_thisweek.json - there is no
-next-week or last-week variant (both return 404, confirmed live). That feed
-spans Sunday through Friday, so fetching it specifically on Sunday - which is
-exactly when weekly_digest.py runs - already returns the coming week's
-events, with no separate "next week" request needed.
+next-week or last-week variant (both return 404, confirmed live). So the
+coming week comes from the monthly pages (weekly_digest.refresh_months), and the
+feed tops up the days immediately ahead.
 
 The historical archive (not "this week") is taken from THE SAME PLACE, from
 ForexFactory itself, through its monthly pages (fetch_forexfactory_month). One
@@ -23,9 +22,6 @@ taxonomies disagree: the Kaggle "Global Economic Calendar" hands out the Medium
 label nine times more freely than ForexFactory (96.9 events a week against 11.3)
 while agreeing on High (13.0 against 13.4), so an archive spanning both is
 generous in one half and frugal in the other.
-
-For calibration that is worse than gaps - thresholds settle on one regime
-and are applied in another, with nothing in the metrics to reveal it.
 
 The price of a single source is Low events, of which ForexFactory has an order of
 magnitude fewer. That price is zero in substance: only High and Medium are used.
@@ -160,7 +156,7 @@ def fetch_calendar(session: requests.Session | None = None, timeout: int = 15) -
                 "previous": item.get("previous", ""),
                 # This feed has NO "actual" key - verified against live output.
                 # The field stays empty until the backfill from the monthly page
-                # (weekly_digest.backfill_actuals).
+                # (weekly_digest.refresh_months).
                 "actual": item.get("actual", ""),
             })
         except KeyError:
@@ -201,9 +197,8 @@ class Timeline:
 
 def events_in_window(events: "list[dict] | Timeline", lower: datetime,
                      upper: datetime) -> list[dict]:
-    """Archive events with a time in [lower, upper] (inclusive both ends,
-    same convention as explain.py's _filter_after/_filter_before), sorted by
-    date. A Timeline is looked up; a plain list is scanned whole."""
+    """Archive events with a time in [lower, upper], inclusive both ends,
+    sorted by date. A Timeline is looked up; a plain list is scanned whole."""
     if isinstance(events, Timeline):
         matched = events.between(lower, upper)
     else:
@@ -272,7 +267,7 @@ def merge_events(path: str, events: list[dict]) -> int:
     Changed rows count alongside new ones, and that is not a detail. The weekly
     feed brings an event in advance, without its released value, and the actual
     arrives later - during the backfill from the monthly page
-    (weekly_digest.backfill_actuals). Such a repeat adds not a single row, it only
+    (weekly_digest.refresh_months). Such a repeat adds not a single row, it only
     fills the actual field, and the earlier version, which compared the NUMBER of
     rows before and after, would silently discard it along with the whole write to
     disk.

@@ -18,8 +18,8 @@ concurrency:
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    # The Tremor pipeline adds about three minutes to what was a forty-second
-    # job. Twenty is room for a slow provider, not an expectation.
+    # The job takes about two minutes (docs/manual.md, "Running it"). Twenty is
+    # room for a slow provider, not an expectation.
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -188,7 +188,7 @@ jobs:
             git commit -m "chore: update monitor state [skip ci]"
             # A rejected push leaves the next checkout with an old record of
             # the week and re-delivers what it forgot. Rebase onto
-            # whatever landed and try again, same loop as the bars persist.
+            # whatever landed and try again.
             for attempt in 1 2 3 4 5; do
               if git push origin "HEAD:${{ github.ref_name }}"; then
                 echo "pushed on attempt $attempt"

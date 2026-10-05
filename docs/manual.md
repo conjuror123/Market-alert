@@ -59,7 +59,7 @@ Local:
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q          # ~720 tests, about 1.5 minutes; run alone, several load large parquet files
+pytest -q          # ~700 tests, about 2 minutes; run alone, several load large parquet files
 ```
 
 The derived data (`data/tremor/metrics/`, `jumps.parquet`) rebuilds from the committed
@@ -289,9 +289,9 @@ channel in line with them.
 **A push** (`high` and up):
 
 ```
-🟨 LTC/USDT · Litecoin +5.76% · 11.0×σ
-📈 Rarest hour in 7 months (then 10.7×σ)
-🕐 24.09.2026 02:00 UTC · close in 5h
+🟨 LTC/USDT · Litecoin +5.77% · 11.1×σ
+📈 Rarest hour in 16 days (then 11.5×σ)
+🕐 24.09.2026 02:00 UTC · next close in 17h
 Nearby economic events (...)
 ```
 

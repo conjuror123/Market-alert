@@ -1,8 +1,9 @@
 name: Backfill Economic Calendar
 
-# Manual rebuild of the local calendar archive (data/economic_calendar/). Routine topping-up works differently: weekly_digest adds the current
-# week from the live ForexFactory feed once a week and reads back the actual for
-# the current and previous month from the monthly pages. This workflow is for when
+# Manual rebuild of the local calendar archive (data/economic_calendar/).
+# Routine topping-up works differently: the hourly run merges the live
+# ForexFactory feed once a day, and the weekly digest reads back the current and
+# previous month from the monthly pages (price_monitor/weekly_digest.py). This workflow is for when
 # the archive has to be rebuilt whole or a large gap closed.
 #
 # One source, ForexFactory's own monthly pages, no key: third-party dumps shift
@@ -61,7 +62,7 @@ jobs:
             ${{ github.event.inputs.to_month != '' && format('--to-month {0}', github.event.inputs.to_month) || '' }}
 
       - name: Commit updated calendar history
-        # Same reasoning as backfill-history.yml's commit step: keep whatever
+        # Same reasoning as backfill-tremor-bars.yml's commit step: keep whatever
         # was fetched and merged so far in this run even if a later step
         # fails partway through.
         if: always()

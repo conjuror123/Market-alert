@@ -1,4 +1,5 @@
-"""Yahoo Finance's chart endpoint, used for the US equity ETFs.
+"""Yahoo Finance's chart endpoint: 34 funds and four futures live, the second
+source for most funds, and the morning dividend check.
 
 WHY THIS CARRIES THE ETFs. Twelve Data's free tier allows 8 requests a minute,
 which the backfill loop honours with an 8-second pause between instruments. For
@@ -29,9 +30,9 @@ end - see MAX_LOOKBACK_DAYS. Twelve Data and HF Data keep the archive.
 
 AND THE STANDING RISK. This endpoint is undocumented and unversioned. It can
 change shape, start demanding a cookie, or rate-limit without notice, and there
-is no support channel and no SLA. That is why the ETFs are split across two
-providers rather than all sent here: a Yahoo outage costs the thin ETFs, not
-the basket, and Twelve Data remains configured underneath. Treat a schema
+is no support channel and no SLA. That is why the funds are split across
+several providers rather than all sent here: a Yahoo outage costs its own
+funds, not the basket (docs/manual.md, "Data in"). Treat a schema
 change as expected maintenance rather than a surprise.
 """
 from __future__ import annotations
@@ -187,8 +188,8 @@ def fetch_full_history(
     """Up to `days` of candles ending at `end` (default now).
 
     One request covers the whole window - Yahoo has no per-request candle cap
-    worth paging around at these intervals, so unlike the Twelve Data and
-    Coinbase clients there is no chunk loop here and nothing to pace.
+    worth paging around at these intervals, so unlike the Twelve Data client
+    there is no chunk loop here and nothing to pace.
     """
     granularity = _granularity_seconds(interval)
     limit = MAX_LOOKBACK_DAYS[interval]

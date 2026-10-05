@@ -19,8 +19,8 @@ departures worth recording:
    FRED's realtime_start field for this series is backdated (it equals the
    observation date itself), so it cannot be trusted as a publication date - the
    moment of availability is computed explicitly by available_at below. Otherwise
-   the backtest would apply the multiplier in an hour when the value did not yet
-   exist, that is, it would look ahead.
+   a message would quote a value in an hour when it did not yet exist, that is,
+   it would look ahead.
 
    That lag is FRED's alone and not the market's, which is what tremor.cboe is
    for. It measured, at 09:00 UTC on Monday 14 September 2026: FRED's newest

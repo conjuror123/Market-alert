@@ -29,7 +29,7 @@ def measure_precision(closes: pd.Series, sample: int = 5000) -> float | None:
     it emits values at all.
 
     This is not the exchange price step. For currency pairs the two coincide:
-    Twelve Data gives five decimals and the step really is 1e-5. For ETFs they do
+    the source gives five decimals and the step really is 1e-5. For ETFs they do
     not - the source returns 769.53992 where the exchange shows 769.54, so a
     measured precision of 1e-7 describes the vendor's storage format, not the
     trading step, which is one cent.

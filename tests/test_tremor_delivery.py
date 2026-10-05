@@ -285,9 +285,8 @@ def test_the_level_is_placed_in_its_own_history(monkeypatch):
 
 
 def test_a_stress_episode_is_named_while_it_is_running_and_not_after(monkeypatch):
-    # This is the multiplier finally becoming visible: it raises how seriously
-    # clustered moves are taken for twenty-four REFERENCE hours after a spike,
-    # and until now it has fed a channel nobody reads.
+    # A VIX spike opens a stress episode for twenty-four REFERENCE hours, and
+    # the weekly note names it while it runs.
     use_vix(monkeypatch, vix_frame([
         ((2020, 2, 24), (2020, 2, 25, 15), 25.0),
         ((2020, 2, 27), (2020, 2, 28, 15), 39.16),

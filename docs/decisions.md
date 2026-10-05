@@ -98,7 +98,7 @@ milder one the reader has already heard. After the 24 hours a fix corrects silen
 event corrected away stays gone.
 
 **A changed event says so on one line**, so an edit is never silent:
-`✏️ ⬜ 4.0×σ 10:00 → 🟧 7.9×σ 12:00 bigger jump`.
+`✏️ ⬜ 6.2×σ 10:00 → 🟧 12.4×σ 12:00 bigger jump`.
 
 **The moves one run finds share messages, biggest first, and only the first rings.** News
 moves dozens of instruments at once (130 events in the FOMC hour of 2024-12-18), and

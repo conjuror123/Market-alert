@@ -133,9 +133,9 @@ def split_channels(asset: Asset, usable: pd.DataFrame,
     the calendar knows is not a hole: it opens a session, and its gap is scored
     against the instrument's other gaps.
 
-    Still named split_channels because the split is still what it does: the
-    overnight jump is separated from the intra-hour move and then dropped, rather
-    than never being separated at all.
+    Named split_channels because the split is what it does: the overnight jump
+    is kept out of the intra-hour move, and measured on its own as `gap`
+    (overnight_gaps).
     """
     out = usable.copy().sort_values("hour_utc").reset_index(drop=True)
     if out.empty:

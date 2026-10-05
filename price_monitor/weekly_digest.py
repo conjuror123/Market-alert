@@ -33,9 +33,8 @@ can see. Consecutive windows ABUT EXACTLY: nothing is listed twice and no hour
 of the calendar falls between two digests.
 
 Low-impact events and holidays are both excluded (see _DIGEST_IMPACTS) - only
-Medium/High. No LLM involved on purpose (see README, "Daily signal" and the
-weekly digest section): just a plain, programmatically formatted list grouped
-by day - the source data already carries the impact tag and the numbers, so
+Medium/High. No LLM involved on purpose: just a plain, programmatically
+formatted list grouped by day - the source data already carries the impact tag and the numbers, so
 there's nothing here for an LLM to add.
 
 Every value the source gave is printed under each event: actual, forecast,
@@ -397,8 +396,7 @@ def _send_digest(cfg: Config, session: requests.Session | None,
     calendar that says so.
 
     Failures are swallowed rather than raised: the digest lives inside the hourly
-    monitoring run, and a failed send must not bring the whole run down - the same
-    approach as the per-asset error handling in __main__.py. Returns True if a
+    monitoring run, and a failed send must not bring the whole run down. Returns True if a
     message actually went out.
     """
     start, end = coming_week(now)

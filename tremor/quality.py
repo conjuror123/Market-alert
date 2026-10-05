@@ -7,13 +7,12 @@ question "does this bar take part in the calculations":
   volume non-negative, timestamp not repeated. An invalid bar takes part in
   nothing and updates no state.
 - SESSION MEMBERSHIP is a property of the hour: hours outside an
-  asset's trading session are excluded from EWMA, volume, CSV, PCA and the
-  cluster shift.
+  asset's trading session take part in no metric and no yardstick.
 
 The second is not a formality. Sources keep serving bars after a half session
 closes - on 26 November 2021 the exchange shut at 13:00 New York time and bars
 for 14:00 and 15:00 arrived anyway, with zero volume and a creeping price.
-Without the session filter those hours enter the EWMA state as genuine trading.
+Without the session filter those hours would be scored as genuine trading.
 """
 from __future__ import annotations
 

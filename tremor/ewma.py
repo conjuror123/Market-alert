@@ -47,8 +47,7 @@ def long_run_sigma(values: pd.Series, half_life: int, span: int,
     the weight total too, so a window with holes is still normalised by what it
     actually summed. `min_periods` counts real observations, as it did when this
     was a rolling standard deviation, so an instrument with less history than
-    `span` is measured over what it has instead of not at all - which matters:
-    XLP holds 7,246 bars against a span of 8,400.
+    `span` is measured over what it has instead of not at all.
 
     Exact in one pass. The box window's trick is to add one observation and drop
     one; the same works here with the dropped one discounted by how far it has

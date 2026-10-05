@@ -1,11 +1,10 @@
-"""Bitstamp's hourly candles, used for history only: XRP's years Coinbase did
-not trade it.
+"""Bitstamp's hourly candles, used for history only: BTC from 2011 and XRP from
+2017-03, below Binance's first, thin months (tools/binance_history.py).
 
-WHY. Coinbase suspended XRP from 2021-01-19 to 2023-07-13 (the SEC's case), so
-the store's XRP has a 905-day hole, and it begins at Coinbase's listing,
-2019-02-26. Bitstamp kept trading XRP/USD through the suspension (for clients
-outside the US) and has hourly bars from 2017, in dollars, no key. The splice
-is gated on the hours both exchanges hold (tools/binance_history.py).
+WHY. Bitstamp is a dollar exchange with hourly bars that far back, no key. It
+also kept trading XRP/USD through Coinbase's suspension of it (2021-01-19 to
+2023-07-13, the SEC's case), for clients outside the US. The splice is gated on
+the hours both exchanges hold (tools/binance_history.py).
 
 WHAT IS ASKED. /api/v2/ohlc/{pair}/, step 3600, up to 1,000 bars a request from
 `start`. Each bar is stamped at its start, UTC. An hour with no trade is

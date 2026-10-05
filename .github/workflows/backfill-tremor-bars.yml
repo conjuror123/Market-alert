@@ -1,20 +1,21 @@
 name: Backfill Tremor Bars
 
 # A manual, one-off deepening of the Tremor hourly store (data/tremor/bars/) to
-# whatever depth config/basket.yaml's history_since sets. The ordinary backfill
+# whatever depth config/basket.yaml's fetch_since sets. The ordinary backfill
 # only ever reaches FORWARD from the newest stored bar, so lowering
-# history_since changes nothing on its own - --extend-history is what asks the
+# fetch_since changes nothing on its own - --extend-history is what asks the
 # source for the older end.
 #
-# A Twelve Data key is needed for the ETFs and currency pairs, and it
-# is used only inside this workflow: an Actions secret cannot be read back out,
-# which makes this the way to deepen the archive without the key passing through
-# a chat.
+# The provider keys are Actions secrets, which cannot be read back out, so this
+# is the way to deepen the archive without a key passing through a chat. The
+# Twelve Data key is shared with the hourly run: a history walk leaves the run
+# its minutes and its share of the day (price_monitor/twelvedata.py,
+# ARCHIVE_CREDIT_CAP).
 #
 # The crypto instruments need no key and can be pulled locally instead.
 #
 # Modes, chosen at dispatch:
-#   extend-history  deepen the archive backwards to basket.history_since
+#   extend-history  deepen the archive backwards to basket.fetch_since
 #   fill-gaps       re-ask for trading days the NYSE calendar has and the store
 #                   does not; an empty answer confirms the hole is the
 #                   provider's rather than something our fetching skipped
@@ -23,7 +24,7 @@ name: Backfill Tremor Bars
 #                   Dukascopy, which reaches 2003 and also carries USD/CNH.
 #                   Needs no key. Run it ONE PAIR AT A TIME via `instruments`:
 #                   a pair is a few hundred requests, and a failure part way
-#                   through then costs one pair rather than all eight
+#                   through then costs one pair rather than all of them
 #   deepen-etfs     the same for the US-equity instruments, from HF Data's
 #                   consolidated-tape minute bars (needs HFDATA_API_KEY).
 #                   NOT optional for a newly added ETF: Twelve Data's intraday
@@ -89,10 +90,9 @@ concurrency:
 jobs:
   backfill:
     runs-on: ubuntu-latest
-    # Deepening eighteen Twelve Data instruments from 2015 is many sequential
-    # windows at eight requests a minute; the daily cap of 800 is the real
-    # ceiling, and a partial run is fine because the commit step keeps whatever
-    # arrived.
+    # A deepening is many sequential requests - Twelve Data's at most 600 a
+    # day (ARCHIVE_CREDIT_CAP), Dukascopy's throttled archive - and a partial
+    # run is fine because the commit step keeps whatever arrived.
     timeout-minutes: 330
     steps:
       - name: Checkout
@@ -159,8 +159,9 @@ jobs:
           # step arrives the ref has often moved - and a rejected push discards
           # bars that cost real credits and real archive requests to fetch,
           # with the container. Rebase onto whatever landed and try again.
-          # --rebase is safe here because this commit touches only data/tremor,
-          # which nothing else writes.
+          # This commit touches only data/tremor. The hourly run writes there
+          # too, but other files as a rule; a rebase that does conflict stops
+          # the step rather than guessing.
           for attempt in 1 2 3 4 5; do
             if git push origin "HEAD:${{ github.ref_name }}"; then
               echo "pushed on attempt $attempt"

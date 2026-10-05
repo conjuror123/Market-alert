@@ -7,7 +7,7 @@ on the 30 funds whose IEX price agrees with the tape (tools/fund_verdict.py:
 median <= 2 bp, p90 <= 5, at most 2% of hours missing) that is the same price.
 Tiingo's intraday feed is IEX too; this carries the IEX-safe funds Tiingo has
 no hourly room for. A fund IEX does not price like the tape belongs on a
-consolidated feed instead (Twelve Data, then Yahoo).
+consolidated feed instead (Twelve Data, Sina or Yahoo).
 
 HISTORY: SIP. The free plan serves SIP bars only
 to fifteen minutes back, so it cannot be the live source, but below that it is
@@ -46,8 +46,8 @@ BACKOFF_SECONDS = 2.0
 
 
 class RateLimited(ExchangeError):
-    """429 after every retry: 200 requests a minute per key, shared with the
-    probes. The run stops asking Alpaca rather than spend a retry cycle on each
+    """429 after every retry: 200 requests a minute per key, shared with any
+    deepening run. The run stops asking Alpaca rather than spend a retry cycle on each
     remaining fund."""
 
 

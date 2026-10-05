@@ -1,1 +1,1 @@
-"""Price spike monitor: fetches market data, detects abnormal volatility/volume, alerts via Telegram."""
+"""Tremor's delivery to Telegram, its data-source clients and the economic calendar."""

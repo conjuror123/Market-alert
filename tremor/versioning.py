@@ -57,8 +57,8 @@ RAW_INPUTS = (
 
 VERSION_LENGTH = 12
 
-# Chunk size when reading the data. The files are few and small, but there is no
-# reason to read a seventeen-megabyte calendar as a single bytes object.
+# Chunk size when reading the data: there is no reason to read a large file as
+# a single bytes object.
 CHUNK = 1 << 20
 
 
@@ -68,7 +68,7 @@ def _code(source: bytes) -> bytes:
     config_version must move when a formula moves and stay put otherwise, so what
     is hashed is the parsed tree with the docstrings taken out - not the bytes.
     Hashing the bytes makes every comment a formula change: it forces a cold
-    rebuild of all 61 instruments, and the recomputed table can differ from the
+    rebuild of every instrument, and the recomputed table can differ from the
     extended one it replaces, which reaches the reader as a burst of alerts for
     hours that were scored days ago.
 
@@ -153,8 +153,8 @@ def data_fingerprint(paths=RAW_INPUTS) -> str:
     vendor to the same length would leave the size unchanged, and the edit could
     slip through unnoticed if the file was rewritten within the same second.
 
-    The price is about a hundred milliseconds: there are roughly thirty megabytes
-    of raw data here, and derived files are not in the fingerprint (see
+    The price is under a second: about 200 MB of raw data here (0.8 s,
+    measured 2026-10-05), and derived files are not in the fingerprint (see
     RAW_INPUTS).
     """
     chunks = []
@@ -203,8 +203,8 @@ def versions_for(data_paths=RAW_INPUTS, root: str = ".") -> tuple[str, str]:
 def stamp(frame, config: str, run: str):
     """Writes both versions into every row.
 
-    The versions belong in each event, in the metrics and in the
-    decision journal - not in a file name. Events of different versions may be
+    The versions belong in each row of the metrics and the events - not in a
+    file name. Events of different versions may be
     compared only with the versions stated explicitly, and a reader who has one
     table in front of them cannot state what is not in it.
     """

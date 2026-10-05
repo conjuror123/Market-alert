@@ -248,8 +248,7 @@ def describe(event: dict, labels: dict[str, str]) -> str:
 
     Only what the detector measures is said: the move, its size in σ, and how
     long it has been since the instrument was at least this rare (rarest_line).
-    How the move held at the next close and the block's share of it come back
-    as the stages that measure them do.
+    How the move held at the close is on the time line (check_suffix).
     """
     tier = str(event.get("tier") or "noticeable")
     emoji = TIER_EMOJI.get(tier, "⚪")

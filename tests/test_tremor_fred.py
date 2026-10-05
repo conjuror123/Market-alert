@@ -40,8 +40,8 @@ def test_available_at_is_the_next_morning():
 
 
 def test_available_at_skips_the_weekend():
-    # Friday's value becomes known only on Monday - without that the backtest
-    # would apply the VIX multiplier at the weekend, when it did not yet exist.
+    # Friday's value becomes known only on Monday - without that a message
+    # would quote it at the weekend, when it did not yet exist.
     assert at(fred.available_at(date(2026, 8, 28))).date() == date(2026, 8, 31)
 
 
