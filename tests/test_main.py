@@ -165,7 +165,21 @@ def test_a_step_stopped_part_way_says_where_and_after_how_long(
     monkeypatch.setenv("TREMOR_STAGE_FILE", str(stages))
     entry.main()
     entry.main()
-    assert "stopped during pipeline, 12 min after it began" in _quiet[0][1]
+    assert "stopped during pipeline, about 12 min into the step" in _quiet[0][1]
+
+
+def test_a_malformed_stage_file_cannot_take_the_monitor_down(tmp_path, monkeypatch, _quiet):
+    # Read after delivery and before the state is saved: a raise there would
+    # lose what this run sent, and the next run would send it again.
+    stages = tmp_path / "stages"
+    stages.write_text("fetch\n")
+    monkeypatch.setattr(entry, "load_config", lambda: _cfg(tmp_path))
+    monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", lambda cfg, state: 0)
+    monkeypatch.setenv("TREMOR_PIPELINE_CRASHED", "true")
+    monkeypatch.setenv("TREMOR_STAGE_FILE", str(stages))
+    assert entry.main() == 1
+    assert entry.main() == 1
+    assert "crashed: events were not refreshed" in _quiet[0][1]
 
 
 @pytest.mark.parametrize("env, words", [
@@ -203,6 +217,8 @@ def test_hours_without_a_run_are_named_by_the_next_run(tmp_path, monkeypatch, _q
     entry.save_state(str(tmp_path / "state.json"), state)
     assert entry.main() == 0
     assert len(_quiet) == 1 and "4 hourly run(s) missing" in _quiet[0][1]
+    # Not "reached no one": what was found in the gap's last 24 hours still goes.
+    assert "last 24 hours go out now, late" in _quiet[0][1]
     # The next run, an hour on, has nothing to say.
     assert entry.main() == 0
     assert len(_quiet) == 1
