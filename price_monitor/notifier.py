@@ -136,7 +136,7 @@ def delete_telegram_message(
     sweeping a list and one message it may no longer delete must not stop it
     clearing the rest.
 
-    The bot posts to a PUBLIC CHANNEL where it is an administrator with
+    The bot posts to a private channel where it is an administrator with
     "Delete messages" (can_delete_messages), and there it can delete any
     message, whatever its age. A refusal therefore means something else - the
     message is already gone, or the admin right was taken away - and Telegram's

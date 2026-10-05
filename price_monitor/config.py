@@ -32,9 +32,9 @@ class Config:
     health_reminder_every_failures: int = 24
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
-    # Operational messages (health, provider failures). Never the product
-    # channel, which is public: without TELEGRAM_HEALTH_CHAT_ID they are only
-    # logged.
+    # Operational messages (health, provider failures). Never the channel,
+    # which carries the alerts only: without TELEGRAM_HEALTH_CHAT_ID they are
+    # only logged.
     telegram_health_chat_id: str = ""
     state_path: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(__file__), "..", "data", "state.json"))

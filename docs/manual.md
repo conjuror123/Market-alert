@@ -26,7 +26,7 @@ test of Lee & Mykland, 2008), not against a shared percentage.
 
 `config/basket.yaml` is the source of truth for instruments, blocks and settings.
 
-**The channel is public.** The bot is its administrator: it can edit its own messages at
+**The channel is private.** The bot is its administrator: it can edit its own messages at
 any age and delete any message. Health and provider failures go to
 `TELEGRAM_HEALTH_CHAT_ID`, never to the channel; without that secret they are only
 logged.

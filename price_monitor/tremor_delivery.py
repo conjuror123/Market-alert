@@ -4,7 +4,7 @@ The detector decides everything about WHAT to say - the word, which channel an
 event belongs to, when it was found (tremor.jumps, tremor.routing). This module
 decides what is on the channel because of it, and keeps that in line.
 
-THE CHANNEL IS PUBLIC and the bot is an administrator of it: it can edit any of
+THE CHANNEL IS PRIVATE and the bot is an administrator of it: it can edit any of
 its messages at any age and delete any message there.
 
 TWO KINDS OF MOVE, and the difference is how loudly they arrive. A push -
@@ -806,7 +806,7 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
 # that run: every alert message of the week is deleted, the note stays and shows
 # only what is found from then on.
 #
-# Deleting is how a message leaves; the bot is an administrator of a public
+# Deleting is how a message leaves; the bot is an administrator of the
 # channel and may delete any message there. Should Telegram refuse, the message
 # is struck through by an edit instead.
 

@@ -42,7 +42,7 @@ def test_yahoo_rate_limit_is_in_the_same_message():
 def test_ops_alert_uses_the_health_chat_not_the_product_one(monkeypatch):
     sent = []
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "tok")
-    monkeypatch.setenv("TELEGRAM_CHAT_ID", "@public")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "@channel")
     monkeypatch.setenv("TELEGRAM_HEALTH_CHAT_ID", "12345")
 
     def fake_send(token, chat, text):
@@ -54,10 +54,10 @@ def test_ops_alert_uses_the_health_chat_not_the_product_one(monkeypatch):
     assert sent == [("tok", "12345", "hello")]
 
 
-def test_ops_alert_never_goes_to_the_public_channel(monkeypatch):
+def test_ops_alert_never_goes_to_the_channel(monkeypatch):
     sent = []
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "tok")
-    monkeypatch.setenv("TELEGRAM_CHAT_ID", "@public")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "@channel")
     monkeypatch.delenv("TELEGRAM_HEALTH_CHAT_ID", raising=False)
     monkeypatch.setattr(
         "tremor.backfill.send_telegram_message",

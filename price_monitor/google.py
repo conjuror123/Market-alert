@@ -29,9 +29,7 @@ session no run read at all is a gap for fill-gaps, which asks Twelve Data.
 
 AND THE STANDING RISK. This is a web page, not an API: undocumented, unversioned
 and not meant to be read by a program, which Google's terms forbid. The owner
-accepted that for a private channel (2026-10-01), and confirmed on 2026-10-05
-that the channel is still considered private for this purpose - although
-Telegram serves it as a public channel that anyone can open. Its shape can
+accepted that for the channel, which is private (2026-10-01). Its shape can
 change without notice; a page that no longer carries the quote raises, so the
 run's provider report names it rather than the store going quietly stale.
 """

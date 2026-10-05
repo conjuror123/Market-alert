@@ -12,8 +12,8 @@ was made, `docs/decisions.md` (why), in the same commit.
 
 ## Boundaries
 
-- **The channel is public.** Anyone can read it. Never write, log or test as if it were a
-  private chat. Health and provider failures go to `TELEGRAM_HEALTH_CHAT_ID` only.
+- **The channel is private**, and carries the alerts only. Health and provider failures go
+  to `TELEGRAM_HEALTH_CHAT_ID` only, never to the channel.
 - **Secrets never enter the repository.** It is public. Keys live in GitHub Actions
   secrets and are read from the environment; `config/config.yaml` may name a secret,
   never hold one.

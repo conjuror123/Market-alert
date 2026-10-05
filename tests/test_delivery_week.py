@@ -26,7 +26,7 @@ SIZE = {"noticeable": 4.5, "high": 6.0, "major": 8.5, "extreme": 12.0}
 
 
 class Channel:
-    """The public channel: messages by id, and the ones that rang."""
+    """The channel: messages by id, and the ones that rang."""
 
     def __init__(self):
         self.messages, self.rang, self.next_id = {}, [], 1

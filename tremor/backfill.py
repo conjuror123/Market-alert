@@ -132,8 +132,8 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
 
 
 def send_ops_alert(text: str) -> None:
-    """The health chat if configured, otherwise only the log - never the public
-    product channel."""
+    """The health chat if configured, otherwise only the log - never the
+    channel."""
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     chat = os.environ.get("TELEGRAM_HEALTH_CHAT_ID", "")
     if not token or not chat:
