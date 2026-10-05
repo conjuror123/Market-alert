@@ -436,7 +436,8 @@ Not a health matter: a delete Telegram refuses is struck through instead, and a 
 or basket change deletes the week's pushes and pings once, as expected.
 
 The Tremor steps are `continue-on-error` so delivery still runs, and the job is failed at
-the end anyway. Health doesn't report "recovered" while the Tremor step is red. The step
+the end anyway. The streak counts what fails the run, never one instrument: a fund that
+went dark has its own line every run, and a run that delivered without it is clean. The step
 has 12 of the job's 20 minutes: past them it is stopped, and delivery, health and the
 commit still run. Each part of it (fetch, pipeline, jumps) notes its start, so a step that
 stops short is reported with the part it was in and its minutes.

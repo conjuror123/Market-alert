@@ -91,23 +91,28 @@ def test_recovery_is_announced_only_after_a_reported_outage(tmp_path, monkeypatc
     assert _quiet[0][0] == "ops"
 
 
-def test_a_red_tremor_step_is_not_reported_as_recovered(tmp_path, monkeypatch, _quiet):
-    cfg = _cfg(tmp_path)
-    monkeypatch.setattr(entry, "load_config", lambda: cfg)
-
-    def boom(cfg_, state):
-        raise RuntimeError("no")
-
-    monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", boom)
-    entry.main()
-    entry.main()
-    _quiet.clear()
-    monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", lambda cfg_, state: 0)
+def test_the_streak_is_about_the_run_not_one_instrument(tmp_path, monkeypatch, _quiet):
+    # A run that delivered but lost a fund in the backfill used to leave the
+    # streak where it was: it never said "recovered", and a second outage
+    # started from the first's count and went unreported until 27. The fund
+    # has its own line every run; the streak counts what fails the run.
+    monkeypatch.setattr(entry, "load_config", lambda: _cfg(tmp_path))
+    monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", lambda cfg, state: 0)
+    # What the workflow told the monitor when a fund went dark - every run here.
+    # It no longer reads it; the test fails if it ever does again.
     monkeypatch.setenv("TREMOR_STEP_FAILED", "true")
-    assert entry.main() == 0
-    assert _quiet == []
-    assert entry.load_state(str(tmp_path / "state.json"))[
-        entry.health.STATE_KEY]["consecutive_failures"] == 2
+
+    def runs(n, crashed):
+        monkeypatch.setenv("TREMOR_PIPELINE_CRASHED", "true" if crashed else "false")
+        for _ in range(n):
+            entry.main()
+
+    runs(2, crashed=True)
+    assert len(_quiet) == 1 and "failing for 2" in _quiet[0][1]
+    runs(3, crashed=False)
+    assert len(_quiet) == 2 and "recovered" in _quiet[1][1]
+    runs(2, crashed=True)
+    assert len(_quiet) == 3 and "failing for 2" in _quiet[2][1]
 
 
 def test_a_corrupt_state_file_stops_the_run(tmp_path, monkeypatch, _quiet):
@@ -138,24 +143,12 @@ def test_a_pipeline_that_crashed_is_a_failure_and_alerts_after_the_streak(
     # no events at all, and that must reach the health chat like any failure.
     monkeypatch.setattr(entry, "load_config", lambda: _cfg(tmp_path))
     monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", lambda cfg, state: 0)
-    monkeypatch.setenv("TREMOR_STEP_FAILED", "true")
     monkeypatch.setenv("TREMOR_PIPELINE_CRASHED", "true")
     assert entry.main() == 1
     assert _quiet == []                          # the first failure waits for the streak
     assert entry.main() == 1
     assert len(_quiet) == 1 and _quiet[0][0] == "ops"
     assert "events were not refreshed" in _quiet[0][1]
-
-
-def test_a_backfill_failure_alone_is_neither_clean_nor_a_failure(
-        tmp_path, monkeypatch, _quiet):
-    monkeypatch.setattr(entry, "load_config", lambda: _cfg(tmp_path))
-    monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", lambda cfg, state: 0)
-    monkeypatch.setenv("TREMOR_STEP_FAILED", "true")
-    monkeypatch.setenv("TREMOR_PIPELINE_CRASHED", "false")
-    for _ in range(3):
-        assert entry.main() == 0
-    assert _quiet == []
 
 
 def test_a_step_stopped_part_way_says_where_and_after_how_long(
@@ -168,7 +161,6 @@ def test_a_step_stopped_part_way_says_where_and_after_how_long(
     stages.write_text(f"fetch {start}\npipeline {start + 600}\n")
     monkeypatch.setattr(entry, "load_config", lambda: _cfg(tmp_path))
     monkeypatch.setattr(entry.tremor_delivery, "maybe_deliver", lambda cfg, state: 0)
-    monkeypatch.setenv("TREMOR_STEP_FAILED", "true")
     monkeypatch.setenv("TREMOR_PIPELINE_CRASHED", "true")
     monkeypatch.setenv("TREMOR_STAGE_FILE", str(stages))
     entry.main()

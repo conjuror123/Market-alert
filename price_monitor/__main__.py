@@ -70,17 +70,6 @@ def format_health_recovered(streak: int) -> str:
     return f"✅ Monitoring recovered after {streak} failed run(s) in a row."
 
 
-def tremor_step_failed() -> bool:
-    """True when the Tremor step of this workflow run did not complete.
-
-    continue-on-error lets delivery still run after a red pipeline. Empty
-    events then look like a quiet hour, and recording a success would send
-    'recovered' while GitHub fails the job at the last step.
-    """
-    value = os.environ.get("TREMOR_STEP_FAILED", "").strip().lower()
-    return value in ("1", "true", "yes")
-
-
 def tremor_pipeline_crashed() -> bool:
     """True when the pipeline or the detector itself died, so no events were
     written this run - as opposed to a backfill that lost an instrument, which
@@ -197,9 +186,9 @@ def main() -> int:
                                     cfg.health_reminder_every_failures):
             send_health(format_health_down(streak, error_details),
                         cfg.telegram_bot_token, cfg.telegram_health_chat_id)
-    elif tremor_step_failed():
-        log.error("Tremor step failed; not recording a clean run")
     else:
+        # Clean as a run, whatever one instrument did: the instrument has its
+        # own line on the health chat every run, and the streak is the run's.
         previous_streak = health.record_success(state)
         if previous_streak >= cfg.health_alert_after_failures:
             send_health(format_health_recovered(previous_streak),

@@ -51,7 +51,6 @@ def test_delivery_runs_after_a_fetch_and_score_step_that_ran_out_of_time():
     assert f"steps.{tremor_id}.outcome != 'skipped'" in condition
     env = steps["Run monitor"]["env"]
     # Not only 'failure': a step stopped for time must count as not completed.
-    assert f"steps.{tremor_id}.outcome != 'success'" in env["TREMOR_STEP_FAILED"]
     assert f"steps.{tremor_id}.outcome != 'success'" in env["TREMOR_PIPELINE_CRASHED"]
     assert "TREMOR_STAGE_FILE" in env
 

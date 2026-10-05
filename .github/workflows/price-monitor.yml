@@ -160,7 +160,6 @@ jobs:
           TELEGRAM_HEALTH_CHAT_ID: ${{ secrets.TELEGRAM_HEALTH_CHAT_ID }}
           TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
-          TREMOR_STEP_FAILED: ${{ steps.tremor.outputs.failed == 'true' || steps.tremor.outcome != 'success' }}
           # The step stopped before its end - a crash, or its time limit -
           # before writing its `failed` output, which the backfill's own
           # failure always writes.
