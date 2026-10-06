@@ -1,4 +1,8 @@
 asset_id,hour_utc,check,verdict,provider,verifier,stored_move,verifier_move,checked_utc
+binance:DOGE/USDT,1760133600,close,unconfirmed,binance,coinbase,0.041977,-0.008741,1791316800
+binance:FIL/USDT,1760130000,close,unconfirmed,binance,coinbase,-0.293749,-0.020619,1791316800
+binance:FIL/USDT,1760133600,close,unconfirmed,binance,coinbase,0.041411,0.005797,1791316800
+binance:FIL/USDT,1760137200,close,unconfirmed,binance,coinbase,0.035028,-0.132156,1791316800
 twelvedata:ANGL,1789581600,close,confirmed,sina,yahoo,-0.003863,-0.004038,1791114096
 twelvedata:AUD/USD,1789581600,close,confirmed,sifting,yahoo,-0.006510,-0.006403,1791114096
 twelvedata:AUD/USD,1790658000,close,confirmed,sifting,yahoo,-0.004185,-0.004202,1791114096

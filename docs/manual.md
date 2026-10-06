@@ -539,7 +539,7 @@ How far back each record reaches:
 |---|---|---|
 | Yahoo, Sina, Google Finance and MarketWatch are undocumented endpoints | a change silences their instruments or checks until fixed; the health chat names them | paid feeds (consolidated tape, futures data) |
 | no second source for the LME's metals | their bad prints are caught only beyond 1,000σ | a free independent feed |
-| weekend yardsticks rest on 26 weekends | ±16% noise; a pair whose weekend gap is usually nil can flag a 0.02% move | pooling or a longer window (`docs/decisions.md`, "Open questions") |
+| weekend yardsticks rest on 26 weekends | ±16% noise | none chosen: a longer window gained little (`docs/decisions.md`, "Rejected") |
 | history before each record's start (section 11) | "rarest since" reaches only as far as the record | paid history |
 | history before the second source's reach | old bad prints stay in old yardsticks | none needed: they never ring again |
 | repository size (~890 MiB on GitHub, 2026-10-06) | grows ~28 MB a year | a history rewrite (irreversible) |

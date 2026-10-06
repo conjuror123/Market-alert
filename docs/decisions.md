@@ -289,6 +289,7 @@ Measured or weighed, and not to be raised again.
 | σ·√k across a hole | needs a clock of expected hours and messages saying "over 3 hours" |
 | a level check (30% off the two-day median) | drops real crypto crashes |
 | "isolated and taken back" as a bad print | marks real moves, misses a feed sitting off for hours |
+| a longer window for weekend gaps (pairs 1 or 2 years, funds 1 year, a fund's weekends pooled with its nights) | once the pairs' stitched zero weekends were mended or unscored, the pairs' median QLIKE went 3.63 → 3.41 (1 year) and 3.34 (2 years), each better for only 11 of 16; funds 2.39 → 2.34, better for 61 of 133. The gain is small, real shocks read quieter (EUR/USD 2022-02-27 extreme → noticeable at 2 years), and one window for every instrument stays the rule |
 | a bridge may confirm, never reject (or no check in the second feed's missing hours) | over 2024-10 to 2026-10, frees one real hour (USD/KRW 2024-12-03 15:00, not flaggable) and lets in 34 flags, almost all USD/INR rollover ticks at 21:00–01:00 UTC; the narrower "unless it moved further the other way" changes 2 verdicts and 1 flag each way |
 | holding isolated moves an hour | a third of alerts would be an hour late |
 | a watchdog for the trigger's silence | the external scheduler is the party that knows a call stopped |
@@ -311,11 +312,6 @@ Measured or weighed, and not to be raised again.
 ## Open questions
 
 Known and left alone on purpose.
-
-**Weekend yardsticks are the noisiest** (±16%, against ±3% for hours). Pooling a fund's
-weekends with its nights predicts a little better (QLIKE 1.94 against 2.10), a 2-year window
-better still for pairs (2.96 against 3.90). To act: a one-line change in `jump/jumps.py`,
-then `tools/stage_report.py`.
 
 **Repository size**, about 890 MiB as GitHub counts it (915,487 KB on 2026-10-06), mostly
 superseded Parquet in history; GitHub warns at 1 GB. To act: a history rewrite, which force-pushes the live branch irreversibly.
