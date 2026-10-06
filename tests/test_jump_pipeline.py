@@ -314,3 +314,36 @@ def test_the_recomputed_tail_does_not_duplicate_or_lose_an_hour():
     assert hours == sorted(hours)
     assert len(hours) == len(set(hours))
     assert hours == truth["hour_utc"].tolist()
+
+
+# --- one instrument's error is that instrument's (F8) -------------------------
+
+def test_one_instruments_error_leaves_the_others_and_its_stored_metrics(tmp_path, monkeypatch):
+    from jump import pipeline as pl
+
+    small = _small_basket(("SPY", "GLD"))
+    spy, gld = sorted(small.instruments, key=lambda a: a.ticker != "SPY")
+    stale = tmp_path / f"{spy.file_stem}.parquet"
+    pd.DataFrame({"hour_utc": [1]}).to_parquet(stale)
+    real = pl.build_asset_metrics
+
+    def broken_for_spy(asset, *a, **k):
+        if asset.ticker == "SPY":
+            raise ValueError("a bad bar")
+        return real(asset, *a, **k)
+
+    monkeypatch.setattr(pl, "build_asset_metrics", broken_for_spy)
+    failures = []
+    built = pl.build_all(small, bars.DEFAULT_BARS_DIR, str(tmp_path), ("cfg", "run"), failures)
+    assert list(built) == [gld.asset_id]
+    assert failures == [(spy.asset_id, "a bad bar")]
+    assert pd.read_parquet(stale)["hour_utc"].tolist() == [1]     # kept as it was
+
+
+def test_a_worker_returns_an_instruments_error_instead_of_raising(monkeypatch):
+    from jump import pipeline as pl
+
+    asset = load_basket().instruments[0]
+    monkeypatch.setattr(pl, "_pool_compute",
+                        lambda payload: (_ for _ in ()).throw(ValueError("a bad bar")))
+    assert pl._pool_one((asset, None)) == (asset.asset_id, None, "a bad bar")

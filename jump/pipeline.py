@@ -226,7 +226,8 @@ def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
 
 def build_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
               metrics_dir: str = DEFAULT_METRICS_DIR,
-              versions: tuple[str, str] | None = None) -> dict[str, pd.DataFrame]:
+              versions: tuple[str, str] | None = None,
+              failures: "list[tuple[str, str]] | None" = None) -> dict[str, pd.DataFrame]:
     from jump import versioning
 
     session_table = sessions.load_sessions()
@@ -240,16 +241,24 @@ def build_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
 
     result = {}
     for asset in basket.instruments:
-        frame = bars.load(bars.store_path(bars_dir, asset.file_stem))
-        metrics = build_asset_metrics(asset, basket, frame, session_table,
-                                      dividends)
-        if metrics.empty:
-            log.warning("%s: no usable bars", asset.asset_id)
+        # One instrument's error is that instrument's: it keeps its stored
+        # metrics and the rest are computed (`failures`, said by main).
+        try:
+            frame = bars.load(bars.store_path(bars_dir, asset.file_stem))
+            metrics = build_asset_metrics(asset, basket, frame, session_table,
+                                          dividends)
+            if metrics.empty:
+                log.warning("%s: no usable bars", asset.asset_id)
+                continue
+            stored = metrics[[c for c in METRIC_COLUMNS if c in metrics]]
+            atomic.write_parquet(
+                metrics_path(metrics_dir, asset.file_stem),
+                versioning.stamp(stored, config, run))
+        except Exception as exc:
+            log.error("%s: metrics failed - %s", asset.asset_id, exc)
+            if failures is not None:
+                failures.append((asset.asset_id, str(exc)))
             continue
-        stored = metrics[[c for c in METRIC_COLUMNS if c in metrics]]
-        atomic.write_parquet(
-            metrics_path(metrics_dir, asset.file_stem),
-            versioning.stamp(stored, config, run))
         result[asset.asset_id] = metrics
         log.info("%s: bars %d", asset.asset_id, len(metrics))
     return result
@@ -286,7 +295,18 @@ def _pool_init(bars_dir: str, metrics_dir: str, versions: tuple[str, str],
     )
 
 
-def _pool_one(payload: "tuple[Asset, Basket]") -> "tuple[str, int, bool] | None":
+def _pool_one(payload: "tuple[Asset, Basket]") -> "tuple[str, int | None, bool | str] | None":
+    """(asset_id, rows, extended), None for no usable bars, or (asset_id, None,
+    the error) for an instrument whose metrics failed: it keeps its stored
+    ones, and the others are not held up."""
+    asset, _ = payload
+    try:
+        return _pool_compute(payload)
+    except Exception as exc:
+        return (asset.asset_id, None, str(exc))
+
+
+def _pool_compute(payload: "tuple[Asset, Basket]") -> "tuple[str, int, bool] | None":
     asset, basket = payload
     from jump import versioning
 
@@ -334,7 +354,8 @@ def _pool_one(payload: "tuple[Asset, Basket]") -> "tuple[str, int, bool] | None"
 def write_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
               metrics_dir: str = DEFAULT_METRICS_DIR,
               versions: tuple[str, str] | None = None,
-              workers: int | None = None, full: bool = False) -> int:
+              workers: int | None = None, full: bool = False,
+              failures: "list[tuple[str, str]] | None" = None) -> int:
     """build_all's work, in parallel, returning a count rather than the frames.
 
     This is what the command line calls. build_all stays as it is, serial and
@@ -350,7 +371,7 @@ def write_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
     versions = versions or versioning.versions_for()
     workers = workers or min(len(basket.instruments), os.cpu_count() or 1)
     if workers <= 1:
-        return len(build_all(basket, bars_dir, metrics_dir, versions))
+        return len(build_all(basket, bars_dir, metrics_dir, versions, failures))
 
     payloads = [(asset, basket) for asset in basket.instruments]
     written = 0
@@ -367,6 +388,11 @@ def write_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
             if outcome is None:
                 continue
             asset_id, rows, was_extended = outcome
+            if rows is None:
+                log.error("%s: metrics failed - %s", asset_id, was_extended)
+                if failures is not None:
+                    failures.append((asset_id, str(was_extended)))
+                continue
             written += 1
             extended += bool(was_extended)
             log.info("%s: bars %d%s", asset_id, rows,
@@ -389,10 +415,29 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    failures: list[tuple[str, str]] = []
     built = write_all(load_basket(), args.bars_dir, args.metrics_dir,
-                      workers=args.workers, full=args.full)
+                      workers=args.workers, full=args.full, failures=failures)
     print(f"metrics computed for {built} instruments")
-    return 0
+    if failures:
+        tell_failures("Metrics", failures,
+                      "Its stored metrics are kept, so its new bars are scored once "
+                      "it computes again; the other instruments are current.")
+    # Every instrument failing is the pipeline, not an instrument: the run fails.
+    return 1 if failures and not built else 0
+
+
+def tell_failures(stage: str, failures: "list[tuple[str, str]]", after: str) -> None:
+    """The health chat, every run it happens: the instruments one stage could
+    not compute, each with its error. A per-instrument problem, not the run's."""
+    from price_monitor.notifier import quote, send_health
+
+    lines = [f"⚠️ <b>{stage} failed for {len(failures)} instrument(s)</b>"]
+    lines += [f"• {asset_id}: {quote(error)}" for asset_id, error in failures[:20]]
+    if len(failures) > 20:
+        lines.append(f"• …and {len(failures) - 20} more")
+    lines.append(after)
+    send_health("\n".join(lines))
 
 
 if __name__ == "__main__":

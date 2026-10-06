@@ -569,9 +569,15 @@ def without_unconfirmed(metrics: pd.DataFrame, asset_id: str, doubts: dict) -> p
 
 
 def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKET_PATH,
-        now: "int | None" = None, verified_path: "str | None" = None) -> pd.DataFrame:
+        now: "int | None" = None, verified_path: "str | None" = None,
+        previous: "pd.DataFrame | None" = None,
+        failures: "list[tuple[str, str]] | None" = None) -> pd.DataFrame:
     """Every instrument's flagged readings that can be judged at `now` - hour,
-    night or weekend - each with the start of its 24-hour event."""
+    night or weekend - each with the start of its 24-hour event.
+
+    An instrument that fails to score keeps its rows from `previous` (the last
+    events table) and goes into `failures`: dropped, delivery would read its
+    events as gone and take its messages down."""
     import time
 
     from jump import verify
@@ -580,38 +586,59 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
     basket = load_basket(basket_path)
     window, ladder = settings(basket_path)
     doubts = verify.unconfirmed(verified_path)
-    parts = []
+    parts, kept = [], []
     for asset in basket.instruments:
         path = os.path.join(metrics_dir, f"{asset.file_stem}.parquet")
         if not os.path.exists(path):
             log.warning("no metrics for %s", asset.asset_id)
             continue
-        stored = pd.read_parquet(path, columns=["hour_utc", "r", "hole", "gap"])
-        metrics = without_unconfirmed(stored, asset.asset_id, doubts)
-        readings = [score(metrics, asset.session_template, window, ladder),
-                    score_gaps(metrics, window, ladder, asset.session_template)]
-        scored = pd.concat([f for f in readings if not f.empty], ignore_index=True)
-        if scored.empty:
+        try:
+            flagged = _flag(asset, path, window, ladder, doubts, now)
+        except Exception as exc:
+            log.error("%s: scoring failed - %s", asset.asset_id, exc)
+            if failures is not None:
+                failures.append((asset.asset_id, str(exc)))
+            if previous is not None and not previous.empty:
+                kept.append(previous[previous["asset_id"] == asset.asset_id])
             continue
-        scored = rarest_since(ended(scored, asset.session_template, now), ladder[0])
-        scored["record_start"] = int(metrics["hour_utc"].min())
-        flagged = scored[scored["word"].notna()].sort_values("found_utc").reset_index(drop=True)
-        flagged["event_start"] = event_starts(flagged["found_utc"])
-        # The close check follows the price as stored: an unconfirmed move is
-        # not a reading, but leaving it out of the path would shift every
-        # price after it.
-        check, held = held_at_close(stored, flagged, now)
-        flagged["check_utc"] = pd.arrays.IntegerArray(check, check < 0)
-        flagged["held"] = held
-        flagged.insert(1, "asset_id", asset.asset_id)
-        flagged.insert(2, "ticker", asset.ticker)
-        flagged.insert(3, "block", asset.block)
-        flagged.insert(4, "template", asset.session_template)
-        parts.append(flagged)
+        if flagged is not None:
+            parts.append(flagged)
     out = (pd.concat(parts, ignore_index=True) if parts else pd.DataFrame())
-    if out.empty:
-        return out
-    return for_delivery(out.sort_values(["hour_utc", "asset_id"]).reset_index(drop=True))
+    if not out.empty:
+        out = for_delivery(out.sort_values(["hour_utc", "asset_id"]).reset_index(drop=True))
+    kept = [k for k in kept if not k.empty]
+    if kept:
+        out = pd.concat([out, *kept], ignore_index=True) if not out.empty else \
+            pd.concat(kept, ignore_index=True)
+        out = out.sort_values(["hour_utc", "asset_id"]).reset_index(drop=True)
+    return out
+
+
+def _flag(asset, path: str, window: float, ladder, doubts: dict, now: int
+          ) -> "pd.DataFrame | None":
+    """One instrument's flagged readings, or None when it has none."""
+    stored = pd.read_parquet(path, columns=["hour_utc", "r", "hole", "gap"])
+    metrics = without_unconfirmed(stored, asset.asset_id, doubts)
+    readings = [score(metrics, asset.session_template, window, ladder),
+                score_gaps(metrics, window, ladder, asset.session_template)]
+    scored = pd.concat([f for f in readings if not f.empty], ignore_index=True)
+    if scored.empty:
+        return None
+    scored = rarest_since(ended(scored, asset.session_template, now), ladder[0])
+    scored["record_start"] = int(metrics["hour_utc"].min())
+    flagged = scored[scored["word"].notna()].sort_values("found_utc").reset_index(drop=True)
+    flagged["event_start"] = event_starts(flagged["found_utc"])
+    # The close check follows the price as stored: an unconfirmed move is
+    # not a reading, but leaving it out of the path would shift every
+    # price after it.
+    check, held = held_at_close(stored, flagged, now)
+    flagged["check_utc"] = pd.arrays.IntegerArray(check, check < 0)
+    flagged["held"] = held
+    flagged.insert(1, "asset_id", asset.asset_id)
+    flagged.insert(2, "ticker", asset.ticker)
+    flagged.insert(3, "block", asset.block)
+    flagged.insert(4, "template", asset.session_template)
+    return flagged
 
 
 def main(argv: "list[str] | None" = None) -> int:
@@ -620,8 +647,23 @@ def main(argv: "list[str] | None" = None) -> int:
     parser.add_argument("--out", default=DEFAULT_OUT)
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    flagged = run(args.metrics_dir)
+    previous = None
+    if os.path.exists(args.out):
+        try:
+            previous = pd.read_parquet(args.out)
+        except Exception as exc:              # a killed run's file: nothing to keep
+            log.warning("the last events table is unreadable - %s", exc)
+    failures: list[tuple[str, str]] = []
+    flagged = run(args.metrics_dir, previous=previous, failures=failures)
+    if failures:
+        from jump.pipeline import tell_failures
+        tell_failures("Scoring", failures,
+                      "Its events from the last run are kept as they were; the other "
+                      "instruments are current.")
     atomic.write_parquet(args.out, flagged, index=False)
+    # Every instrument failing is the detector, not an instrument: the run fails.
+    if failures and len(failures) >= len(load_basket().instruments):
+        return 1
     if flagged.empty:
         log.info("no flagged readings -> %s", args.out)
         return 0

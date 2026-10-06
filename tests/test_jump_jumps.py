@@ -1,5 +1,6 @@
 """The jump detector: the score, the word, gaps, events, rarest since, held at the close."""
 import math
+import os
 
 import numpy as np
 import pandas as pd
@@ -454,3 +455,37 @@ def test_the_answer_waits_for_the_bars_to_reach_the_close():
                          "reading": ["hour"]})
     _, held = jumps.held_at_close(bars, move, now=start + 10 * HOUR)
     assert np.isnan(held[0])
+
+
+# --- one instrument's error is that instrument's (F8) -------------------------
+
+def test_an_instrument_that_fails_to_score_keeps_its_last_events(tmp_path, monkeypatch):
+    # Dropped instead, delivery would read its events as gone and take its
+    # messages off the channel.
+    import shutil
+    from dataclasses import replace
+
+    from jump.basket import load_basket
+
+    basket = load_basket()
+    picked = [a for a in basket.instruments if a.ticker in ("SPY", "GLD")]
+    if not all(os.path.exists(os.path.join("data/jump/metrics", f"{a.file_stem}.parquet"))
+               for a in picked):
+        pytest.skip("needs the derived metrics")
+    for a in picked:
+        shutil.copy(os.path.join("data/jump/metrics", f"{a.file_stem}.parquet"), tmp_path)
+    small = replace(basket, assets=tuple(picked), outside=())
+    monkeypatch.setattr(jumps, "load_basket", lambda *a, **k: small)
+    now = 1791300000
+    whole = jumps.run(str(tmp_path), now=now, verified_path=str(tmp_path / "none.csv"))
+    spy = next(a for a in picked if a.ticker == "SPY")
+    assert (whole["asset_id"] == spy.asset_id).any()
+
+    real = jumps._flag
+    monkeypatch.setattr(jumps, "_flag", lambda asset, *a, **k: (_ for _ in ()).throw(
+        ValueError("a bad row")) if asset.ticker == "SPY" else real(asset, *a, **k))
+    failures = []
+    out = jumps.run(str(tmp_path), now=now, verified_path=str(tmp_path / "none.csv"),
+                    previous=whole, failures=failures)
+    assert failures == [(spy.asset_id, "a bad row")]
+    pd.testing.assert_frame_equal(out.reset_index(drop=True), whole.reset_index(drop=True))
