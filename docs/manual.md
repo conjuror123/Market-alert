@@ -138,6 +138,11 @@ calendar allows is named on the health chat on the run it passes its limit, then
 and only on a run its count moved, so not through the night (`stale_hours`): 3 session hours for a coin, 6 for a pair, 7 for a fund, two sessions for a
 daily-session market (whose calendars don't know holidays).
 
+**Requests** (`jump/usage.py`): every answer the fetch gets, a 429 included, is counted by
+provider on its HTTP session and logged once at the end of the fetch, with the quota left
+where the provider's answer says it: `requests: tiingo 27 (left 4973), sifting 17, …`.
+Log only; nothing is sent.
+
 **Sessions** (`jump/sessions.py`): the NYSE table (`data/jump/sessions/nyse.csv`),
 the FX week, and each daily-session market's hours (LME, ICE, CME, B3). The NYSE table
 extends itself: when under two years remain, the hourly run appends three more years,
@@ -473,6 +478,7 @@ health and the calendar go out, Jump's pushes, note and pings do not.
 | `jump/versioning.py`, `windows.py` | config hashes; the pipeline's warm lead |
 | `jump/cboe.py`, `fred.py`, `vix.py`, `ewma.py`, `zscore.py` | the VIX line on the note |
 | `jump/atomic.py` | safe writes |
+| `jump/usage.py` | the fetch's requests per provider, logged |
 | `jump/audit.py` | the coverage report, `data/jump/coverage.md` |
 | `price_monitor/jump_delivery.py` | messages and the week |
 | `price_monitor/weekly_digest.py`, `economic_calendar.py` | the calendar |

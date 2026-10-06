@@ -43,6 +43,7 @@ import requests
 from jump import atomic, bars, cboe, corporate_actions, fred, futures, quality, verify
 from jump import sessions as _sessions
 from jump.basket import Asset, Basket, load_basket
+from jump.usage import Usage
 from price_monitor import (alpaca, binance, dukascopy, google, hfdata, sifting, sina,
                            tiingo, twelvedata, yahoo)
 from price_monitor.models import UNANSWERED_IN_A_ROW, ExchangeError, Unreachable
@@ -535,7 +536,8 @@ TWELVEDATA_BATCH_GAP_SECONDS = 61.0
 
 
 def fetch_twelvedata_live(assets: "list[Asset]", bars_dir: str, api_key: str,
-                          now: datetime | None = None, sleep=time.sleep
+                          now: datetime | None = None, sleep=time.sleep,
+                          session: "requests.Session | None" = None
                           ) -> "list[tuple[Asset, dict | Exception]]":
     """The hourly fetch of the Twelve Data funds, BATCH_SIZE symbols a request.
 
@@ -548,7 +550,8 @@ def fetch_twelvedata_live(assets: "list[Asset]", bars_dir: str, api_key: str,
     Returns, per fund, the same summary as backfill_instrument or the error.
     """
     now = now or datetime.now(timezone.utc)
-    session = requests.Session()
+    # Its own session, the thread's: a Session is not shared across threads.
+    session = session or requests.Session()
     results: "list[tuple[Asset, dict | Exception]]" = []
     groups: dict = {}
     for asset in assets:
@@ -1532,7 +1535,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     alpaca_gone = False
 
-    session = requests.Session()
+    usage = Usage()
+    session = usage.session()
     # Loaded once. A missing table is not an error here - it only means no
     # instrument can be skipped, which is the safe direction.
     try:
@@ -1583,7 +1587,8 @@ def main(argv: list[str] | None = None) -> int:
         if due:
             from concurrent.futures import ThreadPoolExecutor
             pool = ThreadPoolExecutor(max_workers=1)
-            td_thread = pool.submit(fetch_twelvedata_live, due, args.bars_dir, api_key)
+            td_thread = pool.submit(fetch_twelvedata_live, due, args.bars_dir, api_key,
+                                    session=usage.session())
             pool.shutdown(wait=False)
 
     for i, asset in enumerate(instruments):
@@ -1837,6 +1842,7 @@ def main(argv: list[str] | None = None) -> int:
             dark.append(("VIX", "cboe/fred", str(exc)))
             log.error("VIX: failed - %s", exc)
 
+    log.info(usage.line())
     text = format_provider_failure(
         dark, tiingo_gone=tiingo_gone, tiingo_skipped=tiingo_skipped,
         tiingo_remaining=tiingo_remaining, tiingo_trip=tiingo_trip,
