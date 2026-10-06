@@ -87,3 +87,10 @@ def test_the_hourly_pass_logs_what_its_session_asked_once(tmp_path, monkeypatch,
 
     lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("requests:")]
     assert lines == ["requests: binance 1"]
+
+
+def test_both_cboe_hosts_are_cboe():
+    usage = Usage()
+    _ask(usage.session(), "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv")
+    _ask(usage.session(), "https://cdn-api.cboe.com/api/global/delayed_quotes/quotes/_VIX.json")
+    assert usage.line() == "requests: cboe 2"
