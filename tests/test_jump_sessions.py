@@ -280,3 +280,46 @@ def test_the_extension_with_the_real_calendar_library(tmp_path):
     assert date(2029, 1, 1) not in table                  # New Year's Day
     assert date(2029, 1, 2) in table and max(table) == date(2030, 12, 31)
     assert table[date(2029, 11, 23)].is_early_close        # the day after Thanksgiving
+
+
+# --- B3's holidays: USD/BRL's session (b3_fx) ----------------------------------
+
+def _utc(y, m, d, h):
+    return int(datetime(y, m, d, h, tzinfo=timezone.utc).timestamp())
+
+
+def test_a_b3_holiday_is_outside_usd_brls_session():
+    # 2025-11-20, Black Consciousness Day: B3 shut, SiftingIO still quoting
+    # (22 bp an hour at the median that day). 15:00 UTC is 12:00 Sao Paulo.
+    assert sessions.b3_holiday(date(2025, 11, 20))
+    assert sessions.daily_session_of(_utc(2025, 11, 20, 15), "b3_fx") is None
+    # The day before and after trade as usual.
+    assert sessions.daily_session_of(_utc(2025, 11, 19, 15), "b3_fx") == date(2025, 11, 19)
+    assert sessions.daily_session_of(_utc(2025, 11, 21, 15), "b3_fx") == date(2025, 11, 21)
+
+
+def test_b3s_holidays_are_b3s_only():
+    # The LME traded on Brazil's holiday.
+    assert sessions.daily_session_of(_utc(2025, 11, 20, 10), "lme") == date(2025, 11, 20)
+
+
+def test_beyond_the_b3_table_a_weekday_counts_as_open(tmp_path):
+    path = str(tmp_path / "b3.csv")
+    sessions.write_days(path, [date(2026, 1, 5), date(2026, 1, 7)])
+    sessions._b3_days.cache_clear()
+    assert sessions.b3_holiday(date(2026, 1, 6), path)
+    assert not sessions.b3_holiday(date(2026, 1, 8), path)      # past its last row
+    assert not sessions.b3_holiday(date(2026, 1, 10), path)     # a Saturday
+
+
+def test_the_b3_table_is_extended_append_only(tmp_path):
+    path = str(tmp_path / "b3.csv")
+    sessions.write_days(path, [date(2026, 1, 5), date(2026, 1, 7)])
+    sessions._b3_days.cache_clear()
+    added = sessions.extend_b3_days(path, until=date(2026, 1, 9),
+                                    generate=lambda a, b: [date(2026, 1, 6),
+                                                           date(2026, 1, 8)])
+    assert added == 1
+    days, first, last = sessions._b3_days(path)
+    assert sorted(days) == [date(2026, 1, 5), date(2026, 1, 7), date(2026, 1, 8)]
+    sessions._b3_days.cache_clear()

@@ -31,6 +31,9 @@ from functools import lru_cache
 
 HOUR = 3600
 DEFAULT_SESSIONS_PATH = os.path.join("data", "jump", "sessions", "nyse.csv")
+# B3's trading days, for USD/BRL's session (b3_fx): built and extended like the
+# NYSE table, one date a row.
+B3_DAYS_PATH = os.path.join("data", "jump", "sessions", "b3.csv")
 
 REFERENCE_OPEN_HOUR = 17   # Sunday, anchor exchange local time
 REFERENCE_CLOSE_HOUR = 17  # Friday
@@ -68,6 +71,60 @@ def generate_nyse_sessions(start: date, end: date) -> list[Session]:
             is_early_close=(closed.hour, closed.minute) < (16, 0),
         ))
     return sessions
+
+
+def generate_b3_days(start: date, end: date) -> "list[date]":
+    """B3's trading days from the exchange_calendars library (BVMF): the
+    exchange's own holidays, São Paulo's city ones among them, are absent."""
+    import exchange_calendars as xcals  # local import: generation only
+
+    calendar = xcals.get_calendar("BVMF", start=str(start), end=str(end))
+    return [d.date() for d in calendar.sessions]
+
+
+def write_days(path: str, days: "list[date]") -> None:
+    from jump import atomic
+
+    def _write(tmp: str) -> None:
+        with open(tmp, "w", encoding="utf-8", newline="") as f:
+            f.write("date\n")
+            for d in sorted(days):
+                f.write(d.isoformat() + "\n")
+
+    atomic.write_replacing(path, _write)
+
+
+@lru_cache(maxsize=4)
+def _b3_days(path: str = B3_DAYS_PATH) -> "tuple[frozenset, date | None, date | None]":
+    """(trading days, first, last) of the B3 table; empty without one."""
+    if not os.path.exists(path):
+        return frozenset(), None, None
+    with open(path, "r", encoding="utf-8", newline="") as f:
+        days = frozenset(date.fromisoformat(row["date"]) for row in csv.DictReader(f))
+    return days, min(days, default=None), max(days, default=None)
+
+
+def b3_holiday(day: date, path: str = B3_DAYS_PATH) -> bool:
+    """A weekday B3 is shut, inside the table's span. Outside it nothing is
+    known, and the day counts as open, as before the table."""
+    days, first, last = _b3_days(path)
+    return first is not None and first <= day <= last and day.weekday() < 5 \
+        and day not in days
+
+
+def extend_b3_days(path: str = B3_DAYS_PATH, until: "date | None" = None,
+                   generate=None) -> int:
+    """Appends B3's trading days after the table's last row through `until`;
+    the rows already there stay as they are (the NYSE table's rule)."""
+    days, _, last = _b3_days(path)
+    if last is None or until is None or last >= until:
+        return 0
+    new = [d for d in (generate or generate_b3_days)(last + timedelta(days=1), until)
+           if d > last]
+    if new:
+        write_days(path, list(days) + new)
+        _b3_days.cache_clear()
+    return len(new)
 
 
 def write_sessions(path: str, sessions: list[Session]) -> None:
@@ -326,6 +383,9 @@ def main(argv: list[str] | None = None) -> int:
         added = extend_sessions(args.out)
         print(f"{args.out}: {added} trading days appended" if added
               else f"{args.out}: reaches far enough, nothing appended")
+        # B3's table to the same last year as the NYSE's.
+        b3 = extend_b3_days(until=max(load_sessions(args.out)))
+        print(f"{B3_DAYS_PATH}: {b3} trading days appended")
         return 0
 
     sessions = generate_nyse_sessions(date.fromisoformat(args.start),
@@ -349,7 +409,10 @@ if __name__ == "__main__":
 # is later than its close starts the evening before: cotton's Monday runs from
 # Sunday 21:00 New York. Holidays are not listed: the source has no bars on them,
 # so the close before one is simply longer, and its gap is judged with the other
-# closes of that length (jump.jumps.gap_kinds).
+# closes of that length (jump.jumps.gap_kinds). Except b3_fx's: SiftingIO quotes
+# USD/BRL on B3's holidays too - flat, or thin offshore quotes moving up to 23 bp
+# an hour against 14 bp on a trading day (2019-09 to 2026-10) - so B3's trading
+# days are listed (B3_DAYS_PATH) and its holidays are outside the session.
 #
 #   lme          tin, nickel and aluminium on LMEselect, 01:00-19:00 London
 #   ice_coffee   ICE arabica, 04:15-13:30 New York
@@ -394,6 +457,8 @@ def daily_session_of(hour_utc: int, name: str) -> "date | None":
     end = start + timedelta(hours=1)
     for day in (start.date(), start.date() + timedelta(days=1)):
         if day.weekday() >= 5:
+            continue
+        if name == "b3_fx" and b3_holiday(day):
             continue
         opened, closed = _bounds(day, name)
         if start < closed and end > opened:

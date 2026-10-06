@@ -192,7 +192,10 @@ past its limit (a fund after 7 session hours, a future after two sessions). A sp
 Tiingo or SiftingIO budget is still told every run: that is a quota gone.
 
 **USD/BRL trades in its own session**, 09:00–18:00 São Paulo (`b3_fx`): outside it real
-moves are under 3.5 bp an hour.
+moves are under 3.5 bp an hour. B3's holidays are outside it too: on them SiftingIO's
+quote sits flat, or moves up to 23 bp an hour on thin offshore quotes, against 14 bp on a
+trading day (2019-09 to 2026-10). Scored, they made a session of their own and a night
+after it.
 
 **A provider down is that provider's, not the run's.** The run goes red only when the fetch
 got nothing at all. A red run for one dark provider said nothing the health chat had not

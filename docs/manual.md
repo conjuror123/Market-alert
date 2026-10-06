@@ -155,9 +155,10 @@ only its latest session (filled with 242 overlapping hours, correlation 0.9976, 
 funds, comma-separated. That run repairs first, then makes the ordinary hourly pass.
 
 **Sessions** (`jump/sessions.py`): the NYSE table (`data/jump/sessions/nyse.csv`),
-the FX week, and each daily-session market's hours (LME, ICE, CME, B3). The NYSE table
-extends itself: when under two years remain, the hourly run appends three more years,
-leaving existing rows untouched.
+the FX week, and each daily-session market's hours (LME, ICE, CME, B3). B3's trading days
+(`data/jump/sessions/b3.csv`) take its holidays out of USD/BRL's session: SiftingIO quotes
+on them, flat or thin. The tables extend themselves: when under two years remain, the
+hourly run appends three more years to both, leaving existing rows untouched.
 
 **Quality gate** (`jump/quality.py`): a bar is unusable if a price is not positive,
 OHLC is inconsistent beyond half a tick, volume is negative, it duplicates an hour, it is a
@@ -402,7 +403,7 @@ topped up daily from the live feed.
 | `data/economic_calendar/` | release archive | every run |
 | `data/jump/corporate_actions.csv`, `dividend_checks.csv` | payouts, how far each fund is confirmed | every run |
 | `data/jump/verified.csv` | second-source verdicts | every run |
-| `data/jump/sessions/nyse.csv` | NYSE schedule | when extended |
+| `data/jump/sessions/nyse.csv`, `b3.csv` | NYSE schedule, B3's trading days | when extended |
 | `data/jump/bars/*/YYYY-MM.csv`, `YYYY.parquet` | settled bars | when a month or year settles |
 | `data/jump/bars/*/YYYY-MM.open.csv` | open months | no: release `bars-live-<branch>` |
 | `data/jump/vix/` | daily VIX | Saturday 04:00 UTC |
@@ -535,7 +536,6 @@ How far back each record reaches:
 | Yahoo, Sina, Google Finance and MarketWatch are undocumented endpoints | a change silences their instruments or checks until fixed; the health chat names them | paid feeds (consolidated tape, futures data) |
 | no second source for the LME's metals | their bad prints are caught only beyond 1,000σ | a free independent feed |
 | the softs' second source rolls contracts on its own days | a move in its roll hour can be misjudged (about 5 a year each) | roll-aware comparison |
-| B3 holidays are trading hours to `b3_fx` | quotes served on a B3 holiday become a night gap after it | a B3 holiday calendar |
 | weekend yardsticks rest on 26 weekends | ±16% noise; a pair whose weekend gap is usually nil can flag a 0.02% move | pooling or a longer window (`docs/decisions.md`, "Open questions") |
 | history before each record's start (section 11) | "rarest since" reaches only as far as the record | paid history |
 | history before the second source's reach | old bad prints stay in old yardsticks | none needed: they never ring again |
