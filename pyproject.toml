@@ -11,5 +11,6 @@ filterwarnings = [
     # pandas 2.3 builds a keyword Timedelta (Timedelta(hours=5)) through numpy's
     # unitless timedelta, which numpy 2.5 deprecates and a later numpy refuses.
     # In the hourly run that would stop the fetch and the scoring; give the unit.
-    "error:The 'generic' unit for NumPy timedelta:DeprecationWarning",
+    # Our code only: exchange_calendars warns the same from its own (4.13.2).
+    "error:The 'generic' unit for NumPy timedelta:DeprecationWarning:(jump|price_monitor)\\.",
 ]
