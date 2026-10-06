@@ -293,6 +293,41 @@ def test_an_hour_first_scored_part_way_through_is_rescored_when_it_closes():
         "the complete bar must replace what five minutes of it said"
 
 
+def test_a_bar_revised_hours_back_is_rescored_not_only_the_last_one():
+    # The tail is two days, not one hour: a provider that corrects a bar
+    # several hours later, or a stretch of missed runs, still has its hour
+    # re-scored. Here the bar ten hours from the end was stored wrong and the
+    # store's metrics were built from it.
+    from jump import pipeline as pl, sessions
+
+    small = _small_basket(("SPY",))
+    asset = small.instruments[0]
+    table = sessions.load_sessions()
+    frame = bars.load(bars.store_path(bars.DEFAULT_BARS_DIR, asset.file_stem))
+
+    truth = pl.build_asset_metrics(asset, small, frame, table)
+    hour = int(truth["hour_utc"].iloc[-10])
+    settled = float(truth.loc[truth.hour_utc == hour, "r"].iloc[0])
+
+    wrong = frame.copy()
+    row = wrong.index[wrong.hour_utc == hour][0]
+    opened = float(wrong.at[row, "open"])
+    wrong.loc[row, ["high", "low", "close"]] = [opened * 1.0002, opened * 0.9998,
+                                                opened * 1.0001]
+    early = pl.build_asset_metrics(asset, small, wrong, table)
+    stored = early[[c for c in pl.METRIC_COLUMNS if c in early]].assign(
+        config_version="cfg", run_version="run")
+    assert float(stored.loc[stored.hour_utc == hour, "r"].iloc[0]) != \
+        pytest.approx(settled), "the fixture must actually differ"
+
+    out = pl.extend_asset_metrics(asset, small, frame, table,
+                                  stored, "cfg", "run")
+    assert out is not None
+    after = float(out.loc[out.hour_utc == hour, "r"].iloc[0])
+    assert after == pytest.approx(settled, abs=1e-12), \
+        "a corrected bar inside the last two days must replace what was stored"
+
+
 def test_the_recomputed_tail_does_not_duplicate_or_lose_an_hour():
     # Re-scoring the tail means dropping rows from the store and putting them
     # back. An off-by-one here would either double an hour or drop one, and
