@@ -542,6 +542,36 @@ def test_a_detector_update_restarts_the_week_under_the_same_note(monkeypatch, ch
     assert "Nothing so far" in channel.messages[note_id]
 
 
+def test_a_detector_update_that_changes_no_event_leaves_the_week_alone(
+        monkeypatch, channel, week):
+    # A refactor or an error path moves the code's hash, not the events: the
+    # channel must not lose correct messages over it.
+    row = ev(at(1, 10))
+    push = ev(at(1, 12), "high", asset="coinbase:BTC-USD")
+    run(monkeypatch, channel, [row, push], run_at(1, 13), week)
+    before = dict(channel.messages)
+
+    monkeypatch.setattr(jumps, "detector_version", lambda root=None: "v2")
+    rang = len(channel.rang)
+    run(monkeypatch, channel, [row, push], run_at(1, 14), week)
+    assert channel.messages == before
+    assert channel.rings_since(rang) == []
+    assert week[md.STATE_KEY][md.WEEK]["detector"] == "v2"
+
+
+def test_a_reading_newly_flagged_in_an_earlier_hour_is_a_changed_detector(
+        monkeypatch, channel, week):
+    # The new detector flags a move a previous run saw unflagged: its events
+    # differ, and the week restarts rather than ringing it late.
+    push = ev(at(1, 12), "high", asset="coinbase:BTC-USD")
+    run(monkeypatch, channel, [push], run_at(1, 13), week)
+    monkeypatch.setattr(jumps, "detector_version", lambda root=None: "v2")
+    rang = len(channel.rang)
+    run(monkeypatch, channel, [push, ev(at(1, 9))], run_at(1, 14), week)
+    assert channel.rings_since(rang) == []
+    assert channel.pushes() == []
+
+
 # --- held at the funds' close ------------------------------------------
 
 def time_line(text):

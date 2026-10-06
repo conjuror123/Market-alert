@@ -66,9 +66,12 @@ That close shows a real fade above the noise (a fund's `high` hour: 79% half hel
 95% for a random walk); further out, a random walk alone says "gave back" for 14–26% of
 moves. Coins and pairs use it too, so every check of a week lands in that week.
 
-**A detector update restarts the week.** A new detector's events are not the old one's, so
-the old messages are not corrected against them. The version hashes parsed code, so a
-comment does not count.
+**A detector update restarts the week, if it changes the week's events.** A new
+detector's events are not the old one's, so the old messages are not corrected against
+them. But the version hashes code, and a refactor or an error path moves it with every
+event the same (2026-10-06: F8's isolation, 17,297 readings identical): then the week is
+compared first and kept, so correct messages do not vanish over a change that moved
+nothing. The version hashes parsed code, so a comment does not count.
 
 ---
 

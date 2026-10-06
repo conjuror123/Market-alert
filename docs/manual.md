@@ -373,9 +373,13 @@ alerts.
 `arrived late`, `price corrected`, `σ corrected`, `corrected away` and `unconfirmed`. A
 clean event has no story line.
 
-**Rule.** A detector update restarts the week. When `detector_version()` changes, every
-push and ping message of the week is deleted; the note and the calendar stay, and the week
-continues with what is found from that run on.
+**Rule.** A detector update that changes the week's events restarts the week. When
+`detector_version()` changes, the updated detector's view of the week is compared with the
+channel first (`_same_week`): if every event on it keeps its peak at the same word and
+numbers, and no reading a previous run saw has newly become an event, only the version is
+recorded and every message stays. Otherwise every push and ping message of the week is
+deleted; the note and the calendar stay, and the week continues with what is found from
+that run on.
 
 **Telegram limits.** On 429 the notifier waits as told and retries up to 3 times, at most
 60 s per wait and 180 s per run (`notifier.py`). A delete Telegram refuses becomes a
@@ -458,7 +462,8 @@ message past Telegram's 4,096 characters is cut between lines, ending "…and N 
 | Telegram itself | the token revoked or Telegram down | nothing can reach the chat; the job goes red | — |
 
 Not a health matter: a delete Telegram refuses is struck through instead, and a detector
-or basket change deletes the week's pushes and pings once, as expected.
+or basket change that changes the week's events deletes its pushes and pings once, as
+expected.
 
 The Jump steps are `continue-on-error` so delivery still runs, and the job is failed at
 the end anyway. The streak counts what fails the run, never one instrument: a fund that

@@ -973,6 +973,24 @@ def _close_week(cfg: Config, week: dict) -> None:
         _delete(cfg, message_id, first_line)
 
 
+def _same_week(week: dict, readings: "list[dict]", now_ts: int) -> bool:
+    """Whether the updated detector says what the channel already shows about
+    this week: every event on it has the same peak reading at the same word
+    and numbers, and no reading a previous run would have seen (found over an
+    hour ago) has newly become an event. Moves found within the hour are this
+    run's news either way."""
+    groups = _group([r for r in readings if _in_week(r, week)], week)
+    for key, rec in week.get("events", {}).items():
+        if not rec.get("form"):
+            continue
+        rows = groups.get(key) or []
+        if _shown(max(rows, key=_size) if rows else None) != rec.get("shown"):
+            return False
+    return not any(_found(r) < now_ts - 3600
+                   for key, rows in groups.items() if key not in week.get("events", {})
+                   for r in rows)
+
+
 def _restart_week(cfg: Config, week: dict, version: str, now: datetime) -> None:
     """A detector update: the week's pushes and pings are deleted, the note
     stays, and the week continues with what is found from this run on."""
@@ -1355,8 +1373,14 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         week = store[WEEK] = _new_week(slot, version)
         save_state(cfg.state_path, state)
     elif week.get("detector") != version:
-        _restart_week(cfg, week, version, now)
-        log.info("Detector updated: the week restarts from this run")
+        if _same_week(week, readings, now_ts):
+            # A change to the code that moved nothing - a refactor, an error
+            # path: the week stays as it is, messages and note alike.
+            week["detector"] = version
+            log.info("Detector updated, this week's events unchanged: kept as they are")
+        else:
+            _restart_week(cfg, week, version, now)
+            log.info("Detector updated: the week restarts from this run")
         save_state(cfg.state_path, state)
     return changed + _pass(cfg, state, week, readings, labels, calendar, now, ring)
 
