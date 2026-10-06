@@ -17,18 +17,19 @@ class TelegramError(RuntimeError):
 
 
 _BOT_TOKEN = re.compile(r"bot\d+:[A-Za-z0-9_-]+")
-_APIKEY = re.compile(r"(?i)apikey=[^&\s]+")
+# Twelve Data spells it apikey=, FRED api_key=.
+_APIKEY = re.compile(r"(?i)\b(api_?key)=[^&\s]+")
 _AUTH = re.compile(r"(?i)(authorization:\s*)\S.*")
 
 
 def redact_secrets(text: str) -> str:
-    """Strip bot tokens, apikey= values and Authorization headers from text.
+    """Strip bot tokens, apikey= / api_key= values and Authorization headers from text.
 
     RequestException and provider URLs otherwise land in ops/health messages
     carrying the Telegram token (it is in the request path) or an API key.
     """
     text = _BOT_TOKEN.sub("bot<redacted>", text)
-    text = _APIKEY.sub("apikey=<redacted>", text)
+    text = _APIKEY.sub(r"\1=<redacted>", text)
     text = _AUTH.sub(r"\1<redacted>", text)
     return text
 

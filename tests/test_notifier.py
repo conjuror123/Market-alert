@@ -100,6 +100,15 @@ def test_redact_secrets_strips_token_apikey_and_authorization():
     assert "Authorization: <redacted>" in text
 
 
+def test_a_fred_key_is_redacted_too():
+    # FRED spells it api_key=; a FRED error in the health chat carried it whole.
+    text = notifier.redact_secrets(
+        "https://api.stlouisfed.org/fred/series/observations?series_id=VIXCLS"
+        "&api_key=abc123&file_type=json")
+    assert "abc123" not in text
+    assert "api_key=<redacted>&file_type=json" in text
+
+
 def test_edit_non_200_status_raises(monkeypatch):
     def fake_post(url, json, timeout):
         return FakeResponse(400, {"ok": False, "description": "Bad Request"})
