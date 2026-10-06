@@ -264,6 +264,7 @@ Measured or weighed, and not to be raised again.
 | σ·√k across a hole | needs a clock of expected hours and messages saying "over 3 hours" |
 | a level check (30% off the two-day median) | drops real crypto crashes |
 | "isolated and taken back" as a bad print | marks real moves, misses a feed sitting off for hours |
+| a bridge may confirm, never reject (or no check in the second feed's missing hours) | over 2024-10 to 2026-10, frees one real hour (USD/KRW 2024-12-03 15:00, not flaggable) and lets in 34 flags, almost all USD/INR rollover ticks at 21:00–01:00 UTC; the narrower "unless it moved further the other way" changes 2 verdicts and 1 flag each way |
 | holding isolated moves an hour | a third of alerts would be an hour late |
 | a watchdog for the trigger's silence | the external scheduler is the party that knows a call stopped |
 | Finnhub, Metal Sentinel, FXEmpire, Business Insider | quotes, not bars |
