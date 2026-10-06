@@ -519,7 +519,7 @@ How far back each record reaches:
 | 14 FX pairs | 2003–2007; USD/CNH 2012 | Dukascopy, then live |
 | USD/BRL, USD/INR, USD/KRW | 2019-09, 2019-11, 2020-01 | Twelve Data |
 | 16 coins | 2013–2020 by listing | Binance; earlier from Bitstamp, Bitfinex, Coinbase (`tools/binance_history.py`) |
-| coffee, cocoa, cotton | 2018-01 | Dukascopy CFDs, then the listed contract |
+| coffee, cocoa, cotton | 2018-01 | Dukascopy CFDs, then the listed contract; cocoa's 2026-07-21 to 08-10, the roll window where no CFD switch could be located, from the December contract (rolled into on 07-21) |
 | live cattle | 2024-05 | Yahoo |
 | LME tin, nickel, aluminium | 2026-07 | Sina |
 
