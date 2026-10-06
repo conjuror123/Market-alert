@@ -1844,6 +1844,10 @@ def test_alpaca_funds_need_the_alpaca_keys(tmp_path, monkeypatch):
     alerts = []
     monkeypatch.delenv("ALPACA_KEY_ID", raising=False)
     monkeypatch.setattr(backfill, "load_basket", lambda: basket)
+    # No calendar: nothing after the fetch (dividends, second source) asks
+    # the network or writes the repository's files.
+    monkeypatch.setattr(backfill._sessions, "load_sessions",
+                        lambda: (_ for _ in ()).throw(FileNotFoundError()))
     monkeypatch.setattr(backfill, "backfill_instrument",
                         lambda *a, **k: pytest.fail("an Alpaca fund was asked without a key"))
     monkeypatch.setattr(backfill, "send_ops_alert", alerts.append)
