@@ -121,7 +121,7 @@ def _sessions(days=400):
     rng = np.random.default_rng(4)
     day = pd.Timestamp("2021-01-04 14:30", tz="UTC")
     for i in range(days):
-        d = day + pd.Timedelta(days=i)
+        d = day + pd.Timedelta(i, unit="D")
         if d.weekday() >= 5:
             continue
         monday = d.weekday() == 0
@@ -328,7 +328,7 @@ def test_a_new_session_or_roll_is_a_detector_update(tmp_path):
 def _events(words, reading="hour"):
     base = pd.Timestamp("2026-09-15 14:00", tz="UTC")
     return pd.DataFrame([{"asset_id": "twelvedata:GLD",
-                          "hour_utc": int((base + pd.Timedelta(hours=i)).timestamp()),
+                          "hour_utc": int((base + pd.Timedelta(i, unit="h")).timestamp()),
                           "reading": reading, "word": w, "r": 0.02, "sigma": 0.002,
                           "z": 10.0}
                          for i, w in enumerate(words)])

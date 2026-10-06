@@ -7,3 +7,9 @@ markers = [
     # digest tests never touch the network.
     "real_backfill: the test exercises backfill_actuals rather than the stub",
 ]
+filterwarnings = [
+    # pandas 2.3 builds a keyword Timedelta (Timedelta(hours=5)) through numpy's
+    # unitless timedelta, which numpy 2.5 deprecates and a later numpy refuses.
+    # In the hourly run that would stop the fetch and the scoring; give the unit.
+    "error:The 'generic' unit for NumPy timedelta:DeprecationWarning",
+]

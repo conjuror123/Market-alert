@@ -57,8 +57,8 @@ def test_the_close_is_not_available_before_it_settles():
     # in January, and a gate written from the WRONG clock passes the summer test
     # and hands January a number nobody had. This caught exactly that.
     for day in (date(2026, 1, 15), date(2026, 7, 15)):
-        settles = pd.Timestamp(day, tz="America/New_York") + pd.Timedelta(hours=16,
-                                                                         minutes=15)
+        settles = (pd.Timestamp(day, tz="America/New_York")
+                   + pd.Timedelta(16 * 60 + 15, unit="min"))
         assert at(cboe.available_at(day)) > settles
 
 

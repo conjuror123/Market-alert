@@ -156,7 +156,7 @@ def half_year_sigma(hour_utc, values, window_days: float = WINDOW_DAYS,
     v = np.abs(values[valid])
     products = pd.Series(v[1:] * v[:-1],
                          index=pd.to_datetime(hours[valid][1:], unit="s"))
-    window = pd.Timedelta(seconds=window_days * SECONDS_PER_DAY)
+    window = pd.Timedelta(window_days * SECONDS_PER_DAY, unit="s")
     mean = products.rolling(window, min_periods=min_count, closed="left").mean()
     out[valid[1:]] = np.sqrt(np.pi / 2 * mean.to_numpy())
     return out

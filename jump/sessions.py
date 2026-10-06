@@ -267,9 +267,9 @@ def reference_week_opens(moments: "pd.Series", anchor_tz: str) -> "pd.Series":
     naive = local.dt.tz_localize(None)
     days_since_sunday = (naive.dt.weekday + 1) % 7
     sunday = naive.dt.normalize() - pd.to_timedelta(days_since_sunday, unit="D")
-    opened = sunday + pd.Timedelta(hours=REFERENCE_OPEN_HOUR)
+    opened = sunday + pd.Timedelta(REFERENCE_OPEN_HOUR, unit="h")
     # A moment before its own Sunday open belongs to the previous week.
-    opened = opened.where(naive >= opened, opened - pd.Timedelta(days=7))
+    opened = opened.where(naive >= opened, opened - pd.Timedelta(7, unit="D"))
     return opened.dt.tz_localize(anchor_tz, nonexistent="shift_forward",
                                  ambiguous=True)
 
@@ -288,8 +288,8 @@ def reference_hours_mask(hours_utc, anchor_tz: str) -> "pd.Series":
     moments = pd.to_datetime(hours.astype("int64"), unit="s", utc=True)
     opened = reference_week_opens(moments, anchor_tz)
     closed = (opened.dt.tz_localize(None)
-              + pd.Timedelta(days=REFERENCE_CLOSE_DAYS)
-              + pd.Timedelta(hours=REFERENCE_CLOSE_HOUR - REFERENCE_OPEN_HOUR)
+              + pd.Timedelta(REFERENCE_CLOSE_DAYS, unit="D")
+              + pd.Timedelta(REFERENCE_CLOSE_HOUR - REFERENCE_OPEN_HOUR, unit="h")
               ).dt.tz_localize(anchor_tz, nonexistent="shift_forward", ambiguous=True)
     return (moments >= opened) & (moments < closed)
 
