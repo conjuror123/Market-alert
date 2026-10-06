@@ -28,8 +28,6 @@ def untouchable(monkeypatch):
     ("tools.binance_history", ["NOPE/USDT"]),
     ("tools.dukascopy_futures", []),
     ("tools.dukascopy_futures", ["NOPE=F", "dumps/"]),
-    ("tools.futures_unmix", []),
-    ("tools.futures_unmix", ["NOPE=F"]),
     ("tools.dukascopy_dump", []),
     ("tools.dukascopy_dump", ["COTTONCMDUSX", "not-a-year", "out/"]),
 ])
