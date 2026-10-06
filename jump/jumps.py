@@ -591,6 +591,15 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
         path = os.path.join(metrics_dir, f"{asset.file_stem}.parquet")
         if not os.path.exists(path):
             log.warning("no metrics for %s", asset.asset_id)
+            # Gone from the table, its events would read as gone and come off
+            # the channel, then ring again when it is back (F1): its rows from
+            # the last table stand. An instrument never scored has none.
+            had = (previous[previous["asset_id"] == asset.asset_id]
+                   if previous is not None and not previous.empty else None)
+            if had is not None and not had.empty:
+                kept.append(had)
+                if failures is not None:
+                    failures.append((asset.asset_id, "no metrics file"))
             continue
         try:
             flagged = _flag(asset, path, window, ladder, doubts, now)

@@ -489,3 +489,36 @@ def test_an_instrument_that_fails_to_score_keeps_its_last_events(tmp_path, monke
                     previous=whole, failures=failures)
     assert failures == [(spy.asset_id, "a bad row")]
     pd.testing.assert_frame_equal(out.reset_index(drop=True), whole.reset_index(drop=True))
+
+
+def test_an_instrument_without_metrics_this_run_keeps_its_last_events(tmp_path, monkeypatch):
+    # F1: missing from the table for one run, its pushes came off the channel
+    # and rang again the run after.
+    import shutil
+    from dataclasses import replace
+
+    from jump.basket import load_basket
+
+    basket = load_basket()
+    picked = [a for a in basket.instruments if a.ticker in ("SPY", "GLD")]
+    if not all(os.path.exists(os.path.join("data/jump/metrics", f"{a.file_stem}.parquet"))
+               for a in picked):
+        pytest.skip("needs the derived metrics")
+    for a in picked:
+        shutil.copy(os.path.join("data/jump/metrics", f"{a.file_stem}.parquet"), tmp_path)
+    small = replace(basket, assets=tuple(picked), outside=())
+    monkeypatch.setattr(jumps, "load_basket", lambda *a, **k: small)
+    now, none = 1791300000, str(tmp_path / "none.csv")
+    whole = jumps.run(str(tmp_path), now=now, verified_path=none)
+    spy = next(a for a in picked if a.ticker == "SPY")
+    os.remove(tmp_path / f"{spy.file_stem}.parquet")
+
+    failures = []
+    out = jumps.run(str(tmp_path), now=now, verified_path=none, previous=whole,
+                    failures=failures)
+    assert failures == [(spy.asset_id, "no metrics file")]
+    pd.testing.assert_frame_equal(out.reset_index(drop=True), whole.reset_index(drop=True))
+    # Never scored before: nothing to keep, and nothing to say.
+    failures = []
+    jumps.run(str(tmp_path), now=now, verified_path=none, previous=None, failures=failures)
+    assert failures == []

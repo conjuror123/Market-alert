@@ -454,7 +454,7 @@ message past Telegram's 4,096 characters is cut between lines, ending "…and N 
 | dividend check | a fund's payouts unconfirmed 5+ days: its overnight gaps go unscored | "Dividend check behind" | daily |
 | second source | a source stopped for the run, or the pass crashed: moves judged by the other source or scored unchecked | "Second source" lines | every run it happens |
 | VIX | both sources failed | "went dark" | every run it happens |
-| pipeline or jumps, one instrument | that instrument keeps its stored metrics, or its events from the last run; the others are current | "Metrics failed" / "Scoring failed for N instrument(s)", each with its error | every run it happens |
+| pipeline or jumps, one instrument (an error, or no metrics file) | that instrument keeps its stored metrics, or its events from the last run, so delivery never reads them as gone; the others are current | "Metrics failed" / "Scoring failed for N instrument(s)", each with its error | every run it happens |
 | pipeline, jumps (every instrument), or the step's 12 minutes | no new events | streak, named with the part it stopped in and its minutes | while it fails |
 | open months' save (refused, too, with no open months on disk: an empty archive would replace the good one) | the next run restores an older copy and fetches the difference | streak, named | while it fails |
 | delivery, calendar, digest | an exception in the monitor | streak, with the error | while it fails |
