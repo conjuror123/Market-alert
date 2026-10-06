@@ -225,7 +225,8 @@ of 543 flagged readings after a calm stretch.
 | other funds | Yahoo 30-minute | independent of the funds' own feeds |
 | coffee, cocoa, cotton | Sina global futures | 0.2–2.2 bp off, hourly correlation 0.96–0.99 |
 | live cattle | MarketWatch continuous | hourly correlation 0.92 |
-| coins, LME metals | none | no independent free feed |
+| coins | Coinbase and Kraken | other exchanges' dollar pairs: hourly moves correlate 0.988–1.000 with Binance's (300 hours to 2026-09-25); a year of checks found 4 moves not seen, all Binance's own on 2025-10-10's liquidations |
+| LME metals | none | no independent free feed |
 
 ---
 

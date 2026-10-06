@@ -56,11 +56,52 @@ def test_every_feed_with_a_free_second_source_is_checked_by_one(basket):
     # Live cattle: MarketWatch's continuous contract.
     assert verify.verifiers_for(basket["LE=F"]) == [
         ("marketwatch", "FUTURE/US/XCME/LC00", "1h")]
-    # A coin's price is its exchange's own trades; the LME's metals have no
-    # independent free feed found.
+    # The coins: two other exchanges' dollar pairs, Kraken naming BTC and
+    # DOGE its own way.
+    assert verify.verifiers_for(basket["BTC/USDT"]) == [
+        ("coinbase", "BTC-USD", "1h"), ("kraken", "XBTUSD", "1h")]
+    assert verify.verifiers_for(basket["DOGE/USDT"])[1] == ("kraken", "XDGUSD", "1h")
     for asset in basket.values():
-        if asset.session_template in ("crypto_24_7", "lme"):
+        if asset.session_template == "crypto_24_7":
+            assert [n for n, _, _ in verify.verifiers_for(asset)] == ["coinbase", "kraken"]
+    # The LME's metals have no independent free feed found.
+    for asset in basket.values():
+        if asset.session_template == "lme":
             assert verify.verifiers_for(asset) == []
+
+
+def test_a_wick_on_binance_alone_is_unconfirmed():
+    # FIL 2025-10-10 21:00, the night of the liquidations: Binance closed the
+    # hour 29% down (low 0.32 from 2.09); Coinbase fell 2% that hour.
+    assert judge("2025-10-10 21:00", 2.094, 1.561,
+                 {"2025-10-10 19:00": 2.212, "2025-10-10 20:00": 2.107,
+                  "2025-10-10 21:00": 2.064, "2025-10-10 22:00": 2.076},
+                 "2025-10-11 06:00")[0] == verify.UNCONFIRMED
+    # The same night's real fall, seen on both: BTC-like -7% against -6.8%.
+    assert judge("2025-10-10 21:00", 100.0, 93.0,
+                 {"2025-10-10 20:00": 100.0, "2025-10-10 21:00": 93.2,
+                  "2025-10-10 22:00": 93.5},
+                 "2025-10-11 06:00")[0] == verify.CONFIRMED
+
+
+def test_the_coins_sources_give_only_hours_that_have_ended(monkeypatch):
+    from price_monitor import coinbase, kraken
+    from price_monitor.models import Candle
+
+    asked = []
+
+    def fake(symbol, start, end, session=None):
+        asked.append((symbol, start, end))
+        return [Candle(open_time=int(end.timestamp()) - 2 * HOUR, open=1, high=1, low=1,
+                       close=1, volume=1, close_time=int(end.timestamp()) - HOUR)]
+
+    monkeypatch.setattr(coinbase, "fetch_history", fake)
+    monkeypatch.setattr(kraken, "fetch_history", fake)
+    now = datetime(2026, 10, 6, 20, 5, tzinfo=timezone.utc)
+    out = verify.fetch_verifier("coinbase", "BTC-USD", "1h", 2, None, now)
+    verify.fetch_verifier("kraken", "XBTUSD", "1h", 2, None, now)
+    assert [a[2] for a in asked] == [datetime(2026, 10, 6, 20, tzinfo=timezone.utc)] * 2
+    assert list(out["hour_utc"]) == [ts("2026-10-06 18:00")]
 
 
 def test_sinas_global_futures_and_us_funds_are_different_feeds(monkeypatch):

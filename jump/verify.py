@@ -22,9 +22,10 @@ but has as little as a fifth of USD/INR's hours, MarketWatch has every hour of
 the last ten days. Funds served by Alpaca, Tiingo, Sina, Twelve Data or Google:
 Yahoo's 30-minute bars, the consolidated tape. Funds served by Yahoo: Sina's.
 Coffee, cocoa and cotton, served by Yahoo: Sina's global futures
-(SINA_FUTURES). Live cattle: MarketWatch's continuous contract. Not asked: the
-coins - Binance's prices are its own trades - and the LME's metals, which have
-no free independent feed found.
+(SINA_FUTURES). Live cattle: MarketWatch's continuous contract. The coins,
+served by Binance, whose prices are its own trades: Coinbase's and Kraken's
+dollar pairs - a wick on one exchange is real there and not the market's. Not
+asked: the LME's metals, which have no free independent feed found.
 
 WITH TWO SOURCES (judge_all, combine), a move is confirmed if either saw it,
 pending while either still waits for its next bar, and unconfirmed only if one
@@ -117,6 +118,11 @@ SINA_FUTURES_DAYS = 30            # inside the 1,023 hourly bars Sina serves
 MARKETWATCH_CATTLE = "FUTURE/US/XCME/LC00"
 MARKETWATCH_DAYS = 9              # inside the ten days of hourly bars it serves
 
+# The coins' two exchanges (price_monitor/coinbase.py, kraken.py). Coinbase
+# serves years by start and end; Kraken only its last 720 hours.
+COINBASE_DAYS = 365
+KRAKEN_DAYS = 29
+
 
 def verifiers_for(asset: Asset) -> "list[tuple[str, str, str]]":
     """The second sources of an instrument, each (name, its symbol, interval);
@@ -135,6 +141,10 @@ def verifiers_for(asset: Asset) -> "list[tuple[str, str, str]]":
         return [("sina", SINA_FUTURES[asset.ticker], "1h")]
     if asset.session_template == "cme_cattle" and asset.fetched_from == "yahoo":
         return [("marketwatch", MARKETWATCH_CATTLE, "1h")]
+    if asset.session_template == "crypto_24_7" and asset.fetched_from == "binance":
+        from price_monitor import coinbase, kraken
+        return [("coinbase", coinbase.product_for(asset.ticker), "1h"),
+                ("kraken", kraken.pair_for(asset.ticker), "1h")]
     return []
 
 
@@ -146,14 +156,27 @@ def reach_days(who: "tuple[str, str, str]") -> int:
         return yahoo.MAX_LOOKBACK_DAYS[who[2]] - 1
     if who[0] == "marketwatch":
         return MARKETWATCH_DAYS
+    if who[0] == "coinbase":
+        return COINBASE_DAYS
+    if who[0] == "kraken":
+        return KRAKEN_DAYS
     return SINA_DAYS if who[2] == "30min" else SINA_FUTURES_DAYS
 
 
 def fetch_verifier(name: str, symbol: str, interval: str, days: float,
                    session: "requests.Session | None", now: datetime) -> pd.DataFrame:
     """The second source's bars folded onto the store's hourly grid."""
-    from price_monitor import marketwatch, sina, yahoo
+    from datetime import timedelta
 
+    from price_monitor import coinbase, kraken, marketwatch, sina, yahoo
+
+    if name in ("coinbase", "kraken"):
+        # Only hours that have ended: the open one is still moving.
+        end = now.replace(minute=0, second=0, microsecond=0)
+        start = end - timedelta(days=max(days, 1.0))
+        client = coinbase if name == "coinbase" else kraken
+        return bars.to_hourly(bars.candles_to_frame(
+            client.fetch_history(symbol, start, end, session)))
     if name == "marketwatch":
         candles = marketwatch.fetch_hourly(symbol, session, now)
     elif name == "yahoo":

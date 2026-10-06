@@ -186,7 +186,8 @@ the line follows it down.
 | Yahoo (funds) | Sina 30-minute US bars (77 days back) |
 | Yahoo (coffee, cocoa, cotton) | Sina global futures, hourly (30 days back) |
 | Yahoo (live cattle) | MarketWatch continuous contract, hourly (10 days back) |
-| Binance, LME | not asked: a coin's price is its exchange's own trades; the LME has no free second feed |
+| Binance (16 coins) | Coinbase's dollar pairs, hourly (`price_monitor/coinbase.py`, a year back) and Kraken's (`kraken.py`, 29 days back): a wick on Binance alone is real there and not the market's |
+| Sina (LME) | not asked: the LME has no free second feed |
 
 **Verdict per source** (`judge`). Each feed is compared with itself, so a steady offset
 is not a move.
@@ -532,7 +533,7 @@ How far back each record reaches:
 | limitation | effect | what would fix it |
 |---|---|---|
 | Yahoo, Sina, Google Finance and MarketWatch are undocumented endpoints | a change silences their instruments or checks until fixed; the health chat names them | paid feeds (consolidated tape, futures data) |
-| no second source for coins and LME metals | their bad prints are caught only beyond 1,000σ | a free independent feed |
+| no second source for the LME's metals | their bad prints are caught only beyond 1,000σ | a free independent feed |
 | the softs' second source rolls contracts on its own days | a move in its roll hour can be misjudged (about 5 a year each) | roll-aware comparison |
 | B3 holidays are trading hours to `b3_fx` | quotes served on a B3 holiday become a night gap after it | a B3 holiday calendar |
 | weekend yardsticks rest on 26 weekends | ±16% noise; a pair whose weekend gap is usually nil can flag a 0.02% move | pooling or a longer window (`docs/decisions.md`, "Open questions") |

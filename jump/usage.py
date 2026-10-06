@@ -32,6 +32,8 @@ PROVIDERS = {
     "cdn-api.cboe.com": "cboe",
     "api.hfdatalibrary.com": "hfdata",
     "datafeed.dukascopy.com": "dukascopy",
+    "api.exchange.coinbase.com": "coinbase",
+    "api.kraken.com": "kraken",
 }
 
 # The headers a provider says what is left in: Tiingo, SiftingIO, Twelve Data.
