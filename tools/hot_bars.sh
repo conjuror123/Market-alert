@@ -85,6 +85,13 @@ restore() {
 
 save() {
   local id name tmp
+  # None on disk is a store that was never laid down, not a quiet month: coins
+  # trade every hour. Uploading that would replace the last good archive with
+  # an empty one, and the next run would read every recent move as gone.
+  if [ -z "$(find "$BARS" -mindepth 2 -maxdepth 2 -name '*.open.csv' -print -quit)" ]; then
+    echo "::error::no open months under $BARS: not saved, the release keeps its last archive"
+    exit 1
+  fi
   tmp=$(mktemp -d)
   name="bars-live-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}.tar.gz"
   find "$BARS" -mindepth 2 -maxdepth 2 -name '*.open.csv' -print0 | sort -z \
