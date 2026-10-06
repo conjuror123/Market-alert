@@ -252,6 +252,18 @@ def test_a_weekend_missing_its_friday_close_is_not_scored():
     assert out["gap"].isna().all()
 
 
+def test_a_pairs_weekend_opening_exactly_at_fridays_close_is_not_scored():
+    # A stitched open (the majors' 2012, USD/INR's and USD/KRW's zeros): not a
+    # gap of 0 but no measurement - scored, a run of them collapsed the
+    # yardstick and the next real weekend read as hundreds of sigma.
+    out = returns.split_channels(fx_pair(), frame([
+        (et(2021, 3, 5, 14), 1.2000, 1.2010, 1.1990, 1.2005, 0.0, 2),
+        (et(2021, 3, 5, 16), 1.2005, 1.2010, 1.1990, 1.2000, 0.0, 2),
+        (et(2021, 3, 7, 17), 1.2000, 1.2130, 1.1990, 1.2125, 0.0, 2),
+    ]), dividends=dividends(ticker="SPY"))
+    assert out["gap"].isna().all()
+
+
 def test_crypto_has_no_gap():
     coin = asset(ticker="BTC-USD", source="coinbase", block="crypto",
                  session_template="crypto_24_7", fetch_interval="1h")

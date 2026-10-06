@@ -155,8 +155,11 @@ correlate at 0.996 while sitting 1% off. Only missing hours are written.
 previous close, so all 52 weekends of the seven majors read as a gap of exactly 0, and the
 collapsed yardstick read early 2013's weekends as 30–72σ. 350 of the 364 were mended from
 Dukascopy's own gap, spliced onto the stored Friday, where its Friday and Sunday closes are
-within 10 bp of the store's (`tools/fx_weekend_opens.py`); 14 were refused. Its weekends
-from 2013 on, and the scattered zero gaps elsewhere, are left: they may be real.
+within 10 bp of the store's (`tools/fx_weekend_opens.py`); 14 were refused. Every other
+pair weekend opening exactly at Friday's close is left unscored (359 of 14,705): USD/INR's
+and USD/KRW's 2020-2025 hold about 60 each, which no free source can mend, and scored they
+read the next real weekend as hundreds of sigma (USD/INR 2022-01-09: −389σ under a
+two-year window).
 
 **Futures are read one contract at a time.** Yahoo's continuous series interleaves months.
 The softs' history is Dukascopy's single-contract CFDs from 2018, spliced at a measured

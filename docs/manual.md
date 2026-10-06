@@ -232,7 +232,8 @@ within each source's reach.
 - **`gap`:** a session's first open against the previous session's last close. It is
   dividend-adjusted, and left unscored on a split, an unconfirmed dividend, a missing
   bar before the close, or a missing first hour: from a late first bar the "night" would
-  span hours of trading.
+  span hours of trading. A pair's weekend that opens exactly at Friday's close is no
+  measurement (a stitched open, or no quote) and is left unscored too.
 - **`hole`:** the move across a missing hour inside a session. It is never scored; it only
   keeps the price path whole for the close check.
 

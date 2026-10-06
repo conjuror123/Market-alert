@@ -226,7 +226,13 @@ def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
 
     if template == "fx_continuous":
         complete = (hours - prev_hour) <= FX_WEEKEND_MAX_SECONDS
-        usable = is_open & complete & np.isfinite(gap)
+        # A pair's weekend that opens exactly at Friday's close is no
+        # measurement: a source that stitched its open to the previous close
+        # (the majors' 2012, USD/INR's and USD/KRW's 2020-2025, about 60 each)
+        # or no quote over the weekend. Scored, such zeros collapse the
+        # yardstick, and the next real weekend reads as hundreds of sigma.
+        stitched = gap == 0.0
+        usable = is_open & complete & np.isfinite(gap) & ~stitched
         return np.where(usable, gap, np.nan)
 
     if is_calendar_template(template):
