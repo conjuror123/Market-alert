@@ -34,7 +34,7 @@ def test_a_spent_budget_with_nothing_else_due_does_not_count_none_skipped():
     text = format_provider_failure(
         [], sifting_gone=True, sifting_skipped=0, sifting_trip="twelvedata:EUR/USD")
     assert text == ("⚠️ <b>SiftingIO request budget spent at twelvedata:EUR/USD</b>\n"
-                    "Quota left not in the 429. Asked again next run.")
+                    "What is left not in the 429. Asked again next run.")
 
 
 def test_a_missing_key_is_named_with_its_secret():

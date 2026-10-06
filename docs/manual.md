@@ -145,8 +145,10 @@ daily-session market (whose calendars don't know holidays).
 
 **Requests** (`jump/usage.py`): every answer the fetch gets, a 429 included, is counted by
 provider on its HTTP session and logged once at the end of the fetch, with the quota left
-where the provider's answer says it: `requests: tiingo 27 (left 4973), sifting 17, …`.
-Log only; nothing is sent.
+where the provider's answer says it: `requests: tiingo 27 (left 4973), sifting 16 (left 4), …`.
+Log only; nothing is sent. SiftingIO's "left" is a short window, not its 10,000 a month:
+4 after a run's 16 requests while its account page showed 181 for the month
+(2026-10-06). The month is on the account page only.
 
 **Sessions** (`jump/sessions.py`): the NYSE table (`data/jump/sessions/nyse.csv`),
 the FX week, and each daily-session market's hours (LME, ICE, CME, B3). The NYSE table

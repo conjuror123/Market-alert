@@ -29,11 +29,13 @@ PROVIDERS = {
     "api.wsj.net": "marketwatch",
     "api.stlouisfed.org": "fred",
     "cdn.cboe.com": "cboe",
+    "cdn-api.cboe.com": "cboe",
     "api.hfdatalibrary.com": "hfdata",
     "datafeed.dukascopy.com": "dukascopy",
 }
 
-# The headers a provider says its remaining quota in: Tiingo, SiftingIO, Twelve Data.
+# The headers a provider says what is left in: Tiingo, SiftingIO, Twelve Data.
+# SiftingIO's counts a short window, not its monthly quota (price_monitor.sifting).
 REMAINING = ("X-RateLimit-Remaining", "X-Quota-Remaining", "api-credits-left")
 
 

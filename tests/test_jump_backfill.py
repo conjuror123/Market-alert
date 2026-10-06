@@ -1561,7 +1561,7 @@ def test_a_sifting_budget_skips_remaining_pairs_and_says_so(tmp_path, monkeypatc
     assert backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)]) == 0
     assert asked == ["EUR/USD", "UGA"]
     assert "SiftingIO request budget spent" in alerts[0]
-    assert "Monthly quota left 0" in alerts[0]
+    assert "0 left in its short window" in alerts[0]
 
 
 def _pairs_and_a_fund():

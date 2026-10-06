@@ -226,7 +226,7 @@ def verdict(now: datetime) -> int:
         got = sifting_bars(s, start, end)
         sf[s] = (_regular(bars.candles_to_frame(got)) if isinstance(got, list)
                  else bars.empty_frame())
-    print(f"SiftingIO answered; monthly quota left: {_sifting_quota}\n")
+    print(f"SiftingIO answered; X-Quota-Remaining (a short window, not the month): {_sifting_quota}\n")
 
     rows = []
     for s in symbols:

@@ -141,8 +141,8 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
              f"remaining headroom {tiingo_remaining}" if tiingo_remaining is not None
              else "remaining headroom not in the 429", tiingo_skipped),
             ("SiftingIO", sifting_gone, sifting_trip,
-             f"monthly quota left {sifting_remaining}" if sifting_remaining is not None
-             else "quota left not in the 429", sifting_skipped)):
+             f"{sifting_remaining} left in its short window" if sifting_remaining is not None
+             else "what is left not in the 429", sifting_skipped)):
         if not gone:
             continue
         if lines:
@@ -1687,7 +1687,7 @@ def main(argv: list[str] | None = None) -> int:
             sifting_gone = True
             sifting_trip = asset.asset_id
             sifting_remaining = getattr(exc, "remaining", None)
-            log.error("SiftingIO's request budget is spent (quota left: %s) - %s",
+            log.error("SiftingIO's request budget is spent (X-Quota-Remaining: %s) - %s",
                       getattr(exc, "remaining", None), exc)
             log.error("Skipping the remaining SiftingIO instruments; the other "
                       "providers continue.")
