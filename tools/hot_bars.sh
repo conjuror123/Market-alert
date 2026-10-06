@@ -62,13 +62,6 @@ assets() {  # name<TAB>id, newest first
     --jq 'sort_by(.created_at) | reverse | .[] | select(.name | startswith("bars-live")) | "\(.name)\t\(.id)"'
 }
 
-# Lays an archive's open months down. One saved before the bot was renamed
-# Jump holds data/tremor/...: mapped to data/jump/, or the store would miss its
-# last weeks. Removed after the switch to production (task #99).
-unpack() {
-  tar -xzf "$1" --transform 's#^data/tremor/#data/jump/#'
-}
-
 restore() {
   local id newest tmp
   id=$(release_id) || { echo "::error::cannot read release $TAG"; exit 1; }
@@ -86,7 +79,7 @@ restore() {
   # The release is the newer truth: CSVs a checkout still carries from before
   # this layout must not be read beside it.
   find "$BARS" -mindepth 2 -maxdepth 2 -name '*.open.csv' -delete
-  unpack "$tmp/$newest"
+  tar -xzf "$tmp/$newest"
   echo "restored $(tar -tzf "$tmp/$newest" | wc -l) open months from $TAG/$newest"
 }
 

@@ -542,26 +542,6 @@ def test_a_detector_update_restarts_the_week_under_the_same_note(monkeypatch, ch
     assert "Nothing so far" in channel.messages[note_id]
 
 
-def test_the_previous_delivery_state_is_taken_over_as_an_update(monkeypatch, channel):
-    old_note = channel.send("", "", "📋 <b>Digest</b> - old")
-    old_push = channel.send("", "", "🟨 <b>GLD</b> · Gold")
-    older_push = channel.send("", "", "🟨 <b>SPY</b>")
-    ping = channel.send("", "", "⬜ x\nAdded to digest👆🏻👆🏻")
-    saturday = SLOT - 24 * HOUR               # a note opened on a Saturday
-    state = {md.STATE_KEY: {
-        "digests": {str(saturday): {"ids": [old_note], "hashes": ["h"]}},
-        "sent": {"a": {"hour": saturday + 5 * HOUR, "id": old_push},
-                 "b": {"hour": saturday - 5 * HOUR, "id": older_push}},
-        "tracked": {}, "pings": {"p": {"id": ping, "hash": "h"}}}}
-    assert md.note_due(state, run_at(1, 10)) is False
-    run(monkeypatch, channel, [ev(at(0, 1))], run_at(1, 10), state)
-    # The old note carries on as this week's; no second note opens.
-    assert set(channel.messages) == {old_note, older_push}
-    assert "Nothing so far" in channel.messages[old_note]
-    assert state[md.STATE_KEY][md.WEEK]["slot"] == SLOT
-    assert md.note_due(state, run_at(1, 11)) is False
-
-
 # --- held at the funds' close ------------------------------------------
 
 def time_line(text):

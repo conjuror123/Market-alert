@@ -956,44 +956,6 @@ def _discard(cfg: Config, week: dict, message_id, first_line: str = "") -> None:
 
 # --- the week's state -----------------------------------------------------------
 
-def _old_format(store: dict) -> bool:
-    return any(k in store for k in ("digests", "sent", "tracked", "pings"))
-
-
-def _adopt_old_state(cfg: Config, store: dict, now: datetime) -> "dict | None":
-    """The first run of this delivery on a channel the previous one wrote.
-
-    The previous version kept its notes, pushes and pings under other keys. Its
-    latest note is adopted as this week's note; every push of that note's
-    period and every outstanding ping is deleted, and the week goes on from this
-    run - the same as any detector update.
-    """
-    from jump import routing
-
-    digests = store.pop("digests", {}) or {}
-    sent = store.pop("sent", {}) or {}
-    tracked = store.pop("tracked", {}) or {}
-    pings = store.pop("pings", {}) or {}
-    latest = max((int(k) for k, v in digests.items() if v.get("ids")), default=None)
-    start = latest if latest is not None else routing.digest_slot(int(now.timestamp()))
-    for event_id, rec in sent.items():
-        hour = rec.get("hour") if isinstance(rec, dict) else rec
-        mid = rec.get("id") if isinstance(rec, dict) else None
-        mid = mid or (tracked.get(event_id) or {}).get("message_id")
-        if hour is not None and int(float(hour)) >= start and mid:
-            _delete(cfg, mid)
-    for value in pings.values():
-        _delete(cfg, value.get("id") if isinstance(value, dict) else value)
-    if latest is None:
-        return None
-    record = digests[str(latest)]
-    week = _new_week(routing.digest_slot(int(now.timestamp())), "")
-    week["since"] = int(now.timestamp()) - 3600 + 1
-    week["note"] = {"ids": list(record.get("ids") or []),
-                    "hashes": list(record.get("hashes") or [])}
-    return week
-
-
 def _new_week(slot: int, version: str) -> dict:
     return {"slot": int(slot), "since": int(slot), "detector": version,
             "note": {"ids": [], "hashes": []}, "events": {}, "messages": {},
@@ -1028,8 +990,6 @@ def note_due(state: dict, now: datetime) -> bool:
     from jump import routing
 
     store = state.get(STATE_KEY) or {}
-    if _old_format(store):
-        return False
     week = store.get(WEEK)
     return week is None or routing.digest_slot(int(now.timestamp())) > int(week["slot"])
 
@@ -1377,13 +1337,6 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     now_ts = int(now.timestamp())
     changed = 0
     ring = {"left": True}
-
-    if _old_format(store):
-        adopted = _adopt_old_state(cfg, store, now)
-        if adopted is not None:
-            adopted["detector"] = version
-            store[WEEK] = adopted
-        save_state(cfg.state_path, state)
 
     labels = _labels()
     calendar = _calendar(cfg)

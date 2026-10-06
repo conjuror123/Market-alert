@@ -312,8 +312,7 @@ def test_a_week_opened_while_the_runs_were_down_gets_the_outage_calendar(
 
 
 def test_the_calendar_goes_out_only_in_the_run_that_opens_a_note(tmp_path, monkeypatch):
-    # Not mid-week once the note is up, and not on the run that takes over the
-    # previous delivery's note.
+    # Not mid-week once the note is up.
     from price_monitor import jump_delivery
 
     cfg = make_config(tmp_path)
@@ -321,10 +320,8 @@ def test_the_calendar_goes_out_only_in_the_run_that_opens_a_note(tmp_path, monke
         AssertionError("no calendar when no note opens")))
     slot = int(WEEKEND_OPEN.timestamp())
     open_week = {jump_delivery.STATE_KEY: {jump_delivery.WEEK: {"slot": slot}}}
-    taken_over = {jump_delivery.STATE_KEY: {"digests": {}, "sent": {}}}
-    for state in (open_week, taken_over):
-        assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None,
-                                                      now=MIDWEEK) is False
+    assert weekly_digest.maybe_send_weekly_digest(cfg, open_week, session=None,
+                                                  now=MIDWEEK) is False
 
 
 def test_maybe_send_weekly_digest_sends_and_records_state(tmp_path, monkeypatch):
