@@ -45,7 +45,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import requests
 
-from price_monitor.models import Candle, ExchangeError, Unreachable
+from price_monitor.models import Candle, ExchangeError, KeyRefused, Unreachable
 
 log = logging.getLogger("price_monitor.tiingo")
 
@@ -164,6 +164,8 @@ def _get_json(session, url: str, params: dict, api_key: str, ticker: str):
                          or resp.headers.get("X-Ratelimit-Remaining"))
             raise RateLimited(f"{ticker}: Tiingo request budget spent",
                               remaining=remaining)
+        if resp.status_code in (401, 403):
+            raise KeyRefused(f"{ticker}: Tiingo refused the key ({resp.status_code})")
         if resp.status_code in (404, 400):
             raise ExchangeError(
                 f"{ticker}: Tiingo rejected the request ({resp.status_code}): "

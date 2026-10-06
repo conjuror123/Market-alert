@@ -34,7 +34,7 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 
-from price_monitor.models import Candle, ExchangeError, Unreachable
+from price_monitor.models import Candle, ExchangeError, KeyRefused, Unreachable
 
 log = logging.getLogger("price_monitor.sifting")
 
@@ -90,7 +90,9 @@ def _get(session, url: str, params: dict, api_key: str, ticker: str) -> dict:
         if resp.status_code == 429:
             raise RateLimited(f"{ticker}: SiftingIO request budget spent",
                               remaining=resp.headers.get("X-Quota-Remaining"))
-        if resp.status_code in (400, 401, 403, 404, 406):
+        if resp.status_code in (401, 403):
+            raise KeyRefused(f"{ticker}: SiftingIO refused the key ({resp.status_code})")
+        if resp.status_code in (400, 404, 406):
             raise ExchangeError(
                 f"{ticker}: SiftingIO rejected the request ({resp.status_code}): "
                 f"{resp.text[:200]}")

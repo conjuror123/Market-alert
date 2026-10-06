@@ -166,6 +166,12 @@ delivers nothing and tells no one. One silence can be a blip; two in a row is th
 A wrong stop costs its instruments an hour, and the health chat names it. A refusal (404,
 400) is an answer and stops nothing.
 
+**A missing or refused key costs its provider, not the run.** One provider's key used to
+stop the whole fetch before anything was asked, for all 173 instruments, and only a
+failed-run streak said so three hours later. Its instruments are skipped, the others
+fetched, and the health chat names the key every run, since none of them is fetched until
+it is fixed.
+
 **A refusal is told by what it costs, not when it happens.** A lone Yahoo 429 (cotton at
 03:05 UTC on 2026-10-06, the only Yahoo instrument due) costs its instruments one hour,
 fetched again next run; told every time, a day-long block would be a message an hour.

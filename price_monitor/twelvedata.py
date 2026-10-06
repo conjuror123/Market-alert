@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 
-from price_monitor.models import Candle, ExchangeError
+from price_monitor.models import Candle, ExchangeError, KeyRefused
 
 log = logging.getLogger("price_monitor.twelvedata")
 
@@ -166,6 +166,9 @@ def _classify(symbol: str, status_code: int, body: str) -> ExchangeError:
         return NoDataInRange(f"{symbol}: no data before the requested window")
     if status_code == 429 and _QUOTA_MESSAGE in body.lower():
         return DailyQuotaExhausted(f"{symbol}: {body[:200]}")
+    # 401 is the key. Twelve Data's 403 is one symbol beyond the plan, not this.
+    if status_code == 401:
+        return KeyRefused(f"{symbol}: Twelve Data refused the key (401)")
     # 429 is the rate limit and 5xx are the server's problem; both are worth
     # another attempt. Everything else in the 4xx range is a statement about the
     # request itself and will not become true by being asked again.
@@ -208,7 +211,7 @@ def _request(
             ]
             candles.sort(key=lambda c: c.open_time)
             return candles
-        except PermanentExchangeError:
+        except (PermanentExchangeError, KeyRefused):
             raise
         except (requests.RequestException, ExchangeError, ValueError, KeyError, IndexError) as exc:
             last_error = exc
@@ -347,7 +350,7 @@ def fetch_batch(symbols: "list[str]", interval: str, start: datetime, end: datet
             data = resp.json()
             if data.get("status") == "error":
                 raise _classify(label, int(data.get("code") or 0), str(data.get("message")))
-        except PermanentExchangeError:
+        except (PermanentExchangeError, KeyRefused):
             raise
         except (requests.RequestException, ExchangeError, ValueError) as exc:
             last = exc

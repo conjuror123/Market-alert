@@ -34,7 +34,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 
-from price_monitor.models import Candle, ExchangeError, Unreachable
+from price_monitor.models import Candle, ExchangeError, KeyRefused, Unreachable
 
 BASE_URL = "https://data.alpaca.markets/v2"
 FIRST = datetime(2016, 1, 1, tzinfo=timezone.utc)
@@ -80,6 +80,8 @@ def _get(session, url: str, params: dict, auth: dict, symbol: str) -> dict:
         if resp.status_code in (500, 502, 503, 504):
             last = Unreachable(f"{symbol}: Alpaca answered {resp.status_code}")
             continue
+        if resp.status_code in (401, 403):
+            raise KeyRefused(f"{symbol}: Alpaca refused the key ({resp.status_code})")
         if resp.status_code != 200:
             raise ExchangeError(f"{symbol}: Alpaca answered {resp.status_code}: "
                                 f"{resp.text[:200]}")

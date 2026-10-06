@@ -46,7 +46,7 @@ from jump.basket import Asset, Basket, load_basket
 from jump.usage import Usage
 from price_monitor import (alpaca, binance, dukascopy, google, hfdata, sifting, sina,
                            tiingo, twelvedata, yahoo)
-from price_monitor.models import UNANSWERED_IN_A_ROW, ExchangeError, Unreachable
+from price_monitor.models import UNANSWERED_IN_A_ROW, ExchangeError, KeyRefused, Unreachable
 from price_monitor.notifier import quote, send_health
 
 log = logging.getLogger("jump.backfill")
@@ -82,6 +82,15 @@ _PROVIDER_REACH = {
 SEED_PER_RUN = 4
 
 
+# Each keyed provider by name, with the secret its key is read from.
+PROVIDER_KEYS = {
+    "twelvedata": ("Twelve Data", "TWELVEDATA_API_KEY"),
+    "tiingo": ("Tiingo", "TIINGO_API_KEY"),
+    "sifting": ("SiftingIO", "SIFTING_API_KEY"),
+    "alpaca": ("Alpaca", "ALPACA_KEY_ID / ALPACA_SECRET_KEY"),
+}
+
+
 def format_provider_failure(dark: list[tuple[str, str, str]],
                             tiingo_gone: bool = False,
                             tiingo_skipped: int = 0,
@@ -94,7 +103,8 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
                             sifting_trip: str | None = None,
                             silent: "dict[str, list] | None" = None,
                             stale: "list[tuple[str, str, int]] | None" = None,
-                            second_source: "list[str] | None" = None) -> str:
+                            second_source: "list[str] | None" = None,
+                            keys: "dict[str, list] | None" = None) -> str:
     """One operational message naming who went dark. Does not switch provider.
 
     A spent budget (Tiingo, SiftingIO) is said every run it happens: a quota
@@ -107,9 +117,25 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
     instrument with nothing new for longer than its limit: (asset_id,
     provider, session hours since its newest bar).
 
+    `keys` is each provider whose key is missing or was refused: [why, the
+    instrument it was refused at (None: not set), how many were not asked].
+    Said every run it happens: none of its instruments is fetched.
+
     The providers first and the instruments last, the long list of errors
     last of all: a message cut to Telegram's limit loses only its tail."""
     lines = []
+    for provider, (why, trip, skipped) in (keys or {}).items():
+        name, env = PROVIDER_KEYS.get(provider, (provider, "its key"))
+        if lines:
+            lines.append("")
+        if trip is None:
+            lines.append(f"⚠️ <b>{name}: {env} is not set</b>")
+            lines.append(f"Its {skipped} instrument(s) are not fetched; the other providers "
+                         "are. Said every run until it is set.")
+        else:
+            lines.append(f"⚠️ <b>{name} refused the key at {trip}</b>")
+            more = f"; {skipped} more {name} instrument(s) skipped" if skipped else ""
+            lines.append(f"{quote(why)}{more}. Asked again next run.")
     for name, gone, trip, left, skipped in (
             ("Tiingo", tiingo_gone, tiingo_trip,
              f"remaining headroom {tiingo_remaining}" if tiingo_remaining is not None
@@ -562,7 +588,7 @@ def fetch_twelvedata_live(assets: "list[Asset]", bars_dir: str, api_key: str,
         try:
             got = twelvedata.fetch_batch([a.ticker for a in batch], batch[0].fetch_interval,
                                          start, now, TWELVEDATA_BASE_URL, api_key, session)
-        except twelvedata.DailyQuotaExhausted as exc:
+        except (twelvedata.DailyQuotaExhausted, KeyRefused) as exc:
             # Every later batch would be told the same.
             results += [(a, exc) for b in batches[n:] for a in b]
             break
@@ -1505,27 +1531,23 @@ def main(argv: list[str] | None = None) -> int:
         log.info("Dukascopy deepening added %d bars", total)
         return 0
 
+    # A MISSING OR REFUSED KEY costs that provider's instruments, not the run:
+    # they are not asked, the others are, and the health chat names the key.
+    # provider -> [why, refused at (None: not set), how many not asked]
+    keyless: dict[str, list] = {}
     api_key = os.environ.get("TWELVEDATA_API_KEY", "")
-    if not api_key and any(a.fetched_from == "twelvedata" for a in instruments):
-        log.error("TWELVEDATA_API_KEY is not set, and the list contains Twelve Data instruments")
-        return 2
-
     tiingo_key = os.environ.get("TIINGO_API_KEY", "")
-    if not tiingo_key and any(a.fetched_from == "tiingo" for a in instruments):
-        log.error("TIINGO_API_KEY is not set, and the list contains Tiingo instruments")
-        return 2
-
     sifting_key = os.environ.get("SIFTING_API_KEY", "")
-    if not sifting_key and any(a.fetched_from == "sifting" for a in instruments):
-        log.error("SIFTING_API_KEY is not set, and the list contains SiftingIO instruments")
-        return 2
-
-    if any(a.fetched_from == "alpaca" for a in instruments) and not (
-            os.environ.get("ALPACA_KEY_ID", "").strip()
-            and os.environ.get("ALPACA_SECRET_KEY", "").strip()):
-        log.error("ALPACA_KEY_ID / ALPACA_SECRET_KEY are not set, and the list "
-                  "contains Alpaca instruments")
-        return 2
+    alpaca_keys = (os.environ.get("ALPACA_KEY_ID", "").strip()
+                   and os.environ.get("ALPACA_SECRET_KEY", "").strip())
+    for provider, key in (("twelvedata", api_key), ("tiingo", tiingo_key),
+                          ("sifting", sifting_key), ("alpaca", alpaca_keys)):
+        served = sum(a.fetched_from == provider for a in instruments)
+        if served and not key:
+            keyless[provider] = [f"{PROVIDER_KEYS[provider][1]} is not set", None, served]
+            log.error("%s is not set: %d %s instrument(s) not asked for; the other "
+                      "providers continue.", PROVIDER_KEYS[provider][1], served,
+                      PROVIDER_KEYS[provider][0])
     alpaca_gone = False
 
     usage = Usage()
@@ -1623,6 +1645,10 @@ def main(argv: list[str] | None = None) -> int:
         if asset.fetched_from in silent:
             silent[asset.fetched_from][1] += 1
             continue
+        if asset.fetched_from in keyless:
+            if keyless[asset.fetched_from][1] is not None:
+                keyless[asset.fetched_from][2] += 1
+            continue
         try:
             r = backfill_instrument(asset, basket, args.bars_dir, api_key, session,
                                     args.extend_history, tiingo_key, sifting_key)
@@ -1677,6 +1703,10 @@ def main(argv: list[str] | None = None) -> int:
             log.error("%s: Yahoo's rate limit is spent - %s", asset.asset_id, exc)
             log.error("Skipping the remaining Yahoo instruments; the other "
                       "providers continue.")
+        except KeyRefused as exc:
+            keyless[asset.fetched_from] = [str(exc), asset.asset_id, 0]
+            log.error("%s: %s; skipping the rest of %s this run, the other providers "
+                      "continue.", asset.asset_id, exc, asset.fetched_from)
         except Unreachable as exc:
             failures += 1
             dark.append((asset.asset_id, asset.fetched_from, str(exc)))
@@ -1710,6 +1740,12 @@ def main(argv: list[str] | None = None) -> int:
             if isinstance(r, twelvedata.DailyQuotaExhausted):
                 quota_gone = True
                 log.error("%s: Twelve Data daily credits are gone - %s", asset.asset_id, r)
+            elif isinstance(r, KeyRefused):
+                if "twelvedata" in keyless:
+                    keyless["twelvedata"][2] += 1
+                else:
+                    keyless["twelvedata"] = [str(r), asset.asset_id, 0]
+                    log.error("%s: %s", asset.asset_id, r)
             elif isinstance(r, Exception):
                 failures += 1
                 dark.append((asset.asset_id, "twelvedata", str(r)))
@@ -1726,7 +1762,7 @@ def main(argv: list[str] | None = None) -> int:
     stale: list[tuple[str, str, int]] = []
     if session_table and not args.instruments and not args.extend_history:
         named = {asset_id for asset_id, _, _ in dark}
-        stopped = set(silent) | {p for p, gone in (
+        stopped = set(silent) | set(keyless) | {p for p, gone in (
             ("tiingo", tiingo_gone), ("sifting", sifting_gone),
             ("alpaca", alpaca_gone), ("twelvedata", quota_gone)) if gone}
         for asset in instruments:
@@ -1838,7 +1874,7 @@ def main(argv: list[str] | None = None) -> int:
         yahoo_gone=yahoo_gone, sifting_gone=sifting_gone,
         sifting_skipped=sifting_skipped, sifting_remaining=sifting_remaining,
         sifting_trip=sifting_trip, silent=silent, stale=stale,
-        second_source=second_source)
+        second_source=second_source, keys=keyless)
     if text:
         send_ops_alert(text)
 

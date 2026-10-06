@@ -29,3 +29,9 @@ class Unreachable(ExchangeError):
 
 
 UNANSWERED_IN_A_ROW = 2
+
+
+class KeyRefused(ExchangeError):
+    """The provider refused the API key (401, or 403 where that means the key):
+    revoked, expired or wrong. Every later request with it is refused too, so
+    the provider is not asked again in the run (jump.backfill)."""

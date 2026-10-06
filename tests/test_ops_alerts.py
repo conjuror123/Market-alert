@@ -37,6 +37,22 @@ def test_a_spent_budget_with_nothing_else_due_does_not_count_none_skipped():
                     "Quota left not in the 429. Asked again next run.")
 
 
+def test_a_missing_key_is_named_with_its_secret():
+    text = format_provider_failure([], keys={"tiingo": ["TIINGO_API_KEY is not set", None, 27]})
+    assert text == ("⚠️ <b>Tiingo: TIINGO_API_KEY is not set</b>\n"
+                    "Its 27 instrument(s) are not fetched; the other providers are. "
+                    "Said every run until it is set.")
+
+
+def test_a_refused_key_is_named_where_it_was_refused_and_first():
+    text = format_provider_failure(
+        [("twelvedata:SPY", "yahoo", "HTTP 500")],
+        keys={"alpaca": ["KRE: Alpaca refused the key (403)", "twelvedata:KRE", 29]})
+    assert text.startswith("⚠️ <b>Alpaca refused the key at twelvedata:KRE</b>\n"
+                           "KRE: Alpaca refused the key (403); 29 more Alpaca "
+                           "instrument(s) skipped. Asked again next run.")
+
+
 def test_a_yahoo_rate_limit_alone_says_nothing():
     # One refusal costs its instruments an hour, fetched again next run: said
     # only when one of them goes without a bar past its limit (stale).

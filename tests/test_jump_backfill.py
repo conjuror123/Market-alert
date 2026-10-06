@@ -1564,19 +1564,58 @@ def test_a_sifting_budget_skips_remaining_pairs_and_says_so(tmp_path, monkeypatc
     assert "Monthly quota left 0" in alerts[0]
 
 
-def test_a_sifting_pair_without_the_key_stops_the_run(tmp_path, monkeypatch):
-    from jump import backfill
+def _pairs_and_a_fund():
     from jump.basket import Basket, VolatilityIndex
-
-    basket = Basket(
-        assets=(_sifting_pair("EUR/USD"),), outside=(),
+    return Basket(
+        assets=(_sifting_pair("EUR/USD"), _sifting_pair("USD/JPY"), _yahoo_asset("UGA")),
+        outside=(),
         volatility_index=VolatilityIndex("VIXCLS", "fred", "1d", "VIX", date(1990, 1, 1)),
         anchor_exchange_tz="America/New_York", history_since=date(2021, 1, 1),
-        session_templates={"fx_continuous": {}},
+        session_templates={"fx_continuous": {}, "us_equity": {}},
     )
+
+
+def test_a_missing_key_costs_only_its_providers_instruments(tmp_path, monkeypatch):
+    from jump import backfill
+
+    asked, alerts = [], []
     monkeypatch.delenv("SIFTING_API_KEY", raising=False)
-    monkeypatch.setattr(backfill, "load_basket", lambda: basket)
-    assert backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)]) == 2
+    monkeypatch.setattr(backfill, "load_basket", _pairs_and_a_fund)
+    monkeypatch.setattr(backfill, "backfill_instrument", _answering_except(set(), asked))
+    monkeypatch.setattr(backfill._sessions, "load_sessions",
+                        lambda: (_ for _ in ()).throw(FileNotFoundError()))
+    monkeypatch.setattr(backfill, "send_ops_alert", alerts.append)
+
+    assert backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)]) == 0
+    assert asked == ["UGA"]
+    assert "SiftingIO: SIFTING_API_KEY is not set" in alerts[0]
+    assert "Its 2 instrument(s) are not fetched" in alerts[0]
+
+
+def test_a_refused_key_stops_its_provider_and_says_so(tmp_path, monkeypatch):
+    from jump import backfill
+    from price_monitor.models import KeyRefused
+
+    asked, alerts = [], []
+
+    def fake_backfill(asset, *a, **k):
+        asked.append(asset.ticker)
+        if asset.ticker == "EUR/USD":
+            raise KeyRefused("EUR/USD: SiftingIO refused the key (401)")
+        return {"asset_id": asset.asset_id, "rows": 1, "first": 1, "last": 1,
+                "from_api": 1}
+
+    monkeypatch.setenv("SIFTING_API_KEY", "revoked")
+    monkeypatch.setattr(backfill, "load_basket", _pairs_and_a_fund)
+    monkeypatch.setattr(backfill, "backfill_instrument", fake_backfill)
+    monkeypatch.setattr(backfill._sessions, "load_sessions",
+                        lambda: (_ for _ in ()).throw(FileNotFoundError()))
+    monkeypatch.setattr(backfill, "send_ops_alert", alerts.append)
+
+    assert backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)]) == 0
+    assert asked == ["EUR/USD", "UGA"]
+    assert "SiftingIO refused the key at twelvedata:EUR/USD" in alerts[0]
+    assert "1 more SiftingIO instrument(s) skipped. Asked again next run." in alerts[0]
 
 
 def test_the_fetch_asks_sifting_for_a_sifting_pair(tmp_path, monkeypatch):
@@ -1742,9 +1781,14 @@ def test_alpaca_funds_need_the_alpaca_keys(tmp_path, monkeypatch):
                                                      date(1990, 1, 1)),
                     anchor_exchange_tz="America/New_York",
                     history_since=date(2021, 1, 1), session_templates={"us_equity": {}})
+    alerts = []
     monkeypatch.delenv("ALPACA_KEY_ID", raising=False)
     monkeypatch.setattr(backfill, "load_basket", lambda: basket)
-    assert backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)]) == 2
+    monkeypatch.setattr(backfill, "backfill_instrument",
+                        lambda *a, **k: pytest.fail("an Alpaca fund was asked without a key"))
+    monkeypatch.setattr(backfill, "send_ops_alert", alerts.append)
+    assert backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)]) == 0
+    assert "Alpaca: ALPACA_KEY_ID / ALPACA_SECRET_KEY is not set" in alerts[0]
 
 
 # --- Twelve Data live: batched, in the background -----------------------------
@@ -1791,6 +1835,26 @@ def test_one_symbols_error_in_a_batch_is_that_symbols_alone(tmp_path, monkeypatc
     out = dict((a.ticker, r) for a, r in backfill.fetch_twelvedata_live(
         funds, str(tmp_path), "key", sleep=lambda s: None))
     assert isinstance(out["USO"], ExchangeError) and out["GLD"]["from_api"] == 1
+
+
+def test_a_refused_twelvedata_key_stops_the_batches(tmp_path, monkeypatch):
+    from jump import backfill
+    from price_monitor.models import KeyRefused
+    funds = [_td_fund(f"F{i}") for i in range(10)]
+    t0 = int(datetime(2026, 9, 30, 14, tzinfo=timezone.utc).timestamp())
+    for a in funds:
+        bars.merge(bars.store_path(str(tmp_path), a.file_stem),
+                   bars.candles_to_frame([Candle(t0, 1, 1, 1, 1, 0, t0 + 1800)]))
+    calls = []
+
+    def refused(symbols, *a, **k):
+        calls.append(symbols)
+        raise KeyRefused("F0: Twelve Data refused the key (401)")
+
+    monkeypatch.setattr(backfill.twelvedata, "fetch_batch", refused)
+    out = backfill.fetch_twelvedata_live(funds, str(tmp_path), "key", sleep=lambda s: None)
+    assert len(calls) == 1
+    assert len(out) == 10 and all(isinstance(r, KeyRefused) for _, r in out)
 
 
 def test_a_batched_answer_is_split_by_symbol():

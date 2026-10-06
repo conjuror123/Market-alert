@@ -1,5 +1,7 @@
 """A provider that does not answer: what each client raises once its retries are
 spent, so the run can stop asking it (jump.backfill, jump.verify)."""
+from datetime import datetime, timezone
+
 import pytest
 import requests
 
@@ -50,6 +52,32 @@ def test_a_provider_that_never_answers_is_unreachable(name, status, monkeypatch)
     with pytest.raises(Unreachable):
         call(session)
     assert session.calls == module.MAX_ATTEMPTS
+
+
+KEYED = {
+    "tiingo": (401, 403), "sifting": (401, 403), "alpaca": (401, 403), "twelvedata": (401,)}
+
+
+@pytest.mark.parametrize("name, status", [(n, s) for n, ss in sorted(KEYED.items())
+                                          for s in ss])
+def test_a_refused_key_is_said_at_once(name, status, monkeypatch):
+    from price_monitor import twelvedata
+    from price_monitor.models import KeyRefused
+    calls = dict(CALLS, twelvedata=(twelvedata, lambda s: twelvedata.fetch_batch(
+        ["X", "Y"], "1h", datetime(2026, 10, 5, tzinfo=timezone.utc),
+        datetime(2026, 10, 6, tzinfo=timezone.utc), "u", "k", s)))
+    module, call = calls[name]
+    monkeypatch.setattr(module.time, "sleep", lambda seconds: None)
+    session = Session(status)
+    with pytest.raises(KeyRefused):
+        call(session)
+    assert session.calls == 1
+
+
+def test_twelvedatas_403_is_one_symbol_beyond_the_plan_not_the_key():
+    from price_monitor import twelvedata
+    from price_monitor.models import KeyRefused
+    assert not isinstance(twelvedata._classify("X", 403, "upgrade"), KeyRefused)
 
 
 @pytest.mark.parametrize("name", sorted(CALLS))

@@ -50,7 +50,10 @@ Secrets (GitHub → Settings → Secrets → Actions):
 | `HFDATA_API_KEY` | optional: history before 2016 |
 
 Yahoo, Sina, Google Finance, Binance and MarketWatch need no key. A missing key costs only
-that provider's instruments.
+that provider's instruments, and the health chat names the secret every run until it is
+set. A key the provider refuses (401; 403 too, except at Twelve Data, where 403 is one
+symbol beyond the plan) stops that provider for the run the same way
+(`price_monitor.models.KeyRefused`).
 
 **Rule.** Secrets never enter the repository; it is public. `config/config.yaml` may name a
 secret, never hold one.
@@ -432,6 +435,7 @@ message past Telegram's 4,096 characters is cut between lines, ending "…and N 
 | trigger | no run starts | cron-job.org, if its call failed; the first run after a gap of over 90 minutes names the hours (`health.missed_runs`) | once, when runs resume |
 | checkout, setup, the open months' restore | the run stops before delivery: nothing sent or counted | the last step, with the step's name (`tools/run_died.sh`) | 1 h after the last run that delivered, then every 24 h |
 | session table extension | the table is not extended (under two years left) | streak, named | while it fails |
+| fetch: a provider's key is missing or refused | that provider's instruments are not fetched; the others are | "X is not set" / "refused the key" | every run it happens |
 | fetch: a provider fails, or Tiingo's or SiftingIO's budget is spent | its instruments keep their stored bars | "went dark" / "request budget spent" | every run it happens |
 | fetch: Yahoo refuses (429) | its instruments wait for the next run | the stale line, "refused this run", once one is behind past its limit | past its limit, then daily |
 | fetch: a provider does not answer twice in a row | stopped for the run, left out of the dividend check and the second source | "did not answer" message | every run it happens |
