@@ -1,0 +1,43 @@
+# Temporary: does actions/cache v6 restore what v4 saved? Removed after it has run.
+name: Cache compat check
+
+on:
+  push:
+    branches: ["claude/youthful-pascal-u0rx7u"]
+    paths: [".github/workflows/cache-compat-check.yml"]
+
+jobs:
+  save-v4:
+    runs-on: ubuntu-latest
+    steps:
+      - run: mkdir -p data/jump/metrics && echo "saved by v4 $GITHUB_RUN_ID" > data/jump/metrics/probe.txt
+      - uses: actions/cache/save@v4
+        with:
+          path: |
+            data/jump/metrics
+          key: compat-probe-${{ github.run_id }}
+  restore-v6:
+    needs: save-v4
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/cache/restore@v6
+        id: cache
+        with:
+          path: |
+            data/jump/metrics
+          key: compat-probe-${{ github.run_id }}-miss
+          restore-keys: |
+            compat-probe-${{ github.run_id }}
+      - run: |
+          echo "hit=${{ steps.cache.outputs.cache-hit }} matched=${{ steps.cache.outputs.cache-matched-key }}"
+          cat data/jump/metrics/probe.txt
+  restore-v4-from-v6:
+    needs: restore-v6
+    runs-on: ubuntu-latest
+    steps:
+      - run: mkdir -p data/jump/metrics && echo "saved by v6 $GITHUB_RUN_ID" > data/jump/metrics/probe.txt
+      - uses: actions/cache/save@v6
+        with:
+          path: |
+            data/jump/metrics
+          key: compat-probe6-${{ github.run_id }}
