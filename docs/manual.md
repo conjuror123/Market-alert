@@ -467,8 +467,10 @@ or basket change that changes the week's events deletes its pushes and pings onc
 expected.
 
 The Jump steps are `continue-on-error` so delivery still runs, and the job is failed at
-the end anyway. The streak counts what fails the run, never one instrument: a fund that
-went dark has its own line every run, and a run that delivered without it is clean. The step
+the end anyway when they did not complete: the fetch only when nothing at all could be
+fetched, the pipeline or jumps when every instrument failed. The streak counts what fails
+the run, never one instrument: a fund that went dark has its own line every run, and a run
+that delivered without it is clean and green. The step
 has 12 of the job's 20 minutes: past them it is stopped, and delivery, health and the
 commit still run. Each part of it (fetch, pipeline, jumps) notes its start, so a step that
 stops short is reported with the part it was in and its minutes.
@@ -534,6 +536,5 @@ How far back each record reaches:
 | weekend yardsticks rest on 26 weekends | ±16% noise; a pair whose weekend gap is usually nil can flag a 0.02% move | pooling or a longer window (`docs/decisions.md`, "Open questions") |
 | history before each record's start (section 11) | "rarest since" reaches only as far as the record | paid history |
 | history before the second source's reach | old bad prints stay in old yardsticks | none needed: they never ring again |
-| one provider timeout fails the job | a red run though other instruments ran | per-instrument failure tolerance |
 | a two-part calendar whose second part fails | the first part is resent next hour | per-part tracking |
 | repository size (~890 MiB on GitHub, 2026-10-06) | grows ~28 MB a year | a history rewrite (irreversible) |

@@ -194,6 +194,10 @@ Tiingo or SiftingIO budget is still told every run: that is a quota gone.
 **USD/BRL trades in its own session**, 09:00–18:00 São Paulo (`b3_fx`): outside it real
 moves are under 3.5 bp an hour.
 
+**A provider down is that provider's, not the run's.** The run goes red only when the fetch
+got nothing at all. A red run for one dark provider said nothing the health chat had not
+said, and every hour of an outage would read as a broken bot.
+
 ---
 
 ## The second source

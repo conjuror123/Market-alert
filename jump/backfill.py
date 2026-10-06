@@ -1641,6 +1641,7 @@ def main(argv: list[str] | None = None) -> int:
         session_table = None
 
     failures = 0
+    fetched = 0                 # asked and answered, new bars or not
     closed = 0                  # not asked: the calendar says nothing new
     waiting = 0                 # new, waiting their turn to be seeded
     limited = 0                 # not asked: their provider's limit is spent
@@ -1735,6 +1736,7 @@ def main(argv: list[str] | None = None) -> int:
             log.info("%s: %d bars (%s .. %s), %d new", r["asset_id"], r["rows"],
                      _fmt(r["first"]), _fmt(r["last"]), r["from_api"])
             unanswered.pop(asset.fetched_from, None)
+            fetched += 1
         except twelvedata.DailyQuotaExhausted as exc:
             # STOP THE WHOLE LOOP, and this is the difference between a run that
             # delivers on slightly stale bars and a run that delivers nothing.
@@ -1831,6 +1833,7 @@ def main(argv: list[str] | None = None) -> int:
                 dark.append((asset.asset_id, "twelvedata", str(r)))
                 log.error("%s: failed - %s", asset.asset_id, r)
             else:
+                fetched += 1
                 log.info("%s: %d bars (%s .. %s), from network %d (batched)",
                          r["asset_id"], r["rows"], _fmt(r["first"]), _fmt(r["last"]),
                          r["from_api"])
@@ -1958,9 +1961,11 @@ def main(argv: list[str] | None = None) -> int:
     if text:
         send_ops_alert(text)
 
-    # Nonzero so the hourly job goes red. The workflow still runs pipeline and
-    # jumps after this process exits, so healthy instruments still get events.
-    return 1 if failures else 0
+    # Nonzero, so the hourly job goes red, only when nothing could be fetched
+    # at all: one provider or instrument failing is that provider's, named on
+    # the health chat above, and the run delivered for everyone else (as the
+    # detector treats one instrument's error, jump.jumps.run).
+    return 1 if failures and not fetched else 0
 
 
 if __name__ == "__main__":

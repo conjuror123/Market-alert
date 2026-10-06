@@ -104,7 +104,8 @@ jobs:
       # continue-on-error so delivery still runs: a fetch failure does not
       # stop pipeline and jumps, which run on whatever bars are stored (the
       # events table is gitignored, so a fresh runner has none otherwise). The
-      # step still exits nonzero so the job goes red at the end.
+      # step exits nonzero, and the job goes red at the end, only when the fetch
+      # got nothing at all: one provider down is named on the health chat.
       #
       # Its own time limit, well inside the job's: the job's cancels every step
       # after it, so a slow hour delivered nothing and told no one (28 runs on

@@ -1479,7 +1479,8 @@ def test_a_yahoo_404_stays_per_instrument_and_does_not_skip_the_rest(
 
     rc = backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
 
-    assert rc == 1
+    # One instrument's error is that instrument's: the run fetched the rest.
+    assert rc == 0
     assert asked == ["UGA", "UNG"]
 
 
@@ -1513,6 +1514,25 @@ def _us_basket(*assets):
         history_since=date(2021, 1, 1), session_templates={"us_equity": {}})
 
 
+def test_a_run_that_fetched_nothing_at_all_goes_red(tmp_path, monkeypatch):
+    # The one fetch failure the run itself owns: every instrument asked failed,
+    # so no bar anywhere is new.
+    from jump import backfill
+
+    asked = []
+    monkeypatch.setattr(backfill, "load_basket", lambda: _us_basket(
+        _yahoo_asset("UGA"), _sina_asset("SPY")))
+    monkeypatch.setattr(backfill, "backfill_instrument",
+                        _answering_except({"UGA", "SPY"}, asked))
+    monkeypatch.setattr(backfill, "SEED_PER_RUN", 10)
+    monkeypatch.setattr(backfill._sessions, "load_sessions",
+                        lambda: (_ for _ in ()).throw(FileNotFoundError()))
+    monkeypatch.setattr(backfill, "send_ops_alert", lambda *_: None)
+
+    assert backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)]) == 1
+    assert asked == ["UGA", "SPY"]
+
+
 def test_a_provider_that_does_not_answer_twice_in_a_row_is_stopped_for_the_run(
         tmp_path, monkeypatch, caplog):
     # Each unanswered instrument costs about 96 s of timeouts and retries;
@@ -1534,7 +1554,8 @@ def test_a_provider_that_does_not_answer_twice_in_a_row_is_stopped_for_the_run(
     with caplog.at_level("INFO", logger="jump.backfill"):
         rc = backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
 
-    assert rc == 1
+    # Yahoo went dark, not the run: SiftingIO's funds were fetched.
+    assert rc == 0
     assert asked == ["UGA", "SPY", "UNG", "QQQ"]
     assert "yahoo did not answer" in alerts[0]
     assert "2 remaining" in alerts[0] and "UNG" in alerts[0]
