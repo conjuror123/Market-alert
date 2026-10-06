@@ -98,7 +98,9 @@ so a cold rebuild cannot rewrite a closed record or post its difference as new a
 
 **Rarer rings again inside the 24 hours; milder never rings.** A rarer event is news; a
 milder one the reader has already heard. After the 24 hours a fix corrects silently, and an
-event corrected away stays gone.
+event corrected away stays gone. A doubt lifted is not news: the move was
+already told, so the mark comes off by an edit, and only a move rarer than the word shown
+before the mark rings (decided 2026-10-06).
 
 **A changed event says so on one line**, so an edit is never silent:
 `✏️ ⬜ 6.2×σ 10:00 → 🟧 12.4×σ 12:00 bigger jump`.

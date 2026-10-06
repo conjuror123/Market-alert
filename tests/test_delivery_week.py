@@ -282,6 +282,19 @@ def test_a_marked_move_confirmed_after_all_is_unmarked_silently(monkeypatch, cha
     assert "⚠️" not in shown and shown.startswith(md._first(md.format_push(push, LABELS)))
 
 
+def test_a_doubt_lifted_inside_its_24_hours_is_unmarked_silently(monkeypatch, channel, week):
+    # F4: it rang a second time, as if the move were new.
+    push = ev(at(0, 10), "high")
+    run(monkeypatch, channel, [push], run_at(0, 11), week)
+    _unseen(at(0, 10))
+    run(monkeypatch, channel, [BYSTANDER], run_at(0, 12), week)
+    rang = len(channel.rang)
+    run(monkeypatch, channel, [push], run_at(0, 13), week)                # healed, confirmed
+    assert channel.rings_since(rang) == []
+    (shown,) = channel.pushes()
+    assert "⚠️" not in shown and shown.startswith(md._first(md.format_push(push, LABELS)))
+
+
 # --- inside its 24 hours --------------------------------------------------------
 
 def test_a_bigger_hour_of_the_same_word_is_edited_in_place(monkeypatch, channel, week):

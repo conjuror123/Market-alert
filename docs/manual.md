@@ -361,7 +361,7 @@ note the old week's ping lines are taken down.
 | same word, new numbers | edited | edited |
 | gone | taken out; it can come back and ring | taken out for good |
 | unconfirmed | line kept, `⚠️ unconfirmed: Yahoo shows +0.03%` added (each source named when two), silently; a row leaves the note | the same |
-| unconfirmed, then a reading back or a new move | handled as any other change | the same |
+| unconfirmed, then a reading back or a new move | the mark comes off by a silent edit; only a move rarer than the word shown before the mark rings | the same, silently |
 
 A message is edited when what it carries changes and deleted once it carries nothing. A
 ping line lives exactly as long as its row. Nothing rings more than 24 hours after its

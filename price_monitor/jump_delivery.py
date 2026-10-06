@@ -1146,12 +1146,16 @@ def _step(week: dict, key: str, readings: "list[dict]", now_ts: int,
     tracked = week["events"]
     asset, start = key.rsplit("|", 1)
     rec = tracked.get(key)
+    shown_before = rec.get("tier") if rec is not None else None
     if rec is not None and rec.get("doubt"):
         if not readings:
             return 0                   # marked unconfirmed, and still nothing
         # A reading is back - the bar healed and was confirmed - or a new move
-        # came inside its 24 hours: an event like any other again.
+        # came inside its 24 hours: an event like any other again. Rarer is
+        # measured against the word the channel last showed, so a doubt lifted
+        # is a silent edit and only a move rarer than that rings.
         rec.pop("doubt")
+        shown_before = next((step[0] for step in reversed(rec["story"]) if step[0]), None)
     open_ = now_ts < int(start) + PUSH_WINDOW_HOURS * 3600
     members = {str(r["reading_id"]): r for r in readings}
     peak = max(readings, key=_size) if readings else None
@@ -1182,7 +1186,7 @@ def _step(week: dict, key: str, readings: "list[dict]", now_ts: int,
     rec["story"] = rec["story"] + [shown[:3] + [why] if peak is not None
                                    else [None, None, None, why]]
     changed = 0
-    promoted = _rank(shown[0]) > _rank(rec.get("tier"))
+    promoted = _rank(shown[0]) > _rank(shown_before)
 
     doubt = _doubt(asset, rec["members"], doubts) if peak is None and rec.get("form") else None
     if doubt:
