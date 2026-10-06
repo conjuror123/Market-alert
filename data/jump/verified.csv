@@ -26,7 +26,7 @@ twelvedata:EWC,1789581600,close,confirmed,yahoo,sina,-0.012065,-0.012065,1791114
 twelvedata:EWJ,1789581600,close,confirmed,alpaca,yahoo,-0.012508,-0.012508,1791114096
 twelvedata:EWW,1789581600,close,confirmed,sina,yahoo,-0.020956,-0.020956,1791114096
 twelvedata:EWZ,1789048800,close,confirmed,alpaca,yahoo,0.027578,0.027578,1791114096
-twelvedata:EWZ,1791205200,open,confirmed,alpaca,yahoo,0.113324,0.112973,1791259611
+twelvedata:EWZ,1791205200,open,confirmed,alpaca,yahoo,0.113324,0.112973,1791263210
 twelvedata:FALN,1789581600,close,confirmed,sina,yahoo,-0.003966,-0.003966,1791114096
 twelvedata:GBP/USD,1789581600,close,confirmed,sifting,yahoo,-0.005095,-0.005112,1791114096
 twelvedata:GBP/USD,1791165600,close,confirmed,sifting,yahoo,-0.003057,-0.003093,1791248811
@@ -143,8 +143,8 @@ twelvedata:USD/BRL,1773662400,close,unconfirmed,sifting,yahoo,-0.010664,-0.00331
 twelvedata:USD/BRL,1775649600,close,unconfirmed,sifting,yahoo,-0.015470,-0.003285,1791114096
 twelvedata:USD/BRL,1789048800,close,confirmed,sifting,yahoo,-0.011916,-0.012044,1791114096
 twelvedata:USD/BRL,1789387200,close,confirmed,sifting,yahoo,0.008646,0.003934,1791114096
-twelvedata:USD/BRL,1791201600,close,confirmed,sifting,marketwatch,-0.030677,-0.030369,1791259611
-twelvedata:USD/BRL,1791201600,open,confirmed,sifting,yahoo,-0.012411,-0.044032,1791259611
+twelvedata:USD/BRL,1791201600,close,confirmed,sifting,marketwatch,-0.030677,-0.030369,1791263210
+twelvedata:USD/BRL,1791201600,open,confirmed,sifting,yahoo,-0.012411,-0.044032,1791263210
 twelvedata:USD/CAD,1789387200,close,confirmed,sifting,yahoo,0.002090,0.002122,1791114096
 twelvedata:USD/CAD,1789581600,close,confirmed,sifting,yahoo,0.004013,0.003825,1791114096
 twelvedata:USD/CHF,1789581600,close,confirmed,sifting,yahoo,0.008161,0.008461,1791114096
