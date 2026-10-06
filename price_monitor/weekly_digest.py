@@ -105,6 +105,13 @@ _COVERAGE_SLACK_DAYS = 3
 # both send, and unlike a calendar day it needs no timezone to be unambiguous.
 _STATE_KEY = "weekly_digest:last_sent_week"
 
+# The parts of a calendar that did not go out, {"week": slot, "remaining":
+# [texts]}: sent before anything else on the runs after, for as long as that
+# week is the current one. Without it a failed send was lost for the week -
+# the note opens in the same run whether the calendar went or not, and the
+# calendar is only built in the run that opens one.
+_PENDING_KEY = "weekly_digest:unsent"
+
 # And the day the archive was last topped up from the live feed. The digest's
 # own refresh happens once a week, which is often enough for a message about
 # next week and far too seldom for the OTHER use of this archive: every push
@@ -379,42 +386,41 @@ def format_outage(start: datetime, end: datetime, why: str) -> str:
             f"⚠️ Outage: {why}. No calendar this week.")
 
 
-def _post(cfg: Config, messages: "list[str]") -> bool:
-    try:
-        for text in messages:
+def _post(cfg: Config, messages: "list[str]") -> "list[str]":
+    """Sends the parts in order and returns those that did not go out: from
+    the first that failed on, so the calendar keeps its order.
+
+    Failures are swallowed rather than raised: the digest lives inside the
+    hourly monitoring run, and a failed send must not bring the whole run down."""
+    for k, text in enumerate(messages):
+        try:
             send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id, text)
-    except TelegramError as exc:
-        log.error("Failed to send weekly digest: %s", exc)
-        return False
-    return True
+        except TelegramError as exc:
+            log.error("Failed to send weekly digest part %d of %d: %s", k + 1,
+                      len(messages), exc)
+            return list(messages[k:])
+    return []
 
 
-def _send_digest(cfg: Config, session: requests.Session | None,
-                 now: datetime) -> bool:
-    """Refreshes the archive and sends the coming week's Medium+High digest -
+def _digest_messages(cfg: Config, session: requests.Session | None,
+                     now: datetime) -> "list[str]":
+    """Refreshes the archive and builds the coming week's Medium+High digest -
     or, when the archive does not reach the end of that week, the empty
-    calendar that says so.
-
-    Failures are swallowed rather than raised: the digest lives inside the hourly
-    monitoring run, and a failed send must not bring the whole run down. Returns True if a
-    message actually went out.
-    """
+    calendar that says so."""
     start, end = coming_week(now)
     path = _refresh_archive(cfg, session, now, end)
     archive = economic_calendar.load_events(path)
     if not _covers(archive, end):
         log.warning("The archive does not reach %s - the outage calendar goes out",
                     end.date())
-        return _post(cfg, [format_outage(start, end, "the calendar source did not answer")])
+        return [format_outage(start, end, "the calendar source did not answer")]
 
     digest_events = [e for e in economic_calendar.events_in_window(archive, start, end)
                      if e["impact"] in _DIGEST_IMPACTS]
     messages = format_digest(digest_events, start, end)
-    if not _post(cfg, messages):
-        return False
-    log.info("Weekly digest sent (%d Medium/High events, %s .. %s, %d message(s))",
+    log.info("Weekly digest: %d Medium/High events, %s .. %s, %d message(s)",
              len(digest_events), start.date(), end.date(), len(messages))
-    return True
+    return messages
 
 
 def maybe_send_weekly_digest(
@@ -430,14 +436,26 @@ def maybe_send_weekly_digest(
     now = now or datetime.now(timezone.utc)
     slot = routing.digest_slot(int(now.timestamp()))
     week_id = str(slot)
-    if state.get(_STATE_KEY) == week_id or not jump_delivery.note_due(state, now):
+    pending = state.get(_PENDING_KEY)
+    if pending and pending.get("week") != week_id:
+        # A week that has ended: its calendar is no longer worth sending.
+        state.pop(_PENDING_KEY, None)
+        pending = None
+    if pending:
+        messages = list(pending.get("remaining") or [])
+    elif state.get(_STATE_KEY) == week_id or not jump_delivery.note_due(state, now):
         return False
-    if _is_digest_window(now):
-        sent = _send_digest(cfg, session, now)
+    elif _is_digest_window(now):
+        messages = _digest_messages(cfg, session, now)
     else:
         opened = datetime.fromtimestamp(slot, tz=timezone.utc)
         start, end = coming_week(opened)
-        sent = _post(cfg, [format_outage(start, end, "the bot was down when the week opened")])
-    if sent:
+        messages = [format_outage(start, end, "the bot was down when the week opened")]
+    remaining = _post(cfg, messages)
+    if remaining:
+        state[_PENDING_KEY] = {"week": week_id, "remaining": remaining}
+    else:
+        state.pop(_PENDING_KEY, None)
         state[_STATE_KEY] = week_id
-    return sent
+        log.info("Weekly digest sent (%d message(s))", len(messages))
+    return len(remaining) < len(messages)

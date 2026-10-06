@@ -391,6 +391,59 @@ def test_an_empty_archive_and_an_unreachable_feed_send_nothing(tmp_path, monkeyp
         cfg, {}, session=None, now=WEEKEND_OPEN) is False
 
 
+def test_a_part_that_failed_goes_out_next_run_and_only_it(tmp_path, monkeypatch):
+    # The note opens in the same run whether the calendar went or not, and the
+    # calendar used to be built only in the run that opens one: a failed part
+    # was lost for the week. Now what did not go out is kept and sent next.
+    from price_monitor import jump_delivery
+
+    cfg = make_config(tmp_path)
+    state, sent, fail = {}, [], {"part 2"}
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar",
+                        lambda session=None: RAW_EVENTS)
+    monkeypatch.setattr(weekly_digest, "format_digest",
+                        lambda events, start, end: ["part 1", "part 2", "part 3"])
+
+    def send(token, chat, text, *a, **k):
+        if text in fail:
+            raise TelegramError("boom")
+        sent.append(text)
+        return 1
+
+    monkeypatch.setattr(weekly_digest, "send_telegram_message", send)
+
+    assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None,
+                                                  now=WEEKEND_OPEN) is True
+    assert sent == ["part 1"]
+    # The note opened in that run.
+    state[jump_delivery.STATE_KEY] = {jump_delivery.WEEK: {"slot": int(WEEKEND_OPEN.timestamp())}}
+
+    fail.clear()
+    later = WEEKEND_OPEN + timedelta(hours=1)
+    assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=later) is True
+    assert sent == ["part 1", "part 2", "part 3"]
+    assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None,
+                                                  now=later + timedelta(hours=1)) is False
+    assert sent == ["part 1", "part 2", "part 3"]
+
+
+def test_unsent_parts_of_a_week_that_has_ended_are_dropped(tmp_path, monkeypatch):
+    cfg = make_config(tmp_path)
+    from price_monitor import jump_delivery
+
+    slot = int(WEEKEND_OPEN.timestamp())
+    state = {weekly_digest._PENDING_KEY: {"week": str(slot - 7 * 86400),
+                                          "remaining": ["last week's part"]},
+             weekly_digest._STATE_KEY: str(slot),
+             jump_delivery.STATE_KEY: {jump_delivery.WEEK: {"slot": slot}}}
+    monkeypatch.setattr(weekly_digest, "send_telegram_message",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("sent")))
+
+    assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None,
+                                                  now=MIDWEEK) is False
+    assert weekly_digest._PENDING_KEY not in state
+
+
 def test_maybe_send_weekly_digest_returns_false_on_send_failure(tmp_path, monkeypatch):
     cfg = make_config(tmp_path)
     state = {}

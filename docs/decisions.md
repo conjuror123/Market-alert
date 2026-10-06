@@ -291,10 +291,6 @@ Measured or weighed, and not to be raised again.
 
 Known and left alone on purpose.
 
-**The fund feed verdict rests on one calm month.** Feeds that agree when quiet can part in
-a violent month. To act: rerun `tools/fund_verdict.py` and `tools/sina_probe.py` right after
-the next one, while the feeds still serve it (Yahoo ~55 days, Sina ~78).
-
 **Weekend yardsticks are the noisiest** (±16%, against ±3% for hours). Pooling a fund's
 weekends with its nights predicts a little better (QLIKE 1.94 against 2.10), a 2-year window
 better still for pairs (2.96 against 3.90). To act: a one-line change in `jump/jumps.py`,

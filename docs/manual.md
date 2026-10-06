@@ -388,8 +388,10 @@ strike-through edit.
 
 **The calendar** (`weekly_digest.py`): the coming week's economic releases, Monday to
 Monday UTC, sent in the run that opens the note, at most 4 hours after its slot. After a
-longer outage the note opens with a calendar that says so. The archive is topped up daily
-from the live feed.
+longer outage the note opens with a calendar that says so. A part Telegram refuses, and
+every part after it, is kept in the state and sent first on the next runs while that week
+lasts, below the note by then; the parts that went are not sent again. The archive is
+topped up daily from the live feed.
 
 ## 9. State and commits
 
@@ -536,5 +538,4 @@ How far back each record reaches:
 | weekend yardsticks rest on 26 weekends | ±16% noise; a pair whose weekend gap is usually nil can flag a 0.02% move | pooling or a longer window (`docs/decisions.md`, "Open questions") |
 | history before each record's start (section 11) | "rarest since" reaches only as far as the record | paid history |
 | history before the second source's reach | old bad prints stay in old yardsticks | none needed: they never ring again |
-| a two-part calendar whose second part fails | the first part is resent next hour | per-part tracking |
 | repository size (~890 MiB on GitHub, 2026-10-06) | grows ~28 MB a year | a history rewrite (irreversible) |
