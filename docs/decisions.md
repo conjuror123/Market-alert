@@ -151,6 +151,13 @@ correlate ≥ 0.90 and the median level gap is ≤ 25 bp over ≥ 200 shared hou
 (`backfill.verify_alignment`). The level test catches dividend-adjusted imports, which
 correlate at 0.996 while sitting 1% off. Only missing hours are written.
 
+**The majors' 2012 Sunday opens are Dukascopy's.** That year's source opened every bar at the
+previous close, so all 52 weekends of the seven majors read as a gap of exactly 0, and the
+collapsed yardstick read early 2013's weekends as 30–72σ. 350 of the 364 were mended from
+Dukascopy's own gap, spliced onto the stored Friday, where its Friday and Sunday closes are
+within 10 bp of the store's (`tools/fx_weekend_opens.py`); 14 were refused. Its weekends
+from 2013 on, and the scattered zero gaps elsewhere, are left: they may be real.
+
 **Futures are read one contract at a time.** Yahoo's continuous series interleaves months.
 The softs' history is Dukascopy's single-contract CFDs from 2018, spliced at a measured
 seam; live cattle keeps Yahoo's series minus its interleaved stretches. The night across a
