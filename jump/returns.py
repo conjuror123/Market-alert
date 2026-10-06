@@ -31,7 +31,7 @@ from __future__ import annotations
 import bisect
 import logging
 import math
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import numpy as np
@@ -200,12 +200,17 @@ def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
       - for a fund, on a declared split date, and on any gap within
         SPLIT_TOLERANCE of a split ratio, because the store is split-adjusted
         and a gap that looks like a split is a provider that has not adjusted;
-      - on the first bar of the record, which has no previous close.
+      - on the first bar of the record, which has no previous close;
+      - when the bar opening the session is not its first hour: with the
+        session's first bars missing (or dropped as thin), its "night" would
+        span hours of trading too (LE=F 2025-10-29: open 13:30 UTC, first
+        stored bar 15:00, flagged).
     """
     n = len(frame)
     template = asset.session_template
     from jump import futures
-    from jump.sessions import (DAILY_CLOSED_MAX_SECONDS, is_calendar_template,
+    from jump.sessions import (DAILY_CLOSED_MAX_SECONDS, daily_session_open,
+                                 instrument_day_hours, is_calendar_template,
                                  session_key_close)
 
     if not (template in ("us_equity", "fx_continuous") or is_calendar_template(template)) \
@@ -240,11 +245,21 @@ def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
                             for k in range(n)], dtype=bool)
         complete = reached & ((hours - prev_hour) <= DAILY_CLOSED_MAX_SECONDS)
         rolled = np.isin(day, sorted(futures.roll_sessions(asset.ticker, day)))
-        usable = is_open & complete & ~rolled & np.isfinite(gap)
+        first = {d: daily_session_open(date.fromisoformat(d), template) // HOUR * HOUR
+                 for d in set(day[is_open])}
+        on_time = np.array([is_open[k] and hours[k] <= first[day[k]] for k in range(n)],
+                           dtype=bool)
+        usable = is_open & complete & on_time & ~rolled & np.isfinite(gap)
         return np.where(usable, gap, np.nan)
 
     day = session.to_numpy(dtype=object)
     complete = _closed_on_the_last_bar(day, prev_hour, is_open, session_table)
+    first = {}
+    for d in set(day[is_open]):
+        expected = instrument_day_hours(date.fromisoformat(d), template, session_table)
+        first[d] = min(expected) if expected else None
+    on_time = np.array([is_open[k] and hours[k] == first[day[k]] for k in range(n)],
+                       dtype=bool)
 
     steps = dividends.steps.get(asset.ticker, {})
     step = np.array([steps.get(d, 0.0) for d in day], dtype="float64") \
@@ -267,7 +282,7 @@ def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
                     "ratio, not scored", asset.ticker, day[position],
                     100 * (math.exp(gap[position]) - 1))
 
-    usable = (is_open & complete & known & ~declared & ~looks_split
+    usable = (is_open & complete & on_time & known & ~declared & ~looks_split
               & np.isfinite(gap))
     return np.where(usable, gap, np.nan)
 

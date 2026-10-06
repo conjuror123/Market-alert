@@ -112,8 +112,9 @@ def _dividends():
 
 def _two_sessions(first_day, second_day, last_hour=12):
     rows = [(ny(*first_day, h), 300, 301, 299, 300, 100.0, 1) for h in range(5, last_hour + 1)]
-    rows += [(ny(*second_day, 5), 309, 310, 308, 309, 100.0, 1),
-             (ny(*second_day, 6), 309, 310, 308, 309.5, 100.0, 1)]
+    # The second session from its first hour: coffee opens 04:15 New York.
+    rows += [(ny(*second_day, 4), 309, 310, 308, 309, 100.0, 1),
+             (ny(*second_day, 5), 309, 310, 308, 309.5, 100.0, 1)]
     return pd.DataFrame(rows, columns=list(bars.SCHEMA)).astype(bars.SCHEMA)
 
 
@@ -201,3 +202,12 @@ def test_a_stray_close_taken_back_by_the_next_open_is_reset():
     assert out.loc[20, "close"] == frame.loc[21, "open"]
     assert out.loc[20, "low"] <= out.loc[20, "close"]
     assert out.loc[30, "close"] == 103.0
+
+
+def test_a_night_ending_on_a_late_first_bar_is_not_scored():
+    # F2: with the 04:00 hour missing, the 05:00 bar's open is the night and an
+    # hour of trading.
+    late = _two_sessions((2026, 3, 3), (2026, 3, 4))
+    late = late[late["hour_utc"] != ny(2026, 3, 4, 4)].reset_index(drop=True)
+    out = returns.split_channels(_future(), late, dividends=_dividends())
+    assert out["gap"].isna().all()

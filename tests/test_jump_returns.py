@@ -28,12 +28,13 @@ def et(y, m, d, h):
 
 
 def two_days():
-    # Two trading days of two hours: the first closes at 101, the second opens at 105.
+    # Two trading days of two hours: the first closes at 101, the second opens
+    # at 105 on its first hour (the 09:30 open's).
     return frame([
         (et(2021, 3, 1, 10), 100.0, 101.0, 99.0, 100.5, 1.0, 2),
         (et(2021, 3, 1, 11), 100.5, 102.0, 100.0, 101.0, 1.0, 2),
-        (et(2021, 3, 2, 10), 105.0, 106.0, 104.0, 106.0, 1.0, 2),
-        (et(2021, 3, 2, 11), 106.0, 107.0, 105.0, 106.5, 1.0, 2),
+        (et(2021, 3, 2, 9), 105.0, 106.0, 104.0, 106.0, 1.0, 2),
+        (et(2021, 3, 2, 10), 106.0, 107.0, 105.0, 106.5, 1.0, 2),
     ])
 
 
@@ -279,8 +280,10 @@ def test_a_missing_hour_is_skipped_as_if_it_were_never_there():
     assert np.isnan(out.iloc[2]["hole"])
 
 
-def test_a_night_whose_first_hour_is_missing_is_scored_to_the_first_bar_there_is():
-    # Day two's 10:00 bar is missing: the night runs to the 11:00 bar's open.
+def test_a_night_whose_first_hours_are_missing_is_not_scored():
+    # F2. Day two's 09:00 and 10:00 bars are missing: from the close to the
+    # 11:00 bar's open is the night and two hours of trading, not a gap (LE=F
+    # 2025-10-29 was flagged so). The hour itself is still its own move.
     data = frame([
         (et(2021, 3, 1, 10), 100.0, 101.0, 99.0, 100.5, 1.0, 2),
         (et(2021, 3, 1, 11), 100.5, 102.0, 100.0, 101.0, 1.0, 2),
@@ -289,7 +292,7 @@ def test_a_night_whose_first_hour_is_missing_is_scored_to_the_first_bar_there_is
     out = returns.split_channels(asset(), data, session_table=TABLE, dividends=dividends())
 
     assert out.iloc[2]["is_session_open"]
-    assert out.iloc[2]["gap"] == pytest.approx(math.log(106.0 / 101.0))
+    assert math.isnan(out.iloc[2]["gap"])
     assert out.iloc[2]["r"] == pytest.approx(math.log(106.5 / 106.0))
 
 

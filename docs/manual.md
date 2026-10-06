@@ -225,8 +225,9 @@ within each source's reach.
 - **`r`, the hour's move:** close against the previous close. On a session's first bar,
   and on the bar after a missing hour, it is that bar's own open to close.
 - **`gap`:** a session's first open against the previous session's last close. It is
-  dividend-adjusted, and left unscored on a split, an unconfirmed dividend, or a missing
-  bar before the close.
+  dividend-adjusted, and left unscored on a split, an unconfirmed dividend, a missing
+  bar before the close, or a missing first hour: from a late first bar the "night" would
+  span hours of trading.
 - **`hole`:** the move across a missing hour inside a session. It is never scored; it only
   keeps the price path whole for the close check.
 
