@@ -112,6 +112,16 @@ _FUND_PROVIDERS_CHECKED_BY_YAHOO = ("alpaca", "tiingo", "sina", "twelvedata", "g
 SINA_FUTURES = {"KC=F": "KC", "CC=F": "CC", "CT=F": "CT"}
 SINA_FUTURES_DAYS = 30            # inside the 1,023 hourly bars Sina serves
 
+# Sina's softs are continuous series that change contract on their own days,
+# not this series' (jump.futures): for those sessions the two feeds hold
+# different months, a few hundred bp apart (coffee 2026-08-03..10 about -500,
+# cocoa 06-16..22 +220 and 07-21..08-06 -250), against +-10 bp on the same
+# month. Each feed is still compared with itself inside such a stretch; only a
+# move whose span crosses Sina's change carries the spread between the two
+# contracts. A session whose median offset to the store stepped by
+# ROLL_STEP_BP or more from the session before opens with such a change.
+ROLL_STEP_BP = 50.0
+
 
 # The pairs MarketWatch is asked about besides Yahoo, and live cattle's
 # continuous contract there (price_monitor/marketwatch.py).
@@ -316,6 +326,35 @@ def judge(c: dict, v: pd.DataFrame, now: int) -> "tuple[str, float, float]":
     return (UNCONFIRMED if lag_passed else PENDING), p, direct
 
 
+def switches(store: pd.DataFrame, v: pd.DataFrame, template: str) -> "list[int]":
+    """The first hours of the sessions the second source changed contract at:
+    where its median offset to the store stepped by ROLL_STEP_BP or more from
+    the session before. A one-hour bad print in either feed moves one bar, not
+    a session's median."""
+    from jump import sessions
+
+    j = store[["hour_utc", "close"]].merge(v[["hour_utc", "close"]], on="hour_utc",
+                                           suffixes=("_s", "_v"))
+    if j.empty:
+        return []
+    keys = [sessions.session_key(int(h), template) for h in j["hour_utc"]]
+    g = pd.DataFrame({"hour": j["hour_utc"].astype("int64"),
+                      "off": np.log(j["close_v"].to_numpy(float) / j["close_s"].to_numpy(float)),
+                      "key": keys}).dropna(subset=["key"])
+    by = g.groupby("key").agg(off=("off", "median"), first=("hour", "min"),
+                              n=("hour", "size")).sort_index()
+    by = by[by["n"] >= 3]
+    stepped = (by["off"].diff().abs() * 1e4) >= ROLL_STEP_BP
+    return [int(h) for h in by.loc[stepped, "first"]]
+
+
+def crosses(c: dict, at: "list[int]") -> bool:
+    """Whether a move's span - from its closes up to LAG_HOURS before to those
+    up to LAG_HOURS after - takes in one of these hours."""
+    lag = LAG_HOURS * HOUR
+    return any(c["prev_hour"] - lag < h <= c["hour"] + lag for h in at)
+
+
 def _priced(v: pd.DataFrame) -> pd.DataFrame:
     """A second source's bars with a real price only: a zero, negative or
     missing open or close is not a price, as in the store's bar gate."""
@@ -444,7 +483,7 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
         if found:
             fresh = any(record.get((asset.asset_id, c["hour"], c["check"]), {}).get("verdict")
                         in (None, PENDING) for c in found)
-            due.append((not fresh, asset, found))
+            due.append((not fresh, asset, found, frame))
 
     # One request per source and instrument; the instruments with a reading not
     # yet judged first, so a busy hour cannot leave the same ones unasked run
@@ -455,7 +494,7 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
     unanswered: dict[str, int] = {}
     requests_left = 10 ** 6 if history else MAX_REQUESTS
     doubted: list[str] = []
-    for _, asset, found in sorted(due, key=lambda d: d[0]):
+    for _, asset, found, frame in sorted(due, key=lambda d: d[0]):
         # From before the earliest bar a move starts at: a Monday gap starts at
         # Friday's close.
         days = (now_ts - min(c["prev_hour"] for c in found)) / 86400 + 1
@@ -482,9 +521,19 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
                     unanswered.pop(name, None)              # it answered
         if not answers:
             continue
+        changed = {name: switches(frame, v, asset.session_template)
+                   for name, v in answers if asset.ticker in SINA_FUTURES and name == "sina"}
         for c in found:
             try:
-                verdict, stored, names, moves = judge_all(c, answers, now_ts)
+                # Not across the second source's own change of contract.
+                usable = [(name, v) for name, v in answers
+                          if not crosses(c, changed.get(name, []))]
+                if not usable:
+                    p = math.log(c["price"] / c["prev_close"])
+                    verdict, stored, names, moves = UNKNOWN, p, [
+                        f"{answers[0][0]} (changed contract)"], [0.0]
+                else:
+                    verdict, stored, names, moves = judge_all(c, usable, now_ts)
             except Exception as exc:
                 # One instrument's surprise costs that reading, not the pass.
                 log.warning("verify: %s %s could not be judged - %s", asset.ticker,

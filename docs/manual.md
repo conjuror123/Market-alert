@@ -197,7 +197,10 @@ is not a move.
   is bridged by its nearest bars within 12 hours.
 - **Unconfirmed:** it did not, and its bar after the one-hour lag has ended.
 - **Pending:** that bar has not ended yet, or the source has no bar after the move yet.
-- **Unknown:** the source is silent for 12 hours around the move.
+- **Unknown:** the source is silent for 12 hours around the move. For the softs, also a move
+  whose span crosses Sina's own change of contract (`verify.switches`: a session whose
+  median offset to the store stepped by 50 bp or more), where Sina's move carries the
+  spread between two months.
 
 **Combined** (`judge_all`). Confirmed if any source saw the move. Otherwise pending if
 any is still waiting. Otherwise unconfirmed if any answered. Otherwise unknown. A source
@@ -535,7 +538,6 @@ How far back each record reaches:
 |---|---|---|
 | Yahoo, Sina, Google Finance and MarketWatch are undocumented endpoints | a change silences their instruments or checks until fixed; the health chat names them | paid feeds (consolidated tape, futures data) |
 | no second source for the LME's metals | their bad prints are caught only beyond 1,000σ | a free independent feed |
-| the softs' second source rolls contracts on its own days | a move in its roll hour can be misjudged (about 5 a year each) | roll-aware comparison |
 | weekend yardsticks rest on 26 weekends | ±16% noise; a pair whose weekend gap is usually nil can flag a 0.02% move | pooling or a longer window (`docs/decisions.md`, "Open questions") |
 | history before each record's start (section 11) | "rarest since" reaches only as far as the record | paid history |
 | history before the second source's reach | old bad prints stay in old yardsticks | none needed: they never ring again |

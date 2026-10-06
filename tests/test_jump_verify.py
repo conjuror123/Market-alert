@@ -608,3 +608,57 @@ def test_a_broken_bar_from_a_second_source_costs_only_its_instrument(
     assert (other.asset_id, int(hours[bad]), "close") in doubted
     # The broken bar is left out and the rest of the source's hours decide.
     assert (asset.asset_id, int(hours[bad]), "close") in doubted
+
+
+# --- the softs: Sina changes contract on its own days --------------------------
+
+def _sessions_of_coffee(days, level):
+    """Hourly closes 08:00-17:00 UTC (inside ICE coffee's session in July)
+    on each day, at `level(day, hour)`."""
+    rows = []
+    for d in days:
+        for hh in range(8, 18):
+            rows.append({"hour_utc": ts(f"2026-07-{d:02d} {hh:02d}:00"),
+                         "close": level(d, hh)})
+    return pd.DataFrame(rows).assign(open=lambda f: f["close"])
+
+
+def test_sinas_change_of_contract_is_found_and_a_bad_print_is_not():
+    days = (6, 7, 8, 9)
+    store = _sessions_of_coffee(days, lambda d, h: 300.0)
+    # Sina on another month from the 8th, 5% lower; one bad print on the 7th.
+    sina = _sessions_of_coffee(days, lambda d, h: 285.0 if d >= 8 else
+                               (270.0 if (d, h) == (7, 12) else 300.0))
+    assert verify.switches(store, sina, "ice_coffee") == [ts("2026-07-08 08:00")]
+
+
+def test_a_move_across_the_change_is_not_judged_by_sina():
+    at = [ts("2026-07-08 08:00")]
+    across = {"hour": ts("2026-07-08 08:00"), "prev_hour": ts("2026-07-07 17:00")}
+    inside = {"hour": ts("2026-07-08 12:00"), "prev_hour": ts("2026-07-08 11:00")}
+    assert verify.crosses(across, at)
+    assert not verify.crosses(inside, at)
+
+
+def test_a_real_gap_across_sinas_change_is_left_unknown_not_rejected(monkeypatch, tmp_path,
+                                                                      basket):
+    # The session after Sina moved to another month: our +2% open, and Sina's
+    # -5% that is only its spread between the two contracts. Judged across it,
+    # a real move read as not seen and left scoring for good.
+    asset = basket["KC=F"]
+    days = (6, 7, 8, 9)
+    store = _sessions_of_coffee(days, lambda d, h: 306.0 if d >= 8 else 300.0)
+    sina = _sessions_of_coffee(days, lambda d, h: 291.0 if d >= 8 else 300.0)
+    c = {"hour": ts("2026-07-08 08:00"), "check": "open", "from_open": False,
+         "prev_hour": ts("2026-07-07 17:00"), "prev_close": 300.0, "price": 306.0}
+    monkeypatch.setattr(verify, "candidates", lambda *a, **k: [dict(c)])
+    monkeypatch.setattr(verify.bars, "load", lambda path, since=None: store)
+    monkeypatch.setattr(verify, "fetch_verifier", lambda *a, **k: sina)
+    path = str(tmp_path / "verified.csv")
+    now = datetime(2026, 7, 9, 18, tzinfo=timezone.utc)
+
+    verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
+
+    row = verify.load(path)[(asset.asset_id, c["hour"], "open")]
+    assert row["verdict"] == verify.UNKNOWN
+    assert "changed contract" in row["verifier"]

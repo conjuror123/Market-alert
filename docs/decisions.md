@@ -218,6 +218,13 @@ ticks, and every culprit rule breaks a real case.
 **Bars around the move outweigh a bridge across it.** A bridge only says the price got
 there somehow.
 
+**Sina's softs are not asked across their own change of contract.** Sina's continuous
+series hold another month for days at a time (coffee 2026-08-03..10 about −500 bp from the
+store, cocoa 06-16..22 +220 and 07-21..08-06 −250, against ±10 bp on the same month). Inside
+such a stretch each feed is still compared with itself; a move across its start or end is
+unknown. Found as a step of 50 bp or more in the session median offset, which a one-hour
+bad print cannot make. Over 2026-05-11..10-06, 36 moves judged, none crossed one.
+
 **Candidates are the detector's own readings at ≥ 4σ.** A check with its own σ missed 23
 of 543 flagged readings after a calm stretch.
 
