@@ -160,7 +160,7 @@ splice gates, scaled to meet without a step.
 
 **A provider that does not answer twice in a row is stopped for the run.** An unanswered
 request costs about 96 s of timeouts and retries (186 s at Alpaca), and the job has 20
-minutes. Asked one by one, a silent Yahoo's 38 funds and 133 dividend lookups come to 274
+minutes. Asked one by one, a silent Yahoo's 38 instruments and 133 dividend lookups come to 274
 minutes on a simulated clock (2026-10-05); stopped after two, to 3. A cancelled job
 delivers nothing and tells no one. One silence can be a blip; two in a row is the provider.
 A wrong stop costs its instruments an hour, and the health chat names it. A refusal (404,
@@ -277,8 +277,8 @@ weekends with its nights predicts a little better (QLIKE 1.94 against 2.10), a 2
 better still for pairs (2.96 against 3.90). To act: a one-line change in `jump/jumps.py`,
 then `tools/stage_report.py`.
 
-**Repository size**, about 640 MiB packed, mostly superseded Parquet in history; GitHub
-warns at 1 GB. To act: a history rewrite, which force-pushes the live branch irreversibly.
+**Repository size**, about 890 MiB as GitHub counts it (915,487 KB on 2026-10-06), mostly
+superseded Parquet in history; GitHub warns at 1 GB. To act: a history rewrite, which force-pushes the live branch irreversibly.
 
 **Undocumented endpoints carry most of the basket** (Yahoo, Sina, Google Finance,
 MarketWatch). A changed shape raises and the health chat names the provider. To act: paid
