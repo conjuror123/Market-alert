@@ -62,3 +62,17 @@ def test_the_monitor_hears_how_the_side_steps_went():
     save = steps["Save the open months of the bars"]
     assert env["SESSIONS_STEP_OUTCOME"] == "${{ steps.%s.outcome }}" % sessions["id"]
     assert env["HOT_SAVE_STEP_OUTCOME"] == "${{ steps.%s.outcome }}" % save["id"]
+
+
+def test_a_repair_is_asked_for_by_hand_and_reaches_the_step_as_data():
+    with open(WORKFLOW, encoding="utf-8") as f:
+        workflow = yaml.safe_load(f)
+    repair = workflow[True]["workflow_dispatch"]["inputs"]["repair"]
+    assert repair["required"] is False and repair["default"] == ""
+    step = _steps()["Jump pipeline"]
+    # Through the environment, never pasted into the script: an input is text
+    # anyone who can dispatch the workflow chooses.
+    assert step["env"]["REPAIR"] == "${{ github.event.inputs.repair }}"
+    assert "inputs.repair" not in step["run"]
+    assert 'python -m jump.backfill --repair --instruments "$REPAIR"' in step["run"]
+    assert step["run"].index("--repair") < step["run"].index("stage fetch")

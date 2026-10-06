@@ -166,6 +166,13 @@ delivers nothing and tells no one. One silence can be a blip; two in a row is th
 A wrong stop costs its instruments an hour, and the health chat names it. A refusal (404,
 400) is an answer and stops nothing.
 
+**An open month is repaired by hand, inside the hourly run.** Only the hourly run saves
+the open months to the release; a second workflow writing them could finish around an
+hourly save and erase one or the other's bars. So a repair is an input of the hourly
+workflow and runs in its slot. By hand, not every hour: holes are rare (one since the
+switch) and the stale check names a fund that falls behind; filling them unasked would
+mix a second feed into a store whose provider was chosen by measurement.
+
 **A missing or refused key costs its provider, not the run.** One provider's key used to
 stop the whole fetch before anything was asked, for all 173 instruments, and only a
 failed-run streak said so three hours later. Its instruments are skipped, the others

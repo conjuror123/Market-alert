@@ -6,7 +6,16 @@ on:
   # and should not be added: it fires unreliably (about once every ten hours
   # on this repository), and a missed run looks identical to a quiet market.
   # See docs/manual.md, "Running it".
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      # Run by hand only; the hourly call passes nothing. Funds whose missing
+      # hours of the last 54 days are filled from Yahoo before the fetch, if
+      # Yahoo's bars agree with the store (jump.backfill --repair). Here and
+      # not in the history workflow: only this run may save the open months.
+      repair:
+        description: "Funds to repair from Yahoo, comma-separated (e.g. TUR)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -115,10 +124,17 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_HEALTH_CHAT_ID: ${{ secrets.TELEGRAM_HEALTH_CHAT_ID }}
+          REPAIR: ${{ github.event.inputs.repair }}
         run: |
           stage() { echo "$1 $(date +%s)" >> "$RUNNER_TEMP/jump-stages"; }
-          stage fetch
           set +e
+          if [ -n "$REPAIR" ]; then
+            # A repair that fails or is refused leaves the store as it was;
+            # the run goes on and its log says why.
+            stage repair
+            python -m jump.backfill --repair --instruments "$REPAIR"
+          fi
+          stage fetch
           python -m jump.backfill
           bf=$?
           set -e

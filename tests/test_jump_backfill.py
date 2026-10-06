@@ -772,6 +772,66 @@ def test_the_gap_fill_writes_nothing_when_the_alignment_check_fails(tmp_path, mo
     assert len(bars.load(str(path))) == before
 
 
+# --- repair: an open month's holes, from Yahoo -------------------------------
+
+REPAIR_NOW = datetime(2026, 10, 6, 21, tzinfo=timezone.utc)
+REPAIR_HOLE = {date(2026, 10, 1), date(2026, 10, 2)}
+
+
+def _repair_case(tmp_path, monkeypatch, served_shift=0, served_scale=1.0):
+    """TUR's case: a store whole but for 1 and 2 October, and Yahoo serving
+    every hour - shifted by `served_shift` seconds or scaled, to disagree."""
+    from jump import backfill
+    import numpy as np
+
+    days = [d for d in (date(2026, 8, 10) + timedelta(i) for i in range(58))
+            if d.weekday() < 5]
+    hours = sorted(h for d in days for h in _full_session_hours(d))
+    rng = np.random.default_rng(7)
+    close = 30 * np.exp(np.cumsum(rng.standard_normal(len(hours)) * 0.003))
+    path = tmp_path / "twelvedata_TUR"
+    kept = [Candle(h, c, c, c, c, 100.0, h + HOUR) for h, c in zip(hours, close)
+            if datetime.fromtimestamp(h, timezone.utc).date() not in REPAIR_HOLE]
+    bars.merge(str(path), bars.to_hourly(bars.candles_to_frame(kept)))
+    served = [Candle(h + served_shift, c * served_scale, c * served_scale,
+                     c * served_scale, c * served_scale, 90.0, h + served_shift + HOUR)
+              for h, c in zip(hours, close)]
+    monkeypatch.setattr(backfill.yahoo, "fetch_full_history", lambda *a, **k: served)
+    asset = Asset(ticker="TUR", source="twelvedata", provider="google", block="equity",
+                  has_volume=True, tick_size=0.01, session_template="us_equity",
+                  fetch_interval="30min", label="TUR", in_basket=True)
+    return backfill, asset, str(path), _table(days)
+
+
+def test_a_repair_fills_only_the_hours_the_store_lacks(tmp_path, monkeypatch):
+    # Yahoo a hair off the store everywhere (1 bp): the stored hours keep
+    # their own bars, the holes take Yahoo's.
+    backfill, asset, path, table = _repair_case(tmp_path, monkeypatch, served_scale=1.0001)
+    before = bars.load(path)
+    out = backfill.repair_from_yahoo(asset, path, table, None, now=REPAIR_NOW)
+    assert out["skipped"] is None
+    assert out["hours"] == 14 and out["added"] == 14 and out["still_missing_hours"] == 0
+    after = bars.load(path)
+    kept = before.merge(after, on="hour_utc", suffixes=("_before", "_after"))
+    assert len(kept) == len(before) and (kept["close_before"] == kept["close_after"]).all()
+
+
+def test_a_repair_writes_nothing_when_yahoo_disagrees(tmp_path, monkeypatch):
+    # An hour out, as a timezone read wrong would be.
+    backfill, asset, path, table = _repair_case(tmp_path, monkeypatch, served_shift=HOUR)
+    before = len(bars.load(path))
+    out = backfill.repair_from_yahoo(asset, path, table, None, now=REPAIR_NOW)
+    assert out["added"] == 0 and "alignment check failed" in out["skipped"]
+    assert len(bars.load(path)) == before
+
+
+def test_a_repair_must_be_told_which_funds(tmp_path, caplog):
+    from jump import backfill
+    with caplog.at_level("ERROR", logger="jump.backfill"):
+        assert backfill.main(["--repair", "--bars-dir", str(tmp_path)]) == 2
+    assert "--repair needs --instruments" in caplog.text
+
+
 def _full_session_hours(day):
     from jump.sessions import Session, session_hours
     return session_hours(Session(day=day, local_open="09:30",

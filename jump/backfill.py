@@ -1121,6 +1121,52 @@ def fill_gaps_from_hfdata(asset: Asset, path: str, table: dict, api_key: str,
             "check": check, "adjustment": adjustment}
 
 
+# How far back a repair reaches: Yahoo's 30-minute bars, a day short of their
+# limit (yahoo.MAX_LOOKBACK_DAYS), so the request is never refused at the edge.
+REPAIR_DAYS = 54
+
+
+def repair_from_yahoo(asset: Asset, path: str, table: dict, session: requests.Session,
+                      now: datetime | None = None) -> dict:
+    """Fills a fund's missing hours of the last REPAIR_DAYS from Yahoo's
+    30-minute bars, folded to the hour - the second source the funds are
+    already checked against, and the only free one that reaches back weeks.
+
+    For holes in the open month (python -m jump.backfill --repair, run by hand
+    from the hourly workflow, which alone may save the open months). One went
+    in when Google served TUR only its latest session: 2026-10-01 and -02
+    were never fetched.
+
+    Yahoo's intraday bars are not dividend-adjusted, like the store, so nothing
+    is unadjusted. Written only if the overlap passes the same gate as any
+    import (verify_alignment), and only the hours the store lacks: the live
+    source keeps its own bars."""
+    if asset.session_template != CALENDAR_TEMPLATE:
+        return {"skipped": "no authoritative calendar", "added": 0, "hours": 0}
+    now = now or datetime.now(timezone.utc)
+    since = int(now.timestamp()) - REPAIR_DAYS * 86400
+    wanted = {h for h in missing_hours(path, table) if h >= since}
+    if not wanted:
+        return {"skipped": None, "added": 0, "hours": 0, "still_missing_hours": 0}
+
+    candles = yahoo.fetch_full_history(asset.ticker, "30min", days=REPAIR_DAYS,
+                                       session=session, end=now)
+    minutes = bars.candles_to_frame(candles)
+    if minutes.empty:
+        return {"skipped": "Yahoo returned no bars", "added": 0, "hours": len(wanted)}
+    stored = bars.load(path, since=since)
+    check = verify_alignment(minutes, stored)
+    if not check["ok"]:
+        return {"skipped": f"alignment check failed: {check['why']}", "added": 0,
+                "hours": len(wanted), "check": check}
+    hourly = bars.to_hourly(minutes)
+    patch = hourly[hourly["hour_utc"].isin(wanted).to_numpy()]
+    added = bars.merge(path, patch) if not patch.empty else 0
+    left = [h for h in missing_hours(path, table) if h >= since]
+    return {"skipped": None, "added": added, "hours": len(wanted),
+            "still_missing_hours": len(left), "check": check}
+
+
 # How far ABOVE the oldest stored bar to fetch before writing anything below it.
 # Dukascopy covers the whole stored range, so an overlap can be bought for six
 # extra requests a pair and the splice can be gated on it instead of trusted.
@@ -1303,6 +1349,12 @@ def main(argv: list[str] | None = None) -> int:
                              "overlap hours more than REPAIR_MIN_BP from the "
                              "consolidated tape with the tape's bars. Overwrites "
                              "stored history: name the funds with --instruments.")
+    parser.add_argument("--repair", action="store_true",
+                        help="fill the named funds' missing hours of the last "
+                             "REPAIR_DAYS from Yahoo, gated on agreeing with the "
+                             "store: holes in the open month. Run from the hourly "
+                             "workflow's `repair` input, which saves the open "
+                             "months. Needs --instruments.")
     args = parser.parse_args(argv)
     # A history walk shares the Twelve Data key with the hourly run: it leaves
     # the run its minutes and its share of the day (twelvedata.ARCHIVE_CREDIT_CAP).
@@ -1530,6 +1582,34 @@ def main(argv: list[str] | None = None) -> int:
                      check["correlation"], check["median_bp"])
         log.info("Dukascopy deepening added %d bars", total)
         return 0
+
+    if args.repair:
+        if not wanted:
+            log.error("--repair needs --instruments: it writes into the store")
+            return 2
+        table = _sessions.load_sessions()
+        session = requests.Session()
+        failed = 0
+        for asset in instruments:
+            path = bars.store_path(args.bars_dir, asset.file_stem)
+            try:
+                out = repair_from_yahoo(asset, path, table, session)
+            except Exception as exc:
+                failed += 1
+                log.error("%s: repair failed - %s", asset.asset_id, exc)
+                continue
+            check = out.get("check") or {}
+            if out["skipped"]:
+                failed += 1
+                log.error("%s: not repaired - %s", asset.asset_id, out["skipped"])
+            else:
+                log.info("%s: %d hour(s) missing in the last %d days, +%d from Yahoo, "
+                         "%d still missing%s", asset.asset_id, out["hours"], REPAIR_DAYS,
+                         out["added"], out["still_missing_hours"],
+                         f" (overlap {check['hours']} hours, corr "
+                         f"{check['correlation']:.4f}, median {check['median_bp']:.2f}bp)"
+                         if check else "")
+        return 1 if failed else 0
 
     # A MISSING OR REFUSED KEY costs that provider's instruments, not the run:
     # they are not asked, the others are, and the health chat names the key.

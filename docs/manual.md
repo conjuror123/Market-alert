@@ -145,6 +145,15 @@ Log only; nothing is sent. SiftingIO's "left" is a short window, not its 10,000 
 4 after a run's 16 requests while its account page showed 181 for the month
 (2026-10-06). The month is on the account page only.
 
+**Repair** (`backfill.repair_from_yahoo`), by hand: a fund's in-session hours missing in
+the last 54 days are filled from Yahoo's 30-minute bars, folded to the hour, only if
+Yahoo agrees with the store over the overlap (`verify_alignment`: correlation ≥ 0.90,
+median ≤ 25 bp, ≥ 200 hours) and only where the store has no bar. For a hole in the open
+month, which the hourly fetch never asks again: on 2026-10-01 and -02 Google served TUR
+only its latest session (filled with 242 overlapping hours, correlation 0.9976, median
+0.00 bp). Run it from the Actions tab: Price Spike Monitor → Run workflow, `repair` = the
+funds, comma-separated. That run repairs first, then makes the ordinary hourly pass.
+
 **Sessions** (`jump/sessions.py`): the NYSE table (`data/jump/sessions/nyse.csv`),
 the FX week, and each daily-session market's hours (LME, ICE, CME, B3). The NYSE table
 extends itself: when under two years remain, the hourly run appends three more years,
@@ -462,6 +471,10 @@ them ringing. A quiet day is normal: green runs mean it looked and found nothing
 **Checking on it.** `PYTHONPATH=. python tools/stage_report.py` prints rates by word,
 block and channel, and the biggest hours. To run the pass by hand, export the keys and
 run the four commands of section 3.
+
+**A repair.** Actions → Price Spike Monitor → Run workflow, on the live branch, with
+`repair` naming the funds (`TUR`). Its log says, per fund, the hours missing, the hours
+filled and the overlap it was judged on; a refused fund is left as it was (section 4).
 
 **The mute.** `jump_alerts_muted: true` in `config/config.yaml`: the run proceeds, the
 health and the calendar go out, Jump's pushes, note and pings do not.
