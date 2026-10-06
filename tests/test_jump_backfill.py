@@ -1350,8 +1350,8 @@ def test_a_yahoo_rate_limit_skips_remaining_yahoo_instruments(tmp_path, monkeypa
 
     assert rc == 0
     assert asked == ["UGA", "BTC/USDT"]
-    assert "2 remaining Yahoo" in alerts[0]
-    assert "UGA" in alerts[0]
+    # Said only by what it costs: none of them is behind past its limit.
+    assert alerts == []
 
 
 def test_instruments_left_by_a_rate_limit_are_not_blamed_on_the_calendar(
@@ -1561,7 +1561,7 @@ def test_a_sifting_budget_skips_remaining_pairs_and_says_so(tmp_path, monkeypatc
     assert backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)]) == 0
     assert asked == ["EUR/USD", "UGA"]
     assert "SiftingIO request budget spent" in alerts[0]
-    assert "monthly quota left 0" in alerts[0]
+    assert "Monthly quota left 0" in alerts[0]
 
 
 def test_a_sifting_pair_without_the_key_stops_the_run(tmp_path, monkeypatch):
@@ -2001,10 +2001,37 @@ def test_stale_instruments_are_named_once_and_not_beside_a_failure(tmp_path, mon
 
     backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
 
-    stale = alerts[0].split("No new bar though asked")[1].split("\n\n")[0]
+    stale = alerts[0].split("No new bar")[1].split("\n\n")[0]
     assert "UNG" in stale
     assert "UGA" not in stale and "CPER" not in stale
 
+
+
+def test_an_instrument_yahoo_keeps_refusing_is_named_when_it_falls_behind(
+        tmp_path, monkeypatch):
+    # A Yahoo rate limit is said only here, by what it costs.
+    from jump import backfill
+    from price_monitor import yahoo
+
+    def refusing(asset, *a, **k):
+        raise yahoo.RateLimited(f"{asset.ticker}: status 429")
+
+    alerts = []
+    monkeypatch.setattr(backfill, "load_basket", lambda: _us_basket(
+        _yahoo_asset("UGA"), _yahoo_asset("UNG")))
+    monkeypatch.setattr(backfill, "backfill_instrument", refusing)
+    monkeypatch.setattr(backfill._sessions, "load_sessions", lambda: {date(2026, 10, 5): None})
+    monkeypatch.setattr(backfill, "nothing_can_have_appeared", lambda *a, **k: False)
+    monkeypatch.setattr(backfill.verify, "verify", lambda *a, **k: None)
+    monkeypatch.setattr(backfill, "stale_hours", lambda asset, *a, **k:
+                        (8, True) if asset.ticker == "UNG" else (1, True))
+    monkeypatch.setattr(backfill, "send_ops_alert", alerts.append)
+
+    backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
+
+    assert len(alerts) == 1
+    assert "UNG (yahoo, refused this run): 8 session hours" in alerts[0]
+    assert "UGA" not in alerts[0]
 
 
 @pytest.mark.parametrize("outcome, words", [

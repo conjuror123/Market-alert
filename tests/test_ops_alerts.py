@@ -21,22 +21,34 @@ def test_ops_message_redacts_an_apikey_in_the_provider_error():
     assert "went dark" in text
 
 
-def test_tiingo_bucket_pressure_is_in_the_same_message():
+def test_a_spent_tiingo_budget_says_where_and_when_it_is_asked_again():
     text = format_provider_failure(
         [], tiingo_gone=True, tiingo_skipped=12,
         tiingo_remaining="0", tiingo_trip="twelvedata:XLK")
-    assert "remaining headroom 0" in text
-    assert "12 remaining Tiingo" in text
-    assert "twelvedata:XLK" in text
-    assert "not switched automatically" in text
+    assert text == ("⚠️ <b>Tiingo request budget spent at twelvedata:XLK</b>\n"
+                    "Remaining headroom 0; 12 more Tiingo instrument(s) skipped. "
+                    "Asked again next run.")
 
 
-def test_yahoo_rate_limit_is_in_the_same_message():
+def test_a_spent_budget_with_nothing_else_due_does_not_count_none_skipped():
     text = format_provider_failure(
-        [], yahoo_gone=True, yahoo_skipped=14, yahoo_trip="twelvedata:UGA")
-    assert "14 remaining Yahoo" in text
-    assert "twelvedata:UGA" in text
-    assert "not switched automatically" in text
+        [], sifting_gone=True, sifting_skipped=0, sifting_trip="twelvedata:EUR/USD")
+    assert text == ("⚠️ <b>SiftingIO request budget spent at twelvedata:EUR/USD</b>\n"
+                    "Quota left not in the 429. Asked again next run.")
+
+
+def test_a_yahoo_rate_limit_alone_says_nothing():
+    # One refusal costs its instruments an hour, fetched again next run: said
+    # only when one of them goes without a bar past its limit (stale).
+    assert format_provider_failure([], yahoo_gone=True) == ""
+
+
+def test_a_stale_instrument_of_a_refusing_yahoo_says_so():
+    text = format_provider_failure([], yahoo_gone=True,
+                                   stale=[("yahoo:CT=F", "yahoo", 37),
+                                          ("twelvedata:TUR", "google", 15)])
+    assert "• yahoo:CT=F (yahoo, refused this run): 37 session hours" in text
+    assert "• twelvedata:TUR (google): 15 session hours" in text
 
 
 def test_ops_alert_uses_the_health_chat_not_the_product_one(monkeypatch):

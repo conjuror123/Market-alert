@@ -166,6 +166,13 @@ delivers nothing and tells no one. One silence can be a blip; two in a row is th
 A wrong stop costs its instruments an hour, and the health chat names it. A refusal (404,
 400) is an answer and stops nothing.
 
+**A refusal is told by what it costs, not when it happens.** A lone Yahoo 429 (cotton at
+03:05 UTC on 2026-10-06, the only Yahoo instrument due) costs its instruments one hour,
+fetched again next run; told every time, a day-long block would be a message an hour.
+So it is logged, and its instruments stay in the stale check, named once one is behind
+past its limit (a fund after 7 session hours, a future after two sessions). A spent
+Tiingo or SiftingIO budget is still told every run: that is a quota gone.
+
 **USD/BRL trades in its own session**, 09:00–18:00 São Paulo (`b3_fx`): outside it real
 moves are under 3.5 bp an hour.
 

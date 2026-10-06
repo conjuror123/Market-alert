@@ -129,13 +129,15 @@ markets outside their session. Coins
 are never skipped. At most 4 never-seen instruments are seeded per run. Clients retry
 three times (2 s, 4 s). A rate limit from Yahoo, Tiingo, SiftingIO or Alpaca stops that
 provider for the run, as does Twelve Data's spent day; from the others a 429 fails only
-that instrument. A provider that does not answer two instruments in a row (every attempt a
-timeout, a failed connection or a 5xx, about 96 s each) is stopped for the run too, and
+that instrument. A spent Tiingo or SiftingIO budget is told every run it happens; a Yahoo
+refusal is told only by what it costs, in the stale line below ("refused this run"): one
+refusal costs its instruments an hour, fetched again next run. A provider that does not
+answer two instruments in a row (every attempt a timeout, a failed connection or a 5xx, about 96 s each) is stopped for the run too, and
 left out of the dividend check and the second source; the health chat names it
 (`price_monitor.models.Unreachable`). Twelve Data's batch is retried twice, 61 s apart, on
-its own thread. An instrument asked and answered but with no new bar for longer than its
-calendar allows is named on the health chat on the run it passes its limit, then once a day,
-and only on a run its count moved, so not through the night (`stale_hours`): 3 session hours for a coin, 6 for a pair, 7 for a fund, two sessions for a
+its own thread. An instrument with no new bar for longer than its calendar allows,
+answered with nothing new or refused by Yahoo run after run, is named on the health chat
+on the run it passes its limit, then once a day, and only on a run its count moved, so not through the night (`stale_hours`): 3 session hours for a coin, 6 for a pair, 7 for a fund, two sessions for a
 daily-session market (whose calendars don't know holidays).
 
 **Requests** (`jump/usage.py`): every answer the fetch gets, a 429 included, is counted by
@@ -430,9 +432,10 @@ message past Telegram's 4,096 characters is cut between lines, ending "…and N 
 | trigger | no run starts | cron-job.org, if its call failed; the first run after a gap of over 90 minutes names the hours (`health.missed_runs`) | once, when runs resume |
 | checkout, setup, the open months' restore | the run stops before delivery: nothing sent or counted | the last step, with the step's name (`tools/run_died.sh`) | 1 h after the last run that delivered, then every 24 h |
 | session table extension | the table is not extended (under two years left) | streak, named | while it fails |
-| fetch: a provider fails or rate-limits | its instruments keep their stored bars | "went dark" / "rate limit" message | every run it happens |
+| fetch: a provider fails, or Tiingo's or SiftingIO's budget is spent | its instruments keep their stored bars | "went dark" / "request budget spent" | every run it happens |
+| fetch: Yahoo refuses (429) | its instruments wait for the next run | the stale line, "refused this run", once one is behind past its limit | past its limit, then daily |
 | fetch: a provider does not answer twice in a row | stopped for the run, left out of the dividend check and the second source | "did not answer" message | every run it happens |
-| fetch: answered, but no new bar | the instrument goes stale (`stale_hours`) | "no new bar though asked" | past its limit, then daily |
+| fetch: answered, but no new bar | the instrument goes stale (`stale_hours`) | "no new bar" | past its limit, then daily |
 | dividend check | a fund's payouts unconfirmed 5+ days: its overnight gaps go unscored | "Dividend check behind" | daily |
 | second source | a source stopped for the run, or the pass crashed: moves judged by the other source or scored unchecked | "Second source" lines | every run it happens |
 | VIX | both sources failed | "went dark" | every run it happens |

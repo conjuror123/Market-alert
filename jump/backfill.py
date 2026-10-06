@@ -88,8 +88,6 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
                             tiingo_remaining: str | None = None,
                             tiingo_trip: str | None = None,
                             yahoo_gone: bool = False,
-                            yahoo_skipped: int = 0,
-                            yahoo_trip: str | None = None,
                             sifting_gone: bool = False,
                             sifting_skipped: int = 0,
                             sifting_remaining: str | None = None,
@@ -99,40 +97,34 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
                             second_source: "list[str] | None" = None) -> str:
     """One operational message naming who went dark. Does not switch provider.
 
+    A spent budget (Tiingo, SiftingIO) is said every run it happens: a quota
+    is gone. A Yahoo rate limit is not said: one refusal costs its instruments
+    an hour, fetched again next run. It is said by what it costs, when one of
+    them goes without a bar past its limit (`stale`, "refused this run").
+
     `silent` is each provider stopped for not answering: [the instrument it
     was stopped at, how many after it were skipped]. `stale` is each
-    instrument asked and answered with nothing new for longer than its limit:
-    (asset_id, provider, session hours since its newest bar).
+    instrument with nothing new for longer than its limit: (asset_id,
+    provider, session hours since its newest bar).
 
     The providers first and the instruments last, the long list of errors
     last of all: a message cut to Telegram's limit loses only its tail."""
     lines = []
-    if tiingo_gone:
+    for name, gone, trip, left, skipped in (
+            ("Tiingo", tiingo_gone, tiingo_trip,
+             f"remaining headroom {tiingo_remaining}" if tiingo_remaining is not None
+             else "remaining headroom not in the 429", tiingo_skipped),
+            ("SiftingIO", sifting_gone, sifting_trip,
+             f"monthly quota left {sifting_remaining}" if sifting_remaining is not None
+             else "quota left not in the 429", sifting_skipped)):
+        if not gone:
+            continue
         if lines:
             lines.append("")
-        who = f" after {tiingo_trip}" if tiingo_trip else ""
-        head = (f"remaining headroom {tiingo_remaining}"
-                if tiingo_remaining is not None else
-                "remaining headroom not in the 429")
-        lines.append(f"⚠️ <b>Tiingo request budget spent{who}</b>")
-        lines.append(f"{head}; {tiingo_skipped} remaining Tiingo instrument(s) skipped.")
-        lines.append("Provider was not switched automatically.")
-    if yahoo_gone:
-        if lines:
-            lines.append("")
-        who = f" after {yahoo_trip}" if yahoo_trip else ""
-        lines.append(f"⚠️ <b>Yahoo rate limit{who}</b>")
-        lines.append(f"{yahoo_skipped} remaining Yahoo instrument(s) skipped.")
-        lines.append("Provider was not switched automatically.")
-    if sifting_gone:
-        if lines:
-            lines.append("")
-        who = f" after {sifting_trip}" if sifting_trip else ""
-        quota = (f"monthly quota left {sifting_remaining}"
-                 if sifting_remaining is not None else "quota left not in the 429")
-        lines.append(f"⚠️ <b>SiftingIO request budget spent{who}</b>")
-        lines.append(f"{quota}; {sifting_skipped} remaining SiftingIO instrument(s) skipped.")
-        lines.append("Provider was not switched automatically.")
+        at = f" at {trip}" if trip else ""
+        lines.append(f"⚠️ <b>{name} request budget spent{at}</b>")
+        more = f"; {skipped} more {name} instrument(s) skipped" if skipped else ""
+        lines.append(f"{left.capitalize()}{more}. Asked again next run.")
     for provider, (trip, skipped) in (silent or {}).items():
         if lines:
             lines.append("")
@@ -143,10 +135,11 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
     if stale:
         if lines:
             lines.append("")
-        lines.append(f"⚠️ <b>No new bar though asked: {len(stale)} instrument(s)</b>")
+        lines.append(f"⚠️ <b>No new bar: {len(stale)} instrument(s)</b>")
         for asset_id, provider, hours in stale[:20]:
-            lines.append(f"• {asset_id} ({provider}): {hours} session hours since its "
-                         "newest bar")
+            refused = ", refused this run" if provider == "yahoo" and yahoo_gone else ""
+            lines.append(f"• {asset_id} ({provider}{refused}): {hours} session hours "
+                         "since its newest bar")
         if len(stale) > 20:
             lines.append(f"• …and {len(stale) - 20} more")
         lines.append("Named when it passes its limit, then once a day.")
@@ -1557,12 +1550,10 @@ def main(argv: list[str] | None = None) -> int:
     tiingo_trip = None
     tiingo_remaining = None
     yahoo_gone = False
-    yahoo_skipped = 0
     sifting_gone = False
     sifting_skipped = 0
     sifting_trip = None
     sifting_remaining = None
-    yahoo_trip = None
     # A provider that times out or errors on every attempt costs ~96 s an
     # instrument (186 s for Alpaca), and the job has 20 minutes: asked one by
     # one, a silent provider's funds took it past them, and a cancelled job
@@ -1620,7 +1611,6 @@ def main(argv: list[str] | None = None) -> int:
             continue
         if yahoo_gone and asset.fetched_from == "yahoo":
             limited += 1
-            yahoo_skipped += 1
             continue
         if sifting_gone and asset.fetched_from == "sifting":
             limited += 1
@@ -1684,8 +1674,7 @@ def main(argv: list[str] | None = None) -> int:
                       "providers continue.")
         except yahoo.RateLimited as exc:
             yahoo_gone = True
-            yahoo_trip = asset.asset_id
-            log.error("Yahoo's rate limit is spent - %s", exc)
+            log.error("%s: Yahoo's rate limit is spent - %s", asset.asset_id, exc)
             log.error("Skipping the remaining Yahoo instruments; the other "
                       "providers continue.")
         except Unreachable as exc:
@@ -1730,14 +1719,15 @@ def main(argv: list[str] | None = None) -> int:
                          r["asset_id"], r["rows"], _fmt(r["first"]), _fmt(r["last"]),
                          r["from_api"])
 
-    # STALE: asked and answered, yet nothing new for longer than its calendar
-    # allows - a provider serving an old series, or a contract it no longer
-    # carries. Not the instruments already named above, as failed or skipped.
+    # STALE: nothing new for longer than its calendar allows - a provider
+    # serving an old series, a contract it no longer carries, or Yahoo refusing
+    # run after run (a Yahoo rate limit is said only here). Not the instruments
+    # already named above, as failed or skipped.
     stale: list[tuple[str, str, int]] = []
     if session_table and not args.instruments and not args.extend_history:
         named = {asset_id for asset_id, _, _ in dark}
         stopped = set(silent) | {p for p, gone in (
-            ("tiingo", tiingo_gone), ("yahoo", yahoo_gone), ("sifting", sifting_gone),
+            ("tiingo", tiingo_gone), ("sifting", sifting_gone),
             ("alpaca", alpaca_gone), ("twelvedata", quota_gone)) if gone}
         for asset in instruments:
             if asset.asset_id in named or asset.fetched_from in stopped:
@@ -1750,8 +1740,7 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             if stale_to_name(asset, hours, ticking):
                 stale.append((asset.asset_id, asset.fetched_from, hours))
-                log.error("%s: no new bar for %d session hours though asked",
-                          asset.asset_id, hours)
+                log.error("%s: no new bar for %d session hours", asset.asset_id, hours)
 
     if closed:
         log.info("%d instrument(s) not asked: the calendar says nothing new can exist",
@@ -1846,8 +1835,7 @@ def main(argv: list[str] | None = None) -> int:
     text = format_provider_failure(
         dark, tiingo_gone=tiingo_gone, tiingo_skipped=tiingo_skipped,
         tiingo_remaining=tiingo_remaining, tiingo_trip=tiingo_trip,
-        yahoo_gone=yahoo_gone, yahoo_skipped=yahoo_skipped,
-        yahoo_trip=yahoo_trip, sifting_gone=sifting_gone,
+        yahoo_gone=yahoo_gone, sifting_gone=sifting_gone,
         sifting_skipped=sifting_skipped, sifting_remaining=sifting_remaining,
         sifting_trip=sifting_trip, silent=silent, stale=stale,
         second_source=second_source)
