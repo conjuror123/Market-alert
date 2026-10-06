@@ -213,6 +213,26 @@ def test_merge_events_adds_only_new_rows(tmp_path):
     assert len(economic_calendar.load_events(path)) == 2
 
 
+def test_a_write_that_dies_half_way_leaves_the_archive_as_it_was(tmp_path, monkeypatch):
+    # Written in place, a run killed mid-write left the archive cut short.
+    path = str(tmp_path / "calendar.ndjson")
+    merge_events(path, SAMPLE_RAW)
+    real, calls = economic_calendar.json.dumps, []
+
+    def dies_on_the_second_row(*a, **k):
+        calls.append(1)
+        if len(calls) == 2:
+            raise KeyboardInterrupt
+        return real(*a, **k)
+
+    monkeypatch.setattr(economic_calendar.json, "dumps", dies_on_the_second_row)
+    new = dict(SAMPLE_RAW[0], title="CPI", date="2026-09-10T08:30:00-04:00")
+    with pytest.raises(KeyboardInterrupt):
+        merge_events(path, [new])
+    monkeypatch.undo()
+    assert len(economic_calendar.load_events(path)) == 2
+
+
 def test_load_events_returns_empty_list_when_file_missing(tmp_path):
     assert economic_calendar.load_events(str(tmp_path / "nope.ndjson")) == []
 

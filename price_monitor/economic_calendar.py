@@ -282,11 +282,17 @@ def merge_events(path: str, events: list[dict]) -> int:
             changed += 1
     if changed == 0:
         return 0
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        for e in sorted(by_key.values(), key=lambda e: e["date"]):
-            f.write(json.dumps(e, sort_keys=True))
-            f.write("\n")
+    from jump import atomic
+
+    # Through a temp file: the archive is the only copy of every release's
+    # actual figure, and a run killed mid-write would leave it cut short.
+    def _write(tmp: str) -> None:
+        with open(tmp, "w", encoding="utf-8") as f:
+            for e in sorted(by_key.values(), key=lambda e: e["date"]):
+                f.write(json.dumps(e, sort_keys=True))
+                f.write("\n")
+
+    atomic.write_replacing(path, _write)
     return changed
 
 
