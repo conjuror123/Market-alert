@@ -259,13 +259,46 @@ def fetch_dividends(symbol: str, since: date, base_url: str = BASE_URL,
     Raises on a failed request - an empty list means "asked, and none", which
     is the only answer that may advance a fund's checked-through date.
     """
+    return fetch_dividends_and_splits(symbol, since, base_url, session, now)[0]
+
+
+def fetch_dividends_and_splits(symbol: str, since: date, base_url: str = BASE_URL,
+                               session: requests.Session | None = None,
+                               now: datetime | None = None
+                               ) -> "tuple[list[tuple[date, float]], list[date]]":
+    """fetch_dividends, and the split days of the same answer: one request.
+
+    A split the store's provider has not adjusted reads as an overnight crash
+    of the split's size (USHY's 6-for-5 of 2019-04-22: -18%, -103 sigma), and
+    the ratio guard (jump.returns.SPLIT_RATIOS) knows only the common ratios.
+    A declared split day's gap is not scored, whatever the ratio.
+    """
     now = now or datetime.now(timezone.utc)
     start = datetime.combine(since, datetime.min.time(), tzinfo=timezone.utc) \
         - timedelta(days=7)
     url = f"{base_url}{CHART_ENDPOINT.format(symbol=symbol)}"
-    params = {"interval": "1d", "events": "div",
+    params = {"interval": "1d", "events": "div|split",
               "period1": int(start.timestamp()),
               "period2": int(now.timestamp()) + 86400}
-    found = _request(session, url, params, 86400, symbol,
-                     parse=lambda payload: _parse_dividends(payload, symbol))
-    return [(day, step) for day, step in found if day >= since]
+    found, splits = _request(session, url, params, 86400, symbol,
+                             parse=lambda payload: (_parse_dividends(payload, symbol),
+                                                    parse_splits(payload, symbol)))
+    return ([(day, step) for day, step in found if day >= since],
+            [day for day in splits if day >= since])
+
+
+def parse_splits(payload: dict, symbol: str) -> "list[date]":
+    """The split days of a chart answer, in the exchange's own dates."""
+    try:
+        result = payload["chart"]["result"][0]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise ExchangeError(f"{symbol}: malformed chart response ({exc})") from exc
+    zone = ZoneInfo(result.get("meta", {}).get("exchangeTimezoneName")
+                    or "America/New_York")
+    out = []
+    for item in ((result.get("events") or {}).get("splits") or {}).values():
+        try:
+            out.append(datetime.fromtimestamp(int(item["date"]), zone).date())
+        except (KeyError, TypeError, ValueError):
+            continue
+    return sorted(set(out))

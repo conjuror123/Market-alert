@@ -354,6 +354,9 @@ def check_dividends(funds: "list[Asset]", table: "dict | None",
 
     A failed fund keeps its old date and is asked again next hour; its gap stays
     unscored meanwhile, which is the safe direction.
+
+    The same answer carries the fund's splits, recorded as declared: a split a
+    provider has not adjusted would read as an overnight crash of its size.
     """
     now = now or datetime.now(timezone.utc)
     zone = ZoneInfo("America/New_York")
@@ -374,8 +377,8 @@ def check_dividends(funds: "list[Asset]", table: "dict | None",
         since = (date.fromisoformat(checks[asset.ticker]) + timedelta(days=1)
                  if asset.ticker in checks else today - timedelta(days=30))
         try:
-            pairs = yahoo.fetch_dividends(asset.ticker, since, session=session,
-                                          now=now)
+            pairs, splits = yahoo.fetch_dividends_and_splits(asset.ticker, since,
+                                                             session=session, now=now)
         except yahoo.RateLimited as exc:
             log.warning("dividend check: Yahoo rate-limited at %s - %s",
                         asset.ticker, exc)
@@ -400,6 +403,11 @@ def check_dividends(funds: "list[Asset]", table: "dict | None",
         found.extend(corporate_actions.CorporateAction(
             ticker=asset.ticker, day=day, kind="dividend", factor_step=step)
             for day, step in pairs)
+        # Declared, so that day's gap is not scored whatever the ratio (the
+        # split rows' factor_step is 1.0, as the Tiingo path writes them).
+        found.extend(corporate_actions.CorporateAction(
+            ticker=asset.ticker, day=day, kind="split", factor_step=1.0)
+            for day in splits)
         checks[asset.ticker] = today.isoformat()
         checked += 1
 

@@ -146,6 +146,15 @@ the tape on it.
 retroactively with every dividend. Dividends and splits come from Tiingo's daily endpoint,
 since a ratio of adjusted to unadjusted cannot see a split.
 
+**Splits are declared from Yahoo, every morning and once for the history.** The ratio guard
+knows only the common ratios, and the table held only the five SPDR splits of 2025-12-05.
+Yahoo lists 56 fund splits since 2000; stocksplithistory.com matched every one. 53 had been
+adjusted in the store. IGIB's and USIG's 2-for-1 were not, but the guard caught them.
+USHY's 6-for-5 of 2019-04-22 was not, and read as an −18% night (−103σ, extreme). Declaring
+them removed that one reading over the full history. Because the hourly run recomputes only
+its last rows, a fund whose payouts or splits change is rebuilt, or the old day's gap would
+keep the old answer.
+
 **History from another source is written only where it agrees with the store**: returns
 correlate ≥ 0.90 and the median level gap is ≤ 25 bp over ≥ 200 shared hours
 (`backfill.verify_alignment`). The level test catches dividend-adjusted imports, which

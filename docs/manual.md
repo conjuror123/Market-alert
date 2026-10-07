@@ -168,7 +168,9 @@ future's thin bar, or it falls outside its session.
 Yahoo is asked for each paying fund's payouts; two funds in a row unanswered end the check
 until the next run. A fund's overnight gap is scored only on a date its payouts are
 confirmed through; five or more days behind, the health chat is told
-once a day.
+once a day. The same answer carries the fund's splits, recorded as declared, so a split
+day's gap is not scored whatever the ratio. The splits since 2000 were declared once
+from Yahoo's list, which stocksplithistory.com matched on every split.
 
 ## 5. The second source
 

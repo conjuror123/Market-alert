@@ -33,6 +33,12 @@ def files(tmp_path):
     return str(actions), str(checks)
 
 
+def answer(monkeypatch, fake, splits=()):
+    """Yahoo's answer: the payouts `fake` gives, and these split days."""
+    monkeypatch.setattr(yahoo, "fetch_dividends_and_splits",
+                        lambda *a, **k: (fake(*a, **k), list(splits)))
+
+
 def run(files, now, answers, funds=("HYG", "GLD")):
     actions, checks = files
     return backfill.check_dividends([fund(t) for t in funds], TABLE, None, now=now,
@@ -46,7 +52,7 @@ def test_a_payout_found_this_morning_is_recorded_and_the_fund_vouched_for(files,
         asked.append((ticker, since))
         return [(DAY, 0.0055)] if ticker == "HYG" else []
 
-    monkeypatch.setattr(yahoo, "fetch_dividends", fake)
+    answer(monkeypatch, fake)
     r = run(files, at(10), None)
 
     assert r["checked"] == 2 and r["added"] == 1 and not r["failed"]
@@ -63,7 +69,7 @@ def test_a_failed_fund_is_not_vouched_for(files, monkeypatch):
             raise yahoo.ExchangeError("HYG: status 503")
         return []
 
-    monkeypatch.setattr(yahoo, "fetch_dividends", fake)
+    answer(monkeypatch, fake)
     r = run(files, at(10), None)
 
     assert r["failed"] == ["HYG"]
@@ -83,7 +89,7 @@ def test_yahoo_not_answering_twice_in_a_row_ends_the_check(files, monkeypatch):
         asked.append(ticker)
         raise Unreachable(f"{ticker}: Read timed out")
 
-    monkeypatch.setattr(yahoo, "fetch_dividends", fake)
+    answer(monkeypatch, fake)
     r = run(files, at(10), None, funds=("HYG", "GLD", "SLV", "TLT"))
 
     assert asked == ["HYG", "GLD"]
@@ -100,7 +106,7 @@ def test_one_unanswered_fund_does_not_end_the_check(files, monkeypatch):
             raise Unreachable(f"{ticker}: Read timed out")
         return []
 
-    monkeypatch.setattr(yahoo, "fetch_dividends", fake)
+    answer(monkeypatch, fake)
     r = run(files, at(10), None, funds=("HYG", "GLD", "SLV", "TLT"))
 
     assert asked == ["HYG", "GLD", "SLV", "TLT"]
@@ -108,7 +114,7 @@ def test_one_unanswered_fund_does_not_end_the_check(files, monkeypatch):
 
 
 def test_nothing_is_asked_before_the_open_or_off_a_trading_day(files, monkeypatch):
-    monkeypatch.setattr(yahoo, "fetch_dividends",
+    answer(monkeypatch,
                         lambda *a, **k: pytest.fail("asked too early"))
     assert run(files, at(9, 5), None)["skipped"] == "before the open"
     saturday = datetime(2026, 10, 3, 11, tzinfo=NY).astimezone(timezone.utc)
@@ -116,16 +122,16 @@ def test_nothing_is_asked_before_the_open_or_off_a_trading_day(files, monkeypatc
 
 
 def test_a_fund_already_confirmed_today_is_not_asked_again(files, monkeypatch):
-    monkeypatch.setattr(yahoo, "fetch_dividends", lambda *a, **k: [])
+    answer(monkeypatch, lambda *a, **k: [])
     run(files, at(10), None)
-    monkeypatch.setattr(yahoo, "fetch_dividends",
+    answer(monkeypatch,
                         lambda *a, **k: pytest.fail("asked twice in one day"))
     assert run(files, at(11), None)["checked"] == 0
 
 
 def test_a_fund_behind_for_days_is_named_once_a_day(files, monkeypatch):
     corporate_actions.write_checks({"HYG": "2026-09-20", "GLD": "2026-09-30"}, files[1])
-    monkeypatch.setattr(yahoo, "fetch_dividends",
+    answer(monkeypatch,
                         lambda t, *a, **k: (_ for _ in ()).throw(
                             yahoo.ExchangeError("down")) if t == "HYG" else [])
     assert run(files, at(10), None)["stale"] == ["HYG"]
@@ -147,3 +153,21 @@ def test_yahoo_payouts_come_back_in_the_tables_form():
     d = 0.435 / 79.8
     assert day == date(2026, 9, 1)
     assert step == pytest.approx(d / (1 - d))
+
+
+def test_a_split_in_the_same_answer_is_declared(files, monkeypatch):
+    # USHY's 6-for-5 of 2019-04-22 arrived unadjusted and read as -103 sigma:
+    # 6:5 is not a ratio the guard knows. Declared, its gap is not scored.
+    answer(monkeypatch, lambda t, *a, **k: [], splits=[DAY])
+    run(files, at(10), None, funds=("HYG",))
+    assert "2026-10-01" in corporate_actions.load_dividends(*files).splits["HYG"]
+
+
+def test_yahoo_s_split_events_are_read_in_the_exchange_s_dates():
+    # Yahoo's answer for USHY: the 6-for-5 stamped 13:30 UTC on 2019-04-22.
+    payload = {"chart": {"result": [{"meta": {"exchangeTimezoneName": "America/New_York"},
+                                     "events": {"splits": {"1555939800": {
+                                         "date": 1555939800, "numerator": 6.0,
+                                         "denominator": 5.0, "splitRatio": "6:5"}}}}]}}
+    assert yahoo.parse_splits(payload, "USHY") == [date(2019, 4, 22)]
+    assert yahoo.parse_splits({"chart": {"result": [{}]}}, "USHY") == []
