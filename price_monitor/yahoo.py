@@ -259,19 +259,6 @@ def fetch_dividends(symbol: str, since: date, base_url: str = BASE_URL,
     Raises on a failed request - an empty list means "asked, and none", which
     is the only answer that may advance a fund's checked-through date.
     """
-    return fetch_dividends_and_bars(symbol, since, base_url, session, now)[0]
-
-
-def fetch_dividends_and_bars(symbol: str, since: date, base_url: str = BASE_URL,
-                             session: requests.Session | None = None,
-                             now: datetime | None = None
-                             ) -> "tuple[list[tuple[date, float]], list[Candle]]":
-    """fetch_dividends, and the daily candles of the same answer: one request.
-
-    The candles carry each day's official open, where a fund's night ends
-    (jump.opens). Asked on the first run after the open, the answer holds
-    today's open too.
-    """
     now = now or datetime.now(timezone.utc)
     start = datetime.combine(since, datetime.min.time(), tzinfo=timezone.utc) \
         - timedelta(days=7)
@@ -279,7 +266,6 @@ def fetch_dividends_and_bars(symbol: str, since: date, base_url: str = BASE_URL,
     params = {"interval": "1d", "events": "div",
               "period1": int(start.timestamp()),
               "period2": int(now.timestamp()) + 86400}
-    found, candles = _request(session, url, params, 86400, symbol,
-                              parse=lambda payload: (_parse_dividends(payload, symbol),
-                                                     _parse(payload, 86400, symbol)))
-    return [(day, step) for day, step in found if day >= since], candles
+    found = _request(session, url, params, 86400, symbol,
+                     parse=lambda payload: _parse_dividends(payload, symbol))
+    return [(day, step) for day, step in found if day >= since]

@@ -1,5 +1,4 @@
 """The morning dividend check: what lets an overnight gap be scored at all."""
-import os
 from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -37,14 +36,7 @@ def files(tmp_path):
 def run(files, now, answers, funds=("HYG", "GLD")):
     actions, checks = files
     return backfill.check_dividends([fund(t) for t in funds], TABLE, None, now=now,
-                                    actions_path=actions, checks_path=checks,
-                                    opens_dir=os.path.join(os.path.dirname(actions), "opens"))
-
-
-def answer(monkeypatch, fake, daily=()):
-    """Yahoo's answer: the payouts `fake` gives, and these daily candles."""
-    monkeypatch.setattr(yahoo, "fetch_dividends_and_bars",
-                        lambda *a, **k: (fake(*a, **k), list(daily)))
+                                    actions_path=actions, checks_path=checks)
 
 
 def test_a_payout_found_this_morning_is_recorded_and_the_fund_vouched_for(files, monkeypatch):
@@ -54,7 +46,7 @@ def test_a_payout_found_this_morning_is_recorded_and_the_fund_vouched_for(files,
         asked.append((ticker, since))
         return [(DAY, 0.0055)] if ticker == "HYG" else []
 
-    answer(monkeypatch, fake)
+    monkeypatch.setattr(yahoo, "fetch_dividends", fake)
     r = run(files, at(10), None)
 
     assert r["checked"] == 2 and r["added"] == 1 and not r["failed"]
@@ -71,7 +63,7 @@ def test_a_failed_fund_is_not_vouched_for(files, monkeypatch):
             raise yahoo.ExchangeError("HYG: status 503")
         return []
 
-    answer(monkeypatch, fake)
+    monkeypatch.setattr(yahoo, "fetch_dividends", fake)
     r = run(files, at(10), None)
 
     assert r["failed"] == ["HYG"]
@@ -91,7 +83,7 @@ def test_yahoo_not_answering_twice_in_a_row_ends_the_check(files, monkeypatch):
         asked.append(ticker)
         raise Unreachable(f"{ticker}: Read timed out")
 
-    answer(monkeypatch, fake)
+    monkeypatch.setattr(yahoo, "fetch_dividends", fake)
     r = run(files, at(10), None, funds=("HYG", "GLD", "SLV", "TLT"))
 
     assert asked == ["HYG", "GLD"]
@@ -108,7 +100,7 @@ def test_one_unanswered_fund_does_not_end_the_check(files, monkeypatch):
             raise Unreachable(f"{ticker}: Read timed out")
         return []
 
-    answer(monkeypatch, fake)
+    monkeypatch.setattr(yahoo, "fetch_dividends", fake)
     r = run(files, at(10), None, funds=("HYG", "GLD", "SLV", "TLT"))
 
     assert asked == ["HYG", "GLD", "SLV", "TLT"]
@@ -116,7 +108,7 @@ def test_one_unanswered_fund_does_not_end_the_check(files, monkeypatch):
 
 
 def test_nothing_is_asked_before_the_open_or_off_a_trading_day(files, monkeypatch):
-    answer(monkeypatch,
+    monkeypatch.setattr(yahoo, "fetch_dividends",
                         lambda *a, **k: pytest.fail("asked too early"))
     assert run(files, at(9, 5), None)["skipped"] == "before the open"
     saturday = datetime(2026, 10, 3, 11, tzinfo=NY).astimezone(timezone.utc)
@@ -124,16 +116,16 @@ def test_nothing_is_asked_before_the_open_or_off_a_trading_day(files, monkeypatc
 
 
 def test_a_fund_already_confirmed_today_is_not_asked_again(files, monkeypatch):
-    answer(monkeypatch, lambda *a, **k: [])
+    monkeypatch.setattr(yahoo, "fetch_dividends", lambda *a, **k: [])
     run(files, at(10), None)
-    answer(monkeypatch,
+    monkeypatch.setattr(yahoo, "fetch_dividends",
                         lambda *a, **k: pytest.fail("asked twice in one day"))
     assert run(files, at(11), None)["checked"] == 0
 
 
 def test_a_fund_behind_for_days_is_named_once_a_day(files, monkeypatch):
     corporate_actions.write_checks({"HYG": "2026-09-20", "GLD": "2026-09-30"}, files[1])
-    answer(monkeypatch,
+    monkeypatch.setattr(yahoo, "fetch_dividends",
                         lambda t, *a, **k: (_ for _ in ()).throw(
                             yahoo.ExchangeError("down")) if t == "HYG" else [])
     assert run(files, at(10), None)["stale"] == ["HYG"]
@@ -155,19 +147,3 @@ def test_yahoo_payouts_come_back_in_the_tables_form():
     d = 0.435 / 79.8
     assert day == date(2026, 9, 1)
     assert step == pytest.approx(d / (1 - d))
-
-
-def test_the_same_answer_records_each_day_s_official_open_today_s_included(files, monkeypatch):
-    from jump import opens
-    from price_monitor.models import Candle
-
-    def day(d, o, c):
-        t = int(datetime(2026, 9, d, 9, 30, tzinfo=NY).timestamp()) if d < 31 else \
-            int(datetime(2026, 10, 1, 9, 30, tzinfo=NY).timestamp())
-        return Candle(open_time=t, open=o, high=max(o, c) + 1, low=min(o, c) - 1,
-                      close=c, volume=1.0, close_time=t + 86400)
-
-    answer(monkeypatch, lambda *a, **k: [], daily=[day(30, 79.0, 80.0), day(31, 78.4, 79.1)])
-    run(files, at(10), None, funds=("HYG",))
-    table = opens.load(os.path.join(os.path.dirname(files[0]), "opens"))
-    assert table["HYG"] == {"2026-10-01": pytest.approx(78.4 / 80.0)}

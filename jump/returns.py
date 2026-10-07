@@ -12,10 +12,6 @@ previous session's close:
     first bar of a session:  r_t = ln(close_of_first / open_of_first)
     every other bar:         r_t = ln(close_t / close_{t-1})
 
-A fund's session opens at its OFFICIAL open (jump.opens), not at its feed's
-first print, which can be a stale one at the previous close: official_opens
-puts that open on the first bar before anything is measured.
-
 The overnight jump is not a return here: r stays the move inside the hour, and
 the first bar is not disturbed. It is KEPT beside it, though, as its own column
 `gap` - see overnight_gaps, and jump.jumps for how it is scored.
@@ -158,8 +154,6 @@ def split_channels(asset: Asset, usable: pd.DataFrame,
     after_hole = ~is_open.to_numpy() & (hours - prev_hour > HOUR)
 
     prev_close = out["close"].shift(1)
-    out["official_open"] = official_opens(asset, out, session, is_open.to_numpy(dtype=bool),
-                                          dividends, session_table)
     own_hour = np.log(out["close"] / out["open"])
     out["r"] = np.where(is_open | after_hole, own_hour, np.log(out["close"] / prev_close))
     # The very first bar of history has no previous close, and its own open is
@@ -171,54 +165,6 @@ def split_channels(asset: Asset, usable: pd.DataFrame,
     out["gap"] = (overnight_gaps(asset, out, session, dividends, session_table)
                   if dividends is not None else np.nan)
     return out
-
-
-def official_opens(asset: Asset, out: pd.DataFrame, session: pd.Series,
-                   is_open: np.ndarray, dividends, session_table=None) -> np.ndarray:
-    """A fund's session opens at the official open: its first bar's open becomes
-    the stored previous close times the official open over the official
-    previous close (jump.opens), in place. Returns where it did.
-
-    The stored close-to-close move is kept exactly; only its split between the
-    night and the first hour moves. Not where the answer could be something
-    else: unless the previous stored bar closed the previous session and the
-    bar is the session's first hour (as for the gap, overnight_gaps), and not
-    when the stored close-to-close move is a split ratio or the day a declared
-    split - a provider that has not adjusted would put the split into the
-    first hour. A fund with no official opens at all keeps its stored ones.
-    """
-    n = len(out)
-    done = np.zeros(n, dtype=bool)
-    mine = (getattr(dividends, "opens", None) or {}).get(asset.ticker)
-    if asset.session_template != "us_equity" or not mine or n < 2:
-        return done
-    from jump.sessions import instrument_day_hours
-
-    day = session.to_numpy(dtype=object)
-    hours = out["hour_utc"].to_numpy(dtype="int64")
-    prev_hour = np.concatenate([[0], hours[:-1]])
-    first_bar = is_open.copy()
-    first_bar[0] = False
-    complete = _closed_on_the_last_bar(day, prev_hour, first_bar, session_table)
-    close = out["close"].to_numpy(dtype="float64")
-    splits = getattr(dividends, "splits", {}).get(asset.ticker, frozenset())
-    ratios = np.log(np.array(SPLIT_RATIOS))
-    opened = out["open"].to_numpy(dtype="float64").copy()
-    for k in np.flatnonzero(first_bar & complete):
-        ratio = mine.get(day[k])
-        if ratio is None or not ratio > 0 or day[k] in splits:
-            continue
-        expected = instrument_day_hours(date.fromisoformat(day[k]), asset.session_template,
-                                        session_table)
-        if not expected or hours[k] != min(expected):
-            continue
-        moved = math.log(close[k] / close[k - 1])
-        if np.any(np.abs(np.abs(moved) - ratios) < SPLIT_TOLERANCE):
-            continue
-        opened[k] = close[k - 1] * ratio
-        done[k] = True
-    out["open"] = opened
-    return done
 
 
 def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
@@ -342,14 +288,8 @@ def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
                     "ratio, not scored", asset.ticker, day[position],
                     100 * (math.exp(gap[position]) - 1))
 
-    # No official open, no night: the stored first print may be a stale one
-    # (jump.opens). A fund with no official opens at all keeps its stored ones.
-    mine = (getattr(dividends, "opens", None) or {}).get(asset.ticker)
-    official = np.array([d in mine for d in day], dtype=bool) if mine \
-        else np.ones(n, dtype=bool)
-
     usable = (is_open & complete & on_time & known & ~declared & ~looks_split
-              & official & np.isfinite(gap))
+              & np.isfinite(gap))
     return np.where(usable, gap, np.nan)
 
 

@@ -219,9 +219,6 @@ jobs:
           # away after each run - so an uncommitted check is one that never
           # happened, and the next morning would ask again from the old date.
           git add data/jump/corporate_actions.csv data/jump/dividend_checks.csv
-          # And each fund's official open, from the same morning answer
-          # (jump.opens): its gap is scored only with it.
-          git add data/jump/opens
           # Every run, and small: the second source's verdicts (jump.verify).
           # The detector leaves the unconfirmed moves out on every runner, so
           # an uncommitted verdict would be a move scored again.

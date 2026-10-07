@@ -24,7 +24,7 @@ import logging
 import os
 import time
 import urllib.parse
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 
 import requests
@@ -93,8 +93,6 @@ class Dividends:
     steps: "dict[str, dict[str, float]]"      # ticker -> ex-date -> step d/(1-d)
     splits: "dict[str, frozenset[str]]"       # ticker -> split dates
     checked_through: "dict[str, str]"         # ticker -> last date known complete
-    # ticker -> day -> official open over the previous official close (jump.opens)
-    opens: "dict[str, dict[str, float]]" = field(default_factory=dict)
 
 
 class CorporateActionsError(RuntimeError):
@@ -261,11 +259,8 @@ def write_checks(checks: "dict[str, str]", path: str = DEFAULT_CHECKS_PATH) -> N
 
 
 def load_dividends(actions_path: str = DEFAULT_ACTIONS_PATH,
-                   checks_path: str = DEFAULT_CHECKS_PATH,
-                   opens_dir: "str | None" = None) -> Dividends:
-    """Payout steps, split dates, checked-through dates and the official
-    opens, for the gap."""
-    from jump import opens
+                   checks_path: str = DEFAULT_CHECKS_PATH) -> Dividends:
+    """Payout steps, split dates and checked-through dates, for the gap."""
     steps: dict[str, dict[str, float]] = {}
     splits: dict[str, set[str]] = {}
     if os.path.exists(actions_path):
@@ -283,8 +278,7 @@ def load_dividends(actions_path: str = DEFAULT_ACTIONS_PATH,
                     continue
     return Dividends(steps=steps,
                      splits={t: frozenset(d) for t, d in splits.items()},
-                     checked_through=load_checks(checks_path),
-                     opens=opens.load(opens_dir or opens.DEFAULT_DIR))
+                     checked_through=load_checks(checks_path))
 
 
 def merge_actions(new: "list[CorporateAction]",

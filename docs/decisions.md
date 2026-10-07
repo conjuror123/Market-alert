@@ -161,27 +161,6 @@ and USD/KRW's 2020-2025 hold about 60 each, which no free source can mend, and s
 read the next real weekend as hundreds of sigma (USD/INR 2022-01-09: −389σ under a
 two-year window).
 
-**A fund's night ends at the official open, not at its feed's first print.** The first
-print is sometimes a stale one at the previous close, after which the bar trades far away.
-The night's move then lands in the first hour, and the gap reads 0. TLH on 2020-03-09 shows
-a gap of +0.03% and a first hour of +3.8% against an official gap of +4.65%.
-
-Against Yahoo's daily bars, 2002-2026, that is 3.9% of fund-days: 7-12% a year in 2020-22
-and about 0.6% a year since (362 in the two years to 2026-10). The zeros it leaves
-collapsed the nights' yardstick: in 2021, 16% of stored gaps sat within 2 bp of zero,
-against 8% of official ones (GLD 34% against 3%).
-
-The official open also replaces IEX's first print, which can sit tens of bp off the
-market's open. Sina's consolidated bars, 2026-06-10..10-06, sided with the official open 109
-times and with the IEX store 12. It also replaces a price from before a split (IHI
-2021-07-19).
-
-The open comes in the answer the morning dividend check already gets, so a gap needs
-nothing it did not already need. Only the split of the stored close-to-close move between
-night and first hour changes. Over the full history the funds' flags went 9,761 → 9,255 and
-their events 7,520 → 7,075, and 116 of 537,603 gaps went unscored for want of an official
-open. Over the year to 2026-10-01, fund pushes went 91 → 85.
-
 **Futures are read one contract at a time.** Yahoo's continuous series interleaves months.
 The softs' history is Dukascopy's single-contract CFDs from 2018, spliced at a measured
 seam; live cattle keeps Yahoo's series minus its interleaved stretches. The night across a
@@ -311,7 +290,6 @@ Measured or weighed, and not to be raised again.
 | a level check (30% off the two-day median) | drops real crypto crashes |
 | "isolated and taken back" as a bad print | marks real moves, misses a feed sitting off for hours |
 | a longer window for weekend gaps (pairs 1 or 2 years, funds 1 year, a fund's weekends pooled with its nights) | once the pairs' stitched zero weekends were mended or unscored, the pairs' median QLIKE went 3.63 → 3.41 (1 year) and 3.34 (2 years), each better for only 11 of 16; funds 2.39 → 2.34, better for 61 of 133. The gain is small, real shocks read quieter (EUR/USD 2022-02-27 extreme → noticeable at 2 years), and one window for every instrument stays the rule |
-| a stale first print found from the bar alone (open at the previous close, an extreme of its bar, a big first hour) | against the official open, it caught at best 7% of stale prints at 66% precision; the official open replaces the first print instead |
 | a bridge may confirm, never reject (or no check in the second feed's missing hours) | over 2024-10 to 2026-10, frees one real hour (USD/KRW 2024-12-03 15:00, not flaggable) and lets in 34 flags, almost all USD/INR rollover ticks at 21:00–01:00 UTC; the narrower "unless it moved further the other way" changes 2 verdicts and 1 flag each way |
 | holding isolated moves an hour | a third of alerts would be an hour late |
 | a watchdog for the trigger's silence | the external scheduler is the party that knows a call stopped |
