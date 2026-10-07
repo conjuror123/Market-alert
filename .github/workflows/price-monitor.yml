@@ -247,7 +247,10 @@ jobs:
                 exit 0
               fi
               echo "push rejected, rebasing onto origin/${{ github.ref_name }}"
-              git pull --rebase origin "${{ github.ref_name }}" || exit 1
+              # --autostash: the VIX file is rewritten most runs but committed
+              # only on Saturdays, and a plain rebase refuses to run beside it
+              # (2026-10-07 15:05: a GitHub 500 on the push, and no retry).
+              git pull --rebase --autostash origin "${{ github.ref_name }}" || exit 1
               sleep $((attempt * 3))
             done
             echo "::error::could not push monitor state after 5 attempts"

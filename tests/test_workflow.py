@@ -76,3 +76,47 @@ def test_a_repair_is_asked_for_by_hand_and_reaches_the_step_as_data():
     assert "inputs.repair" not in step["run"]
     assert 'python -m jump.backfill --repair --instruments "$REPAIR"' in step["run"]
     assert step["run"].index("--repair") < step["run"].index("stage fetch")
+
+
+def test_a_rejected_state_push_is_retried_beside_the_uncommitted_vix_file(tmp_path):
+    # 2026-10-07 15:05: GitHub answered the push with a 500, and the retry's
+    # `git pull --rebase` refused to run - the VIX file is rewritten most runs
+    # but committed only on Saturdays. The state was lost. The step's own
+    # retry loop, run here against a branch that moved meanwhile.
+    import re
+    import subprocess
+
+    script = _steps()["Commit updated state"]["run"]
+    loop = script[script.index("for attempt in"):script.index("done", script.index("for attempt in")) + 4]
+    loop = re.sub(r"\$\{\{ github\.ref_name \}\}", "main", loop).replace("sleep $((attempt * 3))", "true")
+
+    def git(*args, cwd):
+        subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", *args], cwd=cwd,
+                       check=True, capture_output=True)
+
+    origin, mine, theirs = tmp_path / "origin.git", tmp_path / "mine", tmp_path / "theirs"
+    git("init", "-q", "--bare", "-b", "main", str(origin), cwd=tmp_path)
+    git("clone", "-q", str(origin), str(mine), cwd=tmp_path)
+    (mine / "vix").write_text("v1")
+    (mine / "state").write_text("s1")
+    git("add", ".", cwd=mine)
+    git("commit", "-q", "-m", "base", cwd=mine)
+    git("push", "-q", "origin", "HEAD:main", cwd=mine)
+    git("clone", "-q", str(origin), str(theirs), cwd=tmp_path)
+    (theirs / "other").write_text("moved")
+    git("add", "other", cwd=theirs)
+    git("commit", "-q", "-m", "the branch moved", cwd=theirs)
+    git("push", "-q", "origin", "HEAD:main", cwd=theirs)
+
+    (mine / "vix").write_text("v2")                  # rewritten, not committed
+    (mine / "state").write_text("s2")
+    git("add", "state", cwd=mine)
+    git("commit", "-q", "-m", "the run's state", cwd=mine)
+    env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t",
+               GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+    done = subprocess.run(["bash", "-c", loop], cwd=mine, env=env, capture_output=True, text=True)
+    assert done.returncode == 0, done.stdout + done.stderr
+    log = subprocess.run(["git", "log", "--format=%s", "origin/main"], cwd=mine,
+                         capture_output=True, text=True).stdout
+    assert "the run's state" in log and "the branch moved" in log
+    assert (mine / "vix").read_text() == "v2"          # still uncommitted, as before

@@ -170,7 +170,7 @@ jobs:
               exit 0
             fi
             echo "push rejected, rebasing onto origin/${{ github.ref_name }}"
-            git pull --rebase origin "${{ github.ref_name }}" || exit 1
+            git pull --rebase --autostash origin "${{ github.ref_name }}" || exit 1
             sleep $((attempt * 3))
           done
           echo "::error::could not push the deepened store after 5 attempts"
