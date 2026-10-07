@@ -1,9 +1,9 @@
 asset_id,hour_utc,check,verdict,provider,verifier,stored_move,verifier_move,checked_utc
-binance:AVAX/USDT,1791338400,close,confirmed,binance,coinbase,-0.030174,-0.030452,1791367615
+binance:AVAX/USDT,1791338400,close,confirmed,binance,coinbase,-0.030174,-0.030452,1791371205
 binance:BCH/USDT,1605495600,close,unconfirmed,binance,coinbase,0.056243,0.003959,1791349334
 binance:BCH/USDT,1610233200,close,unconfirmed,binance,coinbase,0.058877,-0.000709,1791349334
 binance:DOGE/USDT,1760133600,close,unconfirmed,binance,coinbase,0.041977,-0.008741,1791316800
-binance:DOT/USDT,1791334800,close,confirmed,binance,coinbase,-0.034764,-0.036065,1791367615
+binance:DOT/USDT,1791334800,close,confirmed,binance,coinbase,-0.034764,-0.036065,1791371205
 binance:FIL/USDT,1760130000,close,unconfirmed,binance,coinbase,-0.293749,-0.020619,1791316800
 binance:FIL/USDT,1760133600,close,unconfirmed,binance,coinbase,0.041411,0.005797,1791316800
 binance:FIL/USDT,1760137200,close,unconfirmed,binance,coinbase,0.035028,-0.132156,1791316800
@@ -42,7 +42,7 @@ twelvedata:EUR/USD,1357099200,close,unconfirmed,sifting,dukascopy,0.005729,-0.00
 twelvedata:EUR/USD,1789581600,close,confirmed,sifting,yahoo,-0.005967,-0.005984,1791114096
 twelvedata:EUR/USD,1791165600,close,confirmed,sifting,yahoo,-0.005383,-0.005377,1791248811
 twelvedata:EUR/USD,1791270000,close,confirmed,sifting,yahoo,0.002681,0.002807,1791353215
-twelvedata:EUR/USD,1791356400,close,confirmed,sifting,yahoo,-0.003346,-0.003476,1791367615
+twelvedata:EUR/USD,1791356400,close,confirmed,sifting,yahoo,-0.003346,-0.003476,1791371205
 twelvedata:EWA,1789581600,close,confirmed,sina,yahoo,-0.011633,-0.011633,1791114096
 twelvedata:EWC,1789581600,close,confirmed,yahoo,sina,-0.012065,-0.012065,1791114096
 twelvedata:EWJ,1789581600,close,confirmed,alpaca,yahoo,-0.012508,-0.012508,1791114096
@@ -104,7 +104,7 @@ twelvedata:JMBS,1790168400,close,confirmed,sina,yahoo,-0.003806,-0.003806,179111
 twelvedata:JMBS,1790258400,close,confirmed,sina,yahoo,-0.005000,-0.005000,1791114096
 twelvedata:JMBS,1790604000,close,confirmed,sina,yahoo,-0.005279,-0.005279,1791114096
 twelvedata:JMBS,1790704800,close,confirmed,sina,yahoo,0.004717,0.004717,1791114096
-twelvedata:JMBS,1791295200,close,confirmed,sina,yahoo,0.004027,0.004028,1791367615
+twelvedata:JMBS,1791295200,close,confirmed,sina,yahoo,0.004027,0.004028,1791371205
 twelvedata:JNK,1789581600,close,confirmed,tiingo,yahoo,-0.003227,-0.003121,1791114096
 twelvedata:JNK,1790341200,close,confirmed,tiingo,yahoo,-0.002880,-0.001174,1791114096
 twelvedata:KRE,1789581600,close,confirmed,alpaca,yahoo,-0.021082,-0.021082,1791114096
@@ -125,7 +125,7 @@ twelvedata:MBB,1789398000,close,confirmed,tiingo,yahoo,0.003285,0.003358,1791114
 twelvedata:MBB,1789581600,close,confirmed,tiingo,yahoo,-0.004266,-0.004267,1791114096
 twelvedata:MBB,1790168400,close,confirmed,tiingo,yahoo,-0.003129,-0.003074,1791114096
 twelvedata:MBB,1790258400,close,confirmed,tiingo,yahoo,-0.004975,-0.004920,1791114096
-twelvedata:MBB,1791295200,close,confirmed,tiingo,yahoo,0.003472,0.003472,1791367615
+twelvedata:MBB,1791295200,close,confirmed,tiingo,yahoo,0.003472,0.003472,1791371205
 twelvedata:MDY,1789581600,close,confirmed,yahoo,sina,-0.012890,-0.012890,1791114096
 twelvedata:NZD/USD,1357099200,close,unconfirmed,sifting,dukascopy,0.010671,-0.002175,1791362566
 twelvedata:NZD/USD,1557277200,close,unconfirmed,sifting,dukascopy,-0.008887,0.000167,1791362566
@@ -239,7 +239,7 @@ twelvedata:STIP,1789581600,close,confirmed,sina,yahoo,-0.003193,-0.003193,179111
 twelvedata:TIP,1789398000,close,confirmed,tiingo,yahoo,0.002264,0.002357,1791114096
 twelvedata:TIP,1789581600,close,confirmed,tiingo,yahoo,-0.005484,-0.005390,1791114096
 twelvedata:TIP,1790258400,close,confirmed,tiingo,yahoo,-0.002292,-0.002244,1791114096
-twelvedata:TIP,1791295200,close,confirmed,tiingo,yahoo,0.002593,0.002593,1791367615
+twelvedata:TIP,1791295200,close,confirmed,tiingo,yahoo,0.002593,0.002593,1791371205
 twelvedata:TLH,1458565200,close,overnight,tiingo,alpaca,-0.007149,-0.002430,1791362492
 twelvedata:TLH,1582812000,close,overnight,tiingo,alpaca,0.009516,0.010970,1791362492
 twelvedata:TLH,1583758800,close,overnight,tiingo,alpaca,0.037691,0.046599,1791362492
@@ -526,7 +526,7 @@ twelvedata:VMBS,1790604000,close,confirmed,alpaca,yahoo,-0.004819,-0.004819,1791
 twelvedata:VMBS,1790704800,close,confirmed,alpaca,yahoo,0.003718,0.003718,1791114096
 twelvedata:VMBS,1790866800,close,confirmed,alpaca,yahoo,0.004628,0.004628,1791114096
 twelvedata:VMBS,1790949600,close,confirmed,alpaca,yahoo,-0.003600,-0.003938,1791114096
-twelvedata:VMBS,1791295200,close,confirmed,alpaca,yahoo,0.003503,0.003726,1791367615
+twelvedata:VMBS,1791295200,close,confirmed,alpaca,yahoo,0.003503,0.003726,1791371205
 twelvedata:VNQI,1789581600,close,confirmed,sina,yahoo,-0.009176,-0.008034,1791114096
 twelvedata:VTIP,1789581600,close,confirmed,alpaca,yahoo,-0.003050,-0.003050,1791114096
 twelvedata:VTIP,1790866800,close,confirmed,alpaca,yahoo,0.001447,0.001418,1791114096

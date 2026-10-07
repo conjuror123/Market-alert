@@ -1,12 +1,12 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1791367652
+    "last_run_utc": 1791371236
   },
   "floor_pending_replies": [],
   "jump_delivery": {
     "week": {
-      "detector": "a37b20a68e32",
+      "detector": "866631d58f64",
       "events": {},
       "messages": {},
       "note": {
