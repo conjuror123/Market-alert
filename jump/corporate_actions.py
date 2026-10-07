@@ -281,6 +281,21 @@ def load_dividends(actions_path: str = DEFAULT_ACTIONS_PATH,
                      checked_through=load_checks(checks_path))
 
 
+def fingerprint(dividends, ticker: str) -> str:
+    """A hash of one fund's payout steps and split dates: what its gaps were
+    computed with. jump.pipeline rebuilds an instrument whose fingerprint
+    moved - a payout or split added for an old date reaches no gap otherwise,
+    since the hourly run recomputes only its last rows. Not the checked-through
+    date: it moves every day, and only the tail it already recomputes."""
+    import hashlib
+
+    steps = sorted((dividends.steps.get(ticker) or {}).items())
+    splits = sorted(dividends.splits.get(ticker) or ())
+    if not steps and not splits:
+        return ""
+    return hashlib.sha256(repr((steps, splits)).encode()).hexdigest()[:12]
+
+
 def merge_actions(new: "list[CorporateAction]",
                   path: str = DEFAULT_ACTIONS_PATH) -> int:
     """Adds payouts the table does not hold yet; returns how many were added.

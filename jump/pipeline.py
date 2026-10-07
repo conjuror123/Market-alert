@@ -163,6 +163,11 @@ def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
     seen = stored["config_version"].dropna().unique()
     if len(seen) != 1 or str(seen[0]) != str(config_version):
         return None
+    # Nor are the same bars with other payouts or splits: one added for an old
+    # date would otherwise never reach its gap (USHY's 6-for-5 of 2019-04-22).
+    if dividends is not None and \
+            _actions_of(stored) != corporate_actions.fingerprint(dividends, asset.ticker):
+        return None
 
     # Everything the store says that is old enough to be settled. The tail it
     # drops is recomputed below along with whatever is new.
@@ -206,6 +211,9 @@ def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
         added = added.assign(config_version=config_version)
     else:
         added = versioning.stamp(added, config_version, stamp_run)
+    if dividends is not None:
+        added = added.assign(actions_version=corporate_actions.fingerprint(dividends,
+                                                                            asset.ticker))
     keep = [c for c in settled.columns if c in added.columns]
     rebuilt = pd.concat([settled, added[keep]], ignore_index=True)
 
@@ -222,6 +230,15 @@ def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
             ordered.iloc[-RECOMPUTE_TAIL_BARS:].reset_index(drop=True)):
         return stored
     return rebuilt
+
+
+def _actions_of(stored: pd.DataFrame) -> "str | None":
+    """The payout fingerprint the stored metrics were computed with, or None
+    for a file written before it was kept."""
+    if "actions_version" not in stored.columns:
+        return None
+    seen = stored["actions_version"].dropna().unique()
+    return str(seen[0]) if len(seen) == 1 else None
 
 
 def build_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
@@ -253,7 +270,8 @@ def build_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
             stored = metrics[[c for c in METRIC_COLUMNS if c in metrics]]
             atomic.write_parquet(
                 metrics_path(metrics_dir, asset.file_stem),
-                versioning.stamp(stored, config, run))
+                versioning.stamp(stored, config, run).assign(
+                    actions_version=corporate_actions.fingerprint(dividends, asset.ticker)))
         except Exception as exc:
             log.error("%s: metrics failed - %s", asset.asset_id, exc)
             if failures is not None:
@@ -338,6 +356,9 @@ def _pool_compute(payload: "tuple[Asset, Basket]") -> "tuple[str, int, bool] | N
             return None
         metrics = versioning.stamp(
             computed[[c for c in METRIC_COLUMNS if c in computed]], config, run)
+        if _POOL_STATE.get("dividends") is not None:
+            metrics = metrics.assign(actions_version=corporate_actions.fingerprint(
+                _POOL_STATE["dividends"], asset.ticker))
     if metrics.empty:
         return None
     # AND DO NOT REWRITE AN UNCHANGED FILE. Most instruments have nothing new on

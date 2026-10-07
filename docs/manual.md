@@ -266,7 +266,9 @@ The pipeline extends stored metrics rather than rebuilding them.
 
 **Rule.** The last `RECOMPUTE_TAIL_BARS` (48) rows are re-scored on every run instead of
 trusted, because the stored bars heal. An instrument whose store gained bars under its
-metrics (`bars_upto`) is rebuilt.
+metrics (`bars_upto`) is rebuilt, and so is a fund whose payouts or splits changed
+(`actions_version`, `corporate_actions.fingerprint`). A payout or split added for an old
+date would otherwise never reach its gap.
 
 **Rule.** A change to a formula moves `config_version` (`jump/versioning.py`), and the
 pipeline then rebuilds cold. The first run after such a change is slow by design. Python

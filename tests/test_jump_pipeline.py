@@ -382,3 +382,32 @@ def test_a_worker_returns_an_instruments_error_instead_of_raising(monkeypatch):
     monkeypatch.setattr(pl, "_pool_compute",
                         lambda payload: (_ for _ in ()).throw(ValueError("a bad bar")))
     assert pl._pool_one((asset, None)) == (asset.asset_id, None, "a bad bar")
+
+
+def test_a_split_or_payout_declared_for_an_old_date_forces_a_rebuild():
+    # The hourly run recomputes only its last rows, so a split declared for
+    # 2019 (USHY's 6-for-5) would never reach that day's gap. The metrics
+    # carry what they were computed with; a fund whose payouts moved is
+    # rebuilt, one whose payouts did not is extended as before.
+    from jump import corporate_actions as ca, pipeline as pl, sessions
+
+    small = _small_basket(("SPY",))
+    asset = small.instruments[0]
+    table = sessions.load_sessions()
+    frame = bars.load(bars.store_path(bars.DEFAULT_BARS_DIR, asset.file_stem))
+    before = ca.Dividends(steps={"SPY": {"2010-03-19": 0.005}}, splits={},
+                          checked_through={"SPY": "2030-01-01"})
+    built = pl.build_asset_metrics(asset, small, frame.iloc[:-300], table, before)
+    stored = built[[c for c in pl.METRIC_COLUMNS if c in built]].assign(
+        config_version="cfg", run_version="run",
+        actions_version=ca.fingerprint(before, "SPY"))
+    out = pl.extend_asset_metrics(asset, small, frame, table, stored, "cfg", "run", before)
+    assert out is not None and set(out["actions_version"]) == {ca.fingerprint(before, "SPY")}
+    later = ca.Dividends(steps=before.steps, splits={"SPY": frozenset({"2005-06-09"})},
+                         checked_through={"SPY": "2031-01-01"})
+    assert pl.extend_asset_metrics(asset, small, frame, table, stored, "cfg", "run",
+                                   later) is None
+    # The checked-through date alone moves every day, and is no reason.
+    moved = ca.Dividends(steps=before.steps, splits={}, checked_through={"SPY": "2031-01-01"})
+    assert pl.extend_asset_metrics(asset, small, frame, table, stored, "cfg", "run",
+                                   moved) is not None
