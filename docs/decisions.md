@@ -266,6 +266,18 @@ an "extreme" weekend). Only another feed counts: a stretch the source itself sup
 the store is skipped, not confirmed. Over the full history, flagged readings went 17,257
 → 17,112 and events 12,969 → 12,850; pushes over the year to 2026-10-01 went 210 → 207.
 
+**A shifted fund day is cut only when the store contradicts itself.** Yahoo's
+daily closes, the only source that reaches the funds before 2016, were compared over the
+whole record, and one feed's daily close is no referee on its own. 108 fund-days closed
+far from Yahoo's; 32 were off all day; 14 of those were
+a round trip in the store (in, and back out the next session) while Yahoo's closes stayed
+flat, and their bars were removed. The other 18 were left: Yahoo's own errors (CPER
+2016-01-19, DBE 2021-04-06, PCY 2008-09-29) or real crisis days (RWR 2008-12-01). Over the
+full history, flagged readings went 17,112 → 17,100 and events 12,850 → 12,837; 13 old
+readings went (LQD 2006-10-02 among them), one appeared (EWU 2008-10-10, a night at
+−6.2σ, as the yardstick lost a false day); this week unchanged. Deleted rather than
+marked: a table of bad days would be one more file for 14 rows that never change.
+
 **Candidates are the detector's own readings at ≥ 4σ.** A check with its own σ missed 23
 of 543 flagged readings after a calm stretch.
 

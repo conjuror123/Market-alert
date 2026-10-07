@@ -244,6 +244,15 @@ the Research workflow, `only=history-check`). A stretch where the source is the 
 own feed is skipped. It added 8 not seen for the coins, 70 not seen and 5 overnight for
 the pairs, and 23 not seen and 93 overnight for the funds.
 
+**14 fund days removed from the store** (2026-10-07), where no feed reaches: whole days
+the old vendor shifted, measured as a store jump into the day and back out of it while
+Yahoo's daily closes stayed flat (BWX 2007-11-05, DBA 2007-01-08, DBO 2007-08-17, EWC
+2005-11-08 and 2006-10-20, EWG 2009-03-26, EWL 2005-12-13 and 2006-12-27, EWT
+2005-11-25, EWU 2008-09-25, EWW 2005-09-19, EWY 2004-08-30 and 2005-08-04, LQD
+2006-10-02; 94 hourly bars). They are holes now, and the night after each is unscored.
+`backfill --fill-gaps` would ask Twelve Data for them again and bring the same bars
+back: remove them again after one.
+
 ## 6. Metrics
 
 `jump/pipeline.py` turns usable bars into per-instrument metrics
@@ -566,5 +575,5 @@ How far back each record reaches:
 | no second source for the LME's metals | their bad prints are caught only beyond 1,000σ | a free independent feed |
 | weekend yardsticks rest on 26 weekends | ±16% noise | none chosen: a longer window gained little (`docs/decisions.md`, "Rejected") |
 | history before each record's start (section 11) | "rarest since" reaches only as far as the record | paid history |
-| history no source reaches, and moves under 6σ in it | judged once against sources that reach it (section 5), except: funds before 2016, the softs, cattle and the LME, and readings under 6σ. There an old bad print or stale open stays flagged, sits in the next half-year's yardsticks, and can be the "then" of a later "rarest since" line | a paid feed for the old history |
+| history no source reaches, and moves under 6σ in it | judged once against sources that reach it (section 5), except: funds before 2016, the softs, cattle and the LME, and readings under 6σ. There an old bad print or stale open stays flagged (14 whole shifted fund days were removed, section 5), sits in the next half-year's yardsticks, and can be the "then" of a later "rarest since" line | a paid feed for the old history |
 | repository size (~890 MiB on GitHub, 2026-10-06) | grows ~28 MB a year | a history rewrite (irreversible) |
