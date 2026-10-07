@@ -235,6 +235,13 @@ rescores all history), the rest for 30 days. Instruments with a reading not yet 
 first; at most 40 requests a run. `python -m jump.verify --history` checks everything
 within each source's reach.
 
+**The history, judged once** (`tools/history_check.py`, 2026-10-07): every flagged reading
+with no verdict yet, asked of a source that reaches it, by the same rule. Coins against
+Coinbase, pairs against Dukascopy's archive, funds against Alpaca's tape from 2016 (in
+the Research workflow, `only=history-check`). A stretch where the source is the store's
+own feed is skipped. It added 8 not seen for the coins, 70 not seen and 5 overnight for
+the pairs, and 23 not seen and 93 overnight for the funds.
+
 ## 6. Metrics
 
 `jump/pipeline.py` turns usable bars into per-instrument metrics
@@ -555,5 +562,5 @@ How far back each record reaches:
 | no second source for the LME's metals | their bad prints are caught only beyond 1,000σ | a free independent feed |
 | weekend yardsticks rest on 26 weekends | ±16% noise | none chosen: a longer window gained little (`docs/decisions.md`, "Rejected") |
 | history before each record's start (section 11) | "rarest since" reaches only as far as the record | paid history |
-| history before the second source's reach | an old bad print stays flagged, sits in the next half-year's yardsticks, and can be the "then" of a later "rarest since" line | judging the history once against sources that reach it (`tools/history_check.py`) |
+| history no source reaches, and moves under 6σ in it | judged once against sources that reach it (section 5), except: funds before 2016, the softs, cattle and the LME, and readings under 6σ. There an old bad print or stale open stays flagged, sits in the next half-year's yardsticks, and can be the "then" of a later "rarest since" line | a paid feed for the old history |
 | repository size (~890 MiB on GitHub, 2026-10-06) | grows ~28 MB a year | a history rewrite (irreversible) |

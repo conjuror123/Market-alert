@@ -250,6 +250,13 @@ tape. Marked "not seen", the real move would be gone. When no feed saw the hour 
 every feed saw the move from the previous close, the night takes it at the feeds' own
 night. The night ends where the market really opened, measured where it matters.
 
+**The history is judged once, by the same rule, from sources that reach it.** A broken
+print older than the live sources' reach was never asked about, and sat in its
+instrument's yardstick for the next half-year (USD/PLN 2022-07-31: two flat bars 15% off,
+an "extreme" weekend). Only another feed counts: a stretch the source itself supplied to
+the store is skipped, not confirmed. Over the full history, flagged readings went 17,257
+→ 17,112 and events 12,969 → 12,850; pushes over the year to 2026-10-01 went 210 → 207.
+
 **Candidates are the detector's own readings at ≥ 4σ.** A check with its own σ missed 23
 of 543 flagged readings after a calm stretch.
 
