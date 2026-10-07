@@ -49,8 +49,8 @@ Secrets (GitHub → Settings → Secrets → Actions):
 | `FRED_API_KEY` | the VIX series |
 | `HFDATA_API_KEY` | optional: history before 2016 |
 
-Yahoo, Sina, Google Finance, Binance and MarketWatch need no key. A missing key costs only
-that provider's instruments, and the health chat names the secret every run until it is
+Yahoo, Sina, Google Finance, Binance, MarketWatch, Coinbase and Kraken need no key. A
+missing key costs only that provider's instruments, and the health chat names the secret every run until it is
 set. A key the provider refuses (401; 403 too, except at Twelve Data, where 403 is one
 symbol beyond the plan) stops that provider for the run the same way
 (`price_monitor.models.KeyRefused`).
@@ -62,7 +62,7 @@ Local:
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q          # ~780 tests, about 2 minutes; run alone, several load large parquet files
+pytest -q          # ~835 tests, about 2 minutes; run alone, several load large parquet files
 ```
 
 The derived data (`data/jump/metrics/`, `jumps.parquet`) rebuilds from the committed
@@ -136,7 +136,7 @@ left out of the dividend check and the second source; the health chat names it
 its own thread. An instrument with no new bar for longer than its calendar allows,
 answered with nothing new or refused by Yahoo run after run, is named on the health chat
 on the run it passes its limit, then once a day, and only on a run its count moved, so not through the night (`stale_hours`): 3 session hours for a coin, 6 for a pair, 7 for a fund, two sessions for a
-daily-session market (whose calendars don't know holidays).
+daily-session market (whose calendars, B3's aside, don't know holidays).
 
 **Requests** (`jump/usage.py`): every answer the fetch gets, a 429 included, is counted by
 provider on its HTTP session and logged once at the end of the fetch, with the quota left
@@ -182,11 +182,11 @@ the line follows it down.
 
 | served by | asked of |
 |---|---|
-| SiftingIO (17 pairs) | Yahoo hourly FX (699 days back) and MarketWatch (`price_monitor/marketwatch.py`, the last 10 days, every hour) |
+| SiftingIO (17 pairs) | Yahoo hourly FX (699 days back) and MarketWatch (`price_monitor/marketwatch.py`, 9 days back, every hour) |
 | Alpaca, Tiingo, Sina, Twelve Data, Google (funds) | Yahoo 30-minute bars folded to the hour (54 days back) |
 | Yahoo (funds) | Sina 30-minute US bars (77 days back) |
 | Yahoo (coffee, cocoa, cotton) | Sina global futures, hourly (30 days back) |
-| Yahoo (live cattle) | MarketWatch continuous contract, hourly (10 days back) |
+| Yahoo (live cattle) | MarketWatch continuous contract, hourly (9 days back) |
 | Binance (16 coins) | Coinbase's dollar pairs, hourly (`price_monitor/coinbase.py`, a year back) and Kraken's (`kraken.py`, 29 days back): a wick on Binance alone is real there and not the market's |
 | Sina (LME) | not asked: the LME has no free second feed |
 
@@ -441,6 +441,7 @@ PAT and the branch as `ref`). GitHub's `schedule:` is not used: it fires unrelia
 | SiftingIO | 10,000/month | ~8,700/month (17 pairs, skipped outside the FX week and USD/BRL's session) |
 | Yahoo, Sina, Google, MarketWatch | none published | live fetch, dividend check, second source (a few requests a run) |
 | Binance | 6,000 weight/min per address | 16 a run |
+| Coinbase, Kraken | per second, per address | the coins' second source: a few requests on a run after a coin moved 4σ or more |
 
 **Health, in the order of the hourly run.** Everything below goes to the health chat
 (`TELEGRAM_HEALTH_CHAT_ID`), never the channel. "Streak" means a failed run: the down
@@ -519,7 +520,7 @@ health and the calendar go out, Jump's pushes, note and pings do not.
 | `price_monitor/weekly_digest.py`, `economic_calendar.py` | the calendar |
 | `price_monitor/notifier.py`, `health.py`, `__main__.py` | Telegram calls, health, the delivery entry point |
 | `price_monitor/<provider>.py` | one client per provider |
-| `tools/` | history builders (they rewrite stores, so each runs only on the instruments named; `binance_history --all` for every coin), `stage_report.py`, `hot_bars.sh`, `run_died.sh` (the health line for a run that could not deliver); `fund_verdict.py` and `sina_probe.py`, the feed checks the Research workflow (`alpaca-probe.yml`) runs |
+| `tools/` | history builders (they rewrite stores, so each runs only on the instruments named; `binance_history --all` for every coin), `stage_report.py`, `hot_bars.sh`, `run_died.sh` (the health line for a run that could not deliver); `fund_verdict.py`, `sina_probe.py` and `dukascopy_dump.py`, the feed checks the Research workflow (`alpaca-probe.yml`) runs; `history_check.py`, the whole history asked once of second sources that reach it |
 
 How far back each record reaches:
 
@@ -541,5 +542,5 @@ How far back each record reaches:
 | no second source for the LME's metals | their bad prints are caught only beyond 1,000σ | a free independent feed |
 | weekend yardsticks rest on 26 weekends | ±16% noise | none chosen: a longer window gained little (`docs/decisions.md`, "Rejected") |
 | history before each record's start (section 11) | "rarest since" reaches only as far as the record | paid history |
-| history before the second source's reach | old bad prints stay in old yardsticks | none needed: they never ring again |
+| history before the second source's reach | an old bad print stays flagged, sits in the next half-year's yardsticks, and can be the "then" of a later "rarest since" line | judging the history once against sources that reach it (`tools/history_check.py`) |
 | repository size (~890 MiB on GitHub, 2026-10-06) | grows ~28 MB a year | a history rewrite (irreversible) |

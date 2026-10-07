@@ -58,7 +58,7 @@ was made, `docs/decisions.md` (why), in the same commit.
 - **A regression test must fail without the fix.** One that passes either way looks like
   cover and is not.
 - **A rewrite claiming to be exact is checked against the old code on real data.**
-- **Run the tests alone:** `pytest -q`, about 780 tests in 2 minutes. Several load large
+- **Run the tests alone:** `pytest -q`, about 835 tests in 2 minutes. Several load large
   parquet files, and concurrent runs thrash.
 
 ## What cannot be self-reported

@@ -106,7 +106,7 @@ before the mark rings (decided 2026-10-06).
 `✏️ ⬜ 6.2×σ 10:00 → 🟧 12.4×σ 12:00 bigger jump`.
 
 **The moves one run finds share messages, biggest first, and only the first rings.** News
-moves dozens of instruments at once (130 events in the FOMC hour of 2024-12-18), and
+moves dozens of instruments at once (91 events in the FOMC hour of 2024-12-18), and
 Telegram takes about twenty messages a minute into a channel. An alarm leads with what
 matters most. After the first message the reader is on the channel already. Grouping by
 block folds floods worse.
