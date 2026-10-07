@@ -101,7 +101,7 @@ standing in, a few minutes of it; that bar heals on the next fetch.
 | Alpaca | 30 funds | free IEX bars live; consolidated (SIP) history from 2016 |
 | Twelve Data | 8 funds (USO UNG GLD SLV CPER DBA CORN DBC) | consolidated tape for thin funds; one batched request a run |
 | Sina Finance | 33 funds; LME tin, nickel, aluminium | US half-hour bars (consolidated); LME three-month contract, last 1,023 hourly bars |
-| Yahoo | 34 funds; coffee, cocoa, cotton, live cattle | futures from the front contract, rolled before first notice (`jump/futures.py`) |
+| Yahoo | 34 funds; coffee, cocoa, cotton, live cattle | futures from the front contract, rolled before first notice, cattle twelve business days before its delivery month; each run asks the contract's bars from the session it became front (`jump/futures.py`) |
 | Google Finance | TUR | read off the quote page |
 | SiftingIO | 17 FX pairs | the bar closed at :00 is served by :05 |
 | Binance | 16 coins | each coin as its USDT pair, via `data-api.binance.vision` (reachable from US runners) |
@@ -242,7 +242,11 @@ with no verdict yet, asked of a source that reaches it, by the same rule. Coins 
 Coinbase, pairs against Dukascopy's archive, funds against Alpaca's tape from 2016 (in
 the Research workflow, `only=history-check`). A stretch where the source is the store's
 own feed is skipped. It added 8 not seen for the coins, 70 not seen and 5 overnight for
-the pairs, and 23 not seen and 93 overnight for the funds.
+the pairs, and 23 not seen and 93 overnight for the funds. Live cattle (`cattle`, locally)
+against every single contract Yahoo still serves (June and October 2025, the listed
+ones), all at once, a contract left out where it is the store's own: 12 not seen of 20
+asked, in three passes, as each pass's verdicts narrowed the yardstick and lifted
+another reading (2025-08-01, Yahoo's series switching contracts overnight).
 
 **14 fund days removed from the store** (2026-10-07), where no feed reaches: whole days
 the old vendor shifted, measured as a store jump into the day and back out of it while
@@ -575,5 +579,5 @@ How far back each record reaches:
 | no second source for the LME's metals | their bad prints are caught only beyond 1,000σ | a free independent feed |
 | weekend yardsticks rest on 26 weekends | ±16% noise | none chosen: a longer window gained little (`docs/decisions.md`, "Rejected") |
 | history before each record's start (section 11) | "rarest since" reaches only as far as the record | paid history |
-| history no source reaches, and moves under 6σ in it | judged once against sources that reach it (section 5), except: funds before 2016, the softs, cattle and the LME, and readings under 6σ. There an old bad print or stale open stays flagged (14 whole shifted fund days were removed, section 5), sits in the next half-year's yardsticks, and can be the "then" of a later "rarest since" line | a paid feed for the old history |
+| history no source reaches, and moves under 6σ in it | judged once against sources that reach it (section 5), except: funds before 2016, the softs and the LME, and readings under 6σ. There an old bad print or stale open stays flagged (14 whole shifted fund days were removed, section 5), sits in the next half-year's yardsticks, and can be the "then" of a later "rarest since" line | a paid feed for the old history |
 | repository size (~890 MiB on GitHub, 2026-10-06) | grows ~28 MB a year | a history rewrite (irreversible) |

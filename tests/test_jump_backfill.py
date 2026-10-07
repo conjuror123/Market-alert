@@ -2210,3 +2210,33 @@ def test_a_second_source_check_that_failed_or_stopped_is_named(tmp_path, monkeyp
     backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
 
     assert len(alerts) == 1 and words in alerts[0]
+
+
+def test_a_rolled_future_re_asks_its_front_contract_from_the_roll(tmp_path, monkeypatch):
+    # Live cattle's roll moved to 2026-09-15 under bars already stored from
+    # October's contract: the next run must ask December's own bars from
+    # its first session, not just the hours since the newest bar, so the
+    # open month holds one contract.
+    from jump import backfill
+
+    now = datetime(2026, 10, 7, 19, 30, tzinfo=timezone.utc)
+    path = tmp_path / "le.parquet"
+    newest = int(datetime(2026, 10, 7, 18, tzinfo=timezone.utc).timestamp())
+    bars.merge(str(path), bars.to_hourly(bars.candles_to_frame([
+        Candle(open_time=newest, open=1.0, high=1.0, low=1.0, close=1.0,
+               volume=1.0, close_time=newest + HOUR)])))
+    seen = {}
+
+    def fake_history(**kwargs):
+        seen.update(kwargs)
+        return []
+
+    monkeypatch.setattr(backfill.yahoo, "fetch_full_history", fake_history)
+    cattle = Asset(ticker="LE=F", source="yahoo", block="agriculture", has_volume=True,
+                   tick_size=0.025, session_template="cme_cattle", fetch_interval="1h",
+                   label="Live cattle", in_basket=True)
+
+    backfill.fetch_missing(cattle, str(path), date(2024, 1, 1), "key", None, now=now)
+
+    assert seen["symbol"] == "LEZ26.CME"
+    assert 22 < seen["days"] < 23                  # back to 2026-09-15's open

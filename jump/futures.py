@@ -45,8 +45,12 @@ MONTH_CODES = "FGHJKMNQUVXZ"
 #   roll_back the business days before the delivery month's first business day
 #             on which this series moves to the next held month - five before
 #             first notice, when the two contracts trade side by side and
-#             Yahoo's series flips between them. None: at the last trading day,
-#             as Yahoo does (cattle trades through its month).
+#             Yahoo's series flips between them. None: at the last trading day.
+#             Cattle has no first notice but its traders leave the same way:
+#             December's volume passed October's on 2026-09-11..16 (October
+#             3,097 contracts on 10-07 against December's 18,822), and held to
+#             its last day the series sat on a contract hardly trading
+#             (October 2025 moved +2.2% on 213 contracts, every other flat).
 #   suffix    Yahoo's exchange suffix for a single contract.
 #   continuous_history
 #             False: Yahoo's continuous series is not used for history at all.
@@ -60,7 +64,7 @@ SPECS: "dict[str, dict]" = {
     "CC=F": dict(listed="HKNUZ", ltd_back=11, held="HKNUZ", roll_back=15, suffix="NYB"),
     "CT=F": dict(listed="HKNVZ", ltd_back=16, held="HKNZ", roll_back=10, suffix="NYB",
                  continuous_history=False),
-    "LE=F": dict(listed="GJMQVZ", ltd_back=0, held="GJMQVZ", roll_back=None, suffix="CME"),
+    "LE=F": dict(listed="GJMQVZ", ltd_back=0, held="GJMQVZ", roll_back=12, suffix="CME"),
 }
 
 # Volume under this share of the series' trailing median is a quote, not a

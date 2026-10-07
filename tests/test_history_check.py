@@ -75,3 +75,29 @@ def _candles(frame):
     return [Candle(open_time=int(h), open=o, high=max(o, c), low=min(o, c), close=c,
                    volume=1.0, close_time=int(h) + H)
             for h, o, c in zip(frame["hour_utc"], frame["open"], frame["close"])]
+
+
+def test_a_cattle_reading_is_judged_by_the_contracts_that_are_not_the_store(monkeypatch):
+    # Yahoo's continuous cattle series jumped +2.8% onto another month's
+    # price (2025-04-09); the contracts did not move. The contract the store
+    # was laid over there is the store itself and must not confirm it.
+    from jump.basket import load_basket
+
+    flat = [200.0 + 0.01 * (k % 3) for k in range(24 * 20)]
+    jump_at = 24 * 10
+    store = hourly("2025-04-01 00:00", flat[:jump_at] + [v * 1.028 for v in flat[jump_at:]])
+    other = hourly("2025-04-01 00:00", [v - 5.0 for v in flat])          # flat, another month
+    c = {"hour": int(store["hour_utc"].iloc[jump_at]), "check": verify.CLOSE,
+         "from_open": False, "prev_hour": int(store["hour_utc"].iloc[jump_at - 1]),
+         "prev_close": float(store["close"].iloc[jump_at - 1]),
+         "price": float(store["close"].iloc[jump_at])}
+    cattle = next(a for a in load_basket().instruments if a.ticker == "LE=F")
+    table = pd.DataFrame({"asset_id": [cattle.asset_id], "reading": ["hour"],
+                          "hour_utc": [c["hour"]], "word": ["high"]})
+    monkeypatch.setattr(hc.verify, "candidates", lambda *a, **k: [dict(c)])
+    monkeypatch.setattr(hc.bars, "load", lambda path, since=None: store)
+    record = {}
+    rows = hc.check_contracts(table, datetime(2026, 10, 7, tzinfo=timezone.utc), record,
+                              contracts={"LEM25.CME": store.copy(), "LEV25.CME": other})
+    assert [r["verdict"] for r in rows] == [verify.UNCONFIRMED]
+    assert rows[0]["verifier"] == "LEV25.CME"

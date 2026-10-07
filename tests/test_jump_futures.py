@@ -29,7 +29,8 @@ def test_last_trading_days_match_the_rolls_yahoo_made_in_2026():
 def test_the_live_contract_rolls_before_first_notice_and_skips_october_cotton():
     assert futures.front_contract("KC=F", date(2026, 10, 2)) == ("KCZ26.NYB", date(2026, 8, 14))
     assert futures.front_contract("CT=F", date(2026, 10, 2))[0] == "CTZ26.NYB"
-    assert futures.front_contract("LE=F", date(2026, 10, 2)) == ("LEV26.CME", date(2026, 9, 1))
+    # Cattle rolls when its volume does: December passed October 2026-09-11..16.
+    assert futures.front_contract("LE=F", date(2026, 10, 2)) == ("LEZ26.CME", date(2026, 9, 15))
     assert futures.front_contract("ALI=F", date(2026, 10, 2)) is None
 
 
@@ -44,7 +45,9 @@ def test_both_roll_calendars_leave_their_nights_unscored():
 def test_where_yahoo_lags_this_series_its_history_is_left_out():
     windows = futures.yahoo_lag_windows("KC=F", 2026, 2026)
     assert (date(2026, 8, 14), date(2026, 9, 21)) in windows
-    assert futures.yahoo_lag_windows("LE=F", 2026, 2026) == []
+    # Cattle's are most of each cycle: its history must not be re-imported
+    # by this rule (tools/futures_history.py).
+    assert (date(2026, 9, 15), date(2026, 11, 2)) in futures.yahoo_lag_windows("LE=F", 2026, 2026)
 
 
 # --- thin bars and the history cleaning -----------------------------------------

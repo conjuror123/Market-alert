@@ -287,12 +287,16 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
     elif provider == "yahoo" and futures.front_contract(asset.ticker, now.date()):
         # A rolled futures series: the front contract's own bars, from the
         # session it became front - never Yahoo's continuous series, which
-        # mixes in other contracts' prints (jump.futures).
+        # mixes in other contracts' prints (jump.futures). Asked from the
+        # session it became front, every run: an open month's hours since
+        # then are this contract's even when the roll calendar moved under
+        # them (live cattle's, 2026-10-07), and one request covers it.
         symbol, since_day = futures.front_contract(asset.ticker, now.date())
+        floor = _sessions.daily_session_open(since_day, asset.session_template)
+        days = max(days, (now.timestamp() - floor) / 86400)
         candles = yahoo.fetch_full_history(
             symbol=symbol, interval=asset.fetch_interval, days=days,
             base_url=YAHOO_BASE_URL, session=session, end=end)
-        floor = _sessions.daily_session_open(since_day, asset.session_template)
         candles = [c for c in candles if c.open_time >= floor]
     elif provider == "yahoo":
         candles = yahoo.fetch_full_history(

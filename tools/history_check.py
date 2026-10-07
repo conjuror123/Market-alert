@@ -13,6 +13,11 @@ flags (6 sigma and more) of a source that does reach them:
     funds   Alpaca's consolidated tape, from 2016 - its keys are in Actions
             only, so this kind runs in the Research workflow
             (only=history-check), which prints what was not seen
+    cattle  every single live cattle contract Yahoo still serves (June and
+            October 2025, and the listed ones), all asked at once - confirmed
+            if any saw the move. The store's history is Yahoo's continuous
+            series, which mixed two contract months (2025-04-09: +2.8% night,
+            -2.9% first hour; the contracts -0.3% and -0.2%)
 
 THE SAME RULE as the hourly check: jump.verify's candidates, judge_all and
 record. A move the source did not see is unconfirmed and kept for good, so the
@@ -221,9 +226,76 @@ def check(kind: str, table: pd.DataFrame, now: datetime, record: dict,
     return out
 
 
+def cattle_contracts(asset, chart=None) -> "dict[str, pd.DataFrame]":
+    """Every listed contract of the series, from 2024 to next year, that Yahoo
+    still serves: symbol -> its hourly bars."""
+    from jump import futures
+    from tools.futures_history import chart as yahoo_chart
+
+    chart = chart or yahoo_chart
+    spec = futures.SPECS[asset.ticker]
+    out = {}
+    for y, _, code in futures._contracts(spec["listed"], 2024, date.today().year + 1):
+        symbol = f"{asset.ticker[:-2]}{code}{y % 100:02d}.{spec['suffix']}"
+        got = bars.to_hourly(bars.candles_to_frame(chart(symbol)))
+        if not got.empty:
+            out[symbol] = verify._priced(got)
+        time.sleep(1)
+    return out
+
+
+def check_contracts(table: pd.DataFrame, now: datetime, record: dict,
+                    contracts: "dict[str, pd.DataFrame] | None" = None) -> "list[dict]":
+    """Live cattle's flagged readings against its single contracts, every one
+    with bars around the reading at once. A contract that is the store's own
+    feed there (the windows it was laid over the continuous series) is left
+    out of that reading, as in check()."""
+    basket = load_basket()
+    asset = next(a for a in basket.instruments if a.session_template == "cme_cattle")
+    want = flagged(table, asset.asset_id)
+    if not want:
+        return []
+    contracts = contracts if contracts is not None else cattle_contracts(asset)
+    frame = bars.load(bars.store_path(bars.DEFAULT_BARS_DIR, asset.file_stem))
+    now_ts = int(now.timestamp())
+    found = verify.candidates(asset, frame, sessions.load_sessions(), now_ts,
+                              int(frame["hour_utc"].min()), basket,
+                              corporate_actions.load_dividends(), jumps.settings())
+    found = [c for c in found if (c["hour"], c["check"]) in want
+             and (asset.asset_id, c["hour"], c["check"]) not in record]
+    pad = (verify.STALE_HOURS + verify.LAG_HOURS) * 3600
+    out = []
+    for c in sorted(found, key=lambda c: c["hour"]):
+        lo, hi = c["prev_hour"] - pad, c["hour"] + pad
+        ours = frame[(frame["hour_utc"] >= lo - 7 * 86400) & (frame["hour_utc"] <= hi + 7 * 86400)]
+        feeds = []
+        for symbol, theirs in contracts.items():
+            near = theirs[(theirs["hour_utc"] >= lo) & (theirs["hour_utc"] <= hi)]
+            if near.empty:
+                continue
+            week = theirs[(theirs["hour_utc"] >= lo - 7 * 86400)
+                          & (theirs["hour_utc"] <= hi + 7 * 86400)]
+            if same_feed(ours, week):
+                continue
+            feeds.append((symbol, near.reset_index(drop=True)))
+        if not feeds:
+            continue
+        verdict, stored, names, moves = verify.judge_all(c, feeds, now_ts)
+        row = {"asset_id": asset.asset_id, "hour_utc": c["hour"], "check": c["check"],
+               "verdict": verdict, "provider": asset.fetched_from,
+               "verifier": ",".join(names), "stored_move": f"{stored:.6f}",
+               "verifier_move": ",".join(f"{m:.6f}" for m in moves),
+               "checked_utc": now_ts}
+        record[(asset.asset_id, c["hour"], c["check"])] = row
+        out.append(row)
+    log.info("%s: %d asked, %s", asset.ticker, len(found),
+             pd.Series([r["verdict"] for r in out]).value_counts().to_dict())
+    return out
+
+
 def main(argv: "list[str] | None" = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("kind", choices=("coins", "pairs", "funds"))
+    parser.add_argument("kind", choices=("coins", "pairs", "funds", "cattle"))
     parser.add_argument("--jumps", default=jumps.DEFAULT_OUT,
                         help="the flagged readings, as the current code wrote them")
     parser.add_argument("--record", default=verify.VERIFIED_PATH)
@@ -237,8 +309,11 @@ def main(argv: "list[str] | None" = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     now = datetime.now(timezone.utc)
     record = verify.load(args.record)
-    rows = check(args.kind, pd.read_parquet(args.jumps), now, record,
-                 set(args.only) if args.only else None, cache_dir=args.cache)
+    if args.kind == "cattle":
+        rows = check_contracts(pd.read_parquet(args.jumps), now, record)
+    else:
+        rows = check(args.kind, pd.read_parquet(args.jumps), now, record,
+                     set(args.only) if args.only else None, cache_dir=args.cache)
     verify.write(record, int(now.timestamp()), args.record)
     if args.all_verdicts:
         with open(args.all_verdicts, "w", encoding="utf-8", newline="") as f:

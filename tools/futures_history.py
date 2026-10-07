@@ -8,6 +8,14 @@ still-listed contract's own bars laid over its own front window
 have stored. Coffee, cocoa and cotton are built from Dukascopy instead
 (tools/dukascopy_futures.py), which leaves live cattle.
 
+NOT TO BE RE-RUN FOR LIVE CATTLE as it stands. Since cattle rolls twelve
+business days before its delivery month (2026-10-07), the stretches where
+Yahoo's series could lag its roll are most of every cycle, and every one no
+still-listed contract fills would become a hole - and Yahoo's series in fact
+left the expiring contract early in some of them (2026-09-15, 2025-06-02) and
+not in others (2026-09-01). Its import of 2026-10-02 stands, with its two
+latest months laid over by December's own bars.
+
 Rewrites the named stores under data/jump/bars, so they must be named. Run
 from the repository root:
     python -m tools.futures_history LE=F

@@ -175,6 +175,20 @@ The softs' history is Dukascopy's single-contract CFDs from 2018, spliced at a m
 seam; live cattle keeps Yahoo's series minus its interleaved stretches. The night across a
 roll is not scored, and a bar under 5% of usual volume is a quote, so a hole.
 
+**Live cattle rolls when its traders do, and its history was judged against the
+contracts.** Held to its last trading day, the series sat on a contract hardly trading:
+October 2026 traded 3,097 contracts on 10-07 against December's 18,822; October 2025
+moved +2.2% one night on 213 while every other contract was flat. December's volume passed
+October's on 2026-09-11..16, and twelve business days before the delivery month puts the
+roll on 09-15, the day Yahoo's own series moved. Yahoo's series had also mixed two months
+(2025-04-09: a +2.8% night and a −2.9% first hour; the contracts −0.3% and −0.2%). Judged
+against the single contracts Yahoo still serves, 12 of cattle's 20 flagged readings were
+not seen; events went 15 → 8 over 2024-05..2026-10, 6.2 → 3.3 a year against the
+agriculture block's median of 3.3 (3.5 before), the rest of the basket unchanged. Rejected:
+a cattle ETC (WisdomTree's in London, 3.8 bars a day, a third without volume, daily moves
+correlated 0.54–0.63 with the futures) and dropping cattle. Its old import is not to be
+re-run: under this roll most of every cycle reads as Yahoo lagging and would be a hole.
+
 **The LME's metals are the LME's own, from Sina**: the right instrument with a short record
 (from 2026-07) over a longer record of another (Shanghai tin, Kitco, COMEX aluminium).
 
