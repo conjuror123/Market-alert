@@ -183,8 +183,9 @@ the line follows it down.
 | served by | asked of |
 |---|---|
 | SiftingIO (17 pairs) | Yahoo hourly FX (699 days back) and MarketWatch (`price_monitor/marketwatch.py`, 9 days back, every hour) |
-| Alpaca, Tiingo, Sina, Twelve Data, Google (funds) | Yahoo 30-minute bars folded to the hour (54 days back) |
-| Yahoo (funds) | Sina 30-minute US bars (77 days back) |
+| Alpaca, Tiingo, Twelve Data, Google (funds) | Yahoo 30-minute bars folded to the hour (54 days back) and Sina 30-minute US bars (77 days back) |
+| Sina (funds) | Yahoo 30-minute bars and MarketWatch hourly (`FUND/US/<exchange>/<ticker>`, 9 days back) |
+| Yahoo (funds) | Sina 30-minute US bars and MarketWatch hourly |
 | Yahoo (coffee, cocoa, cotton) | Sina global futures, hourly (30 days back) |
 | Yahoo (live cattle) | MarketWatch continuous contract, hourly (9 days back) |
 | Binance (16 coins) | Coinbase's dollar pairs, hourly (`price_monitor/coinbase.py`, a year back) and Kraken's (`kraken.py`, 29 days back): a wick on Binance alone is real there and not the market's |
@@ -209,6 +210,18 @@ Yahoo's last bar is 10:00, MarketWatch has every hour). A failed source leaves t
 to answer; a rate limit, or no answer to two requests in a row, stops that source for the
 run, and the health chat names it.
 
+**Overnight** (`overnight_move`), for a session's first hour that no source saw move:
+if every source that answered saw the move from the previous session's close to that
+bar's close, the move happened in the night. The store's first print was a stale one at
+the old price (TLH 2020-03-09: gap +0.03%, first hour +3.8%; the tape opened +4.65%).
+The verdict carries each source's night, its open of the hour over its last close
+before. `jumps` (`with_nights`) puts the median of them in the gap, payout adjustment
+kept, and the rest of the move from the previous close in the hour: the total stays the
+store's. A gap left unscored stays so. Kept for good, like an unconfirmed one, and not
+a doubt: the message is not marked. Only readings at 4σ or more are asked, so a stale
+first print on a quiet morning stays, and so does a fund's before 2016, which no source
+reaches.
+
 **An unconfirmed move is not scored, and nothing is deleted.** `jumps` leaves its reading
 out of every word and every yardstick; the bar stays in the store, and in the price path
 the close check reads. A message already sent is marked, not removed (section 8). Pending
@@ -217,8 +230,8 @@ and unknown moves are scored as usual.
 Every reading is judged again on every run while it is inside its 24 hours, from the bars
 as they then are. A bar that heals gets a new verdict; one that heals into no far move
 loses its verdict. After 24 hours the last verdict stands. Verdicts live in
-`data/jump/verified.csv`: unconfirmed ones are kept for good (the detector rescores all
-history), the rest for 30 days. Instruments with a reading not yet judged are asked
+`data/jump/verified.csv`: unconfirmed and overnight ones are kept for good (the detector
+rescores all history), the rest for 30 days. Instruments with a reading not yet judged are asked
 first; at most 40 requests a run. `python -m jump.verify --history` checks everything
 within each source's reach.
 

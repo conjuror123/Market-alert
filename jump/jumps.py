@@ -552,6 +552,29 @@ def events(readings: pd.DataFrame) -> pd.DataFrame:
     return readings.loc[top.to_numpy()].reset_index(drop=True)
 
 
+def with_nights(metrics: pd.DataFrame, asset_id: str, nights: dict) -> pd.DataFrame:
+    """The metrics with each first hour the feeds saw happen overnight
+    (jump.verify, `overnight`) moved into its night: the gap becomes the
+    feeds' night - plus the payout the stored gap had taken out - and the
+    hour the rest of the move from the previous close. The total stays the
+    store's. A gap left unscored (an unconfirmed payout, a missing bar) stays
+    so. Needs `close`."""
+    mine = {h: m for (a, h, c), m in nights.items() if a == asset_id and c == "close"}
+    if not mine:
+        return metrics
+    out = metrics.reset_index(drop=True).copy()
+    stamps = out["hour_utc"].astype("int64").tolist()
+    for i, stamp in enumerate(stamps):
+        if stamp not in mine or i == 0 or not np.isfinite(out.at[i, "r"]):
+            continue
+        total = math.log(out.at[i, "close"] / out.at[i - 1, "close"])
+        stored_night = total - out.at[i, "r"]          # ln(open / previous close)
+        if np.isfinite(out.at[i, "gap"]):
+            out.at[i, "gap"] = out.at[i, "gap"] - stored_night + mine[stamp]
+        out.at[i, "r"] = total - mine[stamp]
+    return out
+
+
 def without_unconfirmed(metrics: pd.DataFrame, asset_id: str, doubts: dict) -> pd.DataFrame:
     """The metrics with the moves a second source did not see taken out: an
     hour's move (`close`) or a session's gap (`open`), NaN like a hole - not
@@ -586,6 +609,7 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
     basket = load_basket(basket_path)
     window, ladder = settings(basket_path)
     doubts = verify.unconfirmed(verified_path)
+    nights = verify.overnight(verified_path)
     parts, kept = [], []
     for asset in basket.instruments:
         path = os.path.join(metrics_dir, f"{asset.file_stem}.parquet")
@@ -602,7 +626,7 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
                     failures.append((asset.asset_id, "no metrics file"))
             continue
         try:
-            flagged = _flag(asset, path, window, ladder, doubts, now)
+            flagged = _flag(asset, path, window, ladder, doubts, now, nights)
         except Exception as exc:
             log.error("%s: scoring failed - %s", asset.asset_id, exc)
             if failures is not None:
@@ -623,11 +647,14 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
     return out
 
 
-def _flag(asset, path: str, window: float, ladder, doubts: dict, now: int
-          ) -> "pd.DataFrame | None":
+def _flag(asset, path: str, window: float, ladder, doubts: dict, now: int,
+          nights: "dict | None" = None) -> "pd.DataFrame | None":
     """One instrument's flagged readings, or None when it has none."""
-    stored = pd.read_parquet(path, columns=["hour_utc", "r", "hole", "gap"])
-    metrics = without_unconfirmed(stored, asset.asset_id, doubts)
+    nights = {k: m for k, m in (nights or {}).items() if k[0] == asset.asset_id}
+    stored = pd.read_parquet(path, columns=["hour_utc", "r", "hole", "gap"]
+                             + (["close"] if nights else []))
+    metrics = without_unconfirmed(with_nights(stored, asset.asset_id, nights),
+                                  asset.asset_id, doubts)
     readings = [score(metrics, asset.session_template, window, ladder),
                 score_gaps(metrics, window, ladder, asset.session_template)]
     scored = pd.concat([f for f in readings if not f.empty], ignore_index=True)

@@ -46,9 +46,17 @@ def test_every_feed_with_a_free_second_source_is_checked_by_one(basket):
         ("yahoo", "USDINR=X", "1h"), ("marketwatch", "CURRENCY/US/XTUP/USDINR", "1h")]
     assert verify.verifiers_for(basket["USD/BRL"])[1] == (
         "marketwatch", "CURRENCY/US/XTUP/USDBRL", "1h")
+    # A fund: two consolidated feeds, neither its own, so one cannot veto alone.
     for fund in (a for a in basket.values() if a.session_template == "us_equity"):
-        [(name, symbol, interval)] = verify.verifiers_for(fund)
-        assert name != fund.fetched_from and symbol == fund.ticker and interval == "30min"
+        feeds = verify.verifiers_for(fund)
+        assert len(feeds) == 2 and fund.fetched_from not in [n for n, _, _ in feeds]
+        for name, symbol, interval in feeds:
+            assert (symbol, interval) == (fund.ticker, "30min") if name != "marketwatch" \
+                else symbol.endswith("/" + fund.ticker) and interval == "1h"
+    assert verify.verifiers_for(basket["LMBS"]) == [("yahoo", "LMBS", "30min"),
+                                                     ("sina", "LMBS", "30min")]
+    assert ("marketwatch", "FUND/US/XNAS/TLT", "1h") in verify.verifiers_for(basket["TLT"]) \
+        or basket["TLT"].fetched_from not in ("yahoo", "sina")
     # The softs Yahoo serves: Sina's global futures, hourly.
     assert verify.verifiers_for(basket["KC=F"]) == [("sina", "KC", "1h")]
     assert verify.verifiers_for(basket["CC=F"]) == [("sina", "CC", "1h")]
@@ -662,3 +670,74 @@ def test_a_real_gap_across_sinas_change_is_left_unknown_not_rejected(monkeypatch
     row = verify.load(path)[(asset.asset_id, c["hour"], "open")]
     assert row["verdict"] == verify.UNKNOWN
     assert "changed contract" in row["verifier"]
+
+
+# --- the night correction ---------------------------------------------------------
+
+# TLH 2020-03-09: Friday closed at 166.83; the store's Monday opens at a stale
+# 166.88 and closes its first hour at 173.29 - "+3.8% in the first hour". The
+# tape opened at 174.83: the move happened overnight.
+TLH_FIRST_HOUR = {"hour": ts("2020-03-09 13:00"), "check": "close", "from_open": True,
+                  "prev_hour": ts("2020-03-09 13:00"), "prev_close": 166.88,
+                  "price": 173.29, "night_hour": ts("2020-03-06 20:00"),
+                  "night_close": 166.83}
+TAPE = {"2020-03-06 19:00": 167.60, "2020-03-06 20:00": (167.70, 166.83),
+        "2020-03-09 13:00": (174.83, 173.30), "2020-03-09 14:00": (173.30, 172.56)}
+
+
+def test_a_first_hour_the_feeds_saw_happen_overnight_moves_into_the_night():
+    verdict, stored, names, moves = verify.judge_all(
+        TLH_FIRST_HOUR, [("yahoo", bars_of(TAPE)), ("sina", bars_of(TAPE))],
+        ts("2020-03-09 18:00"))
+    assert verdict == verify.OVERNIGHT and names == ["yahoo", "sina"]
+    assert moves == pytest.approx([np.log(174.83 / 166.83)] * 2)
+
+
+def test_one_feed_cannot_move_a_first_hour_into_the_night():
+    # The other feed never saw the price get there at all: no correction.
+    other = dict(TAPE, **{"2020-03-09 13:00": (174.83, 167.00),
+                          "2020-03-09 14:00": (167.00, 166.90)})
+    verdict = verify.judge_all(TLH_FIRST_HOUR, [("yahoo", bars_of(TAPE)),
+                                                ("sina", bars_of(other))],
+                               ts("2020-03-09 18:00"))[0]
+    assert verdict == verify.UNCONFIRMED
+
+
+def test_one_feed_cannot_say_a_move_did_not_happen():
+    seen = {"2026-10-05 13:00": 100.0, "2026-10-05 14:00": 101.0, "2026-10-05 15:00": 101.1}
+    flat = {"2026-10-05 13:00": 100.0, "2026-10-05 14:00": 100.0, "2026-10-05 15:00": 100.0}
+    c = {"hour": ts("2026-10-05 14:00"), "check": "close", "from_open": False,
+         "prev_hour": ts("2026-10-05 13:00"), "prev_close": 100.0, "price": 101.0}
+    assert verify.judge_all(c, [("sina", bars_of(flat)), ("marketwatch", bars_of(seen))],
+                            ts("2026-10-05 18:00"))[0] == verify.CONFIRMED
+    assert verify.judge_all(c, [("sina", bars_of(flat)), ("marketwatch", bars_of(flat))],
+                            ts("2026-10-05 18:00"))[0] == verify.UNCONFIRMED
+
+
+def test_the_detector_reads_the_night_there_and_keeps_the_store_s_total():
+    payout = 0.002                       # the stored gap had a payout taken out
+    stored_night = np.log(166.88 / 166.83)
+    metrics = pd.DataFrame({"hour_utc": [ts("2020-03-06 20:00"), ts("2020-03-09 13:00")],
+                            "close": [166.83, 173.29],
+                            "r": [0.0001, np.log(173.29 / 166.88)],
+                            "gap": [np.nan, stored_night + payout], "hole": np.nan})
+    night = np.log(174.83 / 166.83)
+    out = jumps.with_nights(metrics, "x:TLH", {("x:TLH", ts("2020-03-09 13:00"), "close"): night})
+    assert out["gap"][1] == pytest.approx(night + payout)
+    assert out["r"][1] == pytest.approx(np.log(173.29 / 166.83) - night)
+    assert out["r"][1] + out["gap"][1] - payout == pytest.approx(np.log(173.29 / 166.83))
+    # An unscored gap stays unscored; the hour is still corrected.
+    unscored = jumps.with_nights(metrics.assign(gap=np.nan), "x:TLH",
+                                 {("x:TLH", ts("2020-03-09 13:00"), "close"): night})
+    assert np.isnan(unscored["gap"][1])
+    assert unscored["r"][1] == pytest.approx(np.log(173.29 / 166.83) - night)
+
+
+def test_an_overnight_verdict_is_kept_for_good_and_read_as_the_feeds_median(tmp_path):
+    path = str(tmp_path / "verified.csv")
+    old, now = ts("2020-03-09 13:00"), ts("2026-10-01 00:00")
+    verify.write({("x:TLH", old, "close"): {
+        "asset_id": "x:TLH", "hour_utc": old, "check": "close", "verdict": verify.OVERNIGHT,
+        "verifier": "yahoo,sina", "verifier_move": "0.046000,0.048000"}}, now, path)
+    assert verify.overnight(path) == {("x:TLH", old, "close"): pytest.approx(0.047)}
+    assert verify.unconfirmed(path) == {}

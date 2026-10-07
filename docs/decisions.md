@@ -235,14 +235,28 @@ such a stretch each feed is still compared with itself; a move across its start 
 unknown. Found as a step of 50 bp or more in the session median offset, which a one-hour
 bad print cannot make. Over 2026-05-11..10-06, 36 moves judged, none crossed one.
 
+**A fund is asked of two feeds, not one, and not three.** Over the 9 days to 2026-10-07,
+322 fund hours of 4× the fund's usual move or more: all external feeds saw 314, none saw 2
+(the store's own bad prints), and the externals split on 6, session-first hours where one
+feed's open is the opening auction and another's the first trade. With one feed, those
+were its call alone; with two, a move is "not seen" only if both say so. A third would
+decide almost nothing more.
+
+**A first hour the feeds saw happen overnight is moved into the night.** A fund's first
+print is sometimes a stale one at the previous close (in 2020-22, 7-12% of fund-days
+against Yahoo's daily opens), and the night's move then reads as the first hour's: TLH
+2020-03-09, +3.8% in the first hour and a gap of +0.03%, against +4.65% overnight on the
+tape. Marked "not seen", the real move would be gone. When no feed saw the hour move but
+every feed saw the move from the previous close, the night takes it at the feeds' own
+night. The night ends where the market really opened, measured where it matters.
+
 **Candidates are the detector's own readings at ≥ 4σ.** A check with its own σ missed 23
 of 543 flagged readings after a calm stretch.
 
 | instruments | verified against | why |
 |---|---|---|
 | FX pairs | Yahoo and MarketWatch | MarketWatch has every hour (Yahoo 21–72%), 0–0.6 bp off |
-| funds fed by Yahoo | Sina 30-minute | matches the tape to 0.0 bp |
-| other funds | Yahoo 30-minute | independent of the funds' own feeds |
+| funds | two of Yahoo 30-minute, Sina 30-minute and MarketWatch hourly, neither the fund's own | Sina matches the tape to 0.0 bp; two, so that one feed cannot say a move did not happen |
 | coffee, cocoa, cotton | Sina global futures | 0.2–2.2 bp off, hourly correlation 0.96–0.99 |
 | live cattle | MarketWatch continuous | hourly correlation 0.92 |
 | coins | Coinbase and Kraken | other exchanges' dollar pairs: hourly moves correlate 0.988–1.000 with Binance's (300 hours to 2026-09-25); a year of checks found 4 moves not seen, all Binance's own on 2025-10-10's liquidations |
@@ -290,6 +304,9 @@ Measured or weighed, and not to be raised again.
 | a level check (30% off the two-day median) | drops real crypto crashes |
 | "isolated and taken back" as a bad print | marks real moves, misses a feed sitting off for hours |
 | a longer window for weekend gaps (pairs 1 or 2 years, funds 1 year, a fund's weekends pooled with its nights) | once the pairs' stitched zero weekends were mended or unscored, the pairs' median QLIKE went 3.63 → 3.41 (1 year) and 3.34 (2 years), each better for only 11 of 16; funds 2.39 → 2.34, better for 61 of 133. The gain is small, real shocks read quieter (EUR/USD 2022-02-27 extreme → noticeable at 2 years), and one window for every instrument stays the rule |
+| every fund's night from Yahoo's daily official open | one feed's opening print is no referee: LMBS 2026-10-05 "opened" at 48.60 on Yahoo, Sina and MarketWatch alike, while its first minute traded at 48.38 over a 48.50 close; the feeds carry the same tape, so a vote on the opening price picks the outlier |
+| a stale first print found from the bar alone (open at the previous close, an extreme of its bar, a big first hour) | against the official open, it caught at best 7% of stale prints at 66% precision |
+| a third external feed for funds | 6 of 322 large fund hours split the externals; two already decide them |
 | a bridge may confirm, never reject (or no check in the second feed's missing hours) | over 2024-10 to 2026-10, frees one real hour (USD/KRW 2024-12-03 15:00, not flaggable) and lets in 34 flags, almost all USD/INR rollover ticks at 21:00–01:00 UTC; the narrower "unless it moved further the other way" changes 2 verdicts and 1 flag each way |
 | holding isolated moves an hour | a third of alerts would be an hour late |
 | a watchdog for the trigger's silence | the external scheduler is the party that knows a call stopped |

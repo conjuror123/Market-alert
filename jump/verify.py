@@ -60,6 +60,12 @@ heals into no far move loses its verdict - and its last verdict stands after
 that. An unconfirmed one is kept for good, because the detector rescores the
 whole history every run; the rest go after KEEP_DAYS.
 
+OVERNIGHT, for a session's first hour: no feed saw the hour move, but every
+feed saw the move from the previous session's close to that bar's close. The
+move happened in the night, and the store's first print was a stale one at the
+old price; jump.jumps moves it into the gap with the feeds' night. Kept for
+good, like an unconfirmed one.
+
     python -m jump.verify --history     every far move within the second
                                           source's reach (FX 699 days, funds
                                           54 to 77)
@@ -99,10 +105,31 @@ KEEP_DAYS = 30
 SINA_DAYS = 77                    # how far Sina's US half-hour bars reach back
 
 CONFIRMED, UNCONFIRMED, PENDING, UNKNOWN = "confirmed", "unconfirmed", "pending", "unknown"
+# A session's first hour whose move the feeds saw happen overnight: kept for
+# good, and jump.jumps moves the move into the night (see judge_all).
+OVERNIGHT = "overnight"
+KEPT = (UNCONFIRMED, OVERNIGHT)
 CLOSE, OPEN = "close", "open"     # the check: the hour's reading, or the gap's
 
-# Funds' second source is whichever consolidated-tape feed is not serving them.
-_FUND_PROVIDERS_CHECKED_BY_YAHOO = ("alpaca", "tiingo", "sina", "twelvedata", "google")
+# A fund is asked of two consolidated-tape feeds that are not serving it, so
+# that one feed alone cannot say a move did not happen: Yahoo's and Sina's
+# half-hour bars, and MarketWatch's hourly ones for a fund Yahoo or Sina
+# serves. Over the 9 days to 2026-10-07, of 322 fund hours 4x the fund's
+# usual move or more, all external feeds saw 314, none saw 2 (the store's own
+# bad prints), and the externals split on 6 - session-first hours, where one
+# feed's open is the opening auction and another's the first trade.
+_FUND_FEEDS = {"yahoo": ("sina", "marketwatch"), "sina": ("yahoo", "marketwatch")}
+_FUND_FEEDS_DEFAULT = ("yahoo", "sina")
+
+# MarketWatch names a fund by its listing exchange; ARCX unless here
+# (measured 2026-10-07: 96 funds on ARCX).
+MARKETWATCH_FUND_EXCHANGE = {
+    **dict.fromkeys(("QQQ", "SHY", "IEI", "IEF", "TLT", "MBB", "EMB", "PFF", "SMH", "SOXX",
+                     "CIBR", "SKYY", "TUR", "VNQI", "VGIT", "VGLT", "VTIP", "VMBS", "LMBS",
+                     "VCIT", "VCSH", "IGIB", "USIG", "SLQD", "ANGL", "FALN", "VWOB"), "XNAS"),
+    **dict.fromkeys(("ITB", "IYT", "IGV", "EZU", "INDA", "REM", "GOVT", "USHY", "EMHY",
+                     "CEMB"), "BATS"),
+}
 
 # The softs Yahoo serves, as Sina's global futures name them (the same endpoint
 # the LME's metals come from): against the stored bars over 2026-05 to 10,
@@ -143,10 +170,11 @@ def verifiers_for(asset: Asset) -> "list[tuple[str, str, str]]":
         return [("yahoo", pair + "=X", "1h"),
                 ("marketwatch", "CURRENCY/US/XTUP/" + pair, "1h")]
     if asset.session_template == "us_equity":
-        if asset.fetched_from == "yahoo":
-            return [("sina", asset.ticker, "30min")]
-        if asset.fetched_from in _FUND_PROVIDERS_CHECKED_BY_YAHOO:
-            return [("yahoo", asset.ticker, "30min")]
+        feeds = _FUND_FEEDS.get(asset.fetched_from, _FUND_FEEDS_DEFAULT)
+        return [("marketwatch", "FUND/US/{}/{}".format(
+                    MARKETWATCH_FUND_EXCHANGE.get(asset.ticker, "ARCX"), asset.ticker), "1h")
+                if name == "marketwatch" else (name, asset.ticker, "30min")
+                for name in feeds]
     if asset.ticker in SINA_FUTURES and asset.fetched_from == "yahoo":
         return [("sina", SINA_FUTURES[asset.ticker], "1h")]
     if asset.session_template == "cme_cattle" and asset.fetched_from == "yahoo":
@@ -251,8 +279,8 @@ def candidates(asset: Asset, frame: pd.DataFrame, table, now: int,
     h = metrics["hour_utc"].to_numpy(dtype="int64")
     close = metrics["close"].to_numpy(dtype="float64")
     opened = metrics["open"].to_numpy(dtype="float64")
-    own = (metrics["is_session_open"].to_numpy(dtype=bool)
-           | np.isfinite(metrics["hole"].to_numpy(dtype="float64")))
+    first = metrics["is_session_open"].to_numpy(dtype=bool)
+    own = first | np.isfinite(metrics["hole"].to_numpy(dtype="float64"))
     at = {int(hour): i for i, hour in enumerate(h)}
     out = []
     for hour, kind in zip(far["hour_utc"].astype("int64"), far["reading"]):
@@ -261,8 +289,13 @@ def candidates(asset: Asset, frame: pd.DataFrame, table, now: int,
             continue
         if kind == jumps.HOUR:
             start = (int(h[i]), float(opened[i])) if own[i] else (int(h[i - 1]), float(close[i - 1]))
-            out.append({"hour": int(h[i]), "check": CLOSE, "from_open": bool(own[i]),
-                        "prev_hour": start[0], "prev_close": start[1], "price": float(close[i])})
+            c = {"hour": int(h[i]), "check": CLOSE, "from_open": bool(own[i]),
+                 "prev_hour": start[0], "prev_close": start[1], "price": float(close[i])}
+            if first[i]:
+                # A session's first hour: where the previous session closed,
+                # for the night correction (judge_all).
+                c["night_hour"], c["night_close"] = int(h[i - 1]), float(close[i - 1])
+            out.append(c)
         else:
             out.append({"hour": int(h[i]), "check": OPEN, "from_open": False,
                         "prev_hour": int(h[i - 1]), "prev_close": float(close[i - 1]),
@@ -397,7 +430,39 @@ def judge_all(c: dict, answers: "list[tuple[str, pd.DataFrame]]",
     bridge would hold the verdict till morning and then read the night's
     drift as the move."""
     direct = [(name, v) for name, v in answers if _around(c, v)]
-    return combine([(name,) + judge(c, v, now) for name, v in (direct or answers)])
+    asked = direct or answers
+    verdict, stored, names, moves = combine([(name,) + judge(c, v, now) for name, v in asked])
+    if verdict == UNCONFIRMED and c.get("night_hour") is not None:
+        night = overnight_move(c, asked, now)
+        if night is not None:
+            return OVERNIGHT, stored, night[0], night[1]
+    return verdict, stored, names, moves
+
+
+def overnight_move(c: dict, answers: "list[tuple[str, pd.DataFrame]]",
+                   now: int) -> "tuple[list, list] | None":
+    """A session's first hour no feed saw move - but did every feed see the
+    move from the previous session's close to this bar's close? Then it
+    happened overnight: the store's first print was a stale one at the old
+    price (TLH 2020-03-09: gap +0.03%, first hour +3.8%; the tape opened
+    +4.65%). Returns the feeds' names and each one's night - its open of the
+    hour over its last close before the night - or None. Every feed must
+    agree, so one cannot move a reading on its own."""
+    whole = dict(c, from_open=False, prev_hour=c["night_hour"], prev_close=c["night_close"])
+    names, nights = [], []
+    for name, v in answers:
+        if judge(whole, v, now)[0] != CONFIRMED:
+            return None
+        stamps = v["hour_utc"].to_numpy(dtype="int64")
+        opens = dict(zip(stamps.tolist(), v["open"].tolist()))
+        before = stamps[(stamps <= c["night_hour"])
+                        & (stamps >= c["night_hour"] - STALE_HOURS * HOUR)]
+        if c["hour"] not in opens or not len(before):
+            return None
+        last = float(v.loc[v["hour_utc"] == before.max(), "close"].iloc[0])
+        names.append(name)
+        nights.append(math.log(opens[c["hour"]] / last))
+    return (names, nights) if names else None
 
 
 # --- the record ----------------------------------------------------------------
@@ -410,6 +475,22 @@ def load(path: "str | None" = None) -> "dict[tuple[str, int, str], dict]":
     with open(path, "r", encoding="utf-8", newline="") as f:
         return {(row["asset_id"], int(row["hour_utc"]), row["check"]): row
                 for row in csv.DictReader(f)}
+
+
+def overnight(path: "str | None" = None) -> "dict[tuple[str, int, str], float]":
+    """The first hours the feeds saw happen overnight, {(asset_id, hour_utc,
+    check): the night's move, the median of the feeds'}."""
+    try:
+        out = {}
+        for k, row in load(path).items():
+            if row.get("verdict") == OVERNIGHT:
+                moves = [float(m) for m in str(row["verifier_move"]).split(",") if m]
+                if moves:
+                    out[k] = float(np.median(moves))
+        return out
+    except (OSError, ValueError, KeyError, csv.Error) as exc:
+        log.warning("verify: could not read the record - %s", exc)
+        return {}
 
 
 def unconfirmed(path: "str | None" = None) -> "dict[tuple[str, int, str], dict]":
@@ -426,7 +507,7 @@ def unconfirmed(path: "str | None" = None) -> "dict[tuple[str, int, str], dict]"
 def write(record: dict, now: int, path: "str | None" = None) -> None:
     path = path or VERIFIED_PATH
     keep = [row for row in record.values()
-            if row["verdict"] == UNCONFIRMED
+            if row["verdict"] in KEPT
             or int(row["hour_utc"]) >= now - KEEP_DAYS * 86400]
 
     def _write(tmp: str) -> None:
@@ -490,7 +571,7 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
     # after run. A source that fails leaves the others to answer; a rate limit
     # stops that source for the rest of the run, as does not answering
     # UNANSWERED_IN_A_ROW requests in a row (~96 s each of a 20-minute job).
-    counts = {CONFIRMED: 0, UNCONFIRMED: 0, PENDING: 0, UNKNOWN: 0}
+    counts = {CONFIRMED: 0, UNCONFIRMED: 0, OVERNIGHT: 0, PENDING: 0, UNKNOWN: 0}
     unanswered: dict[str, int] = {}
     requests_left = 10 ** 6 if history else MAX_REQUESTS
     doubted: list[str] = []
