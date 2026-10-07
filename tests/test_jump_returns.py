@@ -387,3 +387,71 @@ def test_lme_hours_are_one_to_nineteen_london_on_weekdays():
     hours = pd.Series([ldn(2026, 9, 30, 0), ldn(2026, 9, 30, 1), ldn(2026, 9, 30, 18),
                        ldn(2026, 9, 30, 19), ldn(2026, 10, 3, 12)])
     assert list(quality.in_session(nickel(), hours)) == [False, True, True, False, False]
+
+
+# --- the official open (jump.opens) ------------------------------------------
+
+def stale_morning():
+    # Day two's first print is the previous close, 101, and the bar then trades
+    # at 98.5-99.5: a stale print. The market opened 1.8% lower.
+    return frame([
+        (et(2021, 3, 1, 10), 100.0, 101.0, 99.0, 100.5, 1.0, 2),
+        (et(2021, 3, 1, 11), 100.5, 102.0, 100.0, 101.0, 1.0, 2),
+        (et(2021, 3, 2, 9), 101.0, 101.0, 98.5, 99.5, 1.0, 2),
+        (et(2021, 3, 2, 10), 99.5, 100.0, 99.0, 99.8, 1.0, 2),
+    ])
+
+
+def with_opens(opens, **kw):
+    d = dividends(**kw)
+    return Dividends(steps=d.steps, splits=d.splits, checked_through=d.checked_through,
+                     opens={"SPY": opens})
+
+
+def test_the_night_ends_at_the_official_open_not_at_a_stale_first_print():
+    official = 0.982                         # official open over the official close
+    out = returns.split_channels(asset(), stale_morning(), session_table=TABLE,
+                                 dividends=with_opens({"2021-03-02": official}))
+    opening = out.iloc[2]
+    assert opening["official_open"]
+    assert opening["gap"] == pytest.approx(math.log(official))
+    assert opening["r"] == pytest.approx(math.log(99.5 / (101.0 * official)))
+    # The close-to-close move is the store's, only split differently.
+    assert opening["gap"] + opening["r"] == pytest.approx(math.log(99.5 / 101.0))
+    # Untouched elsewhere.
+    assert out.iloc[3]["r"] == pytest.approx(math.log(99.8 / 99.5))
+
+
+def test_a_first_print_off_the_official_open_is_replaced_too():
+    # An IEX first print 1% above where the market opened (+2.97%, not +3.96%).
+    official = 104.0 / 101.0
+    out = returns.split_channels(asset(), two_days(), session_table=TABLE,
+                                 dividends=with_opens({"2021-03-02": official}))
+    assert out.iloc[2]["gap"] == pytest.approx(math.log(104.0 / 101.0))
+    assert out.iloc[2]["r"] == pytest.approx(math.log(106.0 / 104.0))
+
+
+def test_no_official_open_no_night():
+    # The fund has official opens, but not for this day: its first print may
+    # be a stale one, so the gap is not scored. The hour keeps its stored open.
+    out = returns.split_channels(asset(), stale_morning(), session_table=TABLE,
+                                 dividends=with_opens({"2021-03-03": 1.0}))
+    assert out["gap"].isna().all()
+    assert not out.iloc[2]["official_open"]
+    assert out.iloc[2]["r"] == pytest.approx(math.log(99.5 / 101.0))
+
+
+def test_an_unadjusted_split_is_not_spliced_into_the_first_hour():
+    # The provider has not adjusted a 2:1 split: the store's close-to-close is
+    # the split ratio. Spliced, the official (adjusted) open would put -69%
+    # into the first hour; left alone, the gap is refused as a split, as before.
+    split_overnight = frame([
+        (et(2021, 3, 1, 10), 100.0, 101.0, 99.5, 100.5, 1.0, 2),
+        (et(2021, 3, 1, 11), 100.5, 101.5, 100.0, 101.0, 1.0, 2),
+        (et(2021, 3, 2, 9), 50.6, 51.0, 50.0, 50.8, 1.0, 2),
+    ])
+    out = returns.split_channels(asset(), split_overnight, session_table=TABLE,
+                                 dividends=with_opens({"2021-03-02": 1.002}))
+    assert not out.iloc[2]["official_open"]
+    assert out.iloc[2]["r"] == pytest.approx(math.log(50.8 / 50.6))
+    assert out["gap"].isna().all()

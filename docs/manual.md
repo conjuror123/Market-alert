@@ -170,6 +170,14 @@ until the next run. A fund's overnight gap is scored only on a date its payouts 
 confirmed through; five or more days behind, the health chat is told
 once a day.
 
+**Official opens** (`jump/opens.py`, `data/jump/opens/`): the same answer carries Yahoo's
+daily bars, today's included, and each day's official open and previous official close
+are recorded from them, so no request is added. A fund's night ends at that open (section
+6). The history was fetched once, from each fund's first stored day
+(`python -m jump.backfill --official-opens`, one request a fund). A row is never
+overwritten. A day added after a cold rebuild is used for the last 48 rows only, until
+the next one.
+
 ## 5. The second source
 
 A real trade shows up on another feed; a source's bad print does not. Right after the
@@ -229,11 +237,20 @@ within each source's reach.
 
 - **`r`, the hour's move:** close against the previous close. On a session's first bar,
   and on the bar after a missing hour, it is that bar's own open to close.
+- **A fund's session opens at the official open**, not at its feed's first print. Its
+  first bar's open becomes the stored previous close times the official open over the
+  official previous close (`returns.official_opens`). The stored close-to-close move is
+  kept exactly; only its split between the night and the first hour moves. There is no
+  splice when the previous stored bar did not close the previous session, when the bar
+  is not the session's first hour, or when the stored close-to-close move is a split
+  ratio (an unadjusted split would land in the first hour).
 - **`gap`:** a session's first open against the previous session's last close. It is
   dividend-adjusted, and left unscored on a split, an unconfirmed dividend, a missing
   bar before the close, or a missing first hour: from a late first bar the "night" would
-  span hours of trading. A pair's weekend that opens exactly at Friday's close is no
-  measurement (a stitched open, or no quote) and is left unscored too.
+  span hours of trading. A fund's gap is also left unscored on a day without an official
+  open, since its first print may be a stale one. A pair's weekend that opens exactly at
+  Friday's close is no measurement (a stitched open, or no quote) and is left unscored
+  too.
 - **`hole`:** the move across a missing hour inside a session. It is never scored; it only
   keeps the price path whole for the close check.
 
@@ -406,6 +423,7 @@ topped up daily from the live feed.
 | `data/state.json` | the week's messages on the channel, the open note | every run |
 | `data/economic_calendar/` | release archive | every run |
 | `data/jump/corporate_actions.csv`, `dividend_checks.csv` | payouts, how far each fund is confirmed | every run |
+| `data/jump/opens/` | each fund's official open and previous close per day: a Parquet per finished year, a CSV per month of this year | every run |
 | `data/jump/verified.csv` | second-source verdicts | every run |
 | `data/jump/sessions/nyse.csv`, `b3.csv` | NYSE schedule, B3's trading days | when extended |
 | `data/jump/bars/*/YYYY-MM.csv`, `YYYY.parquet` | settled bars | when a month or year settles |
@@ -506,7 +524,7 @@ health and the calendar go out, Jump's pushes, note and pings do not.
 | `jump/bars.py` | the bar store |
 | `jump/sessions.py`, `futures.py` | calendars and sessions; contract rolls and the front contract |
 | `jump/quality.py` | the bar gate |
-| `jump/corporate_actions.py` | payouts and splits |
+| `jump/corporate_actions.py`, `opens.py` | payouts and splits; each fund's official opens |
 | `jump/verify.py` | the second source |
 | `jump/returns.py`, `pipeline.py` | metrics |
 | `jump/jumps.py`, `routing.py` | detector; which words push, the note's slot |
@@ -520,7 +538,7 @@ health and the calendar go out, Jump's pushes, note and pings do not.
 | `price_monitor/weekly_digest.py`, `economic_calendar.py` | the calendar |
 | `price_monitor/notifier.py`, `health.py`, `__main__.py` | Telegram calls, health, the delivery entry point |
 | `price_monitor/<provider>.py` | one client per provider |
-| `tools/` | history builders (they rewrite stores, so each runs only on the instruments named; `binance_history --all` for every coin), `stage_report.py`, `hot_bars.sh`, `run_died.sh` (the health line for a run that could not deliver); `fund_verdict.py`, `sina_probe.py` and `dukascopy_dump.py`, the feed checks the Research workflow (`alpaca-probe.yml`) runs; `history_check.py`, the whole history asked once of second sources that reach it |
+| `tools/` | history builders (they rewrite stores, so each runs only on the instruments named; `binance_history --all` for every coin), `stage_report.py`, `hot_bars.sh`, `run_died.sh` (the health line for a run that could not deliver); `fund_verdict.py`, `sina_probe.py`, `dukascopy_dump.py` and `opens_referee.py`, the feed checks the Research workflow (`alpaca-probe.yml`) runs; `history_check.py`, the whole history asked once of second sources that reach it |
 
 How far back each record reaches:
 

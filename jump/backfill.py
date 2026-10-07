@@ -40,7 +40,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import requests
 
-from jump import atomic, bars, cboe, corporate_actions, fred, futures, quality, verify
+from jump import atomic, bars, cboe, corporate_actions, fred, futures, opens, quality, verify
 from jump import sessions as _sessions
 from jump.basket import Asset, Basket, load_basket
 from jump.usage import Usage
@@ -335,7 +335,8 @@ DIVIDEND_CHECK_STALE_DAYS = 5
 def check_dividends(funds: "list[Asset]", table: "dict | None",
                     session: requests.Session, now: datetime | None = None,
                     actions_path: str = corporate_actions.DEFAULT_ACTIONS_PATH,
-                    checks_path: str = corporate_actions.DEFAULT_CHECKS_PATH) -> dict:
+                    checks_path: str = corporate_actions.DEFAULT_CHECKS_PATH,
+                    opens_dir: str = opens.DEFAULT_DIR) -> dict:
     """Confirms each fund's payouts through today, once a session, after the open.
 
     THE OVERNIGHT GAP DEPENDS ON THIS. An ex-date drop the table has not heard
@@ -354,6 +355,9 @@ def check_dividends(funds: "list[Asset]", table: "dict | None",
 
     A failed fund keeps its old date and is asked again next hour; its gap stays
     unscored meanwhile, which is the safe direction.
+
+    The same answer carries Yahoo's daily bars, today's included: each day's
+    official open is recorded (jump.opens), where the fund's night ends.
     """
     now = now or datetime.now(timezone.utc)
     zone = ZoneInfo("America/New_York")
@@ -367,6 +371,7 @@ def check_dividends(funds: "list[Asset]", table: "dict | None",
     checks = corporate_actions.load_checks(checks_path)
     due = [a for a in funds if checks.get(a.ticker, "") < today.isoformat()]
     found: list[corporate_actions.CorporateAction] = []
+    official: list[dict] = []
     failed: list[str] = []
     checked = 0
     unanswered = 0
@@ -374,8 +379,8 @@ def check_dividends(funds: "list[Asset]", table: "dict | None",
         since = (date.fromisoformat(checks[asset.ticker]) + timedelta(days=1)
                  if asset.ticker in checks else today - timedelta(days=30))
         try:
-            pairs = yahoo.fetch_dividends(asset.ticker, since, session=session,
-                                          now=now)
+            pairs, daily = yahoo.fetch_dividends_and_bars(asset.ticker, since,
+                                                          session=session, now=now)
         except yahoo.RateLimited as exc:
             log.warning("dividend check: Yahoo rate-limited at %s - %s",
                         asset.ticker, exc)
@@ -397,12 +402,17 @@ def check_dividends(funds: "list[Asset]", table: "dict | None",
             unanswered = 0
             continue
         unanswered = 0
+        official.extend(opens.from_candles(asset.ticker, daily))
         found.extend(corporate_actions.CorporateAction(
             ticker=asset.ticker, day=day, kind="dividend", factor_step=step)
             for day, step in pairs)
         checks[asset.ticker] = today.isoformat()
         checked += 1
 
+    # Before the checked-through dates move, as the payouts: a gap may be
+    # scored once its fund is checked, and it needs its official open then.
+    if official:
+        opens.merge(official, opens_dir, today)
     added = corporate_actions.merge_actions(found, actions_path) if found else 0
     if checked:
         corporate_actions.write_checks(checks, checks_path)
@@ -1340,6 +1350,10 @@ def main(argv: list[str] | None = None) -> int:
                              "from Alpaca's consolidated tape, 2016 on "
                              "(ALPACA_KEY_ID, ALPACA_SECRET_KEY). Overlaps the "
                              "store and is gated on agreeing with it.")
+    parser.add_argument("--official-opens", action="store_true",
+                        help="record every fund's official opens from Yahoo's "
+                             "daily bars, all its history (jump.opens): one "
+                             "request a fund. Rows already held stay.")
     parser.add_argument("--live-pass", action="store_true",
                         help="the ordinary hourly fetch without the VIX, for "
                              "trying a provider change from the backfill "
@@ -1369,6 +1383,33 @@ def main(argv: list[str] | None = None) -> int:
     if wanted and not instruments:
         log.error("No instrument matched --instruments %s", args.instruments)
         return 2
+
+    if args.official_opens:
+        session = requests.Session()
+        rows, failed = [], []
+        for asset in corporate_actions._funds(basket):
+            if wanted and asset.ticker not in wanted:
+                continue
+            try:
+                daily = yahoo.fetch_full_history(asset.ticker, "1d", 36000, session=session)
+            except Exception as exc:
+                log.error("%s: official opens failed - %s", asset.ticker, exc)
+                failed.append(asset.ticker)
+                continue
+            stored = bars.load(bars.store_path(args.bars_dir, asset.file_stem))
+            if stored.empty:
+                continue
+            # Only the days the store holds: an open before its record is no use.
+            first = datetime.fromtimestamp(int(stored["hour_utc"].min()), opens.NY).date()
+            got = [r for r in opens.from_candles(asset.ticker, daily)
+                   if r["day"] >= first.isoformat()]
+            log.info("%s: %d official opens, %s .. %s", asset.ticker, len(got),
+                     got[0]["day"] if got else "-", got[-1]["day"] if got else "-")
+            rows.extend(got)
+            time.sleep(0.4)
+        added = opens.merge(rows)
+        log.info("official opens: %d added; failed: %s", added, failed or "none")
+        return 1 if failed else 0
 
     if args.probe_hfdata:
         import json
