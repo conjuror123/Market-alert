@@ -178,7 +178,10 @@ until the next run. A fund's overnight gap is scored only on a date its payouts 
 confirmed through; five or more days behind, the health chat is told
 once a day. The same answer carries the fund's splits, recorded as declared, so a split
 day's gap is not scored whatever the ratio. The splits since 2000 were declared once
-from Yahoo's list, which stocksplithistory.com matched on every split.
+from Yahoo's list, which stocksplithistory.com matched on every split. The full refresh
+from Tiingo (backfill workflow, `corporate-actions`) rewrites the payouts but keeps every
+split already declared for the funds it covers, unless it declares one that day itself:
+the morning check never asks back past a fund's checked-through date.
 
 ## 5. The second source
 

@@ -265,3 +265,29 @@ def test_the_full_refresh_runs_only_while_the_hourly_run_leaves_tiingo_alone(
 
     assert (code == 0) is runs
     assert bool(asked) is runs
+
+
+def test_a_full_refresh_keeps_the_splits_already_declared(tmp_path, monkeypatch):
+    # XLK's 2025-12-05 split was declared from Yahoo by the morning check, which
+    # never asks that far back again: a Tiingo rebuild that does not list it
+    # must not drop it. Payouts are Tiingo's to restate; a fund the refresh
+    # does not cover keeps nothing.
+    from datetime import datetime, timezone
+
+    live = _tiingo_fund("XLK")
+    _store_to_friday_close(tmp_path / "bars", live)
+    out = tmp_path / "actions.csv"
+    out.write_text("ticker,date,kind,factor_step\n"
+                   "GONE,2020-01-02,split,1.00000000\n"
+                   "XLK,2025-09-22,dividend,0.00150000\n"
+                   "XLK,2025-12-05,split,1.00000000\n")
+    monkeypatch.setattr(ca.tiingo, "fetch_daily_history", lambda *a, **k: [])
+    monkeypatch.setattr(ca.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(ca, "_now", lambda: datetime(2026, 10, 3, 12, tzinfo=timezone.utc),
+                        raising=False)
+    monkeypatch.setattr("jump.basket.load_basket", lambda: _basket([live]))
+    monkeypatch.setenv("TIINGO_API_KEY", "k")
+
+    assert ca.main(["--out", str(out), "--bars-dir", str(tmp_path / "bars")]) == 0
+    rows = [(a.ticker, a.day.isoformat(), a.kind) for a in ca.load_actions(str(out))]
+    assert rows == [("XLK", "2025-12-05", "split")]

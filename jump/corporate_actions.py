@@ -296,14 +296,8 @@ def fingerprint(dividends, ticker: str) -> str:
     return hashlib.sha256(repr((steps, splits)).encode()).hexdigest()[:12]
 
 
-def merge_actions(new: "list[CorporateAction]",
-                  path: str = DEFAULT_ACTIONS_PATH) -> int:
-    """Adds payouts the table does not hold yet; returns how many were added.
-
-    Keyed on (ticker, date, kind) and never overwriting: a row already in the
-    table came from the declared Tiingo figures, which are the reference, and a
-    second source disagreeing in the fifth decimal is not a reason to rewrite it.
-    """
+def load_actions(path: str = DEFAULT_ACTIONS_PATH) -> "list[CorporateAction]":
+    """Every row of the table; a malformed one is skipped."""
     existing: list[CorporateAction] = []
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8", newline="") as f:
@@ -315,6 +309,33 @@ def merge_actions(new: "list[CorporateAction]",
                         factor_step=float(row["factor_step"])))
                 except (KeyError, TypeError, ValueError):
                     continue
+    return existing
+
+
+def with_splits_kept(new: "list[CorporateAction]", tickers,
+                     path: str = DEFAULT_ACTIONS_PATH) -> "tuple[list, int]":
+    """A rebuilt table with every split the old one declared for these funds
+    kept, unless the rebuild declares one the same day; returns it and how
+    many were kept. The morning check records Yahoo's splits as they are
+    declared and asks only from each fund's checked-through date, so a split
+    dropped by a rebuild would never come back (46 were declared once from
+    Yahoo's list; Twelve Data sees none)."""
+    tickers = set(tickers)
+    have = {(a.ticker, a.day) for a in new if a.kind == "split"}
+    kept = [a for a in load_actions(path)
+            if a.kind == "split" and a.ticker in tickers and (a.ticker, a.day) not in have]
+    return list(new) + kept, len(kept)
+
+
+def merge_actions(new: "list[CorporateAction]",
+                  path: str = DEFAULT_ACTIONS_PATH) -> int:
+    """Adds payouts the table does not hold yet; returns how many were added.
+
+    Keyed on (ticker, date, kind) and never overwriting: a row already in the
+    table came from the declared Tiingo figures, which are the reference, and a
+    second source disagreeing in the fifth decimal is not a reason to rewrite it.
+    """
+    existing = load_actions(path)
     seen = {(a.ticker, a.day, a.kind) for a in existing}
     added = [a for a in new if (a.ticker, a.day, a.kind) not in seen]
     if added:
@@ -569,8 +590,9 @@ def main(argv: list[str] | None = None) -> int:
         log.error("Refusing to write a truncated table: %s", exc)
         return 1
 
+    actions, kept = with_splits_kept(actions, [a.ticker for a in funds], args.out)
     write_actions(args.out, actions)
-    log.info("%s: records %d", args.out, len(actions))
+    log.info("%s: records %d (%d splits already declared, kept)", args.out, len(actions), kept)
     if args.out == DEFAULT_ACTIONS_PATH and args.source == "tiingo":
         # A full declared refresh vouches for every fund through YESTERDAY, not
         # today: Tiingo's daily row for an ex-date lands after that session

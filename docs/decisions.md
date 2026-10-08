@@ -298,6 +298,11 @@ and the gate drops it like any invalid bar. The store remembers in itself, with 
 bad days beside it. The gate had let a bar with no price through (none was stored, over the
 173 instruments, 2026-10-08); it now refuses it first.
 
+**A dividend refresh keeps the splits already declared.** The full Tiingo refresh rewrote the
+whole table, and the morning check never asks back past a fund's checked-through date, so a
+split Tiingo did not list (or any split, from Twelve Data, which cannot see them) would have
+been lost for good, and its day's gap scored again.
+
 **Candidates are the detector's own readings at ≥ 4σ.** A check with its own σ missed 23
 of 543 flagged readings after a calm stretch.
 
