@@ -96,6 +96,13 @@ its own message, sent just before the note: a forecast and a report are read dif
 says what the detector says now. Once the next note opens, nothing of the old week moves,
 so a cold rebuild cannot rewrite a closed record or post its difference as new alerts.
 
+**The note is read by block, in time inside** (the user's, 2026-10-08). Its rows stand in
+the basket's blocks, in a fixed order, each under a name-line with an icon and its count
+(`━━━ 🏛 RATES · 4 ━━━`), so what moved together is read together: the FOMC hour of
+2026-09-16 18:00 had rates, credit, gold and FX rows in one run, which by time alone read
+as one list. Time order stays inside a block, since a note is a record. The icons avoid 📈
+and 📉, which say a row's direction.
+
 **Rarer rings again inside the 24 hours; milder never rings.** A rarer event is news; a
 milder one the reader has already heard. After the 24 hours a fix corrects silently, and an
 event corrected away stays gone. A doubt lifted is not news: the move was

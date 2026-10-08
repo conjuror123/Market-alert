@@ -359,6 +359,36 @@ def test_the_note_runs_in_time_order_across_all_its_parts():
     assert len(stamps) == len(rows)
 
 
+def test_the_note_stands_in_blocks_in_the_baskets_order_each_under_its_name_line():
+    # What moved together is read together: the rates first, then the FX,
+    # whatever the hour; inside a block, time order.
+    rows = [event(event_id="fx", channel="digest", tier="noticeable", block="FX",
+                  asset_id="twelvedata:EUR/USD", hour_utc=SLOT + 1 * HOUR),
+            event(event_id="tlt", channel="digest", tier="noticeable", block="rates",
+                  asset_id="twelvedata:TLT", hour_utc=SLOT + 3 * HOUR),
+            event(event_id="ief", channel="digest", tier="noticeable", block="rates",
+                  asset_id="twelvedata:IEF", hour_utc=SLOT + 2 * HOUR)]
+    labels = {"twelvedata:EUR/USD": "Euro", "twelvedata:TLT": "Long", "twelvedata:IEF": "Mid"}
+    text = md.format_digest(rows, labels, (SLOT, SLOT + 200 * HOUR), None, NOW)[0]
+    rates, fx = "━━━ 🏛 <b>RATES</b> · 2 ━━━", "━━━ 💱 <b>FX</b> · 1 ━━━"
+    assert text.index(rates) < text.index("Mid") < text.index("Long") < text.index(fx) \
+        < text.index("Euro")
+    assert "CREDIT" not in text                     # a block with nothing is left out
+
+
+def test_a_part_that_opens_inside_a_block_names_it_continued():
+    rows = [event(event_id=f"d{i}", channel="digest", tier="noticeable",
+                  hour_utc=SLOT + i * HOUR, asset_id="twelvedata:GLD")
+            for i in range(60)]
+    texts = md.format_digest(rows, LABELS, (SLOT, SLOT + 200 * HOUR), None, NOW)
+    assert len(texts) > 1, "the fixture must be long enough to split"
+    assert "━━━ 🥇 <b>PRECIOUS METALS</b> · 60 ━━━" in texts[0]
+    for part in texts[1:]:
+        assert part.startswith("━━━ 🥇 <b>PRECIOUS METALS</b> · continued ━━━")
+    for part in texts[:-1]:
+        assert "━━━" not in part.rstrip().splitlines()[-1]   # never a name-line alone
+
+
 def test_two_moves_in_one_hour_put_the_rarer_first():
     # The one case time cannot separate.
     same = SLOT + 5 * HOUR

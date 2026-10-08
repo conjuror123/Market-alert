@@ -66,6 +66,24 @@ STATE_KEY = "jump_delivery"
 TIER_EMOJI = {"noticeable": "⬜", "high": "🟨", "major": "🟧", "extreme": "🟥"}
 
 
+# The note's blocks, in the basket's order (jump.basket.BLOCKS), each under a
+# name-line: what moved together is read together (the user's, 2026-10-08).
+# Not 📈 or 📉, which say a row's direction.
+BLOCK_LINES = {"equity": ("🏢", "EQUITY"), "rates": ("🏛", "RATES"),
+               "credit": ("💳", "CREDIT"), "energy": ("🛢", "ENERGY"),
+               "precious_metals": ("🥇", "PRECIOUS METALS"),
+               "industrial_metals": ("⚙️", "INDUSTRIAL METALS"),
+               "agriculture": ("🌾", "AGRICULTURE"), "FX": ("💱", "FX"),
+               "crypto": ("🪙", "CRYPTO")}
+
+
+def block_line(block: str, count: "int | None" = None) -> str:
+    """A block's name-line in the note: its count, or "continued" at the top
+    of a later part."""
+    icon, name = BLOCK_LINES.get(block, ("▪️", str(block).upper()))
+    return f"━━━ {icon} <b>{name}</b> · {count if count is not None else 'continued'} ━━━"
+
+
 # Marks the timestamp footer. The hour is the last thing on the line rather
 # than the first because it is what a reader checks last - everything above it
 # is what happened, and this is when.
@@ -138,6 +156,26 @@ def _tickers() -> dict:
 
 def _ticker(asset_id: str) -> str:
     return _tickers().get(asset_id) or str(asset_id).split(":")[-1]
+
+
+@lru_cache(maxsize=1)
+def _blocks() -> dict:
+    """asset_id -> block, from the basket definition, read once per process."""
+    try:
+        from jump.basket import load_basket
+
+        return {a.asset_id: a.block for a in load_basket().instruments}
+    except Exception as exc:                     # pragma: no cover - defensive
+        log.warning("Could not read the basket's blocks: %s", exc)
+        return {}
+
+
+def _block(event: dict) -> str:
+    """The event's block: as the detector wrote it, else the basket's."""
+    block = event.get("block")
+    if isinstance(block, str) and block:
+        return block
+    return _blocks().get(str(event.get("asset_id")), "other")
 
 
 
@@ -651,16 +689,19 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
                   now: datetime | None = None) -> "list[str]":
     """One note, whole, split into parts Telegram will accept.
 
-    ORDERED BY TIME, and by size only inside an hour. A note is a record, so a
-    period read top to bottom runs in the order it happened; leading with the
-    biggest row would buy nothing, because the note does not notify - the ping
-    does. Moves in the same hour are the one case time cannot separate, and
-    there the biggest in σ goes first.
+    BY BLOCK, THEN BY TIME. The rows stand in their blocks, in the basket's
+    order, each block under its name-line (block_line) and left out when it
+    has none: a rates week reads as one. Inside a block a period read top to
+    bottom runs in the order it happened; leading with the biggest row would
+    buy nothing, because the note does not notify - the ping does. Moves in the
+    same hour are the one case time cannot separate, and there the biggest in
+    σ goes first.
 
     The order runs ACROSS the parts, not within each. A long note is cut into
     several messages, and sorting each part on its own would restart the clock
     at every cut - so the rows are ordered once and the cut falls wherever the
-    character budget runs out.
+    character budget runs out. A part that opens inside a block says so with
+    the block's name-line, "continued".
 
     The header states the period the note speaks for, from the evening of one
     week's last funds close to the next's.
@@ -710,14 +751,25 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
         context = calendar_context(int(event["hour_utc"]), calendar)
         return f"{line}\n     {_escape(context)}" if context else line
 
+    from jump.basket import BLOCKS
+
+    blocks: "dict[str, list[dict]]" = {}
+    for e in ordered:
+        blocks.setdefault(_block(e), []).append(e)
     messages, current = [], header
-    for text in [row(e) for e in ordered]:
-        candidate = f"{current}\n\n{text}"
-        if len(candidate) > _MESSAGE_LIMIT and current != header:
-            messages.append(current)
-            current = text
-        else:
-            current = candidate
+    for block in sorted(blocks, key=lambda b: (BLOCKS.index(b) if b in BLOCKS else len(BLOCKS), b)):
+        members = blocks[block]
+        for i, event in enumerate(members):
+            text = row(event)
+            # A block's name-line goes with its first row, never alone at the
+            # end of a part.
+            opening = f"{block_line(block, len(members))}\n\n{text}" if i == 0 else text
+            candidate = f"{current}\n\n{opening}"
+            if len(candidate) > _MESSAGE_LIMIT and current != header:
+                messages.append(current)
+                current = opening if i == 0 else f"{block_line(block)}\n\n{text}"
+            else:
+                current = candidate
     messages.append(current)
 
     if len(messages) > 1:
