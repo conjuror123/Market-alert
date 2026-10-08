@@ -325,6 +325,16 @@ planned sources are not asked: cattle's listed contracts (its store's bad prints
 other contracts' bars, so a contract could be the very source of one) and the softs'
 Dukascopy CFDs (the months after their seams lie inside Sina's 79 days).
 
+**Where no source reaches an old move, its vote stands** (the user's, 2026-10-08). The
+replay takes again only the votes some source can cast today; a move none covers keeps
+what the record holds, and one never voted gets no vote and counts as normal. Old history
+cannot be fixed by a vote nobody can cast, and a known bad print must not come back: as
+first written, a move with no voter was counted real, which would have returned cattle's
+twelve contract-mixing spikes - voted not real by its listed contracts, three of them
+inside cattle's current half-year - to its yardstick. A vote a source can retake follows
+the new rule, so USD/TRY's 33 that Dukascopy alone did not see become ties. Applying
+merges the replay's votes over the record and deletes none.
+
 **A source sees a move at half its size, and no source is shifted** (measured 2026-10-08,
 the user's choice). 3,444 moves of 4σ or more, each put to the free sources at their full
 reach (Yahoo's pairs two years, Coinbase one, the funds' sources 9 to 77 days): of 3,704

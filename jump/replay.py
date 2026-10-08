@@ -13,7 +13,8 @@ WHO VOTES ON A MOVE. A source covers the hours from its first bar to its last
 (as fetched); outside them it is no voter - a coin before its listing there, a
 fund before 2016 for the tape. Inside them, no bars around the move is an
 outage, a vote against, as live. A source never votes on the bars it supplied
-to the store (verify.supplied).
+to the store (verify.supplied). A move no source covers is not voted: its
+vote in the record, if any, stands.
 
 A FIXED POINT. A move voted not real leaves the yardstick, which can lift
 another move far enough to be asked about (verify.candidates): each instrument
@@ -23,10 +24,9 @@ is voted again until its votes stop changing.
                                             votes.csv, changes.csv, summary.txt,
                                             and the sources' bars around every
                                             move (bars/); the record untouched
-    python -m jump.replay --apply DIR     the reviewed votes into the record:
-                                            every vote older than each
-                                            instrument's recount is replaced
-                                            by the replay's
+    python -m jump.replay --apply DIR     the reviewed votes into the record,
+                                            over its votes for the same moves;
+                                            every other vote stands
 """
 from __future__ import annotations
 
@@ -210,6 +210,8 @@ def vote(asset: Asset, frame: pd.DataFrame, fetched: "dict[str, pd.DataFrame | N
         asked = [(s.name, None if verify.crosses(c, rolls.get(s.name, [])) else fetched[s.name])
                  for s in sources
                  if covers(fetched.get(s.name), c) and not verify.supplied(s.name, asset, c, n_src)]
+        if not asked:
+            continue                                 # no source reaches it: no vote
         result, stored, names, moves, seen = verify.judge_all(c, asked)
         out[(asset.asset_id, c["hour"], c["check"])] = verify._row(
             asset, c, result, stored, names, moves, seen, now)
@@ -227,7 +229,7 @@ def replay(instruments, bars_dir: str, table, out_dir: str, session=None,
     record = verify.load(record_path)
     basket, dividends, settings = load_basket(), corporate_actions.load_dividends(), jumps.settings()
     os.makedirs(os.path.join(out_dir, "bars"), exist_ok=True)
-    votes, until, failed, unsettled = {}, {}, [], []
+    votes, until, failed, unsettled, stood = {}, {}, [], [], []
     # A source that fails is asked again once, after every other instrument -
     # a throttled archive is back by then (Dukascopy gave up on EUR/USD's first
     # month and served USD/TRY minutes later, 2026-10-08) - and the instrument
@@ -238,17 +240,18 @@ def replay(instruments, bars_dir: str, table, out_dir: str, session=None,
         for asset in todo:
             fetched = later.pop(asset.asset_id, {})
             if _instrument(asset, bars_dir, fetched, again, votes, until, failed, unsettled,
-                           record, out_dir, session, now_dt, table, basket, dividends,
+                           stood, record, out_dir, session, now_dt, table, basket, dividends,
                            settings):
                 later[asset.asset_id] = fetched
         todo = [a for a in instruments if a.asset_id in later]
-    _write(out_dir, votes, record, until, failed, unsettled)
+    _write(out_dir, votes, record, until, failed, unsettled, stood)
     return {"votes": len(votes), "failed": failed, "unsettled": unsettled}
 
 
 def _instrument(asset: Asset, bars_dir: str, fetched: dict, again: bool, votes: dict,
-                until: dict, failed: list, unsettled: list, record: dict, out_dir: str,
-                session, now_dt: datetime, table, basket, dividends, settings) -> bool:
+                until: dict, failed: list, unsettled: list, stood: list, record: dict,
+                out_dir: str, session, now_dt: datetime, table, basket, dividends,
+                settings) -> bool:
     """One instrument's votes into `votes`; True when a source failed on the
     first ask, so it is to be asked again (its bars so far kept in `fetched`)."""
     now_ts = int(now_dt.timestamp())
@@ -273,23 +276,29 @@ def _instrument(asset: Asset, bars_dir: str, fetched: dict, again: bool, votes: 
         return True
     failed.extend(missing)
     mine = {k: r for k, r in record.items() if k[0] == asset.asset_id}
-    older = {k: r for k, r in mine.items() if k[1] < until[asset.asset_id]}
-    current = {k: r for k, r in mine.items() if k not in older}
-    passes, settled = 0, False
+    # A vote the replay does not take again - no source reaches its move today,
+    # or the move is no longer far - stands as the record has it, in the
+    # yardstick too: old history is not fixed by this, and a known bad print
+    # must not come back (the owner, 2026-10-08).
+    standing = {k: r for k, r in mine.items() if k[1] < until[asset.asset_id]}
+    current = {k: r for k, r in mine.items() if k not in standing}
+    verdicts = {k: r["verdict"] for k, r in standing.items()}
+    new, passes, settled = {}, 0, False
     while passes < FIXED_POINT_PASSES:
         passes += 1
-        new = vote(asset, frame, fetched, {**current, **older}, until[asset.asset_id],
-                   now_ts, table, basket, dividends, settings, sources)
-        settled = {k: r["verdict"] for k, r in new.items()} == \
-            {k: r["verdict"] for k, r in older.items()}
-        older = new
+        new = vote(asset, frame, fetched, {**current, **standing, **new},
+                   until[asset.asset_id], now_ts, table, basket, dividends, settings, sources)
+        after = {k: r["verdict"] for k, r in {**standing, **new}.items()}
+        settled = after == verdicts
+        verdicts = after
         if settled:
             break
     if not settled:
         unsettled.append(asset.ticker)
-    votes.update(older)
-    _keep_bars(out_dir, asset, fetched, older)
-    log.info("replay: %s %d votes in %d passes", asset.ticker, len(older), passes)
+    votes.update(new)
+    stood.extend(r for k, r in standing.items() if k not in new)
+    _keep_bars(out_dir, asset, fetched, new)
+    log.info("replay: %s %d votes in %d passes", asset.ticker, len(new), passes)
     return False
 
 
@@ -314,7 +323,7 @@ def _keep_bars(out_dir: str, asset: Asset, fetched: dict, votes: dict) -> None:
 
 
 def _write(out_dir: str, votes: dict, record: dict, until: dict, failed: list,
-           unsettled: list) -> None:
+           unsettled: list, stood: list) -> None:
     rows = sorted(votes.values(), key=lambda r: (r["asset_id"], int(r["hour_utc"]), r["check"]))
     with open(os.path.join(out_dir, "votes.csv"), "w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=verify.COLUMNS, lineterminator="\n",
@@ -323,10 +332,9 @@ def _write(out_dir: str, votes: dict, record: dict, until: dict, failed: list,
         w.writerows(rows)
     with open(os.path.join(out_dir, "until.json"), "w", encoding="utf-8") as f:
         json.dump(until, f, indent=1, sort_keys=True)
-    # What changes: every key the record or the replay has in the replayed range.
-    keys = set(votes) | {k for k in record if k[0] in until and k[1] < until[k[0]]}
+    # What changes: every vote the replay takes that the record has otherwise.
     changes = []
-    for k in sorted(keys, key=lambda k: (k[0], k[1], k[2])):
+    for k in sorted(votes, key=lambda k: (k[0], k[1], k[2])):
         before = record.get(k, {}).get("verdict", "-")
         after = votes.get(k, {}).get("verdict", "-")
         if before != after:
@@ -351,6 +359,8 @@ def _write(out_dir: str, votes: dict, record: dict, until: dict, failed: list,
         f.write(f"changed against the record: {len(changes)}\n")
         for (a, b), n in moved.most_common():
             f.write(f"  {a} -> {b}: {n}\n")
+        kept = collections.Counter(r["verdict"] for r in stood)
+        f.write(f"record votes not taken again, which stand: {len(stood)} {dict(kept)}\n")
         f.write(f"instruments whose votes did not settle in {FIXED_POINT_PASSES} passes: "
                 f"{len(unsettled)} {unsettled}\n")
         f.write(f"sources that could not be fetched: {len(failed)}\n")
@@ -359,17 +369,14 @@ def _write(out_dir: str, votes: dict, record: dict, until: dict, failed: list,
 
 
 def apply(out_dir: str, record_path: "str | None" = None, now: "datetime | None" = None) -> dict:
-    """The reviewed votes into the record: for every instrument the replay
-    covered, its votes older than the replay's `until` are the replay's."""
-    with open(os.path.join(out_dir, "until.json"), encoding="utf-8") as f:
-        until = {k: int(v) for k, v in json.load(f).items()}
+    """The reviewed votes into the record, over the votes it holds for the
+    same moves; every other vote stands. So a newer record, and several runs
+    applied one after another, take it alike."""
     replayed = verify.load(os.path.join(out_dir, "votes.csv"))
     record = verify.load(record_path)
-    kept = {k: r for k, r in record.items() if not (k[0] in until and k[1] < until[k[0]])}
-    merged = {**kept, **replayed}
     now_ts = int((now or datetime.now(timezone.utc)).timestamp())
-    verify.write(merged, now_ts, record_path)
-    return {"replaced": len(record) - len(kept), "written": len(replayed)}
+    verify.write({**record, **replayed}, now_ts, record_path)
+    return {"replaced": len(set(record) & set(replayed)), "written": len(replayed)}
 
 
 def main(argv: "list[str] | None" = None) -> int:

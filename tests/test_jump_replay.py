@@ -107,7 +107,8 @@ def test_a_source_that_fails_is_asked_again_after_the_rest(monkeypatch, tmp_path
     assert asked.count("kraken") == 1                   # the others are not asked again
 
 
-def test_apply_replaces_only_the_replayed_range(monkeypatch, tmp_path, basket):
+def test_apply_merges_the_replayed_votes_and_every_other_vote_stands(monkeypatch, tmp_path,
+                                                                    basket):
     bad = range(24 * 70, 24 * 70 + 6)
     asset, hours, store, market = _coin(tmp_path, basket, bad=bad)
     monkeypatch.setattr(replay, "fetch", lambda src, a, stored, session, now: market)
@@ -122,9 +123,54 @@ def test_apply_replaces_only_the_replayed_range(monkeypatch, tmp_path, basket):
     replay.replay([asset], str(tmp_path / "bars"), None, out, now=now, record_path=record)
     replay.apply(out, record, now=now)
     after = verify.load(record)
-    assert stale not in after                                   # replaced by the replay
+    assert after[stale]["verdict"] == verify.NOT_REAL           # not taken again: stands
     assert after[recent]["verdict"] == verify.NOT_REAL          # the live count's, kept
     assert after[(asset.asset_id, int(hours[bad[0]]), "close")]["verdict"] == verify.NOT_REAL
+
+
+def _reaching(market, first):
+    """The market as a source that reaches back only to `first`."""
+    return lambda src, a, stored, session, now: market[market["hour_utc"] >= first]
+
+
+def test_a_move_no_source_reaches_gets_no_vote(monkeypatch, tmp_path, basket):
+    # Old history no source reaches today is not voted: a move with no voter
+    # was written "real" at a 0.00% move, over whatever the record held.
+    bad = range(24 * 70, 24 * 70 + 6)
+    asset, hours, store, market = _coin(tmp_path, basket, bad=bad)
+    monkeypatch.setattr(replay, "fetch", _reaching(market, int(hours[24 * 120])))
+    record = str(tmp_path / "verified.csv")
+    verify.write({}, 0, record)
+    now = datetime.fromtimestamp(int(hours[-1]) + 2 * HOUR, timezone.utc)
+    out = str(tmp_path / "out")
+    replay.replay([asset], str(tmp_path / "bars"), None, out, now=now, record_path=record)
+    votes = verify.load(os.path.join(out, "votes.csv"))
+    assert not [k for k in votes if k[1] in {int(hours[k]) for k in bad}]
+    assert all(r["verifier"] for r in votes.values())
+
+
+def test_a_known_bad_print_no_source_reaches_stays_not_real(monkeypatch, tmp_path, basket):
+    # Cattle's twelve contract-mixing spikes: voted not real once, and no
+    # source reaches them now. They stand - in the record and out of the
+    # yardstick, where they would hide the 6-sigma move forty days on.
+    bad = range(24 * 100, 24 * 100 + 12)
+    lift = 24 * 140 + 5
+    asset, hours, store, market = _coin(tmp_path, basket, bad=bad, lift=lift)
+    monkeypatch.setattr(replay, "fetch", _reaching(market, int(hours[24 * 120])))
+    known = {(asset.asset_id, int(hours[k]), "close"): {
+        "asset_id": asset.asset_id, "hour_utc": int(hours[k]), "check": "close",
+        "verdict": verify.NOT_REAL, "verifier": "LEV25.CME"} for k in bad}
+    record = str(tmp_path / "verified.csv")
+    now = datetime.fromtimestamp(int(hours[-1]) + 2 * HOUR, timezone.utc)
+    verify.write(known, int(now.timestamp()), record)
+    out = str(tmp_path / "out")
+    replay.replay([asset], str(tmp_path / "bars"), None, out, now=now, record_path=record)
+    votes = verify.load(os.path.join(out, "votes.csv"))
+    assert not set(votes) & set(known)
+    assert votes[(asset.asset_id, int(hours[lift]), "close")]["verdict"] == verify.REAL
+    replay.apply(out, record, now=now)
+    after = verify.load(record)
+    assert all(after[k]["verdict"] == verify.NOT_REAL for k in known)
 
 
 def test_a_move_lifted_once_a_bad_stretch_is_voted_out_is_voted_on_next_pass(

@@ -320,6 +320,9 @@ hour the nearest one that is not the store's front contract then (Yahoo forgets 
 contract, so about two years). Cattle has none: its store's bad prints were other
 contracts' bars, so a listed contract could be the very source of one. The softs'
 Dukascopy CFDs are not asked: the months after their seams lie inside Sina's 79 days.
+- **Rule.** A move no source covers gets no vote from the replay: its vote in the record,
+  if any, stands, in the yardstick too (cattle's twelve not-real spikes, which no source
+  reaches now), and `summary.txt` counts them.
 - A source covers the hours from its first bar to its last as fetched: outside them it is
   no voter, inside them no bars around a move is an outage. It never votes on bars it
   supplied (`verify.supplied`), and is fetched only from a month before its stretch ends -
@@ -336,8 +339,8 @@ Dukascopy CFDs are not asked: the months after their seams lie inside Sina's 79 
   that differs from the record), `summary.txt`, `until.json` (each instrument's recount
   start) and the sources' bars within 36 hours of every move (`bars/`) for the separate
   check. The record is untouched.
-- `python -m jump.replay --apply DIR`: for every instrument the dry run covered, every vote
-  older than its `until` is the replay's; the rest of the record stands.
+- `python -m jump.replay --apply DIR`: the dry run's votes over the record's for the same
+  moves; every other vote stands, so runs apply one after another and onto a newer record.
 - Both run in the backfill workflow (`replay-dry`, `replay-apply` with the dry run's id),
   where the keys are; the dry run's output is the artifact `replay`.
 - **The separate check** (`python tools/recount.py DIR`): every move the dry run voted not
