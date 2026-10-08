@@ -47,6 +47,13 @@ def _coin(tmp_path, basket, bad=(), lift=None):
     return asset, hours, store, frame(clean)
 
 
+def test_hf_data_is_no_voter_now_it_serves_no_consolidated_tape(monkeypatch, basket):
+    # HF Data withdrew everything before 2022-03-07 on 2026-10-03; its IEX
+    # bars since are trades Alpaca's tape already holds.
+    monkeypatch.setenv("HFDATA_API_KEY", "key")
+    assert "hfdata" not in [s.name for s in replay.voters(basket["SPY"])]
+
+
 def test_a_source_votes_only_on_the_hours_its_bars_span():
     v = pd.DataFrame({"hour_utc": [ts("2026-03-01 00:00"), ts("2026-03-10 00:00")]})
     inside = {"prev_hour": ts("2026-03-05 10:00"), "hour": ts("2026-03-05 11:00")}

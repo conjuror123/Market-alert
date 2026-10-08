@@ -130,8 +130,8 @@ def test_a_source_is_no_voter_on_the_bars_it_supplied(basket):
     # store; the tape's are the rest from 2016 to 2020-02-07.
     fund, h = basket["XLK"], c("2018-03-01 15:00")
     minutes = {h["prev_hour"]: 30, h["hour"]: 30}
-    assert s("hfdata", fund, h, minutes) and not s("alpaca_sip", fund, h, minutes)
-    assert s("alpaca_sip", fund, h, {}) and not s("hfdata", fund, h, {})
+    assert not s("alpaca_sip", fund, h, minutes)
+    assert s("alpaca_sip", fund, h, {})
     assert not s("alpaca_sip", fund, c("2021-03-01 15:00"), {})
     # TUR's holes of 2026-10-01 and -02, mended from Yahoo.
     assert s("yahoo", basket["TUR"], c("2026-10-01 15:00"), {})

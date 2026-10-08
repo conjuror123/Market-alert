@@ -314,8 +314,8 @@ simulated: 9.2 requests a run against 7.7, the tape's 704 over 460 runs, at most
 
 **History is voted by the live vote, once each source's reach is whole** (2026-10-08). A
 move older than its recount is put to every source that covers its hour - the live ones
-at their whole reach and the ones only history needs (HF Data, Dukascopy, Bitstamp,
-Bitfinex, the softs' listed contracts) - by the same rule, so a move is judged the same
+at their whole reach and the ones only history needs (Dukascopy, Bitstamp, Bitfinex,
+the softs' listed contracts) - by the same rule, so a move is judged the same
 whether found today or replayed. A source outside the hours its bars span is no voter,
 not an outage: before a coin's listing on an exchange, the exchange has no word to give.
 The vote repeats per instrument until it settles, because a move voted out of the
@@ -323,7 +323,11 @@ yardstick can lift another into it. A dry run writes every changed vote and the 
 bars around each move for a separate check; only the reviewed run is applied. Two of the
 planned sources are not asked: cattle's listed contracts (its store's bad prints were
 other contracts' bars, so a contract could be the very source of one) and the softs'
-Dukascopy CFDs (the months after their seams lie inside Sina's 79 days).
+Dukascopy CFDs (the months after their seams lie inside Sina's 79 days). HF Data, planned
+for the funds to 2022-03, is not asked either: on 2026-10-03 "the dataset now holds the IEX
+Exchange HIST segment only (March 7, 2022 onward); earlier data is no longer offered" (its
+changelog), and its IEX bars are trades Alpaca's tape already holds (the user's, 2026-10-08).
+So the funds' history is voted by the tape alone from 2016, with Yahoo and Sina near the end.
 
 **Where no source reaches an old move, its vote stands** (the user's, 2026-10-08). The
 replay takes again only the votes some source can cast today; a move none covers keeps

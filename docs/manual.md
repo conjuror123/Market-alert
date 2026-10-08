@@ -47,7 +47,7 @@ Secrets (GitHub → Settings → Secrets → Actions):
 | `SIFTING_API_KEY` | the 17 FX pairs |
 | `TWELVEDATA_API_KEY` | 8 thin funds; archive and gap-fill |
 | `FRED_API_KEY` | the VIX series |
-| `HFDATA_API_KEY` | optional: history before 2016 |
+| `HFDATA_API_KEY` | optional: the backfill's `deepen-etfs`, `probe-hfdata` and `fill-gaps`'s second source; since 2026-10-03 HF Data serves nothing before 2022-03 |
 
 Yahoo, Sina, Google Finance, Binance, MarketWatch, Coinbase and Kraken need no key. A
 missing key costs only that provider's instruments, and the health chat names the secret every run until it is
@@ -105,7 +105,8 @@ standing in, a few minutes of it; that bar heals on the next fetch.
 | Google Finance | TUR | read off the quote page |
 | SiftingIO | 17 FX pairs | the bar closed at :00 is served by :05 |
 | Binance | 16 coins | each coin as its USDT pair, via `data-api.binance.vision` (reachable from US runners) |
-| Dukascopy, HF Data, Bitstamp, Bitfinex | — | history only |
+| Dukascopy, Bitstamp, Bitfinex | — | history only |
+| HF Data | — | funds' history to 2020, imported; it withdrew its consolidated tape (to 2022-03) on 2026-10-03 |
 
 Each fund's feed is chosen by measurement; see `docs/decisions.md`, "Data and providers".
 
@@ -314,11 +315,13 @@ runs by the cap; 37 of 460 runs over it). A request takes 0.1 to 3 s (Sina's lon
 **The history replay** (`jump/replay.py`). Older than its recount, a move's vote is the
 replay's: the same vote, with every source at its whole reach - the live ones (Yahoo's
 pairs two years, Coinbase from a coin's listing, Alpaca's tape from 2016) and those only
-history needs (`replay.HISTORY`): HF Data's tape for the funds, Dukascopy for the pairs,
-Bitstamp and Bitfinex for the coins, and the softs' listed contracts on Yahoo - at each
+history needs (`replay.HISTORY`): Dukascopy for the pairs, Bitstamp and Bitfinex for the
+coins, and the softs' listed contracts on Yahoo - at each
 hour the nearest one that is not the store's front contract then (Yahoo forgets an expired
 contract, so about two years). Cattle has none: its store's bad prints were other
-contracts' bars, so a listed contract could be the very source of one. The softs'
+contracts' bars, so a listed contract could be the very source of one. The funds have
+none beyond the tape: HF Data withdrew its consolidated tape on 2026-10-03, and its IEX
+bars since are trades the tape holds. The softs'
 Dukascopy CFDs are not asked: the months after their seams lie inside Sina's 79 days.
 - **Rule.** A move no source covers gets no vote from the replay: its vote in the record,
   if any, stands, in the yardstick too (cattle's twelve not-real spikes, which no source

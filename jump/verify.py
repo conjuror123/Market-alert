@@ -244,7 +244,7 @@ LABELS = {**{s.name: s.label for group in SOURCES.values() for s in group},
           "binance": "Binance", "sifting": "SiftingIO", "tiingo": "Tiingo",
           "alpaca": "Alpaca_IEX", "twelvedata": "Twelve Data", "google": "Google",
           # history's own (jump.replay)
-          "hfdata": "HF Data", "dukascopy": "Dukascopy", "bitstamp": "Bitstamp",
+          "dukascopy": "Dukascopy", "bitstamp": "Bitstamp",
           "bitfinex": "Bitfinex", "yahoo_contract": "Yahoo_contract"}
 
 
@@ -273,8 +273,9 @@ SUPPLIED: "dict[str, tuple[tuple, ...]]" = {
     # TUR's holes of 2026-10-01 and -02, mended from Yahoo by hand.
     "yahoo": ((("TUR",), "2026-10-01", "2026-10-03"),),
 }
-# HF Data's minute bars fold into hours of 29 to 60 source bars; every other
-# feed's into one or two. Its hours are told by that, store-derived.
+# HF Data's minute bars, imported to 2020, fold into hours of 29 to 60 source
+# bars; every other feed's into one or two. Its hours are told by that,
+# store-derived, and inside the tape's stretch the tape votes on them.
 HFDATA_MINUTES = 29
 
 
@@ -282,8 +283,6 @@ def supplied(name: str, asset: Asset, c: dict, n_src: "dict[int, float]") -> boo
     """Whether source `name` supplied the store's bars a move spans: there it
     is no voter. `n_src` holds the store's source-bar count by hour."""
     minutes = [n_src.get(h, 0) >= HFDATA_MINUTES for h in (c["prev_hour"], c["hour"])]
-    if name == "hfdata":
-        return any(minutes)
     if name == "alpaca_sip" and all(minutes):
         return False
     for which, start, end, *check in SUPPLIED.get(name, ()):

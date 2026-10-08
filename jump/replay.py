@@ -6,8 +6,8 @@ closest source no longer reaches it (verify.recount_days); then its vote
 stands. Everything older is this: the same vote, with every source at its
 whole reach - the live ones (Yahoo's pairs two years, Coinbase from a coin's
 listing, Alpaca's tape from 2016) and the ones only history needs (HISTORY):
-HF Data's consolidated tape for the funds, Dukascopy for the pairs, Bitstamp
-and Bitfinex for the coins, and the softs' listed contracts on Yahoo.
+Dukascopy for the pairs, Bitstamp and Bitfinex for the coins, and the softs'
+listed contracts on Yahoo.
 
 WHO VOTES ON A MOVE. A source covers the hours from its first bar to its last
 (as fetched); outside them it is no voter - a coin before its listing there, a
@@ -66,10 +66,10 @@ def _contract(asset: Asset) -> "str | None":
 
 # The sources only history needs, by class. Never asked live. Cattle has none:
 # its store is Yahoo's continuous series, whose bad prints are other contracts'
-# bars - a listed contract could be the very source of one.
+# bars - a listed contract could be the very source of one. The funds have none
+# beyond the tape: HF Data withdrew its consolidated tape (to 2022-03) on
+# 2026-10-03, and its IEX bars since are trades the tape already holds.
 HISTORY: "dict[str, tuple[Source, ...]]" = {
-    "us_equity": (Source("hfdata", "HF Data", 0, "1h", lambda a: a.ticker,
-                         keys=("HFDATA_API_KEY",)),),
     "fx": (Source("dukascopy", "Dukascopy", 0, "1h",
                   lambda a: _dukascopy_symbol(a.ticker)),),
     "crypto_24_7": (Source("bitstamp", "Bitstamp", 0, "1h",
@@ -119,8 +119,6 @@ def fetch(src: Source, asset: Asset, stored: pd.DataFrame, session, now: datetim
     begin = max(first, datetime.combine(_from(src.name, asset) or first.date(),
                                         datetime.min.time(), tzinfo=timezone.utc))
     end = now.replace(minute=0, second=0, microsecond=0)
-    if src.name == "hfdata":
-        return _hfdata(asset, stored, session)
     if src.name == "dukascopy":
         candles = dukascopy.fetch_history(symbol, begin.date(), end.date(), session)
     elif src.name == "bitstamp":
@@ -137,22 +135,6 @@ def fetch(src: Source, asset: Asset, stored: pd.DataFrame, session, now: datetim
         return verify.fetch_verifier(src.name, symbol, src.interval,
                                      min(days, src.days), session, now)
     return bars.to_hourly(bars.candles_to_frame(candles))
-
-
-def _hfdata(asset: Asset, stored: pd.DataFrame, session) -> pd.DataFrame:
-    """HF Data's consolidated-tape minute bars, folded to the hour and put on
-    the store's unadjusted footing, as the deepening that imported them did."""
-    from jump import backfill, corporate_actions
-    from price_monitor import hfdata
-
-    payload = hfdata.fetch_parquet(backfill.FORMER_TICKERS.get(asset.ticker, asset.ticker),
-                                   os.environ.get("HFDATA_API_KEY", "").strip(), session)
-    minutes = hfdata.to_minute_frame(payload, backfill.HFDATA_TIMEZONE)
-    if minutes.empty:
-        return bars.empty_frame()
-    steps = corporate_actions.load_steps().get(asset.ticker, [])
-    minutes, _ = backfill.unadjust_to_store(minutes, stored, steps)
-    return bars.to_hourly(minutes)
 
 
 def _contracts(asset: Asset, session) -> pd.DataFrame:
