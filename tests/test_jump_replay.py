@@ -80,6 +80,33 @@ def test_the_dry_run_votes_on_history_and_leaves_the_record_alone(monkeypatch, t
     assert os.path.exists(os.path.join(out, "bars", "coinbase", f"{asset.file_stem}.parquet"))
 
 
+def test_a_source_that_fails_is_asked_again_after_the_rest(monkeypatch, tmp_path, basket):
+    # Dukascopy's limiter gave up on EUR/USD's first month and served USD/TRY
+    # minutes later: one failed request must not cost an instrument a voter.
+    bad = range(24 * 70, 24 * 70 + 6)
+    asset, hours, store, market = _coin(tmp_path, basket, bad=bad)
+    asked = []
+
+    def fetch(src, a, stored, session, now):
+        asked.append(src.name)
+        if src.name == "coinbase" and asked.count("coinbase") == 1:
+            raise RuntimeError("status 503")
+        return market
+
+    monkeypatch.setattr(replay, "fetch", fetch)
+    record = str(tmp_path / "verified.csv")
+    verify.write({}, 0, record)
+    now = datetime.fromtimestamp(int(hours[-1]) + 2 * HOUR, timezone.utc)
+    out = str(tmp_path / "out")
+    result = replay.replay([asset], str(tmp_path / "bars"), None, out, now=now,
+                           record_path=record)
+    votes = verify.load(os.path.join(out, "votes.csv"))
+    assert votes[(asset.asset_id, int(hours[bad[0]]), "close")]["verifier"] == \
+        "coinbase,kraken,bitstamp,bitfinex"
+    assert result["failed"] == []
+    assert asked.count("kraken") == 1                   # the others are not asked again
+
+
 def test_apply_replaces_only_the_replayed_range(monkeypatch, tmp_path, basket):
     bad = range(24 * 70, 24 * 70 + 6)
     asset, hours, store, market = _coin(tmp_path, basket, bad=bad)

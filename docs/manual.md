@@ -323,6 +323,9 @@ Dukascopy CFDs are not asked: the months after their seams lie inside Sina's 79 
 - A source covers the hours from its first bar to its last as fetched: outside them it is
   no voter, inside them no bars around a move is an outage. It never votes on bars it
   supplied (`verify.supplied`), and is fetched only from a month before its stretch ends.
+- A source whose fetch fails is asked again once, after every other instrument, and its
+  instrument is voted then; one that fails twice is no voter on any of the instrument's
+  hours, and is named in `summary.txt`. A run with such a line is partial.
 - A fixed point: a move voted not real leaves the yardstick and can lift another into the
   vote (`verify.candidates`), so each instrument is voted again until its votes stop
   changing, five passes at most; one that does not settle is named in `summary.txt`.

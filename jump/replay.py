@@ -220,47 +220,73 @@ def replay(instruments, bars_dir: str, table, out_dir: str, session=None,
     from jump.basket import load_basket
 
     now_dt = now or datetime.now(timezone.utc)
-    now_ts = int(now_dt.timestamp())
     record = verify.load(record_path)
     basket, dividends, settings = load_basket(), corporate_actions.load_dividends(), jumps.settings()
     os.makedirs(os.path.join(out_dir, "bars"), exist_ok=True)
     votes, until, failed, unsettled = {}, {}, [], []
-    for asset in instruments:
-        sources = voters(asset)
-        if not sources:
-            continue
-        frame = bars.load(bars.store_path(bars_dir, asset.file_stem))
-        if frame.empty:
-            continue
-        until[asset.asset_id] = now_ts - int(verify.recount_days(asset) * 86400)
-        fetched = {}
-        for src in sources:
-            try:
-                fetched[src.name] = verify._priced(fetch(src, asset, frame, session, now_dt))
-            except Exception as exc:
-                log.warning("replay: %s from %s failed - %s", asset.ticker, src.name, exc)
-                failed.append(f"{asset.ticker} {src.name}: {exc}")
-                fetched[src.name] = None             # no bars: no voter on any hour
-        mine = {k: r for k, r in record.items() if k[0] == asset.asset_id}
-        older = {k: r for k, r in mine.items() if k[1] < until[asset.asset_id]}
-        current = {k: r for k, r in mine.items() if k not in older}
-        passes, settled = 0, False
-        while passes < FIXED_POINT_PASSES:
-            passes += 1
-            new = vote(asset, frame, fetched, {**current, **older}, until[asset.asset_id],
-                       now_ts, table, basket, dividends, settings, sources)
-            settled = {k: r["verdict"] for k, r in new.items()} == \
-                {k: r["verdict"] for k, r in older.items()}
-            older = new
-            if settled:
-                break
-        if not settled:
-            unsettled.append(asset.ticker)
-        votes.update(older)
-        _keep_bars(out_dir, asset, fetched, older)
-        log.info("replay: %s %d votes in %d passes", asset.ticker, len(older), passes)
+    # A source that fails is asked again once, after every other instrument -
+    # a throttled archive is back by then (Dukascopy gave up on EUR/USD's first
+    # month and served USD/TRY minutes later, 2026-10-08) - and the instrument
+    # is voted then. One that fails twice is no voter on any of its hours.
+    later = {}
+    todo = list(instruments)
+    for again in (False, True):
+        for asset in todo:
+            fetched = later.pop(asset.asset_id, {})
+            if _instrument(asset, bars_dir, fetched, again, votes, until, failed, unsettled,
+                           record, out_dir, session, now_dt, table, basket, dividends,
+                           settings):
+                later[asset.asset_id] = fetched
+        todo = [a for a in instruments if a.asset_id in later]
     _write(out_dir, votes, record, until, failed, unsettled)
     return {"votes": len(votes), "failed": failed, "unsettled": unsettled}
+
+
+def _instrument(asset: Asset, bars_dir: str, fetched: dict, again: bool, votes: dict,
+                until: dict, failed: list, unsettled: list, record: dict, out_dir: str,
+                session, now_dt: datetime, table, basket, dividends, settings) -> bool:
+    """One instrument's votes into `votes`; True when a source failed on the
+    first ask, so it is to be asked again (its bars so far kept in `fetched`)."""
+    now_ts = int(now_dt.timestamp())
+    sources = voters(asset)
+    if not sources:
+        return False
+    frame = bars.load(bars.store_path(bars_dir, asset.file_stem))
+    if frame.empty:
+        return False
+    until[asset.asset_id] = now_ts - int(verify.recount_days(asset) * 86400)
+    missing = []
+    for src in sources:
+        if fetched.get(src.name) is not None:
+            continue
+        try:
+            fetched[src.name] = verify._priced(fetch(src, asset, frame, session, now_dt))
+        except Exception as exc:
+            log.warning("replay: %s from %s failed - %s", asset.ticker, src.name, exc)
+            missing.append(f"{asset.ticker} {src.name}: {exc}")
+            fetched[src.name] = None                 # no bars: no voter on any hour
+    if missing and not again:
+        return True
+    failed.extend(missing)
+    mine = {k: r for k, r in record.items() if k[0] == asset.asset_id}
+    older = {k: r for k, r in mine.items() if k[1] < until[asset.asset_id]}
+    current = {k: r for k, r in mine.items() if k not in older}
+    passes, settled = 0, False
+    while passes < FIXED_POINT_PASSES:
+        passes += 1
+        new = vote(asset, frame, fetched, {**current, **older}, until[asset.asset_id],
+                   now_ts, table, basket, dividends, settings, sources)
+        settled = {k: r["verdict"] for k, r in new.items()} == \
+            {k: r["verdict"] for k, r in older.items()}
+        older = new
+        if settled:
+            break
+    if not settled:
+        unsettled.append(asset.ticker)
+    votes.update(older)
+    _keep_bars(out_dir, asset, fetched, older)
+    log.info("replay: %s %d votes in %d passes", asset.ticker, len(older), passes)
+    return False
 
 
 def _keep_bars(out_dir: str, asset: Asset, fetched: dict, votes: dict) -> None:
