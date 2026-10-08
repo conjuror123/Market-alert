@@ -521,6 +521,7 @@ twelvedata:VGLT,1789398000,close,confirmed,sina,yahoo,0.005869,0.005966,17911140
 twelvedata:VGLT,1790168400,close,confirmed,sina,yahoo,-0.005182,-0.005182,1791114096
 twelvedata:VGLT,1790258400,close,confirmed,sina,yahoo,-0.005755,-0.005755,1791114096
 twelvedata:VGLT,1790604000,close,confirmed,sina,yahoo,-0.006433,-0.006334,1791114096
+twelvedata:VHT,1791468000,close,confirmed,sina,yahoo,-0.012057,-0.011993,1791472075
 twelvedata:VMBS,1789398000,close,confirmed,alpaca,yahoo,0.003202,0.003202,1791114096
 twelvedata:VMBS,1789581600,close,confirmed,alpaca,yahoo,-0.003861,-0.003861,1791114096
 twelvedata:VMBS,1790168400,close,confirmed,alpaca,yahoo,-0.003431,-0.003431,1791114096
