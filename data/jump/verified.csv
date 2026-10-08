@@ -1,5 +1,5 @@
 asset_id,hour_utc,check,verdict,provider,verifier,stored_move,verifier_move,checked_utc
-binance:AVAX/USDT,1791338400,close,confirmed,binance,coinbase,-0.030174,-0.030452,1791418018
+binance:AVAX/USDT,1791338400,close,confirmed,binance,coinbase,-0.030174,-0.030452,1791421615
 binance:BCH/USDT,1605495600,close,unconfirmed,binance,coinbase,0.056243,0.003959,1791349334
 binance:BCH/USDT,1610233200,close,unconfirmed,binance,coinbase,0.058877,-0.000709,1791349334
 binance:DOGE/USDT,1760133600,close,unconfirmed,binance,coinbase,0.041977,-0.008741,1791316800
@@ -42,7 +42,7 @@ twelvedata:EUR/USD,1357099200,close,unconfirmed,sifting,dukascopy,0.005729,-0.00
 twelvedata:EUR/USD,1789581600,close,confirmed,sifting,yahoo,-0.005967,-0.005984,1791114096
 twelvedata:EUR/USD,1791165600,close,confirmed,sifting,yahoo,-0.005383,-0.005377,1791248811
 twelvedata:EUR/USD,1791270000,close,confirmed,sifting,yahoo,0.002681,0.002807,1791353215
-twelvedata:EUR/USD,1791356400,close,confirmed,sifting,yahoo,-0.003346,-0.003476,1791418018
+twelvedata:EUR/USD,1791356400,close,confirmed,sifting,yahoo,-0.003346,-0.003476,1791421615
 twelvedata:EWA,1789581600,close,confirmed,sina,yahoo,-0.011633,-0.011633,1791114096
 twelvedata:EWC,1789581600,close,confirmed,yahoo,sina,-0.012065,-0.012065,1791114096
 twelvedata:EWJ,1789581600,close,confirmed,alpaca,yahoo,-0.012508,-0.012508,1791114096
@@ -105,7 +105,7 @@ twelvedata:JMBS,1790258400,close,confirmed,sina,yahoo,-0.005000,-0.005000,179111
 twelvedata:JMBS,1790604000,close,confirmed,sina,yahoo,-0.005279,-0.005279,1791114096
 twelvedata:JMBS,1790704800,close,confirmed,sina,yahoo,0.004717,0.004717,1791114096
 twelvedata:JMBS,1791295200,close,confirmed,sina,yahoo,0.004027,0.004028,1791378476
-twelvedata:JMBS,1791378000,close,confirmed,sina,yahoo,0.004519,0.004519,1791418018
+twelvedata:JMBS,1791378000,close,confirmed,sina,yahoo,0.004519,0.004519,1791421615
 twelvedata:JNK,1789581600,close,confirmed,tiingo,yahoo,-0.003227,-0.003121,1791114096
 twelvedata:JNK,1790341200,close,confirmed,tiingo,yahoo,-0.002880,-0.001174,1791114096
 twelvedata:KRE,1789581600,close,confirmed,alpaca,yahoo,-0.021082,-0.021082,1791114096
@@ -127,7 +127,7 @@ twelvedata:MBB,1789581600,close,confirmed,tiingo,yahoo,-0.004266,-0.004267,17911
 twelvedata:MBB,1790168400,close,confirmed,tiingo,yahoo,-0.003129,-0.003074,1791114096
 twelvedata:MBB,1790258400,close,confirmed,tiingo,yahoo,-0.004975,-0.004920,1791114096
 twelvedata:MBB,1791295200,close,confirmed,tiingo,yahoo,0.003472,0.003472,1791378476
-twelvedata:MBB,1791378000,close,confirmed,tiingo,yahoo,0.004613,0.003993,1791418018
+twelvedata:MBB,1791378000,close,confirmed,tiingo,yahoo,0.004613,0.003993,1791421615
 twelvedata:MDY,1789581600,close,confirmed,yahoo,sina,-0.012890,-0.012890,1791114096
 twelvedata:NZD/USD,1357099200,close,unconfirmed,sifting,dukascopy,0.010671,-0.002175,1791362566
 twelvedata:NZD/USD,1557277200,close,unconfirmed,sifting,dukascopy,-0.008887,0.000167,1791362566
@@ -227,7 +227,7 @@ twelvedata:SPMB,1790168400,close,confirmed,yahoo,sina,-0.003950,-0.003950,179111
 twelvedata:SPMB,1790258400,close,confirmed,yahoo,sina,-0.004449,-0.004449,1791114096
 twelvedata:SPMB,1790604000,close,confirmed,yahoo,sina,-0.004624,-0.004624,1791114096
 twelvedata:SPMB,1790704800,close,confirmed,yahoo,sina,0.003319,0.003319,1791114096
-twelvedata:SPMB,1791378000,close,confirmed,yahoo,sina,0.003817,0.003817,1791418018
+twelvedata:SPMB,1791378000,close,confirmed,yahoo,sina,0.003817,0.003817,1791421615
 twelvedata:SPTL,1467118800,close,overnight,alpaca,alpaca,-0.011821,0.001497,1791362492
 twelvedata:SPTL,1582898400,close,overnight,alpaca,alpaca,0.017722,0.016294,1791362492
 twelvedata:SPTL,1583503200,close,overnight,alpaca,alpaca,0.057158,0.053801,1791362492
@@ -263,7 +263,7 @@ twelvedata:TUR,1789563600,open,confirmed,google,yahoo,-0.059997,-0.059997,179111
 twelvedata:UNG,1650373200,close,overnight,twelvedata,alpaca,-0.082965,-0.078569,1791362492
 twelvedata:UNG,1651669200,close,overnight,twelvedata,alpaca,0.073617,0.071279,1791362492
 twelvedata:UNG,1790258400,close,confirmed,twelvedata,yahoo,0.037319,0.037319,1791114096
-twelvedata:UNG,1791381600,close,confirmed,twelvedata,yahoo,0.028120,0.028853,1791418018
+twelvedata:UNG,1791381600,close,confirmed,twelvedata,yahoo,0.028120,0.028853,1791421615
 twelvedata:UNL,1790258400,close,confirmed,yahoo,sina,0.015190,0.015190,1791114096
 twelvedata:USD/BRL,1731067200,close,unconfirmed,sifting,yahoo,0.009572,0.002544,1791114096
 twelvedata:USD/BRL,1734696000,close,unconfirmed,sifting,yahoo,-0.013600,-0.006597,1791114096
