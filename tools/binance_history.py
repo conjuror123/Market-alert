@@ -1,6 +1,10 @@
 """One-off: every coin's hourly history - its Binance USDT pair, and below
 Binance's first, thin months a dollar exchange's record, where one reaches back.
 
+NOT TO BE RE-RUN without re-applying what came after it: it writes the store
+over from its own rules, so a bar removed since (bars.remove) or fixed by hand
+later is lost. None of these stores holds one (2026-10-08).
+
 BINANCE, from each pair's listing. Two pairs are joined to the pair they were
 before (price_monitor/binance.py): POL/USDT continues MATICUSDT, which stopped
 2024-09-10 02:00 three days before POLUSDT opened (MATIC became POL one for

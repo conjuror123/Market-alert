@@ -289,8 +289,14 @@ flat, and their bars were removed. The other 18 were left: Yahoo's own errors (C
 2016-01-19, DBE 2021-04-06, PCY 2008-09-29) or real crisis days (RWR 2008-12-01). Over the
 full history, flagged readings went 17,112 → 17,100 and events 12,850 → 12,837; 13 old
 readings went (LQD 2006-10-02 among them), one appeared (EWU 2008-10-10, a night at
-−6.2σ, as the yardstick lost a false day); this week unchanged. Deleted rather than
-marked: a table of bad days would be one more file for 14 rows that never change.
+−6.2σ, as the yardstick lost a false day); this week unchanged.
+
+**A removed bar is kept as its hour with no price, not deleted.** Deleted, the 14 days were
+holes that `fill-gaps` listed, all 14, to re-ask Twelve Data, the vendor that served them.
+Kept with no price, the hour is held: a merge never fills it, `fill-gaps` does not list it,
+and the gate drops it like any invalid bar. The store remembers in itself, with no table of
+bad days beside it. The gate had let a bar with no price through (none was stored, over the
+173 instruments, 2026-10-08); it now refuses it first.
 
 **Candidates are the detector's own readings at ≥ 4σ.** A check with its own σ missed 23
 of 543 flagged readings after a calm stretch.

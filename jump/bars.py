@@ -272,6 +272,30 @@ def write(store: str, frame: pd.DataFrame) -> None:
             os.remove(os.path.join(store, name))
 
 
+def removed(frame: pd.DataFrame) -> pd.Series:
+    """The rows that are bars removed on purpose: an hour kept with no price."""
+    return frame["close"].isna()
+
+
+def remove(store: str, hours) -> int:
+    """Removes bars on purpose, each hour kept as a row with no price.
+
+    Deleting the row would leave a hole that any fetch reaching that hour fills
+    again - fill-gaps re-asks every session the calendar has and the store
+    lacks, from the vendor that served the bad bar in the first place. Kept,
+    the hour is held: merge never fills it, and the bar gate (jump.quality)
+    makes it a hole for everything that scores. Returns the hours marked."""
+    import numpy as np
+
+    marks = sorted({int(h) for h in hours})
+    frame = load(store)
+    kept = frame[~frame["hour_utc"].isin(marks).to_numpy()]
+    nothing = pd.DataFrame({"hour_utc": marks, "open": np.nan, "high": np.nan,
+                            "low": np.nan, "close": np.nan, "volume": np.nan, "n_src": 0})
+    write(store, pd.concat([kept, nothing], ignore_index=True))
+    return len(marks)
+
+
 def merge(store: str, frame: pd.DataFrame, revise_settled: bool = False) -> int:
     """Idempotently brings the store to the union of what is already there and
     `frame`. On a matching hour_utc in an OPEN month the new row wins: the
@@ -280,14 +304,19 @@ def merge(store: str, frame: pd.DataFrame, revise_settled: bool = False) -> int:
     settled month is in git and is not rewritten for a provider's re-served
     copy - unless `revise_settled`, which the tape repair passes on purpose. A
     month already committed counts as settled whatever the clock says.
-    Hours a settled month lacks are filled either way. Returns the number of
-    added rows (revisions of existing ones do not count).
+    Hours a settled month lacks are filled either way. A bar removed on purpose
+    (remove) is never filled again, in any month, whatever is passed. Returns
+    the number of added rows (revisions of existing ones do not count).
     """
     if frame.empty:
         return 0
     existing = load(store)
     before = len(existing)
     incoming = frame.astype(SCHEMA)
+    if not existing.empty:
+        gone = set(existing.loc[removed(existing), "hour_utc"].astype(int))
+        if gone:
+            incoming = incoming[~incoming["hour_utc"].isin(gone).to_numpy()]
     if not revise_settled and not existing.empty:
         cutoff = settled_before(int(max(existing["hour_utc"].max(), incoming["hour_utc"].max())))
         settled = incoming["hour_utc"] < cutoff

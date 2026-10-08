@@ -3,9 +3,11 @@
 Two different things, convenient to compute together because both answer the
 question "does this bar take part in the calculations":
 
-- VALIDITY is a property of the bar itself: prices positive, OHLC consistent,
-  volume non-negative, timestamp not repeated. An invalid bar takes part in
-  nothing and updates no state.
+- VALIDITY is a property of the bar itself: prices present and positive, OHLC
+  consistent, volume non-negative, timestamp not repeated. An invalid bar takes
+  part in nothing and updates no state. A bar with no price at all is one
+  removed on purpose (bars.remove): the hour stays in the store so that no
+  fetch fills it again.
 - SESSION MEMBERSHIP is a property of the hour: hours outside an
   asset's trading session take part in no metric and no yardstick.
 
@@ -101,7 +103,8 @@ def invalid_reasons(asset: Asset, frame: pd.DataFrame) -> pd.Series:
         return reasons
 
     prices = frame[["open", "high", "low", "close"]]
-    reasons[prices.le(0).any(axis=1)] = "price not positive"
+    reasons[prices.isna().any(axis=1)] = "no price: a removed bar"
+    reasons[prices.le(0).any(axis=1) & (reasons == "")] = "price not positive"
 
     inconsistent = ohlc_inconsistent(frame, asset.tick_size)
     reasons[inconsistent & (reasons == "")] = "OHLC inconsistent"

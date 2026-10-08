@@ -407,3 +407,35 @@ def test_a_year_already_in_parquet_keeps_its_file(tmp_path):
 
     assert sorted(os.listdir(store)) == ["2025.parquet", "2026-09.open.csv"]
     assert os.stat(os.path.join(store, "2025.parquet")).st_mtime_ns == stamp
+
+
+# --- bars removed on purpose ---------------------------------------------------
+
+def test_a_removed_bar_is_never_filled_again_by_a_fetch(tmp_path):
+    # LQD 2006-10-02, shifted by the old vendor: removed, a fetch reaching the
+    # day (fill-gaps re-asks every missing session) must not bring it back -
+    # in a settled year, in the open month, or with the tape repair's flag.
+    store = bars.store_path(str(tmp_path), "twelvedata_LQD")
+    hours = [_hour(2006, 10, 2, 14), _hour(2006, 10, 2, 15), _hour(2026, 10, 7, 14)]
+    bars.write(store, _rows(hours))
+    assert bars.remove(store, [hours[0], hours[2]]) == 2
+
+    bad = _rows(hours).assign(close=99.0)
+    assert bars.merge(store, bad) == 0
+    bars.merge(store, bad, revise_settled=True)
+    got = bars.load(store).set_index("hour_utc")
+    assert got.loc[hours[0], "close"] != got.loc[hours[0], "close"]     # still no price
+    assert got.loc[hours[2], "close"] != got.loc[hours[2], "close"]
+    assert got.loc[hours[1], "close"] == 99.0      # an ordinary hour still takes revisions
+    assert list(bars.removed(bars.load(store))) == [True, False, True]
+
+
+def test_a_removed_hour_survives_both_shard_formats(tmp_path):
+    store = bars.store_path(str(tmp_path), "twelvedata_LQD")
+    hours = [_hour(2006, 10, 2, 14), _hour(2026, 1, 5, 15), _hour(2026, 1, 5, 16)]
+    bars.write(store, _rows(hours))
+    bars.remove(store, [hours[0], hours[1]])          # one in a Parquet year, one in a CSV month
+    got = bars.load(store)
+    assert len(got) == 3
+    assert list(bars.removed(got)) == [True, True, False]
+    assert list(got["n_src"]) == [0, 0, 2]

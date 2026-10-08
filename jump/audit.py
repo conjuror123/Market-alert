@@ -49,12 +49,17 @@ def measure_precision(closes: pd.Series, sample: int = 5000) -> float | None:
 
 
 def audit_instrument(asset: Asset, frame: pd.DataFrame) -> dict:
+    # Bars removed on purpose are hours with no price (bars.remove): counted,
+    # not audited as bars.
+    removed = int(bars.removed(frame).sum()) if not frame.empty else 0
+    if removed:
+        frame = frame[~bars.removed(frame).to_numpy()]
     row = {
         "asset_id": asset.asset_id, "ticker": asset.ticker, "block": asset.block,
         "source": asset.source, "provider": asset.fetched_from,
         "interval": asset.fetch_interval,
         "in_basket": asset.in_basket, "has_volume_declared": asset.has_volume,
-        "tick_size": asset.tick_size, "rows": len(frame),
+        "tick_size": asset.tick_size, "rows": len(frame), "removed": removed,
     }
     if frame.empty:
         return row | {"first": None, "last": None, "days": 0, "bars_per_day": 0.0,

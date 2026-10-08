@@ -2240,3 +2240,31 @@ def test_a_rolled_future_re_asks_its_front_contract_from_the_roll(tmp_path, monk
 
     assert seen["symbol"] == "LEZ26.CME"
     assert 22 < seen["days"] < 23                  # back to 2026-09-15's open
+
+
+def test_a_removed_day_is_not_a_gap_for_fill_gaps(tmp_path):
+    # The 14 fund days the old vendor shifted (LQD 2006-10-02 among them):
+    # deleted, fill-gaps would re-ask Twelve Data for each; removed, the
+    # hours are held and nothing asks.
+    from jump import backfill
+
+    path = tmp_path / "twelvedata_LQD"
+    _store_days(path, [_day(2024, 3, 4), _day(2024, 3, 5), _day(2024, 3, 6)])
+    bars.remove(str(path), [_day(2024, 3, 5)])
+    table = {date(2024, 3, i): object() for i in (4, 5, 6)}
+    assert backfill.missing_sessions(str(path), table) == []
+
+
+def test_a_removed_bar_does_not_fail_an_overlap_check():
+    # A deepening's overlap may cross a removed day; its empty price must not
+    # turn the median gap into NaN and refuse a series that agrees.
+    from jump import backfill
+    import numpy as np
+
+    base = int(datetime(2021, 1, 4, tzinfo=timezone.utc).timestamp())
+    n = 60 * (backfill.ALIGNMENT_MIN_HOURS + 60)
+    walk = 100 * np.exp(np.cumsum(np.random.default_rng(4).standard_normal(n) * 0.001))
+    minutes = _hf_minutes(base, n, walk)
+    stored = bars.to_hourly(minutes)
+    stored.loc[10, ["open", "high", "low", "close", "volume"]] = np.nan
+    assert backfill.verify_alignment(minutes, stored)["ok"]

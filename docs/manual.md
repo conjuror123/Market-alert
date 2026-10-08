@@ -118,6 +118,13 @@ CSV per settled month of the current year (settled a week after the month ends),
 open months as `YYYY-MM.open.csv` on a release, not in git. `bars.load(store, since)`
 reads only the files that can hold the hours asked for.
 
+**Rule.** A bar removed on purpose stays in the store as its hour with no price
+(`bars.remove`). The gate makes it a hole; `merge` never fills it again, in any month,
+whatever a fetch serves; `fill-gaps` does not see it as missing. Deleting the row instead
+would let the next fetch reaching that hour put the bad bar back. A tool that writes a
+whole store over (`tools/futures_history.py`, `dukascopy_futures.py`,
+`binance_history.py`) loses removed bars and later hand fixes; each says so at its top.
+
 **Fetch** (`jump/backfill.py`): each instrument is asked from its newest stored bar less
 three hours (`SETTLE_HOURS`), so a bar stored part-way through heals. An
 instrument is skipped when its calendar says no bar can have appeared since its newest
@@ -160,7 +167,8 @@ the FX week, and each daily-session market's hours (LME, ICE, CME, B3). B3's tra
 on them, flat or thin. The tables extend themselves: when under two years remain, the
 hourly run appends three more years to both, leaving existing rows untouched.
 
-**Quality gate** (`jump/quality.py`): a bar is unusable if a price is not positive,
+**Quality gate** (`jump/quality.py`): a bar is unusable if it has no price (a removed
+bar) or a price is not positive,
 OHLC is inconsistent beyond half a tick, volume is negative, it duplicates an hour, it is a
 future's thin bar, or it falls outside its session.
 
@@ -253,9 +261,9 @@ the old vendor shifted, measured as a store jump into the day and back out of it
 Yahoo's daily closes stayed flat (BWX 2007-11-05, DBA 2007-01-08, DBO 2007-08-17, EWC
 2005-11-08 and 2006-10-20, EWG 2009-03-26, EWL 2005-12-13 and 2006-12-27, EWT
 2005-11-25, EWU 2008-09-25, EWW 2005-09-19, EWY 2004-08-30 and 2005-08-04, LQD
-2006-10-02; 94 hourly bars). They are holes now, and the night after each is unscored.
-`backfill --fill-gaps` would ask Twelve Data for them again and bring the same bars
-back: remove them again after one.
+2006-10-02; 94 hourly bars). They are removed bars (section 4): each day's every session
+hour kept with no price, 95 in all (DBO's day had lost its last hour already), so no
+fetch brings them back. The night after each is unscored.
 
 ## 6. Metrics
 

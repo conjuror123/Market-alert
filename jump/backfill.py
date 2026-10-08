@@ -916,6 +916,8 @@ def verify_alignment(minutes: "pd.DataFrame", stored: "pd.DataFrame") -> dict:
     import numpy as np
 
     hourly = bars.to_hourly(minutes)
+    # A bar removed on purpose has no price to compare (bars.remove).
+    stored = stored[~bars.removed(stored).to_numpy()]
     joined = hourly.merge(stored[["hour_utc", "close"]], on="hour_utc",
                           how="inner", suffixes=("_new", "_stored"))
     if len(joined) < ALIGNMENT_MIN_HOURS:
@@ -977,6 +979,8 @@ def unadjust_to_store(minutes: "pd.DataFrame", stored: "pd.DataFrame",
     import numpy as np
 
     hourly = bars.to_hourly(minutes)
+    # A bar removed on purpose has no price to compare (bars.remove).
+    stored = stored[~bars.removed(stored).to_numpy()]
     joined = hourly.merge(stored[["hour_utc", "close"]], on="hour_utc",
                           how="inner", suffixes=("_hf", "_store"))
     if joined.empty:

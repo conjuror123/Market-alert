@@ -124,3 +124,12 @@ def test_a_half_day_has_four_session_hours():
     first = hour_at(2021, 11, 26, 0, "America/New_York")
     hours = pd.Series(range(first, first + 24 * 3600, 3600))
     assert int(quality.in_session(asset(), hours, TABLE).sum()) == 4
+
+
+def test_a_bar_with_no_price_is_a_removed_bar_and_never_usable():
+    # bars.remove keeps the hour with every price empty; scored, a NaN close
+    # would pass every other check and carry NaN into the moves.
+    nan = float("nan")
+    f = frame([(HOUR, 1.0, 1.1, 0.9, 1.0, 10.0, 2),
+               (2 * HOUR, nan, nan, nan, nan, nan, 0)])
+    assert list(quality.invalid_reasons(asset(), f)) == ["", "no price: a removed bar"]

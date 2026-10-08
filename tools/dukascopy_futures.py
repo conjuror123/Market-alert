@@ -1,5 +1,10 @@
 """One-off: a soft commodity's history rebuilt from Dukascopy's CFD.
 
+NOT TO BE RE-RUN without re-applying what came after it: it writes the store
+over from its own rules, so a bar removed since (bars.remove) or fixed by hand
+later is lost: cocoa's 2026-07-21..08-10, filled from the December contract
+after this ran (44fdf04), is one.
+
 WHY. Yahoo's continuous series, which the first history came from
 (tools/futures_history.py), switches between two contract months within days:
 on 2026-07-31, 08-03 and 08-05 coffee's held December's prices and September's
