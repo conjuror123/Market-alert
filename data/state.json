@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1791493668
+    "last_run_utc": 1791497235
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -22,7 +22,7 @@
           },
           "message": 91,
           "peak": "jump:binance:ADA/USDT:hour:1791471600",
-          "seen": 1791493668,
+          "seen": 1791497235,
           "shown": [
             "high",
             8.6,
@@ -55,7 +55,7 @@
           },
           "message": 91,
           "peak": "jump:binance:ATOM/USDT:hour:1791471600",
-          "seen": 1791493668,
+          "seen": 1791497235,
           "shown": [
             "high",
             10.4,
@@ -88,7 +88,7 @@
           },
           "message": 92,
           "peak": "jump:binance:AVAX/USDT:hour:1791471600",
-          "seen": 1791493668,
+          "seen": 1791497235,
           "shown": [
             "noticeable",
             8.1,
@@ -121,7 +121,7 @@
           },
           "message": 92,
           "peak": "jump:binance:BCH/USDT:hour:1791471600",
-          "seen": 1791493668,
+          "seen": 1791497235,
           "shown": [
             "noticeable",
             7.4,
@@ -154,7 +154,7 @@
           },
           "message": 92,
           "peak": "jump:binance:DOGE/USDT:hour:1791471600",
-          "seen": 1791493668,
+          "seen": 1791497235,
           "shown": [
             "noticeable",
             8.4,
@@ -187,7 +187,7 @@
           },
           "message": 91,
           "peak": "jump:binance:DOT/USDT:hour:1791471600",
-          "seen": 1791493668,
+          "seen": 1791497235,
           "shown": [
             "high",
             9.0,
@@ -220,7 +220,7 @@
           },
           "message": 92,
           "peak": "jump:binance:ETH/USDT:hour:1791471600",
-          "seen": 1791493668,
+          "seen": 1791497235,
           "shown": [
             "noticeable",
             8.0,
@@ -253,7 +253,7 @@
           },
           "message": 91,
           "peak": "jump:binance:FIL/USDT:hour:1791471600",
-          "seen": 1791493668,
+          "seen": 1791497235,
           "shown": [
             "high",
             9.5,
@@ -286,7 +286,7 @@
           },
           "message": 92,
           "peak": "jump:binance:LINK/USDT:hour:1791471600",
-          "seen": 1791493668,
+          "seen": 1791497235,
           "shown": [
             "noticeable",
             7.6,
@@ -319,7 +319,7 @@
           },
           "message": 92,
           "peak": "jump:binance:LTC/USDT:hour:1791471600",
-          "seen": 1791493668,
+          "seen": 1791497235,
           "shown": [
             "noticeable",
             6.6,
@@ -352,7 +352,7 @@
           },
           "message": 92,
           "peak": "jump:binance:POL/USDT:hour:1791471600",
-          "seen": 1791493668,
+          "seen": 1791497235,
           "shown": [
             "noticeable",
             7.3,
@@ -385,7 +385,7 @@
           },
           "message": 92,
           "peak": "jump:binance:SOL/USDT:hour:1791471600",
-          "seen": 1791493668,
+          "seen": 1791497235,
           "shown": [
             "noticeable",
             6.3,
@@ -418,7 +418,7 @@
           },
           "message": 92,
           "peak": "jump:binance:XRP/USDT:hour:1791471600",
-          "seen": 1791493668,
+          "seen": 1791497235,
           "shown": [
             "noticeable",
             7.0,
@@ -451,7 +451,7 @@
           },
           "message": 91,
           "peak": "jump:twelvedata:USD/MXN:hour:1791471600",
-          "seen": 1791493668,
+          "seen": 1791497235,
           "shown": [
             "high",
             10.9,
@@ -469,6 +469,39 @@
             ]
           ],
           "tier": "high"
+        },
+        "twelvedata:USD/TRY|1791496800": {
+          "asset": "twelvedata:USD/TRY",
+          "body": "\u2b1c <b>USD/TRY</b> \u00b7 Dollar / Turkish lira +0.15% \u00b7 7.4\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1791493200,
+          "members": {
+            "jump:twelvedata:USD/TRY:hour:1791493200": [
+              0.0015284336715966707,
+              0.0002073364483947591
+            ]
+          },
+          "message": 93,
+          "peak": "jump:twelvedata:USD/TRY:hour:1791493200",
+          "seen": 1791497235,
+          "shown": [
+            "noticeable",
+            7.4,
+            1791493200,
+            0.15
+          ],
+          "size": 7.37175582696682,
+          "start": 1791496800,
+          "story": [
+            [
+              "noticeable",
+              7.4,
+              1791493200,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
         }
       },
       "messages": {
@@ -479,11 +512,15 @@
         "92": {
           "first": "\u2b1c <b>DOGE/USDT</b> \u00b7 Dogecoin -5.26% \u00b7 8.4\u00d7\u03c3",
           "hash": "4e34ce53b92e5ec1"
+        },
+        "93": {
+          "first": "\u2b1c <b>USD/TRY</b> \u00b7 Dollar / Turkish lira +0.15% \u00b7 7.4\u00d7\u03c3",
+          "hash": "32fc7446740531e5"
         }
       },
       "note": {
         "hashes": [
-          "70c032edd10b0c7f"
+          "d4fdb2d3640191d4"
         ],
         "ids": [
           89
