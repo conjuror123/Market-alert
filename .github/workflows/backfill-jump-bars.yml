@@ -127,10 +127,13 @@ jobs:
       # Read only, never saved back: deepening writes history, not the open
       # months, and only the hourly run may replace them (tools/hot_bars.sh).
       # They are restored so the store is whole when a deepening compares
-      # against it, and so its newest month reads as what it is.
+      # against it, and so its newest month reads as what it is. Always the
+      # default branch's, where the hourly run keeps them: a branch other than
+      # it has no archive, and a replay there read none (2026-10-08).
       - name: Restore the open months of the bars
         env:
           GH_TOKEN: ${{ github.token }}
+          BARS_BRANCH: ${{ github.event.repository.default_branch }}
         run: tools/hot_bars.sh restore
 
       - name: Fetch the reviewed replay

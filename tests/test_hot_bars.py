@@ -47,3 +47,39 @@ def test_no_open_months_on_disk_is_not_saved_over_the_last_archive(tmp_path):
     assert out.returncode != 0
     assert "no open months" in out.stdout
     assert asked == []
+
+
+RESTORE_GH = """#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "$GH_LOG"
+case "$*" in
+  *"releases/tags/bars-live-claude-live"*) echo 1 ;;
+  *"releases/tags/"*) echo "gh: Not Found (HTTP 404)"; exit 1 ;;
+  *"/assets?"*) printf 'bars-live-9-1.tar.gz\\t8\\n' ;;
+  "release download"*)
+    a="$*"; dir="${a##*-D }"; dir="${dir%% *}"
+    tar -czf "$dir/bars-live-9-1.tar.gz" -C "$ARCHIVE" data ;;
+esac
+"""
+
+
+def test_a_restore_reads_the_named_branchs_open_months(tmp_path):
+    # A replay on a branch with no archive of its own read none: every move of
+    # the open months was gone from it.
+    bin_dir, work, archive = tmp_path / "bin", tmp_path / "work", tmp_path / "archive"
+    bin_dir.mkdir()
+    gh = bin_dir / "gh"
+    gh.write_text(RESTORE_GH)
+    gh.chmod(gh.stat().st_mode | stat.S_IEXEC)
+    month = "data/jump/bars/binance_BTC_USDT/2026-10.open.csv"
+    (archive / month).parent.mkdir(parents=True)
+    (archive / month).write_text("hour_utc,open,high,low,close,volume\n")
+    (work / "data/jump/bars").mkdir(parents=True)
+    log = tmp_path / "gh.log"
+    env = dict(os.environ, PATH=f"{bin_dir}:{os.environ['PATH']}", GH_LOG=str(log),
+               ARCHIVE=str(archive), GITHUB_REPOSITORY="o/r", GITHUB_REF_NAME="dev",
+               BARS_BRANCH="claude/live")
+    out = subprocess.run(["bash", os.path.abspath(SCRIPT), "restore"], cwd=work, env=env,
+                         capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    assert (work / month).exists()
+    assert "release download bars-live-claude-live" in log.read_text()

@@ -25,6 +25,11 @@
 # without its open months would read every recent move as gone, and delivery
 # would take their messages down.
 #
+# ANOTHER BRANCH'S: restore reads the archive of BARS_BRANCH when it is set, as
+# the backfill does from the default branch, where the hourly run keeps them - a
+# run on a branch with no archive of its own would read every recent move as
+# gone. Save writes only its own branch's.
+#
 # Needs GH_TOKEN (the workflow's github.token, with contents: write),
 # GITHUB_REPOSITORY and GITHUB_REF_NAME.
 set -euo pipefail
@@ -63,7 +68,8 @@ assets() {  # name<TAB>id, newest first
 }
 
 restore() {
-  local id newest tmp
+  local id newest tmp branch="${BARS_BRANCH:-$GITHUB_REF_NAME}"
+  TAG="bars-live-${branch//\//-}"
   id=$(release_id) || { echo "::error::cannot read release $TAG"; exit 1; }
   if [ -z "$id" ]; then
     echo "no release $TAG yet: keeping the open months the checkout holds"

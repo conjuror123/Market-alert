@@ -550,7 +550,7 @@ topped up daily from the live feed.
 | `data/jump/verified.csv` | second-source verdicts | every run |
 | `data/jump/sessions/nyse.csv`, `b3.csv` | NYSE schedule, B3's trading days | when extended |
 | `data/jump/bars/*/YYYY-MM.csv`, `YYYY.parquet` | settled bars | when a month or year settles |
-| `data/jump/bars/*/YYYY-MM.open.csv` | open months | no: release `bars-live-<branch>` |
+| `data/jump/bars/*/YYYY-MM.open.csv` | open months | no: release `bars-live-<branch>`; the backfill reads the default branch's |
 | `data/jump/vix/` | daily VIX | Saturday 04:00 UTC |
 | `data/jump/metrics/`, `jumps.parquet` | derived | no: Actions cache / rebuilt |
 
