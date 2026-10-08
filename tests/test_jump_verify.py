@@ -113,29 +113,13 @@ def test_alpacas_tape_is_asked_fifteen_minutes_back(monkeypatch):
 def test_a_source_is_no_voter_on_the_bars_it_supplied(basket):
     s = verify.supplied
     c = lambda h, check="close": {"hour": ts(h), "prev_hour": ts(h) - HOUR, "check": check}
-    # Dukascopy built the majors to 2012 and 2012's Sunday opens, the other
-    # pairs to about 2020-01.
-    assert s("dukascopy", basket["EUR/USD"], c("2011-06-01 12:00"), {})
-    assert not s("dukascopy", basket["EUR/USD"], c("2015-06-01 12:00"), {})
-    assert s("dukascopy", basket["EUR/USD"], c("2012-06-10 21:00", "open"), {})
-    assert not s("dukascopy", basket["EUR/USD"], c("2012-06-11 12:00"), {})
-    assert s("dukascopy", basket["USD/SEK"], c("2015-06-01 12:00"), {})
-    assert not s("dukascopy", basket["USD/SEK"], c("2021-06-01 12:00"), {})
-    # The seam's day either side is left out too.
-    assert s("dukascopy", basket["EUR/USD"], c("2012-01-01 22:00"), {})
-    # Bitstamp built BTC to 2018-06, not ETH.
-    assert s("bitstamp", basket["BTC/USDT"], c("2016-01-01 00:00"), {})
-    assert not s("bitstamp", basket["ETH/USDT"], c("2016-06-01 00:00"), {})
-    # A fund's HF Data hours are its minute bars, told by their count in the
-    # store; the tape's are the rest from 2016 to 2020-02-07.
-    fund, h = basket["XLK"], c("2018-03-01 15:00")
-    minutes = {h["prev_hour"]: 30, h["hour"]: 30}
-    assert not s("alpaca_sip", fund, h, minutes)
-    assert s("alpaca_sip", fund, h, {})
-    assert not s("alpaca_sip", fund, c("2021-03-01 15:00"), {})
-    # TUR's holes of 2026-10-01 and -02, mended from Yahoo.
-    assert s("yahoo", basket["TUR"], c("2026-10-01 15:00"), {})
-    assert not s("yahoo", basket["TUR"], c("2026-10-06 15:00"), {})
+    # TUR's holes of 2026-10-01 and -02, mended from Yahoo; the seam's day
+    # either side is left out too.
+    assert s("yahoo", basket["TUR"], c("2026-10-01 15:00"))
+    assert s("yahoo", basket["TUR"], c("2026-10-03 15:00"))
+    assert not s("yahoo", basket["TUR"], c("2026-10-06 15:00"))
+    assert not s("yahoo", basket["SPY"], c("2026-10-01 15:00"))
+    assert not s("sina", basket["TUR"], c("2026-10-01 15:00"))
 
 
 def test_the_supplier_of_a_moves_bars_is_not_asked_about_it(monkeypatch, tmp_path, basket):
@@ -752,8 +736,8 @@ def test_an_unconfirmed_verdict_outlives_the_rest_of_the_record(tmp_path):
 
 
 def test_a_record_from_before_the_vote_reads_in_its_words(tmp_path):
-    # Its confirmed is real and its unconfirmed not real until the replay
-    # counts it again. Its unknown had no other source's bars: each an
+    # Its confirmed is real and its unconfirmed not real. Its unknown had no
+    # other source's bars: each an
     # outage, counted as the vote counts one - a tie with one, not real with
     # two. A pending one is asked again.
     path = tmp_path / "verified.csv"

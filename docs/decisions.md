@@ -256,8 +256,8 @@ which side of a tie is wrong, and more sources are to be found. The cost, measur
 one other source every disagreement is a tie, so cattle's and the softs' bad prints stay
 in. LE=F's 2026-10-01 open (−1.82%, the October contract's bars beside December's) was
 not seen and left out; it is now uncertain and scored, though below the bottom word. Of
-the 232 not seen on record, 225 had one other source; they stay not real until the replay
-counts them again with every source that reaches them.
+the 232 not seen on record, 225 had one other source; they stay not real, since history is
+not voted again (below).
 
 **A vote is taken when the move is found, then at each end of its market's session,
 while its closest source still reaches the hour** (the user's schedule, 2026-10-08).
@@ -312,32 +312,19 @@ cannot serve the hour whole: a late source is not asked until it can, and votes 
 session's end on - neither a yes nor an outage before. Over the 30 days to 2026-10-08,
 simulated: 9.2 requests a run against 7.7, the tape's 704 over 460 runs, at most 67 in one.
 
-**History is voted by the live vote, once each source's reach is whole** (2026-10-08). A
-move older than its recount is put to every source that covers its hour - the live ones
-at their whole reach and the ones only history needs (Dukascopy, Bitstamp, Bitfinex,
-the softs' listed contracts) - by the same rule, so a move is judged the same
-whether found today or replayed. A source outside the hours its bars span is no voter,
-not an outage: before a coin's listing on an exchange, the exchange has no word to give.
-The vote repeats per instrument until it settles, because a move voted out of the
-yardstick can lift another into it. A dry run writes every changed vote and the sources'
-bars around each move for a separate check; only the reviewed run is applied. Two of the
-planned sources are not asked: cattle's listed contracts (its store's bad prints were
-other contracts' bars, so a contract could be the very source of one) and the softs'
-Dukascopy CFDs (the months after their seams lie inside Sina's 79 days). HF Data, planned
-for the funds to 2022-03, is not asked either: on 2026-10-03 "the dataset now holds the IEX
-Exchange HIST segment only (March 7, 2022 onward); earlier data is no longer offered" (its
-changelog), and its IEX bars are trades Alpaca's tape already holds (the user's, 2026-10-08).
-So the funds' history is voted by the tape alone from 2016, with Yahoo and Sina near the end.
-
-**Where no source reaches an old move, its vote stands** (the user's, 2026-10-08). The
-replay takes again only the votes some source can cast today; a move none covers keeps
-what the record holds, and one never voted gets no vote and counts as normal. Old history
-cannot be fixed by a vote nobody can cast, and a known bad print must not come back: as
-first written, a move with no voter was counted real, which would have returned cattle's
-twelve contract-mixing spikes - voted not real by its listed contracts, three of them
-inside cattle's current half-year - to its yardstick. A vote a source can retake follows
-the new rule, so USD/TRY's 33 that Dukascopy alone did not see become ties. Applying
-merges the replay's votes over the record and deletes none.
+**History is not voted again** (the user's, 2026-10-08). Older than its recount (9, 29 or
+79 days), a move's vote stands as the record holds it; a move never voted counts as
+normal. A replay of the live vote over all history was built and tried, and dropped: with
+one other source the vote cannot call a move not real - the store's yes against one no is
+a tie - and most of history has one at most (the funds' Alpaca tape from 2016, the pairs'
+Dukascopy before Yahoo's two years, one contract series for coffee, Bitfinex for BTC in
+2013-14). There it could only take known bad prints back. On six instruments (run
+37833953643): USD/TRY's 33 not real became ties - 2023-05-26 +0.70% then -0.67%, Dukascopy
++0.01% both - and the funds' 116 not real and overnight, all the tape's, would have too;
+it added not-real votes only where two sources reach (15). HF Data, planned as the funds'
+second source to 2022-03, had withdrawn everything before 2022-03-07 on 2026-10-03 ("the
+dataset now holds the IEX Exchange HIST segment only"). Do not reopen without a second
+source for those stretches.
 
 **A source sees a move at half its size, and no source is shifted** (measured 2026-10-08,
 the user's choice). 3,444 moves of 4σ or more, each put to the free sources at their full
@@ -380,12 +367,9 @@ open, high, low and close on 0.13 (Tiingo's) to 0.89 (Sina's, Twelve Data's) of 
 Sina on 0.24 to 0.87 (medians by the store's provider); for the pairs and coins, whose
 vendors each have their own prices, 0.00. A rule that took identical bars for a copy dropped 11 honest fund votes in those 30
 days, and was taken out. Only the provider an hour came from is not asked about it,
-because its word is the store's: known by name, not by comparing bars - live, the
-instrument's provider; for history, the record of who built which stretch
-(`verify.SUPPLIED`), which marks HF Data's hours in the store itself (minute bars, 29 to
-60 to an hour) and FXCM's (2012 to 2020-01, every bar opening at the previous close).
-Where the record gives a seam only to the month (the pairs' Dukascopy to Twelve Data,
-about 2020-01), the supplier sits out the whole month.
+because its word is the store's: known by name, not by comparing bars - the
+instrument's provider, and a source that mended the store by hand inside the recount
+(`verify.SUPPLIED`: Yahoo, TUR's holes of 2026-10-01 and -02).
 
 **A first hour the feeds saw happen overnight is moved into the night.** A fund's first
 print is sometimes a stale one at the previous close (in 2020-22, 7-12% of fund-days

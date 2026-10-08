@@ -63,7 +63,7 @@ esac
 
 
 def test_a_restore_reads_the_named_branchs_open_months(tmp_path):
-    # A replay on a branch with no archive of its own read none: every move of
+    # A run on a branch with no archive of its own read none: every move of
     # the open months was gone from it.
     bin_dir, work, archive = tmp_path / "bin", tmp_path / "work", tmp_path / "archive"
     bin_dir.mkdir()

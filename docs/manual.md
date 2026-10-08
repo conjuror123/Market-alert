@@ -214,13 +214,9 @@ the channel gives it; a source added there is asked from the next run.
 allowances, and Google is one session deep. A test pins it.
 
 **Rule.** A source is no voter on a move whose bars it supplied to the store: its word
-there is the store's (`verify.SUPPLIED`, `supplied`, from the record commit by commit;
-the history table in section 11). Dukascopy built the majors to 2012 and the other pairs
-to about 2020-01, and the softs' CFDs to each seam; Bitstamp BTC and XRP and Bitfinex ETH
-and LTC to 2018-06; Coinbase BCH 2018-01 to 2019-01-15; Alpaca's tape the funds from 2016 to
-2020-02-07, and EZU's and EBND's mended hours of March–April 2020; HF Data every hour folded
-from its minute bars (29 to 60 source bars an hour in the store, against one or two for
-every other feed); Yahoo TUR's holes of 2026-10-01 and -02. A seam is known to the day:
+there is the store's (`verify.SUPPLIED`, `supplied`). Only a hand-mend inside the live
+recount is listed - Yahoo, TUR's holes of 2026-10-01 and -02; who built the rest of the
+history is the table in section 11, and no vote reaches it. A seam is known to the day:
 the day either side is left out too.
 
 A source that runs behind the clock (`delay`: Alpaca's tape, fifteen minutes on the free
@@ -302,8 +298,8 @@ hours); over 9 days Yahoo revised 472 of 1,290 fund hours, 2 of them by more tha
 are for the live run.
 Votes live in `data/jump/verified.csv`: not real and overnight ones are kept for good (the
 detector rescores all history), the rest for 90 days, longer than any recount. A record
-from before the vote reads in its words: confirmed as real, unconfirmed as not real until
-the replay counts it again, and unknown - no other source had bars - counted as outages
+from before the vote reads in its words: confirmed as real, unconfirmed as not real, and
+unknown - no other source had bars - counted as outages
 (a tie with one source named, not real with two).
 
 Instruments with a reading not yet voted are asked first; at most 40 requests a run, and
@@ -312,44 +308,11 @@ a mean of 7.7 requests a run (median 0, 95th percentile 56), in bursts at the se
 (up to 227 at 00:05 UTC, when the coins and pairs come due together, spread over the next
 runs by the cap; 37 of 460 runs over it). A request takes 0.1 to 3 s (Sina's longest).
 
-**The history replay** (`jump/replay.py`). Older than its recount, a move's vote is the
-replay's: the same vote, with every source at its whole reach - the live ones (Yahoo's
-pairs two years, Coinbase from a coin's listing, Alpaca's tape from 2016) and those only
-history needs (`replay.HISTORY`): Dukascopy for the pairs, Bitstamp and Bitfinex for the
-coins, and the softs' listed contracts on Yahoo - at each
-hour the nearest one that is not the store's front contract then (Yahoo forgets an expired
-contract, so about two years). Cattle has none: its store's bad prints were other
-contracts' bars, so a listed contract could be the very source of one. The funds have
-none beyond the tape: HF Data withdrew its consolidated tape on 2026-10-03, and its IEX
-bars since are trades the tape holds. The softs'
-Dukascopy CFDs are not asked: the months after their seams lie inside Sina's 79 days.
-- **Rule.** A move no source covers gets no vote from the replay: its vote in the record,
-  if any, stands, in the yardstick too (cattle's twelve not-real spikes, which no source
-  reaches now), and `summary.txt` counts them.
-- A source covers the hours from its first bar to its last as fetched: outside them it is
-  no voter, inside them no bars around a move is an outage. It never votes on bars it
-  supplied (`verify.supplied`), and is fetched only from a month before its stretch ends -
-  but Alpaca's tape, fetched from its first day (2016-01-01), since inside its stretch it
-  still votes on HF Data's hours.
-- A source whose fetch fails is asked again once, after every other instrument, and its
-  instrument is voted then; one that fails twice is no voter on any of the instrument's
-  hours, and is named in `summary.txt`. A run with such a line is partial.
-- A fixed point: a move voted not real leaves the yardstick and can lift another into the
-  vote (`verify.candidates`), so each instrument is voted again until its votes stop
-  changing, five passes at most; one that does not settle is named in `summary.txt`.
-  BTC/USDT and USD/TRY settled in three (smoke run, 2026-10-08).
-- `python -m jump.replay --out DIR`, the dry run: `votes.csv`, `changes.csv` (every vote
-  that differs from the record), `summary.txt`, `until.json` (each instrument's recount
-  start) and the sources' bars within 36 hours of every move (`bars/`) for the separate
-  check. The record is untouched.
-- `python -m jump.replay --apply DIR`: the dry run's votes over the record's for the same
-  moves; every other vote stands, so runs apply one after another and onto a newer record.
-- Both run in the backfill workflow (`replay-dry`, `replay-apply` with the dry run's id),
-  where the keys are; the dry run's output is the artifact `replay`.
-- **The separate check** (`python tools/recount.py DIR`): every move the dry run voted not
-  real, counted again from the bars kept with it by code of its own - it does not import
-  the vote's, and a test holds it to that. It does not bridge a missing hour as the vote
-  does, so what it lists is read, not settled by it.
+**History is not voted again.** Older than its recount, a move's vote stands as the record
+holds it, and a move never voted counts as normal. Most of history has one other source at
+most (the funds' tape from 2016, the pairs' Dukascopy before Yahoo's two years), and one
+source can only tie the store, never outvote it: a vote again there could only take known
+bad prints back (`docs/decisions.md`).
 
 **The history, judged once** (2026-10-07, by a tool since retired; its verdicts stay in
 the record): every flagged reading with no verdict yet, asked of a source that reaches it,
@@ -662,7 +625,6 @@ health and the calendar go out, Jump's pushes, note and pings do not.
 | `jump/quality.py` | the bar gate |
 | `jump/corporate_actions.py` | payouts and splits |
 | `jump/verify.py` | the sources' vote |
-| `jump/replay.py` | the vote over all history |
 | `jump/returns.py`, `pipeline.py` | metrics |
 | `jump/jumps.py`, `routing.py` | detector; which words push, the note's slot |
 | `jump/basket.py` | instruments and `detector:` settings |
@@ -675,7 +637,7 @@ health and the calendar go out, Jump's pushes, note and pings do not.
 | `price_monitor/weekly_digest.py`, `economic_calendar.py` | the calendar |
 | `price_monitor/notifier.py`, `health.py`, `__main__.py` | Telegram calls, health, the delivery entry point |
 | `price_monitor/<provider>.py` | one client per provider |
-| `tools/` | `stage_report.py`, `hot_bars.sh`, `run_died.sh` (the health line for a run that could not deliver), `recount.py` (the separate check on a replay) |
+| `tools/` | `stage_report.py`, `hot_bars.sh`, `run_died.sh` (the health line for a run that could not deliver) |
 
 How far back each record reaches:
 
