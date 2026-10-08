@@ -3,7 +3,7 @@ exchange's bars for the hour.
 
 LIVE: IEX. The free plan's IEX bars are current - measured 2026-10-01 at 15:05
 UTC, the half-hour bar opened at 15:00 was served, minute bars to 15:04 - and
-on the 30 funds whose IEX price agrees with the tape (tools/fund_verdict.py:
+on the 30 funds whose IEX price agrees with the tape (measured against it:
 median <= 2 bp, p90 <= 5, at most 2% of hours missing) that is the same price.
 Tiingo's intraday feed is IEX too; this carries the IEX-safe funds Tiingo has
 no hourly room for. A fund IEX does not price like the tape belongs on a
@@ -11,8 +11,8 @@ consolidated feed instead (Twelve Data, Sina or Yahoo).
 
 HISTORY: SIP. The free plan serves SIP bars only
 to fifteen minutes back, so it cannot be the live source, but below that it is
-the consolidated tape itself - the line every live feed was held to
-(tools/fund_verdict.py) - from 2016-01-01, for every US-listed fund in the
+the consolidated tape itself - the line every live feed was held to - from
+2016-01-01, for every US-listed fund in the
 basket. Twelve Data's intraday archive stops at 2020-02 and HF Data does not
 carry about sixty of the funds, so this is what takes those back to 2016.
 

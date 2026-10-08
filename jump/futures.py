@@ -29,7 +29,6 @@ from __future__ import annotations
 import os
 from datetime import date, timedelta
 
-import numpy as np
 import pandas as pd
 
 MONTH_CODES = "FGHJKMNQUVXZ"
@@ -52,18 +51,10 @@ MONTH_CODES = "FGHJKMNQUVXZ"
 #             its last day the series sat on a contract hardly trading
 #             (October 2025 moved +2.2% on 213 contracts, every other flat).
 #   suffix    Yahoo's exchange suffix for a single contract.
-#   continuous_history
-#             False: Yahoo's continuous series is not used for history at all.
-#             Cotton's holds a third of a normal month's hours in 14 of its 29
-#             months, mixes contracts before each first notice, and its thin
-#             Sunday opens leave a weekend yardstick a tenth of the real one -
-#             so its history is the held contracts' own bars, from the
-#             December 2026 contract's front day (2026-06-17).
 SPECS: "dict[str, dict]" = {
     "KC=F": dict(listed="HKNUZ", ltd_back=8, held="HKNUZ", roll_back=12, suffix="NYB"),
     "CC=F": dict(listed="HKNUZ", ltd_back=11, held="HKNUZ", roll_back=15, suffix="NYB"),
-    "CT=F": dict(listed="HKNVZ", ltd_back=16, held="HKNZ", roll_back=10, suffix="NYB",
-                 continuous_history=False),
+    "CT=F": dict(listed="HKNVZ", ltd_back=16, held="HKNZ", roll_back=10, suffix="NYB"),
     "LE=F": dict(listed="GJMQVZ", ltd_back=0, held="GJMQVZ", roll_back=12, suffix="CME"),
 }
 
@@ -138,8 +129,9 @@ def roll_days(ticker: str, first_year: int, last_year: int) -> "list[tuple[str, 
 
 
 # Contract switches of a history source whose roll does not follow this
-# series' calendar - Dukascopy's CFDs, located in their own data
-# (tools/dukascopy_futures.py). Their nights are left unscored like any roll's.
+# series' calendar - Dukascopy's CFDs, located once in their own data when the
+# softs' history was built (docs/decisions.md). Their nights are left unscored
+# like any roll's.
 ROLLS_PATH = os.path.join("data", "jump", "rolls.csv")
 
 
@@ -201,172 +193,3 @@ def thin(volume: pd.Series) -> pd.Series:
     median = (v.where(v > 0).rolling(THIN_WINDOW, min_periods=THIN_MIN_BARS)
               .median().shift(1).ffill())
     return (v <= 0) | (v < THIN_SHARE * median).fillna(False).to_numpy(dtype=bool)
-
-
-def yahoo_lag_windows(ticker: str, first_year: int, last_year: int
-                      ) -> "list[tuple[date, date]]":
-    """[from, to) stretches where Yahoo's continuous series is still on a
-    contract this series has already rolled out of: from this series' roll
-    into a contract to the day after the previous listed contract's last
-    trading day. Yahoo's hours there are the expiring contract in its delivery
-    weeks, mixed with the next one's prints, and are not this series - the
-    history import leaves them out (tools/futures_history.py)."""
-    if ticker not in SPECS:
-        return []
-    spec = SPECS[ticker]
-    listed = _contracts(spec["listed"], first_year - 1, last_year + 1)
-    ltds = last_trading_days(ticker, first_year - 1, last_year + 1)
-    entry = {}
-    for k in range(1, len(listed)):
-        y, m, code = listed[k]
-        enter = ltds[k - 1] + timedelta(days=1)
-        while enter.weekday() >= 5:
-            enter += timedelta(days=1)
-        entry[f"{ticker[:-2]}{code}{y % 100:02d}.{spec['suffix']}"] = enter
-    out = []
-    for symbol, start in roll_days(ticker, first_year, last_year):
-        if symbol in entry and entry[symbol] > start:
-            out.append((start, entry[symbol]))
-    return out
-
-
-# The once-over the continuous history gets on import (never in the hourly
-# pass, which would need the bar after the one it judges): an hour that moves
-# past FLIP and is undone by more than half in the next is another contract's
-# print, and an open past the stray line from the last close that its own bar
-# undoes by more than half is a stray opening print.
-FLIP = 0.03
-# A stray open is judged against the series' own hourly moves: STRAY_OPEN_MULT
-# times its median absolute hourly return, at least STRAY_OPEN_FLOOR. A fixed
-# 4% suited coffee and missed cattle's (2024-06-24 13:00 opened 2.5% up on the
-# other contract's price and closed where it had been; cattle's median hour is
-# a tenth of coffee's).
-STRAY_OPEN_MULT = 8.0
-STRAY_OPEN_FLOOR = 0.01
-# And a month holding under this share of a normal month (the series' 75th
-# percentile - the median itself sinks when a third of the months are sparse,
-# as cotton's are) is dropped:
-# Yahoo's cotton holds 26-84 bars a month from January to May 2026 against ~370
-# in a whole one, a quarter of them repeating the last price, and a half-year
-# yardstick built on that is a fifth of cotton's real one.
-SPARSE_MONTH = 0.5
-
-
-def clean_history(frame: pd.DataFrame) -> "tuple[pd.DataFrame, int, int, list]":
-    """The continuous series with flipped bars dropped, stray opens set to the
-    previous close and sparse months dropped. Returns the frame, the two
-    counts and the months dropped."""
-    out = frame.sort_values("hour_utc").reset_index(drop=True)
-    dropped = 0
-    while True:
-        r = np.log(out["close"]).diff()
-        nxt = r.shift(-1)
-        flip = (r.abs() > FLIP) & (nxt.abs() > FLIP) & (r * nxt < 0) & \
-            ((r + nxt).abs() < r.abs() / 2)
-        if not flip.any():
-            break
-        dropped += int(flip.sum())
-        out = out[~flip].reset_index(drop=True)
-    out, stray = reset_stray_opens(out)
-    month = pd.to_datetime(out["hour_utc"], unit="s", utc=True).dt.strftime("%Y-%m")
-    counts = month.value_counts().sort_index()
-    full = counts.iloc[1:-1] if len(counts) > 2 else counts     # not the two ends
-    sparse = sorted(m for m, n in counts.items()
-                    if n < SPARSE_MONTH * full.quantile(0.75) and m in full.index)
-    out = out[~month.isin(sparse)].reset_index(drop=True)
-    return out, dropped, stray, sparse
-
-
-def reset_stray_opens(frame: pd.DataFrame) -> "tuple[pd.DataFrame, int]":
-    """Opens past the series' stray line from the last close, which their own
-    bar undoes by more than half, set to that close. Returns the count."""
-    out = frame.sort_values("hour_utc").reset_index(drop=True)
-    prev = out["close"].shift(1)
-    line = max(STRAY_OPEN_FLOOR,
-               STRAY_OPEN_MULT * float(np.log(out["close"]).diff().abs().median()))
-    jump = np.log(out["open"] / prev)
-    held = np.log(out["close"] / prev)
-    stray = (jump.abs() > line) & (held.abs() < jump.abs() / 2)
-    out.loc[stray, "open"] = prev[stray]
-    out.loc[stray, "low"] = out.loc[stray, ["low", "open", "close"]].min(axis=1)
-    out.loc[stray, "high"] = out.loc[stray, ["high", "open", "close"]].max(axis=1)
-    return out, int(stray.sum())
-
-
-def reset_stray_closes(frame: pd.DataFrame) -> "tuple[pd.DataFrame, int]":
-    """Closes past the series' stray line from their own bar's open, which the
-    next bar's open takes back to within a third of the move, set to that next
-    open. Returns the count.
-
-    Dukascopy's soft CFDs print them on a session's last hour: coffee closed
-    2018-05-21 at 111.80 from an open of 120.13 and opened the next session at
-    119.69 - a -7.2% hour, 20 sigma, that never traded. A real last-hour move
-    is followed by a gap that does not undo it (cocoa 2024-04-29: +2.8%, then
-    -5.4%), and is left alone."""
-    out = frame.sort_values("hour_utc").reset_index(drop=True)
-    line = max(STRAY_OPEN_FLOOR,
-               STRAY_OPEN_MULT * float(np.log(out["close"]).diff().abs().median()))
-    nxt = out["open"].shift(-1)
-    move = np.log(out["close"] / out["open"])
-    back = np.log(nxt / out["close"])
-    stray = (move.abs() > line) & ((move + back).abs() < move.abs() / 3)
-    out.loc[stray, "close"] = nxt[stray]
-    out.loc[stray, "low"] = out.loc[stray, ["low", "open", "close"]].min(axis=1)
-    out.loc[stray, "high"] = out.loc[stray, ["high", "open", "close"]].max(axis=1)
-    return out, int(stray.sum())
-
-
-# And whole stretches where the continuous series interleaves two contract
-# months within its sessions - live cattle from 2026-02-19 to 04-02 opened each
-# session on one month and jumped about 3.5% onto the other at 15:00 UTC on ten
-# times the volume, back again the next morning. A session is MIXED when its
-# first close sits more than MIXED_OPEN from the previous session's close and
-# the session then moves back past three quarters of that. One such session is
-# as likely a real reversal (cattle 2025-04-09, the tariff pause); MIXED_RUN of
-# them within MIXED_SPAN sessions is not, and everything from the first to the
-# last of them is dropped.
-MIXED_OPEN = 0.015
-MIXED_RUN = 3
-MIXED_SPAN = 15
-
-
-def mixed_sessions(frame: pd.DataFrame, template: str) -> "list[str]":
-    from jump import sessions
-    key = frame["hour_utc"].map(lambda h: sessions.session_key(int(h), template))
-    f = frame.assign(key=key).dropna(subset=["key"]).sort_values("hour_utc")
-    prev_close = f.groupby("key")["close"].last().shift(1)
-    out = []
-    for k, g in f.groupby("key"):
-        pc = prev_close.get(k)
-        if pc is None or not np.isfinite(pc):
-            continue
-        level = np.log(g["close"].to_numpy() / pc)
-        first = level[0]
-        back = (level - first) * -np.sign(first)
-        if abs(first) > MIXED_OPEN and back.max() > 0.75 * abs(first):
-            out.append(k)
-    return out
-
-
-def drop_mixed(frame: pd.DataFrame, template: str) -> "tuple[pd.DataFrame, list]":
-    """The frame without its mixed stretches, and the stretches dropped."""
-    from jump import sessions
-    key = frame["hour_utc"].map(lambda h: sessions.session_key(int(h), template))
-    order = sorted(k for k in key.dropna().unique())
-    pos = {k: i for i, k in enumerate(order)}
-    flagged = [pos[k] for k in mixed_sessions(frame, template)]
-    stretches, i = [], 0
-    while i < len(flagged):
-        j = i
-        while j + 1 < len(flagged) and flagged[j + 1] - flagged[i] < MIXED_SPAN:
-            j += 1
-        # extend while the run keeps finding flags within the span of its last
-        while j + 1 < len(flagged) and flagged[j + 1] - flagged[j] < MIXED_SPAN:
-            j += 1
-        if j - i + 1 >= MIXED_RUN:
-            stretches.append((order[flagged[i]], order[flagged[j]]))
-        i = j + 1
-    drop = pd.Series(False, index=frame.index)
-    for lo, hi in stretches:
-        drop |= key.between(lo, hi).fillna(False)
-    return frame[~drop.to_numpy()].reset_index(drop=True), stretches

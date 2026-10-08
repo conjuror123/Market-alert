@@ -131,7 +131,7 @@ sends alerts for moves that did not happen.
 
 **A candidate source answers four questions, cheapest first:** does it serve the :00 bar by
 :05; does its allowance cover the load; does it match the consolidated tape on thin names
-(`tools/fund_verdict.py`); which tickers, how far back.
+(measured once per feed against the tape); which tickers, how far back.
 
 **A fund goes to an IEX-only feed only if IEX prices it like the tape** (median ≤ 2 bp,
 p90 ≤ 5, ≤ 2% of hours missing, over 28 days). IEX is one exchange; thin commodity funds
@@ -164,7 +164,7 @@ correlate at 0.996 while sitting 1% off. Only missing hours are written.
 previous close, so all 52 weekends of the seven majors read as a gap of exactly 0, and the
 collapsed yardstick read early 2013's weekends as 30–72σ. 350 of the 364 were mended from
 Dukascopy's own gap, spliced onto the stored Friday, where its Friday and Sunday closes are
-within 10 bp of the store's (`tools/fx_weekend_opens.py`); 14 were refused. Every other
+within 10 bp of the store's; 14 were refused. Every other
 pair weekend opening exactly at Friday's close is left unscored (359 of 14,705): USD/INR's
 and USD/KRW's 2020-2025 hold about 60 each, which no free source can mend, and scored they
 read the next real weekend as hundreds of sigma (USD/INR 2022-01-09: −389σ under a
@@ -320,6 +320,13 @@ of 543 flagged readings after a calm stretch.
 ## The repository
 
 **Derived data is not tracked**: it rebuilds from the bars in under a minute.
+
+**A one-off tool is deleted once its work is done.** The futures', coins' and pairs' history
+builders wrote whole stores, so a rerun would have undone every later fix (cocoa's
+2026-07-21..08-10 among them); the feed probes spent quota (one about 100 SiftingIO calls);
+the history check decided "the store's own feed" once per fund-year and left 85% of the
+funds' flagged readings unasked. Git keeps them (deleted 2026-10-08); what they established
+is in this file.
 
 **The open month lives on a release; a month enters git once, settled.** Git stores
 snapshots, so hourly commits into per-instrument files cost 124 MiB a year; replacing a

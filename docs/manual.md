@@ -121,9 +121,9 @@ reads only the files that can hold the hours asked for.
 **Rule.** A bar removed on purpose stays in the store as its hour with no price
 (`bars.remove`). The gate makes it a hole; `merge` never fills it again, in any month,
 whatever a fetch serves; `fill-gaps` does not see it as missing. Deleting the row instead
-would let the next fetch reaching that hour put the bad bar back. A tool that writes a
-whole store over (`tools/futures_history.py`, `dukascopy_futures.py`,
-`binance_history.py`) loses removed bars and later hand fixes; each says so at its top.
+would let the next fetch reaching that hour put the bad bar back. Nothing writes a
+whole store over: the tools that built the futures', coins' and pairs' histories were
+deleted once their work was done (2026-10-08).
 
 **Fetch** (`jump/backfill.py`): each instrument is asked from its newest stored bar less
 three hours (`SETTLE_HOURS`), so a bar stored part-way through heals. An
@@ -248,11 +248,11 @@ rescores all history), the rest for 30 days. Instruments with a reading not yet 
 first; at most 40 requests a run. `python -m jump.verify --history` checks everything
 within each source's reach.
 
-**The history, judged once** (`tools/history_check.py`, 2026-10-07): every flagged reading
-with no verdict yet, asked of a source that reaches it, by the same rule. Coins against
-Coinbase, pairs against Dukascopy's archive, funds against Alpaca's tape from 2016 (in
-the Research workflow, `only=history-check`). A stretch where the source is the store's
-own feed is skipped. It added 8 not seen for the coins, 70 not seen and 5 overnight for
+**The history, judged once** (2026-10-07, by a tool since retired; its verdicts stay in
+the record): every flagged reading with no verdict yet, asked of a source that reaches it,
+by the same rule. Coins against Coinbase, pairs against Dukascopy's archive, funds against
+Alpaca's tape from 2016. A stretch where the source is the store's own feed was skipped,
+decided once per fund-year, which left 85% of the funds' flagged readings unasked. It added 8 not seen for the coins, 70 not seen and 5 overnight for
 the pairs, and 23 not seen and 93 overnight for the funds. Live cattle (`cattle`, locally)
 against every single contract Yahoo still serves (June and October 2025, the listed
 ones), all at once, a contract left out where it is the store's own: 12 not seen of 20
@@ -568,16 +568,16 @@ health and the calendar go out, Jump's pushes, note and pings do not.
 | `price_monitor/weekly_digest.py`, `economic_calendar.py` | the calendar |
 | `price_monitor/notifier.py`, `health.py`, `__main__.py` | Telegram calls, health, the delivery entry point |
 | `price_monitor/<provider>.py` | one client per provider |
-| `tools/` | history builders (they rewrite stores, so each runs only on the instruments named; `binance_history --all` for every coin), `stage_report.py`, `hot_bars.sh`, `run_died.sh` (the health line for a run that could not deliver); `fund_verdict.py`, `sina_probe.py` and `dukascopy_dump.py`, the feed checks the Research workflow (`alpaca-probe.yml`) runs; `history_check.py`, the whole history asked once of second sources that reach it |
+| `tools/` | `stage_report.py`, `hot_bars.sh`, `run_died.sh` (the health line for a run that could not deliver) |
 
 How far back each record reaches:
 
 | instruments | from | built from |
 |---|---|---|
 | 133 US funds | 2002–2011 for 73, 2016 for 55, launch for 5 | HF Data, Twelve Data, Alpaca's tape |
-| 14 FX pairs | 2003–2007; USD/CNH 2012 | Dukascopy, then live; the majors' 2012 Sunday opens from Dukascopy (`tools/fx_weekend_opens.py`) |
+| 14 FX pairs | 2003–2007; USD/CNH 2012 | Dukascopy, then live; the majors' 2012 Sunday opens from Dukascopy |
 | USD/BRL, USD/INR, USD/KRW | 2019-09, 2019-11, 2020-01 | Twelve Data |
-| 16 coins | 2013–2020 by listing | Binance; earlier from Bitstamp, Bitfinex, Coinbase (`tools/binance_history.py`) |
+| 16 coins | 2013–2020 by listing | Binance; earlier from Bitstamp, Bitfinex, Coinbase |
 | coffee, cocoa, cotton | 2018-01 | Dukascopy CFDs, then the listed contract; cocoa's 2026-07-21 to 08-10, the roll window where no CFD switch could be located, from the December contract (rolled into on 07-21) |
 | live cattle | 2024-05 | Yahoo |
 | LME tin, nickel, aluminium | 2026-07 | Sina |

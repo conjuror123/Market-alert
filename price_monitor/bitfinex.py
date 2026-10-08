@@ -1,5 +1,5 @@
 """Bitfinex's hourly candles, for history only: ETH from 2016-03 and LTC from
-2013-05, before Binance's own pairs matured (tools/binance_history.py).
+2013-05, before Binance's own pairs matured (the coin history, built 2026-10-02).
 
 /v2/candles/trade:1h:{symbol}/hist, up to 10,000 a request, ascending with
 sort=1, no key; 30 requests a minute. Each row is [ms, open, CLOSE, HIGH, LOW,

@@ -95,7 +95,7 @@ def fetch_bars(symbol: str, session: requests.Session | None = None,
 # The same site's US bars are the consolidated tape: over 28 days to
 # 2026-10-02, the half-hour bars of all 67 thin funds then on Yahoo, folded to
 # the store's hours, matched Alpaca's SIP closes at 0.0 bp (median and p90) with
-# 100% of its volume and no hour missing (tools/sina_probe.py) - RWX included,
+# 100% of its volume and no hour missing (measured once against SIP) - RWX included,
 # which Yahoo lacks 3% of. Its HOURLY bars run 09:30-10:30, 10:30-11:30, a grid
 # the store's clock hours cannot be folded from, so the half-hour ones (about
 # 78 days of them) are asked for. Labelled by their end, New York time.
