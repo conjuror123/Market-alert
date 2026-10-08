@@ -332,7 +332,7 @@ def candidate_line(levels) -> float:
 
 def candidates(asset: Asset, frame: pd.DataFrame, table, now: int,
                since: "int | None" = None, basket=None, dividends=None,
-               settings=None) -> "list[dict]":
+               settings=None, record: "dict | None" = None) -> "list[dict]":
     """The detector's own readings, judgeable from `since` on (default
     PENDING_HOURS ago), at candidate_line or more: the metrics built as the
     pipeline builds them (pipeline.build_asset_metrics - the hour's move from
@@ -342,7 +342,13 @@ def candidates(asset: Asset, frame: pd.DataFrame, table, now: int,
     finds them (jumps.ended: an hour once it has ended, a pair's gap at its
     open), with the detector's window and levels (`settings`, read from
     config/basket.yaml once per pass). Only the recent bars are read:
-    tail_days before the window, more than the detector's own."""
+    tail_days before the window, more than the detector's own.
+
+    The detector scores with the moves voted not real left out of the
+    yardstick and the nights moved (jump.jumps._flag): with the `record`, a
+    move far only against that yardstick - lifted once a bad print left it -
+    is a candidate too. The raw yardstick's stay, so a move voted not real is
+    still asked about, and its vote counted again rather than lost."""
     from jump import jumps, pipeline
     from jump.basket import load_basket
 
@@ -355,12 +361,23 @@ def candidates(asset: Asset, frame: pd.DataFrame, table, now: int,
         return []
     metrics = metrics.sort_values("hour_utc").reset_index(drop=True)
     template = asset.session_template
-    readings = [jumps.score(metrics[["hour_utc", "r"]], template, window, levels),
-                jumps.score_gaps(metrics[["hour_utc", "gap"]], window, levels, template)]
-    readings = jumps.ended(pd.concat([f for f in readings if not f.empty], ignore_index=True),
-                           template, now)
-    far = readings[(readings["hour_utc"] >= since)
-                   & (readings["z"].abs() >= candidate_line(levels))]
+
+    def far_readings(m: pd.DataFrame) -> pd.DataFrame:
+        readings = [jumps.score(m[["hour_utc", "r"]], template, window, levels),
+                    jumps.score_gaps(m[["hour_utc", "gap"]], window, levels, template)]
+        readings = jumps.ended(pd.concat([f for f in readings if not f.empty],
+                                         ignore_index=True), template, now)
+        return readings[(readings["hour_utc"] >= since)
+                        & (readings["z"].abs() >= candidate_line(levels))]
+
+    far = far_readings(metrics)
+    mine = {k: row for k, row in (record or {}).items() if k[0] == asset.asset_id}
+    doubts = {k: row for k, row in mine.items() if row.get("verdict") == NOT_REAL}
+    nights = _nights(mine)
+    if doubts or nights:
+        corrected = jumps.without_not_real(jumps.with_nights(metrics, asset.asset_id, nights),
+                                           asset.asset_id, doubts)
+        far = pd.concat([far, far_readings(corrected)]).drop_duplicates(["hour_utc", "reading"])
     h = metrics["hour_utc"].to_numpy(dtype="int64")
     close = metrics["close"].to_numpy(dtype="float64")
     opened = metrics["open"].to_numpy(dtype="float64")
@@ -575,17 +592,23 @@ def load(path: "str | None" = None) -> "dict[tuple[str, int, str], dict]":
     return {(row["asset_id"], int(row["hour_utc"]), row["check"]): row for row in rows}
 
 
+def _nights(record: dict) -> "dict[tuple[str, int, str], float]":
+    """The record's first hours the feeds saw happen overnight, each with the
+    night's move, the median of the feeds'."""
+    out = {}
+    for k, row in record.items():
+        if row.get("verdict") == OVERNIGHT:
+            moves = [float(m) for m in str(row["verifier_move"]).split(",") if m]
+            if moves:
+                out[k] = float(np.median(moves))
+    return out
+
+
 def overnight(path: "str | None" = None) -> "dict[tuple[str, int, str], float]":
     """The first hours the feeds saw happen overnight, {(asset_id, hour_utc,
     check): the night's move, the median of the feeds'}."""
     try:
-        out = {}
-        for k, row in load(path).items():
-            if row.get("verdict") == OVERNIGHT:
-                moves = [float(m) for m in str(row["verifier_move"]).split(",") if m]
-                if moves:
-                    out[k] = float(np.median(moves))
-        return out
+        return _nights(load(path))
     except (OSError, ValueError, KeyError, csv.Error) as exc:
         log.warning("verify: could not read the record - %s", exc)
         return {}
@@ -668,7 +691,8 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
                           since - tail_days(settings[0]) * 86400)
         if frame.empty:
             continue
-        found = candidates(asset, frame, table, now_ts, since, basket, dividends, settings)
+        found = candidates(asset, frame, table, now_ts, since, basket, dividends, settings,
+                           record)
         current = {(asset.asset_id, c["hour"], c["check"]) for c in found}
         for key in [k for k in record if k[0] == asset.asset_id and k[1] >= since]:
             if key not in current:

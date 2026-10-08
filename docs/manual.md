@@ -191,9 +191,10 @@ A real trade shows up on other feeds; a source's bad print does not. Right after
 fetch, every reading at **4σ or more** is put to every other source that carries the
 instrument, and they vote (`jump/verify.py`). The readings are the detector's own, built by
 `pipeline.build_asset_metrics` and scored by `jumps` with the detector's settings
-(`detector:` in `config/basket.yaml`), each asked when the detector finds it. Every
-reading the detector can flag is therefore asked about; with a bottom level under 4σ,
-the line follows it down.
+(`detector:` in `config/basket.yaml`), each asked when the detector finds it - on the raw
+yardstick and on the detector's own, with the moves voted not real left out and the nights
+moved (`verify.candidates`, `jumps._flag`). Every reading the detector can flag is
+therefore asked about; with a bottom level under 4σ, the line follows it down.
 
 Every source of the instrument's class is asked, except its own provider. The list is
 `verify.SOURCES`, one entry per source with its measured reach (2026-10-08) and the name

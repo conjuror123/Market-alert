@@ -488,6 +488,45 @@ def test_a_late_source_is_not_asked_until_it_serves_the_move_whole(
     assert (row["verdict"], row["verifier"]) == (verify.REAL, "yahoo,sina,marketwatch,alpaca_sip")
 
 
+def test_a_move_far_only_once_a_bad_stretch_left_the_yardstick_is_voted_on(
+        monkeypatch, tmp_path, basket):
+    # Twelve hours of a coin's bad ±4% prints, voted not real, swell its
+    # yardstick. The detector scores without them (jumps._flag), where a 6σ
+    # move forty days on is flagged; so the vote must ask about it too.
+    asset = basket["BTC/USDT"]
+    hours = ts("2026-01-01 00:00") + HOUR * np.arange(24 * 200)
+    rng = np.random.default_rng(11)
+    r = rng.normal(0, 0.001, len(hours))
+    bad = range(24 * 150, 24 * 150 + 12)
+    for i, k in enumerate(bad):
+        r[k] = 0.04 if i % 2 == 0 else -0.04
+    lift = 24 * 190 + 5
+    r[lift] = 0.006
+    close = 100 * np.exp(np.cumsum(r))
+    opened = np.r_[100, close[:-1]]
+    frame = pd.DataFrame({"hour_utc": hours, "open": opened, "close": close,
+                          "high": np.maximum(opened, close), "low": np.minimum(opened, close),
+                          "volume": 1.0, "n_src": 1})
+    now = int(hours[lift]) + 2 * HOUR + 300
+    record = {(asset.asset_id, int(hours[k]), "close"): {
+        "asset_id": asset.asset_id, "hour_utc": int(hours[k]), "check": "close",
+        "verdict": verify.NOT_REAL, "checked_utc": now} for k in bad}
+    found = lambda rec: [c["hour"] for c in verify.candidates(
+        asset, frame, None, now, now - 29 * 86400, record=rec)]
+    assert found(None) == []                                  # on the raw yardstick
+    assert found(record) == [int(hours[lift])]
+    # The pass reads the record and asks about it.
+    bars.write(bars.store_path(str(tmp_path / "bars"), asset.file_stem), frame)
+    path = str(tmp_path / "verified.csv")
+    verify.write(record, now, path)
+    monkeypatch.setattr(verify, "fetch_verifier",
+                        lambda *a, **k: frame[["hour_utc", "open", "close"]])
+    verify.verify([asset], str(tmp_path / "bars"), None,
+                  now=datetime.fromtimestamp(now, timezone.utc), path=path)
+    assert verify.load(path)[(asset.asset_id, int(hours[lift]), "close")]["verdict"] == \
+        verify.REAL
+
+
 def test_a_move_a_source_prints_an_hour_late_counts_against_until_it_does():
     # USD/TRY 2025-03-14: SiftingIO came back at 11:00, Yahoo only at 12:00.
     # At 12:05 Yahoo has not moved yet: a no, until the session's recount.

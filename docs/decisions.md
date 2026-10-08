@@ -394,12 +394,16 @@ split Tiingo did not list (or any split, from Twelve Data, which cannot see them
 been lost for good, and its day's gap scored again.
 
 **Candidates are the detector's own readings at ≥ 4σ.** A check with its own σ missed 23
-of 543 flagged readings after a calm stretch.
+of 543 flagged readings after a calm stretch. They are scored on both yardsticks: the raw
+one, and the detector's, with the moves voted not real left out and the nights moved - a
+move far only once a bad print left the yardstick is flagged, so it is voted on too. 86
+flagged readings over all history were far only that way (2026-10-08); over the 30 days
+to then, 2 of 446 candidates.
 
 | instruments | verified against | why |
 |---|---|---|
 | FX pairs | Yahoo and MarketWatch | MarketWatch has every hour (Yahoo 21–72%), 0–0.6 bp off |
-| funds | two of Yahoo 30-minute, Sina 30-minute and MarketWatch hourly, neither the fund's own | Sina matches the tape to 0.0 bp; two, so that one feed cannot say a move did not happen |
+| funds | Yahoo 30-minute, Sina 30-minute and MarketWatch hourly, but the fund's own, and Alpaca's consolidated tape | Sina matches the tape to 0.0 bp; every source of the class votes |
 | coffee, cocoa, cotton | Sina global futures | 0.2–2.2 bp off, hourly correlation 0.96–0.99 |
 | live cattle | MarketWatch continuous | hourly correlation 0.92 |
 | coins | Coinbase and Kraken | other exchanges' dollar pairs: hourly moves correlate 0.988–1.000 with Binance's (300 hours to 2026-09-25); a year of checks found 4 moves not seen, all Binance's own on 2025-10-10's liquidations |
