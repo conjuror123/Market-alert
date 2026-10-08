@@ -217,9 +217,11 @@ about an instrument it provides itself: its word is the store's.
 
 **One source's answer** (`judge`). Each feed is compared with itself, so a steady
 offset is not a move.
-- **Saw it:** the source moved the same way at least half as far, from its closes up
-  to an hour before the move to its closes up to an hour after. An hour it has no bar for
-  is bridged by its nearest bars within 12 hours.
+- **Saw it:** the source moved the same way at least half as far (`REAL_SHARE`), from its
+  closes up to an hour before the move to its closes up to an hour after. An hour it has no
+  bar for is bridged by its nearest bars within 12 hours. Measured 2026-10-08 over 3,444
+  moves: answers sit at 0.8 or more or under 0.2, half is in the gap between, and no source
+  is consistently an hour late (`docs/decisions.md`).
 - **Did not:** it did not move with it, or has not yet - the vote is taken with what the
   source serves at the time, and the next count looks again.
 - **Outage:** the source is down, has no bar after the move yet, or is silent for 12 hours

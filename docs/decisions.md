@@ -303,6 +303,20 @@ allowed, a missing hour bridged. Which feed was wrong is not asked: sources lag,
 hours (no USD/KRW bar on Seoul's martial-law night, a real +2.5%) and print their own bad
 ticks, and every culprit rule breaks a real case.
 
+**A source sees a move at half its size, and no source is shifted** (measured 2026-10-08,
+the user's choice). 3,444 moves of 4σ or more, each put to the free sources at their full
+reach (Yahoo's pairs two years, Coinbase one, the funds' sources 9 to 77 days): of 3,704
+answers, 98% moved at least 0.8 of the stored move or under 0.2 of it, and the emptiest
+band was 0.5 to 0.6. Bad prints on record need the line at 0.3 or more - Binance's FIL wick
+of 2025-10-10, which Coinbase moved 0.24 of; USD/INR 2024-12-17, Yahoo 0.15 - and the real
+moves on record pass up to 0.9 (1.03 to 1.62: the FOMC hour, Seoul's martial law, USD/TRY
+printed an hour late). Between 0.3 and 0.7 the line turns few votes: alert-level pairs tied
+86, 93 and 98 times. Two sources that both answered agreed on 97 to 100% of moves at every
+line from 0.2 to 0.9. No source carries the move an hour after the store's provider as a
+rule: Yahoo's pairs in the same hour 94% of the time (an hour later 2.7%), MarketWatch's
+90% (31 moves), Coinbase and Kraken 91 to 93%, the funds' sources 97 to 100%; the hour of
+lag allowed either side covers the rest.
+
 **Bars around the move outweigh a bridge across it.** A bridge only says the price got
 there somehow.
 
