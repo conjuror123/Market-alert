@@ -97,6 +97,7 @@ import numpy as np
 import pandas as pd
 import requests
 
+from price_monitor import alpaca
 from price_monitor.models import UNANSWERED_IN_A_ROW, Unreachable
 from jump import atomic, bars
 from jump.basket import Asset
@@ -222,8 +223,8 @@ SOURCES: "dict[str, tuple[Source, ...]]" = {
             MARKETWATCH_FUND_EXCHANGE.get(a.ticker, "ARCX"), a.ticker)),
         # Every exchange's trades: another source than the IEX feed Alpaca
         # serves 30 funds from, which is one exchange's (the user's, 2026-10-08).
-        Source("alpaca_sip", "Alpaca_SIP", 3900, "30min", lambda a: a.ticker,
-               delay=15 * 60, keys=ALPACA_KEYS),
+        Source("alpaca_sip", "Alpaca_SIP", (datetime.now(timezone.utc) - alpaca.FIRST).days + 1,
+               "30min", lambda a: a.ticker, delay=15 * 60, keys=ALPACA_KEYS),
     ),
     "softs": (
         Source("sina", "Sina", 79, "1h", lambda a: SINA_FUTURES.get(a.ticker), own_rolls=True),

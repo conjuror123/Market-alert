@@ -1,6 +1,6 @@
 """The history replay (jump.replay): the live vote over all history."""
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pandas as pd
@@ -163,6 +163,25 @@ def test_a_lifted_move_voted_not_real_keeps_its_vote_and_the_votes_settle(
     votes = verify.load(os.path.join(str(tmp_path / "out"), "votes.csv"))
     assert votes[(asset.asset_id, int(hours[lift]), "close")]["verdict"] == verify.NOT_REAL
     assert result["unsettled"] == []
+
+
+def test_the_tape_is_fetched_over_the_years_it_votes_on_hf_datas_hours(monkeypatch, basket):
+    # Inside 2016-2020 the tape supplied only the hours HF Data did not, and
+    # votes on HF Data's: cut to its stretch's end, SPY's 2016-2019 moves had
+    # no voter at all.
+    asset = basket["SPY"]
+    src = next(s for s in verify.SOURCES["us_equity"] if s.name == "alpaca_sip")
+    asked = {}
+
+    def verifier(name, symbol, interval, days, session, now):
+        asked["days"] = days
+        return pd.DataFrame(columns=["hour_utc", "open", "high", "low", "close", "volume"])
+
+    monkeypatch.setattr(verify, "fetch_verifier", verifier)
+    stored = pd.DataFrame({"hour_utc": [ts("2004-01-02 15:00")]})
+    now = datetime(2026, 10, 8, tzinfo=timezone.utc)
+    replay.fetch(src, asset, stored, None, now)
+    assert now - timedelta(days=asked["days"]) <= datetime(2016, 1, 4, tzinfo=timezone.utc)
 
 
 def test_the_softs_contract_series_never_uses_the_stores_front_contract(monkeypatch, basket):

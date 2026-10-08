@@ -322,7 +322,9 @@ contracts' bars, so a listed contract could be the very source of one. The softs
 Dukascopy CFDs are not asked: the months after their seams lie inside Sina's 79 days.
 - A source covers the hours from its first bar to its last as fetched: outside them it is
   no voter, inside them no bars around a move is an outage. It never votes on bars it
-  supplied (`verify.supplied`), and is fetched only from a month before its stretch ends.
+  supplied (`verify.supplied`), and is fetched only from a month before its stretch ends -
+  but Alpaca's tape, fetched from its first day (2016-01-01), since inside its stretch it
+  still votes on HF Data's hours.
 - A source whose fetch fails is asked again once, after every other instrument, and its
   instrument is voted then; one that fails twice is no voter on any of the instrument's
   hours, and is named in `summary.txt`. A run with such a line is partial.

@@ -98,7 +98,11 @@ def voters(asset: Asset) -> "list[Source]":
 
 def _from(name: str, asset: Asset) -> "date | None":
     """Where a source can first vote on the instrument: past the stretches it
-    supplied (verify.SUPPLIED), a month early for the seam. None: anywhere."""
+    supplied (verify.SUPPLIED), a month early for the seam. None: anywhere.
+    The tape is fetched whole: inside its stretch it still votes on HF Data's
+    hours (verify.supplied)."""
+    if name == "alpaca_sip":
+        return None
     ends = [datetime.fromisoformat(end).date()
             for which, start, end, *check in verify.SUPPLIED.get(name, ())
             if not check and end and (asset.session_template == which if isinstance(which, str)
