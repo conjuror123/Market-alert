@@ -325,7 +325,8 @@ Dukascopy CFDs are not asked: the months after their seams lie inside Sina's 79 
   supplied (`verify.supplied`), and is fetched only from a month before its stretch ends.
 - A fixed point: a move voted not real leaves the yardstick and can lift another into the
   vote (`verify.candidates`), so each instrument is voted again until its votes stop
-  changing, five passes at most.
+  changing, five passes at most; one that does not settle is named in `summary.txt`.
+  BTC/USDT and USD/TRY settled in three (smoke run, 2026-10-08).
 - `python -m jump.replay --out DIR`, the dry run: `votes.csv`, `changes.csv` (every vote
   that differs from the record), `summary.txt`, `until.json` (each instrument's recount
   start) and the sources' bars within 36 hours of every move (`bars/`) for the separate

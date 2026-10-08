@@ -433,9 +433,24 @@ def candidates(asset: Asset, frame: pd.DataFrame, table, now: int,
     doubts = {k: row for k, row in mine.items() if row.get("verdict") == NOT_REAL}
     nights = _nights(mine)
     if doubts or nights:
-        corrected = jumps.without_not_real(jumps.with_nights(metrics, asset.asset_id, nights),
-                                           asset.asset_id, doubts)
-        far = pd.concat([far, far_readings(corrected)]).drop_duplicates(["hour_utc", "reading"])
+        nightly = jumps.with_nights(metrics, asset.asset_id, nights)
+        corrected = jumps.without_not_real(nightly, asset.asset_id, doubts)
+        far = pd.concat([far, far_readings(corrected)])
+        # A move voted not real leaves that yardstick itself too: one far only
+        # against the others' is scored with itself back in, or its vote
+        # would vanish the count after it was taken, and return the next.
+        have = {(int(h), CLOSE if kind == jumps.HOUR else OPEN)
+                for h, kind in zip(far["hour_utc"], far["reading"])}
+        for key in doubts:
+            if key[1] < since or (key[1], key[2]) in have:
+                continue
+            alone = jumps.without_not_real(nightly, asset.asset_id,
+                                           {k: r for k, r in doubts.items() if k != key})
+            mine = far_readings(alone)
+            mine = mine[(mine["hour_utc"] == key[1])
+                        & ((mine["reading"] == jumps.HOUR) == (key[2] == CLOSE))]
+            far = pd.concat([far, mine])
+        far = far.drop_duplicates(["hour_utc", "reading"])
     h = metrics["hour_utc"].to_numpy(dtype="int64")
     close = metrics["close"].to_numpy(dtype="float64")
     opened = metrics["open"].to_numpy(dtype="float64")

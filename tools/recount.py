@@ -23,6 +23,9 @@ import sys
 
 import pandas as pd
 
+# Run as a script from the repository: the bar store's reader is jump's.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+
 HOUR = 3600
 SHARE = 0.5
 LAG = HOUR

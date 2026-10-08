@@ -224,7 +224,7 @@ def replay(instruments, bars_dir: str, table, out_dir: str, session=None,
     record = verify.load(record_path)
     basket, dividends, settings = load_basket(), corporate_actions.load_dividends(), jumps.settings()
     os.makedirs(os.path.join(out_dir, "bars"), exist_ok=True)
-    votes, until, failed = {}, {}, []
+    votes, until, failed, unsettled = {}, {}, [], []
     for asset in instruments:
         sources = voters(asset)
         if not sources:
@@ -244,7 +244,7 @@ def replay(instruments, bars_dir: str, table, out_dir: str, session=None,
         mine = {k: r for k, r in record.items() if k[0] == asset.asset_id}
         older = {k: r for k, r in mine.items() if k[1] < until[asset.asset_id]}
         current = {k: r for k, r in mine.items() if k not in older}
-        passes = 0
+        passes, settled = 0, False
         while passes < FIXED_POINT_PASSES:
             passes += 1
             new = vote(asset, frame, fetched, {**current, **older}, until[asset.asset_id],
@@ -254,11 +254,13 @@ def replay(instruments, bars_dir: str, table, out_dir: str, session=None,
             older = new
             if settled:
                 break
+        if not settled:
+            unsettled.append(asset.ticker)
         votes.update(older)
         _keep_bars(out_dir, asset, fetched, older)
         log.info("replay: %s %d votes in %d passes", asset.ticker, len(older), passes)
-    _write(out_dir, votes, record, until, failed)
-    return {"votes": len(votes), "failed": failed}
+    _write(out_dir, votes, record, until, failed, unsettled)
+    return {"votes": len(votes), "failed": failed, "unsettled": unsettled}
 
 
 def _keep_bars(out_dir: str, asset: Asset, fetched: dict, votes: dict) -> None:
@@ -281,7 +283,8 @@ def _keep_bars(out_dir: str, asset: Asset, fetched: dict, votes: dict) -> None:
                                              index=False)
 
 
-def _write(out_dir: str, votes: dict, record: dict, until: dict, failed: list) -> None:
+def _write(out_dir: str, votes: dict, record: dict, until: dict, failed: list,
+           unsettled: list) -> None:
     rows = sorted(votes.values(), key=lambda r: (r["asset_id"], int(r["hour_utc"]), r["check"]))
     with open(os.path.join(out_dir, "votes.csv"), "w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=verify.COLUMNS, lineterminator="\n",
@@ -318,6 +321,8 @@ def _write(out_dir: str, votes: dict, record: dict, until: dict, failed: list) -
         f.write(f"changed against the record: {len(changes)}\n")
         for (a, b), n in moved.most_common():
             f.write(f"  {a} -> {b}: {n}\n")
+        f.write(f"instruments whose votes did not settle in {FIXED_POINT_PASSES} passes: "
+                f"{len(unsettled)} {unsettled}\n")
         f.write(f"sources that could not be fetched: {len(failed)}\n")
         for line in failed:
             f.write(f"  {line}\n")

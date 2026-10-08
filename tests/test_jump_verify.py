@@ -555,6 +555,11 @@ def test_a_move_far_only_once_a_bad_stretch_left_the_yardstick_is_voted_on(
         asset, frame, None, now, now - 29 * 86400, record=rec)]
     assert found(None) == []                                  # on the raw yardstick
     assert found(record) == [int(hours[lift])]
+    # Voted not real itself, it leaves that yardstick too - and is still
+    # asked about, scored with itself back in: its vote does not vanish.
+    lifted = (asset.asset_id, int(hours[lift]), "close")
+    assert found({**record, lifted: dict(record[next(iter(record))], hour_utc=lifted[1])}) == \
+        [int(hours[lift])]
     # The pass reads the record and asks about it.
     bars.write(bars.store_path(str(tmp_path / "bars"), asset.file_stem), frame)
     path = str(tmp_path / "verified.csv")

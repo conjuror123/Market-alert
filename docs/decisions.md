@@ -416,7 +416,9 @@ of 543 flagged readings after a calm stretch. They are scored on both yardsticks
 one, and the detector's, with the moves voted not real left out and the nights moved - a
 move far only once a bad print left the yardstick is flagged, so it is voted on too. 86
 flagged readings over all history were far only that way (2026-10-08); over the 30 days
-to then, 2 of 446 candidates.
+to then, 2 of 446 candidates. Such a move, voted not real, leaves that yardstick itself
+too, so it is scored with itself back in; without that its vote vanished the count after
+it was taken and returned the one after (USD/TRY's history flipped four votes every pass).
 
 | instruments | verified against | why |
 |---|---|---|

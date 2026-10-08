@@ -117,6 +117,27 @@ def test_a_move_lifted_once_a_bad_stretch_is_voted_out_is_voted_on_next_pass(
     assert votes[(asset.asset_id, int(hours[lift]), "close")]["verdict"] == verify.REAL
 
 
+def test_a_lifted_move_voted_not_real_keeps_its_vote_and_the_votes_settle(
+        monkeypatch, tmp_path, basket):
+    # The lifted move is the store's own bad print: the other exchanges did
+    # not move. Voted not real, it leaves the yardstick - and stays voted.
+    bad = range(24 * 100, 24 * 100 + 12)
+    lift = 24 * 140 + 5
+    asset, hours, store, market = _coin(tmp_path, basket, bad=bad, lift=lift)
+    flat = market.copy()
+    flat.loc[lift:, ["open", "close", "high", "low"]] = market.loc[lift - 1, "close"] * \
+        (market.loc[lift:, ["open", "close", "high", "low"]] / market.loc[lift, "close"])
+    monkeypatch.setattr(replay, "fetch", lambda src, a, stored, session, now: flat)
+    record = str(tmp_path / "verified.csv")
+    verify.write({}, 0, record)
+    now = datetime.fromtimestamp(int(hours[-1]) + 2 * HOUR, timezone.utc)
+    result = replay.replay([asset], str(tmp_path / "bars"), None, str(tmp_path / "out"),
+                           now=now, record_path=record)
+    votes = verify.load(os.path.join(str(tmp_path / "out"), "votes.csv"))
+    assert votes[(asset.asset_id, int(hours[lift]), "close")]["verdict"] == verify.NOT_REAL
+    assert result["unsettled"] == []
+
+
 def test_the_softs_contract_series_never_uses_the_stores_front_contract(monkeypatch, basket):
     from jump import futures
     from price_monitor import yahoo
