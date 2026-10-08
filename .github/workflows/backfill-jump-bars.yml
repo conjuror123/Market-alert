@@ -55,12 +55,24 @@ name: Backfill Jump Bars
 #                   stop. Their columns and timezone are undocumented, and
 #                   deepen-etfs refuses to run until the zone has been read off
 #                   this rather than assumed. Put the ticker in `instruments`.
+#   replay-dry      the sources' vote over all history (python -m jump.replay):
+#                   the votes, what changes and the sources' bars around every
+#                   move, uploaded as the artifact `replay`. Writes nothing to
+#                   the store or the record, so nothing is committed.
+#   replay-apply    the reviewed votes of the dry run named in `replay_run`
+#                   (its run id) into data/jump/verified.csv, committed. Only
+#                   after the owner's go on that dry run.
 
 on:
   workflow_dispatch:
     inputs:
       instruments:
         description: 'Comma-separated tickers; empty means the whole basket'
+        required: false
+        default: ''
+        type: string
+      replay_run:
+        description: 'replay-apply: the run id of the reviewed replay-dry'
         required: false
         default: ''
         type: string
@@ -79,6 +91,8 @@ on:
           - live-pass
           - probe-hfdata
           - corporate-actions
+          - replay-dry
+          - replay-apply
 
 permissions:
   contents: write
@@ -119,6 +133,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: tools/hot_bars.sh restore
 
+      - name: Fetch the reviewed replay
+        if: github.event.inputs.mode == 'replay-apply'
+        uses: actions/download-artifact@v4
+        with:
+          name: replay
+          path: replay-out
+          run-id: ${{ github.event.inputs.replay_run }}
+          github-token: ${{ github.token }}
+
       - name: Deepen the bar store
         env:
           TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
@@ -137,10 +160,23 @@ jobs:
             python -m jump.corporate_actions
           elif [ "${{ github.event.inputs.mode }}" = "probe-hfdata" ]; then
             python -m jump.backfill --probe-hfdata "${{ github.event.inputs.instruments || 'SPY' }}"
+          elif [ "${{ github.event.inputs.mode }}" = "replay-dry" ]; then
+            python -m jump.replay --out replay-out \
+              ${{ github.event.inputs.instruments && format('--instruments "{0}"', github.event.inputs.instruments) || '' }}
+          elif [ "${{ github.event.inputs.mode }}" = "replay-apply" ]; then
+            python -m jump.replay --apply replay-out
           else
             python -m jump.backfill --${{ github.event.inputs.mode || 'extend-history' }} \
               ${{ github.event.inputs.instruments && format('--instruments "{0}"', github.event.inputs.instruments) || '' }}
           fi
+
+      - name: Upload the replay
+        if: always() && github.event.inputs.mode == 'replay-dry'
+        uses: actions/upload-artifact@v4
+        with:
+          name: replay
+          path: replay-out
+          retention-days: 30
 
       - name: Commit the deepened store
         # Runs even on failure: whatever was fetched before a rate limit or a

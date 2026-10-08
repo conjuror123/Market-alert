@@ -78,9 +78,9 @@ the store one of them. The move happened in the night, and the store's first
 print was a stale one at the old price; jump.jumps moves it into the gap with
 the feeds' night. Kept for good, like a move not real.
 
-    python -m jump.verify --history     every far move within the furthest
-                                          reach of its sources (FX 729 days,
-                                          funds 59 to 77, coins 365)
+    python -m jump.verify               one pass, as the hourly run makes it
+
+Older than a move's recount, its vote is the history replay's (jump.replay).
 """
 from __future__ import annotations
 
@@ -241,7 +241,10 @@ _CLASS = {"fx_continuous": "fx", "b3_fx": "fx",
 # What the channel calls each provider: the sources, and the stores' own.
 LABELS = {**{s.name: s.label for group in SOURCES.values() for s in group},
           "binance": "Binance", "sifting": "SiftingIO", "tiingo": "Tiingo",
-          "alpaca": "Alpaca_IEX", "twelvedata": "Twelve Data", "google": "Google"}
+          "alpaca": "Alpaca_IEX", "twelvedata": "Twelve Data", "google": "Google",
+          # history's own (jump.replay)
+          "hfdata": "HF Data", "dukascopy": "Dukascopy", "bitstamp": "Bitstamp",
+          "bitfinex": "Bitfinex", "yahoo_contract": "Yahoo_contract"}
 
 
 # Who supplied which stretch of the stores, from the record (commit by
@@ -715,11 +718,9 @@ def _row(asset: Asset, c: dict, verdict: str, stored: float, names: list, moves:
 
 
 def verify(instruments, bars_dir: str, table, session=None, now: "datetime | None" = None,
-           path: "str | None" = None, blocked: "set[str] | None" = None,
-           history: bool = False) -> dict:
-    """One pass: every reading due a vote (due) - or, with `history`,
-    everything within the sources' reach - voted from the bars as they now
-    are. Returns how many of each result."""
+           path: "str | None" = None, blocked: "set[str] | None" = None) -> dict:
+    """One pass: every reading due a vote (due), voted from the bars as they
+    now are. Returns how many of each result."""
     from price_monitor import yahoo
     from jump import corporate_actions, jumps, sessions
     from jump.basket import load_basket
@@ -740,8 +741,7 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
         sources = sources_for(asset)
         if not sources:
             continue
-        reach = max(src.days for src in sources) if history else recount_days(asset)
-        since = now_ts - reach * 86400
+        since = now_ts - recount_days(asset) * 86400
         frame = bars.load(bars.store_path(bars_dir, asset.file_stem),
                           since - tail_days(settings[0]) * 86400)
         if frame.empty:
@@ -752,10 +752,9 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
         for key in [k for k in record if k[0] == asset.asset_id and k[1] >= since]:
             if key not in current:
                 del record[key]
-        if not history:
-            closed = sessions.last_close(asset.session_template, now_ts)
-            found = [c for c in found
-                     if due(record.get((asset.asset_id, c["hour"], c["check"])), closed)]
+        closed = sessions.last_close(asset.session_template, now_ts)
+        found = [c for c in found
+                 if due(record.get((asset.asset_id, c["hour"], c["check"])), closed)]
         if found:
             fresh = any((asset.asset_id, c["hour"], c["check"]) not in record for c in found)
             todo.append((not fresh, asset, found, frame))
@@ -767,7 +766,7 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
     # UNANSWERED_IN_A_ROW requests in a row (~96 s each of a 20-minute job).
     counts = {REAL: 0, UNCERTAIN: 0, NOT_REAL: 0, OVERNIGHT: 0}
     unanswered: dict[str, int] = {}
-    requests_left = 10 ** 6 if history else MAX_REQUESTS
+    requests_left = MAX_REQUESTS
     doubted: list[str] = []
     for _, asset, found, frame in sorted(todo, key=lambda d: d[0]):
         # From before the earliest bar a move starts at: a Monday gap starts at
@@ -845,14 +844,11 @@ def main(argv: "list[str] | None" = None) -> int:
     from jump import sessions
     from jump.basket import load_basket
 
-    parser = argparse.ArgumentParser(description="Ask a second source about the far moves")
-    parser.add_argument("--history", action="store_true",
-                        help="every far move within the second source's reach")
+    parser = argparse.ArgumentParser(description="One pass of the sources' vote")
     parser.add_argument("--bars-dir", default=bars.DEFAULT_BARS_DIR)
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    print(verify(load_basket().instruments, args.bars_dir, sessions.load_sessions(),
-                 history=args.history))
+    print(verify(load_basket().instruments, args.bars_dir, sessions.load_sessions()))
     return 0
 
 

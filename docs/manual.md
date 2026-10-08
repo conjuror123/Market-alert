@@ -309,8 +309,35 @@ Instruments with a reading not yet voted are asked first; at most 40 requests a 
 every source of an instrument or none. Over the 30 days to 2026-10-08, simulated hourly:
 a mean of 7.7 requests a run (median 0, 95th percentile 56), in bursts at the session ends
 (up to 227 at 00:05 UTC, when the coins and pairs come due together, spread over the next
-runs by the cap; 37 of 460 runs over it). A request takes 0.1 to 3 s (Sina's longest). `python -m jump.verify --history` counts everything within
-each source's reach.
+runs by the cap; 37 of 460 runs over it). A request takes 0.1 to 3 s (Sina's longest).
+
+**The history replay** (`jump/replay.py`). Older than its recount, a move's vote is the
+replay's: the same vote, with every source at its whole reach - the live ones (Yahoo's
+pairs two years, Coinbase from a coin's listing, Alpaca's tape from 2016) and those only
+history needs (`replay.HISTORY`): HF Data's tape for the funds, Dukascopy for the pairs,
+Bitstamp and Bitfinex for the coins, and the softs' listed contracts on Yahoo - at each
+hour the nearest one that is not the store's front contract then (Yahoo forgets an expired
+contract, so about two years). Cattle has none: its store's bad prints were other
+contracts' bars, so a listed contract could be the very source of one. The softs'
+Dukascopy CFDs are not asked: the months after their seams lie inside Sina's 79 days.
+- A source covers the hours from its first bar to its last as fetched: outside them it is
+  no voter, inside them no bars around a move is an outage. It never votes on bars it
+  supplied (`verify.supplied`), and is fetched only from a month before its stretch ends.
+- A fixed point: a move voted not real leaves the yardstick and can lift another into the
+  vote (`verify.candidates`), so each instrument is voted again until its votes stop
+  changing, five passes at most.
+- `python -m jump.replay --out DIR`, the dry run: `votes.csv`, `changes.csv` (every vote
+  that differs from the record), `summary.txt`, `until.json` (each instrument's recount
+  start) and the sources' bars within 36 hours of every move (`bars/`) for the separate
+  check. The record is untouched.
+- `python -m jump.replay --apply DIR`: for every instrument the dry run covered, every vote
+  older than its `until` is the replay's; the rest of the record stands.
+- Both run in the backfill workflow (`replay-dry`, `replay-apply` with the dry run's id),
+  where the keys are; the dry run's output is the artifact `replay`.
+- **The separate check** (`python tools/recount.py DIR`): every move the dry run voted not
+  real, counted again from the bars kept with it by code of its own - it does not import
+  the vote's, and a test holds it to that. It does not bridge a missing hour as the vote
+  does, so what it lists is read, not settled by it.
 
 **The history, judged once** (2026-10-07, by a tool since retired; its verdicts stay in
 the record): every flagged reading with no verdict yet, asked of a source that reaches it,
@@ -623,6 +650,7 @@ health and the calendar go out, Jump's pushes, note and pings do not.
 | `jump/quality.py` | the bar gate |
 | `jump/corporate_actions.py` | payouts and splits |
 | `jump/verify.py` | the sources' vote |
+| `jump/replay.py` | the vote over all history |
 | `jump/returns.py`, `pipeline.py` | metrics |
 | `jump/jumps.py`, `routing.py` | detector; which words push, the note's slot |
 | `jump/basket.py` | instruments and `detector:` settings |
@@ -635,7 +663,7 @@ health and the calendar go out, Jump's pushes, note and pings do not.
 | `price_monitor/weekly_digest.py`, `economic_calendar.py` | the calendar |
 | `price_monitor/notifier.py`, `health.py`, `__main__.py` | Telegram calls, health, the delivery entry point |
 | `price_monitor/<provider>.py` | one client per provider |
-| `tools/` | `stage_report.py`, `hot_bars.sh`, `run_died.sh` (the health line for a run that could not deliver) |
+| `tools/` | `stage_report.py`, `hot_bars.sh`, `run_died.sh` (the health line for a run that could not deliver), `recount.py` (the separate check on a replay) |
 
 How far back each record reaches:
 

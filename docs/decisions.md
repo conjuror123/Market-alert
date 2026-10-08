@@ -312,6 +312,19 @@ cannot serve the hour whole: a late source is not asked until it can, and votes 
 session's end on - neither a yes nor an outage before. Over the 30 days to 2026-10-08,
 simulated: 9.2 requests a run against 7.7, the tape's 704 over 460 runs, at most 67 in one.
 
+**History is voted by the live vote, once each source's reach is whole** (2026-10-08). A
+move older than its recount is put to every source that covers its hour - the live ones
+at their whole reach and the ones only history needs (HF Data, Dukascopy, Bitstamp,
+Bitfinex, the softs' listed contracts) - by the same rule, so a move is judged the same
+whether found today or replayed. A source outside the hours its bars span is no voter,
+not an outage: before a coin's listing on an exchange, the exchange has no word to give.
+The vote repeats per instrument until it settles, because a move voted out of the
+yardstick can lift another into it. A dry run writes every changed vote and the sources'
+bars around each move for a separate check; only the reviewed run is applied. Two of the
+planned sources are not asked: cattle's listed contracts (its store's bad prints were
+other contracts' bars, so a contract could be the very source of one) and the softs'
+Dukascopy CFDs (the months after their seams lie inside Sina's 79 days).
+
 **A source sees a move at half its size, and no source is shifted** (measured 2026-10-08,
 the user's choice). 3,444 moves of 4σ or more, each put to the free sources at their full
 reach (Yahoo's pairs two years, Coinbase one, the funds' sources 9 to 77 days): of 3,704
