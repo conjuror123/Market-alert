@@ -5,7 +5,7 @@ and the system is wrong rather than merely broken. Why each choice was made is i
 `docs/decisions.md`.
 
 **Contents:** 1 What it is · 2 Setup and tests · 3 The hourly pass · 4 Data in · 5 The
-second source · 6 Metrics · 7 The detector · 8 Delivery · 9 State and commits · 10
+sources' vote · 6 Metrics · 7 The detector · 8 Delivery · 9 State and commits · 10
 Running it · 11 Modules and data layout · 12 Known limitations
 
 ---
@@ -78,7 +78,7 @@ workflow's `env:`.
 Four commands, in `.github/workflows/price-monitor.yml`. **The order is load-bearing.**
 
 ```
-python -m jump.backfill   fetch new bars; ask a second source about far moves
+python -m jump.backfill   fetch new bars; the other sources vote on far moves
 python -m jump.pipeline   per-instrument metrics: the move r and the gap
 python -m jump.jumps      score all history, words, 24-hour events -> jumps.parquet
 python -m price_monitor     deliver what is due to Telegram
@@ -138,7 +138,7 @@ that instrument. A spent Tiingo or SiftingIO budget is told every run it happens
 refusal is told only by what it costs, in the stale line below ("refused this run"): one
 refusal costs its instruments an hour, fetched again next run. A provider that does not
 answer two instruments in a row (every attempt a timeout, a failed connection or a 5xx, about 96 s each) is stopped for the run too, and
-left out of the dividend check and the second source; the health chat names it
+left out of the dividend check and the vote; the health chat names it
 (`price_monitor.models.Unreachable`). Twelve Data's batch is retried twice, 61 s apart, on
 its own thread. An instrument with no new bar for longer than its calendar allows,
 answered with nothing new or refused by Yahoo run after run, is named on the health chat
@@ -183,11 +183,11 @@ from Tiingo (backfill workflow, `corporate-actions`) rewrites the payouts but ke
 split already declared for the funds it covers, unless it declares one that day itself:
 the morning check never asks back past a fund's checked-through date.
 
-## 5. The second source
+## 5. The sources' vote
 
-A real trade shows up on another feed; a source's bad print does not. Right after the
-fetch, every reading of the last 24 hours at **4σ or more** is asked of a second,
-independent feed (`jump/verify.py`). The readings are the detector's own, built by
+A real trade shows up on other feeds; a source's bad print does not. Right after the
+fetch, every reading at **4σ or more** is put to every other source that carries the
+instrument, and they vote (`jump/verify.py`). The readings are the detector's own, built by
 `pipeline.build_asset_metrics` and scored by `jumps` with the detector's settings
 (`detector:` in `config/basket.yaml`), each asked when the detector finds it. Every
 reading the detector can flag is therefore asked about; with a bottom level under 4σ,
@@ -213,49 +213,73 @@ allowances, and Google is one session deep. A test pins it.
 vendors read one exchange tape, so their bars are often identical. A source is never asked
 about an instrument it provides itself: its word is the store's.
 
-**Verdict per source** (`judge`). Each feed is compared with itself, so a steady offset
-is not a move.
-- **Confirmed:** the source moved the same way at least half as far, from its closes up
+**One source's answer** (`judge`). Each feed is compared with itself, so a steady
+offset is not a move.
+- **Saw it:** the source moved the same way at least half as far, from its closes up
   to an hour before the move to its closes up to an hour after. An hour it has no bar for
   is bridged by its nearest bars within 12 hours.
-- **Unconfirmed:** it did not, and its bar after the one-hour lag has ended.
+- **Did not:** it did not, and its bar after the one-hour lag has ended.
 - **Pending:** that bar has not ended yet, or the source has no bar after the move yet.
-- **Unknown:** the source is silent for 12 hours around the move. For the softs, also a move
-  whose span crosses Sina's own change of contract (`verify.switches`: a session whose
-  median offset to the store stepped by 50 bp or more), where Sina's move carries the
-  spread between two months.
+- **No vote:** the source is silent for 12 hours around the move. For the softs, also a
+  move whose span crosses Sina's own change of contract (`verify.switches`: a session
+  whose median offset to the store stepped by 50 bp or more), where Sina's move carries
+  the spread between two months.
 
-**Combined** (`judge_all`). Confirmed if any source saw the move. Otherwise pending if
-any is still waiting. Otherwise unconfirmed if any answered. Otherwise unknown. A source
-with bars of its own around the move outweighs one bridging a gap (USD/INR at night:
-Yahoo's last bar is 10:00, MarketWatch has every hour). A failed source leaves the others
-to answer; a rate limit, or no answer to two requests in a row, stops that source for the
-run, and the health chat names it.
+**The vote** (`combine`, `judge_all`). The store's provider is one vote that saw it;
+each other source that answered is one vote.
 
-**Overnight** (`overnight_move`), for a session's first hour that no source saw move:
-if every source that answered saw the move from the previous session's close to that
-bar's close, the move happened in the night. The store's first print was a stale one at
+| the votes | result | scored | under the move on the channel (section 8) |
+|---|---|---|---|
+| most saw it | real | yes | nothing |
+| a tie | uncertain | yes | `⚠️ uncertain: seen by Yahoo, Alpaca [2/4]` |
+| most did not | not real | no | `❌ not real: only Binance had it [1/3]` |
+| nobody else had data | single source | yes | `single source: only SiftingIO had data` |
+| no other source carries it (the LME) | — | yes | `single-source asset` |
+
+Pending while the sources still waiting for their next bar could change the result. A
+source with bars of its own around the move outweighs one bridging a gap: the bridging
+one does not vote (USD/INR at night: Yahoo's last bar is 10:00, MarketWatch has every
+hour). A failed source leaves the others to answer; a rate limit, or no answer to two
+requests in a row, stops that source for the run, and the health chat names it. With
+every other source down, a reading not yet counted is single source.
+
+**Rule.** With one other source, every disagreement is a tie: cattle, coffee, cocoa and
+cotton, and USD/INR's night hours when only MarketWatch has bars around them. Their bad
+prints are uncertain and stay scored until another source is found.
+
+**Overnight** (`overnight_move`), for a session's first hour voted not real: if most
+voters saw the move from the previous session's close to that bar's close, the store
+one of them, the move happened in the night. The store's first print was a stale one at
 the old price (TLH 2020-03-09: gap +0.03%, first hour +3.8%; the tape opened +4.65%).
 The verdict carries each source's night, its open of the hour over its last close
 before. `jumps` (`with_nights`) puts the median of them in the gap, payout adjustment
 kept, and the rest of the move from the previous close in the hour: the total stays the
-store's. A gap left unscored stays so. Kept for good, like an unconfirmed one, and not
+store's. A gap left unscored stays so. Kept for good, like a move not real, and not
 a doubt: the message is not marked. Only readings at 4σ or more are asked, so a stale
 first print on a quiet morning stays, and so does a fund's before 2016, which no source
 reaches.
 
-**An unconfirmed move is not scored, and nothing is deleted.** `jumps` leaves its reading
+**A move not real is not scored, and nothing is deleted.** `jumps` leaves its reading
 out of every word and every yardstick; the bar stays in the store, and in the price path
-the close check reads. A message already sent is marked, not removed (section 8). Pending
-and unknown moves are scored as usual.
+the close check reads. A message already sent is marked, not removed (section 8).
 
-Every reading is judged again on every run while it is inside its 24 hours, from the bars
-as they then are. A bar that heals gets a new verdict; one that heals into no far move
-loses its verdict. After 24 hours the last verdict stands. Verdicts live in
-`data/jump/verified.csv`: unconfirmed and overnight ones are kept for good (the detector
-rescores all history), the rest for 30 days. Instruments with a reading not yet judged are asked
-first; at most 40 requests a run. `python -m jump.verify --history` checks everything
-within each source's reach.
+**Counted again while the vote is whole** (`verify.due`, `recount_days`). A reading is
+counted from the bars as they then are on every run of its first 24 hours, then once a
+day, until the closest-reaching of its sources no longer serves its hour: 9 days for
+the funds, pairs and cattle (MarketWatch), 29 for the coins (Kraken), 79 for the softs
+(Sina). After that the further sources would vote alone, and the vote stands. A source
+that corrects its bars turns the vote; a bar that heals into no far move loses its vote.
+Votes live in `data/jump/verified.csv`: not real and overnight ones are kept for good (the
+detector rescores all history), the rest for 90 days, longer than any recount. A record
+from before the vote reads in its words: confirmed as real, unknown as single source,
+unconfirmed as not real until the replay counts it again.
+
+Instruments with a reading not yet counted are asked first; at most 40 requests a run.
+Over the 30 days to 2026-10-08, simulated hourly: the first days' asks a median of 16
+requests a run (95th percentile 95), the daily recount a mean of 6.4 more, in bursts the
+day after a busy hour (up to 213, spread over the next runs by the cap). A request takes
+0.1 to 3 s (Sina's longest). `python -m jump.verify --history` counts everything within
+each source's reach.
 
 **The history, judged once** (2026-10-07, by a tool since retired; its verdicts stay in
 the record): every flagged reading with no verdict yet, asked of a source that reaches it,
@@ -424,8 +448,9 @@ note the old week's ping lines are taken down.
 | milder | edited (a push falling to `noticeable` shows ⬜; a `noticeable` falling away is taken out) | edited |
 | same word, new numbers | edited | edited |
 | gone | taken out; it can come back and ring | taken out for good |
-| unconfirmed | line kept, `⚠️ unconfirmed: Yahoo shows +0.03%` added (each source named when two), silently; a row leaves the note | the same |
-| unconfirmed, then a reading back or a new move | the mark comes off by a silent edit; only a move rarer than the word shown before the mark rings | the same, silently |
+| not real (section 5) | line kept, `❌ not real: only Binance had it [1/3]` added, silently; a row leaves the note | the same |
+| not real, then a reading back or a new move | the mark comes off by a silent edit; only a move rarer than the word shown before the mark rings | the same, silently |
+| uncertain or single source | scored as usual, its line under the move (`⚠️ uncertain: seen by Yahoo, Alpaca [2/4]`, `single source: only SiftingIO had data`, `single-source asset`), in a push and in the note's row; a recount that turns the vote edits it, silently | the same |
 
 A message is edited when what it carries changes and deleted once it carries nothing. A
 ping line lives exactly as long as its row. Nothing rings more than 24 hours after its
@@ -434,7 +459,7 @@ alerts.
 
 **The story.** A changed event carries one line of what it went through:
 `✏️ ⬜ 6.2×σ 10:00 → 🟧 12.4×σ 12:00 bigger jump`. The reasons are `bigger jump`,
-`arrived late`, `price corrected`, `σ corrected`, `corrected away` and `unconfirmed`. A
+`arrived late`, `price corrected`, `σ corrected`, `corrected away` and `not real`. A
 clean event has no story line.
 
 **Rule.** A detector update that changes the week's events restarts the week. When
@@ -486,7 +511,9 @@ hour (`POST /repos/<owner>/<repo>/actions/workflows/price-monitor.yml/dispatches
 PAT and the branch as `ref`). GitHub's `schedule:` is not used: it fires unreliably.
 
 **Cost.** Fetch ~15 s, second source ~11 s, metrics ~11 s warm (~30 s cold) and events
-~9 s (measured on 4 cores, 2026-10-04), whole job ~2 min, timeout 20 min.
+~9 s (measured on 4 cores, 2026-10-04), whole job ~2 min, timeout 20 min. The vote's daily
+recount adds about 6 requests a run on average, at most 40 a run in all (section 5): not
+yet measured live.
 
 **Quotas.**
 
@@ -496,9 +523,9 @@ PAT and the branch as `ref`). GitHub's `schedule:` is not used: it fires unrelia
 | Alpaca | 200/min | 30 a run |
 | Twelve Data | 800/day, 8/min | one batch of 8 a run, in a background thread: keep at most 8 instruments on it, as one batch is a minute's credits; a history walk (`--extend-history`, `--fill-gaps`) waits out :03–:12 past each hour and stops at 600 a day (`twelvedata.ARCHIVE_CREDIT_CAP`), so run one a day |
 | SiftingIO | 10,000/month | ~8,700/month (17 pairs, skipped outside the FX week and USD/BRL's session) |
-| Yahoo, Sina, Google, MarketWatch | none published | live fetch, dividend check, second source (a few requests a run) |
+| Yahoo, Sina, Google, MarketWatch | none published | live fetch, dividend check, the vote (a few requests a run) |
 | Binance | 6,000 weight/min per address | 16 a run |
-| Coinbase, Kraken | per second, per address | the coins' second source: a few requests on a run after a coin moved 4σ or more |
+| Coinbase, Kraken | per second, per address | the coins' vote: a few requests on a run after a coin moved 4σ or more, and once a day for 29 days after |
 
 **Health, in the order of the hourly run.** Everything below goes to the health chat
 (`TELEGRAM_HEALTH_CHAT_ID`), never the channel. "Streak" means a failed run: the down
@@ -564,7 +591,7 @@ health and the calendar go out, Jump's pushes, note and pings do not.
 | `jump/sessions.py`, `futures.py` | calendars and sessions; contract rolls and the front contract |
 | `jump/quality.py` | the bar gate |
 | `jump/corporate_actions.py` | payouts and splits |
-| `jump/verify.py` | the second source |
+| `jump/verify.py` | the sources' vote |
 | `jump/returns.py`, `pipeline.py` | metrics |
 | `jump/jumps.py`, `routing.py` | detector; which words push, the note's slot |
 | `jump/basket.py` | instruments and `detector:` settings |
@@ -596,7 +623,8 @@ How far back each record reaches:
 | limitation | effect | what would fix it |
 |---|---|---|
 | Yahoo, Sina, Google Finance and MarketWatch are undocumented endpoints | a change silences their instruments or checks until fixed; the health chat names them | paid feeds (consolidated tape, futures data) |
-| no second source for the LME's metals | their bad prints are caught only beyond 1,000σ | a free independent feed |
+| no other source for the LME's metals | their bad prints are caught only beyond 1,000σ | a free independent feed |
+| one other source for cattle and the softs | a disagreement is a tie: their bad prints stay scored, labelled uncertain | another free feed |
 | weekend yardsticks rest on 26 weekends | ±16% noise | none chosen: a longer window gained little (`docs/decisions.md`, "Rejected") |
 | history before each record's start (section 11) | "rarest since" reaches only as far as the record | paid history |
 | history no source reaches, and moves under 6σ in it | judged once against sources that reach it (section 5), except: funds before 2016, the softs and the LME, and readings under 6σ. There an old bad print or stale open stays flagged (14 whole shifted fund days were removed, section 5), sits in the next half-year's yardsticks, and can be the "then" of a later "rarest since" line | a paid feed for the old history |

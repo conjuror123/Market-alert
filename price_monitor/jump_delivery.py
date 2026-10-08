@@ -569,6 +569,8 @@ def push_parts(event: dict, labels: dict[str, str],
     body = describe(event, labels)
     if event.get("story"):
         body += "\n" + event["story"]
+    if event.get("vote"):
+        body += "\n" + event["vote"]
     return body, _escape(calendar_context(int(event["hour_utc"]), calendar))
 
 
@@ -703,6 +705,8 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
         line = describe(event, labels)
         if event.get("story"):
             line += "\n" + event["story"]
+        if event.get("vote"):
+            line += "\n" + event["vote"]
         context = calendar_context(int(event["hour_utc"]), calendar)
         return f"{line}\n     {_escape(context)}" if context else line
 
@@ -795,12 +799,20 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
 # A CHANGED EVENT TELLS ITS STORY: one line under the time, every state it has
 # been in with why it moved (story_line). A clean event says nothing.
 #
-# UNCONFIRMED: an event whose move a second source did not see is no longer
-# scored (jump.verify); if it is on the channel, its line stays where it is
-# with `⚠️ unconfirmed: Yahoo shows +0.03%` under it, silently; a row leaves
-# the note. Should a reading of it come back - the bar healed and was
-# confirmed - or a new move come inside its 24 hours, it is an event like any
-# other again.
+# THE SOURCES' VOTE (jump.verify) is said under the move (vote_line):
+#
+#   not real      most sources did not see it: no longer scored. If it is on
+#                 the channel, its line stays where it is with
+#                 `❌ not real: only Binance had it [1/3]` under it, silently;
+#                 a row leaves the note. Should a reading of it come back - the
+#                 bar healed, or the vote turned - or a new move come inside its
+#                 24 hours, it is an event like any other again.
+#   uncertain     a tie: scored as usual, `⚠️ uncertain: seen by Yahoo,
+#                 Alpaca [2/4]` under it.
+#   single source only the store's provider had data: scored as usual,
+#                 `single source: only SiftingIO had data`; an instrument no
+#                 other source carries, `single-source asset`.
+#   real          nothing is added.
 #
 # A detector update (a new jump.jumps.detector_version) starts the week over at
 # that run: every alert message of the week is deleted, the note stays and shows
@@ -825,7 +837,7 @@ LATE = "arrived late"             # a bar or gap that was missing came in
 PRICE = "price corrected"         # the provider revised the bar
 SIGMA = "σ corrected"             # older bars revised, so the half-year yardstick moved
 AWAY = "corrected away"           # no longer a jump
-UNSEEN = "unconfirmed"            # a second source did not see the move (jump.verify)
+UNSEEN = "not real"               # most sources did not see the move (jump.verify)
 
 
 def _fingerprint(text: str) -> str:
@@ -1086,8 +1098,8 @@ def _render(rec: dict, peak: dict) -> dict:
 
 
 def _doubt(asset: str, reading_ids, doubts: "dict | None") -> "dict | None":
-    """The second source's verdict that took one of these readings out, if
-    one did: an hour's reading by the `close` check, a gap's by the `open`."""
+    """The sources' vote on one of these readings, if `doubts` holds one: an
+    hour's reading by the `close` check, a gap's by the `open`."""
     for reading_id in reading_ids:
         _, _, kind, hour = str(reading_id).rsplit(":", 3)
         row = (doubts or {}).get((asset, int(hour), "close" if kind == "hour" else "open"))
@@ -1096,32 +1108,40 @@ def _doubt(asset: str, reading_ids, doubts: "dict | None") -> "dict | None":
     return None
 
 
-def unconfirmed_line(row: dict) -> str:
-    """⚠️ unconfirmed: Yahoo shows +0.03% - or, with two sources,
-    ⚠️ unconfirmed: Yahoo +0.03%, MarketWatch +0.02%."""
-    import math
+def vote_line(row: "dict | None", single_asset: bool = False) -> str:
+    """What the sources' vote on a move adds under it: `❌ not real: only
+    Binance had it [1/3]`, `⚠️ uncertain: seen by Yahoo, Alpaca [2/4]`,
+    `single source: only SiftingIO had data` - the store's provider is one of
+    those that had it - or, with no vote, `single-source asset` for an
+    instrument no other source carries. Nothing for a real move."""
+    from jump import verify
 
-    from jump.verify import LABELS
+    if row is None:
+        return "single-source asset" if single_asset else ""
 
-    names = [n for n in str(row.get("verifier") or "").split(",") if n]
-    moves = str(row.get("verifier_move") or "").split(",")
-    shown = []
-    for i, name in enumerate(names or ["the second source"]):
-        label = _escape(LABELS.get(name, name.capitalize()))
-        try:
-            shown.append((label, f"{(math.exp(float(moves[i])) - 1) * 100:+.2f}%"))
-        except (IndexError, TypeError, ValueError):
-            shown.append((label, "nothing"))
-    if len(shown) == 1:
-        return f"⚠️ {UNSEEN}: {shown[0][0]} shows {shown[0][1]}"
-    return f"⚠️ {UNSEEN}: " + ", ".join(f"{label} {move}" for label, move in shown)
+    def names(key: str) -> "list[str]":
+        return [n for n in str(row.get(key) or "").split(",") if n]
+
+    def label(name: str) -> str:
+        return _escape(verify.LABELS.get(name, name.capitalize()))
+
+    had = [label(str(row.get("provider") or ""))] + [label(n) for n in names("seen")]
+    count = f"[{len(had)}/{1 + len(names('verifier'))}]"
+    verdict = row.get("verdict")
+    if verdict == verify.NOT_REAL:
+        return f"❌ {UNSEEN}: only {', '.join(had)} had it {count}"
+    if verdict == verify.UNCERTAIN:
+        return f"⚠️ uncertain: seen by {', '.join(had)} {count}"
+    if verdict == verify.SINGLE:
+        return f"single source: only {had[0]} had data"
+    return ""
 
 
 def _mark(rec: dict, row: dict) -> None:
-    """The move was not seen by a second source: its line stays in its
-    message with the mark under it, and a row leaves the note - until a
-    reading of the event is back (_step)."""
-    mark = unconfirmed_line(row)
+    """Most sources did not see the move: its line stays in its message with
+    the mark under it, and a row leaves the note - until a reading of the
+    event is back (_step)."""
+    mark = vote_line(row)
     body = rec.get("body", "")
     rec.update(doubt={k: row.get(k) for k in ("verifier", "verifier_move")},
                body=f"{body}\n{mark}" if rec.get("form") == PUSH else f"{body} {mark}",
@@ -1147,7 +1167,7 @@ def _step(week: dict, key: str, readings: "list[dict]", now_ts: int,
     shown_before = rec.get("tier") if rec is not None else None
     if rec is not None and rec.get("doubt"):
         if not readings:
-            return 0                   # marked unconfirmed, and still nothing
+            return 0                   # marked not real, and still nothing
         # A reading is back - the bar healed and was confirmed - or a new move
         # came inside its 24 hours: an event like any other again. Rarer is
         # measured against the word the channel last showed, so a doubt lifted
@@ -1405,9 +1425,16 @@ def _pass(cfg: Config, state: dict, week: dict, readings: "list[dict]", labels: 
         _discard(cfg, week, message_id, first_line)
 
     from jump import verify
+    from jump.basket import load_basket
 
+    # The sources' vote on each reading, said under it (vote_line).
+    record = verify.votes()
+    alone = {a.asset_id for a in load_basket().instruments if not verify.sources_for(a)}
+    for r in readings:
+        r["vote"] = vote_line(_doubt(r["asset_id"], [r["reading_id"]], record),
+                              r["asset_id"] in alone)
     groups = _group([r for r in readings if _in_week(r, week)], week)
-    doubts = verify.unconfirmed()
+    doubts = {k: row for k, row in record.items() if row.get("verdict") == verify.NOT_REAL}
     fresh: list = []
     for key in sorted(groups, key=lambda k: int(k.rsplit("|", 1)[1])):
         changed += _step(week, key, groups[key], now_ts, fresh, doubts)

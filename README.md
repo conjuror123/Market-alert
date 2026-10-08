@@ -16,9 +16,10 @@ with the jump test of Lee & Mykland (2008), and the message says how far out it 
 
 The colour is the word: ⬜ noticeable at 6σ, 🟨 high at 8.5σ, 🟧 major at 12σ, 🟥 extreme
 at 17σ, each about three times rarer than the one below. `high` and up arrive at once
-(about 4 a week); `noticeable` goes into one weekly note (about 11 rows). A move another
-data feed did not see is marked `⚠️ unconfirmed` and kept out of the statistics. It runs
-entirely on GitHub Actions; nothing else needs hosting.
+(about 4 a week); `noticeable` goes into one weekly note (about 11 rows). Every other data
+feed that carries the instrument votes on a far move: one most did not see is marked
+`❌ not real` and kept out of the statistics, a tie `⚠️ uncertain`. It runs entirely on
+GitHub Actions; nothing else needs hosting.
 
 ## Quick start
 
@@ -60,7 +61,7 @@ channel without stopping the bot, set `jump_alerts_muted: true` in
 | run settings: health alerts, the mute, the calendar | `config/config.yaml` |
 | how much history each instrument has | `data/jump/coverage.md` |
 | the detector | `jump/jumps.py` |
-| fetching bars, and the second-source check | `jump/backfill.py`, `jump/verify.py` |
+| fetching bars, and the sources' vote | `jump/backfill.py`, `jump/verify.py` |
 | what goes to Telegram | `price_monitor/jump_delivery.py` |
 | the hourly workflow | `.github/workflows/price-monitor.yml` |
 | rates by word and block, the biggest hours | `tools/stage_report.py` |

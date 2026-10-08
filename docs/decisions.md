@@ -3,7 +3,7 @@
 Why the bot is built the way it is, so a settled choice is not reopened: each entry is the
 choice, then its reason. How each part works is in `docs/manual.md`.
 
-**Contents:** The detector · Delivery · Data and providers · The second source · The
+**Contents:** The detector · Delivery · Data and providers · The sources' vote · The
 repository · Rejected · Open questions
 
 ---
@@ -236,15 +236,42 @@ said, and every hour of an outage would read as a broken bot.
 
 ---
 
-## The second source
+## The sources' vote
 
-**A move another feed did not see is not scored, and a sent message is marked, not
-deleted.** A real trade shows on another feed; a bad print does not. Kept out of the
-yardstick, a bad print cannot inflate the next half-year's σ. Marked rather than deleted,
-a wrong verdict costs a line, not a real move.
+**The sources vote, and the store's provider is one vote that saw it.** A real trade
+shows on other feeds; a bad print does not. "Confirmed if any feed saw it" let one other
+feed keep a bad print; "every feed must agree" would let one feed's own bad tick take a
+real move out. A majority of every feed that has the hour weighs them equally. Over the
+30 days to 2026-10-08, of 444 readings at 4σ or more: 436 real, 3 uncertain, 1 not real
+(GIGB 09-30, −0.32% against Sina's and MarketWatch's +0.09%), 4 single source; the
+detector's flagged readings over all history unchanged (17,088), as were their words.
 
-**The verdict answers one question: did the other feed move with it?** An hour of lag is
-allowed, a missing hour bridged. Which feed was wrong is not asked: second sources lag, miss
+**A move not real is not scored, and a sent message is marked, not deleted.** Kept out of
+the yardstick, a bad print cannot inflate the next half-year's σ. Marked rather than
+deleted, a wrong vote costs a line, not a real move.
+
+**A tie is uncertain, and stays scored** (the user's choice, 2026-10-08). Nothing tells
+which side of a tie is wrong, and more sources are to be found. The cost, measured: with
+one other source every disagreement is a tie, so cattle's and the softs' bad prints stay
+in. LE=F's 2026-10-01 open (−1.82%, the October contract's bars beside December's) was
+not seen and left out; it is now uncertain and scored, though below the bottom word. Of
+the 232 not seen on record, 225 had one other source; they stay not real until the replay
+counts them again with every source that reaches them.
+
+**A vote is counted again once a day while its closest source still reaches the hour.**
+Sources correct their bars, and the vote of a move's first hour can be wrong the next
+morning. Past the closest source's reach the further ones would vote alone - Yahoo's two
+years against MarketWatch's nine days - so the vote stands from then: 9 days for funds,
+pairs and cattle, 29 for coins, 79 for the softs. The record keeps a vote 90 days, longer
+than any recount, so an old one is not dropped and counted afresh every run.
+
+**The vote is said in a few words under the move.** `❌ not real: only Binance had it
+[1/3]`, `⚠️ uncertain: seen by Yahoo, Alpaca [2/4]`, `single source: only SiftingIO had
+data`, `single-source asset`; a real move says nothing. Who had it and how many voted is
+what a reader needs to weigh it.
+
+**A source's answer is one question: did that feed move with it?** An hour of lag is
+allowed, a missing hour bridged. Which feed was wrong is not asked: sources lag, miss
 hours (no USD/KRW bar on Seoul's martial-law night, a real +2.5%) and print their own bad
 ticks, and every culprit rule breaks a real case.
 

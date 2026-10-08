@@ -313,7 +313,7 @@ def test_a_pairs_weekend_gap_is_asked_about_at_its_open_and_from_fridays_close(
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
     record = verify.load(path)
     gap = record[(asset.asset_id, ts("2026-10-04 21:00"), "open")]
-    assert gap["verdict"] == verify.CONFIRMED
+    assert gap["verdict"] == verify.REAL
     friday = int(frame["hour_utc"][frame["hour_utc"] < ts("2026-10-03 00:00")].max())
     assert spans[0] * 86400 >= ts("2026-10-04 21:05") - friday
 
@@ -355,10 +355,10 @@ def test_a_pass_judges_every_reading_in_its_day_again_each_run(monkeypatch, tmp_
     # The bad print, and the hour back from it, which did not happen either.
     unseen = {(asset.asset_id, int(hours[bad]), "close"),
               (asset.asset_id, int(hours[bad + 1]), "close")}
-    assert set(verify.unconfirmed(path)) == unseen
+    assert set(verify.not_real(path)) == unseen
     # Asked again next run - and the same answer.
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
-    assert len(asked) == 4 and set(verify.unconfirmed(path)) == unseen
+    assert len(asked) == 4 and set(verify.not_real(path)) == unseen
     # The bar heals into no far move (a run that lost its fetch had judged the
     # :05 snapshot): its verdict no longer applies, and it is scored.
     frame.loc[bad, "close"] = market.loc[bad, "close"]
@@ -367,7 +367,37 @@ def test_a_pass_judges_every_reading_in_its_day_again_each_run(monkeypatch, tmp_
     frame["low"] = frame[["open", "close"]].min(axis=1)
     bars.write(bars.store_path(str(tmp_path / "bars"), asset.file_stem), frame)
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
-    assert verify.unconfirmed(path) == {}
+    assert verify.not_real(path) == {}
+
+
+def test_a_vote_is_counted_again_once_a_day_while_its_closest_source_serves_it(
+        monkeypatch, tmp_path, basket):
+    # USD/INR's closest source is MarketWatch, nine days deep: the bad print
+    # is counted again once a day until then, and its vote stands after.
+    asset, hours, bad, frame, market = _inr_store(tmp_path, basket)
+    asked = []
+
+    def fetch(name, symbol, interval, days, session, now):
+        asked.append(name)
+        return market
+
+    monkeypatch.setattr(verify, "fetch_verifier", fetch)
+    path = str(tmp_path / "verified.csv")
+    key = (asset.asset_id, int(hours[bad]), "close")
+
+    def run(after_hours):
+        asked.clear()
+        now = datetime.fromtimestamp(int(hours[bad]) + after_hours * HOUR + 300, timezone.utc)
+        verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
+        return list(asked)
+
+    assert verify.recount_days(asset) == 9
+    assert run(72) == ["yahoo", "marketwatch"]               # three days on: counted
+    assert verify.load(path)[key]["verdict"] == verify.NOT_REAL
+    assert run(73) == []                                     # an hour later: not again
+    assert run(96) == ["yahoo", "marketwatch"]               # a day later: again
+    assert run(24 * 10) == []                                # past nine days: never
+    assert verify.load(path)[key]["verdict"] == verify.NOT_REAL
 
 
 def test_not_seen_waits_for_the_second_sources_next_bar(monkeypatch, tmp_path, basket):
@@ -405,20 +435,30 @@ def test_a_busy_hour_asks_the_not_yet_judged_first(monkeypatch, tmp_path, basket
     assert asked == ["USDINR=X", "USDTRY=X"]
 
 
-def test_two_sources_combine_any_seen_confirms():
+def test_the_sources_vote_and_the_store_is_one_vote_that_saw_it():
     C, U, P, K = verify.CONFIRMED, verify.UNCONFIRMED, verify.PENDING, verify.UNKNOWN
     one = lambda name, verdict, move: (name, verdict, 0.005, move)
-    assert verify.combine([one("yahoo", U, 0.0), one("marketwatch", C, 0.004)])[:3] == (
-        C, 0.005, ["marketwatch"])
-    # Still waiting on one of them: not a verdict yet.
+    # The store and MarketWatch saw it, Yahoo did not: real.
+    assert verify.combine([one("yahoo", U, 0.0), one("marketwatch", C, 0.004)]) == (
+        verify.REAL, 0.005, ["yahoo", "marketwatch"], [0.0, 0.004], ["marketwatch"])
+    # Neither did: not real, one against two.
+    assert verify.combine([one("yahoo", U, 0.0003), one("marketwatch", U, 0.0001)])[0] == \
+        verify.NOT_REAL
+    # One against one is a tie: uncertain - and a source without bars around
+    # the move does not vote.
+    assert verify.combine([one("yahoo", K, 0.0), one("marketwatch", U, 0.0)])[:3] == (
+        verify.UNCERTAIN, 0.005, ["marketwatch"])
+    # Two of four saw it, the store one of them: a tie.
+    assert verify.combine([one("yahoo", C, 0.004), one("sina", U, 0.0),
+                           one("marketwatch", U, 0.0)])[0] == verify.UNCERTAIN
+    # Nobody else voted: the store's word alone.
+    assert verify.combine([one("yahoo", K, 0.0)])[0] == verify.SINGLE
+    assert verify.combine([])[0] == verify.SINGLE
+    # Still waiting on a source whose answer could turn it: pending...
     assert verify.combine([one("yahoo", P, 0.0), one("marketwatch", U, 0.0)])[0] == P
-    verdict, _, names, moves = verify.combine([one("yahoo", U, 0.0003),
-                                              one("marketwatch", U, 0.0001)])
-    assert (verdict, names, moves) == (U, ["yahoo", "marketwatch"], [0.0003, 0.0001])
-    # One with no bars around the move (unknown) and one that did not see it.
-    assert verify.combine([one("yahoo", K, 0.0), one("marketwatch", U, 0.0)])[0] == U
-    assert verify.combine([one("yahoo", K, 0.0)])[0] == K
-    assert verify.combine([])[0] == K
+    # ... but not when it could not: three of four saw it already.
+    assert verify.combine([one("yahoo", C, 0.004), one("sina", C, 0.005),
+                           one("marketwatch", P, 0.0)])[0] == verify.REAL
 
 
 def test_a_source_with_bars_around_the_move_outweighs_one_bridging_a_gap():
@@ -433,15 +473,15 @@ def test_a_source_with_bars_around_the_move_outweighs_one_bridging_a_gap():
     mw = bars_([f"2026-09-30 {h}:00" for h in range(19, 24)])
     now = ts("2026-10-01 00:05")
     assert verify.judge_all(c, [("yahoo", yahoo), ("marketwatch", mw)], now)[0] == \
-        verify.UNCONFIRMED
+        verify.UNCERTAIN
     # Yahoo's 03:00 bar, 0.3% up after the night's drift, does not turn it.
     yahoo = bars_(["2026-09-30 10:00"]).pipe(
         lambda f: pd.concat([f, bars_(["2026-10-01 03:00"], 96.40)], ignore_index=True))
     assert verify.judge_all(c, [("yahoo", yahoo), ("marketwatch", mw)],
-                            ts("2026-10-01 03:05"))[0] == verify.UNCONFIRMED
+                            ts("2026-10-01 03:05"))[0] == verify.UNCERTAIN
     # With nobody's bars around the move, the bridge is all there is.
     assert verify.judge_all(c, [("yahoo", yahoo)], ts("2026-10-01 03:05"))[0] == \
-        verify.CONFIRMED
+        verify.REAL
 
 
 def test_a_vendor_printing_the_stores_own_bars_still_votes(monkeypatch, tmp_path, basket):
@@ -459,7 +499,7 @@ def test_a_vendor_printing_the_stores_own_bars_still_votes(monkeypatch, tmp_path
     path = str(tmp_path / "verified.csv")
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
     row = verify.load(path)[(asset.asset_id, int(hours[bad]), "close")]
-    assert (row["verdict"], row["verifier"]) == (verify.CONFIRMED, "yahoo")
+    assert (row["verdict"], row["seen"]) == (verify.REAL, "yahoo")
 
 
 def test_one_source_failing_leaves_the_other_to_answer(monkeypatch, tmp_path, basket):
@@ -475,8 +515,8 @@ def test_one_source_failing_leaves_the_other_to_answer(monkeypatch, tmp_path, ba
     now = datetime.fromtimestamp(int(hours[bad + 5]) + 300, timezone.utc)
     path = str(tmp_path / "verified.csv")
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
-    row = verify.unconfirmed(path)[(asset.asset_id, int(hours[bad]), "close")]
-    assert row["verifier"] == "marketwatch"
+    row = verify.load(path)[(asset.asset_id, int(hours[bad]), "close")]
+    assert (row["verdict"], row["verifier"]) == (verify.UNCERTAIN, "marketwatch")
 
 
 def test_a_rate_limit_stops_that_source_only(monkeypatch, tmp_path, basket):
@@ -528,11 +568,43 @@ def test_an_unconfirmed_verdict_outlives_the_rest_of_the_record(tmp_path):
     old, now = ts("2025-01-01 00:00"), ts("2026-10-01 00:00")
     rows = {(name, old, "close"): {"asset_id": name, "hour_utc": old, "check": "close",
                                    "verdict": verdict}
-            for name, verdict in (("a", verify.UNCONFIRMED), ("b", verify.CONFIRMED),
-                                  ("c", verify.PENDING), ("d", verify.UNKNOWN))}
+            for name, verdict in (("a", verify.NOT_REAL), ("b", verify.REAL),
+                                  ("c", verify.PENDING), ("d", verify.SINGLE),
+                                  ("e", verify.UNCERTAIN))}
     verify.write(rows, now, path)
     # Pending too goes: a bar older than its 24 hours is never asked again.
     assert set(verify.load(path)) == {("a", old, "close")}
+
+
+def test_a_record_from_before_the_vote_reads_in_its_words(tmp_path):
+    # Its confirmed is real, its unknown single source, and its unconfirmed
+    # not real until the replay counts it again.
+    path = tmp_path / "verified.csv"
+    path.write_text("asset_id,hour_utc,check,verdict,provider,verifier,stored_move,"
+                    "verifier_move,checked_utc\n"
+                    "a,1,close,confirmed,binance,coinbase,0.03,0.03,9\n"
+                    "b,2,close,unconfirmed,binance,coinbase,0.05,0.004,9\n"
+                    "c,3,open,unknown,sifting,yahoo,0.01,0.0,9\n")
+    assert {k[0]: row["verdict"] for k, row in verify.load(str(path)).items()} == {
+        "a": verify.REAL, "b": verify.NOT_REAL, "c": verify.SINGLE}
+    assert set(verify.not_real(str(path))) == {("b", 2, "close")}
+
+
+def test_every_other_source_down_leaves_the_stores_word_alone_and_says_so(
+        monkeypatch, tmp_path, basket):
+    from price_monitor.models import ExchangeError
+    asset, hours, bad, frame, market = _inr_store(tmp_path, basket)
+
+    def fetch(name, symbol, interval, days, session, now):
+        raise ExchangeError(f"{symbol}: no response")
+
+    monkeypatch.setattr(verify, "fetch_verifier", fetch)
+    now = datetime.fromtimestamp(int(hours[bad + 5]) + 300, timezone.utc)
+    path = str(tmp_path / "verified.csv")
+    verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
+    row = verify.load(path)[(asset.asset_id, int(hours[bad]), "close")]
+    assert (row["verdict"], row["verifier"]) == (verify.SINGLE, "yahoo,marketwatch")
+    assert verify.not_real(path) == {}
 
 
 def test_an_unconfirmed_move_is_not_scored_and_not_in_the_yardstick():
@@ -543,7 +615,7 @@ def test_an_unconfirmed_move_is_not_scored_and_not_in_the_yardstick():
     metrics = pd.DataFrame({"hour_utc": start + HOUR * np.arange(3000), "r": r,
                             "gap": np.nan, "hole": False})
     doubts = {("x:Y", int(metrics["hour_utc"][2000]), "close"): {}}
-    kept = jumps.without_unconfirmed(metrics, "x:Y", doubts)
+    kept = jumps.without_not_real(metrics, "x:Y", doubts)
     assert np.isnan(kept["r"][2000]) and np.isfinite(metrics["r"][2000])
     scored = jumps.score(kept, "crypto_24_7")
     assert pd.isna(scored["word"][2000])
@@ -551,7 +623,7 @@ def test_an_unconfirmed_move_is_not_scored_and_not_in_the_yardstick():
                         "crypto_24_7")
     assert np.allclose(scored["sigma"], clean["sigma"], equal_nan=True)
     # Another instrument's verdict leaves this one alone.
-    assert jumps.without_unconfirmed(metrics, "x:Z", doubts) is metrics
+    assert jumps.without_not_real(metrics, "x:Z", doubts) is metrics
 
 
 def test_the_close_check_follows_the_price_as_stored(tmp_path, basket):
@@ -574,7 +646,7 @@ def test_the_close_check_follows_the_price_as_stored(tmp_path, basket):
     path = str(tmp_path / "verified.csv")
     verify.write({(asset.asset_id, int(hours[k + 2]), "close"): {
         "asset_id": asset.asset_id, "hour_utc": int(hours[k + 2]), "check": "close",
-        "verdict": verify.UNCONFIRMED}}, int(hours[-1]), path)
+        "verdict": verify.NOT_REAL}}, int(hours[-1]), path)
     flagged = jumps.run(str(os_dir), now=int(hours[-1]) + 3600, verified_path=path)
     mine = flagged[flagged["asset_id"] == asset.asset_id]
     assert int(hours[k + 2]) not in set(mine["hour_utc"])
@@ -631,7 +703,7 @@ def test_a_broken_bar_from_a_second_source_costs_only_its_instrument(
     now = datetime.fromtimestamp(int(hours[bad + 5]) + 300, timezone.utc)
     path = str(tmp_path / "verified.csv")
     verify.verify([asset, other], str(tmp_path / "bars"), None, now=now, path=path)
-    doubted = verify.unconfirmed(path)
+    doubted = verify.not_real(path)
     assert (other.asset_id, int(hours[bad]), "close") in doubted
     # The broken bar is left out and the rest of the source's hours decide.
     assert (asset.asset_id, int(hours[bad]), "close") in doubted
@@ -687,7 +759,7 @@ def test_a_real_gap_across_sinas_change_is_left_unknown_not_rejected(monkeypatch
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
 
     row = verify.load(path)[(asset.asset_id, c["hour"], "open")]
-    assert row["verdict"] == verify.UNKNOWN
+    assert row["verdict"] == verify.SINGLE
     assert "changed contract" in row["verifier"]
 
 
@@ -705,21 +777,26 @@ TAPE = {"2020-03-06 19:00": 167.60, "2020-03-06 20:00": (167.70, 166.83),
 
 
 def test_a_first_hour_the_feeds_saw_happen_overnight_moves_into_the_night():
-    verdict, stored, names, moves = verify.judge_all(
+    verdict, stored, names, moves, _ = verify.judge_all(
         TLH_FIRST_HOUR, [("yahoo", bars_of(TAPE)), ("sina", bars_of(TAPE))],
         ts("2020-03-09 18:00"))
     assert verdict == verify.OVERNIGHT and names == ["yahoo", "sina"]
     assert moves == pytest.approx([np.log(174.83 / 166.83)] * 2)
 
 
-def test_one_feed_cannot_move_a_first_hour_into_the_night():
-    # The other feed never saw the price get there at all: no correction.
+def test_a_first_hour_moves_into_the_night_only_if_most_saw_the_whole_move():
+    # Two feeds never saw the price get there at all: with the store and the
+    # one that did, a tie - no correction, and the hour stays not real.
     other = dict(TAPE, **{"2020-03-09 13:00": (174.83, 167.00),
                           "2020-03-09 14:00": (167.00, 166.90)})
-    verdict = verify.judge_all(TLH_FIRST_HOUR, [("yahoo", bars_of(TAPE)),
-                                                ("sina", bars_of(other))],
-                               ts("2020-03-09 18:00"))[0]
-    assert verdict == verify.UNCONFIRMED
+    three = [("yahoo", bars_of(TAPE)), ("sina", bars_of(other)),
+             ("marketwatch", bars_of(other))]
+    assert verify.judge_all(TLH_FIRST_HOUR, three, ts("2020-03-09 18:00"))[0] == \
+        verify.NOT_REAL
+    # One of them did after all: most saw it happen overnight.
+    three[1] = ("sina", bars_of(TAPE))
+    assert verify.judge_all(TLH_FIRST_HOUR, three, ts("2020-03-09 18:00"))[:3:2] == (
+        verify.OVERNIGHT, ["yahoo", "sina"])
 
 
 def test_one_feed_cannot_say_a_move_did_not_happen():
@@ -728,9 +805,9 @@ def test_one_feed_cannot_say_a_move_did_not_happen():
     c = {"hour": ts("2026-10-05 14:00"), "check": "close", "from_open": False,
          "prev_hour": ts("2026-10-05 13:00"), "prev_close": 100.0, "price": 101.0}
     assert verify.judge_all(c, [("sina", bars_of(flat)), ("marketwatch", bars_of(seen))],
-                            ts("2026-10-05 18:00"))[0] == verify.CONFIRMED
+                            ts("2026-10-05 18:00"))[0] == verify.REAL
     assert verify.judge_all(c, [("sina", bars_of(flat)), ("marketwatch", bars_of(flat))],
-                            ts("2026-10-05 18:00"))[0] == verify.UNCONFIRMED
+                            ts("2026-10-05 18:00"))[0] == verify.NOT_REAL
 
 
 def test_the_detector_reads_the_night_there_and_keeps_the_store_s_total():
@@ -759,4 +836,4 @@ def test_an_overnight_verdict_is_kept_for_good_and_read_as_the_feeds_median(tmp_
         "asset_id": "x:TLH", "hour_utc": old, "check": "close", "verdict": verify.OVERNIGHT,
         "verifier": "yahoo,sina", "verifier_move": "0.046000,0.048000"}}, now, path)
     assert verify.overnight(path) == {("x:TLH", old, "close"): pytest.approx(0.047)}
-    assert verify.unconfirmed(path) == {}
+    assert verify.not_real(path) == {}
