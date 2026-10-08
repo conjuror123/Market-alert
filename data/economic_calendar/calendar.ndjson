@@ -91786,6 +91786,7 @@
 {"actual": "", "country": "GBP", "date": "2026-10-07T10:32:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "30-y Bond Auction"}
 {"actual": "", "country": "USD", "date": "2026-10-07T14:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Consumer Credit m/m"}
 {"actual": "", "country": "USD", "date": "2026-10-07T14:30:00+00:00", "forecast": "1.9M", "impact": "Low", "previous": "0.9M", "title": "Crude Oil Inventories"}
+{"actual": "", "country": "USD", "date": "2026-10-07T17:00:00+00:00", "forecast": "", "impact": "Medium", "previous": "", "title": "President Trump Speaks"}
 {"actual": "", "country": "USD", "date": "2026-10-07T17:01:00+00:00", "forecast": "", "impact": "Low", "previous": "4.83|2.7", "title": "10-y Bond Auction"}
 {"actual": "", "country": "USD", "date": "2026-10-07T18:00:00+00:00", "forecast": "", "impact": "High", "previous": "", "title": "FOMC Meeting Minutes"}
 {"actual": "", "country": "USD", "date": "2026-10-07T19:00:00+00:00", "forecast": "14.5B", "impact": "Low", "previous": "18.1B", "title": "Consumer Credit m/m"}
