@@ -55,6 +55,10 @@ name: Backfill Jump Bars
 #                   stop. Their columns and timezone are undocumented, and
 #                   deepen-etfs refuses to run until the zone has been read off
 #                   this rather than assumed. Put the ticker in `instruments`.
+#   voter-bars      every live voter's bars of every instrument (or those named),
+#                   35 days, uploaded as the artifact `voter-bars` for a
+#                   measurement (tools/voter_bars.py). Writes nothing to the
+#                   store or the record.
 
 on:
   workflow_dispatch:
@@ -79,6 +83,7 @@ on:
           - live-pass
           - probe-hfdata
           - corporate-actions
+          - voter-bars
 
 permissions:
   contents: write
@@ -113,10 +118,13 @@ jobs:
       # Read only, never saved back: deepening writes history, not the open
       # months, and only the hourly run may replace them (tools/hot_bars.sh).
       # They are restored so the store is whole when a deepening compares
-      # against it, and so its newest month reads as what it is.
+      # against it, and so its newest month reads as what it is. Always the
+      # default branch's, where the hourly run keeps them: a branch other than
+      # it has no archive, and a run there read none (2026-10-08).
       - name: Restore the open months of the bars
         env:
           GH_TOKEN: ${{ github.token }}
+          BARS_BRANCH: ${{ github.event.repository.default_branch }}
         run: tools/hot_bars.sh restore
 
       - name: Deepen the bar store
@@ -137,10 +145,21 @@ jobs:
             python -m jump.corporate_actions
           elif [ "${{ github.event.inputs.mode }}" = "probe-hfdata" ]; then
             python -m jump.backfill --probe-hfdata "${{ github.event.inputs.instruments || 'SPY' }}"
+          elif [ "${{ github.event.inputs.mode }}" = "voter-bars" ]; then
+            python -m tools.voter_bars voter-bars \
+              ${{ github.event.inputs.instruments && format('--instruments "{0}"', github.event.inputs.instruments) || '' }}
           else
             python -m jump.backfill --${{ github.event.inputs.mode || 'extend-history' }} \
               ${{ github.event.inputs.instruments && format('--instruments "{0}"', github.event.inputs.instruments) || '' }}
           fi
+
+      - name: Upload the voters' bars
+        if: always() && github.event.inputs.mode == 'voter-bars'
+        uses: actions/upload-artifact@v4
+        with:
+          name: voter-bars
+          path: voter-bars
+          retention-days: 30
 
       - name: Commit the deepened store
         # Runs even on failure: whatever was fetched before a rate limit or a

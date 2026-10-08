@@ -3,7 +3,7 @@
 Why the bot is built the way it is, so a settled choice is not reopened: each entry is the
 choice, then its reason. How each part works is in `docs/manual.md`.
 
-**Contents:** The detector · Delivery · Data and providers · The second source · The
+**Contents:** The detector · Delivery · Data and providers · The sources' vote · The
 repository · Rejected · Open questions
 
 ---
@@ -131,7 +131,7 @@ sends alerts for moves that did not happen.
 
 **A candidate source answers four questions, cheapest first:** does it serve the :00 bar by
 :05; does its allowance cover the load; does it match the consolidated tape on thin names
-(`tools/fund_verdict.py`); which tickers, how far back.
+(measured once per feed against the tape); which tickers, how far back.
 
 **A fund goes to an IEX-only feed only if IEX prices it like the tape** (median ≤ 2 bp,
 p90 ≤ 5, ≤ 2% of hours missing, over 28 days). IEX is one exchange; thin commodity funds
@@ -164,7 +164,7 @@ correlate at 0.996 while sitting 1% off. Only missing hours are written.
 previous close, so all 52 weekends of the seven majors read as a gap of exactly 0, and the
 collapsed yardstick read early 2013's weekends as 30–72σ. 350 of the 364 were mended from
 Dukascopy's own gap, spliced onto the stored Friday, where its Friday and Sunday closes are
-within 10 bp of the store's (`tools/fx_weekend_opens.py`); 14 were refused. Every other
+within 10 bp of the store's; 14 were refused. Every other
 pair weekend opening exactly at Friday's close is left unscored (359 of 14,705): USD/INR's
 and USD/KRW's 2020-2025 hold about 60 each, which no free source can mend, and scored they
 read the next real weekend as hundreds of sigma (USD/INR 2022-01-09: −389σ under a
@@ -236,17 +236,109 @@ said, and every hour of an outage would read as a broken bot.
 
 ---
 
-## The second source
+## The sources' vote
 
-**A move another feed did not see is not scored, and a sent message is marked, not
-deleted.** A real trade shows on another feed; a bad print does not. Kept out of the
-yardstick, a bad print cannot inflate the next half-year's σ. Marked rather than deleted,
-a wrong verdict costs a line, not a real move.
+**The sources vote, and the store's provider is one vote that saw it.** A real trade
+shows on other feeds; a bad print does not. "Confirmed if any feed saw it" let one other
+feed keep a bad print; "every feed must agree" would let one feed's own bad tick take a
+real move out. A majority of every feed that has the hour weighs them equally. Over the
+30 days to 2026-10-08, of the 242 readings at 4σ or more inside their recount: 240 real,
+1 uncertain (LE=F's 10-01 open), 1 not real (GIGB 09-30, −0.32% against Sina's and
+MarketWatch's +0.09%); the detector's flagged readings over all history unchanged
+(17,088), as were their words.
 
-**The verdict answers one question: did the other feed move with it?** An hour of lag is
-allowed, a missing hour bridged. Which feed was wrong is not asked: second sources lag, miss
+**A move not real is not scored, and a sent message is marked, not deleted.** Kept out of
+the yardstick, a bad print cannot inflate the next half-year's σ. Marked rather than
+deleted, a wrong vote costs a line, not a real move.
+
+**A tie is uncertain, and stays scored** (the user's choice, 2026-10-08). Nothing tells
+which side of a tie is wrong, and more sources are to be found. The cost, measured: with
+one other source every disagreement is a tie, so cattle's and the softs' bad prints stay
+in. LE=F's 2026-10-01 open (−1.82%, the October contract's bars beside December's) was
+not seen and left out; it is now uncertain and scored, though below the bottom word. Of
+the 232 not seen on record, 225 had one other source; they stay not real, since history is
+not voted again (below).
+
+**A vote is taken when the move is found, then at each end of its market's session,
+while its closest source still reaches the hour** (the user's schedule, 2026-10-08).
+Sources and the store's own provider correct their bars, and a session's end is when
+the day's are final: the NYSE close for funds, each daily-session market's own close,
+00:00 UTC for coins and pairs, which never close. Past the closest source's reach the
+further ones would vote alone - Yahoo's two years against MarketWatch's nine days - so
+the vote stands from then: 9 days for funds, pairs and cattle, 29 for coins, 79 for the
+softs. The record keeps a vote 90 days, longer than any recount. Against voting every run
+of a move's first day, it asks a mean of 7.7 requests a run instead of 34.7 (the 30 days
+to 2026-10-08, simulated).
+
+**A provider's corrections come in through its ordinary request.** On a run with a vote
+due - the first after a session's end - the hourly fetch reaches back to that vote's hour,
+and the store takes every bar it brings back as it takes the last three hours': in an open
+month the fresher copy wins. A separate request per vote would spend Tiingo's and
+SiftingIO's allowances, which the live run needs; one longer answer costs nothing more.
+Taking only the voted hours would need a rule per provider: Sina's whole ~78 days and
+Yahoo's last day are already taken on every run. Measured 2026-10-08: Binance revised no
+bar in 29 days (0 of 10,672 hours), Yahoo 472 of 1,290 fund hours in 9 days, 2 by more
+than 1 bp.
+
+**The vote is said as each source's own move** (the user's wording, 2026-10-08): `❌
+Binance(+2.03%), Coinbase(-0.10%), Kraken(-0.10%)` for a move not real, `⚠️ Yahoo(-2.50%),
+Alpaca(-2.50%), Sina(outage), MarketWatch(-0.50%)` for a tie; a real move, or one no
+other source carries, says nothing. The numbers let a reader weigh it without a key.
+
+**An outage counts against the move** (the user's choice, 2026-10-08). A source with
+nothing to show about a move - down, no bars around it, or across its own change of
+contract - is a vote that did not see it. A bad print is not saved by the sources that
+could not see it; the cost is that a move is not real while most of its class's sources
+are down, until a count after they are back. Over the 30 days to 2026-10-08, inside each
+instrument's recount, no vote changed by it: no source was down in the bars cached.
+
+**A vote is taken with what the sources serve at the time.** No waiting for a source's
+next hour: one that has not shown the move yet counts against until the next count, at
+the session's end. Over the 30 days to 2026-10-08, the vote at the run that found each of
+the 250 moves inside their recount matched the vote on the whole bars: no real move would
+have been held back.
+
+**A source's answer is one question: did that feed move with it?** An hour of lag is
+allowed, a missing hour bridged. Which feed was wrong is not asked: sources lag, miss
 hours (no USD/KRW bar on Seoul's martial-law night, a real +2.5%) and print their own bad
 ticks, and every culprit rule breaks a real case.
+
+**Alpaca's consolidated tape votes on every fund, the ones Alpaca serves included** (the
+user's choice, 2026-10-08). The store has 30 funds from Alpaca's IEX feed, one exchange's
+trades; the tape is every exchange's, and shows where the market traded while IEX's thin
+bars can stray - IEX's typical error is what it catches. Named apart, `Alpaca_IEX` and
+`Alpaca_SIP`. The free plan serves the tape fifteen minutes behind, so in a move's hour it
+cannot serve the hour whole: a late source is not asked until it can, and votes from the
+session's end on - neither a yes nor an outage before. Over the 30 days to 2026-10-08,
+simulated: 9.2 requests a run against 7.7, the tape's 704 over 460 runs, at most 67 in one.
+
+**History is not voted again** (the user's, 2026-10-08). Older than its recount (9, 29 or
+79 days), a move's vote stands as the record holds it; a move never voted counts as
+normal. A replay of the live vote over all history was built and tried, and dropped: with
+one other source the vote cannot call a move not real - the store's yes against one no is
+a tie - and most of history has one at most (the funds' Alpaca tape from 2016, the pairs'
+Dukascopy before Yahoo's two years, one contract series for coffee, Bitfinex for BTC in
+2013-14). There it could only take known bad prints back. On six instruments (run
+37833953643): USD/TRY's 33 not real became ties - 2023-05-26 +0.70% then -0.67%, Dukascopy
++0.01% both - and the funds' 116 not real and overnight, all the tape's, would have too;
+it added not-real votes only where two sources reach (15). HF Data, planned as the funds'
+second source to 2022-03, had withdrawn everything before 2022-03-07 on 2026-10-03 ("the
+dataset now holds the IEX Exchange HIST segment only"). Do not reopen without a second
+source for those stretches.
+
+**A source sees a move at half its size, and no source is shifted** (measured 2026-10-08,
+the user's choice). 3,444 moves of 4σ or more, each put to the free sources at their full
+reach (Yahoo's pairs two years, Coinbase one, the funds' sources 9 to 77 days): of 3,704
+answers, 98% moved at least 0.8 of the stored move or under 0.2 of it, and the emptiest
+band was 0.5 to 0.6. Bad prints on record need the line at 0.3 or more - Binance's FIL wick
+of 2025-10-10, which Coinbase moved 0.24 of; USD/INR 2024-12-17, Yahoo 0.15 - and the real
+moves on record pass up to 0.9 (1.03 to 1.62: the FOMC hour, Seoul's martial law, USD/TRY
+printed an hour late). Between 0.3 and 0.7 the line turns few votes: alert-level pairs tied
+86, 93 and 98 times. Two sources that both answered agreed on 97 to 100% of moves at every
+line from 0.2 to 0.9. No source carries the move an hour after the store's provider as a
+rule: Yahoo's pairs in the same hour 94% of the time (an hour later 2.7%), MarketWatch's
+90% (31 moves), Coinbase and Kraken 91 to 93%, the funds' sources 97 to 100%; the hour of
+lag allowed either side covers the rest.
 
 **Bars around the move outweigh a bridge across it.** A bridge only says the price got
 there somehow.
@@ -258,12 +350,26 @@ such a stretch each feed is still compared with itself; a move across its start 
 unknown. Found as a step of 50 bp or more in the session median offset, which a one-hour
 bad print cannot make. Over 2026-05-11..10-06, 36 moves judged, none crossed one.
 
-**A fund is asked of two feeds, not one, and not three.** Over the 9 days to 2026-10-07,
-322 fund hours of 4× the fund's usual move or more: all external feeds saw 314, none saw 2
-(the store's own bad prints), and the externals split on 6, session-first hours where one
-feed's open is the opening auction and another's the first trade. With one feed, those
-were its call alone; with two, a move is "not seen" only if both say so. A third would
-decide almost nothing more.
+**Every source of the class is asked, except the instrument's own provider.** More
+independent feeds catch more bad prints, and a vote counts heads, where a third feed
+breaks a tie. This replaces "a fund is asked of two feeds, not three" (2026-10-07), which
+weighed only what a third adds when any one feed's word confirms. One list
+(`verify.SOURCES`) names each source once, with its reach as measured, so a new feed is
+one line and no reach is stated twice: Yahoo's had been 55 and 700 days in code against
+59 and 729 measured (2026-10-08). Of the 173 instruments, 107 keep their sources; 66 funds
+served by Alpaca, Tiingo, Twelve Data or Google gain MarketWatch as a third; none loses
+one.
+
+**The same price from two vendors is agreement, not a copy.** A vendor that prints the
+store's bars exactly is still a second voice: vendors of one exchange tape print identical
+bars on many hours. Over the 30 days to 2026-10-08, against the funds' stores, Yahoo matched
+open, high, low and close on 0.13 (Tiingo's) to 0.89 (Sina's, Twelve Data's) of hours and
+Sina on 0.24 to 0.87 (medians by the store's provider); for the pairs and coins, whose
+vendors each have their own prices, 0.00. A rule that took identical bars for a copy dropped 11 honest fund votes in those 30
+days, and was taken out. Only the provider an hour came from is not asked about it,
+because its word is the store's: known by name, not by comparing bars - the
+instrument's provider, and a source that mended the store by hand inside the recount
+(`verify.SUPPLIED`: Yahoo, TUR's holes of 2026-10-01 and -02).
 
 **A first hour the feeds saw happen overnight is moved into the night.** A fund's first
 print is sometimes a stale one at the previous close (in 2020-22, 7-12% of fund-days
@@ -304,12 +410,18 @@ split Tiingo did not list (or any split, from Twelve Data, which cannot see them
 been lost for good, and its day's gap scored again.
 
 **Candidates are the detector's own readings at ≥ 4σ.** A check with its own σ missed 23
-of 543 flagged readings after a calm stretch.
+of 543 flagged readings after a calm stretch. They are scored on both yardsticks: the raw
+one, and the detector's, with the moves voted not real left out and the nights moved - a
+move far only once a bad print left the yardstick is flagged, so it is voted on too. 86
+flagged readings over all history were far only that way (2026-10-08); over the 30 days
+to then, 2 of 446 candidates. Such a move, voted not real, leaves that yardstick itself
+too, so it is scored with itself back in; without that its vote vanished the count after
+it was taken and returned the one after (USD/TRY's history flipped four votes every pass).
 
 | instruments | verified against | why |
 |---|---|---|
 | FX pairs | Yahoo and MarketWatch | MarketWatch has every hour (Yahoo 21–72%), 0–0.6 bp off |
-| funds | two of Yahoo 30-minute, Sina 30-minute and MarketWatch hourly, neither the fund's own | Sina matches the tape to 0.0 bp; two, so that one feed cannot say a move did not happen |
+| funds | Yahoo 30-minute, Sina 30-minute and MarketWatch hourly, but the fund's own, and Alpaca's consolidated tape | Sina matches the tape to 0.0 bp; every source of the class votes |
 | coffee, cocoa, cotton | Sina global futures | 0.2–2.2 bp off, hourly correlation 0.96–0.99 |
 | live cattle | MarketWatch continuous | hourly correlation 0.92 |
 | coins | Coinbase and Kraken | other exchanges' dollar pairs: hourly moves correlate 0.988–1.000 with Binance's (300 hours to 2026-09-25); a year of checks found 4 moves not seen, all Binance's own on 2025-10-10's liquidations |
@@ -320,6 +432,13 @@ of 543 flagged readings after a calm stretch.
 ## The repository
 
 **Derived data is not tracked**: it rebuilds from the bars in under a minute.
+
+**A one-off tool is deleted once its work is done.** The futures', coins' and pairs' history
+builders wrote whole stores, so a rerun would have undone every later fix (cocoa's
+2026-07-21..08-10 among them); the feed probes spent quota (one about 100 SiftingIO calls);
+the history check decided "the store's own feed" once per fund-year and left 85% of the
+funds' flagged readings unasked. Git keeps them (deleted 2026-10-08); what they established
+is in this file.
 
 **The open month lives on a release; a month enters git once, settled.** Git stores
 snapshots, so hourly commits into per-instrument files cost 124 MiB a year; replacing a

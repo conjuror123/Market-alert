@@ -168,6 +168,41 @@ def test_the_hourly_crypto_fetch_survives_one_dropped_connection(
     assert fresh in set(bars.load(str(path))["hour_utc"])
 
 
+def test_a_vote_due_a_count_asks_the_stores_provider_back_to_its_hour(tmp_path, monkeypatch):
+    """A bad print five days back, its vote due a count: the hourly request
+    reaches back to its hour - still one request - and the bar the provider
+    has corrected since replaces the stored one."""
+    from jump import backfill
+
+    now = datetime(2026, 9, 21, 2, tzinfo=timezone.utc)
+    end = int(now.timestamp())
+    bad = end - 5 * 86400
+
+    def candles(first, bad_close):
+        return [Candle(open_time=h, open=100.0, high=100.0, low=100.0,
+                       close=bad_close if h == bad else 100.0, volume=1.0,
+                       close_time=h + HOUR) for h in range(first, end, HOUR)]
+
+    path = tmp_path / "binance_BTC_USDT"
+    bars.merge(str(path), bars.to_hourly(bars.candles_to_frame(candles(bad - 2 * HOUR, 90.0))))
+    calls = []
+
+    def history(**kwargs):
+        calls.append(kwargs["days"])
+        return candles(int(end - kwargs["days"] * 86400), 100.0)
+
+    monkeypatch.setattr(backfill.binance, "fetch_full_history", history)
+    crypto = Asset(ticker="BTC/USDT", source="binance", block="crypto",
+                   has_volume=True, tick_size=0.01, session_template="crypto_24_7",
+                   fetch_interval="1h", label="Bitcoin", in_basket=True)
+
+    backfill.fetch_missing(crypto, str(path), date(2020, 1, 1), "key", None, now=now,
+                           recount=[bad])
+
+    assert len(calls) == 1
+    assert bars.load(str(path)).set_index("hour_utc").loc[bad, "close"] == 100.0
+
+
 # --- filling sessions the calendar has and the store does not ---------------
 
 def backfill_runs(days):

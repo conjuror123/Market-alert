@@ -6,7 +6,7 @@ It also reaches further back than Coinbase for the coins Coinbase listed late:
 POL (as MATIC) and ATOM 2019-04, DOGE 2019-07. For the five older coins a
 dollar exchange's record goes under Binance's first, thin months, and for LINK
 and ADA the coin's BTC pair times BTCUSDT under their late USDT listing
-(tools/binance_history.py): BTC from 2013, LTC 2013-12, ETH 2016-04, XRP
+(built once, 2026-10-02): BTC from 2013, LTC 2013-12, ETH 2016-04, XRP
 2017-03, LINK 2017-10, ADA and BCH 2017-12/2018-01.
 
 WHICH HOST. api.binance.com answers HTTP 451 to US addresses, which GitHub's
@@ -20,7 +20,7 @@ as every live source here keeps it (jumps.ended judges it once it has ended).
 Volume is in the coin.
 
 SYMBOLS. Our ticker ADA/USDT is Binance's ADAUSDT. Two pairs are older pairs
-renamed, joined by tools/binance_history.py: POL/USDT is MATICUSDT until
+renamed, joined when the history was built: POL/USDT is MATICUSDT until
 2024-09-10 (MATIC became POL one for one), and BCH/USDT is BCHABCUSDT from the
 2018-11 fork until 2019-11-28.
 """

@@ -485,6 +485,34 @@ def daily_bars_per_day(name: str) -> int:
                for h in range(first, int(closed.timestamp()) + HOUR, HOUR))
 
 
+def last_close(template: str, now: int) -> "int | None":
+    """The latest end of the instrument's trading session at or before `now`:
+    the NYSE close for the funds (their session table), a daily-session
+    market's own close on its trading days, and 00:00 UTC for the coins and
+    the currency pairs, which never close."""
+    if template in DAILY_SESSIONS:
+        from zoneinfo import ZoneInfo
+
+        today = datetime.fromtimestamp(int(now), ZoneInfo(DAILY_SESSIONS[template][0])).date()
+        for back in range(10):
+            day = today - timedelta(days=back)
+            if day.weekday() >= 5 or (template == "b3_fx" and b3_holiday(day)):
+                continue
+            close = daily_session_close(day, template)
+            if close <= now:
+                return close
+        return None
+    if template == "us_equity":
+        import bisect
+
+        from jump import routing
+
+        table = routing.closes()
+        at = bisect.bisect_right(table, int(now))
+        return table[at - 1] if at else None
+    return int(now) // 86400 * 86400
+
+
 def session_key(hour_utc: int, template: str) -> "str | None":
     """The daily session an hour belongs to, or None."""
     day = daily_session_of(hour_utc, template)

@@ -26,7 +26,7 @@ gap of 48 hours or more; a midweek holiday is a night.
 
 BROKEN PRINTS. A reading beyond MISTAKE_SIGMA, and the stretch after it until
 the price is back (STRETCH_BACK, STRETCH_BARS), is no reading at all. A move a
-second source did not see (jump.verify) is left out too (without_unconfirmed).
+most sources did not see (jump.verify, not real) is left out too (without_not_real).
 
 EVENTS. An instrument's first flagged reading opens an event of 24 real hours
 from when it was found (event_starts); its word is its rarest reading's, its
@@ -575,8 +575,8 @@ def with_nights(metrics: pd.DataFrame, asset_id: str, nights: dict) -> pd.DataFr
     return out
 
 
-def without_unconfirmed(metrics: pd.DataFrame, asset_id: str, doubts: dict) -> pd.DataFrame:
-    """The metrics with the moves a second source did not see taken out: an
+def without_not_real(metrics: pd.DataFrame, asset_id: str, doubts: dict) -> pd.DataFrame:
+    """The metrics with the moves most sources did not see taken out: an
     hour's move (`close`) or a session's gap (`open`), NaN like a hole - not
     a reading, and not in any yardstick (jump.verify). The bar itself is
     untouched in the store."""
@@ -608,7 +608,7 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
     now = int(time.time()) if now is None else int(now)
     basket = load_basket(basket_path)
     window, ladder = settings(basket_path)
-    doubts = verify.unconfirmed(verified_path)
+    doubts = verify.not_real(verified_path)
     nights = verify.overnight(verified_path)
     parts, kept = [], []
     for asset in basket.instruments:
@@ -653,8 +653,8 @@ def _flag(asset, path: str, window: float, ladder, doubts: dict, now: int,
     nights = {k: m for k, m in (nights or {}).items() if k[0] == asset.asset_id}
     stored = pd.read_parquet(path, columns=["hour_utc", "r", "hole", "gap"]
                              + (["close"] if nights else []))
-    metrics = without_unconfirmed(with_nights(stored, asset.asset_id, nights),
-                                  asset.asset_id, doubts)
+    metrics = without_not_real(with_nights(stored, asset.asset_id, nights),
+                               asset.asset_id, doubts)
     readings = [score(metrics, asset.session_template, window, ladder),
                 score_gaps(metrics, window, ladder, asset.session_template)]
     scored = pd.concat([f for f in readings if not f.empty], ignore_index=True)
@@ -664,7 +664,7 @@ def _flag(asset, path: str, window: float, ladder, doubts: dict, now: int,
     scored["record_start"] = int(metrics["hour_utc"].min())
     flagged = scored[scored["word"].notna()].sort_values("found_utc").reset_index(drop=True)
     flagged["event_start"] = event_starts(flagged["found_utc"])
-    # The close check follows the price as stored: an unconfirmed move is
+    # The close check follows the price as stored: a move not real is
     # not a reading, but leaving it out of the path would shift every
     # price after it.
     check, held = held_at_close(stored, flagged, now)

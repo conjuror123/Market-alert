@@ -42,15 +42,7 @@ def test_both_roll_calendars_leave_their_nights_unscored():
     assert "2026-09-01" not in rolled
 
 
-def test_where_yahoo_lags_this_series_its_history_is_left_out():
-    windows = futures.yahoo_lag_windows("KC=F", 2026, 2026)
-    assert (date(2026, 8, 14), date(2026, 9, 21)) in windows
-    # Cattle's are most of each cycle: its history must not be re-imported
-    # by this rule (tools/futures_history.py).
-    assert (date(2026, 9, 15), date(2026, 11, 2)) in futures.yahoo_lag_windows("LE=F", 2026, 2026)
-
-
-# --- thin bars and the history cleaning -----------------------------------------
+# --- thin bars -----------------------------------------------------------------
 
 def test_a_bar_without_trading_is_thin_and_the_window_ends_before_it():
     vol = pd.Series([1000.0] * 60 + [0.0, 20.0, 900.0])
@@ -66,24 +58,6 @@ def _frame(closes, opens=None, start=ny(2026, 3, 2, 9), step=HOUR):
                          "open": opens, "high": np.maximum(opens, closes),
                          "low": np.minimum(opens, closes), "close": closes,
                          "volume": 100.0, "n_src": 1}).astype(bars.SCHEMA)
-
-
-def test_an_other_contract_hour_is_dropped_and_a_stray_open_reset():
-    closes = [300.0, 301.0, 285.0, 301.5, 302.0, 302.5]     # 285: there and back
-    opens = [300.0, 300.0, 301.0, 301.0, 270.0, 302.0]     # 270: a stray open
-    out, dropped, stray, _ = futures.clean_history(_frame(closes, opens))
-    assert dropped == 1 and 285.0 not in list(out["close"])
-    assert stray == 1 and out.loc[out["close"] == 302.0, "open"].item() == 301.5
-
-
-def test_a_month_with_under_half_a_normal_months_hours_is_dropped():
-    full = [ny(2026, m, d, 9) for m in (1, 2, 3, 4, 5) for d in range(2, 28)]
-    sparse = [ny(2026, 6, d, 9) for d in (2, 3)]
-    tail = [ny(2026, 7, d, 9) for d in range(2, 28)]
-    stamps = full + sparse + tail
-    frame = _frame([300.0] * len(stamps)).assign(hour_utc=stamps)
-    out, _, _, months = futures.clean_history(frame)
-    assert months == ["2026-06"] and len(out) == len(stamps) - 2
 
 
 # --- daily sessions ---------------------------------------------------------------
@@ -159,52 +133,6 @@ def test_a_history_sources_switch_night_is_a_roll(tmp_path, monkeypatch):
     monkeypatch.setattr(futures, "ROLLS_PATH", str(tmp_path / "none.csv"))
     without = futures.roll_sessions("KC=F", days)
     assert marked - without == {"2021-07-26", "2021-07-27"}
-
-
-def _cattle_sessions(levels_by_day):
-    """Bars for live cattle (13:00-18:00 UTC in summer), one list of closes a day."""
-    from datetime import datetime, timezone
-    import pandas as pd
-    from datetime import timedelta
-    rows = []
-    day = datetime(2026, 6, 1, tzinfo=timezone.utc)
-    for closes in levels_by_day:
-        while day.weekday() >= 5:
-            day += timedelta(days=1)
-        for i, c in enumerate(closes):
-            t = int(day.replace(hour=13 + i).timestamp())
-            rows.append((t, c, c, c, c, 1000.0, 1))
-        day += timedelta(days=1)
-    return pd.DataFrame(rows, columns=["hour_utc", "open", "high", "low", "close", "volume", "n_src"])
-
-
-def test_a_run_of_sessions_interleaving_two_months_is_dropped_and_one_reversal_kept():
-    normal = [100.0] * 6
-    mixed = [96.5, 96.5, 100.0, 100.0, 100.0, 100.0]     # opens on the other month
-    reversal = [97.0, 99.5, 99.8, 99.9, 100.0, 100.0]     # once: a real day
-    days = [normal] * 3 + [reversal] + [normal] * 16 + [mixed] * 4 + [normal] * 3
-    frame = _cattle_sessions(days)
-    kept, stretches = futures.drop_mixed(frame, "cme_cattle")
-    assert len(stretches) == 1
-    assert len(frame) - len(kept) == 4 * 6
-
-
-def test_a_stray_close_taken_back_by_the_next_open_is_reset():
-    import numpy as np
-    from jump import futures
-    hours = [3600 * i for i in range(40)]
-    close = list(100.0 + 0.05 * np.sin(np.arange(40)))
-    frame = pd.DataFrame({"hour_utc": hours, "open": close, "high": close, "low": close,
-                          "close": close, "volume": 1.0, "n_src": 1})
-    frame["open"] = frame["close"].shift(1).fillna(frame["close"])
-    frame.loc[20, "close"] = 93.0              # -7%, and the next bar opens back
-    frame.loc[30, "close"] = 103.0             # +3%, and the next bar goes on
-    frame.loc[31, "open"] = 104.0
-    out, n = futures.reset_stray_closes(frame)
-    assert n == 1
-    assert out.loc[20, "close"] == frame.loc[21, "open"]
-    assert out.loc[20, "low"] <= out.loc[20, "close"]
-    assert out.loc[30, "close"] == 103.0
 
 
 def test_a_night_ending_on_a_late_first_bar_is_not_scored():
