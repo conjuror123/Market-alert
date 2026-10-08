@@ -268,15 +268,14 @@ one line and no reach is stated twice: Yahoo's had been 55 and 700 days in code 
 served by Alpaca, Tiingo, Twelve Data or Google gain MarketWatch as a third; none loses
 one.
 
-**A copy is told by its bars, at each move, not by who served a stretch.** A source that is
-the store's own data would vote twice. The history check decided that once per fund-year
-and left 85% of the funds' flagged readings unasked. Now each move looks at the bars both
-hold in the day around it: the same open, high, low, close and volume (up to one constant
-factor) on 90% of them is a copy. Measured against each store's origin (EUR/USD 2005 and
-Dukascopy, BTC 2014 and Bitstamp, BCH 2018-02 and Coinbase), 1.00 of each day's bars; against
-another vendor of the same market (EUR/USD 2016 and 2025, BTC 2021), 0.00 to 0.04. Vendors of
-one consolidated tape share trades and often closes, not extremes and volume, so each
-keeps its vote.
+**The same price from two vendors is agreement, not a copy.** A vendor that prints the
+store's bars exactly is still a second voice: vendors of one exchange tape print identical
+bars on many hours. Over the 30 days to 2026-10-08, against the funds' stores, Yahoo matched
+open, high, low and close on 0.13 (Tiingo's) to 0.89 (Sina's, Twelve Data's) of hours and
+Sina on 0.24 to 0.87 (medians by the store's provider); for the pairs and coins, whose
+vendors each have their own prices, 0.00. A rule that took identical bars for a copy dropped 11 honest fund votes in those 30
+days, and was taken out. Only the provider an hour came from is not asked about it,
+because its word is the store's: known by name, not by comparing bars.
 
 **A first hour the feeds saw happen overnight is moved into the night.** A fund's first
 print is sometimes a stale one at the previous close (in 2020-22, 7-12% of fund-days

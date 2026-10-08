@@ -209,14 +209,9 @@ the channel gives it; a source added there is asked from the next run.
 **Rule.** Never Tiingo, SiftingIO, Twelve Data or Google: the live run needs their
 allowances, and Google is one session deep. A test pins it.
 
-**A copy has no vote** (`copy_of_store`). A source whose bars around the move are the
-store's own would only repeat it: Dukascopy built EUR/USD's store before 2012, Bitstamp
-BTC's before 2018, Coinbase BCH's in 2018. It is a copy when 90% or more of the bars both
-hold, from 24 hours before the move to an hour after (5 at least), are the same bars:
-open, high, low and close in one ratio to the store's (a splice may have scaled them),
-and volume in one ratio where the store has volume. Measured on those three against
-their own origin, 1.00 of each day's bars; against another vendor of the same market,
-0.00 to 0.04, even where closes agree, because extremes and volume differ.
+**Two vendors printing the same bars agree, and both count.** A fund's or a future's
+vendors read one exchange tape, so their bars are often identical. A source is never asked
+about an instrument it provides itself: its word is the store's.
 
 **Verdict per source** (`judge`). Each feed is compared with itself, so a steady offset
 is not a move.

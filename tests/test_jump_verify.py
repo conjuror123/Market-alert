@@ -65,6 +65,9 @@ def test_every_instrument_is_asked_of_every_source_of_its_class_but_its_own(bask
     # DOGE its own way.
     assert _asked(basket["BTC/USDT"]) == [("coinbase", "BTC-USD", "1h"), ("kraken", "XBTUSD", "1h")]
     assert _asked(basket["DOGE/USDT"])[1] == ("kraken", "XDGUSD", "1h")
+    for asset in basket.values():
+        if asset.session_template == "crypto_24_7":
+            assert [n for n, _, _ in _asked(asset)] == ["coinbase", "kraken"]
     # The LME's metals have no independent free feed found.
     for asset in basket.values():
         if asset.session_template == "lme":
@@ -74,26 +77,6 @@ def test_every_instrument_is_asked_of_every_source_of_its_class_but_its_own(bask
 def test_no_source_spends_an_allowance_the_live_run_needs():
     names = {src.name for group in verify.SOURCES.values() for src in group}
     assert not names & {"tiingo", "sifting", "twelvedata", "google"}
-
-
-def _bars(closes, volume=10.0, scale=1.0, wide=0.0):
-    hours = [ts("2026-03-02 00:00") + i * HOUR for i in range(len(closes))]
-    c = np.array(closes, float) * scale
-    return pd.DataFrame({"hour_utc": hours, "open": c, "high": c * (1 + wide) + 0.01 * scale,
-                         "low": c - 0.01 * scale, "close": c, "volume": volume})
-
-
-def test_the_stored_data_itself_has_no_vote_but_another_vendor_does():
-    # Dukascopy built EUR/USD's store before 2012 and Bitstamp BTC's before
-    # 2018: asked about a move there, it is the store again (1.00 of each day's
-    # bars identical, measured), while a vendor of the same market never was
-    # (0.00 to 0.04) even where its closes agree.
-    closes = [100 + 0.1 * i for i in range(30)]
-    store = _bars(closes)
-    c = {"hour": ts("2026-03-03 04:00"), "prev_hour": ts("2026-03-03 03:00")}
-    assert verify.copy_of_store(store, _bars(closes, scale=1.37), c)          # a scaled splice
-    assert not verify.copy_of_store(store, _bars(closes, volume=7.0, wide=0.001), c)
-    assert not verify.copy_of_store(store, _bars(closes[:3]), c)              # too few to tell
 
 
 def test_a_wick_on_binance_alone_is_unconfirmed():
@@ -320,10 +303,8 @@ def test_a_pairs_weekend_gap_is_asked_about_at_its_open_and_from_fridays_close(
     spans = []
 
     def fetch(name, symbol, interval, days, session, now):
-        # Another vendor: the same prices, its own extremes.
         spans.append(days)
         return pd.DataFrame({"hour_utc": frame["hour_utc"], "open": frame["open"],
-                             "high": frame["high"] * 1.0002, "low": frame["low"] * 0.9998,
                              "close": frame["close"]})
 
     monkeypatch.setattr(verify, "fetch_verifier", fetch)
@@ -463,9 +444,11 @@ def test_a_source_with_bars_around_the_move_outweighs_one_bridging_a_gap():
         verify.CONFIRMED
 
 
-def test_a_source_serving_the_store_itself_does_not_vote(monkeypatch, tmp_path, basket):
-    # Yahoo here hands back the store's own bars, bad print and all: it would
-    # see the move. Only MarketWatch, which stayed flat, counts.
+def test_a_vendor_printing_the_stores_own_bars_still_votes(monkeypatch, tmp_path, basket):
+    # Vendors of one exchange tape often print the store's very bars (Yahoo
+    # against Sina's fund stores: 0.89 of hours): that is agreement, and it
+    # counts. Here Yahoo has the store's bars, the far move included, and
+    # MarketWatch stayed flat.
     asset, hours, bad, frame, market = _inr_store(tmp_path, basket)
 
     def fetch(name, symbol, interval, days, session, now):
@@ -475,8 +458,8 @@ def test_a_source_serving_the_store_itself_does_not_vote(monkeypatch, tmp_path, 
     now = datetime.fromtimestamp(int(hours[bad + 5]) + 300, timezone.utc)
     path = str(tmp_path / "verified.csv")
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
-    row = verify.unconfirmed(path)[(asset.asset_id, int(hours[bad]), "close")]
-    assert row["verifier"] == "marketwatch"
+    row = verify.load(path)[(asset.asset_id, int(hours[bad]), "close")]
+    assert (row["verdict"], row["verifier"]) == (verify.CONFIRMED, "yahoo")
 
 
 def test_one_source_failing_leaves_the_other_to_answer(monkeypatch, tmp_path, basket):

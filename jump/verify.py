@@ -26,8 +26,7 @@ futures (SINA_FUTURES). Live cattle: MarketWatch's continuous contract. The
 coins, served by Binance, whose prices are its own trades: Coinbase's and
 Kraken's dollar pairs - a wick on one exchange is real there and not the
 market's. Not asked: the LME's metals, which have no free independent feed
-found. A source whose bars around the move are the store's own
-(copy_of_store) has no vote on it: it would only repeat the store.
+found. Two vendors printing the same bars agree: each is a voice.
 
 WITH MORE THAN ONE SOURCE (judge_all, combine), a move is confirmed if any saw
 it, pending while any still waits for its next bar, and unconfirmed only if one
@@ -391,41 +390,6 @@ def switches(store: pd.DataFrame, v: pd.DataFrame, template: str) -> "list[int]"
     return [int(h) for h in by.loc[stepped, "first"]]
 
 
-# A source is the stored data itself at a move when this share of the bars
-# both hold in the day before it, to the hour after, are the same bars: open,
-# high, low and close in one ratio to the store's (a splice may have scaled
-# them), and volume in one ratio where the store has volume. Two vendors of
-# one market differ in their extremes and volume even where closes agree.
-COPY_SHARE = 0.9
-COPY_TOLERANCE = 1e-6
-COPY_MIN_BARS = 5
-
-
-def copy_of_store(store: pd.DataFrame, v: pd.DataFrame, c: dict) -> bool:
-    """Whether the source's bars around the move are the store's own: then it
-    has no vote of its own on it."""
-    lo, hi = c["prev_hour"] - 24 * HOUR, c["hour"] + LAG_HOURS * HOUR
-    near = store[(store["hour_utc"] >= lo) & (store["hour_utc"] <= hi)]
-    j = near.merge(v, on="hour_utc", suffixes=("_s", "_v"))
-    if len(j) < COPY_MIN_BARS:
-        return False
-    k = float(np.median(j["close_v"].to_numpy(float) / j["close_s"].to_numpy(float)))
-    same = np.ones(len(j), dtype=bool)
-    for col in ("open", "high", "low", "close"):
-        if col + "_v" not in j:
-            continue
-        ratio = j[col + "_v"].to_numpy(float) / j[col + "_s"].to_numpy(float)
-        same &= np.abs(ratio - k) <= COPY_TOLERANCE * abs(k)
-    if "volume_s" in j and "volume_v" in j:
-        vs, vv = j["volume_s"].to_numpy(float), j["volume_v"].to_numpy(float)
-        has = vs > 0
-        if has.any():
-            q = float(np.median(vv[has] / vs[has]))
-            ratio = np.divide(vv, vs, out=np.zeros_like(vv), where=has)
-            same &= ~has | (np.abs(ratio - q) <= COPY_TOLERANCE * max(abs(q), 1e-12))
-    return bool(same.mean() >= COPY_SHARE)
-
-
 def crosses(c: dict, at: "list[int]") -> bool:
     """Whether a move's span - from its closes up to LAG_HOURS before to those
     up to LAG_HOURS after - takes in one of these hours."""
@@ -653,11 +617,9 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
                    for name, v in answers if name in rolls}
         for c in found:
             try:
-                # Not across a source's own change of contract, and not the
-                # stored data itself.
+                # Not across a source's own change of contract.
                 usable = [(name, v) for name, v in answers
-                          if not crosses(c, changed.get(name, []))
-                          and not copy_of_store(frame, v, c)]
+                          if not crosses(c, changed.get(name, []))]
                 if not usable:
                     p = math.log(c["price"] / c["prev_close"])
                     verdict, stored, names, moves = UNKNOWN, p, [
