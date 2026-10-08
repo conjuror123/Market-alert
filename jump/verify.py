@@ -244,6 +244,61 @@ LABELS = {**{s.name: s.label for group in SOURCES.values() for s in group},
           "alpaca": "Alpaca_IEX", "twelvedata": "Twelve Data", "google": "Google"}
 
 
+# Who supplied which stretch of the stores, from the record (commit by
+# commit, 2026-10-08): a source never votes on a move whose bars it supplied -
+# its word there is the store's. Each entry: the instruments (tickers, or a
+# template), from, to (a day, exclusive), and the check if only one. A seam is
+# known to the day, so the day either side is left out too.
+MAJORS = ("EUR/USD", "USD/JPY", "GBP/USD", "AUD/USD", "NZD/USD", "USD/CHF", "USD/CAD")
+SUPPLIED: "dict[str, tuple[tuple, ...]]" = {
+    # The majors to FXCM's first bar (2012-01, whose bars open at the previous
+    # close), and 2012's Sunday opens; the other pairs to Twelve Data's first
+    # bar, about 2020-01; the softs' CFDs to each listed contract's seam.
+    "dukascopy": ((MAJORS, None, "2012-01-01"), (MAJORS, "2012-01-01", "2013-01-01", OPEN),
+                  (("USD/CNH", "USD/SEK", "USD/NOK", "USD/ZAR", "USD/MXN", "USD/TRY",
+                    "USD/PLN"), None, "2020-02-01"),
+                  (("KC=F",), None, "2026-08-14"), (("CC=F",), None, "2026-08-11"),
+                  (("CT=F",), None, "2026-06-17")),
+    "bitstamp": ((("BTC/USDT",), None, "2018-06-01"), (("XRP/USDT",), "2017-03-01", "2018-06-01")),
+    "bitfinex": ((("ETH/USDT", "LTC/USDT"), None, "2018-06-01"),),
+    "coinbase": ((("BCH/USDT",), "2018-01-01", "2019-01-15"),),
+    # The tape from 2016 to Twelve Data's first bar, but HF Data's hours
+    # (below); and EZU's and EBND's hours it mended in March-April 2020.
+    "alpaca_sip": (("us_equity", "2016-01-04", "2020-02-08"),
+                   (("EZU", "EBND"), "2020-03-01", "2020-05-01")),
+    # TUR's holes of 2026-10-01 and -02, mended from Yahoo by hand.
+    "yahoo": ((("TUR",), "2026-10-01", "2026-10-03"),),
+}
+# HF Data's minute bars fold into hours of 29 to 60 source bars; every other
+# feed's into one or two. Its hours are told by that, store-derived.
+HFDATA_MINUTES = 29
+
+
+def supplied(name: str, asset: Asset, c: dict, n_src: "dict[int, float]") -> bool:
+    """Whether source `name` supplied the store's bars a move spans: there it
+    is no voter. `n_src` holds the store's source-bar count by hour."""
+    minutes = [n_src.get(h, 0) >= HFDATA_MINUTES for h in (c["prev_hour"], c["hour"])]
+    if name == "hfdata":
+        return any(minutes)
+    if name == "alpaca_sip" and all(minutes):
+        return False
+    for which, start, end, *check in SUPPLIED.get(name, ()):
+        if (asset.session_template != which if isinstance(which, str)
+                else asset.ticker not in which):
+            continue
+        if check and c["check"] != check[0]:
+            continue
+        lo = _day(start) - 86400 if start else -math.inf
+        hi = _day(end) + 86400 if end else math.inf
+        if any(lo <= h < hi for h in (c["prev_hour"], c["hour"])):
+            return True
+    return False
+
+
+def _day(text: str) -> int:
+    return int(datetime.fromisoformat(text).replace(tzinfo=timezone.utc).timestamp())
+
+
 def recount_days(asset: Asset) -> float:
     """How long a reading's vote is counted again: while the closest-reaching
     of the instrument's sources still serves its hour. After that, the
@@ -750,6 +805,8 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
                         blocked.add(name)
                 else:
                     unanswered.pop(name, None)              # it answered
+        n_src = dict(zip(frame["hour_utc"].astype("int64").tolist(),
+                         frame["n_src"].astype(float).tolist())) if "n_src" in frame else {}
         rolls = {src.name for src in sources if src.own_rolls}
         changed = {name: switches(frame, v, asset.session_template)
                    for name, v in asked if name in rolls and v is not None}
@@ -760,7 +817,8 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
                 # the move whole yet is no voter on it this time.
                 usable = [(src.name, None if v is None or crosses(c, changed.get(src.name, []))
                            else v)
-                          for src, (_, v) in zip(sources, asked) if src.serves(c, now_ts)]
+                          for src, (_, v) in zip(sources, asked)
+                          if src.serves(c, now_ts) and not supplied(src.name, asset, c, n_src)]
                 verdict, stored, names, moves, seen = judge_all(c, usable)
             except Exception as exc:
                 # One instrument's surprise costs that reading, not the pass.

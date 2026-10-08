@@ -110,6 +110,46 @@ def test_alpacas_tape_is_asked_fifteen_minutes_back(monkeypatch):
     assert asked[0][1] <= now - timedelta(minutes=15)
 
 
+def test_a_source_is_no_voter_on_the_bars_it_supplied(basket):
+    s = verify.supplied
+    c = lambda h, check="close": {"hour": ts(h), "prev_hour": ts(h) - HOUR, "check": check}
+    # Dukascopy built the majors to 2012 and 2012's Sunday opens, the other
+    # pairs to about 2020-01.
+    assert s("dukascopy", basket["EUR/USD"], c("2011-06-01 12:00"), {})
+    assert not s("dukascopy", basket["EUR/USD"], c("2015-06-01 12:00"), {})
+    assert s("dukascopy", basket["EUR/USD"], c("2012-06-10 21:00", "open"), {})
+    assert not s("dukascopy", basket["EUR/USD"], c("2012-06-11 12:00"), {})
+    assert s("dukascopy", basket["USD/SEK"], c("2015-06-01 12:00"), {})
+    assert not s("dukascopy", basket["USD/SEK"], c("2021-06-01 12:00"), {})
+    # The seam's day either side is left out too.
+    assert s("dukascopy", basket["EUR/USD"], c("2012-01-01 22:00"), {})
+    # Bitstamp built BTC to 2018-06, not ETH.
+    assert s("bitstamp", basket["BTC/USDT"], c("2016-01-01 00:00"), {})
+    assert not s("bitstamp", basket["ETH/USDT"], c("2016-06-01 00:00"), {})
+    # A fund's HF Data hours are its minute bars, told by their count in the
+    # store; the tape's are the rest from 2016 to 2020-02-07.
+    fund, h = basket["XLK"], c("2018-03-01 15:00")
+    minutes = {h["prev_hour"]: 30, h["hour"]: 30}
+    assert s("hfdata", fund, h, minutes) and not s("alpaca_sip", fund, h, minutes)
+    assert s("alpaca_sip", fund, h, {}) and not s("hfdata", fund, h, {})
+    assert not s("alpaca_sip", fund, c("2021-03-01 15:00"), {})
+    # TUR's holes of 2026-10-01 and -02, mended from Yahoo.
+    assert s("yahoo", basket["TUR"], c("2026-10-01 15:00"), {})
+    assert not s("yahoo", basket["TUR"], c("2026-10-06 15:00"), {})
+
+
+def test_the_supplier_of_a_moves_bars_is_not_asked_about_it(monkeypatch, tmp_path, basket):
+    asset, hours, bad, frame, market = _inr_store(tmp_path, basket)
+    day = datetime.fromtimestamp(int(hours[bad]), timezone.utc).date()
+    monkeypatch.setitem(verify.SUPPLIED, "yahoo", ((("USD/INR",), str(day), str(day)),))
+    monkeypatch.setattr(verify, "fetch_verifier", lambda *a, **k: market)
+    now = datetime.fromtimestamp(int(hours[bad]) + 2 * HOUR + 300, timezone.utc)
+    path = str(tmp_path / "verified.csv")
+    verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
+    assert verify.load(path)[(asset.asset_id, int(hours[bad]), "close")]["verifier"] == \
+        "marketwatch"
+
+
 def test_no_source_spends_an_allowance_the_live_run_needs():
     names = {src.name for group in verify.SOURCES.values() for src in group}
     assert not names & {"tiingo", "sifting", "twelvedata", "google"}

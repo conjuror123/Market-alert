@@ -353,7 +353,12 @@ open, high, low and close on 0.13 (Tiingo's) to 0.89 (Sina's, Twelve Data's) of 
 Sina on 0.24 to 0.87 (medians by the store's provider); for the pairs and coins, whose
 vendors each have their own prices, 0.00. A rule that took identical bars for a copy dropped 11 honest fund votes in those 30
 days, and was taken out. Only the provider an hour came from is not asked about it,
-because its word is the store's: known by name, not by comparing bars.
+because its word is the store's: known by name, not by comparing bars - live, the
+instrument's provider; for history, the record of who built which stretch
+(`verify.SUPPLIED`), which marks HF Data's hours in the store itself (minute bars, 29 to
+60 to an hour) and FXCM's (2012 to 2020-01, every bar opening at the previous close).
+Where the record gives a seam only to the month (the pairs' Dukascopy to Twelve Data,
+about 2020-01), the supplier sits out the whole month.
 
 **A first hour the feeds saw happen overnight is moved into the night.** A fund's first
 print is sometimes a stale one at the previous close (in 2020-22, 7-12% of fund-days

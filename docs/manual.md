@@ -212,6 +212,16 @@ the channel gives it; a source added there is asked from the next run.
 **Rule.** Never Tiingo, SiftingIO, Twelve Data or Google: the live run needs their
 allowances, and Google is one session deep. A test pins it.
 
+**Rule.** A source is no voter on a move whose bars it supplied to the store: its word
+there is the store's (`verify.SUPPLIED`, `supplied`, from the record commit by commit;
+the history table in section 11). Dukascopy built the majors to 2012 and the other pairs
+to about 2020-01, and the softs' CFDs to each seam; Bitstamp BTC and XRP and Bitfinex ETH
+and LTC to 2018-06; Coinbase BCH 2018-01 to 2019-01-15; Alpaca's tape the funds from 2016 to
+2020-02-07, and EZU's and EBND's mended hours of March–April 2020; HF Data every hour folded
+from its minute bars (29 to 60 source bars an hour in the store, against one or two for
+every other feed); Yahoo TUR's holes of 2026-10-01 and -02. A seam is known to the day:
+the day either side is left out too.
+
 A source that runs behind the clock (`delay`: Alpaca's tape, fifteen minutes on the free
 plan) is not asked about a move until it serves the move's hour whole; it is no voter on
 it until then, not an outage, and joins the next count - a fund's found-hour vote is
@@ -632,7 +642,7 @@ How far back each record reaches:
 | instruments | from | built from |
 |---|---|---|
 | 133 US funds | 2002–2011 for 73, 2016 for 55, launch for 5 | HF Data, Twelve Data, Alpaca's tape |
-| 14 FX pairs | 2003–2007; USD/CNH 2012 | Dukascopy, then live; the majors' 2012 Sunday opens from Dukascopy |
+| 14 FX pairs | 2003–2007; USD/CNH 2012 | Dukascopy to Twelve Data's first bar, about 2020-01 - the seven majors only to 2012, then FXCM (bars that open at the previous close) to 2020-01; the majors' 2012 Sunday opens from Dukascopy; then live |
 | USD/BRL, USD/INR, USD/KRW | 2019-09, 2019-11, 2020-01 | Twelve Data |
 | 16 coins | 2013–2020 by listing | Binance; earlier from Bitstamp, Bitfinex, Coinbase |
 | coffee, cocoa, cotton | 2018-01 | Dukascopy CFDs, then the listed contract; cocoa's 2026-07-21 to 08-10, the roll window where no CFD switch could be located, from the December contract (rolled into on 07-21) |
