@@ -263,7 +263,7 @@ twelvedata:TUR,1789563600,open,confirmed,google,yahoo,-0.059997,-0.059997,179111
 twelvedata:UNG,1650373200,close,overnight,twelvedata,alpaca,-0.082965,-0.078569,1791362492
 twelvedata:UNG,1651669200,close,overnight,twelvedata,alpaca,0.073617,0.071279,1791362492
 twelvedata:UNG,1790258400,close,confirmed,twelvedata,yahoo,0.037319,0.037319,1791114096
-twelvedata:UNG,1791381600,close,confirmed,twelvedata,yahoo,0.028120,0.028853,1791461224
+twelvedata:UNG,1791381600,close,confirmed,twelvedata,yahoo,0.028120,0.028853,1791464838
 twelvedata:UNL,1790258400,close,confirmed,yahoo,sina,0.015190,0.015190,1791114096
 twelvedata:USD/BRL,1731067200,close,unconfirmed,sifting,yahoo,0.009572,0.002544,1791114096
 twelvedata:USD/BRL,1734696000,close,unconfirmed,sifting,yahoo,-0.013600,-0.006597,1791114096
