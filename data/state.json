@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1791482920
+    "last_run_utc": 1791486520
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -10,7 +10,7 @@
       "events": {
         "binance:ADA/USDT|1791475200": {
           "asset": "binance:ADA/USDT",
-          "body": "\ud83d\udfe8 <b>ADA/USDT</b> \u00b7 Cardano -6.64% \u00b7 8.6\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 47 days (then 12.3\u00d7\u03c3)\n\ud83d\udd50 <b>08.10.2026 15:00 UTC</b> \u00b7 close in 2h",
+          "body": "\ud83d\udfe8 <b>ADA/USDT</b> \u00b7 Cardano -6.64% \u00b7 8.6\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 47 days (then 12.3\u00d7\u03c3)\n\ud83d\udd50 <b>08.10.2026 15:00 UTC</b> \u00b7 close in 1h",
           "context": "",
           "form": "push",
           "hour": 1791471600,
@@ -22,7 +22,7 @@
           },
           "message": 91,
           "peak": "jump:binance:ADA/USDT:hour:1791471600",
-          "seen": 1791482920,
+          "seen": 1791486520,
           "shown": [
             "high",
             8.6,
@@ -43,7 +43,7 @@
         },
         "binance:ATOM/USDT|1791475200": {
           "asset": "binance:ATOM/USDT",
-          "body": "\ud83d\udfe8 <b>ATOM/USDT</b> \u00b7 Cosmos -7.38% \u00b7 10.4\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 11 months (then 34.2\u00d7\u03c3)\n\ud83d\udd50 <b>08.10.2026 15:00 UTC</b> \u00b7 close in 2h",
+          "body": "\ud83d\udfe8 <b>ATOM/USDT</b> \u00b7 Cosmos -7.38% \u00b7 10.4\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 11 months (then 34.2\u00d7\u03c3)\n\ud83d\udd50 <b>08.10.2026 15:00 UTC</b> \u00b7 close in 1h",
           "context": "",
           "form": "push",
           "hour": 1791471600,
@@ -55,7 +55,7 @@
           },
           "message": 91,
           "peak": "jump:binance:ATOM/USDT:hour:1791471600",
-          "seen": 1791482920,
+          "seen": 1791486520,
           "shown": [
             "high",
             10.4,
@@ -88,7 +88,7 @@
           },
           "message": 92,
           "peak": "jump:binance:AVAX/USDT:hour:1791471600",
-          "seen": 1791482920,
+          "seen": 1791486520,
           "shown": [
             "noticeable",
             8.1,
@@ -121,7 +121,7 @@
           },
           "message": 92,
           "peak": "jump:binance:BCH/USDT:hour:1791471600",
-          "seen": 1791482920,
+          "seen": 1791486520,
           "shown": [
             "noticeable",
             7.4,
@@ -154,7 +154,7 @@
           },
           "message": 92,
           "peak": "jump:binance:DOGE/USDT:hour:1791471600",
-          "seen": 1791482920,
+          "seen": 1791486520,
           "shown": [
             "noticeable",
             8.4,
@@ -175,7 +175,7 @@
         },
         "binance:DOT/USDT|1791475200": {
           "asset": "binance:DOT/USDT",
-          "body": "\ud83d\udfe8 <b>DOT/USDT</b> \u00b7 Polkadot -6.83% \u00b7 9.0\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 11 months (then 8.7\u00d7\u03c3)\n\ud83d\udd50 <b>08.10.2026 15:00 UTC</b> \u00b7 close in 2h",
+          "body": "\ud83d\udfe8 <b>DOT/USDT</b> \u00b7 Polkadot -6.83% \u00b7 9.0\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 11 months (then 8.7\u00d7\u03c3)\n\ud83d\udd50 <b>08.10.2026 15:00 UTC</b> \u00b7 close in 1h",
           "context": "",
           "form": "push",
           "hour": 1791471600,
@@ -187,7 +187,7 @@
           },
           "message": 91,
           "peak": "jump:binance:DOT/USDT:hour:1791471600",
-          "seen": 1791482920,
+          "seen": 1791486520,
           "shown": [
             "high",
             9.0,
@@ -220,7 +220,7 @@
           },
           "message": 92,
           "peak": "jump:binance:ETH/USDT:hour:1791471600",
-          "seen": 1791482920,
+          "seen": 1791486520,
           "shown": [
             "noticeable",
             8.0,
@@ -241,7 +241,7 @@
         },
         "binance:FIL/USDT|1791475200": {
           "asset": "binance:FIL/USDT",
-          "body": "\ud83d\udfe8 <b>FIL/USDT</b> \u00b7 Filecoin -8.82% \u00b7 9.5\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 47 days (then 9.3\u00d7\u03c3)\n\ud83d\udd50 <b>08.10.2026 15:00 UTC</b> \u00b7 close in 2h",
+          "body": "\ud83d\udfe8 <b>FIL/USDT</b> \u00b7 Filecoin -8.82% \u00b7 9.5\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 47 days (then 9.3\u00d7\u03c3)\n\ud83d\udd50 <b>08.10.2026 15:00 UTC</b> \u00b7 close in 1h",
           "context": "",
           "form": "push",
           "hour": 1791471600,
@@ -253,7 +253,7 @@
           },
           "message": 91,
           "peak": "jump:binance:FIL/USDT:hour:1791471600",
-          "seen": 1791482920,
+          "seen": 1791486520,
           "shown": [
             "high",
             9.5,
@@ -286,7 +286,7 @@
           },
           "message": 92,
           "peak": "jump:binance:LINK/USDT:hour:1791471600",
-          "seen": 1791482920,
+          "seen": 1791486520,
           "shown": [
             "noticeable",
             7.6,
@@ -319,7 +319,7 @@
           },
           "message": 92,
           "peak": "jump:binance:LTC/USDT:hour:1791471600",
-          "seen": 1791482920,
+          "seen": 1791486520,
           "shown": [
             "noticeable",
             6.6,
@@ -352,7 +352,7 @@
           },
           "message": 92,
           "peak": "jump:binance:POL/USDT:hour:1791471600",
-          "seen": 1791482920,
+          "seen": 1791486520,
           "shown": [
             "noticeable",
             7.3,
@@ -385,7 +385,7 @@
           },
           "message": 92,
           "peak": "jump:binance:SOL/USDT:hour:1791471600",
-          "seen": 1791482920,
+          "seen": 1791486520,
           "shown": [
             "noticeable",
             6.3,
@@ -418,7 +418,7 @@
           },
           "message": 92,
           "peak": "jump:binance:XRP/USDT:hour:1791471600",
-          "seen": 1791482920,
+          "seen": 1791486520,
           "shown": [
             "noticeable",
             7.0,
@@ -439,7 +439,7 @@
         },
         "twelvedata:USD/MXN|1791475200": {
           "asset": "twelvedata:USD/MXN",
-          "body": "\ud83d\udfe8 <b>USD/MXN</b> \u00b7 Dollar / Mexican peso +0.99% \u00b7 10.9\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 7 months (then 12.5\u00d7\u03c3)\n\ud83d\udd50 <b>08.10.2026 15:00 UTC</b> \u00b7 close in 2h",
+          "body": "\ud83d\udfe8 <b>USD/MXN</b> \u00b7 Dollar / Mexican peso +0.99% \u00b7 10.9\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 7 months (then 12.5\u00d7\u03c3)\n\ud83d\udd50 <b>08.10.2026 15:00 UTC</b> \u00b7 close in 1h",
           "context": "",
           "form": "push",
           "hour": 1791471600,
@@ -451,7 +451,7 @@
           },
           "message": 91,
           "peak": "jump:twelvedata:USD/MXN:hour:1791471600",
-          "seen": 1791482920,
+          "seen": 1791486520,
           "shown": [
             "high",
             10.9,
@@ -474,7 +474,7 @@
       "messages": {
         "91": {
           "first": "\ud83d\udfe8 <b>USD/MXN</b> \u00b7 Dollar / Mexican peso +0.99% \u00b7 10.9\u00d7\u03c3",
-          "hash": "f649b6f81cb9a5d5"
+          "hash": "1f2b0ab2fd2a8a59"
         },
         "92": {
           "first": "\u2b1c <b>DOGE/USDT</b> \u00b7 Dogecoin -5.26% \u00b7 8.4\u00d7\u03c3",
@@ -483,7 +483,7 @@
       },
       "note": {
         "hashes": [
-          "42504702239f3f09"
+          "96c42125d08c12a9"
         ],
         "ids": [
           89
