@@ -204,7 +204,8 @@ SETTLE_HOURS = 3
 def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
                   session: requests.Session, extend_history: bool = False,
                   tiingo_key: str = "",
-                  now: datetime | None = None, sifting_key: str = "") -> int:
+                  now: datetime | None = None, sifting_key: str = "",
+                  recount: "list[int] | None" = None) -> int:
     """Fetches whatever the store does not have yet: from the last saved bar up
     to now, or from `since` when the store is empty.
 
@@ -244,6 +245,12 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
     else:
         last = datetime.fromtimestamp(int(stored["hour_utc"].max()), tz=timezone.utc)
         start = last - timedelta(hours=SETTLE_HOURS)
+        if recount:
+            # A vote due a count again (jump.verify.recount_hours): the store's
+            # own provider is asked back to its hour in the same request, and a
+            # bar it has corrected since replaces the stored one, as the last
+            # three hours' do.
+            start = min(start, datetime.fromtimestamp(min(recount), tz=timezone.utc))
         days = max(SETTLE_HOURS / 24.0, (now - start).total_seconds() / 86400)
 
     # WHICH PROVIDER ANSWERS, and it is not always the fast one. Deepening walks
@@ -568,7 +575,8 @@ TWELVEDATA_BATCH_GAP_SECONDS = 61.0
 
 def fetch_twelvedata_live(assets: "list[Asset]", bars_dir: str, api_key: str,
                           now: datetime | None = None, sleep=time.sleep,
-                          session: "requests.Session | None" = None
+                          session: "requests.Session | None" = None,
+                          recount: "dict[str, list[int]] | None" = None
                           ) -> "list[tuple[Asset, dict | Exception]]":
     """The hourly fetch of the Twelve Data funds, BATCH_SIZE symbols a request.
 
@@ -576,8 +584,9 @@ def fetch_twelvedata_live(assets: "list[Asset]", bars_dir: str, api_key: str,
     between two batches is spent while Tiingo, Alpaca, Yahoo and the others are
     being asked, not on top of them. Only stores that already hold bars come
     here; a new one is seeded on the ordinary path. Each batch asks from the
-    earliest of its funds' newest-bar-minus-SETTLE_HOURS: one more hour or two
-    for some of them costs nothing, a symbol being one credit whatever its rows.
+    earliest of its funds' newest-bar-minus-SETTLE_HOURS, or of their votes due a
+    count again (`recount`, as fetch_missing): one more hour or two for some of
+    them costs nothing, a symbol being one credit whatever its rows.
     Returns, per fund, the same summary as backfill_instrument or the error.
     """
     now = now or datetime.now(timezone.utc)
@@ -597,6 +606,9 @@ def fetch_twelvedata_live(assets: "list[Asset]", bars_dir: str, api_key: str,
         newest = min(int(bars.load(p)["hour_utc"].max()) for p in paths.values())
         start = (datetime.fromtimestamp(newest, tz=timezone.utc)
                  - timedelta(hours=SETTLE_HOURS))
+        voted = [h for a in batch for h in (recount or {}).get(a.asset_id, [])]
+        if voted:
+            start = min(start, datetime.fromtimestamp(min(voted), tz=timezone.utc))
         try:
             got = twelvedata.fetch_batch([a.ticker for a in batch], batch[0].fetch_interval,
                                          start, now, TWELVEDATA_BASE_URL, api_key, session)
@@ -624,10 +636,11 @@ def fetch_twelvedata_live(assets: "list[Asset]", bars_dir: str, api_key: str,
 
 def backfill_instrument(asset: Asset, basket: Basket, bars_dir: str, api_key: str,
                         session: requests.Session, extend_history: bool = False, tiingo_key: str = "",
-                        sifting_key: str = "") -> dict:
+                        sifting_key: str = "", recount: "list[int] | None" = None) -> dict:
     path = bars.store_path(bars_dir, asset.file_stem)
     from_api = fetch_missing(asset, path, basket.acquire_since, api_key, session,
-                             extend_history, tiingo_key, sifting_key=sifting_key)
+                             extend_history, tiingo_key, sifting_key=sifting_key,
+                             recount=recount)
     stored = bars.load(path)
     return {
         "asset_id": asset.asset_id,
@@ -1687,6 +1700,15 @@ def main(argv: list[str] | None = None) -> int:
     # ordinary pass over stores that hold bars; the skip rule is the same.
     background: "set[str]" = set()
     td_thread = None
+    # The votes due a count again this run (jump.verify.recount_hours): each
+    # instrument's own provider is asked back to their hours in its ordinary
+    # request, so a bar it has corrected since comes in.
+    votes = {} if args.extend_history else verify.votes()
+    voted_at = int(time.time())
+
+    def voted(asset: Asset) -> "list[int]":
+        return verify.recount_hours(asset, votes, voted_at)
+
     if not args.extend_history and api_key:
         live = [a for a in instruments if a.fetched_from == "twelvedata"
                 and not bars.load(bars.store_path(args.bars_dir, a.file_stem)).empty]
@@ -1698,7 +1720,8 @@ def main(argv: list[str] | None = None) -> int:
             from concurrent.futures import ThreadPoolExecutor
             pool = ThreadPoolExecutor(max_workers=1)
             td_thread = pool.submit(fetch_twelvedata_live, due, args.bars_dir, api_key,
-                                    session=usage.session())
+                                    session=usage.session(),
+                                    recount={a.asset_id: voted(a) for a in due})
             pool.shutdown(wait=False)
 
     for i, asset in enumerate(instruments):
@@ -1748,7 +1771,8 @@ def main(argv: list[str] | None = None) -> int:
             continue
         try:
             r = backfill_instrument(asset, basket, args.bars_dir, api_key, session,
-                                    args.extend_history, tiingo_key, sifting_key)
+                                    args.extend_history, tiingo_key, sifting_key,
+                                    recount=voted(asset))
             log.info("%s: %d bars (%s .. %s), %d new", r["asset_id"], r["rows"],
                      _fmt(r["first"]), _fmt(r["last"]), r["from_api"])
             unanswered.pop(asset.fetched_from, None)

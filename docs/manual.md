@@ -126,7 +126,9 @@ whole store over: the tools that built the futures', coins' and pairs' histories
 deleted once their work was done (2026-10-08).
 
 **Fetch** (`jump/backfill.py`): each instrument is asked from its newest stored bar less
-three hours (`SETTLE_HOURS`), so a bar stored part-way through heals. An
+three hours (`SETTLE_HOURS`), so a bar stored part-way through heals - or from further
+back, the hour of its oldest vote due a count this run (`verify.recount_hours`, section
+5), in the same request, so a bar its provider has corrected since comes in. An
 instrument is skipped when its calendar says no bar can have appeared since its newest
 in-session bar, no session hour since having begun (`nothing_can_have_appeared`): funds
 by the NYSE table, pairs outside the Sun 17:00 → Fri 17:00 New York week, daily-session
@@ -269,6 +271,12 @@ day, until the closest-reaching of its sources no longer serves its hour: 9 days
 the funds, pairs and cattle (MarketWatch), 29 for the coins (Kraken), 79 for the softs
 (Sina). After that the further sources would vote alone, and the vote stands. A source
 that corrects its bars turns the vote; a bar that heals into no far move loses its vote.
+The store's own provider is re-read too: on a run with a vote due, the hourly fetch reaches
+back to its hour in the same request, and in an open month the fresher copy wins, for
+every hour it brings back (section 4). Over 29 days Binance revised no bar (0 of 10,672
+hours); over 9 days Yahoo revised 472 of 1,290 fund hours, 2 of them by more than 1 bp
+(2026-10-08). Tiingo, SiftingIO, Alpaca and Twelve Data were not probed: their allowances
+are for the live run.
 Votes live in `data/jump/verified.csv`: not real and overnight ones are kept for good (the
 detector rescores all history), the rest for 90 days, longer than any recount. A record
 from before the vote reads in its words: confirmed as real, unknown as single source,

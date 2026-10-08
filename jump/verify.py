@@ -235,6 +235,17 @@ def due(row: "dict | None", hour: int, now: int) -> bool:
             or int(row.get("checked_utc") or 0) <= now - RECOUNT_HOURS * HOUR)
 
 
+def recount_hours(asset: Asset, record: dict, now: int) -> "list[int]":
+    """The hours of the instrument's votes due a count this run, inside its
+    recount: its own provider is asked for them again too (jump.backfill), so
+    a bar it has corrected since is what the sources vote on."""
+    if not sources_for(asset):
+        return []
+    since = now - recount_days(asset) * 86400
+    return sorted({h for (a, h, _), row in record.items()
+                   if a == asset.asset_id and h >= since and due(row, h, now)})
+
+
 def sources_for(asset: Asset) -> "list[Source]":
     """Every source of the instrument's class that carries it, except its own
     provider; empty for a class with none (the LME's metals)."""

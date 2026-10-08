@@ -265,6 +265,15 @@ years against MarketWatch's nine days - so the vote stands from then: 9 days for
 pairs and cattle, 29 for coins, 79 for the softs. The record keeps a vote 90 days, longer
 than any recount, so an old one is not dropped and counted afresh every run.
 
+**A provider's corrections come in through its ordinary request.** On a run with a vote
+due, the hourly fetch reaches back to that vote's hour, and the store takes every bar it
+brings back as it takes the last three hours': in an open month the fresher copy wins.
+A separate request per vote would spend Tiingo's and SiftingIO's allowances, which the
+live run needs; one longer answer costs nothing more. Taking only the voted hours would
+need a rule per provider: Sina's whole ~78 days and Yahoo's last day are already taken
+on every run. Measured 2026-10-08: Binance revised no bar in 29 days (0 of 10,672 hours),
+Yahoo 472 of 1,290 fund hours in 9 days, 2 by more than 1 bp.
+
 **The vote is said in a few words under the move.** `❌ not real: only Binance had it
 [1/3]`, `⚠️ uncertain: seen by Yahoo, Alpaca [2/4]`, `single source: only SiftingIO had
 data`, `single-source asset`; a real move says nothing. Who had it and how many voted is

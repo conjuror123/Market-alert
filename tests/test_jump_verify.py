@@ -395,6 +395,10 @@ def test_a_vote_is_counted_again_once_a_day_while_its_closest_source_serves_it(
     assert run(72) == ["yahoo", "marketwatch"]               # three days on: counted
     assert verify.load(path)[key]["verdict"] == verify.NOT_REAL
     assert run(73) == []                                     # an hour later: not again
+    # ... nor its provider (jump.backfill): the same hours come due together.
+    at = lambda after: int(hours[bad]) + after * HOUR + 300
+    assert verify.recount_hours(asset, verify.load(path), at(73)) == []
+    assert int(hours[bad]) in verify.recount_hours(asset, verify.load(path), at(96))
     assert run(96) == ["yahoo", "marketwatch"]               # a day later: again
     assert run(24 * 10) == []                                # past nine days: never
     assert verify.load(path)[key]["verdict"] == verify.NOT_REAL
