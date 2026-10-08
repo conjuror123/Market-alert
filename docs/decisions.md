@@ -258,12 +258,25 @@ such a stretch each feed is still compared with itself; a move across its start 
 unknown. Found as a step of 50 bp or more in the session median offset, which a one-hour
 bad print cannot make. Over 2026-05-11..10-06, 36 moves judged, none crossed one.
 
-**A fund is asked of two feeds, not one, and not three.** Over the 9 days to 2026-10-07,
-322 fund hours of 4× the fund's usual move or more: all external feeds saw 314, none saw 2
-(the store's own bad prints), and the externals split on 6, session-first hours where one
-feed's open is the opening auction and another's the first trade. With one feed, those
-were its call alone; with two, a move is "not seen" only if both say so. A third would
-decide almost nothing more.
+**Every source of the class is asked, except the instrument's own provider.** More
+independent feeds catch more bad prints, and a vote counts heads, where a third feed
+breaks a tie. This replaces "a fund is asked of two feeds, not three" (2026-10-07), which
+weighed only what a third adds when any one feed's word confirms. One list
+(`verify.SOURCES`) names each source once, with its reach as measured, so a new feed is
+one line and no reach is stated twice: Yahoo's had been 55 and 700 days in code against
+59 and 729 measured (2026-10-08). Of the 173 instruments, 107 keep their sources; 66 funds
+served by Alpaca, Tiingo, Twelve Data or Google gain MarketWatch as a third; none loses
+one.
+
+**A copy is told by its bars, at each move, not by who served a stretch.** A source that is
+the store's own data would vote twice. The history check decided that once per fund-year
+and left 85% of the funds' flagged readings unasked. Now each move looks at the bars both
+hold in the day around it: the same open, high, low, close and volume (up to one constant
+factor) on 90% of them is a copy. Measured against each store's origin (EUR/USD 2005 and
+Dukascopy, BTC 2014 and Bitstamp, BCH 2018-02 and Coinbase), 1.00 of each day's bars; against
+another vendor of the same market (EUR/USD 2016 and 2025, BTC 2021), 0.00 to 0.04. Vendors of
+one consolidated tape share trades and often closes, not extremes and volume, so each
+keeps its vote.
 
 **A first hour the feeds saw happen overnight is moved into the night.** A fund's first
 print is sometimes a stale one at the previous close (in 2020-22, 7-12% of fund-days

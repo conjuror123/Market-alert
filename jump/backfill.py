@@ -1139,7 +1139,7 @@ def fill_gaps_from_hfdata(asset: Asset, path: str, table: dict, api_key: str,
 
 # How far back a repair reaches: Yahoo's 30-minute bars, a day short of their
 # limit (yahoo.MAX_LOOKBACK_DAYS), so the request is never refused at the edge.
-REPAIR_DAYS = 54
+REPAIR_DAYS = yahoo.MAX_LOOKBACK_DAYS["30min"] - 1
 
 
 def repair_from_yahoo(asset: Asset, path: str, table: dict, session: requests.Session,

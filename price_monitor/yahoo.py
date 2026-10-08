@@ -60,8 +60,9 @@ INTERVAL_SECONDS = {"30min": 1800, "1h": 3600, "1d": 86400}
 # the endpoint, not of a plan, and asking past them returns an empty result
 # rather than an error - which would look exactly like a quiet market. The
 # limits are enforced here so that a request which cannot be answered is
-# refused loudly instead.
-MAX_LOOKBACK_DAYS = {"30min": 55, "1h": 700, "1d": 36500}
+# refused loudly instead. Measured 2026-10-08 by date: 30-minute bars to 59 days
+# (60 refused), hourly to 729 (730 refused).
+MAX_LOOKBACK_DAYS = {"30min": 59, "1h": 729, "1d": 36500}
 
 # Yahoo answers an unadorned request with 429. Any ordinary browser string is
 # accepted; this one names the project so the traffic is attributable.

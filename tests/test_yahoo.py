@@ -105,7 +105,7 @@ def test_a_lookback_past_what_yahoo_serves_is_refused():
     """Asking beyond the interval's limit returns an EMPTY result, which looks
     exactly like a quiet market - so it is refused before it is sent."""
     s = _Session()
-    with pytest.raises(ExchangeError, match="at most 55 days"):
+    with pytest.raises(ExchangeError, match="at most 59 days"):
         yahoo.fetch_full_history("SPY", "30min", days=400, session=s)
     assert s.calls == []
 

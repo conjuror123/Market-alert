@@ -1096,20 +1096,18 @@ def _doubt(asset: str, reading_ids, doubts: "dict | None") -> "dict | None":
     return None
 
 
-# How each second source is named on the channel (jump.verify).
-SOURCE_NAMES = {"yahoo": "Yahoo", "sina": "Sina", "marketwatch": "MarketWatch"}
-
-
 def unconfirmed_line(row: dict) -> str:
     """⚠️ unconfirmed: Yahoo shows +0.03% - or, with two sources,
     ⚠️ unconfirmed: Yahoo +0.03%, MarketWatch +0.02%."""
     import math
 
+    from jump.verify import LABELS
+
     names = [n for n in str(row.get("verifier") or "").split(",") if n]
     moves = str(row.get("verifier_move") or "").split(",")
     shown = []
     for i, name in enumerate(names or ["the second source"]):
-        label = _escape(SOURCE_NAMES.get(name, name.capitalize()))
+        label = _escape(LABELS.get(name, name.capitalize()))
         try:
             shown.append((label, f"{(math.exp(float(moves[i])) - 1) * 100:+.2f}%"))
         except (IndexError, TypeError, ValueError):

@@ -16,21 +16,23 @@ for it stays on the channel and says `⚠️ unconfirmed: Yahoo +0.03%`
 tell - the second source lags by an hour, misses hours and prints its own bad
 ticks - so the verdict is "not seen elsewhere", never "a mistake".
 
-WHO IS ASKED (verifiers_for). The currency pairs and the real, served by
-SiftingIO: Yahoo's hourly FX and MarketWatch's - Yahoo reaches back two years
-but has as little as a fifth of USD/INR's hours, MarketWatch has every hour of
-the last ten days. Funds served by Alpaca, Tiingo, Sina, Twelve Data or Google:
-Yahoo's 30-minute bars, the consolidated tape. Funds served by Yahoo: Sina's.
-Coffee, cocoa and cotton, served by Yahoo: Sina's global futures
-(SINA_FUTURES). Live cattle: MarketWatch's continuous contract. The coins,
-served by Binance, whose prices are its own trades: Coinbase's and Kraken's
-dollar pairs - a wick on one exchange is real there and not the market's. Not
-asked: the LME's metals, which have no free independent feed found.
+WHO IS ASKED (SOURCES, sources_for). Every source of the instrument's class
+that carries it, except its own provider. The currency pairs and the real:
+Yahoo's hourly FX and MarketWatch's - Yahoo reaches back two years but has as
+little as a fifth of USD/INR's hours, MarketWatch has every hour of the last
+nine trading days. Funds: Yahoo's and Sina's half-hour bars and MarketWatch's
+hourly ones, the consolidated tape. Coffee, cocoa and cotton: Sina's global
+futures (SINA_FUTURES). Live cattle: MarketWatch's continuous contract. The
+coins, served by Binance, whose prices are its own trades: Coinbase's and
+Kraken's dollar pairs - a wick on one exchange is real there and not the
+market's. Not asked: the LME's metals, which have no free independent feed
+found. A source whose bars around the move are the store's own
+(copy_of_store) has no vote on it: it would only repeat the store.
 
-WITH TWO SOURCES (judge_all, combine), a move is confirmed if either saw it,
-pending while either still waits for its next bar, and unconfirmed only if one
+WITH MORE THAN ONE SOURCE (judge_all, combine), a move is confirmed if any saw
+it, pending while any still waits for its next bar, and unconfirmed only if one
 answered and none saw it. A source with bars around the move outweighs one that
-only bridges it. A source that fails to answer leaves the other to.
+only bridges it. A source that fails to answer leaves the others to.
 
 WHICH BARS (candidates). The detector's own readings, ended within the last
 PENDING_HOURS, at CANDIDATE_SIGMA (or the detector's bottom level, if set lower)
@@ -39,7 +41,7 @@ jump.returns measures it (`close`: from the previous close, or from its own
 open on a session's first bar and after a hole) against the instrument's
 earlier hours, and a session's gap (`open`) against its earlier gaps. That is
 below the detector's bottom word, so nothing it flags is missed: a few a day
-across the basket, one request per instrument.
+across the basket, one request per source and instrument.
 
 THE VERDICT (judge). Each feed is compared with itself, so a steady offset
 between them is not a move. CONFIRMED if the second source moved the same way
@@ -66,9 +68,9 @@ move happened in the night, and the store's first print was a stale one at the
 old price; jump.jumps moves it into the gap with the feeds' night. Kept for
 good, like an unconfirmed one.
 
-    python -m jump.verify --history     every far move within the second
-                                          source's reach (FX 699 days, funds
-                                          54 to 77)
+    python -m jump.verify --history     every far move within the furthest
+                                          reach of its sources (FX 729 days,
+                                          funds 59 to 77, coins 365)
 """
 from __future__ import annotations
 
@@ -77,7 +79,9 @@ import csv
 import logging
 import math
 import os
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -102,7 +106,6 @@ STALE_HOURS = 12
 TAIL_DAYS = 200                   # bars read before the window: the detector's half-year and more
 MAX_REQUESTS = 40
 KEEP_DAYS = 30
-SINA_DAYS = 77                    # how far Sina's US half-hour bars reach back
 
 CONFIRMED, UNCONFIRMED, PENDING, UNKNOWN = "confirmed", "unconfirmed", "pending", "unknown"
 # A session's first hour whose move the feeds saw happen overnight: kept for
@@ -110,16 +113,6 @@ CONFIRMED, UNCONFIRMED, PENDING, UNKNOWN = "confirmed", "unconfirmed", "pending"
 OVERNIGHT = "overnight"
 KEPT = (UNCONFIRMED, OVERNIGHT)
 CLOSE, OPEN = "close", "open"     # the check: the hour's reading, or the gap's
-
-# A fund is asked of two consolidated-tape feeds that are not serving it, so
-# that one feed alone cannot say a move did not happen: Yahoo's and Sina's
-# half-hour bars, and MarketWatch's hourly ones for a fund Yahoo or Sina
-# serves. Over the 9 days to 2026-10-07, of 322 fund hours 4x the fund's
-# usual move or more, all external feeds saw 314, none saw 2 (the store's own
-# bad prints), and the externals split on 6 - session-first hours, where one
-# feed's open is the opening auction and another's the first trade.
-_FUND_FEEDS = {"yahoo": ("sina", "marketwatch"), "sina": ("yahoo", "marketwatch")}
-_FUND_FEEDS_DEFAULT = ("yahoo", "sina")
 
 # MarketWatch names a fund by its listing exchange; ARCX unless here
 # (measured 2026-10-07: 96 funds on ARCX).
@@ -137,7 +130,6 @@ MARKETWATCH_FUND_EXCHANGE = {
 # missing. Live cattle is there too (LE), but as quotes without volume whose
 # hours correlate 0.80 with the store's: not used.
 SINA_FUTURES = {"KC=F": "KC", "CC=F": "CC", "CT=F": "CT"}
-SINA_FUTURES_DAYS = 30            # inside the 1,023 hourly bars Sina serves
 
 # Sina's softs are continuous series that change contract on their own days,
 # not this series' (jump.futures): for those sessions the two feeds hold
@@ -149,56 +141,74 @@ SINA_FUTURES_DAYS = 30            # inside the 1,023 hourly bars Sina serves
 # ROLL_STEP_BP or more from the session before opens with such a change.
 ROLL_STEP_BP = 50.0
 
-
-# The pairs MarketWatch is asked about besides Yahoo, and live cattle's
-# continuous contract there (price_monitor/marketwatch.py).
 MARKETWATCH_CATTLE = "FUTURE/US/XCME/LC00"
-MARKETWATCH_DAYS = 9              # inside the ten days of hourly bars it serves
-
-# The coins' two exchanges (price_monitor/coinbase.py, kraken.py). Coinbase
-# serves years by start and end; Kraken only its last 720 hours.
-COINBASE_DAYS = 365
-KRAKEN_DAYS = 29
 
 
-def verifiers_for(asset: Asset) -> "list[tuple[str, str, str]]":
-    """The second sources of an instrument, each (name, its symbol, interval);
-    empty if none is asked."""
-    if asset.session_template in ("fx_continuous", "b3_fx") \
-            and asset.fetched_from == "sifting":
-        pair = asset.ticker.replace("/", "").upper()
-        return [("yahoo", pair + "=X", "1h"),
-                ("marketwatch", "CURRENCY/US/XTUP/" + pair, "1h")]
-    if asset.session_template == "us_equity":
-        feeds = _FUND_FEEDS.get(asset.fetched_from, _FUND_FEEDS_DEFAULT)
-        return [("marketwatch", "FUND/US/{}/{}".format(
-                    MARKETWATCH_FUND_EXCHANGE.get(asset.ticker, "ARCX"), asset.ticker), "1h")
-                if name == "marketwatch" else (name, asset.ticker, "30min")
-                for name in feeds]
-    if asset.ticker in SINA_FUTURES and asset.fetched_from == "yahoo":
-        return [("sina", SINA_FUTURES[asset.ticker], "1h")]
-    if asset.session_template == "cme_cattle" and asset.fetched_from == "yahoo":
-        return [("marketwatch", MARKETWATCH_CATTLE, "1h")]
-    if asset.session_template == "crypto_24_7" and asset.fetched_from == "binance":
+@dataclass(frozen=True)
+class Source:
+    """A feed that can be asked about another feed's move. `name` is the
+    provider it is, so an instrument is never asked of its own provider;
+    `days`, how far back it serves, measured; `symbol(asset)`, what it calls
+    the instrument (None: it does not carry it); `own_rolls`, a continuous
+    future that changes contract on its own days."""
+    name: str
+    label: str
+    days: float
+    interval: str
+    symbol: "Callable[[Asset], str | None]"
+    own_rolls: bool = False
+
+
+def _pair(asset: Asset) -> str:
+    return asset.ticker.replace("/", "").upper()
+
+
+def _exchange(name: str) -> "Callable[[Asset], str | None]":
+    def symbol(asset: Asset) -> "str | None":
         from price_monitor import coinbase, kraken
-        return [("coinbase", coinbase.product_for(asset.ticker), "1h"),
-                ("kraken", kraken.pair_for(asset.ticker), "1h")]
-    return []
+        return (coinbase.product_for if name == "coinbase" else kraken.pair_for)(asset.ticker)
+    return symbol
 
 
-def reach_days(who: "tuple[str, str, str]") -> int:
-    """How far back the second source serves bars."""
-    from price_monitor import yahoo
+# Every source, by class. Reach measured 2026-10-08: Yahoo's 30-minute bars 59
+# days and hourly 729 (price_monitor.yahoo); Sina's fund bars about 78 trading
+# days and its softs back to 2026-05-12 (coffee, cocoa) and 07-20 (cotton);
+# MarketWatch about nine trading days; Kraken 720 hours; Coinbase pages back to
+# a coin's listing. Never Tiingo, SiftingIO or Twelve Data, whose allowances the
+# live run uses, nor Google, one session deep.
+SOURCES: "dict[str, tuple[Source, ...]]" = {
+    "fx": (
+        Source("yahoo", "Yahoo", 729, "1h", lambda a: _pair(a) + "=X"),
+        Source("marketwatch", "MarketWatch", 9, "1h",
+               lambda a: "CURRENCY/US/XTUP/" + _pair(a)),
+    ),
+    "us_equity": (
+        Source("yahoo", "Yahoo", 59, "30min", lambda a: a.ticker),
+        Source("sina", "Sina", 77, "30min", lambda a: a.ticker),
+        Source("marketwatch", "MarketWatch", 9, "1h", lambda a: "FUND/US/{}/{}".format(
+            MARKETWATCH_FUND_EXCHANGE.get(a.ticker, "ARCX"), a.ticker)),
+    ),
+    "softs": (
+        Source("sina", "Sina", 79, "1h", lambda a: SINA_FUTURES.get(a.ticker), own_rolls=True),
+    ),
+    "cme_cattle": (
+        Source("marketwatch", "MarketWatch", 9, "1h", lambda a: MARKETWATCH_CATTLE),
+    ),
+    "crypto_24_7": (
+        Source("coinbase", "Coinbase", 365, "1h", _exchange("coinbase")),
+        Source("kraken", "Kraken", 29, "1h", _exchange("kraken")),
+    ),
+}
+_CLASS = {"fx_continuous": "fx", "b3_fx": "fx",
+          "ice_coffee": "softs", "ice_cocoa": "softs", "ice_cotton": "softs"}
+LABELS = {s.name: s.label for group in SOURCES.values() for s in group}
 
-    if who[0] == "yahoo":
-        return yahoo.MAX_LOOKBACK_DAYS[who[2]] - 1
-    if who[0] == "marketwatch":
-        return MARKETWATCH_DAYS
-    if who[0] == "coinbase":
-        return COINBASE_DAYS
-    if who[0] == "kraken":
-        return KRAKEN_DAYS
-    return SINA_DAYS if who[2] == "30min" else SINA_FUTURES_DAYS
+
+def sources_for(asset: Asset) -> "list[Source]":
+    """Every source of the instrument's class that carries it, except its own
+    provider; empty for a class with none (the LME's metals)."""
+    group = SOURCES.get(_CLASS.get(asset.session_template, asset.session_template), ())
+    return [s for s in group if s.name != asset.fetched_from and s.symbol(asset)]
 
 
 def fetch_verifier(name: str, symbol: str, interval: str, days: float,
@@ -381,6 +391,41 @@ def switches(store: pd.DataFrame, v: pd.DataFrame, template: str) -> "list[int]"
     return [int(h) for h in by.loc[stepped, "first"]]
 
 
+# A source is the stored data itself at a move when this share of the bars
+# both hold in the day before it, to the hour after, are the same bars: open,
+# high, low and close in one ratio to the store's (a splice may have scaled
+# them), and volume in one ratio where the store has volume. Two vendors of
+# one market differ in their extremes and volume even where closes agree.
+COPY_SHARE = 0.9
+COPY_TOLERANCE = 1e-6
+COPY_MIN_BARS = 5
+
+
+def copy_of_store(store: pd.DataFrame, v: pd.DataFrame, c: dict) -> bool:
+    """Whether the source's bars around the move are the store's own: then it
+    has no vote of its own on it."""
+    lo, hi = c["prev_hour"] - 24 * HOUR, c["hour"] + LAG_HOURS * HOUR
+    near = store[(store["hour_utc"] >= lo) & (store["hour_utc"] <= hi)]
+    j = near.merge(v, on="hour_utc", suffixes=("_s", "_v"))
+    if len(j) < COPY_MIN_BARS:
+        return False
+    k = float(np.median(j["close_v"].to_numpy(float) / j["close_s"].to_numpy(float)))
+    same = np.ones(len(j), dtype=bool)
+    for col in ("open", "high", "low", "close"):
+        if col + "_v" not in j:
+            continue
+        ratio = j[col + "_v"].to_numpy(float) / j[col + "_s"].to_numpy(float)
+        same &= np.abs(ratio - k) <= COPY_TOLERANCE * abs(k)
+    if "volume_s" in j and "volume_v" in j:
+        vs, vv = j["volume_s"].to_numpy(float), j["volume_v"].to_numpy(float)
+        has = vs > 0
+        if has.any():
+            q = float(np.median(vv[has] / vs[has]))
+            ratio = np.divide(vv, vs, out=np.zeros_like(vv), where=has)
+            same &= ~has | (np.abs(ratio - q) <= COPY_TOLERANCE * max(abs(q), 1e-12))
+    return bool(same.mean() >= COPY_SHARE)
+
+
 def crosses(c: dict, at: "list[int]") -> bool:
     """Whether a move's span - from its closes up to LAG_HOURS before to those
     up to LAG_HOURS after - takes in one of these hours."""
@@ -547,10 +592,10 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
     # reading is no longer a far move - its bar healed - no longer applies.
     due = []
     for asset in instruments:
-        sources = [w for w in verifiers_for(asset) if w[0] not in blocked]
+        sources = [src for src in sources_for(asset) if src.name not in blocked]
         if not sources:
             continue
-        reach = max(reach_days(w) for w in sources)
+        reach = max(src.days for src in sources)
         since = now_ts - reach * 86400 if history else now_ts - PENDING_HOURS * HOUR
         frame = bars.load(bars.store_path(bars_dir, asset.file_stem),
                           since - tail_days(settings[0]) * 86400)
@@ -580,13 +625,14 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
         # Friday's close.
         days = (now_ts - min(c["prev_hour"] for c in found)) / 86400 + 1
         answers = []
-        for name, symbol, interval in verifiers_for(asset):
+        for src in sources_for(asset):
+            name = src.name
             if requests_left <= 0 or name in blocked:
                 continue
             requests_left -= 1
             try:
-                answers.append((name, _priced(fetch_verifier(name, symbol, interval, days,
-                                                             session, now_dt))))
+                answers.append((name, _priced(fetch_verifier(name, src.symbol(asset), src.interval,
+                                                             days, session, now_dt))))
                 unanswered.pop(name, None)
             except Exception as exc:
                 log.warning("verify: %s from %s failed - %s", asset.ticker, name, exc)
@@ -602,13 +648,16 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
                     unanswered.pop(name, None)              # it answered
         if not answers:
             continue
+        rolls = {src.name for src in sources_for(asset) if src.own_rolls}
         changed = {name: switches(frame, v, asset.session_template)
-                   for name, v in answers if asset.ticker in SINA_FUTURES and name == "sina"}
+                   for name, v in answers if name in rolls}
         for c in found:
             try:
-                # Not across the second source's own change of contract.
+                # Not across a source's own change of contract, and not the
+                # stored data itself.
                 usable = [(name, v) for name, v in answers
-                          if not crosses(c, changed.get(name, []))]
+                          if not crosses(c, changed.get(name, []))
+                          and not copy_of_store(frame, v, c)]
                 if not usable:
                     p = math.log(c["price"] / c["prev_close"])
                     verdict, stored, names, moves = UNKNOWN, p, [

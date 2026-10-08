@@ -40,42 +40,60 @@ def judge(hour, prev, price, rows, now, *, check="close", prev_hour=None, from_o
 
 # --- who checks whom ------------------------------------------------------------
 
-def test_every_feed_with_a_free_second_source_is_checked_by_one(basket):
+def _asked(asset):
+    return [(src.name, src.symbol(asset), src.interval) for src in verify.sources_for(asset)]
+
+
+def test_every_instrument_is_asked_of_every_source_of_its_class_but_its_own(basket):
     # The pairs: Yahoo, and MarketWatch for the hours Yahoo lacks.
-    assert verify.verifiers_for(basket["USD/INR"]) == [
+    assert _asked(basket["USD/INR"]) == [
         ("yahoo", "USDINR=X", "1h"), ("marketwatch", "CURRENCY/US/XTUP/USDINR", "1h")]
-    assert verify.verifiers_for(basket["USD/BRL"])[1] == (
-        "marketwatch", "CURRENCY/US/XTUP/USDBRL", "1h")
-    # A fund: two consolidated feeds, neither its own, so one cannot veto alone.
+    assert _asked(basket["USD/BRL"])[1] == ("marketwatch", "CURRENCY/US/XTUP/USDBRL", "1h")
+    # A fund: Yahoo's, Sina's and MarketWatch's bars, less its own provider.
     for fund in (a for a in basket.values() if a.session_template == "us_equity"):
-        feeds = verify.verifiers_for(fund)
-        assert len(feeds) == 2 and fund.fetched_from not in [n for n, _, _ in feeds]
-        for name, symbol, interval in feeds:
-            assert (symbol, interval) == (fund.ticker, "30min") if name != "marketwatch" \
-                else symbol.endswith("/" + fund.ticker) and interval == "1h"
-    assert verify.verifiers_for(basket["LMBS"]) == [("yahoo", "LMBS", "30min"),
-                                                     ("sina", "LMBS", "30min")]
-    assert ("marketwatch", "FUND/US/XNAS/TLT", "1h") in verify.verifiers_for(basket["TLT"]) \
-        or basket["TLT"].fetched_from not in ("yahoo", "sina")
-    # The softs Yahoo serves: Sina's global futures, hourly.
-    assert verify.verifiers_for(basket["KC=F"]) == [("sina", "KC", "1h")]
-    assert verify.verifiers_for(basket["CC=F"]) == [("sina", "CC", "1h")]
-    assert verify.verifiers_for(basket["CT=F"]) == [("sina", "CT", "1h")]
+        names = [n for n, _, _ in _asked(fund)]
+        assert names == [n for n in ("yahoo", "sina", "marketwatch") if n != fund.fetched_from]
+    assert _asked(basket["LMBS"]) == [("yahoo", "LMBS", "30min"), ("sina", "LMBS", "30min"),
+                                      ("marketwatch", "FUND/US/XNAS/LMBS", "1h")]
+    # The softs Yahoo serves: Sina's global futures, hourly, with their own rolls.
+    assert _asked(basket["KC=F"]) == [("sina", "KC", "1h")]
+    assert _asked(basket["CT=F"]) == [("sina", "CT", "1h")]
+    assert verify.sources_for(basket["CC=F"])[0].own_rolls
     # Live cattle: MarketWatch's continuous contract.
-    assert verify.verifiers_for(basket["LE=F"]) == [
-        ("marketwatch", "FUTURE/US/XCME/LC00", "1h")]
+    assert _asked(basket["LE=F"]) == [("marketwatch", "FUTURE/US/XCME/LC00", "1h")]
     # The coins: two other exchanges' dollar pairs, Kraken naming BTC and
     # DOGE its own way.
-    assert verify.verifiers_for(basket["BTC/USDT"]) == [
-        ("coinbase", "BTC-USD", "1h"), ("kraken", "XBTUSD", "1h")]
-    assert verify.verifiers_for(basket["DOGE/USDT"])[1] == ("kraken", "XDGUSD", "1h")
-    for asset in basket.values():
-        if asset.session_template == "crypto_24_7":
-            assert [n for n, _, _ in verify.verifiers_for(asset)] == ["coinbase", "kraken"]
+    assert _asked(basket["BTC/USDT"]) == [("coinbase", "BTC-USD", "1h"), ("kraken", "XBTUSD", "1h")]
+    assert _asked(basket["DOGE/USDT"])[1] == ("kraken", "XDGUSD", "1h")
     # The LME's metals have no independent free feed found.
     for asset in basket.values():
         if asset.session_template == "lme":
-            assert verify.verifiers_for(asset) == []
+            assert verify.sources_for(asset) == []
+
+
+def test_no_source_spends_an_allowance_the_live_run_needs():
+    names = {src.name for group in verify.SOURCES.values() for src in group}
+    assert not names & {"tiingo", "sifting", "twelvedata", "google"}
+
+
+def _bars(closes, volume=10.0, scale=1.0, wide=0.0):
+    hours = [ts("2026-03-02 00:00") + i * HOUR for i in range(len(closes))]
+    c = np.array(closes, float) * scale
+    return pd.DataFrame({"hour_utc": hours, "open": c, "high": c * (1 + wide) + 0.01 * scale,
+                         "low": c - 0.01 * scale, "close": c, "volume": volume})
+
+
+def test_the_stored_data_itself_has_no_vote_but_another_vendor_does():
+    # Dukascopy built EUR/USD's store before 2012 and Bitstamp BTC's before
+    # 2018: asked about a move there, it is the store again (1.00 of each day's
+    # bars identical, measured), while a vendor of the same market never was
+    # (0.00 to 0.04) even where its closes agree.
+    closes = [100 + 0.1 * i for i in range(30)]
+    store = _bars(closes)
+    c = {"hour": ts("2026-03-03 04:00"), "prev_hour": ts("2026-03-03 03:00")}
+    assert verify.copy_of_store(store, _bars(closes, scale=1.37), c)          # a scaled splice
+    assert not verify.copy_of_store(store, _bars(closes, volume=7.0, wide=0.001), c)
+    assert not verify.copy_of_store(store, _bars(closes[:3]), c)              # too few to tell
 
 
 def test_a_wick_on_binance_alone_is_unconfirmed():
@@ -302,8 +320,10 @@ def test_a_pairs_weekend_gap_is_asked_about_at_its_open_and_from_fridays_close(
     spans = []
 
     def fetch(name, symbol, interval, days, session, now):
+        # Another vendor: the same prices, its own extremes.
         spans.append(days)
         return pd.DataFrame({"hour_utc": frame["hour_utc"], "open": frame["open"],
+                             "high": frame["high"] * 1.0002, "low": frame["low"] * 0.9998,
                              "close": frame["close"]})
 
     monkeypatch.setattr(verify, "fetch_verifier", fetch)
@@ -441,6 +461,22 @@ def test_a_source_with_bars_around_the_move_outweighs_one_bridging_a_gap():
     # With nobody's bars around the move, the bridge is all there is.
     assert verify.judge_all(c, [("yahoo", yahoo)], ts("2026-10-01 03:05"))[0] == \
         verify.CONFIRMED
+
+
+def test_a_source_serving_the_store_itself_does_not_vote(monkeypatch, tmp_path, basket):
+    # Yahoo here hands back the store's own bars, bad print and all: it would
+    # see the move. Only MarketWatch, which stayed flat, counts.
+    asset, hours, bad, frame, market = _inr_store(tmp_path, basket)
+
+    def fetch(name, symbol, interval, days, session, now):
+        return frame.drop(columns="n_src") if name == "yahoo" else market
+
+    monkeypatch.setattr(verify, "fetch_verifier", fetch)
+    now = datetime.fromtimestamp(int(hours[bad + 5]) + 300, timezone.utc)
+    path = str(tmp_path / "verified.csv")
+    verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
+    row = verify.unconfirmed(path)[(asset.asset_id, int(hours[bad]), "close")]
+    assert row["verifier"] == "marketwatch"
 
 
 def test_one_source_failing_leaves_the_other_to_answer(monkeypatch, tmp_path, basket):

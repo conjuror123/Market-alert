@@ -153,7 +153,7 @@ Log only; nothing is sent. SiftingIO's "left" is a short window, not its 10,000 
 (2026-10-06). The month is on the account page only.
 
 **Repair** (`backfill.repair_from_yahoo`), by hand: a fund's in-session hours missing in
-the last 54 days are filled from Yahoo's 30-minute bars, folded to the hour, only if
+the last 58 days are filled from Yahoo's 30-minute bars, folded to the hour, only if
 Yahoo agrees with the store over the overlap (`verify_alignment`: correlation ≥ 0.90,
 median ≤ 25 bp, ≥ 200 hours) and only where the store has no bar. For a hole in the open
 month, which the hourly fetch never asks again: on 2026-10-01 and -02 Google served TUR
@@ -193,16 +193,30 @@ independent feed (`jump/verify.py`). The readings are the detector's own, built 
 reading the detector can flag is therefore asked about; with a bottom level under 4σ,
 the line follows it down.
 
-| served by | asked of |
+Every source of the instrument's class is asked, except its own provider. The list is
+`verify.SOURCES`, one entry per source with its measured reach (2026-10-08) and the name
+the channel gives it; a source added there is asked from the next run.
+
+| class | asked of |
 |---|---|
-| SiftingIO (17 pairs) | Yahoo hourly FX (699 days back) and MarketWatch (`price_monitor/marketwatch.py`, 9 days back, every hour) |
-| Alpaca, Tiingo, Twelve Data, Google (funds) | Yahoo 30-minute bars folded to the hour (54 days back) and Sina 30-minute US bars (77 days back) |
-| Sina (funds) | Yahoo 30-minute bars and MarketWatch hourly (`FUND/US/<exchange>/<ticker>`, 9 days back) |
-| Yahoo (funds) | Sina 30-minute US bars and MarketWatch hourly |
-| Yahoo (coffee, cocoa, cotton) | Sina global futures, hourly (30 days back) |
-| Yahoo (live cattle) | MarketWatch continuous contract, hourly (9 days back) |
-| Binance (16 coins) | Coinbase's dollar pairs, hourly (`price_monitor/coinbase.py`, a year back) and Kraken's (`kraken.py`, 29 days back): a wick on Binance alone is real there and not the market's |
-| Sina (LME) | not asked: the LME has no free second feed |
+| currency pairs and the real (17, SiftingIO) | Yahoo hourly FX (729 days back) and MarketWatch (`price_monitor/marketwatch.py`, 9 days back, every hour) |
+| funds (133) | Yahoo 30-minute bars folded to the hour (59 days back), Sina 30-minute US bars (77 days back) and MarketWatch hourly (`FUND/US/<exchange>/<ticker>`, 9 days back): two for a fund Yahoo or Sina serves, all three for the rest |
+| coffee, cocoa, cotton (Yahoo) | Sina global futures, hourly (79 days back: coffee and cocoa from 2026-05-12, cotton from 07-20) |
+| live cattle (Yahoo) | MarketWatch continuous contract, hourly (9 days back) |
+| coins (16, Binance) | Coinbase's dollar pairs, hourly (`price_monitor/coinbase.py`, a year back) and Kraken's (`kraken.py`, 29 days back): a wick on Binance alone is real there and not the market's |
+| LME (Sina) | not asked: the LME has no free second feed |
+
+**Rule.** Never Tiingo, SiftingIO, Twelve Data or Google: the live run needs their
+allowances, and Google is one session deep. A test pins it.
+
+**A copy has no vote** (`copy_of_store`). A source whose bars around the move are the
+store's own would only repeat it: Dukascopy built EUR/USD's store before 2012, Bitstamp
+BTC's before 2018, Coinbase BCH's in 2018. It is a copy when 90% or more of the bars both
+hold, from 24 hours before the move to an hour after (5 at least), are the same bars:
+open, high, low and close in one ratio to the store's (a splice may have scaled them),
+and volume in one ratio where the store has volume. Measured on those three against
+their own origin, 1.00 of each day's bars; against another vendor of the same market,
+0.00 to 0.04, even where closes agree, because extremes and volume differ.
 
 **Verdict per source** (`judge`). Each feed is compared with itself, so a steady offset
 is not a move.
@@ -219,7 +233,7 @@ is not a move.
 **Combined** (`judge_all`). Confirmed if any source saw the move. Otherwise pending if
 any is still waiting. Otherwise unconfirmed if any answered. Otherwise unknown. A source
 with bars of its own around the move outweighs one bridging a gap (USD/INR at night:
-Yahoo's last bar is 10:00, MarketWatch has every hour). A failed source leaves the other
+Yahoo's last bar is 10:00, MarketWatch has every hour). A failed source leaves the others
 to answer; a rate limit, or no answer to two requests in a row, stops that source for the
 run, and the health chat names it.
 
