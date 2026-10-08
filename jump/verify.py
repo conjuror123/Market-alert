@@ -23,7 +23,8 @@ that carries it, except its own provider. The currency pairs and the real:
 Yahoo's hourly FX and MarketWatch's - Yahoo reaches back two years but has as
 little as a fifth of USD/INR's hours, MarketWatch has every hour of the last
 nine trading days. Funds: Yahoo's and Sina's half-hour bars and MarketWatch's
-hourly ones, the consolidated tape. Coffee, cocoa and cotton: Sina's global
+hourly ones, and Alpaca's consolidated tape (Alpaca_SIP), fifteen minutes
+behind - asked once it serves the move's hour whole (Source.delay). Coffee, cocoa and cotton: Sina's global
 futures (SINA_FUTURES). Live cattle: MarketWatch's continuous contract. The
 coins, served by Binance, whose prices are its own trades: Coinbase's and
 Kraken's dollar pairs - a wick on one exchange is real there and not the
@@ -166,13 +167,27 @@ class Source:
     provider it is, so an instrument is never asked of its own provider;
     `days`, how far back it serves, measured; `symbol(asset)`, what it calls
     the instrument (None: it does not carry it); `own_rolls`, a continuous
-    future that changes contract on its own days."""
+    future that changes contract on its own days; `delay`, seconds it serves
+    behind the clock - it is not asked about a move it cannot serve whole
+    yet, and joins the next count; `keys`, the secrets it needs - without
+    them it is no voter at all, rather than an outage voting no."""
     name: str
     label: str
     days: float
     interval: str
     symbol: "Callable[[Asset], str | None]"
     own_rolls: bool = False
+    delay: int = 0
+    keys: "tuple[str, ...]" = ()
+
+    def serves(self, c: dict, now: int) -> bool:
+        """Whether it can answer about the move by `now`: one without a delay
+        answers with what it has; a delayed one once it serves the move's hour
+        whole."""
+        return not self.delay or c["hour"] + HOUR + self.delay <= now
+
+
+ALPACA_KEYS = ("ALPACA_KEY_ID", "ALPACA_SECRET_KEY")
 
 
 def _pair(asset: Asset) -> str:
@@ -190,8 +205,10 @@ def _exchange(name: str) -> "Callable[[Asset], str | None]":
 # days and hourly 729 (price_monitor.yahoo); Sina's fund bars about 78 trading
 # days and its softs back to 2026-05-12 (coffee, cocoa) and 07-20 (cotton);
 # MarketWatch about nine trading days; Kraken 720 hours; Coinbase pages back to
-# a coin's listing. Never Tiingo, SiftingIO or Twelve Data, whose allowances the
-# live run uses, nor Google, one session deep.
+# a coin's listing; Alpaca's consolidated tape (SIP) from 2016-01-01, to fifteen
+# minutes back on the free plan (price_monitor.alpaca). Never Tiingo, SiftingIO
+# or Twelve Data, whose allowances the live run uses, nor Google, one session
+# deep.
 SOURCES: "dict[str, tuple[Source, ...]]" = {
     "fx": (
         Source("yahoo", "Yahoo", 729, "1h", lambda a: _pair(a) + "=X"),
@@ -203,6 +220,10 @@ SOURCES: "dict[str, tuple[Source, ...]]" = {
         Source("sina", "Sina", 77, "30min", lambda a: a.ticker),
         Source("marketwatch", "MarketWatch", 9, "1h", lambda a: "FUND/US/{}/{}".format(
             MARKETWATCH_FUND_EXCHANGE.get(a.ticker, "ARCX"), a.ticker)),
+        # Every exchange's trades: another source than the IEX feed Alpaca
+        # serves 30 funds from, which is one exchange's (the user's, 2026-10-08).
+        Source("alpaca_sip", "Alpaca_SIP", 3900, "30min", lambda a: a.ticker,
+               delay=15 * 60, keys=ALPACA_KEYS),
     ),
     "softs": (
         Source("sina", "Sina", 79, "1h", lambda a: SINA_FUTURES.get(a.ticker), own_rolls=True),
@@ -220,7 +241,7 @@ _CLASS = {"fx_continuous": "fx", "b3_fx": "fx",
 # What the channel calls each provider: the sources, and the stores' own.
 LABELS = {**{s.name: s.label for group in SOURCES.values() for s in group},
           "binance": "Binance", "sifting": "SiftingIO", "tiingo": "Tiingo",
-          "alpaca": "Alpaca", "twelvedata": "Twelve Data", "google": "Google"}
+          "alpaca": "Alpaca_IEX", "twelvedata": "Twelve Data", "google": "Google"}
 
 
 def recount_days(asset: Asset) -> float:
@@ -255,7 +276,8 @@ def sources_for(asset: Asset) -> "list[Source]":
     """Every source of the instrument's class that carries it, except its own
     provider; empty for a class with none (the LME's metals)."""
     group = SOURCES.get(_CLASS.get(asset.session_template, asset.session_template), ())
-    return [s for s in group if s.name != asset.fetched_from and s.symbol(asset)]
+    return [s for s in group if s.name != asset.fetched_from and s.symbol(asset)
+            and all(os.environ.get(k, "").strip() for k in s.keys)]
 
 
 def fetch_verifier(name: str, symbol: str, interval: str, days: float,
@@ -263,8 +285,14 @@ def fetch_verifier(name: str, symbol: str, interval: str, days: float,
     """The second source's bars folded onto the store's hourly grid."""
     from datetime import timedelta
 
-    from price_monitor import coinbase, kraken, marketwatch, sina, yahoo
+    from price_monitor import alpaca, coinbase, kraken, marketwatch, sina, yahoo
 
+    if name == "alpaca_sip":
+        # The free plan refuses an end less than fifteen minutes back.
+        end = now - timedelta(minutes=16)
+        auth = alpaca.headers(*(os.environ.get(k, "").strip() for k in ALPACA_KEYS))
+        return bars.to_hourly(bars.candles_to_frame(alpaca.fetch_history(
+            symbol, end - timedelta(days=max(days, 1.0)), end, auth, session, feed="sip")))
     if name in ("coinbase", "kraken"):
         # Only hours that have ended: the open one is still moving.
         end = now.replace(minute=0, second=0, microsecond=0)
@@ -667,8 +695,11 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
         # Friday's close.
         days = (now_ts - min(c["prev_hour"] for c in found)) / 86400 + 1
         # Every source is asked, or none this run: a source not asked would
-        # count as an outage. One that is stopped, or fails, is one (None).
-        sources = sources_for(asset)
+        # count as an outage. One that is stopped, or fails, is one (None). A
+        # source whose delay keeps it from serving any of the moves whole is
+        # not asked, and joins the next count.
+        sources = [src for src in sources_for(asset)
+                   if any(src.serves(c, now_ts) for c in found)]
         if requests_left < sum(src.name not in blocked for src in sources):
             continue
         asked: "list[tuple[str, pd.DataFrame | None]]" = []
@@ -701,9 +732,11 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
         for c in found:
             try:
                 # A source across its own change of contract has nothing to
-                # say about the move: an outage for it.
-                usable = [(name, None if crosses(c, changed.get(name, [])) else v)
-                          for name, v in asked]
+                # say about the move: an outage for it. One that cannot serve
+                # the move whole yet is no voter on it this time.
+                usable = [(src.name, None if v is None or crosses(c, changed.get(src.name, []))
+                           else v)
+                          for src, (_, v) in zip(sources, asked) if src.serves(c, now_ts)]
                 verdict, stored, names, moves, seen = judge_all(c, usable)
             except Exception as exc:
                 # One instrument's surprise costs that reading, not the pass.

@@ -233,12 +233,12 @@ def test_a_push_not_seen_by_a_second_source_stays_marked_silently(monkeypatch, c
 def test_a_mark_shows_every_sources_move_and_an_outage_as_such(monkeypatch, channel, week):
     push = ev(at(0, 10), "high")
     run(monkeypatch, channel, [push], run_at(0, 11), week)
-    _unseen(at(0, 10), verifier="yahoo,sina,marketwatch,alpaca", seen="sina",
+    _unseen(at(0, 10), verifier="yahoo,sina,marketwatch,alpaca_sip", seen="sina",
             moves=",0.015,0.000200,0.000100")
     run(monkeypatch, channel, [BYSTANDER], run_at(0, 12), week)
     assert channel.pushes()[0].endswith(
         "\n❌ Twelve Data(+1.82%), Yahoo(outage), Sina(+1.51%), MarketWatch(+0.02%), "
-        "Alpaca(+0.01%)")
+        "Alpaca_SIP(+0.01%)")
 
 
 def test_a_row_not_seen_leaves_the_note_and_its_ping_line_is_marked(monkeypatch, channel, week):

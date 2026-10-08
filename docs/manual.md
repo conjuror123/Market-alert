@@ -202,7 +202,7 @@ the channel gives it; a source added there is asked from the next run.
 | class | asked of |
 |---|---|
 | currency pairs and the real (17, SiftingIO) | Yahoo hourly FX (729 days back) and MarketWatch (`price_monitor/marketwatch.py`, 9 days back, every hour) |
-| funds (133) | Yahoo 30-minute bars folded to the hour (59 days back), Sina 30-minute US bars (77 days back) and MarketWatch hourly (`FUND/US/<exchange>/<ticker>`, 9 days back): two for a fund Yahoo or Sina serves, all three for the rest |
+| funds (133) | Yahoo 30-minute bars folded to the hour (59 days back), Sina 30-minute US bars (77 days back), MarketWatch hourly (`FUND/US/<exchange>/<ticker>`, 9 days back) - two of these for a fund Yahoo or Sina serves, all three for the rest - and Alpaca's consolidated tape (`Alpaca_SIP`, from 2016, fifteen minutes behind), for every fund: the 30 the store has from Alpaca's IEX feed (`Alpaca_IEX`, one exchange) too |
 | coffee, cocoa, cotton (Yahoo) | Sina global futures, hourly (79 days back: coffee and cocoa from 2026-05-12, cotton from 07-20) |
 | live cattle (Yahoo) | MarketWatch continuous contract, hourly (9 days back) |
 | coins (16, Binance) | Coinbase's dollar pairs, hourly (`price_monitor/coinbase.py`, a year back) and Kraken's (`kraken.py`, 29 days back): a wick on Binance alone is real there and not the market's |
@@ -210,6 +210,12 @@ the channel gives it; a source added there is asked from the next run.
 
 **Rule.** Never Tiingo, SiftingIO, Twelve Data or Google: the live run needs their
 allowances, and Google is one session deep. A test pins it.
+
+A source that runs behind the clock (`delay`: Alpaca's tape, fifteen minutes on the free
+plan) is not asked about a move until it serves the move's hour whole; it is no voter on
+it until then, not an outage, and joins the next count - a fund's found-hour vote is
+taken without it, its session-end votes with it. A source that needs keys (`keys`) is no
+voter where they are not set.
 
 **Two vendors printing the same bars agree, and both count.** A fund's or a future's
 vendors read one exchange tape, so their bars are often identical. A source is never asked

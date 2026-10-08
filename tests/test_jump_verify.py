@@ -2,7 +2,7 @@
 scored, and its message says so. The verdicts are pinned on real cases,
 checked by hand against Yahoo.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pandas as pd
@@ -82,6 +82,32 @@ def test_every_instrument_is_asked_of_every_source_of_its_class_but_its_own(bask
     for asset in basket.values():
         if asset.session_template == "lme":
             assert verify.sources_for(asset) == []
+
+
+def test_alpacas_tape_votes_on_every_fund_with_its_keys_and_is_no_voter_without(
+        monkeypatch, basket):
+    # Its consolidated tape is every exchange's trades: another source than
+    # the IEX feed the store has 30 funds from, so it votes on those too.
+    fund = next(a for a in basket.values() if a.fetched_from == "alpaca")
+    assert "alpaca_sip" not in [n for n, _, _ in _asked(fund)]       # no keys here
+    monkeypatch.setenv("ALPACA_KEY_ID", "k")
+    monkeypatch.setenv("ALPACA_SECRET_KEY", "s")
+    for asset in basket.values():
+        if asset.session_template == "us_equity":
+            assert ("alpaca_sip", asset.ticker, "30min") in _asked(asset)
+    assert (verify.LABELS["alpaca"], verify.LABELS["alpaca_sip"]) == ("Alpaca_IEX", "Alpaca_SIP")
+
+
+def test_alpacas_tape_is_asked_fifteen_minutes_back(monkeypatch):
+    from price_monitor import alpaca
+    asked = []
+    monkeypatch.setattr(alpaca, "fetch_history",
+                        lambda symbol, start, end, auth, session=None, feed="sip":
+                        asked.append((symbol, end, feed)) or [])
+    now = datetime(2026, 9, 29, 20, 5, tzinfo=timezone.utc)
+    verify.fetch_verifier("alpaca_sip", "XLK", "30min", 2, None, now)
+    assert asked[0][0] == "XLK" and asked[0][2] == "sip"
+    assert asked[0][1] <= now - timedelta(minutes=15)
 
 
 def test_no_source_spends_an_allowance_the_live_run_needs():
@@ -429,6 +455,37 @@ def test_each_market_ends_its_session_at_its_own_close():
     # Coins and pairs never close: 00:00 UTC.
     for template in ("crypto_24_7", "fx_continuous"):
         assert sessions.last_close(template, t("2026-10-07 13:35")) == t("2026-10-07 00:00")
+
+
+def test_a_late_source_is_not_asked_until_it_serves_the_move_whole(
+        monkeypatch, tmp_path, basket):
+    # Alpaca's tape runs fifteen minutes behind: at 14:05 it cannot serve the
+    # 13:00 hour whole, so it is no voter on it then - not an outage - and
+    # joins the vote at the session's end.
+    from datetime import date
+    monkeypatch.setenv("ALPACA_KEY_ID", "k")
+    monkeypatch.setenv("ALPACA_SECRET_KEY", "s")
+    asset, table, frame = _fund_store(basket, gap_day=date(2026, 9, 29), first_hour=0.02)
+    bars.write(bars.store_path(str(tmp_path / "bars"), asset.file_stem), frame)
+    asked = []
+
+    def fetch(name, symbol, interval, days, session, now):
+        asked.append(name)
+        return frame.drop(columns="n_src")
+
+    monkeypatch.setattr(verify, "fetch_verifier", fetch)
+    path = str(tmp_path / "verified.csv")
+    key = (asset.asset_id, ts("2026-09-29 13:00"), "close")
+    verify.verify([asset], str(tmp_path / "bars"), table,
+                  now=datetime(2026, 9, 29, 14, 5, tzinfo=timezone.utc), path=path)
+    assert "alpaca_sip" not in asked
+    assert verify.load(path)[key]["verifier"] == "yahoo,sina,marketwatch"
+    asked.clear()
+    verify.verify([asset], str(tmp_path / "bars"), table,
+                  now=datetime(2026, 9, 29, 20, 5, tzinfo=timezone.utc), path=path)
+    assert "alpaca_sip" in asked
+    row = verify.load(path)[key]
+    assert (row["verdict"], row["verifier"]) == (verify.REAL, "yahoo,sina,marketwatch,alpaca_sip")
 
 
 def test_a_move_a_source_prints_an_hour_late_counts_against_until_it_does():

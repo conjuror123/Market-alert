@@ -303,6 +303,15 @@ allowed, a missing hour bridged. Which feed was wrong is not asked: sources lag,
 hours (no USD/KRW bar on Seoul's martial-law night, a real +2.5%) and print their own bad
 ticks, and every culprit rule breaks a real case.
 
+**Alpaca's consolidated tape votes on every fund, the ones Alpaca serves included** (the
+user's choice, 2026-10-08). The store has 30 funds from Alpaca's IEX feed, one exchange's
+trades; the tape is every exchange's, and shows where the market traded while IEX's thin
+bars can stray - IEX's typical error is what it catches. Named apart, `Alpaca_IEX` and
+`Alpaca_SIP`. The free plan serves the tape fifteen minutes behind, so in a move's hour it
+cannot serve the hour whole: a late source is not asked until it can, and votes from the
+session's end on - neither a yes nor an outage before. Over the 30 days to 2026-10-08,
+simulated: 9.2 requests a run against 7.7, the tape's 704 over 460 runs, at most 67 in one.
+
 **A source sees a move at half its size, and no source is shifted** (measured 2026-10-08,
 the user's choice). 3,444 moves of 4σ or more, each put to the free sources at their full
 reach (Yahoo's pairs two years, Coinbase one, the funds' sources 9 to 77 days): of 3,704
