@@ -698,9 +698,11 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
 
     The order runs ACROSS the parts, not within each. A long note is cut into
     several messages, and sorting each part on its own would restart the clock
-    at every cut - so the rows are ordered once and the cut falls wherever the
-    character budget runs out. A part that opens inside a block says so with
-    the block's name-line, "continued".
+    at every cut - so the rows are ordered once. A cut keeps a block whole (the
+    user's, 2026-10-08): a block that does not fit what is left of a message
+    opens the next one. Only a block longer than any one message is cut where
+    the budget runs out, and the part it goes on in says so with the block's
+    name-line, "continued".
 
     The header states the period the note speaks for, from the evening of one
     week's last funds close to the next's.
@@ -757,18 +759,29 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
         blocks.setdefault(_block(e), []).append(e)
     messages, current = [], header
     for block in sorted(blocks, key=lambda b: (BLOCKS.index(b) if b in BLOCKS else len(BLOCKS), b)):
-        members = blocks[block]
-        for i, event in enumerate(members):
-            text = row(event)
-            # A block's name-line goes with its first row, never alone at the
-            # end of a part.
-            opening = f"{block_line(block)}\n\n{text}" if i == 0 else text
-            candidate = f"{current}\n\n{opening}"
-            if len(candidate) > _MESSAGE_LIMIT and current != header:
+        texts = [row(e) for e in blocks[block]]
+        whole = "\n\n".join([block_line(block)] + texts)
+        if len(f"{current}\n\n{whole}") <= _MESSAGE_LIMIT:
+            current = f"{current}\n\n{whole}"
+            continue
+        # Whole in the next message. One longer than any message starts one
+        # too - or goes on under the header, which never stands alone.
+        if len(whole) <= _MESSAGE_LIMIT:
+            messages.append(current)
+            current = whole
+            continue
+        opening = f"{block_line(block)}\n\n{texts[0]}"
+        if current == header:
+            current = f"{header}\n\n{opening}"
+        else:
+            messages.append(current)
+            current = opening
+        for text in texts[1:]:
+            if len(f"{current}\n\n{text}") > _MESSAGE_LIMIT:
                 messages.append(current)
-                current = opening if i == 0 else f"{block_line(block, continued=True)}\n\n{text}"
+                current = f"{block_line(block, continued=True)}\n\n{text}"
             else:
-                current = candidate
+                current = f"{current}\n\n{text}"
     messages.append(current)
 
     if len(messages) > 1:

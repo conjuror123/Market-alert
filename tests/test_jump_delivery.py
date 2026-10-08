@@ -376,10 +376,25 @@ def test_the_note_stands_in_blocks_in_the_baskets_order_each_under_its_name_line
     assert "CREDIT" not in text                     # a block with nothing is left out
 
 
+def test_a_block_that_does_not_fit_what_is_left_opens_the_next_message_whole():
+    # Two blocks of forty rows: each fits a message, both do not. The second
+    # goes whole into the next message rather than being cut.
+    rows = [event(event_id=f"r{i}", channel="digest", tier="noticeable", block="rates",
+                  asset_id="twelvedata:TLT", hour_utc=SLOT + i * HOUR) for i in range(40)]
+    rows += [event(event_id=f"f{i}", channel="digest", tier="noticeable", block="FX",
+                   asset_id="twelvedata:EUR/USD", hour_utc=SLOT + i * HOUR) for i in range(40)]
+    texts = md.format_digest(rows, LABELS, (SLOT, SLOT + 200 * HOUR), None, NOW)
+    assert len(texts) == 2
+    assert "RATES" in texts[0] and "FX" not in texts[0]
+    assert texts[1].startswith("━━━ 💱 <b>FX</b> ━━━")
+    assert not any("continued" in t for t in texts)
+
+
 def test_a_part_that_opens_inside_a_block_names_it_continued():
+    # A block longer than any one message is the only one cut.
     rows = [event(event_id=f"d{i}", channel="digest", tier="noticeable",
                   hour_utc=SLOT + i * HOUR, asset_id="twelvedata:GLD")
-            for i in range(60)]
+            for i in range(80)]
     texts = md.format_digest(rows, LABELS, (SLOT, SLOT + 200 * HOUR), None, NOW)
     assert len(texts) > 1, "the fixture must be long enough to split"
     assert "━━━ 🥇 <b>PRECIOUS METALS</b> ━━━" in texts[0]

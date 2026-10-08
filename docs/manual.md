@@ -461,7 +461,9 @@ Added to digest👆🏻👆🏻
 **The note stands in blocks**, in the basket's order (equity, rates, credit, energy,
 precious metals, industrial metals, agriculture, FX, crypto), each under its name-line and
 left out when it has none; inside a block, time order, the rarer first within an hour. A
-part that opens inside a block repeats its name-line, `continued`:
+note longer than a message is cut between blocks: a block that does not fit what is left
+of a message opens the next one whole. Only a block longer than any one message is cut,
+and the message it goes on in opens with its name-line, `continued`:
 
 ```
 ━━━ 🏛 RATES ━━━

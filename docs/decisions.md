@@ -101,7 +101,11 @@ the basket's blocks, in a fixed order, each under a name-line with an icon (`━
 ━━━`), so what moved together is read together: the FOMC hour of
 2026-09-16 18:00 had rates, credit, gold and FX rows in one run, which by time alone read
 as one list. Time order stays inside a block, since a note is a record. The icons avoid 📈
-and 📉, which say a row's direction.
+and 📉, which say a row's direction. A long note is cut between blocks, keeping each whole
+in one message; only a block longer than any message is cut, and says "continued". Over
+541 weeks since 2016 (the detector's output of 2026-10-08), 495 notes fit one message, 10
+cut a block, and once (the week from 2022-01-21) the header stood alone, its first block
+fitting a message but not beside it.
 
 **Rarer rings again inside the 24 hours; milder never rings.** A rarer event is news; a
 milder one the reader has already heard. After the 24 hours a fix corrects silently, and an
