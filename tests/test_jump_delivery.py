@@ -370,7 +370,7 @@ def test_the_note_stands_in_blocks_in_the_baskets_order_each_under_its_name_line
                   asset_id="twelvedata:IEF", hour_utc=SLOT + 2 * HOUR)]
     labels = {"twelvedata:EUR/USD": "Euro", "twelvedata:TLT": "Long", "twelvedata:IEF": "Mid"}
     text = md.format_digest(rows, labels, (SLOT, SLOT + 200 * HOUR), None, NOW)[0]
-    rates, fx = "━━━ 🏛 <b>RATES</b> · 2 ━━━", "━━━ 💱 <b>FX</b> · 1 ━━━"
+    rates, fx = "━━━ 🏛 <b>RATES</b> ━━━", "━━━ 💱 <b>FX</b> ━━━"
     assert text.index(rates) < text.index("Mid") < text.index("Long") < text.index(fx) \
         < text.index("Euro")
     assert "CREDIT" not in text                     # a block with nothing is left out
@@ -382,7 +382,7 @@ def test_a_part_that_opens_inside_a_block_names_it_continued():
             for i in range(60)]
     texts = md.format_digest(rows, LABELS, (SLOT, SLOT + 200 * HOUR), None, NOW)
     assert len(texts) > 1, "the fixture must be long enough to split"
-    assert "━━━ 🥇 <b>PRECIOUS METALS</b> · 60 ━━━" in texts[0]
+    assert "━━━ 🥇 <b>PRECIOUS METALS</b> ━━━" in texts[0]
     for part in texts[1:]:
         assert part.startswith("━━━ 🥇 <b>PRECIOUS METALS</b> · continued ━━━")
     for part in texts[:-1]:

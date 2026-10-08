@@ -77,11 +77,10 @@ BLOCK_LINES = {"equity": ("🏢", "EQUITY"), "rates": ("🏛", "RATES"),
                "crypto": ("🪙", "CRYPTO")}
 
 
-def block_line(block: str, count: "int | None" = None) -> str:
-    """A block's name-line in the note: its count, or "continued" at the top
-    of a later part."""
+def block_line(block: str, continued: bool = False) -> str:
+    """A block's name-line in the note; "continued" at the top of a later part."""
     icon, name = BLOCK_LINES.get(block, ("▪️", str(block).upper()))
-    return f"━━━ {icon} <b>{name}</b> · {count if count is not None else 'continued'} ━━━"
+    return f"━━━ {icon} <b>{name}</b>{' · continued' if continued else ''} ━━━"
 
 
 # Marks the timestamp footer. The hour is the last thing on the line rather
@@ -763,11 +762,11 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
             text = row(event)
             # A block's name-line goes with its first row, never alone at the
             # end of a part.
-            opening = f"{block_line(block, len(members))}\n\n{text}" if i == 0 else text
+            opening = f"{block_line(block)}\n\n{text}" if i == 0 else text
             candidate = f"{current}\n\n{opening}"
             if len(candidate) > _MESSAGE_LIMIT and current != header:
                 messages.append(current)
-                current = opening if i == 0 else f"{block_line(block)}\n\n{text}"
+                current = opening if i == 0 else f"{block_line(block, continued=True)}\n\n{text}"
             else:
                 current = candidate
     messages.append(current)

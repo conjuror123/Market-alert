@@ -464,7 +464,7 @@ left out when it has none; inside a block, time order, the rarer first within an
 part that opens inside a block repeats its name-line, `continued`:
 
 ```
-━━━ 🏛 RATES · 4 ━━━
+━━━ 🏛 RATES ━━━
 
 ⬜ VGIT · US Treasuries 3-10y (Vanguard) -0.41% · 7.6×σ
 📉 Rarest hour in 20 months (then 10.1×σ)
