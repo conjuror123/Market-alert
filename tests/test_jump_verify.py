@@ -347,7 +347,8 @@ def _inr_store(tmp_path, basket, bad_share=0.995):
     return asset, hours, bad, frame, market
 
 
-def test_a_pass_judges_every_reading_in_its_day_again_each_run(monkeypatch, tmp_path, basket):
+def test_a_reading_is_voted_when_found_and_loses_its_vote_when_it_heals(
+        monkeypatch, tmp_path, basket):
     asset, hours, bad, frame, market = _inr_store(tmp_path, basket)
     asked = []
 
@@ -364,9 +365,9 @@ def test_a_pass_judges_every_reading_in_its_day_again_each_run(monkeypatch, tmp_
     unseen = {(asset.asset_id, int(hours[bad]), "close"),
               (asset.asset_id, int(hours[bad + 1]), "close")}
     assert set(verify.not_real(path)) == unseen
-    # Asked again next run - and the same answer.
+    # Not asked again before its session ends: the vote stands.
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
-    assert len(asked) == 4 and set(verify.not_real(path)) == unseen
+    assert len(asked) == 2 and set(verify.not_real(path)) == unseen
     # The bar heals into no far move (a run that lost its fetch had judged the
     # :05 snapshot): its verdict no longer applies, and it is scored.
     frame.loc[bad, "close"] = market.loc[bad, "close"]
@@ -378,10 +379,12 @@ def test_a_pass_judges_every_reading_in_its_day_again_each_run(monkeypatch, tmp_
     assert verify.not_real(path) == {}
 
 
-def test_a_vote_is_counted_again_once_a_day_while_its_closest_source_serves_it(
+def test_a_vote_is_taken_again_at_each_session_end_while_its_closest_source_serves_it(
         monkeypatch, tmp_path, basket):
-    # USD/INR's closest source is MarketWatch, nine days deep: the bad print
-    # is counted again once a day until then, and its vote stands after.
+    # USD/INR's bad print, a Wednesday 22:00. A pair's session ends at 00:00
+    # UTC: voted when found at 23:05, again at 00:05 - an hour later, but
+    # past the end - and not again that day. Its closest source is
+    # MarketWatch, nine days deep: past that, the vote stands.
     asset, hours, bad, frame, market = _inr_store(tmp_path, basket)
     asked = []
 
@@ -392,24 +395,40 @@ def test_a_vote_is_counted_again_once_a_day_while_its_closest_source_serves_it(
     monkeypatch.setattr(verify, "fetch_verifier", fetch)
     path = str(tmp_path / "verified.csv")
     key = (asset.asset_id, int(hours[bad]), "close")
+    at = lambda after: int(hours[bad]) + after * HOUR + 300
 
-    def run(after_hours):
+    def run(after):
         asked.clear()
-        now = datetime.fromtimestamp(int(hours[bad]) + after_hours * HOUR + 300, timezone.utc)
-        verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
+        verify.verify([asset], str(tmp_path / "bars"), None,
+                      now=datetime.fromtimestamp(at(after), timezone.utc), path=path)
         return list(asked)
 
     assert verify.recount_days(asset) == 9
-    assert run(72) == ["yahoo", "marketwatch"]               # three days on: counted
+    assert run(1) == ["yahoo", "marketwatch"]                # found, Wednesday 23:05
     assert verify.load(path)[key]["verdict"] == verify.NOT_REAL
-    assert run(73) == []                                     # an hour later: not again
-    # ... nor its provider (jump.backfill): the same hours come due together.
-    at = lambda after: int(hours[bad]) + after * HOUR + 300
-    assert verify.recount_hours(asset, verify.load(path), at(73)) == []
-    assert int(hours[bad]) in verify.recount_hours(asset, verify.load(path), at(96))
-    assert run(96) == ["yahoo", "marketwatch"]               # a day later: again
+    assert verify.recount_hours(asset, verify.load(path), at(2)) != []
+    assert run(2) == ["yahoo", "marketwatch"]                # Thursday 00:05: the end
+    assert verify.recount_hours(asset, verify.load(path), at(3)) == []
+    assert run(3) == [] and run(20) == []                    # not again that day
+    assert run(26) == ["yahoo", "marketwatch"]               # Friday 00:05
     assert run(24 * 10) == []                                # past nine days: never
     assert verify.load(path)[key]["verdict"] == verify.NOT_REAL
+
+
+def test_each_market_ends_its_session_at_its_own_close():
+    from jump import sessions
+    t = ts
+    # A fund: the NYSE close, 16:00 New York; before it, yesterday's.
+    assert sessions.last_close("us_equity", t("2026-10-07 21:00")) == t("2026-10-07 20:00")
+    assert sessions.last_close("us_equity", t("2026-10-07 19:00")) == t("2026-10-06 20:00")
+    # Live cattle: 13:05 Chicago; over a weekend, Friday's.
+    assert sessions.last_close("cme_cattle", t("2026-10-07 18:30")) == t("2026-10-07 18:05")
+    assert sessions.last_close("cme_cattle", t("2026-10-11 12:00")) == t("2026-10-09 18:05")
+    # Cotton: 14:20 New York.
+    assert sessions.last_close("ice_cotton", t("2026-10-07 19:00")) == t("2026-10-07 18:20")
+    # Coins and pairs never close: 00:00 UTC.
+    for template in ("crypto_24_7", "fx_continuous"):
+        assert sessions.last_close(template, t("2026-10-07 13:35")) == t("2026-10-07 00:00")
 
 
 def test_a_move_a_source_prints_an_hour_late_counts_against_until_it_does():

@@ -267,14 +267,15 @@ reaches.
 out of every word and every yardstick; the bar stays in the store, and in the price path
 the close check reads. A message already sent is marked, not removed (section 8).
 
-**Counted again while the vote is whole** (`verify.due`, `recount_days`). A reading is
-counted from the bars as they then are on every run of its first 24 hours, then once a
-day, until the closest-reaching of its sources no longer serves its hour: 9 days for
-the funds, pairs and cattle (MarketWatch), 29 for the coins (Kraken), 79 for the softs
-(Sina). After that the further sources would vote alone, and the vote stands. A source
+**Voted when found, then at each session end** (`verify.due`, `sessions.last_close`,
+`recount_days`). A reading is voted on the run that finds it, then again from the bars as
+they then are on the first run after each end of its market's session - the NYSE close
+for funds, a daily-session market's own close, 00:00 UTC for coins and pairs - until the
+closest-reaching of its sources no longer serves its hour: 9 days for the funds, pairs
+and cattle (MarketWatch), 29 for the coins (Kraken), 79 for the softs (Sina). After that the further sources would vote alone, and the vote stands. A source
 that corrects its bars turns the vote; a bar that heals into no far move loses its vote.
-The store's own provider is re-read too: on a run with a vote due, the hourly fetch reaches
-back to its hour in the same request, and in an open month the fresher copy wins, for
+The store's own provider is re-read first: on a run with a vote due, the hourly fetch
+reaches back to its hour in the same request, and in an open month the fresher copy wins, for
 every hour it brings back (section 4). Over 29 days Binance revised no bar (0 of 10,672
 hours); over 9 days Yahoo revised 472 of 1,290 fund hours, 2 of them by more than 1 bp
 (2026-10-08). Tiingo, SiftingIO, Alpaca and Twelve Data were not probed: their allowances
@@ -285,11 +286,11 @@ from before the vote reads in its words: confirmed as real, unconfirmed as not r
 the replay counts it again, and unknown - no other source had bars - counted as outages
 (a tie with one source named, not real with two).
 
-Instruments with a reading not yet counted are asked first; at most 40 requests a run.
-Over the 30 days to 2026-10-08, simulated hourly: the first days' asks a median of 16
-requests a run (95th percentile 95), the daily recount a mean of 6.4 more, in bursts the
-day after a busy hour (up to 213, spread over the next runs by the cap). A request takes
-0.1 to 3 s (Sina's longest). `python -m jump.verify --history` counts everything within
+Instruments with a reading not yet voted are asked first; at most 40 requests a run, and
+every source of an instrument or none. Over the 30 days to 2026-10-08, simulated hourly:
+a mean of 7.7 requests a run (median 0, 95th percentile 56), in bursts at the session ends
+(up to 227 at 00:05 UTC, when the coins and pairs come due together, spread over the next
+runs by the cap; 37 of 460 runs over it). A request takes 0.1 to 3 s (Sina's longest). `python -m jump.verify --history` counts everything within
 each source's reach.
 
 **The history, judged once** (2026-10-07, by a tool since retired; its verdicts stay in
@@ -523,8 +524,8 @@ PAT and the branch as `ref`). GitHub's `schedule:` is not used: it fires unrelia
 
 **Cost.** Fetch ~15 s, second source ~11 s, metrics ~11 s warm (~30 s cold) and events
 ~9 s (measured on 4 cores, 2026-10-04), whole job ~2 min, timeout 20 min. The vote's daily
-recount adds about 6 requests a run on average, at most 40 a run in all (section 5): not
-yet measured live.
+recount at session ends brings it to about 8 requests a run on average, at most 40 a run
+(section 5): not yet measured live.
 
 **Quotas.**
 

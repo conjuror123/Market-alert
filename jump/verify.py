@@ -58,8 +58,11 @@ UNKNOWN - an outage - with no bar after the move yet, or silent for
 STALE_HOURS around it.
 
 THE RECORD (VERIFIED_PATH) is what the detector and delivery read. A reading
-is counted again from the bars as they now are, on every run in its first
-PENDING_HOURS and then once a day (due), until the closest-reaching of its
+is voted on the run that finds it, then again from the bars as they then are
+on the first run after each end of its market's session (due,
+sessions.last_close: the NYSE close for funds, a daily-session market's own
+close, 00:00 UTC for coins and pairs) - its own provider re-read first
+(recount_hours, jump.backfill) - until the closest-reaching of its
 sources no longer serves its hour (recount_days: nine days for the funds,
 pairs and cattle, 29 for the coins, 79 for the softs); after that the further
 ones would vote alone, and the vote stands. A source that corrects its bars
@@ -111,7 +114,6 @@ PENDING_HOURS = 24
 STALE_HOURS = 12
 TAIL_DAYS = 200                   # bars read before the window: the detector's half-year and more
 MAX_REQUESTS = 40
-RECOUNT_HOURS = 24                # after its first day, a reading is counted once a day
 KEEP_DAYS = 90                    # longer than any recount (the softs', 79 days)
 
 # One source's answer about a move (judge).
@@ -228,11 +230,11 @@ def recount_days(asset: Asset) -> float:
     return min(src.days for src in sources_for(asset))
 
 
-def due(row: "dict | None", hour: int, now: int) -> bool:
-    """Whether a reading inside its recount is counted this run: every run in
-    its first day, then once a day."""
-    return (row is None or hour >= now - PENDING_HOURS * HOUR
-            or int(row.get("checked_utc") or 0) <= now - RECOUNT_HOURS * HOUR)
+def due(row: "dict | None", closed: "int | None") -> bool:
+    """Whether a reading inside its recount is counted this run: on the run
+    that finds it, then on the first run after each end of its market's
+    session (`closed`, sessions.last_close)."""
+    return row is None or (closed is not None and int(row.get("checked_utc") or 0) < closed)
 
 
 def recount_hours(asset: Asset, record: dict, now: int) -> "list[int]":
@@ -241,9 +243,12 @@ def recount_hours(asset: Asset, record: dict, now: int) -> "list[int]":
     a bar it has corrected since is what the sources vote on."""
     if not sources_for(asset):
         return []
-    since = now - recount_days(asset) * 86400
+    from jump import sessions
+
+    since, closed = now - recount_days(asset) * 86400, sessions.last_close(
+        asset.session_template, now)
     return sorted({h for (a, h, _), row in record.items()
-                   if a == asset.asset_id and h >= since and due(row, h, now)})
+                   if a == asset.asset_id and h >= since and due(row, closed)})
 
 
 def sources_for(asset: Asset) -> "list[Source]":
@@ -606,11 +611,11 @@ def _row(asset: Asset, c: dict, verdict: str, stored: float, names: list, moves:
 def verify(instruments, bars_dir: str, table, session=None, now: "datetime | None" = None,
            path: "str | None" = None, blocked: "set[str] | None" = None,
            history: bool = False) -> dict:
-    """One pass: every reading still inside its last PENDING_HOURS is judged
-    again from the bars as they now are - or, with `history`, everything
-    within the second source's reach. Returns how many of each verdict."""
+    """One pass: every reading due a vote (due) - or, with `history`,
+    everything within the sources' reach - voted from the bars as they now
+    are. Returns how many of each result."""
     from price_monitor import yahoo
-    from jump import corporate_actions, jumps
+    from jump import corporate_actions, jumps, sessions
     from jump.basket import load_basket
 
     now_dt = now or datetime.now(timezone.utc)
@@ -641,8 +646,9 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
             if key not in current:
                 del record[key]
         if not history:
+            closed = sessions.last_close(asset.session_template, now_ts)
             found = [c for c in found
-                     if due(record.get((asset.asset_id, c["hour"], c["check"])), c["hour"], now_ts)]
+                     if due(record.get((asset.asset_id, c["hour"], c["check"])), closed)]
         if found:
             fresh = any((asset.asset_id, c["hour"], c["check"]) not in record for c in found)
             todo.append((not fresh, asset, found, frame))

@@ -259,21 +259,26 @@ not seen and left out; it is now uncertain and scored, though below the bottom w
 the 232 not seen on record, 225 had one other source; they stay not real until the replay
 counts them again with every source that reaches them.
 
-**A vote is counted again once a day while its closest source still reaches the hour.**
-Sources correct their bars, and the vote of a move's first hour can be wrong the next
-morning. Past the closest source's reach the further ones would vote alone - Yahoo's two
-years against MarketWatch's nine days - so the vote stands from then: 9 days for funds,
-pairs and cattle, 29 for coins, 79 for the softs. The record keeps a vote 90 days, longer
-than any recount, so an old one is not dropped and counted afresh every run.
+**A vote is taken when the move is found, then at each end of its market's session,
+while its closest source still reaches the hour** (the user's schedule, 2026-10-08).
+Sources and the store's own provider correct their bars, and a session's end is when
+the day's are final: the NYSE close for funds, each daily-session market's own close,
+00:00 UTC for coins and pairs, which never close. Past the closest source's reach the
+further ones would vote alone - Yahoo's two years against MarketWatch's nine days - so
+the vote stands from then: 9 days for funds, pairs and cattle, 29 for coins, 79 for the
+softs. The record keeps a vote 90 days, longer than any recount. Against voting every run
+of a move's first day, it asks a mean of 7.7 requests a run instead of 34.7 (the 30 days
+to 2026-10-08, simulated).
 
 **A provider's corrections come in through its ordinary request.** On a run with a vote
-due, the hourly fetch reaches back to that vote's hour, and the store takes every bar it
-brings back as it takes the last three hours': in an open month the fresher copy wins.
-A separate request per vote would spend Tiingo's and SiftingIO's allowances, which the
-live run needs; one longer answer costs nothing more. Taking only the voted hours would
-need a rule per provider: Sina's whole ~78 days and Yahoo's last day are already taken
-on every run. Measured 2026-10-08: Binance revised no bar in 29 days (0 of 10,672 hours),
-Yahoo 472 of 1,290 fund hours in 9 days, 2 by more than 1 bp.
+due - the first after a session's end - the hourly fetch reaches back to that vote's hour,
+and the store takes every bar it brings back as it takes the last three hours': in an open
+month the fresher copy wins. A separate request per vote would spend Tiingo's and
+SiftingIO's allowances, which the live run needs; one longer answer costs nothing more.
+Taking only the voted hours would need a rule per provider: Sina's whole ~78 days and
+Yahoo's last day are already taken on every run. Measured 2026-10-08: Binance revised no
+bar in 29 days (0 of 10,672 hours), Yahoo 472 of 1,290 fund hours in 9 days, 2 by more
+than 1 bp.
 
 **The vote is said as each source's own move** (the user's wording, 2026-10-08): `❌
 Binance(+2.03%), Coinbase(-0.10%), Kraken(-0.10%)` for a move not real, `⚠️ Yahoo(-2.50%),
