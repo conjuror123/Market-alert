@@ -242,9 +242,10 @@ said, and every hour of an outage would read as a broken bot.
 shows on other feeds; a bad print does not. "Confirmed if any feed saw it" let one other
 feed keep a bad print; "every feed must agree" would let one feed's own bad tick take a
 real move out. A majority of every feed that has the hour weighs them equally. Over the
-30 days to 2026-10-08, of 444 readings at 4σ or more: 436 real, 3 uncertain, 1 not real
-(GIGB 09-30, −0.32% against Sina's and MarketWatch's +0.09%), 4 single source; the
-detector's flagged readings over all history unchanged (17,088), as were their words.
+30 days to 2026-10-08, of the 242 readings at 4σ or more inside their recount: 240 real,
+1 uncertain (LE=F's 10-01 open), 1 not real (GIGB 09-30, −0.32% against Sina's and
+MarketWatch's +0.09%); the detector's flagged readings over all history unchanged
+(17,088), as were their words.
 
 **A move not real is not scored, and a sent message is marked, not deleted.** Kept out of
 the yardstick, a bad print cannot inflate the next half-year's σ. Marked rather than
@@ -274,10 +275,23 @@ need a rule per provider: Sina's whole ~78 days and Yahoo's last day are already
 on every run. Measured 2026-10-08: Binance revised no bar in 29 days (0 of 10,672 hours),
 Yahoo 472 of 1,290 fund hours in 9 days, 2 by more than 1 bp.
 
-**The vote is said in a few words under the move.** `❌ not real: only Binance had it
-[1/3]`, `⚠️ uncertain: seen by Yahoo, Alpaca [2/4]`, `single source: only SiftingIO had
-data`, `single-source asset`; a real move says nothing. Who had it and how many voted is
-what a reader needs to weigh it.
+**The vote is said as each source's own move** (the user's wording, 2026-10-08): `❌
+Binance(+2.03%), Coinbase(-0.10%), Kraken(-0.10%)` for a move not real, `⚠️ Yahoo(-2.50%),
+Alpaca(-2.50%), Sina(outage), MarketWatch(-0.50%)` for a tie; a real move, or one no
+other source carries, says nothing. The numbers let a reader weigh it without a key.
+
+**An outage counts against the move** (the user's choice, 2026-10-08). A source with
+nothing to show about a move - down, no bars around it, or across its own change of
+contract - is a vote that did not see it. A bad print is not saved by the sources that
+could not see it; the cost is that a move is not real while most of its class's sources
+are down, until a count after they are back. Over the 30 days to 2026-10-08, inside each
+instrument's recount, no vote changed by it: no source was down in the bars cached.
+
+**A vote is taken with what the sources serve at the time.** No waiting for a source's
+next hour: one that has not shown the move yet counts against until the next count, at
+the session's end. Over the 30 days to 2026-10-08, the vote at the run that found each of
+the 250 moves inside their recount matched the vote on the whole bars: no real move would
+have been held back.
 
 **A source's answer is one question: did that feed move with it?** An hour of lag is
 allowed, a missing hour bridged. Which feed was wrong is not asked: sources lag, miss

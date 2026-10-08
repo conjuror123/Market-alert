@@ -220,34 +220,36 @@ offset is not a move.
 - **Saw it:** the source moved the same way at least half as far, from its closes up
   to an hour before the move to its closes up to an hour after. An hour it has no bar for
   is bridged by its nearest bars within 12 hours.
-- **Did not:** it did not, and its bar after the one-hour lag has ended.
-- **Pending:** that bar has not ended yet, or the source has no bar after the move yet.
-- **No vote:** the source is silent for 12 hours around the move. For the softs, also a
-  move whose span crosses Sina's own change of contract (`verify.switches`: a session
-  whose median offset to the store stepped by 50 bp or more), where Sina's move carries
-  the spread between two months.
+- **Did not:** it did not move with it, or has not yet - the vote is taken with what the
+  source serves at the time, and the next count looks again.
+- **Outage:** the source is down, has no bar after the move yet, or is silent for 12 hours
+  around it. For the softs, also a move whose span crosses Sina's own change of contract
+  (`verify.switches`: a session whose median offset to the store stepped by 50 bp or
+  more), where Sina's move carries the spread between two months.
 
 **The vote** (`combine`, `judge_all`). The store's provider is one vote that saw it;
-each other source that answered is one vote.
+each other source is one vote, and an outage is a vote against.
 
 | the votes | result | scored | under the move on the channel (section 8) |
 |---|---|---|---|
 | most saw it | real | yes | nothing |
-| a tie | uncertain | yes | `⚠️ uncertain: seen by Yahoo, Alpaca [2/4]` |
-| most did not | not real | no | `❌ not real: only Binance had it [1/3]` |
-| nobody else had data | single source | yes | `single source: only SiftingIO had data` |
-| no other source carries it (the LME) | — | yes | `single-source asset` |
+| a tie | uncertain | yes | `⚠️ Yahoo(-2.50%), Alpaca(-2.50%), Sina(outage), MarketWatch(-0.50%)` |
+| most did not | not real | no | `❌ Binance(+2.03%), Coinbase(-0.10%), Kraken(-0.10%)` |
+| no other source carries it (the LME) | — | yes | nothing |
 
-Pending while the sources still waiting for their next bar could change the result. A
-source with bars of its own around the move outweighs one bridging a gap: the bridging
-one does not vote (USD/INR at night: Yahoo's last bar is 10:00, MarketWatch has every
-hour). A failed source leaves the others to answer; a rate limit, or no answer to two
-requests in a row, stops that source for the run, and the health chat names it. With
-every other source down, a reading not yet counted is single source.
+The line names the store's provider first with the stored move, then every source with
+its own move over the same hours, or `(outage)`. A source with bars of its own around the
+move outweighs one bridging a gap: the bridging one is an outage (USD/INR at night:
+Yahoo's last bar is 10:00, MarketWatch has every hour). A rate limit, or no answer to two
+requests in a row, stops a source for the run, and the health chat names it. Every source
+of an instrument is asked or none that run: one not asked would count against.
+
+**Rule.** An outage counts against the move. With most of a class's other sources down at
+once, its far moves are not real - no alert - until a count after they are back, inside
+the recount window.
 
 **Rule.** With one other source, every disagreement is a tie: cattle, coffee, cocoa and
-cotton, and USD/INR's night hours when only MarketWatch has bars around them. Their bad
-prints are uncertain and stay scored until another source is found.
+cotton. Their bad prints are uncertain and stay scored until another source is found.
 
 **Overnight** (`overnight_move`), for a session's first hour voted not real: if most
 voters saw the move from the previous session's close to that bar's close, the store
@@ -279,8 +281,9 @@ hours); over 9 days Yahoo revised 472 of 1,290 fund hours, 2 of them by more tha
 are for the live run.
 Votes live in `data/jump/verified.csv`: not real and overnight ones are kept for good (the
 detector rescores all history), the rest for 90 days, longer than any recount. A record
-from before the vote reads in its words: confirmed as real, unknown as single source,
-unconfirmed as not real until the replay counts it again.
+from before the vote reads in its words: confirmed as real, unconfirmed as not real until
+the replay counts it again, and unknown - no other source had bars - counted as outages
+(a tie with one source named, not real with two).
 
 Instruments with a reading not yet counted are asked first; at most 40 requests a run.
 Over the 30 days to 2026-10-08, simulated hourly: the first days' asks a median of 16
@@ -456,9 +459,9 @@ note the old week's ping lines are taken down.
 | milder | edited (a push falling to `noticeable` shows ⬜; a `noticeable` falling away is taken out) | edited |
 | same word, new numbers | edited | edited |
 | gone | taken out; it can come back and ring | taken out for good |
-| not real (section 5) | line kept, `❌ not real: only Binance had it [1/3]` added, silently; a row leaves the note | the same |
+| not real (section 5) | line kept, `❌ Binance(+2.03%), Coinbase(-0.10%), Kraken(-0.10%)` added, silently; a row leaves the note | the same |
 | not real, then a reading back or a new move | the mark comes off by a silent edit; only a move rarer than the word shown before the mark rings | the same, silently |
-| uncertain or single source | scored as usual, its line under the move (`⚠️ uncertain: seen by Yahoo, Alpaca [2/4]`, `single source: only SiftingIO had data`, `single-source asset`), in a push and in the note's row; a recount that turns the vote edits it, silently | the same |
+| uncertain | scored as usual, its line under the move (`⚠️ Yahoo(-2.50%), Alpaca(-2.50%), Sina(outage), MarketWatch(-0.50%)`), in a push and in the note's row; a recount that turns the vote edits it, silently | the same |
 
 A message is edited when what it carries changes and deleted once it carries nothing. A
 ping line lives exactly as long as its row. Nothing rings more than 24 hours after its

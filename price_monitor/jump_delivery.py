@@ -799,20 +799,20 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
 # A CHANGED EVENT TELLS ITS STORY: one line under the time, every state it has
 # been in with why it moved (story_line). A clean event says nothing.
 #
-# THE SOURCES' VOTE (jump.verify) is said under the move (vote_line):
+# THE SOURCES' VOTE (jump.verify) is said under the move (vote_line), the
+# store's provider and every source with its own move, or `(outage)`:
 #
 #   not real      most sources did not see it: no longer scored. If it is on
 #                 the channel, its line stays where it is with
-#                 `❌ not real: only Binance had it [1/3]` under it, silently;
-#                 a row leaves the note. Should a reading of it come back - the
-#                 bar healed, or the vote turned - or a new move come inside its
-#                 24 hours, it is an event like any other again.
-#   uncertain     a tie: scored as usual, `⚠️ uncertain: seen by Yahoo,
-#                 Alpaca [2/4]` under it.
-#   single source only the store's provider had data: scored as usual,
-#                 `single source: only SiftingIO had data`; an instrument no
-#                 other source carries, `single-source asset`.
-#   real          nothing is added.
+#                 `❌ Binance(+2.03%), Coinbase(-0.10%), Kraken(-0.10%)` under
+#                 it, silently; a row leaves the note. Should a reading of it
+#                 come back - the bar healed, or the vote turned - or a new
+#                 move come inside its 24 hours, it is an event like any other
+#                 again.
+#   uncertain     a tie: scored as usual, `⚠️ Yahoo(-2.50%), Alpaca(-2.50%),
+#                 Sina(outage), MarketWatch(-0.50%)` under it.
+#   real          nothing is added, nor for an instrument no other source
+#                 carries.
 #
 # A detector update (a new jump.jumps.detector_version) starts the week over at
 # that run: every alert message of the week is deleted, the note stays and shows
@@ -1108,33 +1108,35 @@ def _doubt(asset: str, reading_ids, doubts: "dict | None") -> "dict | None":
     return None
 
 
-def vote_line(row: "dict | None", single_asset: bool = False) -> str:
-    """What the sources' vote on a move adds under it: `❌ not real: only
-    Binance had it [1/3]`, `⚠️ uncertain: seen by Yahoo, Alpaca [2/4]`,
-    `single source: only SiftingIO had data` - the store's provider is one of
-    those that had it - or, with no vote, `single-source asset` for an
-    instrument no other source carries. Nothing for a real move."""
+def vote_line(row: "dict | None") -> str:
+    """The sources' vote under a move that is not plainly real: `❌` when
+    most did not see it, `⚠️` on a tie, then the store's provider with the
+    stored move and every source with its own, or `(outage)`:
+    `❌ Binance(+2.03%), Coinbase(-0.10%), Kraken(-0.10%)`. Nothing for a real
+    move or one no other source carries."""
+    import math
+
     from jump import verify
 
-    if row is None:
-        return "single-source asset" if single_asset else ""
-
-    def names(key: str) -> "list[str]":
-        return [n for n in str(row.get(key) or "").split(",") if n]
+    mark = {verify.NOT_REAL: "❌", verify.UNCERTAIN: "⚠️"}.get((row or {}).get("verdict"))
+    if not mark:
+        return ""
 
     def label(name: str) -> str:
         return _escape(verify.LABELS.get(name, name.capitalize()))
 
-    had = [label(str(row.get("provider") or ""))] + [label(n) for n in names("seen")]
-    count = f"[{len(had)}/{1 + len(names('verifier'))}]"
-    verdict = row.get("verdict")
-    if verdict == verify.NOT_REAL:
-        return f"❌ {UNSEEN}: only {', '.join(had)} had it {count}"
-    if verdict == verify.UNCERTAIN:
-        return f"⚠️ uncertain: seen by {', '.join(had)} {count}"
-    if verdict == verify.SINGLE:
-        return f"single source: only {had[0]} had data"
-    return ""
+    def shown(move: str) -> str:
+        try:
+            return f"{(math.exp(float(move)) - 1) * 100:+.2f}%"
+        except (TypeError, ValueError):
+            return "outage"
+
+    names = [n for n in str(row.get("verifier") or "").split(",") if n]
+    moves = str(row.get("verifier_move") or "").split(",")
+    parts = [f"{label(str(row.get('provider') or ''))}({shown(row.get('stored_move'))})"]
+    parts += [f"{label(n)}({shown(moves[i] if i < len(moves) else '')})"
+              for i, n in enumerate(names)]
+    return f"{mark} " + ", ".join(parts)
 
 
 def _mark(rec: dict, row: dict) -> None:
@@ -1425,14 +1427,11 @@ def _pass(cfg: Config, state: dict, week: dict, readings: "list[dict]", labels: 
         _discard(cfg, week, message_id, first_line)
 
     from jump import verify
-    from jump.basket import load_basket
 
     # The sources' vote on each reading, said under it (vote_line).
     record = verify.votes()
-    alone = {a.asset_id for a in load_basket().instruments if not verify.sources_for(a)}
     for r in readings:
-        r["vote"] = vote_line(_doubt(r["asset_id"], [r["reading_id"]], record),
-                              r["asset_id"] in alone)
+        r["vote"] = vote_line(_doubt(r["asset_id"], [r["reading_id"]], record))
     groups = _group([r for r in readings if _in_week(r, week)], week)
     doubts = {k: row for k, row in record.items() if row.get("verdict") == verify.NOT_REAL}
     fresh: list = []

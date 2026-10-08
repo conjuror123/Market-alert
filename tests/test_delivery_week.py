@@ -204,15 +204,16 @@ BYSTANDER = ev(at(0, 3), asset="coinbase:BTC-USD", found=at(-3, 0))
 
 
 def _unseen(at_hour, asset="twelvedata:GLD", check="close", verifier="yahoo,marketwatch",
-            seen="", verdict=None):
-    """Most sources did not see the move: not real (or another vote)."""
+            seen="", verdict=None, moves="0.000300,0.000200"):
+    """Most sources did not see the move: not real (or another vote). An
+    empty move is an outage."""
     hour = int(at_hour.timestamp())
     record = verify.load()
     record[(asset, hour, check)] = {"asset_id": asset, "hour_utc": hour, "check": check,
                                     "verdict": verdict or verify.NOT_REAL,
                                     "provider": "twelvedata", "verifier": verifier,
                                     "seen": seen, "stored_move": "0.018",
-                                    "verifier_move": "0.000300,0.000200"}
+                                    "verifier_move": moves}
     verify.write(record, hour)
 
 
@@ -222,19 +223,22 @@ def test_a_push_not_seen_by_a_second_source_stays_marked_silently(monkeypatch, c
     rang = len(channel.rang)
     _unseen(at(0, 10))
     run(monkeypatch, channel, [BYSTANDER], run_at(0, 12), week)
-    marked = md.format_push(push, LABELS) + "\n❌ not real: only Twelve Data had it [1/3]"
+    marked = md.format_push(push, LABELS) + "\n❌ Twelve Data(+1.82%), Yahoo(+0.03%), MarketWatch(+0.02%)"
     assert channel.pushes() == [marked] and channel.rings_since(rang) == []
     # It stays so while nothing of it comes back.
     run(monkeypatch, channel, [BYSTANDER], run_at(0, 13), week)
     assert channel.pushes() == [marked] and channel.rings_since(rang) == []
 
 
-def test_a_mark_names_who_had_the_move_and_counts_the_votes(monkeypatch, channel, week):
+def test_a_mark_shows_every_sources_move_and_an_outage_as_such(monkeypatch, channel, week):
     push = ev(at(0, 10), "high")
     run(monkeypatch, channel, [push], run_at(0, 11), week)
-    _unseen(at(0, 10), verifier="yahoo,sina,marketwatch,alpaca", seen="sina")
+    _unseen(at(0, 10), verifier="yahoo,sina,marketwatch,alpaca", seen="sina",
+            moves=",0.015,0.000200,0.000100")
     run(monkeypatch, channel, [BYSTANDER], run_at(0, 12), week)
-    assert channel.pushes()[0].endswith("\n❌ not real: only Twelve Data, Sina had it [2/5]")
+    assert channel.pushes()[0].endswith(
+        "\n❌ Twelve Data(+1.82%), Yahoo(outage), Sina(+1.51%), MarketWatch(+0.02%), "
+        "Alpaca(+0.01%)")
 
 
 def test_a_row_not_seen_leaves_the_note_and_its_ping_line_is_marked(monkeypatch, channel, week):
@@ -243,8 +247,8 @@ def test_a_row_not_seen_leaves_the_note_and_its_ping_line_is_marked(monkeypatch,
     _unseen(at(0, 10))
     run(monkeypatch, channel, [BYSTANDER], run_at(1, 14), week)    # after its 24 hours too
     assert "Gold" not in channel.note()
-    assert channel.pings() == ["⬜ <b>GLD</b> · Gold +1.35% · 4.5×σ ❌ not real: only Twelve "
-                               "Data had it [1/3]\nAdded to digest👆🏻👆🏻"]
+    assert channel.pings() == ["⬜ <b>GLD</b> · Gold +1.35% · 4.5×σ ❌ Twelve Data(+1.82%), Yahoo(+0.03%), MarketWatch(+0.02%)"
+                               "\nAdded to digest👆🏻👆🏻"]
 
 
 def test_a_gap_is_marked_by_the_opening_check_not_the_hours(monkeypatch, channel, week):
@@ -256,18 +260,18 @@ def test_a_gap_is_marked_by_the_opening_check_not_the_hours(monkeypatch, channel
     run(monkeypatch, channel, [gap], run_at(0, 16), week)
     _unseen(at(0, 13), check="open")
     run(monkeypatch, channel, [BYSTANDER], run_at(0, 17), week)
-    assert channel.pushes()[0].endswith("❌ not real: only Twelve Data had it [1/3]")
+    assert channel.pushes()[0].endswith("❌ Twelve Data(+1.82%), Yahoo(+0.03%), MarketWatch(+0.02%)")
 
 
 def test_an_uncertain_move_says_so_and_loses_the_line_once_the_vote_turns(
         monkeypatch, channel, week):
     push = ev(at(0, 10), "high")
     _unseen(at(0, 10), verifier="yahoo,sina,marketwatch", seen="sina",
-            verdict=verify.UNCERTAIN)
+            verdict=verify.UNCERTAIN, moves="0.000300,0.015,0.000200")
     run(monkeypatch, channel, [push], run_at(0, 11), week)
     rang = len(channel.rang)
-    assert channel.pushes() == [md.format_push(push, LABELS)
-                                + "\n⚠️ uncertain: seen by Twelve Data, Sina [2/4]"]
+    assert channel.pushes() == [md.format_push(push, LABELS) + "\n⚠️ Twelve Data(+1.82%), "
+                                "Yahoo(+0.03%), Sina(+1.51%), MarketWatch(+0.02%)"]
     # A recount: MarketWatch saw it after all. Real, said by saying nothing.
     _unseen(at(0, 10), verifier="yahoo,sina,marketwatch", seen="sina,marketwatch",
             verdict=verify.REAL)
@@ -276,23 +280,24 @@ def test_an_uncertain_move_says_so_and_loses_the_line_once_the_vote_turns(
     assert channel.rings_since(rang) == []
 
 
-def test_a_move_only_the_stores_provider_had_says_single_source(monkeypatch, channel, week):
+def test_a_tie_with_a_source_down_says_so_in_the_note(monkeypatch, channel, week):
+    # The store and Sina for it; Yahoo down and MarketWatch against: a tie.
     row = ev(at(0, 10))
-    _unseen(at(0, 10), verifier="", verdict=verify.SINGLE)
+    _unseen(at(0, 10), verifier="yahoo,sina,marketwatch", seen="sina",
+            verdict=verify.UNCERTAIN, moves=",0.015,0.000200")
     run(monkeypatch, channel, [row], run_at(0, 11), week)
     assert "Gold +1.35%" in channel.note()
-    assert "single source: only Twelve Data had data" in channel.note()
+    assert "⚠️ Twelve Data(+1.82%), Yahoo(outage), Sina(+1.51%), MarketWatch(+0.02%)" \
+        in channel.note()
 
 
-def test_an_instrument_no_other_source_carries_is_a_single_source_asset(
+def test_an_instrument_no_other_source_carries_says_nothing_of_a_vote(
         monkeypatch, channel, week):
-    # The LME's metals: no vote at all, and said once, under the move.
+    # The LME's metals: no vote at all, and nothing said.
     row = ev(at(0, 10), asset="sina:AHD")
     run(monkeypatch, channel, [row], run_at(0, 11), week)
-    assert "AHD" in channel.note() and "single-source asset" in channel.note()
-    gold = ev(at(0, 10))
-    run(monkeypatch, channel, [gold], run_at(0, 12), week)
-    assert "single-source asset" not in channel.note()
+    note = channel.note()
+    assert "AHD" in note and "⚠️" not in note and "❌" not in note and "single" not in note
 
 
 def test_a_real_move_inside_a_marked_events_day_takes_it_over_and_rings(

@@ -3,13 +3,12 @@
 A REAL TRADE SHOWS UP ON OTHER FEEDS; A SOURCE'S BAD PRINT DOES NOT. So every
 bar that moved far is put to every other source that carries the instrument,
 right after the hourly fetch and before anything is scored. The store's own
-provider is one vote that saw it; each other source that has bars around the
-move is one vote:
+provider is one vote that saw it; each other source is one vote, and one that
+is down or has no bars around the move - an outage - is a vote against:
 
     most saw it       real          scored, nothing said
-    a tie             uncertain     scored, `⚠️ uncertain: seen by Yahoo, Alpaca [2/4]`
-    most did not      not real      not scored, `❌ not real: only Binance had it [1/3]`
-    nobody else had   single        scored, `single source: only SiftingIO had data`
+    a tie             uncertain     scored, `⚠️ Yahoo(-2.50%), Alpaca(-2.50%), Sina(outage), MarketWatch(-0.50%)`
+    most did not      not real      not scored, `❌ Binance(+2.03%), Coinbase(-0.10%), Kraken(-0.10%)`
 
 A MOVE NOT REAL IS NOT SCORED, AND NOTHING IS DELETED. The detector leaves its
 reading out - not flagged, and not in any yardstick (jump.jumps) - but its bar
@@ -31,11 +30,12 @@ Kraken's dollar pairs - a wick on one exchange is real there and not the
 market's. Not asked: the LME's metals, which have no free independent feed
 found. Two vendors printing the same bars agree: each is a voice.
 
-THE VOTE (judge_all, combine). Pending while the sources still waiting for
-their next bar could change the result. A source with bars around the move
-outweighs one that only bridges it: the bridging one does not vote. A source
-that fails to answer leaves the others to; with every other source down, the
-store's word stands alone - single source.
+THE VOTE (judge_all, combine) is taken with what the sources serve when it is
+taken: a source that has not shown the move yet counts against, until the
+next count. A source with bars around the move outweighs one that only
+bridges it: the bridging one is an outage. Every source of an instrument is
+asked, or none that run (MAX_REQUESTS): one not asked would count against.
+With every other source down, the move is not real until they are back.
 
 WHICH BARS (candidates). The detector's own readings, ended within the
 instrument's recount (recount_days), at CANDIDATE_SIGMA (or the detector's bottom level, if set lower)
@@ -53,10 +53,9 @@ its closes up to LAG_HOURS after: USD/TRY came back at 11:00 on SiftingIO and
 at 12:00 on Yahoo (2025-03-14). An hour it has no bar for is bridged by its
 nearest bars within STALE_HOURS: on the night of Seoul's martial law
 (2024-12-03) Yahoo has no USD/KRW bar between 07:00 and 15:00, and still
-confirms the +2.5%. UNCONFIRMED if it did not move with it - but only once its
-bar after the lag has ended too; until then, and while it has no bar after the
-move at all, PENDING. UNKNOWN with it silent for STALE_HOURS around the move:
-no vote.
+confirms the +2.5%. UNCONFIRMED if it did not move with it, or has not yet.
+UNKNOWN - an outage - with no bar after the move yet, or silent for
+STALE_HOURS around it.
 
 THE RECORD (VERIFIED_PATH) is what the detector and delivery read. A reading
 is counted again from the bars as they now are, on every run in its first
@@ -116,16 +115,17 @@ RECOUNT_HOURS = 24                # after its first day, a reading is counted on
 KEEP_DAYS = 90                    # longer than any recount (the softs', 79 days)
 
 # One source's answer about a move (judge).
-CONFIRMED, UNCONFIRMED, PENDING, UNKNOWN = "confirmed", "unconfirmed", "pending", "unknown"
+CONFIRMED, UNCONFIRMED, UNKNOWN = "confirmed", "unconfirmed", "unknown"
 # The vote on it (combine), the stored provider one vote that saw it.
-REAL, UNCERTAIN, NOT_REAL, SINGLE = "real", "uncertain", "not_real", "single"
+REAL, UNCERTAIN, NOT_REAL = "real", "uncertain", "not_real"
 # A session's first hour whose move most feeds saw happen overnight: kept for
 # good, and jump.jumps moves the move into the night (see judge_all).
 OVERNIGHT = "overnight"
 KEPT = (NOT_REAL, OVERNIGHT)
-# A record written before the vote: its confirmed is real, its unknown single
-# source, and its unconfirmed not real until the replay counts it again.
-_BEFORE_THE_VOTE = {CONFIRMED: REAL, UNCONFIRMED: NOT_REAL, UNKNOWN: SINGLE}
+# A record written before the vote: its confirmed is real, and its
+# unconfirmed not real until the replay counts it again. Its unknown - no
+# other source had bars - is counted as the vote counts outages (load).
+_BEFORE_THE_VOTE = {CONFIRMED: REAL, UNCONFIRMED: NOT_REAL}
 CLOSE, OPEN = "close", "open"     # the check: the hour's reading, or the gap's
 
 # MarketWatch names a fund by its listing exchange; ARCX unless here
@@ -230,8 +230,8 @@ def recount_days(asset: Asset) -> float:
 
 def due(row: "dict | None", hour: int, now: int) -> bool:
     """Whether a reading inside its recount is counted this run: every run in
-    its first day and while it is pending, then once a day."""
-    return (row is None or row.get("verdict") == PENDING or hour >= now - PENDING_HOURS * HOUR
+    its first day, then once a day."""
+    return (row is None or hour >= now - PENDING_HOURS * HOUR
             or int(row.get("checked_utc") or 0) <= now - RECOUNT_HOURS * HOUR)
 
 
@@ -357,9 +357,11 @@ def candidates(asset: Asset, frame: pd.DataFrame, table, now: int,
 
 # --- the verdict ---------------------------------------------------------------
 
-def judge(c: dict, v: pd.DataFrame, now: int) -> "tuple[str, float, float]":
-    """(verdict, stored move, the second source's move) for one candidate,
-    against the second source's hourly bars `v` (hour_utc, open, close)."""
+def judge(c: dict, v: pd.DataFrame) -> "tuple[str, float, float]":
+    """(answer, stored move, the source's move) for one candidate, against the
+    source's hourly bars `v` (hour_utc, open, close) as it serves them now:
+    confirmed, unconfirmed - including a move it has not shown yet - or
+    unknown, with no bars around the move."""
     stamps = np.sort(v["hour_utc"].to_numpy(dtype="int64"))
     vclose = dict(zip(v["hour_utc"].astype("int64").tolist(), v["close"].tolist()))
     vopen = dict(zip(v["hour_utc"].astype("int64").tolist(), v["open"].tolist()))
@@ -387,18 +389,12 @@ def judge(c: dict, v: pd.DataFrame, now: int) -> "tuple[str, float, float]":
     afters += [vclose[int(t)] for t in stamps[(stamps >= h) & (stamps <= h + lag)]]
     if not afters:
         later = stamps[stamps > h]
-        if not len(later):
-            return (UNKNOWN if now - h > PENDING_HOURS * HOUR else PENDING), p, 0.0
-        if int(later[0]) - h > stale:
+        if not len(later) or int(later[0]) - h > stale:
             return UNKNOWN, p, 0.0
         afters = [vclose[int(later[0])]]
 
     moves = [math.log(b / a) for a in befores for b in afters]
     with_it = max(moves, key=lambda m: m * np.sign(p))
-    # Not seen is not a verdict until the second source's next bar is in too:
-    # a feed that prints the move an hour late would otherwise read as a
-    # mistake at the first look (USD/TRY 2025-03-14 11:00, Yahoo at 12:00).
-    lag_passed = now >= h + (LAG_HOURS + 1) * HOUR
     # The move it is reported with is the second source's over the same span
     # - or its nearest bars either side; the lag window only decides.
     start = befores[0] if c.get("from_open") else \
@@ -408,7 +404,7 @@ def judge(c: dict, v: pd.DataFrame, now: int) -> "tuple[str, float, float]":
     direct = math.log(end / start)
     if with_it * p > 0 and abs(with_it) >= REAL_SHARE * abs(p):
         return CONFIRMED, p, direct
-    return (UNCONFIRMED if lag_passed else PENDING), p, direct
+    return UNCONFIRMED, p, direct
 
 
 def switches(store: pd.DataFrame, v: pd.DataFrame, template: str) -> "list[int]":
@@ -452,27 +448,18 @@ def _count(yes: int, no: int) -> str:
 
 
 def combine(verdicts: "list[tuple[str, str, float, float]]") -> "tuple[str, float, list, list, list]":
-    """The vote on one move, from every source asked, each (name, verdict,
+    """The vote on one move, from every source asked, each (name, answer,
     stored move, its move). The stored provider is one vote that saw it; a
-    source that confirmed it is another, one that did not is a vote against,
-    and one without bars around the move does not vote. Most saw it: real; a
-    tie: uncertain; most did not: not real; nobody else voted: single source.
-    Pending while the sources still waiting for their next bar could change
-    that. Returns (result, stored move, the voters, their moves, those that
-    saw it)."""
+    source that confirmed it is another; every other answer is a vote
+    against - it did not move with it, has not yet, or had no bars around it
+    (an outage). Most saw it: real; a tie: uncertain; most did not: not real.
+    Returns (result, stored move, the sources, their moves - None for an
+    outage -, those that saw it)."""
     stored = verdicts[0][2] if verdicts else 0.0
-    voters = [v for v in verdicts if v[1] in (CONFIRMED, UNCONFIRMED)]
-    waiting = [v for v in verdicts if v[1] == PENDING]
-    seen = [v[0] for v in voters if v[1] == CONFIRMED]
-    yes, no = 1 + len(seen), len(voters) - len(seen)
-    if waiting and _count(yes + len(waiting), no) != _count(yes, no + len(waiting)):
-        voters += waiting
-        result = PENDING
-    elif not voters:
-        voters, result = verdicts, SINGLE
-    else:
-        result = _count(yes, no)
-    return result, stored, [v[0] for v in voters], [v[3] for v in voters], seen
+    seen = [v[0] for v in verdicts if v[1] == CONFIRMED]
+    result = _count(1 + len(seen), len(verdicts) - len(seen))
+    return (result, stored, [v[0] for v in verdicts],
+            [None if v[1] == UNKNOWN else v[3] for v in verdicts], seen)
 
 
 def _around(c: dict, v: pd.DataFrame) -> bool:
@@ -486,45 +473,50 @@ def _around(c: dict, v: pd.DataFrame) -> bool:
     return before and bool(((stamps >= h) & (stamps <= h + lag)).any())
 
 
-def judge_all(c: dict, answers: "list[tuple[str, pd.DataFrame]]",
-              now: int) -> "tuple[str, float, list, list]":
-    """One candidate against every source that answered, combined. A source
-    with bars of its own around the move outweighs one bridging hours it has
-    none for: USD/INR's night, where Yahoo's last bar is 10:00 and
-    MarketWatch has every hour, is MarketWatch's to judge - a seventeen-hour
-    bridge would hold the verdict till morning and then read the night's
-    drift as the move."""
-    direct = [(name, v) for name, v in answers if _around(c, v)]
-    asked = direct or answers
-    result, stored, names, moves, seen = combine([(name,) + judge(c, v, now)
-                                                  for name, v in asked])
+def judge_all(c: dict, asked: "list[tuple[str, pd.DataFrame | None]]"
+              ) -> "tuple[str, float, list, list, list]":
+    """One candidate put to every source asked, each (name, its bars, or None
+    for a source that was down), and the vote. A source with bars of its own
+    around the move outweighs one bridging hours it has none for: USD/INR's
+    night, where Yahoo's last bar is 10:00 and MarketWatch has every hour, is
+    MarketWatch's to judge - a seventeen-hour bridge would read the night's
+    drift as the move - and the bridging one counts as an outage."""
+    p = math.log(c["price"] / c["prev_close"])
+    direct = {name for name, v in asked if v is not None and _around(c, v)}
+    votes = [(name, UNKNOWN, p, 0.0) if v is None or (direct and name not in direct)
+             else (name,) + judge(c, v) for name, v in asked]
+    result, stored, names, moves, seen = combine(votes)
     if result == NOT_REAL and c.get("night_hour") is not None:
-        night = overnight_move(c, asked, now)
+        night = overnight_move(c, asked)
         if night is not None:
             return OVERNIGHT, stored, night[0], night[1], night[0]
     return result, stored, names, moves, seen
 
 
-def overnight_move(c: dict, answers: "list[tuple[str, pd.DataFrame]]",
-                   now: int) -> "tuple[list, list] | None":
+def overnight_move(c: dict, asked: "list[tuple[str, pd.DataFrame | None]]"
+                   ) -> "tuple[list, list] | None":
     """A session's first hour most feeds did not see move - but did most see
     the move from the previous session's close to this bar's close, the
-    store one of them? Then it happened overnight: the store's first print
-    was a stale one at the old price (TLH 2020-03-09: gap +0.03%, first hour
-    +3.8%; the tape opened +4.65%). Returns the names of the feeds that saw
-    it and each one's night - its open of the hour over its last close
-    before the night - or None."""
+    store one of them and an outage against? Then it happened overnight: the
+    store's first print was a stale one at the old price (TLH 2020-03-09:
+    gap +0.03%, first hour +3.8%; the tape opened +4.65%). Returns the names
+    of the feeds that saw it and each one's night - its open of the hour over
+    its last close before the night - or None."""
     whole = dict(c, from_open=False, prev_hour=c["night_hour"], prev_close=c["night_close"])
-    votes = [(name,) + judge(whole, v, now) for name, v in answers]
+    p = math.log(c["price"] / c["night_close"])
+    votes = [(name, UNKNOWN, p, 0.0) if v is None else (name,) + judge(whole, v)
+             for name, v in asked]
     if combine(votes)[0] != REAL:
         return None
     names, nights = [], []
-    for (name, v), vote in zip(answers, votes):
+    for (name, v), vote in zip(asked, votes):
+        if vote[1] != CONFIRMED:
+            continue
         stamps = v["hour_utc"].to_numpy(dtype="int64")
         opens = dict(zip(stamps.tolist(), v["open"].tolist()))
         before = stamps[(stamps <= c["night_hour"])
                         & (stamps >= c["night_hour"] - STALE_HOURS * HOUR)]
-        if vote[1] != CONFIRMED or c["hour"] not in opens or not len(before):
+        if c["hour"] not in opens or not len(before):
             continue
         last = float(v.loc[v["hour_utc"] == before.max(), "close"].iloc[0])
         names.append(name)
@@ -540,8 +532,12 @@ def load(path: "str | None" = None) -> "dict[tuple[str, int, str], dict]":
     if not os.path.exists(path):
         return {}
     with open(path, "r", encoding="utf-8", newline="") as f:
-        rows = list(csv.DictReader(f))
+        rows = [row for row in csv.DictReader(f) if row["verdict"] != "pending"]
     for row in rows:
+        if row["verdict"] == UNKNOWN:
+            # Before the vote: no other source had bars. Each was an outage.
+            asked = [n for n in str(row.get("verifier") or "").split(",") if n]
+            row.update(verdict=_count(1, len(asked)), verifier_move="," * (len(asked) - 1))
         row["verdict"] = _BEFORE_THE_VOTE.get(row["verdict"], row["verdict"])
     return {(row["asset_id"], int(row["hour_utc"]), row["check"]): row for row in rows}
 
@@ -603,7 +599,8 @@ def _row(asset: Asset, c: dict, verdict: str, stored: float, names: list, moves:
             "verdict": verdict, "provider": asset.fetched_from,
             "verifier": ",".join(names), "seen": ",".join(seen),
             "stored_move": f"{stored:.6f}",
-            "verifier_move": ",".join(f"{m:.6f}" for m in moves), "checked_utc": now}
+            "verifier_move": ",".join("" if m is None else f"{m:.6f}" for m in moves),
+            "checked_utc": now}
 
 
 def verify(instruments, bars_dir: str, table, session=None, now: "datetime | None" = None,
@@ -647,8 +644,7 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
             found = [c for c in found
                      if due(record.get((asset.asset_id, c["hour"], c["check"])), c["hour"], now_ts)]
         if found:
-            fresh = any(record.get((asset.asset_id, c["hour"], c["check"]), {}).get("verdict")
-                        in (None, PENDING) for c in found)
+            fresh = any((asset.asset_id, c["hour"], c["check"]) not in record for c in found)
             todo.append((not fresh, asset, found, frame))
 
     # One request per source and instrument; the instruments with a reading not
@@ -656,7 +652,7 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
     # after run. A source that fails leaves the others to answer; a rate limit
     # stops that source for the rest of the run, as does not answering
     # UNANSWERED_IN_A_ROW requests in a row (~96 s each of a 20-minute job).
-    counts = {REAL: 0, UNCERTAIN: 0, NOT_REAL: 0, OVERNIGHT: 0, SINGLE: 0, PENDING: 0}
+    counts = {REAL: 0, UNCERTAIN: 0, NOT_REAL: 0, OVERNIGHT: 0}
     unanswered: dict[str, int] = {}
     requests_left = 10 ** 6 if history else MAX_REQUESTS
     doubted: list[str] = []
@@ -664,22 +660,25 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
         # From before the earliest bar a move starts at: a Monday gap starts at
         # Friday's close.
         days = (now_ts - min(c["prev_hour"] for c in found)) / 86400 + 1
-        answers, down = [], []
-        for src in sources_for(asset):
+        # Every source is asked, or none this run: a source not asked would
+        # count as an outage. One that is stopped, or fails, is one (None).
+        sources = sources_for(asset)
+        if requests_left < sum(src.name not in blocked for src in sources):
+            continue
+        asked: "list[tuple[str, pd.DataFrame | None]]" = []
+        for src in sources:
             name = src.name
             if name in blocked:
-                down.append(name)
-                continue
-            if requests_left <= 0:
+                asked.append((name, None))
                 continue
             requests_left -= 1
             try:
-                answers.append((name, _priced(fetch_verifier(name, src.symbol(asset), src.interval,
-                                                             days, session, now_dt))))
+                asked.append((name, _priced(fetch_verifier(name, src.symbol(asset), src.interval,
+                                                           days, session, now_dt))))
                 unanswered.pop(name, None)
             except Exception as exc:
                 log.warning("verify: %s from %s failed - %s", asset.ticker, name, exc)
-                down.append(name)
+                asked.append((name, None))
                 if isinstance(exc, yahoo.RateLimited) or "answered 429" in str(exc):
                     blocked.add(name)
                 elif isinstance(exc, Unreachable):
@@ -690,32 +689,16 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
                         blocked.add(name)
                 else:
                     unanswered.pop(name, None)              # it answered
-        if not answers:
-            if len(down) == len(sources_for(asset)):
-                # Every other source is down: the store's word alone, and said
-                # so - on a reading not judged yet.
-                for c in found:
-                    key = (asset.asset_id, c["hour"], c["check"])
-                    if key not in record:
-                        p = math.log(c["price"] / c["prev_close"])
-                        record[key] = _row(asset, c, SINGLE, p, down, [0.0] * len(down), [],
-                                           now_ts)
-                        counts[SINGLE] += 1
-            continue
-        rolls = {src.name for src in sources_for(asset) if src.own_rolls}
+        rolls = {src.name for src in sources if src.own_rolls}
         changed = {name: switches(frame, v, asset.session_template)
-                   for name, v in answers if name in rolls}
+                   for name, v in asked if name in rolls and v is not None}
         for c in found:
             try:
-                # Not across a source's own change of contract.
-                usable = [(name, v) for name, v in answers
-                          if not crosses(c, changed.get(name, []))]
-                if not usable:
-                    p = math.log(c["price"] / c["prev_close"])
-                    verdict, stored, names, moves, seen = SINGLE, p, [
-                        f"{answers[0][0]} (changed contract)"], [0.0], []
-                else:
-                    verdict, stored, names, moves, seen = judge_all(c, usable, now_ts)
+                # A source across its own change of contract has nothing to
+                # say about the move: an outage for it.
+                usable = [(name, None if crosses(c, changed.get(name, [])) else v)
+                          for name, v in asked]
+                verdict, stored, names, moves, seen = judge_all(c, usable)
             except Exception as exc:
                 # One instrument's surprise costs that reading, not the pass.
                 log.warning("verify: %s %s could not be judged - %s", asset.ticker,
@@ -725,7 +708,8 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
             record[(asset.asset_id, c["hour"], c["check"])] = _row(
                 asset, c, verdict, stored, names, moves, seen, now_ts)
             if verdict == NOT_REAL:
-                theirs = ", ".join(f"{n} {100 * m:+.2f}%" for n, m in zip(names, moves))
+                theirs = ", ".join(f"{n} {'outage' if m is None else f'{100 * m:+.2f}%'}"
+                                   for n, m in zip(names, moves))
                 doubted.append(f"{asset.ticker} {datetime.fromtimestamp(c['hour'], timezone.utc):%Y-%m-%d %H:%M}"
                                f" {c['check']} ({asset.fetched_from} {100 * stored:+.2f}%; {theirs})")
     write(record, now_ts, path)
