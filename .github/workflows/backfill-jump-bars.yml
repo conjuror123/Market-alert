@@ -18,7 +18,9 @@ name: Backfill Jump Bars
 #   extend-history  deepen the archive backwards to basket.fetch_since
 #   fill-gaps       re-ask for trading days the NYSE calendar has and the store
 #                   does not; an empty answer confirms the hole is the
-#                   provider's rather than something our fetching skipped
+#                   provider's rather than something our fetching skipped. Its
+#                   second source, HF Data, holds none of those years now
+#                   (see deepen-etfs)
 #   deepen-dukascopy
 #                   fill the currency pairs below what is stored, from
 #                   Dukascopy, which reaches 2003 and also carries USD/CNH.
@@ -26,16 +28,14 @@ name: Backfill Jump Bars
 #                   a pair is a few hundred requests, and a failure part way
 #                   through then costs one pair rather than all of them
 #   deepen-etfs     the same for the US-equity instruments, from HF Data's
-#                   consolidated-tape minute bars (needs HFDATA_API_KEY).
-#                   NOT optional for a newly added ETF: Twelve Data's intraday
-#                   archive stops at 2020-02 for every ticker at once, so
-#                   extend-history alone leaves a new instrument with six years
-#                   where SPY has twenty-three. Run extend-history first, then
-#                   this. It spends no Twelve Data credits.
+#                   consolidated-tape minute bars (needs HFDATA_API_KEY). Since
+#                   2026-10-03 HF Data holds only its IEX segment, from
+#                   2022-03-07, which this refuses: it adds nothing now.
 #   deepen-alpaca   the US funds below what is stored, from Alpaca's consolidated
-#                   tape (SIP), 2016 on - for the funds HF Data does not carry,
-#                   which otherwise start 2020-02. Gated on an overlap with the
-#                   store, like the others. Run after deepen-etfs.
+#                   tape (SIP), 2016 on. Twelve Data's intraday archive stops at
+#                   2020-02 for every ticker at once, so for a newly added ETF
+#                   this, after extend-history, is what reaches further back.
+#                   Gated on an overlap with the store, like the others.
 #   repair-alpaca   deepen-alpaca that first overwrites stored overlap hours
 #                   whose close is more than 50 bp off the tape (bad prints).
 #                   Only for the funds named in `instruments`.
