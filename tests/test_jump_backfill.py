@@ -15,7 +15,7 @@ HOUR = 3600
 def asset(**over):
     base = dict(ticker="EUR/USD", source="twelvedata", block="FX",
                 has_volume=False, tick_size=0.00001, session_template="fx_continuous",
-                fetch_interval="1h", label="Euro / dollar", in_basket=True)
+                fetch_interval="1h", label="Euro", in_basket=True)
     return Asset(**(base | over))
 
 
@@ -1567,7 +1567,10 @@ def test_alpaca_keeps_only_the_regular_session():
             ((9, 0), (9, 30), (15, 30), (16, 0))] == [False, True, True, False]
 
 
-def test_a_bad_stored_print_is_repaired_from_the_tape_when_asked(tmp_path, monkeypatch):
+def test_a_store_with_bad_prints_is_not_spliced_onto_the_tape(tmp_path, monkeypatch):
+    # Ten +12% prints in the store: the overlap disagrees and nothing is
+    # written. The prints stay as stored; a bad bar is a row in the vote
+    # record, not an edit (docs/manual.md, section 4).
     from jump import backfill
     stamps = _session_half_hours(200)
     prices = _walk(len(stamps), 13, start=80.0)
@@ -1581,14 +1584,7 @@ def test_a_bad_stored_print_is_repaired_from_the_tape_when_asked(tmp_path, monke
 
     refused = backfill.deepen_from_alpaca(_fund(), path, date(2015, 1, 1), {}, None)
     assert refused["added"] == 0 and "correlation" in refused["skipped"]
-
-    out = backfill.deepen_from_alpaca(_fund(), path, date(2015, 1, 1), {}, None,
-                                      repair=True)
-    assert out["skipped"] is None and len(out["repaired"]) == 10
-    fixed = bars.load(path).set_index("hour_utc")["close"]
-    tape = bars.to_hourly(bars.candles_to_frame(archive)).set_index("hour_utc")["close"]
-    assert (fixed.loc[stored.loc[spikes, "hour_utc"]] ==
-            tape.loc[stored.loc[spikes, "hour_utc"]]).all()
+    assert bars.load(path)["close"].tolist() == stored["close"].tolist()
 
 
 def test_the_fetch_asks_alpaca_iex_for_an_alpaca_fund(tmp_path, monkeypatch):
@@ -2015,7 +2011,11 @@ def test_a_removed_day_is_not_a_gap_for_fill_gaps(tmp_path):
 
     path = tmp_path / "twelvedata_LQD"
     _store_days(path, [_day(2024, 3, 4), _day(2024, 3, 5), _day(2024, 3, 6)])
-    bars.remove(str(path), [_day(2024, 3, 5)])
+    frame = bars.load(str(path))
+    held = (frame["hour_utc"] == _day(2024, 3, 5)).to_numpy()
+    frame.loc[held, ["open", "high", "low", "close", "volume"]] = float("nan")
+    frame.loc[held, "n_src"] = 0
+    bars.write(str(path), frame)
     table = {date(2024, 3, i): object() for i in (4, 5, 6)}
     assert backfill.missing_sessions(str(path), table) == []
 

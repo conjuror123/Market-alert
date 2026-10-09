@@ -49,7 +49,7 @@ def measure_precision(closes: pd.Series, sample: int = 5000) -> float | None:
 
 
 def audit_instrument(asset: Asset, frame: pd.DataFrame) -> dict:
-    # Bars removed on purpose are hours with no price (bars.remove): counted,
+    # Bars removed on purpose are hours with no price (bars.removed): counted,
     # not audited as bars.
     removed = int(bars.removed(frame).sum()) if not frame.empty else 0
     if removed:

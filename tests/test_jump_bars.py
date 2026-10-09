@@ -333,8 +333,7 @@ def test_settled_before_is_the_oldest_open_month():
 
 def test_a_settled_month_keeps_its_rows_and_fills_its_holes(tmp_path):
     # It is in git: a provider re-serving an old bar a hair different must not
-    # rewrite it. An hour it lacks is still taken, and the tape repair, which
-    # replaces bad prints on purpose, may revise.
+    # rewrite it. An hour it lacks is still taken.
     store = bars.store_path(str(tmp_path), "twelvedata_SPY")
     bars.write(store, _rows([_hour(2026, 8, 3), _hour(2026, 9, 10)]))
     revised = _rows([_hour(2026, 8, 3), _hour(2026, 8, 4), _hour(2026, 9, 10)])
@@ -347,9 +346,6 @@ def test_a_settled_month_keeps_its_rows_and_fills_its_holes(tmp_path):
     assert got[_hour(2026, 8, 3)] == 1.5
     assert got[_hour(2026, 8, 4)] == 99.0
     assert got[_hour(2026, 9, 10)] == 99.0
-
-    bars.merge(store, revised, revise_settled=True)
-    assert bars.load(store).set_index("hour_utc")["close"][_hour(2026, 8, 3)] == 99.0
 
 
 def test_a_committed_month_is_never_pulled_back_out_of_git(tmp_path):
@@ -411,30 +407,35 @@ def test_a_year_already_in_parquet_keeps_its_file(tmp_path):
 
 # --- bars removed on purpose ---------------------------------------------------
 
+def _held(hours):
+    """Hours removed on purpose, as the store keeps them: no price at all."""
+    nan = float("nan")
+    return _rows(hours).assign(open=nan, high=nan, low=nan, close=nan, volume=nan, n_src=0)
+
+
 def test_a_removed_bar_is_never_filled_again_by_a_fetch(tmp_path):
     # LQD 2006-10-02, shifted by the old vendor: removed, a fetch reaching the
     # day (fill-gaps re-asks every missing session) must not bring it back -
-    # in a settled year, in the open month, or with the tape repair's flag.
+    # in a settled year or in the open month.
     store = bars.store_path(str(tmp_path), "twelvedata_LQD")
     hours = [_hour(2006, 10, 2, 14), _hour(2006, 10, 2, 15), _hour(2026, 10, 7, 14)]
-    bars.write(store, _rows(hours))
-    assert bars.remove(store, [hours[0], hours[2]]) == 2
+    bars.write(store, pd.concat([_held(hours[:1]), _rows(hours[1:2]), _held(hours[2:])],
+                                ignore_index=True))
 
     bad = _rows(hours).assign(close=99.0)
     assert bars.merge(store, bad) == 0
-    bars.merge(store, bad, revise_settled=True)
     got = bars.load(store).set_index("hour_utc")
     assert got.loc[hours[0], "close"] != got.loc[hours[0], "close"]     # still no price
     assert got.loc[hours[2], "close"] != got.loc[hours[2], "close"]
-    assert got.loc[hours[1], "close"] == 99.0      # an ordinary hour still takes revisions
+    assert got.loc[hours[1], "close"] == 1.5       # a settled hour keeps its own
     assert list(bars.removed(bars.load(store))) == [True, False, True]
 
 
 def test_a_removed_hour_survives_both_shard_formats(tmp_path):
     store = bars.store_path(str(tmp_path), "twelvedata_LQD")
     hours = [_hour(2006, 10, 2, 14), _hour(2026, 1, 5, 15), _hour(2026, 1, 5, 16)]
-    bars.write(store, _rows(hours))
-    bars.remove(store, [hours[0], hours[1]])          # one in a Parquet year, one in a CSV month
+    # one in a Parquet year, one in a CSV month
+    bars.write(store, pd.concat([_held(hours[:2]), _rows(hours[2:])], ignore_index=True))
     got = bars.load(store)
     assert len(got) == 3
     assert list(bars.removed(got)) == [True, True, False]

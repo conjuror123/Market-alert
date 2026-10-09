@@ -30,9 +30,6 @@ name: Backfill Jump Bars
 #                   2020-02 for every ticker at once, so for a newly added ETF
 #                   this, after extend-history, is what reaches further back.
 #                   Gated on an overlap with the store, like the others.
-#   repair-alpaca   deepen-alpaca that first overwrites stored overlap hours
-#                   whose close is more than 50 bp off the tape (bad prints).
-#                   Only for the funds named in `instruments`.
 #   live-pass       the ordinary hourly fetch (no VIX) for the named
 #                   instruments, to try a provider change before it goes live.
 #                   Name few: Tiingo's 50 an hour are the live run's.
@@ -68,7 +65,6 @@ on:
           - fill-gaps
           - deepen-dukascopy
           - deepen-alpaca
-          - repair-alpaca
           - live-pass
           - corporate-actions
           - voter-bars
