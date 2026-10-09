@@ -187,6 +187,15 @@ and USD/KRW's 2020-2025 hold about 60 each, which no free source can mend, and s
 read the next real weekend as hundreds of sigma (USD/INR 2022-01-09: −389σ under a
 two-year window).
 
+**A USD/BRL night that opens exactly at the previous close is no measurement either** (the
+user's go, 2026-10-09). Its history is Twelve Data's, which stitches opens as USD/INR's and
+USD/KRW's: 22 of its 1,701 scored nights to 2026-10-08 opened exactly at the close, and on
+such nights Yahoo's BRL=X moved like on any other (median 10.4 bp against 11.2,
+2024-10..2026-10). Unscored, one flagged 2023 night goes over all history; the year to
+2026-10-01 is unchanged. Not the futures': live cattle's zero nights are real (Yahoo's
+official gaps agree), and the softs' carry no bigger first hour than other nights. Nor the
+funds': since 2023, 98% of their zero gaps match the official open within 5 bp.
+
 **Futures are read one contract at a time.** Yahoo's continuous series interleaves months.
 The softs' history is Dukascopy's single-contract CFDs from 2018, spliced at a measured
 seam; live cattle keeps Yahoo's series minus its interleaved stretches. The night across a
@@ -456,7 +465,9 @@ builders wrote whole stores, so a rerun would have undone every later fix (cocoa
 2026-07-21..08-10 among them); the feed probes spent quota (one about 100 SiftingIO calls);
 the history check decided "the store's own feed" once per fund-year and left 85% of the
 funds' flagged readings unasked. Git keeps them (deleted 2026-10-08); what they established
-is in this file.
+is in this file. HF Data's client and its backfill modes (`deepen-etfs`, `probe-hfdata`,
+`fill-gaps`' second step) went on 2026-10-09: since 2026-10-03 it holds only its IEX
+segment, from 2022-03, so they reached nothing.
 
 **The open month lives on a release; a month enters git once, settled.** Git stores
 snapshots, so hourly commits into per-instrument files cost 124 MiB a year; replacing a

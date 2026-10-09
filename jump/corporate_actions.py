@@ -71,8 +71,6 @@ REQUEST_DELAY_SECONDS = 8.0
 TIINGO_HOURLY_LIMIT = 50
 TIINGO_REQUEST_DELAY_SECONDS = 80.0
 
-UNADJUST_KINDS = ("dividend",)
-
 log = logging.getLogger("jump.corporate_actions")
 
 
@@ -165,13 +163,12 @@ def derive_actions_tiingo(ticker: str, rows: list[DailyRow]) -> list[CorporateAc
 
     The vendor multiplies pre-ex prices by (1 - d) where
     d = divCash / close_{t-1} of the raw close, so
-    factor_t / factor_{t-1} = 1/(1-d) and the step that `unadjust_factor`
-    compounds is d/(1-d), not d. Using adjClose as the denominator would
-    reintroduce the 2x pre-split error plus a second time-varying one.
+    factor_t / factor_{t-1} = 1/(1-d) and the step recorded is d/(1-d), not d.
+    Using adjClose as the denominator would reintroduce the 2x pre-split error
+    plus a second time-varying one.
 
-    Splits are recorded with factor_step 1.0 for provenance. They are excluded
-    at load_steps: the store is already split-adjusted, and feeding a 2.0 into
-    the cumprod would manufacture a 100% error on every older bar.
+    Splits are recorded with factor_step 1.0, as declared: the store is already
+    split-adjusted, so a split day's gap is left unscored rather than adjusted.
     """
     ordered = sorted(rows, key=lambda r: r.day)
     actions: list[CorporateAction] = []
@@ -206,37 +203,6 @@ def write_actions(path: str, actions: list[CorporateAction]) -> None:
                     [a.ticker, a.day.isoformat(), a.kind, f"{a.factor_step:.8f}"])
 
     atomic.write_replacing(path, _write)
-
-
-def load_steps(path: str = DEFAULT_ACTIONS_PATH,
-               kinds: tuple[str, ...] = UNADJUST_KINDS) -> dict[str, list[tuple[date, float]]]:
-    """Ex-dates WITH their sizes, oldest first, for undoing a vendor's adjustment.
-
-    Default `kinds` is dividends only. The store is unadjusted for dividends and
-    already split-adjusted; a split row in the cumprod would double (or halve)
-    every older bar. Split rows stay in the table for provenance - what the
-    table RECORDS and what un-adjustment USES are different questions.
-
-    The `kinds` argument is defaulted so existing zero-arg callers - including
-    test monkeypatches of `lambda: {}` - keep working.
-    """
-    if not os.path.exists(path):
-        return {}
-    by_ticker: dict[str, list[tuple[date, float]]] = {}
-    with open(path, "r", encoding="utf-8", newline="") as f:
-        for row in csv.DictReader(f):
-            kind = row.get("kind") or "dividend"
-            if kind not in kinds:
-                continue
-            try:
-                step = float(row["factor_step"])
-            except (TypeError, ValueError):
-                continue
-            by_ticker.setdefault(row["ticker"], []).append(
-                (date.fromisoformat(row["date"]), step))
-    for steps in by_ticker.values():
-        steps.sort()
-    return by_ticker
 
 
 def load_checks(path: str = DEFAULT_CHECKS_PATH) -> "dict[str, str]":
@@ -343,44 +309,6 @@ def merge_actions(new: "list[CorporateAction]",
     if added:
         write_actions(path, existing + added)
     return len(added)
-
-
-def unadjust_factor(steps: list[tuple[date, float]], moments,
-                    reference: date, reference_factor: float = 1.0):
-    """The divisor turning a vendor's adjusted price into the real one.
-
-    An adjusted series is the true price scaled by the payouts that came AFTER
-    it, so its coefficient rises through time and the factor between any two
-    moments is the product of (1 + step) over the ex-dates in between. The sign
-    is not assumed: measured against SPY's actual closes, (1 + step) explains
-    the drift to 0.02% over three years and 0.15% over seven, where (1 - step)
-    is out by 11% and 24%.
-
-    `reference_factor` is measured rather than derived, which is the point. The
-    vendor's own anchor - end of their data, end of an era within it, something
-    else - never has to be guessed: pinning the factor at one moment where the
-    true price is independently known leaves the ex-dates responsible only for
-    the CHANGE from there. That is a far weaker claim than reproducing their
-    convention, and unlike it, it can be checked.
-    """
-    import numpy as np
-    import pandas as pd
-
-    days = pd.to_datetime(pd.Series(moments), unit="s", utc=True).dt.date
-    ordered = sorted(steps)
-    if not ordered:
-        return np.full(len(days), float(reference_factor))
-
-    # Cumulative product once, then two lookups per moment. The direct form is
-    # a product per row over every ex-date, which on a 2.3M-row minute series
-    # is a hundred and eighty million multiplications for one instrument.
-    dates = np.array([d.toordinal() for d, _ in ordered])
-    growth = np.concatenate([[1.0], np.cumprod([1.0 + s for _, s in ordered])])
-
-    taken = np.searchsorted(dates, np.array([d.toordinal() for d in days]),
-                            side="right")
-    at_reference = int(np.searchsorted(dates, reference.toordinal(), side="right"))
-    return reference_factor * growth[taken] / growth[at_reference]
 
 
 def _funds(basket) -> list:

@@ -18,19 +18,13 @@ name: Backfill Jump Bars
 #   extend-history  deepen the archive backwards to basket.fetch_since
 #   fill-gaps       re-ask for trading days the NYSE calendar has and the store
 #                   does not; an empty answer confirms the hole is the
-#                   provider's rather than something our fetching skipped. Its
-#                   second source, HF Data, holds none of those years now
-#                   (see deepen-etfs)
+#                   provider's rather than something our fetching skipped
 #   deepen-dukascopy
 #                   fill the currency pairs below what is stored, from
 #                   Dukascopy, which reaches 2003 and also carries USD/CNH.
 #                   Needs no key. Run it ONE PAIR AT A TIME via `instruments`:
 #                   a pair is a few hundred requests, and a failure part way
 #                   through then costs one pair rather than all of them
-#   deepen-etfs     the same for the US-equity instruments, from HF Data's
-#                   consolidated-tape minute bars (needs HFDATA_API_KEY). Since
-#                   2026-10-03 HF Data holds only its IEX segment, from
-#                   2022-03-07, which this refuses: it adds nothing now.
 #   deepen-alpaca   the US funds below what is stored, from Alpaca's consolidated
 #                   tape (SIP), 2016 on. Twelve Data's intraday archive stops at
 #                   2020-02 for every ticker at once, so for a newly added ETF
@@ -51,14 +45,14 @@ name: Backfill Jump Bars
 #                   about three hours of Tiingo's 50 an hour, and refuses to
 #                   start while the hourly run is asking Tiingo too. Twelve Data remains a labelled
 #                   fallback (`--source twelvedata`) that cannot see splits.
-#   probe-hfdata    print one HF Data ticker's schema and first timestamps and
-#                   stop. Their columns and timezone are undocumented, and
-#                   deepen-etfs refuses to run until the zone has been read off
-#                   this rather than assumed. Put the ticker in `instruments`.
 #   voter-bars      every live voter's bars of every instrument (or those named),
 #                   35 days, uploaded as the artifact `voter-bars` for a
 #                   measurement (tools/voter_bars.py). Writes nothing to the
 #                   store or the record.
+#   tape-bars       Alpaca's consolidated tape for every US fund (or those
+#                   named), 2016 to 2022, uploaded as the artifact `tape-bars`
+#                   for a measurement (tools/tape_bars.py). Writes nothing to
+#                   the store.
 
 on:
   workflow_dispatch:
@@ -77,13 +71,12 @@ on:
           - extend-history
           - fill-gaps
           - deepen-dukascopy
-          - deepen-etfs
           - deepen-alpaca
           - repair-alpaca
           - live-pass
-          - probe-hfdata
           - corporate-actions
           - voter-bars
+          - tape-bars
 
 permissions:
   contents: write
@@ -132,21 +125,19 @@ jobs:
           TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-          HFDATA_API_KEY: ${{ secrets.HFDATA_API_KEY }}
           # Deepening asks each pair's archive source, not SiftingIO, but the
           # backfill refuses up front a list holding SiftingIO pairs without it.
           SIFTING_API_KEY: ${{ secrets.SIFTING_API_KEY }}
           ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
         run: |
-          # probe-hfdata takes its ticker as the flag's value rather than as a
-          # separate --instruments, so it is spelled out on its own.
           if [ "${{ github.event.inputs.mode }}" = "corporate-actions" ]; then
             python -m jump.corporate_actions
-          elif [ "${{ github.event.inputs.mode }}" = "probe-hfdata" ]; then
-            python -m jump.backfill --probe-hfdata "${{ github.event.inputs.instruments || 'SPY' }}"
           elif [ "${{ github.event.inputs.mode }}" = "voter-bars" ]; then
             python -m tools.voter_bars voter-bars \
+              ${{ github.event.inputs.instruments && format('--instruments "{0}"', github.event.inputs.instruments) || '' }}
+          elif [ "${{ github.event.inputs.mode }}" = "tape-bars" ]; then
+            python -m tools.tape_bars tape-bars \
               ${{ github.event.inputs.instruments && format('--instruments "{0}"', github.event.inputs.instruments) || '' }}
           else
             python -m jump.backfill --${{ github.event.inputs.mode || 'extend-history' }} \
@@ -159,6 +150,14 @@ jobs:
         with:
           name: voter-bars
           path: voter-bars
+          retention-days: 30
+
+      - name: Upload the tape's bars
+        if: always() && github.event.inputs.mode == 'tape-bars'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tape-bars
+          path: tape-bars
           retention-days: 30
 
       - name: Commit the deepened store

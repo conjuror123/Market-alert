@@ -30,9 +30,8 @@ history_since: "2015-01-01"
 #                 credits.
 #   HF Data       2002 to 2020-02 for US equity, from the consolidated tape,
 #                 until 2026-10-03, which is where the funds stored from
-#                 2002-2011 came from. Since then the library holds only its
-#                 IEX segment, from 2022-03, which price_monitor.hfdata refuses:
-#                 the --deepen-etfs pass adds nothing now.
+#                 2002-2011 came from. It now holds only its IEX segment, from
+#                 2022-03; its client and the pass that used it are deleted.
 #   Dukascopy     2003 for the currency pairs (--deepen-dukascopy), no key.
 #   Binance       each pair's own listing date (2017-08 at the earliest), no key.
 # So a newly added ETF needs the Twelve Data pass and then Alpaca's, which

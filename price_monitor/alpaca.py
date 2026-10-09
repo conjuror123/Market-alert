@@ -13,7 +13,7 @@ HISTORY: SIP. The free plan serves SIP bars only
 to fifteen minutes back, so it cannot be the live source, but below that it is
 the consolidated tape itself - the line every live feed was held to - from
 2016-01-01, for every US-listed fund in the
-basket. Twelve Data's intraday archive stops at 2020-02 and HF Data does not
+basket. Twelve Data's intraday archive stops at 2020-02 and HF Data did not
 carry about sixty of the funds, so this is what takes those back to 2016. The
 same tape votes on every fund's far moves, once it serves the move's hour
 whole (jump.verify).

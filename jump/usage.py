@@ -30,7 +30,6 @@ PROVIDERS = {
     "api.stlouisfed.org": "fred",
     "cdn.cboe.com": "cboe",
     "cdn-api.cboe.com": "cboe",
-    "api.hfdatalibrary.com": "hfdata",
     "datafeed.dukascopy.com": "dukascopy",
     "api.exchange.coinbase.com": "coinbase",
     "api.kraken.com": "kraken",

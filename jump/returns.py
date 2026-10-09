@@ -255,7 +255,14 @@ def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
                  for d in set(day[is_open])}
         on_time = np.array([is_open[k] and hours[k] <= first[day[k]] for k in range(n)],
                            dtype=bool)
-        usable = is_open & complete & on_time & ~rolled & np.isfinite(gap)
+        # USD/BRL is a pair, and a night of it that opens exactly at the
+        # previous close is a stitched open, as on the other pairs' weekends:
+        # 22 of its 1,701 scored nights to 2026-10-08, 2020-2025, on nights
+        # Yahoo's BRL=X moved like any other (median 10.4 bp against 11.2,
+        # 2024-10..2026-10). A future's zero is a real quiet night: live
+        # cattle's official gaps agree with its stored ones.
+        stitched = (gap == 0.0) if template == "b3_fx" else np.zeros(n, dtype=bool)
+        usable = is_open & complete & on_time & ~rolled & ~stitched & np.isfinite(gap)
         return np.where(usable, gap, np.nan)
 
     day = session.to_numpy(dtype=object)

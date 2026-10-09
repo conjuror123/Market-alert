@@ -47,7 +47,6 @@ Secrets (GitHub → Settings → Secrets → Actions):
 | `SIFTING_API_KEY` | the 17 FX pairs |
 | `TWELVEDATA_API_KEY` | 8 thin funds; archive and gap-fill |
 | `FRED_API_KEY` | the VIX series |
-| `HFDATA_API_KEY` | optional: the backfill's `deepen-etfs`, `probe-hfdata` and `fill-gaps`'s second source; since 2026-10-03 HF Data serves nothing before 2022-03 |
 
 Yahoo, Sina, Google Finance, Binance, MarketWatch, Coinbase, Kraken and Cboe need no key. A
 missing key costs only that provider's instruments, and the health chat names the secret every run until it is
@@ -62,7 +61,7 @@ Local:
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q          # ~850 tests, about 2 minutes; run alone, several load large parquet files
+pytest -q          # ~830 tests, about 2 minutes; run alone, several load large parquet files
 ```
 
 The derived data (`data/jump/metrics/`, `jumps.parquet`) rebuilds from the committed
@@ -109,7 +108,7 @@ standing in, a few minutes of it; that bar heals on the next fetch.
 | SiftingIO | 17 FX pairs | the bar closed at :00 is served by :05 |
 | Binance | 16 coins | each coin as its USDT pair, via `data-api.binance.vision` (reachable from US runners) |
 | Dukascopy, Bitstamp, Bitfinex | — | history only |
-| HF Data | — | funds' history to 2020, imported; it withdrew its consolidated tape (to 2022-03) on 2026-10-03 |
+| HF Data | — | funds' history to 2020, imported; it withdrew its consolidated tape on 2026-10-03, and its client was deleted |
 
 Each fund's feed is chosen by measurement; see `docs/decisions.md`, "Data and providers".
 
@@ -347,7 +346,8 @@ fetch brings them back. The night after each is unscored.
   dividend-adjusted, and left unscored on a split, an unconfirmed dividend, a missing
   bar before the close, or a missing first hour: from a late first bar the "night" would
   span hours of trading. A pair's weekend that opens exactly at Friday's close is no
-  measurement (a stitched open, or no quote) and is left unscored too.
+  measurement (a stitched open, or no quote) and is left unscored too, and so is a USD/BRL
+  night that opens exactly at the previous close.
 - **`hole`:** the move across a missing hour inside a session. It is never scored; it only
   keeps the price path whole for the close check.
 
@@ -666,7 +666,7 @@ health and the calendar go out, Jump's pushes, note and pings do not.
 | `price_monitor/weekly_digest.py`, `economic_calendar.py` | the calendar |
 | `price_monitor/notifier.py`, `health.py`, `__main__.py` | Telegram calls, health, the delivery entry point |
 | `price_monitor/<provider>.py` | one client per provider |
-| `tools/` | `stage_report.py`, `hot_bars.sh`, `run_died.sh` (the health line for a run that could not deliver), `voter_bars.py` (every live voter's bars for a measurement; the backfill's `voter-bars` mode, where the keys are) |
+| `tools/` | `stage_report.py`, `hot_bars.sh`, `run_died.sh` (the health line for a run that could not deliver), `voter_bars.py` (every live voter's bars for a measurement; the backfill's `voter-bars` mode, where the keys are), `tape_bars.py` (Alpaca's tape for every fund, 2016 to 2022, the same way: `tape-bars`) |
 
 How far back each record reaches:
 

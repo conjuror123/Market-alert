@@ -18,15 +18,13 @@ with the currency pairs and crypto, which would make "the same hour" mean two
 different things across instruments. It costs nothing extra - the providers
 count requests, not rows.
 
-THE DEEPENING MODES (--extend-history, --deepen-etfs, --deepen-alpaca,
---deepen-dukascopy, --fill-gaps) reach back past what the live providers serve,
-and are routed to `source` rather than `provider`: Yahoo serves 59 days of
-half-hourly bars and Tiingo caps a response at 10000 rows, so only the archive
-provider can answer a walk backwards. An import from HF Data is un-adjusted
-against the declared ex-dates first and then gated on agreeing with the bars
-already stored (see verify_alignment), so a series on a different adjustment
-basis is refused rather than spliced. Since 2026-10-03 HF Data serves only its
-IEX segment, from 2022-03-07: it reaches nothing the store lacks.
+THE DEEPENING MODES (--extend-history, --deepen-alpaca, --deepen-dukascopy,
+--fill-gaps) reach back past what the live providers serve, and are routed to
+`source` rather than `provider`: Yahoo serves 59 days of half-hourly bars and
+Tiingo caps a response at 10000 rows, so only the archive provider can answer a
+walk backwards. An import from another source is gated on agreeing with the
+bars already stored (see verify_alignment), so a series on a different
+adjustment basis is refused rather than spliced.
 """
 from __future__ import annotations
 
@@ -45,7 +43,7 @@ from jump import atomic, bars, cboe, corporate_actions, fred, futures, quality, 
 from jump import sessions as _sessions
 from jump.basket import Asset, Basket, load_basket
 from jump.usage import Usage
-from price_monitor import (alpaca, binance, dukascopy, google, hfdata, sifting, sina,
+from price_monitor import (alpaca, binance, dukascopy, google, sifting, sina,
                            tiingo, twelvedata, yahoo)
 from price_monitor.models import UNANSWERED_IN_A_ROW, ExchangeError, KeyRefused, Unreachable
 from price_monitor.notifier import quote, send_health
@@ -881,17 +879,6 @@ def fill_gaps(asset: Asset, path: str, table: dict, api_key: str,
             "still_missing": left}
 
 
-# What HF Data's minute timestamps mean, read off the file rather than assumed.
-# The probe (run 34014690848) returned naive datetime64 values whose last row
-# is 2026-09-04 15:59 - a September date, in daylight-saving season, ending at
-# 15:59. Under a fixed EST encoding that day's last bar would read 14:59, so
-# the file is Eastern wall-clock and observes DST.
-#
-# That reasoning is sound and is still not trusted on its own: it is checked
-# against the two years of overlap the store already holds, and the import
-# refuses to merge anything if the check fails. See verify_alignment.
-HFDATA_TIMEZONE = "US/Eastern"
-
 # How closely the re-derived hourly bars must track what is already stored
 # before any of them are kept. A timezone read wrong shifts four months of
 # every year by an hour, which does not look like an error - it looks like
@@ -921,11 +908,9 @@ ALIGNMENT_MAX_MEDIAN_BP = 25.0
 def verify_alignment(minutes: "pd.DataFrame", stored: "pd.DataFrame") -> dict:
     """Checks re-derived bars against the ones already held, over their overlap.
 
-    The overlap exists because the archive runs to the present while the store
-    starts in 2020, so roughly two years of consolidated-tape bars cover hours
-    we can already price independently. Nothing else in this import has that
-    luxury; the years being imported have no second opinion at all, which is
-    exactly why the years that do have one are made to earn the rest.
+    The overlap is the hours both hold, which the store can already price
+    independently. The years being imported have no second opinion at all,
+    which is exactly why the years that do have one are made to earn the rest.
     """
     import numpy as np
 
@@ -970,185 +955,11 @@ def verify_alignment(minutes: "pd.DataFrame", stored: "pd.DataFrame") -> dict:
             "why": "; ".join(reasons), "worst": worst}
 
 
-# How much of the overlap is spent pinning the vendor's adjustment factor. The
-# rest of it - about two years - is then an honest test of the reconstruction,
-# because nothing in those months was used to build it.
-CALIBRATION_DAYS = 30
-
-
-def unadjust_to_store(minutes: "pd.DataFrame", stored: "pd.DataFrame",
-                      steps: list) -> tuple["pd.DataFrame", dict]:
-    """Turns a vendor's adjusted prices into the store's unadjusted convention.
-
-    Two things make this checkable rather than hopeful. The anchor is measured,
-    not guessed: the factor is pinned where the store already knows the true
-    price, so the ex-dates only have to explain the change from there. And the
-    pinning uses the first month of the overlap while the check that follows
-    uses all of it, so roughly two years of the test never touched the fit.
-
-    Volume is left alone. Splits are recorded in the table but excluded from
-    the steps used here (`load_steps` defaults to dividends); a dividend does
-    not restate share counts, and the store is already split-adjusted.
-    """
-    import numpy as np
-
-    hourly = bars.to_hourly(minutes)
-    # A bar removed on purpose has no price to compare (bars.remove).
-    stored = stored[~bars.removed(stored).to_numpy()]
-    joined = hourly.merge(stored[["hour_utc", "close"]], on="hour_utc",
-                          how="inner", suffixes=("_hf", "_store"))
-    if joined.empty:
-        return minutes, {"calibrated": False, "why": "no overlap to calibrate on"}
-
-    joined = joined.sort_values("hour_utc")
-    cutoff = int(joined["hour_utc"].iloc[0]) + CALIBRATION_DAYS * 24 * 3600
-    window = joined[joined["hour_utc"] <= cutoff]
-    if len(window) < 50:
-        return minutes, {"calibrated": False,
-                         "why": f"only {len(window)} hours to calibrate on"}
-
-    ratio = float(np.median(window["close_hf"] / window["close_store"]))
-    reference = datetime.fromtimestamp(int(window["hour_utc"].median()),
-                                       tz=timezone.utc).date()
-    factor = corporate_actions.unadjust_factor(
-        steps, minutes["hour_utc"].to_numpy(), reference, ratio)
-
-    out = minutes.copy()
-    for column in ("open", "high", "low", "close"):
-        out[column] = out[column].to_numpy() / factor
-    return out, {"calibrated": True, "ratio": ratio, "reference": reference,
-                 "ex_dates": len(steps), "hours_used": len(window)}
-
-
 # A fund's ticker before a rename, for the history sources that file the years
-# before it under the old name (probed 2026-10-02): HF Data has no IGIB, but
-# CIU from 2007-01 to 2018-07; Alpaca serves CIU 2016 to 2018-07 and CRED 2016
-# on. Only ever a candidate: the history it brings is written only if it
+# before it under the old name (probed 2026-10-02): Alpaca serves CIU 2016 to
+# 2018-07 and CRED 2016 on. Only ever a candidate: the history it brings is written only if it
 # passes the same overlap gate against the stored bars as any other source.
 FORMER_TICKERS = {"IGIB": "CIU", "USIG": "CRED"}
-
-
-def deepen_from_hfdata(asset: Asset, path: str, since: date, api_key: str,
-                       session: requests.Session,
-                       timezone_name: str | None = HFDATA_TIMEZONE) -> dict:
-    """Fills a US-equity instrument's history below what is already stored.
-
-    Same shape as the FX deepening: the live provider keeps the recent end and
-    this reaches under it, so the two never compete for an hour. The minute bars are
-    folded to the store's hourly grid by bars.to_hourly, which sums volume - so
-    the consolidated-tape filter in hfdata.to_minute_frame has to have run
-    first, or an hour would mix full-tape and IEX volume in one figure.
-    """
-    if asset.session_template != CALENDAR_TEMPLATE:
-        return {"skipped": "not a US-equity instrument", "added": 0}
-    if timezone_name is None:
-        return {"skipped": "HFDATA_TIMEZONE is unset - run --probe-hfdata first",
-                "added": 0}
-
-    stored = bars.load(path)
-    if stored.empty:
-        return {"skipped": "nothing stored yet", "added": 0}
-    oldest = datetime.fromtimestamp(int(stored["hour_utc"].min()), tz=timezone.utc)
-    if oldest.date() <= since:
-        return {"skipped": "already reaches back far enough", "added": 0}
-
-    payload = hfdata.fetch_parquet(FORMER_TICKERS.get(asset.ticker, asset.ticker),
-                                   api_key, session)
-    minutes = hfdata.to_minute_frame(payload, timezone_name)
-    if minutes.empty:
-        return {"skipped": "no consolidated-tape bars returned", "added": 0}
-
-    # Their prices are dividend-adjusted, measured: 0.972x of SPY's real close
-    # at the end of 2019 falling to 0.733x in 2005, in both the raw and the
-    # clean version. This store is deliberately unadjusted, so the factor is
-    # taken back out before anything is compared or merged.
-    steps = corporate_actions.load_steps().get(asset.ticker, [])
-    minutes, adjustment = unadjust_to_store(minutes, stored, steps)
-
-    # Earn the un-checkable years with the checkable ones before merging.
-    check = verify_alignment(minutes, stored)
-    if not check["ok"]:
-        return {"skipped": f"alignment check failed: {check['why']}",
-                "added": 0, "check": check, "adjustment": adjustment}
-
-    lo = int(datetime.combine(since, datetime.min.time(),
-                              tzinfo=timezone.utc).timestamp())
-    hi = int(oldest.timestamp())
-    window = minutes[(minutes["hour_utc"] >= lo) & (minutes["hour_utc"] < hi)]
-    if window.empty:
-        return {"skipped": "nothing in the window below the store", "added": 0}
-
-    added = bars.merge(path, bars.to_hourly(window))
-    return {"skipped": None, "added": added, "minutes": len(window),
-            "from": since, "to": oldest.date(), "check": check,
-            "adjustment": adjustment}
-
-
-def fill_gaps_from_hfdata(asset: Asset, path: str, table: dict, api_key: str,
-                          session: requests.Session,
-                          timezone_name: str | None = HFDATA_TIMEZONE) -> dict:
-    """Fills the HOURS Twelve Data does not hold, from HF Data's archive.
-
-    The unit here is the hour, not the day. Twelve Data's 2020-21 damage is not
-    only whole sessions: 2020-02-19 is present with two of its seven bars, and
-    a day-level fill declares it healthy because something is there. Asking for
-    every calendar hour the store lacks covers the whole sessions as a special
-    case and the partial ones as well.
-
-    These years were inside HF Data's consolidated-tape era - the same full
-    CTA/UTP feed the surrounding Twelve Data bars come from. Since 2026-10-03
-    it serves only the IEX subset that starts on 2022-03-07, so it holds none
-    of them, and this fills nothing.
-
-    This writes INTO the middle of the stored series rather than under it, so
-    the adjustment has to be right to the basis point or the patch shows up as
-    a step where the store was continuous. The same calibration and the same
-    two gates apply, and nothing is written unless both pass. Hours the store
-    already holds are removed from the patch before the merge: bars.merge lets
-    the incoming row win on a collision, and the live source keeps its own bars.
-    """
-    if asset.session_template != CALENDAR_TEMPLATE:
-        return {"skipped": "no authoritative calendar", "added": 0, "gaps": 0}
-    if timezone_name is None:
-        return {"skipped": "HFDATA_TIMEZONE is unset", "added": 0, "gaps": 0}
-
-    wanted = set(missing_hours(path, table))
-    if not wanted:
-        return {"skipped": None, "added": 0, "gaps": 0, "hours": 0,
-                "still_missing": [], "still_missing_hours": 0}
-
-    gaps = missing_sessions(path, table)
-    stored = bars.load(path)
-    payload = hfdata.fetch_parquet(asset.ticker, api_key, session)
-    minutes = hfdata.to_minute_frame(payload, timezone_name)
-    if minutes.empty:
-        return {"skipped": "no consolidated-tape bars returned", "added": 0,
-                "gaps": len(gaps), "hours": len(wanted)}
-
-    steps = corporate_actions.load_steps().get(asset.ticker, [])
-    minutes, adjustment = unadjust_to_store(minutes, stored, steps)
-    check = verify_alignment(minutes, stored)
-    if not check["ok"]:
-        return {"skipped": f"alignment check failed: {check['why']}",
-                "added": 0, "gaps": len(gaps), "hours": len(wanted),
-                "check": check}
-
-    # Fold first, then select. The hole is an hour of the store's grid, and
-    # only after folding does a minute bar carry the stamp that can be compared
-    # against it.
-    hourly = bars.to_hourly(minutes)
-    patch = hourly[hourly["hour_utc"].isin(wanted).to_numpy()]
-    if patch.empty:
-        return {"skipped": "the archive does not hold those hours either",
-                "added": 0, "gaps": len(gaps), "hours": len(wanted),
-                "still_missing": gaps, "still_missing_hours": len(wanted)}
-
-    added = bars.merge(path, patch)
-    left = missing_hours(path, table)
-    return {"skipped": None, "added": added, "gaps": len(gaps),
-            "hours": len(wanted), "still_missing": missing_sessions(path, table),
-            "still_missing_hours": len(left),
-            "check": check, "adjustment": adjustment}
 
 
 # How far back a repair reaches: Yahoo's 30-minute bars, a day short of their
@@ -1344,21 +1155,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--extend-history", action="store_true",
                         help="ask from basket.fetch_since even where the store "
                              "already has bars, to deepen the archive backwards")
-    parser.add_argument("--probe-hfdata", default="",
-                        help="print the schema, source values and first "
-                             "timestamps of one HF Data ticker, then stop. "
-                             "Their column names and timezone are undocumented "
-                             "and must be read rather than assumed.")
-    parser.add_argument("--deepen-etfs", action="store_true",
-                        help="fill the US-equity instruments' history below "
-                             "what Twelve Data's plan serves, from HF Data's "
-                             "consolidated-tape minute bars.")
     parser.add_argument("--fill-gaps", action="store_true",
-                        help="re-ask Twelve Data, then HF Data, for trading "
-                             "days and hours the NYSE calendar has and the store "
-                             "does not. Whether a day is recoverable is the "
-                             "point: an empty answer confirms the hole is the "
-                             "provider's.")
+                        help="re-ask Twelve Data for trading days and hours "
+                             "the NYSE calendar has and the store does not. "
+                             "Whether a day is recoverable is the point: an "
+                             "empty answer confirms the hole is the provider's.")
     parser.add_argument("--deepen-dukascopy", action="store_true",
                         help="fill the FX pairs' history below what is stored "
                              "from Dukascopy's public archive, which reaches "
@@ -1400,70 +1201,9 @@ def main(argv: list[str] | None = None) -> int:
         log.error("No instrument matched --instruments %s", args.instruments)
         return 2
 
-    if args.probe_hfdata:
-        import json
-
-        key = os.environ.get("HFDATA_API_KEY", "")
-        if not key:
-            log.error("HFDATA_API_KEY is not set")
-            return 2
-        session = requests.Session()
-        # Both versions in one dispatch. "clean" carries a cumulative dividend
-        # factor - 0.733x of SPY's actual close in 2005 - and whether "raw" does
-        # too is the whole question, so asking one at a time would cost a round
-        # trip to learn half the answer.
-        # Comma-separated: one dispatch for several tickers (a renamed fund's
-        # old and new names).
-        for ticker in [t.strip() for t in args.probe_hfdata.split(",") if t.strip()]:
-            for version in ("clean", "raw"):
-                try:
-                    payload = hfdata.fetch_parquet(ticker, key, session, version=version)
-                except Exception as exc:
-                    log.error("%s (%s): %s", ticker, version, exc)
-                    continue
-                log.info("%s (%s): %d bytes", ticker, version, len(payload))
-                report = hfdata.describe(payload)
-                if ticker.upper() == "SPY":
-                    report["reference_closes"] = hfdata.reference_check(
-                        payload, hfdata.SPY_REFERENCE_CLOSES)
-                print(f"--- {ticker} {version} ---")
-                print(json.dumps(report, indent=2, default=str))
-        return 0
-
-    if args.deepen_etfs:
-        key = os.environ.get("HFDATA_API_KEY", "")
-        if not key:
-            log.error("HFDATA_API_KEY is not set")
-            return 2
-        session = requests.Session()
-        total = 0
-        for asset in instruments:
-            path = bars.store_path(args.bars_dir, asset.file_stem)
-            try:
-                out = deepen_from_hfdata(asset, path, basket.acquire_since,
-                                         key, session)
-            except Exception as exc:
-                log.error("%s: HF Data deepening failed - %s", asset.asset_id, exc)
-                continue
-            if out["skipped"]:
-                log.info("%s: skipped (%s)", asset.asset_id, out["skipped"])
-                continue
-            total += out["added"]
-            check, adj = out["check"], out.get("adjustment", {})
-            log.info("%s: +%d bars from HF Data (%s .. %s, %d minute bars); "
-                     "un-adjusted by %.4f at %s over %d ex-dates; "
-                     "overlap check %d hours, corr %.4f, median %.2fbp",
-                     asset.asset_id, out["added"], out["from"], out["to"],
-                     out["minutes"], adj.get("ratio", float("nan")),
-                     adj.get("reference"), adj.get("ex_dates", 0),
-                     check["hours"], check["correlation"], check["median_bp"])
-        log.info("HF Data deepening added %d bars", total)
-        return 0
-
     if args.fill_gaps:
 
         api_key = os.environ.get("TWELVEDATA_API_KEY", "")
-        hf_key = os.environ.get("HFDATA_API_KEY", "")
         if not api_key:
             log.error("TWELVEDATA_API_KEY is not set")
             return 2
@@ -1478,10 +1218,10 @@ def main(argv: list[str] | None = None) -> int:
                     out = fill_gaps(asset, path, table, api_key, session, ask=not td_spent)
                 except twelvedata.DailyQuotaExhausted as exc:
                     # Said once: every later request would be refused the same
-                    # way. The gaps still go to HF Data below.
+                    # way. The remaining gaps are only listed.
                     td_spent = True
-                    log.warning("Twelve Data stops here - %s. The remaining gaps go "
-                                "to HF Data only.", exc)
+                    log.warning("Twelve Data stops here - %s. The remaining gaps are "
+                                "only listed.", exc)
                     out = fill_gaps(asset, path, table, api_key, session, ask=False)
                     out["added"] = getattr(exc, "added", 0)
             except Exception as exc:
@@ -1489,6 +1229,7 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             if out["skipped"]:
                 continue
+            filled += out["added"]
             left = out["still_missing"] if out["gaps"] else []
             if out["gaps"]:
                 log.info("%s: %d gap(s), +%d bars from Twelve Data, %d still "
@@ -1497,45 +1238,17 @@ def main(argv: list[str] | None = None) -> int:
 
             # A day is not a unit of completeness. The store can hold a session
             # and still be missing five of its seven bars, and asking only "is
-            # the day there" walks past that. The second source is offered when
-            # EITHER measure finds something wrong.
+            # the day there" walks past that: the hours are counted too. Twelve
+            # Data does not hold them - 0 of 21 recovered in run 33994110137 -
+            # and they stay listed: no mode fills inside the store from another
+            # source.
             hours_left = missing_hours(path, table)
-            hours_left_before = list(hours_left)
             if not left and not hours_left:
                 log.info("%s: no gaps", asset.asset_id)
                 continue
             if hours_left and not left:
                 log.info("%s: whole sessions complete, %d hour(s) missing "
                          "inside them", asset.asset_id, len(hours_left))
-
-            # Twelve Data does not hold them - proven, 0 of 21 recovered in run
-            # 33994110137 - so anything still missing goes to the second source
-            # of the same kind, HF Data, which since 2026-10-03 holds none of
-            # those years. Tried in this order because a day recovered from
-            # the vendor the surrounding bars already come from needs no
-            # adjustment and no calibration to sit correctly beside them.
-            if (left or hours_left) and hf_key:
-                try:
-                    out = fill_gaps_from_hfdata(asset, path, table, hf_key,
-                                                session)
-                except Exception as exc:
-                    log.error("%s: HF Data gap fill failed - %s",
-                              asset.asset_id, exc)
-                    out = {"skipped": str(exc), "added": 0,
-                           "still_missing": left}
-                if out.get("skipped"):
-                    log.info("%s: HF Data skipped (%s)", asset.asset_id,
-                             out["skipped"])
-                else:
-                    left = out["still_missing"]
-                    log.info("%s: +%d bars from HF Data, %d hour(s) and %d "
-                             "session(s) still missing%s", asset.asset_id,
-                             out["added"], out.get("still_missing_hours", 0),
-                             len(left),
-                             f" {[str(d) for d in left]}" if left else "")
-                    hours_left = [None] * out.get("still_missing_hours", 0)
-
-            filled += len(hours_left_before) - len(hours_left)
             unfilled += len(hours_left)
         log.info("gap fill: %d hour(s) recovered, %d confirmed missing at "
                  "the source", filled, unfilled)

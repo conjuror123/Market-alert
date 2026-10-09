@@ -264,6 +264,28 @@ def test_a_pairs_weekend_opening_exactly_at_fridays_close_is_not_scored():
     assert out["gap"].isna().all()
 
 
+def _utc(y, m, d, h):
+    return int(datetime(y, m, d, h, tzinfo=timezone.utc).timestamp())
+
+
+def test_a_usd_brl_night_opening_exactly_at_the_previous_close_is_not_scored():
+    # USD/BRL keeps B3's session, 09:00-18:00 Sao Paulo (12:00-21:00 UTC), and
+    # is a pair: an open at exactly the previous close is a stitched one, as
+    # on the other pairs' weekends. The next night, which moved, is scored.
+    brl = asset(ticker="USD/BRL", source="twelvedata", block="FX", tick_size=0.0001,
+                session_template="b3_fx", fetch_interval="1h")
+    out = returns.split_channels(brl, frame([
+        (_utc(2025, 11, 17, 19), 5.3000, 5.3020, 5.2990, 5.3010, 0.0, 2),
+        (_utc(2025, 11, 17, 20), 5.3010, 5.3020, 5.2990, 5.3000, 0.0, 2),
+        (_utc(2025, 11, 18, 12), 5.3000, 5.3300, 5.2990, 5.3250, 0.0, 2),
+        (_utc(2025, 11, 18, 20), 5.3250, 5.3260, 5.3240, 5.3250, 0.0, 2),
+        (_utc(2025, 11, 19, 12), 5.3400, 5.3420, 5.3390, 5.3410, 0.0, 2),
+    ]), dividends=dividends(ticker="SPY"))
+    opens = out[out["is_session_open"]].set_index("hour_utc")["gap"]
+    assert np.isnan(opens[_utc(2025, 11, 18, 12)])
+    assert opens[_utc(2025, 11, 19, 12)] == pytest.approx(math.log(5.3400 / 5.3250))
+
+
 def test_crypto_has_no_gap():
     coin = asset(ticker="BTC-USD", source="coinbase", block="crypto",
                  session_template="crypto_24_7", fetch_interval="1h")
