@@ -193,8 +193,10 @@ twelvedata:CANE,1789394400,close,real,yahoo,sina,,-0.012305,-0.012305,1791114096
 twelvedata:CANE,1789653600,close,real,yahoo,sina,,-0.013867,-0.015199,1791114096
 twelvedata:CIBR,1789736400,close,real,yahoo,sina,,-0.026210,-0.026009,1791114096
 twelvedata:CORN,1790784000,close,real,twelvedata,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.028440,"-0.028440,-0.028440,-0.028440,-0.028440",1791508016
+twelvedata:CORN,1791561600,close,real,twelvedata,"yahoo,sina,marketwatch","yahoo,sina,marketwatch",-0.046170,"-0.050097,-0.050652,-0.050097",1791565670
 twelvedata:DBA,1534424400,close,overnight,twelvedata,alpaca,,0.012489,0.012227,1791362492
 twelvedata:DBA,1788958800,close,real,twelvedata,yahoo,,-0.007215,-0.007215,1791114096
+twelvedata:DBA,1791561600,close,real,twelvedata,"yahoo,sina,marketwatch","yahoo,sina,marketwatch",-0.010777,"-0.010780,-0.010784,-0.010780",1791565670
 twelvedata:DBB,1789045200,close,real,yahoo,sina,,-0.008948,-0.008948,1791114096
 twelvedata:DBE,1790265600,close,real,sina,yahoo,,-0.028433,-0.028433,1791114096
 twelvedata:DIA,1789581600,close,real,alpaca,yahoo,,-0.011477,-0.011477,1791114096
@@ -409,6 +411,7 @@ twelvedata:SLQD,1790604000,close,real,sina,yahoo,,-0.001213,-0.001112,1791114096
 twelvedata:SLQD,1790866800,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo,marketwatch,alpaca_sip",0.001318,"0.001318,0.001318,0.001318",1791508016
 twelvedata:SLQD,1790949600,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo,marketwatch,alpaca_sip",-0.001113,"-0.001113,-0.001113,-0.001113",1791508016
 twelvedata:SLV,1789581600,close,real,twelvedata,yahoo,,-0.028127,-0.027528,1791114096
+twelvedata:SOYB,1791561600,close,real,sina,"yahoo,marketwatch","yahoo,marketwatch",-0.015714,"-0.015714,-0.015714",1791565670
 twelvedata:SPIB,1789398000,close,real,alpaca,yahoo,,0.002142,0.002142,1791114096
 twelvedata:SPIB,1789581600,close,real,alpaca,yahoo,,-0.003218,-0.003218,1791114096
 twelvedata:SPIB,1790168400,close,real,alpaca,yahoo,,-0.003219,-0.003219,1791114096
@@ -754,6 +757,7 @@ twelvedata:VWOB,1790168400,close,real,yahoo,sina,,-0.003315,-0.003315,1791114096
 twelvedata:VWOB,1790600400,open,real,yahoo,sina,,-0.008909,-0.008468,1791114096
 twelvedata:WEAT,1620651600,close,overnight,yahoo,alpaca,,-0.031749,-0.017821,1791362492
 twelvedata:WEAT,1788958800,close,real,yahoo,sina,,-0.017796,-0.017796,1791114096
+twelvedata:WEAT,1791561600,close,real,yahoo,"sina,marketwatch","sina,marketwatch",-0.025742,"-0.025328,-0.025742",1791565670
 twelvedata:XBI,1790172000,close,real,yahoo,sina,,-0.023859,-0.023859,1791114096
 twelvedata:XLB,1632142800,close,overnight,tiingo,alpaca,,-0.021250,-0.028185,1791362492
 twelvedata:XLB,1643032800,close,overnight,tiingo,alpaca,,-0.024330,-0.016565,1791362492
