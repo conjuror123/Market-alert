@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1791508065
+    "last_run_utc": 1791511631
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -22,7 +22,7 @@
           },
           "message": 91,
           "peak": "jump:binance:ADA/USDT:hour:1791471600",
-          "seen": 1791508065,
+          "seen": 1791511631,
           "shown": [
             "high",
             8.6,
@@ -55,7 +55,7 @@
           },
           "message": 91,
           "peak": "jump:binance:ATOM/USDT:hour:1791471600",
-          "seen": 1791508065,
+          "seen": 1791511631,
           "shown": [
             "high",
             10.4,
@@ -88,7 +88,7 @@
           },
           "message": 92,
           "peak": "jump:binance:AVAX/USDT:hour:1791471600",
-          "seen": 1791508065,
+          "seen": 1791511631,
           "shown": [
             "noticeable",
             8.1,
@@ -125,7 +125,7 @@
           },
           "message": 92,
           "peak": "jump:binance:BCH/USDT:hour:1791471600",
-          "seen": 1791508065,
+          "seen": 1791511631,
           "shown": [
             "noticeable",
             7.4,
@@ -158,7 +158,7 @@
           },
           "message": 92,
           "peak": "jump:binance:DOGE/USDT:hour:1791471600",
-          "seen": 1791508065,
+          "seen": 1791511631,
           "shown": [
             "noticeable",
             8.4,
@@ -191,7 +191,7 @@
           },
           "message": 91,
           "peak": "jump:binance:DOT/USDT:hour:1791471600",
-          "seen": 1791508065,
+          "seen": 1791511631,
           "shown": [
             "high",
             9.0,
@@ -224,7 +224,7 @@
           },
           "message": 92,
           "peak": "jump:binance:ETH/USDT:hour:1791471600",
-          "seen": 1791508065,
+          "seen": 1791511631,
           "shown": [
             "noticeable",
             8.0,
@@ -257,7 +257,7 @@
           },
           "message": 91,
           "peak": "jump:binance:FIL/USDT:hour:1791471600",
-          "seen": 1791508065,
+          "seen": 1791511631,
           "shown": [
             "high",
             9.5,
@@ -290,7 +290,7 @@
           },
           "message": 92,
           "peak": "jump:binance:LINK/USDT:hour:1791471600",
-          "seen": 1791508065,
+          "seen": 1791511631,
           "shown": [
             "noticeable",
             7.6,
@@ -323,7 +323,7 @@
           },
           "message": 92,
           "peak": "jump:binance:LTC/USDT:hour:1791471600",
-          "seen": 1791508065,
+          "seen": 1791511631,
           "shown": [
             "noticeable",
             6.6,
@@ -356,7 +356,7 @@
           },
           "message": 92,
           "peak": "jump:binance:POL/USDT:hour:1791471600",
-          "seen": 1791508065,
+          "seen": 1791511631,
           "shown": [
             "noticeable",
             7.3,
@@ -389,7 +389,7 @@
           },
           "message": 92,
           "peak": "jump:binance:SOL/USDT:hour:1791471600",
-          "seen": 1791508065,
+          "seen": 1791511631,
           "shown": [
             "noticeable",
             6.3,
@@ -422,7 +422,7 @@
           },
           "message": 92,
           "peak": "jump:binance:XRP/USDT:hour:1791471600",
-          "seen": 1791508065,
+          "seen": 1791511631,
           "shown": [
             "noticeable",
             7.0,
@@ -455,7 +455,7 @@
           },
           "message": 91,
           "peak": "jump:twelvedata:USD/MXN:hour:1791471600",
-          "seen": 1791508065,
+          "seen": 1791511631,
           "shown": [
             "high",
             10.9,
@@ -488,7 +488,7 @@
           },
           "message": 93,
           "peak": "jump:twelvedata:USD/TRY:hour:1791493200",
-          "seen": 1791508065,
+          "seen": 1791511631,
           "shown": [
             "noticeable",
             7.4,
@@ -524,7 +524,7 @@
       },
       "note": {
         "hashes": [
-          "aa2861fbbd61295f"
+          "c58c2faf8d6a15b9"
         ],
         "ids": [
           89
