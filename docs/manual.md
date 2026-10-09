@@ -666,13 +666,13 @@ health and the calendar go out, Jump's pushes, note and pings do not.
 | `price_monitor/weekly_digest.py`, `economic_calendar.py` | the calendar |
 | `price_monitor/notifier.py`, `health.py`, `__main__.py` | Telegram calls, health, the delivery entry point |
 | `price_monitor/<provider>.py` | one client per provider |
-| `tools/` | `stage_report.py`, `hot_bars.sh`, `run_died.sh` (the health line for a run that could not deliver), `voter_bars.py` (every live voter's bars for a measurement; the backfill's `voter-bars` mode, where the keys are), `tape_bars.py` (Alpaca's tape for every fund, 2016 to 2022, the same way: `tape-bars`) |
+| `tools/` | `stage_report.py`, `hot_bars.sh`, `run_died.sh` (the health line for a run that could not deliver), `voter_bars.py` (every live voter's bars for a measurement; the backfill's `voter-bars` mode, where the keys are), `tape_bars.py` (Alpaca's tape for every fund, 2016 to 2022, the same way: `tape-bars`), `tape_mend.py` (the one-off mend of the funds' first bars from that tape) |
 
 How far back each record reaches:
 
 | instruments | from | built from |
 |---|---|---|
-| 133 US funds | 2002–2011 for 73, 2016 for 55, launch for 5 | HF Data, Twelve Data, Alpaca's tape |
+| 133 US funds | 2002–2011 for 73, 2016 for 55, launch for 5 | HF Data, Twelve Data, Alpaca's tape; the first bar of 9,783 mornings of 2016–2022 mended from the tape (`docs/decisions.md`, "The funds' wrong opens of 2016–2022 were mended from the tape") |
 | 14 FX pairs | 2003–2007; USD/CNH 2012 | Dukascopy to Twelve Data's first bar, about 2020-01 - the seven majors only to 2012, then FXCM (bars that open at the previous close) to 2020-01; the majors' 2012 Sunday opens from Dukascopy; then live |
 | USD/BRL, USD/INR, USD/KRW | 2019-09, 2019-11, 2020-01 | Twelve Data |
 | 16 coins | 2013–2020 by listing | Binance; earlier from Bitstamp, Bitfinex, Coinbase |
@@ -689,5 +689,5 @@ How far back each record reaches:
 | one other source for cattle and the softs | a disagreement is a tie: their bad prints stay scored, labelled uncertain | another free feed |
 | weekend yardsticks rest on 26 weekends | ±16% noise | none chosen: a longer window gained little (`docs/decisions.md`, "Rejected") |
 | history before each record's start (section 11) | "rarest since" reaches only as far as the record | paid history |
-| history older than its recount | not voted (section 5): only the readings the one-off check of 2026-10-07 judged carry a vote. Elsewhere an old bad print or stale open stays flagged (14 whole shifted fund days were removed, section 5), sits in the next half-year's yardsticks, and can be the "then" of a later "rarest since" line | a second source for the old history (`docs/decisions.md`, "History is not voted again") |
+| history older than its recount | not voted (section 5): only the readings the one-off check of 2026-10-07 judged carry a vote. Elsewhere an old bad print or stale open stays flagged (14 whole shifted fund days were removed, section 5; the funds' wrong first bars of 2016–2022 were mended, section 11, but not those before 2016 or since 2023), sits in the next half-year's yardsticks, and can be the "then" of a later "rarest since" line | a second source for the old history (`docs/decisions.md`, "History is not voted again") |
 | repository size (~903 MiB on GitHub, 2026-10-09; ~890 on 10-06) | grows ~28 MB a year from the hourly state, and by its files whole on a commit that rewrites data | a history rewrite (irreversible) |
