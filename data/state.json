@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1791554896
+    "last_run_utc": 1791558531
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -22,7 +22,7 @@
           },
           "message": 91,
           "peak": "jump:binance:ADA/USDT:hour:1791471600",
-          "seen": 1791554896,
+          "seen": 1791558531,
           "shown": [
             "high",
             8.6,
@@ -59,7 +59,7 @@
           },
           "message": 91,
           "peak": "jump:binance:ATOM/USDT:hour:1791471600",
-          "seen": 1791554896,
+          "seen": 1791558531,
           "shown": [
             "high",
             10.4,
@@ -92,7 +92,7 @@
           },
           "message": 92,
           "peak": "jump:binance:AVAX/USDT:hour:1791471600",
-          "seen": 1791554896,
+          "seen": 1791558531,
           "shown": [
             "noticeable",
             8.1,
@@ -129,7 +129,7 @@
           },
           "message": 92,
           "peak": "jump:binance:BCH/USDT:hour:1791471600",
-          "seen": 1791554896,
+          "seen": 1791558531,
           "shown": [
             "noticeable",
             7.4,
@@ -162,7 +162,7 @@
           },
           "message": 92,
           "peak": "jump:binance:DOGE/USDT:hour:1791471600",
-          "seen": 1791554896,
+          "seen": 1791558531,
           "shown": [
             "noticeable",
             8.4,
@@ -195,7 +195,7 @@
           },
           "message": 91,
           "peak": "jump:binance:DOT/USDT:hour:1791471600",
-          "seen": 1791554896,
+          "seen": 1791558531,
           "shown": [
             "high",
             9.0,
@@ -228,7 +228,7 @@
           },
           "message": 92,
           "peak": "jump:binance:ETH/USDT:hour:1791471600",
-          "seen": 1791554896,
+          "seen": 1791558531,
           "shown": [
             "noticeable",
             8.0,
@@ -261,7 +261,7 @@
           },
           "message": 91,
           "peak": "jump:binance:FIL/USDT:hour:1791471600",
-          "seen": 1791554896,
+          "seen": 1791558531,
           "shown": [
             "high",
             9.5,
@@ -294,7 +294,7 @@
           },
           "message": 92,
           "peak": "jump:binance:LINK/USDT:hour:1791471600",
-          "seen": 1791554896,
+          "seen": 1791558531,
           "shown": [
             "noticeable",
             7.6,
@@ -327,7 +327,7 @@
           },
           "message": 92,
           "peak": "jump:binance:LTC/USDT:hour:1791471600",
-          "seen": 1791554896,
+          "seen": 1791558531,
           "shown": [
             "noticeable",
             6.6,
@@ -360,7 +360,7 @@
           },
           "message": 92,
           "peak": "jump:binance:POL/USDT:hour:1791471600",
-          "seen": 1791554896,
+          "seen": 1791558531,
           "shown": [
             "noticeable",
             7.3,
@@ -393,7 +393,7 @@
           },
           "message": 92,
           "peak": "jump:binance:SOL/USDT:hour:1791471600",
-          "seen": 1791554896,
+          "seen": 1791558531,
           "shown": [
             "noticeable",
             6.3,
@@ -426,7 +426,7 @@
           },
           "message": 92,
           "peak": "jump:binance:XRP/USDT:hour:1791471600",
-          "seen": 1791554896,
+          "seen": 1791558531,
           "shown": [
             "noticeable",
             7.0,
@@ -447,7 +447,7 @@
         },
         "twelvedata:USD/CAD|1791550800": {
           "asset": "twelvedata:USD/CAD",
-          "body": "\u2b1c <b>USD/CAD</b> \u00b7 Dollar / Canadian dollar +0.39% \u00b7 8.0\u00d7\u03c3",
+          "body": "\u2b1c <b>USD/CAD</b> \u00b7 Canadian dollar +0.39% \u00b7 8.0\u00d7\u03c3",
           "context": "",
           "form": "row",
           "hour": 1791547200,
@@ -459,7 +459,7 @@
           },
           "message": 94,
           "peak": "jump:twelvedata:USD/CAD:hour:1791547200",
-          "seen": 1791554896,
+          "seen": 1791558531,
           "shown": [
             "noticeable",
             8.0,
@@ -480,7 +480,7 @@
         },
         "twelvedata:USD/MXN|1791475200": {
           "asset": "twelvedata:USD/MXN",
-          "body": "\ud83d\udfe8 <b>USD/MXN</b> \u00b7 Dollar / Mexican peso +0.99% \u00b7 10.9\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 7 months (then 12.5\u00d7\u03c3)\n\ud83d\udd50 <b>08.10.2026 15:00 UTC</b> \u00b7 close 117%",
+          "body": "\ud83d\udfe8 <b>USD/MXN</b> \u00b7 Mexican peso +0.99% \u00b7 10.9\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 7 months (then 12.5\u00d7\u03c3)\n\ud83d\udd50 <b>08.10.2026 15:00 UTC</b> \u00b7 close 117%",
           "context": "",
           "form": "push",
           "hour": 1791471600,
@@ -488,11 +488,15 @@
             "jump:twelvedata:USD/MXN:hour:1791471600": [
               0.009929640064783248,
               0.0009098456658572363
+            ],
+            "jump:twelvedata:USD/MXN:hour:1791554400": [
+              0.007007457859895231,
+              0.0009164746648788223
             ]
           },
           "message": 91,
           "peak": "jump:twelvedata:USD/MXN:hour:1791471600",
-          "seen": 1791554896,
+          "seen": 1791558531,
           "shown": [
             "high",
             10.9,
@@ -513,7 +517,7 @@
         },
         "twelvedata:USD/TRY|1791496800": {
           "asset": "twelvedata:USD/TRY",
-          "body": "\u2b1c <b>USD/TRY</b> \u00b7 Dollar / Turkish lira +0.15% \u00b7 7.4\u00d7\u03c3",
+          "body": "\u2b1c <b>USD/TRY</b> \u00b7 Turkish lira +0.15% \u00b7 7.4\u00d7\u03c3",
           "context": "",
           "form": "row",
           "hour": 1791493200,
@@ -525,7 +529,7 @@
           },
           "message": 93,
           "peak": "jump:twelvedata:USD/TRY:hour:1791493200",
-          "seen": 1791554896,
+          "seen": 1791558531,
           "shown": [
             "noticeable",
             7.4,
@@ -547,25 +551,25 @@
       },
       "messages": {
         "91": {
-          "first": "\ud83d\udfe8 <b>USD/MXN</b> \u00b7 Dollar / Mexican peso +0.99% \u00b7 10.9\u00d7\u03c3",
-          "hash": "dcfdb85a63984f82"
+          "first": "\ud83d\udfe8 <b>USD/MXN</b> \u00b7 Mexican peso +0.99% \u00b7 10.9\u00d7\u03c3",
+          "hash": "594eb813a7d7046d"
         },
         "92": {
           "first": "\u2b1c <b>DOGE/USDT</b> \u00b7 Dogecoin -5.26% \u00b7 8.4\u00d7\u03c3",
           "hash": "4e34ce53b92e5ec1"
         },
         "93": {
-          "first": "\u2b1c <b>USD/TRY</b> \u00b7 Dollar / Turkish lira +0.15% \u00b7 7.4\u00d7\u03c3",
-          "hash": "32fc7446740531e5"
+          "first": "\u2b1c <b>USD/TRY</b> \u00b7 Turkish lira +0.15% \u00b7 7.4\u00d7\u03c3",
+          "hash": "0877d128e686a0d1"
         },
         "94": {
-          "first": "\u2b1c <b>USD/CAD</b> \u00b7 Dollar / Canadian dollar +0.39% \u00b7 8.0\u00d7\u03c3",
-          "hash": "243ff028c9536d6a"
+          "first": "\u2b1c <b>USD/CAD</b> \u00b7 Canadian dollar +0.39% \u00b7 8.0\u00d7\u03c3",
+          "hash": "f0de7ded85c2e68f"
         }
       },
       "note": {
         "hashes": [
-          "5c569c19562f8cec"
+          "0bf2523ffe1172d7"
         ],
         "ids": [
           89
