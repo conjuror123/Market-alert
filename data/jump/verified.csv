@@ -184,7 +184,7 @@ twelvedata:AUD/USD,1789581600,close,real,sifting,yahoo,,-0.006510,-0.006403,1791
 twelvedata:AUD/USD,1790658000,close,real,sifting,yahoo,,-0.004185,-0.004202,1791114096
 twelvedata:AUD/USD,1790863200,close,real,sifting,"yahoo,marketwatch","yahoo,marketwatch",-0.003646,"-0.003679,-0.003603",1791504414
 twelvedata:AUD/USD,1790942400,close,real,sifting,"yahoo,marketwatch","yahoo,marketwatch",0.003868,"0.003409,0.003882",1791504414
-twelvedata:BKLN,1790946000,close,real,yahoo,"sina,marketwatch,alpaca_sip","sina,marketwatch,alpaca_sip",0.001954,"0.001954,0.001465,0.001954",1791508016
+twelvedata:BKLN,1790946000,close,real,yahoo,"sina,marketwatch,alpaca_sip","sina,marketwatch,alpaca_sip",0.001954,"0.001954,0.001465,0.001954",1791580037
 twelvedata:BNO,1636030800,close,overnight,yahoo,alpaca,,0.031922,0.035059,1791362492
 twelvedata:BNO,1638540000,close,overnight,yahoo,alpaca,,0.028851,0.032464,1791362492
 twelvedata:BWX,1472648400,close,overnight,yahoo,alpaca,,-0.006964,-0.001048,1791362492
@@ -193,10 +193,10 @@ twelvedata:CANE,1789394400,close,real,yahoo,sina,,-0.012305,-0.012305,1791114096
 twelvedata:CANE,1789653600,close,real,yahoo,sina,,-0.013867,-0.015199,1791114096
 twelvedata:CIBR,1789736400,close,real,yahoo,sina,,-0.026210,-0.026009,1791114096
 twelvedata:CORN,1790784000,close,real,twelvedata,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.028440,"-0.028440,-0.028440,-0.028440,-0.028440",1791508016
-twelvedata:CORN,1791561600,close,real,twelvedata,"yahoo,sina,marketwatch","yahoo,sina,marketwatch",-0.046170,"-0.050097,-0.050652,-0.050097",1791565670
+twelvedata:CORN,1791561600,close,real,twelvedata,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.046170,"-0.050097,-0.050097,-0.050097,-0.050097",1791580037
 twelvedata:DBA,1534424400,close,overnight,twelvedata,alpaca,,0.012489,0.012227,1791362492
 twelvedata:DBA,1788958800,close,real,twelvedata,yahoo,,-0.007215,-0.007215,1791114096
-twelvedata:DBA,1791561600,close,real,twelvedata,"yahoo,sina,marketwatch","yahoo,sina,marketwatch",-0.010777,"-0.010780,-0.010784,-0.010780",1791565670
+twelvedata:DBA,1791561600,close,real,twelvedata,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.010777,"-0.010780,-0.010780,-0.010780,-0.010780",1791580037
 twelvedata:DBB,1789045200,close,real,yahoo,sina,,-0.008948,-0.008948,1791114096
 twelvedata:DBE,1790265600,close,real,sina,yahoo,,-0.028433,-0.028433,1791114096
 twelvedata:DIA,1789581600,close,real,alpaca,yahoo,,-0.011477,-0.011477,1791114096
@@ -205,7 +205,7 @@ twelvedata:EBND,1790168400,close,real,yahoo,sina,,-0.003841,-0.003841,1791114096
 twelvedata:EFA,1789581600,close,real,tiingo,yahoo,,-0.010340,-0.010435,1791114096
 twelvedata:EMB,1789581600,close,real,tiingo,yahoo,,-0.004075,-0.004075,1791114096
 twelvedata:EMB,1790168400,close,real,tiingo,yahoo,,-0.004016,-0.004229,1791114096
-twelvedata:EMB,1790859600,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.004275,"-0.002722,-0.002722,-0.002722,-0.002722",1791500799
+twelvedata:EMB,1790859600,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.004275,"-0.002722,-0.002722,-0.002722,-0.002722",1791580037
 twelvedata:EMLC,1789581600,close,real,alpaca,yahoo,,-0.005363,-0.005363,1791114096
 twelvedata:EMLC,1790168400,close,real,alpaca,yahoo,,-0.004172,-0.004172,1791114096
 twelvedata:EUR/USD,1357099200,close,not_real,sifting,dukascopy,,0.005729,-0.001929,1791362566
@@ -227,13 +227,13 @@ twelvedata:EWY,1635944400,close,overnight,yahoo,alpaca,,-0.020723,-0.018568,1791
 twelvedata:EWY,1639404000,close,overnight,yahoo,alpaca,,-0.031070,-0.027726,1791362492
 twelvedata:EWZ,1789048800,close,real,alpaca,yahoo,,0.027578,0.027578,1791114096
 twelvedata:EWZ,1791205200,open,real,alpaca,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",0.113324,"0.112973,0.112973,0.115775,0.112973",1791511599
-twelvedata:EZU,1790859600,close,real,yahoo,"sina,marketwatch,alpaca_sip","sina,marketwatch,alpaca_sip",-0.011345,"-0.011345,-0.007776,-0.011345",1791504414
+twelvedata:EZU,1790859600,close,real,yahoo,"sina,marketwatch,alpaca_sip","sina,marketwatch,alpaca_sip",-0.011345,"-0.011345,-0.007776,-0.011345",1791580037
 twelvedata:FALN,1789581600,close,real,sina,yahoo,,-0.003966,-0.003966,1791114096
 twelvedata:FDN,1634914800,close,not_real,sina,alpaca,,-0.023433,-0.007002,1791362492
 twelvedata:FDN,1639681200,close,not_real,sina,alpaca,,0.023207,-0.007492,1791362492
 twelvedata:FDN,1639684800,close,not_real,sina,alpaca,,-0.025608,0.005092,1791362492
 twelvedata:FDN,1643032800,close,overnight,sina,alpaca,,-0.030519,-0.029168,1791362492
-twelvedata:FXI,1791550800,close,real,alpaca,"yahoo,sina,marketwatch","yahoo,sina",0.010115,"0.010557,0.011286,-0.002331",1791554861
+twelvedata:FXI,1791550800,close,real,alpaca,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",0.010115,"0.010557,0.010557,0.011442,0.010263",1791580037
 twelvedata:GBP/USD,1789581600,close,real,sifting,yahoo,,-0.005095,-0.005112,1791114096
 twelvedata:GBP/USD,1791165600,close,real,sifting,"yahoo,marketwatch","yahoo,marketwatch",-0.003057,"-0.003093,-0.003102",1791511599
 twelvedata:GIGB,1789581600,close,real,yahoo,sina,,-0.003494,-0.003494,1791114096
@@ -345,8 +345,8 @@ twelvedata:QLTA,1790859600,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo
 twelvedata:QLTA,1790866800,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo,marketwatch,alpaca_sip",0.003148,"0.003148,0.003148,0.003148",1791508016
 twelvedata:REM,1789045200,close,real,yahoo,sina,,-0.015751,-0.015751,1791114096
 twelvedata:REM,1790254800,close,real,yahoo,sina,,-0.013479,-0.013479,1791114096
-twelvedata:REM,1790859600,close,real,yahoo,"sina,marketwatch,alpaca_sip","sina,marketwatch,alpaca_sip",-0.021930,"-0.021930,-0.024124,-0.021930",1791504414
-twelvedata:REM,1790953200,close,real,yahoo,"sina,marketwatch,alpaca_sip","sina,marketwatch,alpaca_sip",-0.018968,"-0.018968,-0.018968,-0.018968",1791504414
+twelvedata:REM,1790859600,close,real,yahoo,"sina,marketwatch,alpaca_sip","sina,marketwatch,alpaca_sip",-0.021930,"-0.021930,-0.024124,-0.021930",1791580037
+twelvedata:REM,1790953200,close,real,yahoo,"sina,marketwatch,alpaca_sip","sina,marketwatch,alpaca_sip",-0.018968,"-0.018968,-0.018968,-0.018968",1791580037
 twelvedata:REMX,1581429600,close,overnight,yahoo,alpaca,,0.019418,0.015589,1791362492
 twelvedata:REMX,1583758800,close,overnight,yahoo,alpaca,,-0.047837,-0.099801,1791362492
 twelvedata:REMX,1584536400,close,overnight,yahoo,alpaca,,-0.039264,-0.081585,1791362492
@@ -411,8 +411,8 @@ twelvedata:SLQD,1790604000,close,real,sina,yahoo,,-0.001213,-0.001112,1791114096
 twelvedata:SLQD,1790866800,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo,marketwatch,alpaca_sip",0.001318,"0.001318,0.001318,0.001318",1791508016
 twelvedata:SLQD,1790949600,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo,marketwatch,alpaca_sip",-0.001113,"-0.001113,-0.001113,-0.001113",1791508016
 twelvedata:SLV,1789581600,close,real,twelvedata,yahoo,,-0.028127,-0.027528,1791114096
-twelvedata:SOYB,1791561600,close,real,sina,"yahoo,marketwatch","yahoo,marketwatch",-0.015714,"-0.015714,-0.015714",1791565670
-twelvedata:SOYB,1791565200,close,real,sina,"yahoo,marketwatch","yahoo,marketwatch",0.010260,"0.010260,0.010260",1791569286
+twelvedata:SOYB,1791561600,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo,marketwatch,alpaca_sip",-0.015714,"-0.015714,-0.015714,-0.015714",1791580037
+twelvedata:SOYB,1791565200,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo,marketwatch,alpaca_sip",0.010260,"0.010260,0.010260,0.010260",1791580037
 twelvedata:SPIB,1789398000,close,real,alpaca,yahoo,,0.002142,0.002142,1791114096
 twelvedata:SPIB,1789581600,close,real,alpaca,yahoo,,-0.003218,-0.003218,1791114096
 twelvedata:SPIB,1790168400,close,real,alpaca,yahoo,,-0.003219,-0.003219,1791114096
@@ -471,7 +471,7 @@ twelvedata:TUR,1789563600,open,real,google,yahoo,,-0.059997,-0.059997,1791114096
 twelvedata:UNG,1650373200,close,overnight,twelvedata,alpaca,,-0.082965,-0.078569,1791362492
 twelvedata:UNG,1651669200,close,overnight,twelvedata,alpaca,,0.073617,0.071279,1791362492
 twelvedata:UNG,1790258400,close,real,twelvedata,yahoo,,0.037319,0.037319,1791114096
-twelvedata:UNG,1791381600,close,real,twelvedata,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",0.028120,"0.028853,0.028853,0.028853,0.028853",1791508016
+twelvedata:UNG,1791381600,close,real,twelvedata,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",0.028844,"0.028853,0.028853,0.028853,0.028853",1791580037
 twelvedata:UNL,1790258400,close,real,yahoo,sina,,0.015190,0.015190,1791114096
 twelvedata:USD/BRL,1731067200,close,not_real,sifting,yahoo,,0.009572,0.002544,1791114096
 twelvedata:USD/BRL,1734696000,close,not_real,sifting,yahoo,,-0.013600,-0.006597,1791114096
@@ -486,8 +486,8 @@ twelvedata:USD/BRL,1773662400,close,not_real,sifting,yahoo,,-0.010664,-0.003319,
 twelvedata:USD/BRL,1775649600,close,not_real,sifting,yahoo,,-0.015470,-0.003285,1791114096
 twelvedata:USD/BRL,1789048800,close,real,sifting,yahoo,,-0.011916,-0.012044,1791114096
 twelvedata:USD/BRL,1789387200,close,real,sifting,yahoo,,0.008646,0.003934,1791114096
-twelvedata:USD/BRL,1791201600,close,real,sifting,"yahoo,marketwatch",marketwatch,-0.030677,"0.001122,-0.030369",1791511599
-twelvedata:USD/BRL,1791201600,open,real,sifting,"yahoo,marketwatch","yahoo,marketwatch",-0.012411,"-0.044032,-0.012354",1791511599
+twelvedata:USD/BRL,1791201600,close,real,sifting,"yahoo,marketwatch",marketwatch,-0.030677,"0.001122,-0.030369",1791580037
+twelvedata:USD/BRL,1791201600,open,real,sifting,"yahoo,marketwatch","yahoo,marketwatch",-0.012411,"-0.044032,-0.012354",1791580037
 twelvedata:USD/CAD,1357099200,close,not_real,sifting,dukascopy,,-0.007067,0.001241,1791362566
 twelvedata:USD/CAD,1789387200,close,real,sifting,yahoo,,0.002090,0.002122,1791114096
 twelvedata:USD/CAD,1789581600,close,real,sifting,yahoo,,0.004013,0.003825,1791114096
@@ -740,7 +740,7 @@ twelvedata:VGLT,1790258400,close,real,sina,yahoo,,-0.005755,-0.005755,1791114096
 twelvedata:VGLT,1790604000,close,real,sina,yahoo,,-0.006433,-0.006334,1791114096
 twelvedata:VGLT,1790866800,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo,marketwatch,alpaca_sip",0.005713,"0.005713,0.005713,0.005713",1791504414
 twelvedata:VGLT,1791475200,close,real,sina,yahoo,,0.006013,0.006013,1791497202
-twelvedata:VHT,1791550800,close,real,sina,"yahoo,marketwatch",yahoo,0.012243,"0.013517,0.001526",1791554861
+twelvedata:VHT,1791550800,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo,marketwatch,alpaca_sip",0.013850,"0.013850,0.011937,0.013850",1791580037
 twelvedata:VMBS,1789398000,close,real,alpaca,yahoo,,0.003202,0.003202,1791114096
 twelvedata:VMBS,1789581600,close,real,alpaca,yahoo,,-0.003861,-0.003861,1791114096
 twelvedata:VMBS,1790168400,close,real,alpaca,yahoo,,-0.003431,-0.003431,1791114096
@@ -758,7 +758,7 @@ twelvedata:VWOB,1790168400,close,real,yahoo,sina,,-0.003315,-0.003315,1791114096
 twelvedata:VWOB,1790600400,open,real,yahoo,sina,,-0.008909,-0.008468,1791114096
 twelvedata:WEAT,1620651600,close,overnight,yahoo,alpaca,,-0.031749,-0.017821,1791362492
 twelvedata:WEAT,1788958800,close,real,yahoo,sina,,-0.017796,-0.017796,1791114096
-twelvedata:WEAT,1791561600,close,real,yahoo,"sina,marketwatch","sina,marketwatch",-0.025742,"-0.025328,-0.025742",1791565670
+twelvedata:WEAT,1791561600,close,real,yahoo,"sina,marketwatch,alpaca_sip","sina,marketwatch,alpaca_sip",-0.025742,"-0.025742,-0.025742,-0.025742",1791580037
 twelvedata:XBI,1790172000,close,real,yahoo,sina,,-0.023859,-0.023859,1791114096
 twelvedata:XLB,1632142800,close,overnight,tiingo,alpaca,,-0.021250,-0.028185,1791362492
 twelvedata:XLB,1643032800,close,overnight,tiingo,alpaca,,-0.024330,-0.016565,1791362492
