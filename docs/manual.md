@@ -346,7 +346,8 @@ fetch brings them back. The night after each is unscored.
   dividend-adjusted, and left unscored on a split, an unconfirmed dividend, a missing
   bar before the close, or a missing first hour: from a late first bar the "night" would
   span hours of trading. A pair's weekend that opens exactly at Friday's close is no
-  measurement (a stitched open, or no quote) and is left unscored too.
+  measurement (a stitched open, or no quote) and is left unscored too, and so is a USD/BRL
+  night that opens exactly at the previous close.
 - **`hole`:** the move across a missing hour inside a session. It is never scored; it only
   keeps the price path whole for the close check.
 
