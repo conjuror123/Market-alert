@@ -130,6 +130,12 @@ block folds floods worse.
 **Size in σ, word as the colour.** A percentage means nothing across a basket where short
 Treasuries move 0.024% in a usual hour and a coin several per cent.
 
+**A pair against the US dollar is named by its other currency** (the user's, 2026-10-09).
+"Dollar / Turkish lira" spent words on what every reader knows; the ticker before the name
+(`USD/TRY`) still says which way the pair is quoted, so +2% is the lira weaker. USD/BRL
+already read "Brazilian real". A fund keeps the word where it is the point: EMB's
+"Emerging-market sovereign bonds in dollars", against EMLC's in local currencies.
+
 **A reading is judged only once its bar has ended.** The run at :05 holds five minutes of
 the current hour.
 

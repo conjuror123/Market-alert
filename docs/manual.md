@@ -459,6 +459,10 @@ The time line counts down to the close the move is checked at, then shows how mu
 (`close 80%`, `next close in 72h`). Scheduled releases from 2 hours before the moved bar to
 its close follow (a release after the close came after the move).
 
+The name after the ticker is the instrument's `label` in `config/basket.yaml`. A pair against
+the US dollar is named by its other currency (`USD/TRY · Turkish lira`, `EUR/USD · Euro`);
+the move is the pair's, as its ticker reads, so USD/TRY +2% is the lira weaker.
+
 **A note row** (`noticeable`) goes into the weekly note, and a ping line points at it:
 
 ```

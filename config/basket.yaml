@@ -576,7 +576,7 @@ assets:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Euro / dollar"
+    label: "Euro"
   - ticker: USD/JPY
     source: twelvedata
     provider: sifting
@@ -585,7 +585,7 @@ assets:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Dollar / yen"
+    label: "Yen"
   - ticker: GBP/USD
     source: twelvedata
     provider: sifting
@@ -594,7 +594,7 @@ assets:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Pound / dollar"
+    label: "Pound"
   - ticker: AUD/USD
     source: twelvedata
     provider: sifting
@@ -603,7 +603,7 @@ assets:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Australian dollar / dollar"
+    label: "Australian dollar"
   - ticker: NZD/USD
     source: twelvedata
     provider: sifting
@@ -612,7 +612,7 @@ assets:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "New Zealand dollar / dollar"
+    label: "New Zealand dollar"
   - ticker: USD/CHF
     source: twelvedata
     provider: sifting
@@ -621,7 +621,7 @@ assets:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Dollar / franc"
+    label: "Franc"
   - ticker: USD/CAD
     source: twelvedata
     provider: sifting
@@ -630,7 +630,7 @@ assets:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Dollar / Canadian dollar"
+    label: "Canadian dollar"
   - ticker: USD/CNH
     source: twelvedata
     provider: sifting
@@ -639,7 +639,7 @@ assets:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Dollar / offshore yuan"
+    label: "Offshore yuan"
   # --- crypto ----------------------------------------------------------------
   # Crypto, the only block that trades every hour of the week: every coin as its
   # USDT pair on Binance, one exchange and one quote currency (price_monitor/binance.py).
@@ -1578,7 +1578,7 @@ assets:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Dollar / Swedish krona"
+    label: "Swedish krona"
   - ticker: USD/NOK
     source: twelvedata
     provider: sifting
@@ -1587,7 +1587,7 @@ assets:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Dollar / Norwegian krone"
+    label: "Norwegian krone"
   - ticker: USD/MXN
     source: twelvedata
     provider: sifting
@@ -1596,7 +1596,7 @@ assets:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Dollar / Mexican peso"
+    label: "Mexican peso"
   - ticker: USD/ZAR
     source: twelvedata
     provider: sifting
@@ -1605,7 +1605,7 @@ assets:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Dollar / South African rand"
+    label: "South African rand"
   - ticker: USD/TRY
     source: twelvedata
     provider: sifting
@@ -1614,7 +1614,7 @@ assets:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Dollar / Turkish lira"
+    label: "Turkish lira"
   - ticker: USD/PLN
     source: twelvedata
     provider: sifting
@@ -1623,7 +1623,7 @@ assets:
     tick_size: 0.00001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Dollar / Polish zloty"
+    label: "Polish zloty"
   - ticker: USD/INR
     source: twelvedata
     provider: sifting
@@ -1632,7 +1632,7 @@ assets:
     tick_size: 0.0001
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Dollar / Indian rupee"
+    label: "Indian rupee"
   - ticker: USD/KRW
     source: twelvedata
     provider: sifting
@@ -1641,7 +1641,7 @@ assets:
     tick_size: 0.01
     session_template: fx_continuous
     fetch_interval: 1h
-    label: "Dollar / Korean won"
+    label: "Korean won"
   - ticker: XRP/USDT
     source: binance
     block: crypto
