@@ -9,8 +9,8 @@ has been shut since that bar is not asked at all (see nothing_can_have_appeared)
 Providers are chosen per instrument by `provider` in config/basket.yaml (Tiingo,
 Alpaca, Twelve Data, Yahoo, Sina, SiftingIO, Binance, Google Finance for TUR;
 docs/manual.md, "Data in"), and only Twelve Data is paced, because only its free
-tier enforces a per-minute limit. After the fetch, the far moves are put to a
-second source (jump.verify).
+tier enforces a per-minute limit. After the fetch, the other sources vote on
+the far moves (jump.verify).
 
 US EQUITY ETFs ARE REQUESTED AS HALF-HOURLY BARS and folded onto the round UTC
 hour (see bars.to_hourly): their own grid runs on the :30 and would not line up
@@ -20,12 +20,13 @@ count requests, not rows.
 
 THE DEEPENING MODES (--extend-history, --deepen-etfs, --deepen-alpaca,
 --deepen-dukascopy, --fill-gaps) reach back past what the live providers serve,
-and are routed to `source` rather than `provider`: Yahoo serves 55 days of
+and are routed to `source` rather than `provider`: Yahoo serves 59 days of
 half-hourly bars and Tiingo caps a response at 10000 rows, so only the archive
 provider can answer a walk backwards. An import from HF Data is un-adjusted
 against the declared ex-dates first and then gated on agreeing with the bars
 already stored (see verify_alignment), so a series on a different adjustment
-basis is refused rather than spliced.
+basis is refused rather than spliced. Since 2026-10-03 HF Data serves only its
+IEX segment, from 2022-03-07: it reaches nothing the store lacks.
 """
 from __future__ import annotations
 
@@ -255,7 +256,7 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
 
     # WHICH PROVIDER ANSWERS, and it is not always the fast one. Deepening walks
     # BACKWARDS through history, and only the archive provider holds it: Yahoo
-    # serves at most 55 days of 30-minute bars and Tiingo caps a response at
+    # serves at most 59 days of 30-minute bars and Tiingo caps a response at
     # 10000 rows. `source` is the provider the archive came from, so that is who
     # a deepening run asks, however the hourly top-up is routed.
     provider = asset.source if extend_history else asset.fetched_from
@@ -840,7 +841,7 @@ def fill_gaps(asset: Asset, path: str, table: dict, api_key: str,
     if asset.source != "twelvedata":
         # Deliberately `source`, not `fetched_from`. This walks backwards
         # through history, which Twelve Data holds and the fast providers do
-        # not: Yahoo serves at most 55 days of 30-minute bars and Tiingo caps a
+        # not: Yahoo serves at most 59 days of 30-minute bars and Tiingo caps a
         # response at 10000 rows. An instrument moved to another provider for
         # its hourly top-up is still filled from Twelve Data here.
         return {"skipped": f"source {asset.source} not supported here",
@@ -1094,10 +1095,10 @@ def fill_gaps_from_hfdata(asset: Asset, path: str, table: dict, api_key: str,
     every calendar hour the store lacks covers the whole sessions as a special
     case and the partial ones as well.
 
-    These years are inside HF Data's consolidated-tape era - the same full
-    CTA/UTP feed the surrounding Twelve Data bars come from, not the IEX subset
-    that starts in March 2022 - so the hours are recoverable from a second
-    source of the same kind, which is exactly what a second source is for.
+    These years were inside HF Data's consolidated-tape era - the same full
+    CTA/UTP feed the surrounding Twelve Data bars come from. Since 2026-10-03
+    it serves only the IEX subset that starts on 2022-03-07, so it holds none
+    of them, and this fills nothing.
 
     This writes INTO the middle of the stored series rather than under it, so
     the adjustment has to be right to the basis point or the patch shows up as
@@ -1158,8 +1159,8 @@ REPAIR_DAYS = yahoo.MAX_LOOKBACK_DAYS["30min"] - 1
 def repair_from_yahoo(asset: Asset, path: str, table: dict, session: requests.Session,
                       now: datetime | None = None) -> dict:
     """Fills a fund's missing hours of the last REPAIR_DAYS from Yahoo's
-    30-minute bars, folded to the hour - the second source the funds are
-    already checked against, and the only free one that reaches back weeks.
+    30-minute bars, folded to the hour - a source the funds are voted on
+    already, and the only free one that reaches back weeks.
 
     For holes in the open month (python -m jump.backfill --repair, run by hand
     from the hourly workflow, which alone may save the open months). One went
@@ -1509,7 +1510,8 @@ def main(argv: list[str] | None = None) -> int:
 
             # Twelve Data does not hold them - proven, 0 of 21 recovered in run
             # 33994110137 - so anything still missing goes to the second source
-            # of the same kind. Tried in this order because a day recovered from
+            # of the same kind, HF Data, which since 2026-10-03 holds none of
+            # those years. Tried in this order because a day recovered from
             # the vendor the surrounding bars already come from needs no
             # adjustment and no calibration to sit correctly beside them.
             if (left or hours_left) and hf_key:
@@ -1952,11 +1954,10 @@ def main(argv: list[str] | None = None) -> int:
             # the check exists to guarantee rather than a breakage.
             log.warning("dividend check failed - %s", exc)
 
-    # A SECOND SOURCE ON THE FAR MOVES, on the ordinary pass over the whole
-    # basket, before anything is scored: a move it did not see is not scored
-    # and its message says so (jump.verify). A provider is not asked again
-    # once it has said stop or stopped answering; Sina still checks the
-    # Yahoo-fed funds.
+    # THE SOURCES' VOTE ON THE FAR MOVES, on the ordinary pass over the whole
+    # basket, before anything is scored: a move most did not see is not scored
+    # and its message says so (jump.verify). A provider that has said stop or
+    # stopped answering is not asked again: in the vote it is an outage.
     second_source: list[str] = []
     if session_table and not args.instruments and not args.extend_history:
         try:
@@ -1967,8 +1968,8 @@ def main(argv: list[str] | None = None) -> int:
                                      "answer twice in a row): its moves are judged by the "
                                      "other source, or scored unchecked")
         except Exception as exc:
-            # Not a failed run: an unchecked move is scored, which is how every
-            # move was treated before the check existed. Named, though.
+            # Not a failed run: an unvoted move is scored, as every move never
+            # voted is. Named, though.
             log.warning("second-source check failed - %s", exc)
             second_source.append(f"the second-source check failed ({exc}): this hour's "
                                  "far moves are scored unchecked")

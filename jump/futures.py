@@ -13,6 +13,11 @@ the month and does not know exchange holidays, which can move the last trading
 day one session earlier - so the two sessions from the computed one on are
 both left out: one night in fifty or so, five times a year.
 
+THE LIVE BARS are not that series but one contract at a time (front_contract),
+rolled on this series' own calendar (SPECS, roll_back) - before first notice,
+when the traders move. Its rolls, Yahoo's in the history and a history source's
+(ROLLS_PATH) are all left unscored the same way (roll_sessions).
+
 Aluminium (ALI=F) is not here: Yahoo's series follows a monthly contract it
 does not roll by any rule the listed contracts show, and the monthly spread is
 a few tenths of a percent - below a night's own spread.

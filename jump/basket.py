@@ -32,7 +32,7 @@ BLOCK_MIN_MEMBERS = 2
 # event ever exported is keyed by it - which makes
 # it an identity, and identities cannot be edited to follow an implementation
 # detail. Moving XLK from Twelve Data to Yahoo by rewriting `source` would point
-# the fetch at an empty store and orphan six years of history and every verdict
+# the fetch at an empty store and orphan six years of history and every vote
 # recorded against it.
 #
 # `provider` is who actually answers the request, and that CAN change: see

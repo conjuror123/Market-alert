@@ -14,8 +14,10 @@ unadjusted daily closes cannot see a share split: both series are already
 split-adjusted, so the split cancels in the ratio, and every pre-split dividend
 on XLK/XLY/XLE/XLU/XLB reads twice its true size. Tiingo publishes `divCash`
 and `splitFactor` on the free daily endpoint; those are what this table is
-built from. The Twelve Data ratio path remains as a labelled fallback for the
-funds that never split - it needs no extra key - and it cannot see splits.
+built from on a full refresh. Between refreshes the morning check adds Yahoo's
+payouts and splits as declared (jump.backfill). The Twelve Data ratio path
+remains as a labelled fallback for the funds that never split - it needs no
+extra key - and it cannot see splits.
 """
 from __future__ import annotations
 

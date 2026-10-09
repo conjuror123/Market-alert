@@ -25,8 +25,10 @@ rules against the gaps of its own kind over the same half-year. A weekend is a
 gap of 48 hours or more; a midweek holiday is a night.
 
 BROKEN PRINTS. A reading beyond MISTAKE_SIGMA, and the stretch after it until
-the price is back (STRETCH_BACK, STRETCH_BARS), is no reading at all. A move a
-most sources did not see (jump.verify, not real) is left out too (without_not_real).
+the price is back (STRETCH_BACK, STRETCH_BARS), is no reading at all. A move
+most sources did not see (jump.verify, not real) is left out too (without_not_real),
+and a first hour the feeds saw happen overnight is scored with their night in its
+gap (with_nights).
 
 EVENTS. An instrument's first flagged reading opens an event of 24 real hours
 from when it was found (event_starts); its word is its rarest reading's, its
@@ -101,9 +103,10 @@ MISTAKE_SIGMA = 1000.0
 # beyond MISTAKE_SIGMA, the hours that follow are not readings either until the
 # price is back within STRETCH_BACK of the break - the bar that brings it back
 # included - for at most STRETCH_BARS. An isolated bad tick, in and straight
-# out, takes nothing more with it. The second source does this better where
-# there is one (jump.verify); this is all the futures and the LME's metals
-# have.
+# out, takes nothing more with it. The sources' vote does this better where
+# two or more other feeds carry the instrument (jump.verify); with one, a
+# disagreement is a tie and stays scored, so this is all the futures and the
+# LME's metals have.
 STRETCH_BACK = 0.5
 STRETCH_BARS = 24
 
