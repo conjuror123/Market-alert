@@ -23,6 +23,7 @@ binance:ATOM/USDT,1790604000,close,real,binance,"coinbase,kraken","coinbase,krak
 binance:ATOM/USDT,1790694000,close,real,binance,"coinbase,kraken","coinbase,kraken",-0.027882,"-0.026826,-0.026895",1791508016
 binance:ATOM/USDT,1790964000,close,real,binance,"coinbase,kraken","coinbase,kraken",-0.044319,"-0.042353,-0.043327",1791508016
 binance:ATOM/USDT,1791471600,close,real,binance,"coinbase,kraken","coinbase,kraken",-0.073811,"-0.071948,-0.073102",1791508016
+binance:ATOM/USDT,1791529200,close,real,binance,"coinbase,kraken","coinbase,kraken",0.048334,"0.048973,0.049325",1791533218
 binance:AVAX/USDT,1789128000,close,real,binance,"coinbase,kraken","coinbase,kraken",0.029721,"0.029869,0.028805",1791504414
 binance:AVAX/USDT,1789700400,close,real,binance,"coinbase,kraken","coinbase,kraken",0.027815,"0.027973,0.027851",1791504414
 binance:AVAX/USDT,1789779600,close,real,binance,"coinbase,kraken","coinbase,kraken",0.040597,"0.040606,0.041575",1791504414
