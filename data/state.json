@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1791569329
+    "last_run_utc": 1791572910
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -22,7 +22,7 @@
           },
           "message": 91,
           "peak": "jump:binance:ADA/USDT:hour:1791471600",
-          "seen": 1791569329,
+          "seen": 1791572910,
           "shown": [
             "high",
             8.6,
@@ -59,7 +59,7 @@
           },
           "message": 91,
           "peak": "jump:binance:ATOM/USDT:hour:1791471600",
-          "seen": 1791569329,
+          "seen": 1791572910,
           "shown": [
             "high",
             10.4,
@@ -92,7 +92,7 @@
           },
           "message": 92,
           "peak": "jump:binance:AVAX/USDT:hour:1791471600",
-          "seen": 1791569329,
+          "seen": 1791572910,
           "shown": [
             "noticeable",
             8.1,
@@ -129,7 +129,7 @@
           },
           "message": 92,
           "peak": "jump:binance:BCH/USDT:hour:1791471600",
-          "seen": 1791569329,
+          "seen": 1791572910,
           "shown": [
             "noticeable",
             7.4,
@@ -162,7 +162,7 @@
           },
           "message": 92,
           "peak": "jump:binance:DOGE/USDT:hour:1791471600",
-          "seen": 1791569329,
+          "seen": 1791572910,
           "shown": [
             "noticeable",
             8.4,
@@ -195,7 +195,7 @@
           },
           "message": 91,
           "peak": "jump:binance:DOT/USDT:hour:1791471600",
-          "seen": 1791569329,
+          "seen": 1791572910,
           "shown": [
             "high",
             9.0,
@@ -228,7 +228,7 @@
           },
           "message": 92,
           "peak": "jump:binance:ETH/USDT:hour:1791471600",
-          "seen": 1791569329,
+          "seen": 1791572910,
           "shown": [
             "noticeable",
             8.0,
@@ -261,7 +261,7 @@
           },
           "message": 91,
           "peak": "jump:binance:FIL/USDT:hour:1791471600",
-          "seen": 1791569329,
+          "seen": 1791572910,
           "shown": [
             "high",
             9.5,
@@ -294,7 +294,7 @@
           },
           "message": 92,
           "peak": "jump:binance:LINK/USDT:hour:1791471600",
-          "seen": 1791569329,
+          "seen": 1791572910,
           "shown": [
             "noticeable",
             7.6,
@@ -327,7 +327,7 @@
           },
           "message": 92,
           "peak": "jump:binance:LTC/USDT:hour:1791471600",
-          "seen": 1791569329,
+          "seen": 1791572910,
           "shown": [
             "noticeable",
             6.6,
@@ -360,7 +360,7 @@
           },
           "message": 92,
           "peak": "jump:binance:POL/USDT:hour:1791471600",
-          "seen": 1791569329,
+          "seen": 1791572910,
           "shown": [
             "noticeable",
             7.3,
@@ -393,7 +393,7 @@
           },
           "message": 92,
           "peak": "jump:binance:SOL/USDT:hour:1791471600",
-          "seen": 1791569329,
+          "seen": 1791572910,
           "shown": [
             "noticeable",
             6.3,
@@ -426,7 +426,7 @@
           },
           "message": 92,
           "peak": "jump:binance:XRP/USDT:hour:1791471600",
-          "seen": 1791569329,
+          "seen": 1791572910,
           "shown": [
             "noticeable",
             7.0,
@@ -447,7 +447,7 @@
         },
         "twelvedata:CORN|1791565200": {
           "asset": "twelvedata:CORN",
-          "body": "\ud83d\udfe7 <b>CORN</b> \u00b7 Corn -4.62% \u00b7 15.7\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 8 months (then 17.8\u00d7\u03c3)\n\ud83d\udd50 <b>09.10.2026 16:00 UTC</b> \u00b7 close in 2h",
+          "body": "\ud83d\udfe7 <b>CORN</b> \u00b7 Corn -4.62% \u00b7 15.7\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 8 months (then 17.8\u00d7\u03c3)\n\ud83d\udd50 <b>09.10.2026 16:00 UTC</b> \u00b7 close in 1h",
           "context": "Nearby economic events (-2h+1h):\n     \ud83d\udfe0 \ud83c\uddfa\ud83c\uddf8 USD Prelim UoM Consumer Sentiment\n     \ud83d\udfe0 \ud83c\uddfa\ud83c\uddf8 USD Prelim UoM Inflation Expectations",
           "form": "push",
           "hour": 1791561600,
@@ -459,7 +459,7 @@
           },
           "message": 95,
           "peak": "jump:twelvedata:CORN:hour:1791561600",
-          "seen": 1791569329,
+          "seen": 1791572910,
           "shown": [
             "major",
             15.7,
@@ -492,7 +492,7 @@
           },
           "message": 96,
           "peak": "jump:twelvedata:DBA:hour:1791561600",
-          "seen": 1791569329,
+          "seen": 1791572910,
           "shown": [
             "noticeable",
             6.0,
@@ -525,7 +525,7 @@
           },
           "message": 96,
           "peak": "jump:twelvedata:SOYB:hour:1791561600",
-          "seen": 1791569329,
+          "seen": 1791572910,
           "shown": [
             "noticeable",
             6.9,
@@ -558,7 +558,7 @@
           },
           "message": 94,
           "peak": "jump:twelvedata:USD/CAD:hour:1791547200",
-          "seen": 1791569329,
+          "seen": 1791572910,
           "shown": [
             "noticeable",
             8.0,
@@ -595,7 +595,7 @@
           },
           "message": 91,
           "peak": "jump:twelvedata:USD/MXN:hour:1791471600",
-          "seen": 1791569329,
+          "seen": 1791572910,
           "shown": [
             "high",
             10.9,
@@ -628,7 +628,7 @@
           },
           "message": 93,
           "peak": "jump:twelvedata:USD/TRY:hour:1791493200",
-          "seen": 1791569329,
+          "seen": 1791572910,
           "shown": [
             "noticeable",
             7.4,
@@ -661,7 +661,7 @@
           },
           "message": 96,
           "peak": "jump:twelvedata:WEAT:hour:1791561600",
-          "seen": 1791569329,
+          "seen": 1791572910,
           "shown": [
             "noticeable",
             6.1,
@@ -700,7 +700,7 @@
         },
         "95": {
           "first": "\ud83d\udfe7 <b>CORN</b> \u00b7 Corn -4.62% \u00b7 15.7\u00d7\u03c3",
-          "hash": "f9747107cac10598"
+          "hash": "444f9d331b4a0859"
         },
         "96": {
           "first": "\u2b1c <b>SOYB</b> \u00b7 Soybeans -1.57% \u00b7 6.9\u00d7\u03c3",
@@ -709,7 +709,7 @@
       },
       "note": {
         "hashes": [
-          "1f06446999d5dc14"
+          "0b6fa6d9ff1fcda9"
         ],
         "ids": [
           89
