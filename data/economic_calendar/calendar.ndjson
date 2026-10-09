@@ -91799,6 +91799,7 @@
 {"actual": "", "country": "CHF", "date": "2026-10-08T08:05:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Gov Board Member Martin Speaks"}
 {"actual": "", "country": "GBP", "date": "2026-10-08T08:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "BOE Credit Conditions Survey"}
 {"actual": "", "country": "USD", "date": "2026-10-08T08:30:00+00:00", "forecast": "", "impact": "Medium", "previous": "", "title": "FOMC Member Waller Speaks"}
+{"actual": "", "country": "GBP", "date": "2026-10-08T09:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "MPC Member Pill Speaks"}
 {"actual": "", "country": "EUR", "date": "2026-10-08T09:15:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Eurogroup Meetings"}
 {"actual": "", "country": "GBP", "date": "2026-10-08T09:15:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "MPC Member Greene Speaks"}
 {"actual": "", "country": "GBP", "date": "2026-10-08T10:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "MPC Member Pill Speaks"}
@@ -91821,7 +91822,7 @@
 {"actual": "", "country": "CHF", "date": "2026-10-09T07:00:00+00:00", "forecast": "-32", "impact": "Low", "previous": "-33", "title": "SECO Consumer Climate"}
 {"actual": "", "country": "EUR", "date": "2026-10-09T08:00:00+00:00", "forecast": "0.0%", "impact": "Low", "previous": "0.7%", "title": "Italian Industrial Production m/m"}
 {"actual": "", "country": "EUR", "date": "2026-10-09T09:15:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "ECOFIN Meetings"}
-{"actual": "", "country": "CAD", "date": "2026-10-09T12:30:00+00:00", "forecast": "6.3K", "impact": "High", "previous": "-41.7K", "title": "Employment Change"}
+{"actual": "", "country": "CAD", "date": "2026-10-09T12:30:00+00:00", "forecast": "6.1K", "impact": "High", "previous": "-41.7K", "title": "Employment Change"}
 {"actual": "", "country": "CAD", "date": "2026-10-09T12:30:00+00:00", "forecast": "6.5%", "impact": "High", "previous": "6.4%", "title": "Unemployment Rate"}
 {"actual": "", "country": "USD", "date": "2026-10-09T14:00:00+00:00", "forecast": "47.5", "impact": "Medium", "previous": "47.8", "title": "Prelim UoM Consumer Sentiment"}
 {"actual": "", "country": "USD", "date": "2026-10-09T14:00:00+00:00", "forecast": "", "impact": "Medium", "previous": "4.6%", "title": "Prelim UoM Inflation Expectations"}
