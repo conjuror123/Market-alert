@@ -480,6 +480,9 @@ it goes on in opens with its name-line, `continued`:
 🕐 16.09.2026 18:00 UTC · close 113%
 ```
 
+A note in several messages ends each with its part and period (`part 2 of 3 - 02.10.2026
+to 09.10.2026`), since only the first carries the header.
+
 **One message per kind per run.** A run's pushes go out in one message and its pings in
 one more, biggest σ first. News is said once below the pushes, named by hour when the
 pushes span several hours. A message is cut at 3,000 characters (`MESSAGE_BUDGET`) so
