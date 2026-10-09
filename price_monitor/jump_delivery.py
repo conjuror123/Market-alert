@@ -700,9 +700,9 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
     several messages, and sorting each part on its own would restart the clock
     at every cut - so the rows are ordered once. A cut keeps a block whole (the
     user's, 2026-10-08): a block that does not fit what is left of a message
-    opens the next one. Only a block longer than any one message is cut where
-    the budget runs out, and the part it goes on in says so with the block's
-    name-line, "continued".
+    opens the next one. Only a block longer than a message - the first
+    message's room counted after the header - is cut where the budget runs out,
+    and the part it goes on in says so with the block's name-line, "continued".
 
     The header states the period the note speaks for, from the evening of one
     week's last funds close to the next's.
@@ -764,9 +764,11 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
         if len(f"{current}\n\n{whole}") <= _MESSAGE_LIMIT:
             current = f"{current}\n\n{whole}"
             continue
-        # Whole in the next message. One longer than any message starts one
-        # too - or goes on under the header, which never stands alone.
-        if len(whole) <= _MESSAGE_LIMIT:
+        # Whole in the next message. The first message's room is what the
+        # header leaves, so a block that does not fit beside the header is cut
+        # under it rather than leave the header alone; one longer than any
+        # message starts the next too.
+        if len(whole) <= _MESSAGE_LIMIT and current != header:
             messages.append(current)
             current = whole
             continue

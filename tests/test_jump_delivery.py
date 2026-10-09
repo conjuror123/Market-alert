@@ -390,6 +390,18 @@ def test_a_block_that_does_not_fit_what_is_left_opens_the_next_message_whole():
     assert not any("continued" in t for t in texts)
 
 
+def test_the_header_counts_in_the_first_messages_room():
+    # Sixty rows fit a message on their own but not beside the header: they
+    # are cut under it, and the header never goes out alone.
+    rows = [event(event_id=f"d{i}", channel="digest", tier="noticeable",
+                  hour_utc=SLOT + i * HOUR, asset_id="twelvedata:GLD")
+            for i in range(60)]
+    texts = md.format_digest(rows, LABELS, (SLOT, SLOT + 200 * HOUR), None, NOW)
+    assert len(texts) == 2
+    assert "━━━ 🥇 <b>PRECIOUS METALS</b> ━━━" in texts[0]
+    assert texts[1].startswith("━━━ 🥇 <b>PRECIOUS METALS</b> · continued ━━━")
+
+
 def test_a_part_that_opens_inside_a_block_names_it_continued():
     # A block longer than any one message is the only one cut.
     rows = [event(event_id=f"d{i}", channel="digest", tier="noticeable",
