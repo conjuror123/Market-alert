@@ -538,7 +538,8 @@ is in this file. HF Data's client and its backfill modes (`deepen-etfs`, `probe-
 `fill-gaps`' second step) went on 2026-10-09: since 2026-10-03 it holds only its IEX
 segment, from 2022-03, so they reached nothing. The tape's fetch and the funds' first-bar mend
 (`tools/tape_bars.py`, `tools/tape_mend.py`, the backfill's `tape-bars` mode) went the same
-day, once the mend was live and 2023 on was measured.
+day, once the mend was live and 2023 on was measured; so did the Eastmoney probe
+(`tools/eastmoney_probe.py`, `eastmoney-probe`), its question answered (below, "Rejected").
 
 **The open month lives on a release; a month enters git once, settled.** Git stores
 snapshots, so hourly commits into per-instrument files cost 124 MiB a year; replacing a
@@ -587,6 +588,7 @@ Measured or weighed, and not to be raised again.
 | Kitco, Shanghai tin, COMEX aluminium, WisdomTree metal ETCs | not the LME's market (hourly correlation ≤ 0.85, or thin) |
 | TradingView | ~6,300 bars without a login; its terms |
 | Investing.com, the LME, CNBC, Barchart, Boursorama, CME | refuse or forbid automated readers; not bypassed |
+| Eastmoney (东方财富) | carries the LME's three-month metals (109.LTNT, LNKT, LALT), but its bar servers refuse machines outside China: from the development machine and from a GitHub runner (2026-10-09) every hourly and daily request, for the metals, ICE cotton and SPY, was cut off or answered without data. Only its live quote and the day's last 1,999 trades reach, too little to rebuild an hour's bar for a recount |
 | DailyFX, Stooq | gone; login required |
 | Sina forex | six months of hourly bars |
 | Sina live cattle | quotes without volume, correlation 0.80 |
@@ -616,5 +618,5 @@ feeds.
 | 55 US funds | 2016-01 | HF Data, Twelve Data, Alpaca's tape |
 | live cattle | 2024-05 | Yahoo (730 days), Dukascopy |
 | coffee, cocoa, cotton | 2018-01 | Dukascopy |
-| LME tin, nickel, aluminium | 2026-07 | Sina (last 1,023 bars) |
+| LME tin, nickel, aluminium | 2026-07 | Sina (last 1,023 bars), Eastmoney (refuses machines outside China) |
 | USD/BRL, USD/INR, USD/KRW | 2019-09 to 2020-01 | Twelve Data, Dukascopy, Sina forex |
