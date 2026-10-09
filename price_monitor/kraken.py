@@ -1,9 +1,9 @@
-"""Kraken's hourly candles: the coins' other second source, beside Coinbase.
+"""Kraken's hourly candles: the coins' other voter, beside Coinbase.
 
 WHY. A second independent dollar exchange, keyless and reachable from US
 runners: over the 300 hours to 2026-09-25 its hourly moves correlated
-0.988-1.000 with the stored Binance bars for all 16 coins. It answers when
-Coinbase does not, and confirms what Coinbase missed.
+0.988-1.000 with the stored Binance bars for all 16 coins. It is the third
+vote, beside the store's and Coinbase's, so one exchange's wick is outvoted.
 
 WHAT IS ASKED. /0/public/OHLC, interval 60: the last 720 hourly candles at
 most, whatever `since` asks for. Each row is [time, open, high, low, close,

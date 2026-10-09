@@ -4,10 +4,15 @@ Twelve Data's plan stops at 2020-02 for every ETF at once, and no other free
 source found carried US-equity INTRADAY history further back - Dukascopy's ETF
 CFDs are patchy and volume-incompatible, and no public FX archive carries
 equities. This one
-does, for 73 of the basket's funds back to 2002-2011, including SHY, HYG and
+did, for 73 of the basket's funds back to 2002-2011, including SHY, HYG and
 DBC, which nothing else had.
 
-THE PART THAT MATTERS MOST. The library changes source in March 2022:
+SINCE 2026-10-03 IT HOLDS ONLY THE IEX SEGMENT, from 2022-03-07 ("the dataset
+now holds the IEX Exchange HIST segment only"). The consolidated years this
+module was for are gone, and as IEX bars are refused below, it returns nothing
+the store can use (docs/decisions.md, "History is not voted again").
+
+THE PART THAT MATTERED MOST. The library changed source in March 2022:
 
     before  full consolidated tape, CTA and UTP - the same underlying data as
             CRSP and TAQ, every trade on every US venue

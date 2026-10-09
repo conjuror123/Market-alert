@@ -880,9 +880,10 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
 #   real          nothing is added, nor for an instrument no other source
 #                 carries.
 #
-# A detector update (a new jump.jumps.detector_version) starts the week over at
-# that run: every alert message of the week is deleted, the note stays and shows
-# only what is found from then on.
+# A detector update (a new jump.jumps.detector_version) that changes the week's
+# events starts the week over at that run (_same_week decides): every alert
+# message of the week is deleted, the note stays and shows only what is found
+# from then on. One that changes none only records the version.
 #
 # Deleting is how a message leaves; the bot is an administrator of the
 # channel and may delete any message there. Should Telegram refuse, the message

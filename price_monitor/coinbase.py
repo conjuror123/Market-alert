@@ -1,10 +1,10 @@
-"""Coinbase Exchange's hourly candles: a second source for the coins.
+"""Coinbase Exchange's hourly candles: a voter on the coins' moves.
 
 WHY. The coins are fetched from Binance, whose prices are its own trades. A
 wick on Binance alone is real there and not the market's. Coinbase is another
 exchange, dollar-quoted, keyless, and reachable from US runners. Over the 300
 hours to 2026-09-25 its hourly moves correlated 0.991-1.000 with the stored
-Binance bars for all 16 coins (docs/decisions.md, "The second source").
+Binance bars for all 16 coins (docs/decisions.md, "The sources' vote").
 
 WHAT IS ASKED. /products/{BTC}-USD/candles, granularity 3600, at most 300
 candles a request, by start and end. Each row is [time, low, high, open, close,

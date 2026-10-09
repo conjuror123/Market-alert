@@ -1,23 +1,25 @@
-"""MarketWatch's hourly bars: a second source for the currency pairs and live cattle.
+"""MarketWatch's hourly bars: a voter on the currency pairs, the funds and live cattle.
 
 THE ENDPOINT is the one MarketWatch's own charts read (api.wsj.net, Dow Jones'
 "michelangelo" time series): hourly bars for about the last ten days, keyed as
-CURRENCY/US/XTUP/USDINR for a pair and FUTURE/US/XCME/LC00 for live cattle's
-continuous contract. Each tick is the start of its bar in UTC milliseconds -
+CURRENCY/US/XTUP/USDINR for a pair, FUND/US/ARCX/SPY for a fund (by its listing
+exchange, jump.verify) and FUTURE/US/XCME/LC00 for live cattle's continuous
+contract. Each tick is the start of its bar in UTC milliseconds -
 against the stored bars, no shift (2026-10-04) - and a bar with no price comes
 as nulls.
 
 It has every hour of the 17 pairs, 0-0.6 bp from the stored bars at the
 median, and its quotes are its own; live cattle's continuous contract moves
 with the stored front contract at 0.92 hour by hour (docs/decisions.md, "The
-second source"). Its coffee is Yahoo's, one upstream, so not a second source
-for the softs.
+sources' vote"). Its coffee is Yahoo's, one upstream, so not a voter on the
+softs.
 
 AND THE STANDING RISK. An undocumented endpoint that wants the access token
 MarketWatch's own pages send with every chart: public, in their page, not a
 secret of this project. Reading it from a script sits in the same grey area as
-Google Finance's page (price_monitor/google.py). Should it change or close, the
-second-source check gets nothing from here and scores those moves as before.
+Google Finance's page (price_monitor/google.py). Should it change or close, it
+is an outage in every vote it is in, a vote against: live cattle's moves, with
+no other source, would all be ties.
 """
 from __future__ import annotations
 

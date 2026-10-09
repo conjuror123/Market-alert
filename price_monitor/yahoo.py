@@ -25,8 +25,8 @@ step - the same two numbers the store already holds. A raw series would have
 put a 2x discontinuity into the middle of a return.
 
 WHAT IT IS NOT FOR. Deepening history. Yahoo caps intraday lookback by interval
-(60 days at 30 minutes, 730 at an hour), so it can only ever serve the recent
-end - see MAX_LOOKBACK_DAYS. Twelve Data and HF Data keep the archive.
+(59 days at 30 minutes, 729 at an hour), so it can only ever serve the recent
+end - see MAX_LOOKBACK_DAYS. Twelve Data and Alpaca's tape keep the archive.
 
 AND THE STANDING RISK. This endpoint is undocumented and unversioned. It can
 change shape, start demanding a cookie, or rate-limit without notice, and there
