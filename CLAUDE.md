@@ -24,6 +24,9 @@ was made, `docs/decisions.md` (why), in the same commit.
   does not cover the next.
 - **Do not spend a provider's quota on experiments.** Tiingo and SiftingIO run near their
   limits for the live run; probe free sources instead.
+- **Stored bars are not rewritten to fix them.** A bad bar is a row in
+  `data/jump/verified.csv`; the bars change only by the fetch (`docs/manual.md`,
+  section 4). The repairs made before 2026-10-09 stay as they are.
 
 ## Scope
 
