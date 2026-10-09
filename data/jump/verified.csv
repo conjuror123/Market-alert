@@ -486,6 +486,7 @@ twelvedata:USD/BRL,1791201600,open,real,sifting,"yahoo,marketwatch","yahoo,marke
 twelvedata:USD/CAD,1357099200,close,not_real,sifting,dukascopy,,-0.007067,0.001241,1791362566
 twelvedata:USD/CAD,1789387200,close,real,sifting,yahoo,,0.002090,0.002122,1791114096
 twelvedata:USD/CAD,1789581600,close,real,sifting,yahoo,,0.004013,0.003825,1791114096
+twelvedata:USD/CAD,1791547200,close,real,sifting,"yahoo,marketwatch","yahoo,marketwatch",0.003949,"0.003900,0.003927",1791551275
 twelvedata:USD/CHF,1789581600,close,real,sifting,yahoo,,0.008161,0.008461,1791114096
 twelvedata:USD/CHF,1790233200,close,real,sifting,yahoo,,0.003778,0.003778,1791114096
 twelvedata:USD/CHF,1790838000,close,real,sifting,"yahoo,marketwatch","yahoo,marketwatch",-0.003256,"-0.003304,-0.003231",1791504414
@@ -620,6 +621,7 @@ twelvedata:USD/MXN,1790866800,close,real,sifting,"yahoo,marketwatch","yahoo,mark
 twelvedata:USD/MXN,1790942400,close,real,sifting,"yahoo,marketwatch","yahoo,marketwatch",-0.008186,"-0.008230,-0.008211",1791515214
 twelvedata:USD/MXN,1791284400,close,real,sifting,"yahoo,marketwatch","yahoo,marketwatch",-0.004469,"-0.004557,-0.004483",1791515214
 twelvedata:USD/MXN,1791471600,close,real,sifting,"yahoo,marketwatch","yahoo,marketwatch",0.009930,"0.009935,0.010032",1791515214
+twelvedata:USD/MXN,1791547200,close,real,sifting,"yahoo,marketwatch","yahoo,marketwatch",0.003765,"0.003900,0.003772",1791551275
 twelvedata:USD/NOK,1736114400,close,overnight,sifting,dukascopy,,-0.007890,-0.000037,1791362566
 twelvedata:USD/NOK,1784494800,open,not_real,sifting,yahoo,,0.013631,0.000775,1791114096
 twelvedata:USD/NOK,1784498400,close,not_real,sifting,dukascopy,,-0.008260,-0.000561,1791362566
