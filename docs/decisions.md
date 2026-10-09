@@ -431,6 +431,37 @@ and the gate drops it like any invalid bar. The store remembers in itself, with 
 bad days beside it. The gate had let a bar with no price through (none was stored, over the
 173 instruments, 2026-10-08); it now refuses it first.
 
+**The funds' wrong opens of 2016–2022 were mended from the tape.** A fund's first bar
+often did not open where the market did, most of all in Twelve Data's history (2020-02 on):
+at the previous close, so the night read 0 and the first hour carried it (on STIP's
+distribution mornings the payout, added back to a zero gap, read as a +34σ night), or 15 bp
+or more off elsewhere (IHI at its pre-split price on 2021-07-19; UNG next to the previous
+close on 2021-11-29, when it opened 9% lower). Against Alpaca's tape (`tools/tape_bars.py`),
+on fund-days whose two closes agree within 10 bp, 9,783 first bars took the tape's open,
+high and low, the stored close kept (`tools/tape_mend.py`): 2,918 stale; 2,154 whose stored
+open the tape never traded at in that half hour; 1,080 at the tape's high or low, a stray
+trade taken for the open (VCSH 2021-11-05: 81.58, against an open of 82.02 and a close of
+82.03); 3,631 where both opens are ordinary trades of the half hour. 473 are from before 2020.
+Which open is right was judged apart from both: the fund's night predicted from its eight
+most similar funds' nights that morning, where their store and tape agree. With the stale
+mornings as the yardstick, at the same distance between the two opens, the tape's is the
+right one on about 88% of the never-traded mornings, 92% of the high-or-low ones and 85% of
+the ordinary ones (94% in the equity funds). In the bond funds the ordinary ones came out
+even (51% of 111 in credit, 49% of 27 in rates), so those 207 were left. A mend also needs
+the official open within 5 bp of the tape's, and the tape's open inside the store's own
+first bar: the official open is taken from the same tape and repeats its stray prints (CPER
+traded once at 13.01 on 2016-08-22, then at 14.10 all hour), and taking Yahoo's daily open as
+the night without that guard flagged 772 of the stale mornings themselves (PFF 2007-06-27, a
++21.6% night). Over the full history (bars to 2026-10-08, rebuilt cold), flagged readings
+went 17,101 → 16,652 and events 12,843 → 12,436 (high and up 4,320 → 4,195, extreme 490 →
+479): first hours that carried a night (EWQ 2020-03-12 −8.9%, EEM 2022-03-16 +4.9%, XLC the
+morning after Meta's results, 2022-02-03) are nights now. The year to 2026-10-01 is unchanged
+(755 events, 209 pushes), and no reading since 2023 changed its word. Not reached: before
+2016 (the tape starts there), 2023 on (not fetched), and the 11% of fund-days whose two
+closes disagree. The hourly run does not see a revised old bar, so the note in
+`config/basket.yaml` that records this is the edit that rebuilds the metrics once. Both
+tools go once it is live.
+
 **A dividend refresh keeps the splits already declared.** The full Tiingo refresh rewrote the
 whole table, and the morning check never asks back past a fund's checked-through date, so a
 split Tiingo did not list (or any split, from Twelve Data, which cannot see them) would have

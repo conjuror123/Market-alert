@@ -36,6 +36,11 @@ history_since: "2015-01-01"
 #   Binance       each pair's own listing date (2017-08 at the earliest), no key.
 # So a newly added ETF needs the Twelve Data pass and then Alpaca's, which
 # takes it to 2016.
+#
+# A fund's first bar of the morning often did not open where the market did,
+# most of all in Twelve Data's history: 9,783 of 2016-2022 were mended from
+# Alpaca's tape on 2026-10-09 (tools/tape_mend.py, docs/decisions.md). A fund
+# added since is not.
 fetch_since: "2002-01-01"
 
 # ---------------------------------------------------------------------------
