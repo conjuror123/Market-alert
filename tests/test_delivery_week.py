@@ -196,7 +196,7 @@ def test_a_move_found_more_than_a_day_ago_is_never_sent(monkeypatch, channel, we
     assert channel.pushes() == [] and channel.pings() == []
 
 
-# --- not seen by a second source --------------------------------------------------
+# --- voted not real --------------------------------------------------------------
 
 # Some other instrument's old move, so the table is not empty (an empty one is
 # "the pipeline did not run" and changes nothing).

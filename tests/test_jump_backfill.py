@@ -1900,7 +1900,7 @@ def test_alpaca_funds_need_the_alpaca_keys(tmp_path, monkeypatch):
     alerts = []
     monkeypatch.delenv("ALPACA_KEY_ID", raising=False)
     monkeypatch.setattr(backfill, "load_basket", lambda: basket)
-    # No calendar: nothing after the fetch (dividends, second source) asks
+    # No calendar: nothing after the fetch (dividends, the vote) asks
     # the network or writes the repository's files.
     monkeypatch.setattr(backfill._sessions, "load_sessions",
                         lambda: (_ for _ in ()).throw(FileNotFoundError()))

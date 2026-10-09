@@ -1,4 +1,4 @@
-"""The coins' second sources, Coinbase and Kraken: what an answer becomes."""
+"""The coins' voters, Coinbase and Kraken: what an answer becomes."""
 import pytest
 
 from price_monitor import coinbase, kraken
