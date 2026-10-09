@@ -666,7 +666,7 @@ health and the calendar go out, Jump's pushes, note and pings do not.
 | `price_monitor/weekly_digest.py`, `economic_calendar.py` | the calendar |
 | `price_monitor/notifier.py`, `health.py`, `__main__.py` | Telegram calls, health, the delivery entry point |
 | `price_monitor/<provider>.py` | one client per provider |
-| `tools/` | `stage_report.py`, `hot_bars.sh`, `run_died.sh` (the health line for a run that could not deliver), `voter_bars.py` (every live voter's bars for a measurement; the backfill's `voter-bars` mode, where the keys are), `tape_bars.py` (Alpaca's tape for every fund, 2016 to 2022, the same way: `tape-bars`), `tape_mend.py` (the one-off mend of the funds' first bars from that tape) |
+| `tools/` | `stage_report.py`, `hot_bars.sh`, `run_died.sh` (the health line for a run that could not deliver), `voter_bars.py` (every live voter's bars for a measurement; the backfill's `voter-bars` mode, where the keys are), `tape_bars.py` (Alpaca's tape for every fund, `start` to `end`, 2016 to 2022 unless given, the same way: `tape-bars`), `tape_mend.py` (the one-off mend of the funds' first bars from that tape) |
 
 How far back each record reaches:
 

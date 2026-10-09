@@ -50,9 +50,9 @@ name: Backfill Jump Bars
 #                   measurement (tools/voter_bars.py). Writes nothing to the
 #                   store or the record.
 #   tape-bars       Alpaca's consolidated tape for every US fund (or those
-#                   named), 2016 to 2022, uploaded as the artifact `tape-bars`
-#                   for a measurement (tools/tape_bars.py). Writes nothing to
-#                   the store.
+#                   named), `start` to `end` (2016 to 2022 unless given),
+#                   uploaded as the artifact `tape-bars` for a measurement
+#                   (tools/tape_bars.py). Writes nothing to the store.
 
 on:
   workflow_dispatch:
@@ -77,6 +77,16 @@ on:
           - corporate-actions
           - voter-bars
           - tape-bars
+      start:
+        description: 'tape-bars only: the first day'
+        required: false
+        default: '2016-01-01'
+        type: string
+      end:
+        description: 'tape-bars only: the day after the last'
+        required: false
+        default: '2023-01-01'
+        type: string
 
 permissions:
   contents: write
@@ -138,6 +148,8 @@ jobs:
               ${{ github.event.inputs.instruments && format('--instruments "{0}"', github.event.inputs.instruments) || '' }}
           elif [ "${{ github.event.inputs.mode }}" = "tape-bars" ]; then
             python -m tools.tape_bars tape-bars \
+              --start "${{ github.event.inputs.start || '2016-01-01' }}" \
+              --end "${{ github.event.inputs.end || '2023-01-01' }}" \
               ${{ github.event.inputs.instruments && format('--instruments "{0}"', github.event.inputs.instruments) || '' }}
           else
             python -m jump.backfill --${{ github.event.inputs.mode || 'extend-history' }} \
