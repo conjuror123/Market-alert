@@ -64,6 +64,8 @@ pip install -r requirements-dev.txt
 pytest -q          # ~830 tests, about 2 minutes; run alone, several load large parquet files
 ```
 
+Each test file also passes on its own (`pytest -q tests/test_jump_backfill.py`).
+
 The derived data (`data/jump/metrics/`, `jumps.parquet`) rebuilds from the committed
 bars in under a minute. The open months of the bars are not in git: `tools/hot_bars.sh
 restore` lays them down (needs `gh`, `GITHUB_REPOSITORY`, `GITHUB_REF_NAME`; `BARS_BRANCH`
@@ -407,8 +409,8 @@ for a 24-hour market) and is marked `young` until the window is full.
 | extreme | 🟥 | 17 |
 
 Each word is about three times rarer to reach than the one below (events at or above
-each, over all history on 2026-10-09: 12,845, 4,321, 1,341, 490). Extreme has no ceiling,
-so as a band of its own it is only about twice as rare as major's (490 against 851). `high` and up push
+each, over all history on 2026-10-09: 12,438, 4,195, 1,301, 479). Extreme has no ceiling,
+so as a band of its own it is only about twice as rare as major's (479 against 822). `high` and up push
 (`routing.PUSH_TIERS`); `noticeable` goes into the weekly note.
 
 **Gaps** are scored by the same rules against earlier gaps **of their own kind** over the
@@ -709,4 +711,4 @@ How far back each record reaches:
 | history older than its recount | not voted (section 5): only the readings the one-off check of 2026-10-07 judged carry a vote. Elsewhere an old bad print or stale open stays flagged (14 whole shifted fund days were removed, section 5; the funds' wrong first bars of 2016–2022 were mended, section 11, but not those before 2016 or since 2023), sits in the next half-year's yardsticks, and can be the "then" of a later "rarest since" line | a second source for the old history (`docs/decisions.md`, "History is not voted again") |
 | a fund's morning open from 2023 | about 1 in 100 opens 15 bp or more off the official open (1,242 mornings to 2026-10-08); the IEX feeds take it from one exchange. Only a first hour at 4σ or more is voted (section 5) | none chosen: a mend moved the year's pushes 209 → 206 and would not stay (`docs/decisions.md`, "From 2023 the funds' opens are left as stored") |
 | the funds' 2016–2019 price levels | off the tape's in 680 fund-months (REM 7% high in 2017-12), stepping on payout days: REM's ex-dividend nights read as moves (four flagged) | rewriting those years from the tape (`docs/decisions.md`, "The funds' 2016–2019 price levels are left off the tape's") |
-| repository size (~903 MiB on GitHub, 2026-10-09; ~890 on 10-06) | grows ~28 MB a year from the hourly state, and by its files whole on a commit that rewrites data | a history rewrite (irreversible) |
+| repository size (~921 MiB on GitHub, 2026-10-09 after the funds' first-bar mend; ~903 that morning, ~890 on 10-06) | grows ~28 MB a year from the hourly state, and by its files whole on a commit that rewrites data | a history rewrite (irreversible) |
