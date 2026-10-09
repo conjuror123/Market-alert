@@ -12,6 +12,18 @@ from price_monitor.models import Candle
 HOUR = 3600
 
 
+@pytest.fixture(autouse=True)
+def _real_calendar_for_the_week():
+    """The week's boundaries (jump.routing) read the real session table through
+    sessions.cached_sessions. Tests here stand in for the backfill's own table
+    by replacing sessions.load_sessions; reached through an empty cache, that
+    stand-in would answer routing too, with the wrong argument. Loaded first,
+    as a full run of the suite happens to, routing keeps the real calendar and
+    this file passes on its own."""
+    from jump import routing, sessions
+    sessions.cached_sessions(routing.SESSIONS_PATH)
+
+
 def asset(**over):
     base = dict(ticker="EUR/USD", source="twelvedata", block="FX",
                 has_volume=False, tick_size=0.00001, session_template="fx_continuous",
