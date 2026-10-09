@@ -110,6 +110,15 @@ def test_a_lookback_past_what_yahoo_serves_is_refused():
     assert s.calls == []
 
 
+def test_the_refusal_names_the_archives_that_still_serve():
+    # HF Data withdrew its consolidated tape on 2026-10-03: naming it sends
+    # the reader to a source that has nothing left to give.
+    with pytest.raises(ExchangeError) as refused:
+        yahoo.fetch_full_history("SPY", "30min", days=400, session=_Session())
+    assert "Use Twelve Data or Alpaca's tape to deepen." in str(refused.value)
+    assert "HF Data" not in str(refused.value)
+
+
 def test_the_window_is_sent_as_epoch_seconds():
     s = _Session(_Resp(_chart([], [], [], [], [], [])))
     yahoo.fetch_full_history("SPY", "1h", days=2, session=s)

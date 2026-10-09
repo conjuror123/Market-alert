@@ -43,13 +43,13 @@ Secrets (GitHub → Settings → Secrets → Actions):
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | the channel (required) |
 | `TELEGRAM_HEALTH_CHAT_ID` | health and provider failures (optional) |
 | `TIINGO_API_KEY` | 27 funds |
-| `ALPACA_KEY_ID`, `ALPACA_SECRET_KEY` | 30 funds live; history from 2016 |
+| `ALPACA_KEY_ID`, `ALPACA_SECRET_KEY` | 30 funds live; the consolidated tape's vote on all 133 funds; history from 2016 |
 | `SIFTING_API_KEY` | the 17 FX pairs |
 | `TWELVEDATA_API_KEY` | 8 thin funds; archive and gap-fill |
 | `FRED_API_KEY` | the VIX series |
 | `HFDATA_API_KEY` | optional: the backfill's `deepen-etfs`, `probe-hfdata` and `fill-gaps`'s second source; since 2026-10-03 HF Data serves nothing before 2022-03 |
 
-Yahoo, Sina, Google Finance, Binance, MarketWatch, Coinbase and Kraken need no key. A
+Yahoo, Sina, Google Finance, Binance, MarketWatch, Coinbase, Kraken and Cboe need no key. A
 missing key costs only that provider's instruments, and the health chat names the secret every run until it is
 set. A key the provider refuses (401; 403 too, except at Twelve Data, where 403 is one
 symbol beyond the plan) stops that provider for the run the same way
@@ -62,12 +62,13 @@ Local:
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q          # ~835 tests, about 2 minutes; run alone, several load large parquet files
+pytest -q          # ~850 tests, about 2 minutes; run alone, several load large parquet files
 ```
 
 The derived data (`data/jump/metrics/`, `jumps.parquet`) rebuilds from the committed
 bars in under a minute. The open months of the bars are not in git: `tools/hot_bars.sh
-restore` lays them down (needs `gh`, `GITHUB_REPOSITORY`, `GITHUB_REF_NAME`).
+restore` lays them down (needs `gh`, `GITHUB_REPOSITORY`, `GITHUB_REF_NAME`; `BARS_BRANCH`
+names the branch whose archive to read, as a branch without its own needs).
 
 To add a provider: a client in `price_monitor/` returning `Candle` lists, its name in
 `PROVIDERS` (`jump/basket.py`), a branch in `backfill.fetch_missing`, its secret in the
@@ -84,8 +85,10 @@ python -m jump.jumps      score all history, words, 24-hour events -> jumps.parq
 python -m price_monitor     deliver what is due to Telegram
 ```
 
-Around `backfill`, the open months of the bars are restored from and saved to a release
-(`tools/hot_bars.sh`). `jumps` reads what `pipeline` wrote; delivery reads `jumps.parquet`.
+Before them the session table is extended when under two years remain (`python -m
+jump.sessions --extend-if-short`), and the open months of the bars are restored from a
+release; after `jumps` they are saved back (`tools/hot_bars.sh`). `jumps` reads what
+`pipeline` wrote; delivery reads `jumps.parquet`.
 
 **Rule.** Everything internal is UTC seconds, named `hour_utc`. Local time appears only
 where a day is a local thing (a fund's session in New York), resolved through `ZoneInfo`.
@@ -98,7 +101,7 @@ standing in, a few minutes of it; that bar heals on the next fetch.
 | provider | instruments | notes |
 |---|---|---|
 | Tiingo | 27 funds | IEX price matches the consolidated tape for these |
-| Alpaca | 30 funds | free IEX bars live; consolidated (SIP) history from 2016 |
+| Alpaca | 30 funds | free IEX bars live; the consolidated tape (SIP) from 2016, for history and the vote, 15 minutes behind |
 | Twelve Data | 8 funds (USO UNG GLD SLV CPER DBA CORN DBC) | consolidated tape for thin funds; one batched request a run |
 | Sina Finance | 33 funds; LME tin, nickel, aluminium | US half-hour bars (consolidated); LME three-month contract, last 1,023 hourly bars |
 | Yahoo | 34 funds; coffee, cocoa, cotton, live cattle | futures from the front contract, rolled before first notice, cattle twelve business days before its delivery month; each run asks the contract's bars from the session it became front (`jump/futures.py`) |
@@ -148,8 +151,8 @@ answered with nothing new or refused by Yahoo run after run, is named on the hea
 on the run it passes its limit, then once a day, and only on a run its count moved, so not through the night (`stale_hours`): 3 session hours for a coin, 6 for a pair, 7 for a fund, two sessions for a
 daily-session market (whose calendars, B3's aside, don't know holidays).
 
-**Requests** (`jump/usage.py`): every answer the fetch gets, a 429 included, is counted by
-provider on its HTTP session and logged once at the end of the fetch, with the quota left
+**Requests** (`jump/usage.py`): every answer the fetch, the vote and the VIX get, a 429
+included, is counted by provider on its HTTP session and logged once at the end of the fetch, with the quota left
 where the provider's answer says it: `requests: tiingo 27 (left 4973), sifting 16 (left 4), …`.
 Log only; nothing is sent. SiftingIO's "left" is a short window, not its 10,000 a month:
 4 after a run's 16 requests while its account page showed 181 for the month
@@ -168,7 +171,8 @@ funds, comma-separated. That run repairs first, then makes the ordinary hourly p
 the FX week, and each daily-session market's hours (LME, ICE, CME, B3). B3's trading days
 (`data/jump/sessions/b3.csv`) take its holidays out of USD/BRL's session: SiftingIO quotes
 on them, flat or thin. The tables extend themselves: when under two years remain, the
-hourly run appends three more years to both, leaving existing rows untouched.
+hourly run appends the days through the end of the year three years ahead to both,
+leaving existing rows untouched.
 
 **Quality gate** (`jump/quality.py`): a bar is unusable if it has no price (a removed
 bar) or a price is not positive,
@@ -276,8 +280,7 @@ before. `jumps` (`with_nights`) puts the median of them in the gap, payout adjus
 kept, and the rest of the move from the previous close in the hour: the total stays the
 store's. A gap left unscored stays so. Kept for good, like a move not real, and not
 a doubt: the message is not marked. Only readings at 4σ or more are asked, so a stale
-first print on a quiet morning stays, and so does a fund's before 2016, which no source
-reaches.
+first print on a quiet morning stays, and so does one older than its recount (below).
 
 **A move not real is not scored, and nothing is deleted.** `jumps` leaves its reading
 out of every word and every yardstick; the bar stays in the store, and in the price path
@@ -314,16 +317,15 @@ most (the funds' tape from 2016, the pairs' Dukascopy before Yahoo's two years),
 source can only tie the store, never outvote it: a vote again there could only take known
 bad prints back (`docs/decisions.md`).
 
-**The history, judged once** (2026-10-07, by a tool since retired; its verdicts stay in
-the record): every flagged reading with no verdict yet, asked of a source that reaches it,
-by the same rule. Coins against Coinbase, pairs against Dukascopy's archive, funds against
-Alpaca's tape from 2016. A stretch where the source is the store's own feed was skipped,
-decided once per fund-year, which left 85% of the funds' flagged readings unasked. It added 8 not seen for the coins, 70 not seen and 5 overnight for
-the pairs, and 23 not seen and 93 overnight for the funds. Live cattle (`cattle`, locally)
-against every single contract Yahoo still serves (June and October 2025, the listed
-ones), all at once, a contract left out where it is the store's own: 12 not seen of 20
-asked, in three passes, as each pass's verdicts narrowed the yardstick and lifted
-another reading (2025-08-01, Yahoo's series switching contracts overnight).
+**Older votes stand as the record holds them.** On 2026-10-09 the record holds, for hours
+before 2026-07-01: the coins' 12 not real (Coinbase); the pairs' 167 not real and 3
+overnight (Yahoo 103, Dukascopy's archive 64 and the 3); the funds' 23 not real and 93
+overnight (Alpaca's tape, from 2016); live cattle's 12 not real (the single contracts Yahoo
+still serves). They were taken before the vote, mostly one source per reading, when a
+disagreement counted as not seen: Yahoo's on 2026-10-04 and 4 of Coinbase's on 10-06 by the
+second-source check at its full reach, the rest on 10-07 by a one-off check of the history
+(a tool since deleted). The vote would call most of them a tie; they stand all the same
+(above).
 
 **14 fund days removed from the store** (2026-10-07), where no feed reaches: whole days
 the old vendor shifted, measured as a store jump into the day and back out of it while
@@ -391,7 +393,9 @@ for a 24-hour market) and is marked `young` until the window is full.
 | major | 🟧 | 12 |
 | extreme | 🟥 | 17 |
 
-Each word is about three times rarer than the one below. `high` and up push
+Each word is about three times rarer to reach than the one below (events at or above
+each, over all history on 2026-10-09: 12,845, 4,321, 1,341, 490). Extreme has no ceiling,
+so as a band of its own it is only about twice as rare as major's (490 against 851). `high` and up push
 (`routing.PUSH_TIERS`); `noticeable` goes into the weekly note.
 
 **Gaps** are scored by the same rules against earlier gaps **of their own kind** over the
@@ -403,6 +407,10 @@ starts at 16 nights or 7 weekends.
 enters a yardstick. The hours after such a break are dropped too, until the price is back
 within half of it (the returning hour included), for at most 24 hours (`STRETCH_BARS`).
 Gaps have no stretch.
+
+**The vote's word** (section 5). A move voted not real is no reading and no part of any
+yardstick (`without_not_real`); a first hour voted overnight is scored with the feeds'
+night in its gap and the rest in the hour (`with_nights`).
 
 **When a reading is judged** (`ended`, `found_times`). An hour once it has ended. A fund's
 gap with its first bar, once that bar has ended. A pair's weekend gap, and a
@@ -474,6 +482,9 @@ it goes on in opens with its name-line, `continued`:
 🕐 16.09.2026 18:00 UTC · close 113%
 ```
 
+A note in several messages ends each with its part and period (`part 2 of 3 - 02.10.2026
+to 09.10.2026`), since only the first carries the header.
+
 **One message per kind per run.** A run's pushes go out in one message and its pings in
 one more, biggest σ first. News is said once below the pushes, named by hour when the
 pushes span several hours. A message is cut at 3,000 characters (`MESSAGE_BUDGET`) so
@@ -537,7 +548,7 @@ topped up daily from the live feed.
 | `data/state.json` | the week's messages on the channel, the open note | every run |
 | `data/economic_calendar/` | release archive | every run |
 | `data/jump/corporate_actions.csv`, `dividend_checks.csv` | payouts, how far each fund is confirmed | every run |
-| `data/jump/verified.csv` | second-source verdicts | every run |
+| `data/jump/verified.csv` | the sources' votes | every run |
 | `data/jump/sessions/nyse.csv`, `b3.csv` | NYSE schedule, B3's trading days | when extended |
 | `data/jump/bars/*/YYYY-MM.csv`, `YYYY.parquet` | settled bars | when a month or year settles |
 | `data/jump/bars/*/YYYY-MM.open.csv` | open months | no: release `bars-live-<branch>`; the backfill reads the default branch's |
@@ -559,22 +570,23 @@ day, so it doesn't age out.
 hour (`POST /repos/<owner>/<repo>/actions/workflows/price-monitor.yml/dispatches` with a
 PAT and the branch as `ref`). GitHub's `schedule:` is not used: it fires unreliably.
 
-**Cost.** Fetch ~15 s, second source ~11 s, metrics ~11 s warm (~30 s cold) and events
-~9 s (measured on 4 cores, 2026-10-04), whole job ~2 min, timeout 20 min. The vote's daily
-recount at session ends brings it to about 8 requests a run on average, at most 40 a run
-(section 5): not yet measured live.
+**Cost.** Over the 48 runs to 2026-10-09 00:05 UTC, the job took a median 2.6 minutes (at
+most 4.9), its Jump step 1.9 (at most 3.0); timeout 20 minutes. On the vote's first two
+live runs (2026-10-08 23:05 and 10-09 00:05, both outside the funds' session): fetch 61
+and 79 s, the vote 14 and 27 s, metrics 20 s rebuilt cold and 14 s extended, events 4 and
+7 s.
 
 **Quotas.**
 
 | provider | limit | use |
 |---|---|---|
 | Tiingo | 50/hour, 1,000/day | 27 requests a run in session, ~245 a day; the full dividend refresh (backfill workflow, `corporate-actions`) asks all 133 funds at 45 an hour, about 3 hours, and starts only when the hourly run leaves Tiingo alone that long: from 3 h after a close to the next session's first hour |
-| Alpaca | 200/min | 30 a run |
+| Alpaca | 200/min | 30 a run in session; the tape's vote besides, within the vote's 40 sources a run |
 | Twelve Data | 800/day, 8/min | one batch of 8 a run, in a background thread: keep at most 8 instruments on it, as one batch is a minute's credits; a history walk (`--extend-history`, `--fill-gaps`) waits out :03–:12 past each hour and stops at 600 a day (`twelvedata.ARCHIVE_CREDIT_CAP`), so run one a day |
 | SiftingIO | 10,000/month | ~8,700/month (17 pairs, skipped outside the FX week and USD/BRL's session) |
-| Yahoo, Sina, Google, MarketWatch | none published | live fetch, dividend check, the vote (a few requests a run) |
+| Yahoo, Sina, Google, MarketWatch | none published | live fetch, dividend check, the vote (at most 40 sources a run, all sources together) |
 | Binance | 6,000 weight/min per address | 16 a run |
-| Coinbase, Kraken | per second, per address | the coins' vote: a few requests on a run after a coin moved 4σ or more, and once a day for 29 days after |
+| Coinbase, Kraken | per second, per address | the coins' vote: on the run after a coin moved 4σ or more, and at 00:05 UTC for 29 days after; Coinbase serves 300 hours a request, so a coin's recount is up to 3 (25 Coinbase requests at 00:05 on 2026-10-09) |
 
 **Health, in the order of the hourly run.** Everything below goes to the health chat
 (`TELEGRAM_HEALTH_CHAT_ID`), never the channel. "Streak" means a failed run: the down
@@ -592,10 +604,10 @@ message past Telegram's 4,096 characters is cut between lines, ending "…and N 
 | fetch: a provider's key is missing or refused | that provider's instruments are not fetched; the others are | "X is not set" / "refused the key" | every run it happens |
 | fetch: a provider fails, or Tiingo's or SiftingIO's budget is spent | its instruments keep their stored bars | "went dark" / "request budget spent" | every run it happens |
 | fetch: Yahoo refuses (429) | its instruments wait for the next run | the stale line, "refused this run", once one is behind past its limit | past its limit, then daily |
-| fetch: a provider does not answer twice in a row | stopped for the run, left out of the dividend check and the second source | "did not answer" message | every run it happens |
+| fetch: a provider does not answer twice in a row | stopped for the run, left out of the dividend check, and an outage in the vote | "did not answer" message | every run it happens |
 | fetch: answered, but no new bar | the instrument goes stale (`stale_hours`) | "no new bar" | past its limit, then daily |
 | dividend check | a fund's payouts unconfirmed 5+ days: its overnight gaps go unscored | "Dividend check behind" | daily |
-| second source | a source stopped for the run, or the pass crashed: moves judged by the other source or scored unchecked | "Second source" lines | every run it happens |
+| the vote | a source stopped for the run: an outage, a vote against the moves it is asked about, until a later count; the pass crashed: the hour's moves are scored unvoted | "The vote" lines | every run it happens |
 | VIX | both sources failed | "went dark" | every run it happens |
 | pipeline or jumps, one instrument (an error, or no metrics file) | that instrument keeps its stored metrics, or its events from the last run, so delivery never reads them as gone; the others are current | "Metrics failed" / "Scoring failed for N instrument(s)", each with its error | every run it happens |
 | pipeline, jumps (every instrument), or the step's 12 minutes | no new events | streak, named with the part it stopped in and its minutes | while it fails |
@@ -617,8 +629,9 @@ has 12 of the job's 20 minutes: past them it is stopped, and delivery, health an
 commit still run. Each part of it (fetch, pipeline, jumps) notes its start, so a step that
 stops short is reported with the part it was in and its minutes.
 
-**Expected volume.** About 4 pushes and 11 note rows a week, about 9 messages a week, 8 of
-them ringing. A quiet day is normal: green runs mean it looked and found nothing.
+**Expected volume.** About 4 pushes and 10 note rows a week (209 and 546 events over the
+year to 2026-10-01). Replayed hour by hour over that year, delivery sends about 9 messages
+a week (8.6: 2.2 push messages, 5.2 ping messages, 1.2 note parts), 7.5 of them ringing. A quiet day is normal: green runs mean it looked and found nothing.
 
 **Checking on it.** `PYTHONPATH=. python tools/stage_report.py` prints rates by word,
 block and channel, and the biggest hours. To run the pass by hand, export the keys and
@@ -635,7 +648,7 @@ health and the calendar go out, Jump's pushes, note and pings do not.
 
 | module | does |
 |---|---|
-| `jump/backfill.py` | fetch and merge, skip rules, dividend check, the second-source call; deepening and repair modes |
+| `jump/backfill.py` | fetch and merge, skip rules, dividend check, the call to the vote; deepening and repair modes |
 | `jump/bars.py` | the bar store |
 | `jump/sessions.py`, `futures.py` | calendars and sessions; contract rolls and the front contract |
 | `jump/quality.py` | the bar gate |
@@ -676,5 +689,5 @@ How far back each record reaches:
 | one other source for cattle and the softs | a disagreement is a tie: their bad prints stay scored, labelled uncertain | another free feed |
 | weekend yardsticks rest on 26 weekends | ±16% noise | none chosen: a longer window gained little (`docs/decisions.md`, "Rejected") |
 | history before each record's start (section 11) | "rarest since" reaches only as far as the record | paid history |
-| history no source reaches, and moves under 6σ in it | judged once against sources that reach it (section 5), except: funds before 2016, the softs and the LME, and readings under 6σ. There an old bad print or stale open stays flagged (14 whole shifted fund days were removed, section 5), sits in the next half-year's yardsticks, and can be the "then" of a later "rarest since" line | a paid feed for the old history |
-| repository size (~890 MiB on GitHub, 2026-10-06) | grows ~28 MB a year | a history rewrite (irreversible) |
+| history older than its recount | not voted (section 5): only the readings the one-off check of 2026-10-07 judged carry a vote. Elsewhere an old bad print or stale open stays flagged (14 whole shifted fund days were removed, section 5), sits in the next half-year's yardsticks, and can be the "then" of a later "rarest since" line | a second source for the old history (`docs/decisions.md`, "History is not voted again") |
+| repository size (~903 MiB on GitHub, 2026-10-09; ~890 on 10-06) | grows ~28 MB a year from the hourly state, and by its files whole on a commit that rewrites data | a history rewrite (irreversible) |

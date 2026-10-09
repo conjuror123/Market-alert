@@ -1,4 +1,4 @@
-"""The second source (jump.verify): a move another feed did not see is not
+"""The sources' vote (jump.verify): a move most other feeds did not see is not
 scored, and its message says so. The verdicts are pinned on real cases,
 checked by hand against Yahoo.
 """
@@ -24,7 +24,7 @@ def basket():
 
 
 def bars_of(rows):
-    """The second source's hourly bars: {hour text: close} or {hour text: (open, close)}."""
+    """A source's hourly bars: {hour text: close} or {hour text: (open, close)}."""
     pairs = {h: (x if isinstance(x, tuple) else (x, x)) for h, x in rows.items()}
     return pd.DataFrame({"hour_utc": [ts(h) for h in pairs],
                          "open": [o for o, _ in pairs.values()],
@@ -276,7 +276,7 @@ def test_an_hour_measured_from_its_own_open_is_judged_from_the_second_sources_op
     rows["2026-02-04 14:00"] = (82.00, 82.02)
     assert judge("2026-02-04 14:00", 82.0, 82.9, rows, "2026-02-04 16:00",
                  from_open=True)[0] == verify.UNCONFIRMED
-    # No open of its own on the second source: nothing to compare with.
+    # No open of its own on the source: nothing to compare with.
     assert judge("2026-02-04 14:00", 82.0, 82.9, {"2026-02-03 20:00": 84.2},
                  "2026-02-04 16:00", from_open=True)[0] == verify.UNKNOWN
 
@@ -343,7 +343,7 @@ def test_an_ordinary_night_is_not_asked_about_and_a_far_one_is(basket):
 def test_a_pairs_weekend_gap_is_asked_about_at_its_open_and_from_fridays_close(
         monkeypatch, tmp_path, basket):
     # The detector judges a pair's weekend gap at its open (jumps.found_times),
-    # so it is asked about then - and the second source is fetched from before
+    # so it is asked about then - and the source is fetched from before
     # Friday's close, the price the gap starts at.
     asset = basket["USD/INR"]
     hours = ts("2026-08-03 00:00") + HOUR * np.arange(24 * 7 * 9)
@@ -854,7 +854,7 @@ def test_the_check_follows_the_detectors_settings(monkeypatch, basket):
 
 def test_a_broken_bar_from_a_second_source_costs_only_its_instrument(
         monkeypatch, tmp_path, basket):
-    # A second source's zero or missing price is not a price. It must not take
+    # A source's zero or missing price is not a price. It must not take
     # the pass down with it: every other instrument is still judged.
     asset, hours, bad, frame, market = _inr_store(tmp_path, basket)
     other = basket["USD/TRY"]

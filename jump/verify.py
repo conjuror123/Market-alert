@@ -48,7 +48,7 @@ below the detector's bottom word, so nothing it flags is missed: a few a day
 across the basket, one request per source and instrument.
 
 ONE SOURCE'S ANSWER (judge). Each feed is compared with itself, so a steady offset
-between them is not a move. CONFIRMED if the second source moved the same way
+between them is not a move. CONFIRMED if the source moved the same way
 at least REAL_SHARE as far, from its closes up to LAG_HOURS before the move to
 its closes up to LAG_HOURS after: USD/TRY came back at 11:00 on SiftingIO and
 at 12:00 on Yahoo (2025-03-14). An hour it has no bar for is bridged by its
@@ -317,7 +317,7 @@ def sources_for(asset: Asset) -> "list[Source]":
 
 def fetch_verifier(name: str, symbol: str, interval: str, days: float,
                    session: "requests.Session | None", now: datetime) -> pd.DataFrame:
-    """The second source's bars folded onto the store's hourly grid."""
+    """A source's bars folded onto the store's hourly grid."""
     from datetime import timedelta
 
     from price_monitor import alpaca, coinbase, kraken, marketwatch, sina, yahoo
@@ -469,7 +469,7 @@ def judge(c: dict, v: pd.DataFrame) -> "tuple[str, float, float]":
     p = math.log(c["price"] / c["prev_close"])
 
     # Where the market was before the move: for an hour measured from its own
-    # open, the second source's open of that hour; else its closes up to an
+    # open, the source's open of that hour; else its closes up to an
     # hour before, or else its last one, if recent enough.
     if c.get("from_open"):
         if h not in vopen:
@@ -495,7 +495,7 @@ def judge(c: dict, v: pd.DataFrame) -> "tuple[str, float, float]":
 
     moves = [math.log(b / a) for a in befores for b in afters]
     with_it = max(moves, key=lambda m: m * np.sign(p))
-    # The move it is reported with is the second source's over the same span
+    # The move it is reported with is the source's own over the same span
     # - or its nearest bars either side; the lag window only decides.
     start = befores[0] if c.get("from_open") else \
         vclose.get(hp, vclose[int(stamps[stamps <= hp][-1])] if (stamps <= hp).any() else befores[-1])
@@ -508,7 +508,7 @@ def judge(c: dict, v: pd.DataFrame) -> "tuple[str, float, float]":
 
 
 def switches(store: pd.DataFrame, v: pd.DataFrame, template: str) -> "list[int]":
-    """The first hours of the sessions the second source changed contract at:
+    """The first hours of the sessions the source changed contract at:
     where its median offset to the store stepped by ROLL_STEP_BP or more from
     the session before. A one-hour bad print in either feed moves one bar, not
     a session's median."""
@@ -537,7 +537,7 @@ def crosses(c: dict, at: "list[int]") -> bool:
 
 
 def _priced(v: pd.DataFrame) -> pd.DataFrame:
-    """A second source's bars with a real price only: a zero, negative or
+    """A source's bars with a real price only: a zero, negative or
     missing open or close is not a price, as in the store's bar gate."""
     prices = v[["open", "close"]].to_numpy(dtype="float64")
     return v[(np.isfinite(prices) & (prices > 0)).all(axis=1)].reset_index(drop=True)

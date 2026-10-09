@@ -142,7 +142,7 @@ def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
     able to replace what they said.
 
     BARS ADDED UNDER OR AMONG THE SETTLED ROWS - a deepening, a hole filled
-    from a second source - are seen: each row keeps how many stored bars it was
+    from another source - are seen: each row keeps how many stored bars it was
     computed from (`bars_upto`), and a store that no longer agrees is rebuilt.
 
     WHAT IT CANNOT SEE is a revision to a bar older than that tail. The provider
@@ -179,7 +179,7 @@ def extend_asset_metrics(asset: Asset, basket: Basket, frame: pd.DataFrame,
 
     newest = int(settled["hour_utc"].max())
     # Bars written under or among the settled rows - a deepening, a hole filled
-    # from a second source - are not an extension: those rows were computed
+    # from another source - are not an extension: those rows were computed
     # without them. A store from before the count was kept is rebuilt once.
     if "bars_upto" not in settled.columns or \
             int((frame["hour_utc"] <= newest).sum()) != int(settled["bars_upto"].iloc[-1]):

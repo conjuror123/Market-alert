@@ -355,7 +355,7 @@ def to_hourly(frame: pd.DataFrame) -> pd.DataFrame:
     Needed because the sources' grids do not coincide: ETF bars run on the :30
     (09:30, 10:30, ...), currency pairs and crypto on the round hour. "The same
     hour" must mean the same thing for every series - in the store, in the
-    messages, in a second source's check - so the ETFs are requested as
+    messages, in the sources' vote - so the ETFs are requested as
     half-hourly bars and folded here.
 
     For series already sitting on the round hour the operation is the identity.

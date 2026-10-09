@@ -15,10 +15,10 @@ with the jump test of Lee & Mykland (2008), and the message says how far out it 
 ```
 
 The colour is the word: ⬜ noticeable at 6σ, 🟨 high at 8.5σ, 🟧 major at 12σ, 🟥 extreme
-at 17σ, each about three times rarer than the one below. `high` and up arrive at once
-(about 4 a week); `noticeable` goes into one weekly note (about 11 rows). Every other data
-feed that carries the instrument votes on a far move: one most did not see is marked
-`❌ not real` and kept out of the statistics, a tie `⚠️ uncertain`. It runs entirely on
+at 17σ, each about three times rarer to reach than the one below. `high` and up arrive at once
+(about 4 a week); `noticeable` goes into one weekly note (about 10 rows). Every other data
+feed that carries the instrument votes on a far move: one most did not see is marked `❌`
+with each feed's own move and kept out of the statistics, a tie `⚠️` and kept in. It runs entirely on
 GitHub Actions; nothing else needs hosting.
 
 ## Quick start
@@ -45,8 +45,8 @@ detector:
   levels: [6.0, 8.5, 12.0, 17.0]  # noticeable, high, major, extreme, in sigmas
 ```
 
-The bottom level sets how much you hear: 6 gives about 9 messages a week, 5 about 15,
-3.9 about 29. Which words push is `PUSH_TIERS` in `jump/routing.py`. To silence the
+The bottom level sets how much you hear: 6 gives about 9 messages a week, 5 about 14,
+3.9 about 26 (the delivery replayed over the year to 2026-10-01). Which words push is `PUSH_TIERS` in `jump/routing.py`. To silence the
 channel without stopping the bot, set `jump_alerts_muted: true` in
 `config/config.yaml`.
 

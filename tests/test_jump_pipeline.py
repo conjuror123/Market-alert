@@ -209,7 +209,7 @@ def test_added_rows_are_stamped_before_they_are_concatenated(monkeypatch):
 
 
 def test_bars_written_among_the_settled_rows_force_a_rebuild():
-    # A deepening or a hole filled from a second source lands under or among
+    # A deepening or a hole filled from another source lands under or among
     # rows already scored, which were computed without it: extending would
     # leave those hours out of the metrics for good.
     from jump import pipeline as pl, sessions

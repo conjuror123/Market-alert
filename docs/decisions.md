@@ -27,10 +27,14 @@ market), its rows marked `young`. A half-year warm-up would leave thirteen funds
 through March 2020.
 
 **Words at 6 / 8.5 / 12 / 17σ.** On this basket, doubling a move's size in σ makes it
-about ten times rarer, so levels √2 apart make each word about three times rarer than the
-one below. The 6σ bottom is a volume choice: moves of every size hold at the close alike
+about ten times rarer, so levels √2 apart make each word about three times rarer to reach
+than the one below: events at or above 6, 8.5, 12 and 17σ were 12,845, 4,321, 1,341 and
+490 over all history (2026-10-09), 3.0, 3.2 and 2.7 times apart. Extreme has no ceiling,
+so as a band of its own it is only about twice as rare as major's (490 against 851). The 6σ bottom is a volume choice: moves of every size hold at the close alike
 (76–80%), so a higher bottom buys fewer messages, not better ones. At 6σ: about 9 messages
-a week; for one instrument a word about every 3 months, 7 months, 21 months, 4 years.
+a week (8.6 over the year to 2026-10-01, the delivery replayed hour by hour); for one
+instrument an event at each word about every 4 months, 11 months, 3 years and 5½ years
+(over the 2,602 settled instrument-years to 2026-10-08).
 
 **Rarity is measured, not read off the bell curve.** Against its own half-year σ, an hour
 of every class reaches 3.9σ about once in 115, not once in 10,000.
@@ -86,7 +90,8 @@ week records cluster. Volume is set where it is generated: the bottom and the pu
 
 **`high` and up push; `noticeable` goes into the weekly note.** `noticeable` is two thirds
 of events and worth reading in a batch; `high` is a move its instrument makes about twice
-a year. About 4 pushes and 11 note rows a week.
+a year. About 4 pushes and 10 note rows a week (209 and 546 events over the year to
+2026-10-01).
 
 **The week turns at the run after its last NYSE close.** Every move is checked at the next
 NYSE close, so a week ending just after it holds all its checks. The economic calendar is
@@ -154,8 +159,9 @@ either leaves every block reporting. TUR is on Google Finance, the only free fee
 the tape on it.
 
 **The store is unadjusted; corporate actions are declared.** Adjusted series change
-retroactively with every dividend. Dividends and splits come from Tiingo's daily endpoint,
-since a ratio of adjusted to unadjusted cannot see a split.
+retroactively with every dividend. Payouts and splits are read as declared - Yahoo's every
+morning, Tiingo's daily endpoint on a full refresh - since a ratio of adjusted to
+unadjusted cannot see a split.
 
 **Splits are declared from Yahoo, every morning and once for the history.** The ratio guard
 knows only the common ratios, and the table held only the five SPDR splits of 2025-12-05.
@@ -390,12 +396,13 @@ tape. Marked "not seen", the real move would be gone. When no feed saw the hour 
 every feed saw the move from the previous close, the night takes it at the feeds' own
 night. The night ends where the market really opened, measured where it matters.
 
-**The history is judged once, by the same rule, from sources that reach it.** A broken
-print older than the live sources' reach was never asked about, and sat in its
-instrument's yardstick for the next half-year (USD/PLN 2022-07-31: two flat bars 15% off,
-an "extreme" weekend). Only another feed counts: a stretch the source itself supplied to
-the store is skipped, not confirmed. Over the full history, flagged readings went 17,257
-→ 17,112 and events 12,969 → 12,850; pushes over the year to 2026-10-01 went 210 → 207.
+**The history was judged once (2026-10-07), from sources that reach it, and its votes
+stand.** A broken print older than the live sources' reach was never asked about, and sat
+in its instrument's yardstick for the next half-year (USD/PLN 2022-07-31: two flat bars 15%
+off, an "extreme" weekend). Only another feed counted: a stretch the source itself supplied
+to the store was skipped, not confirmed. Over the full history, flagged readings went
+17,257 → 17,112 and events 12,969 → 12,850; pushes over the year to 2026-10-01 went 210 →
+207. It is not run again: "History is not voted again" (above).
 
 **A shifted fund day is cut only when the store contradicts itself.** Yahoo's
 daily closes, the only source that reaches the funds before 2016, were compared over the
@@ -489,7 +496,6 @@ Measured or weighed, and not to be raised again.
 | a longer window for weekend gaps (pairs 1 or 2 years, funds 1 year, a fund's weekends pooled with its nights) | once the pairs' stitched zero weekends were mended or unscored, the pairs' median QLIKE went 3.63 → 3.41 (1 year) and 3.34 (2 years), each better for only 11 of 16; funds 2.39 → 2.34, better for 61 of 133. The gain is small, real shocks read quieter (EUR/USD 2022-02-27 extreme → noticeable at 2 years), and one window for every instrument stays the rule |
 | every fund's night from Yahoo's daily official open | one feed's opening print is no referee: LMBS 2026-10-05 "opened" at 48.60 on Yahoo, Sina and MarketWatch alike, while its first minute traded at 48.38 over a 48.50 close; the feeds carry the same tape, so a vote on the opening price picks the outlier |
 | a stale first print found from the bar alone (open at the previous close, an extreme of its bar, a big first hour) | against the official open, it caught at best 7% of stale prints at 66% precision |
-| a third external feed for funds | 6 of 322 large fund hours split the externals; two already decide them |
 | a bridge may confirm, never reject (or no check in the second feed's missing hours) | over 2024-10 to 2026-10, frees one real hour (USD/KRW 2024-12-03 15:00, not flaggable) and lets in 34 flags, almost all USD/INR rollover ticks at 21:00–01:00 UTC; the narrower "unless it moved further the other way" changes 2 verdicts and 1 flag each way |
 | holding isolated moves an hour | a third of alerts would be an hour late |
 | a watchdog for the trigger's silence | the external scheduler is the party that knows a call stopped |
@@ -513,7 +519,7 @@ Measured or weighed, and not to be raised again.
 
 Known and left alone on purpose.
 
-**Repository size**, about 890 MiB as GitHub counts it (915,487 KB on 2026-10-06), mostly
+**Repository size**, about 903 MiB as GitHub counts it (924,368 KB on 2026-10-09), mostly
 superseded Parquet in history; GitHub warns at 1 GB. To act: a history rewrite, which force-pushes the live branch irreversibly.
 
 **Undocumented endpoints carry most of the basket** (Yahoo, Sina, Google Finance,

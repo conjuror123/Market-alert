@@ -1,5 +1,5 @@
-"""Alpaca's bars: the consolidated tape (SIP) from 2016 for history, and the IEX
-exchange's bars for the hour.
+"""Alpaca's bars: the consolidated tape (SIP) from 2016 for history and the vote,
+and the IEX exchange's bars for the hour.
 
 LIVE: IEX. The free plan's IEX bars are current - measured 2026-10-01 at 15:05
 UTC, the half-hour bar opened at 15:00 was served, minute bars to 15:04 - and
@@ -14,7 +14,9 @@ to fifteen minutes back, so it cannot be the live source, but below that it is
 the consolidated tape itself - the line every live feed was held to - from
 2016-01-01, for every US-listed fund in the
 basket. Twelve Data's intraday archive stops at 2020-02 and HF Data does not
-carry about sixty of the funds, so this is what takes those back to 2016.
+carry about sixty of the funds, so this is what takes those back to 2016. The
+same tape votes on every fund's far moves, once it serves the move's hour
+whole (jump.verify).
 
 ADJUSTMENT. `split`: split-adjusted, dividends left in, which is the store's
 convention (jump/returns.py takes each payout out of its overnight gap). The

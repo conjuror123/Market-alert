@@ -626,12 +626,13 @@ def format_push(event: dict, labels: dict[str, str],
 
 
 # ONE MESSAGE A RUN, NOT ONE PER MOVE. Big news moves dozens of instruments in
-# the same hour: the FOMC hour of 2024-12-18 found 130 events, 108 of them
-# pushes, and Telegram takes about twenty messages a minute into a channel. So
-# the pushes a run finds go out together in one message, and its pings in one
-# more - replayed over the year to 2026-10-01 at a 3.9-sigma bottom, 29.1
-# messages a week for 69 events, and the FOMC hour in 6 alert messages, against
-# 130 (9.0 a week at today's 6 sigma). Each move keeps its
+# the same hour: the FOMC hour of 2024-12-18 found 91 events at today's 6-sigma
+# bottom, 131 at 3.9, and Telegram takes about twenty messages a minute into a
+# channel. So the pushes a run finds go out together in one message, and its
+# pings in one more - this delivery replayed over the year to 2026-10-01 at a
+# 3.9-sigma bottom sends 26.0 messages a week for 69 events, and the FOMC
+# hour's run 5 alert messages, against 131 (8.6 a week for 14.5 events at 6
+# sigma; bars to 2026-10-08). Each move keeps its
 # own life inside the message (the week below): it is edited there, and leaves
 # it when it turns rarer and rings again in the run that finds that.
 #
@@ -880,9 +881,10 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
 #   real          nothing is added, nor for an instrument no other source
 #                 carries.
 #
-# A detector update (a new jump.jumps.detector_version) starts the week over at
-# that run: every alert message of the week is deleted, the note stays and shows
-# only what is found from then on.
+# A detector update (a new jump.jumps.detector_version) that changes the week's
+# events starts the week over at that run (_same_week decides): every alert
+# message of the week is deleted, the note stays and shows only what is found
+# from then on. One that changes none only records the version.
 #
 # Deleting is how a message leaves; the bot is an administrator of the
 # channel and may delete any message there. Should Telegram refuse, the message

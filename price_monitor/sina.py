@@ -69,7 +69,7 @@ GLOBAL_URL = "https://gu.sina.cn/ft/api/jsonp.php/var%20t=/GlobalService.getMink
 def fetch_bars(symbol: str, session: requests.Session | None = None,
                now: datetime | None = None, url: str = GLOBAL_URL) -> list[Candle]:
     """The last 1,023 hourly bars of a global future that have ended: an LME
-    metal (SND), or a soft (KC) for the second source."""
+    metal (SND), or a soft (KC) for the vote."""
     last: Exception | None = None
     for attempt in range(MAX_ATTEMPTS):
         if attempt:

@@ -1900,7 +1900,7 @@ def test_alpaca_funds_need_the_alpaca_keys(tmp_path, monkeypatch):
     alerts = []
     monkeypatch.delenv("ALPACA_KEY_ID", raising=False)
     monkeypatch.setattr(backfill, "load_basket", lambda: basket)
-    # No calendar: nothing after the fetch (dividends, second source) asks
+    # No calendar: nothing after the fetch (dividends, the vote) asks
     # the network or writes the repository's files.
     monkeypatch.setattr(backfill._sessions, "load_sessions",
                         lambda: (_ for _ in ()).throw(FileNotFoundError()))
@@ -2219,11 +2219,16 @@ def test_an_instrument_yahoo_keeps_refusing_is_named_when_it_falls_behind(
 
 
 @pytest.mark.parametrize("outcome, words", [
-    (RuntimeError("bad shard"), "second-source check failed"),
-    ({"stopped": ["marketwatch"]}, "marketwatch stopped for the run"),
+    (RuntimeError("bad shard"),
+     "the vote failed (bad shard): this hour's far moves are scored unvoted"),
+    ({"stopped": ["marketwatch"]},
+     "marketwatch stopped for the run (a rate limit, or no answer twice in a row): an "
+     "outage in the vote, counted against the moves it is asked about until a later count"),
 ])
-def test_a_second_source_check_that_failed_or_stopped_is_named(tmp_path, monkeypatch,
-                                                              outcome, words):
+def test_a_vote_that_failed_or_a_stopped_source_is_named(tmp_path, monkeypatch,
+                                                         outcome, words):
+    # Under the vote a stopped source is an outage, a vote against; nothing is
+    # "judged by the other source" any more.
     from jump import backfill
 
     alerts = []
@@ -2245,6 +2250,7 @@ def test_a_second_source_check_that_failed_or_stopped_is_named(tmp_path, monkeyp
     backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
 
     assert len(alerts) == 1 and words in alerts[0]
+    assert "⚠️ <b>The vote</b>" in alerts[0]
 
 
 def test_a_rolled_future_re_asks_its_front_contract_from_the_roll(tmp_path, monkeypatch):

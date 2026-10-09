@@ -108,7 +108,7 @@ def test_an_error_is_quoted_as_text_not_html():
     text = format_provider_failure(
         [("twelvedata:SPY", "tiingo", "unexpected status 403: <html><body>no</body>"),
          ("twelvedata:QQQ", "yahoo", CONNECT)],
-        second_source=["the second-source check failed (<Response [503]>)"])
+        vote=["the vote failed (<Response [503]>)"])
     assert "<html>" not in text and "<urllib3" not in text and "<Response" not in text
     assert "&lt;html&gt;" in text and "&amp;period1=" in text
 

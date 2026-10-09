@@ -5,8 +5,8 @@
 # equity, the GSCI sectors within commodities (energy, precious metals,
 # industrial metals, agriculture), credit apart from rates because high yield
 # trades like equity, not duration. The detector reads each instrument on its
-# own; blocks group the reports (tools/stage_report.py) and the alternation of
-# the funds' feeds.
+# own; blocks group the reports (tools/stage_report.py), the weekly note
+# (price_monitor/jump_delivery.py) and the alternation of the funds' feeds.
 
 # Anchor exchange of the basket's reference calendar: Sun 17:00 .. Fri 17:00
 # local time. The bounds are stored in this timezone and converted to UTC on the
@@ -25,15 +25,18 @@ history_since: "2015-01-01"
 # wrong wastes a day of credits:
 #   Twelve Data   intraday stops at 2020-02 for every ETF at once, whatever the
 #                 ticker's real age. This is the ordinary --extend-history pass.
-#   HF Data       2002 to 2020-02 for US equity, from the consolidated tape.
-#                 This is the --deepen-etfs pass, it spends no Twelve Data
-#                 credits, and it is the ONLY way an ETF here reaches 2002. The
-#                 library switches to IEX-only data in March 2022 and the module
-#                 refuses those bars outright - see price_monitor.hfdata.
+#   Alpaca        the consolidated tape (SIP) from 2016-01 for every US fund.
+#                 This is the --deepen-alpaca pass; it spends no Twelve Data
+#                 credits.
+#   HF Data       2002 to 2020-02 for US equity, from the consolidated tape,
+#                 until 2026-10-03, which is where the funds stored from
+#                 2002-2011 came from. Since then the library holds only its
+#                 IEX segment, from 2022-03, which price_monitor.hfdata refuses:
+#                 the --deepen-etfs pass adds nothing now.
 #   Dukascopy     2003 for the currency pairs (--deepen-dukascopy), no key.
 #   Binance       each pair's own listing date (2017-08 at the earliest), no key.
-# So a newly added ETF needs BOTH Twelve Data passes and the HF Data one before
-# its history is comparable with SPY's.
+# So a newly added ETF needs the Twelve Data pass and then Alpaca's, which
+# takes it to 2016.
 fetch_since: "2002-01-01"
 
 # ---------------------------------------------------------------------------
@@ -44,8 +47,8 @@ fetch_since: "2002-01-01"
 #   the word from |z|: noticeable, high, major, extreme at the four `levels`.
 #
 # window_days: half a year, inside the paper's valid range for every calendar.
-# levels: about sqrt(2) apart, each word about three times rarer than the one
-#   below; the bottom sets the volume (docs/decisions.md, "The detector").
+# levels: about sqrt(2) apart, each word about three times rarer to reach than
+#   the one below; the bottom sets the volume (docs/decisions.md, "The detector").
 detector:
   window_days: 182.6
   levels: [6.0, 8.5, 12.0, 17.0]
@@ -108,14 +111,17 @@ session_templates:
 # WHAT THIS COSTS, HOURLY - each quota kept under about 85%, so tests and
 # backfills have room (docs/manual.md, "Running it"):
 #   Tiingo       27 IEX-safe funds, of its 50 requests an hour;
-#   Alpaca       30 more IEX-safe funds, free IEX bars, 30 of 200 a minute;
+#   Alpaca       30 more IEX-safe funds, free IEX bars, 30 of 200 a minute,
+#                and the consolidated tape's vote on every fund;
 #   Twelve Data  8 thin funds that need the consolidated tape - one batched
 #                request a run (its 8 credits a minute), in a thread beside the
 #                other providers;
 #   SiftingIO    the 17 FX pairs, ~85% of 10,000 a month;
 #   Sina, Yahoo  the remaining 67 funds, alternating within each block so an
 #                outage of either leaves every block reporting;
-#   Google TUR; Sina the LME metals; Yahoo 4 futures; Binance the 16 coins.
+#   Google TUR; Sina the LME metals; Yahoo 4 futures; Binance the 16 coins;
+#   the vote     at most 40 sources a run across Yahoo, Sina, MarketWatch,
+#                Alpaca's tape, Coinbase and Kraken (jump.verify).
 # Instruments whose market is shut are not asked
 # (jump.backfill.nothing_can_have_appeared).
 #
