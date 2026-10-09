@@ -197,7 +197,7 @@ def fetch_full_history(
     if days > limit:
         raise ExchangeError(
             f"{symbol}: Yahoo serves at most {limit} days at {interval}; "
-            f"{days:.0f} were asked for. Use Twelve Data or HF Data to deepen.")
+            f"{days:.0f} were asked for. Use Twelve Data or Alpaca's tape to deepen.")
     end = end or datetime.now(timezone.utc)
     start = end - timedelta(days=max(days, 1.0))
     url = f"{base_url}{CHART_ENDPOINT.format(symbol=symbol)}"
