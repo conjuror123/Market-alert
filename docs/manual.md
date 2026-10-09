@@ -121,8 +121,21 @@ CSV per settled month of the current year (settled a week after the month ends),
 open months as `YYYY-MM.open.csv` on a release, not in git. `bars.load(store, since)`
 reads only the files that can hold the hours asked for.
 
-**Rule.** A bar removed on purpose stays in the store as its hour with no price
-(`bars.remove`). The gate makes it a hole; `merge` never fills it again, in any month,
+**Rule.** A stored price is not rewritten to fix it. A bad bar found later is a row in the
+vote record (`data/jump/verified.csv`, section 5): not real, so its move is left out, or
+overnight, with the night the other source saw. The bars change only by the fetch, and
+nothing in the code rewrites a stored price: the backfill's `repair-alpaca`, `bars.remove`
+and `merge`'s `revise_settled` went on 2026-10-09. The repairs made before this rule stay
+in the bars, each with its commit; among them (git here reaches back to 2026-09-06):
+EZU's and EBND's bad prints (2026-10-01, stored hours more than 50 bp off Alpaca's tape
+replaced by the tape's; EZU's 2020-03-12 15:00 had sat 12% high), cocoa's
+2026-07-21..08-10 (from the December contract), the majors' 2012 Sunday opens (Dukascopy),
+14 shifted fund days (below), live cattle's September from 09-15 (the December contract),
+and the funds' first bars of 2016–2022 (Alpaca's tape), the last five with their reasons in
+`docs/decisions.md`.
+
+**Rule.** A bar removed on purpose (the 14 shifted fund days, 2026-10-07) stays in the
+store as its hour with no price (`bars.removed` finds it). The gate makes it a hole; `merge` never fills it again, in any month,
 whatever a fetch serves; `fill-gaps` does not see it as missing. Deleting the row instead
 would let the next fetch reaching that hour put the bad bar back. Nothing writes a
 whole store over: the tools that built the futures', coins' and pairs' histories were

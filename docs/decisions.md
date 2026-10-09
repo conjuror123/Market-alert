@@ -435,7 +435,19 @@ holes that `fill-gaps` listed, all 14, to re-ask Twelve Data, the vendor that se
 Kept with no price, the hour is held: a merge never fills it, `fill-gaps` does not list it,
 and the gate drops it like any invalid bar. The store remembers in itself, with no table of
 bad days beside it. The gate had let a bar with no price through (none was stored, over the
-173 instruments, 2026-10-08); it now refuses it first.
+173 instruments, 2026-10-08); it now refuses it first. Those 14 days stay so; a bad bar
+found since 2026-10-09 is a row in the vote record instead (below).
+
+**A bad bar found later is a row in the table, not an edit to the bars** (the user's,
+2026-10-09). The vote record (`data/jump/verified.csv`) already carries every live verdict,
+and the detector reads it each run: not real leaves a move out, overnight moves it into the
+night. A row costs about 90 bytes of plain text (the record: 589 rows, 53 KB), where the
+funds' first-bar mend added 22.6 MB of Parquet that git keeps for good; a row is undone by
+deleting it, and no fetch can overwrite it. The repairs made before stay in the bars
+(manual, section 4), and the code that could rewrite a stored price (the backfill's
+`repair-alpaca`, `bars.remove`, `merge`'s `revise_settled`) went the same day. This does not reopen "History is not voted again", which is about
+re-running the vote over all history: a single bad bar found later, with the source that
+shows it, is recorded as its row.
 
 **The funds' wrong opens of 2016–2022 were mended from the tape.** A fund's first bar
 often did not open where the market did, most of all in Twelve Data's history (2020-02 on):

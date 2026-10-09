@@ -127,7 +127,7 @@ def test_a_half_day_has_four_session_hours():
 
 
 def test_a_bar_with_no_price_is_a_removed_bar_and_never_usable():
-    # bars.remove keeps the hour with every price empty; scored, a NaN close
+    # A removed bar is its hour with every price empty; scored, a NaN close
     # would pass every other check and carry NaN into the moves.
     nan = float("nan")
     f = frame([(HOUR, 1.0, 1.1, 0.9, 1.0, 10.0, 2),

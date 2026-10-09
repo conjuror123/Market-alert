@@ -6,7 +6,7 @@ question "does this bar take part in the calculations":
 - VALIDITY is a property of the bar itself: prices present and positive, OHLC
   consistent, volume non-negative, timestamp not repeated. An invalid bar takes
   part in nothing and updates no state. A bar with no price at all is one
-  removed on purpose (bars.remove): the hour stays in the store so that no
+  removed on purpose (bars.removed): the hour stays in the store so that no
   fetch fills it again.
 - SESSION MEMBERSHIP is a property of the hour: hours outside an
   asset's trading session take part in no metric and no yardstick.

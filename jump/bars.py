@@ -273,40 +273,28 @@ def write(store: str, frame: pd.DataFrame) -> None:
 
 
 def removed(frame: pd.DataFrame) -> pd.Series:
-    """The rows that are bars removed on purpose: an hour kept with no price."""
-    return frame["close"].isna()
-
-
-def remove(store: str, hours) -> int:
-    """Removes bars on purpose, each hour kept as a row with no price.
+    """The rows that are bars removed on purpose: an hour kept with no price.
 
     Deleting the row would leave a hole that any fetch reaching that hour fills
     again - fill-gaps re-asks every session the calendar has and the store
-    lacks, from the vendor that served the bad bar in the first place. Kept,
-    the hour is held: merge never fills it, and the bar gate (jump.quality)
-    makes it a hole for everything that scores. Returns the hours marked."""
-    import numpy as np
-
-    marks = sorted({int(h) for h in hours})
-    frame = load(store)
-    kept = frame[~frame["hour_utc"].isin(marks).to_numpy()]
-    nothing = pd.DataFrame({"hour_utc": marks, "open": np.nan, "high": np.nan,
-                            "low": np.nan, "close": np.nan, "volume": np.nan, "n_src": 0})
-    write(store, pd.concat([kept, nothing], ignore_index=True))
-    return len(marks)
+    lacks, from the vendor that served the bad bar. Kept, the hour is held:
+    merge never fills it, and the bar gate (jump.quality) makes it a hole for
+    everything that scores. The 14 shifted fund days of 2026-10-07 are held so;
+    a bad bar found since is a row in the vote record, not an edit here
+    (docs/manual.md, section 4)."""
+    return frame["close"].isna()
 
 
-def merge(store: str, frame: pd.DataFrame, revise_settled: bool = False) -> int:
+def merge(store: str, frame: pd.DataFrame) -> int:
     """Idempotently brings the store to the union of what is already there and
     `frame`. On a matching hour_utc in an OPEN month the new row wins: the
     source may have revised the bar, and the fresher version is more
     trustworthy. In a settled month (store_path) the stored row stands - a
-    settled month is in git and is not rewritten for a provider's re-served
-    copy - unless `revise_settled`, which the tape repair passes on purpose. A
-    month already committed counts as settled whatever the clock says.
-    Hours a settled month lacks are filled either way. A bar removed on purpose
-    (remove) is never filled again, in any month, whatever is passed. Returns
-    the number of added rows (revisions of existing ones do not count).
+    settled month is in git and is not rewritten. A month already committed
+    counts as settled whatever the clock says. Hours a settled month lacks are
+    filled. A bar removed on purpose (removed) is never filled again, in any
+    month, whatever is passed. Returns the number of added rows (revisions of
+    existing ones do not count).
     """
     if frame.empty:
         return 0
@@ -317,7 +305,7 @@ def merge(store: str, frame: pd.DataFrame, revise_settled: bool = False) -> int:
         gone = set(existing.loc[removed(existing), "hour_utc"].astype(int))
         if gone:
             incoming = incoming[~incoming["hour_utc"].isin(gone).to_numpy()]
-    if not revise_settled and not existing.empty:
+    if not existing.empty:
         cutoff = settled_before(int(max(existing["hour_utc"].max(), incoming["hour_utc"].max())))
         settled = incoming["hour_utc"] < cutoff
         if os.path.isdir(store):

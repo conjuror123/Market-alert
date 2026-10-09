@@ -19,7 +19,7 @@ def _labels():
         "twelvedata:XLF": "Financial sector",
         "twelvedata:DBB": "Base metals (aluminium, zinc, copper)",
         "twelvedata:SPY": "S&P 500",
-        "twelvedata:USD/CAD": "US dollar / Canadian dollar",
+        "twelvedata:USD/CAD": "Canadian dollar",
     }
 
 
