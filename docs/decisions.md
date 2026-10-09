@@ -30,7 +30,9 @@ through March 2020.
 about ten times rarer, so levels √2 apart make each word about three times rarer than the
 one below. The 6σ bottom is a volume choice: moves of every size hold at the close alike
 (76–80%), so a higher bottom buys fewer messages, not better ones. At 6σ: about 9 messages
-a week; for one instrument a word about every 3 months, 7 months, 21 months, 4 years.
+a week (8.6 over the year to 2026-10-01, the delivery replayed hour by hour); for one
+instrument an event at each word about every 4 months, 11 months, 3 years and 5½ years
+(over the 2,602 settled instrument-years to 2026-10-08).
 
 **Rarity is measured, not read off the bell curve.** Against its own half-year σ, an hour
 of every class reaches 3.9σ about once in 115, not once in 10,000.

@@ -628,8 +628,8 @@ commit still run. Each part of it (fetch, pipeline, jumps) notes its start, so a
 stops short is reported with the part it was in and its minutes.
 
 **Expected volume.** About 4 pushes and 10 note rows a week (209 and 546 events over the
-year to 2026-10-01), found on about 6 runs a week (327), each run's first message ringing;
-an event turning rarer inside its 24 hours rings again. A quiet day is normal: green runs mean it looked and found nothing.
+year to 2026-10-01). Replayed hour by hour over that year, delivery sends about 9 messages
+a week (8.6: 2.2 push messages, 5.2 ping messages, 1.2 note parts), 7.5 of them ringing. A quiet day is normal: green runs mean it looked and found nothing.
 
 **Checking on it.** `PYTHONPATH=. python tools/stage_report.py` prints rates by word,
 block and channel, and the biggest hours. To run the pass by hand, export the keys and

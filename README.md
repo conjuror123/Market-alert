@@ -45,8 +45,8 @@ detector:
   levels: [6.0, 8.5, 12.0, 17.0]  # noticeable, high, major, extreme, in sigmas
 ```
 
-The bottom level sets how much you hear: 6 gives about 9 messages a week, 5 about 15,
-3.9 about 29. Which words push is `PUSH_TIERS` in `jump/routing.py`. To silence the
+The bottom level sets how much you hear: 6 gives about 9 messages a week, 5 about 14,
+3.9 about 26 (the delivery replayed over the year to 2026-10-01). Which words push is `PUSH_TIERS` in `jump/routing.py`. To silence the
 channel without stopping the bot, set `jump_alerts_muted: true` in
 `config/config.yaml`.
 
