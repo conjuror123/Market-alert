@@ -459,6 +459,10 @@ The time line counts down to the close the move is checked at, then shows how mu
 (`close 80%`, `next close in 72h`). Scheduled releases from 2 hours before the moved bar to
 its close follow (a release after the close came after the move).
 
+The name after the ticker is the instrument's `label` in `config/basket.yaml`. A pair against
+the US dollar is named by its other currency (`USD/TRY · Turkish lira`, `EUR/USD · Euro`);
+the move is the pair's, as its ticker reads, so USD/TRY +2% is the lira weaker.
+
 **A note row** (`noticeable`) goes into the weekly note, and a ping line points at it:
 
 ```
@@ -666,7 +670,7 @@ health and the calendar go out, Jump's pushes, note and pings do not.
 | `price_monitor/weekly_digest.py`, `economic_calendar.py` | the calendar |
 | `price_monitor/notifier.py`, `health.py`, `__main__.py` | Telegram calls, health, the delivery entry point |
 | `price_monitor/<provider>.py` | one client per provider |
-| `tools/` | `stage_report.py`, `hot_bars.sh`, `run_died.sh` (the health line for a run that could not deliver), `voter_bars.py` (every live voter's bars for a measurement; the backfill's `voter-bars` mode, where the keys are), `tape_bars.py` (Alpaca's tape for every fund, 2016 to 2022, the same way: `tape-bars`), `tape_mend.py` (the one-off mend of the funds' first bars from that tape) |
+| `tools/` | `stage_report.py`, `hot_bars.sh`, `run_died.sh` (the health line for a run that could not deliver), `voter_bars.py` (every live voter's bars for a measurement; the backfill's `voter-bars` mode, where the keys are) |
 
 How far back each record reaches:
 
@@ -690,4 +694,6 @@ How far back each record reaches:
 | weekend yardsticks rest on 26 weekends | ±16% noise | none chosen: a longer window gained little (`docs/decisions.md`, "Rejected") |
 | history before each record's start (section 11) | "rarest since" reaches only as far as the record | paid history |
 | history older than its recount | not voted (section 5): only the readings the one-off check of 2026-10-07 judged carry a vote. Elsewhere an old bad print or stale open stays flagged (14 whole shifted fund days were removed, section 5; the funds' wrong first bars of 2016–2022 were mended, section 11, but not those before 2016 or since 2023), sits in the next half-year's yardsticks, and can be the "then" of a later "rarest since" line | a second source for the old history (`docs/decisions.md`, "History is not voted again") |
+| a fund's morning open from 2023 | about 1 in 100 opens 15 bp or more off the official open (1,242 mornings to 2026-10-08); the IEX feeds take it from one exchange. Only a first hour at 4σ or more is voted (section 5) | none chosen: a mend moved the year's pushes 209 → 206 and would not stay (`docs/decisions.md`, "From 2023 the funds' opens are left as stored") |
+| the funds' 2016–2019 price levels | off the tape's in 680 fund-months (REM 7% high in 2017-12), stepping on payout days: REM's ex-dividend nights read as moves (four flagged) | rewriting those years from the tape (`docs/decisions.md`, "The funds' 2016–2019 price levels are left off the tape's") |
 | repository size (~903 MiB on GitHub, 2026-10-09; ~890 on 10-06) | grows ~28 MB a year from the hourly state, and by its files whole on a commit that rewrites data | a history rewrite (irreversible) |

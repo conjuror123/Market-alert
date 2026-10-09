@@ -130,6 +130,12 @@ block folds floods worse.
 **Size in σ, word as the colour.** A percentage means nothing across a basket where short
 Treasuries move 0.024% in a usual hour and a coin several per cent.
 
+**A pair against the US dollar is named by its other currency** (the user's, 2026-10-09).
+"Dollar / Turkish lira" spent words on what every reader knows; the ticker before the name
+(`USD/TRY`) still says which way the pair is quoted, so +2% is the lira weaker. USD/BRL
+already read "Brazilian real". A fund keeps the word where it is the point: EMB's
+"Emerging-market sovereign bonds in dollars", against EMLC's in local currencies.
+
 **A reading is judged only once its bar has ended.** The run at :05 holds five minutes of
 the current hour.
 
@@ -457,10 +463,29 @@ went 17,101 → 16,652 and events 12,843 → 12,436 (high and up 4,320 → 4,195
 479): first hours that carried a night (EWQ 2020-03-12 −8.9%, EEM 2022-03-16 +4.9%, XLC the
 morning after Meta's results, 2022-02-03) are nights now. The year to 2026-10-01 is unchanged
 (755 events, 209 pushes), and no reading since 2023 changed its word. Not reached: before
-2016 (the tape starts there), 2023 on (not fetched), and the 11% of fund-days whose two
-closes disagree. The hourly run does not see a revised old bar, so the note in
-`config/basket.yaml` that records this is the edit that rebuilds the metrics once. Both
-tools go once it is live.
+2016 (the tape starts there), and the fund-days whose two closes disagree (below). The
+hourly run does not see a revised old bar, so the note in `config/basket.yaml` that records
+this is the edit that rebuilds the metrics once.
+
+**From 2023 the funds' opens are left as stored** (the user's, 2026-10-09). Against the tape
+to 2026-10-08 the store is far cleaner there: 11 to 23 stale opens a year, the two closes
+apart on 2% of fund-days. 1,242 mornings pass the same rule, the tape's open the right one
+on about 92% of them by the same referee, but mending them moved the year to 2026-10-01
+from 755 events and 209 pushes to 749 and 206, and nothing in the current week. And it
+would not stay mended: the IEX feeds that serve 57 funds live take a morning's first bar
+from one exchange (Tiingo's funds had 26 such mornings in 1,000 over 2026-07..09, against 5
+to 20 before), and the live vote answers them where it matters, at 4σ and up.
+
+**The funds' 2016–2019 price levels are left off the tape's** (the user's, 2026-10-09: the
+history is left alone). Hour by hour, the store's close is more than 10 bp from the tape's on
+25% of in-session hours in 2016, 16% in 2017, 12% in 2018, 6.5% in 2019 and 1 to 3% in
+2020–22; where the two differ, Yahoo's official close sides with the tape 72% to 7%. It is
+a steady offset (680 fund-months: LQD about 1.0% and EMB 1.5% high in 2016, REM 7% in
+2017-12) that steps on payout days, by about one payout (LQD and EMB on 2016-09-01, 11-01,
+12-01 and 2017-05-01): there the store's price did not drop and the payout added back to the
+gap reads as a move. An offset alone moves no reading; its steps flag REM's ex-dividend
+nights of 2016–2019 (four, three of them high). Mending it rewrites whole years of 86 funds
+for a handful of readings the channel never shows again.
 
 **A dividend refresh keeps the splits already declared.** The full Tiingo refresh rewrote the
 whole table, and the morning check never asks back past a fund's checked-through date, so a
@@ -498,7 +523,9 @@ the history check decided "the store's own feed" once per fund-year and left 85%
 funds' flagged readings unasked. Git keeps them (deleted 2026-10-08); what they established
 is in this file. HF Data's client and its backfill modes (`deepen-etfs`, `probe-hfdata`,
 `fill-gaps`' second step) went on 2026-10-09: since 2026-10-03 it holds only its IEX
-segment, from 2022-03, so they reached nothing.
+segment, from 2022-03, so they reached nothing. The tape's fetch and the funds' first-bar mend
+(`tools/tape_bars.py`, `tools/tape_mend.py`, the backfill's `tape-bars` mode) went the same
+day, once the mend was live and 2023 on was measured.
 
 **The open month lives on a release; a month enters git once, settled.** Git stores
 snapshots, so hourly commits into per-instrument files cost 124 MiB a year; replacing a
