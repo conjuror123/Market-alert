@@ -78,10 +78,13 @@ def test_every_instrument_is_asked_of_every_source_of_its_class_but_its_own(bask
     for asset in basket.values():
         if asset.session_template == "crypto_24_7":
             assert [n for n, _, _ in _asked(asset)] == ["coinbase", "kraken"]
-    # The LME's metals have no independent free feed found.
-    for asset in basket.values():
-        if asset.session_template == "lme":
-            assert verify.sources_for(asset) == []
+    # The LME's metals: Wallstreetcn's bars, counted again as long as the softs.
+    assert [_asked(basket[t]) for t in ("SND", "NID", "AHD")] == [
+        [("wallstreetcn", "UKSN.OTC", "1h")], [("wallstreetcn", "UKNI.OTC", "1h")],
+        [("wallstreetcn", "UKAH.OTC", "1h")]]
+    assert verify.recount_days(basket["SND"]) == 79 < verify.KEEP_DAYS
+    # Every instrument has a source to ask.
+    assert all(verify.sources_for(a) for a in basket.values())
 
 
 def test_alpacas_tape_votes_on_every_fund_with_its_keys_and_is_no_voter_without(
@@ -184,6 +187,16 @@ def test_sinas_global_futures_and_us_funds_are_different_feeds(monkeypatch):
     verify.fetch_verifier("sina", "KC", "1h", 2, None, now)
     verify.fetch_verifier("sina", "SLQD", "30min", 2, None, now)
     assert calls == [("KC", sina.GLOBAL_URL), ("SLQD", "us")]
+
+
+def test_wallstreetcn_is_asked_for_the_days_the_moves_need(monkeypatch):
+    from price_monitor import wallstreetcn
+    calls = []
+    monkeypatch.setattr(wallstreetcn, "fetch_hourly",
+                        lambda code, session, now, days: calls.append((code, days)) or [])
+    now = datetime(2026, 10, 9, 18, 5, tzinfo=timezone.utc)
+    verify.fetch_verifier("wallstreetcn", "UKAH.OTC", "1h", 12.5, None, now)
+    assert calls == [("UKAH.OTC", 12.5)]
 
 
 # --- the verdict ----------------------------------------------------------------

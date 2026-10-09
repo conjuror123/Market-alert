@@ -291,9 +291,8 @@ def test_a_tie_with_a_source_down_says_so_in_the_note(monkeypatch, channel, week
         in channel.note()
 
 
-def test_an_instrument_no_other_source_carries_says_nothing_of_a_vote(
-        monkeypatch, channel, week):
-    # The LME's metals: no vote at all, and nothing said.
+def test_a_reading_without_a_vote_says_nothing_of_one(monkeypatch, channel, week):
+    # No row in the record - under 4σ, or no source to ask: nothing said.
     row = ev(at(0, 10), asset="sina:AHD")
     run(monkeypatch, channel, [row], run_at(0, 11), week)
     note = channel.note()

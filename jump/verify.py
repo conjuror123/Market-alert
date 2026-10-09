@@ -28,8 +28,8 @@ behind - asked once it serves the move's hour whole (Source.delay). Coffee, coco
 futures (SINA_FUTURES). Live cattle: MarketWatch's continuous contract. The
 coins, served by Binance, whose prices are its own trades: Coinbase's and
 Kraken's dollar pairs - a wick on one exchange is real there and not the
-market's. Not asked: the LME's metals, which have no free independent feed
-found. Two vendors printing the same bars agree: each is a voice.
+market's. The LME's metals, served by Sina: Wallstreetcn's hourly bars. Two
+vendors printing the same bars agree: each is a voice.
 
 THE VOTE (judge_all, combine) is taken with what the sources serve when it is
 taken: a source that has not shown the move yet counts against, until the
@@ -65,9 +65,9 @@ sessions.last_close: the NYSE close for funds, a daily-session market's own
 close, 00:00 UTC for coins and pairs) - its own provider re-read first
 (recount_hours, jump.backfill) - until the closest-reaching of its
 sources no longer serves its hour (recount_days: nine days for the funds,
-pairs and cattle, 29 for the coins, 79 for the softs); after that the further
-ones would vote alone, and the vote stands. A source that corrects its bars
-turns the vote back; a bar that heals into no far move loses its vote. A move
+pairs and cattle, 29 for the coins, 79 for the softs and the LME); after that
+the further ones would vote alone, and the vote stands. A source that corrects
+its bars turns the vote back; a bar that heals into no far move loses its vote. A move
 not real is kept for good, because the detector rescores the whole history
 every run; the rest go after KEEP_DAYS. A record from before the vote reads in
 its words (_BEFORE_THE_VOTE).
@@ -98,7 +98,7 @@ import numpy as np
 import pandas as pd
 import requests
 
-from price_monitor import alpaca
+from price_monitor import alpaca, wallstreetcn
 from price_monitor.models import UNANSWERED_IN_A_ROW, Unreachable
 from jump import atomic, bars
 from jump.basket import Asset
@@ -117,7 +117,7 @@ PENDING_HOURS = 24
 STALE_HOURS = 12
 TAIL_DAYS = 200                   # bars read before the window: the detector's half-year and more
 MAX_REQUESTS = 40
-KEEP_DAYS = 90                    # longer than any recount (the softs', 79 days)
+KEEP_DAYS = 90                    # longer than any recount (the softs' and the LME's, 79 days)
 
 # One source's answer about a move (judge).
 CONFIRMED, UNCONFIRMED, UNKNOWN = "confirmed", "unconfirmed", "unknown"
@@ -208,7 +208,11 @@ def _exchange(name: str) -> "Callable[[Asset], str | None]":
 # days and its softs back to 2026-05-12 (coffee, cocoa) and 07-20 (cotton);
 # MarketWatch about nine trading days; Kraken 720 hours; Coinbase pages back to
 # a coin's listing; Alpaca's consolidated tape (SIP) from 2016-01-01, to fifteen
-# minutes back on the free plan (price_monitor.alpaca). Never Tiingo, SiftingIO
+# minutes back on the free plan (price_monitor.alpaca). Wallstreetcn's LME bars
+# reach about 170 days (2026-10-09), and are counted to 79, as the softs are:
+# the record keeps a vote KEEP_DAYS, and the store's LME bars before 2026-07-08
+# (tin) and -15 are Wallstreetcn's own, where it would be no voter (SUPPLIED) -
+# 79 days back from 2026-10-09 is 07-22. Never Tiingo, SiftingIO
 # or Twelve Data, whose allowances the live run uses, nor Google, one session
 # deep.
 SOURCES: "dict[str, tuple[Source, ...]]" = {
@@ -232,6 +236,9 @@ SOURCES: "dict[str, tuple[Source, ...]]" = {
     ),
     "cme_cattle": (
         Source("marketwatch", "MarketWatch", 9, "1h", lambda a: MARKETWATCH_CATTLE),
+    ),
+    "lme": (
+        Source("wallstreetcn", "Wallstreetcn", 79, "1h", lambda a: wallstreetcn.CODES.get(a.ticker)),
     ),
     "crypto_24_7": (
         Source("coinbase", "Coinbase", 365, "1h", _exchange("coinbase")),
@@ -309,7 +316,7 @@ def recount_hours(asset: Asset, record: dict, now: int) -> "list[int]":
 
 def sources_for(asset: Asset) -> "list[Source]":
     """Every source of the instrument's class that carries it, except its own
-    provider; empty for a class with none (the LME's metals)."""
+    provider."""
     group = SOURCES.get(_CLASS.get(asset.session_template, asset.session_template), ())
     return [s for s in group if s.name != asset.fetched_from and s.symbol(asset)
             and all(os.environ.get(k, "").strip() for k in s.keys)]
@@ -337,6 +344,8 @@ def fetch_verifier(name: str, symbol: str, interval: str, days: float,
             client.fetch_history(symbol, start, end, session)))
     if name == "marketwatch":
         candles = marketwatch.fetch_hourly(symbol, session, now)
+    elif name == "wallstreetcn":
+        candles = wallstreetcn.fetch_hourly(symbol, session, now, days=max(days, 1.0))
     elif name == "yahoo":
         days = min(max(days, 1.0), float(yahoo.MAX_LOOKBACK_DAYS[interval]))
         candles = yahoo.fetch_full_history(symbol, interval, days=days, session=session,

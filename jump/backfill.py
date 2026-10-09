@@ -19,10 +19,10 @@ different things across instruments. It costs nothing extra - the providers
 count requests, not rows.
 
 THE DEEPENING MODES (--extend-history, --deepen-alpaca, --deepen-dukascopy,
---fill-gaps) reach back past what the live providers serve, and are routed to
-`source` rather than `provider`: Yahoo serves 59 days of half-hourly bars and
-Tiingo caps a response at 10000 rows, so only the archive provider can answer a
-walk backwards. An import from another source is gated on agreeing with the
+--deepen-wallstreetcn, --fill-gaps) reach back past what the live providers
+serve, and are routed to `source` rather than `provider`: Yahoo serves 59 days
+of half-hourly bars and Tiingo caps a response at 10000 rows, so only the
+archive provider can answer a walk backwards. An import from another source is gated on agreeing with the
 bars already stored (see verify_alignment), so a series on a different
 adjustment basis is refused rather than spliced.
 """
@@ -44,7 +44,7 @@ from jump import sessions as _sessions
 from jump.basket import Asset, Basket, load_basket
 from jump.usage import Usage
 from price_monitor import (alpaca, binance, dukascopy, google, sifting, sina,
-                           tiingo, twelvedata, yahoo)
+                           tiingo, twelvedata, wallstreetcn, yahoo)
 from price_monitor.models import UNANSWERED_IN_A_ROW, ExchangeError, KeyRefused, Unreachable
 from price_monitor.notifier import quote, send_health
 
@@ -1117,6 +1117,70 @@ def deepen_from_alpaca(asset: Asset, path: str, since: date, auth: dict,
             "from": first, "to": oldest.date(), "check": check}
 
 
+# A session's first bar in Wallstreetcn's LME history can open on a print far
+# off the market that is gone within the hour: aluminium opened 2026-05-15 and
+# 06-01 so, and imported, each read as a major move. A first bar
+# - after more than FIRST_BAR_GAP_HOURS without one - whose open is at least
+# OPENING_OFF from the last close, and whose close is back at least as far the
+# other way, is left out of the import: a hole, not a bar. In its bars of
+# 2026-04 to 07, below Sina's, 8 of aluminium's 59 first bars, 3 of tin's 54 and
+# none of nickel's 59; none since, in its bars or Sina's. For the LME's metals
+# alone, whose hours move tens of bp.
+OPENING_OFF = 0.01
+FIRST_BAR_GAP_HOURS = 3
+
+
+def opening_misprints(frame: "pd.DataFrame") -> "pd.Series":
+    """Which bars open a session on a print gone within the hour (OPENING_OFF)."""
+    import numpy as np
+
+    first = frame["hour_utc"].diff().fillna(np.inf) > FIRST_BAR_GAP_HOURS * 3600
+    night = np.log(frame["open"] / frame["close"].shift(1))
+    back = np.log(frame["close"] / frame["open"])
+    return (first & (night.abs() >= OPENING_OFF) & (back.abs() >= OPENING_OFF)
+            & (np.sign(night) != np.sign(back)))
+
+
+def deepen_from_wallstreetcn(asset: Asset, path: str, session: requests.Session,
+                             now: datetime | None = None) -> dict:
+    """Fills an LME metal's history below what is stored, from Wallstreetcn's
+    hourly bars (price_monitor.wallstreetcn, about 170 days back). Gated like
+    every import: its bars over the stored months must move with them and sit
+    at their level (verify_alignment). Only its hours in the LME's session are
+    taken, less the openings gone within the hour (opening_misprints), and
+    nothing at or above the oldest stored bar: Sina keeps its own."""
+    code = wallstreetcn.CODES.get(asset.ticker)
+    if code is None:
+        return {"skipped": "not an LME metal", "added": 0}
+    stored = bars.load(path)
+    if stored.empty:
+        return {"skipped": "nothing stored yet", "added": 0}
+    floor = int(stored["hour_utc"].min())
+    candles = wallstreetcn.fetch_hourly(code, session, now,
+                                        days=wallstreetcn.MAX_TICKS / 24)
+    if not candles:
+        return {"skipped": "Wallstreetcn returned nothing", "added": 0}
+
+    frame = bars.to_hourly(bars.candles_to_frame(candles))
+    check = verify_alignment(frame, stored)
+    if not check["ok"]:
+        return {"skipped": f"alignment check failed: {check['why']}",
+                "added": 0, "check": check}
+    frame = frame[quality.in_session(asset, frame["hour_utc"]).to_numpy(bool)]
+    frame = frame.sort_values("hour_utc").reset_index(drop=True)
+    below = frame["hour_utc"] < floor
+    off = opening_misprints(frame) & below
+    patch = frame[(below & ~off).to_numpy()]
+    if patch.empty:
+        return {"skipped": "nothing below the oldest stored bar", "added": 0,
+                "check": check}
+    added = bars.merge(path, patch)
+    day = lambda h: datetime.fromtimestamp(int(h), tz=timezone.utc)  # noqa: E731
+    return {"skipped": None, "added": added, "from": day(patch["hour_utc"].min()).date(),
+            "to": day(floor).date(), "check": check,
+            "left_out": [f"{day(h):%Y-%m-%d %H:%M}" for h in frame.loc[off, "hour_utc"]]}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Fetch Jump's hourly bars into the store")
     parser.add_argument("--instruments", default="",
@@ -1143,6 +1207,12 @@ def main(argv: list[str] | None = None) -> int:
                              "from Alpaca's consolidated tape, 2016 on "
                              "(ALPACA_KEY_ID, ALPACA_SECRET_KEY). Overlaps the "
                              "store and is gated on agreeing with it.")
+    parser.add_argument("--deepen-wallstreetcn", action="store_true",
+                        help="fill the LME's metals' history below what is "
+                             "stored from Wallstreetcn, about 170 days back, "
+                             "less the openings gone within the hour. Needs no "
+                             "key. Overlaps the store and is gated on agreeing "
+                             "with it.")
     parser.add_argument("--live-pass", action="store_true",
                         help="the ordinary hourly fetch without the VIX, for "
                              "trying a provider change from the backfill "
@@ -1285,6 +1355,31 @@ def main(argv: list[str] | None = None) -> int:
                      result["to"], result["fetched"], check["hours"],
                      check["correlation"], check["median_bp"])
         log.info("Dukascopy deepening added %d bars", total)
+        return 0
+
+    if args.deepen_wallstreetcn:
+        session = requests.Session()
+        total = 0
+        for asset in (a for a in instruments if a.ticker in wallstreetcn.CODES):
+            path = bars.store_path(args.bars_dir, asset.file_stem)
+            try:
+                out = deepen_from_wallstreetcn(asset, path, session)
+            except Exception as exc:
+                log.error("%s: Wallstreetcn deepening failed - %s", asset.asset_id, exc)
+                continue
+            check = out.get("check")
+            if out["skipped"]:
+                log.info("%s: skipped (%s)%s", asset.asset_id, out["skipped"],
+                         f"; overlap {check['hours']} hours, corr {check['correlation']:.4f},"
+                         f" median {check['median_bp']:.2f}bp" if check else "")
+                continue
+            total += out["added"]
+            log.info("%s: +%d bars from Wallstreetcn (%s .. %s), %d opening(s) left "
+                     "out %s; overlap check %d hours, corr %.4f, median %.2fbp",
+                     asset.asset_id, out["added"], out["from"], out["to"],
+                     len(out["left_out"]), out["left_out"], check["hours"],
+                     check["correlation"], check["median_bp"])
+        log.info("Wallstreetcn deepening added %d bars", total)
         return 0
 
     if args.repair:

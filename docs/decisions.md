@@ -225,6 +225,32 @@ re-run: under this roll most of every cycle reads as Yahoo lagging and would be 
 **The LME's metals are the LME's own, from Sina**: the right instrument with a short record
 (from 2026-07) over a longer record of another (Shanghai tin, Kitco, COMEX aluminium).
 
+**Wallstreetcn for the LME**: their voter, and the history below Sina's. Its chart
+endpoint (api-ddc-wscn.awtmt.com) serves the three-month metals hourly, without volume,
+about 170 days back, and a GitHub runner gets the same bars as the development machine
+(2026-10-09). Against Sina's stored bars from mid-July to 2026-10-08, the closes are
+identical in 53–68% of hours and 0 bp apart at the median, hourly moves correlated 0.961
+(tin), 0.990 (nickel) and 0.992 (aluminium): in part Sina's upstream, so a second voice
+rather than an independent feed - and the only one found (Eastmoney refuses runners; the
+rest are under "Rejected"). As a voter it saw all 16 LME readings at 4σ or more from
+2026-07-15 to 10-08 on the store as it was, and all 9 on the store with its history
+below. Its votes are counted again for 79 days, as the softs', not its whole reach: the
+record keeps a vote 90 days (`verify.KEEP_DAYS`), and further back it would vote on
+its own bars below Sina's.
+
+Its bars of 2026-04 to 07 hold openings off the market: 11 sessions open 1% or more off
+the last close and are back as far within the hour (aluminium 8 of 59, tin 3 of 54,
+nickel none of 59; none in Sina's bars or its own since). Imported, aluminium's of
+2026-05-15 and 06-01 read as major moves. They are left out at import, holes rather
+than bars (`backfill.opening_misprints`): they are not the store's yet, and nothing is
+rewritten. The rest passes the store's gate (hourly correlation 0.959–0.992, median
+0.00 bp, about 1,050 shared hours) and is 914, 1,051 and 1,044 hours from 2026-04-22.
+Rebuilt with it as of 2026-10-08 21:05: no reading in the new months, none outside the
+LME changed, and the LME's flagged readings since July go from three to one - nickel's
+2026-09-02 hour (6.3σ) and aluminium's 09-17 night (7.4σ) fall under 6σ against the
+fuller yardstick, aluminium's 09-10 hour stays (7.6σ → 6.2σ). All three were note rows;
+no push changed. Its half-year yardstick fills about 2026-10-22 instead of 2027-01.
+
 **Every coin is its USDT pair on Binance**: one exchange, one quote currency. Below a 2018
 seam, before USDT left the dollar, the record is the deepest dollar exchange passing the
 splice gates, scaled to meet without a step.
@@ -521,7 +547,7 @@ it was taken and returned the one after (USD/TRY's history flipped four votes ev
 | coffee, cocoa, cotton | Sina global futures | 0.2–2.2 bp off, hourly correlation 0.96–0.99 |
 | live cattle | MarketWatch continuous | hourly correlation 0.92 |
 | coins | Coinbase and Kraken | other exchanges' dollar pairs: hourly moves correlate 0.988–1.000 with Binance's (300 hours to 2026-09-25); a year of checks found 4 moves not seen, all Binance's own on 2025-10-10's liquidations |
-| LME metals | none | no independent free feed |
+| LME metals | Wallstreetcn | the only feed found that a runner reaches: 0 bp off at the median, hourly correlation 0.96–0.99, in part Sina's upstream |
 
 ---
 
@@ -539,7 +565,9 @@ is in this file. HF Data's client and its backfill modes (`deepen-etfs`, `probe-
 segment, from 2022-03, so they reached nothing. The tape's fetch and the funds' first-bar mend
 (`tools/tape_bars.py`, `tools/tape_mend.py`, the backfill's `tape-bars` mode) went the same
 day, once the mend was live and 2023 on was measured; so did the Eastmoney probe
-(`tools/eastmoney_probe.py`, `eastmoney-probe`), its question answered (below, "Rejected").
+(`tools/eastmoney_probe.py`, `eastmoney-probe`), its question answered (below, "Rejected"),
+and the Wallstreetcn probe (`tools/wallstreetcn_probe.py`, `wallstreetcn-probe`), once its
+bars were taken ("Wallstreetcn for the LME").
 
 **The open month lives on a release; a month enters git once, settled.** Git stores
 snapshots, so hourly commits into per-instrument files cost 124 MiB a year; replacing a
@@ -608,7 +636,7 @@ that day's mend of the funds' first bars; 903 MiB that morning), mostly
 superseded Parquet in history; GitHub warns at 1 GB. To act: a history rewrite, which force-pushes the live branch irreversibly.
 
 **Undocumented endpoints carry most of the basket** (Yahoo, Sina, Google Finance,
-MarketWatch). A changed shape raises and the health chat names the provider. To act: paid
+MarketWatch, Wallstreetcn). A changed shape raises and the health chat names the provider. To act: paid
 feeds.
 
 **History no free source reaches.**
