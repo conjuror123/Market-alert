@@ -458,6 +458,22 @@ its close follow (a release after the close came after the move).
 Added to digest👆🏻👆🏻
 ```
 
+**The note stands in blocks**, in the basket's order (equity, rates, credit, energy,
+precious metals, industrial metals, agriculture, FX, crypto), each under its name-line and
+left out when it has none; inside a block, time order, the rarer first within an hour. A
+note longer than a message is cut between blocks: a block that does not fit what is left
+of a message opens the next one whole. Only a block longer than a message is cut - the
+first message's room counted after the header, which never stands alone - and the message
+it goes on in opens with its name-line, `continued`:
+
+```
+━━━ 🏛 RATES ━━━
+
+⬜ VGIT · US Treasuries 3-10y (Vanguard) -0.41% · 7.6×σ
+📉 Rarest hour in 20 months (then 10.1×σ)
+🕐 16.09.2026 18:00 UTC · close 113%
+```
+
 **One message per kind per run.** A run's pushes go out in one message and its pings in
 one more, biggest σ first. News is said once below the pushes, named by hour when the
 pushes span several hours. A message is cut at 3,000 characters (`MESSAGE_BUDGET`) so

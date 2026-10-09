@@ -359,6 +359,63 @@ def test_the_note_runs_in_time_order_across_all_its_parts():
     assert len(stamps) == len(rows)
 
 
+def test_the_note_stands_in_blocks_in_the_baskets_order_each_under_its_name_line():
+    # What moved together is read together: the rates first, then the FX,
+    # whatever the hour; inside a block, time order.
+    rows = [event(event_id="fx", channel="digest", tier="noticeable", block="FX",
+                  asset_id="twelvedata:EUR/USD", hour_utc=SLOT + 1 * HOUR),
+            event(event_id="tlt", channel="digest", tier="noticeable", block="rates",
+                  asset_id="twelvedata:TLT", hour_utc=SLOT + 3 * HOUR),
+            event(event_id="ief", channel="digest", tier="noticeable", block="rates",
+                  asset_id="twelvedata:IEF", hour_utc=SLOT + 2 * HOUR)]
+    labels = {"twelvedata:EUR/USD": "Euro", "twelvedata:TLT": "Long", "twelvedata:IEF": "Mid"}
+    text = md.format_digest(rows, labels, (SLOT, SLOT + 200 * HOUR), None, NOW)[0]
+    rates, fx = "━━━ 🏛 <b>RATES</b> ━━━", "━━━ 💱 <b>FX</b> ━━━"
+    assert text.index(rates) < text.index("Mid") < text.index("Long") < text.index(fx) \
+        < text.index("Euro")
+    assert "CREDIT" not in text                     # a block with nothing is left out
+
+
+def test_a_block_that_does_not_fit_what_is_left_opens_the_next_message_whole():
+    # Two blocks of forty rows: each fits a message, both do not. The second
+    # goes whole into the next message rather than being cut.
+    rows = [event(event_id=f"r{i}", channel="digest", tier="noticeable", block="rates",
+                  asset_id="twelvedata:TLT", hour_utc=SLOT + i * HOUR) for i in range(40)]
+    rows += [event(event_id=f"f{i}", channel="digest", tier="noticeable", block="FX",
+                   asset_id="twelvedata:EUR/USD", hour_utc=SLOT + i * HOUR) for i in range(40)]
+    texts = md.format_digest(rows, LABELS, (SLOT, SLOT + 200 * HOUR), None, NOW)
+    assert len(texts) == 2
+    assert "RATES" in texts[0] and "FX" not in texts[0]
+    assert texts[1].startswith("━━━ 💱 <b>FX</b> ━━━")
+    assert not any("continued" in t for t in texts)
+
+
+def test_the_header_counts_in_the_first_messages_room():
+    # Sixty rows fit a message on their own but not beside the header: they
+    # are cut under it, and the header never goes out alone.
+    rows = [event(event_id=f"d{i}", channel="digest", tier="noticeable",
+                  hour_utc=SLOT + i * HOUR, asset_id="twelvedata:GLD")
+            for i in range(60)]
+    texts = md.format_digest(rows, LABELS, (SLOT, SLOT + 200 * HOUR), None, NOW)
+    assert len(texts) == 2
+    assert "━━━ 🥇 <b>PRECIOUS METALS</b> ━━━" in texts[0]
+    assert texts[1].startswith("━━━ 🥇 <b>PRECIOUS METALS</b> · continued ━━━")
+
+
+def test_a_part_that_opens_inside_a_block_names_it_continued():
+    # A block longer than any one message is the only one cut.
+    rows = [event(event_id=f"d{i}", channel="digest", tier="noticeable",
+                  hour_utc=SLOT + i * HOUR, asset_id="twelvedata:GLD")
+            for i in range(80)]
+    texts = md.format_digest(rows, LABELS, (SLOT, SLOT + 200 * HOUR), None, NOW)
+    assert len(texts) > 1, "the fixture must be long enough to split"
+    assert "━━━ 🥇 <b>PRECIOUS METALS</b> ━━━" in texts[0]
+    for part in texts[1:]:
+        assert part.startswith("━━━ 🥇 <b>PRECIOUS METALS</b> · continued ━━━")
+    for part in texts[:-1]:
+        assert "━━━" not in part.rstrip().splitlines()[-1]   # never a name-line alone
+
+
 def test_two_moves_in_one_hour_put_the_rarer_first():
     # The one case time cannot separate.
     same = SLOT + 5 * HOUR
