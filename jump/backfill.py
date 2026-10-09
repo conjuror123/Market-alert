@@ -104,7 +104,7 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
                             sifting_trip: str | None = None,
                             silent: "dict[str, list] | None" = None,
                             stale: "list[tuple[str, str, int]] | None" = None,
-                            second_source: "list[str] | None" = None,
+                            vote: "list[str] | None" = None,
                             keys: "dict[str, list] | None" = None) -> str:
     """One operational message naming who went dark. Does not switch provider.
 
@@ -170,11 +170,11 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
         if len(stale) > 20:
             lines.append(f"• …and {len(stale) - 20} more")
         lines.append("Named when it passes its limit, then once a day.")
-    if second_source:
+    if vote:
         if lines:
             lines.append("")
-        lines.append("⚠️ <b>Second source</b>")
-        lines.extend(f"• {quote(note)}" for note in second_source)
+        lines.append("⚠️ <b>The vote</b>")
+        lines.extend(f"• {quote(note)}" for note in vote)
     if dark:
         if lines:
             lines.append("")
@@ -1958,21 +1958,21 @@ def main(argv: list[str] | None = None) -> int:
     # basket, before anything is scored: a move most did not see is not scored
     # and its message says so (jump.verify). A provider that has said stop or
     # stopped answering is not asked again: in the vote it is an outage.
-    second_source: list[str] = []
+    vote: list[str] = []
     if session_table and not args.instruments and not args.extend_history:
         try:
             r = verify.verify(basket.instruments, args.bars_dir, session_table, session,
                               blocked=({"yahoo"} if yahoo_gone else set()) | set(silent))
             for name in (r or {}).get("stopped", []):
-                second_source.append(f"{name} stopped for the run (a rate limit, or no "
-                                     "answer twice in a row): its moves are judged by the "
-                                     "other source, or scored unchecked")
+                vote.append(f"{name} stopped for the run (a rate limit, or no answer twice "
+                            "in a row): an outage in the vote, counted against the moves "
+                            "it is asked about until a later count")
         except Exception as exc:
             # Not a failed run: an unvoted move is scored, as every move never
             # voted is. Named, though.
-            log.warning("second-source check failed - %s", exc)
-            second_source.append(f"the second-source check failed ({exc}): this hour's "
-                                 "far moves are scored unchecked")
+            log.warning("the vote failed - %s", exc)
+            vote.append(f"the vote failed ({exc}): this hour's far moves are scored "
+                        "unvoted")
 
     if not args.skip_vix:
         try:
@@ -1998,7 +1998,7 @@ def main(argv: list[str] | None = None) -> int:
         yahoo_gone=yahoo_gone, sifting_gone=sifting_gone,
         sifting_skipped=sifting_skipped, sifting_remaining=sifting_remaining,
         sifting_trip=sifting_trip, silent=silent, stale=stale,
-        second_source=second_source, keys=keyless)
+        vote=vote, keys=keyless)
     if text:
         send_ops_alert(text)
 

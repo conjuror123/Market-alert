@@ -605,7 +605,7 @@ message past Telegram's 4,096 characters is cut between lines, ending "…and N 
 | fetch: a provider does not answer twice in a row | stopped for the run, left out of the dividend check, and an outage in the vote | "did not answer" message | every run it happens |
 | fetch: answered, but no new bar | the instrument goes stale (`stale_hours`) | "no new bar" | past its limit, then daily |
 | dividend check | a fund's payouts unconfirmed 5+ days: its overnight gaps go unscored | "Dividend check behind" | daily |
-| the vote | a source stopped for the run: an outage, a vote against the moves it is asked about, until a later count; the pass crashed: the hour's moves are scored unvoted | "Second source" lines | every run it happens |
+| the vote | a source stopped for the run: an outage, a vote against the moves it is asked about, until a later count; the pass crashed: the hour's moves are scored unvoted | "The vote" lines | every run it happens |
 | VIX | both sources failed | "went dark" | every run it happens |
 | pipeline or jumps, one instrument (an error, or no metrics file) | that instrument keeps its stored metrics, or its events from the last run, so delivery never reads them as gone; the others are current | "Metrics failed" / "Scoring failed for N instrument(s)", each with its error | every run it happens |
 | pipeline, jumps (every instrument), or the step's 12 minutes | no new events | streak, named with the part it stopped in and its minutes | while it fails |
