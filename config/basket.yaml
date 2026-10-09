@@ -47,8 +47,8 @@ fetch_since: "2002-01-01"
 #   the word from |z|: noticeable, high, major, extreme at the four `levels`.
 #
 # window_days: half a year, inside the paper's valid range for every calendar.
-# levels: about sqrt(2) apart, each word about three times rarer than the one
-#   below; the bottom sets the volume (docs/decisions.md, "The detector").
+# levels: about sqrt(2) apart, each word about three times rarer to reach than
+#   the one below; the bottom sets the volume (docs/decisions.md, "The detector").
 detector:
   window_days: 182.6
   levels: [6.0, 8.5, 12.0, 17.0]

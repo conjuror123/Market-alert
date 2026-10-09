@@ -13,7 +13,7 @@ Products of neighbouring moves, so a jump in the window never multiplies with
 itself and cannot inflate the yardstick it is later measured against.
 
 THE WORD, from |z|: 6, 8.5, 12, 17 (LEVELS) - about sqrt(2) apart, each about
-three times rarer than the one below.
+three times rarer to reach than the one below.
 
 THE WINDOW is half a year of calendar time for every instrument (a fund about
 880 bars, a pair 3,130, a coin 4,380), inside the paper's valid range of
@@ -67,7 +67,7 @@ WORDS: tuple[str, ...] = ("noticeable", "high", "major", "extreme")
 # The settings, overridable under `detector:` in config/basket.yaml.
 WINDOW_DAYS = 182.6          # half a year of calendar time
 # The four words' thresholds on |z|, in half-year sigmas: about sqrt(2) apart,
-# each word about three times rarer than the one below, rounded.
+# each word about three times rarer to reach than the one below, rounded.
 LEVELS: "tuple[float, ...]" = (6.0, 8.5, 12.0, 17.0)
 
 # Bars a day, per calendar, for the paper's minimum window.

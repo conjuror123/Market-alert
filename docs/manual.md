@@ -393,7 +393,9 @@ for a 24-hour market) and is marked `young` until the window is full.
 | major | 🟧 | 12 |
 | extreme | 🟥 | 17 |
 
-Each word is about three times rarer than the one below. `high` and up push
+Each word is about three times rarer to reach than the one below (events at or above
+each, over all history on 2026-10-09: 12,845, 4,321, 1,341, 490). Extreme has no ceiling,
+so as a band of its own it is only about twice as rare as major's (490 against 851). `high` and up push
 (`routing.PUSH_TIERS`); `noticeable` goes into the weekly note.
 
 **Gaps** are scored by the same rules against earlier gaps **of their own kind** over the

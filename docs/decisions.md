@@ -27,8 +27,10 @@ market), its rows marked `young`. A half-year warm-up would leave thirteen funds
 through March 2020.
 
 **Words at 6 / 8.5 / 12 / 17σ.** On this basket, doubling a move's size in σ makes it
-about ten times rarer, so levels √2 apart make each word about three times rarer than the
-one below. The 6σ bottom is a volume choice: moves of every size hold at the close alike
+about ten times rarer, so levels √2 apart make each word about three times rarer to reach
+than the one below: events at or above 6, 8.5, 12 and 17σ were 12,845, 4,321, 1,341 and
+490 over all history (2026-10-09), 3.0, 3.2 and 2.7 times apart. Extreme has no ceiling,
+so as a band of its own it is only about twice as rare as major's (490 against 851). The 6σ bottom is a volume choice: moves of every size hold at the close alike
 (76–80%), so a higher bottom buys fewer messages, not better ones. At 6σ: about 9 messages
 a week (8.6 over the year to 2026-10-01, the delivery replayed hour by hour); for one
 instrument an event at each word about every 4 months, 11 months, 3 years and 5½ years

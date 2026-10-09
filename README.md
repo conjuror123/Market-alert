@@ -15,7 +15,7 @@ with the jump test of Lee & Mykland (2008), and the message says how far out it 
 ```
 
 The colour is the word: ⬜ noticeable at 6σ, 🟨 high at 8.5σ, 🟧 major at 12σ, 🟥 extreme
-at 17σ, each about three times rarer than the one below. `high` and up arrive at once
+at 17σ, each about three times rarer to reach than the one below. `high` and up arrive at once
 (about 4 a week); `noticeable` goes into one weekly note (about 10 rows). Every other data
 feed that carries the instrument votes on a far move: one most did not see is marked `❌`
 with each feed's own move and kept out of the statistics, a tie `⚠️` and kept in. It runs entirely on
