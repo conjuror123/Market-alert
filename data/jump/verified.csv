@@ -412,6 +412,7 @@ twelvedata:SLQD,1790866800,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo
 twelvedata:SLQD,1790949600,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo,marketwatch,alpaca_sip",-0.001113,"-0.001113,-0.001113,-0.001113",1791508016
 twelvedata:SLV,1789581600,close,real,twelvedata,yahoo,,-0.028127,-0.027528,1791114096
 twelvedata:SOYB,1791561600,close,real,sina,"yahoo,marketwatch","yahoo,marketwatch",-0.015714,"-0.015714,-0.015714",1791565670
+twelvedata:SOYB,1791565200,close,real,sina,"yahoo,marketwatch","yahoo,marketwatch",0.010260,"0.010260,0.010260",1791569286
 twelvedata:SPIB,1789398000,close,real,alpaca,yahoo,,0.002142,0.002142,1791114096
 twelvedata:SPIB,1789581600,close,real,alpaca,yahoo,,-0.003218,-0.003218,1791114096
 twelvedata:SPIB,1790168400,close,real,alpaca,yahoo,,-0.003219,-0.003219,1791114096
@@ -773,7 +774,7 @@ twelvedata:XLK,1643205600,close,overnight,tiingo,alpaca,,0.024831,0.026297,17913
 twelvedata:XLV,1791550800,close,real,tiingo,"yahoo,sina,marketwatch","yahoo,sina",0.014417,"0.009927,0.011706,0.001766",1791554861
 twelvedata:XLY,1632142800,close,overnight,tiingo,alpaca,,-0.017921,-0.020744,1791362492
 twelvedata:XLY,1643032800,close,overnight,tiingo,alpaca,,-0.030902,-0.020836,1791362492
-yahoo:CC=F,1788346800,close,real,yahoo,sina,sina,-0.050160,-0.051429,1791504414
+yahoo:CC=F,1788346800,close,real,yahoo,sina,sina,-0.050160,-0.051429,1791569286
 yahoo:CT=F,1785769200,close,real,yahoo,sina,sina,0.015779,0.015175,1791504414
 yahoo:CT=F,1786550400,close,real,yahoo,sina,sina,-0.013751,-0.014355,1791504414
 yahoo:CT=F,1787227200,close,real,yahoo,sina,sina,0.014332,0.013900,1791504414
@@ -781,8 +782,8 @@ yahoo:CT=F,1787832000,close,real,yahoo,sina,sina,0.017353,0.017632,1791504414
 yahoo:CT=F,1788314400,close,real,yahoo,sina,sina,-0.014495,-0.014574,1791504414
 yahoo:CT=F,1789142400,close,real,yahoo,sina,sina,-0.015861,-0.017724,1791504414
 yahoo:CT=F,1789470000,close,real,yahoo,sina,sina,-0.014710,-0.015263,1791504414
-yahoo:KC=F,1785225600,open,real,yahoo,sina,sina,0.025479,0.027315,1791504414
-yahoo:KC=F,1785312000,open,real,yahoo,sina,sina,-0.019735,-0.023957,1791504414
+yahoo:KC=F,1785225600,open,real,yahoo,sina,sina,0.025479,0.027315,1791569286
+yahoo:KC=F,1785312000,open,real,yahoo,sina,sina,-0.019735,-0.023957,1791569286
 yahoo:LE=F,1738591200,open,not_real,yahoo,"LEM25.CME,LEV25.CME",,-0.017739,"-0.006382,-0.004660",1791403338
 yahoo:LE=F,1743444000,close,not_real,yahoo,"LEM25.CME,LEV25.CME",,-0.019557,"0.000614,0.000126",1791403338
 yahoo:LE=F,1743771600,open,not_real,yahoo,LEV25.CME,,0.010929,-0.011079,1791403338
