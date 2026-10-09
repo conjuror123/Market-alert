@@ -47,7 +47,6 @@ Secrets (GitHub → Settings → Secrets → Actions):
 | `SIFTING_API_KEY` | the 17 FX pairs |
 | `TWELVEDATA_API_KEY` | 8 thin funds; archive and gap-fill |
 | `FRED_API_KEY` | the VIX series |
-| `HFDATA_API_KEY` | optional: the backfill's `deepen-etfs`, `probe-hfdata` and `fill-gaps`'s second source; since 2026-10-03 HF Data serves nothing before 2022-03 |
 
 Yahoo, Sina, Google Finance, Binance, MarketWatch, Coinbase, Kraken and Cboe need no key. A
 missing key costs only that provider's instruments, and the health chat names the secret every run until it is
@@ -62,7 +61,7 @@ Local:
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q          # ~850 tests, about 2 minutes; run alone, several load large parquet files
+pytest -q          # ~830 tests, about 2 minutes; run alone, several load large parquet files
 ```
 
 The derived data (`data/jump/metrics/`, `jumps.parquet`) rebuilds from the committed
@@ -109,7 +108,7 @@ standing in, a few minutes of it; that bar heals on the next fetch.
 | SiftingIO | 17 FX pairs | the bar closed at :00 is served by :05 |
 | Binance | 16 coins | each coin as its USDT pair, via `data-api.binance.vision` (reachable from US runners) |
 | Dukascopy, Bitstamp, Bitfinex | — | history only |
-| HF Data | — | funds' history to 2020, imported; it withdrew its consolidated tape (to 2022-03) on 2026-10-03 |
+| HF Data | — | funds' history to 2020, imported; it withdrew its consolidated tape on 2026-10-03, and its client was deleted |
 
 Each fund's feed is chosen by measurement; see `docs/decisions.md`, "Data and providers".
 

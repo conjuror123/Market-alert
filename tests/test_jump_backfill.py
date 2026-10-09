@@ -394,7 +394,6 @@ def test_bars_fetched_before_the_share_ran_out_are_counted(tmp_path, monkeypatch
         anchor_exchange_tz="America/New_York", history_since=date(2021, 1, 1),
         session_templates={"us_equity": {}})
     monkeypatch.setenv("TWELVEDATA_API_KEY", "k")
-    monkeypatch.delenv("HFDATA_API_KEY", raising=False)
     monkeypatch.setattr(backfill, "load_basket", lambda: basket)
     monkeypatch.setattr(backfill._sessions, "load_sessions", lambda: table)
     monkeypatch.setattr(backfill.twelvedata, "fetch_full_history", fetch)
@@ -421,7 +420,7 @@ def test_a_gap_walk_told_not_to_ask_only_lists_the_gaps(tmp_path, monkeypatch):
     assert out["still_missing"] == [date(2024, 3, 5)]
 
 
-def test_after_the_share_is_spent_the_gaps_go_to_hf_data_only(tmp_path, monkeypatch):
+def test_after_the_share_is_spent_the_gaps_are_only_listed(tmp_path, monkeypatch):
     from jump import backfill
     from jump.basket import Basket, VolatilityIndex
 
@@ -430,7 +429,7 @@ def test_after_the_share_is_spent_the_gaps_go_to_hf_data_only(tmp_path, monkeypa
         volatility_index=VolatilityIndex("VIXCLS", "fred", "1d", "VIX", date(1990, 1, 1)),
         anchor_exchange_tz="America/New_York", history_since=date(2021, 1, 1),
         session_templates={"us_equity": {}})
-    asked, hf = [], []
+    asked = []
 
     def fake_fill(asset, path, table, api_key, session, ask=True):
         asked.append((asset.ticker, ask))
@@ -438,22 +437,15 @@ def test_after_the_share_is_spent_the_gaps_go_to_hf_data_only(tmp_path, monkeypa
             raise backfill.twelvedata.ArchiveShareSpent("QQQ: share spent")
         return {"skipped": None, "added": 0, "gaps": 1, "still_missing": [date(2024, 3, 5)]}
 
-    def fake_hf(asset, path, table, key, session):
-        hf.append(asset.ticker)
-        return {"skipped": None, "added": 0, "still_missing": [], "still_missing_hours": 0}
-
     monkeypatch.setenv("TWELVEDATA_API_KEY", "k")
-    monkeypatch.setenv("HFDATA_API_KEY", "h")
     monkeypatch.setattr(backfill, "load_basket", lambda: basket)
     monkeypatch.setattr(backfill._sessions, "load_sessions", lambda: {})
     monkeypatch.setattr(backfill, "fill_gaps", fake_fill)
-    monkeypatch.setattr(backfill, "fill_gaps_from_hfdata", fake_hf)
     monkeypatch.setattr(backfill, "missing_hours", lambda path, table: [])
     monkeypatch.setattr(backfill.twelvedata, "archive_mode", False)
 
     assert backfill.main(["--fill-gaps", "--bars-dir", str(tmp_path)]) == 0
     assert asked == [("SPY", True), ("QQQ", True), ("QQQ", False), ("IWM", False)]
-    assert hf == ["SPY", "QQQ", "IWM"]
 
 
 def test_a_spent_share_is_reported_as_the_walks_not_the_days(tmp_path, monkeypatch, caplog):
@@ -482,9 +474,9 @@ def test_a_spent_share_is_reported_as_the_walks_not_the_days(tmp_path, monkeypat
     assert "share" in text and "tomorrow" in text and "midnight" not in text
 
 
-# --- the ETF import, and the check that gates it ---------------------------
+# --- the overlap check that gates an import --------------------------------
 
-def _hf_minutes(start_hour, n, prices=None, step=60):
+def _minute_bars(start_hour, n, prices=None, step=60):
     import numpy as np
     prices = prices if prices is not None else np.linspace(100.0, 101.0, n)
     return pd.DataFrame({
@@ -506,7 +498,7 @@ def test_the_import_is_gated_on_agreeing_with_what_is_already_stored():
     n = 60 * (backfill.ALIGNMENT_MIN_HOURS + 60)
     walk = 100 * np.exp(np.cumsum(rng.standard_normal(n) * 0.001))
 
-    agreeing = _hf_minutes(base, n, walk)
+    agreeing = _minute_bars(base, n, walk)
     stored = bars.to_hourly(agreeing).rename(columns={"close": "close"})
     check = backfill.verify_alignment(agreeing, stored)
     assert check["ok"] and check["correlation"] > 0.99
@@ -525,8 +517,8 @@ def test_a_shifted_series_fails_the_check_rather_than_being_merged():
     n = 60 * (backfill.ALIGNMENT_MIN_HOURS + 60)
     walk = 100 * np.exp(np.cumsum(rng.standard_normal(n) * 0.002))
 
-    stored = bars.to_hourly(_hf_minutes(base, n, walk))
-    shifted = _hf_minutes(base + 3600, n, walk)       # one hour out
+    stored = bars.to_hourly(_minute_bars(base, n, walk))
+    shifted = _minute_bars(base + 3600, n, walk)       # one hour out
     check = backfill.verify_alignment(shifted, stored)
     assert not check["ok"]
     assert "correlation" in check["why"]
@@ -536,48 +528,9 @@ def test_too_little_overlap_is_refused_rather_than_scored_on_noise():
     from jump import backfill
 
     base = int(datetime(2021, 1, 4, tzinfo=timezone.utc).timestamp())
-    tiny = _hf_minutes(base, 10)
+    tiny = _minute_bars(base, 10)
     check = backfill.verify_alignment(tiny, bars.to_hourly(tiny))
     assert not check["ok"] and "overlapping hours" in check["why"]
-
-
-def test_the_etf_import_refuses_to_run_without_a_timezone(tmp_path):
-    # Set to None it must stop, because the one thing that cannot be recovered
-    # later is a silently misaligned archive.
-    from jump import backfill
-
-    path = tmp_path / "twelvedata_SPY.parquet"
-    _store_days(path, [_day(2021, 1, 4)])
-    out = backfill.deepen_from_hfdata(_etf(), str(path), date(2015, 1, 1),
-                                      "key", None, timezone_name=None)
-    assert out["added"] == 0 and "TIMEZONE" in out["skipped"]
-
-
-def test_the_etf_import_only_touches_us_equity_instruments(tmp_path):
-    from jump import backfill
-
-    out = backfill.deepen_from_hfdata(_etf(session_template="fx_continuous"),
-                                      str(tmp_path / "x.parquet"),
-                                      date(2015, 1, 1), "key", None)
-    assert out["added"] == 0 and "US-equity" in out["skipped"]
-
-
-def test_a_failed_check_merges_nothing(tmp_path, monkeypatch):
-    from jump import backfill
-
-    path = tmp_path / "twelvedata_SPY.parquet"
-    base = int(datetime(2021, 1, 4, tzinfo=timezone.utc).timestamp())
-    _store_days(path, [base])
-    before = len(bars.load(str(path)))
-
-    monkeypatch.setattr(backfill.hfdata, "fetch_parquet", lambda *a, **k: b"x")
-    monkeypatch.setattr(backfill.hfdata, "to_minute_frame",
-                        lambda *a, **k: _hf_minutes(base - 400 * 3600, 50))
-    out = backfill.deepen_from_hfdata(_etf(), str(path), date(2015, 1, 1),
-                                      "key", None)
-
-    assert out["added"] == 0 and "alignment check failed" in out["skipped"]
-    assert len(bars.load(str(path))) == before
 
 
 def test_a_dividend_adjusted_series_is_caught_even_though_returns_agree():
@@ -594,8 +547,8 @@ def test_a_dividend_adjusted_series_is_caught_even_though_returns_agree():
     n = 60 * (backfill.ALIGNMENT_MIN_HOURS + 60)
     walk = 100 * np.exp(np.cumsum(rng.standard_normal(n) * 0.001))
 
-    stored = bars.to_hourly(_hf_minutes(base, n, walk))
-    adjusted = _hf_minutes(base, n, walk * 0.99)      # one percent low, as SPY was
+    stored = bars.to_hourly(_minute_bars(base, n, walk))
+    adjusted = _minute_bars(base, n, walk * 0.99)      # one percent low, as SPY was
 
     check = backfill.verify_alignment(adjusted, stored)
     assert check["correlation"] > 0.99      # returns are untouched by the factor
@@ -612,200 +565,12 @@ def test_a_series_that_agrees_on_both_price_and_returns_passes():
     n = 60 * (backfill.ALIGNMENT_MIN_HOURS + 60)
     walk = 100 * np.exp(np.cumsum(rng.standard_normal(n) * 0.001))
 
-    stored = bars.to_hourly(_hf_minutes(base, n, walk))
-    check = backfill.verify_alignment(_hf_minutes(base, n, walk), stored)
+    stored = bars.to_hourly(_minute_bars(base, n, walk))
+    check = backfill.verify_alignment(_minute_bars(base, n, walk), stored)
     assert check["ok"] and check["median_bp"] < backfill.ALIGNMENT_MAX_MEDIAN_BP
 
 
 # --- undoing a vendor's dividend adjustment --------------------------------
-
-def _adjusted(minutes, steps, reference, ratio):
-    """The inverse of unadjust_to_store, for building a fixture."""
-    from jump import corporate_actions
-    factor = corporate_actions.unadjust_factor(
-        steps, minutes["hour_utc"].to_numpy(), reference, ratio)
-    out = minutes.copy()
-    for c in ("open", "high", "low", "close"):
-        out[c] = out[c].to_numpy() * factor
-    return out
-
-
-def test_unadjust_factor_round_trips_a_declared_dividend_series():
-    # Prices are built FORWARD from declared cash dividends - multiply every
-    # pre-ex bar by (1 - d), d = cash / previous true close - and only then
-    # un-adjusted. `_adjusted` below is the inverse of unadjust_factor and so
-    # cannot fail; this can.
-    from datetime import date as _date
-
-    from jump import backfill
-
-    import numpy as np
-    base = int(datetime(2020, 2, 10, tzinfo=timezone.utc).timestamp())
-    rng = np.random.default_rng(23)
-    n = 60 * 24 * 400
-    walk = 300 * np.exp(np.cumsum(rng.standard_normal(n) * 0.0002))
-    truth = _hf_minutes(base, n, walk)
-    stored = bars.to_hourly(truth)
-    days = pd.to_datetime(truth["hour_utc"], unit="s", utc=True).dt.date.to_numpy()
-
-    payouts = [(_date(2020, 3, 20), 1.50), (_date(2020, 6, 19), 1.50),
-               (_date(2020, 9, 18), 1.50), (_date(2020, 12, 18), 1.50)]
-    vendor = truth.copy()
-    steps = []
-    for ex, cash in payouts:
-        prior = truth.loc[days < ex, "close"]
-        prev_close = float(prior.iloc[-1])
-        d = cash / prev_close
-        steps.append((ex, d / (1.0 - d)))
-        factor = np.where(days < ex, 1.0 - d, 1.0)
-        for column in ("open", "high", "low", "close"):
-            vendor[column] = vendor[column].to_numpy() * factor
-
-    fixed, info = backfill.unadjust_to_store(vendor, stored, steps)
-    assert info["calibrated"]
-    check = backfill.verify_alignment(fixed, stored)
-    assert check["ok"] and check["median_bp"] < 1.0, check
-
-
-def test_the_adjustment_is_undone_and_the_result_matches_the_store():
-    from datetime import date as _date
-
-    from jump import backfill
-
-    import numpy as np
-    base = int(datetime(2020, 2, 10, tzinfo=timezone.utc).timestamp())
-    rng = np.random.default_rng(23)
-    n = 60 * 24 * 400
-    walk = 300 * np.exp(np.cumsum(rng.standard_normal(n) * 0.0002))
-    truth = _hf_minutes(base, n, walk)
-    stored = bars.to_hourly(truth)
-
-    # A year of quarterly payouts, as a vendor would have applied them.
-    steps = [(_date(2020, 3, 20), 0.005), (_date(2020, 6, 19), 0.005),
-             (_date(2020, 9, 18), 0.005), (_date(2020, 12, 18), 0.005)]
-    vendor = _adjusted(truth, steps, _date(2020, 2, 20), 0.98)
-
-    fixed, info = backfill.unadjust_to_store(vendor, stored, steps)
-    assert info["calibrated"]
-    check = backfill.verify_alignment(fixed, stored)
-    assert check["ok"], check["why"]
-    assert check["median_bp"] < 5
-
-
-def test_the_uncorrected_series_would_have_failed_the_same_check():
-    # Which is what makes the correction worth doing rather than assumed.
-    from datetime import date as _date
-
-    from jump import backfill
-
-    import numpy as np
-    base = int(datetime(2020, 2, 10, tzinfo=timezone.utc).timestamp())
-    rng = np.random.default_rng(23)
-    n = 60 * 24 * 400
-    walk = 300 * np.exp(np.cumsum(rng.standard_normal(n) * 0.0002))
-    truth = _hf_minutes(base, n, walk)
-    stored = bars.to_hourly(truth)
-    steps = [(_date(2020, 3, 20), 0.005), (_date(2020, 6, 19), 0.005),
-             (_date(2020, 9, 18), 0.005), (_date(2020, 12, 18), 0.005)]
-
-    vendor = _adjusted(truth, steps, _date(2020, 2, 20), 0.98)
-    assert not backfill.verify_alignment(vendor, stored)["ok"]
-
-
-def test_an_instrument_with_no_payouts_is_only_rescaled():
-    # GLD, SLV and USO distribute nothing, so their factor is a flat number and
-    # the ex-date list is legitimately empty.
-    from jump import backfill
-
-    import numpy as np
-    base = int(datetime(2020, 2, 10, tzinfo=timezone.utc).timestamp())
-    rng = np.random.default_rng(31)
-    n = 60 * 24 * 60
-    # A real walk, not a flat line: a constant series has no variance and the
-    # return correlation comes back NaN rather than 1.
-    walk = 150 * np.exp(np.cumsum(rng.standard_normal(n) * 0.0002))
-    truth = _hf_minutes(base, n, walk)
-    stored = bars.to_hourly(truth)
-
-    fixed, info = backfill.unadjust_to_store(_hf_minutes(base, n, walk * 0.9),
-                                             stored, [])
-    assert info["calibrated"] and abs(info["ratio"] - 0.9) < 1e-6
-    assert backfill.verify_alignment(fixed, stored)["ok"]
-
-
-def test_calibration_needs_enough_overlap_to_be_meaningful():
-    from jump import backfill
-
-    base = int(datetime(2020, 2, 10, tzinfo=timezone.utc).timestamp())
-    tiny = _hf_minutes(base, 120)
-    _, info = backfill.unadjust_to_store(tiny, bars.to_hourly(tiny), [])
-    assert not info["calibrated"]
-
-
-def test_the_gap_fill_patches_only_the_missing_days(tmp_path, monkeypatch):
-    # This writes INTO the middle of the stored series rather than under it,
-    # so it must touch the missing days and nothing else - a patch that also
-    # rewrote neighbouring hours would replace vendor A's bars with vendor B's
-    # in places the store was already complete.
-    from jump import backfill
-
-    import numpy as np
-    path = tmp_path / "twelvedata_SPY.parquet"
-    base = int(datetime(2021, 1, 4, tzinfo=timezone.utc).timestamp())
-    n = 60 * 24 * 120
-    rng = np.random.default_rng(41)
-    walk = 300 * np.exp(np.cumsum(rng.standard_normal(n) * 0.0002))
-    everything = _hf_minutes(base, n, walk)
-
-    # The store holds all of it except one day.
-    hole = date(2021, 2, 1)
-    days = pd.to_datetime(everything["hour_utc"], unit="s", utc=True).dt.date
-    bars.merge(str(path), bars.to_hourly(everything[(days != hole).to_numpy()]))
-    before = bars.load(str(path))
-
-    table = _table(set(days))
-    monkeypatch.setattr(backfill.hfdata, "fetch_parquet", lambda *a, **k: b"x")
-    monkeypatch.setattr(backfill.hfdata, "to_minute_frame",
-                        lambda *a, **k: everything)
-    monkeypatch.setattr(backfill.corporate_actions, "load_steps", lambda: {})
-
-    out = backfill.fill_gaps_from_hfdata(_etf(), str(path), table, "key", None)
-
-    assert out["gaps"] == 1 and out["added"] > 0
-    assert out["still_missing"] == []
-    after = bars.load(str(path))
-    # every hour that was already there is untouched
-    merged = before.merge(after, on="hour_utc", suffixes=("_before", "_after"))
-    assert len(merged) == len(before)
-    assert (merged["close_before"] == merged["close_after"]).all()
-
-
-def test_the_gap_fill_writes_nothing_when_the_alignment_check_fails(tmp_path, monkeypatch):
-    from jump import backfill
-
-    import numpy as np
-    path = tmp_path / "twelvedata_SPY.parquet"
-    base = int(datetime(2021, 1, 4, tzinfo=timezone.utc).timestamp())
-    n = 60 * 24 * 120
-    rng = np.random.default_rng(42)
-    walk = 300 * np.exp(np.cumsum(rng.standard_normal(n) * 0.0002))
-    everything = _hf_minutes(base, n, walk)
-    hole = date(2021, 2, 1)
-    days = pd.to_datetime(everything["hour_utc"], unit="s", utc=True).dt.date
-    bars.merge(str(path), bars.to_hourly(everything[(days != hole).to_numpy()]))
-    before = len(bars.load(str(path)))
-
-    table = _table(set(days))
-    monkeypatch.setattr(backfill.hfdata, "fetch_parquet", lambda *a, **k: b"x")
-    # An hour out, which is what a timezone read wrong looks like.
-    monkeypatch.setattr(backfill.hfdata, "to_minute_frame",
-                        lambda *a, **k: _hf_minutes(base + 3600, n, walk))
-    monkeypatch.setattr(backfill.corporate_actions, "load_steps", lambda: {})
-
-    out = backfill.fill_gaps_from_hfdata(_etf(), str(path), table, "key", None)
-    assert out["added"] == 0 and "alignment check failed" in out["skipped"]
-    assert len(bars.load(str(path))) == before
-
 
 # --- repair: an open month's holes, from Yahoo -------------------------------
 
@@ -907,47 +672,6 @@ def test_hours_outside_the_stored_range_are_not_holes(tmp_path):
     days = [date(2024, 3, 4), date(2024, 3, 5), date(2024, 3, 6)]
     _store_days(path, _full_session_hours(days[1]))
     assert backfill.missing_hours(str(path), _table(days)) == []
-
-
-def test_the_gap_fill_recovers_hours_inside_a_day_that_is_already_present(
-        tmp_path, monkeypatch):
-    from jump import backfill
-
-    import numpy as np
-    path = tmp_path / "twelvedata_SPY.parquet"
-    base = int(datetime(2021, 1, 4, tzinfo=timezone.utc).timestamp())
-    n = 60 * 24 * 120
-    rng = np.random.default_rng(43)
-    walk = 300 * np.exp(np.cumsum(rng.standard_normal(n) * 0.0002))
-    everything = _hf_minutes(base, n, walk)
-
-    days = pd.to_datetime(everything["hour_utc"], unit="s", utc=True).dt.date
-    table = _table(set(days))
-    # Every day is present; one of them keeps only its last two session hours.
-    wounded = date(2021, 2, 1)
-    keep = set(_full_session_hours(wounded)[-2:])
-    hours = everything["hour_utc"] // 3600 * 3600
-    drop = (days == wounded).to_numpy() & ~hours.isin(keep).to_numpy()
-    bars.merge(str(path), bars.to_hourly(everything[~drop]))
-
-    before = bars.load(str(path))
-    assert backfill.missing_sessions(str(path), table) == []
-    assert len(backfill.missing_hours(str(path), table)) == 5
-
-    monkeypatch.setattr(backfill.hfdata, "fetch_parquet", lambda *a, **k: b"x")
-    monkeypatch.setattr(backfill.hfdata, "to_minute_frame",
-                        lambda *a, **k: everything)
-    monkeypatch.setattr(backfill.corporate_actions, "load_steps", lambda: {})
-
-    out = backfill.fill_gaps_from_hfdata(_etf(), str(path), table, "key", None)
-
-    assert out["gaps"] == 0 and out["hours"] == 5 and out["added"] == 5
-    assert out["still_missing_hours"] == 0
-    # and the hours that were already there still carry vendor A's bars
-    after = bars.load(str(path))
-    merged = before.merge(after, on="hour_utc", suffixes=("_b", "_a"))
-    assert len(merged) == len(before)
-    assert (merged["close_b"] == merged["close_a"]).all()
 
 
 def _fx_asset(ticker="EUR/USD"):
@@ -2305,7 +2029,7 @@ def test_a_removed_bar_does_not_fail_an_overlap_check():
     base = int(datetime(2021, 1, 4, tzinfo=timezone.utc).timestamp())
     n = 60 * (backfill.ALIGNMENT_MIN_HOURS + 60)
     walk = 100 * np.exp(np.cumsum(np.random.default_rng(4).standard_normal(n) * 0.001))
-    minutes = _hf_minutes(base, n, walk)
+    minutes = _minute_bars(base, n, walk)
     stored = bars.to_hourly(minutes)
     stored.loc[10, ["open", "high", "low", "close", "volume"]] = np.nan
     assert backfill.verify_alignment(minutes, stored)["ok"]

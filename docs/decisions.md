@@ -456,7 +456,9 @@ builders wrote whole stores, so a rerun would have undone every later fix (cocoa
 2026-07-21..08-10 among them); the feed probes spent quota (one about 100 SiftingIO calls);
 the history check decided "the store's own feed" once per fund-year and left 85% of the
 funds' flagged readings unasked. Git keeps them (deleted 2026-10-08); what they established
-is in this file.
+is in this file. HF Data's client and its backfill modes (`deepen-etfs`, `probe-hfdata`,
+`fill-gaps`' second step) went on 2026-10-09: since 2026-10-03 it holds only its IEX
+segment, from 2022-03, so they reached nothing.
 
 **The open month lives on a release; a month enters git once, settled.** Git stores
 snapshots, so hourly commits into per-instrument files cost 124 MiB a year; replacing a

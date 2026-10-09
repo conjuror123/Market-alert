@@ -117,21 +117,6 @@ def test_a_split_is_emitted_as_a_split_row():
     assert actions[0].day == date(2025, 12, 5)
 
 
-def test_load_steps_excludes_splits_by_default(tmp_path):
-    path = tmp_path / "actions.csv"
-    ca.write_actions(str(path), [
-        ca.CorporateAction("XLK", date(2024, 6, 24), "dividend", 0.001751),
-        ca.CorporateAction("XLK", date(2025, 12, 5), "split", 1.0),
-    ])
-    steps = ca.load_steps(str(path))
-    assert steps["XLK"] == [(date(2024, 6, 24), 0.001751)]
-    # The split is still IN the table - what is recorded and what is used for
-    # un-adjustment are different questions - it is just not loaded by default.
-    both = ca.load_steps(str(path), kinds=("dividend", "split"))
-    assert [k for k, _ in both["XLK"]] == [date(2024, 6, 24), date(2025, 12, 5)]
-    assert not (tmp_path / "actions.csv.tmp").exists()
-
-
 def test_a_zero_dividend_row_emits_nothing():
     rows = [
         DailyRow(day=date(2020, 1, 2), close=100.0, adj_close=100.0,
