@@ -11,6 +11,7 @@ binance:ADA/USDT,1790694000,close,real,binance,"coinbase,kraken","coinbase,krake
 binance:ADA/USDT,1790964000,close,real,binance,"coinbase,kraken","coinbase,kraken",-0.043707,"-0.043841,-0.042919",1791590777
 binance:ADA/USDT,1791151200,close,real,binance,"coinbase,kraken","coinbase,kraken",0.034152,"0.033886,0.034879",1791590777
 binance:ADA/USDT,1791471600,close,real,binance,"coinbase,kraken","coinbase,kraken",-0.066399,"-0.065831,-0.066476",1791590777
+binance:ADA/USDT,1791594000,close,real,binance,"coinbase,kraken","coinbase,kraken",0.035740,"0.035689,0.036780",1791597972
 binance:ATOM/USDT,1789005600,close,real,binance,"coinbase,kraken","coinbase,kraken",0.034903,"0.034850,0.031967",1791508016
 binance:ATOM/USDT,1789012800,close,real,binance,"coinbase,kraken","coinbase,kraken",-0.029612,"-0.030581,-0.029086",1791508016
 binance:ATOM/USDT,1789408800,close,real,binance,"coinbase,kraken","coinbase,kraken",0.032584,"0.033925,0.034795",1791594373
@@ -87,6 +88,7 @@ binance:DOT/USDT,1790964000,close,real,binance,"coinbase,kraken","coinbase,krake
 binance:DOT/USDT,1791334800,close,real,binance,"coinbase,kraken","coinbase,kraken",-0.034764,"-0.036065,-0.036716",1791594373
 binance:DOT/USDT,1791471600,close,real,binance,"coinbase,kraken","coinbase,kraken",-0.068347,"-0.068430,-0.070909",1791594373
 binance:DOT/USDT,1791489600,close,real,binance,"coinbase,kraken","coinbase,kraken",0.036607,"0.036733,0.036248",1791594373
+binance:DOT/USDT,1791594000,close,real,binance,"coinbase,kraken","coinbase,kraken",0.041506,"0.041478,0.040522",1791597972
 binance:ETH/USDT,1789128000,close,real,binance,"coinbase,kraken","coinbase,kraken",0.021311,"0.021214,0.021117",1791590777
 binance:ETH/USDT,1789131600,close,real,binance,"coinbase,kraken","coinbase,kraken",0.046071,"0.046359,0.046518",1791590777
 binance:ETH/USDT,1789736400,close,real,binance,"coinbase,kraken","coinbase,kraken",0.020721,"0.020860,0.020861",1791590777
