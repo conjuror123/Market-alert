@@ -30,6 +30,11 @@ name: Backfill Jump Bars
 #                   2020-02 for every ticker at once, so for a newly added ETF
 #                   this, after extend-history, is what reaches further back.
 #                   Gated on an overlap with the store, like the others.
+#   deepen-wallstreetcn
+#                   the LME's metals below what is stored, from Wallstreetcn,
+#                   about 170 days back (price_monitor/wallstreetcn.py), less
+#                   the sessions' openings gone within the hour. Needs no key.
+#                   Gated on an overlap with the store, like the others.
 #   live-pass       the ordinary hourly fetch (no VIX) for the named
 #                   instruments, to try a provider change before it goes live.
 #                   Name few: Tiingo's 50 an hour are the live run's.
@@ -65,6 +70,7 @@ on:
           - fill-gaps
           - deepen-dukascopy
           - deepen-alpaca
+          - deepen-wallstreetcn
           - live-pass
           - corporate-actions
           - voter-bars

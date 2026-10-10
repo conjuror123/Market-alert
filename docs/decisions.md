@@ -223,7 +223,54 @@ correlated 0.54–0.63 with the futures) and dropping cattle. Its old import is 
 re-run: under this roll most of every cycle reads as Yahoo lagging and would be a hole.
 
 **The LME's metals are the LME's own, from Sina**: the right instrument with a short record
-(from 2026-07) over a longer record of another (Shanghai tin, Kitco, COMEX aluminium).
+(from 2026-04-22, Wallstreetcn's below Sina's) over a longer record of another (Shanghai
+tin, Kitco, COMEX aluminium).
+
+**Wallstreetcn for the LME**: their voter, and the history below Sina's. Its chart
+endpoint (api-ddc-wscn.awtmt.com) serves the three-month metals hourly, without volume,
+about 170 days back, and a GitHub runner gets the same bars as the development machine
+(2026-10-09). Against Sina's stored bars from mid-July to 2026-10-08, the closes are
+identical in 53–68% of hours and 0 bp apart at the median, hourly moves correlated 0.961
+(tin), 0.990 (nickel) and 0.992 (aluminium): in part Sina's upstream, so a second voice
+rather than an independent feed - and the only one found (Eastmoney refuses runners; the
+rest are under "Rejected"). As a voter it saw all 16 LME readings at 4σ or more from
+2026-07-15 to 10-08 on the store as it was, and all 9 on the store with its history
+below. Its votes are counted again for 79 days, as the softs', not its whole reach: the
+record keeps a vote 90 days (`verify.KEEP_DAYS`), and further back it would vote on
+its own bars below Sina's.
+
+Its bars of 2026-04 to 07 hold openings off the market: 11 sessions open 1% or more off
+the last close and are back as far within the hour (aluminium 8 of 59, tin 3 of 54,
+nickel none of 59; none in Sina's bars or its own since). Imported, aluminium's of
+2026-05-15 and 06-01 read as major moves. They are left out at import, holes rather
+than bars (`backfill.opening_misprints`): they are not the store's yet, and nothing is
+rewritten. The rest passed the store's gate in the backfill's run of 2026-10-10 (hourly
+correlation 0.962–0.992, median 0.00 bp, about 1,100 shared hours) and is 910, 1,047 and
+1,040 hours from 2026-04-22; no stored bar changed.
+Rebuilt with it as of 2026-10-08 21:05: no reading in the new months, none outside the
+LME changed, and the LME's flagged readings since July go from three to one - nickel's
+2026-09-02 hour (6.3σ) and aluminium's 09-17 night (7.4σ) fall under 6σ against the
+fuller yardstick, aluminium's 09-10 hour stays (7.6σ → 6.2σ). All three were note rows;
+no push changed. Its half-year yardstick fills about 2026-10-22 instead of 2027-01.
+
+**Wallstreetcn on cocoa, cotton and the pairs**: a second voter for cocoa and cotton, a
+third for 16 pairs (it does not carry USD/KRW). Its quotes are its own: over 2026-04-22 to
+10-09 at most 2% of its closes equal the store's (EUR/USD 60 of 2,938, cocoa 2 of 996,
+cotton 5 of 2,120). Cocoa is 7.0 bp off at the median, hourly moves
+correlated 0.995; cotton 2.4 bp and 0.975. On 17 of cocoa's 100 days and 7 of cotton's 119
+it sits more than 50 bp off - its own changes of contract, which the vote treats as Sina's
+(`own_rolls`, `verify.switches`). The pairs, over the same months, are 0.8–3.4 bp off at
+the median, hourly moves correlated 0.92–0.98, but 0.23–0.81 for USD/TRY, USD/CNH, USD/NOK
+and USD/INR, whose quiet hours are mostly quote noise. Over the pairs' 168 readings at 4σ or
+more from 2026-07-12 to 10-10, it and Yahoo answered alike on 145 of the 146 where both had
+bars around the move; where Yahoo had none (22, all but one in the week's opening hours,
+Sunday 21:00 to Monday 01:00 UTC, of USD/CNH, USD/NOK, USD/TRY and USD/INR) it had bars on
+15. Replayed on the live store and record of
+2026-10-10 05:06, every reading inside its recount (9 days for the pairs, 79 for cocoa and
+cotton): it saw 39 of 40, all 8 of the softs', and one vote turns - USD/BRL 2026-10-05
+12:00, a pushed major, from real to uncertain: SiftingIO and MarketWatch put the fall after
+Brazil's election in B3's first hour, Yahoo and Wallstreetcn before its open. No reading
+is added, dropped or reworded.
 
 **Every coin is its USDT pair on Binance**: one exchange, one quote currency. Below a 2018
 seam, before USDT left the dollar, the record is the deepest dollar exchange passing the
@@ -516,12 +563,12 @@ it was taken and returned the one after (USD/TRY's history flipped four votes ev
 
 | instruments | verified against | why |
 |---|---|---|
-| FX pairs | Yahoo and MarketWatch | MarketWatch has every hour (Yahoo 21–72%), 0–0.6 bp off |
+| FX pairs | Yahoo, MarketWatch and Wallstreetcn (not USD/KRW) | MarketWatch has every hour (Yahoo 21–72%), 0–0.6 bp off; Wallstreetcn its own quotes, 0.8–3.4 bp off |
 | funds | Yahoo 30-minute, Sina 30-minute and MarketWatch hourly, but the fund's own, and Alpaca's consolidated tape | Sina matches the tape to 0.0 bp; every source of the class votes |
-| coffee, cocoa, cotton | Sina global futures | 0.2–2.2 bp off, hourly correlation 0.96–0.99 |
+| coffee, cocoa, cotton | Sina global futures; Wallstreetcn for cocoa and cotton | Sina 0.2–2.2 bp off, hourly correlation 0.96–0.99; Wallstreetcn 0.995 and 0.975 |
 | live cattle | MarketWatch continuous | hourly correlation 0.92 |
 | coins | Coinbase and Kraken | other exchanges' dollar pairs: hourly moves correlate 0.988–1.000 with Binance's (300 hours to 2026-09-25); a year of checks found 4 moves not seen, all Binance's own on 2025-10-10's liquidations |
-| LME metals | none | no independent free feed |
+| LME metals | Wallstreetcn | the only feed found that a runner reaches: 0 bp off at the median, hourly correlation 0.96–0.99, in part Sina's upstream |
 
 ---
 
@@ -538,7 +585,10 @@ is in this file. HF Data's client and its backfill modes (`deepen-etfs`, `probe-
 `fill-gaps`' second step) went on 2026-10-09: since 2026-10-03 it holds only its IEX
 segment, from 2022-03, so they reached nothing. The tape's fetch and the funds' first-bar mend
 (`tools/tape_bars.py`, `tools/tape_mend.py`, the backfill's `tape-bars` mode) went the same
-day, once the mend was live and 2023 on was measured.
+day, once the mend was live and 2023 on was measured; so did the Eastmoney probe
+(`tools/eastmoney_probe.py`, `eastmoney-probe`), its question answered (below, "Rejected"),
+and the Wallstreetcn probe (`tools/wallstreetcn_probe.py`, `wallstreetcn-probe`), once its
+bars were taken ("Wallstreetcn for the LME").
 
 **The open month lives on a release; a month enters git once, settled.** Git stores
 snapshots, so hourly commits into per-instrument files cost 124 MiB a year; replacing a
@@ -587,6 +637,7 @@ Measured or weighed, and not to be raised again.
 | Kitco, Shanghai tin, COMEX aluminium, WisdomTree metal ETCs | not the LME's market (hourly correlation ≤ 0.85, or thin) |
 | TradingView | ~6,300 bars without a login; its terms |
 | Investing.com, the LME, CNBC, Barchart, Boursorama, CME | refuse or forbid automated readers; not bypassed |
+| Eastmoney (东方财富) | carries the LME's three-month metals (109.LTNT, LNKT, LALT), but its bar servers refuse machines outside China: from the development machine and from a GitHub runner (2026-10-09) every hourly and daily request, for the metals, ICE cotton and SPY, was cut off or answered without data. Only its live quote and the day's last 1,999 trades reach, too little to rebuild an hour's bar for a recount |
 | DailyFX, Stooq | gone; login required |
 | Sina forex | six months of hourly bars |
 | Sina live cattle | quotes without volume, correlation 0.80 |
@@ -606,8 +657,19 @@ that day's mend of the funds' first bars; 903 MiB that morning), mostly
 superseded Parquet in history; GitHub warns at 1 GB. To act: a history rewrite, which force-pushes the live branch irreversibly.
 
 **Undocumented endpoints carry most of the basket** (Yahoo, Sina, Google Finance,
-MarketWatch). A changed shape raises and the health chat names the provider. To act: paid
+MarketWatch, Wallstreetcn). A changed shape raises and the health chat names the provider. To act: paid
 feeds.
+
+**What else Wallstreetcn carries**, hourly, about 170 days back, without volume (its rank
+lists, 2026-10-10), none of it in the basket: sugar (USYO.OTC), lean hogs (LHC.OTC), wheat,
+corn, soybeans and soybean oil (USZW, USZC, USZS, USZL), the LME's copper, lead and zinc
+(UKCA, UKPB, UKZS), 38 stock indices and index futures (US500, JP225, DE30, VIX, ...) and 52
+government bond yields (US10YR, DE10YR, JP10YR, ...). To add one: an entry in
+`config/basket.yaml` with its session, a fetch in `jump.backfill`, and its history -
+170 days from Wallstreetcn alone, so its half-year yardstick is young for its first months,
+with no other voter unless another feed carries it. A yield is a rate, not a price: its
+moves would have to be scored in basis points, not as returns, which the detector does not
+do.
 
 **History no free source reaches.**
 
@@ -616,5 +678,5 @@ feeds.
 | 55 US funds | 2016-01 | HF Data, Twelve Data, Alpaca's tape |
 | live cattle | 2024-05 | Yahoo (730 days), Dukascopy |
 | coffee, cocoa, cotton | 2018-01 | Dukascopy |
-| LME tin, nickel, aluminium | 2026-07 | Sina (last 1,023 bars) |
+| LME tin, nickel, aluminium | 2026-04-22 | Sina (last 1,023 bars), Wallstreetcn (about 170 days; taken), Eastmoney (refuses machines outside China) |
 | USD/BRL, USD/INR, USD/KRW | 2019-09 to 2020-01 | Twelve Data, Dukascopy, Sina forex |

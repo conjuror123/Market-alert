@@ -124,7 +124,7 @@ session_templates:
 #                outage of either leaves every block reporting;
 #   Google TUR; Sina the LME metals; Yahoo 4 futures; Binance the 16 coins;
 #   the vote     at most 40 sources a run across Yahoo, Sina, MarketWatch,
-#                Alpaca's tape, Coinbase and Kraken (jump.verify).
+#                Alpaca's tape, Wallstreetcn, Coinbase and Kraken (jump.verify).
 # Instruments whose market is shut are not asked
 # (jump.backfill.nothing_can_have_appeared).
 #
@@ -503,7 +503,8 @@ assets:
   # The LME's metals themselves - the ETNs (JJN, JJU, JJT) are delisted: the
   # three-month contract's traded hourly bars from Sina (price_monitor/sina.py),
   # in dollars a tonne, on LMEselect's hours. Sina serves only the last 1,023
-  # bars, so each record starts 2026-07. Ticks are the LME's.
+  # bars; below them, Wallstreetcn's from 2026-04-22
+  # (price_monitor/wallstreetcn.py). Ticks are the LME's.
   - ticker: SND
     source: sina
     block: industrial_metals

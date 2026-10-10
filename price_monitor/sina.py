@@ -4,9 +4,10 @@ THE LME METALS - tin (SND), nickel (NID), aluminium (AHD) - come from the chart
 endpoint behind Sina's global futures pages (gu.sina.cn GlobalService.getMink,
 type 60): the three-month contract's traded hourly bars, in dollars a tonne,
 with volume. Only the last 1,023 are served - about three months - and nothing
-older by any parameter tried, so each record starts 2026-07: the LME's own
-instrument over a longer record of another (docs/decisions.md, "Data and
-providers"). The bar that ended at :00 is served by :05. A few bars fall outside LMEselect's hours and are left
+older by any parameter tried, so Sina's part of each record starts 2026-07;
+below it, Wallstreetcn's from 2026-04-22 (price_monitor/wallstreetcn.py): the
+LME's own instrument over a longer record of another (docs/decisions.md, "Data
+and providers"). The bar that ended at :00 is served by :05. A few bars fall outside LMEselect's hours and are left
 to the session gate.
 
 THE BARS are labelled by their END, in Beijing time: the LME's first bar of a

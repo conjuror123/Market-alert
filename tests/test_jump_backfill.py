@@ -2045,3 +2045,88 @@ def test_a_removed_bar_does_not_fail_an_overlap_check():
     stored = bars.to_hourly(minutes)
     stored.loc[10, ["open", "high", "low", "close", "volume"]] = np.nan
     assert backfill.verify_alignment(minutes, stored)["ok"]
+
+
+# --- Wallstreetcn: the LME's metals below what is stored -----------------------
+
+def _nickel():
+    return Asset(ticker="NID", source="sina", block="industrial_metals", has_volume=True,
+                 tick_size=5.0, session_template="lme", fetch_interval="1h",
+                 label="Nickel (LME)", in_basket=True)
+
+
+def _lme_hours(first_day, days):
+    """The LME's hours, 01:00-19:00 London on weekdays, from `first_day`."""
+    from jump import sessions
+    start = int(datetime.combine(first_day, datetime.min.time(), tzinfo=timezone.utc).timestamp())
+    hours = pd.Series(range(start, start + days * 24 * HOUR, HOUR), dtype="int64")
+    return hours[sessions.hours_mask(hours, "lme").to_numpy()].tolist()
+
+
+def _lme_bars(hours, closes):
+    """Each bar opening at the last close."""
+    opens = [closes[0], *closes[:-1]]
+    return [Candle(open_time=h, open=o, high=max(o, c), low=min(o, c), close=c,
+                   volume=0.0, close_time=h + HOUR) for h, o, c in zip(hours, opens, closes)]
+
+
+def _session_firsts(hours):
+    return [i for i, h in enumerate(hours) if i and h - hours[i - 1] > 3 * HOUR]
+
+
+def test_wallstreetcn_fills_below_the_store_less_the_openings_gone_within_the_hour(
+        tmp_path, monkeypatch):
+    from jump import backfill
+    hours = _lme_hours(date(2026, 5, 11), 42)
+    closes = list(_walk(len(hours), 21, start=15000.0))
+    theirs = _lme_bars(hours, closes)
+    firsts = _session_firsts(hours)
+    # Below the store: one session opens 1.5% up and is back within the hour -
+    # a print off the market; another opens 1.5% up and stays - a real gap.
+    off, gap = firsts[1], firsts[3]
+    o = theirs[off].open * 1.015
+    theirs[off] = Candle(open_time=hours[off], open=o, high=o, low=theirs[off].close,
+                         close=theirs[off].close, volume=0.0, close_time=hours[off] + HOUR)
+    for i in range(gap, len(theirs)):
+        b = theirs[i]
+        theirs[i] = Candle(b.open_time, b.open * 1.015, b.high * 1.015, b.low * 1.015,
+                           b.close * 1.015, 0.0, b.close_time)
+    theirs[gap] = Candle(hours[gap], theirs[gap - 1].close * 1.015, theirs[gap].high,
+                         theirs[gap].low, theirs[gap].close, 0.0, hours[gap] + HOUR)
+    # And a bar outside LMEselect's hours.
+    late = hours[firsts[2] - 1] + HOUR
+    theirs.insert(firsts[2], Candle(late, closes[0], closes[0], closes[0], closes[0], 0.0,
+                                    late + HOUR))
+    split = firsts[15]
+    path = str(tmp_path / "sina_NID")
+    bars.merge(path, bars.to_hourly(bars.candles_to_frame(
+        [c for c in theirs if c.open_time >= hours[split]])))
+    before = bars.load(path)
+    monkeypatch.setattr(backfill.wallstreetcn, "fetch_hourly", lambda *a, **k: theirs)
+
+    out = backfill.deepen_from_wallstreetcn(_nickel(), path, None)
+
+    assert out["skipped"] is None and out["check"]["ok"]
+    after = bars.load(path)
+    got = set(after["hour_utc"])
+    assert hours[off] not in got and late not in got
+    assert hours[gap] in got and hours[0] in got
+    assert out["added"] == split - 1 and out["left_out"] == [
+        f"{datetime.fromtimestamp(hours[off], timezone.utc):%Y-%m-%d %H:%M}"]
+    kept = before.merge(after, on="hour_utc", suffixes=("_b", "_a"))
+    assert len(kept) == len(before) and (kept["close_b"] == kept["close_a"]).all()
+
+
+def test_wallstreetcn_off_the_stores_level_writes_nothing(tmp_path, monkeypatch):
+    from jump import backfill
+    hours = _lme_hours(date(2026, 5, 11), 42)
+    closes = list(_walk(len(hours), 22, start=15000.0))
+    path = str(tmp_path / "sina_NID")
+    bars.merge(path, bars.to_hourly(bars.candles_to_frame(_lme_bars(hours[300:], closes[300:]))))
+    before = len(bars.load(path))
+    monkeypatch.setattr(backfill.wallstreetcn, "fetch_hourly",
+                        lambda *a, **k: _lme_bars(hours, [c * 1.01 for c in closes]))
+    out = backfill.deepen_from_wallstreetcn(_nickel(), path, None)
+    assert out["added"] == 0 and "median level gap" in out["skipped"]
+    assert len(bars.load(path)) == before
+    assert backfill.deepen_from_wallstreetcn(asset(), path, None)["skipped"] == "not an LME metal"
