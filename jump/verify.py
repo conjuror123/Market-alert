@@ -27,10 +27,11 @@ Sina's half-hour bars and MarketWatch's hourly ones, and Alpaca's consolidated
 tape (Alpaca_SIP), fifteen minutes behind - asked once it serves the move's
 hour whole (Source.delay). Coffee, cocoa and cotton: Sina's global futures
 (SINA_FUTURES), and Wallstreetcn's cocoa and cotton. Live cattle:
-MarketWatch's continuous contract. The coins, served by Binance, whose prices are its own trades: Coinbase's and
-Kraken's dollar pairs - a wick on one exchange is real there and not the
-market's. The LME's metals, served by Sina: Wallstreetcn's hourly bars. Two
-vendors printing the same bars agree: each is a voice.
+MarketWatch's continuous contract. The coins, served by Binance, whose prices
+are its own trades: Coinbase's and Kraken's dollar pairs - a wick on one
+exchange is real there and not the market's. The LME's metals, served by
+Sina: Wallstreetcn's hourly bars. Two vendors printing the same bars agree:
+each is a voice.
 
 THE VOTE (judge_all, combine) is taken with what the sources serve when it is
 taken: a source that has not shown the move yet counts against, until the
@@ -68,8 +69,8 @@ close, 00:00 UTC for coins and pairs) - its own provider re-read first
 sources no longer serves its hour (recount_days: nine days for the funds,
 pairs and cattle, 29 for the coins, 79 for the softs and the LME); after that
 the further ones would vote alone, and the vote stands. A source that corrects
-its bars turns the vote back; a bar that heals into no far move loses its vote. A move
-not real is kept for good, because the detector rescores the whole history
+its bars turns the vote back; a bar that heals into no far move loses its vote.
+A move not real is kept for good, because the detector rescores the whole history
 every run; the rest go after KEEP_DAYS. A record from before the vote reads in
 its words (_BEFORE_THE_VOTE).
 
@@ -221,7 +222,8 @@ SOURCES: "dict[str, tuple[Source, ...]]" = {
         Source("yahoo", "Yahoo", 729, "1h", lambda a: _pair(a) + "=X"),
         Source("marketwatch", "MarketWatch", 9, "1h",
                lambda a: "CURRENCY/US/XTUP/" + _pair(a)),
-        Source("wallstreetcn", "Wallstreetcn", 170, "1h", lambda a: wallstreetcn.pair_code(a.ticker)),
+        Source("wallstreetcn", "Wallstreetcn", 170, "1h",
+               lambda a: wallstreetcn.pair_code(a.ticker)),
     ),
     "us_equity": (
         Source("yahoo", "Yahoo", 59, "30min", lambda a: a.ticker),
@@ -235,8 +237,8 @@ SOURCES: "dict[str, tuple[Source, ...]]" = {
     ),
     "softs": (
         Source("sina", "Sina", 79, "1h", lambda a: SINA_FUTURES.get(a.ticker), own_rolls=True),
-        Source("wallstreetcn", "Wallstreetcn", 170, "1h", lambda a: wallstreetcn.SOFTS.get(a.ticker),
-               own_rolls=True),
+        Source("wallstreetcn", "Wallstreetcn", 170, "1h",
+               lambda a: wallstreetcn.SOFTS.get(a.ticker), own_rolls=True),
     ),
     "cme_cattle": (
         Source("marketwatch", "MarketWatch", 9, "1h", lambda a: MARKETWATCH_CATTLE),

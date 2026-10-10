@@ -255,15 +255,17 @@ no push changed. Its half-year yardstick fills about 2026-10-22 instead of 2027-
 
 **Wallstreetcn on cocoa, cotton and the pairs**: a second voter for cocoa and cotton, a
 third for 16 pairs (it does not carry USD/KRW). Its quotes are its own: over 2026-04-22 to
-10-09 none of its closes is the store's. Cocoa is 7.0 bp off at the median, hourly moves
+10-09 at most 2% of its closes equal the store's (EUR/USD 60 of 2,938, cocoa 2 of 996,
+cotton 5 of 2,120). Cocoa is 7.0 bp off at the median, hourly moves
 correlated 0.995; cotton 2.4 bp and 0.975. On 17 of cocoa's 100 days and 7 of cotton's 119
 it sits more than 50 bp off - its own changes of contract, which the vote treats as Sina's
-(`own_rolls`, `verify.switches`). The pairs, 2026-04-22 to 10-06, are 1–3 bp off at the
-median, hourly moves correlated 0.92–0.98, but 0.23–0.81 for USD/TRY, USD/CNH, USD/NOK and
-USD/INR, whose quiet hours are mostly quote noise. Over the pairs' 168 readings at 4σ or
+(`own_rolls`, `verify.switches`). The pairs, over the same months, are 0.8–3.4 bp off at
+the median, hourly moves correlated 0.92–0.98, but 0.23–0.81 for USD/TRY, USD/CNH, USD/NOK
+and USD/INR, whose quiet hours are mostly quote noise. Over the pairs' 168 readings at 4σ or
 more from 2026-07-12 to 10-10, it and Yahoo answered alike on 145 of the 146 where both had
-bars around the move; where Yahoo had none (22, mostly Sunday opens and quiet hours of
-USD/CNH, USD/NOK and USD/TRY) it had bars on 15. Replayed on the live store and record of
+bars around the move; where Yahoo had none (22, all but one in the week's opening hours,
+Sunday 21:00 to Monday 01:00 UTC, of USD/CNH, USD/NOK, USD/TRY and USD/INR) it had bars on
+15. Replayed on the live store and record of
 2026-10-10 05:06, every reading inside its recount (9 days for the pairs, 79 for cocoa and
 cotton): it saw 39 of 40, all 8 of the softs', and one vote turns - USD/BRL 2026-10-05
 12:00, a pushed major, from real to uncertain: SiftingIO and MarketWatch put the fall after
@@ -561,7 +563,7 @@ it was taken and returned the one after (USD/TRY's history flipped four votes ev
 
 | instruments | verified against | why |
 |---|---|---|
-| FX pairs | Yahoo, MarketWatch and Wallstreetcn (not USD/KRW) | MarketWatch has every hour (Yahoo 21–72%), 0–0.6 bp off; Wallstreetcn its own quotes, 1–3 bp off |
+| FX pairs | Yahoo, MarketWatch and Wallstreetcn (not USD/KRW) | MarketWatch has every hour (Yahoo 21–72%), 0–0.6 bp off; Wallstreetcn its own quotes, 0.8–3.4 bp off |
 | funds | Yahoo 30-minute, Sina 30-minute and MarketWatch hourly, but the fund's own, and Alpaca's consolidated tape | Sina matches the tape to 0.0 bp; every source of the class votes |
 | coffee, cocoa, cotton | Sina global futures; Wallstreetcn for cocoa and cotton | Sina 0.2–2.2 bp off, hourly correlation 0.96–0.99; Wallstreetcn 0.995 and 0.975 |
 | live cattle | MarketWatch continuous | hourly correlation 0.92 |

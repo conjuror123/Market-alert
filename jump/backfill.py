@@ -22,9 +22,9 @@ THE DEEPENING MODES (--extend-history, --deepen-alpaca, --deepen-dukascopy,
 --deepen-wallstreetcn, --fill-gaps) reach back past what the live providers
 serve, and are routed to `source` rather than `provider`: Yahoo serves 59 days
 of half-hourly bars and Tiingo caps a response at 10000 rows, so only the
-archive provider can answer a walk backwards. An import from another source is gated on agreeing with the
-bars already stored (see verify_alignment), so a series on a different
-adjustment basis is refused rather than spliced.
+archive provider can answer a walk backwards. An import from another source is
+gated on agreeing with the bars already stored (see verify_alignment), so a
+series on a different adjustment basis is refused rather than spliced.
 """
 from __future__ import annotations
 
