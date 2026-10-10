@@ -36,13 +36,13 @@ From the sources below, five ideas:
 5. **Each market in its own hours**: a price that trades round the clock, or in Tokyo's
    or London's day, is watched there, not through a New York fund.
 
-## The basket (version 4, the user's answers of 2026-10-10)
+## The basket (version 5, the user's answers of 2026-10-10)
 
 | group | what it tells | instruments |
 |---|---|---|
 | stock indices, each in its own hours | how each region feels, as it happens | ASX 200, Nikkei 225, KOSPI, TAIEX, CSI 300, Hang Seng, Nifty 50; Euro Stoxx 50, FTSE 100, SMI; BIST 100, Tadawul, JSE Top 40; S&P 500 (SPY), Russell 2000 (IWM), TSX, Bovespa, IPC (18; 16 new) |
 | US sectors | what leads the biggest market | tech, financials, energy, health care (XLK, XLF, XLE, XLV) (4) |
-| the price of money | the Fed; inflation; trust in debt | 2-, 10- and 30-year Treasury futures, read by contract (new); TIP (4) |
+| the price of money | the Fed; inflation; trust in debt; Europe's, Japan's and Britain's own | 2-, 10- and 30-year Treasury futures, read by contract (new); TIP; Germany's, Japan's and Britain's 10-year bonds - Bund, JGB, gilt (new) (7) |
 | credit | do lenders still trust borrowers? | LQD, HYG, EMB (3) |
 | currencies | where money runs | EUR/USD, USD/JPY, GBP/USD, AUD/USD, USD/CAD, USD/CHF, USD/CNH (7) |
 | energy | inflation and war | Brent futures, read by contract (new); UNG; Europe's gas, TTF (new) (3) |
@@ -50,7 +50,7 @@ From the sources below, five ideas:
 | food | weather, harvests, prices | corn, wheat, soybeans and sugar futures (new, for CORN, WEAT, SOYB, CANE); coffee, cocoa, cotton, live cattle (8) |
 | crypto | risk appetite, every hour | Bitcoin, Ethereum, Solana, XRP (4) |
 
-59 instruments: 30 of today's, and 29 new. VIX stays as it is today, the daily line on the
+62 instruments: 30 of today's, and 32 new. VIX stays as it is today, the daily line on the
 weekly note, not an hourly instrument.
 
 The 142 of today's that go:
@@ -105,17 +105,26 @@ Each was the proposal's own critique, measured where it could be.
 instrument (confirmed); of the US sectors and industries only tech, financials, energy and
 health care stay - SMH, KRE, XBI, ITB and IYT go.
 
+**Round 4** (on version 4, 2026-10-10): the Bund, the JGB and the gilt added, for the gap
+the proposal named: no bonds outside the US, though Britain's gilt crisis (2022) and
+Japan's rising yields (since 2024) were among the largest stories of recent years. Left
+open: bringing back the emerging-market pairs (the lira first), offered for the local
+indices' blind spot - an index in local money can hide its currency's crash.
+
 Version 1's trim alone (the 86 of today's that it kept, nothing added) moved the year to
-2026-10-05 from 247 pushes to 135. Versions 2 to 4 are not measured.
+2026-10-05 from 247 pushes to 135. Versions 2 to 5 are not measured.
 
 ## Still to do
 
-- **Sources** for the 29 new instruments, each with voters (to be worked out with the
+- **Sources** for the 32 new instruments, each with voters (to be worked out with the
   user). Seen on 2026-10-10: Yahoo serves about three years of hourly bars for the indices
   it was asked for (from late 2023) and TTF from 2024-05, without volume, each on its own
   minute (:00, :30, Nifty :45). `exchange_calendars`, which builds the NYSE and B3 tables,
   has all 16 exchanges abroad.
-- **The measured before/after** of version 4, for the user's go.
+- **How the three foreign bonds are read**: as their futures (Eurex's Bund, Osaka's JGB,
+  ICE's long gilt), prices scored as any other; or as yields, once the detector scores a
+  move in basis points rather than as a return, which it does not today.
+- **The measured before/after** of version 5, for the user's go.
 - **The standing risk**: undocumented endpoints carry most of it, as they do today.
 
 ## Sources
