@@ -664,6 +664,10 @@ Measured or weighed, and not to be raised again.
 | TradingView | ~6,300 bars without a login; its terms |
 | Investing.com, the LME, CNBC, Barchart, Boursorama, CME | refuse or forbid automated readers; not bypassed |
 | Eastmoney (东方财富) | carries the LME's three-month metals (109.LTNT, LNKT, LALT), but its bar servers refuse machines outside China: from the development machine and from a GitHub runner (2026-10-09) every hourly and daily request, for the metals, ICE cotton and SPY, was cut off or answered without data. Only its live quote and the day's last 1,999 trades reach, too little to rebuild an hour's bar for a recount |
+| cngold (金投网) | carries the LME's three-month tin, nickel and aluminium (伦锡电3, 伦镍电3, 伦铝电3: IXLESND3M, IXLENID3M, IXLEAHD3M), with what look like volume and open interest, but its data host (api.jijinhao.com) answers only requests that come from its own pages: asked as ourselves, its quotes and its bars alike are refused (HTTP 666, 2026-10-10); not bypassed |
+| cnyes (鉅亨網) | carries the LME's three-month metals (TN3M, ND3M, AD3M), in daily, weekly and monthly bars only (2026-10-10) |
+| SMM (metal.com) | its LME page fills its prices in the browser, and none of the 49 scripts the page names holds an endpoint for them (2026-10-10) |
+| Xueqiu (雪球) | an anti-bot challenge before any page; not bypassed |
 | DailyFX, Stooq | gone; login required |
 | Sina forex | six months of hourly bars |
 | Sina live cattle | quotes without volume, correlation 0.80 |
