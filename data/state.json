@@ -1,17 +1,56 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1791598002
+    "last_run_utc": 1791601610
   },
   "floor_pending_replies": [],
   "jump_delivery": {
     "week": {
       "detector": "83904489c68a",
-      "events": {},
-      "messages": {},
+      "events": {
+        "binance:FIL/USDT|1791601200": {
+          "asset": "binance:FIL/USDT",
+          "body": "\u2b1c <b>FIL/USDT</b> \u00b7 Filecoin +6.46% \u00b7 6.9\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1791597600,
+          "members": {
+            "jump:binance:FIL/USDT:hour:1791597600": [
+              0.06464142473414271,
+              0.009338239937359168
+            ]
+          },
+          "message": 99,
+          "peak": "jump:binance:FIL/USDT:hour:1791597600",
+          "seen": 1791601610,
+          "shown": [
+            "noticeable",
+            6.9,
+            1791597600,
+            6.46
+          ],
+          "size": 6.9222278681803875,
+          "start": 1791601200,
+          "story": [
+            [
+              "noticeable",
+              6.9,
+              1791597600,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        }
+      },
+      "messages": {
+        "99": {
+          "first": "\u2b1c <b>FIL/USDT</b> \u00b7 Filecoin +6.46% \u00b7 6.9\u00d7\u03c3",
+          "hash": "3fb15ff11a806c19"
+        }
+      },
       "note": {
         "hashes": [
-          "641d8dabd4a85d1a"
+          "53c080bf07c9d51a"
         ],
         "ids": [
           98
