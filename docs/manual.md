@@ -258,9 +258,10 @@ offset is not a move.
 - **Did not:** it did not move with it, or has not yet - the vote is taken with what the
   source serves at the time, and the next count looks again.
 - **Outage:** the source is down, has no bar after the move yet, or is silent for 12 hours
-  around it. For the softs, also a move whose span crosses Sina's own change of contract
-  (`verify.switches`: a session whose median offset to the store stepped by 50 bp or
-  more), where Sina's move carries the spread between two months.
+  around it. For the softs, also a move whose span crosses the source's own change of
+  contract - Sina's, or Wallstreetcn's for cocoa and cotton (`verify.switches`: a session
+  whose median offset to the store stepped by 50 bp or more) - where its move carries the
+  spread between two months.
 
 **The vote** (`combine`, `judge_all`). The store's provider is one vote that saw it;
 each other source that answers is one vote. One that cannot - an outage - is left out of
