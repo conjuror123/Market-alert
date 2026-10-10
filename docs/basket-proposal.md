@@ -107,12 +107,51 @@ health care stay - SMH, KRE, XBI, ITB and IYT go.
 
 **Round 4** (on version 4, 2026-10-10): the Bund, the JGB and the gilt added, for the gap
 the proposal named: no bonds outside the US, though Britain's gilt crisis (2022) and
-Japan's rising yields (since 2024) were among the largest stories of recent years. Left
-open: bringing back the emerging-market pairs (the lira first), offered for the local
-indices' blind spot - an index in local money can hide its currency's crash.
+Japan's rising yields (since 2024) were among the largest stories of recent years. Not
+taken: bringing back the emerging-market pairs (the lira first), offered for the local
+indices' blind spot - an index in local money can hide its currency's crash. The user's:
+the Turkish index carries Turkey.
 
 Version 1's trim alone (the 86 of today's that it kept, nothing added) moved the year to
-2026-10-05 from 247 pushes to 135. Versions 2 to 5 are not measured.
+2026-10-05 from 247 pushes to 135.
+
+## Version 5, measured (2026-10-10)
+
+**The 30 it keeps**, from the stored events - exact:
+
+| year to | today's 172: pushes | the 30 kept: pushes | of them, the 7 pairs and 4 coins |
+|---|---|---|---|
+| 2026-10-05 | 247 | 52 | 22 and 20 |
+| 2025-10-05 | 421 | 95 | - |
+
+**The 16 new indices**, from Yahoo's hourly bars - rough. A rough copy of the detector:
+bipower σ over the 182.6 days before, hours against hours and the night (with its first
+hour, since an index's first open on Yahoo can sit at the last close) against nights,
+one event per 24 hours, a push at 8.5σ; no vote, no held check. Checked on 16 funds the
+store holds (SPY, IWM, four sectors, ten country funds): 61 events and 13 pushes to the
+store's 62 and 15 in the year to 2026-10-05; 61 and 25 to 81 and 29 in the year before,
+so an undercount in a stormy year.
+
+| year to | events | pushes | the loudest |
+|---|---|---|---|
+| 2026-10-05 | 36 | 8 | BIST 100 (5 events, 3 pushes), KOSPI (5, 0) |
+| 2025-10-05 | 52 | 26 | BIST 100 (7, 4); Euro Stoxx 50, Tadawul, TSX (3 pushes each) |
+
+The Hang Seng had no event in the year to 2026-10-05: its largest hour reached 5.6σ.
+
+**Not measured**: the other 16 new instruments - the Treasury, Bund, JGB, gilt, Brent,
+TTF, grain and sugar futures, the three metals round the clock, LME copper - until their
+sources are chosen.
+
+So in all, before those 16: about 60 pushes in the year to 2026-10-05 against today's
+247, and about 120 or more in the year before against 421 - a quarter of today's.
+
+**The lira** (the user's no, round 4). The proposal said a lira crash could leave the
+Turkish index flat or even up. In the one lira crash within Yahoo's hourly reach,
+2025-03-19 (USD/TRY +5.7% in an hour, 95σ), BIST 100 fell 10.1% over two days, its
+hours down to 11.5σ: it would have pushed. The proposal's claim was wrong for it. Yahoo's
+USD/TRY otherwise flags on the lira's managed crawl: most of its other 6σ hours are a
+0.3-0.4% tick and its reversal the hour after.
 
 ## Still to do
 
