@@ -1955,12 +1955,13 @@ def test_an_instrument_yahoo_keeps_refusing_is_named_when_it_falls_behind(
      "the vote failed (bad shard): this hour's far moves are scored unvoted"),
     ({"stopped": ["marketwatch"]},
      "marketwatch stopped for the run (a rate limit, or no answer twice in a row): an "
-     "outage in the vote, counted against the moves it is asked about until a later count"),
+     "outage in the vote, left out of the count of the moves it is asked about until a "
+     "later count"),
 ])
 def test_a_vote_that_failed_or_a_stopped_source_is_named(tmp_path, monkeypatch,
                                                          outcome, words):
-    # Under the vote a stopped source is an outage, a vote against; nothing is
-    # "judged by the other source" any more.
+    # Under the vote a stopped source is an outage, left out of the count; nothing
+    # is "judged by the other source" any more.
     from jump import backfill
 
     alerts = []

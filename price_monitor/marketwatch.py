@@ -18,8 +18,8 @@ AND THE STANDING RISK. An undocumented endpoint that wants the access token
 MarketWatch's own pages send with every chart: public, in their page, not a
 secret of this project. Reading it from a script sits in the same grey area as
 Google Finance's page (price_monitor/google.py). Should it change or close, it
-is an outage in every vote it is in, a vote against: live cattle's moves, with
-no other source, would all be ties.
+is an outage in every vote it is in, left out of the count: live cattle is
+voted by the FT alone.
 """
 from __future__ import annotations
 
