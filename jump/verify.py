@@ -3,12 +3,14 @@
 A REAL TRADE SHOWS UP ON OTHER FEEDS; A SOURCE'S BAD PRINT DOES NOT. So every
 bar that moved far is put to every other source that carries the instrument,
 right after the hourly fetch and before anything is scored. The store's own
-provider is one vote that saw it; each other source is one vote, and one that
-is down or has no bars around the move - an outage - is a vote against:
+provider is one vote that saw it; each other source that can answer is one
+vote, and one that is down or has no bars around the move - an outage - is
+left out of the count, and named:
 
     most saw it       real          scored, nothing said
     a tie             uncertain     scored, `⚠️ Yahoo(-2.50%), Alpaca(-2.50%), Sina(outage), MarketWatch(-0.50%)`
     most did not      not real      not scored, `❌ Binance(+2.03%), Coinbase(-0.10%), Kraken(-0.10%)`
+    none could tell   uncertain     scored, `⚠️ SiftingIO(+2.10%), Yahoo(outage), MarketWatch(outage)`
 
 A MOVE NOT REAL IS NOT SCORED, AND NOTHING IS DELETED. The detector leaves its
 reading out - not flagged, and not in any yardstick (jump.jumps) - but its bar
@@ -37,8 +39,9 @@ THE VOTE (judge_all, combine) is taken with what the sources serve when it is
 taken: a source that has not shown the move yet counts against, until the
 next count. A source with bars around the move outweighs one that only
 bridges it: the bridging one is an outage. Every source of an instrument is
-asked, or none that run (MAX_REQUESTS): one not asked would count against.
-With every other source down, the move is not real until they are back.
+asked, or none that run (MAX_REQUESTS): a vote of all of them, not of
+whichever were asked. With every other source down, the move is uncertain
+until a count after they are back.
 
 WHICH BARS (candidates). The detector's own readings, ended within the
 instrument's recount (recount_days), at CANDIDATE_SIGMA (or the detector's bottom level, if set lower)
@@ -130,8 +133,8 @@ REAL, UNCERTAIN, NOT_REAL = "real", "uncertain", "not_real"
 OVERNIGHT = "overnight"
 KEPT = (NOT_REAL, OVERNIGHT)
 # A record written before the vote: its confirmed is real, and its
-# unconfirmed not real. Its unknown - no other source had bars - is counted as
-# the vote counts outages (load).
+# unconfirmed not real. Its unknown - no other source had bars - reads as the
+# vote counted outages until 2026-10-10, against the move (load): history stands.
 _BEFORE_THE_VOTE = {CONFIRMED: REAL, UNCONFIRMED: NOT_REAL}
 CLOSE, OPEN = "close", "open"     # the check: the hour's reading, or the gap's
 
@@ -174,7 +177,7 @@ class Source:
     future that changes contract on its own days; `delay`, seconds it serves
     behind the clock - it is not asked about a move it cannot serve whole
     yet, and joins the next count; `keys`, the secrets it needs - without
-    them it is no voter at all, rather than an outage voting no."""
+    them it is no voter at all, rather than an outage named on every vote."""
     name: str
     label: str
     days: float
@@ -565,14 +568,18 @@ def _count(yes: int, no: int) -> str:
 def combine(verdicts: "list[tuple[str, str, float, float]]") -> "tuple[str, float, list, list, list]":
     """The vote on one move, from every source asked, each (name, answer,
     stored move, its move). The stored provider is one vote that saw it; a
-    source that confirmed it is another; every other answer is a vote
-    against - it did not move with it, has not yet, or had no bars around it
-    (an outage). Most saw it: real; a tie: uncertain; most did not: not real.
-    Returns (result, stored move, the sources, their moves - None for an
-    outage -, those that saw it)."""
+    source that confirmed it is another; one that did not move with it, or
+    has not yet, is a vote against. A source with nothing to show - down, no
+    bars around the move, across its own change of contract: an outage - is
+    left out of the count, and still named. Most saw it: real; a tie:
+    uncertain; most did not: not real. With every source asked out, nobody
+    could check it: uncertain. Returns (result, stored move, the sources,
+    their moves - None for an outage -, those that saw it)."""
     stored = verdicts[0][2] if verdicts else 0.0
     seen = [v[0] for v in verdicts if v[1] == CONFIRMED]
-    result = _count(1 + len(seen), len(verdicts) - len(seen))
+    answered = [v for v in verdicts if v[1] != UNKNOWN]
+    result = (UNCERTAIN if verdicts and not answered
+              else _count(1 + len(seen), len(answered) - len(seen)))
     return (result, stored, [v[0] for v in verdicts],
             [None if v[1] == UNKNOWN else v[3] for v in verdicts], seen)
 
@@ -612,7 +619,7 @@ def overnight_move(c: dict, asked: "list[tuple[str, pd.DataFrame | None]]"
                    ) -> "tuple[list, list] | None":
     """A session's first hour most feeds did not see move - but did most see
     the move from the previous session's close to this bar's close, the
-    store one of them and an outage against? Then it happened overnight: the
+    store one of them and an outage left out? Then it happened overnight: the
     store's first print was a stale one at the old price (TLH 2020-03-09:
     gap +0.03%, first hour +3.8%; the tape opened +4.65%). Returns the names
     of the feeds that saw it and each one's night - its open of the hour over
@@ -779,10 +786,10 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
         # From before the earliest bar a move starts at: a Monday gap starts at
         # Friday's close.
         days = (now_ts - min(c["prev_hour"] for c in found)) / 86400 + 1
-        # Every source is asked, or none this run: a source not asked would
-        # count as an outage. One that is stopped, or fails, is one (None). A
-        # source whose delay keeps it from serving any of the moves whole is
-        # not asked, and joins the next count.
+        # Every source is asked, or none this run: a vote of all of them, not
+        # of whichever were asked. One that is stopped, or fails, is an outage
+        # (None), left out of the count. A source whose delay keeps it from
+        # serving any of the moves whole is not asked, and joins the next count.
         sources = [src for src in sources_for(asset)
                    if any(src.serves(c, now_ts) for c in found)]
         if requests_left < sum(src.name not in blocked for src in sources):

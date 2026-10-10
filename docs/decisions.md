@@ -365,12 +365,18 @@ Binance(+2.03%), Coinbase(-0.10%), Kraken(-0.10%)` for a move not real, `⚠️ 
 Alpaca(-2.50%), Sina(outage), MarketWatch(-0.50%)` for a tie; a real move, or one no
 other source carries, says nothing. The numbers let a reader weigh it without a key.
 
-**An outage counts against the move** (the user's choice, 2026-10-08). A source with
-nothing to show about a move - down, no bars around it, or across its own change of
-contract - is a vote that did not see it. A bad print is not saved by the sources that
-could not see it; the cost is that a move is not real while most of its class's sources
-are down, until a count after they are back. Over the 30 days to 2026-10-08, inside each
-instrument's recount, no vote changed by it: no source was down in the bars cached.
+**An outage is left out of the count** (the user's choice, 2026-10-10; from 2026-10-08 it
+counted against the move). A source with nothing to show about a move - down, no bars
+around it, no bar after it yet, or across its own change of contract - says nothing
+either way: it is left out, and still named on the line, `Sina(outage)`. Counted against,
+one source down turns a clear vote into a tie (a pair's two to one into two to two), and
+the more sources an instrument has, the more often one is down. When none can answer,
+nobody could check the move: it is uncertain - scored and alerted, every source
+`(outage)` on the line - neither the store's word alone nor held back, and the next count
+after they are back decides. On the record of 2026-10-10 07:06 no verdict changes: of
+the 301 votes the old rule reproduces, 3 had an outage - single-voter USD/INR votes of
+2026-10-04's check, uncertain either way. A record from before the vote still reads its
+unknowns as they were counted then.
 
 **A vote is taken with what the sources serve at the time.** No waiting for a source's
 next hour: one that has not shown the move yet counts against until the next count, at
