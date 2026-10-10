@@ -36,12 +36,12 @@ From the sources below, five ideas:
 5. **Each market in its own hours**: a price that trades round the clock, or in Tokyo's
    or London's day, is watched there, not through a New York fund.
 
-## The basket (version 3, the user's answers of 2026-10-10)
+## The basket (version 4, the user's answers of 2026-10-10)
 
 | group | what it tells | instruments |
 |---|---|---|
 | stock indices, each in its own hours | how each region feels, as it happens | ASX 200, Nikkei 225, KOSPI, TAIEX, CSI 300, Hang Seng, Nifty 50; Euro Stoxx 50, FTSE 100, SMI; BIST 100, Tadawul, JSE Top 40; S&P 500 (SPY), Russell 2000 (IWM), TSX, Bovespa, IPC (18; 16 new) |
-| US sectors and industries | what leads the biggest market | tech, financials, energy, health care (XLK, XLF, XLE, XLV); semiconductors, regional banks, biotech, homebuilders, transports (SMH, KRE, XBI, ITB, IYT) (9) |
+| US sectors | what leads the biggest market | tech, financials, energy, health care (XLK, XLF, XLE, XLV) (4) |
 | the price of money | the Fed; inflation; trust in debt | 2-, 10- and 30-year Treasury futures, read by contract (new); TIP (4) |
 | credit | do lenders still trust borrowers? | LQD, HYG, EMB (3) |
 | currencies | where money runs | EUR/USD, USD/JPY, GBP/USD, AUD/USD, USD/CAD, USD/CHF, USD/CNH (7) |
@@ -50,14 +50,14 @@ From the sources below, five ideas:
 | food | weather, harvests, prices | corn, wheat, soybeans and sugar futures (new, for CORN, WEAT, SOYB, CANE); coffee, cocoa, cotton, live cattle (8) |
 | crypto | risk appetite, every hour | Bitcoin, Ethereum, Solana, XRP (4) |
 
-64 instruments: 35 of today's, and 29 new. VIX stays as it is today, the daily line on the
+59 instruments: 30 of today's, and 29 new. VIX stays as it is today, the daily line on the
 weekly note, not an hourly instrument.
 
-The 137 of today's that go:
+The 142 of today's that go:
 
 | block | out |
 |---|---|
-| equity (50) | XLY, XLP, XLI, XLB, XLU, XLRE, XLC, QQQ, DIA, RSP, MDY, XRT, XME, XPH, IHI, VDC, VHT, VPU, SOXX, IGV, FDN, CIBR, SKYY; the country and region funds EFA, EEM, EWJ, EWG, EWU, EWQ, EWC, EWA, EWL, EWN, EZU, FXI, EWZ, EWW, INDA, EPI, EWY, EWT, EZA, TUR; real estate VNQ, IYR, RWR, SCHH, REM, VNQI, RWX |
+| equity (55) | XLY, XLP, XLI, XLB, XLU, XLRE, XLC, SMH, KRE, XBI, ITB, IYT, QQQ, DIA, RSP, MDY, XRT, XME, XPH, IHI, VDC, VHT, VPU, SOXX, IGV, FDN, CIBR, SKYY; the country and region funds EFA, EEM, EWJ, EWG, EWU, EWQ, EWC, EWA, EWL, EWN, EZU, FXI, EWZ, EWW, INDA, EPI, EWY, EWT, EZA, TUR; real estate VNQ, IYR, RWR, SCHH, REM, VNQI, RWX |
 | rates (19) | SHY, IEF, TLT, IEI, TLH, MBB, GOVT, SCHO, VGIT, VGLT, SPTL, BWX, VTIP, SCHP, STIP, VMBS, SPMB, LMBS, JMBS |
 | credit (23) | EMLC, JNK, BKLN, PFF, VCIT, VCSH, IGIB, SPIB, USIG, QLTA, GIGB, SLQD, SHYG, USHY, ANGL, SRLN, FALN, VWOB, PCY, EBND, LEMB, EMHY, CEMB |
 | energy (6) | USO, BNO, UGA, DBO, DBE, UNL |
@@ -101,8 +101,12 @@ Each was the proposal's own critique, measured where it could be.
 | 8 | iron ore | no |
 | 9 | Saudi Arabia's index | yes, with the index list above: Tadawul, JSE Top 40 and SMI added (the user's) |
 
+**Round 3** (on version 3, 2026-10-10): VIX stays the note's daily line, not an hourly
+instrument (confirmed); of the US sectors and industries only tech, financials, energy and
+health care stay - SMH, KRE, XBI, ITB and IYT go.
+
 Version 1's trim alone (the 86 of today's that it kept, nothing added) moved the year to
-2026-10-05 from 247 pushes to 135. Versions 2 and 3 are not measured.
+2026-10-05 from 247 pushes to 135. Versions 2 to 4 are not measured.
 
 ## Still to do
 
@@ -111,7 +115,7 @@ Version 1's trim alone (the 86 of today's that it kept, nothing added) moved the
   it was asked for (from late 2023) and TTF from 2024-05, without volume, each on its own
   minute (:00, :30, Nifty :45). `exchange_calendars`, which builds the NYSE and B3 tables,
   has all 16 exchanges abroad.
-- **The measured before/after** of version 3, for the user's go.
+- **The measured before/after** of version 4, for the user's go.
 - **The standing risk**: undocumented endpoints carry most of it, as they do today.
 
 ## Sources
