@@ -223,7 +223,8 @@ correlated 0.54–0.63 with the futures) and dropping cattle. Its old import is 
 re-run: under this roll most of every cycle reads as Yahoo lagging and would be a hole.
 
 **The LME's metals are the LME's own, from Sina**: the right instrument with a short record
-(from 2026-07) over a longer record of another (Shanghai tin, Kitco, COMEX aluminium).
+(from 2026-04-22, Wallstreetcn's below Sina's) over a longer record of another (Shanghai
+tin, Kitco, COMEX aluminium).
 
 **Wallstreetcn for the LME**: their voter, and the history below Sina's. Its chart
 endpoint (api-ddc-wscn.awtmt.com) serves the three-month metals hourly, without volume,
@@ -243,8 +244,9 @@ the last close and are back as far within the hour (aluminium 8 of 59, tin 3 of 
 nickel none of 59; none in Sina's bars or its own since). Imported, aluminium's of
 2026-05-15 and 06-01 read as major moves. They are left out at import, holes rather
 than bars (`backfill.opening_misprints`): they are not the store's yet, and nothing is
-rewritten. The rest passes the store's gate (hourly correlation 0.959–0.992, median
-0.00 bp, about 1,050 shared hours) and is 914, 1,051 and 1,044 hours from 2026-04-22.
+rewritten. The rest passed the store's gate in the backfill's run of 2026-10-10 (hourly
+correlation 0.962–0.992, median 0.00 bp, about 1,100 shared hours) and is 910, 1,047 and
+1,040 hours from 2026-04-22; no stored bar changed.
 Rebuilt with it as of 2026-10-08 21:05: no reading in the new months, none outside the
 LME changed, and the LME's flagged readings since July go from three to one - nickel's
 2026-09-02 hour (6.3σ) and aluminium's 09-17 night (7.4σ) fall under 6σ against the
@@ -646,5 +648,5 @@ feeds.
 | 55 US funds | 2016-01 | HF Data, Twelve Data, Alpaca's tape |
 | live cattle | 2024-05 | Yahoo (730 days), Dukascopy |
 | coffee, cocoa, cotton | 2018-01 | Dukascopy |
-| LME tin, nickel, aluminium | 2026-07 | Sina (last 1,023 bars), Eastmoney (refuses machines outside China) |
+| LME tin, nickel, aluminium | 2026-04-22 | Sina (last 1,023 bars), Wallstreetcn (about 170 days; taken), Eastmoney (refuses machines outside China) |
 | USD/BRL, USD/INR, USD/KRW | 2019-09 to 2020-01 | Twelve Data, Dukascopy, Sina forex |

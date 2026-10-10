@@ -698,7 +698,7 @@ How far back each record reaches:
 | 16 coins | 2013–2020 by listing | Binance; earlier from Bitstamp, Bitfinex, Coinbase |
 | coffee, cocoa, cotton | 2018-01 | Dukascopy CFDs, then the listed contract; cocoa's 2026-07-21 to 08-10, the roll window where no CFD switch could be located, from the December contract (rolled into on 07-21) |
 | live cattle | 2024-05 | Yahoo |
-| LME tin, nickel, aluminium | 2026-07 | Sina |
+| LME tin, nickel, aluminium | 2026-04-22 | Wallstreetcn to Sina's first bar (2026-07-08 tin, 07-15 nickel and aluminium), less 11 openings off the market (section 4); then Sina |
 
 ## 12. Known limitations
 
