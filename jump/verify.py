@@ -28,12 +28,12 @@ MarketWatch has every hour of the last nine trading days. Funds: Yahoo's and
 Sina's half-hour bars and MarketWatch's hourly ones, and Alpaca's consolidated
 tape (Alpaca_SIP), fifteen minutes behind - asked once it serves the move's
 hour whole (Source.delay). Coffee, cocoa and cotton: Sina's global futures
-(SINA_FUTURES), and Wallstreetcn's cocoa and cotton. Live cattle:
-MarketWatch's continuous contract. The coins, served by Binance, whose prices
-are its own trades: Coinbase's and Kraken's dollar pairs - a wick on one
-exchange is real there and not the market's. The LME's metals, served by
-Sina: Wallstreetcn's hourly bars. Two vendors printing the same bars agree:
-each is a voice.
+(SINA_FUTURES), Wallstreetcn's cocoa and cotton, and the FT's coffee. Live
+cattle: MarketWatch's continuous contract, and the FT's bars of the contract
+the store holds. The coins, served by Binance, whose prices are its own
+trades: Coinbase's and Kraken's dollar pairs - a wick on one exchange is real
+there and not the market's. The LME's metals, served by Sina: Wallstreetcn's
+hourly bars. Two vendors printing the same bars agree: each is a voice.
 
 THE VOTE (judge_all, combine) is taken with what the sources serve when it is
 taken: a source that has not shown the move yet counts against, until the
@@ -70,10 +70,10 @@ sessions.last_close: the NYSE close for funds, a daily-session market's own
 close, 00:00 UTC for coins and pairs) - its own provider re-read first
 (recount_hours, jump.backfill) - until the closest-reaching of its
 sources no longer serves its hour (recount_days: nine days for the funds,
-pairs and cattle, 29 for the coins, 79 for the softs and the LME); after that
-the further ones would vote alone, and the vote stands. A source that corrects
-its bars turns the vote back; a bar that heals into no far move loses its vote.
-A move not real is kept for good, because the detector rescores the whole history
+pairs and cattle, 29 for the coins, 30 for coffee, 79 for cocoa, cotton and
+the LME); after that the further ones would vote alone, and the vote stands. A
+source that corrects its bars turns the vote back; a bar that heals into no far
+move loses its vote. A move not real is kept for good, because the detector rescores the whole history
 every run; the rest go after KEEP_DAYS. A record from before the vote reads in
 its words (_BEFORE_THE_VOTE).
 
@@ -103,7 +103,7 @@ import numpy as np
 import pandas as pd
 import requests
 
-from price_monitor import alpaca, wallstreetcn
+from price_monitor import alpaca, ft, wallstreetcn
 from price_monitor.models import UNANSWERED_IN_A_ROW, Unreachable
 from jump import atomic, bars
 from jump.basket import Asset
@@ -201,6 +201,13 @@ def _pair(asset: Asset) -> str:
     return asset.ticker.replace("/", "").upper()
 
 
+def _ft_cattle(asset: Asset) -> "str | None":
+    """The FT's name for the contract the store holds today (LCZ26)."""
+    from jump import futures
+    held = futures.front_contract(asset.ticker, datetime.now(timezone.utc).date())
+    return ft.cattle_symbol(held[0] if held else None)
+
+
 def _exchange(name: str) -> "Callable[[Asset], str | None]":
     def symbol(asset: Asset) -> "str | None":
         from price_monitor import coinbase, kraken
@@ -213,13 +220,13 @@ def _exchange(name: str) -> "Callable[[Asset], str | None]":
 # days and its softs back to 2026-05-12 (coffee, cocoa) and 07-20 (cotton);
 # MarketWatch about nine trading days; Kraken 720 hours; Coinbase pages back to
 # a coin's listing; Alpaca's consolidated tape (SIP) from 2016-01-01, to fifteen
-# minutes back on the free plan (price_monitor.alpaca). Wallstreetcn's bars
-# reach about 170 days (2026-10-10); the LME's are counted to 79, as the softs are:
-# the record keeps a vote KEEP_DAYS, and the store's LME bars before 2026-07-08
-# (tin) and -15 are Wallstreetcn's own, where it would be no voter (SUPPLIED) -
-# 79 days back from 2026-10-09 is 07-22. Never Tiingo, SiftingIO
-# or Twelve Data, whose allowances the live run uses, nor Google, one session
-# deep.
+# minutes back on the free plan (price_monitor.alpaca); the FT 24 trading days
+# (2026-10-10), counted as 30. Wallstreetcn's bars reach about 170 days
+# (2026-10-10); the LME's are counted to 79, as Sina's softs are: the record
+# keeps a vote KEEP_DAYS, and the store's LME bars before 2026-07-08 (tin) and
+# -15 are Wallstreetcn's own, where it would be no voter (SUPPLIED) - 79 days
+# back from 2026-10-09 is 07-22. Never Tiingo, SiftingIO or Twelve Data, whose
+# allowances the live run uses, nor Google, one session deep.
 SOURCES: "dict[str, tuple[Source, ...]]" = {
     "fx": (
         Source("yahoo", "Yahoo", 729, "1h", lambda a: _pair(a) + "=X"),
@@ -242,9 +249,13 @@ SOURCES: "dict[str, tuple[Source, ...]]" = {
         Source("sina", "Sina", 79, "1h", lambda a: SINA_FUTURES.get(a.ticker), own_rolls=True),
         Source("wallstreetcn", "Wallstreetcn", 170, "1h",
                lambda a: wallstreetcn.SOFTS.get(a.ticker), own_rolls=True),
+        Source("ft", "FT", 30, "1h", lambda a: ft.SOFTS.get(a.ticker), own_rolls=True),
     ),
     "cme_cattle": (
         Source("marketwatch", "MarketWatch", 9, "1h", lambda a: MARKETWATCH_CATTLE),
+        # The store's own contract, so the FT's changes are the store's: a
+        # move across one sees the step, as across Sina's (own_rolls).
+        Source("ft", "FT", 30, "1h", _ft_cattle, own_rolls=True),
     ),
     "lme": (
         Source("wallstreetcn", "Wallstreetcn", 79, "1h", lambda a: wallstreetcn.LME.get(a.ticker)),
@@ -355,6 +366,8 @@ def fetch_verifier(name: str, symbol: str, interval: str, days: float,
         candles = marketwatch.fetch_hourly(symbol, session, now)
     elif name == "wallstreetcn":
         candles = wallstreetcn.fetch_hourly(symbol, session, now, days=max(days, 1.0))
+    elif name == "ft":
+        candles = ft.fetch_hourly(symbol, session, now, days=max(days, 1.0))
     elif name == "yahoo":
         days = min(max(days, 1.0), float(yahoo.MAX_LOOKBACK_DAYS[interval]))
         candles = yahoo.fetch_full_history(symbol, interval, days=days, session=session,

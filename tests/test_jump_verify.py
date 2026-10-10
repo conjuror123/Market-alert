@@ -70,13 +70,21 @@ def test_every_instrument_is_asked_of_every_source_of_its_class_but_its_own(bask
                                       ("marketwatch", "FUND/US/XNAS/LMBS", "1h")]
     # The softs Yahoo serves: Sina's global futures, hourly, and Wallstreetcn's
     # cocoa and cotton (not coffee), each with its own rolls.
-    assert _asked(basket["KC=F"]) == [("sina", "KC", "1h")]
+    # Coffee: Sina's and the FT's continuous series (Wallstreetcn has none).
+    assert _asked(basket["KC=F"]) == [("sina", "KC", "1h"), ("ft", "KC.1", "1h")]
     assert _asked(basket["CT=F"]) == [("sina", "CT", "1h"), ("wallstreetcn", "USCT.OTC", "1h")]
     assert _asked(basket["CC=F"])[1] == ("wallstreetcn", "USCC.OTC", "1h")
     assert all(src.own_rolls for src in verify.sources_for(basket["CC=F"]))
     assert verify.recount_days(basket["CC=F"]) == 79 and verify.recount_days(basket["USD/INR"]) == 9
-    # Live cattle: MarketWatch's continuous contract.
-    assert _asked(basket["LE=F"]) == [("marketwatch", "FUTURE/US/XCME/LC00", "1h")]
+    assert verify.recount_days(basket["KC=F"]) == 30                 # the FT's reach
+    # Live cattle: MarketWatch's continuous contract, and the FT's of the
+    # contract the store holds today, with its own rolls.
+    from jump import futures
+    held = futures.front_contract("LE=F", datetime.now(timezone.utc).date())[0]
+    assert _asked(basket["LE=F"]) == [("marketwatch", "FUTURE/US/XCME/LC00", "1h"),
+                                      ("ft", "LC" + held[2:5], "1h")]
+    assert verify.sources_for(basket["LE=F"])[1].own_rolls
+    assert verify.recount_days(basket["LE=F"]) == 9
     # The coins: two other exchanges' dollar pairs, Kraken naming BTC and
     # DOGE its own way.
     assert _asked(basket["BTC/USDT"]) == [("coinbase", "BTC-USD", "1h"), ("kraken", "XBTUSD", "1h")]
@@ -193,6 +201,16 @@ def test_sinas_global_futures_and_us_funds_are_different_feeds(monkeypatch):
     verify.fetch_verifier("sina", "KC", "1h", 2, None, now)
     verify.fetch_verifier("sina", "SLQD", "30min", 2, None, now)
     assert calls == [("KC", sina.GLOBAL_URL), ("SLQD", "us")]
+
+
+def test_the_ft_is_asked_for_the_days_the_moves_need(monkeypatch):
+    from price_monitor import ft
+    calls = []
+    monkeypatch.setattr(ft, "fetch_hourly",
+                        lambda name, session, now, days: calls.append((name, days)) or [])
+    now = datetime(2026, 10, 9, 18, 5, tzinfo=timezone.utc)
+    verify.fetch_verifier("ft", "LCZ26", "1h", 4.5, None, now)
+    assert calls == [("LCZ26", 4.5)]
 
 
 def test_wallstreetcn_is_asked_for_the_days_the_moves_need(monkeypatch):
@@ -943,7 +961,8 @@ def test_a_real_gap_across_sinas_change_is_a_tie_not_rejected(monkeypatch, tmp_p
     # The session after Sina moved to another month: our +2% open, and Sina's
     # -5% that is only its spread between the two contracts. Judged across it,
     # a real move read as not seen and left scoring for good. Sina has nothing
-    # to say about it - an outage - and the store's word against it is a tie.
+    # to say about it - an outage - nor the FT, given the same bars here:
+    # nobody could check the move, uncertain.
     asset = basket["KC=F"]
     days = (6, 7, 8, 9)
     store = _sessions_of_coffee(days, lambda d, h: 306.0 if d >= 8 else 300.0)
@@ -960,7 +979,7 @@ def test_a_real_gap_across_sinas_change_is_a_tie_not_rejected(monkeypatch, tmp_p
 
     row = verify.load(path)[(asset.asset_id, c["hour"], "open")]
     assert (row["verdict"], row["verifier"], row["verifier_move"]) == (
-        verify.UNCERTAIN, "sina", "")
+        verify.UNCERTAIN, "sina,ft", ",")
 
 
 # --- the night correction ---------------------------------------------------------

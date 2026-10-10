@@ -100,3 +100,9 @@ def test_wallstreetcns_host_is_wallstreetcn():
     usage = Usage()
     _ask(usage.session(), "https://api-ddc-wscn.awtmt.com/market/kline?prod_code=UKSN.OTC")
     assert usage.line() == "requests: wallstreetcn 1"
+
+
+def test_the_fts_host_is_ft():
+    usage = Usage()
+    _ask(usage.session(), "https://markets.ft.com/data/chartapi/series")
+    assert usage.line() == "requests: ft 1"

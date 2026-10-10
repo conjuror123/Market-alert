@@ -47,10 +47,6 @@ name: Backfill Jump Bars
 #                   about three hours of Tiingo's 50 an hour, and refuses to
 #                   start while the hourly run is asking Tiingo too. Twelve Data remains a labelled
 #                   fallback (`--source twelvedata`) that cannot see splits.
-#   ft-probe        the FT's hourly bars of live cattle (its December contract and
-#                   its continuous series) and coffee, asked from the runner,
-#                   uploaded as the artifact `ft-probe` and said as notices
-#                   (tools/ft_probe.py, one-off). Writes nothing to the store.
 #   voter-bars      every live voter's bars of every instrument (or those named),
 #                   35 days, uploaded as the artifact `voter-bars` for a
 #                   measurement (tools/voter_bars.py). Writes nothing to the
@@ -78,7 +74,6 @@ on:
           - live-pass
           - corporate-actions
           - voter-bars
-          - ft-probe
 
 permissions:
   contents: write
@@ -135,8 +130,6 @@ jobs:
         run: |
           if [ "${{ github.event.inputs.mode }}" = "corporate-actions" ]; then
             python -m jump.corporate_actions
-          elif [ "${{ github.event.inputs.mode }}" = "ft-probe" ]; then
-            python -m tools.ft_probe ft-probe
           elif [ "${{ github.event.inputs.mode }}" = "voter-bars" ]; then
             python -m tools.voter_bars voter-bars \
               ${{ github.event.inputs.instruments && format('--instruments "{0}"', github.event.inputs.instruments) || '' }}
@@ -144,14 +137,6 @@ jobs:
             python -m jump.backfill --${{ github.event.inputs.mode || 'extend-history' }} \
               ${{ github.event.inputs.instruments && format('--instruments "{0}"', github.event.inputs.instruments) || '' }}
           fi
-
-      - name: Upload the FT's answers
-        if: always() && github.event.inputs.mode == 'ft-probe'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ft-probe
-          path: ft-probe
-          retention-days: 30
 
       - name: Upload the voters' bars
         if: always() && github.event.inputs.mode == 'voter-bars'
