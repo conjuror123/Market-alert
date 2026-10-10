@@ -13,8 +13,10 @@ def ts(text):
     return int(datetime.strptime(text, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc).timestamp())
 
 
-def payload(code, lines):
-    return {"code": 20000, "message": "OK", "data": {"candle": {code: {"lines": lines}}}}
+def payload(code, lines, fields=("open_px", "close_px", "high_px", "low_px", "tick_at")):
+    """An answer as it comes: the bars, and the order of their columns."""
+    return {"code": 20000, "message": "OK",
+            "data": {"candle": {code: {"lines": lines}}, "fields": list(fields)}}
 
 
 def test_each_line_is_open_close_high_low_and_the_start_and_only_ended_bars_are_kept():
@@ -26,6 +28,22 @@ def test_each_line_is_open_close_high_low_and_the_start_and_only_ended_bars_are_
     assert [c.open_time for c in got] == [ts("2026-10-09 15:00"), ts("2026-10-09 16:00")]
     assert (got[1].open, got[1].high, got[1].low, got[1].close) == (29905.0, 29915.0, 29860.0, 29880.0)
     assert got[1].close_time == got[1].open_time + HOUR and got[1].volume == 0.0
+
+
+def test_each_value_is_read_by_the_name_of_its_column_and_a_bar_without_a_price_skipped():
+    # Its order is its own, not the order asked (2026-10-10, low_px,tick_at,close_px
+    # asked: close, low, start served). Read by position, a reordered answer
+    # would turn a high into a close without a word.
+    fields = ("tick_at", "high_px", "close_px", "low_px", "open_px")
+    lines = [[ts("2026-10-09 15:00"), 29930.0, 29905.0, 29850.0, 29870.0],
+             [ts("2026-10-09 16:00"), None, None, None, None]]
+    now = datetime.fromtimestamp(ts("2026-10-09 18:05"), timezone.utc)
+    got = wallstreetcn.parse(payload("UKSN.OTC", lines, fields), "UKSN.OTC", now)
+    assert [(c.open_time, c.open, c.high, c.low, c.close) for c in got] == [
+        (ts("2026-10-09 15:00"), 29870.0, 29930.0, 29850.0, 29905.0)]
+    # An answer that does not name its columns is not guessed at.
+    with pytest.raises(ExchangeError):
+        wallstreetcn.parse({"data": {"candle": {"UKSN.OTC": {"lines": lines}}}}, "UKSN.OTC", now)
 
 
 def test_an_answer_without_the_code_raises():

@@ -7,10 +7,11 @@ market/kline): hourly bars without volume. The LME's three-month tin
 cocoa (USCC.OTC) and cotton (USCT.OTC), continuous futures that change contract
 on their own days; and the currency pairs as their six letters (EURUSD.OTC) -
 every pair of the basket but USD/KRW. `tick_count` asks for about that many
-hours back, and at most MAX_TICKS are served - back to 2026-04-22 from
-2026-10-09, for each of them; more is answered with one bar. Each line is
-[open, close, high, low, start in UTC seconds]: against the stored bars, no
-shift (2026-10-09).
+hours back from its latest bar, and at most MAX_TICKS are served - back to
+2026-04-22 from 2026-10-09, for each of them; more is answered with one bar.
+Each line holds the bar's prices and its start in UTC seconds, in the order the
+answer's `fields` names - its own, whatever order they are asked in (2026-10-10:
+open, close, high, low, start). Against the stored bars, no shift (2026-10-09).
 
 IT CARRIES MORE than the basket uses (its rank lists, 2026-10-10): sugar
 (USYO.OTC), lean hogs (LHC.OTC), wheat, corn, soybeans and soybean oil
@@ -24,8 +25,8 @@ Its LME bars against Sina's stored ones, 2026-07 to 10: the closes identical in
 53-68% of hours and 0 bp apart at the median, hourly moves correlated 0.96-0.99 -
 in part one upstream, its own print in the rest (docs/decisions.md,
 "Wallstreetcn for the LME"). Its cocoa, cotton and pairs are its own quotes,
-none of their closes the store's (docs/decisions.md, "Wallstreetcn on cocoa,
-cotton and the pairs"). It answers a GitHub runner as it answers here.
+at most 2% of their closes the store's (docs/decisions.md, "Wallstreetcn on
+cocoa, cotton and the pairs"). It answers a GitHub runner as it answers here.
 
 ITS OPENINGS BEFORE MID-JULY. In its bars of 2026-04 to 07, below Sina's, eleven
 sessions open with a print 1% or more off the last close that is gone within the
@@ -69,16 +70,26 @@ def pair_code(ticker: str) -> str | None:
     return None if ticker in NO_PAIR else ticker.replace("/", "").upper() + ".OTC"
 
 
+FIELDS = ("open_px", "close_px", "high_px", "low_px", "tick_at")
+
+
 def parse(payload: dict, code: str, now: datetime | None = None) -> list[Candle]:
-    """Hourly candles from one answer: ended bars only."""
+    """Hourly candles from one answer: ended bars with every price only. Each
+    value is read by the name the answer gives its column."""
     now_ts = int((now or datetime.now(timezone.utc)).timestamp())
     try:
         lines = payload["data"]["candle"][code]["lines"]
-    except (KeyError, TypeError) as exc:
+        where = [payload["data"]["fields"].index(name) for name in FIELDS]
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
         raise ExchangeError(f"{code}: Wallstreetcn's answer has no bars") from exc
     out = []
     for line in lines or ():
-        o, c, h, low, start = line[:5]
+        try:
+            o, c, h, low, start = (line[i] for i in where)
+        except (IndexError, TypeError):
+            continue
+        if any(v is None for v in (o, c, h, low, start)):
+            continue                             # no price that hour
         start = int(start)
         if start % HOUR or start + HOUR > now_ts:
             continue                             # off the hour, or not ended yet
@@ -92,7 +103,7 @@ def fetch_hourly(code: str, session: requests.Session | None = None,
     """`code`'s hourly bars of about the last `days` that have ended."""
     ticks = min(MAX_TICKS, math.ceil(days * 24) + 24)
     params = {"prod_code": code, "tick_count": ticks, "period_type": HOUR,
-              "fields": "tick_at,open_px,close_px,high_px,low_px"}
+              "fields": ",".join(FIELDS)}
     last: Exception | None = None
     for attempt in range(MAX_ATTEMPTS):
         if attempt:
