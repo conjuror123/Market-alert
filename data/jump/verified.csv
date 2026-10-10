@@ -26,6 +26,7 @@ binance:ATOM/USDT,1790964000,close,real,binance,"coinbase,kraken","coinbase,krak
 binance:ATOM/USDT,1791471600,close,real,binance,"coinbase,kraken","coinbase,kraken",-0.073811,"-0.071948,-0.073102",1791594373
 binance:ATOM/USDT,1791529200,close,real,binance,"coinbase,kraken","coinbase,kraken",0.048334,"0.048973,0.049325",1791594373
 binance:ATOM/USDT,1791590400,close,real,binance,"coinbase,kraken","coinbase,kraken",-0.037480,"-0.037875,-0.038074",1791594373
+binance:ATOM/USDT,1791612000,close,real,binance,"coinbase,kraken","coinbase,kraken",-0.046286,"-0.047267,-0.045336",1791615967
 binance:AVAX/USDT,1789128000,close,real,binance,"coinbase,kraken","coinbase,kraken",0.029721,"0.029869,0.028805",1791590777
 binance:AVAX/USDT,1789700400,close,real,binance,"coinbase,kraken","coinbase,kraken",0.027815,"0.027973,0.027851",1791590777
 binance:AVAX/USDT,1789779600,close,real,binance,"coinbase,kraken","coinbase,kraken",0.040597,"0.040606,0.041575",1791590777
@@ -181,6 +182,13 @@ binance:XRP/USDT,1790172000,close,real,binance,"coinbase,kraken","coinbase,krake
 binance:XRP/USDT,1790334000,close,real,binance,"coinbase,kraken","coinbase,kraken",0.024117,"0.023867,0.024110",1791590777
 binance:XRP/USDT,1791471600,close,real,binance,"coinbase,kraken","coinbase,kraken",-0.042389,"-0.042346,-0.042258",1791590777
 binance:XRP/USDT,1791482400,close,real,binance,"coinbase,kraken","coinbase,kraken",0.024790,"0.025031,0.025017",1791590777
+sina:AHD,1786525200,close,real,sina,wallstreetcn,wallstreetcn,-0.010778,-0.010778,1791615967
+sina:AHD,1789034400,close,real,sina,wallstreetcn,wallstreetcn,-0.016265,-0.016265,1791615967
+sina:AHD,1789603200,open,real,sina,wallstreetcn,wallstreetcn,-0.008572,-0.010112,1791615967
+sina:NID,1785981600,close,real,sina,wallstreetcn,wallstreetcn,-0.016092,-0.015935,1791615967
+sina:NID,1787536800,close,real,sina,wallstreetcn,wallstreetcn,-0.014589,-0.014317,1791615967
+sina:NID,1788354000,close,real,sina,wallstreetcn,wallstreetcn,0.017179,0.017458,1791615967
+sina:NID,1789480800,close,real,sina,wallstreetcn,wallstreetcn,-0.013771,-0.014144,1791615967
 twelvedata:ANGL,1789581600,close,real,sina,yahoo,,-0.003863,-0.004038,1791114096
 twelvedata:ANGL,1790874000,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo,marketwatch,alpaca_sip",0.003285,"0.003285,0.003285,0.003285",1791587166
 twelvedata:AUD/USD,1357099200,close,not_real,sifting,dukascopy,,0.007104,-0.001270,1791362566
