@@ -33,6 +33,7 @@ PROVIDERS = {
     "datafeed.dukascopy.com": "dukascopy",
     "api.exchange.coinbase.com": "coinbase",
     "api.kraken.com": "kraken",
+    "api-ddc-wscn.awtmt.com": "wallstreetcn",
 }
 
 # The headers a provider says what is left in: Tiingo, SiftingIO, Twelve Data.

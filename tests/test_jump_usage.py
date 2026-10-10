@@ -94,3 +94,9 @@ def test_both_cboe_hosts_are_cboe():
     _ask(usage.session(), "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv")
     _ask(usage.session(), "https://cdn-api.cboe.com/api/global/delayed_quotes/quotes/_VIX.json")
     assert usage.line() == "requests: cboe 2"
+
+
+def test_wallstreetcns_host_is_wallstreetcn():
+    usage = Usage()
+    _ask(usage.session(), "https://api-ddc-wscn.awtmt.com/market/kline?prod_code=UKSN.OTC")
+    assert usage.line() == "requests: wallstreetcn 1"
