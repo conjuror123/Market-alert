@@ -628,24 +628,28 @@ def test_the_sources_vote_and_the_store_is_one_vote_that_saw_it():
     # Neither did: not real, one against two.
     assert verify.combine([one("yahoo", U, 0.0003), one("marketwatch", U, 0.0001)])[0] == \
         verify.NOT_REAL
-    # A source with no bars around the move is an outage, and an outage is a
-    # no: with the store and Sina for it, Yahoo down and MarketWatch against,
-    # a tie.
+    # A source with no bars around the move is an outage: left out of the
+    # count, and still named. With the store and Sina for it, MarketWatch
+    # against and Yahoo down: two against one, real.
     assert verify.combine([one("yahoo", K, 0.0), one("sina", C, 0.004),
                            one("marketwatch", U, 0.001)]) == (
-        verify.UNCERTAIN, 0.005, ["yahoo", "sina", "marketwatch"], [None, 0.004, 0.001],
+        verify.REAL, 0.005, ["yahoo", "sina", "marketwatch"], [None, 0.004, 0.001],
         ["sina"])
-    # Every other source down: one against two.
-    assert verify.combine([one("yahoo", K, 0.0), one("marketwatch", K, 0.0)])[0] == \
-        verify.NOT_REAL
+    # Yahoo down and MarketWatch against: the store's yes and one no, a tie.
+    assert verify.combine([one("yahoo", K, 0.0), one("marketwatch", U, 0.001)])[0] == \
+        verify.UNCERTAIN
+    # Every other source down: nobody could check it, uncertain.
+    assert verify.combine([one("yahoo", K, 0.0), one("marketwatch", K, 0.0)]) == (
+        verify.UNCERTAIN, 0.005, ["yahoo", "marketwatch"], [None, None], [])
     # No other source at all: the store's word.
     assert verify.combine([])[0] == verify.REAL
 
 
 def test_a_source_with_bars_around_the_move_outweighs_one_bridging_a_gap():
-    # USD/INR's bad print at 22:00: Yahoo's last bar is 10:00, MarketWatch has
-    # every hour and stayed flat. Yahoo could only bridge seventeen hours: an
-    # outage there, and MarketWatch's own hours are the other vote.
+    # USD/INR's bad print at 22:00: Yahoo's last bar is 10:00, MarketWatch and
+    # Wallstreetcn have every hour and stayed flat. Yahoo could only bridge
+    # seventeen hours: an outage there, left out, and the other two's own
+    # hours are the vote.
     def bars_(hours, price=96.1):
         return pd.DataFrame({"hour_utc": [ts(h) for h in hours], "open": price, "close": price})
     c = {"hour": ts("2026-09-30 22:00"), "check": "close", "from_open": False,
@@ -653,13 +657,16 @@ def test_a_source_with_bars_around_the_move_outweighs_one_bridging_a_gap():
     yahoo = bars_(["2026-09-30 10:00"])
     mw = bars_([f"2026-09-30 {h}:00" for h in range(19, 24)])
     now = ts("2026-10-01 00:05")
+    assert judge_all(c, [("yahoo", yahoo), ("marketwatch", mw), ("wallstreetcn", mw)],
+                     now)[0] == verify.NOT_REAL
+    # MarketWatch alone against the store, Yahoo's bridge left out: a tie.
     assert judge_all(c, [("yahoo", yahoo), ("marketwatch", mw)], now)[0] == \
-        verify.NOT_REAL
+        verify.UNCERTAIN
     # Yahoo's 03:00 bar, 0.3% up after the night's drift, does not turn it.
     yahoo = bars_(["2026-09-30 10:00"]).pipe(
         lambda f: pd.concat([f, bars_(["2026-10-01 03:00"], 96.40)], ignore_index=True))
-    assert judge_all(c, [("yahoo", yahoo), ("marketwatch", mw)],
-                            ts("2026-10-01 04:05"))[0] == verify.NOT_REAL
+    assert judge_all(c, [("yahoo", yahoo), ("marketwatch", mw), ("wallstreetcn", mw)],
+                     ts("2026-10-01 04:05"))[0] == verify.NOT_REAL
     # With nobody's bars around the move, the bridge is all there is.
     assert judge_all(c, [("yahoo", yahoo)], ts("2026-10-01 04:05"))[0] == \
         verify.REAL
@@ -683,22 +690,26 @@ def test_a_vendor_printing_the_stores_own_bars_still_votes(monkeypatch, tmp_path
     assert (row["verdict"], row["seen"]) == (verify.UNCERTAIN, "yahoo")
 
 
-def test_a_source_that_fails_is_an_outage_and_counts_against(monkeypatch, tmp_path, basket):
+def test_a_source_that_fails_is_an_outage_left_out_of_the_count(monkeypatch, tmp_path,
+                                                                basket):
+    # Yahoo down; Wallstreetcn prints the store's bars, the move included, and
+    # MarketWatch stayed flat: the store and Wallstreetcn against MarketWatch,
+    # real. Counted against, Yahoo's outage would have made it a tie.
     from price_monitor.models import ExchangeError
     asset, hours, bad, frame, market = _inr_store(tmp_path, basket)
 
     def fetch(name, symbol, interval, days, session, now):
         if name == "yahoo":
             raise ExchangeError("USDINR=X: no response")
-        return market
+        return frame.drop(columns="n_src") if name == "wallstreetcn" else market
 
     monkeypatch.setattr(verify, "fetch_verifier", fetch)
     now = datetime.fromtimestamp(int(hours[bad + 5]) + 300, timezone.utc)
     path = str(tmp_path / "verified.csv")
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
     row = verify.load(path)[(asset.asset_id, int(hours[bad]), "close")]
-    assert (row["verdict"], row["verifier"]) == (verify.NOT_REAL,
-                                                 "yahoo,marketwatch,wallstreetcn")
+    assert (row["verdict"], row["verifier"], row["seen"]) == (
+        verify.REAL, "yahoo,marketwatch,wallstreetcn", "wallstreetcn")
     assert row["verifier_move"].startswith(",")              # Yahoo: no move to show
 
 
@@ -778,9 +789,9 @@ def test_a_record_from_before_the_vote_reads_in_its_words(tmp_path):
     assert set(verify.not_real(str(path))) == {("b", 2, "close"), ("d", 4, "close")}
 
 
-def test_every_other_source_down_makes_the_move_not_real(monkeypatch, tmp_path, basket):
-    # Outages count against: with Yahoo, MarketWatch and Wallstreetcn all down,
-    # the store's word is one against three. The session's recount asks again.
+def test_every_other_source_down_makes_the_move_uncertain(monkeypatch, tmp_path, basket):
+    # With Yahoo, MarketWatch and Wallstreetcn all down nobody could check the
+    # move: uncertain - scored, and marked. The session's recount asks again.
     from price_monitor.models import ExchangeError
     asset, hours, bad, frame, market = _inr_store(tmp_path, basket)
 
@@ -793,7 +804,7 @@ def test_every_other_source_down_makes_the_move_not_real(monkeypatch, tmp_path, 
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
     row = verify.load(path)[(asset.asset_id, int(hours[bad]), "close")]
     assert (row["verdict"], row["verifier"], row["verifier_move"]) == (
-        verify.NOT_REAL, "yahoo,marketwatch,wallstreetcn", ",,")
+        verify.UNCERTAIN, "yahoo,marketwatch,wallstreetcn", ",,")
 
 
 def test_an_unconfirmed_move_is_not_scored_and_not_in_the_yardstick():

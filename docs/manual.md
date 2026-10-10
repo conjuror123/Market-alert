@@ -258,29 +258,34 @@ offset is not a move.
 - **Did not:** it did not move with it, or has not yet - the vote is taken with what the
   source serves at the time, and the next count looks again.
 - **Outage:** the source is down, has no bar after the move yet, or is silent for 12 hours
-  around it. For the softs, also a move whose span crosses Sina's own change of contract
-  (`verify.switches`: a session whose median offset to the store stepped by 50 bp or
-  more), where Sina's move carries the spread between two months.
+  around it. For the softs, also a move whose span crosses the source's own change of
+  contract - Sina's, or Wallstreetcn's for cocoa and cotton (`verify.switches`: a session
+  whose median offset to the store stepped by 50 bp or more) - where its move carries the
+  spread between two months.
 
 **The vote** (`combine`, `judge_all`). The store's provider is one vote that saw it;
-each other source is one vote, and an outage is a vote against.
+each other source that answers is one vote. One that cannot - an outage - is left out of
+the count, and named on the line.
 
 | the votes | result | scored | under the move on the channel (section 8) |
 |---|---|---|---|
 | most saw it | real | yes | nothing |
 | a tie | uncertain | yes | `⚠️ Yahoo(-2.50%), Alpaca(-2.50%), Sina(outage), MarketWatch(-0.50%)` |
 | most did not | not real | no | `❌ Binance(+2.03%), Coinbase(-0.10%), Kraken(-0.10%)` |
+| no other source could answer | uncertain | yes | `⚠️ SiftingIO(+2.10%), Yahoo(outage), MarketWatch(outage)` |
 
 The line names the store's provider first with the stored move, then every source with
 its own move over the same hours, or `(outage)`. A source with bars of its own around the
 move outweighs one bridging a gap: the bridging one is an outage (USD/INR at night:
 Yahoo's last bar is 10:00, MarketWatch has every hour). A rate limit, or no answer to two
 requests in a row, stops a source for the run, and the health chat names it. Every source
-of an instrument is asked or none that run: one not asked would count against.
+of an instrument is asked or none that run: a vote of all of them, not of whichever were
+asked.
 
-**Rule.** An outage counts against the move. With most of a class's other sources down at
-once, its far moves are not real - no alert - until a count after they are back, inside
-the recount window.
+**Rule.** An outage is left out of the count (the user's choice, 2026-10-10). With every
+other source of an instrument down at once, its far moves are uncertain - scored, and
+alerted with every source `(outage)` on the line - until a count after they are back,
+inside the recount window.
 
 **Rule.** With one other source, every disagreement is a tie: cattle, coffee and the
 LME's metals. Their bad prints are uncertain and stay scored until another source is found.
@@ -320,7 +325,7 @@ are for the live run.
 Votes live in `data/jump/verified.csv`: not real and overnight ones are kept for good (the
 detector rescores all history), the rest for 90 days, longer than any recount. A record
 from before the vote reads in its words: confirmed as real, unconfirmed as not real, and
-unknown - no other source had bars - counted as outages
+unknown - no other source had bars - counted as outages were then, against the move
 (a tie with one source named, not real with two).
 
 Instruments with a reading not yet voted are asked first; at most 40 requests a run, and
@@ -630,7 +635,7 @@ message past Telegram's 4,096 characters is cut between lines, ending "…and N 
 | fetch: a provider does not answer twice in a row | stopped for the run, left out of the dividend check, and an outage in the vote | "did not answer" message | every run it happens |
 | fetch: answered, but no new bar | the instrument goes stale (`stale_hours`) | "no new bar" | past its limit, then daily |
 | dividend check | a fund's payouts unconfirmed 5+ days: its overnight gaps go unscored | "Dividend check behind" | daily |
-| the vote | a source stopped for the run: an outage, a vote against the moves it is asked about, until a later count; the pass crashed: the hour's moves are scored unvoted | "The vote" lines | every run it happens |
+| the vote | a source stopped for the run: an outage, left out of the count of the moves it is asked about (uncertain where none is left), until a later count; the pass crashed: the hour's moves are scored unvoted | "The vote" lines | every run it happens |
 | VIX | both sources failed | "went dark" | every run it happens |
 | pipeline or jumps, one instrument (an error, or no metrics file) | that instrument keeps its stored metrics, or its events from the last run, so delivery never reads them as gone; the others are current | "Metrics failed" / "Scoring failed for N instrument(s)", each with its error | every run it happens |
 | pipeline, jumps (every instrument), or the step's 12 minutes | no new events | streak, named with the part it stopped in and its minutes | while it fails |
