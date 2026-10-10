@@ -58,6 +58,7 @@ channel without stopping the bot, set `jump_alerts_muted: true` in
 | why it is built this way; rejected options; open questions | `docs/decisions.md` |
 | how an agent works on this repository | `CLAUDE.md` |
 | which instruments, in which blocks, from which provider | `config/basket.yaml` (the source of truth) |
+| a new basket under discussion, not yet live | `docs/basket-proposal.md` |
 | run settings: health alerts, the mute, the calendar | `config/config.yaml` |
 | how much history each instrument has | `data/jump/coverage.md` |
 | the detector | `jump/jumps.py` |
