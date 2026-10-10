@@ -1,8 +1,8 @@
 # A new basket: proposal
 
 A working proposal, under discussion with the user since 2026-10-10. Nothing here is in
-`config/basket.yaml` yet: each change waits for the user's go, with its measured
-before/after, and the whole basket changes in one cold rebuild.
+`config/basket.yaml` yet. Before it goes in: a source for each new instrument, then the
+whole basket's measured before/after for the user's go, and one cold rebuild.
 
 ## Why change it
 
@@ -34,74 +34,67 @@ From the sources below, five ideas:
    dollar alone).
 4. **The world by size**: the US about 64% of world stocks, then Japan 5%, Taiwan, the UK
    and Canada about 3% each (MSCI ACWI, 2026-08-31).
-5. **A few giants**: Nvidia, Apple and Microsoft about a fifth of the S&P 500, the top 10
-   about 39% (S&P Dow Jones Indices, 2026-09-30).
+5. **Each market in its own hours**: a price that trades round the clock, or in Tokyo's
+   or London's day, is watched there, not through a New York fund.
 
-## The proposed basket (version 1)
+## The basket (version 2, the user's answers of 2026-10-10)
 
 | group | what it tells | instruments |
 |---|---|---|
-| world stocks, in their own hours (new) | how each region feels, as it happens | Nikkei 225, Hang Seng, CSI 300, KOSPI, TAIEX, Nifty 50, ASX 200, Euro Stoxx 50, DAX, FTSE 100, TSX, Bovespa, IPC, BIST 100 (14) - in place of the 19 country funds |
-| US stocks | the biggest market, and who leads it | SPY, QQQ, IWM; the 11 sectors (XLK XLF XLY XLP XLE XLV XLI XLB XLU XLRE XLC); SMH, KRE, XBI, ITB, IYT (19) |
-| the giants (optional, new) | a third of the S&P in a few companies | Nvidia, Apple, Microsoft, Amazon, Alphabet, Meta, Tesla (7) |
+| world stocks, in their own hours (new) | how each region feels, as it happens | Nikkei 225, Hang Seng, CSI 300, KOSPI, TAIEX, Nifty 50, ASX 200, Euro Stoxx 50, FTSE 100, TSX, Bovespa, IPC, BIST 100 (13) |
+| US stocks | the biggest market, and what leads it | SPY, IWM; tech, financials, energy and health care (XLK, XLF, XLE, XLV); semiconductors, regional banks, biotech, homebuilders, transports (SMH, KRE, XBI, ITB, IYT) (11) |
 | fear (new, hourly) | panic in stocks, and in bonds | VIX, MOVE (2) |
 | the price of money | the Fed; inflation; trust in debt | SHY, IEF, TLT, TIP (4) |
-| credit | do lenders still trust borrowers? | LQD, HYG, BKLN, EMB, EMLC (5) |
-| currencies | where money runs | the dollar index (new); EUR, JPY, CHF, GBP, CNH, AUD, CAD, NOK, MXN, BRL, INR, KRW, ZAR, TRY against the dollar (15) |
-| energy | inflation and war | USO, BNO, UNG, UGA; Europe's gas, TTF (new, data to check) (5) |
-| metals | fear (gold) and industry (copper) | GLD, SLV, PPLT, CPER; the LME's tin, nickel, aluminium; LIT, REMX (9) |
+| credit | do lenders still trust borrowers? | LQD, HYG, EMB, EMLC (4) |
+| currencies | where money runs | EUR, JPY, CHF, GBP, CNH, AUD, CAD, NOK, MXN, BRL, INR, KRW, ZAR, TRY against the dollar (14) |
+| energy | inflation and war | Brent futures, read by contract (new); UNG, UGA; Europe's gas, TTF (new) (4) |
+| metals | fear (gold) and industry (copper) | gold and silver round the clock, XAU/USD and XAG/USD (new); PPLT; the LME's copper (new), tin, nickel, aluminium; REMX (8) |
 | food | weather, harvests, prices | CORN, WEAT, SOYB, CANE; coffee, cocoa, cotton, live cattle (8) |
-| crypto | risk appetite, every hour | Bitcoin, Ethereum, Solana, XRP (4; the user's choice) |
+| crypto | risk appetite, every hour | Bitcoin, Ethereum, Solana, XRP (4) |
 
-85 instruments, 92 with the giants.
+72 instruments: 52 of today's, and 20 new. The 120 of today's that go:
 
-**The trim alone** (the 86 that stay of today's 172, nothing added), over the year to
-2026-10-05: pushes 247 → 135, hours with a push 133 → 84, coin pushes 88 → 20. Of the 49
-hours that would fall quiet, 41 pushes were small coins and 7 LMBS's.
+| block | out |
+|---|---|
+| equity (50) | XLY, XLP, XLI, XLB, XLU, XLRE, XLC, QQQ, DIA, RSP, MDY, XRT, XME, XPH, IHI, VDC, VHT, VPU, SOXX, IGV, FDN, CIBR, SKYY; the country and region funds EFA, EEM, EWJ, EWG, EWU, EWQ, EWC, EWA, EWL, EWN, EZU, FXI, EWZ, EWW, INDA, EPI, EWY, EWT, EZA, TUR; real estate VNQ, IYR, RWR, SCHH, REM, VNQI, RWX |
+| rates (16) | IEI, TLH, MBB, GOVT, SCHO, VGIT, VGLT, SPTL, BWX, VTIP, SCHP, STIP, VMBS, SPMB, LMBS, JMBS |
+| credit (22) | JNK, BKLN, PFF, VCIT, VCSH, IGIB, SPIB, USIG, QLTA, GIGB, SLQD, SHYG, USHY, ANGL, SRLN, FALN, VWOB, PCY, EBND, LEMB, EMHY, CEMB |
+| energy (5) | USO, BNO, DBO, DBE, UNL |
+| precious metals (7) | GLD, SLV, PALL, IAU, SGOL, SIVR, GLTR |
+| industrial metals (4) | DBB, CPER, LIT, SLX |
+| agriculture (1) | DBA |
+| pairs (3) | NZD/USD, USD/SEK, USD/PLN |
+| coins (12) | LTC, BCH, LINK, ADA, DOGE, AVAX, DOT, POL, UNI, ATOM, FIL, AAVE |
 
-**Data, checked 2026-10-10.** Yahoo serves about three years of hourly bars for each index,
-VIX, MOVE and the giants (from late 2023); TTF, COMEX copper and the dollar index from
-2024-05. The indices have no volume, and their bars start on their own minute (:00, :30,
-Nifty :45). `exchange_calendars`, which builds the NYSE and B3 tables, has all 14
-exchanges.
+## The user's answers, 2026-10-10
 
-## Changes under discussion
+Each was the proposal's own critique, measured where it could be:
 
-The proposal's own critique (2026-10-10), each measured where it could be. The user
-answers each.
+| | change | answer | evidence |
+|---|---|---|---|
+| 1 | one oil, in its own hours | yes: Brent futures, read by contract | USO and BNO flagged in the same hour 18 of 22 times (three years to 2026-10-05); 4 of Wallstreetcn Brent's 8 moves of 6 sd or more, 2026-04-22 to 10-09, were Monday-morning gaps after a weekend |
+| 2 | copper from the LME | yes: LME copper for CPER; DBB and LIT go; tin, nickel, aluminium, platinum, rare earths stay | LME copper's two big moves in that window were in London's morning |
+| 3 | gold and silver | round the clock, XAU/USD and XAG/USD (the user's; the proposal had kept the funds) | gold's four big moves in that window were in New York's hours |
+| 4 | drop QQQ | yes | the S&P 500 and Nasdaq 100: hourly correlation 0.95, 33 of 53 big hours together (Yahoo, 2023-11 to 2026-10); XLK flagged in each of QQQ's 8 hours |
+| 5 | one of Euro Stoxx 50 and DAX | yes: Euro Stoxx 50 | hourly correlation 0.93 (the CAC 0.92); the FTSE its own (0.75) |
+| 6 | sectors 11 → 4 | yes: tech, financials, energy, health care | of 20 sector pushes in three years, 16 came with SPY, QQQ or IWM flagging too |
+| 7 | drop the dollar index | yes | with EUR/USD: correlation −0.92, 76 of 139 big hours together |
+| 8 | the giants (Nvidia, Apple, ...) | no | - |
+| 9 | drop LIT | yes | battery makers, already in tech; not measured |
+| 10 | drop BKLN, keep HYG | yes | BKLN 23 flags in three years to HYG's 12, together 7; its lone flags not checked |
+| 11 | Asian indices ring at night; no quiet hours | fine as it is | - |
 
-1. **One oil, in its own hours.** USO and BNO flagged in the same hour 18 of 22 times
-   (three years to 2026-10-05). And Brent's big moves come when the funds are closed:
-   in Wallstreetcn's hourly Brent, 2026-04-22 to 10-09, 4 of 8 moves of 6 sd or more were
-   Monday-morning gaps after a weekend (3 more look like the vendor's own glitches at its
-   daily break). Change: one oil, as futures read by contract like coffee.
-2. **Copper from the LME, like tin.** CPER trades in New York's hours; LME copper's two big
-   moves in the same window were in London's morning. Sina and Wallstreetcn carry it as
-   they carry the other three LME metals.
-3. **Gold and silver stay funds.** Gold's four big moves in that window were all in New
-   York's hours. No change.
-4. **Drop QQQ.** The S&P 500 and the Nasdaq 100 move alike (hourly correlation 0.95; 33 of
-   53 big hours together, Yahoo, 2023-11 to 2026-10). In the store, XLK flagged in each of
-   QQQ's 8 hours over three years.
-5. **One of Euro Stoxx 50 and DAX.** Hourly correlation 0.93 (the CAC 0.92); the FTSE is its
-   own (0.75).
-6. **Sectors 11 → 4.** Of 20 sector pushes in three years, 16 came in an hour when SPY, QQQ
-   or IWM flagged too; 4 alone (XLP, XLE, XLV, XLF, one each). Keep tech, financials,
-   energy, health care.
-7. **Drop the dollar index.** It moves with EUR/USD (correlation −0.92; 76 of 139 big hours
-   together), and the pairs carry the rest.
-8. **Add the giants.** Their overnight gaps at the push level (8.5 sd against their own
-   nights, a simple σ, not the detector's): 10 across the seven in 2.7 years, mostly
-   earnings - about 4 pushes a year in all.
-9. **LIT and REMX are companies, not metals** (battery makers, rare-earth miners): keep
-   REMX for China's export controls, drop LIT. Not measured.
-10. **BKLN looks noisy.** It flagged 23 times in three years to HYG's 12, together only 7.
-    Drop it; HYG carries junk credit. Its lone flags were not checked.
-11. **Nights.** Seven Asian indices ring in Europe's and the Americas' night, and there are
-    no quiet hours. A question about delivery, not the basket.
+Version 1's trim alone (the 86 of today's that it kept, nothing added) moved the year to
+2026-10-05 from 247 pushes to 135. Version 2 is not measured yet.
 
-The standing risk: Yahoo carries 34 instruments today and would carry about 58. Each new
-instrument needs voters (Wallstreetcn has 38 index CFDs, the FT 24 days of indices).
+## Still to do
+
+- **Sources** for the 20 new instruments, each with voters (to be worked out with the
+  user). Data seen on 2026-10-10: Yahoo serves about three years of hourly bars for each
+  index, VIX and MOVE (from late 2023), TTF from 2024-05, without volume, each on its own
+  minute (:00, :30, Nifty :45); `exchange_calendars` has all 13 exchanges.
+- **The measured before/after** of version 2, for the user's go.
+- **The standing risk**: undocumented endpoints carry most of it, as they do today.
 
 ## Sources
 
