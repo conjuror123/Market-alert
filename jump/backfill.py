@@ -1149,7 +1149,7 @@ def deepen_from_wallstreetcn(asset: Asset, path: str, session: requests.Session,
     at their level (verify_alignment). Only its hours in the LME's session are
     taken, less the openings gone within the hour (opening_misprints), and
     nothing at or above the oldest stored bar: Sina keeps its own."""
-    code = wallstreetcn.CODES.get(asset.ticker)
+    code = wallstreetcn.LME.get(asset.ticker)
     if code is None:
         return {"skipped": "not an LME metal", "added": 0}
     stored = bars.load(path)
@@ -1360,7 +1360,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.deepen_wallstreetcn:
         session = requests.Session()
         total = 0
-        for asset in (a for a in instruments if a.ticker in wallstreetcn.CODES):
+        for asset in (a for a in instruments if a.ticker in wallstreetcn.LME):
             path = bars.store_path(args.bars_dir, asset.file_stem)
             try:
                 out = deepen_from_wallstreetcn(asset, path, session)

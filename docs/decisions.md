@@ -253,6 +253,23 @@ LME changed, and the LME's flagged readings since July go from three to one - ni
 fuller yardstick, aluminium's 09-10 hour stays (7.6σ → 6.2σ). All three were note rows;
 no push changed. Its half-year yardstick fills about 2026-10-22 instead of 2027-01.
 
+**Wallstreetcn on cocoa, cotton and the pairs**: a second voter for cocoa and cotton, a
+third for 16 pairs (it does not carry USD/KRW). Its quotes are its own: over 2026-04-22 to
+10-09 none of its closes is the store's. Cocoa is 7.0 bp off at the median, hourly moves
+correlated 0.995; cotton 2.4 bp and 0.975. On 17 of cocoa's 100 days and 7 of cotton's 119
+it sits more than 50 bp off - its own changes of contract, which the vote treats as Sina's
+(`own_rolls`, `verify.switches`). The pairs, 2026-04-22 to 10-06, are 1–3 bp off at the
+median, hourly moves correlated 0.92–0.98, but 0.23–0.81 for USD/TRY, USD/CNH, USD/NOK and
+USD/INR, whose quiet hours are mostly quote noise. Over the pairs' 168 readings at 4σ or
+more from 2026-07-12 to 10-10, it and Yahoo answered alike on 145 of the 146 where both had
+bars around the move; where Yahoo had none (22, mostly Sunday opens and quiet hours of
+USD/CNH, USD/NOK and USD/TRY) it had bars on 15. Replayed on the live store and record of
+2026-10-10 05:06, every reading inside its recount (9 days for the pairs, 79 for cocoa and
+cotton): it saw 39 of 40, all 8 of the softs', and one vote turns - USD/BRL 2026-10-05
+12:00, a pushed major, from real to uncertain: SiftingIO and MarketWatch put the fall after
+Brazil's election in B3's first hour, Yahoo and Wallstreetcn before its open. No reading
+is added, dropped or reworded.
+
 **Every coin is its USDT pair on Binance**: one exchange, one quote currency. Below a 2018
 seam, before USDT left the dollar, the record is the deepest dollar exchange passing the
 splice gates, scaled to meet without a step.
@@ -544,9 +561,9 @@ it was taken and returned the one after (USD/TRY's history flipped four votes ev
 
 | instruments | verified against | why |
 |---|---|---|
-| FX pairs | Yahoo and MarketWatch | MarketWatch has every hour (Yahoo 21–72%), 0–0.6 bp off |
+| FX pairs | Yahoo, MarketWatch and Wallstreetcn (not USD/KRW) | MarketWatch has every hour (Yahoo 21–72%), 0–0.6 bp off; Wallstreetcn its own quotes, 1–3 bp off |
 | funds | Yahoo 30-minute, Sina 30-minute and MarketWatch hourly, but the fund's own, and Alpaca's consolidated tape | Sina matches the tape to 0.0 bp; every source of the class votes |
-| coffee, cocoa, cotton | Sina global futures | 0.2–2.2 bp off, hourly correlation 0.96–0.99 |
+| coffee, cocoa, cotton | Sina global futures; Wallstreetcn for cocoa and cotton | Sina 0.2–2.2 bp off, hourly correlation 0.96–0.99; Wallstreetcn 0.995 and 0.975 |
 | live cattle | MarketWatch continuous | hourly correlation 0.92 |
 | coins | Coinbase and Kraken | other exchanges' dollar pairs: hourly moves correlate 0.988–1.000 with Binance's (300 hours to 2026-09-25); a year of checks found 4 moves not seen, all Binance's own on 2025-10-10's liquidations |
 | LME metals | Wallstreetcn | the only feed found that a runner reaches: 0 bp off at the median, hourly correlation 0.96–0.99, in part Sina's upstream |
@@ -640,6 +657,17 @@ superseded Parquet in history; GitHub warns at 1 GB. To act: a history rewrite, 
 **Undocumented endpoints carry most of the basket** (Yahoo, Sina, Google Finance,
 MarketWatch, Wallstreetcn). A changed shape raises and the health chat names the provider. To act: paid
 feeds.
+
+**What else Wallstreetcn carries**, hourly, about 170 days back, without volume (its rank
+lists, 2026-10-10), none of it in the basket: sugar (USYO.OTC), lean hogs (LHC.OTC), wheat,
+corn, soybeans and soybean oil (USZW, USZC, USZS, USZL), the LME's copper, lead and zinc
+(UKCA, UKPB, UKZS), 38 stock indices and index futures (US500, JP225, DE30, VIX, ...) and 52
+government bond yields (US10YR, DE10YR, JP10YR, ...). To add one: an entry in
+`config/basket.yaml` with its session, a fetch in `jump.backfill`, and its history -
+170 days from Wallstreetcn alone, so its half-year yardstick is young for its first months,
+with no other voter unless another feed carries it. A yield is a rate, not a price: its
+moves would have to be scored in basis points, not as returns, which the detector does not
+do.
 
 **History no free source reaches.**
 

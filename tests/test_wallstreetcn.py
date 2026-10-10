@@ -63,3 +63,10 @@ def test_it_asks_for_the_days_wanted_and_never_more_than_one_answer_serves():
 def test_a_refused_request_raises():
     with pytest.raises(ExchangeError, match="403"):
         wallstreetcn.fetch_hourly("UKAH.OTC", _Session(_Answer(403)))
+
+
+def test_a_pair_is_named_by_its_six_letters_and_usd_krw_is_not_carried():
+    assert wallstreetcn.pair_code("EUR/USD") == "EURUSD.OTC"
+    assert wallstreetcn.pair_code("USD/BRL") == "USDBRL.OTC"
+    assert wallstreetcn.pair_code("USD/KRW") is None
+    assert "KC=F" not in wallstreetcn.SOFTS                 # no coffee

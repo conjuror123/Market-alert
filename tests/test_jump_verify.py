@@ -55,20 +55,26 @@ def _asked(asset):
 
 
 def test_every_instrument_is_asked_of_every_source_of_its_class_but_its_own(basket):
-    # The pairs: Yahoo, and MarketWatch for the hours Yahoo lacks.
+    # The pairs: Yahoo, MarketWatch for the hours Yahoo lacks, and
+    # Wallstreetcn - all but USD/KRW, which it does not carry.
     assert _asked(basket["USD/INR"]) == [
-        ("yahoo", "USDINR=X", "1h"), ("marketwatch", "CURRENCY/US/XTUP/USDINR", "1h")]
+        ("yahoo", "USDINR=X", "1h"), ("marketwatch", "CURRENCY/US/XTUP/USDINR", "1h"),
+        ("wallstreetcn", "USDINR.OTC", "1h")]
     assert _asked(basket["USD/BRL"])[1] == ("marketwatch", "CURRENCY/US/XTUP/USDBRL", "1h")
+    assert [n for n, _, _ in _asked(basket["USD/KRW"])] == ["yahoo", "marketwatch"]
     # A fund: Yahoo's, Sina's and MarketWatch's bars, less its own provider.
     for fund in (a for a in basket.values() if a.session_template == "us_equity"):
         names = [n for n, _, _ in _asked(fund)]
         assert names == [n for n in ("yahoo", "sina", "marketwatch") if n != fund.fetched_from]
     assert _asked(basket["LMBS"]) == [("yahoo", "LMBS", "30min"), ("sina", "LMBS", "30min"),
                                       ("marketwatch", "FUND/US/XNAS/LMBS", "1h")]
-    # The softs Yahoo serves: Sina's global futures, hourly, with their own rolls.
+    # The softs Yahoo serves: Sina's global futures, hourly, and Wallstreetcn's
+    # cocoa and cotton (not coffee), each with its own rolls.
     assert _asked(basket["KC=F"]) == [("sina", "KC", "1h")]
-    assert _asked(basket["CT=F"]) == [("sina", "CT", "1h")]
-    assert verify.sources_for(basket["CC=F"])[0].own_rolls
+    assert _asked(basket["CT=F"]) == [("sina", "CT", "1h"), ("wallstreetcn", "USCT.OTC", "1h")]
+    assert _asked(basket["CC=F"])[1] == ("wallstreetcn", "USCC.OTC", "1h")
+    assert all(src.own_rolls for src in verify.sources_for(basket["CC=F"]))
+    assert verify.recount_days(basket["CC=F"]) == 79 and verify.recount_days(basket["USD/INR"]) == 9
     # Live cattle: MarketWatch's continuous contract.
     assert _asked(basket["LE=F"]) == [("marketwatch", "FUTURE/US/XCME/LC00", "1h")]
     # The coins: two other exchanges' dollar pairs, Kraken naming BTC and
@@ -134,7 +140,7 @@ def test_the_supplier_of_a_moves_bars_is_not_asked_about_it(monkeypatch, tmp_pat
     path = str(tmp_path / "verified.csv")
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
     assert verify.load(path)[(asset.asset_id, int(hours[bad]), "close")]["verifier"] == \
-        "marketwatch"
+        "marketwatch,wallstreetcn"
 
 
 def test_no_source_spends_an_allowance_the_live_run_needs():
@@ -423,14 +429,15 @@ def test_a_reading_is_voted_when_found_and_loses_its_vote_when_it_heals(
     now = datetime.fromtimestamp(int(hours[bad + 5]) + 300, timezone.utc)
     path = str(tmp_path / "verified.csv")
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
-    assert asked == [("yahoo", "USDINR=X"), ("marketwatch", "CURRENCY/US/XTUP/USDINR")]
+    assert asked == [("yahoo", "USDINR=X"), ("marketwatch", "CURRENCY/US/XTUP/USDINR"),
+                     ("wallstreetcn", "USDINR.OTC")]
     # The bad print, and the hour back from it, which did not happen either.
     unseen = {(asset.asset_id, int(hours[bad]), "close"),
               (asset.asset_id, int(hours[bad + 1]), "close")}
     assert set(verify.not_real(path)) == unseen
     # Not asked again before its session ends: the vote stands.
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
-    assert len(asked) == 2 and set(verify.not_real(path)) == unseen
+    assert len(asked) == 3 and set(verify.not_real(path)) == unseen
     # The bar heals into no far move (a run that lost its fetch had judged the
     # :05 snapshot): its verdict no longer applies, and it is scored.
     frame.loc[bad, "close"] = market.loc[bad, "close"]
@@ -467,13 +474,14 @@ def test_a_vote_is_taken_again_at_each_session_end_while_its_closest_source_serv
         return list(asked)
 
     assert verify.recount_days(asset) == 9
-    assert run(1) == ["yahoo", "marketwatch"]                # found, Wednesday 23:05
+    every = ["yahoo", "marketwatch", "wallstreetcn"]
+    assert run(1) == every                                   # found, Wednesday 23:05
     assert verify.load(path)[key]["verdict"] == verify.NOT_REAL
     assert verify.recount_hours(asset, verify.load(path), at(2)) != []
-    assert run(2) == ["yahoo", "marketwatch"]                # Thursday 00:05: the end
+    assert run(2) == every                                   # Thursday 00:05: the end
     assert verify.recount_hours(asset, verify.load(path), at(3)) == []
     assert run(3) == [] and run(20) == []                    # not again that day
-    assert run(26) == ["yahoo", "marketwatch"]               # Friday 00:05
+    assert run(26) == every                                  # Friday 00:05
     assert run(24 * 10) == []                                # past nine days: never
     assert verify.load(path)[key]["verdict"] == verify.NOT_REAL
 
@@ -598,17 +606,17 @@ def test_a_busy_hour_asks_the_not_yet_judged_first(monkeypatch, tmp_path, basket
     now = datetime.fromtimestamp(int(hours[bad + 5]) + 300, timezone.utc)
     path = str(tmp_path / "verified.csv")
     # Every source of an instrument or none: one not asked would count as an
-    # outage. One request left asks nobody.
-    monkeypatch.setattr(verify, "MAX_REQUESTS", 1)
+    # outage. Two requests left, of the three a pair needs, ask nobody.
+    monkeypatch.setattr(verify, "MAX_REQUESTS", 2)
     verify.verify([asset, other], str(tmp_path / "bars"), None, now=now, path=path)
     assert asked == []
-    monkeypatch.setattr(verify, "MAX_REQUESTS", 2)
+    monkeypatch.setattr(verify, "MAX_REQUESTS", 3)
     verify.verify([asset, other], str(tmp_path / "bars"), None, now=now, path=path)
     verify.verify([asset, other], str(tmp_path / "bars"), None, now=now, path=path)
     # USD/INR comes first in the basket and was judged the first run: the
     # second run's requests go to USD/TRY, which was not.
-    assert asked == ["USDINR=X", "CURRENCY/US/XTUP/USDINR",
-                     "USDTRY=X", "CURRENCY/US/XTUP/USDTRY"]
+    assert asked == ["USDINR=X", "CURRENCY/US/XTUP/USDINR", "USDINR.OTC",
+                     "USDTRY=X", "CURRENCY/US/XTUP/USDTRY", "USDTRY.OTC"]
 
 
 def test_the_sources_vote_and_the_store_is_one_vote_that_saw_it():
@@ -661,7 +669,7 @@ def test_a_vendor_printing_the_stores_own_bars_still_votes(monkeypatch, tmp_path
     # Vendors of one exchange tape often print the store's very bars (Yahoo
     # against Sina's fund stores: 0.89 of hours): that is agreement, and it
     # counts. Here Yahoo has the store's bars, the far move included, and
-    # MarketWatch stayed flat.
+    # MarketWatch and Wallstreetcn stayed flat: two for it, two against.
     asset, hours, bad, frame, market = _inr_store(tmp_path, basket)
 
     def fetch(name, symbol, interval, days, session, now):
@@ -672,7 +680,7 @@ def test_a_vendor_printing_the_stores_own_bars_still_votes(monkeypatch, tmp_path
     path = str(tmp_path / "verified.csv")
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
     row = verify.load(path)[(asset.asset_id, int(hours[bad]), "close")]
-    assert (row["verdict"], row["seen"]) == (verify.REAL, "yahoo")
+    assert (row["verdict"], row["seen"]) == (verify.UNCERTAIN, "yahoo")
 
 
 def test_a_source_that_fails_is_an_outage_and_counts_against(monkeypatch, tmp_path, basket):
@@ -689,7 +697,8 @@ def test_a_source_that_fails_is_an_outage_and_counts_against(monkeypatch, tmp_pa
     path = str(tmp_path / "verified.csv")
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
     row = verify.load(path)[(asset.asset_id, int(hours[bad]), "close")]
-    assert (row["verdict"], row["verifier"]) == (verify.NOT_REAL, "yahoo,marketwatch")
+    assert (row["verdict"], row["verifier"]) == (verify.NOT_REAL,
+                                                 "yahoo,marketwatch,wallstreetcn")
     assert row["verifier_move"].startswith(",")              # Yahoo: no move to show
 
 
@@ -710,7 +719,7 @@ def test_a_rate_limit_stops_that_source_only(monkeypatch, tmp_path, basket):
     now = datetime.fromtimestamp(int(hours[bad + 5]) + 300, timezone.utc)
     verify.verify([asset, other], str(tmp_path / "bars"), None, now=now,
                   path=str(tmp_path / "verified.csv"))
-    assert asked == ["yahoo", "marketwatch", "yahoo"]
+    assert asked == ["yahoo", "marketwatch", "wallstreetcn", "yahoo", "wallstreetcn"]
 
 
 def test_a_source_that_does_not_answer_twice_in_a_row_is_stopped(monkeypatch, tmp_path,
@@ -732,7 +741,8 @@ def test_a_source_that_does_not_answer_twice_in_a_row_is_stopped(monkeypatch, tm
     now = datetime.fromtimestamp(int(hours[bad + 5]) + 300, timezone.utc)
     r = verify.verify([asset, *others], str(tmp_path / "bars"), None, now=now,
                       path=str(tmp_path / "verified.csv"))
-    assert asked == ["yahoo", "marketwatch", "yahoo", "marketwatch", "yahoo"]
+    assert asked == ["yahoo", "marketwatch", "wallstreetcn", "yahoo", "marketwatch",
+                     "wallstreetcn", "yahoo", "wallstreetcn"]
     # Said, so the health chat can name it.
     assert r["stopped"] == ["marketwatch"]
 
@@ -769,8 +779,8 @@ def test_a_record_from_before_the_vote_reads_in_its_words(tmp_path):
 
 
 def test_every_other_source_down_makes_the_move_not_real(monkeypatch, tmp_path, basket):
-    # Outages count against: with Yahoo and MarketWatch both down, the store's
-    # word is one against two. The session's recount asks again.
+    # Outages count against: with Yahoo, MarketWatch and Wallstreetcn all down,
+    # the store's word is one against three. The session's recount asks again.
     from price_monitor.models import ExchangeError
     asset, hours, bad, frame, market = _inr_store(tmp_path, basket)
 
@@ -783,7 +793,7 @@ def test_every_other_source_down_makes_the_move_not_real(monkeypatch, tmp_path, 
     verify.verify([asset], str(tmp_path / "bars"), None, now=now, path=path)
     row = verify.load(path)[(asset.asset_id, int(hours[bad]), "close")]
     assert (row["verdict"], row["verifier"], row["verifier_move"]) == (
-        verify.NOT_REAL, "yahoo,marketwatch", ",")
+        verify.NOT_REAL, "yahoo,marketwatch,wallstreetcn", ",,")
 
 
 def test_an_unconfirmed_move_is_not_scored_and_not_in_the_yardstick():

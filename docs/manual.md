@@ -109,7 +109,7 @@ standing in, a few minutes of it; that bar heals on the next fetch.
 | Google Finance | TUR | read off the quote page |
 | SiftingIO | 17 FX pairs | the bar closed at :00 is served by :05 |
 | Binance | 16 coins | each coin as its USDT pair, via `data-api.binance.vision` (reachable from US runners) |
-| Wallstreetcn | — | the LME's metals, without volume, about 170 days back: their voter, and the history below Sina's (backfill workflow, `deepen-wallstreetcn`, `jump.backfill.deepen_from_wallstreetcn`; gated on the overlap like any import, and only hours in the LME's session, less a session's first bar that opens 1% or more off the last close and is back as far within the hour - 11 such openings in its bars of 2026-04 to 07) |
+| Wallstreetcn | — | the LME's metals, cocoa, cotton and 16 pairs (not USD/KRW), without volume, about 170 days back: a voter on them, and the LME's history below Sina's (backfill workflow, `deepen-wallstreetcn`, `jump.backfill.deepen_from_wallstreetcn`; gated on the overlap like any import, and only hours in the LME's session, less a session's first bar that opens 1% or more off the last close and is back as far within the hour - 11 such openings in its bars of 2026-04 to 07). It also carries what the basket does not hold - sugar, lean hogs, wheat, corn, soybeans and soybean oil, the LME's copper, lead and zinc, 38 stock indices and index futures, 52 government bond yields (codes in `price_monitor/wallstreetcn.py`) - each with about 170 days of history (`docs/decisions.md`, "What else Wallstreetcn carries") |
 | Dukascopy, Bitstamp, Bitfinex | — | history only |
 | HF Data | — | funds' history to 2020, imported; it withdrew its consolidated tape on 2026-10-03, and its client was deleted |
 
@@ -222,9 +222,9 @@ the channel gives it; a source added there is asked from the next run.
 
 | class | asked of |
 |---|---|
-| currency pairs and the real (17, SiftingIO) | Yahoo hourly FX (729 days back) and MarketWatch (`price_monitor/marketwatch.py`, 9 days back, every hour) |
+| currency pairs and the real (17, SiftingIO) | Yahoo hourly FX (729 days back), MarketWatch (`price_monitor/marketwatch.py`, 9 days back, every hour) and Wallstreetcn (`price_monitor/wallstreetcn.py`, 170 days back), all but USD/KRW, which it does not carry |
 | funds (133) | Yahoo 30-minute bars folded to the hour (59 days back), Sina 30-minute US bars (77 days back), MarketWatch hourly (`FUND/US/<exchange>/<ticker>`, 9 days back) - two of these for a fund Yahoo or Sina serves, all three for the rest - and Alpaca's consolidated tape (`Alpaca_SIP`, from 2016, fifteen minutes behind), for every fund: the 30 the store has from Alpaca's IEX feed (`Alpaca_IEX`, one exchange) too |
-| coffee, cocoa, cotton (Yahoo) | Sina global futures, hourly (79 days back: coffee and cocoa from 2026-05-12, cotton from 07-20) |
+| coffee, cocoa, cotton (Yahoo) | Sina global futures, hourly (79 days back: coffee and cocoa from 2026-05-12, cotton from 07-20); for cocoa and cotton also Wallstreetcn (170 days back), which changes contract on its own days too |
 | live cattle (Yahoo) | MarketWatch continuous contract, hourly (9 days back) |
 | coins (16, Binance) | Coinbase's dollar pairs, hourly (`price_monitor/coinbase.py`, a year back) and Kraken's (`kraken.py`, 29 days back): a wick on Binance alone is real there and not the market's |
 | LME tin, nickel, aluminium (Sina) | Wallstreetcn, hourly (`price_monitor/wallstreetcn.py`, about 170 days back, counted again for 79 days, as the softs) |
@@ -282,8 +282,11 @@ of an instrument is asked or none that run: one not asked would count against.
 once, its far moves are not real - no alert - until a count after they are back, inside
 the recount window.
 
-**Rule.** With one other source, every disagreement is a tie: cattle, coffee, cocoa,
-cotton and the LME's metals. Their bad prints are uncertain and stay scored until another source is found.
+**Rule.** With one other source, every disagreement is a tie: cattle, coffee and the
+LME's metals. Their bad prints are uncertain and stay scored until another source is found.
+With three - the pairs but USD/KRW - a two-two split is a tie too: USD/BRL's fall of
+2026-10-05 12:00 is in the session's first hour on SiftingIO and MarketWatch, before its
+open on Yahoo and Wallstreetcn.
 
 **Overnight** (`overnight_move`), for a session's first hour voted not real: if most
 voters saw the move from the previous session's close to that bar's close, the store
@@ -705,7 +708,7 @@ How far back each record reaches:
 | limitation | effect | what would fix it |
 |---|---|---|
 | Yahoo, Sina, Google Finance, MarketWatch and Wallstreetcn are undocumented endpoints | a change silences their instruments or checks until fixed; the health chat names them | paid feeds (consolidated tape, futures data) |
-| one other source for cattle, the softs and the LME's metals | a disagreement is a tie: their bad prints stay scored, labelled uncertain. The LME's, Wallstreetcn, prints the same close as Sina in 53–68% of hours (2026-07 to 10): in part one upstream | another free feed |
+| one other source for cattle, coffee and the LME's metals | a disagreement is a tie: their bad prints stay scored, labelled uncertain. The LME's, Wallstreetcn, prints the same close as Sina in 53–68% of hours (2026-07 to 10): in part one upstream | another free feed |
 | weekend yardsticks rest on 26 weekends | ±16% noise | none chosen: a longer window gained little (`docs/decisions.md`, "Rejected") |
 | history before each record's start (section 11) | "rarest since" reaches only as far as the record | paid history |
 | history older than its recount | not voted (section 5): only the readings the one-off check of 2026-10-07 judged carry a vote. Elsewhere an old bad print or stale open stays flagged (14 whole shifted fund days were removed, section 5; the funds' wrong first bars of 2016–2022 were mended, section 11, but not those before 2016 or since 2023), sits in the next half-year's yardsticks, and can be the "then" of a later "rarest since" line | a second source for the old history (`docs/decisions.md`, "History is not voted again") |

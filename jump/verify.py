@@ -20,13 +20,14 @@ mistake".
 
 WHO IS ASKED (SOURCES, sources_for). Every source of the instrument's class
 that carries it, except its own provider. The currency pairs and the real:
-Yahoo's hourly FX and MarketWatch's - Yahoo reaches back two years but has as
-little as a fifth of USD/INR's hours, MarketWatch has every hour of the last
-nine trading days. Funds: Yahoo's and Sina's half-hour bars and MarketWatch's
-hourly ones, and Alpaca's consolidated tape (Alpaca_SIP), fifteen minutes
-behind - asked once it serves the move's hour whole (Source.delay). Coffee, cocoa and cotton: Sina's global
-futures (SINA_FUTURES). Live cattle: MarketWatch's continuous contract. The
-coins, served by Binance, whose prices are its own trades: Coinbase's and
+Yahoo's hourly FX, MarketWatch's and Wallstreetcn's (not USD/KRW) - Yahoo
+reaches back two years but has as little as a fifth of USD/INR's hours,
+MarketWatch has every hour of the last nine trading days. Funds: Yahoo's and
+Sina's half-hour bars and MarketWatch's hourly ones, and Alpaca's consolidated
+tape (Alpaca_SIP), fifteen minutes behind - asked once it serves the move's
+hour whole (Source.delay). Coffee, cocoa and cotton: Sina's global futures
+(SINA_FUTURES), and Wallstreetcn's cocoa and cotton. Live cattle:
+MarketWatch's continuous contract. The coins, served by Binance, whose prices are its own trades: Coinbase's and
 Kraken's dollar pairs - a wick on one exchange is real there and not the
 market's. The LME's metals, served by Sina: Wallstreetcn's hourly bars. Two
 vendors printing the same bars agree: each is a voice.
@@ -208,8 +209,8 @@ def _exchange(name: str) -> "Callable[[Asset], str | None]":
 # days and its softs back to 2026-05-12 (coffee, cocoa) and 07-20 (cotton);
 # MarketWatch about nine trading days; Kraken 720 hours; Coinbase pages back to
 # a coin's listing; Alpaca's consolidated tape (SIP) from 2016-01-01, to fifteen
-# minutes back on the free plan (price_monitor.alpaca). Wallstreetcn's LME bars
-# reach about 170 days (2026-10-09), and are counted to 79, as the softs are:
+# minutes back on the free plan (price_monitor.alpaca). Wallstreetcn's bars
+# reach about 170 days (2026-10-10); the LME's are counted to 79, as the softs are:
 # the record keeps a vote KEEP_DAYS, and the store's LME bars before 2026-07-08
 # (tin) and -15 are Wallstreetcn's own, where it would be no voter (SUPPLIED) -
 # 79 days back from 2026-10-09 is 07-22. Never Tiingo, SiftingIO
@@ -220,6 +221,7 @@ SOURCES: "dict[str, tuple[Source, ...]]" = {
         Source("yahoo", "Yahoo", 729, "1h", lambda a: _pair(a) + "=X"),
         Source("marketwatch", "MarketWatch", 9, "1h",
                lambda a: "CURRENCY/US/XTUP/" + _pair(a)),
+        Source("wallstreetcn", "Wallstreetcn", 170, "1h", lambda a: wallstreetcn.pair_code(a.ticker)),
     ),
     "us_equity": (
         Source("yahoo", "Yahoo", 59, "30min", lambda a: a.ticker),
@@ -233,12 +235,14 @@ SOURCES: "dict[str, tuple[Source, ...]]" = {
     ),
     "softs": (
         Source("sina", "Sina", 79, "1h", lambda a: SINA_FUTURES.get(a.ticker), own_rolls=True),
+        Source("wallstreetcn", "Wallstreetcn", 170, "1h", lambda a: wallstreetcn.SOFTS.get(a.ticker),
+               own_rolls=True),
     ),
     "cme_cattle": (
         Source("marketwatch", "MarketWatch", 9, "1h", lambda a: MARKETWATCH_CATTLE),
     ),
     "lme": (
-        Source("wallstreetcn", "Wallstreetcn", 79, "1h", lambda a: wallstreetcn.CODES.get(a.ticker)),
+        Source("wallstreetcn", "Wallstreetcn", 79, "1h", lambda a: wallstreetcn.LME.get(a.ticker)),
     ),
     "crypto_24_7": (
         Source("coinbase", "Coinbase", 365, "1h", _exchange("coinbase")),
