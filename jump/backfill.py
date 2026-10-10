@@ -1733,8 +1733,8 @@ def main(argv: list[str] | None = None) -> int:
                               blocked=({"yahoo"} if yahoo_gone else set()) | set(silent))
             for name in (r or {}).get("stopped", []):
                 vote.append(f"{name} stopped for the run (a rate limit, or no answer twice "
-                            "in a row): an outage in the vote, counted against the moves "
-                            "it is asked about until a later count")
+                            "in a row): an outage in the vote, left out of the count of the "
+                            "moves it is asked about until a later count")
         except Exception as exc:
             # Not a failed run: an unvoted move is scored, as every move never
             # voted is. Named, though.

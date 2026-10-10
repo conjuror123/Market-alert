@@ -36,8 +36,9 @@ deepen_from_wallstreetcn).
 
 AND THE STANDING RISK. An undocumented endpoint, read without a key, as
 Wallstreetcn's page reads it. Should it change or close, it is an outage in
-every vote it is in, a vote against: the LME's moves, with no other source,
-would all be ties, and cocoa's and cotton's would be Sina's alone again.
+every vote it is in, left out of the count: the LME's far moves, with no other
+source, would all be uncertain; cocoa and cotton are voted by Sina alone
+again, the pairs by Yahoo and MarketWatch.
 """
 from __future__ import annotations
 
