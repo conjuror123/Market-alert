@@ -272,6 +272,25 @@ cotton): it saw 39 of 40, all 8 of the softs', and one vote turns - USD/BRL 2026
 Brazil's election in B3's first hour, Yahoo and Wallstreetcn before its open. No reading
 is added, dropped or reworded.
 
+**The FT for live cattle and coffee**: their second voter. The FT's markets pages chart
+from markets.ft.com's chartapi/series: hourly bars by an instrument's xid, the last
+24 trading days, each dated by its end in UTC; a GitHub runner got the same bars as the
+development machine, to the cent (2026-10-10). Live cattle it carries by contract
+(LCZ26:CME), and it is asked for the one the store holds: its continuous series held
+October while the store held December from 2026-09-15, 35–170 bp apart. On the store's
+December days to 10-09 the contract sits 2.3 bp off, hourly moves correlated 0.856 -
+cattle's hours move a few bp, mostly noise - and its closes equal MarketWatch's in 26% of
+hours: in part one upstream. Coffee it carries only continuous (KC.1:IUS), changing
+contract a week after the store in 2026-09, with no bars from 09-15 to 09-18; on the
+store's month (09-21 to 10-09) 3.6 bp off, hourly moves correlated 0.988, 1% of its
+closes equal to Sina's. Of the store's largest hourly moves from 2026-09-10 to 10-09 (the
+top tenth) it saw 10 of cattle's 11 and 19 of coffee's 20, the rest outages, and denied
+none; MarketWatch, nine days deep, could answer on 2 of cattle's. Coffee's recount falls
+to 30 days, the FT's reach; cattle's stays MarketWatch's 9. Replayed on the live store and
+record of 2026-10-10 05:06: no cattle or coffee reading inside its recount, so no vote
+changes, and coffee's two of 2026-07-28 and -29 stand as voted, real. Its cotton (CT.1) is
+not asked: cotton has two voters.
+
 **Every coin is its USDT pair on Binance**: one exchange, one quote currency. Below a 2018
 seam, before USDT left the dollar, the record is the deepest dollar exchange passing the
 splice gates, scaled to meet without a step.
@@ -571,8 +590,8 @@ it was taken and returned the one after (USD/TRY's history flipped four votes ev
 |---|---|---|
 | FX pairs | Yahoo, MarketWatch and Wallstreetcn (not USD/KRW) | MarketWatch has every hour (Yahoo 21–72%), 0–0.6 bp off; Wallstreetcn its own quotes, 0.8–3.4 bp off |
 | funds | Yahoo 30-minute, Sina 30-minute and MarketWatch hourly, but the fund's own, and Alpaca's consolidated tape | Sina matches the tape to 0.0 bp; every source of the class votes |
-| coffee, cocoa, cotton | Sina global futures; Wallstreetcn for cocoa and cotton | Sina 0.2–2.2 bp off, hourly correlation 0.96–0.99; Wallstreetcn 0.995 and 0.975 |
-| live cattle | MarketWatch continuous | hourly correlation 0.92 |
+| coffee, cocoa, cotton | Sina global futures; Wallstreetcn for cocoa and cotton; the FT for coffee | Sina 0.2–2.2 bp off, hourly correlation 0.96–0.99; Wallstreetcn 0.995 and 0.975; the FT 0.988 |
+| live cattle | MarketWatch continuous; the FT's bars of the store's contract | MarketWatch hourly correlation 0.92; the FT 2.3 bp off |
 | coins | Coinbase and Kraken | other exchanges' dollar pairs: hourly moves correlate 0.988–1.000 with Binance's (300 hours to 2026-09-25); a year of checks found 4 moves not seen, all Binance's own on 2025-10-10's liquidations |
 | LME metals | Wallstreetcn | the only feed found that a runner reaches: 0 bp off at the median, hourly correlation 0.96–0.99, in part Sina's upstream |
 
@@ -594,7 +613,8 @@ segment, from 2022-03, so they reached nothing. The tape's fetch and the funds' 
 day, once the mend was live and 2023 on was measured; so did the Eastmoney probe
 (`tools/eastmoney_probe.py`, `eastmoney-probe`), its question answered (below, "Rejected"),
 and the Wallstreetcn probe (`tools/wallstreetcn_probe.py`, `wallstreetcn-probe`), once its
-bars were taken ("Wallstreetcn for the LME").
+bars were taken ("Wallstreetcn for the LME"); so did the FT's (`tools/ft_probe.py`,
+`ft-probe`), once it answered the runner ("The FT for live cattle and coffee").
 
 **The open month lives on a release; a month enters git once, settled.** Git stores
 snapshots, so hourly commits into per-instrument files cost 124 MiB a year; replacing a
@@ -647,7 +667,6 @@ Measured or weighed, and not to be raised again.
 | DailyFX, Stooq | gone; login required |
 | Sina forex | six months of hourly bars |
 | Sina live cattle | quotes without volume, correlation 0.80 |
-| FT's chart endpoint | five days of hourly bars; not needed beside MarketWatch |
 | api.binance.com | HTTP 451 from US runners; the market-data mirror is used |
 | FXCM history | spliced blind; Dukascopy gates on a measured overlap |
 | Interactive Brokers, paid Barchart | a funded account or about $500 a month |
@@ -663,7 +682,7 @@ that day's mend of the funds' first bars; 903 MiB that morning), mostly
 superseded Parquet in history; GitHub warns at 1 GB. To act: a history rewrite, which force-pushes the live branch irreversibly.
 
 **Undocumented endpoints carry most of the basket** (Yahoo, Sina, Google Finance,
-MarketWatch, Wallstreetcn). A changed shape raises and the health chat names the provider. To act: paid
+MarketWatch, Wallstreetcn, the FT). A changed shape raises and the health chat names the provider. To act: paid
 feeds.
 
 **What else Wallstreetcn carries**, hourly, about 170 days back, without volume (its rank

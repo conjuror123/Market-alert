@@ -48,7 +48,7 @@ Secrets (GitHub → Settings → Secrets → Actions):
 | `TWELVEDATA_API_KEY` | 8 thin funds; archive and gap-fill |
 | `FRED_API_KEY` | the VIX series |
 
-Yahoo, Sina, Google Finance, Binance, MarketWatch, Wallstreetcn, Coinbase, Kraken and Cboe need no key. A
+Yahoo, Sina, Google Finance, Binance, MarketWatch, Wallstreetcn, the FT, Coinbase, Kraken and Cboe need no key. A
 missing key costs only that provider's instruments, and the health chat names the secret every run until it is
 set. A key the provider refuses (401; 403 too, except at Twelve Data, where 403 is one
 symbol beyond the plan) stops that provider for the run the same way
@@ -110,6 +110,7 @@ standing in, a few minutes of it; that bar heals on the next fetch.
 | SiftingIO | 17 FX pairs | the bar closed at :00 is served by :05 |
 | Binance | 16 coins | each coin as its USDT pair, via `data-api.binance.vision` (reachable from US runners) |
 | Wallstreetcn | — | the LME's metals, cocoa, cotton and 16 pairs (not USD/KRW), without volume, about 170 days back: a voter on them, and the LME's history below Sina's (backfill workflow, `deepen-wallstreetcn`, `jump.backfill.deepen_from_wallstreetcn`; gated on the overlap like any import, and only hours in the LME's session, less a session's first bar that opens 1% or more off the last close and is back as far within the hour - 11 such openings in its bars of 2026-04 to 07). It also carries what the basket does not hold - sugar, lean hogs, wheat, corn, soybeans and soybean oil, the LME's copper, lead and zinc, 38 stock indices and index futures, 52 government bond yields (codes in `price_monitor/wallstreetcn.py`) - each with about 170 days of history (`docs/decisions.md`, "What else Wallstreetcn carries") |
+| FT | — | the vote on live cattle, asked for the contract the store holds, and coffee, its continuous series: hourly, 24 trading days back, without volume (`price_monitor/ft.py`) |
 | Dukascopy, Bitstamp, Bitfinex | — | history only |
 | HF Data | — | funds' history to 2020, imported; it withdrew its consolidated tape on 2026-10-03, and its client was deleted |
 
@@ -224,8 +225,8 @@ the channel gives it; a source added there is asked from the next run.
 |---|---|
 | currency pairs and the real (17, SiftingIO) | Yahoo hourly FX (729 days back), MarketWatch (`price_monitor/marketwatch.py`, 9 days back, every hour) and Wallstreetcn (`price_monitor/wallstreetcn.py`, 170 days back), all but USD/KRW, which it does not carry |
 | funds (133) | Yahoo 30-minute bars folded to the hour (59 days back), Sina 30-minute US bars (77 days back), MarketWatch hourly (`FUND/US/<exchange>/<ticker>`, 9 days back) - two of these for a fund Yahoo or Sina serves, all three for the rest - and Alpaca's consolidated tape (`Alpaca_SIP`, from 2016, fifteen minutes behind), for every fund: the 30 the store has from Alpaca's IEX feed (`Alpaca_IEX`, one exchange) too |
-| coffee, cocoa, cotton (Yahoo) | Sina global futures, hourly (79 days back: coffee and cocoa from 2026-05-12, cotton from 07-20); for cocoa and cotton also Wallstreetcn (170 days back), which changes contract on its own days too |
-| live cattle (Yahoo) | MarketWatch continuous contract, hourly (9 days back) |
+| coffee, cocoa, cotton (Yahoo) | Sina global futures, hourly (79 days back: coffee and cocoa from 2026-05-12, cotton from 07-20); for cocoa and cotton also Wallstreetcn (170 days back), for coffee the FT's continuous series (`price_monitor/ft.py`, 24 trading days back), each changing contract on its own days too |
+| live cattle (Yahoo) | MarketWatch continuous contract, hourly (9 days back), and the FT's bars of the contract the store holds (24 trading days back) |
 | coins (16, Binance) | Coinbase's dollar pairs, hourly (`price_monitor/coinbase.py`, a year back) and Kraken's (`kraken.py`, 29 days back): a wick on Binance alone is real there and not the market's |
 | LME tin, nickel, aluminium (Sina) | Wallstreetcn, hourly (`price_monitor/wallstreetcn.py`, about 170 days back, counted again for 79 days, as the softs) |
 
@@ -259,9 +260,10 @@ offset is not a move.
   source serves at the time, and the next count looks again.
 - **Outage:** the source is down, has no bar after the move yet, or is silent for 12 hours
   around it. For the softs, also a move whose span crosses the source's own change of
-  contract - Sina's, or Wallstreetcn's for cocoa and cotton (`verify.switches`: a session
-  whose median offset to the store stepped by 50 bp or more) - where its move carries the
-  spread between two months.
+  contract - Sina's, Wallstreetcn's for cocoa and cotton, the FT's for coffee
+  (`verify.switches`: a session whose median offset to the store stepped by 50 bp or more) -
+  where its move carries the spread between two months. For cattle the FT's contract is
+  the one the store holds today, so the step is at the store's own change.
 
 **The vote** (`combine`, `judge_all`). The store's provider is one vote that saw it;
 each other source that answers is one vote. One that cannot - an outage - is left out of
@@ -287,8 +289,8 @@ other source of an instrument down at once, its far moves are uncertain - scored
 alerted with every source `(outage)` on the line - until a count after they are back,
 inside the recount window.
 
-**Rule.** With one other source, every disagreement is a tie: cattle, coffee and the
-LME's metals. Their bad prints are uncertain and stay scored until another source is found.
+**Rule.** With one other source, every disagreement is a tie: the LME's metals. Their bad
+prints are uncertain and stay scored until another source is found.
 With three - the pairs but USD/KRW - a two-two split is a tie too: USD/BRL's fall of
 2026-10-05 12:00 is in the session's first hour on SiftingIO and MarketWatch, before its
 open on Yahoo and Wallstreetcn.
@@ -313,8 +315,9 @@ the close check reads. A message already sent is marked, not removed (section 8)
 they then are on the first run after each end of its market's session - the NYSE close
 for funds, a daily-session market's own close, 00:00 UTC for coins and pairs - until the
 closest-reaching of its sources no longer serves its hour: 9 days for the funds, pairs
-and cattle (MarketWatch), 29 for the coins (Kraken), 79 for the softs (Sina) and the LME (Wallstreetcn, which
-reaches about 170 but is held inside the record's 90 days, `verify.KEEP_DAYS`). After that the further sources would vote alone, and the vote stands. A source
+and cattle (MarketWatch), 29 for the coins (Kraken), 30 for coffee (the FT), 79 for cocoa and
+cotton (Sina) and the LME (Wallstreetcn, which reaches about 170 but is held inside the
+record's 90 days, `verify.KEEP_DAYS`). After that the further sources would vote alone, and the vote stands. A source
 that corrects its bars turns the vote; a bar that heals into no far move loses its vote.
 The store's own provider is re-read first: on a run with a vote due, the hourly fetch
 reaches back to its hour in the same request, and in an open month the fresher copy wins, for
@@ -612,7 +615,7 @@ and 79 s, the vote 14 and 27 s, metrics 20 s rebuilt cold and 14 s extended, eve
 | Alpaca | 200/min | 30 a run in session; the tape's vote besides, within the vote's 40 sources a run |
 | Twelve Data | 800/day, 8/min | one batch of 8 a run, in a background thread: keep at most 8 instruments on it, as one batch is a minute's credits; a history walk (`--extend-history`, `--fill-gaps`) waits out :03–:12 past each hour and stops at 600 a day (`twelvedata.ARCHIVE_CREDIT_CAP`), so run one a day |
 | SiftingIO | 10,000/month | ~8,700/month (17 pairs, skipped outside the FX week and USD/BRL's session) |
-| Yahoo, Sina, Google, MarketWatch, Wallstreetcn | none published | live fetch, dividend check, the vote (at most 40 sources a run, all sources together) |
+| Yahoo, Sina, Google, MarketWatch, Wallstreetcn, the FT | none published | live fetch, dividend check, the vote (at most 40 sources a run, all sources together) |
 | Binance | 6,000 weight/min per address | 16 a run |
 | Coinbase, Kraken | per second, per address | the coins' vote: on the run after a coin moved 4σ or more, and at 00:05 UTC for 29 days after; Coinbase serves 300 hours a request, so a coin's recount is up to 3 (25 Coinbase requests at 00:05 on 2026-10-09) |
 
@@ -712,8 +715,8 @@ How far back each record reaches:
 
 | limitation | effect | what would fix it |
 |---|---|---|
-| Yahoo, Sina, Google Finance, MarketWatch and Wallstreetcn are undocumented endpoints | a change silences their instruments or checks until fixed; the health chat names them | paid feeds (consolidated tape, futures data) |
-| one other source for cattle, coffee and the LME's metals | a disagreement is a tie: their bad prints stay scored, labelled uncertain. The LME's, Wallstreetcn, prints the same close as Sina in 53–68% of hours (2026-07 to 10): in part one upstream | another free feed |
+| Yahoo, Sina, Google Finance, MarketWatch, Wallstreetcn and the FT are undocumented endpoints | a change silences their instruments or checks until fixed; the health chat names them | paid feeds (consolidated tape, futures data) |
+| one other source for the LME's metals | a disagreement is a tie: their bad prints stay scored, labelled uncertain. The LME's, Wallstreetcn, prints the same close as Sina in 53–68% of hours (2026-07 to 10): in part one upstream | another free feed |
 | weekend yardsticks rest on 26 weekends | ±16% noise | none chosen: a longer window gained little (`docs/decisions.md`, "Rejected") |
 | history before each record's start (section 11) | "rarest since" reaches only as far as the record | paid history |
 | history older than its recount | not voted (section 5): only the readings the one-off check of 2026-10-07 judged carry a vote. Elsewhere an old bad print or stale open stays flagged (14 whole shifted fund days were removed, section 5; the funds' wrong first bars of 2016–2022 were mended, section 11, but not those before 2016 or since 2023), sits in the next half-year's yardsticks, and can be the "then" of a later "rarest since" line | a second source for the old history (`docs/decisions.md`, "History is not voted again") |
