@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1791673603
+    "last_run_utc": 1791677222
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -22,7 +22,7 @@
           },
           "message": 100,
           "peak": "jump:binance:ATOM/USDT:hour:1791612000",
-          "seen": 1791673603,
+          "seen": 1791677223,
           "shown": [
             "noticeable",
             6.4,
@@ -55,7 +55,7 @@
           },
           "message": 99,
           "peak": "jump:binance:FIL/USDT:hour:1791597600",
-          "seen": 1791673603,
+          "seen": 1791677223,
           "shown": [
             "noticeable",
             6.9,
@@ -87,7 +87,7 @@
       },
       "note": {
         "hashes": [
-          "9f5ceb9cd6a3f999"
+          "0ba596705fa307e7"
         ],
         "ids": [
           98
@@ -99,6 +99,6 @@
     }
   },
   "telegram_update_offset": 688283215,
-  "weekly_digest:last_refreshed": "2026-10-10",
+  "weekly_digest:last_refreshed": "2026-10-11",
   "weekly_digest:last_sent_week": "1791576300"
 }
