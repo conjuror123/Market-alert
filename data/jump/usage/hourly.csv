@@ -167,7 +167,7 @@ day,provider,purpose,calls,reported,left,left_at
 2026-10-16,yahoo,fetch,433,,,
 2026-10-16,yahoo,votes,12,,,
 2026-10-17,alpaca,votes,16,,197,00:06
-2026-10-17,binance,fetch,72,,,
+2026-10-17,binance,fetch,76,,,
 2026-10-17,bitfinex,votes,4,,,
 2026-10-17,bitstamp,votes,4,,,
 2026-10-17,cboe,fetch,10,,,
@@ -178,5 +178,5 @@ day,provider,purpose,calls,reported,left,left_at
 2026-10-17,tiingo,votes,5,,,
 2026-10-17,twelvedata,votes,15,,3,00:06
 2026-10-17,wallstreetcn,votes,5,,,
-2026-10-17,yahoo,fetch,36,,,
+2026-10-17,yahoo,fetch,38,,,
 2026-10-17,yahoo,votes,9,,,
