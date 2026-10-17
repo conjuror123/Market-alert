@@ -121,10 +121,6 @@ session_templates:
     exchange: ICE Endex
     tz: Europe/Amsterdam
     description: "08:00-18:00 Amsterdam on weekdays"
-  tokyo_bonds:
-    exchange: Japan's bond market
-    tz: Asia/Tokyo
-    description: "09:00-18:00 Tokyo on weekdays, the hours MarketWatch serves the yield"
   # The stock markets abroad (jump/sessions.py EXCHANGES): each day's hours from
   # its exchange's own calendar (data/jump/sessions/<code>.csv, from
   # exchange_calendars), so a holiday or a half day is the exchange's; nominal
@@ -446,8 +442,9 @@ assets:
   # --- rates -----------------------------------------------------------------
   # US Treasuries by maturity - the 2-, 10- and 30-year futures, live from Yahoo
   # one contract at a time (jump/futures.py) - and inflation-protected; the
-  # Bund and the long gilt, live from MarketWatch one contract at a time, and
-  # Japan's 10-year yield, all without volume.
+  # Bund and the long gilt, live from MarketWatch one contract at a time, without
+  # volume. No Japanese rate: every instrument is a price, and no free source
+  # serves the JGB future hour by hour (docs/decisions.md, "The basket").
   - ticker: ZT=F
     source: yahoo
     block: rates
@@ -490,19 +487,6 @@ assets:
     fetch_interval: 1h
     display: "Gilt"
     label: "UK long gilt (ICE)"
-  # Japan's 10-year government bond yield, live from MarketWatch: no free source
-  # carries the JGB future (2026-10-13). A yield, so its move is read and shown in
-  # basis points (unit: bp).
-  - ticker: JP10Y
-    source: marketwatch
-    block: rates
-    has_volume: false
-    tick_size: 0.0001
-    session_template: tokyo_bonds
-    fetch_interval: 1h
-    unit: bp
-    display: "JGB 10Y"
-    label: "Japan 10-year government bond yield"
   - ticker: TIP
     source: twelvedata
     provider: tiingo

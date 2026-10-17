@@ -456,22 +456,3 @@ def test_a_shanghai_night_across_a_missing_trading_day_is_not_scored():
         (cst(2025, 9, 24, 9), 4550, 4560, 4540, 4555, 0.0, 12),
     ]), dividends=dividends(ticker="SPY"))
     assert out["gap"].isna().all()
-
-
-def test_a_yields_move_is_its_change_in_points_not_a_log_return():
-    # Japan's 10-year at 3.00% then 3.09%: a move of 0.09 (9 bp) against a log
-    # return of 2.96%. Its first hour of a session from its own open, as a
-    # price's.
-    jgb = asset(ticker="JP10Y", source="marketwatch", block="rates", has_volume=False,
-                tick_size=0.0001, session_template="tokyo_bonds", fetch_interval="1h",
-                unit="bp")
-    tokyo = ZoneInfo("Asia/Tokyo")
-    at = lambda d, h: int(datetime(2026, 10, d, h, tzinfo=tokyo).timestamp())  # noqa: E731
-    bars_ = frame([(at(8, 16), 3.00, 3.00, 3.00, 3.00, 0.0, 1),
-                   (at(8, 17), 3.00, 3.09, 3.00, 3.09, 0.0, 1),
-                   (at(9, 9), 3.10, 3.12, 3.10, 3.12, 0.0, 1)])
-    out = returns.split_channels(jgb, bars_)
-    assert out["r"].tolist()[1:] == pytest.approx([0.09, 0.02])
-    price = returns.split_channels(asset(ticker="X", session_template="tokyo_bonds",
-                                         fetch_interval="1h"), bars_)
-    assert price["r"].iloc[1] == pytest.approx(math.log(3.09 / 3.00))

@@ -422,8 +422,6 @@ def main(argv: list[str] | None = None) -> int:
 #   ice_gilt     ICE's long gilt future, 08:00-18:00 London: the hours its history
 #                (Dukascopy's CFD) holds; MarketWatch serves 01:00-21:00
 #   ice_endex    ICE Endex's Dutch TTF gas future, 08:00-18:00 Amsterdam
-#   tokyo_bonds  Japan's 10-year government bond yield, 09:00-18:00 Tokyo, the
-#                hours MarketWatch serves it
 DAILY_SESSIONS: "dict[str, tuple[str, tuple[int, int], tuple[int, int]]]" = {
     "lme": ("Europe/London", (1, 0), (19, 0)),
     "ice_coffee": ("America/New_York", (4, 15), (13, 30)),
@@ -437,7 +435,6 @@ DAILY_SESSIONS: "dict[str, tuple[str, tuple[int, int], tuple[int, int]]]" = {
     "eurex_bund": ("Europe/Berlin", (8, 0), (18, 0)),
     "ice_gilt": ("Europe/London", (8, 0), (18, 0)),
     "ice_endex": ("Europe/Amsterdam", (8, 0), (18, 0)),
-    "tokyo_bonds": ("Asia/Tokyo", (9, 0), (18, 0)),
 }
 
 # THE MARKETS ABROAD: a stock index each, on its own exchange's days and hours,

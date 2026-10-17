@@ -1,6 +1,6 @@
-"""MarketWatch's hourly bars: the store of the Bund, the gilt, TTF and Japan's
-10-year yield (STORE), and a voter on the currency pairs, the funds, the futures,
-gold and silver, and the stock indices abroad.
+"""MarketWatch's hourly bars: the store of the Bund, the gilt and TTF (STORE), and a
+voter on the currency pairs, the funds, the futures, gold and silver, and the stock
+indices abroad.
 
 THE ENDPOINT is the one MarketWatch's own charts read (api.wsj.net, Dow Jones'
 "michelangelo" time series): hourly bars for about the last ten days, keyed as
@@ -115,11 +115,11 @@ FUTURES = {
 # What MarketWatch serves the store (jump.backfill), by ticker: the Bund's and the
 # gilt's single contract - the month and year the store holds appended
 # (FGBLZ26: jump.futures.front_contract) -, TTF's continuous series (ICE Endex
-# names no single month here) and Japan's 10-year yield. About nine trading days
-# back, hourly, without volume (2026-10-13: the Bund 08:00-17:00 Frankfurt, the
-# gilt 01:00-20:00 London, TTF 08:00-17:00 Amsterdam, the yield 09:00-17:00 Tokyo).
+# names no single month here). About nine trading days back, hourly, without
+# volume (2026-10-13: the Bund 08:00-17:00 Frankfurt, the gilt 01:00-20:00 London,
+# TTF 08:00-17:00 Amsterdam).
 STORE = {"FGBL=F": "FUTURE/DE/XEUR/FGBL", "RLI=F": "FUTURE/UK/IFEU/RLI",
-         "TFM=F": "FUTURE/UK/NDEX/TFMI00", "JP10Y": "BOND/BX/XTUP/TMBMKJP-10Y"}
+         "TFM=F": "FUTURE/UK/NDEX/TFMI00"}
 CONTRACTS = ("FGBL=F", "RLI=F")
 
 

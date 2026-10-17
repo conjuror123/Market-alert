@@ -65,6 +65,8 @@ PROVIDERS = {
     "api-pub.bitfinex.com": "bitfinex",
     "api.stock.naver.com": "naver",
     "www.twse.com.tw": "twse",
+    "ifzq.gtimg.cn": "tencent",
+    "api.eex-group.com": "eex",
 }
 
 # The headers a provider says what is left in: Tiingo, SiftingIO, Twelve Data.

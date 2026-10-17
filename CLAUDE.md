@@ -1,6 +1,6 @@
 # Working on Jump
 
-An hourly Telegram bot on GitHub Actions that writes when one of 62 market instruments
+An hourly Telegram bot on GitHub Actions that writes when one of 61 market instruments
 moves unusually for itself.
 
 **Where things are**

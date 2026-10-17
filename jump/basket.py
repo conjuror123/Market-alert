@@ -47,8 +47,6 @@ SOURCES = ("twelvedata", "binance", "yahoo", "sina", "sifting", "marketwatch")
 PROVIDERS = ("twelvedata", "binance", "tiingo", "alpaca", "yahoo", "sifting", "sina",
              "marketwatch")
 FETCH_INTERVALS = ("15min", "30min", "1h")
-# A price (empty), or a yield moving in basis points.
-UNITS = ("", "bp")
 
 
 class BasketConfigError(ValueError):
@@ -79,9 +77,6 @@ class Asset:
     # (Yahoo's ^N225 is NI225 elsewhere): the index's own name. Defaults to the
     # ticker.
     display: str = ""
-    # "bp" for a yield (Japan's 10-year): its move is the yield's change, not a
-    # log return, and a message gives it in basis points. Empty: a price.
-    unit: str = ""
 
     @property
     def shown_as(self) -> str:
@@ -181,9 +176,11 @@ def _asset(raw: dict, *, in_basket: bool) -> Asset:
             f"is not one of {list(FETCH_INTERVALS)}")
     if not isinstance(raw["has_volume"], bool):
         raise BasketConfigError(f"{raw['ticker']}: has_volume must be true or false")
-    if raw.get("unit", "") not in UNITS:
+    # Every instrument is a price, its move a log return and a message's per
+    # cent: no yield in basis points (the user's, 2026-10-17).
+    if "unit" in raw:
         raise BasketConfigError(
-            f"{raw['ticker']}: unit '{raw['unit']}' is not one of {list(UNITS)}")
+            f"{raw['ticker']}: 'unit' is not a field - every instrument is scored as a price")
     if not isinstance(raw["tick_size"], (int, float)) or raw["tick_size"] <= 0:
         raise BasketConfigError(
             f"{raw['ticker']}: tick_size must be a positive number, "
@@ -195,7 +192,6 @@ def _asset(raw: dict, *, in_basket: bool) -> Asset:
         tick_size=float(raw["tick_size"]),
         label=raw.get("label", raw["ticker"]), in_basket=in_basket,
         provider=raw.get("provider", ""), display=raw.get("display", ""),
-        unit=raw.get("unit", ""),
     )
 
 

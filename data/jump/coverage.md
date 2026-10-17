@@ -1,6 +1,6 @@
 # Jump data coverage
 
-Generated 2026-10-17 17:03 UTC by `python -m jump.audit`. One row per instrument: its provider, how far back its bars reach, its hourly volume, and anything wrong with the series (Notes; `—` is sound). Periods end where the bars on disk end: without the open months (`tools/hot_bars.sh restore`), at the last settled month.
+Generated 2026-10-17 21:04 UTC by `python -m jump.audit`. One row per instrument: its provider, how far back its bars reach, its hourly volume, and anything wrong with the series (Notes; `—` is sound). Periods end where the bars on disk end: without the open months (`tools/hot_bars.sh restore`), at the last settled month.
 
 ## Basket
 
@@ -62,7 +62,6 @@ Generated 2026-10-17 17:03 UTC by `python -m jump.audit`. One row per instrument
 | `XAG/USD` | precious_metals | sifting | 1h | 141,020 | 2003-05-04 .. 2026-09-30 | 7,280 | 23 | 0.0001 | 0.0001 | 98% | 77 | volume present though not declared |
 | `XAU/USD` | precious_metals | sifting | 1h | 142,016 | 2003-05-05 .. 2026-09-30 | 7,290 | 23 | 0.01 | 0.0001 | 98% | 77 | volume present though not declared |
 | `FGBL=F` | rates | marketwatch | 1h | 29,887 | 2018-05-03 .. 2026-09-30 | 2,141 | 14 | 0.01 | 0.0001 | 100% | 131 | — |
-| `JP10Y` | rates | marketwatch | 1h | 9 | 2026-09-30 .. 2026-09-30 | 1 | 9 | 0.0001 | 0.0001 | 100% | 1 | — |
 | `RLI=F` | rates | marketwatch | 1h | 21,165 | 2018-05-01 .. 2026-09-30 | 2,123 | 10 | 0.01 | 0.0001 | 100% | 116 | — |
 | `TIP` | rates | tiingo | 30min | 39,878 | 2003-12-05 .. 2026-09-30 | 5,725 | 7 | 0.01 | 1e-07 | 0% | 312 | — |
 | `ZB=F` | rates | yahoo | 1h | 38,370 | 2019-01-21 .. 2026-09-30 | 2,032 | 23 | 0.03125 | 1e-05 | 0% | 649 | — |
@@ -75,4 +74,4 @@ Generated 2026-10-17 17:03 UTC by `python -m jump.audit`. One row per instrument
 
 ## Totals
 
-Instruments: 62. Bars: 2,378,129. Rows with issues: 8.
+Instruments: 61. Bars: 2,378,120. Rows with issues: 8.

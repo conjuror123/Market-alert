@@ -147,12 +147,14 @@ def test_a_coins_tick_is_binances():
     assert coins == BINANCE_TICKS
 
 
-def test_a_unit_is_a_price_or_basis_points(tmp_path):
+def test_every_instrument_is_a_price_and_a_yield_in_basis_points_is_refused(tmp_path):
+    # Japan's 10-year yield was scored in basis points; it left the basket and
+    # the unit with it (the user's, 2026-10-17). A `unit` comes back as an error.
     import yaml
     from jump.basket import BasketConfigError
     raw = yaml.safe_load(open("config/basket.yaml", encoding="utf-8"))
-    assert [a["ticker"] for a in raw["assets"] if a.get("unit")] == ["JP10Y"]
-    raw["assets"][0]["unit"] = "percent"
+    assert not [a["ticker"] for a in raw["assets"] if "unit" in a]
+    raw["assets"][0]["unit"] = "bp"
     path = tmp_path / "basket.yaml"
     path.write_text(yaml.safe_dump(raw))
     with pytest.raises(BasketConfigError, match="unit"):
