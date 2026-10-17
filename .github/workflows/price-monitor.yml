@@ -1,0 +1,327 @@
+name: Price Spike Monitor
+
+on:
+  # An external service (cron-job.org) triggers the hourly run by calling
+  # workflow_dispatch through the GitHub API. GitHub's own schedule: is not used
+  # and should not be added: it fires unreliably (about once every ten hours
+  # on this repository), and a missed run looks identical to a quiet market.
+  # See docs/manual.md, "Running it".
+  workflow_dispatch:
+    inputs:
+      # Run by hand only; the hourly call passes nothing. Funds whose missing
+      # hours of the last 58 days are filled from Yahoo before the fetch, if
+      # Yahoo's bars agree with the store (jump.backfill --repair). Here and
+      # not in the history workflow: only this run may save the open months.
+      repair:
+        description: "Funds to repair from Yahoo, comma-separated (e.g. HYG)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: price-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    # The job takes about 2.5 minutes (docs/manual.md, "Running it"). Twenty is
+    # room for a slow provider, not an expectation.
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        id: python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        id: deps
+        run: pip install -r requirements.txt
+
+      # The NYSE session table extends itself, append-only, once under two
+      # years remain (jump/sessions.py) - about once a year. The calendar
+      # library is installed only then; the hourly run never needs it otherwise.
+      # continue-on-error: a table with a year or more left is no reason to
+      # stop the run, and the next hour tries again.
+      - name: Extend the session table when it runs short
+        id: sessions
+        continue-on-error: true
+        run: |
+          if python -c "import sys; from jump import sessions; sys.exit(0 if sessions.needs_extension() else 1)"; then
+            pip install "exchange-calendars>=4.13,<5"
+            python -m jump.sessions --extend-if-short
+          else
+            echo "session table reaches far enough"
+          fi
+
+      - name: Restore gitignored Jump parquet
+        id: cache
+        uses: actions/cache/restore@v6
+        with:
+          # metrics/ so `python -m jump.pipeline` can extend instead of
+          # rebuilding every instrument. Gitignored (parquet does not delta).
+          # jumps.parquet is rescored from the whole history every run and is
+          # not cached.
+          #
+          # restore + save (not the combined actions/cache) so a red job still persists: this
+          # workflow fails the run when backfill did, after pipeline/jumps have
+          # already written. The combined action skips save on failure, and the next hour
+          # would then rebuild every metric — scoring the whole archive.
+          path: |
+            data/jump/metrics
+          key: jump-derived-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            jump-derived-${{ github.ref_name }}-
+
+      # What the cache held when it landed, so the save at the end can tell
+      # whether this run actually changed any of it.
+      - name: Mark when the cache landed
+        id: cache_mark
+        run: touch /tmp/cache-restored
+
+      # The open months of the bar store live on a release, not in git
+      # (tools/hot_bars.sh, jump/bars.py). No continue-on-error: a store
+      # missing its last weeks would score every recent move as gone, and
+      # delivery would take their messages down. Better no run than that one.
+      - name: Restore the open months of the bars
+        id: hot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: tools/hot_bars.sh restore
+
+      # Three steps feed delivery: backfill brings the bars up to date,
+      # pipeline turns them into per-asset metrics (the move and the gap), and
+      # jumps scores every instrument's whole history and writes the events.
+      #
+      # continue-on-error so delivery still runs: a fetch failure does not
+      # stop pipeline and jumps, which run on whatever bars are stored (the
+      # events table is gitignored, so a fresh runner has none otherwise). The
+      # step exits nonzero, and the job goes red at the end, only when the fetch
+      # got nothing at all: one provider down is named on the health chat.
+      #
+      # Its own time limit, well inside the job's: the job's cancels every step
+      # after it, so a slow hour delivered nothing and told no one (28 runs on
+      # 2026-09-09..11). Stopped here, the rest still runs and the monitor
+      # reports it; the stage file says which part was running.
+      - name: Jump pipeline
+        id: jump
+        continue-on-error: true
+        timeout-minutes: 12
+        env:
+          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+          SIFTING_API_KEY: ${{ secrets.SIFTING_API_KEY }}
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_HEALTH_CHAT_ID: ${{ secrets.TELEGRAM_HEALTH_CHAT_ID }}
+          REPAIR: ${{ github.event.inputs.repair }}
+          # What the run asks of each provider, by day (jump.usage).
+          USAGE_FILE: data/jump/usage/hourly.csv
+        run: |
+          stage() { echo "$1 $(date +%s)" >> "$RUNNER_TEMP/jump-stages"; }
+          set +e
+          if [ -n "$REPAIR" ]; then
+            # A repair that fails or is refused leaves the store as it was;
+            # the run goes on and its log says why.
+            stage repair
+            python -m jump.backfill --repair --instruments "$REPAIR"
+          fi
+          stage fetch
+          python -m jump.backfill
+          bf=$?
+          set -e
+          stage pipeline
+          python -m jump.pipeline
+          stage jumps
+          python -m jump.jumps
+          stage done
+          if [ "$bf" -ne 0 ]; then
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "failed=false" >> "$GITHUB_OUTPUT"
+          fi
+          exit "$bf"
+
+      # Straight after the Jump step, whatever happens to delivery.
+      - name: Save the open months of the bars
+        id: hot_save
+        if: always() && steps.hot.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: tools/hot_bars.sh save
+
+      # Runs after the pipeline, and this order is the point: the delivery layer
+      # inside it reads jumps.parquet off disk, so it must read the file
+      # this run just wrote rather than the one the last commit happened to carry.
+      #
+      # Whenever the Jump step got to start, finished or not: one that ran
+      # out of time may count as failing the job, and the hour must still
+      # deliver what it has and report it. Not after a cancel by hand.
+      - name: Run monitor
+        id: monitor
+        if: ${{ !cancelled() && steps.jump.outcome != 'skipped' }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_HEALTH_CHAT_ID: ${{ secrets.TELEGRAM_HEALTH_CHAT_ID }}
+          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+          # The step stopped before its end - a crash, or its time limit -
+          # before writing its `failed` output, which the backfill's own
+          # failure always writes.
+          JUMP_PIPELINE_CRASHED: ${{ steps.jump.outcome != 'success' && steps.jump.outputs.failed == '' }}
+          JUMP_STAGE_FILE: ${{ runner.temp }}/jump-stages
+          # Steps that do not stop the run, so only this can report them.
+          SESSIONS_STEP_OUTCOME: ${{ steps.sessions.outcome }}
+          HOT_SAVE_STEP_OUTCOME: ${{ steps.hot_save.outcome }}
+        run: python -m price_monitor
+
+      # Every run: the small state. data/state.json carries which Jump events
+      # have already been sent, so losing it means sending them all again.
+      #
+      # The bars that reach git: only settled months, once each, as plain CSV,
+      # and each finished year once more as one Parquet file (jump/bars.py) - the open ones are on the release, saved above, and
+      # gitignored. So `git add data/jump/bars` stages nothing on almost every
+      # run, and a month's worth on the run that settles it. The bars cannot be
+      # rebuilt: the providers do not serve 2003 on the free plan. Weekly: VIX,
+      # so skip-if-fresh can see a recent close and skip CBOE's full 1990 file.
+      #
+      # The derived tables are not committed. A parquet of floats that the
+      # pipeline recomputes in full shares no bytes with its previous version,
+      # so git would store the whole thing again every time; they are rebuilt
+      # by the run that reads them. Metrics persist in the Actions cache.
+      #
+      # Whenever the monitor ran, failed or not. A run with an error exits 1,
+      # and its state is the one that matters most: the health streak it just
+      # counted, and what it sent. Skipped with it, the streak never reached
+      # the alert and the next run sent the same messages again. The job
+      # still ends red.
+      - name: Commit updated state
+        id: commit
+        if: always() && (steps.monitor.outcome == 'success' || steps.monitor.outcome == 'failure')
+        run: |
+          mkdir -p data/economic_calendar
+          git config user.name "price-monitor-bot"
+          git config user.email "actions@github.com"
+          git add data/state.json data/economic_calendar data/jump/sessions
+          # Every run, and small: which payouts are known and how far each
+          # fund's record is confirmed. An overnight gap is scored only on a
+          # date its fund has been checked through, and a runner is thrown
+          # away after each run - so an uncommitted check is one that never
+          # happened, and the next morning would ask again from the old date.
+          git add data/jump/corporate_actions.csv data/jump/dividend_checks.csv
+          # Every run, and small: the sources' votes (jump.verify). The
+          # detector leaves the moves voted not real out on every runner, so
+          # an uncommitted vote would be a move scored again.
+          if [ -f data/jump/verified.csv ]; then git add data/jump/verified.csv; fi
+          # Every run, and small: what each provider was asked, by day
+          # (jump.usage) - the limits are counted against it.
+          if [ -f data/jump/usage/hourly.csv ]; then git add data/jump/usage/hourly.csv; fi
+          # Open months live on the release, not in git: once it holds them,
+          # any still tracked leave the tree (they stay on disk, gitignored).
+          if [ "${{ steps.hot_save.outcome }}" = "success" ]; then
+            git rm -r -q --cached --ignore-unmatch 'data/jump/bars/*/*.open.csv'
+          fi
+          git add data/jump/bars
+          # VIX is one parquet file rewritten daily; it stays weekly, on
+          # Saturday 04:00 UTC, when every market that keeps a session is shut.
+          if [ "$(date -u +%H)" = "04" ] && [ "$(date -u +%u)" = "6" ]; then
+            git add data/jump/vix 2>/dev/null || true
+          fi
+          if git diff --cached --quiet; then
+            echo "No state changes to commit."
+          else
+            git commit -m "chore: update monitor state [skip ci]"
+            # A rejected push leaves the next checkout with an old record of
+            # the week and re-delivers what it forgot. Rebase onto
+            # whatever landed and try again.
+            for attempt in 1 2 3 4 5; do
+              if git push origin "HEAD:${{ github.ref_name }}"; then
+                echo "pushed on attempt $attempt"
+                exit 0
+              fi
+              echo "push rejected, rebasing onto origin/${{ github.ref_name }}"
+              # --autostash: the VIX file is rewritten most runs but committed
+              # only on Saturdays, and a plain rebase refuses to run beside it
+              # (2026-10-07 15:05: a GitHub 500 on the push, and no retry).
+              git pull --rebase --autostash origin "${{ github.ref_name }}" || exit 1
+              sleep $((attempt * 3))
+            done
+            echo "::error::could not push monitor state after 5 attempts"
+            exit 1
+          fi
+
+      # Last, so that a Jump failure still leaves the monitor's own work done
+      # and committed - but the run goes red, because the alternative is a
+      # pipeline that quietly stops updating while the repository looks healthy.
+      # That is the exact shape of the failure this whole workflow exists to fix.
+      - name: Fail the run if the Jump pipeline did not complete
+        if: ${{ !cancelled() && steps.jump.outcome != 'success' && steps.jump.outcome != 'skipped' }}
+        run: |
+          echo "::error::The Jump pipeline failed; events were not refreshed."
+          exit 1
+
+      # 232 MiB went up on every run of every hour - 5.4 GiB a day spent
+      # re-stating what the last run already said. The pipeline skips writing a
+      # metrics file whose numbers did not move, so on a quiet hour there is
+      # nothing new to upload; anything newer than the marker was written here.
+      # On a cache miss the metrics do not exist yet, everything is written, and
+      # the answer is yes - which is what we want.
+      - name: Did the derived data change
+        id: derived
+        if: always()
+        run: |
+          changed=$(find data/jump/metrics \
+                      -newer /tmp/cache-restored -type f -print -quit 2>/dev/null || true)
+          # Once a day whatever happened, so a long quiet stretch cannot let the
+          # entry age out from under us: GitHub drops a cache nothing has
+          # touched for a week, and a cold start costs every instrument a full
+          # rebuild. The upload is not worth betting the warm start on.
+          if [ -n "$changed" ] || [ "$(date -u +%H)" = "04" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "nothing written this run; keeping the restored cache as it is"
+          fi
+
+      - name: Persist gitignored Jump parquet
+        if: always() && steps.derived.outputs.changed == 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            data/jump/metrics
+          key: jump-derived-${{ github.ref_name }}-${{ github.run_id }}
+
+      # Last, whatever happened: a run whose state was not committed - its
+      # monitor never ran (a step before it failed), or the commit did not
+      # succeed - lost what it sent and the health it counted. It cannot say so
+      # from inside Python; this says it with curl, at the first such hour and
+      # then daily while it lasts (tools/run_died.sh).
+      - name: Tell the health chat when the run could not deliver
+        if: ${{ always() && steps.commit.outcome != 'success' }}
+        env:
+          STEPS: ${{ toJSON(steps) }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_HEALTH_CHAT_ID: ${{ secrets.TELEGRAM_HEALTH_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        # Without a checkout there is no script: say that much directly.
+        run: |
+          if [ -f tools/run_died.sh ]; then
+            bash tools/run_died.sh
+          else
+            curl -s -o /dev/null --max-time 30 \
+              "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+              --data-urlencode "chat_id=${TELEGRAM_HEALTH_CHAT_ID}" \
+              --data-urlencode "text=⚠️ Hourly run could not deliver: the checkout failed. ${RUN_URL}"
+          fi

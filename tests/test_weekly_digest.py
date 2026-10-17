@@ -1,0 +1,572 @@
+from datetime import datetime, timedelta, timezone
+
+import pytest
+
+from price_monitor import weekly_digest
+from price_monitor.config import Config
+from price_monitor.notifier import TelegramError
+from jump import routing
+
+# The moment the weekly price note opens: the run after Friday's funds close. The digest goes
+# out in the same run and immediately before it, so the note - which keeps
+# changing all week - is the last message in the chat. Derived from
+# routing rather than written down, because that is the property under test:
+# these two messages share one boundary and cannot be given separate ones.
+WEEKEND_OPEN = datetime.fromtimestamp(
+    routing.digest_slot(int(datetime(2026, 8, 30, 6, tzinfo=timezone.utc).timestamp())),
+    tz=timezone.utc)
+WEEKEND_LATE = WEEKEND_OPEN + timedelta(hours=3)      # inside the grace window
+WEEKEND_EVENING = WEEKEND_OPEN + timedelta(hours=18)  # outside it
+MIDWEEK = datetime(2026, 9, 2, 9, 30, tzinfo=timezone.utc)
+
+# Inside the window after WEEKEND_OPEN, except the last, which is not.
+RAW_EVENTS = [
+    {"title": "Non-Farm Payrolls", "country": "USD", "date": "2026-09-04T08:30:00-04:00",
+     "impact": "High", "forecast": "", "previous": ""},
+    {"title": "Retail Sales", "country": "EUR", "date": "2026-09-02T04:00:00-04:00",
+     "impact": "Medium", "forecast": "", "previous": ""},
+    {"title": "Minor Data Point", "country": "GBP", "date": "2026-09-03T04:00:00-04:00",
+     "impact": "Low", "forecast": "", "previous": ""},
+    {"title": "Bank Holiday", "country": "All", "date": "2026-08-31T00:00:00-04:00",
+     "impact": "Holiday", "forecast": "", "previous": ""},
+]
+
+
+@pytest.fixture(autouse=True)
+def no_network_backfill(request, monkeypatch):
+    """Reading the monthly pages hits ForexFactory. In the tests it is stubbed
+    everywhere except the ones marked real_backfill - refresh_months' own tests:
+    otherwise every digest test would make three network requests."""
+    if request.node.get_closest_marker("real_backfill"):
+        return
+    monkeypatch.setattr(weekly_digest, "refresh_months",
+                        lambda path, session=None, now=None, through=None: 0)
+
+
+def make_config(tmp_path):
+    return Config(
+        telegram_bot_token="tok", telegram_chat_id="chat",
+        calendar_dir=str(tmp_path / "economic_calendar"),
+    )
+
+
+def test_the_digest_goes_out_as_the_weekend_note_opens():
+    # A forecast wants to arrive before the week it forecasts, with a day to
+    # read it in - and in the same run as the price note, immediately before it,
+    # so the note is the last message in the chat.
+    assert weekly_digest._is_digest_window(WEEKEND_OPEN) is True
+    assert weekly_digest._is_digest_window(MIDWEEK) is False
+
+
+def test_the_send_day_is_read_off_the_note_rather_than_written_down_twice():
+    # The one property that keeps these two messages in the same run. If routing
+    # moves the weekly boundary, this moves with it; a second "Sunday" spelled
+    # out here would not.
+    opens = datetime.fromtimestamp(
+        routing.digest_slot(int(WEEKEND_OPEN.timestamp())), tz=timezone.utc)
+    assert opens == WEEKEND_OPEN
+
+
+def test_a_missed_run_at_the_opening_does_not_cost_the_week(monkeypatch):
+    # A few hours of grace: the trigger is an external service, and one failed
+    # run must not cost the week's calendar.
+    assert weekly_digest._is_digest_window(WEEKEND_LATE) is True
+    assert weekly_digest._is_digest_window(WEEKEND_EVENING) is False
+
+
+def test_the_grace_window_does_not_send_twice(tmp_path, monkeypatch):
+    cfg = make_config(tmp_path)
+    state = {}
+    sent = []
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar",
+                        lambda session=None: RAW_EVENTS)
+    monkeypatch.setattr(weekly_digest, "send_telegram_message",
+                        lambda *a, **k: sent.append(a[2]) or 1)
+
+    assert weekly_digest.maybe_send_weekly_digest(
+        cfg, state, session=None, now=WEEKEND_OPEN) is True
+    assert weekly_digest.maybe_send_weekly_digest(
+        cfg, state, session=None, now=WEEKEND_LATE) is False
+    assert len(sent) == 1
+
+
+def test_the_week_is_read_from_the_archive_not_from_the_feed(tmp_path, monkeypatch):
+    # On a Friday the live feed still serves the week that is ending, so it
+    # cannot be the source. The archive is, and it reaches weeks ahead because
+    # the monthly pages are read into it.
+    cfg = make_config(tmp_path)
+    path = weekly_digest.economic_calendar.store_path(cfg.calendar_dir)
+    weekly_digest.economic_calendar.merge_events(path, RAW_EVENTS)
+
+    sent = []
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar",
+                        lambda session=None: [])
+    monkeypatch.setattr(weekly_digest, "send_telegram_message",
+                        lambda *a, **k: sent.append(a[2]) or 1)
+
+    assert weekly_digest.maybe_send_weekly_digest(
+        cfg, {}, session=None, now=WEEKEND_OPEN) is True
+    assert "Non-Farm Payrolls" in sent[0]
+
+
+def test_a_feed_that_will_not_load_does_not_cost_the_digest(tmp_path, monkeypatch):
+    cfg = make_config(tmp_path)
+    path = weekly_digest.economic_calendar.store_path(cfg.calendar_dir)
+    weekly_digest.economic_calendar.merge_events(path, RAW_EVENTS)
+
+    def failing_fetch(session=None):
+        raise weekly_digest.economic_calendar.CalendarError("boom")
+
+    sent = []
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", failing_fetch)
+    monkeypatch.setattr(weekly_digest, "send_telegram_message",
+                        lambda *a, **k: sent.append(a[2]) or 1)
+
+    assert weekly_digest.maybe_send_weekly_digest(
+        cfg, {}, session=None, now=WEEKEND_OPEN) is True
+    assert len(sent) == 1
+
+
+def test_an_archive_that_stops_short_sends_the_outage_calendar(tmp_path, monkeypatch):
+    # It cannot tell "nothing is scheduled" from "nothing was imported", and only
+    # one of those is safe to print under the heading "for the week" - so the
+    # calendar goes out empty and says there was an outage.
+    cfg = make_config(tmp_path)
+    path = weekly_digest.economic_calendar.store_path(cfg.calendar_dir)
+    weekly_digest.economic_calendar.merge_events(
+        path, [dict(RAW_EVENTS[0], date="2026-08-29T08:30:00+00:00")])
+
+    sent = []
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar",
+                        lambda session=None: [])
+    monkeypatch.setattr(weekly_digest, "send_telegram_message",
+                        lambda *a, **k: sent.append(a[2]) or 1)
+
+    state = {}
+    assert weekly_digest.maybe_send_weekly_digest(
+        cfg, state, session=None, now=WEEKEND_OPEN) is True
+    assert len(sent) == 1
+    assert "31.08 — 06.09" in sent[0]
+    assert "⚠️ Outage: the calendar source did not answer" in sent[0]
+    assert "Non-Farm" not in sent[0]
+    assert state[weekly_digest._STATE_KEY] == str(int(WEEKEND_OPEN.timestamp()))
+
+
+def test_events_outside_the_coming_week_are_not_listed(tmp_path, monkeypatch):
+    cfg = make_config(tmp_path)
+    path = weekly_digest.economic_calendar.store_path(cfg.calendar_dir)
+    weekly_digest.economic_calendar.merge_events(path, RAW_EVENTS + [
+        {"title": "Far Future Rate Decision", "country": "USD",
+         "date": "2026-09-20T14:00:00+00:00", "impact": "High",
+         "forecast": "", "previous": ""},
+        {"title": "Last Month Payrolls", "country": "USD",
+         "date": "2026-08-07T12:30:00+00:00", "impact": "High",
+         "forecast": "", "previous": ""},
+    ])
+    sent = []
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar",
+                        lambda session=None: [])
+    monkeypatch.setattr(weekly_digest, "send_telegram_message",
+                        lambda *a, **k: sent.append(a[2]) or 1)
+
+    weekly_digest.maybe_send_weekly_digest(
+        cfg, {}, session=None, now=WEEKEND_OPEN)
+    text = "\n".join(sent)
+    assert "Non-Farm Payrolls" in text
+    assert "Far Future Rate Decision" not in text
+    assert "Last Month Payrolls" not in text
+
+
+def test_the_window_is_the_next_whole_week_monday_to_monday():
+    # Sent at 00:05 on Sunday the 30th: the 31st through the 6th, a week
+    # starting on the day a week starts. Not "seven days from now", which would
+    # begin mid-weekend and end mid-weekend.
+    start, end = weekly_digest.coming_week(WEEKEND_OPEN)
+    assert start == datetime(2026, 8, 31, tzinfo=timezone.utc)
+    assert end == datetime(2026, 9, 7, tzinfo=timezone.utc)
+    assert start.weekday() == 0 and end.weekday() == 0
+    assert end - start == timedelta(days=7)
+
+
+def test_the_window_does_not_move_with_the_hour_the_run_lands_on():
+    # The grace window lets the send slip by hours. If the period slipped with
+    # it, two digests would overlap by however late the trigger was.
+    assert (weekly_digest.coming_week(WEEKEND_LATE)
+            == weekly_digest.coming_week(WEEKEND_OPEN))
+
+
+def test_consecutive_digests_abut_exactly():
+    # THE reason the window may start on the Monday rather than at the moment of
+    # sending. The weekend a digest goes out in looks dropped and is not: the
+    # previous week's digest listed it seven days earlier. Nothing is listed
+    # twice and no hour falls between two digests.
+    previous = weekly_digest.coming_week(WEEKEND_OPEN - timedelta(days=7))
+    current = weekly_digest.coming_week(WEEKEND_OPEN)
+    assert previous[1] == current[0]
+
+    # And the sending weekend itself is inside the previous one.
+    assert previous[0] <= WEEKEND_OPEN < previous[1]
+
+
+def test_the_header_states_the_window_asked_for(tmp_path, monkeypatch):
+    # Not the span of the events that happen to be in it: a quiet end to the week
+    # would otherwise narrow the claim the message is making.
+    start, end = weekly_digest.coming_week(WEEKEND_OPEN)
+    text = weekly_digest.format_digest(
+        [e for e in RAW_EVENTS if e["impact"] in ("Medium", "High")], start, end)[0]
+    assert "31.08 — 06.09" in text
+
+
+def test_each_event_carries_its_country_flag_beside_the_code():
+    # The flag is what is caught at a glance in a list of thirty; the code is
+    # what makes it certain, because at the size a phone draws them AUD and NZD
+    # are the same two colours in nearly the same arrangement.
+    text = "\n".join(weekly_digest.format_digest(
+        [e for e in RAW_EVENTS if e["impact"] in ("Medium", "High")]))
+    assert "\U0001F1FA\U0001F1F8 USD" in text
+    assert "\U0001F1EA\U0001F1FA EUR" in text
+
+
+def test_format_digest_excludes_low_and_holiday_and_sorts_by_time():
+    digest_events = [e for e in RAW_EVENTS if e["impact"] in ("Medium", "High")]
+    text = "\n".join(weekly_digest.format_digest(digest_events))
+
+    assert "Non-Farm Payrolls" in text
+    assert "Retail Sales" in text
+    assert "Minor Data Point" not in text
+    assert "Bank Holiday" not in text
+    assert text.index("Retail Sales") < text.index("Non-Farm Payrolls")  # earlier date first
+
+
+def test_format_digest_handles_no_events():
+    messages = weekly_digest.format_digest([])
+    assert len(messages) == 1
+    assert "No Medium/High impact events" in messages[0]
+
+
+def test_format_digest_shows_every_field_of_an_event():
+    # This is what the digest was rewritten for: the impact tag says the release
+    # matters, while the forecast and previous value say what is expected of it.
+    event = {"title": "CPI m/m", "country": "USD", "impact": "High",
+             "date": "2026-09-04T08:30:00+00:00",
+             "actual": "0.4%", "forecast": "0.3%", "previous": "0.2%"}
+    text = "\n".join(weekly_digest.format_digest([event]))
+    assert "actual 0.4%" in text and "forecast 0.3%" in text and "prev. 0.2%" in text
+
+
+def test_empty_fields_are_skipped_not_printed_as_dashes():
+    # The feed has a forecast for roughly 70% of events: a line of dashes would
+    # say only that the source stayed silent.
+    event = {"title": "Bank Holiday Speech", "country": "GBP", "impact": "Medium",
+             "date": "2026-09-04T08:30:00+00:00",
+             "actual": "", "forecast": "", "previous": "1.0%"}
+    text = "\n".join(weekly_digest.format_digest([event]))
+    assert "prev. 1.0%" in text
+    assert "forecast" not in text and "actual" not in text
+
+
+def test_event_titles_are_escaped_for_html():
+    # The message goes out with parse_mode=HTML. One unescaped "S&P" would be
+    # enough for Telegram to reject the whole digest.
+    event = {"title": "S&P Global PMI", "country": "USD", "impact": "High",
+             "date": "2026-09-04T08:30:00+00:00",
+             "actual": "", "forecast": "<50", "previous": ""}
+    text = "\n".join(weekly_digest.format_digest([event]))
+    assert "S&amp;P Global PMI" in text
+    assert "&lt;50" in text
+
+
+def test_a_long_week_is_split_at_day_boundaries():
+    # Telegram rejects a message longer than 4096 characters outright rather
+    # than truncating it - so without splitting, a long week would never arrive.
+    events = [{"title": f"A very long name for indicator number {i:03d}",
+               "country": "USD", "impact": "Medium",
+               "date": f"2026-09-{1 + i % 4:02d}T{i % 24:02d}:{i % 60:02d}:00+00:00",
+               "actual": "", "forecast": "1.0%", "previous": "0.9%"}
+              for i in range(120)]
+    messages = weekly_digest.format_digest(events)
+    assert len(messages) > 1
+    assert all(len(m) <= weekly_digest._MESSAGE_LIMIT for m in messages)
+    # A day's header and its events must not end up in different messages.
+    for message in messages[1:]:
+        assert message.splitlines()[0].startswith("📅")
+
+
+def test_a_week_opened_while_the_runs_were_down_gets_the_outage_calendar(
+        tmp_path, monkeypatch):
+    # The note opens at the first run of the week whenever that is; past the
+    # grace hours the calendar it goes out with is the empty one.
+    cfg = make_config(tmp_path)
+    state, sent = {}, []
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar",
+                        lambda session=None: RAW_EVENTS)
+    monkeypatch.setattr(weekly_digest, "send_telegram_message",
+                        lambda *a, **k: sent.append(a[2]) or 1)
+
+    assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None,
+                                                  now=MIDWEEK) is True
+    assert len(sent) == 1 and "⚠️ Outage: the bot was down when the week opened" in sent[0]
+    assert "31.08 — 06.09" in sent[0]
+    assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None,
+                                                  now=MIDWEEK) is False
+
+
+def test_the_calendar_goes_out_only_in_the_run_that_opens_a_note(tmp_path, monkeypatch):
+    # Not mid-week once the note is up.
+    from price_monitor import jump_delivery
+
+    cfg = make_config(tmp_path)
+    monkeypatch.setattr(weekly_digest, "send_telegram_message", lambda *a, **k: (_ for _ in ()).throw(
+        AssertionError("no calendar when no note opens")))
+    slot = int(WEEKEND_OPEN.timestamp())
+    open_week = {jump_delivery.STATE_KEY: {jump_delivery.WEEK: {"slot": slot}}}
+    assert weekly_digest.maybe_send_weekly_digest(cfg, open_week, session=None,
+                                                  now=MIDWEEK) is False
+
+
+def test_maybe_send_weekly_digest_sends_and_records_state(tmp_path, monkeypatch):
+    cfg = make_config(tmp_path)
+    state = {}
+    sent_texts = []
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", lambda session=None: RAW_EVENTS)
+    monkeypatch.setattr(weekly_digest, "send_telegram_message", lambda *a, **k: sent_texts.append(a[2]) or 1)
+
+    sent = weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=WEEKEND_OPEN)
+
+    assert sent is True
+    assert len(sent_texts) == 1
+    assert "Non-Farm Payrolls" in sent_texts[0]
+    assert weekly_digest._STATE_KEY in state
+
+
+def test_the_closing_friday_of_the_window_is_inside_it(tmp_path, monkeypatch):
+    # The American payrolls print lands at 12:30 UTC on the first Friday of the
+    # month and is the most watched release there is. A window aligned to the
+    # week always contains its own Friday; one measured seven days from the
+    # moment of sending would have put it either just inside or just outside
+    # depending on what time the trigger fired.
+    start, end = weekly_digest.coming_week(WEEKEND_OPEN)
+    payrolls = datetime(2026, 9, 4, 12, 30, tzinfo=timezone.utc)
+    assert start < payrolls < end
+
+
+def test_maybe_send_weekly_digest_persists_every_impact_level_to_local_store(tmp_path, monkeypatch):
+    # The archive keeps every impact level now (see economic_calendar's
+    # module docstring) - Low/Holiday events still don't reach the Telegram
+    # digest text (see _DIGEST_IMPACTS), but they are written to the store.
+    cfg = make_config(tmp_path)
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", lambda session=None: RAW_EVENTS)
+    monkeypatch.setattr(weekly_digest, "send_telegram_message", lambda *a, **k: 1)
+
+    weekly_digest.maybe_send_weekly_digest(cfg, {}, session=None, now=WEEKEND_OPEN)
+
+    stored = weekly_digest.economic_calendar.load_events(
+        weekly_digest.economic_calendar.store_path(cfg.calendar_dir))
+    assert {e["title"] for e in stored} == {
+        "Non-Farm Payrolls", "Retail Sales", "Minor Data Point", "Bank Holiday"}
+
+
+def test_maybe_send_weekly_digest_does_not_resend_the_same_week(tmp_path, monkeypatch):
+    cfg = make_config(tmp_path)
+    state = {}
+    calls = []
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", lambda session=None: RAW_EVENTS)
+    monkeypatch.setattr(weekly_digest, "send_telegram_message", lambda *a, **k: calls.append(1) or 1)
+
+    weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=WEEKEND_OPEN)
+    second = weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=WEEKEND_OPEN)
+
+    assert second is False
+    assert len(calls) == 1
+
+
+def test_an_empty_archive_and_an_unreachable_feed_send_nothing(tmp_path, monkeypatch):
+    cfg = make_config(tmp_path)
+
+    def failing_fetch(session=None):
+        raise weekly_digest.economic_calendar.CalendarError("boom")
+
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", failing_fetch)
+    assert weekly_digest.maybe_send_weekly_digest(
+        cfg, {}, session=None, now=WEEKEND_OPEN) is False
+
+
+def test_a_part_that_failed_goes_out_next_run_and_only_it(tmp_path, monkeypatch):
+    # The note opens in the same run whether the calendar went or not, and the
+    # calendar used to be built only in the run that opens one: a failed part
+    # was lost for the week. Now what did not go out is kept and sent next.
+    from price_monitor import jump_delivery
+
+    cfg = make_config(tmp_path)
+    state, sent, fail = {}, [], {"part 2"}
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar",
+                        lambda session=None: RAW_EVENTS)
+    monkeypatch.setattr(weekly_digest, "format_digest",
+                        lambda events, start, end: ["part 1", "part 2", "part 3"])
+
+    def send(token, chat, text, *a, **k):
+        if text in fail:
+            raise TelegramError("boom")
+        sent.append(text)
+        return 1
+
+    monkeypatch.setattr(weekly_digest, "send_telegram_message", send)
+
+    assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None,
+                                                  now=WEEKEND_OPEN) is True
+    assert sent == ["part 1"]
+    # The note opened in that run.
+    state[jump_delivery.STATE_KEY] = {jump_delivery.WEEK: {"slot": int(WEEKEND_OPEN.timestamp())}}
+
+    fail.clear()
+    later = WEEKEND_OPEN + timedelta(hours=1)
+    assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=later) is True
+    assert sent == ["part 1", "part 2", "part 3"]
+    assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None,
+                                                  now=later + timedelta(hours=1)) is False
+    assert sent == ["part 1", "part 2", "part 3"]
+
+
+def test_unsent_parts_of_a_week_that_has_ended_are_dropped(tmp_path, monkeypatch):
+    cfg = make_config(tmp_path)
+    from price_monitor import jump_delivery
+
+    slot = int(WEEKEND_OPEN.timestamp())
+    state = {weekly_digest._PENDING_KEY: {"week": str(slot - 7 * 86400),
+                                          "remaining": ["last week's part"]},
+             weekly_digest._STATE_KEY: str(slot),
+             jump_delivery.STATE_KEY: {jump_delivery.WEEK: {"slot": slot}}}
+    monkeypatch.setattr(weekly_digest, "send_telegram_message",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("sent")))
+
+    assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None,
+                                                  now=MIDWEEK) is False
+    assert weekly_digest._PENDING_KEY not in state
+
+
+def test_maybe_send_weekly_digest_returns_false_on_send_failure(tmp_path, monkeypatch):
+    cfg = make_config(tmp_path)
+    state = {}
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", lambda session=None: RAW_EVENTS)
+
+    def failing_send(*a, **k):
+        raise TelegramError("boom")
+
+    monkeypatch.setattr(weekly_digest, "send_telegram_message", failing_send)
+
+    assert weekly_digest.maybe_send_weekly_digest(cfg, state, session=None, now=WEEKEND_OPEN) is False
+    assert weekly_digest._STATE_KEY not in state
+
+
+@pytest.mark.real_backfill
+def test_refresh_months_reads_the_month_behind_and_the_month_ahead(tmp_path, monkeypatch):
+    # The live weekly feed has no actual field at all, so the actual is read back
+    # from the monthly pages. The previous month is needed for events at the end
+    # of it whose actual is released in the new month.
+    asked = []
+
+    def fake_month(year, month, session=None):
+        asked.append((year, month))
+        return []
+
+    monkeypatch.setattr(weekly_digest.economic_calendar,
+                        "fetch_forexfactory_month", fake_month)
+    path = str(tmp_path / "calendar.ndjson")
+    weekly_digest.refresh_months(path, now=datetime(2026, 9, 1, tzinfo=timezone.utc))
+    assert asked == [(2026, 8), (2026, 9)]
+
+
+@pytest.mark.real_backfill
+def test_refresh_months_fills_the_actual_of_an_event_already_stored(tmp_path, monkeypatch):
+    path = str(tmp_path / "calendar.ndjson")
+    early = {"title": "CPI m/m", "country": "USD", "impact": "High",
+             "date": "2026-09-04T12:30:00+00:00",
+             "actual": "", "forecast": "0.3%", "previous": "0.2%"}
+    weekly_digest.economic_calendar.merge_events(path, [early])
+
+    published = dict(early, actual="0.4%")
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_forexfactory_month",
+                        lambda year, month, session=None: [published])
+    changed = weekly_digest.refresh_months(
+        path, now=datetime(2026, 9, 10, tzinfo=timezone.utc))
+
+    stored = weekly_digest.economic_calendar.load_events(path)
+    assert changed > 0
+    assert len(stored) == 1, "the backfill must update the record, not create a second one"
+    assert stored[0]["actual"] == "0.4%"
+
+
+@pytest.mark.real_backfill
+def test_backfill_failure_does_not_stop_the_digest(tmp_path, monkeypatch):
+    # The backfill is not what the digest is run for: a page may fail to open,
+    # and that is no reason to withhold the message.
+    def boom(year, month, session=None):
+        raise weekly_digest.economic_calendar.CalendarError("503")
+
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_forexfactory_month", boom)
+    assert weekly_digest.refresh_months(str(tmp_path / "calendar.ndjson")) == 0
+
+
+def test_the_same_moment_in_two_notations_is_one_event(tmp_path):
+    # The weekly feed writes "-04:00", the monthly page "+00:00". By string those
+    # are different events, and the archive would collect every release twice -
+    # exactly the breakage that forced the old archive to be thrown away.
+    path = str(tmp_path / "calendar.ndjson")
+    calendar = weekly_digest.economic_calendar
+    calendar.merge_events(path, [{"title": "CPI m/m", "country": "USD", "impact": "High",
+                                  "date": "2026-09-04T08:30:00-04:00",
+                                  "actual": "", "forecast": "0.3%", "previous": "0.2%"}])
+    calendar.merge_events(path, [{"title": "CPI m/m", "country": "USD", "impact": "High",
+                                  "date": "2026-09-04T12:30:00+00:00",
+                                  "actual": "0.4%", "forecast": "0.3%", "previous": "0.2%"}])
+    stored = calendar.load_events(path)
+    assert len(stored) == 1
+    assert stored[0]["actual"] == "0.4%"
+
+
+# --- keeping the archive fresh for the pushes -------------------------------
+#
+# The digest refreshes the archive when it sends, once a week. That is often
+# enough for a message about next week and far too seldom for the other use of
+# this archive: every push names the releases in the three hours around the
+# move, on every day of the week.
+
+def test_the_archive_is_topped_up_once_a_day(tmp_path, monkeypatch):
+    cfg = make_config(tmp_path)
+    calls = []
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar",
+                        lambda session=None: calls.append(1) or RAW_EVENTS)
+    state = {}
+    monday = datetime(2026, 8, 31, 9, 0, tzinfo=timezone.utc)
+
+    assert weekly_digest.maybe_refresh_calendar(cfg, state, now=monday) is True
+    assert weekly_digest.maybe_refresh_calendar(
+        cfg, state, now=monday + timedelta(hours=5)) is False
+    assert weekly_digest.maybe_refresh_calendar(
+        cfg, state, now=monday + timedelta(days=1)) is True
+    assert len(calls) == 2
+
+
+def test_the_top_up_reaches_the_archive_the_pushes_read(tmp_path, monkeypatch):
+    cfg = make_config(tmp_path)
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar",
+                        lambda session=None: RAW_EVENTS)
+    weekly_digest.maybe_refresh_calendar(
+        cfg, {}, now=datetime(2026, 8, 31, 9, 0, tzinfo=timezone.utc))
+    stored = weekly_digest.economic_calendar.load_events(
+        weekly_digest.economic_calendar.store_path(cfg.calendar_dir))
+    assert "Non-Farm Payrolls" in {e["title"] for e in stored}
+
+
+def test_a_feed_that_will_not_load_is_a_warning_not_a_failure(tmp_path, monkeypatch):
+    cfg = make_config(tmp_path)
+
+    def failing_fetch(session=None):
+        raise weekly_digest.economic_calendar.CalendarError("boom")
+
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar", failing_fetch)
+    state = {}
+    assert weekly_digest.maybe_refresh_calendar(
+        cfg, state, now=datetime(2026, 8, 31, 9, 0, tzinfo=timezone.utc)) is False
+    # Not recorded, so the next run tries again rather than waiting a day.
+    assert weekly_digest._REFRESH_KEY not in state

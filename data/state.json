@@ -1,0 +1,28 @@
+{
+  "_monitoring_health": {
+    "consecutive_failures": 0,
+    "last_run_utc": 1792253166
+  },
+  "floor_pending_replies": [],
+  "jump_delivery": {
+    "week": {
+      "detector": "db7e5a071ef7",
+      "events": {},
+      "messages": {},
+      "note": {
+        "hashes": [
+          "461d5e34d0225951"
+        ],
+        "ids": [
+          111
+        ]
+      },
+      "orphans": [],
+      "since": 1792181100,
+      "slot": 1792181100
+    }
+  },
+  "telegram_update_offset": 688283215,
+  "weekly_digest:last_refreshed": "2026-10-17",
+  "weekly_digest:last_sent_week": "1792181100"
+}

@@ -1,0 +1,143 @@
+name: Measure
+
+# The dashboard: what the detector sends and what the vote decides, measured the same
+# way every time the code changes (tools/measure.py), drawn as one page
+# (tools/dashboard.py) and published on GitHub Pages. The voters' bars are fetched afresh
+# over each instrument's recount window (tools/voter_bars.py --recount: 9 days for most,
+# 79 at most but for the CSI 300), and the moves the live pass would vote now are voted
+# again by the code being measured. It writes nothing to the repository, reads nothing
+# from an earlier run and keeps nothing for a later one. A measurement whose own checks fail
+# stops the job before anything is published.
+#
+# Keys: Alpaca's, for its tape; SiftingIO's, only for the instruments the live run does not
+# fetch yet (gold and silver until the merge: two calls a run, the user's 2026-10-12).
+# Never Tiingo or Twelve Data - their quotas belong to the live run: an instrument of
+# theirs the live run does not fetch stays where the store has it, and the page names it.
+#
+# Once, by hand: Settings -> Pages -> Source "GitHub Actions"; and in Settings ->
+# Environments -> github-pages, the branches below allowed to deploy.
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "jump/**"
+      - "price_monitor/**"
+      - "config/**"
+      - "tools/**"
+      - ".github/workflows/measure.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: measure
+  cancel-in-progress: false
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # The month before this one may still be open for its first week; the live run
+      # keeps the open months on its release (tools/hot_bars.sh).
+      - name: Restore the open months of the bars
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BARS_BRANCH: ${{ github.event.repository.default_branch }}
+        run: tools/hot_bars.sh restore
+
+      # The live run's open months carry only its own basket. An instrument this branch
+      # adds has no open month: the bot's own fetch brings it up to now here, where its
+      # provider needs no key or is SiftingIO (tools/measure.py not_carried). Not
+      # committed or saved.
+      - name: Fetch what the live run does not carry
+        env:
+          SIFTING_API_KEY: ${{ secrets.SIFTING_API_KEY }}
+        run: |
+          names=$(PYTHONPATH=. python -c 'from tools.measure import not_carried; print(",".join(not_carried(keyed=("sifting",))))')
+          echo "not carried by the live run: ${names:-none}"
+          if [ -n "$names" ]; then
+            PYTHONPATH=. python -m jump.backfill --live-pass --usage-purpose dashboard \
+              --instruments "$names" \
+              || echo "::warning::the fetch failed; the page names the instruments behind"
+          fi
+
+      # As far back as the live pass would ask for the moves it votes: each instrument's
+      # recount window, from the store's last bar before it. A source that fails is
+      # listed in failed.txt and named on the page.
+      # The keyed voters cost the dashboard's share of config/provider_limits.csv: a
+      # call per instrument each votes on.
+      - name: Fetch the voters' bars
+        env:
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
+          SIFTING_API_KEY: ${{ secrets.SIFTING_API_KEY }}
+        run: PYTHONPATH=. python -m tools.voter_bars "$RUNNER_TEMP/voters" --recount --purpose dashboard
+
+      # What each provider was asked, by day (jump.usage): the live branch's usage files,
+      # where the hourly run writes them; the checkout's where it has none yet.
+      - name: Read the usage files
+        env:
+          LIVE: ${{ github.event.repository.default_branch }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/usage"
+          cp data/jump/usage/*.csv "$RUNNER_TEMP/usage/" 2>/dev/null || true
+          if git fetch -q --depth=1 origin "$LIVE"; then
+            for f in hourly manual; do
+              if git show "origin/$LIVE:data/jump/usage/$f.csv" > "$RUNNER_TEMP/live.csv" 2>/dev/null; then
+                mv "$RUNNER_TEMP/live.csv" "$RUNNER_TEMP/usage/$f.csv"
+              fi
+            done
+          fi
+          ls -l "$RUNNER_TEMP/usage"
+
+      # The keys again: without them the vote would not ask the keyed voters. Nothing
+      # is fetched here.
+      - name: Measure
+        env:
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
+          SIFTING_API_KEY: ${{ secrets.SIFTING_API_KEY }}
+        run: |
+          PYTHONPATH=. python -m tools.measure "$RUNNER_TEMP/measure.json" \
+            --voters "$RUNNER_TEMP/voters" --usage "$RUNNER_TEMP/usage"
+
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Draw the page
+        run: |
+          PYTHONPATH=. python -m tools.dashboard "$RUNNER_TEMP/measure.json" site
+
+      - name: Upload the page
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Publish
+        id: deploy
+        uses: actions/deploy-pages@v4

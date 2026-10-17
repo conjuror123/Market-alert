@@ -1,0 +1,839 @@
+# Jump basket configuration: the instruments, their blocks and providers, and
+# the detector's settings. The source of truth; docs/manual.md describes it.
+#
+# BLOCKS group instruments that answer to the same news: the GICS sectors within
+# equity, the GSCI sectors within commodities (energy, precious metals,
+# industrial metals, agriculture), credit apart from rates because high yield
+# trades like equity, not duration. The detector reads each instrument on its
+# own; blocks group the reports (tools/stage_report.py), the weekly note
+# (price_monitor/jump_delivery.py) and the alternation of the funds' feeds.
+
+# Anchor exchange of the basket's reference calendar: Sun 17:00 .. Fri 17:00
+# local time. The bounds are stored in this timezone and converted to UTC on the
+# fly - they must not be stored as UTC.
+anchor_exchange_tz: America/New_York
+
+# history_since: required; the fallback for fetch_since.
+history_since: "2015-01-01"
+
+# fetch_since: how deep to acquire history. Take whatever the sources will still
+# give: free archives freeze, and bars not taken now may not be takeable later.
+# Each source stops at its own limit, so a floor deeper than anything available
+# means "as deep as you can".
+#
+# WHICH SOURCE REACHES HOW FAR BACK, because it is not one answer and getting it
+# wrong wastes a day of credits:
+#   Twelve Data   intraday stops at 2020-02 for every ETF at once, whatever the
+#                 ticker's real age. This is the ordinary --extend-history pass.
+#   Alpaca        the consolidated tape (SIP) from 2016-01 for every US fund.
+#                 This is the --deepen-alpaca pass; it spends no Twelve Data
+#                 credits.
+#   HF Data       2002 to 2020-02 for US equity, from the consolidated tape,
+#                 until 2026-10-03, which is where the funds stored from
+#                 2002-2011 came from. It now holds only its IEX segment, from
+#                 2022-03; its client and the pass that used it are deleted.
+#   Dukascopy     2003 for the currency pairs (--deepen-dukascopy), no key.
+#   Binance       each pair's own listing date (2017-08 at the earliest), no key.
+# So a newly added ETF needs the Twelve Data pass and then Alpaca's, which
+# takes it to 2016.
+#
+# A fund's first bar of the morning often did not open where the market did,
+# most of all in Twelve Data's history: 9,783 of 2016-2022 were mended from
+# Alpaca's tape on 2026-10-09 (docs/decisions.md). A fund added since is not.
+fetch_since: "2002-01-01"
+
+# ---------------------------------------------------------------------------
+# THE JUMP DETECTOR (jump/jumps.py), the jump test of Lee & Mykland (2008):
+#
+#   z = the move / the instrument's bipower volatility over the window_days
+#       before it (calendar time, the same for every instrument)
+#   the word from |z|: noticeable, high, major, extreme at the four `levels`.
+#
+# window_days: half a year, inside the paper's valid range for every calendar.
+# levels: about sqrt(2) apart, each word about three times rarer to reach than
+#   the one below; the bottom sets the volume (docs/decisions.md, "The detector").
+detector:
+  window_days: 182.6
+  levels: [4.5, 6.4, 9.0, 12.7]
+
+# Session templates: here only the names the assets refer to; the calendars
+# are in jump/sessions.py and data/jump/sessions/.
+session_templates:
+  us_equity:
+    exchange: NYSE
+    tz: America/New_York
+    description: "09:30-16:00 on business days, with NYSE holidays and half sessions"
+  fx_continuous:
+    exchange: FX
+    tz: America/New_York
+    description: "continuous from Sun 17:00 to Fri 17:00"
+  crypto_24_7:
+    exchange: BINANCE
+    tz: UTC
+    description: "around the clock, no weekends"
+  # The daily sessions below are defined in jump/sessions.py DAILY_SESSIONS;
+  # here only named, for the instruments to refer to.
+  lme:
+    exchange: LME
+    tz: Europe/London
+    description: "01:00-19:00 London on weekdays (LMEselect); holidays are the days the quote never moves"
+  ice_coffee:
+    exchange: ICE US
+    tz: America/New_York
+    description: "04:15-13:30 New York on weekdays"
+  ice_cocoa:
+    exchange: ICE US
+    tz: America/New_York
+    description: "04:45-13:30 New York on weekdays"
+  ice_cotton:
+    exchange: ICE US
+    tz: America/New_York
+    description: "21:00-14:20 New York, the session opening the evening before"
+  cme_cattle:
+    exchange: CME
+    tz: America/Chicago
+    description: "08:30-13:05 Chicago on weekdays"
+  nymex_globex:
+    exchange: NYMEX
+    tz: America/New_York
+    description: "18:00-17:00 New York on Globex, the session opening the evening before"
+  cbot_rates:
+    exchange: CBOT
+    tz: America/Chicago
+    description: "17:00-16:00 Chicago on Globex, the session opening the evening before"
+  cbot_grains:
+    exchange: CBOT
+    tz: America/Chicago
+    description: "19:00-13:20 Chicago, the session opening the evening before"
+  ice_sugar:
+    exchange: ICE US
+    tz: America/New_York
+    description: "03:30-13:00 New York on weekdays"
+  eurex_bund:
+    exchange: Eurex
+    tz: Europe/Berlin
+    description: "08:00-18:00 Frankfurt on weekdays, the hours MarketWatch serves"
+  ice_gilt:
+    exchange: ICE Futures Europe
+    tz: Europe/London
+    description: "08:00-18:00 London on weekdays, the hours its history holds"
+  ice_endex:
+    exchange: ICE Endex
+    tz: Europe/Amsterdam
+    description: "08:00-18:00 Amsterdam on weekdays"
+  tokyo_bonds:
+    exchange: Japan's bond market
+    tz: Asia/Tokyo
+    description: "09:00-18:00 Tokyo on weekdays, the hours MarketWatch serves the yield"
+  # The stock markets abroad (jump/sessions.py EXCHANGES): each day's hours from
+  # its exchange's own calendar (data/jump/sessions/<code>.csv, from
+  # exchange_calendars), so a holiday or a half day is the exchange's; nominal
+  # hours here.
+  sydney:
+    exchange: XASX
+    tz: Australia/Sydney
+    description: "10:00-16:10 Sydney, the close's auction included"
+  tokyo:
+    exchange: XTKS
+    tz: Asia/Tokyo
+    description: "09:00-15:30 Tokyo (15:00 before 2024-11-05)"
+  seoul:
+    exchange: XKRX
+    tz: Asia/Seoul
+    description: "09:00-15:30 Seoul"
+  taipei:
+    exchange: XTAI
+    tz: Asia/Taipei
+    description: "09:00-13:30 Taipei"
+  shanghai:
+    exchange: XSHG
+    tz: Asia/Shanghai
+    description: "09:30-15:00 Shanghai"
+  hong_kong:
+    exchange: XHKG
+    tz: Asia/Hong_Kong
+    description: "09:30-16:10 Hong Kong, the close's auction included"
+  mumbai:
+    exchange: XBOM
+    tz: Asia/Kolkata
+    description: "09:15-15:30 Mumbai"
+  frankfurt:
+    exchange: XETR
+    tz: Europe/Berlin
+    description: "09:00-17:30 Frankfurt (Xetra's calendar, for the Euro Stoxx 50)"
+  london:
+    exchange: XLON
+    tz: Europe/London
+    description: "08:00-16:30 London"
+  zurich:
+    exchange: XSWX
+    tz: Europe/Zurich
+    description: "09:00-17:30 Zurich"
+  istanbul:
+    exchange: XIST
+    tz: Europe/Istanbul
+    description: "10:00-18:00 Istanbul"
+  riyadh:
+    exchange: XSAU
+    tz: Asia/Riyadh
+    description: "10:00-15:00 Riyadh, Sunday to Thursday"
+  johannesburg:
+    exchange: XJSE
+    tz: Africa/Johannesburg
+    description: "09:00-17:00 Johannesburg"
+  toronto:
+    exchange: XTSE
+    tz: America/Toronto
+    description: "09:30-16:00 Toronto"
+  sao_paulo:
+    exchange: BVMF
+    tz: America/Sao_Paulo
+    description: "10:00-18:00 Sao Paulo by its calendar; Yahoo's bars end at 17:00"
+  mexico_city:
+    exchange: XMEX
+    tz: America/Mexico_City
+    description: "09:30-16:00 New York's clock"
+
+# tick_size is the exchange price step, stated rather than measured: a source
+# serves ETF prices with a floating tail (769.53992 for 769.54). The bar gate
+# allows half a tick of rounding between a bar's fields (jump.quality), and the
+# coverage report flags a step finer than the source's precision. For crypto it
+# is the pair's tick on Binance (exchangeInfo PRICE_FILTER).
+#
+# fetch_interval is the interval at which the instrument is REQUESTED from the
+# source; it is not the system's working interval. ETF bars run on the :30
+# (09:30, 10:30, ...), so they are pulled as half-hourly and folded into hourly
+# bars on the round UTC hour - otherwise the cross-section would measure synchrony
+# on series offset from one another by half an hour. This costs no credits: the
+# plan counts requests, not rows.
+#
+# WHAT THIS COSTS, HOURLY - each quota kept under about 85%, so tests and
+# backfills have room (docs/manual.md, "Running it"):
+#   Tiingo       10 IEX-safe funds, of its 50 requests an hour;
+#   Alpaca       the consolidated tape's vote on every fund;
+#   Twelve Data  1 thin fund that needs the consolidated tape (UNG) - one
+#                request a run (1 of its 8 credits a minute), in a thread beside
+#                the other providers;
+#   SiftingIO    the 7 FX pairs and spot gold and silver, about 4,600 of 10,000
+#                a month;
+#   Yahoo        the 16 stock indices, 13 futures and 1 fund - at most 30
+#                requests a run;
+#   Sina         the LME's 4 metals;
+#   Binance      the 4 coins;
+#   the vote     at most 40 sources a run across Yahoo, Sina, MarketWatch,
+#                Alpaca's tape, Wallstreetcn, the FT, Coinbase and Kraken
+#                (jump.verify).
+# Instruments whose market is shut are not asked
+# (jump.backfill.nothing_can_have_appeared).
+#
+# SOURCE IS THE STORE; PROVIDER IS THE SERVER. `source` is the identity: the
+# asset_id and the file on disk are built from it, so it is never edited when
+# the fetch moves. `provider` says who is asked, and changes freely.
+#
+# WHICH PROVIDER: measured against the stored bars hour by hour in basis points
+# (docs/decisions.md, "Data and providers"). A fund goes to an IEX-only feed
+# (Tiingo, Alpaca) only where IEX prices it like the consolidated tape.
+# Twelve Data keeps the archive and serves --fill-gaps and --extend-history.
+assets:
+  # --- equity ----------------------------------------------------------------
+  # US equity: four sectors, then the broad market.
+  - ticker: XLK
+    source: twelvedata
+    provider: tiingo
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Technology sector"
+  - ticker: XLF
+    source: twelvedata
+    provider: tiingo
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Financial sector"
+  - ticker: XLE
+    source: twelvedata
+    provider: tiingo
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Energy sector"
+  - ticker: XLV
+    source: twelvedata
+    provider: tiingo
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Health care sector"
+  - ticker: SPY
+    source: twelvedata
+    provider: tiingo
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "S&P 500"
+  - ticker: IWM
+    source: twelvedata
+    provider: tiingo
+    block: equity
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Russell 2000 (small caps)"
+  # The stock indices abroad, each in its own exchange's hours and calendar
+  # (jump/sessions.py, EXCHANGES), in the order the day reaches them. Yahoo's bars,
+  # live at 30 minutes (the Nifty at 15) folded onto the round hour; history from
+  # Yahoo's hourly bars where they agree with those, back to 2024-10 - the CSI 300,
+  # BIST 100, TSX and IPC only the last 58 days, their older bars having failed the
+  # import gate (jump.backfill, deepen_from_yahoo). An index has no volume here.
+  # `display` is the name a message leads with, as Yahoo's ticker is Yahoo's
+  # only; `label` the market's place.
+  - ticker: "^AXJO"
+    source: yahoo
+    block: equity
+    has_volume: false
+    tick_size: 0.01
+    session_template: sydney
+    fetch_interval: 30min
+    display: "ASX 200"
+    label: "Australia"
+  - ticker: "^N225"
+    source: yahoo
+    block: equity
+    has_volume: false
+    tick_size: 0.01
+    session_template: tokyo
+    fetch_interval: 30min
+    display: "Nikkei 225"
+    label: "Japan"
+  - ticker: "^KS11"
+    source: yahoo
+    block: equity
+    has_volume: false
+    tick_size: 0.01
+    session_template: seoul
+    fetch_interval: 30min
+    display: "KOSPI"
+    label: "South Korea"
+  - ticker: "^TWII"
+    source: yahoo
+    block: equity
+    has_volume: false
+    tick_size: 0.01
+    session_template: taipei
+    fetch_interval: 30min
+    display: "TAIEX"
+    label: "Taiwan"
+  - ticker: "000300.SS"
+    source: yahoo
+    block: equity
+    has_volume: false
+    tick_size: 0.01
+    session_template: shanghai
+    fetch_interval: 30min
+    display: "CSI 300"
+    label: "China"
+  - ticker: "^HSI"
+    source: yahoo
+    block: equity
+    has_volume: false
+    tick_size: 0.01
+    session_template: hong_kong
+    fetch_interval: 30min
+    display: "Hang Seng"
+    label: "Hong Kong"
+  - ticker: "^NSEI"
+    source: yahoo
+    block: equity
+    has_volume: false
+    tick_size: 0.01
+    session_template: mumbai
+    fetch_interval: 15min
+    display: "Nifty 50"
+    label: "India"
+  - ticker: "^STOXX50E"
+    source: yahoo
+    block: equity
+    has_volume: false
+    tick_size: 0.01
+    session_template: frankfurt
+    fetch_interval: 30min
+    display: "Euro Stoxx 50"
+    label: "Euro area"
+  - ticker: "^FTSE"
+    source: yahoo
+    block: equity
+    has_volume: false
+    tick_size: 0.01
+    session_template: london
+    fetch_interval: 30min
+    display: "FTSE 100"
+    label: "UK"
+  - ticker: "^SSMI"
+    source: yahoo
+    block: equity
+    has_volume: false
+    tick_size: 0.01
+    session_template: zurich
+    fetch_interval: 30min
+    display: "SMI"
+    label: "Switzerland"
+  - ticker: "XU100.IS"
+    source: yahoo
+    block: equity
+    has_volume: false
+    tick_size: 0.01
+    session_template: istanbul
+    fetch_interval: 30min
+    display: "BIST 100"
+    label: "Turkey"
+  - ticker: "^TASI.SR"
+    source: yahoo
+    block: equity
+    has_volume: false
+    tick_size: 0.01
+    session_template: riyadh
+    fetch_interval: 30min
+    display: "Tadawul"
+    label: "Saudi Arabia"
+  - ticker: "^J200.JO"
+    source: yahoo
+    block: equity
+    has_volume: false
+    tick_size: 0.01
+    session_template: johannesburg
+    fetch_interval: 30min
+    display: "JSE Top 40"
+    label: "South Africa"
+  - ticker: "^GSPTSE"
+    source: yahoo
+    block: equity
+    has_volume: false
+    tick_size: 0.01
+    session_template: toronto
+    fetch_interval: 30min
+    display: "TSX"
+    label: "Canada"
+  - ticker: "^BVSP"
+    source: yahoo
+    block: equity
+    has_volume: false
+    tick_size: 0.01
+    session_template: sao_paulo
+    fetch_interval: 30min
+    display: "Bovespa"
+    label: "Brazil"
+  - ticker: "^MXX"
+    source: yahoo
+    block: equity
+    has_volume: false
+    tick_size: 0.01
+    session_template: mexico_city
+    fetch_interval: 30min
+    display: "IPC"
+    label: "Mexico"
+  # --- rates -----------------------------------------------------------------
+  # US Treasuries by maturity - the 2-, 10- and 30-year futures, live from Yahoo
+  # one contract at a time (jump/futures.py) - and inflation-protected; the
+  # Bund and the long gilt, live from MarketWatch one contract at a time, and
+  # Japan's 10-year yield, all without volume.
+  - ticker: ZT=F
+    source: yahoo
+    block: rates
+    has_volume: true
+    tick_size: 0.00390625
+    session_template: cbot_rates
+    fetch_interval: 1h
+    label: "2-year Treasury note (CBOT)"
+  - ticker: ZN=F
+    source: yahoo
+    block: rates
+    has_volume: true
+    tick_size: 0.015625
+    session_template: cbot_rates
+    fetch_interval: 1h
+    label: "10-year Treasury note (CBOT)"
+  - ticker: ZB=F
+    source: yahoo
+    block: rates
+    has_volume: true
+    tick_size: 0.03125
+    session_template: cbot_rates
+    fetch_interval: 1h
+    label: "30-year Treasury bond (CBOT)"
+  - ticker: FGBL=F
+    source: marketwatch
+    block: rates
+    has_volume: false
+    tick_size: 0.01
+    session_template: eurex_bund
+    fetch_interval: 1h
+    display: "Bund"
+    label: "German 10-year Bund (Eurex)"
+  - ticker: RLI=F
+    source: marketwatch
+    block: rates
+    has_volume: false
+    tick_size: 0.01
+    session_template: ice_gilt
+    fetch_interval: 1h
+    display: "Gilt"
+    label: "UK long gilt (ICE)"
+  # Japan's 10-year government bond yield, live from MarketWatch: no free source
+  # carries the JGB future (2026-10-13). A yield, so its move is read and shown in
+  # basis points (unit: bp).
+  - ticker: JP10Y
+    source: marketwatch
+    block: rates
+    has_volume: false
+    tick_size: 0.0001
+    session_template: tokyo_bonds
+    fetch_interval: 1h
+    unit: bp
+    display: "JGB 10Y"
+    label: "Japan 10-year government bond yield"
+  - ticker: TIP
+    source: twelvedata
+    provider: tiingo
+    block: rates
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Inflation-protected Treasuries"
+  # --- credit ----------------------------------------------------------------
+  # Corporate and sovereign credit risk, from investment grade down.
+  - ticker: LQD
+    source: twelvedata
+    provider: tiingo
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Investment-grade corporate bonds"
+  - ticker: HYG
+    source: twelvedata
+    provider: tiingo
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "High-yield corporate bonds"
+  - ticker: EMB
+    source: twelvedata
+    provider: tiingo
+    block: credit
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Emerging-market sovereign bonds in dollars"
+  # --- energy ----------------------------------------------------------------
+  # The energy complex: Brent's futures, live from Yahoo one contract at a time
+  # (jump/futures.py), and natural gas - America's fund and Europe's TTF, live
+  # from MarketWatch's continuous series without volume.
+  - ticker: BZ=F
+    source: yahoo
+    block: energy
+    has_volume: true
+    tick_size: 0.01
+    session_template: nymex_globex
+    fetch_interval: 1h
+    label: "Brent crude (NYMEX)"
+  - ticker: UNG
+    source: twelvedata
+    provider: twelvedata
+    block: energy
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Natural gas"
+  # --- precious_metals -------------------------------------------------------
+  # Precious metals. Spot gold and silver round the clock on the pairs' week, from
+  # SiftingIO's commodities endpoint over Dukascopy's history from 2003; platinum's
+  # futures live from Yahoo one contract at a time (jump/futures.py).
+  - ticker: TFM=F
+    source: marketwatch
+    block: energy
+    has_volume: false
+    tick_size: 0.005
+    session_template: ice_endex
+    fetch_interval: 1h
+    display: "TTF"
+    label: "Dutch TTF natural gas (ICE Endex)"
+  - ticker: XAU/USD
+    source: sifting
+    block: precious_metals
+    has_volume: false
+    tick_size: 0.01
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Gold"
+  - ticker: XAG/USD
+    source: sifting
+    block: precious_metals
+    has_volume: false
+    tick_size: 0.0001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Silver"
+  - ticker: PL=F
+    source: yahoo
+    block: precious_metals
+    has_volume: true
+    tick_size: 0.1
+    session_template: nymex_globex
+    fetch_interval: 1h
+    label: "Platinum (NYMEX)"
+  # --- industrial_metals -----------------------------------------------------
+  # Industrial metals.
+  # The LME's metals themselves - the ETNs (JJN, JJU, JJT) are delisted, and
+  # copper is the LME's own price, not CPER's: the three-month contract's traded
+  # hourly bars from Sina (price_monitor/sina.py), in dollars a tonne, on
+  # LMEselect's hours. Sina serves only the last 1,023 bars; below them,
+  # Wallstreetcn's from 2026-04-22 (price_monitor/wallstreetcn.py). Ticks are the
+  # LME's.
+  - ticker: SND
+    source: sina
+    block: industrial_metals
+    has_volume: true
+    tick_size: 5.0
+    session_template: lme
+    fetch_interval: 1h
+    label: "Tin (LME)"
+  - ticker: NID
+    source: sina
+    block: industrial_metals
+    has_volume: true
+    tick_size: 5.0
+    session_template: lme
+    fetch_interval: 1h
+    label: "Nickel (LME)"
+  - ticker: AHD
+    source: sina
+    block: industrial_metals
+    has_volume: true
+    tick_size: 0.5
+    session_template: lme
+    fetch_interval: 1h
+    label: "Aluminium (LME)"
+  - ticker: CAD
+    source: sina
+    block: industrial_metals
+    has_volume: true
+    tick_size: 0.5
+    session_template: lme
+    fetch_interval: 1h
+    label: "Copper (LME)"
+  - ticker: REMX
+    source: twelvedata
+    provider: yahoo
+    block: industrial_metals
+    has_volume: true
+    tick_size: 0.01
+    session_template: us_equity
+    fetch_interval: 30min
+    label: "Rare earths"
+  # --- agriculture -----------------------------------------------------------
+  # Agricultural commodities: CBOT's corn, wheat and soybeans and ICE's sugar,
+  # live from Yahoo one contract at a time (jump/futures.py).
+  - ticker: ZC=F
+    source: yahoo
+    block: agriculture
+    has_volume: true
+    tick_size: 0.25
+    session_template: cbot_grains
+    fetch_interval: 1h
+    label: "Corn (CBOT)"
+  - ticker: ZW=F
+    source: yahoo
+    block: agriculture
+    has_volume: true
+    tick_size: 0.25
+    session_template: cbot_grains
+    fetch_interval: 1h
+    label: "Wheat (CBOT)"
+  - ticker: ZS=F
+    source: yahoo
+    block: agriculture
+    has_volume: true
+    tick_size: 0.25
+    session_template: cbot_grains
+    fetch_interval: 1h
+    label: "Soybeans (CBOT)"
+  - ticker: SB=F
+    source: yahoo
+    block: agriculture
+    has_volume: true
+    tick_size: 0.01
+    session_template: ice_sugar
+    fetch_interval: 1h
+    label: "Sugar No. 11 (ICE)"
+  # Futures, live from Yahoo. History: coffee, cocoa and cotton from Dukascopy's
+  # single-contract CFDs (2018), live cattle from Yahoo (2024-05). Each in its
+  # exchange's session; a
+  # roll's jump is left unscored and a bar too thin to be a trade dropped
+  # (jump/futures.py). Prices in the contract's own unit.
+  - ticker: KC=F
+    source: yahoo
+    block: agriculture
+    has_volume: true
+    tick_size: 0.05
+    session_template: ice_coffee
+    fetch_interval: 1h
+    label: "Coffee (ICE)"
+  - ticker: CC=F
+    source: yahoo
+    block: agriculture
+    has_volume: true
+    tick_size: 1.0
+    session_template: ice_cocoa
+    fetch_interval: 1h
+    label: "Cocoa (ICE)"
+  - ticker: CT=F
+    source: yahoo
+    block: agriculture
+    has_volume: true
+    tick_size: 0.01
+    session_template: ice_cotton
+    fetch_interval: 1h
+    label: "Cotton (ICE)"
+  - ticker: LE=F
+    source: yahoo
+    block: agriculture
+    has_volume: true
+    tick_size: 0.025
+    session_template: cme_cattle
+    fetch_interval: 1h
+    label: "Live cattle (CME)"
+  # --- FX --------------------------------------------------------------------
+  # Major currency pairs, all quoted against the dollar.
+  - ticker: EUR/USD
+    source: twelvedata
+    provider: sifting
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Euro"
+  - ticker: USD/JPY
+    source: twelvedata
+    provider: sifting
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Yen"
+  - ticker: GBP/USD
+    source: twelvedata
+    provider: sifting
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Pound"
+  - ticker: AUD/USD
+    source: twelvedata
+    provider: sifting
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Australian dollar"
+  - ticker: USD/CHF
+    source: twelvedata
+    provider: sifting
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Franc"
+  - ticker: USD/CAD
+    source: twelvedata
+    provider: sifting
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Canadian dollar"
+  - ticker: USD/CNH
+    source: twelvedata
+    provider: sifting
+    block: FX
+    has_volume: false
+    tick_size: 0.00001
+    session_template: fx_continuous
+    fetch_interval: 1h
+    label: "Offshore yuan"
+  # --- crypto ----------------------------------------------------------------
+  # Crypto, the only block that trades every hour of the week: every coin as its
+  # USDT pair on Binance, one exchange and one quote currency (price_monitor/binance.py).
+  - ticker: BTC/USDT
+    source: binance
+    block: crypto
+    has_volume: true
+    tick_size: 0.01
+    session_template: crypto_24_7
+    fetch_interval: 1h
+    label: "Bitcoin"
+  - ticker: ETH/USDT
+    source: binance
+    block: crypto
+    has_volume: true
+    tick_size: 0.01
+    session_template: crypto_24_7
+    fetch_interval: 1h
+    label: "Ethereum"
+  - ticker: SOL/USDT
+    source: binance
+    block: crypto
+    has_volume: true
+    tick_size: 0.01
+    session_template: crypto_24_7
+    fetch_interval: 1h
+    label: "Solana"
+  - ticker: XRP/USDT
+    source: binance
+    block: crypto
+    has_volume: true
+    tick_size: 0.0001
+    session_template: crypto_24_7
+    fetch_interval: 1h
+    label: "XRP"
+
+# Instruments outside the basket: scored and delivered like any other, but kept
+# out of the basket's block counts. block is still required. None in stage 1.
+outside_basket: []
+
+# The VIX: FRED's VIXCLS, the index itself from 1990, shown on the weekly note
+# as a level ranked in its own history - the regime the week's moves happened
+# in (price_monitor.jump_delivery.vix_context). Daily,
+# and published a business day or two late, so each value is used from when it
+# became known (`available_at`), never from its observation date. Its own
+# history_since: the series is free back to 1990.
+volatility_index:
+  series_id: VIXCLS
+  source: fred
+  interval: 1d
+  history_since: "1990-01-01"
+  label: "VIX volatility index"

@@ -1,0 +1,392 @@
+import json
+from datetime import datetime, timezone
+
+import pytest
+
+from price_monitor import twelvedata
+from price_monitor.models import ExchangeError
+from price_monitor.twelvedata import fetch_full_history
+
+
+def fetch_klines(symbol, interval, limit, base_url, api_key, session=None, retries=3,
+                 backoff_seconds=2.0):
+    """One request through the client's shared core (twelvedata._request), as
+    every fetch makes it: the last `limit` candles, oldest first."""
+    params = {"symbol": symbol, "interval": twelvedata._interval_code(interval),
+              "outputsize": min(limit, twelvedata.MAX_OUTPUTSIZE), "timezone": "UTC",
+              "apikey": api_key}
+    return twelvedata._request(session, f"{base_url}{twelvedata.TIME_SERIES_ENDPOINT}",
+                               params, twelvedata._granularity_seconds(interval),
+                               retries, backoff_seconds, symbol)[-limit:]
+
+
+class FakeResponse:
+    def __init__(self, status_code, payload):
+        self.status_code = status_code
+        self._payload = payload
+        self.text = str(payload)
+
+    def json(self):
+        return self._payload
+
+
+class FakeSession:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.calls = []
+
+    def get(self, url, params, timeout, headers):
+        self.calls.append(dict(params))
+        status, payload = self.responses.pop(0)
+        return FakeResponse(status, payload)
+
+
+def ok_payload(rows):
+    """rows: list of (datetime_str, open, high, low, close), newest first (as the real API returns)."""
+    return {
+        "status": "ok",
+        "values": [
+            {"datetime": dt, "open": str(o), "high": str(h), "low": str(l), "close": str(c)}
+            for dt, o, h, l, c in rows
+        ],
+    }
+
+
+def test_fetch_klines_sorts_ascending_and_sets_utc_timestamp():
+    payload = ok_payload([
+        ("2026-08-30 09:00:00", 1.1, 1.2, 1.0, 1.15),
+        ("2026-08-30 08:00:00", 1.0, 1.1, 0.9, 1.05),
+    ])
+    sess = FakeSession([(200, payload)])
+
+    candles = fetch_klines("EUR/USD", "1h", limit=10, base_url="https://x", api_key="k", session=sess)
+
+    assert [c.close for c in candles] == [1.05, 1.15]
+    assert candles[0].open_time < candles[1].open_time
+    assert candles[0].close_time - candles[0].open_time == 3600
+    assert all(c.volume == 0.0 for c in candles)
+
+
+def test_fetch_klines_requests_utc_timezone_explicitly():
+    payload = ok_payload([("2026-08-30 09:00:00", 1.1, 1.2, 1.0, 1.15)])
+    sess = FakeSession([(200, payload)])
+
+    fetch_klines("EUR/USD", "1h", limit=10, base_url="https://x", api_key="k", session=sess)
+
+    assert sess.calls[0]["timezone"] == "UTC"
+    assert sess.calls[0]["symbol"] == "EUR/USD"
+    assert sess.calls[0]["apikey"] == "k"
+
+
+def test_fetch_klines_trims_to_limit():
+    payload = ok_payload([
+        ("2026-08-30 10:00:00", 1, 1, 1, 3),
+        ("2026-08-30 09:00:00", 1, 1, 1, 2),
+        ("2026-08-30 08:00:00", 1, 1, 1, 1),
+    ])
+    sess = FakeSession([(200, payload)])
+
+    candles = fetch_klines("EUR/USD", "1h", limit=2, base_url="https://x", api_key="k", session=sess)
+
+    assert [c.close for c in candles] == [2, 3]
+
+
+def test_fetch_klines_raises_on_api_error_status():
+    payload = {"status": "error", "code": 429, "message": "rate limited"}
+    sess = FakeSession([(200, payload), (200, payload), (200, payload)])
+
+    with pytest.raises(ExchangeError, match="rate limited"):
+        fetch_klines("EUR/USD", "1h", limit=10, base_url="https://x", api_key="k",
+                     session=sess, retries=3, backoff_seconds=0)
+
+
+def test_fetch_klines_raises_on_non_200():
+    sess = FakeSession([(500, "boom"), (500, "boom"), (500, "boom")])
+
+    with pytest.raises(ExchangeError):
+        fetch_klines("EUR/USD", "1h", limit=10, base_url="https://x", api_key="k",
+                     session=sess, retries=3, backoff_seconds=0)
+
+
+def test_fetch_full_history_requires_api_key():
+    with pytest.raises(ExchangeError, match="API key"):
+        fetch_full_history("EUR/USD", "1h", days=5, base_url="https://x", api_key="")
+
+
+def test_fetch_full_history_paginates_by_date_range_and_merges(monkeypatch):
+    chunk1 = ok_payload([("2026-06-01 00:00:00", 1, 1, 1, 1)])
+    chunk2 = ok_payload([("2026-01-01 00:00:00", 1, 1, 1, 2)])
+    sess = FakeSession([(200, chunk1), (200, chunk2)])
+
+    candles = fetch_full_history(
+        "EUR/USD", "1h", days=200, base_url="https://x", api_key="k",
+        session=sess, request_delay_seconds=0,
+    )
+
+    assert len(sess.calls) == 2
+    assert all("start_date" in c and "end_date" in c and c["timezone"] == "UTC" for c in sess.calls)
+    assert [c.close for c in candles] == [2, 1]
+
+
+def test_supports_the_half_hour_interval_used_by_etfs():
+    # ETFs are pulled as half-hourly bars so their grid lines up with the round
+    # hour of the currency pairs and crypto (see jump/bars.to_hourly).
+    from price_monitor.twelvedata import _granularity_seconds, _interval_code
+
+    assert _interval_code("30min") == "30min"
+    assert _granularity_seconds("30min") == 1800
+
+
+def test_rejects_an_unknown_interval():
+    from price_monitor.twelvedata import _granularity_seconds
+
+    with pytest.raises(ExchangeError, match="Unsupported interval"):
+        _granularity_seconds("5min")
+
+
+def test_half_hour_candles_get_a_half_hour_close_time():
+    payload = ok_payload([("2026-08-17 15:30:00", 1.0, 2.0, 0.5, 1.5)])
+    session = FakeSession([(200, payload)])
+
+    candles = fetch_klines("SPY", "30min", limit=1, base_url="https://x",
+                           api_key="k", session=session)
+
+    assert candles[0].close_time - candles[0].open_time == 1800
+
+
+def test_chunk_days_controls_the_request_window():
+    # An ETF has ~13 half-hourly bars per trading day, so a single 5000-row
+    # answer holds more than a year - a large window saves credits.
+    session = FakeSession([(200, ok_payload([("2026-08-17 15:30:00", 1.0, 2.0, 0.5, 1.5)]))] * 4)
+
+    fetch_full_history("SPY", "30min", days=300, base_url="https://x", api_key="k",
+                       session=session, request_delay_seconds=0, chunk_days=300)
+
+    assert len(session.calls) == 1
+
+
+def test_parses_volume_when_the_source_provides_it():
+    # ETFs serve real hourly volume, and the store keeps it.
+    payload = {"status": "ok", "values": [{
+        "datetime": "2026-08-17 15:30:00", "open": "1", "high": "2",
+        "low": "0.5", "close": "1.5", "volume": "10553040"}]}
+    session = FakeSession([(200, payload)])
+
+    candles = fetch_klines("SPY", "30min", limit=1, base_url="https://x",
+                           api_key="k", session=session)
+
+    assert candles[0].volume == 10553040.0
+
+
+def test_missing_volume_stays_zero_for_forex():
+    # No provider has volume for spot FX, and that is not a defect.
+    session = FakeSession([(200, ok_payload([("2026-08-17 15:00:00", 1.0, 2.0, 0.5, 1.5)]))])
+
+    candles = fetch_klines("EUR/USD", "1h", limit=1, base_url="https://x",
+                           api_key="k", session=session)
+
+    assert candles[0].volume == 0.0
+
+
+# --- reaching the edge of a symbol's history -------------------------------
+
+class _Resp:
+    def __init__(self, status, payload, text=None):
+        self.status_code = status
+        self._payload = payload
+        self.text = text if text is not None else json.dumps(payload)
+
+    def json(self):
+        return self._payload
+
+
+class _Walk:
+    """A session that serves `good` chunks and then says there is no more data."""
+
+    def __init__(self, good, status=400, message=None):
+        self.good, self.status, self.calls = good, status, 0
+        self.message = message or ("No data is available on the specified dates. "
+                                   "Try setting different start/end dates.")
+
+    def get(self, url, params=None, **kw):
+        self.calls += 1
+        if self.calls <= self.good:
+            start = 1_700_000_000 + self.calls * 86400
+            return _Resp(200, {"values": [{
+                "datetime": datetime.fromtimestamp(start, tz=timezone.utc)
+                            .strftime("%Y-%m-%d %H:%M:%S"),
+                "open": "1", "high": "2", "low": "0.5", "close": "1.5",
+                "volume": "10"}]})
+        return _Resp(self.status, {"code": self.status, "status": "error",
+                                   "message": self.message})
+
+
+def test_the_edge_of_history_is_not_an_error(monkeypatch):
+    # Walking back past what the provider holds is the normal way this ends.
+    monkeypatch.setattr(twelvedata.time, "sleep", lambda *_: None)
+    session = _Walk(good=3)
+    candles = twelvedata.fetch_full_history(
+        symbol="SPY", interval="30min", days=4000, base_url="https://x",
+        api_key="k", session=session, request_delay_seconds=0, chunk_days=300)
+
+    assert len(candles) == 3          # every successful chunk is kept
+    assert session.calls == 4         # and it stops asking once told there is no more
+
+
+def test_the_no_data_answer_is_not_retried(monkeypatch):
+    # Retrying it costs a credit and 8 seconds per attempt and cannot succeed.
+    monkeypatch.setattr(twelvedata.time, "sleep", lambda *_: None)
+    session = _Walk(good=0)
+    twelvedata.fetch_full_history(
+        symbol="SPY", interval="30min", days=4000, base_url="https://x",
+        api_key="k", session=session, request_delay_seconds=0, chunk_days=300)
+    assert session.calls == 1
+
+
+def test_a_failure_part_way_back_keeps_what_was_already_paid_for(monkeypatch):
+    # One bad chunk must not discard every candle fetched before it, and every
+    # credit spent on them.
+    monkeypatch.setattr(twelvedata.time, "sleep", lambda *_: None)
+    session = _Walk(good=2, status=503, message="upstream unavailable")
+    candles = twelvedata.fetch_full_history(
+        symbol="SPY", interval="30min", days=4000, base_url="https://x",
+        api_key="k", session=session, request_delay_seconds=0, chunk_days=300)
+    assert len(candles) == 2
+
+
+def test_a_permanent_error_still_raises_for_a_single_fetch(monkeypatch):
+    # A single request, outside a history walk, must be loud about a bad request.
+    monkeypatch.setattr(twelvedata.time, "sleep", lambda *_: None)
+    session = _Walk(good=0, status=400)
+    with pytest.raises(twelvedata.NoDataInRange):
+        fetch_klines(symbol="SPY", interval="30min", limit=10,
+                                base_url="https://x", api_key="k", session=session)
+    assert session.calls == 1
+
+
+def test_the_no_data_message_alone_does_not_make_an_error_permanent(monkeypatch):
+    # A rate limit dropped as if it were the end of history ends the walk early
+    # and silently, which is the one failure here that looks like success.
+    monkeypatch.setattr(twelvedata.time, "sleep", lambda *_: None)
+    session = _Walk(good=0, status=429,
+                    message="No data is available - rate limited")
+    with pytest.raises(ExchangeError):
+        fetch_klines(symbol="SPY", interval="30min", limit=10,
+                                base_url="https://x", api_key="k", session=session,
+                                retries=2, backoff_seconds=0)
+    assert session.calls == 2
+
+
+def test_a_rate_limit_is_still_retried(monkeypatch):
+    # The PER-MINUTE limit, which clears in seconds and is worth waiting out.
+    # Its wording is three words from the daily one's, and the two mean opposite
+    # things, so this fixture carries the real text rather than a paraphrase.
+    monkeypatch.setattr(twelvedata.time, "sleep", lambda *_: None)
+    session = _Walk(good=0, status=429, message=(
+        "You have run out of API credits for the current minute. 9 API credits "
+        "were used, with the current limit being 8."))
+    with pytest.raises(ExchangeError):
+        fetch_klines(symbol="SPY", interval="30min", limit=10,
+                                base_url="https://x", api_key="k", session=session,
+                                retries=3, backoff_seconds=0)
+    assert session.calls == 3
+
+
+def test_the_daily_budget_running_out_is_not_retried(monkeypatch):
+    # The one 429 that cannot come good. Retried three times at eight seconds it
+    # cost 32 seconds per instrument and 27 minutes per run, and the job's
+    # 20-minute timeout then skipped delivery entirely - an exhausted budget,
+    # which should cost a run some fresh bars, cost it every alert instead.
+    monkeypatch.setattr(twelvedata.time, "sleep", lambda *_: None)
+    session = _Walk(good=0, status=429, message=(
+        "You have run out of API credits for the day. 1750 API credits were "
+        "used, with the current limit being 800."))
+    with pytest.raises(twelvedata.DailyQuotaExhausted):
+        fetch_klines(symbol="SPY", interval="30min", limit=10,
+                                base_url="https://x", api_key="k", session=session,
+                                retries=3, backoff_seconds=0)
+    assert session.calls == 1
+
+
+def test_the_daily_budget_stops_a_history_walk_rather_than_ending_it_quietly():
+    # fetch_full_history swallows an ExchangeError and returns what it has, which
+    # is right for a bad chunk and wrong for this: the caller has fifty more
+    # instruments to ask and every one of them will fail the same way.
+    session = _Walk(good=0, status=429, message=(
+        "You have run out of API credits for the day. 900 API credits were used."))
+    with pytest.raises(twelvedata.DailyQuotaExhausted):
+        twelvedata.fetch_full_history(
+            symbol="SPY", interval="1h", days=900, base_url="https://x",
+            api_key="k", session=session, request_delay_seconds=0, chunk_days=150)
+
+
+# --- the archive's share of the key -------------------------------------------
+
+@pytest.fixture
+def archive(monkeypatch):
+    """A history walk: archive mode on, nothing spent yet, a fake clock and sleep."""
+    monkeypatch.setattr(twelvedata, "archive_mode", True)
+    monkeypatch.setattr(twelvedata, "archive_credits", 0)
+    slept = []
+    monkeypatch.setattr(twelvedata.time, "sleep", slept.append)
+    return slept
+
+
+def _at(minute, second=0):
+    return lambda: datetime(2026, 10, 5, 14, minute, second, tzinfo=timezone.utc)
+
+
+def test_a_walk_waits_out_the_hourly_runs_minutes(monkeypatch, archive):
+    # The hourly batch spends a whole minute's eight credits at about :05.
+    monkeypatch.setattr(twelvedata, "_now", _at(5, 30))
+    session = FakeSession([(200, ok_payload([("2026-06-01 00:00:00", 1, 1, 1, 1)]))])
+    fetch_full_history("SPY", "30min", days=10, base_url="https://x", api_key="k",
+                       session=session, request_delay_seconds=0)
+    assert archive[0] == (12 - 5) * 60 - 30
+    assert twelvedata.archive_credits == 1
+
+
+def test_a_walk_outside_those_minutes_does_not_wait(monkeypatch, archive):
+    monkeypatch.setattr(twelvedata, "_now", _at(20))
+    session = FakeSession([(200, ok_payload([("2026-06-01 00:00:00", 1, 1, 1, 1)]))])
+    fetch_full_history("SPY", "30min", days=10, base_url="https://x", api_key="k",
+                       session=session, request_delay_seconds=0)
+    assert archive == []
+
+
+def test_a_walk_stops_at_its_share_of_the_day(monkeypatch, archive):
+    monkeypatch.setattr(twelvedata, "_now", _at(20))
+    monkeypatch.setattr(twelvedata, "archive_credits", twelvedata.ARCHIVE_CREDIT_CAP)
+    session = FakeSession([])
+    with pytest.raises(twelvedata.DailyQuotaExhausted, match="share"):
+        fetch_full_history("SPY", "30min", days=10, base_url="https://x", api_key="k",
+                           session=session, request_delay_seconds=0)
+    assert session.calls == []
+
+
+def test_the_hourly_run_neither_waits_nor_counts(monkeypatch):
+    monkeypatch.setattr(twelvedata, "archive_mode", False)
+    monkeypatch.setattr(twelvedata, "archive_credits", twelvedata.ARCHIVE_CREDIT_CAP)
+    monkeypatch.setattr(twelvedata, "_now", _at(5))
+    slept = []
+    monkeypatch.setattr(twelvedata.time, "sleep", slept.append)
+    session = FakeSession([(200, ok_payload([("2026-06-01 00:00:00", 1, 1, 1, 1)]))])
+    fetch_full_history("SPY", "30min", days=10, base_url="https://x", api_key="k",
+                       session=session, request_delay_seconds=0)
+    assert slept == [] and len(session.calls) == 1
+
+
+def test_the_hourly_batch_waits_a_whole_minute_between_tries(monkeypatch):
+    # Each try spends the minute's eight credits, so an eight-second backoff
+    # would only meet the limit again: two retries, 61 s apart, then it gives up.
+    slept = []
+    monkeypatch.setattr(twelvedata.time, "sleep", slept.append)
+    minute = {"status": "error", "code": 429, "message": (
+        "You have run out of API credits for the current minute. 9 API credits "
+        "were used, with the current limit being 8.")}
+    session = FakeSession([(429, minute)] * 3)
+    start = datetime(2026, 10, 5, 13, tzinfo=timezone.utc)
+    with pytest.raises(ExchangeError):
+        twelvedata.fetch_batch(["SLV", "GLD"], "30min", start, start, "https://x", "k",
+                               session)
+    assert slept == [61.0, 61.0] and len(session.calls) == 3

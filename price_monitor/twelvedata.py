@@ -1,0 +1,369 @@
+"""Twelve Data REST client: the hourly batch of the thin funds (fetch_batch)
+and the archive walk behind history and gap-filling (fetch_full_history).
+
+The free tier is 800 credits a day and 8 a minute, one credit per symbol per
+request, and the key is shared between the hourly run and any history walk:
+see ARCHIVE_CREDIT_CAP for how a walk leaves the hourly run its share. Funds
+carry real hourly volume, and it is parsed when present.
+"""
+from __future__ import annotations
+
+import logging
+import time
+from datetime import datetime, timedelta, timezone
+
+import requests
+
+from price_monitor.models import Candle, ExchangeError, KeyRefused
+
+log = logging.getLogger("price_monitor.twelvedata")
+
+TIME_SERIES_ENDPOINT = "/time_series"
+
+# Twelve Data's interval codes, keyed by this app's own interval names.
+INTERVAL_CODES = {
+    "30min": "30min",
+    "1h": "1h",
+    "1d": "1day",
+}
+
+# Bar duration in seconds - needed to set close_time. Kept next to INTERVAL_CODES
+# on purpose: an interval added to only one of the two dictionaries would quietly
+# drift out of step with the other.
+INTERVAL_SECONDS = {
+    "30min": 1800,
+    "1h": 3600,
+    "1d": 86400,
+}
+
+# The API accepts at most 5000 candles per request.
+MAX_OUTPUTSIZE = 5000
+
+# Twelve Data says this when the requested window lies entirely before the data
+# it holds for that symbol and interval. It is not a failure - it is the answer
+# "that is as far back as this goes", and the only way to find the edge, since
+# the API does not publish per-symbol history depth. Intraday depth on the free
+# tier is a few years, so any walk back to 2015 reaches it.
+_NO_DATA_MESSAGE = "no data is available"
+# Twelve Data says "You have run out of API credits for the day" when the daily
+# budget is gone and "...for the current minute" when it is the rate limit. The
+# two differ by three words and mean opposite things - one clears at midnight,
+# the other in under a minute - so the match has to include the period. Matching
+# the common prefix would turn every transient rate limit into a full stop.
+_QUOTA_MESSAGE = "api credits for the day"
+
+
+class PermanentExchangeError(ExchangeError):
+    """A request that will fail identically however many times it is repeated.
+
+    Retrying one costs credits and wall-clock time and cannot succeed: a walk
+    back through history hits the same 400 on every chunk past the edge, and at
+    three attempts with 8-second backoff that is 3 credits and 24 seconds burnt
+    per dead chunk. Rate limiting (429) and server faults are NOT this - those
+    are exactly the ones worth retrying.
+    """
+
+
+class NoDataInRange(PermanentExchangeError):
+    """The requested window is before the start of this symbol's history."""
+
+
+class DailyQuotaExhausted(PermanentExchangeError):
+    """The API key has spent its credits for the day. Nothing else will succeed.
+
+    The one 429 that is not a rate limit. A rate limit clears in seconds and is
+    worth waiting out; this clears at midnight UTC, and the budget is per KEY,
+    so it is not a statement about this symbol at all - every remaining symbol
+    in the run will fail identically.
+
+    Separated because the cost of getting it wrong was measured rather than
+    guessed. Treated as a retryable 429 it cost three attempts at eight-second
+    backoff plus the eight-second pacing pause: 32 seconds per instrument, every
+    one of them a certain failure. Across 52 instruments that is 27 minutes, and
+    the job's 20-minute timeout killed the run before it could deliver anything
+    - so an exhausted quota, which should cost the run some fresh bars, silently
+    cost it every alert instead.
+    """
+
+
+# --- the archive's share of the key -------------------------------------------
+#
+# The hourly run asks for its funds in one request, at most a whole minute's
+# eight credits, at about :05 past the hour: two funds since stage 1, up to
+# 2 x 24 credits a day. A history walk (jump.backfill --extend-history, --fill-gaps)
+# on the same key paces itself to about seven a minute and would otherwise run
+# until the day's 800 are gone - leaving the hourly run's funds stale every hour
+# it overlapped and dark until midnight UTC after it. So a walk, and only a
+# walk, sets `archive_mode`: it waits out LIVE_SLOT_MINUTES past each hour and
+# stops at ARCHIVE_CREDIT_CAP. One walk a day keeps the hourly run whole.
+ARCHIVE_CREDIT_CAP = 600
+LIVE_SLOT_MINUTES = (3, 12)
+archive_mode = False
+archive_credits = 0
+
+
+class ArchiveShareSpent(DailyQuotaExhausted):
+    """A history walk has spent its share of the day; the rest is the hourly run's."""
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _archive_turn(symbol: str) -> None:
+    """Before an archive request: stop at the walk's share of the day, and wait
+    out the minutes the hourly batch spends its credits in. A no-op outside
+    archive mode, which is how the hourly run calls this module."""
+    global archive_credits
+    if not archive_mode:
+        return
+    if archive_credits >= ARCHIVE_CREDIT_CAP:
+        raise ArchiveShareSpent(
+            f"{symbol}: the walk has spent its share of the day ({ARCHIVE_CREDIT_CAP} "
+            "credits); the rest is left to the hourly run")
+    now = _now()
+    first, last = LIVE_SLOT_MINUTES
+    if first <= now.minute < last:
+        time.sleep((last - now.minute) * 60 - now.second)
+    archive_credits += 1
+
+
+def _interval_code(interval: str) -> str:
+    try:
+        return INTERVAL_CODES[interval]
+    except KeyError as exc:
+        raise ExchangeError(
+            f"Unsupported interval '{interval}'. Supported: {sorted(INTERVAL_CODES)}"
+        ) from exc
+
+
+def _granularity_seconds(interval: str) -> int:
+    try:
+        return INTERVAL_SECONDS[interval]
+    except KeyError as exc:
+        raise ExchangeError(
+            f"Unsupported interval '{interval}'. Supported: {sorted(INTERVAL_SECONDS)}"
+        ) from exc
+
+
+def _parse_datetime(value: str) -> datetime:
+    # Always requested with timezone=UTC (see callers) - Twelve Data's default
+    # is "Exchange" time, which for forex is NOT UTC (verified live: off by a
+    # fixed 10 hours from a same-moment UTC request) and would silently
+    # misalign every candle against the rest of the app if left unset.
+    fmt = "%Y-%m-%d %H:%M:%S" if " " in value else "%Y-%m-%d"
+    return datetime.strptime(value, fmt).replace(tzinfo=timezone.utc)
+
+
+def _classify(symbol: str, status_code: int, body: str) -> ExchangeError:
+    """Turns a failed response into the exception that says what to do with it."""
+    # Matched on the status as well as the message. Reading the message alone
+    # would let a 429 whose body happened to carry that phrase be classified
+    # permanent and never retried - and a rate limit dropped as if it were the
+    # end of history ends the walk early and silently, which is the one failure
+    # here that looks exactly like success.
+    if status_code == 400 and _NO_DATA_MESSAGE in body.lower():
+        return NoDataInRange(f"{symbol}: no data before the requested window")
+    if status_code == 429 and _QUOTA_MESSAGE in body.lower():
+        return DailyQuotaExhausted(f"{symbol}: {body[:200]}")
+    # 401 is the key. Twelve Data's 403 is one symbol beyond the plan, not this.
+    if status_code == 401:
+        return KeyRefused(f"{symbol}: Twelve Data refused the key (401)")
+    # 429 is the rate limit and 5xx are the server's problem; both are worth
+    # another attempt. Everything else in the 4xx range is a statement about the
+    # request itself and will not become true by being asked again.
+    if 400 <= status_code < 500 and status_code != 429:
+        return PermanentExchangeError(
+            f"{symbol}: unexpected status {status_code}: {body[:200]}")
+    return ExchangeError(f"{symbol}: unexpected status {status_code}: {body[:200]}")
+
+
+def _request(
+    sess, url: str, params: dict, granularity_seconds: int, retries: int, backoff_seconds: float, symbol: str,
+) -> list[Candle]:
+    last_error: Exception | None = None
+    for attempt in range(1, retries + 1):
+        _archive_turn(symbol)
+        try:
+            resp = sess.get(url, params=params, timeout=15, headers={"User-Agent": "market-alert-bot"})
+            if resp.status_code != 200:
+                raise _classify(symbol, resp.status_code, resp.text)
+            data = resp.json()
+            if data.get("status") == "error":
+                message = str(data.get("message", data))
+                raise _classify(symbol, int(data.get("code") or 0), message)
+            values = data.get("values") or []
+            candles = [
+                Candle(
+                    open_time=int(_parse_datetime(v["datetime"]).timestamp()),
+                    open=float(v["open"]),
+                    high=float(v["high"]),
+                    low=float(v["low"]),
+                    close=float(v["close"]),
+                    # Spot FX arrives without volume - no provider has a
+                    # consolidated exchange volume for it - while ETFs arrive
+                    # with the real thing. Defaulting to zero rather than
+                    # hard-coding it keeps the ETF figure.
+                    volume=float(v.get("volume") or 0.0),
+                    close_time=int(_parse_datetime(v["datetime"]).timestamp()) + granularity_seconds,
+                )
+                for v in values
+            ]
+            candles.sort(key=lambda c: c.open_time)
+            return candles
+        except (PermanentExchangeError, KeyRefused):
+            raise
+        except (requests.RequestException, ExchangeError, ValueError, KeyError, IndexError) as exc:
+            last_error = exc
+            if attempt < retries:
+                time.sleep(backoff_seconds * attempt)
+    raise ExchangeError(f"Failed to fetch klines for {symbol} after {retries} attempts: {last_error}")
+
+
+def fetch_full_history(
+    symbol: str,
+    interval: str,
+    days: float,
+    base_url: str,
+    api_key: str,
+    session: requests.Session | None = None,
+    request_delay_seconds: float = 8.0,
+    chunk_days: int = 150,
+    end: datetime | None = None,
+) -> list[Candle]:
+    """Page through date ranges to build up to `days` of history - the archive
+    and gap-fill path (the hourly fetch is fetch_batch), since a single
+    request caps out at MAX_OUTPUTSIZE candles. Chunked by calendar days
+    (not candle count, since a chunk may span a weekend with no candles) and
+    paced well under the 8-credits/minute free-tier limit by default.
+    """
+    if not api_key:
+        raise ExchangeError("No Twelve Data API key configured (TWELVEDATA_API_KEY)")
+
+    granularity_seconds = _granularity_seconds(interval)
+    interval_code = _interval_code(interval)
+    url = f"{base_url}{TIME_SERIES_ENDPOINT}"
+    sess = session or requests
+    # `end` lets a caller that already holds the recent bars start the walk at
+    # its own oldest one instead of at today, so deepening an archive does not
+    # spend a credit per chunk re-fetching what is already stored. On the free
+    # tier that is the difference between reaching 2015 and running out of
+    # daily credits somewhere in 2019.
+    end = end or datetime.now(timezone.utc)
+    start_bound = end - timedelta(days=days)
+    # MAX_OUTPUTSIZE hourly candles is ~208 days if every hour had one - the
+    # 150-day default leaves room so weekends/holidays inside a chunk never risk
+    # brushing up against the per-request cap. Callers fetching a sparser series
+    # (a US equity ETF trades ~13 half-hour bars a day, not 24 hourly ones) can
+    # raise chunk_days and cover the same span in far fewer credits.
+    chunk_span = timedelta(days=chunk_days)
+
+    by_time: dict[int, Candle] = {}
+    chunk_end = end
+    while chunk_end > start_bound:
+        chunk_start = max(start_bound, chunk_end - chunk_span)
+        params = {
+            "symbol": symbol,
+            "interval": interval_code,
+            "timezone": "UTC",
+            "apikey": api_key,
+            "start_date": chunk_start.strftime("%Y-%m-%d %H:%M:%S"),
+            "end_date": chunk_end.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        try:
+            fetched = _request(sess, url, params, granularity_seconds,
+                               retries=3, backoff_seconds=8.0, symbol=symbol)
+        except DailyQuotaExhausted:
+            # Not this symbol's problem and not this walk's: the budget is gone
+            # for every symbol until midnight. Propagated so the caller can stop
+            # the whole run rather than discovering it once per instrument.
+            raise
+        except NoDataInRange:
+            # The edge of this symbol's history, which is the normal way a walk
+            # back to a date older than the provider holds ends. Not an error,
+            # and nothing further back can exist either - so stop asking.
+            break
+        except ExchangeError as exc:
+            # Anything else: keep what the earlier chunks already cost. A walk
+            # from 2026 back to 2015 that succeeds for five years and then hits
+            # one bad chunk must not discard every candle fetched and every
+            # credit spent on them. A short history is recoverable on the next
+            # run; a spent daily quota is not.
+            log.warning("%s: stopping the history walk at %s: %s",
+                        symbol, chunk_start.date(), exc)
+            break
+        for c in fetched:
+            by_time[c.open_time] = c
+        chunk_end = chunk_start
+        if chunk_end > start_bound:
+            time.sleep(request_delay_seconds)
+
+    return sorted(by_time.values(), key=lambda c: c.open_time)
+
+
+# How many symbols one batched request carries: the free tier's credits a
+# minute, each symbol costing one. A batch is one round trip instead of eight
+# and eight seconds of pause apart.
+BATCH_SIZE = 8
+
+
+def _candles(values: list, granularity_seconds: int) -> list[Candle]:
+    out = []
+    for v in values or []:
+        t = int(_parse_datetime(v["datetime"]).timestamp())
+        out.append(Candle(open_time=t, open=float(v["open"]), high=float(v["high"]),
+                          low=float(v["low"]), close=float(v["close"]),
+                          volume=float(v.get("volume") or 0.0),
+                          close_time=t + granularity_seconds))
+    return sorted(out, key=lambda c: c.open_time)
+
+
+def fetch_batch(symbols: "list[str]", interval: str, start: datetime, end: datetime,
+                base_url: str, api_key: str, session: requests.Session | None = None,
+                retries: int = 2, backoff_seconds: float = 61.0
+                ) -> "dict[str, list[Candle] | ExchangeError]":
+    """The bars of up to BATCH_SIZE symbols from `start` to `end` in one request.
+
+    The answer is keyed by symbol, each with its own status, so one symbol's
+    error is that symbol's and not the batch's. A rate limit for the minute is
+    waited out a whole minute before the retry - the eight-second backoff of a
+    single request would only meet it again. The day's quota raises
+    DailyQuotaExhausted, as everywhere."""
+    if not api_key:
+        raise ExchangeError("No Twelve Data API key configured (TWELVEDATA_API_KEY)")
+    granularity_seconds = _granularity_seconds(interval)
+    params = {"symbol": ",".join(symbols), "interval": _interval_code(interval),
+              "timezone": "UTC", "apikey": api_key,
+              "start_date": start.strftime("%Y-%m-%d %H:%M:%S"),
+              "end_date": end.strftime("%Y-%m-%d %H:%M:%S")}
+    sess = session or requests
+    label = ",".join(symbols)
+    last: Exception | None = None
+    for attempt in range(retries + 1):
+        if attempt:
+            time.sleep(backoff_seconds)
+        try:
+            resp = sess.get(f"{base_url}{TIME_SERIES_ENDPOINT}", params=params, timeout=30,
+                            headers={"User-Agent": "market-alert-bot"})
+            if resp.status_code != 200:
+                raise _classify(label, resp.status_code, resp.text)
+            data = resp.json()
+            if data.get("status") == "error":
+                raise _classify(label, int(data.get("code") or 0), str(data.get("message")))
+        except (PermanentExchangeError, KeyRefused):
+            raise
+        except (requests.RequestException, ExchangeError, ValueError) as exc:
+            last = exc
+            continue
+        # One symbol comes back as the series itself, several as a dict of them.
+        series = {symbols[0]: data} if len(symbols) == 1 else data
+        out: "dict[str, list[Candle] | ExchangeError]" = {}
+        for symbol in symbols:
+            one = series.get(symbol) or {}
+            if one.get("status") == "error":
+                out[symbol] = _classify(symbol, int(one.get("code") or 0),
+                                        str(one.get("message")))
+            else:
+                out[symbol] = _candles(one.get("values"), granularity_seconds)
+        return out
+    raise ExchangeError(f"{label}: batch failed after {retries + 1} attempts: {last}")

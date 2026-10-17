@@ -1,0 +1,78 @@
+name: Backfill Economic Calendar
+
+# Manual rebuild of the local calendar archive (data/economic_calendar/).
+# Routine topping-up works differently: the hourly run merges the live
+# ForexFactory feed once a day, and the weekly digest reads back the current and
+# previous month from the monthly pages (price_monitor/weekly_digest.py). This workflow is for when
+# the archive has to be rebuilt whole or a large gap closed.
+#
+# One source, ForexFactory's own monthly pages, no key: third-party dumps shift
+# events or disagree with it on impact, and two sources leave a seam
+# (economic_calendar.py).
+#
+# A full rebuild is ~69 requests with a two-second pause, about four minutes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'What to do'
+        required: true
+        default: 'rebuild'
+        type: choice
+        options:
+          - rebuild              # throw the archive away and rebuild the whole history
+          - import-forexfactory  # append a range, leaving the rest untouched
+      from_month:
+        description: 'First month, YYYY-MM (defaults to the start of the archive, 2021-01)'
+        required: false
+        default: ''
+        type: string
+      to_month:
+        description: 'Last month, YYYY-MM (defaults to the current one)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run calendar backfill
+        run: |
+          python -m price_monitor.economic_calendar \
+            --${{ github.event.inputs.mode }} \
+            ${{ github.event.inputs.from_month != '' && format('--from-month {0}', github.event.inputs.from_month) || '' }} \
+            ${{ github.event.inputs.to_month != '' && format('--to-month {0}', github.event.inputs.to_month) || '' }}
+
+      - name: Commit updated calendar history
+        # Same reasoning as backfill-jump-bars.yml's commit step: keep whatever
+        # was fetched and merged so far in this run even if a later step
+        # fails partway through.
+        if: always()
+        run: |
+          if [ -n "$(git status --porcelain data/economic_calendar)" ]; then
+            git config user.name "price-monitor-bot"
+            git config user.email "actions@github.com"
+            git add data/economic_calendar
+            git commit -m "chore: import economic calendar history [skip ci]"
+            git push
+          else
+            echo "No calendar changes to commit."
+          fi

@@ -1,0 +1,206 @@
+"""Sina Finance's bars: the LME's metals and US funds.
+
+THE LME METALS - tin (SND), nickel (NID), aluminium (AHD), and copper (CAD) for
+the basket's stage 1 - come from the chart
+endpoint behind Sina's global futures pages (gu.sina.cn GlobalService.getMink,
+type 60): the three-month contract's traded hourly bars, in dollars a tonne,
+with volume. Only the last 1,023 are served - about three months - and nothing
+older by any parameter tried, so Sina's part of each record starts 2026-07;
+below it, Wallstreetcn's from 2026-04-22 (price_monitor/wallstreetcn.py): the
+LME's own instrument over a longer record of another (docs/decisions.md, "Data
+and providers"). The bar that ended at :00 is served by :05. A few bars fall outside LMEselect's hours and are left
+to the session gate.
+
+THE BARS are labelled by their END, in Beijing time: the LME's first bar of a
+summer day is 09:00, LMEselect's 01:00 to 02:00 London. Each is stamped at the
+hour its first minute falls in - its label less an hour, floored, so an
+off-grid label (11:15) lands on the hour it started in. A bar whose label is
+still ahead of now has not ended, and is left for the next run.
+
+AND THE STANDING RISK. An undocumented endpoint that wants a Referer, with the
+answer wrapped in a JavaScript callback. A response without it raises.
+"""
+from __future__ import annotations
+
+import json
+import re
+import time
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+import requests
+
+from price_monitor.models import Candle, ExchangeError, Unreachable
+
+HEADERS = {"Referer": "https://finance.sina.com.cn", "User-Agent": "Mozilla/5.0"}
+BEIJING = ZoneInfo("Asia/Shanghai")
+_PAYLOAD = re.compile(r"var t=\((.*)\);", re.S)
+MAX_ATTEMPTS = 3
+BACKOFF_SECONDS = 2.0
+
+
+def parse(text: str, symbol: str, now: datetime | None = None) -> list[Candle]:
+    """Hourly candles from one answer, ended bars only."""
+    match = _PAYLOAD.search(text)
+    if match is None:
+        raise ExchangeError(f"{symbol}: Sina's answer has no bars")
+    rows = json.loads(match.group(1)) or []
+    now = now or datetime.now(timezone.utc)
+    out = []
+    for row in rows:
+        end = datetime.strptime(row["d"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=BEIJING)
+        if end > now:
+            continue
+        start = (end - timedelta(hours=1)).replace(minute=0, second=0)
+        t = int(start.timestamp())
+        # The LME metals' hourly volume is a difference of a running daily
+        # count, and goes negative in the first hour of the London day, where
+        # the count restarts - 26 of nickel's 64 days to 2026-10-02. The price
+        # bar is real; its volume is unknown, and recorded as 0 rather than
+        # voiding the bar (jump.quality reads a negative volume as broken).
+        volume = max(float(row.get("v") or 0.0), 0.0)
+        out.append(Candle(open_time=t, open=float(row["o"]), high=float(row["h"]),
+                          low=float(row["l"]), close=float(row["c"]),
+                          volume=volume, close_time=int(end.timestamp())))
+    return out
+
+
+GLOBAL_URL = "https://gu.sina.cn/ft/api/jsonp.php/var%20t=/GlobalService.getMink"
+
+
+# --- China's own indices: the CSI 300, a voter for the basket's stage 1 --------
+#
+# The A-share market's hourly bars (CN_MarketData.getKLineData, scale 60): the
+# last 1,023, back to 2025-09-12 from 2026-10-09, four a day, labelled by their
+# END in Beijing time on the session's own grid - 10:30, 11:30, 14:00, 15:00.
+# Each is filed under the round hour its last minute falls in, so its close is
+# never earlier than its hour (10:30 lands on 10:00). Against Yahoo's
+# 000300.SS folded onto the hour, 2026-08 to 10: hourly correlation 0.90, 1.3 bp
+# apart at the median.
+CN_URL = "https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData"
+CN_INDICES = {"000300.SS": "sh000300"}
+
+
+def parse_cn(rows: list, symbol: str, now: datetime | None = None) -> list[Candle]:
+    """Hourly candles from one answer of China's market data, ended bars only."""
+    if not isinstance(rows, list):
+        raise ExchangeError(f"{symbol}: Sina's answer has no bars")
+    now_ts = int((now or datetime.now(timezone.utc)).timestamp())
+    out = []
+    for row in rows:
+        end = int(datetime.strptime(row["day"], "%Y-%m-%d %H:%M:%S")
+                  .replace(tzinfo=BEIJING).timestamp())
+        if end > now_ts:
+            continue
+        out.append(Candle(open_time=(end - 1) // 3600 * 3600, open=float(row["open"]),
+                          high=float(row["high"]), low=float(row["low"]),
+                          close=float(row["close"]), volume=0.0, close_time=end))
+    return out
+
+
+def fetch_cn_bars(symbol: str, session: requests.Session | None = None,
+                  now: datetime | None = None) -> list[Candle]:
+    """The last 1,023 hourly bars of a Chinese index (sh000300) that have ended."""
+    last: Exception | None = None
+    for attempt in range(MAX_ATTEMPTS):
+        if attempt:
+            time.sleep(BACKOFF_SECONDS * attempt)
+        try:
+            resp = (session or requests).get(
+                CN_URL, params={"symbol": symbol, "scale": 60, "ma": "no", "datalen": 1023},
+                headers=HEADERS, timeout=30)
+        except requests.RequestException as exc:
+            last = Unreachable(f"{symbol}: {exc}")
+            continue
+        if resp.status_code in (429, 500, 502, 503, 504):
+            last = (Unreachable if resp.status_code >= 500 else ExchangeError)(
+                f"{symbol}: Sina answered {resp.status_code}")
+            continue
+        if resp.status_code != 200:
+            raise ExchangeError(f"{symbol}: Sina answered {resp.status_code}")
+        try:
+            return parse_cn(resp.json(), symbol, now)
+        except ValueError as exc:
+            raise ExchangeError(f"{symbol}: Sina's answer is not JSON") from exc
+    raise last or ExchangeError(f"{symbol}: no response")
+
+
+def fetch_bars(symbol: str, session: requests.Session | None = None,
+               now: datetime | None = None, url: str = GLOBAL_URL) -> list[Candle]:
+    """The last 1,023 hourly bars of a global future that have ended: an LME
+    metal (SND), or a soft (KC) for the vote."""
+    last: Exception | None = None
+    for attempt in range(MAX_ATTEMPTS):
+        if attempt:
+            time.sleep(BACKOFF_SECONDS * attempt)
+        try:
+            resp = (session or requests).get(url, params={"symbol": symbol, "type": 60},
+                                             headers=HEADERS, timeout=30)
+        except requests.RequestException as exc:
+            last = Unreachable(f"{symbol}: {exc}")
+            continue
+        if resp.status_code in (429, 500, 502, 503, 504):
+            last = (Unreachable if resp.status_code >= 500 else ExchangeError)(
+                f"{symbol}: Sina answered {resp.status_code}")
+            continue
+        if resp.status_code != 200:
+            raise ExchangeError(f"{symbol}: Sina answered {resp.status_code}")
+        return parse(resp.text, symbol, now)       # [] for a symbol it does not hold
+    raise last or ExchangeError(f"{symbol}: no response")
+
+
+# --- US funds ------------------------------------------------------------------
+#
+# The same site's US bars are the consolidated tape: over 28 days to
+# 2026-10-02, the half-hour bars of all 67 thin funds then on Yahoo, folded to
+# the store's hours, matched Alpaca's SIP closes at 0.0 bp (median and p90) with
+# 100% of its volume and no hour missing (measured once against SIP) - RWX included,
+# which Yahoo lacks 3% of. Its HOURLY bars run 09:30-10:30, 10:30-11:30, a grid
+# the store's clock hours cannot be folded from, so the half-hour ones (about
+# 78 days of them) are asked for. Labelled by their end, New York time.
+US_URL = "https://stock.finance.sina.com.cn/usstock/api/jsonp.php/var%20t=/US_MinKService.getMinK"
+NEW_YORK = ZoneInfo("America/New_York")
+HALF_HOUR = 1800
+
+
+def parse_us(text: str, symbol: str, now: datetime | None = None) -> list[Candle]:
+    """Half-hour candles inside the regular session, ended ones only."""
+    match = _PAYLOAD.search(text)
+    if match is None:
+        raise ExchangeError(f"{symbol}: Sina's answer has no bars")
+    now = now or datetime.now(timezone.utc)
+    out = []
+    for row in json.loads(match.group(1)) or []:
+        end = datetime.strptime(row["d"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=NEW_YORK)
+        start = end - timedelta(seconds=HALF_HOUR)
+        minutes = start.hour * 60 + start.minute
+        if end > now or start.weekday() >= 5 or not 570 <= minutes < 960:
+            continue
+        t = int(start.timestamp())
+        out.append(Candle(open_time=t, open=float(row["o"]), high=float(row["h"]),
+                          low=float(row["l"]), close=float(row["c"]),
+                          volume=float(row.get("v") or 0.0), close_time=t + HALF_HOUR))
+    return out
+
+
+def fetch_us_bars(symbol: str, session: requests.Session | None = None,
+                  now: datetime | None = None) -> list[Candle]:
+    """A US fund's last ~78 days of half-hour bars that have ended."""
+    last: Exception | None = None
+    for attempt in range(MAX_ATTEMPTS):
+        if attempt:
+            time.sleep(BACKOFF_SECONDS * attempt)
+        try:
+            resp = (session or requests).get(US_URL, params={"symbol": symbol.lower(), "type": 30},
+                                             headers=HEADERS, timeout=30)
+        except requests.RequestException as exc:
+            last = Unreachable(f"{symbol}: {exc}")
+            continue
+        if resp.status_code in (429, 500, 502, 503, 504):
+            last = (Unreachable if resp.status_code >= 500 else ExchangeError)(
+                f"{symbol}: Sina answered {resp.status_code}")
+            continue
+        if resp.status_code != 200:
+            raise ExchangeError(f"{symbol}: Sina answered {resp.status_code}")
+        return parse_us(resp.text, symbol, now)
+    raise last or ExchangeError(f"{symbol}: no response")
