@@ -51,7 +51,6 @@ PROVIDERS = {
     "data-api.binance.vision": "binance",
     "finance.sina.com.cn": "sina",
     "stock.finance.sina.com.cn": "sina",
-    "stock2.finance.sina.com.cn": "sina",
     "gu.sina.cn": "sina",
     "api.wsj.net": "marketwatch",
     "api.stlouisfed.org": "fred",

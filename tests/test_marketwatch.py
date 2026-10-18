@@ -48,7 +48,33 @@ def test_a_refused_request_raises(monkeypatch):
         marketwatch.fetch_hourly("CURRENCY/US/XTUP/USDXXX", Session())
 
 
-def test_the_store_asks_the_bund_and_gilt_by_contract_and_ttf_as_is():
+def test_the_store_asks_the_bund_by_contract_and_ttf_as_is():
     assert marketwatch.store_key("FGBL=F", "FGBLZ26.EUX") == "FUTURE/DE/XEUR/FGBLZ26"
-    assert marketwatch.store_key("RLI=F", "RLIH27.ICE") == "FUTURE/UK/IFEU/RLIH27"
     assert marketwatch.store_key("TFM=F") == "FUTURE/UK/NDEX/TFMI00"
+
+
+def test_each_market_is_asked_for_the_longest_window_it_serves(monkeypatch):
+    # MarketWatch refuses ten days of hourly bars for a Korean key (400 "Cannot use
+    # intraday step 'PT1H' with time frame 'D10'", 2026-10-18) and takes eight; a
+    # Chinese key takes five; the rest ten.
+    import json
+
+    asked = {}
+
+    class Answer:
+        status_code = 200
+
+        def json(self):
+            return payload([])
+
+    class Session:
+        def get(self, url, params=None, **k):
+            asked[json.loads(params["json"])["Series"][0]["Key"]] = \
+                json.loads(params["json"])["TimeFrame"]
+            return Answer()
+
+    for key in ("INDEX/KR/XKRX/180721", "FUND/CN/XSHG/511090", "FUTURE/US/XCBT/TY00",
+                "INDEX/UK//UKX"):
+        marketwatch.fetch_hourly(key, Session())
+    assert asked == {"INDEX/KR/XKRX/180721": "D8", "FUND/CN/XSHG/511090": "D5",
+                     "FUTURE/US/XCBT/TY00": "D10", "INDEX/UK//UKX": "D10"}

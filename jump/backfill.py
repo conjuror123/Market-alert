@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import math
 import os
 import sys
 import time
@@ -309,9 +310,9 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
             base_url=YAHOO_BASE_URL, session=session, end=end,
         )
     elif provider == "marketwatch":
-        # Its last nine trading days, whatever `days` asks: the Bund's and the
-        # gilt's from the contract the store holds, and only since the session
-        # it became front (as Yahoo's contracts, above).
+        # Its last nine trading days, whatever `days` asks: the Bund's from the
+        # contract the store holds, and only since the session it became front
+        # (as Yahoo's contracts, above).
         held = futures.front_contract(asset.ticker, now.date()) \
             if asset.ticker in marketwatch.CONTRACTS else None
         candles = marketwatch.fetch_hourly(
@@ -327,13 +328,6 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
             alpaca.headers(os.environ.get("ALPACA_KEY_ID", "").strip(),
                            os.environ.get("ALPACA_SECRET_KEY", "").strip()),
             session, feed="iex")
-    elif provider == "sina" and asset.ticker in sina.CFFEX:
-        # China's 10-year: the half-hour bars of the contract the store holds,
-        # its last 1,023, and only since the session it became front.
-        held = futures.front_contract(asset.ticker, now.date())
-        candles = sina.fetch_cffex_bars(sina.cffex_symbol(held[0]), session, now)
-        floor = _sessions.daily_session_open(held[1], asset.session_template)
-        candles = [c for c in candles if c.open_time >= floor]
     elif provider == "sina" and asset.session_template == CALENDAR_TEMPLATE:
         # A US fund: its last ~78 days of half-hour bars, whatever `days` asks.
         candles = sina.fetch_us_bars(asset.ticker, session)
@@ -389,12 +383,32 @@ def check_dividends(funds: "list[Asset]", table: "dict | None",
         return {"skipped": "before the open", "checked": 0, "added": 0, "failed": []}
 
     checks = corporate_actions.load_checks(checks_path)
-    due = [a for a in funds if checks.get(a.ticker, "") < today.isoformat()]
+    due = [(a, today) for a in funds if checks.get(a.ticker, "") < today.isoformat()]
+    found, failed, checked = _ask_payouts(due, checks, session, now)
+
+    added = corporate_actions.merge_actions(found, actions_path) if found else 0
+    if checked:
+        corporate_actions.write_checks(checks, checks_path)
+    # Named once a day - on the first run after the open - rather than every
+    # hour a fund stays behind, so a broken check is one line and not a stream.
+    first_run = now.timestamp() < opened + 3600
+    horizon = (today - timedelta(days=DIVIDEND_CHECK_STALE_DAYS)).isoformat()
+    return {"skipped": None, "checked": checked, "added": added, "failed": failed,
+            "stale": sorted(a.ticker for a in funds
+                            if checks.get(a.ticker, "") < horizon) if first_run else []}
+
+
+def _ask_payouts(due: "list[tuple[Asset, date]]", checks: dict, session: requests.Session,
+                 now: datetime) -> "tuple[list, list[str], int]":
+    """Yahoo's payouts and splits for each fund due, from the day after its
+    checked-through date (a month back for one never checked); each that answers
+    is checked through its own day. Returns what was found, the funds that
+    failed, and how many were checked."""
     found: list[corporate_actions.CorporateAction] = []
     failed: list[str] = []
     checked = 0
     unanswered = 0
-    for position, asset in enumerate(due):
+    for position, (asset, today) in enumerate(due):
         since = (date.fromisoformat(checks[asset.ticker]) + timedelta(days=1)
                  if asset.ticker in checks else today - timedelta(days=30))
         try:
@@ -403,7 +417,7 @@ def check_dividends(funds: "list[Asset]", table: "dict | None",
         except yahoo.RateLimited as exc:
             log.warning("dividend check: Yahoo rate-limited at %s - %s",
                         asset.ticker, exc)
-            failed.extend(a.ticker for a in due[position:])
+            failed.extend(a.ticker for a, _ in due[position:])
             break
         except Unreachable as exc:
             log.warning("dividend check: %s failed - %s", asset.ticker, exc)
@@ -412,7 +426,7 @@ def check_dividends(funds: "list[Asset]", table: "dict | None",
             if unanswered >= UNANSWERED_IN_A_ROW:
                 log.warning("dividend check: Yahoo did not answer %d funds in a row; "
                             "the rest wait for the next run", unanswered)
-                failed.extend(a.ticker for a in due[position + 1:])
+                failed.extend(a.ticker for a, _ in due[position + 1:])
                 break
             continue
         except Exception as exc:
@@ -431,17 +445,41 @@ def check_dividends(funds: "list[Asset]", table: "dict | None",
             for day in splits)
         checks[asset.ticker] = today.isoformat()
         checked += 1
+    return found, failed, checked
 
+
+def check_dividends_abroad(funds: "list[Asset]", session: requests.Session,
+                           now: datetime | None = None,
+                           actions_path: str = corporate_actions.DEFAULT_ACTIONS_PATH,
+                           checks_path: str = corporate_actions.DEFAULT_CHECKS_PATH) -> dict:
+    """The funds abroad's payouts confirmed through today, as check_dividends
+    confirms the US funds', each on its own market's clock: on its exchange's
+    trading days (jump.sessions), once that session has opened. A London or
+    Shanghai fund's night is scored in the run after its own open, not New
+    York's, and this check runs in the same run before the pipeline scores it."""
+    now = now or datetime.now(timezone.utc)
+    checks = corporate_actions.load_checks(checks_path)
+    due, opened = [], {}
+    for asset in funds:
+        template = asset.session_template
+        today = now.astimezone(ZoneInfo(_sessions.DAILY_SESSIONS[template][0])).date()
+        if not _sessions.trades_on(today, template):
+            continue
+        opened[asset.ticker] = _sessions.daily_session_open(today, template)
+        if now.timestamp() >= opened[asset.ticker] \
+                and checks.get(asset.ticker, "") < today.isoformat():
+            due.append((asset, today))
+    found, failed, checked = _ask_payouts(due, checks, session, now)
     added = corporate_actions.merge_actions(found, actions_path) if found else 0
     if checked:
         corporate_actions.write_checks(checks, checks_path)
-    # Named once a day - on the first run after the open - rather than every
-    # hour a fund stays behind, so a broken check is one line and not a stream.
-    first_run = now.timestamp() < opened + 3600
-    horizon = (today - timedelta(days=DIVIDEND_CHECK_STALE_DAYS)).isoformat()
-    return {"skipped": None, "checked": checked, "added": added, "failed": failed,
-            "stale": sorted(a.ticker for a in funds
-                            if checks.get(a.ticker, "") < horizon) if first_run else []}
+    # Named once a day, on the first run after each fund's own open.
+    stale = sorted(a.ticker for a, today in due
+                   if now.timestamp() < opened[a.ticker] + 3600
+                   and checks.get(a.ticker, "") < (
+                       today - timedelta(days=DIVIDEND_CHECK_STALE_DAYS)).isoformat())
+    return {"skipped": None if due else "nothing due", "checked": checked,
+            "added": added, "failed": failed, "stale": stale}
 
 
 # How far back the skip looks for the newest in-session bar: more than a
@@ -1151,25 +1189,34 @@ def opening_misprints(frame: "pd.DataFrame") -> "pd.Series":
 def deepen_from_wallstreetcn(asset: Asset, path: str, session: requests.Session,
                              now: datetime | None = None) -> dict:
     """Fills an LME metal's history below what is stored, from Wallstreetcn's
-    hourly bars (price_monitor.wallstreetcn, about 170 days back). Gated like
-    every import: its bars over the stored months must move with them and sit
-    at their level (verify_alignment). Only its hours in the LME's session are
-    taken, less the openings gone within the hour (opening_misprints), and
-    nothing at or above the oldest stored bar: Sina keeps its own."""
+    hourly bars (price_monitor.wallstreetcn, about 170 days back) - or China's
+    30-year bond fund's from its half hours, back to its listing (2023-06).
+    Gated like every import: its bars over the stored months must move with
+    them and sit at their level (verify_alignment). Only its hours in the
+    instrument's session are taken, less the openings gone within the hour
+    (opening_misprints), and nothing at or above the oldest stored bar: the
+    store's own provider keeps its own."""
     code = wallstreetcn.LME.get(asset.ticker)
-    if code is None:
-        return {"skipped": "not an LME metal", "added": 0}
+    fund = wallstreetcn.FUNDS.get(asset.ticker)
+    if code is None and fund is None:
+        return {"skipped": "not an LME metal or a fund it carries", "added": 0}
     stored = bars.load(path)
     if stored.empty:
         return {"skipped": "nothing stored yet", "added": 0}
     floor = int(stored["hour_utc"].min())
-    candles = wallstreetcn.fetch_hourly(code, session, now,
-                                        days=wallstreetcn.MAX_TICKS / 24)
+    candles = (wallstreetcn.fetch_half_hours(fund, session, now) if fund else
+               wallstreetcn.fetch_hourly(code, session, now,
+                                         days=wallstreetcn.MAX_TICKS / 24))
     if not candles:
         return {"skipped": "Wallstreetcn returned nothing", "added": 0}
 
     frame = bars.to_hourly(bars.candles_to_frame(candles))
-    check = verify_alignment(frame, stored)
+    # The funds' 200 hours are about 29 of their sessions; a market of fewer hours
+    # a day is asked the same 29, counted in the store's own hours a day (the
+    # 30-year fund's five: 170 hours in Yahoo's 58 days, Golden Week out of them).
+    days = pd.to_datetime(stored["hour_utc"], unit="s", utc=True).dt.date.nunique()
+    check = verify_alignment(frame, stored, min_hours=min(
+        ALIGNMENT_MIN_HOURS, math.ceil(29 * len(stored) / max(days, 1))))
     if not check["ok"]:
         return {"skipped": f"alignment check failed: {check['why']}",
                 "added": 0, "check": check}
@@ -1252,55 +1299,6 @@ def deepen_from_eex(asset: Asset, path: str, session: requests.Session,
     day_of = lambda h: datetime.fromtimestamp(int(h), tz=timezone.utc).date()  # noqa: E731
     return {"skipped": None, "added": added, "asked": asked, "thin": len(every) - len(candles),
             "from": day_of(patch["hour_utc"].min()), "to": day_of(floor), "check": check}
-
-
-# CHINA'S 10-YEAR'S HISTORY (T=F): each contract the store would have held, its
-# half hours over the sessions it was front (futures.roll_days), from Sina - the
-# same bars the hourly run fetches, of the earlier contracts: each one's last
-# 1,023 reach back past the day it became front. From 2022, as TTF's.
-SINA_SINCE = date(2022, 1, 3)
-
-
-def deepen_from_sina(asset: Asset, path: str, session: requests.Session,
-                     since: date = SINA_SINCE, now: datetime | None = None) -> dict:
-    """China's 10-year future's history below what is stored: contract by
-    contract, each over its own front sessions, so each change falls where the
-    store's does and its night is left unscored (futures.roll_sessions). Only
-    its session's hours are taken, and nothing at or above the oldest stored
-    bar. A contract whose bars do not reach its first front session is named."""
-    if asset.ticker not in sina.CFFEX:
-        return {"skipped": "not a CFFEX future", "added": 0}
-    now = now or datetime.now(timezone.utc)
-    template = asset.session_template
-    stored = bars.load(path)
-    floor = None if stored.empty else int(stored["hour_utc"].min())
-    fronts = futures.roll_days(asset.ticker, since.year - 1, now.year)
-    pieces, asked, short = [], [], []
-    for k, (contract, start) in enumerate(fronts):
-        end = fronts[k + 1][1] if k + 1 < len(fronts) else None
-        if start > now.date() or (end is not None and end <= since):
-            continue
-        candles = sina.fetch_cffex_bars(sina.cffex_symbol(contract), session, now)
-        low = _sessions.daily_session_open(max(start, since), template)
-        high = _sessions.daily_session_open(end, template) if end else None
-        kept = [c for c in candles if c.open_time >= low
-                and (high is None or c.open_time < high)]
-        asked.append(contract)
-        if not candles or candles[0].open_time > low:
-            short.append(contract)
-        pieces += kept
-    if not pieces:
-        return {"skipped": "Sina returned nothing", "added": 0, "asked": asked}
-    frame = bars.to_hourly(bars.candles_to_frame(pieces))
-    frame = frame[quality.in_session(asset, frame["hour_utc"]).to_numpy(bool)]
-    if floor is not None:
-        frame = frame[frame["hour_utc"] < floor]
-    if frame.empty:
-        return {"skipped": "nothing below the oldest stored bar", "added": 0, "asked": asked}
-    added = bars.merge(path, frame)
-    day_of = lambda h: datetime.fromtimestamp(int(h), tz=timezone.utc).date()  # noqa: E731
-    return {"skipped": None, "added": added, "asked": asked, "short": short,
-            "from": day_of(frame["hour_utc"].min()), "to": day_of(frame["hour_utc"].max())}
 
 
 # A MARKET ABROAD FROM YAHOO (sessions.EXCHANGES): its last 58 days at its own
@@ -1435,10 +1433,6 @@ def _main(argv: "list[str] | None", usage: Usage) -> int:
                              "own TTF month future, from 2022, its hours of fewer "
                              "than EEX_MIN_TRADES trades left out. Needs no key. "
                              "Overlaps the store and is gated on agreeing with it.")
-    parser.add_argument("--deepen-sina", action="store_true",
-                        help="China's 10-year future's history below what is "
-                             "stored from Sina, each contract over the sessions "
-                             "it was front, from 2022. Needs no key.")
     parser.add_argument("--deepen-yahoo", action="store_true",
                         help="the markets abroad's history from Yahoo: 58 days "
                              "folded onto the hour, and about two years of hourly "
@@ -1466,7 +1460,7 @@ def _main(argv: "list[str] | None", usage: Usage) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     purpose = args.usage_purpose or ("manual" if (
         args.extend_history or args.fill_gaps or args.deepen_dukascopy or args.deepen_alpaca
-        or args.deepen_wallstreetcn or args.deepen_eex or args.deepen_sina or args.deepen_yahoo
+        or args.deepen_wallstreetcn or args.deepen_eex or args.deepen_yahoo
         or args.repair or args.live_pass)
         else "fetch")
     if args.live_pass:
@@ -1600,7 +1594,8 @@ def _main(argv: "list[str] | None", usage: Usage) -> int:
     if args.deepen_wallstreetcn:
         session = usage.session(purpose)
         total = 0
-        for asset in (a for a in instruments if a.ticker in wallstreetcn.LME):
+        for asset in (a for a in instruments
+                      if a.ticker in wallstreetcn.LME or a.ticker in wallstreetcn.FUNDS):
             path = bars.store_path(args.bars_dir, asset.file_stem)
             try:
                 out = deepen_from_wallstreetcn(asset, path, session)
@@ -1644,27 +1639,6 @@ def _main(argv: "list[str] | None", usage: Usage) -> int:
                      asset.asset_id, out["added"], out["from"], out["to"], out["asked"],
                      out["thin"], check["hours"], check["correlation"], check["median_bp"])
         log.info("EEX deepening added %d bars", total)
-        return 0
-
-    if args.deepen_sina:
-        session = usage.session(purpose)
-        total = 0
-        for asset in (a for a in instruments if a.ticker in sina.CFFEX):
-            path = bars.store_path(args.bars_dir, asset.file_stem)
-            try:
-                out = deepen_from_sina(asset, path, session)
-            except Exception as exc:
-                log.error("%s: Sina deepening failed - %s", asset.asset_id, exc)
-                continue
-            if out["skipped"]:
-                log.info("%s: skipped (%s)", asset.asset_id, out["skipped"])
-                continue
-            total += out["added"]
-            log.info("%s: +%d bars from Sina (%s .. %s), contracts %s%s", asset.asset_id,
-                     out["added"], out["from"], out["to"], ",".join(out["asked"]),
-                     f"; not reaching their first front session: {out['short']}"
-                     if out["short"] else "")
-        log.info("Sina deepening added %d bars", total)
         return 0
 
     if args.deepen_yahoo:
@@ -2029,6 +2003,21 @@ def _main(argv: "list[str] | None", usage: Usage) -> int:
             # Warned, not failed: the cost is gaps left unscored, which is what
             # the check exists to guarantee rather than a breakage.
             log.warning("dividend check failed - %s", exc)
+        # The funds abroad, each after its own market's open.
+        try:
+            r = check_dividends_abroad(corporate_actions.funds_abroad(basket), session)
+            if r["skipped"] is None:
+                log.info("dividend check abroad: %d fund(s) confirmed, %d payout(s) added%s",
+                         r["checked"], r["added"],
+                         f", failed: {' '.join(r['failed'])}" if r["failed"] else "")
+            if r.get("stale"):
+                send_ops_alert(
+                    "⚠️ <b>Dividend check behind</b>\n"
+                    f"No confirmed payout record for {DIVIDEND_CHECK_STALE_DAYS}+ days: "
+                    f"{', '.join(r['stale'])}. Their overnight gaps are unscored "
+                    "until it catches up.")
+        except Exception as exc:
+            log.warning("dividend check abroad failed - %s", exc)
 
     # THE SOURCES' VOTE ON THE FAR MOVES, on the ordinary pass over the whole
     # basket, before anything is scored: a move most did not see is not scored

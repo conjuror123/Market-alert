@@ -1,9 +1,10 @@
-"""MarketWatch's hourly bars: the store of the Bund, the gilt and TTF (STORE), and a
+"""MarketWatch's hourly bars: the store of the Bund and TTF (STORE), and a
 voter on the currency pairs, the funds, the futures, gold and silver, and the stock
 indices abroad.
 
 THE ENDPOINT is the one MarketWatch's own charts read (api.wsj.net, Dow Jones'
-"michelangelo" time series): hourly bars for about the last ten days, keyed as
+"michelangelo" time series): hourly bars for about the last ten days (eight for a
+Korean key, five for a Chinese one: FRAMES), keyed as
 CURRENCY/US/XTUP/USDINR for a pair, FUND/US/ARCX/SPY for a fund (by its listing
 exchange, jump.verify) and FUTURE/US/XCME/LC00 for live cattle's continuous
 contract. Each tick is the start of its bar in UTC milliseconds -
@@ -56,6 +57,12 @@ HEADERS = {"User-Agent": "Mozilla/5.0", "Accept": "application/json",
 HOUR = 3600
 MAX_ATTEMPTS = 3
 BACKOFF_SECONDS = 2.0
+# The longest window of hourly bars MarketWatch serves a market, by the key's
+# country, where it is less than ten trading days: since about 2026-10-14 a Korean
+# key asked for ten answers 400 "Cannot use intraday step 'PT1H' with time frame
+# 'D10'" (the KOSPI's vote was an outage every time), and takes eight; a Chinese
+# key takes five. Every other key the bot asks still takes ten (2026-10-18).
+FRAMES = {"KR": "D8", "CN": "D5"}
 
 
 def _query(key: str, frame: str) -> dict:
@@ -112,15 +119,13 @@ FUTURES = {
     "ZC=F": "FUTURE/US/XCBT/C00", "ZW=F": "FUTURE/US/XCBT/W00", "ZS=F": "FUTURE/US/XCBT/S00",
     "SB=F": "FUTURE/US/IFUS/SB00", "PL=F": "FUTURE/US/XNYM/PL00",
 }
-# What MarketWatch serves the store (jump.backfill), by ticker: the Bund's and the
-# gilt's single contract - the month and year the store holds appended
-# (FGBLZ26: jump.futures.front_contract) -, TTF's continuous series (ICE Endex
-# names no single month here). About nine trading days back, hourly, without
-# volume (2026-10-13: the Bund 08:00-17:00 Frankfurt, the gilt 01:00-20:00 London,
-# TTF 08:00-17:00 Amsterdam).
-STORE = {"FGBL=F": "FUTURE/DE/XEUR/FGBL", "RLI=F": "FUTURE/UK/IFEU/RLI",
-         "TFM=F": "FUTURE/UK/NDEX/TFMI00"}
-CONTRACTS = ("FGBL=F", "RLI=F")
+# What MarketWatch serves the store (jump.backfill), by ticker: the Bund's single
+# contract - the month and year the store holds appended (FGBLZ26:
+# jump.futures.front_contract) -, TTF's continuous series (ICE Endex names no
+# single month here). About nine trading days back, hourly, without volume
+# (2026-10-13: the Bund 08:00-17:00 Frankfurt, TTF 08:00-17:00 Amsterdam).
+STORE = {"FGBL=F": "FUTURE/DE/XEUR/FGBL", "TFM=F": "FUTURE/UK/NDEX/TFMI00"}
+CONTRACTS = ("FGBL=F",)
 
 
 def store_key(ticker: str, contract: "str | None" = None) -> str:
@@ -132,16 +137,29 @@ def store_key(ticker: str, contract: "str | None" = None) -> str:
     return STORE[ticker] + contract.split(".")[0][len(root):]
 
 
+# China's 30-year government bond fund, five trading days back (FRAMES): against
+# Yahoo's half hours folded, 2026-10-12 to 16, hourly moves 0.988, both big moves
+# the same way. Its London gilt funds are not voters: 0.45-0.63 against Yahoo's.
+CN_FUNDS = {"511090.SS": "FUND/CN/XSHG/511090"}
+
 # Spot gold and silver, voted on by COMEX's continuous series.
 METALS = {"XAU/USD": "FUTURE/US/XNYM/GC00", "XAG/USD": "FUTURE/US/XNYM/SI00"}
 SOFTS = {"KC=F": "FUTURE/US/IFUS/KC00", "CC=F": "FUTURE/US/IFUS/CC00",
          "CT=F": "FUTURE/US/IFUS/CT00"}
 
 
+def frame_for(key: str) -> str:
+    """How far back `key`'s hourly bars are asked: ten trading days, or its
+    market's limit (FRAMES)."""
+    parts = key.split("/")
+    return FRAMES.get(parts[1] if len(parts) > 1 else "", "D10")
+
+
 def fetch_hourly(key: str, session: requests.Session | None = None,
-                 now: datetime | None = None, frame: str = "D10") -> list[Candle]:
-    """The last ~ten days of `key`'s hourly bars that have ended."""
-    params = {"json": json.dumps(_query(key, frame)), "ckey": CKEY}
+                 now: datetime | None = None, frame: "str | None" = None) -> list[Candle]:
+    """The last ~ten days of `key`'s hourly bars that have ended - fewer where its
+    market allows less (frame_for)."""
+    params = {"json": json.dumps(_query(key, frame or frame_for(key))), "ckey": CKEY}
     last: Exception | None = None
     for attempt in range(MAX_ATTEMPTS):
         if attempt:

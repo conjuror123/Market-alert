@@ -317,6 +317,19 @@ def _funds(basket) -> list:
     return [a for a in basket.instruments if a.source == "twelvedata" and a.block != "FX"]
 
 
+# THE FUNDS ABROAD, on their own exchange's days (Yahoo's bars, jump.sessions
+# EXCHANGES): neither Tiingo nor Twelve Data carries them, so their payouts are
+# Yahoo's, added with --add-missing and confirmed each session after their own
+# market opens (jump.backfill.check_dividends_abroad). IGLT pays about 2% twice a
+# year, the 30-year fund about 1.3% one to three times (Yahoo, 2026-10-18): each
+# unadjusted would read as a night's drop.
+FUNDS_ABROAD = ("IGLT.L", "511090.SS")
+
+
+def funds_abroad(basket) -> list:
+    return [a for a in basket.instruments if a.ticker in FUNDS_ABROAD]
+
+
 def collect_from_tiingo(funds, since: date, api_key: str, session,
                         delay: float = TIINGO_REQUEST_DELAY_SECONDS) -> list[CorporateAction]:
     """Fetch every fund or refuse. A partial table is how history disappears."""
@@ -484,7 +497,8 @@ def _main(argv: "list[str] | None", session: requests.Session) -> int:
     funds = _funds(basket)
 
     if args.add_missing:
-        return add_missing_from_yahoo(funds, basket.acquire_since, args.out, session)
+        return add_missing_from_yahoo(funds + funds_abroad(basket), basket.acquire_since,
+                                      args.out, session)
 
     try:
         if args.source == "twelvedata":
@@ -532,6 +546,9 @@ def _main(argv: "list[str] | None", session: requests.Session) -> int:
         return 1
 
     actions, kept = with_splits_kept(actions, [a.ticker for a in funds], args.out)
+    # The funds abroad are neither Tiingo's nor Twelve Data's: their rows
+    # (Yahoo's) are kept as they are, not dropped by the rebuild.
+    actions += [a for a in load_actions(args.out) if a.ticker in FUNDS_ABROAD]
     write_actions(args.out, actions)
     log.info("%s: records %d (%d splits already declared, kept)", args.out, len(actions), kept)
     if args.out == DEFAULT_ACTIONS_PATH and args.source == "tiingo":

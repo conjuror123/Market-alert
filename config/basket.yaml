@@ -113,18 +113,10 @@ session_templates:
     exchange: Eurex
     tz: Europe/Berlin
     description: "08:00-18:00 Frankfurt on weekdays, the hours MarketWatch serves"
-  ice_gilt:
-    exchange: ICE Futures Europe
-    tz: Europe/London
-    description: "08:00-18:00 London on weekdays, the hours its history holds"
   ice_endex:
     exchange: ICE Endex
     tz: Europe/Amsterdam
     description: "08:00-18:00 Amsterdam on weekdays"
-  cffex:
-    exchange: CFFEX, on Shanghai's calendar (XSHG)
-    tz: Asia/Shanghai
-    description: "09:30-11:30 and 13:00-15:15 Shanghai, on its trading days"
   # The stock markets abroad (jump/sessions.py EXCHANGES): each day's hours from
   # its exchange's own calendar (data/jump/sessions/<code>.csv, from
   # exchange_calendars), so a holiday or a half day is the exchange's; nominal
@@ -483,27 +475,29 @@ assets:
     fetch_interval: 1h
     display: "Bund"
     label: "German 10-year Bund (Eurex)"
-  - ticker: RLI=F
-    source: marketwatch
-    block: rates
-    has_volume: false
-    tick_size: 0.01
-    session_template: ice_gilt
-    fetch_interval: 1h
-    display: "Gilt"
-    label: "UK long gilt (ICE)"
-  # China's 10-year government bond future on CFFEX, in the JGB's place (the
-  # user's, 2026-10-18): live from Sina one contract at a time (jump/futures.py),
-  # its half hours folded onto the hour, with volume; Shanghai's days to 15:15.
-  - ticker: T=F
-    source: sina
+  # The UK's and China's government bonds as ETFs, in place of the long gilt and
+  # China's 10-year futures, which no other free source carried (the user's,
+  # 2026-10-18): each from Yahoo's half hours on its exchange's own calendar, as
+  # the FTSE 100 and the CSI 300 are, and voted on by other vendors of the same
+  # fund (jump/verify.py).
+  - ticker: IGLT.L
+    source: yahoo
     block: rates
     has_volume: true
-    tick_size: 0.005
-    session_template: cffex
+    tick_size: 0.0005
+    session_template: london
     fetch_interval: 30min
-    display: "China 10Y"
-    label: "China 10-year government bond future (CFFEX)"
+    display: "Gilts"
+    label: "UK gilts ETF (iShares Core, LSE)"
+  - ticker: "511090.SS"
+    source: yahoo
+    block: rates
+    has_volume: true
+    tick_size: 0.001
+    session_template: shanghai
+    fetch_interval: 30min
+    display: "China 30Y"
+    label: "China 30-year government bond ETF (SSE)"
   - ticker: TIP
     source: twelvedata
     provider: tiingo

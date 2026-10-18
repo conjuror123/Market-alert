@@ -164,8 +164,8 @@ def split_channels(asset: Asset, usable: pd.DataFrame,
     out["hole"] = np.where(after_hole, np.log(out["open"] / prev_close), np.nan)
     out["gap"] = (overnight_gaps(asset, out, session, dividends, session_table)
                   if dividends is not None else np.nan)
-    from jump.sessions import is_index_template
-    if is_index_template(asset.session_template):
+    from jump.sessions import is_exchange_template
+    if is_exchange_template(asset.session_template):
         # A stock index's first price of the day is not a trade: it is
         # computed while most of its stocks have not traded yet, from their
         # last closes, so it sits at the previous close and the night's move
@@ -210,7 +210,8 @@ def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
         without one no fund gap is scored at all); for a pair, the previous bar
         must be the Friday afternoon one, at most FX_WEEKEND_MAX_SECONDS before;
       - for a fund, on a date past its checked-through date, because a payout
-        the table has not heard of yet reads as a gap the size of the dividend;
+        the table has not heard of yet reads as a gap the size of the dividend
+        (a fund abroad's too: corporate_actions.FUNDS_ABROAD);
       - for a fund, on a declared split date, and on any gap within
         SPLIT_TOLERANCE of a split ratio, because the store is split-adjusted
         and a gap that looks like a split is a provider that has not adjusted;
@@ -287,6 +288,21 @@ def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
         on_time = np.array([is_open[k] and hours[k] <= first[day[k]] for k in range(n)],
                            dtype=bool)
         usable = is_open & complete & on_time & ~rolled & np.isfinite(gap)
+        from jump.corporate_actions import FUNDS_ABROAD
+        if asset.ticker in FUNDS_ABROAD:
+            # A fund abroad's payout leaves its price overnight, as a US fund's
+            # does, and Yahoo, its only source, dates some a day late - IGLT's
+            # of 2025-05 and 2026-05 dropped the day before - and lists one twice
+            # (2024-11-14 and 15). So the night of a listed payout and the
+            # trading day's before it are left unscored rather than adjusted on
+            # a day that may be wrong, and every night is scored only through the
+            # date its payouts are checked (jump.backfill.check_dividends_abroad).
+            listed = set(dividends.steps.get(asset.ticker, {}))
+            near = listed | {str(previous_trading_day(date.fromisoformat(d), template))
+                             for d in listed}
+            checked = dividends.checked_through.get(asset.ticker)
+            usable &= ~np.isin(day, sorted(near))
+            usable &= (day <= checked) if checked else np.zeros(n, dtype=bool)
         return np.where(usable, gap, np.nan)
 
     day = session.to_numpy(dtype=object)

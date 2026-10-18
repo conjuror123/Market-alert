@@ -63,11 +63,10 @@ MONTH_CODES = "FGHJKMNQUVXZ"
 # the delivery month (ltd_day, in place of ltd_back); the Bund's the second
 # business day before the 10th (ltd_day_back).
 #
-# The Bund, the long gilt and TTF (2026-10-13), live from MarketWatch
-# (price_monitor.marketwatch.STORE): the Bund and the gilt one contract at a time,
-# rolled where their volume moves - the Bund three business days before its last
-# trading day, the gilt five before its first notice day (two business days
-# before the delivery month); TTF as MarketWatch's continuous series - only its roll
+# The Bund and TTF (2026-10-13), live from MarketWatch
+# (price_monitor.marketwatch.STORE): the Bund one contract at a time, rolled where
+# its volume moves - three business days before its last trading day; TTF as
+# MarketWatch's continuous series - only its roll
 # nights are taken from here. That series is on the next month from the last trading
 # day itself (the second-last business day of the month before delivery): its daily
 # value there is already the next month's, a session before Yahoo's TTF=F changes,
@@ -83,13 +82,6 @@ MONTH_CODES = "FGHJKMNQUVXZ"
 # went from July straight to December and November at July's last trading day,
 # past September (and August); held here the same way, rolled before July's
 # first notice as wheat is before September's.
-#
-# China's 10-year government bond future on CFFEX (2026-10-18), live from Sina
-# (price_monitor.sina.CFFEX) one contract at a time: March, June, September and
-# December, each last trading on the delivery month's second Friday (ltd_friday).
-# Its volume passed to the next contract 4-7 business days before the delivery
-# month in the last five rolls (Sina's daily volumes: 2025-08-21, 11-24,
-# 2026-02-24, 05-26, 08-25), so held to the sixth and rolled on the fifth.
 SPECS: "dict[str, dict]" = {
     "KC=F": dict(listed="HKNUZ", ltd_back=8, held="HKNUZ", roll_back=12, suffix="NYB"),
     "CC=F": dict(listed="HKNUZ", ltd_back=11, held="HKNUZ", roll_back=15, suffix="NYB"),
@@ -107,10 +99,8 @@ SPECS: "dict[str, dict]" = {
     "PL=F": dict(listed="FJNV", ltd_back=2, held="FJNV", roll_back=3, suffix="NYM"),
     "FGBL=F": dict(listed="HMUZ", ltd_day=10, ltd_day_back=2, held="HMUZ", roll_ltd=3,
                    suffix="EUX"),
-    "RLI=F": dict(listed="HMUZ", ltd_back=2, held="HMUZ", roll_back=7, suffix="ICE"),
     "TFM=F": dict(listed=MONTH_CODES, ltd_months=1, ltd_back=1, held=MONTH_CODES,
                   roll_ltd=1, suffix="NDX"),
-    "T=F": dict(listed="HMUZ", ltd_friday=2, held="HMUZ", roll_back=5, suffix="CFE"),
 }
 
 # Volume under this share of the series' trailing median is a quote, not a
@@ -155,9 +145,6 @@ def _contracts(months: str, first_year: int, last_year: int) -> "list[tuple[int,
 
 def _last_trading_day(spec: dict, year: int, month: int) -> date:
     """The contract of this delivery month's last trading day, on weekdays."""
-    if "ltd_friday" in spec:
-        first = date(year, month, 1)
-        return first + timedelta(days=(4 - first.weekday()) % 7 + 7 * (spec["ltd_friday"] - 1))
     if "ltd_day" in spec:
         return _business_days_before(date(year, month, spec["ltd_day"]),
                                      spec.get("ltd_day_back", 1))

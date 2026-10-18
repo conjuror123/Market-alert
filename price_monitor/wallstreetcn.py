@@ -1,5 +1,7 @@
 """Wallstreetcn's hourly bars: a voter on the LME's metals, cocoa, cotton, the
-pairs and four stock indices abroad, and the LME's history from 2026-04.
+pairs and four stock indices abroad, and the LME's history from 2026-04; and its
+half hours of China's 30-year bond fund (FUNDS), a voter and its history from its
+listing in 2023-06.
 
 THE ENDPOINT is the one Wallstreetcn's own charts read (api-ddc-wscn.awtmt.com,
 market/kline): hourly bars without volume. The LME's three-month tin
@@ -74,6 +76,16 @@ FUTURES = {"BZ=F": "UKOIL.OTC", "UNG": "USNG.OTC"}
 # same 2,046 bars, 4,500 one).
 MAX_TICKS = 4096
 HOUR = 3600
+# China's 30-year government bond fund (the A-share market's code), voted on and
+# its history taken in half hours (period 1800), each tick the bar's END - 10:00
+# to 11:30 and 13:30 to 15:00 Shanghai, on some July days a 15:30 too, outside
+# the session. Its whole life is served: 6,479 half hours back to its listing on
+# 2023-06-13 (2026-10-18: 8,000, 10,000 and 20,000 asked bring the same). Against
+# Yahoo's half hours folded onto the hour, 2026-08-21 to 10-16: hourly moves
+# correlated 0.998, all 14 big moves the same way.
+FUNDS = {"511090.SS": "511090.SS"}
+HALF_HOUR = 1800
+MAX_HALF_HOURS = 20000
 MAX_ATTEMPTS = 3
 BACKOFF_SECONDS = 2.0
 
@@ -86,28 +98,47 @@ def pair_code(ticker: str) -> str:
 FIELDS = ("open_px", "close_px", "high_px", "low_px", "tick_at")
 
 
-def parse(payload: dict, code: str, now: datetime | None = None) -> list[Candle]:
-    """Hourly candles from one answer: ended bars with every price only. Each
-    value is read by the name the answer gives its column."""
-    now_ts = int((now or datetime.now(timezone.utc)).timestamp())
+def _rows(payload: dict, code: str):
+    """Each line's open, close, high, low and tick, read by the names the answer
+    gives its columns; a line without every price is left out."""
     try:
         lines = payload["data"]["candle"][code]["lines"]
         where = [payload["data"]["fields"].index(name) for name in FIELDS]
     except (KeyError, TypeError, ValueError, AttributeError) as exc:
         raise ExchangeError(f"{code}: Wallstreetcn's answer has no bars") from exc
-    out = []
     for line in lines or ():
         try:
-            o, c, h, low, start = (line[i] for i in where)
+            row = [line[i] for i in where]
         except (IndexError, TypeError):
             continue
-        if any(v is None for v in (o, c, h, low, start)):
-            continue                             # no price that hour
-        start = int(start)
+        if any(v is None for v in row):
+            continue                             # no price that bar
+        o, c, h, low, tick = row
+        yield float(o), float(c), float(h), float(low), int(tick)
+
+
+def parse(payload: dict, code: str, now: datetime | None = None) -> list[Candle]:
+    """Hourly candles from one answer: ended bars with every price only."""
+    now_ts = int((now or datetime.now(timezone.utc)).timestamp())
+    out = []
+    for o, c, h, low, start in _rows(payload, code):
         if start % HOUR or start + HOUR > now_ts:
             continue                             # off the hour, or not ended yet
-        out.append(Candle(open_time=start, open=float(o), high=float(h), low=float(low),
-                          close=float(c), volume=0.0, close_time=start + HOUR))
+        out.append(Candle(open_time=start, open=o, high=h, low=low, close=c, volume=0.0,
+                          close_time=start + HOUR))
+    return out
+
+
+def parse_half_hours(payload: dict, code: str, now: datetime | None = None) -> list[Candle]:
+    """Half-hour candles from one answer, each tick the bar's END: stamped by
+    its start, half an hour before. Ended bars with every price only."""
+    now_ts = int((now or datetime.now(timezone.utc)).timestamp())
+    out = []
+    for o, c, h, low, end in _rows(payload, code):
+        if end % HALF_HOUR or end > now_ts:
+            continue                             # off the grid, or not ended yet
+        out.append(Candle(open_time=end - HALF_HOUR, open=o, high=h, low=low, close=c,
+                          volume=0.0, close_time=end))
     return out
 
 
@@ -115,7 +146,20 @@ def fetch_hourly(code: str, session: requests.Session | None = None,
                  now: datetime | None = None, days: float = 10.0) -> list[Candle]:
     """`code`'s hourly bars of about the last `days` that have ended."""
     ticks = min(MAX_TICKS, math.ceil(days * 24) + 24)
-    params = {"prod_code": code, "tick_count": ticks, "period_type": HOUR,
+    return _fetch(code, HOUR, ticks, session, lambda answer: parse(answer, code, now))
+
+
+def fetch_half_hours(code: str, session: requests.Session | None = None,
+                     now: datetime | None = None, days: "float | None" = None) -> list[Candle]:
+    """`code`'s half-hour bars of about the last `days` that have ended - all it
+    serves (MAX_HALF_HOURS) without `days`."""
+    ticks = MAX_HALF_HOURS if days is None else min(MAX_HALF_HOURS, math.ceil(days * 48) + 48)
+    return _fetch(code, HALF_HOUR, ticks, session,
+                  lambda answer: parse_half_hours(answer, code, now))
+
+
+def _fetch(code: str, period: int, ticks: int, session, read) -> list[Candle]:
+    params = {"prod_code": code, "tick_count": ticks, "period_type": period,
               "fields": ",".join(FIELDS)}
     last: Exception | None = None
     for attempt in range(MAX_ATTEMPTS):
@@ -133,7 +177,7 @@ def fetch_hourly(code: str, session: requests.Session | None = None,
         if resp.status_code != 200:
             raise ExchangeError(f"{code}: Wallstreetcn answered {resp.status_code}")
         try:
-            return parse(resp.json(), code, now)
+            return read(resp.json())
         except ValueError as exc:
             raise ExchangeError(f"{code}: Wallstreetcn's answer is not JSON") from exc
     raise last or ExchangeError(f"{code}: no response")

@@ -448,6 +448,45 @@ def test_a_half_hour_markets_first_bar_filed_by_its_end_still_opens_its_night():
         assert out.iloc[2]["gap"] == pytest.approx(math.log(20762 / 22850)), first
 
 
+def china_fund():
+    return asset(ticker="511090.SS", source="yahoo", block="rates", has_volume=True,
+                 tick_size=0.001, session_template="shanghai", fetch_interval="30min",
+                 label="China 30Y")
+
+
+def fund_nights(listed, through="2024-12-31"):
+    # 511090 went ex on 2024-04-24 paying 1.313%: the night's drop was the payout
+    # leaving the price, not the market.
+    return returns.split_channels(china_fund(), frame([
+        (cst(2024, 4, 22, 14), 110.0, 110.2, 109.9, 110.1, 0.0, 12),
+        (cst(2024, 4, 23, 9), 110.1, 110.3, 110.0, 110.3, 0.0, 12),
+        (cst(2024, 4, 23, 14), 110.3, 110.4, 109.9, 110.0, 0.0, 12),
+        (cst(2024, 4, 24, 9), 108.3, 108.6, 108.2, 108.5, 0.0, 12),
+        (cst(2024, 4, 24, 14), 108.5, 108.6, 108.4, 108.6, 0.0, 12),
+        (cst(2024, 4, 25, 9), 108.6, 108.9, 108.5, 108.8, 0.0, 12),
+    ]), dividends=dividends(steps={d: 0.0133 for d in listed}, through=through,
+                            ticker="511090.SS"))["gap"]
+
+
+def test_a_fund_abroads_nights_by_a_listed_payout_are_not_scored():
+    # Listed on its day, or a day late as Yahoo dates some of IGLT's: either way
+    # the night it dropped on goes unscored, and the night after is scored.
+    for listed in ("2024-04-24", "2024-04-25"):
+        gap = fund_nights([listed])
+        assert np.isnan(gap.iloc[3]), listed
+    gap = fund_nights(["2024-04-24"])
+    assert np.isnan(gap.iloc[1])                                     # the day before, too
+    assert gap.iloc[5] == pytest.approx(math.log(108.8 / 108.6))      # the night after
+    away = fund_nights([])
+    assert away.iloc[3] == pytest.approx(math.log(108.5 / 110.0))     # no payout: scored
+
+
+def test_a_fund_abroads_night_past_its_checked_date_is_not_scored():
+    # A payout Yahoo has not been asked about yet reads as a drop its size.
+    assert fund_nights([], through="2024-04-23").iloc[3:].isna().all()
+    assert fund_nights([], through=None).isna().all()
+
+
 def test_a_shanghai_night_across_a_missing_trading_day_is_not_scored():
     # 2025-09-23 traded, and none of its bars is here: Monday's close to
     # Wednesday's open spans a day of trading, though it is shorter than a weekend.
@@ -456,20 +495,3 @@ def test_a_shanghai_night_across_a_missing_trading_day_is_not_scored():
         (cst(2025, 9, 24, 9), 4550, 4560, 4540, 4555, 0.0, 12),
     ]), dividends=dividends(ticker="SPY"))
     assert out["gap"].isna().all()
-
-
-def test_a_bond_futures_night_ends_at_its_open_not_at_its_first_hours_close():
-    # China's 10-year future keeps Shanghai's days, but its first price is a trade
-    # (the opening auction), not an index computed from last closes: its night is
-    # its open against the last close, and its first hour is an hour of its own.
-    cgb = asset(ticker="T=F", source="sina", block="rates", has_volume=True,
-                tick_size=0.005, session_template="cffex", fetch_interval="30min",
-                label="China 10Y")
-    out = returns.split_channels(cgb, frame([
-        (cst(2025, 9, 29, 13), 108.0, 108.1, 107.9, 108.05, 900.0, 12),
-        (cst(2025, 9, 29, 14), 108.05, 108.2, 108.0, 108.15, 900.0, 12),
-        (cst(2025, 9, 30, 9), 108.40, 108.45, 108.30, 108.35, 900.0, 12),
-        (cst(2025, 9, 30, 10), 108.35, 108.40, 108.30, 108.38, 900.0, 12),
-    ]), dividends=dividends(ticker="SPY"))
-    assert out.iloc[2]["gap"] == pytest.approx(math.log(108.40 / 108.15))
-    assert out.iloc[2]["r"] == pytest.approx(math.log(108.35 / 108.40))

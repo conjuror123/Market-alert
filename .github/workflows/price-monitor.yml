@@ -97,6 +97,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: tools/hot_bars.sh restore
 
+      # One-off, removed once the archive is saved without them: the long gilt's
+      # and China's 10-year futures left the basket for their ETFs (2026-10-18)
+      # and their October came back with the archive; deleted here, the save
+      # below no longer holds them.
+      - name: Drop the two futures' open months
+        id: drop_futures
+        run: rm -rf data/jump/bars/marketwatch_RLI_F data/jump/bars/sina_T_F
+
       # Three steps feed delivery: backfill brings the bars up to date,
       # pipeline turns them into per-asset metrics (the move and the gap), and
       # jumps scores every instrument's whole history and writes the events.

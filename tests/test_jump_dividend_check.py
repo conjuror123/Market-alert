@@ -171,3 +171,54 @@ def test_yahoo_s_split_events_are_read_in_the_exchange_s_dates():
                                          "denominator": 5.0, "splitRatio": "6:5"}}}}]}}
     assert yahoo.parse_splits(payload, "USHY") == [date(2019, 4, 22)]
     assert yahoo.parse_splits({"chart": {"result": [{}]}}, "USHY") == []
+
+
+# --- the funds abroad: each checked on its own market's clock ---------------------
+
+def abroad(ticker, template):
+    return Asset(ticker=ticker, source="yahoo", block="rates", has_volume=True,
+                 tick_size=0.001, session_template=template, fetch_interval="30min",
+                 label=ticker, in_basket=True)
+
+
+ABROAD = [abroad("511090.SS", "shanghai"), abroad("IGLT.L", "london")]
+
+
+def run_abroad(files, now):
+    actions, checks = files
+    return backfill.check_dividends_abroad(ABROAD, None, now=now, actions_path=actions,
+                                           checks_path=checks)
+
+
+def test_a_fund_abroad_is_checked_after_its_own_markets_open_not_new_yorks(files, monkeypatch):
+    # Shanghai opens at 09:30 (01:30 UTC), London at 08:00 (07:00 UTC in summer):
+    # each fund is asked once its own session has opened, hours before New York's,
+    # so the night it opened on is scored in the same run.
+    asked = []
+
+    def fake(ticker, since, session=None, now=None):
+        asked.append(ticker)
+        return [(date(2026, 10, 16), 0.0133)] if ticker == "511090.SS" else []
+
+    answer(monkeypatch, fake)
+    r = run_abroad(files, datetime(2026, 10, 16, 1, 5, tzinfo=timezone.utc))
+    assert asked == [] and r["skipped"] == "nothing due"
+
+    r = run_abroad(files, datetime(2026, 10, 16, 2, 5, tzinfo=timezone.utc))
+    assert asked == ["511090.SS"] and r["checked"] == 1 and r["added"] == 1
+
+    run_abroad(files, datetime(2026, 10, 16, 8, 5, tzinfo=timezone.utc))
+    assert asked == ["511090.SS", "IGLT.L"]          # Shanghai's already checked today
+    loaded = corporate_actions.load_dividends(*files)
+    assert loaded.steps["511090.SS"]["2026-10-16"] == pytest.approx(0.0133)
+    assert loaded.checked_through["511090.SS"] == "2026-10-16"
+    assert loaded.checked_through["IGLT.L"] == "2026-10-16"
+
+
+def test_a_fund_abroad_is_not_asked_on_a_day_its_market_is_shut(files, monkeypatch):
+    # Golden Week: Shanghai shut on 2026-10-05, London open.
+    asked = []
+    answer(monkeypatch, lambda ticker, *a, **k: asked.append(ticker) or [])
+    run_abroad(files, datetime(2026, 10, 5, 9, 5, tzinfo=timezone.utc))
+    assert asked == ["IGLT.L"]
+    assert "511090.SS" not in corporate_actions.load_checks(files[1])

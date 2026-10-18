@@ -2139,7 +2139,8 @@ def test_wallstreetcn_off_the_stores_level_writes_nothing(tmp_path, monkeypatch)
     out = backfill.deepen_from_wallstreetcn(_nickel(), path, None)
     assert out["added"] == 0 and "median level gap" in out["skipped"]
     assert len(bars.load(path)) == before
-    assert backfill.deepen_from_wallstreetcn(asset(), path, None)["skipped"] == "not an LME metal"
+    assert backfill.deepen_from_wallstreetcn(asset(), path, None)["skipped"] == \
+        "not an LME metal or a fund it carries"
 
 
 # --- EEX: TTF's history below what is stored (deepen_from_eex) --------------------
@@ -2227,74 +2228,46 @@ def test_eex_off_the_stores_level_writes_nothing(tmp_path, monkeypatch):
     assert backfill.deepen_from_eex(_nickel(), path, None)["skipped"] == "not TTF"
 
 
-# --- Sina: China's 10-year future, live and its history (deepen_from_sina) --------
-
-def _cgb():
-    return Asset(ticker="T=F", source="sina", block="rates", has_volume=True,
-                 tick_size=0.005, session_template="cffex", fetch_interval="30min",
-                 label="China 10-year government bond future (CFFEX)", in_basket=True)
+def _china_fund():
+    return Asset(ticker="511090.SS", source="yahoo", block="rates", has_volume=True,
+                 tick_size=0.001, session_template="shanghai", fetch_interval="30min",
+                 label="China 30-year government bond ETF (SSE)", in_basket=True)
 
 
-def _cgb_half_hours(first, last, base=108.0):
-    """Every half hour of CFFEX's session (09:30-11:30, 13:00-15:15 Shanghai) on
-    weekdays from `first` to `last`, each closing a little higher."""
-    from zoneinfo import ZoneInfo
-    bj = ZoneInfo("Asia/Shanghai")
-    starts = [(9, 30), (10, 0), (10, 30), (11, 0), (13, 0), (13, 30), (14, 0), (14, 30), (15, 0)]
-    out, px, day = [], base, first
-    while day <= last:
-        if day.weekday() < 5:
-            for h, m in starts:
-                t = int(datetime(day.year, day.month, day.day, h, m, tzinfo=bj).timestamp())
-                span = 900 if (h, m) == (15, 0) else 1800
-                out.append(Candle(t, px, px + 0.01, px, px + 0.005, 500.0, t + span))
-                px += 0.005
+def _shanghai_half_hours(first_day, days, seed):
+    """Shanghai's half hours (09:30-11:30, 13:00-15:00) on its trading days from
+    `first_day`, each opening at the last close."""
+    from jump import sessions
+    starts, day = [], first_day
+    while len({datetime.fromtimestamp(t, timezone.utc).date() for t in starts}) < days:
+        if sessions.trades_on(day, "shanghai"):
+            base = int(datetime(day.year, day.month, day.day, 1, 30, tzinfo=timezone.utc).timestamp())
+            starts += [base + k * 1800 for k in (0, 1, 2, 3)]           # 01:30-03:30 UTC
+            starts += [base + 3.5 * HOUR + k * 1800 for k in (0, 1, 2, 3)]  # 05:00-07:00 UTC
         day += timedelta(days=1)
-    return out
+    closes = list(_walk(len(starts), seed, start=120.0))
+    return [Candle(open_time=int(t), open=o, high=max(o, c), low=min(o, c), close=c, volume=0.0,
+                   close_time=int(t) + 1800)
+            for t, o, c in zip(starts, [closes[0], *closes[:-1]], closes)]
 
 
-def test_the_hourly_fetch_asks_the_10_year_contract_held_since_it_became_front(
+def test_wallstreetcn_fills_the_china_fund_below_the_store_on_29_of_its_sessions(
         tmp_path, monkeypatch):
+    # Yahoo's 58 days hold 34 sessions of five hours - 170, short of the 200 the
+    # funds' 29 sessions are: the gate asks the same 29 of a five-hour market.
     from jump import backfill
-    asked = []
-
-    def fetch(symbol, session=None, now=None):
-        asked.append(symbol)
-        return _cgb_half_hours(date(2026, 8, 17), date(2026, 10, 16))
-
-    monkeypatch.setattr(backfill.sina, "fetch_cffex_bars", fetch)
-    path = str(tmp_path / "sina_T_F")
-    now = datetime(2026, 10, 17, 12, tzinfo=timezone.utc)
-    backfill.fetch_missing(_cgb(), path, date(2026, 1, 1), "", None, now=now)
-    stored = bars.load(path)
-    assert asked == ["T2612"]                               # TZ26, front from 2026-08-25
-    first = datetime.fromtimestamp(int(stored["hour_utc"].min()), timezone.utc)
-    assert first == datetime(2026, 8, 25, 1, tzinfo=timezone.utc)   # 09:30 Shanghai, folded
-
-
-def test_the_10_years_history_takes_each_contract_over_its_own_front_sessions(
-        tmp_path, monkeypatch):
-    from jump import backfill
-    asked = []
-
-    def fetch(symbol, session=None, now=None):
-        asked.append(symbol)
-        base = {"T2606": 100.0, "T2609": 105.0, "T2612": 110.0}.get(symbol, 90.0)
-        return _cgb_half_hours(date(2026, 1, 5), date(2026, 10, 16), base)
-
-    monkeypatch.setattr(backfill.sina, "fetch_cffex_bars", fetch)
-    path = str(tmp_path / "sina_T_F")
-    now = datetime(2026, 10, 17, 12, tzinfo=timezone.utc)
-    out = backfill.deepen_from_sina(_cgb(), path, None, since=date(2026, 3, 2), now=now)
-    assert out["skipped"] is None and asked == ["T2606", "T2609", "T2612"] and not out["short"]
-    stored = bars.load(path).set_index("hour_utc")["close"]
-    at = lambda d: int(datetime(d.year, d.month, d.day, 1, tzinfo=timezone.utc).timestamp())  # noqa: E731
-    # Each day's first hour from the contract held that day: June's to 05-22,
-    # September's from 05-25 and December's from 08-25.
-    assert 100 <= stored[at(date(2026, 5, 22))] < 105 <= stored[at(date(2026, 5, 25))] < 110
-    assert stored[at(date(2026, 8, 25))] >= 110
-    assert stored.index.min() == at(date(2026, 3, 2))
-    assert backfill.deepen_from_sina(_ttf(), path, None)["skipped"] == "not a CFFEX future"
+    theirs = _shanghai_half_hours(date(2026, 4, 1), 100, 23)
+    folded = bars.to_hourly(bars.candles_to_frame(theirs))
+    days = pd.to_datetime(folded["hour_utc"], unit="s", utc=True).dt.date
+    stored = folded[days >= sorted(set(days))[-34]]
+    assert len(stored) == 170
+    path = str(tmp_path / "yahoo_511090.SS")
+    bars.merge(path, stored)
+    monkeypatch.setattr(backfill.wallstreetcn, "fetch_half_hours", lambda *a, **k: theirs)
+    out = backfill.deepen_from_wallstreetcn(_china_fund(), path, None)
+    assert out["skipped"] is None and out["check"]["hours"] == 170
+    assert out["added"] == 66 * 5
+    assert len(bars.load(path)) == 100 * 5
 
 
 # --- Yahoo: a market abroad's history (deepen_from_yahoo) -------------------------

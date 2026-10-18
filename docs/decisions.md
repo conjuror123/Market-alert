@@ -131,7 +131,8 @@ ok"): 31 pushes a year as futures, mostly a data release's 08:00 ET hour and FOM
 everything good, if something missing - we could try and find later"): the only free live
 source of each, about nine trading days back, without volume, so no thin-bar rule. The Bund
 and the gilt one contract at a time, their history Dukascopy's ("The stored history"); TTF
-as MarketWatch's continuous series, its history EEX's (2026-10-18).
+as MarketWatch's continuous series, its history EEX's (2026-10-18). The gilt left for its
+bonds' fund on 2026-10-18 (below).
 
 **Every instrument is a price, scored and said in per cent** (the user's, 2026-10-17: no
 basis points). Japan's 10-year yield, scored in basis points from 2026-10-13, left the basket
@@ -141,11 +142,22 @@ on, Onvista refuses), and the Tokyo JGB funds (2510.T, 2561.T) trade about six h
 moved with the yield at 0.35-0.46, inverted, confirming none of its 17 big moves (2026-09-30
 to 10-16). IG's CFD on the future needs a live account.
 
-**China's 10-year government bond future in the JGB's place** (the user's, 2026-10-18): CFFEX's
-T, a price for Asia's rates, liquid (about 108,000 contracts a day), from Sina one contract at
-a time with its history from 2022. No source votes on it yet. Its market keeps Shanghai's
-days to 15:15 (`cffex`), and its first price is a trade, so its night ends at the open, as a
-future's, not at its first hour's close, as a stock index's (`sessions.is_index_template`).
+**The UK's gilts and China's bonds as funds that other vendors carry** (the user's,
+2026-10-18: "find alternative asset that will help track the 'china bonds' idea and will
+have more voters. And do the same for gilt"). The long gilt future, and China's 10-year
+future (CFFEX's T, from Sina, put in the JGB's place earlier that day), had no second free
+source; their bonds' funds have vendors that agree hour by hour ("The sources' vote"):
+- **China's 30-year government bond fund** (511090), the most traded bond fund there (about
+  6 billion yuan a day; a median hour 0.05%). The 10-year fund (511260) moves about one
+  price step a median hour (0.008%) and was not taken.
+- **iShares' Core UK Gilts** (IGLT), the most traded gilt fund. Vanguard's (VGOV), chosen
+  first, prints its closing auctions far off - +1.50% into the 2024-12-24 half-day close
+  and back at the next open, +1.95% into 2025-04-07's: 3 of its 8 pushes in two years,
+  where the FT does not vote; IGLT, at 3.5 times the volume, shows none.
+
+Both from Yahoo's half hours on their exchange's own template (`shanghai`, `london`), so a
+night runs to the first bar's close, as the indices' do. The two futures left with their
+bars and code.
 
 ---
 
@@ -181,10 +193,18 @@ to its last day it sat on 3,097 contracts against December's 18,822), stage 2's 
 Yahoo's own series came onto the contract held now. The night across a roll is not scored,
 and a bar under 5% of usual volume is a quote, so a hole.
 
-**China's 10-year is Sina's half hours of the contract held**: its volume passed to the next
-contract 4-7 business days before the delivery month in the last five rolls (2025-08-21 to
-2026-08-25), so it rolls on the fifth (`jump/futures.py`). Its last quarter hour, 15:00-15:15,
-trades about a hundredth of a half hour's volume and is mostly a thin bar, a hole.
+**MarketWatch serves each market the window it allows** (2026-10-18): a Korean key asked
+for ten trading days of hourly bars answers 400 ("Cannot use intraday step 'PT1H' with time
+frame 'D10'") and takes eight, a Chinese one five; the rest still ten
+(`marketwatch.FRAMES`). The KOSPI's vote had been an outage every time since about 10-14.
+
+**The funds abroad's payouts are Yahoo's** (the user's, 2026-10-18: adjust their nights):
+neither Tiingo nor Twelve Data carries them. Each is checked on the first run after its own
+market opens, before its night is scored. Yahoo dated two of IGLT's last four a day late
+(2025-05 and 2026-05: the price fell the day before) and listed 2024-11's twice, while the
+30-year fund's five matched their drops: so a fund abroad's night on a listed payout, and
+on the trading day before it, is left unscored rather than adjusted on a day that may be
+wrong (`returns.overnight_gaps`).
 
 **The LME's metals are the LME's own, from Sina**: the right instrument with a short record
 (from 2026-04-22) over a longer record of another (Shanghai tin, Kitco, COMEX aluminium).
@@ -275,6 +295,12 @@ vendors is agreement, not a copy.
   hour, the index's closing auction); and the funds of the Treasury futures' own bonds in
   Sina's half hours, SHY, IEF and TLT on the 2-, 10- and 30-year (0.915, 0.984, 0.977 from
   06-26; 59 of 62, 52 of 52, 45 of 45), in the funds' session only.
+- **The bond funds abroad's voters** (2026-10-18, against Yahoo's half hours from 08-21):
+  China's 30-year fund by Wallstreetcn's half hours (0.998, 14 of 14), Tencent's (0.985, 14
+  of 14), Sina's but at 11:00, its lunch bar (0.996, 3 of 3), and MarketWatch's five days
+  (0.988, 2 of 2); IGLT by the FT at 09:00-14:00 London (0.935 from 09-15, 3 of 3) - its
+  opening hour and last two (0.86, 0.75, 0.17) skipped, MarketWatch's London bars under the
+  bar (0.45-0.63).
 - **Prices vote, not yields** (the user's, 2026-10-17): Wallstreetcn's 10-year yields moved
   with the Bund, the gilt and the Treasuries at 0.97-0.99, inverted and scaled by duration,
   and are not used.
@@ -349,7 +375,8 @@ Done before then, and kept:
   Yahoo's continuous series for the 2- and 10-year notes from 2024-10; the contract held now
   for corn, wheat and sugar from 2026-01/02. The CFDs' tick counts are scaled to each
   month's median.
-- **The Bund's and gilt's history is Dukascopy's CFDs from 2018-05, less their switches**:
+- **The Bund's and gilt's history is Dukascopy's CFDs from 2018-05, less their switches**
+  (the gilt's left with it, 2026-10-18):
   each quarter's change of contract is a large hour near the expiry that the 10-year yield
   does not explain (the Bundesbank's yield −0.97 with the CFD, the Bank of England's −0.94).
   Found in 29 of the Bund's 34 quarters and 25 of the gilt's, 35–201 bp; MarketWatch's
@@ -359,9 +386,12 @@ Done before then, and kept:
   trades folded into hours, an hour of fewer than five trades left out. Against the store's
   hours from 2026-09-29: hourly moves 0.974, 4.8 bp apart at the median. 2021's month
   futures traded 31-59 times a day and are not taken; none answered before.
-- **China's 10-year's history is Sina's**: each contract's half hours over the sessions it
-  was front, from 2022-01-04 - 6,895 hours of 20 contracts to 2026-09-30 (October from the
-  hourly fetch), each reaching back to its first front session (2026-10-18).
+- **The funds abroad's history** (2026-10-18): IGLT's two years of Yahoo's hourly bars, the
+  same as its half hours (351 hours, 1.0, 0 apart), from 2024-10-21; China's 30-year fund's
+  whole life, from its listing on 2023-06-13, Wallstreetcn's half hours, gated on Yahoo's
+  170 hours - 29 of its five-hour sessions, not the funds' 200 hours (0.997; one opening
+  off the market left out). Imported here from those free sources, not by the workflow,
+  whose second run would have held only the 28 settled sessions.
 
 ---
 
@@ -424,6 +454,8 @@ Measured or weighed, and not to be raised again.
 | İş Yatırım, CNN Türk (the BIST 100) | their chart data under paths their robots.txt disallows |
 | SGX, Eurex | SGX's JGB and Nikkei futures daily only (intraday 403); Eurex publishes no intraday prices |
 | IG's CFDs (JGB future, gilt, Bund, LME, Asian indices) | a live account |
+| a second feed of CFFEX's T (2026-10-18) | Wallstreetcn, Tencent and MarketWatch carry none; Baidu's finance API resets the connection; Hexun's futures host is gone; CFFEX's own site has a day's snapshot only; TqSdk needs an account |
+| China's bond funds as voters on its 10-year future | 0.67-0.78 hour by hour (the 10-year fund's step is the future's hourly move) |
 
 ---
 
@@ -437,8 +469,9 @@ goes wrong:
   month from that day;
 - 10-31 to 11-01, the first month end with 62 instruments: October settles from the open
   months' archive into git;
-- 11-20, the gilt's roll to RLIH27; 11-24, China's 10-year's to T2703; 12-04, the Bund's to
-  FGBLH27 (MarketWatch serves both, 14 and 22 hourly bars on 10-17).
+- about 11-12, IGLT's first payout checked live (Yahoo listed its last two a day late:
+  the night before must be unscored too); 12-04, the Bund's roll to FGBLH27 (MarketWatch
+  serves it, 22 hourly bars on 10-17).
 
 **TTF's switch day.** MarketWatch's daily TTF is Yahoo's TTF=F to the cent, but on the last
 trading day it is already the next month's (2024–26, the spread's sign as the season makes
@@ -452,10 +485,11 @@ trading day (next 2027-08-30). To act: mark that hour, or that Friday.
 5,000–6,500 a month of 10,000, far from the 80% warning either way. To act: read the account
 page about 11-06 and count its month.
 
-**No voter for the gilt and China's 10-year**, and 8 instruments have one: the LME's tin, nickel and aluminium,
-the Bund, the BIST 100, the ASX 200, the Hang Seng and the JSE Top 40. Tried: the FT's gilt
-candidates (0.15–0.23), the gilt funds, and the sources under the bar or refused ("The
-sources' vote", "Rejected"). To act: a source that moves with them. Naver's minute charts of
+**One voter only** for 9 instruments: the LME's tin, nickel and aluminium, the Bund, the
+BIST 100, the ASX 200, the Hang Seng, the JSE Top 40 and the UK's gilts fund (the FT, at
+09:00-14:00 London): a move it does not see is uncertain, never not real. Tried: the sources
+under the bar or refused ("The sources' vote", "Rejected"). To act: a second source that
+moves with them. Naver's minute charts of
 the world indices answered empty on a Saturday (2026-10-17): one look on a weekday.
 
 **KOSPI's and the JSE Top 40's closing auctions** (15:00–15:30 Seoul, 16:50–17:00
@@ -483,3 +517,4 @@ the FT): a changed shape raises and the health chat names the provider. To act: 
 | 12 stock indices abroad | 2024-10 | Yahoo (two years of hourly bars) |
 | CSI 300, BIST 100, TSX, IPC | 2026-08 | Yahoo (its older hourly bars failed the import gate) |
 | TTF | 2022-01 | EEX (its month futures traded 31-59 times a day in 2021, none answered before) |
+| the UK's gilts fund (IGLT) | 2024-10 | Yahoo (two years of hourly bars) |
