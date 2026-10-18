@@ -30,7 +30,6 @@ name_of() {
     cache) echo "Restore gitignored Jump parquet" ;;
     cache_mark) echo "Mark when the cache landed" ;;
     hot) echo "Restore the open months of the bars" ;;
-    drop_jgb) echo "Drop the JGB's open month" ;;
     jump) echo "Jump pipeline" ;;
     hot_save) echo "Save the open months of the bars" ;;
     monitor) echo "Run monitor" ;;
