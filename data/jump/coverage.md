@@ -1,6 +1,6 @@
 # Jump data coverage
 
-Generated 2026-10-17 21:04 UTC by `python -m jump.audit`. One row per instrument: its provider, how far back its bars reach, its hourly volume, and anything wrong with the series (Notes; `—` is sound). Periods end where the bars on disk end: without the open months (`tools/hot_bars.sh restore`), at the last settled month.
+Generated 2026-10-18 08:24 UTC by `python -m jump.audit`. One row per instrument: its provider, how far back its bars reach, its hourly volume, and anything wrong with the series (Notes; `—` is sound). Periods end where the bars on disk end: without the open months (`tools/hot_bars.sh restore`), at the last settled month.
 
 ## Basket
 
@@ -29,7 +29,7 @@ Generated 2026-10-17 21:04 UTC by `python -m jump.audit`. One row per instrument
 | `SOL/USDT` | crypto | binance | 1h | 53,782 | 2020-08-11 .. 2026-09-30 | 2,242 | 24 | 0.01 | 0.01 | 0% | 5 | — |
 | `XRP/USDT` | crypto | binance | 1h | 83,873 | 2017-03-01 .. 2026-09-30 | 3,501 | 24 | 0.0001 | 0.0001 | 0% | 11 | — |
 | `BZ=F` | energy | yahoo | 1h | 66,215 | 2011-01-02 .. 2026-09-30 | 3,232 | 21 | 0.01 | 1e-08 | 0% | 2215 | — |
-| `TFM=F` | energy | marketwatch | 1h | 20 | 2026-09-29 .. 2026-09-30 | 2 | 10 | 0.005 | 0.001 | 100% | 15 | — |
+| `TFM=F` | energy | marketwatch | 1h | 11,549 | 2022-01-03 .. 2026-09-30 | 1,212 | 10 | 0.005 | 0.001 | 100% | 116 | — |
 | `UNG` | energy | twelvedata | 30min | 34,116 | 2007-04-18 .. 2026-09-30 | 4,894 | 7 | 0.01 | 1e-08 | 0% | 123 | — |
 | `000300.SS` | equity | yahoo | 30min | 161 | 2026-08-14 .. 2026-09-30 | 33 | 5 | 0.01 | 1e-06 | 0% | 91 | volume present though not declared |
 | `IWM` | equity | tiingo | 30min | 41,669 | 2002-12-30 .. 2026-09-30 | 5,973 | 7 | 0.01 | 1e-07 | 0% | 114 | — |
@@ -63,6 +63,7 @@ Generated 2026-10-17 21:04 UTC by `python -m jump.audit`. One row per instrument
 | `XAU/USD` | precious_metals | sifting | 1h | 142,016 | 2003-05-05 .. 2026-09-30 | 7,290 | 23 | 0.01 | 0.0001 | 98% | 77 | volume present though not declared |
 | `FGBL=F` | rates | marketwatch | 1h | 29,887 | 2018-05-03 .. 2026-09-30 | 2,141 | 14 | 0.01 | 0.0001 | 100% | 131 | — |
 | `RLI=F` | rates | marketwatch | 1h | 21,165 | 2018-05-01 .. 2026-09-30 | 2,123 | 10 | 0.01 | 0.0001 | 100% | 116 | — |
+| `T=F` | rates | sina | 30min | 6,895 | 2022-01-04 .. 2026-09-30 | 1,150 | 6 | 0.005 | 0.001 | 0% | 258 | — |
 | `TIP` | rates | tiingo | 30min | 39,878 | 2003-12-05 .. 2026-09-30 | 5,725 | 7 | 0.01 | 1e-07 | 0% | 312 | — |
 | `ZB=F` | rates | yahoo | 1h | 38,370 | 2019-01-21 .. 2026-09-30 | 2,032 | 23 | 0.03125 | 1e-05 | 0% | 649 | — |
 | `ZN=F` | rates | yahoo | 1h | 10,795 | 2024-10-13 .. 2026-09-30 | 571 | 23 | 0.015625 | 1e-06 | 4% | 87 | — |
@@ -74,4 +75,4 @@ Generated 2026-10-17 21:04 UTC by `python -m jump.audit`. One row per instrument
 
 ## Totals
 
-Instruments: 61. Bars: 2,378,120. Rows with issues: 8.
+Instruments: 62. Bars: 2,396,544. Rows with issues: 8.
