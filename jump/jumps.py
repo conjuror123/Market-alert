@@ -390,11 +390,11 @@ def found_times(scored: pd.DataFrame, template: str) -> np.ndarray:
     its first bar's close (jump.returns.split_channels); a currency pair's
     weekend gap and another daily-session market's night at their open,
     which is the whole of them."""
-    from jump.sessions import is_exchange_template
+    from jump.sessions import is_index_template
 
     hours = scored["hour_utc"].astype("int64").to_numpy()
     at_open = (scored["reading"] != HOUR).to_numpy() & (template != "us_equity") \
-        & (not is_exchange_template(template))
+        & (not is_index_template(template))
     return np.where(at_open, hours, hours + 3600)
 
 

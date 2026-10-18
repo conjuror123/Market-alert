@@ -456,3 +456,20 @@ def test_a_shanghai_night_across_a_missing_trading_day_is_not_scored():
         (cst(2025, 9, 24, 9), 4550, 4560, 4540, 4555, 0.0, 12),
     ]), dividends=dividends(ticker="SPY"))
     assert out["gap"].isna().all()
+
+
+def test_a_bond_futures_night_ends_at_its_open_not_at_its_first_hours_close():
+    # China's 10-year future keeps Shanghai's days, but its first price is a trade
+    # (the opening auction), not an index computed from last closes: its night is
+    # its open against the last close, and its first hour is an hour of its own.
+    cgb = asset(ticker="T=F", source="sina", block="rates", has_volume=True,
+                tick_size=0.005, session_template="cffex", fetch_interval="30min",
+                label="China 10Y")
+    out = returns.split_channels(cgb, frame([
+        (cst(2025, 9, 29, 13), 108.0, 108.1, 107.9, 108.05, 900.0, 12),
+        (cst(2025, 9, 29, 14), 108.05, 108.2, 108.0, 108.15, 900.0, 12),
+        (cst(2025, 9, 30, 9), 108.40, 108.45, 108.30, 108.35, 900.0, 12),
+        (cst(2025, 9, 30, 10), 108.35, 108.40, 108.30, 108.38, 900.0, 12),
+    ]), dividends=dividends(ticker="SPY"))
+    assert out.iloc[2]["gap"] == pytest.approx(math.log(108.40 / 108.15))
+    assert out.iloc[2]["r"] == pytest.approx(math.log(108.35 / 108.40))

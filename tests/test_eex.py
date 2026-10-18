@@ -82,3 +82,17 @@ def test_a_server_that_never_answers_is_unreachable_and_a_refusal_is_not(monkeyp
     with pytest.raises(ExchangeError) as refused:
         eex.fetch_hourly("202611", _Session(_Answer(400)), now, days=1)
     assert not isinstance(refused.value, Unreachable)
+
+
+def test_a_thin_hour_is_left_out_on_request_and_the_store_names_its_month():
+    trades = [(ts("2026-10-16 06:00") + 60 * k, 85.0 + k / 100) for k in range(5)] + \
+             [(ts("2026-10-16 07:10"), 86.0), (ts("2026-10-16 07:20"), 86.1)]
+    now = datetime.fromtimestamp(ts("2026-10-16 09:00"), timezone.utc)
+    assert [c.open_time for c in eex.hourly(trades, now)] == [ts("2026-10-16 06:00"),
+                                                              ts("2026-10-16 07:00")]
+    assert [c.open_time for c in eex.hourly(trades, now, min_trades=5)] == [
+        ts("2026-10-16 06:00")]
+    from jump import futures
+    assert eex.MONTH_CODES == futures.MONTH_CODES
+    assert [eex.maturity_for(c) for c in ("TFMX26.NDX", "TFMZ26.NDX", "TFMF27.NDX")] == [
+        "202611", "202612", "202701"]

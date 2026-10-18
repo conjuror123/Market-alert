@@ -36,6 +36,14 @@ name: Backfill Jump Bars
 #                   about 170 days back (price_monitor/wallstreetcn.py), less
 #                   the sessions' openings gone within the hour. Needs no key.
 #                   Gated on an overlap with the store, like the others.
+#   deepen-eex      TTF below what is stored, from EEX's own TTF month future
+#                   (price_monitor/eex.py), the month the store held each day,
+#                   from 2022, its hours of fewer than five trades left out.
+#                   About 1,200 requests, one a weekday. Needs no key. Gated on
+#                   an overlap with the store, like the others.
+#   deepen-sina     China's 10-year future (T=F) below what is stored, from
+#                   Sina: each contract over the sessions it was front, its
+#                   half hours folded onto the hour, from 2022. Needs no key.
 #   deepen-yahoo    the markets abroad (jump/sessions.py EXCHANGES) from Yahoo:
 #                   58 days folded onto the hour, and about two years of hourly
 #                   bars before them where they agree with those. Needs no key.
@@ -75,6 +83,8 @@ on:
           - deepen-dukascopy
           - deepen-alpaca
           - deepen-wallstreetcn
+          - deepen-eex
+          - deepen-sina
           - deepen-yahoo
           - live-pass
           - corporate-actions

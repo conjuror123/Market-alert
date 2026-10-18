@@ -290,10 +290,7 @@ def _eex_ttf(asset: Asset) -> "str | None":
     (TFMX26: 202611)."""
     from jump import futures
     held = futures.front_contract(asset.ticker, datetime.now(timezone.utc).date())
-    if not held:
-        return None
-    code = held[0].split(".")[0]
-    return f"20{code[-2:]}{futures.MONTH_CODES.index(code[-3]) + 1:02d}"
+    return eex.maturity_for(held[0]) if held else None
 
 
 # Every source, and what it calls each instrument it votes on. Each was held to
@@ -719,7 +716,7 @@ def candidates(asset: Asset, frame: pd.DataFrame, table, now: int,
                 # for the night correction (judge_all).
                 c["night_hour"], c["night_close"] = int(h[i - 1]), float(close[i - 1])
             out.append(c)
-        elif sessions.is_exchange_template(template):
+        elif sessions.is_index_template(template):
             # A stock index's night runs to its first bar's close
             # (jump.returns.split_channels): so is it asked about.
             out.append({"hour": int(h[i]), "check": OPEN, "from_open": False,

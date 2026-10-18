@@ -42,8 +42,8 @@ from jump import atomic, bars, cboe, corporate_actions, fred, futures, quality, 
 from jump import sessions as _sessions
 from jump.basket import Asset, Basket, load_basket
 from jump.usage import Usage
-from price_monitor import (alpaca, binance, dukascopy, marketwatch, sifting, sina, tiingo,
-                           twelvedata, wallstreetcn, yahoo)
+from price_monitor import (alpaca, binance, dukascopy, eex, marketwatch, sifting, sina,
+                           tiingo, twelvedata, wallstreetcn, yahoo)
 from price_monitor.models import UNANSWERED_IN_A_ROW, ExchangeError, KeyRefused, Unreachable
 from price_monitor.notifier import quote, send_health
 
@@ -327,6 +327,13 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
             alpaca.headers(os.environ.get("ALPACA_KEY_ID", "").strip(),
                            os.environ.get("ALPACA_SECRET_KEY", "").strip()),
             session, feed="iex")
+    elif provider == "sina" and asset.ticker in sina.CFFEX:
+        # China's 10-year: the half-hour bars of the contract the store holds,
+        # its last 1,023, and only since the session it became front.
+        held = futures.front_contract(asset.ticker, now.date())
+        candles = sina.fetch_cffex_bars(sina.cffex_symbol(held[0]), session, now)
+        floor = _sessions.daily_session_open(held[1], asset.session_template)
+        candles = [c for c in candles if c.open_time >= floor]
     elif provider == "sina" and asset.session_template == CALENDAR_TEMPLATE:
         # A US fund: its last ~78 days of half-hour bars, whatever `days` asks.
         candles = sina.fetch_us_bars(asset.ticker, session)
@@ -1182,6 +1189,120 @@ def deepen_from_wallstreetcn(asset: Asset, path: str, session: requests.Session,
 
 
 
+# TTF'S HISTORY below MarketWatch's first bars (2026-09-29): EEX's own TTF month
+# future (price_monitor.eex), the month the store held each day
+# (futures.front_contract), its trades folded into hours. From 2022: EEX's month
+# futures traded 31-59 times a day in 2021, about 90-500 from 2022 (sampled
+# 2026-10-18), none answered before 2021. An hour of fewer than EEX_MIN_TRADES
+# trades is left out: a price or two is not the hour's market. Gated on the
+# store's own hours, which only began on 2026-09-29: EEX_MIN_OVERLAP of them in
+# place of ALIGNMENT_MIN_HOURS (the user's, 2026-10-18: import on what the store
+# holds; EEX moved with them at 0.964 hour by hour).
+EEX_SINCE = date(2022, 1, 3)
+EEX_MIN_TRADES = 5
+EEX_MIN_OVERLAP = 100
+# One request a day of the walk, about 1,200, paced under EEX's limit
+# (price_monitor.eex.RATE_LIMITED_BACKOFF_SECONDS): about half an hour.
+EEX_DELAY_SECONDS = 0.6
+
+
+def deepen_from_eex(asset: Asset, path: str, session: requests.Session,
+                    since: date = EEX_SINCE, now: datetime | None = None) -> dict:
+    """Fills TTF's history below what is stored, from EEX: one request a
+    weekday, of the month the store held that day, so each change of contract
+    falls where the store's does and its night is left unscored as any roll's
+    (futures.roll_sessions). Gated like every import (verify_alignment), over
+    the hours the store already holds; only its session's hours are taken, and
+    nothing at or above the oldest stored bar: MarketWatch keeps its own."""
+    if asset.ticker != "TFM=F":
+        return {"skipped": "not TTF", "added": 0}
+    stored = bars.load(path)
+    if stored.empty:
+        return {"skipped": "nothing stored yet", "added": 0}
+    floor = int(stored["hour_utc"].min())
+    now = now or datetime.now(timezone.utc)
+    trades: "list[tuple[int, float]]" = []
+    day, asked = since, 0
+    while day <= now.date():
+        held = futures.front_contract(asset.ticker, day) if day.weekday() < 5 else None
+        if held:
+            if asked:
+                time.sleep(EEX_DELAY_SECONDS)
+            trades += eex.fetch_day(eex.maturity_for(held[0]), day.isoformat(), session)
+            asked += 1
+            if asked % 100 == 0:
+                log.info("%s: EEX asked for %d days, to %s", asset.asset_id, asked, day)
+        day += timedelta(days=1)
+    every = eex.hourly(trades, now)
+    candles = eex.hourly(trades, now, min_trades=EEX_MIN_TRADES)
+    if not candles:
+        return {"skipped": "EEX returned nothing", "added": 0}
+
+    frame = bars.to_hourly(bars.candles_to_frame(candles))
+    check = verify_alignment(frame, stored, min_hours=EEX_MIN_OVERLAP)
+    if not check["ok"]:
+        return {"skipped": f"alignment check failed: {check['why']}",
+                "added": 0, "check": check}
+    frame = frame[quality.in_session(asset, frame["hour_utc"]).to_numpy(bool)]
+    patch = frame[frame["hour_utc"] < floor]
+    if patch.empty:
+        return {"skipped": "nothing below the oldest stored bar", "added": 0,
+                "check": check}
+    added = bars.merge(path, patch)
+    day_of = lambda h: datetime.fromtimestamp(int(h), tz=timezone.utc).date()  # noqa: E731
+    return {"skipped": None, "added": added, "asked": asked, "thin": len(every) - len(candles),
+            "from": day_of(patch["hour_utc"].min()), "to": day_of(floor), "check": check}
+
+
+# CHINA'S 10-YEAR'S HISTORY (T=F): each contract the store would have held, its
+# half hours over the sessions it was front (futures.roll_days), from Sina - the
+# same bars the hourly run fetches, of the earlier contracts: each one's last
+# 1,023 reach back past the day it became front. From 2022, as TTF's.
+SINA_SINCE = date(2022, 1, 3)
+
+
+def deepen_from_sina(asset: Asset, path: str, session: requests.Session,
+                     since: date = SINA_SINCE, now: datetime | None = None) -> dict:
+    """China's 10-year future's history below what is stored: contract by
+    contract, each over its own front sessions, so each change falls where the
+    store's does and its night is left unscored (futures.roll_sessions). Only
+    its session's hours are taken, and nothing at or above the oldest stored
+    bar. A contract whose bars do not reach its first front session is named."""
+    if asset.ticker not in sina.CFFEX:
+        return {"skipped": "not a CFFEX future", "added": 0}
+    now = now or datetime.now(timezone.utc)
+    template = asset.session_template
+    stored = bars.load(path)
+    floor = None if stored.empty else int(stored["hour_utc"].min())
+    fronts = futures.roll_days(asset.ticker, since.year - 1, now.year)
+    pieces, asked, short = [], [], []
+    for k, (contract, start) in enumerate(fronts):
+        end = fronts[k + 1][1] if k + 1 < len(fronts) else None
+        if start > now.date() or (end is not None and end <= since):
+            continue
+        candles = sina.fetch_cffex_bars(sina.cffex_symbol(contract), session, now)
+        low = _sessions.daily_session_open(max(start, since), template)
+        high = _sessions.daily_session_open(end, template) if end else None
+        kept = [c for c in candles if c.open_time >= low
+                and (high is None or c.open_time < high)]
+        asked.append(contract)
+        if not candles or candles[0].open_time > low:
+            short.append(contract)
+        pieces += kept
+    if not pieces:
+        return {"skipped": "Sina returned nothing", "added": 0, "asked": asked}
+    frame = bars.to_hourly(bars.candles_to_frame(pieces))
+    frame = frame[quality.in_session(asset, frame["hour_utc"]).to_numpy(bool)]
+    if floor is not None:
+        frame = frame[frame["hour_utc"] < floor]
+    if frame.empty:
+        return {"skipped": "nothing below the oldest stored bar", "added": 0, "asked": asked}
+    added = bars.merge(path, frame)
+    day_of = lambda h: datetime.fromtimestamp(int(h), tz=timezone.utc).date()  # noqa: E731
+    return {"skipped": None, "added": added, "asked": asked, "short": short,
+            "from": day_of(frame["hour_utc"].min()), "to": day_of(frame["hour_utc"].max())}
+
+
 # A MARKET ABROAD FROM YAHOO (sessions.EXCHANGES): its last 58 days at its own
 # interval - 30 minutes, 15 for Nifty's quarter-hour grid - folded onto the round
 # hour as the hourly fetch stores them, and before them Yahoo's hourly bars, about
@@ -1309,6 +1430,15 @@ def _main(argv: "list[str] | None", usage: Usage) -> int:
                              "less the openings gone within the hour. Needs no "
                              "key. Overlaps the store and is gated on agreeing "
                              "with it.")
+    parser.add_argument("--deepen-eex", action="store_true",
+                        help="fill TTF's history below what is stored from EEX's "
+                             "own TTF month future, from 2022, its hours of fewer "
+                             "than EEX_MIN_TRADES trades left out. Needs no key. "
+                             "Overlaps the store and is gated on agreeing with it.")
+    parser.add_argument("--deepen-sina", action="store_true",
+                        help="China's 10-year future's history below what is "
+                             "stored from Sina, each contract over the sessions "
+                             "it was front, from 2022. Needs no key.")
     parser.add_argument("--deepen-yahoo", action="store_true",
                         help="the markets abroad's history from Yahoo: 58 days "
                              "folded onto the hour, and about two years of hourly "
@@ -1336,7 +1466,8 @@ def _main(argv: "list[str] | None", usage: Usage) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     purpose = args.usage_purpose or ("manual" if (
         args.extend_history or args.fill_gaps or args.deepen_dukascopy or args.deepen_alpaca
-        or args.deepen_wallstreetcn or args.deepen_yahoo or args.repair or args.live_pass)
+        or args.deepen_wallstreetcn or args.deepen_eex or args.deepen_sina or args.deepen_yahoo
+        or args.repair or args.live_pass)
         else "fetch")
     if args.live_pass:
         args.skip_vix = True
@@ -1489,6 +1620,51 @@ def _main(argv: "list[str] | None", usage: Usage) -> int:
                      len(out["left_out"]), out["left_out"], check["hours"],
                      check["correlation"], check["median_bp"])
         log.info("Wallstreetcn deepening added %d bars", total)
+        return 0
+
+    if args.deepen_eex:
+        session = usage.session(purpose)
+        total = 0
+        for asset in (a for a in instruments if a.ticker == "TFM=F"):
+            path = bars.store_path(args.bars_dir, asset.file_stem)
+            try:
+                out = deepen_from_eex(asset, path, session)
+            except Exception as exc:
+                log.error("%s: EEX deepening failed - %s", asset.asset_id, exc)
+                continue
+            check = out.get("check")
+            if out["skipped"]:
+                log.info("%s: skipped (%s)%s", asset.asset_id, out["skipped"],
+                         f"; overlap {check['hours']} hours, corr {check['correlation']:.4f},"
+                         f" median {check['median_bp']:.2f}bp" if check else "")
+                continue
+            total += out["added"]
+            log.info("%s: +%d bars from EEX (%s .. %s), %d days asked, %d thin hours "
+                     "left out; overlap check %d hours, corr %.4f, median %.2fbp",
+                     asset.asset_id, out["added"], out["from"], out["to"], out["asked"],
+                     out["thin"], check["hours"], check["correlation"], check["median_bp"])
+        log.info("EEX deepening added %d bars", total)
+        return 0
+
+    if args.deepen_sina:
+        session = usage.session(purpose)
+        total = 0
+        for asset in (a for a in instruments if a.ticker in sina.CFFEX):
+            path = bars.store_path(args.bars_dir, asset.file_stem)
+            try:
+                out = deepen_from_sina(asset, path, session)
+            except Exception as exc:
+                log.error("%s: Sina deepening failed - %s", asset.asset_id, exc)
+                continue
+            if out["skipped"]:
+                log.info("%s: skipped (%s)", asset.asset_id, out["skipped"])
+                continue
+            total += out["added"]
+            log.info("%s: +%d bars from Sina (%s .. %s), contracts %s%s", asset.asset_id,
+                     out["added"], out["from"], out["to"], ",".join(out["asked"]),
+                     f"; not reaching their first front session: {out['short']}"
+                     if out["short"] else "")
+        log.info("Sina deepening added %d bars", total)
         return 0
 
     if args.deepen_yahoo:

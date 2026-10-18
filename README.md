@@ -1,6 +1,6 @@
 # Jump
 
-An hourly Telegram bot that watches 61 market instruments (stock indices in their own
+An hourly Telegram bot that watches 62 market instruments (stock indices in their own
 markets' hours, US funds, futures, spot gold and silver, LME metals, FX pairs, coins)
 and writes when one moves unusually **for itself**.
 

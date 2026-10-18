@@ -35,6 +35,18 @@ CONTRACT = {"commodity": "NATGAS", "pricing": "F", "area": "TTF", "product": "Ph
 HOUR = 3600
 MAX_ATTEMPTS = 3
 BACKOFF_SECONDS = 2.0
+# Its limit: about fifty requests back to back are answered, then 429; ninety at
+# one every 1.3 seconds all were (2026-10-18). A history walk paces itself
+# (jump.backfill.EEX_DELAY_SECONDS) and waits this long, times the attempt, on 429.
+RATE_LIMITED_BACKOFF_SECONDS = 20.0
+MONTH_CODES = "FGHJKMNQUVXZ"
+
+
+def maturity_for(contract: str) -> str:
+    """EEX's delivery month of a contract as the store names it (TFMX26.NDX:
+    202611)."""
+    code = contract.split(".")[0]
+    return f"20{code[-2:]}{MONTH_CODES.index(code[-3]) + 1:02d}"
 
 
 def parse(payload: dict, maturity: str) -> "list[tuple[int, float]]":
@@ -54,29 +66,36 @@ def parse(payload: dict, maturity: str) -> "list[tuple[int, float]]":
     return sorted(out)
 
 
-def hourly(trades: "list[tuple[int, float]]", now: datetime | None = None) -> list[Candle]:
+def hourly(trades: "list[tuple[int, float]]", now: datetime | None = None,
+           min_trades: int = 1) -> list[Candle]:
     """Trades folded into the hours that have ended: the first trade's price
-    opens the hour, the last closes it."""
+    opens the hour, the last closes it. An hour of fewer than `min_trades`
+    trades is left out: a price or two is not the hour's market."""
     now_ts = int((now or datetime.now(timezone.utc)).timestamp())
     hours: "dict[int, list[float]]" = {}
     for t, price in sorted(trades):
         start = t // HOUR * HOUR
         bar = hours.get(start)
         if bar is None:
-            hours[start] = [price, price, price, price]
+            hours[start] = [price, price, price, price, 1]
         else:
             bar[1], bar[2], bar[3] = max(bar[1], price), min(bar[2], price), price
+            bar[4] += 1
     return [Candle(open_time=t, open=o, high=h, low=low, close=c, volume=0.0,
                    close_time=t + HOUR)
-            for t, (o, h, low, c) in sorted(hours.items()) if t + HOUR <= now_ts]
+            for t, (o, h, low, c, n) in sorted(hours.items())
+            if t + HOUR <= now_ts and n >= min_trades]
 
 
-def _day(maturity: str, day: str, session) -> "list[tuple[int, float]]":
+def fetch_day(maturity: str, day: str, session=None) -> "list[tuple[int, float]]":
+    """One day's trades (YYYY-MM-DD) of the delivery month: (UTC seconds,
+    price)."""
     params = {**CONTRACT, "maturity": maturity, "startDate": day}
     last: Exception | None = None
     for attempt in range(MAX_ATTEMPTS):
         if attempt:
-            time.sleep(BACKOFF_SECONDS * attempt)
+            time.sleep((RATE_LIMITED_BACKOFF_SECONDS if "429" in str(last) else BACKOFF_SECONDS)
+                       * attempt)
         try:
             resp = (session or requests).get(URL, params=params, headers=HEADERS, timeout=30)
         except requests.RequestException as exc:
@@ -104,6 +123,6 @@ def fetch_hourly(maturity: str, session: requests.Session | None = None,
     trades: "list[tuple[int, float]]" = []
     while day <= now.date():
         if day.weekday() < 5:
-            trades += _day(maturity, day.isoformat(), session)
+            trades += fetch_day(maturity, day.isoformat(), session)
         day += timedelta(days=1)
     return hourly(trades, now)

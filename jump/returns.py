@@ -164,8 +164,8 @@ def split_channels(asset: Asset, usable: pd.DataFrame,
     out["hole"] = np.where(after_hole, np.log(out["open"] / prev_close), np.nan)
     out["gap"] = (overnight_gaps(asset, out, session, dividends, session_table)
                   if dividends is not None else np.nan)
-    from jump.sessions import is_exchange_template
-    if is_exchange_template(asset.session_template):
+    from jump.sessions import is_index_template
+    if is_index_template(asset.session_template):
         # A stock index's first price of the day is not a trade: it is
         # computed while most of its stocks have not traded yet, from their
         # last closes, so it sits at the previous close and the night's move

@@ -463,6 +463,9 @@ EXCHANGES: "dict[str, tuple[str, str]]" = {
     "toronto": ("XTSE", "America/Toronto"),
     "sao_paulo": ("BVMF", "America/Sao_Paulo"),
     "mexico_city": ("XMEX", "America/Mexico_City"),
+    # China's government bond futures on CFFEX: Shanghai's trading days, to 15:15
+    # (CLOSING_AUCTION_MINUTES), in a table of their own (TABLES).
+    "cffex": ("XSHG", "Asia/Shanghai"),
 }
 DAILY_SESSIONS.update({
     "sydney": ("Australia/Sydney", (10, 0), (16, 10)),
@@ -481,17 +484,28 @@ DAILY_SESSIONS.update({
     "toronto": ("America/Toronto", (9, 30), (16, 0)),
     "sao_paulo": ("America/Sao_Paulo", (10, 0), (18, 0)),
     "mexico_city": ("America/Mexico_City", (8, 30), (15, 0)),
+    "cffex": ("Asia/Shanghai", (9, 30), (15, 15)),
 })
 # The days a market is shut every week, where it is not Saturday and Sunday.
 WEEKEND_DAYS: "dict[str, tuple[int, ...]]" = {"riyadh": (4, 5)}
-# A closing auction after the library's close that sets the official close, and
-# that Yahoo serves as a bar of its own: Sydney's and Hong Kong's, 16:00-16:10,
-# a bar at 16:00 on each of the 59 days to 2026-10-09.
-CLOSING_AUCTION_MINUTES: "dict[str, int]" = {"sydney": 10, "hong_kong": 10}
+# Minutes after the library's close that a market still trades: a closing
+# auction that sets the official close, and that Yahoo serves as a bar of its own -
+# Sydney's and Hong Kong's, 16:00-16:10, a bar at 16:00 on each of the 59 days to
+# 2026-10-09 - or a later close of its own: CFFEX's bond futures trade to 15:15,
+# a quarter of an hour past Shanghai's stocks.
+CLOSING_AUCTION_MINUTES: "dict[str, int]" = {"sydney": 10, "hong_kong": 10, "cffex": 15}
+# A market on another's calendar keeps a table of its own, its hours not that
+# exchange's (data/jump/sessions/<name>.csv).
+TABLES: "dict[str, str]" = {"cffex": "cffex"}
+# The markets abroad that are not stock indices: their first price is a trade,
+# not an index computed from the last closes, so their night ends at the open as
+# a future's does (is_index_template).
+FUTURES_EXCHANGES = ("cffex",)
 
 
 def exchange_table_path(name: str) -> str:
-    return os.path.join("data", "jump", "sessions", f"{EXCHANGES[name][0].lower()}.csv")
+    stem = TABLES.get(name, EXCHANGES[name][0].lower())
+    return os.path.join("data", "jump", "sessions", f"{stem}.csv")
 
 
 @lru_cache(maxsize=32)
@@ -505,6 +519,12 @@ def _exchange_table(path: str) -> "tuple[dict, date | None, date | None]":
 
 def is_exchange_template(name: str) -> bool:
     return name in EXCHANGES
+
+
+def is_index_template(name: str) -> bool:
+    """A stock index's market: its first price of the day is computed from the
+    last closes, so its night runs to the first bar's close (jump.returns)."""
+    return name in EXCHANGES and name not in FUTURES_EXCHANGES
 
 
 def trades_on(day: date, name: str) -> bool:
