@@ -3,7 +3,8 @@ voter on the currency pairs, the funds, the futures, gold and silver, and the st
 indices abroad.
 
 THE ENDPOINT is the one MarketWatch's own charts read (api.wsj.net, Dow Jones'
-"michelangelo" time series): hourly bars for about the last ten days, keyed as
+"michelangelo" time series): hourly bars for about the last ten days (eight for a
+Korean key, five for a Chinese one: FRAMES), keyed as
 CURRENCY/US/XTUP/USDINR for a pair, FUND/US/ARCX/SPY for a fund (by its listing
 exchange, jump.verify) and FUTURE/US/XCME/LC00 for live cattle's continuous
 contract. Each tick is the start of its bar in UTC milliseconds -
@@ -56,6 +57,12 @@ HEADERS = {"User-Agent": "Mozilla/5.0", "Accept": "application/json",
 HOUR = 3600
 MAX_ATTEMPTS = 3
 BACKOFF_SECONDS = 2.0
+# The longest window of hourly bars MarketWatch serves a market, by the key's
+# country, where it is less than ten trading days: since about 2026-10-14 a Korean
+# key asked for ten answers 400 "Cannot use intraday step 'PT1H' with time frame
+# 'D10'" (the KOSPI's vote was an outage every time), and takes eight; a Chinese
+# key takes five. Every other key the bot asks still takes ten (2026-10-18).
+FRAMES = {"KR": "D8", "CN": "D5"}
 
 
 def _query(key: str, frame: str) -> dict:
@@ -138,10 +145,18 @@ SOFTS = {"KC=F": "FUTURE/US/IFUS/KC00", "CC=F": "FUTURE/US/IFUS/CC00",
          "CT=F": "FUTURE/US/IFUS/CT00"}
 
 
+def frame_for(key: str) -> str:
+    """How far back `key`'s hourly bars are asked: ten trading days, or its
+    market's limit (FRAMES)."""
+    parts = key.split("/")
+    return FRAMES.get(parts[1] if len(parts) > 1 else "", "D10")
+
+
 def fetch_hourly(key: str, session: requests.Session | None = None,
-                 now: datetime | None = None, frame: str = "D10") -> list[Candle]:
-    """The last ~ten days of `key`'s hourly bars that have ended."""
-    params = {"json": json.dumps(_query(key, frame)), "ckey": CKEY}
+                 now: datetime | None = None, frame: "str | None" = None) -> list[Candle]:
+    """The last ~ten days of `key`'s hourly bars that have ended - fewer where its
+    market allows less (frame_for)."""
+    params = {"json": json.dumps(_query(key, frame or frame_for(key))), "ckey": CKEY}
     last: Exception | None = None
     for attempt in range(MAX_ATTEMPTS):
         if attempt:
