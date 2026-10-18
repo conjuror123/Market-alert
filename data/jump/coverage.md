@@ -1,6 +1,6 @@
 # Jump data coverage
 
-Generated 2026-10-18 08:24 UTC by `python -m jump.audit`. One row per instrument: its provider, how far back its bars reach, its hourly volume, and anything wrong with the series (Notes; `—` is sound). Periods end where the bars on disk end: without the open months (`tools/hot_bars.sh restore`), at the last settled month.
+Generated 2026-10-18 21:53 UTC by `python -m jump.audit`. One row per instrument: its provider, how far back its bars reach, its hourly volume, and anything wrong with the series (Notes; `—` is sound). Periods end where the bars on disk end: without the open months (`tools/hot_bars.sh restore`), at the last settled month.
 
 ## Basket
 
@@ -61,9 +61,9 @@ Generated 2026-10-18 08:24 UTC by `python -m jump.audit`. One row per instrument
 | `PL=F` | precious_metals | yahoo | 1h | 24,442 | 2021-11-01 .. 2026-09-30 | 1,277 | 23 | 0.1 | 1e-06 | 0% | 649 | — |
 | `XAG/USD` | precious_metals | sifting | 1h | 141,020 | 2003-05-04 .. 2026-09-30 | 7,280 | 23 | 0.0001 | 0.0001 | 98% | 77 | volume present though not declared |
 | `XAU/USD` | precious_metals | sifting | 1h | 142,016 | 2003-05-05 .. 2026-09-30 | 7,290 | 23 | 0.01 | 0.0001 | 98% | 77 | volume present though not declared |
+| `511090.SS` | rates | yahoo | 30min | 4,009 | 2023-06-13 .. 2026-09-30 | 802 | 5 | 0.001 | 1e-07 | 97% | 259 | — |
 | `FGBL=F` | rates | marketwatch | 1h | 29,887 | 2018-05-03 .. 2026-09-30 | 2,141 | 14 | 0.01 | 0.0001 | 100% | 131 | — |
-| `RLI=F` | rates | marketwatch | 1h | 21,165 | 2018-05-01 .. 2026-09-30 | 2,123 | 10 | 0.01 | 0.0001 | 100% | 116 | — |
-| `T=F` | rates | sina | 30min | 6,895 | 2022-01-04 .. 2026-09-30 | 1,150 | 6 | 0.005 | 0.001 | 0% | 258 | — |
+| `IGLT.L` | rates | yahoo | 30min | 4,398 | 2024-10-21 .. 2026-09-30 | 491 | 9 | 0.0005 | 1e-09 | 10% | 116 | — |
 | `TIP` | rates | tiingo | 30min | 39,878 | 2003-12-05 .. 2026-09-30 | 5,725 | 7 | 0.01 | 1e-07 | 0% | 312 | — |
 | `ZB=F` | rates | yahoo | 1h | 38,370 | 2019-01-21 .. 2026-09-30 | 2,032 | 23 | 0.03125 | 1e-05 | 0% | 649 | — |
 | `ZN=F` | rates | yahoo | 1h | 10,795 | 2024-10-13 .. 2026-09-30 | 571 | 23 | 0.015625 | 1e-06 | 4% | 87 | — |
@@ -75,4 +75,4 @@ Generated 2026-10-18 08:24 UTC by `python -m jump.audit`. One row per instrument
 
 ## Totals
 
-Instruments: 62. Bars: 2,396,544. Rows with issues: 8.
+Instruments: 62. Bars: 2,376,891. Rows with issues: 8.
