@@ -360,8 +360,8 @@ Done before then, and kept:
   hours from 2026-09-29: hourly moves 0.974, 4.8 bp apart at the median. 2021's month
   futures traded 31-59 times a day and are not taken; none answered before.
 - **China's 10-year's history is Sina's**: each contract's half hours over the sessions it
-  was front, from 2022-01-04 - about 6,700 hours of 20 contracts, each reaching back to its
-  first front session (2026-10-18).
+  was front, from 2022-01-04 - 6,895 hours of 20 contracts to 2026-09-30 (October from the
+  hourly fetch), each reaching back to its first front session (2026-10-18).
 
 ---
 
