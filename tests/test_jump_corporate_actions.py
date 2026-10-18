@@ -256,7 +256,7 @@ def test_a_full_refresh_keeps_the_splits_already_declared(tmp_path, monkeypatch)
     # XLK's 2025-12-05 split was declared from Yahoo by the morning check, which
     # never asks that far back again: a Tiingo rebuild that does not list it
     # must not drop it. Payouts are Tiingo's to restate; a fund the refresh
-    # does not cover keeps nothing.
+    # does not cover keeps nothing - but a fund abroad, whose rows are Yahoo's.
     from datetime import datetime, timezone
 
     live = _tiingo_fund("XLK")
@@ -264,6 +264,7 @@ def test_a_full_refresh_keeps_the_splits_already_declared(tmp_path, monkeypatch)
     out = tmp_path / "actions.csv"
     out.write_text("ticker,date,kind,factor_step\n"
                    "GONE,2020-01-02,split,1.00000000\n"
+                   "IGLT.L,2026-05-22,dividend,0.02308000\n"
                    "XLK,2025-09-22,dividend,0.00150000\n"
                    "XLK,2025-12-05,split,1.00000000\n")
     monkeypatch.setattr(ca.tiingo, "fetch_daily_history", lambda *a, **k: [])
@@ -275,4 +276,4 @@ def test_a_full_refresh_keeps_the_splits_already_declared(tmp_path, monkeypatch)
 
     assert ca.main(["--out", str(out), "--bars-dir", str(tmp_path / "bars")]) == 0
     rows = [(a.ticker, a.day.isoformat(), a.kind) for a in ca.load_actions(str(out))]
-    assert rows == [("XLK", "2025-12-05", "split")]
+    assert rows == [("IGLT.L", "2026-05-22", "dividend"), ("XLK", "2025-12-05", "split")]

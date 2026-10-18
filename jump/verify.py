@@ -310,7 +310,9 @@ def _eex_ttf(asset: Asset) -> "str | None":
 # exchange's day reports any day, asked to nine (a request a day); Sina's Nikkei
 # future 1,023 hours, about 49 days; Tencent's CSI 300 800 half hours, about 148
 # days, counted as 140; EEX's TTF trades any day, asked to nine (a request a
-# weekday). The keyed
+# weekday). China's 30-year bond fund (2026-10-18): Wallstreetcn's half hours
+# back to its listing, counted as 365, MarketWatch's five trading days
+# (marketwatch.FRAMES). The keyed
 # providers - Tiingo, Twelve Data, SiftingIO - vote within the votes' share of
 # config/provider_limits.csv, on the instruments that share covers (vote_room).
 SOURCES: "tuple[Source, ...]" = (
@@ -328,8 +330,10 @@ SOURCES: "tuple[Source, ...]" = (
     Source("sina", "Sina", 60, "1h", SINA_STAGE2, own_rolls=True),
     Source("sina", "Sina", 60, "1h", SINA_METALS),
     # Its CSI 300 apart from 11:00, the morning session's last half hour before
-    # the lunch break: 0.69 there, 0.98 in the afternoon (the user's, 2026-10-13).
-    Source("sina", "Sina", 365, "1h", sina.CN_INDICES, skip_hours={"000300.SS": (11,)}),
+    # the lunch break: 0.69 there, 0.98 in the afternoon (the user's, 2026-10-13);
+    # China's 30-year bond fund the same way (sina.CN_FUNDS: 0.66 there).
+    Source("sina", "Sina", 365, "1h", {**sina.CN_INDICES, **sina.CN_FUNDS},
+           skip_hours={"000300.SS": (11,), "511090.SS": (11,)}),
     # Its Nikkei 225 future, apart from 15:00 Tokyo, the index's last half hour and
     # closing auction: 0.941 hour by hour with Yahoo's index, 24 of 26 big moves
     # confirmed (2026-08-17 to 10-16), 0.78 in that hour. A continuous future.
@@ -349,6 +353,8 @@ SOURCES: "tuple[Source, ...]" = (
         **marketwatch.INDICES, "LE=F": MARKETWATCH_CATTLE}, skip_hours={"^TWII": (13,)}),
     Source("marketwatch", "MarketWatch", 9, "1h",
            {**marketwatch.FUTURES, **marketwatch.METALS, **marketwatch.SOFTS}, own_rolls=True),
+    # China's 30-year bond fund, five trading days back (marketwatch.FRAMES).
+    Source("marketwatch", "MarketWatch", 5, "1h", marketwatch.CN_FUNDS),
     # Wallstreetcn: the pairs and spot metals, the indices, the LME, its
     # continuous softs and futures.
     Source("wallstreetcn", "Wallstreetcn", 170, "1h",
@@ -357,6 +363,9 @@ SOURCES: "tuple[Source, ...]" = (
     Source("wallstreetcn", "Wallstreetcn", 79, "1h", wallstreetcn.LME),
     Source("wallstreetcn", "Wallstreetcn", 170, "1h",
            {**wallstreetcn.SOFTS, **wallstreetcn.FUTURES}, own_rolls=True),
+    # China's 30-year bond fund in its half hours, back to its listing
+    # (wallstreetcn.FUNDS), counted as 365 days.
+    Source("wallstreetcn", "Wallstreetcn", 365, "30min", wallstreetcn.FUNDS),
     # The FT: its continuous softs and Brent, the contract the store holds for
     # live cattle, the grains and platinum - each across a change of contract
     # an outage (own_rolls) - and five indices. Europe's three end their last
@@ -369,8 +378,11 @@ SOURCES: "tuple[Source, ...]" = (
            {**ft.SOFTS, **ft.FUTURES_CONTINUOUS, "LE=F": _ft_cattle,
             **{t: _ft_future for t in ("ZC=F", "ZW=F", "ZS=F", "PL=F")}}, own_rolls=True,
            skip_hours={"FGBL=F": (8, 9, 10, 11, 12, 13, 14)}),
-    Source("ft", "FT", 30, "1h", ft.INDICES,
-           skip_hours={"^STOXX50E": (17,), "^FTSE": (16,), "^SSMI": (17,)}),
+    # The UK's gilts fund the same, but at its opening hour and its last two
+    # (ft.FUNDS: 0.86, 0.75, 0.17 there).
+    Source("ft", "FT", 30, "1h", {**ft.INDICES, **ft.FUNDS},
+           skip_hours={"^STOXX50E": (17,), "^FTSE": (16,), "^SSMI": (17,),
+                       "IGLT.L": (8, 15, 16)}),
     # Every exchange's trades: another source than the IEX feeds the funds are
     # fetched from, which are one exchange's (the user's, 2026-10-08).
     Source("alpaca_sip", "Alpaca_SIP", (datetime.now(timezone.utc) - alpaca.FIRST).days + 1,
@@ -391,7 +403,9 @@ SOURCES: "tuple[Source, ...]" = (
     Source("twse", "TWSE", 9, "1h", {"^TWII": "TAIEX"}, skip_hours={"^TWII": (13,)}),
     # China's CSI 300 in Tencent's half hours: 0.991 hour by hour, all 24 big moves
     # confirmed (2026-08-17 to 10-16, the whole stored record).
-    Source("tencent", "Tencent", 140, "30min", {"000300.SS": "sh000300"}),
+    # China's 30-year bond fund likewise: 0.985, all 14 big moves (08-21 to 10-16).
+    Source("tencent", "Tencent", 140, "30min",
+           {"000300.SS": "sh000300", "511090.SS": "sh511090"}),
     # TTF on EEX, its own month future, the month the store holds: 0.964, all 5
     # big moves confirmed (2026-09-30 to 10-16). Its contract changes on EEX's
     # days, not ICE Endex's.
@@ -590,6 +604,8 @@ def fetch_verifier(name: str, symbol: str, interval: str, days: float,
         return _frame(_regular(candles) if interval == "30min" else candles)
     if name == "marketwatch":
         candles = marketwatch.fetch_hourly(symbol, session, now)
+    elif name == "wallstreetcn" and interval == "30min":
+        candles = wallstreetcn.fetch_half_hours(symbol, session, now, days=days)
     elif name == "wallstreetcn":
         candles = wallstreetcn.fetch_hourly(symbol, session, now, days=days)
     elif name == "ft":
@@ -608,7 +624,7 @@ def fetch_verifier(name: str, symbol: str, interval: str, days: float,
                                            end=now)
     elif name == "sina" and interval == "30min":
         candles = sina.fetch_us_bars(symbol, session, now)
-    elif name == "sina" and symbol in sina.CN_INDICES.values():
+    elif name == "sina" and symbol in {**sina.CN_INDICES, **sina.CN_FUNDS}.values():
         candles = sina.fetch_cn_bars(symbol, session, now)
     elif name == "sina":
         candles = sina.fetch_bars(symbol, session, now, url=sina.GLOBAL_URL)
@@ -716,7 +732,7 @@ def candidates(asset: Asset, frame: pd.DataFrame, table, now: int,
                 # for the night correction (judge_all).
                 c["night_hour"], c["night_close"] = int(h[i - 1]), float(close[i - 1])
             out.append(c)
-        elif sessions.is_index_template(template):
+        elif sessions.is_exchange_template(template):
             # A stock index's night runs to its first bar's close
             # (jump.returns.split_channels): so is it asked about.
             out.append({"hour": int(h[i]), "check": OPEN, "from_open": False,

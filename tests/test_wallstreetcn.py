@@ -87,3 +87,25 @@ def test_a_pair_is_named_by_its_six_letters_and_usd_krw_is_not_carried():
     assert wallstreetcn.pair_code("EUR/USD") == "EURUSD.OTC"
     assert wallstreetcn.pair_code("USD/CNH") == "USDCNH.OTC"
     assert "KC=F" not in wallstreetcn.SOFTS                 # no coffee
+
+
+def test_a_funds_half_hour_is_stamped_by_its_end_and_filed_by_its_start():
+    # China's 30-year bond fund: each tick the END of its half hour - 10:00 to
+    # 11:30 and 13:30 to 15:00 Shanghai - so the bar ending 10:00 (02:00 UTC)
+    # started 09:30. One still in progress, and one off the half hour, are dropped.
+    lines = [[120.90, 120.95, 120.97, 120.89, ts("2026-10-16 02:00")],
+             [120.95, 120.93, 120.96, 120.92, ts("2026-10-16 02:30")],
+             [120.93, 120.94, 120.95, 120.92, ts("2026-10-16 02:45")],    # off the grid
+             [120.93, 120.99, 121.00, 120.93, ts("2026-10-16 03:00")]]    # not ended yet
+    now = datetime.fromtimestamp(ts("2026-10-16 02:50"), timezone.utc)
+    got = wallstreetcn.parse_half_hours(payload("511090.SS", lines), "511090.SS", now)
+    assert [c.open_time for c in got] == [ts("2026-10-16 01:30"), ts("2026-10-16 02:00")]
+    assert got[0].close_time == ts("2026-10-16 02:00") and got[0].close == 120.95
+
+
+def test_a_funds_half_hours_are_asked_back_to_its_listing_unless_days_are_named():
+    session = _Session(_Answer(200, payload("511090.SS", [])))
+    wallstreetcn.fetch_half_hours("511090.SS", session)
+    wallstreetcn.fetch_half_hours("511090.SS", session, days=5)
+    assert [p["tick_count"] for p in session.asked] == [wallstreetcn.MAX_HALF_HOURS, 5 * 48 + 48]
+    assert {p["period_type"] for p in session.asked} == {1800}

@@ -1,4 +1,4 @@
-"""Sina Finance's bars: the LME's metals, China's 10-year bond future and US funds.
+"""Sina Finance's bars: the LME's metals and US funds.
 
 THE LME METALS - tin (SND), nickel (NID), aluminium (AHD), and copper (CAD) for
 the basket's stage 1 - come from the chart
@@ -68,77 +68,6 @@ def parse(text: str, symbol: str, now: datetime | None = None) -> list[Candle]:
 GLOBAL_URL = "https://gu.sina.cn/ft/api/jsonp.php/var%20t=/GlobalService.getMink"
 
 
-# --- China's government bond futures (CFFEX): the store of the 10-year ---------
-#
-# The half-hour bars behind Sina's domestic futures pages
-# (InnerFuturesNewService.getFewMinLine, type 30) of one contract (T2612), with
-# volume: its last 1,023, about 113 trading days, served for an expired contract
-# too - back to T2306's of 2022-12 (2026-10-18). Each is labelled by its END in
-# Beijing time - 10:00 to 11:30, 13:30 to 15:00, and 15:15, the quarter hour to
-# the close - and stamped by its start: half an hour before, the 15:15 bar from
-# 15:00. The store holds one contract at a time (jump.futures, T=F); each
-# contract's 1,023 bars reach back past the day it became front.
-CFFEX_URL = ("https://stock2.finance.sina.com.cn/futures/api/jsonp.php/var%20t=/"
-             "InnerFuturesNewService.getFewMinLine")
-# The store's ticker -> CFFEX's product.
-CFFEX = {"T=F": "T"}
-MONTH_CODES = "FGHJKMNQUVXZ"
-
-
-def cffex_symbol(contract: str) -> str:
-    """Sina's name for a CFFEX contract the store names TZ26.CFE: T2612."""
-    code = contract.split(".")[0]
-    return f"{code[:-3]}{code[-2:]}{MONTH_CODES.index(code[-3]) + 1:02d}"
-
-
-def parse_cffex(text: str, symbol: str, now: datetime | None = None) -> list[Candle]:
-    """Half-hour candles from one answer, ended bars only, each stamped by its
-    start in UTC."""
-    match = _PAYLOAD.search(text)
-    if match is None:
-        raise ExchangeError(f"{symbol}: Sina's answer has no bars")
-    rows = json.loads(match.group(1)) or []
-    now = now or datetime.now(timezone.utc)
-    out = []
-    for row in rows:
-        try:
-            end = datetime.strptime(row["d"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=BEIJING)
-            o, h, low, c = (float(row[k]) for k in ("o", "h", "l", "c"))
-        except (KeyError, TypeError, ValueError):
-            continue                             # no price that half hour
-        if end > now:
-            continue
-        start = end.replace(minute=0) if (end.hour, end.minute) == (15, 15) \
-            else end - timedelta(minutes=30)
-        out.append(Candle(open_time=int(start.timestamp()), open=o, high=h, low=low, close=c,
-                          volume=max(float(row.get("v") or 0.0), 0.0),
-                          close_time=int(end.timestamp())))
-    return out
-
-
-def fetch_cffex_bars(symbol: str, session: requests.Session | None = None,
-                     now: datetime | None = None) -> list[Candle]:
-    """The last 1,023 half-hour bars of a CFFEX contract (T2612) that have ended."""
-    last: Exception | None = None
-    for attempt in range(MAX_ATTEMPTS):
-        if attempt:
-            time.sleep(BACKOFF_SECONDS * attempt)
-        try:
-            resp = (session or requests).get(CFFEX_URL, params={"symbol": symbol, "type": 30},
-                                             headers=HEADERS, timeout=30)
-        except requests.RequestException as exc:
-            last = Unreachable(f"{symbol}: {exc}")
-            continue
-        if resp.status_code in (429, 500, 502, 503, 504):
-            last = (Unreachable if resp.status_code >= 500 else ExchangeError)(
-                f"{symbol}: Sina answered {resp.status_code}")
-            continue
-        if resp.status_code != 200:
-            raise ExchangeError(f"{symbol}: Sina answered {resp.status_code}")
-        return parse_cffex(resp.text, symbol, now)
-    raise last or ExchangeError(f"{symbol}: no response")
-
-
 # --- China's own indices: the CSI 300, a voter for the basket's stage 1 --------
 #
 # The A-share market's hourly bars (CN_MarketData.getKLineData, scale 60): the
@@ -150,6 +79,10 @@ def fetch_cffex_bars(symbol: str, session: requests.Session | None = None,
 # apart at the median.
 CN_URL = "https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData"
 CN_INDICES = {"000300.SS": "sh000300"}
+# China's 30-year government bond fund, on the same grid: against Yahoo's half
+# hours folded, 2026-08-21 to 10-16, hourly moves 0.996 apart from 11:00 (its bar
+# holds the lunch break: 0.66 there), all 3 big moves the same way.
+CN_FUNDS = {"511090.SS": "sh511090"}
 
 
 def parse_cn(rows: list, symbol: str, now: datetime | None = None) -> list[Candle]:
@@ -171,7 +104,8 @@ def parse_cn(rows: list, symbol: str, now: datetime | None = None) -> list[Candl
 
 def fetch_cn_bars(symbol: str, session: requests.Session | None = None,
                   now: datetime | None = None) -> list[Candle]:
-    """The last 1,023 hourly bars of a Chinese index (sh000300) that have ended."""
+    """The last 1,023 hourly bars of a Chinese index (sh000300) or fund
+    (sh511090) that have ended."""
     last: Exception | None = None
     for attempt in range(MAX_ATTEMPTS):
         if attempt:

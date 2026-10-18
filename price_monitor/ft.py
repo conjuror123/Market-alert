@@ -1,5 +1,5 @@
 """The FT's hourly bars: a voter on live cattle, coffee, cocoa, sugar, Brent, the
-grains, platinum, the Bund and five stock indices abroad.
+grains, platinum, the Bund, the UK's gilts fund and five stock indices abroad.
 
 THE ENDPOINT is the one the FT's markets pages chart from (markets.ft.com's
 chartapi/series): an instrument's hourly bars by its xid, the last
@@ -53,6 +53,12 @@ SOFTS = {"KC=F": "KC.1", "CC=F": "1055540", "SB=F": "1046731"}
 # 0.80, the Hang Seng 0.86, the ASX 200 0.06) and are left out.
 INDICES = {"^STOXX50E": "567938", "^FTSE": "572009", "^SSMI": "567786",
            "^BVSP": "570637", "^MXX": "584510"}
+# The UK's gilts by iShares' Core UK Gilts fund on the LSE (IGLT:LSE:GBP), by xid:
+# against Yahoo's half hours folded, 2026-09-15 to 10-16, hourly moves 0.935 at
+# 09:00-14:00 London, all 3 big moves the same way; its opening hour (0.86) and its
+# last two (0.75, 0.17: the 16:30 closing auction is Yahoo's) are not asked about
+# (jump.verify).
+FUNDS = {"IGLT.L": "6141822"}
 MAX_DAYS = 24
 HOUR = 3600
 MAX_ATTEMPTS = 3

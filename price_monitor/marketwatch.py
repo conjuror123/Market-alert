@@ -1,4 +1,4 @@
-"""MarketWatch's hourly bars: the store of the Bund, the gilt and TTF (STORE), and a
+"""MarketWatch's hourly bars: the store of the Bund and TTF (STORE), and a
 voter on the currency pairs, the funds, the futures, gold and silver, and the stock
 indices abroad.
 
@@ -119,15 +119,13 @@ FUTURES = {
     "ZC=F": "FUTURE/US/XCBT/C00", "ZW=F": "FUTURE/US/XCBT/W00", "ZS=F": "FUTURE/US/XCBT/S00",
     "SB=F": "FUTURE/US/IFUS/SB00", "PL=F": "FUTURE/US/XNYM/PL00",
 }
-# What MarketWatch serves the store (jump.backfill), by ticker: the Bund's and the
-# gilt's single contract - the month and year the store holds appended
-# (FGBLZ26: jump.futures.front_contract) -, TTF's continuous series (ICE Endex
-# names no single month here). About nine trading days back, hourly, without
-# volume (2026-10-13: the Bund 08:00-17:00 Frankfurt, the gilt 01:00-20:00 London,
-# TTF 08:00-17:00 Amsterdam).
-STORE = {"FGBL=F": "FUTURE/DE/XEUR/FGBL", "RLI=F": "FUTURE/UK/IFEU/RLI",
-         "TFM=F": "FUTURE/UK/NDEX/TFMI00"}
-CONTRACTS = ("FGBL=F", "RLI=F")
+# What MarketWatch serves the store (jump.backfill), by ticker: the Bund's single
+# contract - the month and year the store holds appended (FGBLZ26:
+# jump.futures.front_contract) -, TTF's continuous series (ICE Endex names no
+# single month here). About nine trading days back, hourly, without volume
+# (2026-10-13: the Bund 08:00-17:00 Frankfurt, TTF 08:00-17:00 Amsterdam).
+STORE = {"FGBL=F": "FUTURE/DE/XEUR/FGBL", "TFM=F": "FUTURE/UK/NDEX/TFMI00"}
+CONTRACTS = ("FGBL=F",)
 
 
 def store_key(ticker: str, contract: "str | None" = None) -> str:
@@ -138,6 +136,11 @@ def store_key(ticker: str, contract: "str | None" = None) -> str:
     root = ticker[:-2]
     return STORE[ticker] + contract.split(".")[0][len(root):]
 
+
+# China's 30-year government bond fund, five trading days back (FRAMES): against
+# Yahoo's half hours folded, 2026-10-12 to 16, hourly moves 0.988, both big moves
+# the same way. Its London gilt funds are not voters: 0.45-0.63 against Yahoo's.
+CN_FUNDS = {"511090.SS": "FUND/CN/XSHG/511090"}
 
 # Spot gold and silver, voted on by COMEX's continuous series.
 METALS = {"XAU/USD": "FUTURE/US/XNYM/GC00", "XAG/USD": "FUTURE/US/XNYM/SI00"}

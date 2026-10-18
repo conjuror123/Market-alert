@@ -141,12 +141,36 @@ def test_every_instrument_is_asked_of_every_source_that_moves_with_it_but_its_ow
     month = "20" + held[4:6] + "%02d" % (futures.MONTH_CODES.index(held[3]) + 1)
     assert _asked(basket["TFM=F"]) == [("eex", month, "1h")]
     assert verify.sources_for(basket["TFM=F"])[0].own_rolls
-    # No instrument has the same provider twice, and every one has a source but
-    # the gilt and China's 10-year, for which none was found (2026-10-17, 10-18).
+    # No instrument has the same provider twice, and every one has a source:
+    # the gilt and China's bonds as funds other vendors carry (2026-10-18).
     for asset in basket.values():
         names = [n for n, _, _ in _asked(asset)]
         assert len(names) == len(set(names)), asset.ticker
-        assert bool(names) != (asset.ticker in ("RLI=F", "T=F")), asset.ticker
+        assert names, asset.ticker
+
+
+def test_the_bond_funds_abroad_are_voted_by_other_vendors_of_the_same_fund(basket):
+    # China's 30-year fund by four, each moving with Yahoo's half hours at
+    # 0.985-0.998 (2026-08-21 to 10-16); the UK's gilts fund by the FT alone.
+    assert _asked(basket["511090.SS"]) == [
+        ("sina", "sh511090", "1h"), ("marketwatch", "FUND/CN/XSHG/511090", "1h"),
+        ("wallstreetcn", "511090.SS", "30min"), ("tencent", "sh511090", "30min")]
+    assert _asked(basket["IGLT.L"]) == [("ft", "6141822", "1h")]
+
+
+def test_the_funds_abroad_are_not_asked_about_the_hours_their_voters_serve_otherwise(basket):
+    # Sina's China bar of 11:00 holds the lunch break; the FT's London fund's
+    # first hour and last two (the 16:30 auction is Yahoo's) are another grid's.
+    def move(text):
+        return {"hour": ts(text), "prev_hour": ts(text) - HOUR, "check": "close"}
+    china, gilts = basket["511090.SS"], basket["IGLT.L"]
+    sina = next(s for s in verify.sources_for(china) if s.name == "sina")
+    assert sina.skips(china, move("2026-10-16 03:00"))                # 11:00 Shanghai
+    assert not sina.skips(china, move("2026-10-16 05:00"))
+    ft_ = verify.sources_for(gilts)[0]
+    for hour in ("2026-10-16 07:00", "2026-10-16 14:00", "2026-10-16 15:00"):   # 08, 15, 16 BST
+        assert ft_.skips(gilts, move(hour)), hour
+    assert not ft_.skips(gilts, move("2026-10-16 08:00"))             # 09:00 London
 
 
 def test_each_recount_runs_while_its_closest_reaching_source_serves_the_hour(basket):

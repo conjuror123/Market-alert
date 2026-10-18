@@ -101,22 +101,22 @@ FIRST_MONTH = {
     "XAUUSD": (2003, 5), "XAGUSD": (2003, 5),
 }
 
-# Stage 2's futures and the Bund and gilt as Dukascopy's CFDs, for their history
+# Stage 2's futures and the Bund as Dukascopy's CFDs, for their history
 # only (imported once on 2026-10-12 and -13, docs/decisions.md): one contract at a
-# time, each switch once (the Bund's 120.9 points, the gilt's 83.9). Each is
+# time, each switch once (the Bund's 120.9 points). Each is
 # the future's own price in thousandths - Brent 99.8 dollars a barrel, the
 # 30-year bond 107.3 points, soybeans 1,311 cents a bushel, platinum 1,700
 # dollars an ounce in 2026-09, Yahoo's contracts' to 0.01%. Its SUGAR.CMD/USD is
 # London's white sugar (521 dollars a tonne), not New York's No. 11; it carries
 # no corn, wheat, 2- or 10-year note.
 CFDS = {"BZ=F": "BRENTCMDUSD", "ZB=F": "USTBONDTRUSD", "ZS=F": "SOYBEANCMDUSX",
-        "PL=F": "XPTCMDUSD", "FGBL=F": "BUNDTREUR", "RLI=F": "UKGILTTRGBP"}
+        "PL=F": "XPTCMDUSD", "FGBL=F": "BUNDTREUR"}
 # Probed 2026-10-12: Brent answered for 2011-01 (2010-01: none), the bond and
-# soybeans for 2018-01 (2017-07: none), platinum from 2021-11; the Bund and the
-# gilt from 2018-05 (2018-04: no trades, 2026-10-13).
+# soybeans for 2018-01 (2017-07: none), platinum from 2021-11; the Bund from
+# 2018-05 (2018-04: no trades, 2026-10-13).
 FIRST_MONTH.update({"BRENTCMDUSD": (2011, 1), "USTBONDTRUSD": (2018, 1),
                     "SOYBEANCMDUSX": (2018, 1), "XPTCMDUSD": (2021, 11),
-                    "BUNDTREUR": (2018, 5), "UKGILTTRGBP": (2018, 5)})
+                    "BUNDTREUR": (2018, 5)})
 
 RECORD = struct.Struct(">iiiiif")   # time, open, close, low, high, volume
 RECORD_SIZE = RECORD.size
