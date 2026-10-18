@@ -207,3 +207,13 @@ def test_a_future_without_volume_has_no_thin_bars():
     frame = _frame([120.0] * 61).assign(volume=0.0)
     assert (quality.invalid_reasons(replace(bund, has_volume=False), frame) == "").all()
     assert (quality.invalid_reasons(bund, frame) == "volume too thin to be a trade").all()
+
+
+def test_chinas_10_year_trades_to_the_second_friday_and_rolls_a_week_before_its_month():
+    # CFFEX's rule; the volume passed to the next contract 4-7 business days
+    # before the delivery month (2026-02-24, 05-26, 08-25 on Sina's daily volumes).
+    assert futures.last_trading_days("T=F", 2026, 2026) == [
+        date(2026, 3, 13), date(2026, 6, 12), date(2026, 9, 11), date(2026, 12, 11)]
+    assert futures.front_contract("T=F", date(2026, 8, 24))[0] == "TU26.CFE"
+    assert futures.front_contract("T=F", date(2026, 8, 25)) == ("TZ26.CFE", date(2026, 8, 25))
+    assert futures.front_contract("T=F", date(2026, 11, 24))[0] == "TH27.CFE"

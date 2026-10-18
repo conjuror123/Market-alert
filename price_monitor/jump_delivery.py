@@ -209,26 +209,6 @@ def _labels() -> dict[str, str]:
         return {}
 
 
-_UNITS: "dict[str, str] | None" = None
-
-
-def move_text(asset_id: str, move: float) -> str:
-    """A move as a message gives it: a price's in per cent (`+2.03%`), a
-    yield's in basis points (`+9.0 bp`, jump.basket.Asset.unit)."""
-    global _UNITS
-    if _UNITS is None:
-        try:
-            from jump.basket import load_basket
-
-            _UNITS = {a.asset_id: a.unit for a in load_basket().instruments if a.unit}
-        except Exception as exc:                 # pragma: no cover - defensive
-            log.warning("Could not read the basket's units: %s", exc)
-            _UNITS = {}
-    if _UNITS.get(asset_id) == "bp":
-        return f"{move * 100:+.1f} bp"
-    return f"{move * 100:+.2f}%"
-
-
 def _calendar(cfg: Config) -> "economic_calendar.Timeline | None":
     """The economic calendar archive in time order, or None if it cannot be read.
 
@@ -320,7 +300,7 @@ def describe(event: dict, labels: dict[str, str]) -> str:
     # name that is the same everywhere - where it is not (Yahoo's ^N225), the
     # index's own name, which is (jump.basket.Asset.display). The move shares that line, because it is
     # the first thing anyone wants, and its size in σ ends it.
-    shown = f" {move_text(asset_id, move)}" if move is not None else ""
+    shown = f" {move * 100:+.2f}%" if move is not None else ""
     if shown and _overnight(event):
         # The gap is a price move from the last close to the first print, and
         # it is said as one - never as the hour it was scored alongside.
@@ -827,7 +807,7 @@ def ping_line(event: dict, labels: dict[str, str]) -> str:
     emoji = TIER_EMOJI.get(tier, "⚪")
     asset_id = str(event.get("asset_id", ""))
     move = _clean(event.get("r"))
-    shown = f" {move_text(asset_id, move)}" if move is not None else ""
+    shown = f" {move * 100:+.2f}%" if move is not None else ""
     ticker = _ticker(asset_id)
     label = labels.get(asset_id) or ticker
     return (f"{emoji} <b>{_escape(ticker)}</b> · {_escape(label)}"

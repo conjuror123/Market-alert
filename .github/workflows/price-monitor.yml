@@ -97,6 +97,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: tools/hot_bars.sh restore
 
+      # One-off, removed once the archive is saved without it: Japan's 10-year
+      # yield left the basket (2026-10-17) and its October came back with the
+      # archive; deleted here, the save below no longer holds it.
+      - name: Drop the JGB's open month
+        id: drop_jgb
+        run: rm -rf data/jump/bars/marketwatch_JP10Y
+
       # Three steps feed delivery: backfill brings the bars up to date,
       # pipeline turns them into per-asset metrics (the move and the gap), and
       # jumps scores every instrument's whole history and writes the events.

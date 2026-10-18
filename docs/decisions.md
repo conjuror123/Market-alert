@@ -102,7 +102,7 @@ moves dozens at once (91 events in the FOMC hour of 2024-12-18), and Telegram ta
 twenty messages a minute into a channel.
 
 **Size in σ, word as the colour**: a percentage means nothing where short Treasuries move
-0.024% in a usual hour and a coin several per cent. The JGB is a yield, said in basis points.
+0.024% in a usual hour and a coin several per cent. Every move is a price's, in per cent.
 
 **Names**: a pair by its other currency (`USD/JPY · Yen`); an index abroad by its own name
 and place (`Nikkei 225 · Japan`); anything else by its ticker.
@@ -127,14 +127,25 @@ soybeans, sugar and platinum for BNO, SHY, IEF, TLT, CORN, WEAT, SOYB, CANE and 
 since 2026-10-13. The rates block is kept as it measures (the user's, 2026-10-13: "it is
 ok"): 31 pushes a year as futures, mostly a data release's 08:00 ET hour and FOMC's 14:00.
 
-**The Bund, the long gilt, TTF and Japan's 10-year yield join from MarketWatch** (the
-user's, 2026-10-13: "add everything good, if something missing - we could try and find
-later"): the only free live source of each, about nine trading days back, without volume,
-so no thin-bar rule. The Bund and the gilt one contract at a time, their history Dukascopy's
-("The stored history"); TTF as MarketWatch's continuous series; the JGB as its yield, in
-basis points (`unit: bp`), as no source carries the future. TTF and the JGB have no history
-anywhere, so they score young until about 2027-04. Wallstreetcn's JGB yield (104 days, 0.70
-hour by hour against MarketWatch's) was not spliced.
+**The Bund, the long gilt and TTF join from MarketWatch** (the user's, 2026-10-13: "add
+everything good, if something missing - we could try and find later"): the only free live
+source of each, about nine trading days back, without volume, so no thin-bar rule. The Bund
+and the gilt one contract at a time, their history Dukascopy's ("The stored history"); TTF
+as MarketWatch's continuous series, its history EEX's (2026-10-18).
+
+**Every instrument is a price, scored and said in per cent** (the user's, 2026-10-17: no
+basis points). Japan's 10-year yield, scored in basis points from 2026-10-13, left the basket
+with its bars: no free source serves the JGB future hour by hour (Barchart refuses readers,
+Databento is paid, SGX gives daily settlements, JPX's quotes are QUICK's and not to be passed
+on, Onvista refuses), and the Tokyo JGB funds (2510.T, 2561.T) trade about six hours a day and
+moved with the yield at 0.35-0.46, inverted, confirming none of its 17 big moves (2026-09-30
+to 10-16). IG's CFD on the future needs a live account.
+
+**China's 10-year government bond future in the JGB's place** (the user's, 2026-10-18): CFFEX's
+T, a price for Asia's rates, liquid (about 108,000 contracts a day), from Sina one contract at
+a time with its history from 2022. No source votes on it yet. Its market keeps Shanghai's
+days to 15:15 (`cffex`), and its first price is a trade, so its night ends at the open, as a
+future's, not at its first hour's close, as a stock index's (`sessions.is_index_template`).
 
 ---
 
@@ -169,6 +180,11 @@ moves (`jump/futures.py`): live cattle twelve business days before its delivery 
 to its last day it sat on 3,097 contracts against December's 18,822), stage 2's on the day
 Yahoo's own series came onto the contract held now. The night across a roll is not scored,
 and a bar under 5% of usual volume is a quote, so a hole.
+
+**China's 10-year is Sina's half hours of the contract held**: its volume passed to the next
+contract 4-7 business days before the delivery month in the last five rolls (2025-08-21 to
+2026-08-25), so it rolls on the fifth (`jump/futures.py`). Its last quarter hour, 15:00-15:15,
+trades about a hundredth of a half hour's volume and is mostly a thin bar, a hole.
 
 **The LME's metals are the LME's own, from Sina**: the right instrument with a short record
 (from 2026-04-22) over a longer record of another (Shanghai tin, Kitco, COMEX aluminium).
@@ -251,6 +267,20 @@ vendors is agreement, not a copy.
 - **A source with its own contract months is not asked across its own change of contract**:
   a step of 50 bp or more in the session's median offset, which a one-hour bad print
   cannot make.
+- **More voters for the thin ones** (2026-10-17, the same bar, measured from here to the
+  last stored bar of 10-16): EEX's own TTF month future, the month the store holds, on
+  TTF (0.964 from 09-30, 5 of 5 big moves; its first voter); the FT's Sugar No. 11 (0.942
+  from 09-15, 5 of 5); Tencent's half hours of the CSI 300 (0.991 from 08-17, the whole
+  record, 24 of 24); Sina's Nikkei future but at 15:00 Tokyo (0.941, 24 of 26; 0.78 in that
+  hour, the index's closing auction); and the funds of the Treasury futures' own bonds in
+  Sina's half hours, SHY, IEF and TLT on the 2-, 10- and 30-year (0.915, 0.984, 0.977 from
+  06-26; 59 of 62, 52 of 52, 45 of 45), in the funds' session only.
+- **Prices vote, not yields** (the user's, 2026-10-17): Wallstreetcn's 10-year yields moved
+  with the Bund, the gilt and the Treasuries at 0.97-0.99, inverted and scaled by duration,
+  and are not used.
+- **Dukascopy is history only** (the user's, 2026-10-17: files, not an API): its CFDs on the
+  gilt, the Bund and the 30-year moved with the store at 0.99 and served each hour within a
+  minute, and are not asked.
 
 **The keyed providers vote within a share of their allowance** (the user's, 2026-10-12),
 enforced from `config/provider_limits.csv` (`usage.votes_left`): past it, the provider is an
@@ -278,11 +308,18 @@ Hourly-move correlation with the store, from the source audit (2026-10-13):
 | softs, cattle, stage 2's futures | MarketWatch's continuous series; Sina, Wallstreetcn and the FT where they carry it; SiftingIO's platinum | 0.92–1.000 |
 | coins | Coinbase, Kraken, Bitstamp, Bitfinex, Alpaca, Yahoo | 0.997–1.000 |
 | LME metals | Wallstreetcn; copper also COMEX's | 0.93–0.99 |
-| indices abroad | MarketWatch (15), Wallstreetcn (3), the FT (5), Naver, the Taiwan exchange, Sina | 0.92–1.00 without the skipped hours |
+| indices abroad | MarketWatch (15), Wallstreetcn (3), the FT (5), Naver, the Taiwan exchange, Sina, Tencent, Sina's Nikkei future | 0.92–1.00 without the skipped hours |
+| the Treasury futures | their bonds' funds SHY, IEF, TLT (Sina), 2026-10-17 | 0.915–0.984 |
 | the Bund | the FT's S&P Euro-Bund index | 0.95 |
+| TTF | EEX's own month future, 2026-10-17 | 0.964 |
 
 Under the bar and not voters: Wallstreetcn's and Sina's grains (0.11–0.85), the FT's
-Treasuries (0.89), Wallstreetcn's KOSPI (another grid), the FT's Top 40 and Nikkei.
+Treasuries (0.89), Wallstreetcn's KOSPI (another grid), the FT's Top 40 and Nikkei. And
+2026-10-17: Sina's Hang Seng future (0.81–0.88, its lunch hours left out), Wallstreetcn's
+(0.67), its ASX 200 (0.86), Nikkei and sugar (too few bars) and CSI 300 (a half-hour grid);
+the gilt funds IGLT (7 of 11 big moves) and VGOV (0.88), the Bund's Xetra funds (too few
+trades); WisdomTree's TTF fund (0.63–0.67), Yahoo's TTF=F (0.67, most hours missing); the
+FT's bars on the ASX's own id (0.36–0.65).
 
 ---
 
@@ -317,6 +354,14 @@ Done before then, and kept:
   does not explain (the Bundesbank's yield −0.97 with the CFD, the Bank of England's −0.94).
   Found in 29 of the Bund's 34 quarters and 25 of the gilt's, 35–201 bp; MarketWatch's
   continuous settlements, tried first, missed five of the Bund's: they rolled the same day.
+- **TTF's history is EEX's own month future from 2022** (the user's, 2026-10-18: imported on
+  the 140 hours the store held, not the usual 200): the month the store held each day, its
+  trades folded into hours, an hour of fewer than five trades left out. Against the store's
+  hours from 2026-09-29: hourly moves 0.974, 4.8 bp apart at the median. 2021's month
+  futures traded 31-59 times a day and are not taken; none answered before.
+- **China's 10-year's history is Sina's**: each contract's half hours over the sessions it
+  was front, from 2022-01-04 - 6,895 hours of 20 contracts to 2026-09-30 (October from the
+  hourly fetch), each reaching back to its first front session (2026-10-18).
 
 ---
 
@@ -375,6 +420,10 @@ Measured or weighed, and not to be raised again.
 | api.binance.com | HTTP 451 from US runners; the market-data mirror is used |
 | FXCM history | spliced blind; Dukascopy gates on a measured overlap |
 | Interactive Brokers, paid Barchart | a funded account or about $500 a month |
+| Onvista, ICE, JPX's futures quotes | Onvista's bars refused citing its terms, ICE behind Cloudflare, JPX's QUICK data not to be passed on; not bypassed |
+| İş Yatırım, CNN Türk (the BIST 100) | their chart data under paths their robots.txt disallows |
+| SGX, Eurex | SGX's JGB and Nikkei futures daily only (intraday 403); Eurex publishes no intraday prices |
+| IG's CFDs (JGB future, gilt, Bund, LME, Asian indices) | a live account |
 
 ---
 
@@ -384,11 +433,12 @@ Known and left alone on purpose.
 
 **Dates to check** (every hourly run green since the merge of 2026-10-13); no work unless one
 goes wrong:
-- 10-29, TTF's first change of month in the store (below);
+- 10-29, TTF's first change of month in the store (below), and EEX's voter asked the next
+  month from that day;
 - 10-31 to 11-01, the first month end with 62 instruments: October settles from the open
   months' archive into git;
-- 11-20, the gilt's roll to RLIH27, and 12-04, the Bund's to FGBLH27 (MarketWatch serves
-  both, 14 and 22 hourly bars on 10-17).
+- 11-20, the gilt's roll to RLIH27; 11-24, China's 10-year's to T2703; 12-04, the Bund's to
+  FGBLH27 (MarketWatch serves both, 14 and 22 hourly bars on 10-17).
 
 **TTF's switch day.** MarketWatch's daily TTF is Yahoo's TTF=F to the cent, but on the last
 trading day it is already the next month's (2024–26, the spread's sign as the season makes
@@ -402,9 +452,11 @@ trading day (next 2027-08-30). To act: mark that hour, or that Friday.
 5,000–6,500 a month of 10,000, far from the 80% warning either way. To act: read the account
 page about 11-06 and count its month.
 
-**No voter for the gilt, TTF and the JGB**, and 15 instruments have one. Tried: the FT's gilt
-candidates (0.15–0.23), NYMEX's TTF look-alike (0.77–0.80), Wallstreetcn's JGB yield (0.68),
-the TSE bond funds (opposite, −0.32 to −0.64). To act: a source that moves with them.
+**No voter for the gilt and China's 10-year**, and 8 instruments have one: the LME's tin, nickel and aluminium,
+the Bund, the BIST 100, the ASX 200, the Hang Seng and the JSE Top 40. Tried: the FT's gilt
+candidates (0.15–0.23), the gilt funds, and the sources under the bar or refused ("The
+sources' vote", "Rejected"). To act: a source that moves with them. Naver's minute charts of
+the world indices answered empty on a Saturday (2026-10-17): one look on a weekday.
 
 **KOSPI's and the JSE Top 40's closing auctions** (15:00–15:30 Seoul, 16:50–17:00
 Johannesburg) are not in Yahoo's bars: their close is the bar before, and the auction falls
@@ -430,4 +482,4 @@ the FT): a changed shape raises and the health chat names the provider. To act: 
 | LME tin, nickel, aluminium, copper | 2026-04-22 | Sina (last 1,023 bars), Wallstreetcn (about 170 days; taken), Eastmoney |
 | 12 stock indices abroad | 2024-10 | Yahoo (two years of hourly bars) |
 | CSI 300, BIST 100, TSX, IPC | 2026-08 | Yahoo (its older hourly bars failed the import gate) |
-| TTF, the JGB | 2026-09-29/30 | none hourly |
+| TTF | 2022-01 | EEX (its month futures traded 31-59 times a day in 2021, none answered before) |

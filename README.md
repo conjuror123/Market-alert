@@ -1,8 +1,8 @@
 # Jump
 
 An hourly Telegram bot that watches 62 market instruments (stock indices in their own
-markets' hours, US funds, futures, Japan's 10-year yield, spot gold and silver, LME
-metals, FX pairs, coins) and writes when one moves unusually **for itself**.
+markets' hours, US funds, futures, spot gold and silver, LME metals, FX pairs, coins)
+and writes when one moves unusually **for itself**.
 
 A 1.5% hour is nothing for a coin and enormous for short Treasuries, so no shared
 percentage works. Each move is measured against the instrument's own last half-year,

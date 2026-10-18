@@ -124,7 +124,8 @@ import numpy as np
 import pandas as pd
 import requests
 
-from price_monitor import alpaca, coinbase, ft, kraken, marketwatch, sina, wallstreetcn
+from price_monitor import (alpaca, coinbase, eex, ft, kraken, marketwatch, sina, tencent,
+                           wallstreetcn)
 from price_monitor.models import UNANSWERED_IN_A_ROW, Unreachable
 from jump import atomic, bars, sessions
 from jump.basket import Asset
@@ -276,6 +277,21 @@ def _ft_future(asset: Asset) -> "str | None":
 # Its grains (C, W, S: 0.78-0.85) are left out; it holds no Treasuries or sugar.
 SINA_STAGE2 = {"BZ=F": "OIL", "PL=F": "XPT"}
 
+# The Treasury futures' own bonds' funds, in Sina's half hours (its fund bars):
+# the 1-3, 7-10 and 20+ year funds beside the 2-, 10- and 30-year futures, a price
+# for a price. Against Yahoo's contracts, 2026-06-26 to 10-16: 0.915, 0.984 and
+# 0.977 hour by hour, 59 of 62, 52 of 52 and 45 of 45 big moves confirmed. In the
+# funds' session only: the futures' night is MarketWatch's to vote.
+SINA_TREASURY_FUNDS = {"ZT=F": "SHY", "ZN=F": "IEF", "ZB=F": "TLT"}
+
+
+def _eex_ttf(asset: Asset) -> "str | None":
+    """EEX's delivery month of the TTF contract the store holds today
+    (TFMX26: 202611)."""
+    from jump import futures
+    held = futures.front_contract(asset.ticker, datetime.now(timezone.utc).date())
+    return eex.maturity_for(held[0]) if held else None
+
 
 # Every source, and what it calls each instrument it votes on. Each was held to
 # the same bar (the source audit, 2026-10-13, docs/decisions.md "Every source on
@@ -291,7 +307,10 @@ SINA_STAGE2 = {"BZ=F": "OIL", "PL=F": "XPT"}
 # Alpaca's coins page back years, counted as 365; Alpaca's consolidated tape
 # (SIP) from 2016-01-01, to fifteen minutes back on the free plan
 # (price_monitor.alpaca); Naver's KOSPI about 12 days, counted as 10; the Taiwan
-# exchange's day reports any day, asked to nine (a request a day). The keyed
+# exchange's day reports any day, asked to nine (a request a day); Sina's Nikkei
+# future 1,023 hours, about 49 days; Tencent's CSI 300 800 half hours, about 148
+# days, counted as 140; EEX's TTF trades any day, asked to nine (a request a
+# weekday). The keyed
 # providers - Tiingo, Twelve Data, SiftingIO - vote within the votes' share of
 # config/provider_limits.csv, on the instruments that share covers (vote_room).
 SOURCES: "tuple[Source, ...]" = (
@@ -311,6 +330,14 @@ SOURCES: "tuple[Source, ...]" = (
     # Its CSI 300 apart from 11:00, the morning session's last half hour before
     # the lunch break: 0.69 there, 0.98 in the afternoon (the user's, 2026-10-13).
     Source("sina", "Sina", 365, "1h", sina.CN_INDICES, skip_hours={"000300.SS": (11,)}),
+    # Its Nikkei 225 future, apart from 15:00 Tokyo, the index's last half hour and
+    # closing auction: 0.941 hour by hour with Yahoo's index, 24 of 26 big moves
+    # confirmed (2026-08-17 to 10-16), 0.78 in that hour. A continuous future.
+    Source("sina", "Sina", 49, "1h", {"^N225": "NK"}, own_rolls=True,
+           skip_hours={"^N225": (15,)}),
+    # The Treasury futures' funds (SINA_TREASURY_FUNDS), beside a future the
+    # store rolls.
+    Source("sina", "Sina", 77, "30min", SINA_TREASURY_FUNDS, own_rolls=True),
     # MarketWatch: the pairs, the funds by their listing exchange, the indices,
     # live cattle's continuous contract; the futures' continuous series. Its
     # TAIEX apart from 13:00, as the exchange's: 1.00 at 10:00-12:00 Taipei, 0.46
@@ -362,6 +389,13 @@ SOURCES: "tuple[Source, ...]" = (
     # (the user's, 2026-10-13).
     Source("naver", "Naver", 10, "1h", {"^KS11": "KOSPI"}),
     Source("twse", "TWSE", 9, "1h", {"^TWII": "TAIEX"}, skip_hours={"^TWII": (13,)}),
+    # China's CSI 300 in Tencent's half hours: 0.991 hour by hour, all 24 big moves
+    # confirmed (2026-08-17 to 10-16, the whole stored record).
+    Source("tencent", "Tencent", 140, "30min", {"000300.SS": "sh000300"}),
+    # TTF on EEX, its own month future, the month the store holds: 0.964, all 5
+    # big moves confirmed (2026-09-30 to 10-16). Its contract changes on EEX's
+    # days, not ICE Endex's.
+    Source("eex", "EEX", 9, "1h", {"TFM=F": _eex_ttf}, own_rolls=True),
     # The keyed providers, within the votes' share of their allowance.
     Source("tiingo", "Tiingo", 365, "1h", {t: t for t in PAIRS + ("XAU/USD", "XAG/USD")},
            keys=(KEYS["tiingo"],)),
@@ -564,6 +598,10 @@ def fetch_verifier(name: str, symbol: str, interval: str, days: float,
         candles = naver.fetch_hourly(symbol, session, now, days=days)
     elif name == "twse":
         candles = twse.fetch_hourly(session, now, days=days)
+    elif name == "tencent":
+        candles = tencent.fetch_bars(symbol, session, now)
+    elif name == "eex":
+        candles = eex.fetch_hourly(symbol, session, now, days=days)
     elif name == "yahoo":
         days = min(days, float(yahoo.MAX_LOOKBACK_DAYS[interval]))
         candles = yahoo.fetch_full_history(symbol, interval, days=days, session=session,
@@ -678,7 +716,7 @@ def candidates(asset: Asset, frame: pd.DataFrame, table, now: int,
                 # for the night correction (judge_all).
                 c["night_hour"], c["night_close"] = int(h[i - 1]), float(close[i - 1])
             out.append(c)
-        elif sessions.is_exchange_template(template):
+        elif sessions.is_index_template(template):
             # A stock index's night runs to its first bar's close
             # (jump.returns.split_channels): so is it asked about.
             out.append({"hour": int(h[i]), "check": OPEN, "from_open": False,

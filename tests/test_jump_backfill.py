@@ -2142,6 +2142,161 @@ def test_wallstreetcn_off_the_stores_level_writes_nothing(tmp_path, monkeypatch)
     assert backfill.deepen_from_wallstreetcn(asset(), path, None)["skipped"] == "not an LME metal"
 
 
+# --- EEX: TTF's history below what is stored (deepen_from_eex) --------------------
+
+def _ttf():
+    return Asset(ticker="TFM=F", source="marketwatch", block="energy", has_volume=False,
+                 tick_size=0.005, session_template="ice_endex", fetch_interval="1h",
+                 label="Dutch TTF natural gas (ICE Endex)", in_basket=True)
+
+
+def _ttf_price(t):
+    import math
+    return round(80 + 3 * math.sin(t / 7200.0) + (t % 3600) / 360000.0, 3)
+
+
+def _ttf_trades(day, thin_hour=None):
+    """A day's trades, every ten minutes 07:00-15:50 UTC (inside 08:00-18:00
+    Amsterdam all year), two in `thin_hour`."""
+    out = []
+    for hh in range(7, 16):
+        for k in range(2 if hh == thin_hour else 6):
+            t = int(datetime(day.year, day.month, day.day, hh, k * 10,
+                             tzinfo=timezone.utc).timestamp())
+            out.append((t, _ttf_price(t)))
+    return out
+
+
+def _ttf_store(path, first, last):
+    from price_monitor import eex
+    trades = []
+    day = first
+    while day <= last:
+        if day.weekday() < 5:
+            trades += _ttf_trades(day)
+        day += timedelta(days=1)
+    bars.merge(path, bars.to_hourly(bars.candles_to_frame(eex.hourly(trades))))
+
+
+def test_eex_fills_ttf_below_the_store_from_the_month_it_held_each_day(tmp_path, monkeypatch):
+    # The store holds 2026-09-29 on (MarketWatch's): EEX is asked for October's
+    # month before that day and November's from it (the store's roll), its thin
+    # hour is left out, and nothing at or above the store's first bar is written.
+    from jump import backfill
+    path = str(tmp_path / "marketwatch_TFM_F")
+    _ttf_store(path, date(2026, 9, 29), date(2026, 10, 16))
+    before = bars.load(path)
+    asked = []
+
+    def fetch_day(maturity, day, session=None):
+        asked.append((day, maturity))
+        d = date.fromisoformat(day)
+        return _ttf_trades(d, thin_hour=10 if d == date(2026, 9, 15) else None)
+
+    monkeypatch.setattr(backfill.eex, "fetch_day", fetch_day)
+    monkeypatch.setattr(backfill, "EEX_DELAY_SECONDS", 0)
+    now = datetime(2026, 10, 17, 12, tzinfo=timezone.utc)
+    out = backfill.deepen_from_eex(_ttf(), path, None, since=date(2026, 9, 1), now=now)
+
+    assert out["skipped"] is None and out["check"]["ok"] and out["check"]["hours"] >= 100
+    months = dict(asked)
+    assert months["2026-09-28"] == "202610" and months["2026-09-29"] == "202611"
+    assert "2026-09-05" not in months                       # a Saturday
+    after = bars.load(path)
+    thin = int(datetime(2026, 9, 15, 10, tzinfo=timezone.utc).timestamp())
+    assert thin not in set(after["hour_utc"]) and out["thin"] == 1
+    floor = int(before["hour_utc"].min())
+    assert out["added"] == 20 * 9 - 1 and out["to"] == date(2026, 9, 29)
+    kept = before.merge(after, on="hour_utc", suffixes=("_b", "_a"))
+    assert len(kept) == len(before) and (kept["close_b"] == kept["close_a"]).all()
+    assert (after["hour_utc"] < floor).sum() == out["added"]
+
+
+def test_eex_off_the_stores_level_writes_nothing(tmp_path, monkeypatch):
+    from jump import backfill
+    path = str(tmp_path / "marketwatch_TFM_F")
+    _ttf_store(path, date(2026, 9, 29), date(2026, 10, 16))
+    before = len(bars.load(path))
+    monkeypatch.setattr(backfill.eex, "fetch_day", lambda m, d, s=None: [
+        (t, p * 1.01) for t, p in _ttf_trades(date.fromisoformat(d))])
+    monkeypatch.setattr(backfill, "EEX_DELAY_SECONDS", 0)
+    now = datetime(2026, 10, 17, 12, tzinfo=timezone.utc)
+    out = backfill.deepen_from_eex(_ttf(), path, None, since=date(2026, 9, 1), now=now)
+    assert out["added"] == 0 and "median level gap" in out["skipped"]
+    assert len(bars.load(path)) == before
+    assert backfill.deepen_from_eex(_nickel(), path, None)["skipped"] == "not TTF"
+
+
+# --- Sina: China's 10-year future, live and its history (deepen_from_sina) --------
+
+def _cgb():
+    return Asset(ticker="T=F", source="sina", block="rates", has_volume=True,
+                 tick_size=0.005, session_template="cffex", fetch_interval="30min",
+                 label="China 10-year government bond future (CFFEX)", in_basket=True)
+
+
+def _cgb_half_hours(first, last, base=108.0):
+    """Every half hour of CFFEX's session (09:30-11:30, 13:00-15:15 Shanghai) on
+    weekdays from `first` to `last`, each closing a little higher."""
+    from zoneinfo import ZoneInfo
+    bj = ZoneInfo("Asia/Shanghai")
+    starts = [(9, 30), (10, 0), (10, 30), (11, 0), (13, 0), (13, 30), (14, 0), (14, 30), (15, 0)]
+    out, px, day = [], base, first
+    while day <= last:
+        if day.weekday() < 5:
+            for h, m in starts:
+                t = int(datetime(day.year, day.month, day.day, h, m, tzinfo=bj).timestamp())
+                span = 900 if (h, m) == (15, 0) else 1800
+                out.append(Candle(t, px, px + 0.01, px, px + 0.005, 500.0, t + span))
+                px += 0.005
+        day += timedelta(days=1)
+    return out
+
+
+def test_the_hourly_fetch_asks_the_10_year_contract_held_since_it_became_front(
+        tmp_path, monkeypatch):
+    from jump import backfill
+    asked = []
+
+    def fetch(symbol, session=None, now=None):
+        asked.append(symbol)
+        return _cgb_half_hours(date(2026, 8, 17), date(2026, 10, 16))
+
+    monkeypatch.setattr(backfill.sina, "fetch_cffex_bars", fetch)
+    path = str(tmp_path / "sina_T_F")
+    now = datetime(2026, 10, 17, 12, tzinfo=timezone.utc)
+    backfill.fetch_missing(_cgb(), path, date(2026, 1, 1), "", None, now=now)
+    stored = bars.load(path)
+    assert asked == ["T2612"]                               # TZ26, front from 2026-08-25
+    first = datetime.fromtimestamp(int(stored["hour_utc"].min()), timezone.utc)
+    assert first == datetime(2026, 8, 25, 1, tzinfo=timezone.utc)   # 09:30 Shanghai, folded
+
+
+def test_the_10_years_history_takes_each_contract_over_its_own_front_sessions(
+        tmp_path, monkeypatch):
+    from jump import backfill
+    asked = []
+
+    def fetch(symbol, session=None, now=None):
+        asked.append(symbol)
+        base = {"T2606": 100.0, "T2609": 105.0, "T2612": 110.0}.get(symbol, 90.0)
+        return _cgb_half_hours(date(2026, 1, 5), date(2026, 10, 16), base)
+
+    monkeypatch.setattr(backfill.sina, "fetch_cffex_bars", fetch)
+    path = str(tmp_path / "sina_T_F")
+    now = datetime(2026, 10, 17, 12, tzinfo=timezone.utc)
+    out = backfill.deepen_from_sina(_cgb(), path, None, since=date(2026, 3, 2), now=now)
+    assert out["skipped"] is None and asked == ["T2606", "T2609", "T2612"] and not out["short"]
+    stored = bars.load(path).set_index("hour_utc")["close"]
+    at = lambda d: int(datetime(d.year, d.month, d.day, 1, tzinfo=timezone.utc).timestamp())  # noqa: E731
+    # Each day's first hour from the contract held that day: June's to 05-22,
+    # September's from 05-25 and December's from 08-25.
+    assert 100 <= stored[at(date(2026, 5, 22))] < 105 <= stored[at(date(2026, 5, 25))] < 110
+    assert stored[at(date(2026, 8, 25))] >= 110
+    assert stored.index.min() == at(date(2026, 3, 2))
+    assert backfill.deepen_from_sina(_ttf(), path, None)["skipped"] == "not a CFFEX future"
+
+
 # --- Yahoo: a market abroad's history (deepen_from_yahoo) -------------------------
 
 def _index(ticker="^N225", template="tokyo", interval="30min"):

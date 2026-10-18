@@ -115,17 +115,6 @@ def fx_holiday_closed(prev_hour: np.ndarray, hours: np.ndarray,
     return out
 
 
-def move_of(asset: Asset):
-    """How a move is measured from one price to the next: the log return, or
-    for a yield (`unit: bp`) its change in percentage points - a move of 0.09
-    is 9 bp. The detector reads either against the instrument's own moves."""
-    if asset.unit == "bp":
-        return lambda before, after: np.asarray(after, dtype="float64") - \
-            np.asarray(before, dtype="float64")
-    return lambda before, after: np.log(np.asarray(after, dtype="float64")
-                                        / np.asarray(before, dtype="float64"))
-
-
 def split_channels(asset: Asset, usable: pd.DataFrame,
                    anchor_tz: str = "America/New_York",
                    dividends=None, session_table=None) -> pd.DataFrame:
@@ -165,19 +154,18 @@ def split_channels(asset: Asset, usable: pd.DataFrame,
     after_hole = ~is_open.to_numpy() & (hours - prev_hour > HOUR)
 
     prev_close = out["close"].shift(1)
-    change = move_of(asset)
-    own_hour = change(out["open"], out["close"])
-    out["r"] = np.where(is_open | after_hole, own_hour, change(prev_close, out["close"]))
+    own_hour = np.log(out["close"] / out["open"])
+    out["r"] = np.where(is_open | after_hole, own_hour, np.log(out["close"] / prev_close))
     # The very first bar of history has no previous close, and its own open is
     # the start of the record rather than a continuation of anything: undefined,
     # not zero.
     out.loc[0, "r"] = np.nan
     out["is_session_open"] = is_open
-    out["hole"] = np.where(after_hole, change(prev_close, out["open"]), np.nan)
+    out["hole"] = np.where(after_hole, np.log(out["open"] / prev_close), np.nan)
     out["gap"] = (overnight_gaps(asset, out, session, dividends, session_table)
                   if dividends is not None else np.nan)
-    from jump.sessions import is_exchange_template
-    if is_exchange_template(asset.session_template):
+    from jump.sessions import is_index_template
+    if is_index_template(asset.session_template):
         # A stock index's first price of the day is not a trade: it is
         # computed while most of its stocks have not traded yet, from their
         # last closes, so it sits at the previous close and the night's move
@@ -249,7 +237,7 @@ def overnight_gaps(asset: Asset, frame: pd.DataFrame, session: pd.Series,
     hours = frame["hour_utc"].to_numpy(dtype="int64")
     prev_hour = np.concatenate([[0], hours[:-1]])
     prev_close = frame["close"].shift(1).to_numpy(dtype="float64")
-    gap = move_of(asset)(prev_close, frame["open"].to_numpy(dtype="float64"))
+    gap = np.log(frame["open"].to_numpy(dtype="float64") / prev_close)
 
     if template == "fx_continuous":
         complete = (hours - prev_hour) <= FX_WEEKEND_MAX_SECONDS

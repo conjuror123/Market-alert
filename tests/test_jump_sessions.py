@@ -365,3 +365,15 @@ def test_the_closing_auction_is_in_hong_kongs_and_sydneys_session():
     assert sessions.daily_session_of(_utc(2026, 10, 8, 8), "hong_kong") == date(2026, 10, 8)
     assert sessions.daily_session_of(_utc(2026, 6, 16, 6), "sydney") == date(2026, 6, 16)
     assert sessions.daily_session_of(_utc(2026, 6, 16, 7), "sydney") is None
+
+
+def test_chinas_bond_futures_keep_shanghais_days_to_15_15_and_are_no_index():
+    # Their own table, Shanghai's trading days with CFFEX's 15:15 close: the hour
+    # from 15:00 holds the last quarter hour, which Shanghai's stocks do not trade.
+    assert sessions.exchange_table_path("cffex").endswith("cffex.csv")
+    assert sessions.exchange_table_path("shanghai").endswith("xshg.csv")
+    assert sessions.daily_session_of(utc(2026, 10, 16, 7), "cffex") == date(2026, 10, 16)
+    assert sessions.daily_session_of(utc(2026, 10, 16, 7), "shanghai") is None
+    assert sessions.daily_session_of(utc(2026, 10, 16, 8), "cffex") is None
+    assert not sessions.trades_on(date(2026, 10, 5), "cffex")           # Golden Week
+    assert sessions.is_index_template("shanghai") and not sessions.is_index_template("cffex")

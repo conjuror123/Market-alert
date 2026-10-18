@@ -48,8 +48,7 @@ def test_a_refused_request_raises(monkeypatch):
         marketwatch.fetch_hourly("CURRENCY/US/XTUP/USDXXX", Session())
 
 
-def test_the_store_asks_the_bund_and_gilt_by_contract_and_ttf_and_the_yield_as_is():
+def test_the_store_asks_the_bund_and_gilt_by_contract_and_ttf_as_is():
     assert marketwatch.store_key("FGBL=F", "FGBLZ26.EUX") == "FUTURE/DE/XEUR/FGBLZ26"
     assert marketwatch.store_key("RLI=F", "RLIH27.ICE") == "FUTURE/UK/IFEU/RLIH27"
     assert marketwatch.store_key("TFM=F") == "FUTURE/UK/NDEX/TFMI00"
-    assert marketwatch.store_key("JP10Y") == "BOND/BX/XTUP/TMBMKJP-10Y"

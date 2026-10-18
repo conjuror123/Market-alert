@@ -534,14 +534,14 @@ def test_no_check_columns_no_suffix():
     assert md.check_suffix(jump()) == ""
 
 
-def test_a_yields_move_is_said_in_basis_points():
-    # Japan's 10-year yield up 0.092 points: +9.2 bp, not +9.20%.
+def test_a_move_is_said_in_per_cent_on_every_instrument():
+    # The Bund up 0.42%: a price, like every instrument (no yield in basis
+    # points since 2026-10-17).
     labels = md._labels()
-    jgb = event(asset_id="marketwatch:JP10Y", block="rates", tier="high", r=0.092)
-    assert md.format_push(jgb, labels).splitlines()[0].startswith(
-        "🟨 <b>JGB 10Y</b> · Japan 10-year government bond yield +9.2 bp")
-    assert "+9.2 bp" in md.ping_line(dict(jgb, tier="noticeable"), labels)
-    assert md.move_text("yahoo:BZ=F", 0.0203) == "+2.03%"
+    bund = event(asset_id="marketwatch:FGBL=F", block="rates", tier="high", r=0.0042)
+    assert md.format_push(bund, labels).splitlines()[0].startswith(
+        "🟨 <b>Bund</b> · German 10-year Bund (Eurex) +0.42%")
+    assert "+0.42%" in md.ping_line(dict(bund, tier="noticeable"), labels)
 
 
 def test_an_index_leads_with_its_own_name_where_yahoos_ticker_is_yahoos_only():

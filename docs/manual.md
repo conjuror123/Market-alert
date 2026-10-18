@@ -20,7 +20,7 @@ shared percentage.
 | block | instruments |
 |---|---|
 | equity (22) | 6 US funds; 16 stock indices abroad, each in its own exchange's hours |
-| rates (7) | the 2-, 10- and 30-year Treasury futures, the Bund, the long gilt, Japan's 10-year yield (in basis points), TIP |
+| rates (7) | the 2-, 10- and 30-year Treasury futures, the Bund, the long gilt, China's 10-year government bond future, TIP |
 | credit (3) | LQD, HYG, EMB |
 | energy (3) | Brent, UNG, Dutch TTF gas |
 | precious metals (3) | spot gold and silver round the clock, platinum |
@@ -109,16 +109,18 @@ standing in, a few minutes of it; that bar heals on the next fetch.
 | Tiingo | 10 funds | IEX price matches the consolidated tape for these; a voter on the pairs, gold, silver, UNG and REMX, within the votes' share (section 5) |
 | Alpaca | — | the consolidated tape (SIP) from 2016, for history and the vote, 15 minutes behind; its own coins' hourly bars, a voter on the coins |
 | Twelve Data | 1 fund (UNG) | consolidated tape for a thin fund; one request a run; a voter on 6 pairs and gold, within the votes' share |
-| Sina Finance | LME tin, nickel, aluminium, copper | US half-hour bars (consolidated); LME three-month contract, last 1,023 hourly bars; a voter on spot gold and silver (London's) |
+| Sina Finance | LME tin, nickel, aluminium, copper; China's 10-year government bond future (CFFEX's T) | US half-hour bars (consolidated); LME three-month contract, last 1,023 hourly bars; CFFEX's half hours of the contract held, its last 1,023 (`sina.fetch_cffex_bars`), rolled five business days before the delivery month (`jump/futures.py`), its history from the backfill's `deepen-sina`; a voter on spot gold and silver (London's), the Nikkei (its future) and the Treasuries (their bonds' funds) |
 | Yahoo | 1 fund (REMX); 13 futures - coffee, cocoa, cotton, live cattle, and stage 2's Brent, the 2-, 10- and 30-year Treasuries, corn, wheat, soybeans, sugar and platinum; 16 stock indices abroad | futures from the front contract, rolled where their volume moves (cattle twelve business days before its delivery month, Brent three before its last trading day, `jump/futures.py`); the indices at 30 minutes (15 for the Nifty) folded onto the hour, their history from the backfill's `deepen-yahoo` (hourly bars filed by the hour they end in, kept where they pass the import gate) |
 | SiftingIO | 7 FX pairs; spot gold and silver | the bar closed at :00 is served by :05; the metals from its commodities endpoint (`sifting.COMMODITIES`); a voter on SPY, UNG and platinum (spot), within the votes' share |
 | Binance | 4 coins | each coin as its USDT pair, via `data-api.binance.vision` (reachable from US runners) |
 | Wallstreetcn | — | a voter on the LME's metals, cocoa, cotton, Brent, UNG (natural gas), the pairs, gold, silver and 3 indices, hourly without volume, about 170 days back; the LME's history below Sina's (`deepen-wallstreetcn`: gated on the overlap, a session's first bar 1% off and back within the hour left out). What else it carries: `docs/decisions.md`, "What else Wallstreetcn carries" |
-| FT | — | the vote on live cattle, the grains and platinum, asked for the contract the store holds, on coffee, cocoa and Brent, their continuous series, and 5 stock indices abroad (`ft.INDICES`): hourly, 24 trading days back, without volume (`price_monitor/ft.py`) |
-| MarketWatch | the Bund and the long gilt (one contract at a time, rolled in `jump/futures.py`), Dutch TTF gas (its continuous series), Japan's 10-year yield | about 9 trading days back, hourly, without volume (`marketwatch.STORE`); a voter on the pairs, the funds, the futures, gold and silver (COMEX), and 15 indices |
+| FT | — | the vote on live cattle, the grains and platinum, asked for the contract the store holds, on coffee, cocoa, sugar and Brent, their continuous series, and 5 stock indices abroad (`ft.INDICES`): hourly, 24 trading days back, without volume (`price_monitor/ft.py`) |
+| MarketWatch | the Bund and the long gilt (one contract at a time, rolled in `jump/futures.py`), Dutch TTF gas (its continuous series) | about 9 trading days back, hourly, without volume (`marketwatch.STORE`); a voter on the pairs, the funds, the futures, gold and silver (COMEX), and 15 indices |
 | Naver, the Taiwan exchange | — | a voter on the KOSPI (its minutes folded to hours, `price_monitor/naver.py`) and on the TAIEX (its day reports, every five seconds, `price_monitor/twse.py`) |
 | Bitstamp, Bitfinex | — | the coins' history, and voters on the coins |
-| Dukascopy | — | history only |
+| Tencent | — | a voter on the CSI 300: its half hours, 800 back, about 148 days (`price_monitor/tencent.py`) |
+| EEX | — | a voter on TTF: its own TTF month future's trades folded into hours, one request a weekday, asked to 9 days (`price_monitor/eex.py`) |
+| Dukascopy | — | history only: files, not asked by the vote (the user's, 2026-10-17) |
 | HF Data | — | funds' history to 2020, imported once (its client is gone) |
 
 Each fund's feed is chosen by measurement; see `docs/decisions.md`, "Data and providers".
@@ -235,17 +237,19 @@ source audit's bar (`docs/decisions.md`, "Every source on every instrument").
 | funds (12) | Yahoo 30-minute bars folded to the hour (59 days back), Sina 30-minute US bars (77 days back), MarketWatch hourly (`FUND/US/<exchange>/<ticker>`, 9 days back), Alpaca's consolidated tape (`Alpaca_SIP`, from 2016, fifteen minutes behind) - less the fund's own provider; UNG also Wallstreetcn's natural gas future (`USNG.OTC`), Tiingo and SiftingIO, SPY SiftingIO, REMX Tiingo - each keyed one's half hours inside the regular session only |
 | coffee, cocoa, cotton (Yahoo) | Sina global futures (79 days back), MarketWatch's continuous series (`marketwatch.SOFTS`), Wallstreetcn for cocoa and cotton, the FT's continuous series for coffee and cocoa: each changing contract on its own days |
 | live cattle (Yahoo) | MarketWatch continuous contract, hourly (9 days back), and the FT's bars of the contract the store holds (24 trading days back) |
-| stage 2's futures (Yahoo: Brent, the Treasuries, corn, wheat, soybeans, sugar, platinum) | MarketWatch's continuous series (`marketwatch.FUTURES`); the FT's bars of the contract the store holds for the grains and platinum (`ft.futures_symbol`), its continuous Brent; Sina's Brent and spot platinum (counted as 60 days); Wallstreetcn's Brent (`UKOIL.OTC`); SiftingIO's spot platinum: each changing contract on its own days, or none |
+| stage 2's futures (Yahoo: Brent, the Treasuries, corn, wheat, soybeans, sugar, platinum) | MarketWatch's continuous series (`marketwatch.FUTURES`); the FT's bars of the contract the store holds for the grains and platinum (`ft.futures_symbol`), its continuous Brent and sugar; Sina's Brent and spot platinum (counted as 60 days); Wallstreetcn's Brent (`UKOIL.OTC`); SiftingIO's spot platinum; the Treasuries' bonds' funds SHY, IEF, TLT in Sina's US half hours (`verify.SINA_TREASURY_FUNDS`, their session only): each changing contract on its own days, or none |
 | coins (4, Binance) | Coinbase, Kraken (29 days back), Bitstamp, Bitfinex, Alpaca and Yahoo dollar pairs: a wick on Binance alone is real there and not the market's |
-| the Bund, the gilt, TTF, Japan's 10-year yield (MarketWatch) | the Bund the FT's S&P Euro-Bund futures index (`ft.FUTURES_CONTINUOUS`, bars only at 13:00-17:00 UTC, so not asked about the Bund's 08:00-14:00 Frankfurt; its own rolls); none found for the others (2026-10-13) |
+| China's 10-year (Sina) | none found (2026-10-18) |
+| the Bund, the gilt, TTF (MarketWatch) | the Bund the FT's S&P Euro-Bund futures index (`ft.FUTURES_CONTINUOUS`, bars only at 13:00-17:00 UTC, so not asked about the Bund's 08:00-14:00 Frankfurt; its own rolls); TTF EEX's own month future, the delivery month the store holds (`verify._eex_ttf`, 9 days back; its own rolls); none found for the gilt |
 | LME tin, nickel, aluminium, copper (Sina) | Wallstreetcn, hourly (about 170 days back, counted again for 79 days); copper also Yahoo's COMEX future (`HG=F`) |
-| the stock indices abroad (16, Yahoo, `sessions.EXCHANGES`) | MarketWatch (`marketwatch.INDICES`, 15 of them, not the CSI 300), Wallstreetcn's Sensex, Saudi and Canadian (`wallstreetcn.INDICES`), the FT's Euro Stoxx 50, FTSE 100, SMI, Bovespa and IPC (`ft.INDICES`, by xid), Naver's KOSPI, the Taiwan exchange's TAIEX, Sina's CSI 300 (`sina.fetch_cn_bars`, each bar filed under the hour its last minute falls in) |
+| the stock indices abroad (16, Yahoo, `sessions.EXCHANGES`) | MarketWatch (`marketwatch.INDICES`, 15 of them, not the CSI 300), Wallstreetcn's Sensex, Saudi and Canadian (`wallstreetcn.INDICES`), the FT's Euro Stoxx 50, FTSE 100, SMI, Bovespa and IPC (`ft.INDICES`, by xid), Naver's KOSPI, the Taiwan exchange's TAIEX, Sina's CSI 300 (`sina.fetch_cn_bars`, each bar filed under the hour its last minute falls in) and Tencent's (half hours, 140 days), Sina's Nikkei future (`NK`, about 49 days, its own rolls) |
 
 - **Skipped hours** (`Source.skip_hours`): a source whose bar in one local hour is another
   grid's is not asked about a move in that hour - neither a vote nor an outage. The FT on
   the Euro Stoxx 50, FTSE 100 and SMI at their closing hour, the Taiwan exchange and
   MarketWatch on the TAIEX at 13:00, Sina's CSI 300 at 11:00, the FT on the Bund at
-  08:00-14:00 Frankfurt. A move none of its sources is asked about is not voted
+  08:00-14:00 Frankfurt, Sina's Nikkei future at 15:00 Tokyo (the index's closing
+  auction). A move none of its sources is asked about is not voted
   (`verify.candidates`).
 - **Keyed providers** vote within the votes' share of `config/provider_limits.csv` (section
   4); past it, each is an outage for the rest of the run (`verify.vote_room`), named on the
@@ -332,9 +336,8 @@ unscored.
 
 - **`r`, the hour's move:** close against the previous close, as a log return. On a
   session's first bar, and on the bar after a missing hour, it is that bar's own open to
-  close. A yield (`unit: bp` in `config/basket.yaml`: Japan's 10-year) moves by its change
-  in points instead (`returns.move_of`), and its messages say basis points (`+9.2 bp`);
-  the gap and the hole likewise.
+  close. Every instrument is a price: the gap and the hole are log returns too, and a
+  message says each move in per cent.
 - **`gap`:** a session's first open against the previous session's last close. It is
   dividend-adjusted, and left unscored on a split, an unconfirmed dividend, a missing
   bar before the close, or a missing first hour: from a late first bar the "night" would
@@ -344,7 +347,9 @@ unscored.
   bar's close**, and that bar has no `r` of its own: an index's first value is computed
   from its stocks' last closes before most of them trade, so it sits at the previous
   close and the night's move comes in during the first hour (FTSE 100, the year to
-  2026-10-05: the night a median 5.8 bp, the first hour 28, the other hours 11).
+  2026-10-05: the night a median 5.8 bp, the first hour 28, the other hours 11). China's
+  10-year future keeps Shanghai's days (`cffex`) but opens with a trade: its night ends
+  at its open, as every future's (`sessions.is_index_template`).
 - **`hole`:** the move across a missing hour inside a session. It is never scored; it only
   keeps the price path whole for the close check.
 
@@ -702,7 +707,8 @@ How far back each record reaches:
 | stage 2's futures | Brent 2011-01, soybeans 2018-03, the 30-year bond 2019-01, platinum 2021-11, the 2- and 10-year notes 2024-10, corn, wheat and sugar 2026-01/02 | Dukascopy's CFDs; Yahoo's continuous series for the notes; the contract held now for the grains and sugar; then the listed contract (`docs/decisions.md`, "Stage 2's history is by series") |
 | 16 stock indices abroad | 2024-10; the CSI 300, BIST 100, TSX and IPC 2026-08 | Yahoo's hourly bars where they agree with its folded 30-minute ones, then those (section 4) |
 | the Bund, the long gilt | 2018-05 | Dukascopy's CFDs (BUNDTREUR, UKGILTTRGBP), each quarter's switch dropped or a roll night in `data/jump/rolls.csv` (`docs/decisions.md`, "The stored history"); then MarketWatch's contract, from 2026-09-29 and 10-05 |
-| TTF, Japan's 10-year yield | 2026-09-29, 09-30 | MarketWatch's own bars; no hourly history anywhere, so each scores young (section 7) until about 2027-04 |
+| TTF | 2022-01 | EEX's own month future, the month the store held each day, its trades folded into hours, hours of fewer than five trades left out (`deepen-eex`, gated on the store's hours); then MarketWatch's, from 2026-09-29 |
+| China's 10-year government bond future | 2022-01 | Sina's half hours of each contract over the sessions it was front (`deepen-sina`), then live |
 | LME tin, nickel, aluminium, copper | 2026-04-22 (copper 04-23) | Wallstreetcn to Sina's first bar (2026-07-08 tin, 07-15 nickel and aluminium, 07-22 copper), less its openings off the market (section 4: 11 of tin's and aluminium's); then Sina |
 
 ## 12. Known limitations

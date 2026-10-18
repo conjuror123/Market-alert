@@ -458,20 +458,18 @@ def test_a_shanghai_night_across_a_missing_trading_day_is_not_scored():
     assert out["gap"].isna().all()
 
 
-def test_a_yields_move_is_its_change_in_points_not_a_log_return():
-    # Japan's 10-year at 3.00% then 3.09%: a move of 0.09 (9 bp) against a log
-    # return of 2.96%. Its first hour of a session from its own open, as a
-    # price's.
-    jgb = asset(ticker="JP10Y", source="marketwatch", block="rates", has_volume=False,
-                tick_size=0.0001, session_template="tokyo_bonds", fetch_interval="1h",
-                unit="bp")
-    tokyo = ZoneInfo("Asia/Tokyo")
-    at = lambda d, h: int(datetime(2026, 10, d, h, tzinfo=tokyo).timestamp())  # noqa: E731
-    bars_ = frame([(at(8, 16), 3.00, 3.00, 3.00, 3.00, 0.0, 1),
-                   (at(8, 17), 3.00, 3.09, 3.00, 3.09, 0.0, 1),
-                   (at(9, 9), 3.10, 3.12, 3.10, 3.12, 0.0, 1)])
-    out = returns.split_channels(jgb, bars_)
-    assert out["r"].tolist()[1:] == pytest.approx([0.09, 0.02])
-    price = returns.split_channels(asset(ticker="X", session_template="tokyo_bonds",
-                                         fetch_interval="1h"), bars_)
-    assert price["r"].iloc[1] == pytest.approx(math.log(3.09 / 3.00))
+def test_a_bond_futures_night_ends_at_its_open_not_at_its_first_hours_close():
+    # China's 10-year future keeps Shanghai's days, but its first price is a trade
+    # (the opening auction), not an index computed from last closes: its night is
+    # its open against the last close, and its first hour is an hour of its own.
+    cgb = asset(ticker="T=F", source="sina", block="rates", has_volume=True,
+                tick_size=0.005, session_template="cffex", fetch_interval="30min",
+                label="China 10Y")
+    out = returns.split_channels(cgb, frame([
+        (cst(2025, 9, 29, 13), 108.0, 108.1, 107.9, 108.05, 900.0, 12),
+        (cst(2025, 9, 29, 14), 108.05, 108.2, 108.0, 108.15, 900.0, 12),
+        (cst(2025, 9, 30, 9), 108.40, 108.45, 108.30, 108.35, 900.0, 12),
+        (cst(2025, 9, 30, 10), 108.35, 108.40, 108.30, 108.38, 900.0, 12),
+    ]), dividends=dividends(ticker="SPY"))
+    assert out.iloc[2]["gap"] == pytest.approx(math.log(108.40 / 108.15))
+    assert out.iloc[2]["r"] == pytest.approx(math.log(108.35 / 108.40))

@@ -1,5 +1,5 @@
-"""The FT's hourly bars: a voter on live cattle, coffee, cocoa, Brent, the grains,
-platinum, the Bund and five stock indices abroad.
+"""The FT's hourly bars: a voter on live cattle, coffee, cocoa, sugar, Brent, the
+grains, platinum, the Bund and five stock indices abroad.
 
 THE ENDPOINT is the one the FT's markets pages chart from (markets.ft.com's
 chartapi/series): an instrument's hourly bars by its xid, the last
@@ -42,9 +42,11 @@ SEARCH = "https://markets.ft.com/data/searchapi/searchsecurities"
 HEADERS = {"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"}
 # The continuous series the FT names, by xid.
 CONTINUOUS = {"KC.1": "1046650"}
-# Cocoa's continuous series by its xid (found by the FT's search, 2026-10-13:
-# 0.92 hour by hour with the stored contract).
-SOFTS = {"KC=F": "KC.1", "CC=F": "1055540"}
+# Cocoa's and sugar's continuous series by their xids (found by the FT's search,
+# 2026-10-13: cocoa 0.92 hour by hour with the stored contract; 2026-10-17: Sugar
+# No. 11, SB.1:IUS, 0.942 over 2026-09-15 to 10-16, all 5 big moves it had bars
+# for confirmed).
+SOFTS = {"KC=F": "KC.1", "CC=F": "1055540", "SB=F": "1046731"}
 # The stock indices abroad, for the basket's stage 1, by xid: those moving with
 # Yahoo's folded bars at 0.90 or more hour by hour over its 24 days to
 # 2026-10-09 - Europe's and the Americas' 0.92-0.98. Asia's lag it (the Nikkei

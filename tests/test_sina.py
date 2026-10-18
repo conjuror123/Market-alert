@@ -110,3 +110,17 @@ def test_a_csi_300_bar_is_filed_under_the_hour_its_last_minute_falls_in():
         (bj(2026, 10, 9, 10), bj(2026, 10, 9, 10, 30), 4325.5)]
     with pytest.raises(sina.ExchangeError):
         sina.parse_cn({"error": "x"}, "sh000300")
+
+
+def test_a_cffex_contract_is_named_by_year_and_month_and_its_half_hours_stamped_by_start():
+    assert sina.cffex_symbol("TZ26.CFE") == "T2612" and sina.cffex_symbol("TH27.CFE") == "T2703"
+    text = _answer([("2026-10-16 10:00:00", 109.70, 109.76, 109.70, 109.755, 28256),
+                    ("2026-10-16 15:00:00", 109.77, 109.80, 109.76, 109.79, 12675),
+                    ("2026-10-16 15:15:00", 109.79, 109.82, 109.79, 109.815, 113),
+                    ("2026-10-19 10:00:00", 109.80, 109.81, 109.79, 109.80, 9000)])   # ahead
+    now = datetime.fromtimestamp(bj(2026, 10, 16, 16), timezone.utc)
+    candles = sina.parse_cffex(text, "T2612", now=now)
+    assert [c.open_time for c in candles] == [bj(2026, 10, 16, 9, 30), bj(2026, 10, 16, 14, 30),
+                                              bj(2026, 10, 16, 15)]
+    assert candles[2].close_time == bj(2026, 10, 16, 15, 15) and candles[0].volume == 28256
+    assert sina.parse_cffex("var t=(null);", "T2612") == []
