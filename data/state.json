@@ -1,12 +1,12 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1792404393
+    "last_run_utc": 1792407997
   },
   "floor_pending_replies": [],
   "jump_delivery": {
     "week": {
-      "detector": "30cd6f26b320",
+      "detector": "dec52391ff7d",
       "events": {
         "twelvedata:EUR/USD|1792396800": {
           "asset": "twelvedata:EUR/USD",
@@ -22,7 +22,7 @@
           },
           "message": 113,
           "peak": "jump:twelvedata:EUR/USD:hour:1792393200",
-          "seen": 1792404393,
+          "seen": 1792407997,
           "shown": [
             "noticeable",
             5.7,
@@ -55,7 +55,7 @@
           },
           "message": 112,
           "peak": "jump:twelvedata:USD/CAD:hour:1792389600",
-          "seen": 1792404393,
+          "seen": 1792407997,
           "shown": [
             "noticeable",
             4.8,
@@ -87,7 +87,7 @@
       },
       "note": {
         "hashes": [
-          "0e76277379c89c3c"
+          "3b1768b7a334f28e"
         ],
         "ids": [
           111
