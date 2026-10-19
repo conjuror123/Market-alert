@@ -71,6 +71,10 @@ pytest -q          # ~905 tests, about 2 minutes; run alone, several load large 
 
 Each test file also passes on its own (`pytest -q tests/test_jump_backfill.py`).
 
+**Rule.** Every run installs the newest library versions `requirements.txt` allows, so the
+majors are held: pandas and numpy below 3, pyarrow below 27 (the live run's 26.0.0 and
+2.5.4 on 2026-10-19). A new major is raised by hand, with the tests.
+
 The derived data (`data/jump/metrics/`, `jumps.parquet`) rebuilds from the committed
 bars in under a minute. The open months of the bars are not in git: `tools/hot_bars.sh
 restore` lays them down (needs `gh`, `GITHUB_REPOSITORY`, `GITHUB_REF_NAME`; `BARS_BRANCH`

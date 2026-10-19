@@ -2,4 +2,9 @@ requests>=2.31,<3
 PyYAML>=6.0,<7
 # Jump: the vectorised layer for computing metrics and the columnar bar store.
 pandas>=2.2,<3
-pyarrow>=16
+# Held at the majors the live run used on 2026-10-19 (pyarrow 26.0.0, numpy 2.5.4):
+# every run installs the newest allowed, and the bot runs unattended, so a major
+# release - the bars are Parquet, the metrics numpy - is a reviewed change, not
+# the next run's surprise. Raise them by hand, with the tests.
+pyarrow>=16,<27
+numpy>=1.26,<3
