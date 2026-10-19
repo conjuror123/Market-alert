@@ -192,8 +192,12 @@ provider is an outage in the vote for the rest of the run; its share of a minute
 hourly fetch never asks again: a fund's missing in-session hours of the last 58 days are
 filled from Yahoo's 30-minute bars, folded, only where Yahoo agrees with the store over the
 overlap (`verify_alignment`: correlation ≥ 0.90, median ≤ 25 bp, ≥ 200 hours) and only where
-the store has no bar. From the Actions tab: Price Spike Monitor → Run workflow, `repair` =
-the funds, comma-separated; the run repairs first, then makes its ordinary pass.
+the store has no bar. A rolled future of Yahoo's the same, from the contract the store held
+on each missing hour's day, never the continuous series, each contract gated on the store's
+own hours of it (`backfill._repair_future`); a contract Yahoo no longer lists (an expired
+one, 404) leaves its hours missing. From the Actions tab: Price Spike Monitor → Run
+workflow, `repair` = the funds or futures, comma-separated; the run repairs first, then
+makes its ordinary pass.
 
 **Sessions** (`jump/sessions.py`): the NYSE table (`data/jump/sessions/nyse.csv`), the FX
 week, and each daily-session market's hours (LME, ICE, CME; the Bund's and TTF's 08:00-18:00
@@ -683,8 +687,9 @@ prints rates by word, block and channel, and the biggest hours. To run the pass 
 export the keys and run the four commands of section 3.
 
 **A repair.** Actions → Price Spike Monitor → Run workflow, on `main`, the live branch, with
-`repair` naming the funds (`HYG`). Its log says, per fund, the hours missing, the hours
-filled and the overlap it was judged on; a refused fund is left as it was (section 4).
+`repair` naming the funds or Yahoo's futures (`HYG`, `ZS=F`). Its log says, per instrument,
+the hours missing, the hours filled and the overlap it was judged on; a refused one is left
+as it was (section 4).
 
 **The mute.** `jump_alerts_muted: true` in `config/config.yaml`: the run proceeds, the
 health and the calendar go out, Jump's pushes, note and pings do not.

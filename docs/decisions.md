@@ -244,7 +244,14 @@ stop it for the run; a missing key skips its instruments and is named; the run g
 when nothing at all was fetched.
 
 **An open month is repaired by hand, inside the hourly run**: only the hourly run saves the
-open months.
+open months. A rolled future from the contract it held then (2026-10-19): soybeans'
+2026-10-01 to 10-12 were ZSX26's last sessions, which no run asked - the history ended
+09-30, stage 2's live fetch began on ZSF27 on 10-13 - and Yahoo's ZSX26 matched the store's
+509 hours of it (correlation 1.0, 0.0% apart). The other holes of the four futures with
+Dukascopy history - runs of two or more weekdays without a bar in the year to 10-16, Brent 18,
+soybeans 13, the 30-year 12, platinum 8 - are the windows its builder dropped where no switch
+stood out ("Stage 2's history is by series"); their contracts have expired and Yahoo no
+longer lists them (404), so they stay.
 
 ---
 

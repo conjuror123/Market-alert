@@ -8,12 +8,13 @@ on:
   # See docs/manual.md, "Running it".
   workflow_dispatch:
     inputs:
-      # Run by hand only; the hourly call passes nothing. Funds whose missing
-      # hours of the last 58 days are filled from Yahoo before the fetch, if
-      # Yahoo's bars agree with the store (jump.backfill --repair). Here and
+      # Run by hand only; the hourly call passes nothing. Funds or Yahoo's
+      # futures whose missing hours of the last 58 days are filled from Yahoo
+      # before the fetch, if Yahoo's bars agree with the store (jump.backfill
+      # --repair; a future from the contract it held then). Here and
       # not in the history workflow: only this run may save the open months.
       repair:
-        description: "Funds to repair from Yahoo, comma-separated (e.g. HYG)"
+        description: "Funds or Yahoo futures to repair from Yahoo, comma-separated (e.g. HYG,ZS=F)"
         required: false
         default: ""
 
