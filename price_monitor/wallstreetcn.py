@@ -4,16 +4,16 @@ half hours of China's 30-year bond fund (FUNDS), a voter and its history from it
 listing in 2023-06.
 
 THE ENDPOINT is the one Wallstreetcn's own charts read (api-ddc-wscn.awtmt.com,
-market/kline): hourly bars without volume. The LME's three-month tin
-(UKSN.OTC), nickel (UKNI.OTC), aluminium (UKAH.OTC) and copper (UKCA.OTC, for
-the basket's stage 1) in dollars a tonne; ICE's
-cocoa (USCC.OTC) and cotton (USCT.OTC), continuous futures that change contract
-on their own days; and the currency pairs as their six letters (EURUSD.OTC). `tick_count` asks for about that many
-hours back from its latest bar, and at most MAX_TICKS are served - back to
-2026-04-22 from 2026-10-09, for each of them; more is answered with one bar.
-Each line holds the bar's prices and its start in UTC seconds, in the order the
-answer's `fields` names - its own, whatever order they are asked in (2026-10-10:
-open, close, high, low, start). Against the stored bars, no shift (2026-10-09).
+market/kline): hourly bars without volume. The LME's three-month tin (UKSN.OTC), nickel
+(UKNI.OTC), aluminium (UKAH.OTC) and copper (UKCA.OTC, for the basket's stage 1) in
+dollars a tonne; ICE's cocoa (USCC.OTC) and cotton (USCT.OTC), continuous futures that
+change contract on their own days; and the currency pairs as their six letters
+(EURUSD.OTC). `tick_count` asks for about that many hours back from its latest bar, and
+at most MAX_TICKS are served - back to 2026-04-22 from 2026-10-09, for each of them;
+more is answered with one bar. Each line holds the bar's prices and its start in UTC
+seconds, in the order the answer's `fields` names - its own, whatever order they are
+asked in (2026-10-10: open, close, high, low, start). Against the stored bars, no shift
+(2026-10-09).
 
 IT CARRIES MORE than the basket uses (its rank lists, 2026-10-10): sugar
 (USYO.OTC), lean hogs (LHC.OTC), wheat, corn, soybeans and soybean oil

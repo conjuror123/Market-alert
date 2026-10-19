@@ -488,6 +488,10 @@ Measured or weighed, and not to be raised again.
 | IG's CFDs (JGB future, gilt, Bund, LME, Asian indices) | a live account |
 | a second feed of CFFEX's T (2026-10-18) | Wallstreetcn, Tencent and MarketWatch carry none; Baidu's finance API resets the connection; Hexun's futures host is gone; CFFEX's own site has a day's snapshot only; TqSdk needs an account |
 | China's bond funds as voters on its 10-year future | 0.67-0.78 hour by hour (the 10-year fund's step is the future's hourly move) |
+| Naver's minute charts of the world indices | empty, on a weekday too (2026-10-19): daily bars only |
+| the one-voter indices' tracker funds at the FT (2026-10-19) | the ASX's STW and IOZ 0.50 (0.69 an hour shifted), the JSE's Satrix 40 0.45; nothing for Istanbul |
+| US-listed country funds in their place (EWA, EZA, TUR; 2026-10-19) | three voters, but trading while the home market is mostly shut, in dollars: EWA's day against the ASX's next session 0.52, EZA's against the JSE's same day 0.72, TUR's against the BIST's same day 0.91 (two years) |
+| more voters on the Hang Seng: Tencent's minutes, the FT's Tracker Fund (the user's, 2026-10-19: skip) | both pass (0.998; 0.95-0.98 at 10:00-13:59 Hong Kong), but would have changed none of its 10 far moves in two years, none a bad print by Naver's daily range |
 
 ---
 
@@ -497,6 +501,8 @@ Known and left alone on purpose.
 
 **Dates to check** (every hourly run green since the merge of 2026-10-13); no work unless one
 goes wrong:
+- 10-26, the first European session after its clock change (rehearsed on the last six changes
+  2026-10-19: no session slipped, no fetch skipped wrongly); 11-02 the US one;
 - 10-29, TTF's first change of month in the store (below), and EEX's voter asked the next
   month from that day;
 - 10-31 to 11-01, the first month end with 62 instruments: October settles from the open
@@ -521,10 +527,9 @@ page about 11-06 and count its month.
 
 **One voter only** for 10 instruments: the LME's tin, nickel and aluminium, the Bund, TTF
 (EEX), the BIST 100, the ASX 200, the Hang Seng, the JSE Top 40 and the UK's gilts fund (the
-FT, at 09:00-14:00 London): a move it does not see is uncertain, never not real. Tried: the sources
-under the bar or refused ("The sources' vote", "Rejected"). To act: a second source that
-moves with them. Naver's minute charts of
-the world indices answered empty on a Saturday (2026-10-17): one look on a weekday.
+FT, at 09:00-14:00 London): a move it does not see is uncertain, never not real. Tried: the
+sources under the bar or refused, and other instruments in their place ("Rejected"). To act:
+a second source that moves with them.
 
 **KOSPI's and the JSE Top 40's closing auctions** (15:00–15:30 Seoul, 16:50–17:00
 Johannesburg) are not in Yahoo's bars: their close is the bar before, and the auction falls
@@ -536,7 +541,8 @@ government bond yields (`price_monitor/wallstreetcn.py`). One added would score 
 have no other voter unless another feed carries it.
 
 **Undocumented endpoints carry most of the basket** (Yahoo, Sina, MarketWatch, Wallstreetcn,
-the FT): a changed shape raises and the health chat names the provider. To act: paid feeds.
+the FT, Tencent, Naver, the Taiwan exchange, EEX, iShares' page): a changed shape raises and
+the health chat names the provider, or the voter after a day of failing. To act: paid feeds.
 
 **History no free source reaches.**
 

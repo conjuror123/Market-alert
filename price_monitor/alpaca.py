@@ -3,22 +3,20 @@ the IEX exchange's bars for the hour, and its own coins' hourly bars for the
 coins' vote (fetch_crypto: the four coins against the dollar, 0.997-0.999 hour by
 hour with Binance's over 720 hours to 2026-10-13, the source audit).
 
-LIVE: IEX. The free plan's IEX bars are current - measured 2026-10-01 at 15:05
-UTC, the half-hour bar opened at 15:00 was served, minute bars to 15:04 - and
-on a fund whose IEX price agrees with the tape (measured against it: median
-<= 2 bp, p90 <= 5, at most 2% of hours missing) that is the same price.
-Tiingo's intraday feed is IEX too; this carries the IEX-safe funds Tiingo has
-no hourly room for - none since stage 1, whose 13 Tiingo carries. A fund IEX does not price like the tape belongs on a
-consolidated feed instead (Twelve Data, Sina or Yahoo).
+LIVE: IEX. The free plan's IEX bars are current - measured 2026-10-01 at 15:05 UTC, the
+half-hour bar opened at 15:00 was served, minute bars to 15:04 - and on a fund whose IEX
+price agrees with the tape (measured against it: median <= 2 bp, p90 <= 5, at most 2% of
+hours missing) that is the same price. Tiingo's intraday feed is IEX too; this carries
+the IEX-safe funds Tiingo has no hourly room for - none since stage 1: Tiingo carries
+all of them (10). A fund IEX does not price like the tape belongs on a consolidated feed
+instead (Twelve Data, Sina or Yahoo).
 
-HISTORY: SIP. The free plan serves SIP bars only
-to fifteen minutes back, so it cannot be the live source, but below that it is
-the consolidated tape itself - the line every live feed was held to - from
-2016-01-01, for every US-listed fund in the
-basket. Twelve Data's intraday archive stops at 2020-02 and HF Data did not
-carry about sixty of the funds, so this is what takes those back to 2016. The
-same tape votes on every fund's far moves, once it serves the move's hour
-whole (jump.verify).
+HISTORY: SIP. The free plan serves SIP bars only to fifteen minutes back, so it cannot
+be the live source, but below that it is the consolidated tape itself - the line every
+live feed was held to - from 2016-01-01, for every US-listed fund in the basket. Twelve
+Data's intraday archive stops at 2020-02 and HF Data did not carry about sixty of the
+funds, so this is what takes those back to 2016. The same tape votes on every fund's far
+moves, once it serves the move's hour whole (jump.verify).
 
 ADJUSTMENT. `split`: split-adjusted, dividends left in, which is the store's
 convention (jump/returns.py takes each payout out of its overnight gap). The

@@ -52,12 +52,13 @@ name: Backfill Jump Bars
 #   corporate-actions
 #                   rebuild the ex-date table from Tiingo's declared divCash /
 #                   splitFactor (needs TIINGO_API_KEY), keeping the splits
-#                   already declared. It must reach at least
-#                   as far back as the bars, or an older payout arrives as an
-#                   unexplained price drop. Nights and weekends only: it takes
-#                   about half an hour of Tiingo's 50 an hour (the 23 funds),
-#                   and refuses to start while the hourly run is asking Tiingo. Twelve Data remains a labelled
-#                   fallback (`--source twelvedata`) that cannot see splits.
+#                   already declared and the funds abroad's rows. It must reach
+#                   at least as far back as the bars, or an older payout arrives
+#                   as an unexplained price drop. Nights and weekends only: the
+#                   12 funds take about a quarter of an hour at 45 of Tiingo's
+#                   50 an hour, and it refuses to start while the hourly run is
+#                   asking Tiingo. Twelve Data remains a labelled fallback
+#                   (`--source twelvedata`) that cannot see splits.
 #   voter-bars      every live voter's bars of every instrument (or those named),
 #                   35 days, uploaded as the artifact `voter-bars` for a
 #                   measurement (tools/voter_bars.py). Writes nothing to the

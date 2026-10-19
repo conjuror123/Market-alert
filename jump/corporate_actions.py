@@ -61,13 +61,13 @@ STEP_THRESHOLD = 1e-5
 SPLIT_THRESHOLD = 0.20
 
 REQUEST_DELAY_SECONDS = 8.0
-# Tiingo's free plan: 50 requests an hour, shared with the hourly run, which
-# asks for its funds every hour the NYSE is open or just closed. So the full
-# refresh runs only while the hourly run leaves Tiingo alone - from three hours
-# after a close to the next session's first hour, a night or a weekend
-# (hourly_run_asks_tiingo) - and keeps to 45 an hour itself, room for a retry:
-# stage 2's 12 funds take about a quarter of an hour. RateLimited does not retry, so a collision aborts rather than writing a
-# truncated table.
+# Tiingo's free plan: 50 requests an hour, shared with the hourly run, which asks for
+# its funds every hour the NYSE is open or just closed. So the full refresh runs only
+# while the hourly run leaves Tiingo alone - from three hours after a close to the next
+# session's first hour, a night or a weekend (hourly_run_asks_tiingo) - and keeps to 45
+# an hour itself, room for a retry: stage 2's 12 funds take about a quarter of an hour.
+# RateLimited does not retry, so a collision aborts rather than writing a truncated
+# table.
 TIINGO_HOURLY_LIMIT = 50
 TIINGO_REQUEST_DELAY_SECONDS = 80.0
 

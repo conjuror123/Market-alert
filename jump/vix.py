@@ -34,11 +34,11 @@ def _rolling_mad(series: pd.Series, window: int) -> pd.Series:
     """Median absolute deviation on a rolling window, EXCLUDING the current bar -
     the window ends on the previous one.
 
-    Vectorised over the whole series rather than called back per window, which
-    is not a micro-optimisation: this was 54% of the entire pipeline when the pipeline winsorised every instrument. The window
-    is twenty-four bars, and a twenty-four-element double median takes about
-    35us of which almost all is call overhead rather than arithmetic - so 1.7
-    million of them, one per bar per instrument, cost two minutes of the five a
+    Vectorised over the whole series rather than called back per window, which is not a
+    micro-optimisation: this was 54% of the entire pipeline when the pipeline winsorised
+    every instrument. The window is twenty-four bars, and a twenty-four-element double
+    median takes about 35us of which almost all is call overhead rather than arithmetic
+    - so 1.7 million of them, one per bar per instrument, cost two minutes of the five a
     full run took, to do a few seconds of actual work.
 
     NaN handling is inherited rather than coded: np.median returns NaN if any

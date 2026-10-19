@@ -296,10 +296,10 @@ def describe(event: dict, labels: dict[str, str]) -> str:
     asset_id = str(event.get("asset_id", ""))
     label = labels.get(asset_id) or asset_id.split(":")[-1]
     move = _clean(event.get("r"))
-    # The ticker leads: it is what the reader types into a chart and the only
-    # name that is the same everywhere - where it is not (Yahoo's ^N225), the
-    # index's own name, which is (jump.basket.Asset.display). The move shares that line, because it is
-    # the first thing anyone wants, and its size in σ ends it.
+    # The ticker leads: it is what the reader types into a chart and the only name that
+    # is the same everywhere - where it is not (Yahoo's ^N225), the index's own name,
+    # which is (jump.basket.Asset.display). The move shares that line, because it is the
+    # first thing anyone wants, and its size in σ ends it.
     shown = f" {move * 100:+.2f}%" if move is not None else ""
     if shown and _overnight(event):
         # The gap is a price move from the last close to the first print, and
@@ -655,10 +655,10 @@ PING_FOOTER = "Added to digest👆🏻👆🏻"
 def format_message(members: "list[dict]") -> str:
     """One alert message from its moves, each {form, size, body, context, hour}.
 
-    Pushes first, then pings, each by size, biggest first. The news scheduled
-    around the pushes follows them, each list once: a run's pushes are nearly
-    always the same hour, so it is usually one list. When they are not, each
-    list names the hour it is around - even when only one of the hours had any. The pings share one pointer up at the
+    Pushes first, then pings, each by size, biggest first. The news scheduled around the
+    pushes follows them, each list once: a run's pushes are nearly always the same hour,
+    so it is usually one list. When they are not, each list names the hour it is around
+    - even when only one of the hours had any. The pings share one pointer up at the
     note."""
     pushes = sorted((m for m in members if m["form"] == PUSH), key=lambda m: -m["size"])
     rows = sorted((m for m in members if m["form"] == ROW), key=lambda m: -m["size"])

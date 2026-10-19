@@ -23,37 +23,19 @@ mistake".
 WHO IS ASKED (SOURCES, sources_for). Every source that carries the instrument
 and moves with its store - each held to one bar in the source audit of
 2026-10-13 (docs/decisions.md, "Every source on every instrument") - except its
-own provider:
+own provider. Which source votes on what is the table in docs/manual.md, "The
+sources' vote"; SOURCES below is its code. Two vendors printing the same bars
+agree: each is a voice.
 
-    the pairs          Yahoo, MarketWatch, Wallstreetcn, Tiingo, Twelve Data (not USD/CNH)
-    gold, silver       Yahoo's and MarketWatch's COMEX futures, Sina's and
-                       Wallstreetcn's spot, Tiingo, Twelve Data (gold)
-    the funds          Yahoo's and Sina's half hours, MarketWatch, Alpaca's tape
-                       (Alpaca_SIP, fifteen minutes behind: asked once it serves the
-                       move's hour whole, Source.delay); UNG also Wallstreetcn's
-                       natural gas future, Tiingo and SiftingIO; SPY SiftingIO;
-                       REMX Tiingo
-    the coins          Coinbase, Kraken, Bitstamp, Bitfinex, Alpaca's and Yahoo's
-                       dollar pairs - a wick on Binance, whose prices are its own
-                       trades, is real there and not the market's
-    the futures        MarketWatch's continuous series; the FT's bars of the
-                       contract the store holds (grains, platinum, live cattle) or
-                       its continuous series (coffee, cocoa, Brent); Sina's
-                       softs, Brent and spot platinum; Wallstreetcn's cocoa,
-                       cotton and Brent; SiftingIO's spot platinum
-    the LME            Wallstreetcn; copper also Yahoo's COMEX future
-    the indices        MarketWatch (not the TAIEX or CSI 300), Wallstreetcn's
-                       Sensex, Saudi and Canadian, the FT's Euro Stoxx, FTSE, SMI,
-                       Bovespa and IPC, Naver's KOSPI, the Taiwan exchange's
-                       TAIEX, Sina's CSI 300
-
-Two vendors printing the same bars agree: each is a voice. A source whose bar
-in one local hour is another grid's is not asked about a move in that hour
-(Source.skip_hours: the FT's last hour in Europe, the TAIEX's 13:00, the CSI
-300's 11:00), where it is neither a vote nor an outage. The keyed providers -
-Tiingo, Twelve Data, SiftingIO - vote within the votes' share of their
-allowance (config/provider_limits.csv, vote_room); past it, each is an outage
-for the rest of the run, named on the health chat.
+A source whose bar in one local hour is another grid's, or that has no bar
+there, is not asked about a move in that hour (Source.skip_hours: the FT's last
+hour in Europe and its Bund and gilts' hours, the TAIEX's 13:00, the Chinese
+lunch at 11:00, the Nikkei future's 15:00, the Treasury funds outside their
+session), where it is neither a vote nor an outage. The keyed providers -
+Tiingo, Twelve Data, SiftingIO - vote within the votes' share of their allowance
+(config/provider_limits.csv, vote_room); past it, each is an outage for the rest
+of the run, named on the health chat. A share of a minute (Twelve Data's,
+Alpaca's) is a pace instead (per_minute).
 
 THE VOTE (judge_all, combine) is taken with what the sources serve when it is
 taken: a source that has not shown the move yet counts against, until the
@@ -62,14 +44,14 @@ next count. Every source of an instrument is asked, or none that run
 asked. With every other source down, the move is uncertain
 until a count after they are back.
 
-WHICH BARS (candidates). The detector's own readings, ended within the
-instrument's recount (recount_days), at CANDIDATE_SIGMA (or the detector's bottom level, if set lower)
-or more of their own kind, scored with the detector's own window: an hour's move as
-jump.returns measures it (`close`: from the previous close, or from its own
-open on a session's first bar and after a hole) against the instrument's
-earlier hours, and a session's gap (`open`) against its earlier gaps. That is
-below the detector's bottom word, so nothing it flags is missed: a few a day
-across the basket, one request per source and instrument.
+WHICH BARS (candidates). The detector's own readings, ended within the instrument's
+recount (recount_days), at CANDIDATE_SIGMA (or the detector's bottom level, if lower) or
+more of their own kind, scored with the detector's own window: an hour's move as
+jump.returns measures it (`close`: from the previous close, or from its own open on a
+session's first bar and after a hole) against the instrument's earlier hours, and a
+session's gap (`open`) against its earlier gaps. That is below the detector's bottom
+word, so nothing it flags is missed: a few a day across the basket, one request per
+source and instrument.
 
 ONE SOURCE'S ANSWER (judge). Each feed is compared with itself, so a steady offset
 between them is not a move. A move is one bar's: the source's own price at
@@ -81,20 +63,18 @@ at least REAL_SHARE as far; UNCONFIRMED if it did not, or has not yet; UNKNOWN
 source an hour late does not see the move, and one with a hole there is out
 (the user's, 2026-10-12).
 
-THE RECORD (VERIFIED_PATH) is what the detector and delivery read. A reading
-is voted on the run that finds it, then again from the bars as they then are
-on the first run after each end of its market's session (due,
-sessions.last_close: the NYSE close for funds, a daily-session market's own
-close, 00:00 UTC for coins and pairs) - its own provider re-read first
-(recount_hours, jump.backfill) - until the closest-reaching of its
-sources no longer serves its hour (recount_days: nine days wherever MarketWatch
-votes, 29 for the coins, 79 for the LME), held inside the record's KEEP_DAYS
-(the CSI 300's Sina reaches a year, counted to 89); after that the further
-ones would vote alone, and the vote stands. A
-source that corrects its bars turns the vote back; a bar that heals into no far
-move loses its vote. A move not real is kept for good, because the detector rescores the whole history
-every run; the rest go after KEEP_DAYS. A record from before the vote reads in
-its words (_BEFORE_THE_VOTE).
+THE RECORD (VERIFIED_PATH) is what the detector and delivery read. A reading is voted on
+the run that finds it, then again from the bars as they then are on the first run after
+each end of its market's session (due, sessions.last_close: the NYSE close for funds, a
+daily-session market's own close, 00:00 UTC for coins and pairs) - its own provider
+re-read first (recount_hours, jump.backfill) - until the closest-reaching of its sources
+no longer serves its hour (recount_days: nine days wherever MarketWatch votes, 5 for
+China's 30-year fund, 29 for the coins, 79 for the LME), held inside the record's
+KEEP_DAYS (the CSI 300's Sina reaches a year, counted to 89); after that the further
+ones would vote alone, and the vote stands. A source that corrects its bars turns the
+vote back; a bar that heals into no far move loses its vote. A move not real is kept for
+good, because the detector rescores the whole history every run; the rest go after
+KEEP_DAYS. A record from before the vote reads in its words (_BEFORE_THE_VOTE).
 
 OVERNIGHT, for a session's first hour: most feeds did not see the hour move,
 but most saw the move from the previous session's close to that bar's close,
@@ -349,8 +329,14 @@ SOURCES: "tuple[Source, ...]" = (
     Source("sina", "Sina", 49, "1h", {"^N225": "NK"}, own_rolls=True,
            skip_hours={"^N225": (15,)}),
     # The Treasury futures' funds (SINA_TREASURY_FUNDS), beside a future the
-    # store rolls.
-    Source("sina", "Sina", 77, "30min", SINA_TREASURY_FUNDS, own_rolls=True),
+    # store rolls, asked only about a move whose two bars are in the funds'
+    # session (09:30-16:00 New York): 09:00-14:00 Chicago, the futures' clock.
+    # Outside it the fund has no bar, and the future's night is MarketWatch's -
+    # neither a vote nor an outage (it was the outage of 8 of 12 asks, the
+    # dashboard of 2026-10-19: the 08:00 New York release hours).
+    Source("sina", "Sina", 77, "30min", SINA_TREASURY_FUNDS, own_rolls=True,
+           skip_hours={t: tuple(h for h in range(24) if not 9 <= h <= 14)
+                       for t in SINA_TREASURY_FUNDS}),
     # MarketWatch: the pairs, the funds by their listing exchange, the indices,
     # live cattle's continuous contract; the futures' continuous series. Its
     # TAIEX apart from 13:00, as the exchange's: 1.00 at 10:00-12:00 Taipei, 0.46
