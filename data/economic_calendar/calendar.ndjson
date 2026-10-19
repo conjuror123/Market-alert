@@ -91983,7 +91983,7 @@
 {"actual": "", "country": "AUD", "date": "2026-10-18T04:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "RBA Annual Report"}
 {"actual": "", "country": "All", "date": "2026-10-18T14:15:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "IMF Meetings"}
 {"actual": "", "country": "NZD", "date": "2026-10-18T21:30:00+00:00", "forecast": "", "impact": "Low", "previous": "51.2", "title": "BusinessNZ Services Index"}
-{"actual": "", "country": "NZD", "date": "2026-10-18T21:45:00+00:00", "forecast": "-1625M", "impact": "Low", "previous": "-1349M", "title": "Trade Balance"}
+{"actual": "", "country": "NZD", "date": "2026-10-18T21:45:00+00:00", "forecast": "-775M", "impact": "Low", "previous": "-1349M", "title": "Trade Balance"}
 {"actual": "", "country": "GBP", "date": "2026-10-18T23:01:00+00:00", "forecast": "", "impact": "Low", "previous": "0.7%", "title": "Rightmove HPI m/m"}
 {"actual": "", "country": "AUD", "date": "2026-10-18T23:05:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "RBA Assist Gov Kent Speaks"}
 {"actual": "", "country": "CNY", "date": "2026-10-19T01:30:00+00:00", "forecast": "", "impact": "Low", "previous": "-0.17%", "title": "New Home Prices m/m"}
@@ -92021,7 +92021,7 @@
 {"actual": "", "country": "USD", "date": "2026-10-20T12:30:00+00:00", "forecast": "1.39M", "impact": "Low", "previous": "1.39M", "title": "Building Permits"}
 {"actual": "", "country": "USD", "date": "2026-10-20T12:30:00+00:00", "forecast": "1.30M", "impact": "Low", "previous": "1.28M", "title": "Housing Starts"}
 {"actual": "", "country": "EUR", "date": "2026-10-20T14:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Consumer Confidence"}
-{"actual": "", "country": "USD", "date": "2026-10-20T14:00:00+00:00", "forecast": "0.1%", "impact": "Low", "previous": "0.3%", "title": "Pending Home Sales m/m"}
+{"actual": "", "country": "USD", "date": "2026-10-20T14:00:00+00:00", "forecast": "-0.4%", "impact": "Low", "previous": "0.3%", "title": "Pending Home Sales m/m"}
 {"actual": "", "country": "NZD", "date": "2026-10-20T14:50:00+00:00", "forecast": "", "impact": "Low", "previous": "1.2%", "title": "GDT Price Index"}
 {"actual": "", "country": "GBP", "date": "2026-10-20T17:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "MPC Member Greene Speaks"}
 {"actual": "", "country": "USD", "date": "2026-10-20T20:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Financial Stability Report"}
