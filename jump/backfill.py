@@ -498,6 +498,30 @@ def check_dividends_abroad(funds: "list[Asset]", session: requests.Session,
             "added": added, "failed": failed, "stale": stale}
 
 
+def tables_running_out(basket: Basket, now: "datetime | None" = None) -> "str | None":
+    """The health chat's line on the tables abroad within ABROAD_WARN_DAYS of their
+    end or past it (jump.sessions), on Monday's 00:00 UTC run, or None. Past a
+    table's end its weekdays count as trading: on a holiday the library did not
+    know, its instruments read as missing bars."""
+    now = now or datetime.now(timezone.utc)
+    if now.weekday() != 0 or now.hour != 0:
+        return None
+    parts = []
+    for name, last in _sessions.short_exchange_tables(now.date(), _sessions.ABROAD_WARN_DAYS):
+        held = [a.shown_as for a in basket.instruments if a.session_template == name]
+        if held:
+            parts.append(f"{name.replace('_', ' ').title()}'s "
+                         f"{'ended' if last < now.date() else 'ends'} {last} "
+                         f"({quote(', '.join(held))})")
+    if not parts:
+        return None
+    return ("⚠️ <b>Session table running out</b>\n" + "; ".join(parts) + ". The calendar "
+            "library has no later year yet: past a table's end every weekday counts as "
+            "trading, so its holidays read as missing bars. Asked again each day; if only "
+            "exchange-calendars 5 carries the year, raise the pin in "
+            ".github/workflows/price-monitor.yml.")
+
+
 # How far back the skip looks for the newest in-session bar: more than a
 # weekend's worth of hourly bars served while the market was shut.
 SKIP_LOOKBACK_BARS = 240
@@ -2035,6 +2059,11 @@ def _main(argv: "list[str] | None", usage: Usage) -> int:
                     "until it catches up.")
         except Exception as exc:
             log.warning("dividend check abroad failed - %s", exc)
+    # The tables abroad near their end, each Monday (jump.sessions).
+    if not args.instruments and not args.extend_history:
+        line = tables_running_out(basket)
+        if line:
+            send_ops_alert(line)
 
     # THE SOURCES' VOTE ON THE FAR MOVES, on the ordinary pass over the whole
     # basket, before anything is scored: a move most did not see is not scored

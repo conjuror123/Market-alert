@@ -2371,3 +2371,25 @@ def test_a_five_hour_market_is_asked_the_funds_29_sessions_not_200_hours(
     out = backfill.deepen_from_yahoo(_index("^TWII", "taipei"), str(tmp_path / "yahoo__TWII"),
                                      None, now=datetime.fromtimestamp(hours[-1] + HOUR, timezone.utc))
     assert out["check"]["ok"] and out["older"] == recent[0]
+
+
+def test_a_table_abroad_running_out_is_told_on_mondays_with_its_instruments(monkeypatch):
+    # Past its end a table's weekdays count as trading: the health chat hears it
+    # once a week, on Monday's 00:00 UTC run, naming who trades there.
+    from types import SimpleNamespace
+
+    from jump import backfill, sessions
+
+    monkeypatch.setattr(sessions, "short_exchange_tables",
+                        lambda today, within: [("shanghai", date(2026, 12, 31))])
+    basket = SimpleNamespace(instruments=[
+        asset(ticker="000300.SS", session_template="shanghai", display="CSI 300"),
+        asset(ticker="511090.SS", session_template="shanghai", display="China 30Y"),
+        asset(ticker="^N225", session_template="tokyo")])
+    line = backfill.tables_running_out(basket, datetime(2026, 12, 7, 0, 5, tzinfo=timezone.utc))
+    assert "Shanghai's ends 2026-12-31 (CSI 300, China 30Y)" in line
+    assert "N225" not in line
+    assert "ended 2026-12-31" in backfill.tables_running_out(
+        basket, datetime(2027, 1, 4, 0, 5, tzinfo=timezone.utc))
+    for later in ((2026, 12, 7, 1, 5), (2026, 12, 8, 0, 5)):
+        assert backfill.tables_running_out(basket, datetime(*later, tzinfo=timezone.utc)) is None

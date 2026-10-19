@@ -84,8 +84,8 @@ def jump_pipeline_crashed() -> bool:
 # Each is a failed run here: broken, if not yet urgent.
 SIDE_STEPS = {
     "SESSIONS_STEP_OUTCOME":
-        "the session table could not be extended: it has under two years left "
-        "(jump/sessions.py)",
+        "the session tables could not be extended: the NYSE's has under two years "
+        "left, or a market abroad's under 60 days (jump/sessions.py)",
     "HOT_SAVE_STEP_OUTCOME":
         "the open months of the bars were not saved to the release: the next run "
         "restores an older copy and fetches the difference again",

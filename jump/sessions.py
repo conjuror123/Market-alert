@@ -93,7 +93,14 @@ def generate_exchange_sessions(name: str, start: date, end: date) -> list[Sessio
         start = max(start, factory.bound_min().date())
     if end < start:
         return []
-    calendar = xcals.get_calendar(code, start=str(start), end=str(end))
+    # Asked from a month before: the library refuses a span of one day (Seoul's
+    # table ends 2028-12-28, a day short of the NYSE's), and a year's usual close
+    # is read off more than the few days a short extension adds. Only the days
+    # from `start` are returned.
+    since = start - timedelta(days=31)
+    if factory.bound_min() is not None:
+        since = max(since, factory.bound_min().date())
+    calendar = xcals.get_calendar(code, start=str(since), end=str(end))
     tz, ny = ZoneInfo(zone), ZoneInfo(EXCHANGE_TZ)
     rows = []
     for day, row in calendar.schedule.iterrows():
@@ -109,7 +116,7 @@ def generate_exchange_sessions(name: str, start: date, end: date) -> list[Sessio
         closes = [c for d, _, c in rows if d.year == year]
         usual[year] = max(set(closes), key=closes.count)
     return [Session(day=d, local_open=o, local_close=c, is_early_close=c < usual[d.year])
-            for d, o, c in rows]
+            for d, o, c in rows if d >= start]
 
 
 def write_sessions(path: str, sessions: list[Session]) -> None:
@@ -539,6 +546,42 @@ def extend_exchange_table(name: str, until: date, generate=None,
         write_sessions(path, list(table.values()) + new)
         _exchange_table.cache_clear()
     return len(new)
+
+
+# THE TABLES ABROAD RUN OUT ON THEIR OWN. A market whose holidays are announced a
+# year at a time is known to the library only to that year's end (Shanghai's and
+# Mumbai's to 2026-12-31, exchange-calendars 4.13.2), while the NYSE table, whose
+# shortness brings the library in, runs short about once a year: a year the library
+# learned later would wait for the next. So once a table abroad is within
+# ABROAD_RETRY_DAYS of its end the library is asked once a day, until a release
+# carries the year; within ABROAD_WARN_DAYS, or past its end, the health chat is
+# told each Monday (jump.backfill.tables_running_out) - there is nothing to do but
+# wait for the release, so a daily line would be noise.
+ABROAD_RETRY_DAYS = 60
+ABROAD_WARN_DAYS = 30
+
+
+def short_exchange_tables(today: "date | None" = None,
+                          within: int = ABROAD_RETRY_DAYS) -> "list[tuple[str, date]]":
+    """The markets abroad whose table ends within `within` days of `today`, or has
+    ended: (name, its last day), soonest first. Read from the tables; no library."""
+    today = today or date.today()
+    short = []
+    for name in EXCHANGES:
+        _, _, last = _exchange_table(exchange_table_path(name))
+        if last is not None and last <= today + timedelta(days=within):
+            short.append((name, last))
+    return sorted(short, key=lambda s: (s[1], s[0]))
+
+
+def calendar_due(now: "datetime | None" = None) -> bool:
+    """Whether this run installs the calendar library to extend the tables: every
+    run while the NYSE's is short (needs_extension), and the run in the 00:00 UTC
+    hour while one abroad is (short_exchange_tables)."""
+    now = now or datetime.now(timezone.utc)
+    if needs_extension(today=now.date()):
+        return True
+    return now.hour == 0 and bool(short_exchange_tables(now.date()))
 
 # The longest a daily-session market can be shut: Thursday's close to Tuesday's
 # open over Easter, or a Christmas on a Thursday, about 102 hours. Longer means

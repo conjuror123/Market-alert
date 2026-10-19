@@ -365,3 +365,42 @@ def test_the_closing_auction_is_in_hong_kongs_and_sydneys_session():
     assert sessions.daily_session_of(_utc(2026, 10, 8, 8), "hong_kong") == date(2026, 10, 8)
     assert sessions.daily_session_of(_utc(2026, 6, 16, 6), "sydney") == date(2026, 6, 16)
     assert sessions.daily_session_of(_utc(2026, 6, 16, 7), "sydney") is None
+
+
+@pytest.fixture
+def tables_abroad(tmp_path, monkeypatch):
+    """Shanghai's table ending 2026-12-31, Sydney's 2028-12-29; no other."""
+    for code, last in (("xshg", date(2026, 12, 31)), ("xasx", date(2028, 12, 29))):
+        sessions.write_sessions(str(tmp_path / f"{code}.csv"),
+                                [sessions.Session(last, "09:30", "15:00", False)])
+    monkeypatch.setattr(sessions, "exchange_table_path",
+                        lambda name: str(tmp_path / f"{sessions.EXCHANGES[name][0].lower()}.csv"))
+    sessions._exchange_table.cache_clear()
+    yield
+    sessions._exchange_table.cache_clear()
+
+
+def test_a_table_abroad_near_its_end_is_named_and_one_far_from_it_is_not(tables_abroad):
+    # Shanghai's holidays are known a year at a time: its table ends with the year.
+    assert sessions.short_exchange_tables(date(2026, 10, 31)) == []
+    assert sessions.short_exchange_tables(date(2026, 11, 1)) == [("shanghai", date(2026, 12, 31))]
+    assert sessions.short_exchange_tables(date(2026, 12, 1), 30) == [("shanghai", date(2026, 12, 31))]
+    assert sessions.short_exchange_tables(date(2027, 1, 4), 30) == [("shanghai", date(2026, 12, 31))]
+
+
+def test_the_library_is_asked_every_run_for_the_nyse_and_daily_for_a_table_abroad(
+        tables_abroad, monkeypatch):
+    at = lambda h: datetime(2026, 11, 2, h, 5, tzinfo=timezone.utc)
+    monkeypatch.setattr(sessions, "needs_extension", lambda path=None, today=None: False)
+    assert sessions.calendar_due(at(0)) and not sessions.calendar_due(at(1))
+    assert not sessions.calendar_due(datetime(2026, 10, 19, 0, 5, tzinfo=timezone.utc))
+    monkeypatch.setattr(sessions, "needs_extension", lambda path=None, today=None: True)
+    assert sessions.calendar_due(at(13))
+
+
+def test_a_table_one_day_short_is_extended_by_that_day():
+    # Seoul's table ends a day short of the NYSE's: the library refuses a span of
+    # one day, so the extension that runs daily near a table's end would fail.
+    pytest.importorskip("exchange_calendars")
+    got = sessions.generate_exchange_sessions("sydney", date(2027, 3, 10), date(2027, 3, 10))
+    assert [s.day for s in got] == [date(2027, 3, 10)] and not got[0].is_early_close
