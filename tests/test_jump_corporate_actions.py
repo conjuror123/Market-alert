@@ -218,6 +218,41 @@ def _store_to_friday_close(bars_dir, asset):
         "volume": 1.0, "n_src": 2}))
 
 
+
+def test_a_fund_the_table_lacks_is_added_from_its_own_source(tmp_path, monkeypatch):
+    # IGLT's payouts are iShares' ex-dates, each in pounds over the store's last
+    # close before that morning's open (07:00 UTC in summer); the China fund's
+    # are Yahoo's steps as they come.
+    from datetime import datetime, timezone
+
+    import pandas as pd
+    from jump import bars
+    from price_monitor import ishares, yahoo
+
+    def abroad(ticker, template):
+        return Asset(ticker=ticker, source="yahoo", block="rates", has_volume=True,
+                     tick_size=0.001, session_template=template, fetch_interval="30min",
+                     label=ticker, in_basket=True)
+
+    gilts, china = abroad("IGLT.L", "london"), abroad("511090.SS", "shanghai")
+    hour = lambda *t: int(datetime(*t, tzinfo=timezone.utc).timestamp())
+    bars.write(bars.store_path(str(tmp_path / "bars"), gilts.file_stem), pd.DataFrame({
+        "hour_utc": [hour(2026, 5, 20, 15), hour(2026, 5, 21, 7)], "open": 9.7,
+        "high": 9.7, "low": 9.5, "close": [9.70, 9.49], "volume": 1.0, "n_src": 2}))
+    monkeypatch.setattr(ishares, "fetch_payouts",
+                        lambda ticker, session=None: [(date(2026, 5, 21), 0.2155)])
+    monkeypatch.setattr(yahoo, "fetch_dividends",
+                        lambda ticker, since, session=None: [(date(2026, 6, 17), 0.0133)])
+    monkeypatch.setattr(ca.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(ca, "_now", lambda: datetime(2026, 10, 19, 12, tzinfo=timezone.utc))
+
+    out = tmp_path / "actions.csv"
+    assert ca.add_missing_from_yahoo([gilts, china], date(2024, 1, 1), str(out), None,
+                                     bars_dir=str(tmp_path / "bars")) == 0
+    rows = {(a.ticker, a.day.isoformat()): a.factor_step for a in ca.load_actions(str(out))}
+    assert rows == {("IGLT.L", "2026-05-21"): pytest.approx(0.2155 / (9.70 - 0.2155)),
+                    ("511090.SS", "2026-06-17"): pytest.approx(0.0133)}
+
 @pytest.mark.parametrize("now, runs", [
     ((2026, 10, 3, 12, 0), True),      # Saturday: the hourly run leaves Tiingo alone
     ((2026, 10, 2, 20, 0), False),     # Friday evening: still re-asking the close
@@ -256,7 +291,7 @@ def test_a_full_refresh_keeps_the_splits_already_declared(tmp_path, monkeypatch)
     # XLK's 2025-12-05 split was declared from Yahoo by the morning check, which
     # never asks that far back again: a Tiingo rebuild that does not list it
     # must not drop it. Payouts are Tiingo's to restate; a fund the refresh
-    # does not cover keeps nothing - but a fund abroad, whose rows are Yahoo's.
+    # does not cover keeps nothing - but a fund abroad, whose rows are not Tiingo's.
     from datetime import datetime, timezone
 
     live = _tiingo_fund("XLK")
@@ -264,7 +299,7 @@ def test_a_full_refresh_keeps_the_splits_already_declared(tmp_path, monkeypatch)
     out = tmp_path / "actions.csv"
     out.write_text("ticker,date,kind,factor_step\n"
                    "GONE,2020-01-02,split,1.00000000\n"
-                   "IGLT.L,2026-05-22,dividend,0.02308000\n"
+                   "IGLT.L,2026-05-21,dividend,0.02308000\n"
                    "XLK,2025-09-22,dividend,0.00150000\n"
                    "XLK,2025-12-05,split,1.00000000\n")
     monkeypatch.setattr(ca.tiingo, "fetch_daily_history", lambda *a, **k: [])
@@ -276,4 +311,4 @@ def test_a_full_refresh_keeps_the_splits_already_declared(tmp_path, monkeypatch)
 
     assert ca.main(["--out", str(out), "--bars-dir", str(tmp_path / "bars")]) == 0
     rows = [(a.ticker, a.day.isoformat(), a.kind) for a in ca.load_actions(str(out))]
-    assert rows == [("IGLT.L", "2026-05-22", "dividend"), ("XLK", "2025-12-05", "split")]
+    assert rows == [("IGLT.L", "2026-05-21", "dividend"), ("XLK", "2025-12-05", "split")]

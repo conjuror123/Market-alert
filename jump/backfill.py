@@ -399,11 +399,14 @@ def check_dividends(funds: "list[Asset]", table: "dict | None",
 
 
 def _ask_payouts(due: "list[tuple[Asset, date]]", checks: dict, session: requests.Session,
-                 now: datetime) -> "tuple[list, list[str], int]":
+                 now: datetime, bars_dir: str = bars.DEFAULT_BARS_DIR
+                 ) -> "tuple[list, list[str], int]":
     """Yahoo's payouts and splits for each fund due, from the day after its
     checked-through date (a month back for one never checked); each that answers
-    is checked through its own day. Returns what was found, the funds that
-    failed, and how many were checked."""
+    is checked through its own day. A fund in corporate_actions.PAYOUT_SOURCES
+    is asked its issuer instead, its steps over the closes in `bars_dir` (no
+    splits: a fund split is Yahoo's to say). Returns what was found, the funds
+    that failed, and how many were checked."""
     found: list[corporate_actions.CorporateAction] = []
     failed: list[str] = []
     checked = 0
@@ -411,6 +414,18 @@ def _ask_payouts(due: "list[tuple[Asset, date]]", checks: dict, session: request
     for position, (asset, today) in enumerate(due):
         since = (date.fromisoformat(checks[asset.ticker]) + timedelta(days=1)
                  if asset.ticker in checks else today - timedelta(days=30))
+        if corporate_actions.PAYOUT_SOURCES.get(asset.ticker) == "ishares":
+            # Not Yahoo: its failure is not one of Yahoo's in a row.
+            try:
+                found.extend(corporate_actions.payouts_from_ishares(
+                    asset, since, session, bars_dir, now))
+            except Exception as exc:
+                log.warning("dividend check: %s failed at iShares - %s", asset.ticker, exc)
+                failed.append(asset.ticker)
+                continue
+            checks[asset.ticker] = today.isoformat()
+            checked += 1
+            continue
         try:
             pairs, splits = yahoo.fetch_dividends_and_splits(asset.ticker, since,
                                                              session=session, now=now)
@@ -451,7 +466,8 @@ def _ask_payouts(due: "list[tuple[Asset, date]]", checks: dict, session: request
 def check_dividends_abroad(funds: "list[Asset]", session: requests.Session,
                            now: datetime | None = None,
                            actions_path: str = corporate_actions.DEFAULT_ACTIONS_PATH,
-                           checks_path: str = corporate_actions.DEFAULT_CHECKS_PATH) -> dict:
+                           checks_path: str = corporate_actions.DEFAULT_CHECKS_PATH,
+                           bars_dir: str = bars.DEFAULT_BARS_DIR) -> dict:
     """The funds abroad's payouts confirmed through today, as check_dividends
     confirms the US funds', each on its own market's clock: on its exchange's
     trading days (jump.sessions), once that session has opened. A London or
@@ -469,7 +485,7 @@ def check_dividends_abroad(funds: "list[Asset]", session: requests.Session,
         if now.timestamp() >= opened[asset.ticker] \
                 and checks.get(asset.ticker, "") < today.isoformat():
             due.append((asset, today))
-    found, failed, checked = _ask_payouts(due, checks, session, now)
+    found, failed, checked = _ask_payouts(due, checks, session, now, bars_dir)
     added = corporate_actions.merge_actions(found, actions_path) if found else 0
     if checked:
         corporate_actions.write_checks(checks, checks_path)
@@ -2005,7 +2021,8 @@ def _main(argv: "list[str] | None", usage: Usage) -> int:
             log.warning("dividend check failed - %s", exc)
         # The funds abroad, each after its own market's open.
         try:
-            r = check_dividends_abroad(corporate_actions.funds_abroad(basket), session)
+            r = check_dividends_abroad(corporate_actions.funds_abroad(basket), session,
+                                       bars_dir=args.bars_dir)
             if r["skipped"] is None:
                 log.info("dividend check abroad: %d fund(s) confirmed, %d payout(s) added%s",
                          r["checked"], r["added"],
@@ -2037,6 +2054,9 @@ def _main(argv: "list[str] | None", usage: Usage) -> int:
                 vote.append(f"{name} has spent the votes' share of its allowance "
                             "(config/provider_limits.csv): an outage in the vote until "
                             "the share renews")
+            # A voter failing every time it is asked, for a day: named once a day.
+            vote.extend(verify.failing_voters((r or {}).get("failed", []),
+                                              (r or {}).get("answered", [])))
         except Exception as exc:
             # Not a failed run: an unvoted move is scored, as every move never
             # voted is. Named, though.

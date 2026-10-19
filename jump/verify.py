@@ -134,6 +134,15 @@ log = logging.getLogger("jump.verify")
 
 HOUR = 3600
 VERIFIED_PATH = os.path.join("data", "jump", "verified.csv")
+# A voter failing on an instrument every time it is asked (failing_voters): named to
+# the health chat once it has failed for VOTER_FAILING_HOURS, and once a day while it
+# goes on. A rate limit is not a failure: it stops the source for the run, named then.
+VOTER_FAILURES_PATH = os.path.join("data", "jump", "voter_failures.csv")
+VOTER_FAILING_HOURS = 24
+# A row whose voter has not failed for this long is dropped: it is no longer asked
+# (its instrument quiet, or the voter gone), and its clock starts again if it fails.
+VOTER_FAILURE_STALE_DAYS = 3
+VOTER_FAILURE_COLUMNS = ("source", "ticker", "since_utc", "last_utc", "error", "told_utc")
 COLUMNS = ["asset_id", "hour_utc", "check", "verdict", "provider", "verifier", "seen",
            "stored_move", "verifier_move", "checked_utc"]
 
@@ -1072,6 +1081,8 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
     began = time.monotonic()
     late = 0
     doubted: list[str] = []
+    failed: list[tuple[str, str, str]] = []
+    answered: set[tuple[str, str]] = set()
     for _, asset, found, frame in sorted(todo, key=lambda d: d[0]):
         if time.monotonic() - began > VOTE_SECONDS:
             late += 1
@@ -1105,12 +1116,15 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
                 asked.append((name, _priced(fetch_verifier(name, src.symbol(asset), src.interval,
                                                            days, session, now_dt))))
                 unanswered.pop(name, None)
+                answered.add((name, asset.ticker))
             except Exception as exc:
                 log.warning("verify: %s from %s failed - %s", asset.ticker, name, exc)
                 asked.append((name, None))
                 if isinstance(exc, stops) or "answered 429" in str(exc):
                     blocked.add(name)
-                elif isinstance(exc, Unreachable):
+                    continue
+                failed.append((name, asset.ticker, str(exc)[:160]))
+                if isinstance(exc, Unreachable):
                     unanswered[name] = unanswered.get(name, 0) + 1
                     if unanswered[name] >= UNANSWERED_IN_A_ROW:
                         log.warning("verify: %s did not answer %d requests in a row; "
@@ -1141,7 +1155,62 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
     # The sources stopped during this pass, by a rate limit or silence; the
     # providers past the votes' share of their allowance.
     return dict(counts, not_real_moves=doubted, stopped=sorted(blocked - told),
-                capped=sorted(capped))
+                capped=sorted(capped), failed=failed, answered=sorted(answered))
+
+
+def failing_voters(failed: "list[tuple[str, str, str]]", answered,
+                   now: "datetime | None" = None, path: "str | None" = None) -> "list[str]":
+    """What to tell the health chat about voters that keep failing. Each
+    (source, instrument) that failed this pass opens or extends its row - the
+    first failure kept -, one that answered is dropped; a row failing for
+    VOTER_FAILING_HOURS or more and not told in the last day is named, one line
+    per source, in a pass it failed in. A row not failing for
+    VOTER_FAILURE_STALE_DAYS is dropped. A voter that fails is an outage in its
+    votes, and only the log said so: the KOSPI's MarketWatch vote failed four
+    days unseen (2026-10-14)."""
+    path = path or VOTER_FAILURES_PATH
+    now_ts = int((now or datetime.now(timezone.utc)).timestamp())
+    rows: dict[tuple[str, str], dict] = {}
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8", newline="") as f:
+            rows = {(r["source"], r["ticker"]): r for r in csv.DictReader(f)}
+    before = {k: dict(r) for k, r in rows.items()}
+    for key in answered:
+        rows.pop(tuple(key), None)
+    for key in [k for k, r in rows.items()
+                if now_ts - int(r["last_utc"]) > VOTER_FAILURE_STALE_DAYS * 86400]:
+        del rows[key]
+    for name, ticker, error in failed:
+        row = rows.setdefault((name, ticker), {"source": name, "ticker": ticker,
+                                               "since_utc": str(now_ts), "told_utc": ""})
+        row["last_utc"], row["error"] = str(now_ts), error
+    due: dict[str, list[dict]] = {}
+    for (name, _), row in sorted(rows.items()):
+        # Named only in a pass it failed in, so the line says what is failing now.
+        failing = (int(row["last_utc"]) == now_ts
+                   and now_ts - int(row["since_utc"]) >= VOTER_FAILING_HOURS * 3600)
+        told = row.get("told_utc") or ""
+        if failing and (not told or now_ts - int(told) >= 86400):
+            due.setdefault(name, []).append(row)
+            row["told_utc"] = str(now_ts)
+    if rows != before:
+        def _write(tmp: str) -> None:
+            with open(tmp, "w", encoding="utf-8", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=VOTER_FAILURE_COLUMNS,
+                                        lineterminator="\n", extrasaction="ignore")
+                writer.writeheader()
+                for _, row in sorted(rows.items()):
+                    writer.writerow(row)
+        atomic.write_replacing(path, _write)
+    day = lambda t: datetime.fromtimestamp(int(t), timezone.utc).strftime("%Y-%m-%d %H:%M")  # noqa: E731
+    lines = []
+    for name, failing in due.items():
+        since = min(int(r["since_utc"]) for r in failing)
+        what = ", ".join(r["ticker"] for r in failing)
+        lines.append(f"{LABELS.get(name, name)} has failed every time it was asked since "
+                     f"{day(since)} UTC, on {what} ({failing[-1]['error']}): an outage in "
+                     "those votes until it answers")
+    return lines
 
 
 def main(argv: "list[str] | None" = None) -> int:

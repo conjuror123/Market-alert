@@ -225,6 +225,9 @@ jobs:
           # detector leaves the moves voted not real out on every runner, so
           # an uncommitted vote would be a move scored again.
           if [ -f data/jump/verified.csv ]; then git add data/jump/verified.csv; fi
+          # The voters failing every time they are asked, and since when
+          # (jump.verify.failing_voters): a runner forgets the clock otherwise.
+          if [ -f data/jump/voter_failures.csv ]; then git add data/jump/voter_failures.csv; fi
           # Every run, and small: what each provider was asked, by day
           # (jump.usage) - the limits are counted against it.
           if [ -f data/jump/usage/hourly.csv ]; then git add data/jump/usage/hourly.csv; fi
