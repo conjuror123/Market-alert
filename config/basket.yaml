@@ -32,8 +32,13 @@ history_since: "2015-01-01"
 #                 until 2026-10-03, which is where the funds stored from
 #                 2002-2011 came from. It now holds only its IEX segment, from
 #                 2022-03; its client and the pass that used it are deleted.
-#   Dukascopy     2003 for the currency pairs (--deepen-dukascopy), no key.
+#   Dukascopy     2003 for the currency pairs, gold and silver (--deepen-dukascopy),
+#                 and the CFDs the Bund's and some futures' history came from; no key.
 #   Binance       each pair's own listing date (2017-08 at the earliest), no key.
+#   Yahoo         two years of hourly bars for the markets abroad (--deepen-yahoo).
+#   Wallstreetcn  about 170 days for the LME's metals, China's 30-year fund to its
+#                 listing (--deepen-wallstreetcn).
+#   EEX           TTF's own month futures from 2022 (--deepen-eex).
 # So a newly added ETF needs the Twelve Data pass and then Alpaca's, which
 # takes it to 2016.
 #
@@ -437,9 +442,9 @@ assets:
     label: "Mexico"
   # --- rates -----------------------------------------------------------------
   # US Treasuries by maturity - the 2-, 10- and 30-year futures, live from Yahoo
-  # one contract at a time (jump/futures.py) - and inflation-protected; the
-  # Bund and the long gilt, live from MarketWatch one contract at a time, without
-  # volume; China's 10-year future from Sina. No Japanese rate: every instrument
+  # one contract at a time (jump/futures.py) - and inflation-protected; the Bund,
+  # live from MarketWatch one contract at a time, without volume; the UK's and
+  # China's government bonds as funds (below). No Japanese rate: every instrument
   # is a price, and no free source serves the JGB future hour by hour
   # (docs/decisions.md, "The basket").
   - ticker: ZT=F
@@ -817,15 +822,15 @@ assets:
     label: "XRP"
 
 # Instruments outside the basket: scored and delivered like any other, but kept
-# out of the basket's block counts. block is still required. None in stage 1.
+# out of the basket's block counts. block is still required. None now.
 outside_basket: []
 
 # The VIX: FRED's VIXCLS, the index itself from 1990, shown on the weekly note
 # as a level ranked in its own history - the regime the week's moves happened
-# in (price_monitor.jump_delivery.vix_context). Daily,
-# and published a business day or two late, so each value is used from when it
-# became known (`available_at`), never from its observation date. Its own
-# history_since: the series is free back to 1990.
+# in (price_monitor.jump_delivery.vix_context). Daily, and published a business day
+# or two late, so each value is used from when it became known (`available_at`),
+# never from its observation date. Its own history_since: the series is free back
+# to 1990.
 volatility_index:
   series_id: VIXCLS
   source: fred

@@ -67,8 +67,9 @@ def store_path(base_dir: str, file_stem: str) -> str:
     write after that folds its twelve months into `2026.parquet`. A year is big
     enough for Parquet to be the smaller and faster form, and the store keeps a
     few dozen files rather than twelve more every year for `load` to open. The
-    fold costs git the year once more, about 16 MB (2025 was 16.4), the months
-    staying in its history: with the months, about 28 MB a year.
+    fold costs git the year once more, about 5 MB for the 62 (rehearsed
+    2026-10-19: 2026's first ten months, 4.3 MB; 2025's, for the old basket,
+    16.4), the months staying in its history: with them, about 17 MB a year.
 
     What is settled is read off the DATA, not the clock: SETTLE_DAYS after the
     month's end, measured against the newest bar the store holds.

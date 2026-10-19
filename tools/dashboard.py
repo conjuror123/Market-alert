@@ -90,14 +90,19 @@ select,input{font:inherit;font-size:.85rem;color:var(--ink);background:var(--sur
   border:1px solid var(--ring);border-radius:4px;padding:5px 8px}
 .tablebox{overflow:auto;max-height:640px;background:var(--surface);border:1px solid var(--ring);border-radius:6px}
 table{border-collapse:collapse;width:100%;font-size:.86rem;min-width:520px}
+@media (max-width:600px){table{min-width:0} th,td{padding:5px 7px}}
 th,td{padding:6px 10px;border-bottom:1px solid var(--grid);text-align:left;white-space:nowrap}
 th{position:sticky;top:0;background:var(--surface);color:var(--muted);font-weight:600;
-  font-size:.74rem;text-transform:uppercase;letter-spacing:.04em;z-index:1}
+  font-size:.74rem;text-transform:uppercase;letter-spacing:.04em;z-index:1;
+  white-space:normal;vertical-align:bottom}
 th.s{cursor:pointer} th.s:hover{color:var(--ink)}
 th[data-dir="-1"]::after{content:" ↓"} th[data-dir="1"]::after{content:" ↑"}
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 td.name{color:var(--ink)}
 td.long{white-space:normal;min-width:260px}
+td.text{white-space:normal}
+ul.notes{margin:10px 0 0;padding-left:18px;color:var(--muted);font-size:.82rem;max-width:100ch}
+ul.notes b{color:var(--ink2);font-weight:600}
 tbody tr:hover td{background:var(--wash)}
 tbody tr:last-child td{border-bottom:0}
 caption{caption-side:bottom;text-align:left;padding:8px 10px;color:var(--muted);font-size:.8rem}
@@ -186,20 +191,17 @@ footer{margin-top:48px;color:var(--muted);font-size:.82rem;max-width:90ch}
 </section>
 
 <section id="biggest">
-  <div class="grid2">
-    <div>
-      <h2>The biggest hours of each record</h2>
-      <p class="note">Each instrument's top 0.01% of settled hours by size of move, and the word
-      the detector gave each - the hours nobody would want missed.</p>
-      <div class="tablebox"><table id="t-big"></table></div>
-    </div>
-    <div>
-      <h2>Checks</h2>
-      <p class="note">The page's own counts, added across. A check that fails stops the page
-      from being published.</p>
-      <div class="tablebox"><table id="t-checks"></table></div>
-    </div>
-  </div>
+  <h2>The biggest hours of each record</h2>
+  <p class="note">Each instrument's top 0.01% of settled hours by size of move, and the word
+  the detector gave each - the hours nobody would want missed.</p>
+  <div class="tablebox" style="max-width:520px"><table id="t-big"></table></div>
+</section>
+
+<section id="checked">
+  <h2>Checks</h2>
+  <p class="note">The page's own counts, added across. A check that fails stops the page
+  from being published.</p>
+  <div class="tablebox"><table id="t-checks"></table></div>
 </section>
 
 <section id="limits">
@@ -246,6 +248,12 @@ const hour = t => t == null ? "—" : new Date(t*1000).toISOString().slice(0,16)
 const pct = m => m == null ? "outage" : (m >= 0 ? "+" : "") + (m*100).toFixed(2) + "%";
 const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g,
   c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+// A provider or source by the channel's name for it; a block in words.
+const label = k => (M.meta.labels || {})[k] || k;
+const blockName = b => String(b == null ? "" : b).replace(/_/g, " ");
+const labelCell = v => esc(label(v)), blockCell = v => esc(blockName(v));
+// A limit is the provider's account, not one of its feeds: Alpaca, not its IEX feed.
+const accountCell = v => esc(v === "alpaca" ? "Alpaca" : label(v));
 const repo = "https://github.com/conjuror123/Market-alert";
 
 // theme
@@ -267,7 +275,7 @@ const failed = M.checks.filter(c => !c.ok);
 const behind = meta.behind || [];
 $("behind").innerHTML = behind.length ? `<span class="status warn">⚠ ${behind.length} instrument(s)
   with no bar in the 4 days to the measurement - their newest hours were not in the store this
-  run had (a market holiday does this too):</span> ${behind.map(b => `${esc(b.ticker)} (${esc(b.provider)}, last ${hour(b.last)})`).join(", ")}` : "";
+  run had (a market holiday does this too):</span> ${behind.map(b => `${esc(b.ticker)} (${esc(label(b.provider))}, last ${hour(b.last)})`).join(", ")}` : "";
 const partial = V && V.fetched.failed.length;
 $("checks").innerHTML = (failed.length
   ? `<span class="status bad">✕ ${failed.length} of ${M.checks.length} checks failed</span>`
@@ -350,10 +358,10 @@ if (V){
     "An instrument's window is the reach of the closest-reaching of its sources; a source's answer is its own move over the move's two bars.");
   table($("t-source"), [["source","Source"],["asked","Asked",true,n0],["saw","Saw it",true,n0],
     ["did_not","Did not",true,n0],["outage","Outage",true,n0]],
-    Object.entries(T.by_source).map(([k,v]) => ({source:k, ...v})),
+    Object.entries(T.by_source).map(([k,v]) => ({source:label(k), ...v})),
     "An outage: no bar, or no price, at either of the move's two bars.");
   table($("t-vblock"), [["block","Block"],...VERDICTS.map(v => [v, VNAME[v], true, n0])],
-    Object.entries(T.by_block).map(([k,v]) => ({block:k, ...v})));
+    Object.entries(T.by_block).map(([k,v]) => ({block:blockName(k), ...v})));
   const erows = Object.entries(E.by_instrument).map(([k,v]) => ({ticker: k, window: v.window_days,
     dp: v.detector.pushes, vp: v.voted.pushes, dr: v.detector.rows, vr: v.voted.rows,
     change: (v.voted.pushes - v.detector.pushes) + (v.voted.rows - v.detector.rows)}));
@@ -367,8 +375,8 @@ if (V){
     const rows = V.list.slice().sort((a,b) => b.hour - a.hour).filter(r => (!q || r.ticker.toLowerCase().includes(q)) && (!ver || r.verdict === ver)
       && (!fl || (r.z != null && Math.abs(r.z) >= M.meta.levels[0])))
       .map(r => ({...r, az: r.z == null ? null : Math.abs(r.z),
-        said: r.answers.map(a => `<span class="${a.move == null ? "out" : a.saw ? "saw" : ""}">${esc(a.source)} ${pct(a.move)}${a.saw ? " ✓" : ""}</span>`).join(", ")}));
-    table($("t-votes"), [["hour","Hour (UTC)",true,hour],["ticker","Instrument"],["block","Block"],
+        said: r.answers.map(a => `<span class="${a.move == null ? "out" : a.saw ? "saw" : ""}">${esc(label(a.source))} ${pct(a.move)}${a.saw ? " ✓" : ""}</span>`).join(", ")}));
+    table($("t-votes"), [["hour","Hour (UTC)",true,hour],["ticker","Instrument"],["block","Block",false,blockCell],
       ["check","Reading",false,v => v === "open" ? "gap" : "hour"],["az","|z|",true,v => fmt(v,1)],
       ["stored","Stored move",true,pct],["verdict","Verdict",false,v => VNAME[v] || esc(v)],
       ["said","Each source",false,v => v,"long"]], rows,
@@ -383,14 +391,14 @@ if (V){
 // block and instrument tables
 const cover = M.coverage;
 const blocks = [...new Set(cover.map(c => c.block))].sort();
-$("block").innerHTML += blocks.map(b => `<option>${esc(b)}</option>`).join("");
+$("block").innerHTML += blocks.map(b => `<option value="${esc(b)}">${esc(blockName(b))}</option>`).join("");
 function splits(){
   const q = $("search").value.trim().toLowerCase(), b = $("block").value;
   const ws = W;
   const brows = blocks.map(bl => { const row = {block: bl, members: cover.filter(c => c.block === bl).length};
     ws.forEach((w,i) => { const x = M.by_block[w][bl] || {pushes:0, rows:0};
       row["p"+i] = x.pushes; row["r"+i] = x.rows; }); return row; });
-  table($("t-block"), [["block","Block"],["members","Instruments",true],
+  table($("t-block"), [["block","Block",false,blockCell],["members","Instruments",true],
     ...ws.flatMap((w,i) => [["p"+i, "Pushes, "+w, true, n0], ["r"+i, "Rows, "+w, true, n0]])], brows);
   const irows = cover.filter(c => (!b || c.block === b) &&
       (!q || (c.ticker + " " + (c.display||"") + " " + c.label).toLowerCase().includes(q)))
@@ -398,7 +406,7 @@ function splits(){
       provider: c.provider, first: c.first};
       ws.forEach((w,i) => { const x = M.by_instrument[w][c.ticker] || {pushes:0, rows:0};
         row["p"+i] = x.pushes; row["r"+i] = x.rows; }); return row; });
-  table($("t-inst"), [["ticker","Instrument"],["name","Name"],["block","Block"],["provider","Feed"],
+  table($("t-inst"), [["ticker","Instrument"],["name","Name"],["block","Block",false,blockCell],["provider","Feed",false,labelCell],
     ...ws.flatMap((w,i) => [["p"+i, "Pushes, "+w, true, n0], ["r"+i, "Rows, "+w, true, n0]]),
     ["first","History from",true,day]], irows,
     `${irows.length} of ${cover.length} instruments. An instrument whose history starts inside a window counts only the part it had.`);
@@ -427,25 +435,30 @@ table($("t-big"), [["word","Word"],["hours","Hours",true]],
 
 // checks
 table($("t-checks"), [["ok","",false,v => v ? '<span class="status ok">✓ held</span>' : '<span class="status bad">✕ failed</span>'],
-  ["name","Check"],["detail","Compared"]], M.checks);
+  ["name","Check",false,null,"text"],["detail","Compared",false,null,"text"]], M.checks);
 
 // provider limits
 const lim = M.limits || [];
 const share = (c, l) => c == null || !l ? "–" : `${n0(c)} <span class="dim">(${Math.round(100 * c / l)}%)</span>`;
-if (lim.length) table($("t-limits"), [["provider","Provider"],["window","Window"],["limit","Limit",true,n0],
+if (lim.length){
+table($("t-limits"), [["provider","Provider",false,accountCell],["window","Window"],["limit","Limit",true,n0],
   ["live","Live",true,n0],["manual","Manual",true,n0],["dashboard","Dashboard",true,n0],["votes","Votes",true,n0],
   ["latest","Latest",true,(v, r) => r.latestCalls == null ? "–" : `${share(r.latestCalls, r.limit)} <span class="dim">${esc(r.latestPeriod)}</span>`],
   ["peak","Peak",true,(v, r) => r.peakCalls == null ? "–" : `${share(r.peakCalls, r.limit)} <span class="dim">${esc(r.peakPeriod)}</span>`],
-  ["counted","Counted",true,n0],["note","Note",false,null,"long"]],
+  ["counted","Counted",true,n0]],
   lim.map(l => ({provider: l.provider, window: l.window, limit: l.limit, live: l.live, manual: l.manual,
     dashboard: l.dashboard, votes: l.votes, note: l.note, counted: l.periods_counted,
     latest: l.latest ? l.latest.calls : null, latestCalls: l.latest ? l.latest.calls : null,
     latestPeriod: l.latest ? l.latest.period : "", peak: l.peak ? l.peak.calls : null,
     peakCalls: l.peak ? l.peak.calls : null, peakPeriod: l.peak ? l.peak.period : ""})));
-else $("limits").insertAdjacentHTML("beforeend", '<p class="note">No limits measured this run.</p>');
+// Each limit's note under the table, where it can wrap: in a column it pushed the
+// table past the page.
+$("limits").insertAdjacentHTML("beforeend", `<ul class="notes">${lim.filter(l => l.note)
+  .map(l => `<li><b>${accountCell(l.provider)}, ${esc(l.window)}:</b> ${esc(l.note)}</li>`).join("")}</ul>`);
+} else $("limits").insertAdjacentHTML("beforeend", '<p class="note">No limits measured this run.</p>');
 
 // coverage
-table($("t-cover"), [["ticker","Instrument"],["name","Name"],["block","Block"],["provider","Feed"],
+table($("t-cover"), [["ticker","Instrument"],["name","Name"],["block","Block",false,blockCell],["provider","Feed",false,labelCell],
   ["first","First bar",true,day],["last","Last bar",true,hour],["years","Years",true,v => fmt(v,1)],["hours","Hours",true,n0]],
   cover.map(c => ({ticker: c.ticker, name: c.display || c.label, block: c.block, provider: c.provider,
     first: c.first, last: c.last, hours: c.hours, years: c.first ? (c.last - c.first) / 31557600 : null})));

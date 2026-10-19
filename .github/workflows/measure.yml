@@ -9,10 +9,10 @@ name: Measure
 # from an earlier run and keeps nothing for a later one. A measurement whose own checks fail
 # stops the job before anything is published.
 #
-# Keys: Alpaca's, for its tape; SiftingIO's, only for the instruments the live run does not
-# fetch yet (gold and silver until the merge: two calls a run, the user's 2026-10-12).
-# Never Tiingo or Twelve Data - their quotas belong to the live run: an instrument of
-# theirs the live run does not fetch stays where the store has it, and the page names it.
+# Keys: Alpaca's, for its tape; SiftingIO's, only for an instrument the live run does not
+# fetch yet (none now; gold and silver before their merge, the user's 2026-10-12). Never
+# Tiingo or Twelve Data - their quotas belong to the live run: an instrument of theirs the
+# live run does not fetch stays where the store has it, and the page names it.
 #
 # Once, by hand: Settings -> Pages -> Source "GitHub Actions"; and in Settings ->
 # Environments -> github-pages, the branches below allowed to deploy.

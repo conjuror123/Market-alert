@@ -23,6 +23,6 @@ moves unusually for itself.
 - Tiingo, SiftingIO and Twelve Data quotas belong to the live run; test with free sources.
 - A bad bar goes in `data/jump/verified.csv`; bars change only through the fetch.
 - Give numbers with their window, per instrument or in σ.
-- `pytest -q` (about 905 tests, 2 minutes), run alone. A regression test should fail
+- `pytest -q` (about 945 tests, 1.5 minutes), run alone. A regression test should fail
   without the fix.
 - Answer plainly and briefly; recommend rather than survey.

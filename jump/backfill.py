@@ -7,9 +7,10 @@ THE HOURLY PATH asks each instrument only for what it can be missing: the walk
 starts at its newest stored bar minus three hours, and an instrument whose market
 has been shut since that bar is not asked at all (see nothing_can_have_appeared).
 Providers are chosen per instrument by `provider` in config/basket.yaml (Tiingo,
-Alpaca, Twelve Data, Yahoo, Sina, SiftingIO, Binance; docs/manual.md, "Data in"), and only Twelve Data is paced, because only its free
-tier enforces a per-minute limit. After the fetch, the other sources vote on
-the far moves (jump.verify).
+Twelve Data, Yahoo, SiftingIO, Sina, Binance, MarketWatch; docs/manual.md, "Data
+in"), and only Twelve Data is paced, because only its free tier enforces a
+per-minute limit. After the fetch, the other sources vote on the far moves
+(jump.verify).
 
 US EQUITY ETFs ARE REQUESTED AS HALF-HOURLY BARS and folded onto the round UTC
 hour (see bars.to_hourly): their own grid runs on the :30 and would not line up
@@ -17,13 +18,15 @@ with the currency pairs and crypto, which would make "the same hour" mean two
 different things across instruments. It costs nothing extra - the providers
 count requests, not rows.
 
-THE DEEPENING MODES (--extend-history, --deepen-alpaca, --deepen-dukascopy,
---deepen-wallstreetcn, --fill-gaps) reach back past what the live providers
-serve, and are routed to `source` rather than `provider`: Yahoo serves 59 days
-of half-hourly bars and Tiingo caps a response at 10000 rows, so only the
-archive provider can answer a walk backwards. An import from another source is
-gated on agreeing with the bars already stored (see verify_alignment), so a
-series on a different adjustment basis is refused rather than spliced.
+THE DEEPENING MODES (--extend-history, --fill-gaps, --deepen-alpaca,
+--deepen-dukascopy, --deepen-wallstreetcn, --deepen-eex, --deepen-yahoo) reach
+back past what the live providers serve, and are routed to `source` rather than
+`provider`: Yahoo serves 59 days of half-hourly bars and Tiingo caps a response
+at 10000 rows, so only the archive provider can answer a walk backwards. An
+import from another source is gated on agreeing with the bars already stored
+(see verify_alignment), so a series on a different adjustment basis is refused
+rather than spliced. --repair fills an open month's holes from Yahoo the same
+way (repair_from_yahoo).
 """
 from __future__ import annotations
 

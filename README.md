@@ -15,11 +15,11 @@ with the jump test of Lee & Mykland (2008), and the message says how far out it 
 ```
 
 The colour is the word: ⬜ noticeable at 4.5σ, 🟨 high at 6.4σ, 🟧 major at 9σ, 🟥 extreme
-at 12.7σ, each about three times rarer to reach than the one below. `high` and up arrive at once
-(about 4 a week); `noticeable` goes into one weekly note (about 10 rows). Every other data
-feed that carries the instrument votes on a far move: one most did not see is marked `❌`
-with each feed's own move and kept out of the statistics, a tie `⚠️` and kept in. It runs entirely on
-GitHub Actions; nothing else needs hosting.
+at 12.7σ, each about three times rarer to reach than the one below. `high` and up arrive at
+once (about 5 a week); `noticeable` goes into one weekly note (about 12 rows). Every other
+data feed that carries the instrument votes on a far move: one most did not see is marked
+`❌` with each feed's own move and kept out of the statistics, a tie `⚠️` and kept in. It
+runs entirely on GitHub Actions; nothing else needs hosting.
 
 ## Quick start
 
@@ -47,9 +47,9 @@ detector:
 
 The bottom level sets how much you hear: 4.5 gives about 3.8 pushes and 10.5 note rows a
 week, 3.9 about 7.0 and 15.8, 6 about 1.4 and 3.3 (the stage report's count over the year
-to 2026-10-05). Which words push is `PUSH_TIERS` in `jump/routing.py`. To silence the
-channel without stopping the bot, set `jump_alerts_muted: true` in
-`config/config.yaml`.
+to 2026-10-05, on the 58 instruments of then; the 62 make about 5 and 12 at 4.5). Which
+words push is `PUSH_TIERS` in `jump/routing.py`. To silence the channel without stopping
+the bot, set `jump_alerts_muted: true` in `config/config.yaml`.
 
 ## Where to find what
 
@@ -66,4 +66,4 @@ channel without stopping the bot, set `jump_alerts_muted: true` in
 | what goes to Telegram | `price_monitor/jump_delivery.py` |
 | the hourly workflow | `.github/workflows/price-monitor.yml` |
 | rates by word and block, the biggest hours | `tools/stage_report.py` |
-| the dashboard: volume, the votes taken again on the voters' bars, and the archive, measured on every code change | `.github/workflows/measure.yml` (`tools/measure.py`, `tools/dashboard.py`), published at https://conjuror123.github.io/Market-alert/ |
+| the dashboard: volume, the votes taken again, the archive | https://conjuror123.github.io/Market-alert/, measured on every code change (`tools/measure.py`, `tools/dashboard.py`) |

@@ -45,7 +45,7 @@ from datetime import datetime, timedelta, timezone
 import numpy as np
 import pandas as pd
 
-from jump import jumps, routing
+from jump import jumps, routing, verify
 from jump.basket import load_basket
 from tools.stage_report import BIGGEST_SHARE
 
@@ -482,6 +482,8 @@ def measure(bars_dir: str, voters_dir: "str | None", work_dir: str) -> dict:
                  "end": end, "instruments": len(basket.instruments),
                  "levels": list(levels), "window_days": window_days,
                  "push_words": list(routing.PUSH_TIERS),
+                 # Each provider and source by the name the channel gives it.
+                 "labels": dict(verify.LABELS),
                  "last_bar": max((c["last"] for c in cover if c["last"] is not None),
                                  default=None),
                  "behind": behind(cover, end),

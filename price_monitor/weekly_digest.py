@@ -33,8 +33,8 @@ can see. Consecutive windows ABUT EXACTLY: nothing is listed twice and no hour
 of the calendar falls between two digests.
 
 Low-impact events and holidays are both excluded (see _DIGEST_IMPACTS) - only
-Medium/High. No LLM involved on purpose: just a plain, programmatically
-formatted list grouped by day - the source data already carries the impact tag and the numbers, so
+Medium/High. No LLM involved on purpose: just a plain, programmatically formatted list
+grouped by day - the source data already carries the impact tag and the numbers, so
 there's nothing here for an LLM to add.
 
 Every value the source gave is printed under each event: actual, forecast,

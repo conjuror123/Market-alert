@@ -1298,6 +1298,14 @@ def test_a_source_is_not_asked_about_a_move_in_its_skipped_hour(basket):
     nikkei = verify.sources_for(basket["^N225"])[0]
     assert nikkei.skips(basket["^N225"], move("2026-10-12 06:00"))      # 15:00 Tokyo
     assert not nikkei.skips(basket["^N225"], move("2026-10-12 05:00"))  # 14:00
+    # The Treasury futures' funds at Sina only inside the funds' session: the
+    # 08:00 New York release hour is the future's alone (MarketWatch's).
+    funds = next(s for s in verify.sources_for(basket["ZN=F"]) if s.name == "sina")
+    assert funds.skips(basket["ZN=F"], move("2026-10-15 12:00"))       # 08:00 New York
+    assert funds.skips(basket["ZN=F"], move("2026-10-15 13:00"))       # 09:00, opens 09:30
+    assert not funds.skips(basket["ZN=F"], move("2026-10-15 14:00"))   # 10:00
+    assert not funds.skips(basket["ZN=F"], move("2026-12-01 20:00"))   # 15:00 EST
+    assert funds.skips(basket["ZN=F"], move("2026-12-01 21:00"))       # 16:00, closed
 
 
 def test_a_move_in_a_skipped_hour_is_neither_a_vote_nor_an_outage(basket):

@@ -284,10 +284,10 @@ def build_all(basket: Basket, bars_dir: str = bars.DEFAULT_BARS_DIR,
 
 # --- the same thing, across the machine's cores ------------------------------
 #
-# The instruments are independent: nothing in the metric chain for EUR/USD looks
-# at SPY; jump.jumps reads these files off disk afterwards. So the loop above is embarrassingly parallel, and
-# the only reason it was not was that it started life with twelve instruments
-# and a few seconds.
+# The instruments are independent: nothing in the metric chain for EUR/USD looks at SPY;
+# jump.jumps reads these files off disk afterwards. So the loop above is embarrassingly
+# parallel, and the only reason it was not was that it started life with twelve
+# instruments and a few seconds.
 #
 # Written as a pool over PROCESSES rather than threads because the work is
 # numpy and pandas holding the GIL for most of it. The workers return summaries
@@ -332,10 +332,10 @@ def _pool_compute(payload: "tuple[Asset, Basket]") -> "tuple[str, int, bool] | N
     path = metrics_path(_POOL_STATE["metrics_dir"], asset.file_stem)
     frame = bars.load(bars.store_path(_POOL_STATE["bars_dir"], asset.file_stem))
 
-    # EXTEND WHERE POSSIBLE. The hourly run adds one bar to an archive of up to
-    # 145,000; the metric chain is 76% of this step's cost, so recomputing only
-    # the tail is the whole saving. Falls back to the full chain whenever the store cannot be
-    # trusted to be a prefix of the answer - see extend_asset_metrics.
+    # EXTEND WHERE POSSIBLE. The hourly run adds one bar to an archive of up to 145,000;
+    # the metric chain is 76% of this step's cost, so recomputing only the tail is the
+    # whole saving. Falls back to the full chain whenever the store cannot be trusted to
+    # be a prefix of the answer - see extend_asset_metrics.
     existing = None
     if not _POOL_STATE["full"] and os.path.exists(path):
         try:
