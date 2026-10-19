@@ -183,7 +183,7 @@ def test_a_malformed_stage_file_cannot_take_the_monitor_down(tmp_path, monkeypat
 
 
 @pytest.mark.parametrize("env, words", [
-    ("SESSIONS_STEP_OUTCOME", "session table could not be extended"),
+    ("SESSIONS_STEP_OUTCOME", "session tables could not be extended"),
     ("HOT_SAVE_STEP_OUTCOME", "open months of the bars were not saved"),
 ])
 def test_a_side_step_that_failed_counts_as_a_failed_run(tmp_path, monkeypatch, _quiet,

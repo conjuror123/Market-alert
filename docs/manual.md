@@ -91,8 +91,9 @@ python -m jump.jumps      score all history, words, 24-hour events -> jumps.parq
 python -m price_monitor     deliver what is due to Telegram
 ```
 
-Before them the session table is extended when under two years remain (`python -m
-jump.sessions --extend-if-short`), and the open months of the bars are restored from a
+Before them the session tables are extended when under two years remain, or once a day
+while a market abroad's is within 60 days of its end (`python -m jump.sessions
+--extend-if-short`, `sessions.calendar_due`), and the open months of the bars are restored from a
 release; after `jumps` they are saved back (`tools/hot_bars.sh`). `jumps` reads what
 `pipeline` wrote; delivery reads `jumps.parquet`.
 
@@ -191,8 +192,12 @@ provider is an outage in the vote for the rest of the run; its share of a minute
 hourly fetch never asks again: a fund's missing in-session hours of the last 58 days are
 filled from Yahoo's 30-minute bars, folded, only where Yahoo agrees with the store over the
 overlap (`verify_alignment`: correlation ≥ 0.90, median ≤ 25 bp, ≥ 200 hours) and only where
-the store has no bar. From the Actions tab: Price Spike Monitor → Run workflow, `repair` =
-the funds, comma-separated; the run repairs first, then makes its ordinary pass.
+the store has no bar. A rolled future of Yahoo's the same, from the contract the store held
+on each missing hour's day, never the continuous series, each contract gated on the store's
+own hours of it (`backfill._repair_future`); a contract Yahoo no longer lists (an expired
+one, 404) leaves its hours missing. From the Actions tab: Price Spike Monitor → Run
+workflow, `repair` = the funds or futures, comma-separated; the run repairs first, then
+makes its ordinary pass.
 
 **Sessions** (`jump/sessions.py`): the NYSE table (`data/jump/sessions/nyse.csv`), the FX
 week, and each daily-session market's hours (LME, ICE, CME; the Bund's and TTF's 08:00-18:00
@@ -202,7 +207,10 @@ each have a table in the NYSE table's format (`data/jump/sessions/<exchange code
 themselves: with under two years left, the hourly run appends the days through the end of
 the year three years ahead. A calendar whose holidays the library knows only so far ahead
 stops there (Shanghai's and Mumbai's at 2026-12-31); past a table's last row its usual week
-holds.
+holds, so its holidays read as missing bars. Within 60 days of such an end the 00:00 UTC run
+asks the library each day, until a release carries the next year
+(`sessions.short_exchange_tables`); within 30, or past it, the health chat is told on
+Mondays.
 
 **Quality gate** (`jump/quality.py`): a bar is unusable if it has no price (a removed bar)
 or a price is not positive, OHLC is inconsistent beyond half a tick, volume is negative, it
@@ -626,6 +634,7 @@ message past Telegram's 4,096 characters is cut between lines, ending "…and N 
 | trigger | no run starts | cron-job.org, if its call failed; the first run after a gap of over 90 minutes names the hours (`health.missed_runs`) | once, when runs resume |
 | checkout, setup, the open months' restore | the run stops before delivery: nothing sent or counted | the last step, with the step's name (`tools/run_died.sh`) | 1 h after the last run that delivered, then every 24 h |
 | session table extension | the table is not extended (under two years left) | streak, named | while it fails |
+| a table abroad within 30 days of its end, or past it (the library has no later year yet) | past its end its weekdays count as trading: its holidays read as missing bars | "Session table running out", naming the table and its instruments | Mondays, 00:00 UTC |
 | fetch: a provider's key is missing or refused | that provider's instruments are not fetched; the others are | "X is not set" / "refused the key" | every run it happens |
 | fetch: a provider fails, or Tiingo's or SiftingIO's budget is spent | its instruments keep their stored bars | "went dark" / "request budget spent" | every run it happens |
 | fetch: Yahoo refuses (429) | its instruments wait for the next run | the stale line, "refused this run", once one is behind past its limit | past its limit, then daily |
@@ -678,8 +687,9 @@ prints rates by word, block and channel, and the biggest hours. To run the pass 
 export the keys and run the four commands of section 3.
 
 **A repair.** Actions → Price Spike Monitor → Run workflow, on `main`, the live branch, with
-`repair` naming the funds (`HYG`). Its log says, per fund, the hours missing, the hours
-filled and the overlap it was judged on; a refused fund is left as it was (section 4).
+`repair` naming the funds or Yahoo's futures (`HYG`, `ZS=F`). Its log says, per instrument,
+the hours missing, the hours filled and the overlap it was judged on; a refused one is left
+as it was (section 4).
 
 **The mute.** `jump_alerts_muted: true` in `config/config.yaml`: the run proceeds, the
 health and the calendar go out, Jump's pushes, note and pings do not.

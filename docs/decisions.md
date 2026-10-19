@@ -224,6 +224,15 @@ Where the calendar and Yahoo's bars disagree the wider session is kept: an empty
 skipped, a cut one lost. Their history is Yahoo's two years of hourly bars where they agree
 with its folded 30-minute ones.
 
+**A table abroad near its end asks the library daily, and the health chat weekly**
+(2026-10-19): Shanghai's and Mumbai's holidays are announced a year at a time, so the library
+(4.13.2) knows them only to 2026-12-31, while the NYSE table, which brought the library in,
+runs short about once a year - a year learned later would have waited for the next. From 60
+days out the 00:00 UTC run installs it (one install a day, not 24); from 30 days, a line each
+Monday, since there is nothing to do but wait for the release. Past the end, about 20 holidays
+a year would read as missing bars for the CSI 300, China's 30-year fund and the Nifty; scores
+are not touched (a night's kind is measured from the bars).
+
 **Each provider's calls are counted, not estimated** (the user's, 2026-10-12): the keys are
 used only by this repository's workflows, so our count is the truth. Every run writes it by
 day and purpose (`data/jump/usage/`); the limits and every share are one table
@@ -235,7 +244,14 @@ stop it for the run; a missing key skips its instruments and is named; the run g
 when nothing at all was fetched.
 
 **An open month is repaired by hand, inside the hourly run**: only the hourly run saves the
-open months.
+open months. A rolled future from the contract it held then (2026-10-19): soybeans'
+2026-10-01 to 10-12 were ZSX26's last sessions, which no run asked - the history ended
+09-30, stage 2's live fetch began on ZSF27 on 10-13 - and Yahoo's ZSX26 matched the store's
+509 hours of it (correlation 1.0, 0.0% apart). The other holes of the four futures with
+Dukascopy history - runs of two or more weekdays without a bar in the year to 10-16, Brent 18,
+soybeans 13, the 30-year 12, platinum 8 - are the windows its builder dropped where no switch
+stood out ("Stage 2's history is by series"); their contracts have expired and Yahoo no
+longer lists them (404), so they stay.
 
 ---
 
@@ -480,9 +496,11 @@ goes wrong:
   month from that day;
 - 10-31 to 11-01, the first month end with 62 instruments: October settles from the open
   months' archive into git;
-- about 11-12, IGLT's first payout checked live (Yahoo listed its last two a day late:
-  the night before must be unscored too); 12-04, the Bund's roll to FGBLH27 (MarketWatch
-  serves it, 22 hourly bars on 10-17).
+- about 11-12, IGLT's first payout checked live, from iShares (its night and the one
+  before unscored); 12-04, the Bund's roll to FGBLH27 (MarketWatch serves it, 22 hourly
+  bars on 10-17);
+- from 11-01 the library asked each day for Shanghai's and Mumbai's 2027; their tables end
+  2026-12-31, and from 12-07 the health chat says so each Monday until a release carries it.
 
 **TTF's switch day.** MarketWatch's daily TTF is Yahoo's TTF=F to the cent, but on the last
 trading day it is already the next month's (2024–26, the spread's sign as the season makes

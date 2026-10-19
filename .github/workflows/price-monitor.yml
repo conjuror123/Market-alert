@@ -8,12 +8,13 @@ on:
   # See docs/manual.md, "Running it".
   workflow_dispatch:
     inputs:
-      # Run by hand only; the hourly call passes nothing. Funds whose missing
-      # hours of the last 58 days are filled from Yahoo before the fetch, if
-      # Yahoo's bars agree with the store (jump.backfill --repair). Here and
+      # Run by hand only; the hourly call passes nothing. Funds or Yahoo's
+      # futures whose missing hours of the last 58 days are filled from Yahoo
+      # before the fetch, if Yahoo's bars agree with the store (jump.backfill
+      # --repair; a future from the contract it held then). Here and
       # not in the history workflow: only this run may save the open months.
       repair:
-        description: "Funds to repair from Yahoo, comma-separated (e.g. HYG)"
+        description: "Funds or Yahoo futures to repair from Yahoo, comma-separated (e.g. HYG,ZS=F)"
         required: false
         default: ""
 
@@ -46,16 +47,18 @@ jobs:
         id: deps
         run: pip install -r requirements.txt
 
-      # The NYSE session table extends itself, append-only, once under two
-      # years remain (jump/sessions.py) - about once a year. The calendar
-      # library is installed only then; the hourly run never needs it otherwise.
-      # continue-on-error: a table with a year or more left is no reason to
-      # stop the run, and the next hour tries again.
+      # The session tables extend themselves, append-only (jump/sessions.py):
+      # every run once the NYSE's has under two years left - about once a year -
+      # and once a day, at 00:00 UTC, while a market abroad's is within 60 days
+      # of its end (Shanghai's and Mumbai's are known a year at a time). The
+      # calendar library is installed only then; the hourly run never needs it
+      # otherwise. continue-on-error: a table with weeks left is no reason to
+      # stop the run, and the next try comes.
       - name: Extend the session table when it runs short
         id: sessions
         continue-on-error: true
         run: |
-          if python -c "import sys; from jump import sessions; sys.exit(0 if sessions.needs_extension() else 1)"; then
+          if python -c "import sys; from jump import sessions; sys.exit(0 if sessions.calendar_due() else 1)"; then
             pip install "exchange-calendars>=4.13,<5"
             python -m jump.sessions --extend-if-short
           else

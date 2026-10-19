@@ -498,6 +498,30 @@ def check_dividends_abroad(funds: "list[Asset]", session: requests.Session,
             "added": added, "failed": failed, "stale": stale}
 
 
+def tables_running_out(basket: Basket, now: "datetime | None" = None) -> "str | None":
+    """The health chat's line on the tables abroad within ABROAD_WARN_DAYS of their
+    end or past it (jump.sessions), on Monday's 00:00 UTC run, or None. Past a
+    table's end its weekdays count as trading: on a holiday the library did not
+    know, its instruments read as missing bars."""
+    now = now or datetime.now(timezone.utc)
+    if now.weekday() != 0 or now.hour != 0:
+        return None
+    parts = []
+    for name, last in _sessions.short_exchange_tables(now.date(), _sessions.ABROAD_WARN_DAYS):
+        held = [a.shown_as for a in basket.instruments if a.session_template == name]
+        if held:
+            parts.append(f"{name.replace('_', ' ').title()}'s "
+                         f"{'ended' if last < now.date() else 'ends'} {last} "
+                         f"({quote(', '.join(held))})")
+    if not parts:
+        return None
+    return ("⚠️ <b>Session table running out</b>\n" + "; ".join(parts) + ". The calendar "
+            "library has no later year yet: past a table's end every weekday counts as "
+            "trading, so its holidays read as missing bars. Asked again each day; if only "
+            "exchange-calendars 5 carries the year, raise the pin in "
+            ".github/workflows/price-monitor.yml.")
+
+
 # How far back the skip looks for the newest in-session bar: more than a
 # weekend's worth of hourly bars served while the market was shut.
 SKIP_LOOKBACK_BARS = 240
@@ -1043,10 +1067,13 @@ def repair_from_yahoo(asset: Asset, path: str, table: dict, session: requests.Se
     Yahoo's intraday bars are not dividend-adjusted, like the store, so nothing
     is unadjusted. Written only if the overlap passes the same gate as any
     import (verify_alignment), and only the hours the store lacks: the live
-    source keeps its own bars."""
+    source keeps its own bars. A rolled future of Yahoo's from the contracts it
+    held (_repair_future)."""
+    now = now or datetime.now(timezone.utc)
+    if asset.fetched_from == "yahoo" and futures.front_contract(asset.ticker, now.date()):
+        return _repair_future(asset, path, session, now)
     if asset.session_template != CALENDAR_TEMPLATE:
         return {"skipped": "no authoritative calendar", "added": 0, "hours": 0}
-    now = now or datetime.now(timezone.utc)
     since = int(now.timestamp()) - REPAIR_DAYS * 86400
     wanted = {h for h in missing_hours(path, table) if h >= since}
     if not wanted:
@@ -1068,6 +1095,84 @@ def repair_from_yahoo(asset: Asset, path: str, table: dict, session: requests.Se
     left = [h for h in missing_hours(path, table) if h >= since]
     return {"skipped": None, "added": added, "hours": len(wanted),
             "still_missing_hours": len(left), "check": check}
+
+
+def _repair_future(asset: Asset, path: str, session: requests.Session,
+                   now: datetime) -> dict:
+    """repair_from_yahoo for a rolled future: each missing hour of the last
+    REPAIR_DAYS from the contract the store held on its day
+    (futures.front_contract) - never Yahoo's continuous series, which mixes in
+    other contracts' prints - each contract written only if its bars agree with
+    the store's own hours of it (verify_alignment). A contract's last sessions
+    can be left out by a seam: soybeans' 2026-10-01 to 10-12 were ZSX26's, which
+    no run asked - its history ended 09-30 and the live fetch began on ZSF27 on
+    10-13. A daily session's calendar lists no holidays: their hours stay
+    missing, Yahoo having no bar there."""
+    template = asset.session_template
+    since = int(now.timestamp()) - REPAIR_DAYS * 86400
+    stored = bars.load(path, since=since)
+    if stored.empty:
+        return {"skipped": "nothing stored in the window", "added": 0, "hours": 0}
+    newest = int(stored["hour_utc"].max())
+
+    def missing() -> "set[int]":
+        have = set(bars.load(path, since=since)["hour_utc"].astype(int))
+        hours, day = set(), datetime.fromtimestamp(since, timezone.utc).date()
+        while day <= datetime.fromtimestamp(newest, timezone.utc).date():
+            hours.update(h for h in _sessions.instrument_day_hours(day, template)
+                         if since <= h <= newest and h not in have)
+            day += timedelta(days=1)
+        return hours
+
+    contracts: "dict[date | None, str | None]" = {}
+
+    def held(hour: int) -> "str | None":
+        day = _sessions.daily_session_of(int(hour), template)
+        if day not in contracts:
+            front = futures.front_contract(asset.ticker, day) if day else None
+            contracts[day] = front[0] if front else None
+        return contracts[day]
+
+    wanted = missing()
+    if not wanted:
+        return {"skipped": None, "added": 0, "hours": 0, "still_missing_hours": 0}
+    by_contract: "dict[str, set[int]]" = {}
+    for hour in wanted:
+        symbol = held(hour)
+        if symbol:
+            by_contract.setdefault(symbol, set()).add(hour)
+    own = stored["hour_utc"].map(held).to_numpy()
+    added, checks = 0, {}
+    for symbol, hours in sorted(by_contract.items()):
+        try:
+            minutes = bars.candles_to_frame(yahoo.fetch_full_history(
+                symbol, asset.fetch_interval, days=REPAIR_DAYS, session=session, end=now))
+        except yahoo.RateLimited:
+            raise
+        except ExchangeError as exc:
+            # An expired contract Yahoo no longer lists (404): its hours stay
+            # missing, the others' are still asked.
+            checks[symbol] = {"ok": False, "why": str(exc)}
+            continue
+        if minutes.empty:
+            checks[symbol] = {"ok": False, "why": "Yahoo returned no bars"}
+            continue
+        checks[symbol] = verify_alignment(minutes, stored[own == symbol])
+        if not checks[symbol]["ok"]:
+            continue
+        hourly = bars.to_hourly(minutes)
+        patch = hourly[hourly["hour_utc"].isin(hours).to_numpy()]
+        added += bars.merge(path, patch) if not patch.empty else 0
+    out = {"skipped": None, "added": added, "hours": len(wanted),
+           "still_missing_hours": len(missing()), "checks": checks}
+    refused = {k: c["why"] for k, c in checks.items() if not c["ok"]}
+    if refused and not added:
+        out["skipped"] = "; ".join(why if why.startswith(k) else f"{k}: {why}"
+                                   for k, why in sorted(refused.items()))
+    passed = [c for c in checks.values() if c["ok"]]
+    if passed:
+        out["check"] = max(passed, key=lambda c: c["hours"])
+    return out
 
 
 # How far ABOVE the oldest stored bar to fetch before writing anything below it.
@@ -1463,8 +1568,9 @@ def _main(argv: "list[str] | None", usage: Usage) -> int:
                         help="what this run's calls are counted as (jump.usage); "
                              "the hourly pass is fetch, any other mode manual")
     parser.add_argument("--repair", action="store_true",
-                        help="fill the named funds' missing hours of the last "
-                             "REPAIR_DAYS from Yahoo, gated on agreeing with the "
+                        help="fill the named funds' or Yahoo futures' missing hours "
+                             "of the last REPAIR_DAYS from Yahoo (a future from the "
+                             "contract it held then), gated on agreeing with the "
                              "store: holes in the open month. Run from the hourly "
                              "workflow's `repair` input, which saves the open "
                              "months. Needs --instruments.")
@@ -2035,6 +2141,11 @@ def _main(argv: "list[str] | None", usage: Usage) -> int:
                     "until it catches up.")
         except Exception as exc:
             log.warning("dividend check abroad failed - %s", exc)
+    # The tables abroad near their end, each Monday (jump.sessions).
+    if not args.instruments and not args.extend_history:
+        line = tables_running_out(basket)
+        if line:
+            send_ops_alert(line)
 
     # THE SOURCES' VOTE ON THE FAR MOVES, on the ordinary pass over the whole
     # basket, before anything is scored: a move most did not see is not scored

@@ -637,6 +637,68 @@ def test_a_repair_writes_nothing_when_yahoo_disagrees(tmp_path, monkeypatch):
     assert len(bars.load(path)) == before
 
 
+def _future_repair_case(tmp_path, monkeypatch, serve):
+    """Soybeans' case: the store holds contract AAA to 10-12 and BBB from 10-13,
+    and lacks AAA's last sessions, 10-01 to 10-12; `serve(symbol, hours, close)`
+    is Yahoo's answer for a contract."""
+    from jump import backfill, sessions
+    import numpy as np
+
+    monkeypatch.setattr(backfill.futures, "front_contract", lambda ticker, day: (
+        ("AAA.CBT", date(2026, 6, 11)) if day < date(2026, 10, 13)
+        else ("BBB.CBT", date(2026, 10, 13))))
+    days = [d for d in (date(2026, 8, 20) + timedelta(i) for i in range(58)) if d.weekday() < 5]
+    hours = sorted({h for d in days for h in sessions.instrument_day_hours(d, "cbot_grains")})
+    close = 1000 * np.exp(np.cumsum(np.random.default_rng(3).standard_normal(len(hours)) * 0.002))
+    hole = {h for h in hours if date(2026, 10, 1) <= (sessions.daily_session_of(h, "cbot_grains")
+                                                       or date(2000, 1, 1)) <= date(2026, 10, 12)}
+    path = str(tmp_path / "yahoo_ZS_F")
+    bars.merge(path, bars.to_hourly(bars.candles_to_frame(
+        [Candle(h, c, c, c, c, 100.0, h + HOUR) for h, c in zip(hours, close) if h not in hole])))
+    asked = []
+
+    def fetch(symbol, interval, days, session=None, end=None):
+        asked.append(symbol)
+        return serve(symbol, hours, close)
+
+    monkeypatch.setattr(backfill.yahoo, "fetch_full_history", fetch)
+    asset = Asset(ticker="ZS=F", source="yahoo", block="commodity", has_volume=True,
+                  tick_size=0.25, session_template="cbot_grains", fetch_interval="1h",
+                  label="Soybeans", in_basket=True)
+    return backfill, asset, path, hole, asked
+
+
+def test_a_future_s_hole_is_repaired_from_the_contract_it_held_then(tmp_path, monkeypatch):
+    # Never Yahoo's continuous series: the contract the store held on those days,
+    # gated on the store's own hours of it; the stored bars keep theirs.
+    serve = lambda symbol, hours, close: [Candle(h, c, c, c, c, 90.0, h + HOUR)
+                                          for h, c in zip(hours, close)]
+    backfill, asset, path, hole, asked = _future_repair_case(tmp_path, monkeypatch, serve)
+    before = bars.load(path)
+    out = backfill.repair_from_yahoo(asset, path, {}, None,
+                                     now=datetime(2026, 10, 16, 21, tzinfo=timezone.utc))
+    assert asked == ["AAA.CBT"]
+    assert out["skipped"] is None and out["added"] == len(hole) and out["still_missing_hours"] == 0
+    after = bars.load(path)
+    assert set(after["hour_utc"]) - set(before["hour_utc"]) == hole
+    kept = before.merge(after, on="hour_utc", suffixes=("_before", "_after"))
+    assert (kept["volume_before"] == kept["volume_after"]).all()
+
+
+def test_a_future_s_contract_yahoo_no_longer_lists_is_left_missing(tmp_path, monkeypatch):
+    from price_monitor.models import ExchangeError
+
+    def gone(symbol, hours, close):
+        raise ExchangeError(f"{symbol}: unknown to Yahoo (404)")
+
+    backfill, asset, path, hole, asked = _future_repair_case(tmp_path, monkeypatch, gone)
+    before = len(bars.load(path))
+    out = backfill.repair_from_yahoo(asset, path, {}, None,
+                                     now=datetime(2026, 10, 16, 21, tzinfo=timezone.utc))
+    assert out["added"] == 0 and out["skipped"] == "AAA.CBT: unknown to Yahoo (404)"
+    assert len(bars.load(path)) == before
+
+
 def test_a_repair_must_be_told_which_funds(tmp_path, caplog):
     from jump import backfill
     with caplog.at_level("ERROR", logger="jump.backfill"):
@@ -2371,3 +2433,25 @@ def test_a_five_hour_market_is_asked_the_funds_29_sessions_not_200_hours(
     out = backfill.deepen_from_yahoo(_index("^TWII", "taipei"), str(tmp_path / "yahoo__TWII"),
                                      None, now=datetime.fromtimestamp(hours[-1] + HOUR, timezone.utc))
     assert out["check"]["ok"] and out["older"] == recent[0]
+
+
+def test_a_table_abroad_running_out_is_told_on_mondays_with_its_instruments(monkeypatch):
+    # Past its end a table's weekdays count as trading: the health chat hears it
+    # once a week, on Monday's 00:00 UTC run, naming who trades there.
+    from types import SimpleNamespace
+
+    from jump import backfill, sessions
+
+    monkeypatch.setattr(sessions, "short_exchange_tables",
+                        lambda today, within: [("shanghai", date(2026, 12, 31))])
+    basket = SimpleNamespace(instruments=[
+        asset(ticker="000300.SS", session_template="shanghai", display="CSI 300"),
+        asset(ticker="511090.SS", session_template="shanghai", display="China 30Y"),
+        asset(ticker="^N225", session_template="tokyo")])
+    line = backfill.tables_running_out(basket, datetime(2026, 12, 7, 0, 5, tzinfo=timezone.utc))
+    assert "Shanghai's ends 2026-12-31 (CSI 300, China 30Y)" in line
+    assert "N225" not in line
+    assert "ended 2026-12-31" in backfill.tables_running_out(
+        basket, datetime(2027, 1, 4, 0, 5, tzinfo=timezone.utc))
+    for later in ((2026, 12, 7, 1, 5), (2026, 12, 8, 0, 5)):
+        assert backfill.tables_running_out(basket, datetime(*later, tzinfo=timezone.utc)) is None
