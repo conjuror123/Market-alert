@@ -254,6 +254,7 @@ twelvedata:EUR/USD,1791356400,close,real,sifting,"yahoo,marketwatch,wallstreetcn
 twelvedata:EUR/USD,1791979200,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",-0.005690,"-0.005805,-0.005733,-0.005735,-0.005707,-0.005519",1792368369
 twelvedata:EUR/USD,1792029600,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",0.002602,"0.002694,0.002584,0.002585,0.002482,0.002958",1792368369
 twelvedata:EUR/USD,1792357200,close,overnight,sifting,"marketwatch,wallstreetcn,tiingo,twelvedata","marketwatch,wallstreetcn,tiingo,twelvedata",-0.002782,"-0.003476,-0.003655,-0.003539,-0.002521",1792368369
+twelvedata:EUR/USD,1792393200,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",-0.003480,"-0.003587,-0.003569,-0.003659,-0.003484,-0.003400",1792397170
 twelvedata:EWA,1789581600,close,real,sina,yahoo,,-0.011633,-0.011633,1791114096
 twelvedata:EWC,1789581600,close,real,yahoo,sina,,-0.012065,-0.012065,1791114096
 twelvedata:EWJ,1789581600,close,real,alpaca,yahoo,,-0.012508,-0.012508,1791114096

@@ -1,13 +1,46 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1792393600
+    "last_run_utc": 1792397183
   },
   "floor_pending_replies": [],
   "jump_delivery": {
     "week": {
       "detector": "30cd6f26b320",
       "events": {
+        "twelvedata:EUR/USD|1792396800": {
+          "asset": "twelvedata:EUR/USD",
+          "body": "\u2b1c <b>EUR/USD</b> \u00b7 Euro -0.35% \u00b7 5.7\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1792393200,
+          "members": {
+            "jump:twelvedata:EUR/USD:hour:1792393200": [
+              -0.0034796298525548368,
+              0.0006122152276322027
+            ]
+          },
+          "message": 113,
+          "peak": "jump:twelvedata:EUR/USD:hour:1792393200",
+          "seen": 1792397183,
+          "shown": [
+            "noticeable",
+            5.7,
+            1792393200,
+            -0.35
+          ],
+          "size": 5.683670865248839,
+          "start": 1792396800,
+          "story": [
+            [
+              "noticeable",
+              5.7,
+              1792393200,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        },
         "twelvedata:USD/CAD|1792393200": {
           "asset": "twelvedata:USD/CAD",
           "body": "\u2b1c <b>USD/CAD</b> \u00b7 Canadian dollar -0.24% \u00b7 4.8\u00d7\u03c3",
@@ -22,7 +55,7 @@
           },
           "message": 112,
           "peak": "jump:twelvedata:USD/CAD:hour:1792389600",
-          "seen": 1792393600,
+          "seen": 1792397183,
           "shown": [
             "noticeable",
             4.8,
@@ -46,11 +79,15 @@
         "112": {
           "first": "\u2b1c <b>USD/CAD</b> \u00b7 Canadian dollar -0.24% \u00b7 4.8\u00d7\u03c3",
           "hash": "098f7d4e0283817d"
+        },
+        "113": {
+          "first": "\u2b1c <b>EUR/USD</b> \u00b7 Euro -0.35% \u00b7 5.7\u00d7\u03c3",
+          "hash": "a75d4e15df4297c0"
         }
       },
       "note": {
         "hashes": [
-          "a251f898bb3f4642"
+          "a34ca919d64ea278"
         ],
         "ids": [
           111
