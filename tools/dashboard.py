@@ -90,7 +90,6 @@ select,input{font:inherit;font-size:.85rem;color:var(--ink);background:var(--sur
   border:1px solid var(--ring);border-radius:4px;padding:5px 8px}
 .tablebox{overflow:auto;max-height:640px;background:var(--surface);border:1px solid var(--ring);border-radius:6px}
 table{border-collapse:collapse;width:100%;font-size:.86rem;min-width:520px}
-@media (max-width:600px){table{min-width:0} th,td{padding:5px 7px}}
 th,td{padding:6px 10px;border-bottom:1px solid var(--grid);text-align:left;white-space:nowrap}
 th{position:sticky;top:0;background:var(--surface);color:var(--muted);font-weight:600;
   font-size:.74rem;text-transform:uppercase;letter-spacing:.04em;z-index:1;
@@ -103,6 +102,7 @@ td.long{white-space:normal;min-width:260px}
 td.text{white-space:normal}
 ul.notes{margin:10px 0 0;padding-left:18px;color:var(--muted);font-size:.82rem;max-width:100ch}
 ul.notes b{color:var(--ink2);font-weight:600}
+@media (max-width:600px){table{min-width:0} th,td{padding:5px 7px}}
 tbody tr:hover td{background:var(--wash)}
 tbody tr:last-child td{border-bottom:0}
 caption{caption-side:bottom;text-align:left;padding:8px 10px;color:var(--muted);font-size:.8rem}
@@ -194,7 +194,7 @@ footer{margin-top:48px;color:var(--muted);font-size:.82rem;max-width:90ch}
   <h2>The biggest hours of each record</h2>
   <p class="note">Each instrument's top 0.01% of settled hours by size of move, and the word
   the detector gave each - the hours nobody would want missed.</p>
-  <div class="tablebox" style="max-width:520px"><table id="t-big"></table></div>
+  <div class="tablebox" style="max-width:520px"><table id="t-big" style="min-width:0"></table></div>
 </section>
 
 <section id="checked">

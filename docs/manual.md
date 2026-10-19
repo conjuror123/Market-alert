@@ -121,8 +121,8 @@ standing in, a few minutes of it; that bar heals on the next fetch.
 Every other provider votes only (section 5): Alpaca's consolidated tape and coins,
 Wallstreetcn, the FT, Naver, the Taiwan exchange, Tencent, EEX, Coinbase, Kraken, Bitstamp
 and Bitfinex; and the providers above vote on what they carry beside their own. Some also
-built history (section 11): Alpaca's tape, Wallstreetcn, EEX, Bitstamp, Bitfinex,
-Dukascopy and HF Data, the last two for history only. iShares' page gives IGLT's payouts
+built history (section 11): Alpaca's tape, Wallstreetcn, EEX, Coinbase, Bitstamp,
+Bitfinex, Dukascopy and HF Data, the last two for history only. iShares' page gives IGLT's payouts
 ("Dividends", below).
 
 Each fund's feed is chosen by measurement; see `docs/decisions.md`, "Data and providers".
@@ -326,8 +326,8 @@ every word and yardstick; the bar stays in the store; a message already sent is 
 `recount_days`): again on the first run after each end of its market's session - the NYSE
 close for funds, a daily-session market's own close, 00:00 UTC for coins and pairs - while
 its closest-reaching source still serves the hour (9 days wherever MarketWatch votes, 5 for
-China's 30-year fund, 29 for the coins, 79 for the LME, 89 for the CSI 300; never past
-`verify.KEEP_DAYS`, 90). A
+China's 30-year fund, 29 for the coins, 30 where the FT votes alone (the Bund, IGLT), 79
+for the LME, 89 for the CSI 300; never past `verify.KEEP_DAYS`, 90). A
 source that corrects its bars turns the vote; a bar that heals into no far move loses it.
 The store's own provider is re-read first, in its ordinary request reaching back to the
 voted hour; in an open month the fresher copy wins (section 4).
@@ -746,11 +746,11 @@ How far back each record reaches:
 
 | limitation | effect | what would fix it |
 |---|---|---|
-| most providers are undocumented endpoints (all but Tiingo, Twelve Data, SiftingIO, Alpaca, Binance, Coinbase, Kraken, Bitstamp, Bitfinex and Cboe) | a change silences their instruments or votes until fixed; the health chat names them | paid feeds (consolidated tape, futures data) |
+| most providers are undocumented endpoints (all but Tiingo, Twelve Data, SiftingIO, Alpaca, Binance, Coinbase, Kraken, Bitstamp, Bitfinex, Cboe and FRED) | a change silences their instruments or votes until fixed; the health chat names them | paid feeds (consolidated tape, futures data) |
 | one other source for 10 instruments: the LME's tin, nickel and aluminium, the Bund, TTF, IGLT, the ASX 200, the Hang Seng, the JSE Top 40, the BIST 100 | a disagreement is a tie: their bad prints stay scored, labelled uncertain. The LME's other source, Wallstreetcn, prints the same close as Sina in 53–68% of hours (2026-07 to 10): in part one upstream | another free feed (`docs/decisions.md`, "One voter only") |
 | weekend yardsticks rest on 26 weekends | ±16% noise | none chosen: a longer window gained little (`docs/decisions.md`, "Rejected") |
 | history before each record's start (section 11) | "rarest since" reaches only as far as the record | paid history |
 | history older than its recount | not voted (section 5): only the readings the one-off check of 2026-10-07 judged carry a vote. Elsewhere an old bad print or stale open stays flagged (14 whole shifted fund days were removed, section 5; the funds' wrong first bars of 2016–2022 were mended, section 11, but not those before 2016 or since 2023), sits in the next half-year's yardsticks, and can be the "then" of a later "rarest since" line | a second source for the old history (`docs/decisions.md`, "History is not voted again") |
 | a fund's morning open from 2023 | about 1 in 100 opens 15 bp or more off the official open (1,242 mornings to 2026-10-08); the IEX feeds take it from one exchange. Only a first hour at 4σ or more is voted (section 5) | none chosen: a mend moved the year's pushes 209 → 206 and would not stay (`docs/decisions.md`, "From 2023 the funds' opens are left as stored") |
 | the funds' 2016–2019 price levels | off the tape's in 680 fund-months (REM 7% high in 2017-12), stepping on payout days: REM's ex-dividend nights read as moves (four flagged) | rewriting those years from the tape (`docs/decisions.md`, "The funds' 2016–2019 price levels are left off the tape's") |
-| repository size (87 MB at its fresh start, 2026-10-17) | grows about 17 MB a year from the bars (a month about 1 MB, a year's fold about 5), with the hourly state's small commits, and by its files whole on a commit that rewrites data | another fresh start, as on 2026-10-17 |
+| repository size (87 MB at its fresh start, 2026-10-17) | grows about 10 MB a year from the bars (a month about 0.35 MB in git, a year's fold about 5), with the hourly state's small commits, and by its files whole on a commit that rewrites data | another fresh start, as on 2026-10-17 |

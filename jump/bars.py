@@ -58,18 +58,19 @@ def store_path(base_dir: str, file_stem: str) -> str:
     A MONTH ENTERS GIT ONCE, when it is settled: SETTLE_DAYS after its end, so
     the holes a provider's outage left in its last days have been filled. It is
     plain CSV, `2026-09.csv`. Git compresses every file it stores, so a month
-    costs it the same 1 MB (all instruments) plain or gzipped; as Parquet 1.9,
-    because a month is too small for Parquet's per-file overhead to pay off,
-    and no faster to read (measured on 2026-08). It is not rewritten after:
-    `merge` fills hours it lacks but does not revise the ones it holds.
+    costs it the same about 0.35 MB (all 62 instruments) plain or gzipped; as
+    Parquet about 0.6, because a month is too small for Parquet's per-file
+    overhead to pay off, and no faster to read (measured on 2026-08 and 09). It
+    is not rewritten after: `merge` fills hours it lacks but does not revise
+    the ones it holds.
 
     A YEAR BECOMES ONE PARQUET FILE once its December has settled: the first
     write after that folds its twelve months into `2026.parquet`. A year is big
     enough for Parquet to be the smaller and faster form, and the store keeps a
     few dozen files rather than twelve more every year for `load` to open. The
-    fold costs git the year once more, about 5 MB for the 62 (rehearsed
-    2026-10-19: 2026's first ten months, 4.3 MB; 2025's, for the old basket,
-    16.4), the months staying in its history: with them, about 17 MB a year.
+    fold costs git the year once more, about 5 MB for the 62 (2025's files
+    hold 4.6; the first repository's 2025, on a larger basket, was 16.4), the
+    months staying in its history: with them, about 10 MB a year.
 
     What is settled is read off the DATA, not the clock: SETTLE_DAYS after the
     month's end, measured against the newest bar the store holds.

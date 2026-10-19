@@ -32,9 +32,10 @@ there, is not asked about a move in that hour (Source.skip_hours: the FT's last
 hour in Europe and its Bund and gilts' hours, the TAIEX's 13:00, the Chinese
 lunch at 11:00, the Nikkei future's 15:00, the Treasury funds outside their
 session), where it is neither a vote nor an outage. The keyed providers -
-Tiingo, Twelve Data, SiftingIO, Alpaca - vote within the votes' share of their
-allowance (config/provider_limits.csv, vote_room); past it, each is an outage
-for the rest of the run, named on the health chat.
+Tiingo, Twelve Data, SiftingIO - vote within the votes' share of their allowance
+(config/provider_limits.csv, vote_room); past it, each is an outage for the rest
+of the run, named on the health chat. A share of a minute (Twelve Data's,
+Alpaca's) is a pace instead (per_minute).
 
 THE VOTE (judge_all, combine) is taken with what the sources serve when it is
 taken: a source that has not shown the move yet counts against, until the

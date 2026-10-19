@@ -490,7 +490,7 @@ Measured or weighed, and not to be raised again.
 | China's bond funds as voters on its 10-year future | 0.67-0.78 hour by hour (the 10-year fund's step is the future's hourly move) |
 | Naver's minute charts of the world indices | empty, on a weekday too (2026-10-19): daily bars only |
 | the one-voter indices' tracker funds at the FT (2026-10-19) | the ASX's STW and IOZ 0.50 (0.69 an hour shifted), the JSE's Satrix 40 0.45; nothing for Istanbul |
-| US-listed country funds in their place (EWA, EZA, TUR; 2026-10-19) | three voters, but trading while the home market is mostly shut, in dollars: EWA's day against the ASX's next session 0.52, EZA's against the JSE's 0.72, TUR's against the BIST's 0.91 (two years) |
+| US-listed country funds in their place (EWA, EZA, TUR; 2026-10-19) | three voters, but trading while the home market is mostly shut, in dollars: EWA's day against the ASX's next session 0.52, EZA's against the JSE's same day 0.72, TUR's against the BIST's same day 0.91 (two years) |
 | more voters on the Hang Seng: Tencent's minutes, the FT's Tracker Fund (the user's, 2026-10-19: skip) | both pass (0.998; 0.95-0.98 at 10:00-13:59 Hong Kong), but would have changed none of its 10 far moves in two years, none a bad print by Naver's daily range |
 
 ---
