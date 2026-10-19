@@ -120,6 +120,7 @@ standing in, a few minutes of it; that bar heals on the next fetch.
 | Bitstamp, Bitfinex | — | the coins' history, and voters on the coins |
 | Tencent | — | a voter on the CSI 300 and China's 30-year bond fund: their half hours, 800 back, about 148 days (`price_monitor/tencent.py`) |
 | EEX | — | a voter on TTF: its own TTF month future's trades folded into hours, one request a weekday, asked to 9 days (`price_monitor/eex.py`) |
+| iShares | — | IGLT's payouts: the distribution table on the fund's own page, each ex-date and its amount in pounds (`price_monitor/ishares.py`) |
 | Dukascopy | — | history only: files, not asked by the vote (the user's, 2026-10-17) |
 | HF Data | — | funds' history to 2020, imported once (its client is gone) |
 
@@ -215,12 +216,14 @@ through; five or more days behind, the health chat is told once a day. The same 
 carries splits, recorded as declared, so a split day's gap is not scored. The full refresh
 from Tiingo (backfill workflow, `corporate-actions`) rewrites the payouts but keeps every
 split already declared, and the funds abroad's rows. **The funds abroad**
-(`corporate_actions.FUNDS_ABROAD`: IGLT, the 30-year China fund) have Yahoo's payouts only
-(`--add-missing`), checked on the first run after their own market opens
-(`backfill.check_dividends_abroad`), in the same run before their night is scored. Yahoo
-dates some of IGLT's a day late and lists one twice, so their nights are not adjusted:
-the night of a listed payout and the trading day's before it are left unscored, the rest
-scored once confirmed.
+(`corporate_actions.FUNDS_ABROAD`: IGLT, the 30-year China fund) are in neither Tiingo
+nor Twelve Data: IGLT's payouts are iShares' own (`corporate_actions.PAYOUT_SOURCES`; Yahoo
+dates some of them a day late and lists one twice), each amount over the store's last
+close before its ex-date's open; the China fund's are Yahoo's. Both are added with
+`--add-missing` and checked on the first run after their own market opens
+(`backfill.check_dividends_abroad`), in the same run before their night is scored. Their
+nights are not adjusted: the night of a listed payout and the trading day's before it are
+left unscored, the rest scored once confirmed.
 
 ## 5. The sources' vote
 
@@ -282,7 +285,10 @@ not a move.
 **The vote** (`combine`, `judge_all`). The store's provider is one vote that saw it; each
 other source that answers is one vote; an outage is left out of the count and named on the
 line. Every source of an instrument is asked or none that run. A rate limit, or two
-requests in a row unanswered, stops a source for the run, and the health chat names it.
+requests in a row unanswered, stops a source for the run, and the health chat names it. A
+source that has failed every time it was asked for 24 hours (any error but a rate limit:
+a 400, a page that changed) is named on the health chat once a day, with its instruments
+and its last error, until it answers (`verify.failing_voters`, `voter_failures.csv`).
 
 | the votes | result | scored | under the move on the channel (section 8) |
 |---|---|---|---|
@@ -569,6 +575,7 @@ topped up daily from the live feed.
 | `data/economic_calendar/` | release archive | every run |
 | `data/jump/corporate_actions.csv`, `dividend_checks.csv` | payouts, how far each fund is confirmed | every run |
 | `data/jump/verified.csv` | the sources' votes | every run |
+| `data/jump/voter_failures.csv` | each voter failing every time it is asked, since when, when the health chat was told | when one fails or answers again |
 | `data/jump/usage/hourly.csv`, `manual.csv`, `dashboard.csv` | each provider's calls a day, by purpose | every run; a history walk's; the logs' 30 days before, once |
 | `data/jump/sessions/nyse.csv`, `<exchange code>.csv` | NYSE schedule, the markets abroad's | when extended |
 | `data/jump/bars/*/YYYY-MM.csv`, `YYYY.parquet` | settled bars | when a month or year settles |
@@ -626,6 +633,7 @@ message past Telegram's 4,096 characters is cut between lines, ending "…and N 
 | fetch: answered, but no new bar | the instrument goes stale (`stale_hours`) | "no new bar" | past its limit, then daily |
 | dividend check | a fund's payouts unconfirmed 5+ days: its overnight gaps go unscored | "Dividend check behind" | daily |
 | the vote | a source stopped for the run: an outage, left out of the count of the moves it is asked about (uncertain where none is left), until a later count; the pass crashed: the hour's moves are scored unvoted | "The vote" lines | every run it happens |
+| the vote: a source failing every time it is asked, 24 hours on (an error, not a rate limit) | an outage in those votes until it answers | "… has failed every time it was asked since …", under "The vote" | once a day per source |
 | VIX | both sources failed | "went dark" | every run it happens |
 | pipeline or jumps, one instrument (an error, or no metrics file) | that instrument keeps its stored metrics, or its events from the last run, so delivery never reads them as gone; the others are current | "Metrics failed" / "Scoring failed for N instrument(s)", each with its error | every run it happens |
 | pipeline, jumps (every instrument), or the step's 12 minutes | no new events | streak, named with the part it stopped in and its minutes | while it fails |

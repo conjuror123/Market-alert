@@ -198,13 +198,16 @@ for ten trading days of hourly bars answers 400 ("Cannot use intraday step 'PT1H
 frame 'D10'") and takes eight, a Chinese one five; the rest still ten
 (`marketwatch.FRAMES`). The KOSPI's vote had been an outage every time since about 10-14.
 
-**The funds abroad's payouts are Yahoo's** (the user's, 2026-10-18: adjust their nights):
-neither Tiingo nor Twelve Data carries them. Each is checked on the first run after its own
-market opens, before its night is scored. Yahoo dated two of IGLT's last four a day late
-(2025-05 and 2026-05: the price fell the day before) and listed 2024-11's twice, while the
-30-year fund's five matched their drops: so a fund abroad's night on a listed payout, and
-on the trading day before it, is left unscored rather than adjusted on a day that may be
-wrong (`returns.overnight_gaps`).
+**The funds abroad's payouts are Yahoo's, IGLT's iShares'** (the user's, 2026-10-18: adjust
+their nights; 2026-10-19: IGLT's from iShares itself): neither Tiingo nor Twelve Data carries
+them. Each is checked on the first run after its own market opens, before its night is
+scored. Yahoo dated two of IGLT's last four a day late - the record date: 2025-05-16 and
+2026-05-22, where the price fell on the 15th and the 21st - and listed 2024-11's twice,
+while the 30-year fund's five matched their drops. iShares' own table on the fund's page
+has the ex-dates (40, to 2007), in pounds a share, so the step is taken over the store's
+close before the ex-date's open: 2.04-2.26% on IGLT's four in the store, Yahoo's within
+0.05 percentage points. A fund abroad's night on a listed payout, and on the trading day
+before it, is still left unscored rather than adjusted (`returns.overnight_gaps`).
 
 **The LME's metals are the LME's own, from Sina**: the right instrument with a short record
 (from 2026-04-22) over a longer record of another (Shanghai tin, Kitco, COMEX aluminium).
@@ -251,6 +254,14 @@ is wrong.
 **An outage is left out of the count** (the user's, 2026-10-10): counted against, one source
 down turns a clear vote into a tie. When none can answer, the move is uncertain; when none
 is asked (every source skips its hour), it is not voted.
+
+**A voter failing every time for a day is named, once a day per source** (the user's,
+2026-10-19). Its failures were log lines: the KOSPI's MarketWatch vote answered 400 for
+about four days (2026-10-14 to 10-18) before the dashboard, measured only on pushes to dev,
+showed it. A day, because a source's off hours and a provider's bad hour are not an
+outage; once a day per source, with its instruments in one line, so a dead source is not a
+stream. A rate limit is not counted: it is already named every run it stops a source. A
+failure not seen again for three days is forgotten (`verify.failing_voters`).
 
 **A source sees a move on its own two bars of it** (the user's, 2026-10-12): its price at the
 store's previous bar and at this one moved the same way, at least half as far. On the 58's
@@ -485,9 +496,9 @@ trading day (next 2027-08-30). To act: mark that hour, or that Friday.
 5,000–6,500 a month of 10,000, far from the 80% warning either way. To act: read the account
 page about 11-06 and count its month.
 
-**One voter only** for 9 instruments: the LME's tin, nickel and aluminium, the Bund, the
-BIST 100, the ASX 200, the Hang Seng, the JSE Top 40 and the UK's gilts fund (the FT, at
-09:00-14:00 London): a move it does not see is uncertain, never not real. Tried: the sources
+**One voter only** for 10 instruments: the LME's tin, nickel and aluminium, the Bund, TTF
+(EEX), the BIST 100, the ASX 200, the Hang Seng, the JSE Top 40 and the UK's gilts fund (the
+FT, at 09:00-14:00 London): a move it does not see is uncertain, never not real. Tried: the sources
 under the bar or refused ("The sources' vote", "Rejected"). To act: a second source that
 moves with them. Naver's minute charts of
 the world indices answered empty on a Saturday (2026-10-17): one look on a weekday.

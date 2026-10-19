@@ -67,6 +67,7 @@ PROVIDERS = {
     "www.twse.com.tw": "twse",
     "ifzq.gtimg.cn": "tencent",
     "api.eex-group.com": "eex",
+    "www.ishares.com": "ishares",
 }
 
 # The headers a provider says what is left in: Tiingo, SiftingIO, Twelve Data.

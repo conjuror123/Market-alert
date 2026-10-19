@@ -319,15 +319,47 @@ def _funds(basket) -> list:
 
 # THE FUNDS ABROAD, on their own exchange's days (Yahoo's bars, jump.sessions
 # EXCHANGES): neither Tiingo nor Twelve Data carries them, so their payouts are
-# Yahoo's, added with --add-missing and confirmed each session after their own
-# market opens (jump.backfill.check_dividends_abroad). IGLT pays about 2% twice a
-# year, the 30-year fund about 1.3% one to three times (Yahoo, 2026-10-18): each
+# Yahoo's (IGLT's iShares', PAYOUT_SOURCES), added with --add-missing and
+# confirmed each session after their own market opens
+# (jump.backfill.check_dividends_abroad). IGLT pays about 2% twice a year, the
+# 30-year fund about 1.3% one to three times (Yahoo, 2026-10-18): each
 # unadjusted would read as a night's drop.
 FUNDS_ABROAD = ("IGLT.L", "511090.SS")
+
+# A fund whose payouts are its issuer's, not Yahoo's. Yahoo files some of IGLT's
+# under the record date, the day after the price fell, and one twice
+# (price_monitor.ishares); iShares' own table has the ex-dates.
+PAYOUT_SOURCES = {"IGLT.L": "ishares"}
 
 
 def funds_abroad(basket) -> list:
     return [a for a in basket.instruments if a.ticker in FUNDS_ABROAD]
+
+
+def payouts_from_ishares(asset, since: date, session, bars_dir: str,
+                         now: datetime) -> list[CorporateAction]:
+    """iShares' payouts from `since` whose ex-date session has opened by `now`,
+    each as the table's step d/(1-d), d the amount over the store's last close
+    before that open (iShares gives pounds a share, not a ratio). An ex-date
+    older than the store has no close to divide by and is left out: no night of
+    the store can need it."""
+    from jump import bars, sessions
+    from price_monitor import ishares
+
+    stored = bars.load(bars.store_path(bars_dir, asset.file_stem))
+    found: list[CorporateAction] = []
+    for day, amount in ishares.fetch_payouts(asset.ticker, session=session):
+        if day < since:
+            continue
+        opened = sessions.daily_session_open(day, asset.session_template)
+        if opened > now.timestamp():
+            continue
+        before = stored.loc[stored["hour_utc"] < opened, "close"]
+        if before.empty:
+            continue
+        close = float(before.iloc[-1])
+        found.append(CorporateAction(asset.ticker, day, "dividend", amount / (close - amount)))
+    return found
 
 
 def collect_from_tiingo(funds, since: date, api_key: str, session,
@@ -378,13 +410,15 @@ def collect_from_twelvedata(funds, since: date, api_key: str, session,
 
 
 def add_missing_from_yahoo(funds, since: date, path: str, session,
-                           delay: float = 1.0) -> int:
+                           delay: float = 1.0, bars_dir: "str | None" = None) -> int:
     """Dividends for the funds the table lacks, from Yahoo, merged into it.
 
-    Yahoo's steps are already in the table's d/(1-d) form (price_monitor.yahoo).
-    Every fund asked must answer, as with the full refresh: a fund left out would
-    read its every ex-date as an unexplained drop. Splits are not asked for -
-    the store is split-adjusted and un-adjustment never uses them.
+    Yahoo's steps are already in the table's d/(1-d) form (price_monitor.yahoo);
+    a fund in PAYOUT_SOURCES is asked its issuer instead, its steps over the
+    store's closes in `bars_dir`. Every fund asked must answer, as with the full
+    refresh: a fund left out would read its every ex-date as an unexplained
+    drop. Splits are not asked for - the store is split-adjusted and
+    un-adjustment never uses them.
     """
     from price_monitor import yahoo
 
@@ -399,10 +433,16 @@ def add_missing_from_yahoo(funds, since: date, path: str, session,
     failed: list[str] = []
     for i, asset in enumerate(missing):
         try:
-            found = yahoo.fetch_dividends(asset.ticker, since, session=session)
+            if PAYOUT_SOURCES.get(asset.ticker) == "ishares":
+                from jump import bars
+                found = [(a.day, a.factor_step) for a in payouts_from_ishares(
+                    asset, since, session, bars_dir or bars.DEFAULT_BARS_DIR, _now())]
+            else:
+                found = yahoo.fetch_dividends(asset.ticker, since, session=session)
             added.extend(CorporateAction(asset.ticker, day, "dividend", step)
                          for day, step in found if abs(step) >= STEP_THRESHOLD)
-            log.info("%s: payouts %d (Yahoo)", asset.ticker, len(found))
+            log.info("%s: payouts %d (%s)", asset.ticker, len(found),
+                     "iShares" if PAYOUT_SOURCES.get(asset.ticker) == "ishares" else "Yahoo")
         except Exception as exc:
             log.error("%s: failed - %s", asset.ticker, exc)
             failed.append(asset.ticker)
@@ -484,9 +524,9 @@ def _main(argv: "list[str] | None", session: requests.Session) -> int:
     parser.add_argument(
         "--add-missing", action="store_true",
         help="Add only the funds the table does not hold yet, from Yahoo's declared "
-             "payouts, and keep every existing row. For a widened basket: the full "
-             "Tiingo refresh asks for every fund at Tiingo's hourly budget, which the "
-             "live run on the default branch shares.")
+             "payouts (IGLT's from iShares), and keep every existing row. For a "
+             "widened basket: the full Tiingo refresh asks for every fund at "
+             "Tiingo's hourly budget, which the live run on the default branch shares.")
     parser.add_argument("--bars-dir", default=bars.DEFAULT_BARS_DIR,
                         help="the stores the hourly run's skip rule is read from")
     args = parser.parse_args(argv)
@@ -498,7 +538,7 @@ def _main(argv: "list[str] | None", session: requests.Session) -> int:
 
     if args.add_missing:
         return add_missing_from_yahoo(funds + funds_abroad(basket), basket.acquire_since,
-                                      args.out, session)
+                                      args.out, session, bars_dir=args.bars_dir)
 
     try:
         if args.source == "twelvedata":

@@ -2,10 +2,11 @@
 from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
+import pandas as pd
 import pytest
 
-from price_monitor import yahoo
-from jump import backfill, corporate_actions
+from price_monitor import ishares, yahoo
+from jump import backfill, bars, corporate_actions
 from jump.basket import Asset
 from jump.sessions import Session
 
@@ -184,10 +185,16 @@ def abroad(ticker, template):
 ABROAD = [abroad("511090.SS", "shanghai"), abroad("IGLT.L", "london")]
 
 
-def run_abroad(files, now):
+def run_abroad(files, now, bars_dir="no-bars"):
     actions, checks = files
     return backfill.check_dividends_abroad(ABROAD, None, now=now, actions_path=actions,
-                                           checks_path=checks)
+                                           checks_path=checks, bars_dir=bars_dir)
+
+
+def issuer(monkeypatch, asked, payouts=()):
+    """iShares' answer for IGLT: these (ex-date, pounds) payouts."""
+    monkeypatch.setattr(ishares, "fetch_payouts",
+                        lambda ticker, session=None: asked.append(ticker) or list(payouts))
 
 
 def test_a_fund_abroad_is_checked_after_its_own_markets_open_not_new_yorks(files, monkeypatch):
@@ -201,6 +208,7 @@ def test_a_fund_abroad_is_checked_after_its_own_markets_open_not_new_yorks(files
         return [(date(2026, 10, 16), 0.0133)] if ticker == "511090.SS" else []
 
     answer(monkeypatch, fake)
+    issuer(monkeypatch, asked)
     r = run_abroad(files, datetime(2026, 10, 16, 1, 5, tzinfo=timezone.utc))
     assert asked == [] and r["skipped"] == "nothing due"
 
@@ -219,6 +227,43 @@ def test_a_fund_abroad_is_not_asked_on_a_day_its_market_is_shut(files, monkeypat
     # Golden Week: Shanghai shut on 2026-10-05, London open.
     asked = []
     answer(monkeypatch, lambda ticker, *a, **k: asked.append(ticker) or [])
+    issuer(monkeypatch, asked)
     run_abroad(files, datetime(2026, 10, 5, 9, 5, tzinfo=timezone.utc))
     assert asked == ["IGLT.L"]
     assert "511090.SS" not in corporate_actions.load_checks(files[1])
+
+
+def test_iglt_s_payouts_are_ishares_own_ex_dates_over_the_stored_close(files, monkeypatch, tmp_path):
+    # Yahoo files some of IGLT's payouts under the record date, the day after the
+    # price fell: IGLT is asked iShares, the China fund still Yahoo. iShares gives
+    # pounds a share; the step is over the store's last close before the
+    # ex-date's open (07:00 UTC in summer), and a payout not yet ex is left for
+    # its own morning.
+    hour = lambda *t: int(datetime(*t, tzinfo=timezone.utc).timestamp())
+    bars.merge(bars.store_path(str(tmp_path), "yahoo_IGLT.L"), pd.DataFrame({
+        "hour_utc": [hour(2026, 10, 15, 15), hour(2026, 10, 16, 7)],
+        "open": [10.2, 9.99], "high": [10.2, 9.99], "low": [10.2, 9.99],
+        "close": [10.21, 9.99], "volume": [1.0, 1.0], "n_src": [2, 2]}))
+    by_yahoo, by_ishares = [], []
+    answer(monkeypatch, lambda ticker, *a, **k: by_yahoo.append(ticker) or [])
+    issuer(monkeypatch, by_ishares, [(date(2026, 5, 21), 0.2155), (date(2026, 10, 16), 0.21),
+                                     (date(2026, 11, 12), 0.22)])
+    r = run_abroad(files, datetime(2026, 10, 16, 8, 5, tzinfo=timezone.utc), str(tmp_path))
+    assert by_yahoo == ["511090.SS"] and by_ishares == ["IGLT.L"]
+    assert r["checked"] == 2 and r["added"] == 1
+    loaded = corporate_actions.load_dividends(*files)
+    assert loaded.steps["IGLT.L"] == {"2026-10-16": pytest.approx(0.21 / (10.21 - 0.21))}
+    assert loaded.checked_through["IGLT.L"] == "2026-10-16"
+
+
+def test_ishares_not_answering_leaves_iglt_unchecked_and_yahoo_still_asked(files, monkeypatch):
+    by_yahoo = []
+    answer(monkeypatch, lambda ticker, *a, **k: by_yahoo.append(ticker) or [])
+
+    def down(ticker, session=None):
+        raise backfill.Unreachable("IGLT.L: iShares answered 503")
+
+    monkeypatch.setattr(ishares, "fetch_payouts", down)
+    r = run_abroad(files, datetime(2026, 10, 16, 8, 5, tzinfo=timezone.utc))
+    assert r["failed"] == ["IGLT.L"] and by_yahoo == ["511090.SS"]
+    assert "IGLT.L" not in corporate_actions.load_checks(files[1])

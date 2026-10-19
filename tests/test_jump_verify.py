@@ -842,6 +842,54 @@ def test_a_source_that_fails_is_an_outage_left_out_of_the_count(monkeypatch, tmp
     assert row["verifier_move"].startswith(",")              # Yahoo: no move to show
 
 
+def test_the_pass_says_which_voters_failed_and_which_answered(monkeypatch, tmp_path, basket):
+    # Yahoo refuses the pair (400), MarketWatch is rate-limited - a stop, named
+    # each run already, not a failure -, Wallstreetcn answers.
+    from price_monitor.models import ExchangeError
+    asset, hours, bad, frame, market = _inr_store(tmp_path, basket)
+
+    def fetch(name, symbol, interval, days, session, now):
+        if name == "yahoo":
+            raise ExchangeError(f"{symbol}: Yahoo answered 400")
+        if name == "marketwatch":
+            raise ExchangeError(f"{symbol}: MarketWatch answered 429")
+        return market
+
+    monkeypatch.setattr(verify, "fetch_verifier", fetch)
+    now = datetime.fromtimestamp(int(hours[bad + 5]) + 300, timezone.utc)
+    r = verify.verify([asset], str(tmp_path / "bars"), None, now=now,
+                      path=str(tmp_path / "verified.csv"))
+    assert r["failed"] == [("yahoo", asset.ticker, "EURUSD=X: Yahoo answered 400")]
+    assert r["answered"] == [("wallstreetcn", asset.ticker)]
+    assert r["stopped"] == ["marketwatch"]
+
+
+def test_a_voter_failing_for_a_day_is_named_once_a_day_until_it_answers(tmp_path):
+    path = str(tmp_path / "voter_failures.csv")
+    at = lambda h: datetime(2026, 10, 14, 12, 5, tzinfo=timezone.utc) + timedelta(hours=h)
+    kospi = [("marketwatch", "^KS11", "INDEX/KR/XKRX/180721: MarketWatch answered 400")]
+    assert verify.failing_voters(kospi, [], at(0), path) == []          # a first failure
+    assert verify.failing_voters(kospi, [], at(23), path) == []         # under a day
+    told = verify.failing_voters(kospi, [], at(24), path)
+    assert told == ["MarketWatch has failed every time it was asked since 2026-10-14 12:05 "
+                    "UTC, on ^KS11 (INDEX/KR/XKRX/180721: MarketWatch answered 400): an "
+                    "outage in those votes until it answers"]
+    assert verify.failing_voters(kospi, [], at(30), path) == []         # told today
+    assert verify.failing_voters([], [], at(48), path) == []            # not asked: quiet
+    assert len(verify.failing_voters(kospi, [], at(49), path)) == 1     # a day on
+    verify.failing_voters([], [("marketwatch", "^KS11")], at(50), path)   # it answered
+    assert verify.failing_voters(kospi, [], at(51), path) == []         # its clock restarted
+
+
+def test_a_voter_not_failing_for_three_days_is_forgotten(tmp_path):
+    path = str(tmp_path / "voter_failures.csv")
+    at = lambda h: datetime(2026, 10, 14, 12, 5, tzinfo=timezone.utc) + timedelta(hours=h)
+    gone = [("ft", "LCZ26", "LCZ26: not found by the FT's search")]
+    verify.failing_voters(gone, [], at(0), path)
+    verify.failing_voters([], [], at(24 * 3 + 1), path)
+    assert verify.failing_voters(gone, [], at(24 * 3 + 2), path) == []  # a new clock
+
+
 def test_a_rate_limit_stops_that_source_only(monkeypatch, tmp_path, basket):
     from price_monitor.models import ExchangeError
     asset, hours, bad, frame, market = _inr_store(tmp_path, basket)
