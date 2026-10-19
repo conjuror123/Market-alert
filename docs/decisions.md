@@ -432,6 +432,11 @@ record and its usage files came across whole; the secrets were set again.
 
 **Derived data is not tracked**: it rebuilds from the bars in under a minute.
 
+**The libraries are held at their majors** (the user's, 2026-10-19): the bot runs unattended,
+and every run installs the newest versions allowed. pandas was held below 3 already; pyarrow
+(the bars' Parquet) and numpy (the metrics) floated, 26.0.0 and 2.5.4 on the day, and are
+held below 27 and 3.
+
 **A one-off tool is deleted once its work is done**: a rerun of a history builder would undo
 later fixes. What they established is here.
 
