@@ -536,6 +536,7 @@ twelvedata:USD/CAD,1789581600,close,real,sifting,yahoo,,0.004013,0.003825,179111
 twelvedata:USD/CAD,1791547200,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",0.003949,"0.003900,0.003927,0.003928,0.003879,0.004040",1792281946
 twelvedata:USD/CAD,1791979200,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",0.003328,"0.003349,0.003299,0.003440,0.003293,0.003286",1792368369
 twelvedata:USD/CAD,1791982800,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",0.002164,"0.002178,0.002030,0.002031,0.002216,0.002094",1792368369
+twelvedata:USD/CAD,1792389600,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",-0.002382,"-0.002340,-0.002481,-0.002339,-0.002407,-0.002211",1792393581
 twelvedata:USD/CHF,1789581600,close,real,sifting,yahoo,,0.008161,0.008461,1791114096
 twelvedata:USD/CHF,1790233200,close,real,sifting,yahoo,,0.003778,0.003778,1791114096
 twelvedata:USD/CHF,1790838000,close,real,sifting,"yahoo,marketwatch","yahoo,marketwatch",-0.003256,"-0.003304,-0.003231",1791590777

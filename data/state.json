@@ -1,17 +1,56 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1792389986
+    "last_run_utc": 1792393600
   },
   "floor_pending_replies": [],
   "jump_delivery": {
     "week": {
       "detector": "30cd6f26b320",
-      "events": {},
-      "messages": {},
+      "events": {
+        "twelvedata:USD/CAD|1792393200": {
+          "asset": "twelvedata:USD/CAD",
+          "body": "\u2b1c <b>USD/CAD</b> \u00b7 Canadian dollar -0.24% \u00b7 4.8\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1792389600,
+          "members": {
+            "jump:twelvedata:USD/CAD:hour:1792389600": [
+              -0.0023816792165064207,
+              0.0005005174486792482
+            ]
+          },
+          "message": 112,
+          "peak": "jump:twelvedata:USD/CAD:hour:1792389600",
+          "seen": 1792393600,
+          "shown": [
+            "noticeable",
+            4.8,
+            1792389600,
+            -0.24
+          ],
+          "size": 4.7584339422953805,
+          "start": 1792393200,
+          "story": [
+            [
+              "noticeable",
+              4.8,
+              1792389600,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        }
+      },
+      "messages": {
+        "112": {
+          "first": "\u2b1c <b>USD/CAD</b> \u00b7 Canadian dollar -0.24% \u00b7 4.8\u00d7\u03c3",
+          "hash": "098f7d4e0283817d"
+        }
+      },
       "note": {
         "hashes": [
-          "461d5e34d0225951"
+          "a251f898bb3f4642"
         ],
         "ids": [
           111
