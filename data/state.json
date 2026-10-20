@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1792454820
+    "last_run_utc": 1792458397
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -22,7 +22,7 @@
           },
           "message": 113,
           "peak": "jump:twelvedata:EUR/USD:hour:1792393200",
-          "seen": 1792454821,
+          "seen": 1792458397,
           "shown": [
             "noticeable",
             5.7,
@@ -55,7 +55,7 @@
           },
           "message": 112,
           "peak": "jump:twelvedata:USD/CAD:hour:1792389600",
-          "seen": 1792454821,
+          "seen": 1792458397,
           "shown": [
             "noticeable",
             4.8,
