@@ -819,6 +819,7 @@ twelvedata:XLE,1789045200,close,real,tiingo,yahoo,,-0.019611,-0.019157,179111409
 twelvedata:XLF,1789581600,close,real,tiingo,yahoo,,-0.012534,-0.012712,1791114096
 twelvedata:XLF,1790082000,close,real,tiingo,yahoo,,-0.012299,-0.011585,1791114096
 twelvedata:XLF,1790085600,close,real,tiingo,yahoo,,-0.010990,-0.010898,1791114096
+twelvedata:XLF,1792501200,close,real,tiingo,"yahoo,sina,marketwatch","yahoo,sina",0.010814,"0.010634,0.011350,-0.000806",1792505462
 twelvedata:XLK,1641823200,close,overnight,tiingo,alpaca,,-0.022674,-0.014455,1791362492
 twelvedata:XLK,1643205600,close,overnight,tiingo,alpaca,,0.024831,0.026297,1791362492
 twelvedata:XLV,1791550800,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",0.014417,"0.010221,0.014149,0.010162,0.014149",1792181166
