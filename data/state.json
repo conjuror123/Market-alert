@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1792451192
+    "last_run_utc": 1792454820
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -22,7 +22,7 @@
           },
           "message": 113,
           "peak": "jump:twelvedata:EUR/USD:hour:1792393200",
-          "seen": 1792451192,
+          "seen": 1792454821,
           "shown": [
             "noticeable",
             5.7,
@@ -55,7 +55,7 @@
           },
           "message": 112,
           "peak": "jump:twelvedata:USD/CAD:hour:1792389600",
-          "seen": 1792451192,
+          "seen": 1792454821,
           "shown": [
             "noticeable",
             4.8,
@@ -99,6 +99,6 @@
     }
   },
   "telegram_update_offset": 688283215,
-  "weekly_digest:last_refreshed": "2026-10-19",
+  "weekly_digest:last_refreshed": "2026-10-20",
   "weekly_digest:last_sent_week": "1792181100"
 }
