@@ -1,13 +1,46 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1792505482
+    "last_run_utc": 1792508814
   },
   "floor_pending_replies": [],
   "jump_delivery": {
     "week": {
       "detector": "dec52391ff7d",
       "events": {
+        "binance:ETH/USDT|1792508400": {
+          "asset": "binance:ETH/USDT",
+          "body": "\u2b1c <b>ETH/USDT</b> \u00b7 Ethereum +2.50% \u00b7 5.1\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1792504800,
+          "members": {
+            "jump:binance:ETH/USDT:hour:1792504800": [
+              0.02497171227324099,
+              0.004861407160066035
+            ]
+          },
+          "message": 114,
+          "peak": "jump:binance:ETH/USDT:hour:1792504800",
+          "seen": 1792508814,
+          "shown": [
+            "noticeable",
+            5.1,
+            1792504800,
+            2.5
+          ],
+          "size": 5.136725119091195,
+          "start": 1792508400,
+          "story": [
+            [
+              "noticeable",
+              5.1,
+              1792504800,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        },
         "twelvedata:EUR/USD|1792396800": {
           "asset": "twelvedata:EUR/USD",
           "body": "\u2b1c <b>EUR/USD</b> \u00b7 Euro -0.35% \u00b7 5.7\u00d7\u03c3",
@@ -22,7 +55,7 @@
           },
           "message": 113,
           "peak": "jump:twelvedata:EUR/USD:hour:1792393200",
-          "seen": 1792505482,
+          "seen": 1792508814,
           "shown": [
             "noticeable",
             5.7,
@@ -55,7 +88,7 @@
           },
           "message": 112,
           "peak": "jump:twelvedata:USD/CAD:hour:1792389600",
-          "seen": 1792505482,
+          "seen": 1792508814,
           "shown": [
             "noticeable",
             4.8,
@@ -83,11 +116,15 @@
         "113": {
           "first": "\u2b1c <b>EUR/USD</b> \u00b7 Euro -0.35% \u00b7 5.7\u00d7\u03c3",
           "hash": "a75d4e15df4297c0"
+        },
+        "114": {
+          "first": "\u2b1c <b>ETH/USDT</b> \u00b7 Ethereum +2.50% \u00b7 5.1\u00d7\u03c3",
+          "hash": "7e7af263b030eb40"
         }
       },
       "note": {
         "hashes": [
-          "49fd6604d3c319e8"
+          "b924a32c25bb5462"
         ],
         "ids": [
           111
