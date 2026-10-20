@@ -122,6 +122,17 @@ def test_calls_are_counted_by_purpose_and_twelve_datas_in_credits():
     assert usage.line() == "requests: tiingo 2, twelvedata 2 (left 793)"
 
 
+def test_twelve_datas_credits_used_header_is_the_minutes_total_not_the_calls_cost():
+    # The vote's five calls in one minute carry api-credits-used 1 to 5: five
+    # credits, as Twelve Data's own daily count has them, not fifteen.
+    usage = Usage()
+    s = usage.session("votes")
+    for used in range(1, 6):
+        _ask(s, "https://api.twelvedata.com/time_series?symbol=EUR/USD",
+             headers={"api-credits-used": str(used), "api-credits-left": str(8 - used)})
+    assert usage.spent == {("twelvedata", "votes"): 5}
+
+
 def test_an_unknown_purpose_is_refused():
     import pytest
     with pytest.raises(ValueError):

@@ -237,7 +237,11 @@ are not touched (a night's kind is measured from the bars).
 used only by this repository's workflows, so our count is the truth. Every run writes it by
 day and purpose (`data/jump/usage/`); the limits and every share are one table
 (`config/provider_limits.csv`) the caps are read from; Twelve Data's own daily count is
-checked against ours. The 30 days before were added up from the runs' logs once.
+checked against ours. The 30 days before were added up from the runs' logs once. Twelve
+Data's credits are counted from the symbols asked, not its `api-credits-used` header, the
+minute's running total (2026-10-20): read as each call's cost, the vote's five calls at
+00:06 were 15, and our count stood above Twelve Data's own on quiet days (10-16: 25 against
+its 15) and hid the dashboard's calls on busy ones.
 
 **A failing provider costs its instruments, not the run**: two unanswered requests in a row
 stop it for the run; a missing key skips its instruments and is named; the run goes red only
