@@ -89,13 +89,15 @@ GAP_MARGIN = 20
 
 
 def credits(provider: str, response) -> int:
-    """What one answer costs against the provider's limit: Twelve Data's credits
-    (its own header, else one per symbol asked), one request for the rest."""
+    """What one answer costs against the provider's limit: Twelve Data's credits,
+    one per symbol asked, one request for the rest.
+
+    Not Twelve Data's `api-credits-used` header: it is the minute's running total,
+    not the answer's cost. The vote's five calls at 00:06 read 1 to 5 and were
+    counted 15 (2026-10-14 to 20); one credit a call, ours and the dashboard's
+    add up to Twelve Data's own daily count (10-18: 7 + 28 = 35; 10-19: 17 + 35 = 52)."""
     if provider != "twelvedata":
         return 1
-    used = response.headers.get("api-credits-used")
-    if used is not None and str(used).strip().isdigit():
-        return int(used)
     symbols = parse_qs(urlsplit(response.url).query).get("symbol", [""])[0]
     return max(1, len([s for s in symbols.split(",") if s.strip()]))
 

@@ -183,10 +183,14 @@ provider is an outage in the vote for the rest of the run; its share of a minute
   run), the history walks `manual.csv` - two workflows committing one row would stop each
   other's push. The dashboard's calls are logged only; `dashboard.csv` holds the 30 days
   before 2026-10-13, added up from the logs once, with the others' first rows.
-- Twelve Data is counted in credits, one per symbol: its batch of seven is seven.
+- Twelve Data is counted in credits, one per symbol: its batch of seven is seven. Its
+  `api-credits-used` header is the minute's running total, not a call's cost; read as the
+  cost until 2026-10-20, it counted the vote's five calls at 00:06 as 15.
 - A day or month past 80% of a limit is said once on the health chat, and so is a day on
   which Twelve Data's own count (`daily_usage`, a credit, asked by the 23:00 UTC run) runs
-  20 credits ahead of ours. The dashboard sets the last 30 days against each limit.
+  20 credits ahead of ours. The dashboard's calls are not in ours, 7 credits a run, so a
+  day with three dashboard runs sets it off (2026-10-19: its 52 was our 17 and five runs' 35).
+  The dashboard sets the last 30 days against each limit.
 
 **Repair** (`backfill.repair_from_yahoo`), by hand, for a hole in the open month, which the
 hourly fetch never asks again: a fund's missing in-session hours of the last 58 days are
