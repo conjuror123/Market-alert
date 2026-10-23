@@ -92047,6 +92047,7 @@
 {"actual": "", "country": "USD", "date": "2026-10-21T14:30:00+00:00", "forecast": "-0.1M", "impact": "Low", "previous": "-8.6M", "title": "Crude Oil Inventories"}
 {"actual": "", "country": "NZD", "date": "2026-10-21T21:45:00+00:00", "forecast": "0.8%", "impact": "High", "previous": "1.5%", "title": "CPI q/q"}
 {"actual": "", "country": "CHF", "date": "2026-10-22T07:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Summary of Monetary Policy Discussions"}
+{"actual": "", "country": "CNY", "date": "2026-10-22T07:41:00+00:00", "forecast": "", "impact": "Low", "previous": "-5.3%", "title": "Foreign Direct Investment ytd/y"}
 {"actual": "", "country": "CNY", "date": "2026-10-22T09:10:00+00:00", "forecast": "", "impact": "Low", "previous": "-5.3%", "title": "Foreign Direct Investment ytd/y"}
 {"actual": "", "country": "EUR", "date": "2026-10-22T09:33:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Italian 10-y Bond Auction"}
 {"actual": "", "country": "GBP", "date": "2026-10-22T10:00:00+00:00", "forecast": "-20", "impact": "Low", "previous": "-9", "title": "CBI Industrial Order Expectations"}
@@ -92054,6 +92055,9 @@
 {"actual": "", "country": "CAD", "date": "2026-10-22T12:30:00+00:00", "forecast": "-0.1%", "impact": "Low", "previous": "-0.1%", "title": "NHPI m/m"}
 {"actual": "", "country": "CAD", "date": "2026-10-22T12:30:00+00:00", "forecast": "3.1%", "impact": "Low", "previous": "3.1%", "title": "RMPI m/m"}
 {"actual": "", "country": "USD", "date": "2026-10-22T12:30:00+00:00", "forecast": "200K", "impact": "Medium", "previous": "199K", "title": "Unemployment Claims"}
+{"actual": "", "country": "CAD", "date": "2026-10-22T12:38:00+00:00", "forecast": "0.9%", "impact": "Low", "previous": "1.3%", "title": "IPPI m/m"}
+{"actual": "", "country": "CAD", "date": "2026-10-22T12:38:00+00:00", "forecast": "3.1%", "impact": "Low", "previous": "3.1%", "title": "RMPI m/m"}
+{"actual": "", "country": "CAD", "date": "2026-10-22T13:55:00+00:00", "forecast": "-0.1%", "impact": "Low", "previous": "-0.1%", "title": "NHPI m/m"}
 {"actual": "", "country": "USD", "date": "2026-10-22T14:00:00+00:00", "forecast": "-0.1%", "impact": "Low", "previous": "-0.1%", "title": "CB Leading Index m/m"}
 {"actual": "", "country": "EUR", "date": "2026-10-22T14:00:00+00:00", "forecast": "-17", "impact": "Low", "previous": "-17", "title": "Consumer Confidence"}
 {"actual": "", "country": "USD", "date": "2026-10-22T14:30:00+00:00", "forecast": "80B", "impact": "Low", "previous": "67B", "title": "Natural Gas Storage"}
