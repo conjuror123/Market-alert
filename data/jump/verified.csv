@@ -214,6 +214,7 @@ sina:NID,1787536800,close,real,sina,wallstreetcn,wallstreetcn,-0.014589,-0.01431
 sina:NID,1788354000,close,real,sina,wallstreetcn,wallstreetcn,0.017179,0.017458,1792692395
 sina:NID,1789480800,close,real,sina,wallstreetcn,wallstreetcn,-0.013771,-0.014144,1792692395
 sina:SND,1792717200,close,real,sina,wallstreetcn,wallstreetcn,-0.025290,-0.023251,1792721172
+sina:SND,1792720800,close,real,sina,wallstreetcn,wallstreetcn,0.018521,0.016483,1792724808
 twelvedata:ANGL,1789581600,close,real,sina,yahoo,,-0.003863,-0.004038,1791114096
 twelvedata:ANGL,1790874000,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo,marketwatch,alpaca_sip",0.003285,"0.003285,0.003285,0.003285",1791587166
 twelvedata:AUD/USD,1357099200,close,not_real,sifting,dukascopy,,0.007104,-0.001270,1791362566
