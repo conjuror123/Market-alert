@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1792746396
+    "last_run_utc": 1792749983
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -22,7 +22,7 @@
           },
           "message": 114,
           "peak": "jump:binance:ETH/USDT:hour:1792504800",
-          "seen": 1792746396,
+          "seen": 1792749983,
           "shown": [
             "noticeable",
             5.1,
@@ -55,7 +55,7 @@
           },
           "message": 116,
           "peak": "jump:sina:SND:hour:1792717200",
-          "seen": 1792746396,
+          "seen": 1792749983,
           "shown": [
             "noticeable",
             5.6,
@@ -88,7 +88,7 @@
           },
           "message": 113,
           "peak": "jump:twelvedata:EUR/USD:hour:1792393200",
-          "seen": 1792746396,
+          "seen": 1792749983,
           "shown": [
             "noticeable",
             5.7,
@@ -121,7 +121,7 @@
           },
           "message": 112,
           "peak": "jump:twelvedata:USD/CAD:hour:1792389600",
-          "seen": 1792746396,
+          "seen": 1792749983,
           "shown": [
             "noticeable",
             4.8,
@@ -154,7 +154,7 @@
           },
           "message": 115,
           "peak": "jump:twelvedata:XLE:hour:1792674000",
-          "seen": 1792746396,
+          "seen": 1792749983,
           "shown": [
             "noticeable",
             4.6,
@@ -181,20 +181,20 @@
           "hour": 1792728000,
           "members": {
             "jump:yahoo:^NSEI:hour:1792728000": [
-              -0.00925018756775669,
-              0.0020269676158446884
+              -0.009287920691784081,
+              0.0020270163776685444
             ]
           },
           "message": 117,
           "peak": "jump:yahoo:^NSEI:hour:1792728000",
-          "seen": 1792746396,
+          "seen": 1792749983,
           "shown": [
             "noticeable",
             4.6,
             1792728000,
             -0.93
           ],
-          "size": 4.56355962248657,
+          "size": 4.582064947332572,
           "start": 1792731600,
           "story": [
             [
@@ -235,7 +235,7 @@
       },
       "note": {
         "hashes": [
-          "e2ac9ae75dfdda53"
+          "0c930ee38f007f66"
         ],
         "ids": [
           111
