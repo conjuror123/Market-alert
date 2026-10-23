@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1792764391
+    "last_run_utc": 1792767986
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -22,7 +22,7 @@
           },
           "message": 114,
           "peak": "jump:binance:ETH/USDT:hour:1792504800",
-          "seen": 1792764391,
+          "seen": 1792767987,
           "shown": [
             "noticeable",
             5.1,
@@ -55,7 +55,7 @@
           },
           "message": 116,
           "peak": "jump:sina:SND:hour:1792717200",
-          "seen": 1792764391,
+          "seen": 1792767987,
           "shown": [
             "noticeable",
             5.6,
@@ -88,7 +88,7 @@
           },
           "message": 113,
           "peak": "jump:twelvedata:EUR/USD:hour:1792393200",
-          "seen": 1792764391,
+          "seen": 1792767987,
           "shown": [
             "noticeable",
             5.7,
@@ -121,7 +121,7 @@
           },
           "message": 112,
           "peak": "jump:twelvedata:USD/CAD:hour:1792389600",
-          "seen": 1792764391,
+          "seen": 1792767987,
           "shown": [
             "noticeable",
             4.8,
@@ -154,7 +154,7 @@
           },
           "message": 115,
           "peak": "jump:twelvedata:XLE:hour:1792674000",
-          "seen": 1792764391,
+          "seen": 1792767987,
           "shown": [
             "noticeable",
             4.6,
@@ -175,26 +175,26 @@
         },
         "yahoo:XU100.IS|1792764000": {
           "asset": "yahoo:XU100.IS",
-          "body": "\ud83d\udfe8 <b>BIST 100</b> \u00b7 Turkey +2.66% \u00b7 6.9\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 44 days (then 6.7\u00d7\u03c3)\n\ud83d\udd50 <b>23.10.2026 13:00 UTC</b> \u00b7 close in 6h",
+          "body": "\ud83d\udfe8 <b>BIST 100</b> \u00b7 Turkey +2.52% \u00b7 6.5\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 44 days (then 6.7\u00d7\u03c3)\n\ud83d\udd50 <b>23.10.2026 13:00 UTC</b> \u00b7 close in 5h\n\u270f\ufe0f \ud83d\udfe8 6.9\u00d7\u03c3 13:00 \u2192 \ud83d\udfe8 6.5\u00d7\u03c3 13:00 price corrected",
           "context": "Nearby economic events (-2h+1h):\n     \ud83d\udfe0 \ud83c\uddfa\ud83c\uddf8 USD Flash Manufacturing PMI\n     \ud83d\udfe0 \ud83c\uddfa\ud83c\uddf8 USD Flash Services PMI\n     \ud83d\udfe0 \ud83c\uddfa\ud83c\uddf8 USD Revised UoM Consumer Sentiment\n     \ud83d\udfe0 \ud83c\uddfa\ud83c\uddf8 USD Revised UoM Inflation Expectations",
           "form": "push",
           "hour": 1792760400,
           "members": {
             "jump:yahoo:XU100.IS:hour:1792760400": [
-              0.026624086209520132,
+              0.025195086618295167,
               0.003857286058702955
             ]
           },
           "message": 118,
           "peak": "jump:yahoo:XU100.IS:hour:1792760400",
-          "seen": 1792764391,
+          "seen": 1792767987,
           "shown": [
             "high",
-            6.9,
+            6.5,
             1792760400,
-            2.66
+            2.52
           ],
-          "size": 6.902284612635835,
+          "size": 6.531816991236379,
           "start": 1792764000,
           "story": [
             [
@@ -202,6 +202,12 @@
               6.9,
               1792760400,
               ""
+            ],
+            [
+              "high",
+              6.5,
+              1792760400,
+              "price corrected"
             ]
           ],
           "tier": "high"
@@ -220,7 +226,7 @@
           },
           "message": 117,
           "peak": "jump:yahoo:^NSEI:hour:1792728000",
-          "seen": 1792764391,
+          "seen": 1792767987,
           "shown": [
             "noticeable",
             4.6,
@@ -266,13 +272,13 @@
           "hash": "f77a6f0c916e2d63"
         },
         "118": {
-          "first": "\ud83d\udfe8 <b>BIST 100</b> \u00b7 Turkey +2.66% \u00b7 6.9\u00d7\u03c3",
-          "hash": "a8c8b75768d61fb5"
+          "first": "\ud83d\udfe8 <b>BIST 100</b> \u00b7 Turkey +2.52% \u00b7 6.5\u00d7\u03c3",
+          "hash": "58c6d8812fbf97a7"
         }
       },
       "note": {
         "hashes": [
-          "e3695bdf52be6c87"
+          "56c4db2e0539a88b"
         ],
         "ids": [
           111
