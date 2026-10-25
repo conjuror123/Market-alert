@@ -318,3 +318,17 @@ day,provider,purpose,calls,reported,left,left_at
 2026-10-24,wallstreetcn,votes,2,,,
 2026-10-24,yahoo,fetch,72,,,
 2026-10-24,yahoo,votes,6,,,
+2026-10-25,alpaca,votes,13,,197,00:06
+2026-10-25,binance,fetch,4,,,
+2026-10-25,bitfinex,votes,4,,,
+2026-10-25,bitstamp,votes,4,,,
+2026-10-25,cboe,fetch,2,,,
+2026-10-25,coinbase,votes,9,,,
+2026-10-25,fred,fetch,1,,,
+2026-10-25,kraken,votes,4,,,
+2026-10-25,marketwatch,votes,2,,,
+2026-10-25,tiingo,votes,2,,,
+2026-10-25,twelvedata,votes,2,,6,00:06
+2026-10-25,wallstreetcn,votes,2,,,
+2026-10-25,yahoo,fetch,3,,,
+2026-10-25,yahoo,votes,6,,,
