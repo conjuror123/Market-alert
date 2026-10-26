@@ -1,16 +1,49 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793019989
+    "last_run_utc": 1793023602
   },
   "floor_pending_replies": [],
   "jump_delivery": {
     "week": {
       "detector": "dec52391ff7d",
       "events": {
+        "yahoo:^BVSP|1793023200": {
+          "asset": "yahoo:^BVSP",
+          "body": "\ud83d\udfe5 <b>Bovespa</b> \u00b7 Brazil -18.52% at the open after the weekend \u00b7 15.9\u00d7\u03c3\n\ud83d\udcc9 Rarest weekend in 2 years of record\n\ud83d\udd50 <b>26.10.2026 13:00 UTC</b> \u00b7 close in 6h",
+          "context": "",
+          "form": "push",
+          "hour": 1793019600,
+          "members": {
+            "jump:yahoo:^BVSP:weekend:1793019600": [
+              -0.18523694128532278,
+              0.011629083731064537
+            ]
+          },
+          "message": 123,
+          "peak": "jump:yahoo:^BVSP:weekend:1793019600",
+          "seen": 1793023602,
+          "shown": [
+            "extreme",
+            15.9,
+            1793019600,
+            -18.52
+          ],
+          "size": 15.928764945642541,
+          "start": 1793023200,
+          "story": [
+            [
+              "extreme",
+              15.9,
+              1793019600,
+              ""
+            ]
+          ],
+          "tier": "extreme"
+        },
         "yahoo:^TASI.SR|1792918800": {
           "asset": "yahoo:^TASI.SR",
-          "body": "\ud83d\udfe7 <b>Tadawul</b> \u00b7 Saudi Arabia -1.70% \u00b7 11.1\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 2 years of record\n\ud83d\udd50 <b>25.10.2026 08:00 UTC</b> \u00b7 next close in 7h\n\u270f\ufe0f \ud83d\udfe7 10.1\u00d7\u03c3 08:00 \u2192 \ud83d\udfe7 11.1\u00d7\u03c3 08:00 price corrected\n\u26a0\ufe0f Yahoo(-1.69%), MarketWatch(outage), Wallstreetcn(outage)",
+          "body": "\ud83d\udfe7 <b>Tadawul</b> \u00b7 Saudi Arabia -1.70% \u00b7 11.1\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 2 years of record\n\ud83d\udd50 <b>25.10.2026 08:00 UTC</b> \u00b7 next close in 6h\n\u270f\ufe0f \ud83d\udfe7 10.1\u00d7\u03c3 08:00 \u2192 \ud83d\udfe7 11.1\u00d7\u03c3 08:00 price corrected\n\u26a0\ufe0f Yahoo(-1.69%), MarketWatch(outage), Wallstreetcn(outage)",
           "context": "",
           "form": "push",
           "hour": 1792915200,
@@ -34,7 +67,7 @@
           },
           "message": 121,
           "peak": "jump:yahoo:^TASI.SR:hour:1792915200",
-          "seen": 1793019989,
+          "seen": 1793023602,
           "shown": [
             "major",
             11.1,
@@ -77,7 +110,7 @@
           },
           "message": 122,
           "peak": "jump:yahoo:^TASI.SR:hour:1793001600",
-          "seen": 1793019989,
+          "seen": 1793023602,
           "shown": [
             "noticeable",
             5.2,
@@ -100,16 +133,20 @@
       "messages": {
         "121": {
           "first": "\ud83d\udfe7 <b>Tadawul</b> \u00b7 Saudi Arabia -1.70% \u00b7 11.1\u00d7\u03c3",
-          "hash": "ffea4340b2865535"
+          "hash": "b8f28a8a26cd9cb1"
         },
         "122": {
           "first": "\u2b1c <b>Tadawul</b> \u00b7 Saudi Arabia +0.85% \u00b7 5.2\u00d7\u03c3",
           "hash": "81478cbea47125c5"
+        },
+        "123": {
+          "first": "\ud83d\udfe5 <b>Bovespa</b> \u00b7 Brazil -18.52% at the open after the weekend \u00b7 15.9\u00d7\u03c3",
+          "hash": "bf651bb2d8f49957"
         }
       },
       "note": {
         "hashes": [
-          "5445ad64ff1f3d1b"
+          "22df092b2af0369c"
         ],
         "ids": [
           120
