@@ -883,3 +883,4 @@ yahoo:^TASI.SR,1792915200,close,uncertain,yahoo,"marketwatch,wallstreetcn",,-0.0
 yahoo:^TASI.SR,1792922400,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,-0.007132,"-0.007106,",1792929942
 yahoo:^TASI.SR,1792926000,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,0.007414,"0.007405,",1792929942
 yahoo:^TASI.SR,1792998000,open,uncertain,yahoo,"marketwatch,wallstreetcn",,0.017303,",",1793001974
+yahoo:^TASI.SR,1793001600,close,real,yahoo,"marketwatch,wallstreetcn",wallstreetcn,0.006498,",0.006728",1793005566
