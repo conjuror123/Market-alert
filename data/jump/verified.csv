@@ -877,6 +877,7 @@ yahoo:ZT=F,1792072800,close,real,yahoo,"sina,marketwatch","sina,marketwatch",-0.
 yahoo:ZW=F,1791561600,close,real,yahoo,"marketwatch,ft","marketwatch,ft",-0.031171,"-0.031171,-0.030806",1792177575
 yahoo:^BVSP,1791205200,open,real,yahoo,"marketwatch,ft","marketwatch,ft",0.081274,"0.081274,0.078479",1791925587
 yahoo:^BVSP,1793019600,open,real,yahoo,"marketwatch,ft",marketwatch,-0.185237,"-0.184709,",1793023582
+yahoo:^BVSP,1793026800,close,real,yahoo,"marketwatch,ft",marketwatch,0.018386,"0.018778,",1793030784
 yahoo:^GSPTSE,1792072800,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,0.010311,"0.010311,",1792785976
 yahoo:^NSEI,1792123200,close,real,yahoo,"marketwatch,wallstreetcn","marketwatch,wallstreetcn",0.008093,"0.008494,0.008368",1792749969
 yahoo:^NSEI,1792728000,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,-0.009288,"-0.008893,",1793009177
