@@ -841,7 +841,6 @@ yahoo:CT=F,1787832000,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",0
 yahoo:CT=F,1788314400,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",-0.014495,"-0.014574,-0.014574",1791832054
 yahoo:CT=F,1789142400,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",-0.015861,"-0.017724,-0.016752",1791832054
 yahoo:CT=F,1789470000,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",-0.014710,"-0.015263,-0.015048",1791832054
-yahoo:KC=F,1785225600,open,real,yahoo,sina,sina,0.025479,0.027315,1791569286
 yahoo:KC=F,1785312000,open,real,yahoo,sina,sina,-0.019735,-0.023957,1791569286
 yahoo:LE=F,1738591200,open,not_real,yahoo,"LEM25.CME,LEV25.CME",,-0.017739,"-0.006382,-0.004660",1791403338
 yahoo:LE=F,1743444000,close,not_real,yahoo,"LEM25.CME,LEV25.CME",,-0.019557,"0.000614,0.000126",1791403338
@@ -883,3 +882,4 @@ yahoo:^TASI.SR,1792663200,close,real,yahoo,"marketwatch,wallstreetcn","marketwat
 yahoo:^TASI.SR,1792915200,close,uncertain,yahoo,"marketwatch,wallstreetcn",,-0.017026,",",1792929942
 yahoo:^TASI.SR,1792922400,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,-0.007132,"-0.007106,",1792929942
 yahoo:^TASI.SR,1792926000,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,0.007414,"0.007405,",1792929942
+yahoo:^TASI.SR,1792998000,open,uncertain,yahoo,"marketwatch,wallstreetcn",,0.017303,",",1793001974

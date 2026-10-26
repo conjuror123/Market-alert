@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1792998401
+    "last_run_utc": 1793001987
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -10,18 +10,18 @@
       "events": {
         "yahoo:^TASI.SR|1792918800": {
           "asset": "yahoo:^TASI.SR",
-          "body": "\ud83d\udfe7 <b>Tadawul</b> \u00b7 Saudi Arabia -1.70% \u00b7 11.1\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 2 years of record\n\ud83d\udd50 <b>25.10.2026 08:00 UTC</b> \u00b7 next close in 13h\n\u270f\ufe0f \ud83d\udfe7 10.1\u00d7\u03c3 08:00 \u2192 \ud83d\udfe7 11.1\u00d7\u03c3 08:00 price corrected\n\u26a0\ufe0f Yahoo(-1.69%), MarketWatch(outage), Wallstreetcn(outage)",
+          "body": "\ud83d\udfe7 <b>Tadawul</b> \u00b7 Saudi Arabia -1.70% \u00b7 11.1\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 2 years of record\n\ud83d\udd50 <b>25.10.2026 08:00 UTC</b> \u00b7 next close in 12h\n\u270f\ufe0f \ud83d\udfe7 10.1\u00d7\u03c3 08:00 \u2192 \ud83d\udfe7 11.1\u00d7\u03c3 08:00 price corrected\n\u26a0\ufe0f Yahoo(-1.69%), MarketWatch(outage), Wallstreetcn(outage)",
           "context": "",
           "form": "push",
           "hour": 1792915200,
           "members": {
             "jump:yahoo:^TASI.SR:hour:1792915200": [
-              -0.01702596280635146,
+              -0.017023796237103005,
               0.0015319296193865054
             ],
             "jump:yahoo:^TASI.SR:hour:1792922400": [
               -0.007132298075406131,
-              0.0015701375597050346
+              0.001570169421519385
             ],
             "jump:yahoo:^TASI.SR:hour:1792926000": [
               0.007413675799274473,
@@ -30,14 +30,14 @@
           },
           "message": 121,
           "peak": "jump:yahoo:^TASI.SR:hour:1792915200",
-          "seen": 1792998401,
+          "seen": 1793001987,
           "shown": [
             "major",
             11.1,
             1792915200,
             -1.7
           ],
-          "size": 11.11406332959988,
+          "size": 11.112649054935405,
           "start": 1792918800,
           "story": [
             [
@@ -59,7 +59,7 @@
       "messages": {
         "121": {
           "first": "\ud83d\udfe7 <b>Tadawul</b> \u00b7 Saudi Arabia -1.70% \u00b7 11.1\u00d7\u03c3",
-          "hash": "a1791f91c5e748eb"
+          "hash": "b7b16108de1bf37b"
         }
       },
       "note": {
