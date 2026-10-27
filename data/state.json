@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793081182
+    "last_run_utc": 1793084779
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -34,7 +34,7 @@
           },
           "message": 123,
           "peak": "jump:yahoo:^BVSP:weekend:1793019600",
-          "seen": 1793081182,
+          "seen": 1793084779,
           "shown": [
             "extreme",
             15.1,
@@ -79,13 +79,13 @@
               0.0015782555361867204
             ],
             "jump:yahoo:^TASI.SR:night:1792998000": [
-              0.018228847811546288,
+              0.01822884781154613,
               0.003934253371731149
             ]
           },
           "message": 121,
           "peak": "jump:yahoo:^TASI.SR:hour:1792915200",
-          "seen": 1793081182,
+          "seen": 1793084779,
           "shown": [
             "major",
             11.1,
@@ -128,7 +128,7 @@
           },
           "message": 122,
           "peak": "jump:yahoo:^TASI.SR:hour:1793001600",
-          "seen": 1793081182,
+          "seen": 1793084779,
           "shown": [
             "noticeable",
             5.2,
