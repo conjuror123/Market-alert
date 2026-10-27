@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793055982
+    "last_run_utc": 1793059607
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -34,7 +34,7 @@
           },
           "message": 123,
           "peak": "jump:yahoo:^BVSP:weekend:1793019600",
-          "seen": 1793055982,
+          "seen": 1793059608,
           "shown": [
             "extreme",
             15.1,
@@ -85,7 +85,7 @@
           },
           "message": 121,
           "peak": "jump:yahoo:^TASI.SR:hour:1792915200",
-          "seen": 1793055982,
+          "seen": 1793059608,
           "shown": [
             "major",
             11.1,
@@ -128,7 +128,7 @@
           },
           "message": 122,
           "peak": "jump:yahoo:^TASI.SR:hour:1793001600",
-          "seen": 1793055982,
+          "seen": 1793059608,
           "shown": [
             "noticeable",
             5.2,
@@ -176,6 +176,6 @@
     }
   },
   "telegram_update_offset": 688283215,
-  "weekly_digest:last_refreshed": "2026-10-26",
+  "weekly_digest:last_refreshed": "2026-10-27",
   "weekly_digest:last_sent_week": "1792785900"
 }
