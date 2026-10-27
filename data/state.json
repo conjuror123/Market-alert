@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793102801
+    "last_run_utc": 1793106393
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -34,7 +34,7 @@
           },
           "message": 123,
           "peak": "jump:yahoo:^BVSP:weekend:1793019600",
-          "seen": 1793102801,
+          "seen": 1793106393,
           "shown": [
             "extreme",
             15.1,
@@ -85,7 +85,7 @@
           },
           "message": 121,
           "peak": "jump:yahoo:^TASI.SR:hour:1792915200",
-          "seen": 1793102801,
+          "seen": 1793106393,
           "shown": [
             "major",
             11.1,
@@ -128,7 +128,7 @@
           },
           "message": 122,
           "peak": "jump:yahoo:^TASI.SR:hour:1793001600",
-          "seen": 1793102801,
+          "seen": 1793106393,
           "shown": [
             "noticeable",
             5.2,
@@ -151,7 +151,7 @@
           "asset": "yahoo:^TASI.SR",
           "body": "\u2b1c <b>Tadawul</b> \u00b7 Saudi Arabia -0.87% \u00b7 4.8\u00d7\u03c3",
           "context": "",
-          "form": "row",
+          "form": null,
           "hour": 1793098800,
           "members": {
             "jump:yahoo:^TASI.SR:hour:1793088000": [
@@ -163,14 +163,14 @@
               0.0017895649477980098
             ]
           },
-          "message": 125,
-          "peak": "jump:yahoo:^TASI.SR:hour:1793098800",
-          "seen": 1793102801,
+          "message": null,
+          "peak": null,
+          "seen": 1793106393,
           "shown": [
-            "noticeable",
-            4.8,
-            1793098800,
-            -0.87
+            null,
+            null,
+            null,
+            null
           ],
           "size": 4.838098026574829,
           "start": 1793091600,
@@ -192,9 +192,15 @@
               4.8,
               1793098800,
               "bigger jump"
+            ],
+            [
+              null,
+              null,
+              null,
+              "corrected away"
             ]
           ],
-          "tier": "noticeable"
+          "tier": null
         }
       },
       "messages": {
@@ -209,15 +215,11 @@
         "123": {
           "first": "\ud83d\udfe5 <b>Bovespa</b> \u00b7 Brazil -17.59% at the open after the weekend \u00b7 15.1\u00d7\u03c3",
           "hash": "5b89f0c1626cb2f3"
-        },
-        "125": {
-          "first": "\u2b1c <b>Tadawul</b> \u00b7 Saudi Arabia -0.87% \u00b7 4.8\u00d7\u03c3",
-          "hash": "7cd5c205a804404e"
         }
       },
       "note": {
         "hashes": [
-          "a2594657ccb26d07"
+          "50324952e2acfc45"
         ],
         "ids": [
           120
