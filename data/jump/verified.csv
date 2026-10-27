@@ -856,7 +856,7 @@ yahoo:LE=F,1778684400,close,not_real,yahoo,"LEV26.CME,LEZ26.CME,LEG27.CME,LEJ27.
 yahoo:LE=F,1778695200,close,not_real,yahoo,"LEV26.CME,LEZ26.CME,LEG27.CME,LEJ27.CME",,-0.026943,"-0.001573,-0.001894,-0.001791,-0.001691",1791403338
 yahoo:SB=F,1791356400,close,real,yahoo,marketwatch,marketwatch,0.022419,0.022419,1792083986
 yahoo:SB=F,1791370800,close,real,yahoo,marketwatch,marketwatch,-0.021979,-0.021979,1792083986
-yahoo:XU100.IS,1792760400,close,real,yahoo,marketwatch,marketwatch,0.025195,0.025195,1793027176
+yahoo:XU100.IS,1792760400,close,real,yahoo,marketwatch,marketwatch,0.025195,0.025195,1793113586
 yahoo:ZB=F,1791201600,close,real,yahoo,marketwatch,marketwatch,-0.004877,-0.004877,1791925587
 yahoo:ZB=F,1791223200,close,real,yahoo,marketwatch,marketwatch,0.004291,0.004291,1791925587
 yahoo:ZB=F,1791464400,close,real,yahoo,marketwatch,marketwatch,0.005516,0.005516,1792184780
