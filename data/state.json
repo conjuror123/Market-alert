@@ -1,13 +1,46 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793192801
+    "last_run_utc": 1793196402
   },
   "floor_pending_replies": [],
   "jump_delivery": {
     "week": {
       "detector": "dec52391ff7d",
       "events": {
+        "twelvedata:XLV|1793196000": {
+          "asset": "twelvedata:XLV",
+          "body": "\u2b1c <b>XLV</b> \u00b7 Health care sector +1.44% \u00b7 4.6\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1793192400,
+          "members": {
+            "jump:twelvedata:XLV:hour:1793192400": [
+              0.014435432226882457,
+              0.003118377273557419
+            ]
+          },
+          "message": 127,
+          "peak": "jump:twelvedata:XLV:hour:1793192400",
+          "seen": 1793196402,
+          "shown": [
+            "noticeable",
+            4.6,
+            1793192400,
+            1.44
+          ],
+          "size": 4.62914874004794,
+          "start": 1793196000,
+          "story": [
+            [
+              "noticeable",
+              4.6,
+              1793192400,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        },
         "yahoo:^BVSP|1793023200": {
           "asset": "yahoo:^BVSP",
           "body": "\ud83d\udfe5 <b>Bovespa</b> \u00b7 Brazil -17.59% at the open after the weekend \u00b7 15.1\u00d7\u03c3\n\ud83d\udcc9 Rarest weekend in 2 years of record\n\ud83d\udd50 <b>26.10.2026 13:00 UTC</b> \u00b7 close 84%\n\u270f\ufe0f \ud83d\udfe5 15.9\u00d7\u03c3 13:00 \u2192 \ud83d\udfe5 15.1\u00d7\u03c3 13:00 price corrected",
@@ -34,7 +67,7 @@
           },
           "message": 123,
           "peak": "jump:yahoo:^BVSP:weekend:1793019600",
-          "seen": 1793192801,
+          "seen": 1793196402,
           "shown": [
             "extreme",
             15.1,
@@ -85,7 +118,7 @@
           },
           "message": 121,
           "peak": "jump:yahoo:^TASI.SR:hour:1792915200",
-          "seen": 1793192801,
+          "seen": 1793196402,
           "shown": [
             "major",
             11.1,
@@ -128,7 +161,7 @@
           },
           "message": 122,
           "peak": "jump:yahoo:^TASI.SR:hour:1793001600",
-          "seen": 1793192801,
+          "seen": 1793196402,
           "shown": [
             "noticeable",
             5.2,
@@ -165,7 +198,7 @@
           },
           "message": null,
           "peak": null,
-          "seen": 1793192801,
+          "seen": 1793196402,
           "shown": [
             null,
             null,
@@ -216,7 +249,7 @@
           },
           "message": 126,
           "peak": "jump:yahoo:^TASI.SR:hour:1793174400",
-          "seen": 1793192801,
+          "seen": 1793196402,
           "shown": [
             "noticeable",
             5.2,
@@ -252,11 +285,15 @@
         "126": {
           "first": "\u2b1c <b>Tadawul</b> \u00b7 Saudi Arabia +0.93% \u00b7 5.2\u00d7\u03c3",
           "hash": "7265a744bf56ea72"
+        },
+        "127": {
+          "first": "\u2b1c <b>XLV</b> \u00b7 Health care sector +1.44% \u00b7 4.6\u00d7\u03c3",
+          "hash": "8f3c7f2cc26e68e8"
         }
       },
       "note": {
         "hashes": [
-          "bba4fda469201f3e"
+          "85c21a5cdd00e2c7"
         ],
         "ids": [
           120
