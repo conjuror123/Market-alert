@@ -856,7 +856,7 @@ yahoo:LE=F,1778684400,close,not_real,yahoo,"LEV26.CME,LEZ26.CME,LEG27.CME,LEJ27.
 yahoo:LE=F,1778695200,close,not_real,yahoo,"LEV26.CME,LEZ26.CME,LEG27.CME,LEJ27.CME",,-0.026943,"-0.001573,-0.001894,-0.001791,-0.001691",1791403338
 yahoo:SB=F,1791356400,close,real,yahoo,marketwatch,marketwatch,0.022419,0.022419,1792083986
 yahoo:SB=F,1791370800,close,real,yahoo,marketwatch,marketwatch,-0.021979,-0.021979,1792083986
-yahoo:XU100.IS,1792760400,close,real,yahoo,marketwatch,marketwatch,0.025195,0.025195,1793113586
+yahoo:XU100.IS,1792760400,close,real,yahoo,marketwatch,marketwatch,0.025195,0.025195,1793181967
 yahoo:ZB=F,1791201600,close,real,yahoo,marketwatch,marketwatch,-0.004877,-0.004877,1791925587
 yahoo:ZB=F,1791223200,close,real,yahoo,marketwatch,marketwatch,0.004291,0.004291,1791925587
 yahoo:ZB=F,1791464400,close,real,yahoo,marketwatch,marketwatch,0.005516,0.005516,1792184780
@@ -880,7 +880,7 @@ yahoo:^BVSP,1793026800,close,real,yahoo,"marketwatch,ft","marketwatch,ft",0.0155
 yahoo:^BVSP,1793041200,close,real,yahoo,"marketwatch,ft","marketwatch,ft",0.015496,"0.015496,0.011172",1793135182
 yahoo:^GSPTSE,1792072800,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,0.010311,"0.010311,",1792785976
 yahoo:^NSEI,1792123200,close,real,yahoo,"marketwatch,wallstreetcn","marketwatch,wallstreetcn",0.008093,"0.008494,0.008368",1792749969
-yahoo:^NSEI,1792728000,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,-0.009288,"-0.008893,",1793095574
+yahoo:^NSEI,1792728000,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,-0.009288,"-0.008893,",1793181967
 yahoo:^TASI.SR,1792663200,close,real,yahoo,"marketwatch,wallstreetcn","marketwatch,wallstreetcn",-0.006101,"-0.006107,-0.006161",1793102782
 yahoo:^TASI.SR,1792915200,close,uncertain,yahoo,"marketwatch,wallstreetcn",,-0.017024,",",1793102782
 yahoo:^TASI.SR,1792922400,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,-0.007132,"-0.007106,",1793102782
