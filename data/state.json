@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793181979
+    "last_run_utc": 1793185585
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -34,7 +34,7 @@
           },
           "message": 123,
           "peak": "jump:yahoo:^BVSP:weekend:1793019600",
-          "seen": 1793181979,
+          "seen": 1793185585,
           "shown": [
             "extreme",
             15.1,
@@ -85,7 +85,7 @@
           },
           "message": 121,
           "peak": "jump:yahoo:^TASI.SR:hour:1792915200",
-          "seen": 1793181979,
+          "seen": 1793185585,
           "shown": [
             "major",
             11.1,
@@ -128,7 +128,7 @@
           },
           "message": 122,
           "peak": "jump:yahoo:^TASI.SR:hour:1793001600",
-          "seen": 1793181979,
+          "seen": 1793185585,
           "shown": [
             "noticeable",
             5.2,
@@ -165,7 +165,7 @@
           },
           "message": null,
           "peak": null,
-          "seen": 1793181979,
+          "seen": 1793185585,
           "shown": [
             null,
             null,
@@ -210,20 +210,20 @@
           "hour": 1793174400,
           "members": {
             "jump:yahoo:^TASI.SR:hour:1793174400": [
-              0.009306795535610006,
+              0.009310817047954672,
               0.0018051634886648888
             ]
           },
           "message": 126,
           "peak": "jump:yahoo:^TASI.SR:hour:1793174400",
-          "seen": 1793181979,
+          "seen": 1793185585,
           "shown": [
             "noticeable",
             5.2,
             1793174400,
             0.93
           ],
-          "size": 5.155652434834795,
+          "size": 5.157880217730869,
           "start": 1793178000,
           "story": [
             [
@@ -256,7 +256,7 @@
       },
       "note": {
         "hashes": [
-          "e3a92f26782b3aa0"
+          "e8bd1f50dbfa148f"
         ],
         "ids": [
           120
