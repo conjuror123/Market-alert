@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793214405
+    "last_run_utc": 1793218010
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -22,7 +22,7 @@
           },
           "message": 127,
           "peak": "jump:twelvedata:XLV:hour:1793192400",
-          "seen": 1793214405,
+          "seen": 1793218010,
           "shown": [
             "noticeable",
             4.6,
@@ -43,26 +43,26 @@
         },
         "yahoo:ZB=F|1793214000": {
           "asset": "yahoo:ZB=F",
-          "body": "\u2b1c <b>ZB=F</b> \u00b7 30-year Treasury bond (CBOT) -0.61% \u00b7 5.5\u00d7\u03c3",
+          "body": "\u2b1c <b>ZB=F</b> \u00b7 30-year Treasury bond (CBOT) -0.53% \u00b7 4.7\u00d7\u03c3",
           "context": "",
           "form": "row",
           "hour": 1793210400,
           "members": {
             "jump:yahoo:ZB=F:hour:1793210400": [
-              -0.006135884846122365,
+              -0.005257021452801657,
               0.00111140087728464
             ]
           },
           "message": 128,
           "peak": "jump:yahoo:ZB=F:hour:1793210400",
-          "seen": 1793214405,
+          "seen": 1793218010,
           "shown": [
             "noticeable",
-            5.5,
+            4.7,
             1793210400,
-            -0.61
+            -0.53
           ],
-          "size": 5.520856579772979,
+          "size": 4.7300857505579295,
           "start": 1793214000,
           "story": [
             [
@@ -70,6 +70,12 @@
               5.5,
               1793210400,
               ""
+            ],
+            [
+              "noticeable",
+              4.7,
+              1793210400,
+              "price corrected"
             ]
           ],
           "tier": "noticeable"
@@ -78,7 +84,7 @@
           "asset": "yahoo:ZT=F",
           "body": "\u2b1c <b>ZT=F</b> \u00b7 2-year Treasury note (CBOT) +0.09% \u00b7 5.1\u00d7\u03c3",
           "context": "",
-          "form": "row",
+          "form": null,
           "hour": 1793210400,
           "members": {
             "jump:yahoo:ZT=F:hour:1793210400": [
@@ -86,14 +92,14 @@
               0.0001799688532072378
             ]
           },
-          "message": 128,
-          "peak": "jump:yahoo:ZT=F:hour:1793210400",
-          "seen": 1793214405,
+          "message": null,
+          "peak": null,
+          "seen": 1793218010,
           "shown": [
-            "noticeable",
-            5.1,
-            1793210400,
-            0.09
+            null,
+            null,
+            null,
+            null
           ],
           "size": 5.107875686209337,
           "start": 1793214000,
@@ -103,9 +109,15 @@
               5.1,
               1793210400,
               ""
+            ],
+            [
+              null,
+              null,
+              null,
+              "corrected away"
             ]
           ],
-          "tier": "noticeable"
+          "tier": null
         },
         "yahoo:^BVSP|1793023200": {
           "asset": "yahoo:^BVSP",
@@ -133,7 +145,7 @@
           },
           "message": 123,
           "peak": "jump:yahoo:^BVSP:weekend:1793019600",
-          "seen": 1793214405,
+          "seen": 1793218010,
           "shown": [
             "extreme",
             15.1,
@@ -184,7 +196,7 @@
           },
           "message": 121,
           "peak": "jump:yahoo:^TASI.SR:hour:1792915200",
-          "seen": 1793214405,
+          "seen": 1793218010,
           "shown": [
             "major",
             11.1,
@@ -227,7 +239,7 @@
           },
           "message": 122,
           "peak": "jump:yahoo:^TASI.SR:hour:1793001600",
-          "seen": 1793214405,
+          "seen": 1793218010,
           "shown": [
             "noticeable",
             5.2,
@@ -264,7 +276,7 @@
           },
           "message": null,
           "peak": null,
-          "seen": 1793214405,
+          "seen": 1793218010,
           "shown": [
             null,
             null,
@@ -315,7 +327,7 @@
           },
           "message": 126,
           "peak": "jump:yahoo:^TASI.SR:hour:1793174400",
-          "seen": 1793214405,
+          "seen": 1793218010,
           "shown": [
             "noticeable",
             5.2,
@@ -357,13 +369,13 @@
           "hash": "8f3c7f2cc26e68e8"
         },
         "128": {
-          "first": "\u2b1c <b>ZB=F</b> \u00b7 30-year Treasury bond (CBOT) -0.61% \u00b7 5.5\u00d7\u03c3",
-          "hash": "c72dd907e45cae66"
+          "first": "\u2b1c <b>ZB=F</b> \u00b7 30-year Treasury bond (CBOT) -0.53% \u00b7 4.7\u00d7\u03c3",
+          "hash": "3aa91ef62cce5dba"
         }
       },
       "note": {
         "hashes": [
-          "ad1539ff0ab254aa"
+          "35e7a5520e99b2db"
         ],
         "ids": [
           120
