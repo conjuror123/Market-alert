@@ -92142,7 +92142,7 @@
 {"actual": "", "country": "CAD", "date": "2026-10-28T13:45:00+00:00", "forecast": "", "impact": "High", "previous": "", "title": "BOC Rate Statement"}
 {"actual": "", "country": "CAD", "date": "2026-10-28T13:45:00+00:00", "forecast": "2.50%", "impact": "High", "previous": "2.25%", "title": "Overnight Rate"}
 {"actual": "", "country": "CAD", "date": "2026-10-28T14:30:00+00:00", "forecast": "", "impact": "High", "previous": "", "title": "BOC Press Conference"}
-{"actual": "", "country": "USD", "date": "2026-10-28T14:30:00+00:00", "forecast": "-0.3M", "impact": "Low", "previous": "-3.1M", "title": "Crude Oil Inventories"}
+{"actual": "", "country": "USD", "date": "2026-10-28T14:30:00+00:00", "forecast": "-0.1M", "impact": "Low", "previous": "-3.1M", "title": "Crude Oil Inventories"}
 {"actual": "", "country": "USD", "date": "2026-10-28T18:00:00+00:00", "forecast": "4.00%", "impact": "High", "previous": "4.00%", "title": "Federal Funds Rate"}
 {"actual": "", "country": "USD", "date": "2026-10-28T18:00:00+00:00", "forecast": "", "impact": "High", "previous": "", "title": "FOMC Statement"}
 {"actual": "", "country": "USD", "date": "2026-10-28T18:30:00+00:00", "forecast": "", "impact": "High", "previous": "", "title": "FOMC Press Conference"}
