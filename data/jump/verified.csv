@@ -824,7 +824,7 @@ twelvedata:XLB,1789581600,close,real,tiingo,yahoo,,-0.014127,-0.014227,179111409
 twelvedata:XLC,1789995600,close,real,tiingo,yahoo,,0.013116,0.013968,1791114096
 twelvedata:XLE,1632142800,close,overnight,tiingo,alpaca,,-0.034762,-0.036338,1791362492
 twelvedata:XLE,1789045200,close,real,tiingo,yahoo,,-0.019611,-0.019157,1791114096
-twelvedata:XLE,1792674000,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.019100,"-0.019101,-0.019538,-0.020992,-0.019538",1793217987
+twelvedata:XLE,1792674000,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.019100,"-0.019101,-0.019538,-0.020992,-0.019538",1793304387
 twelvedata:XLF,1789581600,close,real,tiingo,yahoo,,-0.012534,-0.012712,1791114096
 twelvedata:XLF,1790082000,close,real,tiingo,yahoo,,-0.012299,-0.011585,1791114096
 twelvedata:XLF,1790085600,close,real,tiingo,yahoo,,-0.010990,-0.010898,1791114096
@@ -833,7 +833,7 @@ twelvedata:XLK,1641823200,close,overnight,tiingo,alpaca,,-0.022674,-0.014455,179
 twelvedata:XLK,1643205600,close,overnight,tiingo,alpaca,,0.024831,0.026297,1791362492
 twelvedata:XLV,1791550800,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",0.014417,"0.010221,0.014149,0.010162,0.014149",1792181166
 twelvedata:XLV,1791896400,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.014127,"-0.011835,-0.013026,-0.017954,-0.013258",1792613181
-twelvedata:XLV,1793192400,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",0.014435,"0.013255,0.013255,0.011228,0.013365",1793217987
+twelvedata:XLV,1793192400,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",0.014435,"0.013255,0.013255,0.011228,0.013365",1793304387
 twelvedata:XLY,1632142800,close,overnight,tiingo,alpaca,,-0.017921,-0.020744,1791362492
 twelvedata:XLY,1643032800,close,overnight,tiingo,alpaca,,-0.030902,-0.020836,1791362492
 yahoo:CC=F,1788346800,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",-0.050160,"-0.051429,-0.051429",1791828443
