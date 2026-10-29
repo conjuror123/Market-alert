@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793250376
+    "last_run_utc": 1793253992
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -22,7 +22,7 @@
           },
           "message": 127,
           "peak": "jump:twelvedata:XLV:hour:1793192400",
-          "seen": 1793250376,
+          "seen": 1793253992,
           "shown": [
             "noticeable",
             4.6,
@@ -43,14 +43,14 @@
         },
         "yahoo:ZB=F|1793214000": {
           "asset": "yahoo:ZB=F",
-          "body": "\u2b1c <b>ZB=F</b> \u00b7 30-year Treasury bond (CBOT) -0.53% \u00b7 4.7\u00d7\u03c3",
+          "body": "\u2b1c <b>ZB=F</b> \u00b7 30-year Treasury bond (CBOT) -0.55% \u00b7 5.0\u00d7\u03c3",
           "context": "",
           "form": "row",
           "hour": 1793210400,
           "members": {
             "jump:yahoo:ZB=F:hour:1793210400": [
-              -0.005257021452801657,
-              0.0011113528261480516
+              -0.005549890103306176,
+              0.0011114249684714991
             ],
             "jump:yahoo:ZB=F:hour:1793235600": [
               0.005829220819875686,
@@ -59,14 +59,14 @@
           },
           "message": 128,
           "peak": "jump:yahoo:ZB=F:hour:1793210400",
-          "seen": 1793250376,
+          "seen": 1793253992,
           "shown": [
             "noticeable",
-            4.7,
+            5.0,
             1793210400,
-            -0.53
+            -0.55
           ],
-          "size": 4.730290263464296,
+          "size": 4.993490573582066,
           "start": 1793214000,
           "story": [
             [
@@ -116,6 +116,12 @@
               4.7,
               1793210400,
               "price corrected"
+            ],
+            [
+              "noticeable",
+              5.0,
+              1793210400,
+              "price corrected"
             ]
           ],
           "tier": "noticeable"
@@ -134,7 +140,7 @@
           },
           "message": null,
           "peak": null,
-          "seen": 1793250376,
+          "seen": 1793253992,
           "shown": [
             null,
             null,
@@ -185,7 +191,7 @@
           },
           "message": 123,
           "peak": "jump:yahoo:^BVSP:weekend:1793019600",
-          "seen": 1793250376,
+          "seen": 1793253992,
           "shown": [
             "extreme",
             15.1,
@@ -236,7 +242,7 @@
           },
           "message": 121,
           "peak": "jump:yahoo:^TASI.SR:hour:1792915200",
-          "seen": 1793250376,
+          "seen": 1793253992,
           "shown": [
             "major",
             11.1,
@@ -279,7 +285,7 @@
           },
           "message": 122,
           "peak": "jump:yahoo:^TASI.SR:hour:1793001600",
-          "seen": 1793250376,
+          "seen": 1793253992,
           "shown": [
             "noticeable",
             5.2,
@@ -316,7 +322,7 @@
           },
           "message": null,
           "peak": null,
-          "seen": 1793250376,
+          "seen": 1793253992,
           "shown": [
             null,
             null,
@@ -367,7 +373,7 @@
           },
           "message": 126,
           "peak": "jump:yahoo:^TASI.SR:hour:1793174400",
-          "seen": 1793250376,
+          "seen": 1793253992,
           "shown": [
             "noticeable",
             5.2,
@@ -409,13 +415,13 @@
           "hash": "8f3c7f2cc26e68e8"
         },
         "128": {
-          "first": "\u2b1c <b>ZB=F</b> \u00b7 30-year Treasury bond (CBOT) -0.53% \u00b7 4.7\u00d7\u03c3",
-          "hash": "3aa91ef62cce5dba"
+          "first": "\u2b1c <b>ZB=F</b> \u00b7 30-year Treasury bond (CBOT) -0.55% \u00b7 5.0\u00d7\u03c3",
+          "hash": "912297a0f7d539b7"
         }
       },
       "note": {
         "hashes": [
-          "fc7a926c953010ce"
+          "9bfaa3fac47a88c9"
         ],
         "ids": [
           120
