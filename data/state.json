@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793271984
+    "last_run_utc": 1793275590
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -22,7 +22,7 @@
           },
           "message": 127,
           "peak": "jump:twelvedata:XLV:hour:1793192400",
-          "seen": 1793271984,
+          "seen": 1793275590,
           "shown": [
             "noticeable",
             4.6,
@@ -43,14 +43,14 @@
         },
         "yahoo:ZB=F|1793214000": {
           "asset": "yahoo:ZB=F",
-          "body": "\u2b1c <b>ZB=F</b> \u00b7 30-year Treasury bond (CBOT) -0.55% \u00b7 5.0\u00d7\u03c3",
+          "body": "\u2b1c <b>ZB=F</b> \u00b7 30-year Treasury bond (CBOT) -0.53% \u00b7 4.7\u00d7\u03c3",
           "context": "",
           "form": "row",
           "hour": 1793210400,
           "members": {
             "jump:yahoo:ZB=F:hour:1793210400": [
-              -0.005549890103306176,
-              0.0011114249684714991
+              -0.005257021452801657,
+              0.0011113528261480516
             ],
             "jump:yahoo:ZB=F:hour:1793235600": [
               0.005829220819875686,
@@ -59,14 +59,14 @@
           },
           "message": 128,
           "peak": "jump:yahoo:ZB=F:hour:1793210400",
-          "seen": 1793271984,
+          "seen": 1793275590,
           "shown": [
             "noticeable",
-            5.0,
+            4.7,
             1793210400,
-            -0.55
+            -0.53
           ],
-          "size": 4.993490573582066,
+          "size": 4.730290263464296,
           "start": 1793214000,
           "story": [
             [
@@ -134,6 +134,12 @@
               5.0,
               1793210400,
               "price corrected"
+            ],
+            [
+              "noticeable",
+              4.7,
+              1793210400,
+              "price corrected"
             ]
           ],
           "tier": "noticeable"
@@ -152,7 +158,7 @@
           },
           "message": null,
           "peak": null,
-          "seen": 1793271984,
+          "seen": 1793275590,
           "shown": [
             null,
             null,
@@ -203,7 +209,7 @@
           },
           "message": 123,
           "peak": "jump:yahoo:^BVSP:weekend:1793019600",
-          "seen": 1793271984,
+          "seen": 1793275590,
           "shown": [
             "extreme",
             15.1,
@@ -236,12 +242,12 @@
           "hour": 1792915200,
           "members": {
             "jump:yahoo:^TASI.SR:hour:1792915200": [
-              -0.01702596280635146,
+              -0.017023796237103005,
               0.0015319296193865054
             ],
             "jump:yahoo:^TASI.SR:hour:1792922400": [
               -0.007132298075406131,
-              0.0015701375597050346
+              0.001570169421519385
             ],
             "jump:yahoo:^TASI.SR:hour:1792926000": [
               0.007413675799274473,
@@ -254,14 +260,14 @@
           },
           "message": 121,
           "peak": "jump:yahoo:^TASI.SR:hour:1792915200",
-          "seen": 1793271984,
+          "seen": 1793275590,
           "shown": [
             "major",
             11.1,
             1792915200,
             -1.7
           ],
-          "size": 11.11406332959988,
+          "size": 11.112649054935405,
           "start": 1792918800,
           "story": [
             [
@@ -288,23 +294,23 @@
           "members": {
             "jump:yahoo:^TASI.SR:hour:1793001600": [
               0.00845441055951006,
-              0.0016140159569307015
+              0.001614062237302175
             ],
             "jump:yahoo:^TASI.SR:hour:1793005200": [
               0.007558424426981188,
-              0.001665290667290239
+              0.001665335432465498
             ]
           },
           "message": 122,
           "peak": "jump:yahoo:^TASI.SR:hour:1793001600",
-          "seen": 1793271984,
+          "seen": 1793275590,
           "shown": [
             "noticeable",
             5.2,
             1793001600,
             0.85
           ],
-          "size": 5.2381208024655574,
+          "size": 5.237970608643437,
           "start": 1793005200,
           "story": [
             [
@@ -334,7 +340,7 @@
           },
           "message": null,
           "peak": null,
-          "seen": 1793271984,
+          "seen": 1793275590,
           "shown": [
             null,
             null,
@@ -380,19 +386,19 @@
           "members": {
             "jump:yahoo:^TASI.SR:hour:1793174400": [
               0.009310817047954672,
-              0.00180511712090165
+              0.0018051634886648888
             ]
           },
           "message": 126,
           "peak": "jump:yahoo:^TASI.SR:hour:1793174400",
-          "seen": 1793271984,
+          "seen": 1793275590,
           "shown": [
             "noticeable",
             5.2,
             1793174400,
             0.93
           ],
-          "size": 5.158012707399258,
+          "size": 5.157880217730869,
           "start": 1793178000,
           "story": [
             [
@@ -427,13 +433,13 @@
           "hash": "8f3c7f2cc26e68e8"
         },
         "128": {
-          "first": "\u2b1c <b>ZB=F</b> \u00b7 30-year Treasury bond (CBOT) -0.55% \u00b7 5.0\u00d7\u03c3",
-          "hash": "912297a0f7d539b7"
+          "first": "\u2b1c <b>ZB=F</b> \u00b7 30-year Treasury bond (CBOT) -0.53% \u00b7 4.7\u00d7\u03c3",
+          "hash": "3aa91ef62cce5dba"
         }
       },
       "note": {
         "hashes": [
-          "be98f0a3c41163f2"
+          "f2d5ab43dab2b9c6"
         ],
         "ids": [
           120
