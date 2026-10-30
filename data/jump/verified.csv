@@ -840,6 +840,7 @@ twelvedata:XLV,1791896400,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip",
 twelvedata:XLV,1793192400,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",0.014435,"0.013255,0.013255,0.011228,0.013365",1793304387
 twelvedata:XLY,1632142800,close,overnight,tiingo,alpaca,,-0.017921,-0.020744,1791362492
 twelvedata:XLY,1643032800,close,overnight,tiingo,alpaca,,-0.030902,-0.020836,1791362492
+yahoo:511090.SS,1793336400,close,real,yahoo,"sina,marketwatch,wallstreetcn,tencent","sina,marketwatch,wallstreetcn,tencent",-0.004204,"-0.003946,-0.003946,-0.003855,-0.003855",1793340374
 yahoo:CC=F,1788346800,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",-0.050160,"-0.051429,-0.051429",1791828443
 yahoo:CT=F,1785769200,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",0.015779,"0.015175,0.015175",1791832054
 yahoo:CT=F,1786550400,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",-0.013751,"-0.014355,-0.014355",1791832054

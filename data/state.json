@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793336789
+    "last_run_utc": 1793340397
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -10,7 +10,7 @@
       "events": {
         "binance:BTC/USDT|1793307600": {
           "asset": "binance:BTC/USDT",
-          "body": "\ud83d\udfe8 <b>BTC/USDT</b> \u00b7 Bitcoin -2.50% \u00b7 6.7\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 4 months (then 10.5\u00d7\u03c3)\n\ud83d\udd50 <b>29.10.2026 20:00 UTC</b> \u00b7 next close in 15h",
+          "body": "\ud83d\udfe8 <b>BTC/USDT</b> \u00b7 Bitcoin -2.50% \u00b7 6.7\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 4 months (then 10.5\u00d7\u03c3)\n\ud83d\udd50 <b>29.10.2026 20:00 UTC</b> \u00b7 next close in 14h",
           "context": "",
           "form": "push",
           "hour": 1793304000,
@@ -22,7 +22,7 @@
           },
           "message": 129,
           "peak": "jump:binance:BTC/USDT:hour:1793304000",
-          "seen": 1793336789,
+          "seen": 1793340397,
           "shown": [
             "high",
             6.7,
@@ -43,7 +43,7 @@
         },
         "binance:ETH/USDT|1793307600": {
           "asset": "binance:ETH/USDT",
-          "body": "\ud83d\udfe8 <b>ETH/USDT</b> \u00b7 Ethereum -3.44% \u00b7 7.0\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 21 days (then 8.0\u00d7\u03c3)\n\ud83d\udd50 <b>29.10.2026 20:00 UTC</b> \u00b7 next close in 15h",
+          "body": "\ud83d\udfe8 <b>ETH/USDT</b> \u00b7 Ethereum -3.44% \u00b7 7.0\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 21 days (then 8.0\u00d7\u03c3)\n\ud83d\udd50 <b>29.10.2026 20:00 UTC</b> \u00b7 next close in 14h",
           "context": "",
           "form": "push",
           "hour": 1793304000,
@@ -55,7 +55,7 @@
           },
           "message": 129,
           "peak": "jump:binance:ETH/USDT:hour:1793304000",
-          "seen": 1793336789,
+          "seen": 1793340397,
           "shown": [
             "high",
             7.0,
@@ -76,7 +76,7 @@
         },
         "binance:SOL/USDT|1793307600": {
           "asset": "binance:SOL/USDT",
-          "body": "\ud83d\udfe8 <b>SOL/USDT</b> \u00b7 Solana -3.73% \u00b7 6.5\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 21 days (then 6.3\u00d7\u03c3)\n\ud83d\udd50 <b>29.10.2026 20:00 UTC</b> \u00b7 next close in 15h",
+          "body": "\ud83d\udfe8 <b>SOL/USDT</b> \u00b7 Solana -3.73% \u00b7 6.5\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 21 days (then 6.3\u00d7\u03c3)\n\ud83d\udd50 <b>29.10.2026 20:00 UTC</b> \u00b7 next close in 14h",
           "context": "",
           "form": "push",
           "hour": 1793304000,
@@ -88,7 +88,7 @@
           },
           "message": 129,
           "peak": "jump:binance:SOL/USDT:hour:1793304000",
-          "seen": 1793336789,
+          "seen": 1793340397,
           "shown": [
             "high",
             6.5,
@@ -121,7 +121,7 @@
           },
           "message": 130,
           "peak": "jump:binance:XRP/USDT:hour:1793304000",
-          "seen": 1793336789,
+          "seen": 1793340397,
           "shown": [
             "noticeable",
             5.7,
@@ -154,7 +154,7 @@
           },
           "message": 127,
           "peak": "jump:twelvedata:XLV:hour:1793192400",
-          "seen": 1793336789,
+          "seen": 1793340397,
           "shown": [
             "noticeable",
             4.6,
@@ -168,6 +168,39 @@
               "noticeable",
               4.6,
               1793192400,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        },
+        "yahoo:511090.SS|1793340000": {
+          "asset": "yahoo:511090.SS",
+          "body": "\u2b1c <b>China 30Y</b> \u00b7 China 30-year government bond ETF (SSE) -0.42% \u00b7 4.8\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1793336400,
+          "members": {
+            "jump:yahoo:511090.SS:hour:1793336400": [
+              -0.004203756304591771,
+              0.0008740706434293052
+            ]
+          },
+          "message": 132,
+          "peak": "jump:yahoo:511090.SS:hour:1793336400",
+          "seen": 1793340397,
+          "shown": [
+            "noticeable",
+            4.8,
+            1793336400,
+            -0.42
+          ],
+          "size": 4.809401089251628,
+          "start": 1793340000,
+          "story": [
+            [
+              "noticeable",
+              4.8,
+              1793336400,
               ""
             ]
           ],
@@ -191,7 +224,7 @@
           },
           "message": 128,
           "peak": "jump:yahoo:ZB=F:hour:1793210400",
-          "seen": 1793336789,
+          "seen": 1793340397,
           "shown": [
             "noticeable",
             5.0,
@@ -344,7 +377,7 @@
           },
           "message": null,
           "peak": null,
-          "seen": 1793336789,
+          "seen": 1793340397,
           "shown": [
             null,
             null,
@@ -383,7 +416,7 @@
           },
           "message": 131,
           "peak": "jump:yahoo:ZT=F:hour:1793304000",
-          "seen": 1793336789,
+          "seen": 1793340397,
           "shown": [
             "noticeable",
             4.6,
@@ -428,7 +461,7 @@
           },
           "message": 123,
           "peak": "jump:yahoo:^BVSP:weekend:1793019600",
-          "seen": 1793336789,
+          "seen": 1793340397,
           "shown": [
             "extreme",
             15.1,
@@ -479,7 +512,7 @@
           },
           "message": 121,
           "peak": "jump:yahoo:^TASI.SR:hour:1792915200",
-          "seen": 1793336789,
+          "seen": 1793340397,
           "shown": [
             "major",
             11.1,
@@ -522,7 +555,7 @@
           },
           "message": 122,
           "peak": "jump:yahoo:^TASI.SR:hour:1793001600",
-          "seen": 1793336789,
+          "seen": 1793340397,
           "shown": [
             "noticeable",
             5.2,
@@ -559,7 +592,7 @@
           },
           "message": null,
           "peak": null,
-          "seen": 1793336789,
+          "seen": 1793340397,
           "shown": [
             null,
             null,
@@ -610,7 +643,7 @@
           },
           "message": 126,
           "peak": "jump:yahoo:^TASI.SR:hour:1793174400",
-          "seen": 1793336789,
+          "seen": 1793340397,
           "shown": [
             "noticeable",
             5.2,
@@ -657,7 +690,7 @@
         },
         "129": {
           "first": "\ud83d\udfe8 <b>ETH/USDT</b> \u00b7 Ethereum -3.44% \u00b7 7.0\u00d7\u03c3",
-          "hash": "ea6d76912f0280dd"
+          "hash": "1a5b506651555cec"
         },
         "130": {
           "first": "\u2b1c <b>XRP/USDT</b> \u00b7 XRP -3.48% \u00b7 5.7\u00d7\u03c3",
@@ -666,11 +699,15 @@
         "131": {
           "first": "\u2b1c <b>ZT=F</b> \u00b7 2-year Treasury note (CBOT) +0.08% \u00b7 4.6\u00d7\u03c3",
           "hash": "242acb88ebbc071c"
+        },
+        "132": {
+          "first": "\u2b1c <b>China 30Y</b> \u00b7 China 30-year government bond ETF (SSE) -0.42% \u00b7 4.8\u00d7\u03c3",
+          "hash": "7833f6f708082edd"
         }
       },
       "note": {
         "hashes": [
-          "6f8354a1c2e31ea4"
+          "883fcbdb113b6e1c"
         ],
         "ids": [
           120
