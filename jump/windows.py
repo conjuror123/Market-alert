@@ -18,9 +18,11 @@ from __future__ import annotations
 # hourly run does not have to recompute twenty-three years to learn about one
 # hour. A row is the hour's move, which needs the bar before it, and the gap
 # before a session, which needs the last close before it - a few sessions at
-# most, a long weekend plus a holiday. Five hundred bars is ten weeks of a fund
-# and three of a currency pair or a coin: far more than either needs, and cheap.
-WARM_BARS = 500
+# most, a long weekend plus a holiday. One thousand bars is ten weeks of a fund,
+# three of a continuous future, and leaves at least THIN_WINDOW (500 bars,
+# jump.futures.thin) behind the recomputed tail (48 bars) so futures volume
+# medians are exact.
+WARM_BARS = 1000
 
 
 def warm_bars(template: "str | None" = None) -> int:

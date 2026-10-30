@@ -32,7 +32,8 @@ shared percentage.
 `config/basket.yaml` is the source of truth for instruments, blocks and settings.
 
 **The channel is private.** The bot is its administrator: it can edit its own messages at
-any age and delete any message. Health and provider failures go to
+any age and delete messages within Telegram's 48-hour Bot API limit (pings are deleted
+within 40 hours). Health and provider failures go to
 `TELEGRAM_HEALTH_CHAT_ID`, never to the channel; without that secret they are only
 logged.
 
@@ -540,7 +541,8 @@ moves go into the new week.
 **Rule.** One note a week, curated for that week and never after. A move belongs to the
 note open when it is found. For that week, every run brings every message in line with
 the events table. Anything of an earlier week is never touched, except that at the next
-note the old week's ping lines are taken down.
+note the old week's ping lines are taken down (and pings older than 40 hours are deleted
+early to stay within Telegram's 48-hour Bot API deletion limit).
 
 | the event | inside its 24 hours | after them |
 |---|---|---|
@@ -554,14 +556,17 @@ note the old week's ping lines are taken down.
 | uncertain | scored as usual, its line under the move (`⚠️ Yahoo(-2.50%), Alpaca(-2.50%), Sina(outage), MarketWatch(-0.50%)`), in a push and in the note's row; a recount that turns the vote edits it, silently | the same |
 
 A message is edited when what it carries changes and deleted once it carries nothing. A
-ping line lives exactly as long as its row. Nothing rings more than 24 hours after its
+ping message is deleted after 40 hours (`PING_MAX_AGE_HOURS`, well inside Telegram's 48-hour
+Bot API limit) or once its row is gone; its row remains in the weekly digest note. Nothing
+rings more than 24 hours after its
 event's first move was found (`PUSH_WINDOW_HOURS`), so a long outage cannot release old
 alerts.
 
 **The story.** A changed event carries one line of what it went through:
 `✏️ ⬜ 6.2×σ 10:00 → 🟧 12.4×σ 12:00 bigger jump`. The reasons are `bigger jump`,
 `arrived late`, `price corrected`, `σ corrected`, `corrected away` and `not real`. A
-clean event has no story line.
+clean event has no story line. Repeated revisions or oscillations for the same hour are
+compacted into a single step.
 
 **Rule.** A detector update that changes the week's events restarts the week. When
 `detector_version()` changes, the updated detector's view of the week is compared with the

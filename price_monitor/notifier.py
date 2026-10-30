@@ -140,11 +140,13 @@ def delete_telegram_message(
     clearing the rest.
 
     The bot posts to a private channel where it is an administrator with
-    "Delete messages" (can_delete_messages), and there it can delete any
-    message, whatever its age. A refusal therefore means something else - the
-    message is already gone, or the admin right was taken away - and Telegram's
-    own reason is logged rather than guessed at. The caller does not depend on
-    the delete landing: a refused delete is struck through by an edit instead
+    "Delete messages" (can_delete_messages).  Telegram's Bot API limits
+    deletion to messages up to 48 hours old; the caller
+    (jump_delivery._expire_pings) deletes pings well within that window.
+    A refusal therefore means the message is already gone, too old, or the
+    admin right was taken away - and Telegram's own reason is logged rather
+    than guessed at. The caller does not depend on the delete landing: a
+    refused delete is struck through by an edit instead
     (jump_delivery._delete).
     """
     if not bot_token or not chat_id:

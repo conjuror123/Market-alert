@@ -445,6 +445,33 @@ def test_a_revised_price_says_price_corrected(monkeypatch, channel, week):
     assert story(channel.note()).endswith("⬜ 5.0×σ 10:00 price corrected")
 
 
+def test_repeated_price_revisions_for_the_same_hour_do_not_accumulate(monkeypatch, channel, week):
+    run(monkeypatch, channel, [ev(at(0, 10))], run_at(0, 11), week)
+    revised1 = dict(ev(at(0, 10)), r=SIGMA * 5.0, z=5.0)
+    run(monkeypatch, channel, [revised1], run_at(0, 12), week)
+    revised2 = dict(ev(at(0, 10)), r=SIGMA * 4.7, z=4.7)
+    run(monkeypatch, channel, [revised2], run_at(0, 13), week)
+    revised3 = dict(ev(at(0, 10)), r=SIGMA * 5.0, z=5.0)
+    run(monkeypatch, channel, [revised3], run_at(0, 14), week)
+    assert story(channel.note()) == "✏️ ⬜ 4.5×σ 10:00 → ⬜ 5.0×σ 10:00 price corrected"
+
+
+def test_story_line_compacts_oscillating_and_repeated_steps():
+    story_steps = [
+        ["noticeable", 5.5, 1793210400, ""],
+        ["noticeable", 4.7, 1793210400, "price corrected"],
+        ["noticeable", 5.0, 1793210400, "price corrected"],
+        ["noticeable", 4.7, 1793210400, "price corrected"],
+        ["noticeable", 5.2, 1793235600, "price corrected"],
+        ["noticeable", 4.7, 1793210400, "1793235600 corrected away"],
+        ["noticeable", 5.0, 1793210400, "price corrected"],
+        ["noticeable", 4.7, 1793210400, "price corrected"],
+        ["noticeable", 5.0, 1793210400, "price corrected"],
+    ]
+    line = md.story_line(story_steps, 1793210400)
+    assert line == "✏️ ⬜ 5.5×σ 18:00 → ⬜ 5.0×σ 18:00 price corrected"
+
+
 def test_an_event_is_24_hours_so_the_next_move_is_a_new_event(monkeypatch, channel, week):
     run(monkeypatch, channel, [ev(at(0, 10))], run_at(0, 11), week)
     again = [ev(at(0, 10)), ev(at(1, 12))]           # 26 hours on
@@ -803,3 +830,46 @@ def test_news_of_one_hour_under_pushes_of_two_says_which_hour(monkeypatch, chann
         run_at(1, 11), week)
     [message] = alerts(channel)
     assert "Nearby economic events around 09:00 UTC (-2h+1h):\n     CPI" in message
+
+
+# --- early ping deletion -------------------------------------------------------
+
+def test_a_row_ping_is_deleted_after_40_hours_while_the_note_keeps_it(
+        monkeypatch, channel, week):
+    """A ROW ping older than PING_MAX_AGE_HOURS is proactively deleted so that
+    the channel never shows struck-through leftovers (Telegram's 48-hour
+    bot-deletion limit). The event stays in the digest note."""
+    row = ev(at(0, 10))
+    run(monkeypatch, channel, [row], run_at(0, 11), week)
+    assert "Gold" in channel.note() and len(channel.pings()) == 1
+    # 35 hours after discovery (run_at(0, 11) -> run_at(1, 22)): the ping is still there.
+    run(monkeypatch, channel, [row], run_at(1, 22), week)
+    assert len(channel.pings()) == 1
+    # 41 hours after discovery (run_at(0, 11) -> run_at(2, 4)): the ping is gone, but the note still shows Gold.
+    run(monkeypatch, channel, [row], run_at(2, 4), week)
+    assert channel.pings() == []
+    assert "Gold" in channel.note()
+
+
+def test_a_push_is_not_affected_by_early_ping_deletion(monkeypatch, channel, week):
+    """PUSH messages are not subject to early deletion - only ROW pings are."""
+    push = ev(at(0, 10), "high")
+    run(monkeypatch, channel, [push], run_at(0, 11), week)
+    run(monkeypatch, channel, [push], run_at(2, 0), week)
+    assert len(channel.pushes()) == 1
+
+
+def test_a_multi_event_ping_message_keeps_younger_ping_when_older_expires(
+        monkeypatch, channel, week):
+    """When a ping message carries multiple events, expiring one edits the message
+    to keep the younger event rather than discarding the whole message."""
+    first = ev(at(0, 10))
+    run(monkeypatch, channel, [first], run_at(0, 11), week)
+    second = ev(at(1, 10), asset="coinbase:BTC-USD")
+    run(monkeypatch, channel, [first, second], run_at(1, 11), week)
+    # At run_at(2, 4): first is 41 hours old (expired), second is only 17 hours old.
+    run(monkeypatch, channel, [first, second], run_at(2, 4), week)
+    assert len(channel.pings()) == 1
+    assert "Bitcoin" in channel.pings()[0]
+    assert "Gold" not in channel.pings()[0]
+    assert "Gold" in channel.note() and "Bitcoin" in channel.note()

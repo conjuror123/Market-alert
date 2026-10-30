@@ -174,7 +174,7 @@ def test_a_load_from_an_hour_on_reads_only_the_shards_that_can_hold_it(tmp_path,
     monkeypatch.setattr(bars, "_read_shard", lambda path: read.append(path) or real(path))
     got = bars.load(store, since=_hour(2026, 8, 10))
     assert list(got["hour_utc"]) == [_hour(2026, 8, 15), _hour(2026, 9)]
-    assert sorted(p.rsplit("/", 1)[1] for p in read) == ["2026-08.open.csv", "2026-09.open.csv"]
+    assert sorted(p.replace("\\", "/").rsplit("/", 1)[1] for p in read) == ["2026-08.open.csv", "2026-09.open.csv"]
     # A year's shard is read when the hour falls inside it.
     assert list(bars.load(store, since=_hour(2025, 6))["hour_utc"]) == hours[2:]
 

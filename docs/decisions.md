@@ -75,6 +75,12 @@ random walk); further out a random walk alone says "gave back" for 14–26% of m
 **A detector update restarts the week only if it changes the week's events**: the version
 hashes parsed code, so a comment does not count.
 
+**1,000 warm bars for incremental scoring** (`windows.WARM_BARS`, 2026-10-31): futures
+volume filter (`futures.thin`) computes a 500-bar rolling volume median. With 500 warm bars,
+bars near the boundary of the 48-bar recomputed tail oscillated across runs between thin
+and valid as the window edge moved, causing phantom event revisions. 1,000 bars ensures the
+volume filter is fully warmed over the entire recomputed tail.
+
 ---
 
 ## Delivery
@@ -112,6 +118,17 @@ and place (`Nikkei 225 · Japan`); anything else by its ticker.
 **Quality is recall on the obvious, not precision**: of each instrument's top 0.01% of
 hours, how many are flagged and at which word (`tools/stage_report.py`); precision rewards
 delay.
+
+**Pings are deleted within 40 hours** (the user's, 2026-10-31): Telegram's Bot API limits
+message deletion to 48 hours. Waiting for the week to close on Friday left Monday–Wednesday
+pings struck through (`<s>...</s>`) instead of cleanly deleted. Deleting pings at 40 hours
+(`PING_MAX_AGE_HOURS`) keeps deletion safely within Telegram's window while leaving the
+event row in the weekly digest note.
+
+**Story lines compact repeated corrections and oscillations** (2026-10-31): repeated price
+or σ revisions of the same hour and two-step oscillations (A → B → A) are compacted into
+a single transition from initial to final state, preventing back-and-forth price adjustments
+from creating long repetitive story lines.
 
 ---
 

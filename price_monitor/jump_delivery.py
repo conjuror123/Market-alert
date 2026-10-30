@@ -890,14 +890,18 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
 # from then on. One that changes none only records the version.
 #
 # Deleting is how a message leaves; the bot is an administrator of the
-# channel and may delete any message there. Should Telegram refuse, the message
-# is struck through by an edit instead.
+# channel and deletes its messages within Telegram's 48-hour limit. Should Telegram refuse,
+# the message is struck through by an edit instead.
 
 WEEK = "week"
 
 # A message rings only within this long of its event's first move being found.
 # After that the event can still be corrected or removed, but nothing rings.
 PUSH_WINDOW_HOURS = 24
+
+# A ROW ping is deleted early - well within Telegram's 48-hour bot-deletion
+# window - rather than waiting for _close_week (which may come days later).
+PING_MAX_AGE_HOURS = 40
 
 ROW, PUSH = "row", "push"
 
@@ -962,15 +966,53 @@ def _clock(hour_utc: int, headline: int) -> str:
     return at.strftime("%H:%M") if same else at.strftime("%d.%m %H:%M")
 
 
+def clean_story(story: "list[list]") -> "list[list]":
+    """Compacts an event's story so that repeated adjustments to the same hour
+    or back-and-forth oscillations do not accumulate in the message."""
+    if not story or len(story) <= 1:
+        return [list(s) for s in story]
+    out: list[list] = []
+    for step in story:
+        item = list(step)
+        if not out:
+            out.append(item)
+            continue
+        last = out[-1]
+        # 1. Skip exact duplicate step
+        if (item[0] == last[0] and
+                (item[1] == last[1] or (item[1] is not None and last[1] is not None and
+                                        round(float(item[1]), 1) == round(float(last[1]), 1))) and
+                item[2] == last[2] and item[3] == last[3]):
+            continue
+        # 2. Consecutive revisions of the same hour and same reason
+        # (e.g. repeated price or sigma corrections of that hour)
+        if (item[2] is not None and item[2] == last[2] and
+                item[3] in (PRICE, SIGMA) and last[3] == item[3]):
+            out[-1] = item
+            continue
+        # 3. Two-step oscillations (A -> B -> A), collapsing back to A
+        # unless B was an explicit disappearance (corrected away / not real).
+        if (len(out) >= 2 and item[0] == out[-2][0] and
+                (item[1] == out[-2][1] or (item[1] is not None and out[-2][1] is not None and
+                                           round(float(item[1]), 1) == round(float(out[-2][1]), 1))) and
+                item[2] == out[-2][2] and
+                last[0] is not None and not str(last[3]).endswith((AWAY, UNSEEN))):
+            out.pop()
+            continue
+        out.append(item)
+    return out
+
+
 def story_line(story: "list[list]", headline: int) -> str:
     """✏️ 🟨 6.0×σ 02:00 → 🟧 8.1×σ 03:00 bigger jump → ✖ corrected away ...
 
     Every state the event has been in, oldest first, and why it moved into
     each. Empty for an event that never changed."""
-    if len(story) < 2:
+    cleaned = clean_story(story)
+    if len(cleaned) < 2:
         return ""
     steps = []
-    for tier, size, hour, why in story:
+    for tier, size, hour, why in cleaned:
         if tier is None:
             steps.append(f"✖ {why}".rstrip())
             continue
@@ -1043,6 +1085,37 @@ def _new_week(slot: int, version: str) -> dict:
     return {"slot": int(slot), "since": int(slot), "detector": version,
             "note": {"ids": [], "hashes": []}, "events": {}, "messages": {},
             "orphans": []}
+
+
+def _expire_pings(cfg: Config, week: dict, now_ts: int) -> int:
+    """Delete ROW ping messages older than PING_MAX_AGE_HOURS.
+
+    Telegram's Bot API refuses to delete messages older than 48 hours.
+    By deleting pings early (at 40 hours) the bot stays well inside that
+    window and the channel never shows struck-through leftovers.
+
+    The event stays in the week and keeps appearing in the digest note;
+    only its standalone ping message is removed.
+    """
+    cutoff = now_ts - PING_MAX_AGE_HOURS * 3600
+    changed = 0
+    for rec in week.get("events", {}).values():
+        if rec.get("form") != ROW or rec.get("message") is None:
+            continue
+        # rec["ping_at"] is when the event was first discovered (unix ts).
+        # Fall back to rec["start"] (the bar's hour) for older state records.
+        sent_ts = int(rec.get("ping_at") or rec.get("start") or 0)
+        if sent_ts and sent_ts < cutoff:
+            log.info("Ping for %s expired (%.1f h old): clearing message %s",
+                     rec.get("asset", "?"),
+                     (now_ts - sent_ts) / 3600,
+                     rec["message"])
+            rec["message"] = None
+            changed += 1
+    if changed:
+        # Clean up messages that now carry nothing.
+        changed += _sync_messages(cfg, week)
+    return changed
 
 
 def _close_week(cfg: Config, week: dict) -> None:
@@ -1263,7 +1336,8 @@ def _step(week: dict, key: str, readings: "list[dict]", now_ts: int,
         shown = _shown(peak)
         rec = {"asset": asset, "start": int(start), "form": None, "message": None,
                "members": snapshot, "peak": str(peak["reading_id"]), "tier": shown[0],
-               "shown": shown, "story": [shown[:3] + [""]], "seen": now_ts}
+               "shown": shown, "story": [shown[:3] + [""]], "seen": now_ts,
+               "ping_at": now_ts}
         fresh.append((key, rec, None))
         return 0
 
@@ -1274,8 +1348,8 @@ def _step(week: dict, key: str, readings: "list[dict]", now_ts: int,
 
     before = dict(rec)
     why = _why(rec, members, peak, doubts)
-    rec["story"] = rec["story"] + [shown[:3] + [why] if peak is not None
-                                   else [None, None, None, why]]
+    new_step = shown[:3] + [why] if peak is not None else [None, None, None, why]
+    rec["story"] = clean_story(rec["story"] + [new_step])
     changed = 0
     promoted = _rank(shown[0]) > _rank(shown_before)
 
@@ -1283,6 +1357,7 @@ def _step(week: dict, key: str, readings: "list[dict]", now_ts: int,
     if doubt:
         # Silent, inside its 24 hours or after them: an edit never rings.
         rec["story"][-1][3] = UNSEEN
+        rec["story"] = clean_story(rec["story"])
         _mark(rec, doubt)
         changed += 1
     elif peak is None:
@@ -1516,6 +1591,7 @@ def _pass(cfg: Config, state: dict, week: dict, readings: "list[dict]", labels: 
             _member(rec, max(rows, key=_size), rec["form"], labels, calendar)
     changed += _post_new(cfg, state, week, fresh, groups, labels, calendar, ring)
     changed += _sync_messages(cfg, week)
+    changed += _expire_pings(cfg, week, now_ts)
     save_state(cfg.state_path, state)
 
     note_rows = [_render(rec, max(groups[key], key=_size))
