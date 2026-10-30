@@ -1,0 +1,3 @@
+source,ticker,since_utc,last_utc,error,told_utc
+wallstreetcn,NID,1793387382,1793387382,"UKNI.OTC: HTTPSConnectionPool(host='api-ddc-wscn.awtmt.com', port=443): Read timed out. (read timeout=30)",
+wallstreetcn,SND,1793387382,1793387382,"UKSN.OTC: HTTPSConnectionPool(host='api-ddc-wscn.awtmt.com', port=443): Read timed out. (read timeout=30)",
