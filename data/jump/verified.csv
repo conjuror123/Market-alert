@@ -217,6 +217,7 @@ sina:NID,1785981600,close,real,sina,wallstreetcn,wallstreetcn,-0.016092,-0.01593
 sina:NID,1787536800,close,uncertain,sina,wallstreetcn,,-0.014589,,1793387182
 sina:NID,1788354000,close,uncertain,sina,wallstreetcn,,0.017179,,1793387182
 sina:NID,1789480800,close,uncertain,sina,wallstreetcn,,-0.013771,,1793387182
+sina:NID,1793581200,close,real,sina,wallstreetcn,wallstreetcn,0.012689,0.011025,1793585181
 sina:SND,1792717200,close,uncertain,sina,wallstreetcn,,-0.025290,,1793387182
 sina:SND,1792720800,close,uncertain,sina,wallstreetcn,,0.018521,,1793387182
 twelvedata:ANGL,1789581600,close,real,sina,yahoo,,-0.003863,-0.004038,1791114096
