@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793588797
+    "last_run_utc": 1793592393
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -12,7 +12,7 @@
           "asset": "yahoo:511090.SS",
           "body": "\u2b1c <b>China 30Y</b> \u00b7 China 30-year government bond ETF (SSE) +0.41% \u00b7 4.6\u00d7\u03c3",
           "context": "",
-          "form": "row",
+          "form": null,
           "hour": 1793584800,
           "members": {
             "jump:yahoo:511090.SS:hour:1793584800": [
@@ -20,15 +20,15 @@
               0.0008812225951807874
             ]
           },
-          "message": 135,
-          "peak": "jump:yahoo:511090.SS:hour:1793584800",
+          "message": null,
+          "peak": null,
           "ping_at": 1793588797,
-          "seen": 1793588797,
+          "seen": 1793592393,
           "shown": [
-            "noticeable",
-            4.6,
-            1793584800,
-            0.41
+            null,
+            null,
+            null,
+            null
           ],
           "size": 4.597022040013556,
           "start": 1793588400,
@@ -38,20 +38,21 @@
               4.6,
               1793584800,
               ""
+            ],
+            [
+              null,
+              null,
+              null,
+              "corrected away"
             ]
           ],
-          "tier": "noticeable"
+          "tier": null
         }
       },
-      "messages": {
-        "135": {
-          "first": "\u2b1c <b>China 30Y</b> \u00b7 China 30-year government bond ETF (SSE) +0.41% \u00b7 4.6\u00d7\u03c3",
-          "hash": "b78cc418b9d957f6"
-        }
-      },
+      "messages": {},
       "note": {
         "hashes": [
-          "4ab3543ec01b6044"
+          "f3358fbbb473fab4"
         ],
         "ids": [
           134
