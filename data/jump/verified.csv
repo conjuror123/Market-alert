@@ -556,6 +556,7 @@ twelvedata:USD/CHF,1790233200,close,real,sifting,yahoo,,0.003778,0.003778,179111
 twelvedata:USD/CHF,1790838000,close,real,sifting,"yahoo,marketwatch","yahoo,marketwatch",-0.003256,"-0.003304,-0.003231",1791590777
 twelvedata:USD/CHF,1790863200,close,real,sifting,"yahoo,marketwatch","yahoo,marketwatch",-0.003232,"-0.003077,-0.003365",1791590777
 twelvedata:USD/CHF,1791979200,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",0.005411,"0.005459,0.005267,0.005388,0.005428,0.005303",1792713984
+twelvedata:USD/CHF,1793606400,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",-0.003422,"-0.003373,-0.003045,-0.003411,-0.003416,-0.003385",1793610371
 twelvedata:USD/CNH,1703523600,close,not_real,sifting,dukascopy,,-0.004096,-0.000538,1791362566
 twelvedata:USD/CNH,1703527200,close,not_real,sifting,dukascopy,,0.003770,-0.000538,1791362566
 twelvedata:USD/CNH,1781470800,open,not_real,sifting,yahoo,,0.002818,-0.000351,1791114096
