@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793686016
+    "last_run_utc": 1793689584
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -23,7 +23,7 @@
           "message": 136,
           "peak": "jump:twelvedata:USD/CNH:hour:1793664000",
           "ping_at": 1793667997,
-          "seen": 1793686016,
+          "seen": 1793689584,
           "shown": [
             "noticeable",
             5.4,
@@ -57,7 +57,7 @@
           "message": null,
           "peak": null,
           "ping_at": 1793588797,
-          "seen": 1793686016,
+          "seen": 1793689584,
           "shown": [
             null,
             null,
@@ -86,12 +86,12 @@
       "messages": {
         "136": {
           "first": "\u2b1c <b>USD/CNH</b> \u00b7 Offshore yuan +0.19% \u00b7 5.4\u00d7\u03c3",
-          "hash": "005b949a13ecc5fe"
+          "hash": "01ea314601419367"
         }
       },
       "note": {
         "hashes": [
-          "96ba379660ed5513"
+          "b1b4cdeed689a1af"
         ],
         "ids": [
           134
