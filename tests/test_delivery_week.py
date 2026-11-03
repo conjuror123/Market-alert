@@ -61,11 +61,13 @@ class Channel:
 
     def pushes(self):
         return [t for t in self.messages.values()
-                if "<b>Digest</b>" not in t and "Added to digest" not in t
+                if "<b>Digest</b>" not in t and "🕐" in t
                 and "<i>part " not in t]
 
     def pings(self):
-        return [t for t in self.messages.values() if "Added to digest" in t]
+        return [t for t in self.messages.values()
+                if "<b>Digest</b>" not in t and "🕐" not in t
+                and "<i>part " not in t]
 
     def rings_since(self, count):
         return self.rang[count:]
@@ -177,7 +179,7 @@ def test_a_noticeable_move_is_a_row_with_one_ping_and_no_story(monkeypatch, chan
     run(monkeypatch, channel, [row], run_at(0, 12), week)
     assert channel.rings_since(rang) == []
     assert "Gold" in channel.note() and story(channel.note()) == ""
-    assert channel.pings() == ["⬜ <b>GLD</b> · Gold +1.35% · 4.5×σ\nAdded to digest👆🏻👆🏻"]
+    assert channel.pings() == ["⬜ <b>GLD</b> · Gold +1.35% · 4.5×σ"]
 
 
 def test_a_high_move_is_a_push_that_rings_once_and_says_no_story(monkeypatch, channel, week):
@@ -247,8 +249,7 @@ def test_a_row_not_seen_leaves_the_note_and_its_ping_line_is_marked(monkeypatch,
     _unseen(at(0, 10))
     run(monkeypatch, channel, [BYSTANDER], run_at(1, 14), week)    # after its 24 hours too
     assert "Gold" not in channel.note()
-    assert channel.pings() == ["⬜ <b>GLD</b> · Gold +1.35% · 4.5×σ ❌ Twelve Data(+1.82%), Yahoo(+0.03%), MarketWatch(+0.02%)"
-                               "\nAdded to digest👆🏻👆🏻"]
+    assert channel.pings() == ["⬜ <b>GLD</b> · Gold +1.35% · 4.5×σ ❌ Twelve Data(+1.82%), Yahoo(+0.03%), MarketWatch(+0.02%)"]
 
 
 def test_a_gap_is_marked_by_the_opening_check_not_the_hours(monkeypatch, channel, week):
@@ -729,7 +730,7 @@ def test_pushes_and_pings_of_one_run_are_two_messages_and_only_the_first_rings(
     assert channel.rings_since(rang)[0].startswith("🟨 <b>F0</b>")
     [ping] = channel.pings()
     assert ping == ("⬜ <b>F2</b> · F2 +1.50% · 5.0×σ\n"
-                    "⬜ <b>F1</b> · F1 +1.20% · 4.0×σ\nAdded to digest👆🏻👆🏻")
+                    "⬜ <b>F1</b> · F1 +1.20% · 4.0×σ")
 
 
 def test_news_shared_by_every_push_is_said_once_at_the_end(monkeypatch, channel, week):
@@ -797,11 +798,10 @@ def test_the_turn_takes_the_pings_out_of_a_message_and_keeps_its_pushes(
     later = [dict(rows[0], tier="high", z=6.0, r=6.0 * SIGMA), rows[1]]
     run(monkeypatch, channel, later, run_at(4, 12), week)
     [message] = alerts(channel)
-    assert message.startswith("🟨 <b>F0</b>") and message.endswith("Added to digest👆🏻👆🏻")
+    assert message.startswith("🟨 <b>F0</b>") and message.endswith("⬜ <b>F1</b> · F1 +1.20% · 4.0×σ")
     run(monkeypatch, channel, later, datetime.fromtimestamp(NEXT, tz=timezone.utc), week)
     [message] = alerts(channel)
     assert message.startswith("🟨 <b>F0</b>") and "F1" not in message
-    assert "Added to digest" not in message
 
 
 def test_the_note_runs_by_time_and_by_size_inside_an_hour(monkeypatch, channel, week):
@@ -818,7 +818,7 @@ def test_a_part_the_note_grows_is_silent(monkeypatch, channel, week):
     run(monkeypatch, channel, many, run_at(0, 2), week)
     assert len(channel.notes()) == 1 and len(channel.note()) > 0
     assert [t for t in channel.messages.values() if "<i>part " in t]
-    assert len(channel.rings_since(rang)) == 1 and "Added to digest" in channel.rang[-1]
+    assert len(channel.rings_since(rang)) == 1 and channel.rang[-1].startswith("⬜")
 
 
 def test_news_of_one_hour_under_pushes_of_two_says_which_hour(monkeypatch, channel, week):

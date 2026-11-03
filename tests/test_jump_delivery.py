@@ -318,9 +318,7 @@ def test_a_ticker_ping_puts_percent_and_size_after_the_name():
         event(event_id="p", tier="noticeable", channel="digest",
               asset_id="twelvedata:BKLN", r=-0.008, sigma_lt=0.008 / 2.7),
         {"twelvedata:BKLN": "Senior bank loans"})
-    assert text == (
-        "⬜ <b>BKLN</b> · Senior bank loans -0.80% · 2.7×σ\n"
-        "Added to digest👆🏻👆🏻")
+    assert text == "⬜ <b>BKLN</b> · Senior bank loans -0.80% · 2.7×σ"
     assert " · -0.80%" not in text
 
 

@@ -83,8 +83,7 @@ def test_every_message_shape_follows_the_copy_rules(monkeypatch, tmp_path):
     assert "⬜ <b>DBB</b> · Base metals (aluminium, zinc, copper) -0.80% · 4.2×σ" in digest
 
     ping = samples["ping"]
-    assert ping == ("⬜ <b>DBB</b> · Base metals (aluminium, zinc, copper) -0.80% · 4.2×σ\n"
-                    "Added to digest👆🏻👆🏻")
+    assert ping == "⬜ <b>DBB</b> · Base metals (aluminium, zinc, copper) -0.80% · 4.2×σ"
 
     # The square is the word, so the word is never written; the size is |move|
     # over its half-year sigma, to one decimal, at the end of the first line.

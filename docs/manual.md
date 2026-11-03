@@ -501,11 +501,10 @@ index abroad leads with its own name instead of Yahoo's ticker (`display`), then
 the US dollar is named by its other currency (`USD/JPY · Yen`, `EUR/USD · Euro`);
 the move is the pair's, as its ticker reads, so USD/JPY +2% is the yen weaker.
 
-**A note row** (`noticeable`) goes into the weekly note, and a ping line points at it:
+**A note row** (`noticeable`) goes into the weekly note, and a ping message notifies of it:
 
 ```
 ⬜ EUR/USD · Euro -0.31% · 5.2×σ
-Added to digest👆🏻👆🏻
 ```
 
 **The note stands in blocks**, in the basket's order (equity, rates, credit, energy,

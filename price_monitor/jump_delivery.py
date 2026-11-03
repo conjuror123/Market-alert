@@ -649,8 +649,6 @@ def format_push(event: dict, labels: dict[str, str],
 # message.
 MESSAGE_BUDGET = 3000
 
-PING_FOOTER = "Added to digest👆🏻👆🏻"
-
 
 def format_message(members: "list[dict]") -> str:
     """One alert message from its moves, each {form, size, body, context, hour}.
@@ -658,8 +656,7 @@ def format_message(members: "list[dict]") -> str:
     Pushes first, then pings, each by size, biggest first. The news scheduled around the
     pushes follows them, each list once: a run's pushes are nearly always the same hour,
     so it is usually one list. When they are not, each list names the hour it is around
-    - even when only one of the hours had any. The pings share one pointer up at the
-    note."""
+    - even when only one of the hours had any."""
     pushes = sorted((m for m in members if m["form"] == PUSH), key=lambda m: -m["size"])
     rows = sorted((m for m in members if m["form"] == ROW), key=lambda m: -m["size"])
     blocks = []
@@ -682,7 +679,7 @@ def format_message(members: "list[dict]") -> str:
                                               f"Nearby economic events around {clock} UTC (",
                                               1))
     if rows:
-        blocks.append("\n".join(m["body"] for m in rows) + "\n" + PING_FOOTER)
+        blocks.append("\n".join(m["body"] for m in rows))
     return "\n\n".join(blocks)
 
 
@@ -820,8 +817,8 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
 
     A digest row is written the hour its move is found, but the note stays
     silent - Telegram does not notify on an edit - so a reader who wants to know
-    NOW has to keep opening it. This is the buzz: ticker, name, size, and a
-    pointer at the note. The calendar context stays in the note, one tap away.
+    NOW has to keep opening it. This is the buzz: ticker, name, size. The
+    calendar context stays in the note, one tap away.
 
     A line lives exactly as long as its row: gone when the row leaves the note,
     when the move becomes a push, and when the next note opens - so what

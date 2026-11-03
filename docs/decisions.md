@@ -130,6 +130,9 @@ or σ revisions of the same hour and two-step oscillations (A → B → A) are c
 a single transition from initial to final state, preventing back-and-forth price adjustments
 from creating long repetitive story lines.
 
+**Noticeable pings carry the event line without a footer** (the user's, 2026-11-03): the
+"Added to digest" pointer is omitted; details are read in the weekly digest note itself.
+
 ---
 
 ## The basket
