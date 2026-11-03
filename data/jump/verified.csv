@@ -204,6 +204,7 @@ binance:XRP/USDT,1791853200,close,real,binance,"yahoo,coinbase,kraken,bitstamp,b
 binance:XRP/USDT,1792072800,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",0.027246,"0.028039,0.027661,0.027557,0.027630,0.027085,0.027873",1793664377
 binance:XRP/USDT,1792504800,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",0.025396,"0.025652,0.025503,0.026011,0.025337,0.025476,0.025899",1793664377
 binance:XRP/USDT,1793304000,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",-0.034835,"-0.034233,-0.034796,-0.034658,-0.034674,-0.034421,-0.035718",1793664377
+marketwatch:TFM=F,1793710800,close,real,marketwatch,eex,eex,-0.071085,-0.070931,1793714783
 sina:AHD,1786525200,close,real,sina,wallstreetcn,wallstreetcn,-0.010778,-0.010778,1793300780
 sina:AHD,1789034400,close,real,sina,wallstreetcn,wallstreetcn,-0.016265,-0.016265,1793646371
 sina:AHD,1789603200,open,real,sina,wallstreetcn,wallstreetcn,-0.008572,-0.010112,1793646371
@@ -213,6 +214,7 @@ sina:CAD,1788346800,close,real,sina,"yahoo,wallstreetcn","yahoo,wallstreetcn",0.
 sina:CAD,1789034400,close,real,sina,"yahoo,wallstreetcn","yahoo,wallstreetcn",-0.035095,"-0.041045,-0.035220",1793646371
 sina:CAD,1791421200,close,real,sina,"yahoo,wallstreetcn","yahoo,wallstreetcn",0.010761,"0.014238,0.010586",1793646371
 sina:CAD,1791507600,close,real,sina,"yahoo,wallstreetcn","yahoo,wallstreetcn",0.009480,"0.009393,0.009642",1793646371
+sina:CAD,1793710800,close,real,sina,"yahoo,wallstreetcn","yahoo,wallstreetcn",0.009686,"0.008167,0.009714",1793714783
 sina:NID,1785981600,close,real,sina,wallstreetcn,wallstreetcn,-0.016092,-0.015935,1792778783
 sina:NID,1787536800,close,real,sina,wallstreetcn,wallstreetcn,-0.014589,-0.014317,1793646371
 sina:NID,1788354000,close,real,sina,wallstreetcn,wallstreetcn,0.017179,0.017458,1793646371
@@ -846,6 +848,7 @@ twelvedata:XLY,1632142800,close,overnight,tiingo,alpaca,,-0.017921,-0.020744,179
 twelvedata:XLY,1643032800,close,overnight,tiingo,alpaca,,-0.030902,-0.020836,1791362492
 yahoo:511090.SS,1793336400,close,real,yahoo,"sina,marketwatch,wallstreetcn,tencent","sina,marketwatch,wallstreetcn,tencent",-0.003855,"-0.003946,-0.003946,-0.003855,-0.003855",1793689569
 yahoo:511090.SS,1793584800,close,real,yahoo,"sina,marketwatch,wallstreetcn,tencent","marketwatch,wallstreetcn,tencent",0.003786,",0.003769,0.003786,0.003786",1793689569
+yahoo:BZ=F,1793710800,close,real,yahoo,"sina,marketwatch,wallstreetcn,ft","sina,marketwatch,wallstreetcn",-0.028985,"-0.030156,-0.026928,-0.031335,",1793714783
 yahoo:CC=F,1788346800,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",-0.050160,"-0.051429,-0.051429",1791828443
 yahoo:CT=F,1786550400,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",-0.013751,"-0.014355,-0.014355",1791832054
 yahoo:CT=F,1787227200,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",0.014332,"0.013900,0.013900",1791832054

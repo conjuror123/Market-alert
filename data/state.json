@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793711191
+    "last_run_utc": 1793714808
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -23,7 +23,7 @@
           "message": 136,
           "peak": "jump:twelvedata:USD/CNH:hour:1793664000",
           "ping_at": 1793667997,
-          "seen": 1793711191,
+          "seen": 1793714808,
           "shown": [
             "noticeable",
             5.4,
@@ -57,7 +57,7 @@
           "message": null,
           "peak": null,
           "ping_at": 1793588797,
-          "seen": 1793711191,
+          "seen": 1793714808,
           "shown": [
             null,
             null,
@@ -81,6 +81,40 @@
             ]
           ],
           "tier": null
+        },
+        "yahoo:BZ=F|1793714400": {
+          "asset": "yahoo:BZ=F",
+          "body": "\u2b1c <b>BZ=F</b> \u00b7 Brent crude (NYMEX) -2.90% \u00b7 5.0\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1793710800,
+          "members": {
+            "jump:yahoo:BZ=F:hour:1793710800": [
+              -0.0289847354252062,
+              0.00583596846331454
+            ]
+          },
+          "message": null,
+          "peak": "jump:yahoo:BZ=F:hour:1793710800",
+          "ping_at": 1793714808,
+          "seen": 1793714808,
+          "shown": [
+            "noticeable",
+            5.0,
+            1793710800,
+            -2.9
+          ],
+          "size": 4.966568206700746,
+          "start": 1793714400,
+          "story": [
+            [
+              "noticeable",
+              5.0,
+              1793710800,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
         }
       },
       "messages": {
