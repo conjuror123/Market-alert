@@ -1,13 +1,47 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793714808
+    "last_run_utc": 1793718413
   },
   "floor_pending_replies": [],
   "jump_delivery": {
     "week": {
       "detector": "942520e9fd48",
       "events": {
+        "marketwatch:TFM=F|1793714400": {
+          "asset": "marketwatch:TFM=F",
+          "body": "\ud83d\udfe8 <b>TTF</b> \u00b7 Dutch TTF natural gas (ICE Endex) -5.78% \u00b7 6.5\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 7 months (then 12.3\u00d7\u03c3)\n\ud83d\udd50 <b>03.11.2026 13:00 UTC</b> \u00b7 close in 6h",
+          "context": "",
+          "form": "push",
+          "hour": 1793710800,
+          "members": {
+            "jump:marketwatch:TFM=F:hour:1793710800": [
+              -0.057783864757797745,
+              0.008941709263069643
+            ]
+          },
+          "message": 139,
+          "peak": "jump:marketwatch:TFM=F:hour:1793710800",
+          "ping_at": 1793718413,
+          "seen": 1793718413,
+          "shown": [
+            "high",
+            6.5,
+            1793710800,
+            -5.78
+          ],
+          "size": 6.462284006085078,
+          "start": 1793714400,
+          "story": [
+            [
+              "high",
+              6.5,
+              1793710800,
+              ""
+            ]
+          ],
+          "tier": "high"
+        },
         "twelvedata:USD/CNH|1793667600": {
           "asset": "twelvedata:USD/CNH",
           "body": "\u2b1c <b>USD/CNH</b> \u00b7 Offshore yuan +0.19% \u00b7 5.4\u00d7\u03c3",
@@ -23,7 +57,7 @@
           "message": 136,
           "peak": "jump:twelvedata:USD/CNH:hour:1793664000",
           "ping_at": 1793667997,
-          "seen": 1793714808,
+          "seen": 1793718413,
           "shown": [
             "noticeable",
             5.4,
@@ -57,7 +91,7 @@
           "message": null,
           "peak": null,
           "ping_at": 1793588797,
-          "seen": 1793714808,
+          "seen": 1793718413,
           "shown": [
             null,
             null,
@@ -84,27 +118,27 @@
         },
         "yahoo:BZ=F|1793714400": {
           "asset": "yahoo:BZ=F",
-          "body": "\u2b1c <b>BZ=F</b> \u00b7 Brent crude (NYMEX) -2.90% \u00b7 5.0\u00d7\u03c3",
+          "body": "\u2b1c <b>BZ=F</b> \u00b7 Brent crude (NYMEX) -3.08% \u00b7 5.3\u00d7\u03c3",
           "context": "",
           "form": "row",
           "hour": 1793710800,
           "members": {
             "jump:yahoo:BZ=F:hour:1793710800": [
-              -0.0289847354252062,
-              0.00583596846331454
+              -0.030849058584035114,
+              0.00583521441742965
             ]
           },
           "message": null,
           "peak": "jump:yahoo:BZ=F:hour:1793710800",
           "ping_at": 1793714808,
-          "seen": 1793714808,
+          "seen": 1793718413,
           "shown": [
             "noticeable",
-            5.0,
+            5.3,
             1793710800,
-            -2.9
+            -3.08
           ],
-          "size": 4.966568206700746,
+          "size": 5.286705230897718,
           "start": 1793714400,
           "story": [
             [
@@ -112,6 +146,12 @@
               5.0,
               1793710800,
               ""
+            ],
+            [
+              "noticeable",
+              5.3,
+              1793710800,
+              "price corrected"
             ]
           ],
           "tier": "noticeable"
@@ -121,11 +161,15 @@
         "136": {
           "first": "\u2b1c <b>USD/CNH</b> \u00b7 Offshore yuan +0.19% \u00b7 5.4\u00d7\u03c3",
           "hash": "01ea314601419367"
+        },
+        "139": {
+          "first": "\ud83d\udfe8 <b>TTF</b> \u00b7 Dutch TTF natural gas (ICE Endex) -5.78% \u00b7 6.5\u00d7\u03c3",
+          "hash": "bf35b27cce769578"
         }
       },
       "note": {
         "hashes": [
-          "51596c3a2c022037"
+          "e3681c235eb88ad4"
         ],
         "ids": [
           134
