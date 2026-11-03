@@ -570,6 +570,7 @@ twelvedata:USD/CNH,1785099600,close,not_real,sifting,dukascopy,,-0.004138,0.0000
 twelvedata:USD/CNH,1785366000,close,not_real,sifting,yahoo,,-0.002149,-0.000037,1791114096
 twelvedata:USD/CNH,1786309200,close,overnight,sifting,dukascopy,,-0.003562,0.000157,1791362566
 twelvedata:USD/CNH,1786914000,close,not_real,sifting,dukascopy,,-0.003039,-0.000019,1791362566
+twelvedata:USD/CNH,1793664000,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo","marketwatch,wallstreetcn,tiingo",0.001945,",0.001910,0.001924,0.001915",1793667978
 twelvedata:USD/INR,1730844000,close,not_real,sifting,yahoo,,0.001389,-0.000012,1791114096
 twelvedata:USD/INR,1730847600,close,not_real,sifting,yahoo,,-0.001332,0.000024,1791114096
 twelvedata:USD/INR,1731016800,close,not_real,sifting,yahoo,,0.001361,0.000107,1791114096

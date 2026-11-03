@@ -1,13 +1,47 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793664424
+    "last_run_utc": 1793667996
   },
   "floor_pending_replies": [],
   "jump_delivery": {
     "week": {
       "detector": "942520e9fd48",
       "events": {
+        "twelvedata:USD/CNH|1793667600": {
+          "asset": "twelvedata:USD/CNH",
+          "body": "\u2b1c <b>USD/CNH</b> \u00b7 Offshore yuan +0.19% \u00b7 5.4\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1793664000,
+          "members": {
+            "jump:twelvedata:USD/CNH:hour:1793664000": [
+              0.0019448972134065937,
+              0.0003614217271663431
+            ]
+          },
+          "message": 136,
+          "peak": "jump:twelvedata:USD/CNH:hour:1793664000",
+          "ping_at": 1793667997,
+          "seen": 1793667997,
+          "shown": [
+            "noticeable",
+            5.4,
+            1793664000,
+            0.19
+          ],
+          "size": 5.381240438020101,
+          "start": 1793667600,
+          "story": [
+            [
+              "noticeable",
+              5.4,
+              1793664000,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        },
         "yahoo:511090.SS|1793588400": {
           "asset": "yahoo:511090.SS",
           "body": "\u2b1c <b>China 30Y</b> \u00b7 China 30-year government bond ETF (SSE) +0.41% \u00b7 4.6\u00d7\u03c3",
@@ -23,7 +57,7 @@
           "message": null,
           "peak": null,
           "ping_at": 1793588797,
-          "seen": 1793664425,
+          "seen": 1793667997,
           "shown": [
             null,
             null,
@@ -49,10 +83,15 @@
           "tier": null
         }
       },
-      "messages": {},
+      "messages": {
+        "136": {
+          "first": "\u2b1c <b>USD/CNH</b> \u00b7 Offshore yuan +0.19% \u00b7 5.4\u00d7\u03c3",
+          "hash": "005b949a13ecc5fe"
+        }
+      },
       "note": {
         "hashes": [
-          "f3358fbbb473fab4"
+          "0d536f3ca0033f5c"
         ],
         "ids": [
           134
