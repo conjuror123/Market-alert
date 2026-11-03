@@ -64,6 +64,7 @@ the bot, set `jump_alerts_muted: true` in `config/config.yaml`.
 | the detector | `jump/jumps.py` |
 | fetching bars, and the sources' vote | `jump/backfill.py`, `jump/verify.py` |
 | what goes to Telegram | `price_monitor/jump_delivery.py` |
+| a message Telegram did not answer for, or a run whose state was lost | `price_monitor/telegram_ledger.py` |
 | the hourly workflow | `.github/workflows/price-monitor.yml` |
 | rates by word and block, the biggest hours | `tools/stage_report.py` |
 | the dashboard: volume, the votes taken again, the archive | https://conjuror123.github.io/Market-alert/, measured on every code change (`tools/measure.py`, `tools/dashboard.py`) |

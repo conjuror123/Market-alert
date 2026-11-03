@@ -35,7 +35,7 @@ shared percentage.
 any age and delete messages within Telegram's 48-hour Bot API limit (pings are deleted
 within 40 hours). Health and provider failures go to
 `TELEGRAM_HEALTH_CHAT_ID`, never to the channel; without that secret they are only
-logged.
+logged. The bot reads the channel by forwarding to that chat (section 8).
 
 It does not predict. Every number is about a move that already happened. A record cannot
 be longer than an instrument's own history.
@@ -47,7 +47,7 @@ Secrets (GitHub → Settings → Secrets → Actions):
 | secret | for |
 |---|---|
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | the channel (required) |
-| `TELEGRAM_HEALTH_CHAT_ID` | health and provider failures (optional) |
+| `TELEGRAM_HEALTH_CHAT_ID` | health and provider failures; the channel's reads (optional, but without it a late message cannot be found) |
 | `TIINGO_API_KEY` | 10 funds |
 | `ALPACA_KEY_ID`, `ALPACA_SECRET_KEY` | the consolidated tape's vote on all 12 funds; history from 2016 |
 | `SIFTING_API_KEY` | the 7 FX pairs, spot gold and silver |
@@ -579,38 +579,29 @@ that run on.
 60 s per wait and 180 s per run (`notifier.py`). A delete Telegram refuses becomes a
 strike-through edit.
 
-**A send Telegram does not answer** (`telegram_ledger.py`) is not taken as unsent. On
-2026-11-03 two sends timed out, the run recorded them unsent, and Telegram published them
-33 minutes later; the next run's repeat was a duplicate. So only a request that never
-reached Telegram (no connection made, or refused with a 4xx) is "not sent". A read timeout,
-a dropped connection, a 5xx or an unreadable answer is "unsure":
-- Unsure sends are written down in `state["telegram_ledger"]`, with the highest channel id
-  known then. A late message takes a higher id: channel ids only grow.
-- The first unsure answer stops every further channel request of the run (the breaker), so
-  an outage costs at most one late message an hour. Health messages are not stopped. The
-  channel waits 60 s for an answer, the health chat 15 s.
-- Each run first reads the channel ids it does not know, from the lowest such id up. The Bot
-  API reads a message only by forwarding it, so each is forwarded silently to the health
-  chat, its text taken from the answer, and the copy deleted.
-- An unsure send's text found unreplaced is taken in: it is tracked and edited like any
-  message, and nothing is sent again. One already sent again is deleted, or struck through
-  after 48 h. A text that is not the bot's is left alone.
-- A week that closes, or restarts on a detector update, decides its unsure sends: a ping is
-  deleted when it appears; a push is deleted unless nothing replaced it.
-- An unsure send is looked for 7 days.
-- An unsure edit is repeated for a day, as it may land after a newer one.
-- A ping the breaker kept back goes with the next run, inside its event's 24 hours.
-- The read is checked once by forwarding a known message. If the channel protects its
-  content, each unsure send is named on the health chat for a hand to check instead.
-- A run whose state commit failed leaves messages the next run knows nothing of. So every
-  run also reads the ids just above the highest it knows; that is normally two silent "not
-  found" answers. A message there is a stray when:
-  - it looks like the bot's own: a move's square, the digest, the calendar, a note part;
-  - it was posted after the last run that saved its state (`saved_at`).
-
-  A message this run is about to send with the same first line takes the stray over and
-  edits it, instead of sending again. Once delivery has run, the strays left unclaimed are
-  deleted. With no `saved_at` yet, as on a state started afresh, nothing is deleted.
+**A send Telegram does not answer** (`telegram_ledger.py`; 2026-11-03: two sends timed out
+and appeared 33 minutes later, and the repeat was a duplicate):
+- "Not sent" is only a request that never reached Telegram (no connection, or a 4xx). A
+  read timeout, a dropped connection, a 5xx or an unreadable answer is "unsure": written
+  down in `state["telegram_ledger"]` with the highest channel id known then. Channel ids
+  only grow, so a late message takes a higher one.
+- The first unsure answer stops the run's channel requests (the breaker): at most one late
+  message an hour. The channel waits 60 s for an answer, health 15 s.
+- Each run reads the ids above the highest it knows. The Bot API reads a message only by
+  forwarding it: silently, to the health chat, the copy deleted at once. Normally two
+  silent "not found" answers.
+- An unsure send found there is taken in if nothing replaced it: tracked and edited, not
+  sent again. If it was sent again, the late copy is deleted (struck through after 48 h).
+  A week that closes or restarts decides in advance: a late ping goes, a late push stays
+  only if it was never sent again.
+- A run whose state commit failed is caught the same way. A message that looks like the
+  bot's own and was posted after the last run that saved (`saved_at`) is taken over by a
+  message this run sends with the same first line, or deleted once delivery has run. A
+  state without `saved_at` deletes nothing.
+- Text not the bot's is never touched. Unsure sends are looked for 7 days; an unsure edit
+  is repeated for a day; a ping the breaker held goes next run.
+- The read is checked once. If the channel protects its content, unsure sends are named on
+  the health chat to check by hand.
 
 **The calendar** (`weekly_digest.py`): the coming week's economic releases, Monday to
 Monday UTC, sent in the run that opens the note, at most 4 hours after its slot. After a
