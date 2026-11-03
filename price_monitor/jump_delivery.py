@@ -32,6 +32,7 @@ deliberately silent" is visible where the code is.
 """
 from __future__ import annotations
 
+import copy
 import hashlib
 import logging
 import os
@@ -41,8 +42,9 @@ from functools import lru_cache
 import pandas as pd
 
 from price_monitor import economic_calendar
+from price_monitor import telegram_ledger as ledger
 from price_monitor.config import Config
-from price_monitor.notifier import (TelegramError, edit_telegram_message,
+from price_monitor.notifier import (TelegramError, TelegramUnsure, edit_telegram_message,
                                     send_telegram_message)
 from price_monitor.state import save_state
 
@@ -1018,23 +1020,49 @@ def story_line(story: "list[list]", headline: int) -> str:
     return "✏️ " + " → ".join(_escape(s) for s in steps)
 
 
-def _send(cfg: Config, text: str, silent: bool = False) -> "int | None":
-    try:
+SENT, FAILED, UNSURE, SKIPPED = "sent", "failed", "unsure", "skipped"
+
+
+def _send(cfg: Config, text: str, silent: bool = False) -> "tuple[int | None, str]":
+    """(message id, what became of it): SENT; FAILED - refused, or Telegram never
+    reached; UNSURE - it may have taken the message without saying so, which
+    the caller writes down (telegram_ledger); SKIPPED - not asked, Telegram
+    having left a request unanswered earlier in this run."""
+    def request():
         if silent:
-            return int(send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
-                                             text, silent=True))
-        return int(send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id, text))
+            return send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
+                                         text, silent=True)
+        return send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id, text)
+    try:
+        message_id = int(ledger.call(request))
+    except ledger.Skipped:
+        return None, SKIPPED
+    except TelegramUnsure as exc:
+        log.error("Could not send: %s", exc)
+        return None, UNSURE
     except TelegramError as exc:
         log.error("Could not send: %s", exc)
-        return None
+        return None, FAILED
+    ledger.saw(message_id)
+    return message_id, SENT
 
 
 def _edit(cfg: Config, message_id: int, text: str) -> bool:
+    """An edit that got no answer is repeated for a day (telegram_ledger.recheck):
+    it may still land, after a newer one."""
     try:
-        edit_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
-                              int(message_id), text)
+        ledger.call(lambda: edit_telegram_message(cfg.telegram_bot_token,
+                                                  cfg.telegram_chat_id, int(message_id), text))
         return True
+    except ledger.Skipped:
+        return False
+    except TelegramUnsure as exc:
+        ledger.recheck(message_id)
+        log.error("Could not edit message %s: %s", message_id, exc)
+        return False
     except TelegramError as exc:
+        if "not found" in str(exc).lower():
+            ledger.settled(message_id)
         log.error("Could not edit message %s: %s", message_id, exc)
         return False
 
@@ -1047,16 +1075,16 @@ def _delete(cfg: Config, message_id: "int | None", first_line: str = "") -> bool
     if message_id is None:
         return True
     try:
-        if delete_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
-                                   int(message_id)):
+        if ledger.call(lambda: delete_telegram_message(
+                cfg.telegram_bot_token, cfg.telegram_chat_id, int(message_id))):
             return True
     except TelegramError as exc:
         log.warning("Could not delete message %s: %s", message_id, exc)
         return False
     struck = f"<s>{first_line}</s>" if first_line else "<s>removed</s>"
     try:
-        edit_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id,
-                              int(message_id), struck)
+        ledger.call(lambda: edit_telegram_message(cfg.telegram_bot_token,
+                                                  cfg.telegram_chat_id, int(message_id), struck))
     except TelegramError as exc:
         if "not found" in str(exc).lower():
             return True                          # somebody deleted it already
@@ -1115,15 +1143,111 @@ def _expire_pings(cfg: Config, week: dict, now_ts: int) -> int:
     return changed
 
 
-def _close_week(cfg: Config, week: dict) -> None:
+def _close_week(cfg: Config, week: dict) -> list:
     """The week becomes history: its pings go, everything else stays as it is.
-    A message that carried pings and pushes keeps its pushes."""
+    A message that carried pings and pushes keeps its pushes. Returns what
+    could not be deleted, for the next week to try again."""
     for rec in week.get("events", {}).values():
         if rec.get("form") == ROW:
             rec["message"] = None
     _sync_messages(cfg, week)
-    for message_id, first_line in week.get("orphans", []):
-        _delete(cfg, message_id, first_line)
+    left = [[message_id, first_line] for message_id, first_line in week.get("orphans", [])
+            if not _delete(cfg, message_id, first_line)]
+    _settle(week)
+    return left
+
+
+def _week_id(week: dict, kind: str = "alert") -> dict:
+    """Which week an unsure send belongs to. The note outlives a detector
+    restart; the alerts do not."""
+    if kind == "note":
+        return {"slot": int(week["slot"])}
+    return {"slot": int(week["slot"]), "since": int(week["since"]),
+            "detector": week.get("detector")}
+
+
+def _placed_since(tracked: dict, snap: dict, at: int) -> bool:
+    """Whether the event was put on the channel since `at`, under any key: a
+    repeat that went out, or one already taken in from an earlier late copy."""
+    return any(rec.get("asset") == snap.get("asset")
+               and abs(int(rec.get("start") or 0) - int(snap.get("start") or 0))
+               < PUSH_WINDOW_HOURS * 3600
+               and int(rec.get("placed_at") or 0) > int(at)
+               for rec in tracked.values())
+
+
+def _settle(week: dict, restart: bool = False) -> None:
+    """The week closes, or restarts: what its unsure sends will be if they
+    appear later is decided now, while the week can still be read. A ping goes
+    with its week; a push stays unless something replaced it; a note part
+    stays unless the note has it already. On a restart every alert goes, as
+    the week's messages do."""
+    for record in ledger.pending():
+        kind = record.get("kind")
+        if kind not in ("alert", "note") or "verdict" in record \
+                or record.get("week") != _week_id(week, kind):
+            continue
+        if kind == "note":
+            if not restart:
+                record["verdict"] = ("delete" if len(week["note"]["ids"]) > int(record["index"])
+                                     else "keep")
+        elif restart or record.get("form") == ROW:
+            record["verdict"] = "delete"
+        else:
+            replaced = all(_placed_since(week["events"], snap, record["at"])
+                           for snap in record["events"].values())
+            record["verdict"] = "delete" if replaced else "keep"
+
+
+def _drop_late(cfg: Config, week: "dict | None", message_id: int, record: dict) -> str:
+    first = record.get("first", "")
+    if not _delete(cfg, int(message_id), record.get("first_html", "")) and week is not None:
+        week.setdefault("orphans", []).append([int(message_id), record.get("first_html", "")])
+    return f"Deleted late duplicate {message_id} (\"{first}\"): it had gone out again"
+
+
+def adopt(cfg: Config, state: dict, record: dict, message_id: int) -> str:
+    """A send Telegram did not answer for, found on the channel as `message_id`
+    (telegram_ledger.reconcile): taken into the week when nothing replaced it -
+    the run's edits then bring it up to date and nothing is sent again - and
+    deleted when something did. Returns a line for the health chat."""
+    week = (state.get(STATE_KEY) or {}).get(WEEK)
+    first = record.get("first", "")
+    verdict = record.get("verdict")
+    if verdict is None and (week is None
+                            or record.get("week") != _week_id(week, record["kind"])):
+        verdict = "keep"                         # a week it was not settled for
+    if verdict == "keep":
+        return f"Found late message {message_id} (\"{first}\"): its week is over, left as it is"
+    if verdict == "delete":
+        return _drop_late(cfg, week, message_id, record)
+    taken = f"Found late message {message_id} (\"{first}\"): taken in, nothing sent again"
+    if record["kind"] == "note":
+        note = week["note"]
+        if len(note["ids"]) != int(record["index"]):
+            return _drop_late(cfg, week, message_id, record)
+        note["ids"].append(int(message_id))
+        note["hashes"].append(record["fingerprint"])
+        return taken
+    tracked, adopted = week["events"], False
+    for key, snap in record["events"].items():
+        if _placed_since(tracked, snap, record["at"]):
+            continue
+        if record["form"] == PUSH:
+            tracked[key] = dict(copy.deepcopy(snap), form=PUSH, message=int(message_id),
+                                placed_at=ledger.clock())
+            adopted = True
+        else:
+            rec = tracked.get(key)
+            if rec is not None and rec.get("form") == ROW and rec.get("message") is None:
+                rec.update(message=int(message_id), placed_at=ledger.clock())
+                rec.pop("ping_due", None)
+                adopted = True
+    if not adopted:
+        return _drop_late(cfg, week, message_id, record)
+    week["messages"][str(int(message_id))] = {"hash": record["fingerprint"],
+                                              "first": record["first_html"]}
+    return taken
 
 
 def _same_week(week: dict, readings: "list[dict]", now_ts: int) -> bool:
@@ -1146,12 +1270,15 @@ def _same_week(week: dict, readings: "list[dict]", now_ts: int) -> bool:
 
 def _restart_week(cfg: Config, week: dict, version: str, now: datetime) -> None:
     """A detector update: the week's pushes and pings are deleted, the note
-    stays, and the week continues with what is found from this run on."""
-    for message_id, rec in week.get("messages", {}).items():
-        _delete(cfg, int(message_id), rec.get("first", ""))
-    for message_id, first_line in week.get("orphans", []):
-        _delete(cfg, message_id, first_line)
-    week.update(events={}, messages={}, orphans=[], detector=version,
+    stays, and the week continues with what is found from this run on. What
+    could not be deleted is tried again."""
+    left = [[int(message_id), rec.get("first", "")]
+            for message_id, rec in week.get("messages", {}).items()]
+    left += [list(o) for o in week.get("orphans", [])]
+    left = [[message_id, first_line] for message_id, first_line in left
+            if not _delete(cfg, message_id, first_line)]
+    _settle(week, restart=True)
+    week.update(events={}, messages={}, orphans=left, detector=version,
                 since=int(now.timestamp()) - 3600 + 1)
 
 
@@ -1414,12 +1541,15 @@ def _cut(members: "list[tuple]") -> "list[list[tuple]]":
 
 
 def _post_new(cfg: Config, state: dict, week: dict, fresh: "list[tuple]",
-              groups: dict, labels: dict, calendar, ring: dict) -> int:
+              groups: dict, labels: dict, calendar, ring: dict, now_ts: int) -> int:
     """This run's new moves, in as few messages as fit: the pushes, then the
     pings. Only the run's first message rings - the reader is on the channel
     after that - and a move is on the record only once its message is up. A
     push that cannot be sent is tried again by the next run; a row is in the
-    note whether or not its ping went."""
+    note whether or not its ping went, and a ping not asked at all (the
+    breaker) goes with the next run. A send Telegram did not answer for is
+    written down with what it would have recorded (telegram_ledger), to be
+    taken in if it appears."""
     tracked = week["events"]
     by_form: dict = {PUSH: [], ROW: []}
     for key, rec, before in fresh:
@@ -1431,12 +1561,18 @@ def _post_new(cfg: Config, state: dict, week: dict, fresh: "list[tuple]",
     for form in (PUSH, ROW):
         for message in _cut(by_form[form]):
             text = format_message([m for _, m in message])
-            message_id = _send(cfg, text, silent=not ring["left"])
+            message_id, outcome = _send(cfg, text, silent=not ring["left"])
             if message_id is not None:
                 ring["left"] = False
                 week["messages"][str(message_id)] = {"hash": _fingerprint(text),
                                                      "first": _first(text)}
                 sent += 1
+            if outcome == UNSURE:
+                ledger.note_unsure(
+                    "alert", text, week=_week_id(week), form=form,
+                    fingerprint=_fingerprint(text), first_html=_first(text),
+                    events={key: copy.deepcopy(dict(states[key][0], form=form, message=None))
+                            for key, _ in message})
             for key, _ in message:
                 rec, before = states[key]
                 if message_id is None and form == PUSH:
@@ -1444,6 +1580,12 @@ def _post_new(cfg: Config, state: dict, week: dict, fresh: "list[tuple]",
                         tracked[key] = before
                     continue
                 rec.update(form=form, message=message_id)
+                if message_id is not None:
+                    rec["placed_at"] = now_ts
+                if outcome == SKIPPED:
+                    rec["ping_due"] = True
+                else:
+                    rec.pop("ping_due", None)
                 tracked[key] = rec
             save_state(cfg.state_path, state)
     return sent
@@ -1463,9 +1605,10 @@ def _sync_messages(cfg: Config, week: dict) -> int:
             continue
         text = format_message(members)
         mark = _fingerprint(text)
-        if mark != rec.get("hash") and _edit(cfg, int(message_id), text):
+        if (mark != rec.get("hash") or ledger.rechecking(message_id)) \
+                and _edit(cfg, int(message_id), text):
+            changed += mark != rec.get("hash")
             rec.update(hash=mark, first=_first(text))
-            changed += 1
     return changed
 
 
@@ -1480,12 +1623,16 @@ def _write_note(cfg: Config, week: dict, texts: "list[str]") -> int:
     for index, text in enumerate(texts):
         mark = _fingerprint(text)
         if index < len(ids):
-            if hashes[index] != mark and _edit(cfg, ids[index], text):
+            if (hashes[index] != mark or ledger.rechecking(ids[index])) \
+                    and _edit(cfg, ids[index], text):
+                changed += hashes[index] != mark
                 hashes[index] = mark
-                changed += 1
             continue
-        message_id = _send(cfg, text, silent=index > 0)
+        message_id, outcome = _send(cfg, text, silent=index > 0)
         if message_id is None:
+            if outcome == UNSURE:
+                ledger.note_unsure("note", text, week=_week_id(week, "note"), index=index,
+                                   fingerprint=mark, first_html=_first(text))
             break
         ids.append(message_id)
         hashes.append(mark)
@@ -1511,6 +1658,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     now = now or datetime.now(timezone.utc)
     if cfg.jump_alerts_muted:
         return 0
+    ledger.use(state, int(now.timestamp()))
 
     readings = load_events(cfg)
     # An empty table is "the pipeline did not run", not "every event vanished"
@@ -1536,8 +1684,11 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
             # close are in, and land on the old week before it closes.
             if week.get("detector") == version:
                 changed += _pass(cfg, state, week, readings, labels, calendar, now, ring)
-            _close_week(cfg, week)
+            left = _close_week(cfg, week)
+        else:
+            left = []
         week = store[WEEK] = _new_week(slot, version)
+        week["orphans"] = left
         save_state(cfg.state_path, state)
     elif week.get("detector") != version:
         if _same_week(week, readings, now_ts):
@@ -1565,9 +1716,6 @@ def _pass(cfg: Config, state: dict, week: dict, readings: "list[dict]", labels: 
         # A new note goes up before anything it opens with: the calendar, the
         # note, then the moves - the closing hour's among them.
         changed += _write_note(cfg, week, format_digest([], labels, window, calendar, now))
-    orphans, week["orphans"] = week.get("orphans", []), []
-    for message_id, first_line in orphans:
-        _discard(cfg, week, message_id, first_line)
 
     from jump import verify
 
@@ -1580,13 +1728,25 @@ def _pass(cfg: Config, state: dict, week: dict, readings: "list[dict]", labels: 
     fresh: list = []
     for key in sorted(groups, key=lambda k: int(k.rsplit("|", 1)[1])):
         changed += _step(week, key, groups[key], now_ts, fresh, doubts)
+    # A ping the breaker kept from going (Telegram silent earlier in that run)
+    # goes now, inside the event's 24 hours.
+    queued = {key for key, _, _ in fresh}
+    for key, rec in week["events"].items():
+        if (rec.get("ping_due") and rec.get("form") == ROW and rec.get("message") is None
+                and key not in queued and groups.get(key) and not rec.get("doubt")
+                and now_ts < int(rec["start"]) + PUSH_WINDOW_HOURS * 3600):
+            fresh.append((key, rec, copy.deepcopy(rec)))
     # What stays where it is shows its moves as they now stand.
     moving = {key for key, _, _ in fresh}
     for key, rec in week["events"].items():
         rows = groups.get(key) or []
         if rows and rec.get("form") and key not in moving and not rec.get("doubt"):
             _member(rec, max(rows, key=_size), rec["form"], labels, calendar)
-    changed += _post_new(cfg, state, week, fresh, groups, labels, calendar, ring)
+    changed += _post_new(cfg, state, week, fresh, groups, labels, calendar, ring, now_ts)
+    # After the new moves: a delete Telegram does not answer must not hold them.
+    orphans, week["orphans"] = week.get("orphans", []), []
+    for message_id, first_line in orphans:
+        _discard(cfg, week, message_id, first_line)
     changed += _sync_messages(cfg, week)
     changed += _expire_pings(cfg, week, now_ts)
     save_state(cfg.state_path, state)

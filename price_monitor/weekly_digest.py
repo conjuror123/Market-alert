@@ -49,8 +49,9 @@ from datetime import datetime, time, timedelta, timezone
 import requests
 
 from price_monitor import economic_calendar
+from price_monitor import telegram_ledger as ledger
 from price_monitor.config import Config
-from price_monitor.notifier import TelegramError, send_telegram_message
+from price_monitor.notifier import TelegramError, TelegramUnsure, send_telegram_message
 from jump import routing
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -386,20 +387,54 @@ def format_outage(start: datetime, end: datetime, why: str) -> str:
             f"⚠️ Outage: {why}. No calendar this week.")
 
 
-def _post(cfg: Config, messages: "list[str]") -> "list[str]":
+def _post(cfg: Config, messages: "list[str]", week_id: str = "") -> "list[str]":
     """Sends the parts in order and returns those that did not go out: from
-    the first that failed on, so the calendar keeps its order.
+    the first that failed on, so the calendar keeps its order. A part Telegram
+    did not answer for stays among them and is written down
+    (telegram_ledger): should it appear, it is taken off them (adopt).
 
     Failures are swallowed rather than raised: the digest lives inside the
     hourly monitoring run, and a failed send must not bring the whole run down."""
     for k, text in enumerate(messages):
         try:
-            send_telegram_message(cfg.telegram_bot_token, cfg.telegram_chat_id, text)
+            ledger.saw(ledger.call(lambda: send_telegram_message(
+                cfg.telegram_bot_token, cfg.telegram_chat_id, text)))
         except TelegramError as exc:
             log.error("Failed to send weekly digest part %d of %d: %s", k + 1,
                       len(messages), exc)
+            if isinstance(exc, TelegramUnsure):
+                ledger.note_unsure("calendar", text, week=week_id)
             return list(messages[k:])
     return []
+
+
+def adopt(cfg: Config, state: dict, record: dict, message_id: int) -> str:
+    """A calendar part Telegram did not answer for, found on the channel
+    (telegram_ledger.reconcile): taken off what is still to send when it is
+    next in line, deleted when it went out again, left when its week ended
+    without it."""
+    from price_monitor import notifier
+
+    pending = state.get(_PENDING_KEY) or {}
+    remaining = list(pending.get("remaining") or [])
+    first = record.get("first", "")
+    if (pending.get("week") == record.get("week") and remaining
+            and ledger.sent_hash(remaining[0]) == record["hash"]):
+        remaining.pop(0)
+        if remaining:
+            pending["remaining"] = remaining
+        else:
+            state.pop(_PENDING_KEY, None)
+            state[_STATE_KEY] = record.get("week")
+        return f"Found late message {message_id} (\"{first}\"): taken in, not sent again"
+    if state.get(_STATE_KEY) == record.get("week"):
+        try:
+            ledger.call(lambda: notifier.delete_telegram_message(
+                cfg.telegram_bot_token, cfg.telegram_chat_id, int(message_id)))
+        except TelegramError as exc:
+            log.warning("Could not delete the late calendar part %s: %s", message_id, exc)
+        return f"Deleted late duplicate {message_id} (\"{first}\"): it had gone out again"
+    return f"Found late message {message_id} (\"{first}\"): its week is over, left as it is"
 
 
 def _digest_messages(cfg: Config, session: requests.Session | None,
@@ -434,6 +469,7 @@ def maybe_send_weekly_digest(
     from price_monitor import jump_delivery
 
     now = now or datetime.now(timezone.utc)
+    ledger.use(state, int(now.timestamp()))
     slot = routing.digest_slot(int(now.timestamp()))
     week_id = str(slot)
     pending = state.get(_PENDING_KEY)
@@ -451,7 +487,7 @@ def maybe_send_weekly_digest(
         opened = datetime.fromtimestamp(slot, tz=timezone.utc)
         start, end = coming_week(opened)
         messages = [format_outage(start, end, "the bot was down when the week opened")]
-    remaining = _post(cfg, messages)
+    remaining = _post(cfg, messages, week_id)
     if remaining:
         state[_PENDING_KEY] = {"week": week_id, "remaining": remaining}
     else:

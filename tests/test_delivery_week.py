@@ -3,14 +3,17 @@
 A fake channel stands in for Telegram. It holds the messages by id, so each
 test states what the reader would see, not which calls were made.
 """
+import html
+import re
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from price_monitor import notifier
 from price_monitor import jump_delivery as md
+from price_monitor import telegram_ledger as ledger
 from price_monitor.config import Config
-from price_monitor.notifier import TelegramError
+from price_monitor.notifier import TelegramError, TelegramUnsure
 from jump import jumps, routing, verify
 
 HOUR = 3600
@@ -25,32 +28,87 @@ SIGMA = 0.003
 SIZE = {"noticeable": 4.5, "high": 6.0, "major": 8.5, "extreme": 12.0}
 
 
+HEALTH = "h"
+
+
+def as_telegram_gives_it(text):
+    """A message's text as the Bot API returns it: no tags, entities read."""
+    return html.unescape(re.sub(r"<[^>]+>", "", text))
+
+
 class Channel:
-    """The channel: messages by id, and the ones that rang."""
+    """The channel: messages by id, and the ones that rang. Like Telegram on
+    2026-11-03 it can hold a send without answering (`hang`) and put it up
+    later under the next id (`publish_late`), and hold an edit the same way."""
 
     def __init__(self):
         self.messages, self.rang, self.next_id = {}, [], 1
         self.refuse_delete, self.fail_send = set(), False
+        self.hang, self.held = 0, []
+        self.hang_edit, self.held_edits = 0, []
+        self.unforwardable, self.health, self.calls = set(), {}, []
 
     def send(self, token, chat, text, *a, **k):
+        self.calls.append("send")
         if self.fail_send:
             raise TelegramError("Telegram request failed")
+        if self.hang:
+            self.hang -= 1
+            self.held.append((text, k.get("silent")))
+            raise TelegramUnsure("Telegram did not answer")
+        return self._put(text, k.get("silent"))
+
+    def _put(self, text, silent=False):
         mid, self.next_id = self.next_id, self.next_id + 1
         self.messages[mid] = text
-        if not k.get("silent"):
+        if not silent:
             self.rang.append(text)
         return mid
 
+    def publish_late(self):
+        """Telegram puts up what it held, under the next ids."""
+        ids = [self._put(text, silent) for text, silent in self.held]
+        self.held = []
+        return ids
+
+    def post(self, text):
+        """Somebody else's post on the channel."""
+        return self._put(text, silent=True)
+
     def edit(self, token, chat, message_id, text, *a, **k):
+        self.calls.append("edit")
         if message_id not in self.messages:
             raise TelegramError("Telegram API error 400: message to edit not found")
+        if self.hang_edit:
+            self.hang_edit -= 1
+            self.held_edits.append((message_id, text))
+            raise TelegramUnsure("Telegram did not answer")
         self.messages[message_id] = text
 
+    def apply_late_edits(self):
+        for message_id, text in self.held_edits:
+            self.messages[message_id] = text
+        self.held_edits = []
+
     def delete(self, token, chat, message_id, *a, **k):
+        self.calls.append("delete")
+        if chat == HEALTH:
+            return self.health.pop(message_id, None) is not None
         if message_id in self.refuse_delete or message_id not in self.messages:
             return False
         del self.messages[message_id]
         return True
+
+    def forward(self, token, from_chat, message_id, to_chat, *a, **k):
+        self.calls.append("forward")
+        if message_id in self.unforwardable:
+            return {"state": "unforwardable"}
+        if message_id not in self.messages:
+            return {"state": "missing"}
+        copy = 100_000 + len(self.health) + 1
+        self.health[copy] = self.messages[message_id]
+        return {"state": "found", "text": as_telegram_gives_it(self.messages[message_id]),
+                "copy": copy}
 
     # what the reader sees
     def notes(self):
@@ -79,6 +137,7 @@ def channel(monkeypatch, tmp_path):
     monkeypatch.setattr(md, "send_telegram_message", ch.send)
     monkeypatch.setattr(md, "edit_telegram_message", ch.edit)
     monkeypatch.setattr(notifier, "delete_telegram_message", ch.delete)
+    monkeypatch.setattr(notifier, "forward_telegram_message", ch.forward)
     monkeypatch.setattr(md, "_labels", lambda: LABELS)
     monkeypatch.setattr(md, "_calendar", lambda cfg: None)
     monkeypatch.setattr(md, "vix_context", lambda hour: "")
@@ -89,7 +148,7 @@ def channel(monkeypatch, tmp_path):
 
 
 def cfg(channel, **over):
-    base = dict(telegram_bot_token="t", telegram_chat_id="c",
+    base = dict(telegram_bot_token="t", telegram_chat_id="c", telegram_health_chat_id=HEALTH,
                 jump_alerts_muted=False, state_path=channel.path)
     return Config(**(base | over))
 
@@ -107,8 +166,15 @@ def ev(at, tier="noticeable", *, asset="twelvedata:GLD", size=None, found=None,
 
 
 def run(monkeypatch, channel, readings, now, state, **over):
+    """One hourly run, as __main__ makes it: a new process (the breaker closed),
+    the unsure sends looked for, then the delivery."""
     monkeypatch.setattr(md, "load_events", lambda c: [dict(r) for r in readings])
-    return md.maybe_deliver(cfg(channel, **over), state, now)
+    config = cfg(channel, **over)
+    ledger.reset()
+    channel.found = ledger.reconcile(config, state, now)
+    sent = md.maybe_deliver(config, state, now)
+    channel.news = ledger.news()
+    return sent
 
 
 def at(day, hour, minute=0):
@@ -873,3 +939,159 @@ def test_a_multi_event_ping_message_keeps_younger_ping_when_older_expires(
     assert "Bitcoin" in channel.pings()[0]
     assert "Gold" not in channel.pings()[0]
     assert "Gold" in channel.note() and "Bitcoin" in channel.note()
+
+
+# --- Telegram takes a message without answering (2026-11-03) ----------------------
+# The 14:05 run's sends timed out, the run recorded them unsent, and Telegram put
+# them up at 14:40 (ids 137, 138); the 15:05 run sent the push again (139). Now a
+# send without an answer is written down, and the next runs read the channel for it.
+
+def _held(monkeypatch, channel, week, readings, when):
+    """One run whose first send Telegram holds without answering."""
+    channel.hang = 1
+    run(monkeypatch, channel, readings, when, week)
+    assert channel.held and channel.hang == 0
+
+
+def test_a_push_telegram_put_up_late_is_taken_in_not_sent_again(monkeypatch, channel, week):
+    first = ev(at(0, 13), "high", size=6.5)
+    _held(monkeypatch, channel, week, [first], run_at(0, 14))
+    assert channel.pushes() == []
+    late = channel.publish_late()                   # 14:40
+    rang = len(channel.rang)
+    corrected = ev(at(0, 13), "high", size=6.2)     # the bar revised before 15:05
+    run(monkeypatch, channel, [corrected], run_at(0, 15), week)
+    assert channel.pushes() == [channel.messages[late[0]]]
+    assert "-1.86%" in channel.messages[late[0]] or "1.86%" in channel.messages[late[0]]
+    assert channel.rings_since(rang) == []          # it rang once, at 14:40
+    assert any(f"Found late message {late[0]}" in line for line in channel.found)
+    assert channel.health == {}                     # the read copies are gone
+
+
+def test_a_late_copy_that_appears_after_the_repeat_is_deleted(monkeypatch, channel, week):
+    push = ev(at(0, 10), "high")
+    _held(monkeypatch, channel, week, [push], run_at(0, 11))
+    run(monkeypatch, channel, [push], run_at(0, 12), week)
+    assert len(channel.pushes()) == 1               # not there yet: sent again, not lost
+    late = channel.publish_late()
+    run(monkeypatch, channel, [push], run_at(0, 13), week)
+    assert len(channel.pushes()) == 1 and late[0] not in channel.messages
+    assert any(f"Deleted late duplicate {late[0]}" in line for line in channel.found)
+
+
+def test_a_send_that_never_appears_is_sent_again_and_forgotten_in_a_week(
+        monkeypatch, channel, week):
+    push = ev(at(0, 10), "high")
+    _held(monkeypatch, channel, week, [push], run_at(0, 11))
+    channel.held = []                               # Telegram dropped it after all
+    run(monkeypatch, channel, [push], run_at(0, 12), week)
+    assert channel.pushes() == [md.format_push(push, LABELS)]
+    assert len(week["telegram_ledger"]["pending"]) == 1
+    run(monkeypatch, channel, [push], run_at(8, 12), week)
+    assert week["telegram_ledger"]["pending"] == []
+
+
+def test_what_is_not_ours_is_read_and_left_alone(monkeypatch, channel, week):
+    push = ev(at(0, 10), "high")
+    _held(monkeypatch, channel, week, [push], run_at(0, 11))
+    by_hand = channel.post("<b>A note from the owner</b>")
+    pin = channel.post("pinned a message")
+    channel.unforwardable.add(pin)
+    run(monkeypatch, channel, [push], run_at(0, 12), week)
+    assert channel.messages[by_hand] == "<b>A note from the owner</b>"
+    assert pin in channel.messages
+    assert len(channel.pushes()) == 1
+
+
+def test_the_first_unanswered_request_stops_the_run_and_its_ping_goes_next_run(
+        monkeypatch, channel, week):
+    push = ev(at(0, 10), "high")
+    ping = ev(at(0, 10), asset="coinbase:BTC-USD")
+    channel.hang = 1
+    channel.calls.clear()
+    run(monkeypatch, channel, [push, ping], run_at(0, 11), week)
+    asked = channel.calls[channel.calls.index("send"):]
+    assert asked == ["send"]                        # nothing more, after the silence
+    channel.held = []
+    run(monkeypatch, channel, [push, ping], run_at(0, 12), week)
+    assert len(channel.pushes()) == 1 and len(channel.pings()) == 1
+    assert "Bitcoin" in channel.note()
+
+
+def test_a_note_telegram_put_up_late_is_the_weeks_note(monkeypatch, channel):
+    state = {}
+    old = [ev(OPEN - timedelta(days=3))]
+    channel.hang = 1
+    run(monkeypatch, channel, old, OPEN, state)
+    assert channel.notes() == []
+    channel.publish_late()
+    run(monkeypatch, channel, old, OPEN + timedelta(hours=1), state)
+    assert len(channel.notes()) == 1
+
+
+def test_a_note_sent_again_before_its_late_copy_appears_stays_single(monkeypatch, channel):
+    state = {}
+    old = [ev(OPEN - timedelta(days=3))]
+    channel.hang = 1
+    run(monkeypatch, channel, old, OPEN, state)
+    run(monkeypatch, channel, old, OPEN + timedelta(hours=1), state)
+    late = channel.publish_late()
+    run(monkeypatch, channel, old, OPEN + timedelta(hours=2), state)
+    assert len(channel.notes()) == 1 and late[0] not in channel.messages
+
+
+def test_a_ping_that_appears_after_its_week_closed_goes_with_the_week(
+        monkeypatch, channel, week):
+    ping = ev(at(4, 18))                            # Friday, before the week's last close
+    _held(monkeypatch, channel, week, [ping], run_at(4, 19))
+    later = datetime.fromtimestamp(NEXT, tz=timezone.utc)
+    run(monkeypatch, channel, [ping], later, week)  # the week closes
+    late = channel.publish_late()
+    run(monkeypatch, channel, [ping], later + timedelta(hours=1), week)
+    assert late[0] not in channel.messages
+
+
+def test_a_late_copy_after_a_detector_update_is_deleted_with_the_week(
+        monkeypatch, channel, week):
+    push = ev(at(0, 10), "high")
+    _held(monkeypatch, channel, week, [push], run_at(0, 11))
+    monkeypatch.setattr(jumps, "detector_version", lambda root=None: "v2")
+    run(monkeypatch, channel, [push], run_at(0, 12), week)
+    late = channel.publish_late()
+    run(monkeypatch, channel, [push], run_at(0, 13), week)
+    assert late[0] not in channel.messages
+
+
+def test_an_edit_telegram_did_not_answer_is_asserted_again(monkeypatch, channel, week):
+    run(monkeypatch, channel, [ev(at(0, 10), "high", size=6.5)], run_at(0, 11), week)
+    [mid] = [k for k, t in channel.messages.items() if t in channel.pushes()]
+    channel.hang_edit = 1
+    run(monkeypatch, channel, [ev(at(0, 10), "high", size=6.2)], run_at(0, 12), week)
+    run(monkeypatch, channel, [ev(at(0, 10), "high", size=6.3)], run_at(0, 13), week)
+    newest = channel.messages[mid]
+    channel.apply_late_edits()                      # the older edit lands last
+    assert channel.messages[mid] != newest
+    run(monkeypatch, channel, [ev(at(0, 10), "high", size=6.3)], run_at(0, 14), week)
+    assert channel.messages[mid] == newest
+
+
+def test_without_a_way_to_read_the_channel_it_says_so_and_sends_again(
+        monkeypatch, channel, week):
+    push = ev(at(0, 10), "high")
+    channel.unforwardable.update(range(1, 50))      # the channel protects its content
+    _held(monkeypatch, channel, week, [push], run_at(0, 11))
+    told = channel.news + channel.found
+    late = channel.publish_late()
+    run(monkeypatch, channel, [push], run_at(0, 12), week)
+    assert week["telegram_ledger"]["read_ok"] is False
+    assert any("cannot be forwarded" in n for n in told)
+    assert any("duplicate to delete by hand" in n for n in channel.found)
+    assert late[0] in channel.messages              # nothing deleted unread
+
+
+def test_without_a_health_chat_it_sends_again_as_before(monkeypatch, channel, week):
+    push = ev(at(0, 10), "high")
+    channel.hang = 1
+    run(monkeypatch, channel, [push], run_at(0, 11), week, telegram_health_chat_id="")
+    run(monkeypatch, channel, [push], run_at(0, 12), week, telegram_health_chat_id="")
+    assert len(channel.pushes()) == 1

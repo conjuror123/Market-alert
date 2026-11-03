@@ -81,7 +81,7 @@ def test_a_request_error_does_not_contain_the_bot_token(monkeypatch):
             "Failed to resolve 'api.telegram.org/bot123456:secret-token/sendMessage'")
 
     monkeypatch.setattr(notifier.requests, "post", fake_post)
-    with pytest.raises(TelegramError, match="Telegram request failed") as caught:
+    with pytest.raises(TelegramError, match="Telegram") as caught:
         send_telegram_message("123456:secret-token", "@chan", "hello")
     assert "secret-token" not in str(caught.value)
     assert "bot123456:secret-token" not in str(caught.value)
@@ -189,3 +189,99 @@ def test_the_waiting_of_one_run_is_bounded(monkeypatch):
             send_telegram_message("token", "@chan", "hello")
     assert sum(slept) <= notifier.WAIT_BUDGET_SECONDS
     assert len(slept) == 3                    # 3 x 50.5 s, then no more waiting
+
+
+# What became of a request: only one that never reached Telegram is "not sent";
+# any other failure may have been carried out (2026-11-03: two sends timed out
+# and were published 33 minutes later).
+
+def _raising(exc):
+    def fake_post(*args, **kwargs):
+        raise exc
+    return fake_post
+
+
+def test_a_read_timeout_is_unsure_and_a_connect_timeout_is_not(monkeypatch):
+    monkeypatch.setattr(notifier.requests, "post", _raising(requests.ReadTimeout("slow")))
+    with pytest.raises(notifier.TelegramUnsure):
+        send_telegram_message("token", "@chan", "hello")
+    monkeypatch.setattr(notifier.requests, "post", _raising(requests.ConnectTimeout("no")))
+    with pytest.raises(TelegramError) as caught:
+        send_telegram_message("token", "@chan", "hello")
+    assert not isinstance(caught.value, notifier.TelegramUnsure)
+
+
+def test_a_connection_never_made_is_not_sent_one_dropped_is_unsure(monkeypatch):
+    from urllib3.exceptions import MaxRetryError, NewConnectionError
+    never = requests.ConnectionError(MaxRetryError(None, "/", NewConnectionError(None, "refused")))
+    monkeypatch.setattr(notifier.requests, "post", _raising(never))
+    with pytest.raises(TelegramError) as caught:
+        send_telegram_message("token", "@chan", "hello")
+    assert not isinstance(caught.value, notifier.TelegramUnsure)
+    monkeypatch.setattr(notifier.requests, "post",
+                        _raising(requests.ConnectionError("Connection aborted.")))
+    with pytest.raises(notifier.TelegramUnsure):
+        send_telegram_message("token", "@chan", "hello")
+
+
+def test_telegrams_own_trouble_is_unsure_a_refusal_is_not(monkeypatch):
+    monkeypatch.setattr(notifier.requests, "post",
+                        lambda url, json, timeout: FakeResponse(502, {"ok": False}))
+    with pytest.raises(notifier.TelegramUnsure):
+        send_telegram_message("token", "@chan", "hello")
+    with pytest.raises(notifier.TelegramUnsure):
+        edit_telegram_message("token", "@chan", 5, "hello")
+    monkeypatch.setattr(notifier.requests, "post",
+                        lambda url, json, timeout: FakeResponse(400, {"ok": False}))
+    with pytest.raises(TelegramError) as caught:
+        send_telegram_message("token", "@chan", "hello")
+    assert not isinstance(caught.value, notifier.TelegramUnsure)
+
+
+def test_a_sent_message_whose_answer_cannot_be_read_is_unsure(monkeypatch):
+    monkeypatch.setattr(notifier.requests, "post",
+                        lambda url, json, timeout: FakeResponse(200, {"ok": True}))
+    with pytest.raises(notifier.TelegramUnsure):
+        send_telegram_message("token", "@chan", "hello")
+
+
+def test_the_channel_waits_a_minute_and_health_a_short_while(monkeypatch):
+    seen = []
+    monkeypatch.setattr(notifier.requests, "post", lambda url, json, timeout: seen.append(
+        timeout) or FakeResponse(200, {"ok": True, "result": {"message_id": 1}}))
+    send_telegram_message("token", "@chan", "hello")
+    notifier.send_health("x", token="token", chat="@health")
+    assert seen == [notifier.CHANNEL_TIMEOUT, notifier.SHORT_TIMEOUT]
+    assert notifier.CHANNEL_TIMEOUT[1] >= 60
+
+
+def test_a_delete_that_got_no_answer_raises_rather_than_reporting_a_refusal(monkeypatch):
+    monkeypatch.setattr(notifier.requests, "post", _raising(requests.ReadTimeout("slow")))
+    with pytest.raises(notifier.TelegramUnsure):
+        notifier.delete_telegram_message("token", "@chan", 5)
+
+
+def test_forwarding_reads_a_message_and_says_when_there_is_none(monkeypatch):
+    asked = []
+
+    def answer(url, json, timeout):
+        asked.append((url.rsplit("/", 1)[1], json))
+        if json["message_id"] == 137:
+            return FakeResponse(200, {"ok": True, "result": {
+                "message_id": 9, "text": "🟨 TTF · -7.11%",
+                "forward_origin": {"type": "channel", "message_id": 137}}})
+        if json["message_id"] == 135:
+            return FakeResponse(400, {"ok": False,
+                                      "description": "Bad Request: message can't be forwarded"})
+        return FakeResponse(400, {"ok": False,
+                                  "description": "Bad Request: message to forward not found"})
+
+    monkeypatch.setattr(notifier.requests, "post", answer)
+    got = notifier.forward_telegram_message("token", "@chan", 137, "@health")
+    assert got == {"state": "found", "text": "🟨 TTF · -7.11%", "copy": 9}
+    assert asked[0] == ("forwardMessage", {"chat_id": "@health", "from_chat_id": "@chan",
+                                           "message_id": 137, "disable_notification": True})
+    assert notifier.forward_telegram_message("token", "@chan", 135, "@health") == {
+        "state": "unforwardable"}
+    assert notifier.forward_telegram_message("token", "@chan", 140, "@health") == {
+        "state": "missing"}

@@ -133,6 +133,29 @@ from creating long repetitive story lines.
 **Noticeable pings carry the event line without a footer** (the user's, 2026-11-03): the
 "Added to digest" pointer is omitted; details are read in the weekly digest note itself.
 
+**A send Telegram does not answer is looked for, not repeated** (the user's, 2026-11-03).
+On 2026-11-03 at 14:07 UTC Telegram held two sends, TTF's push and Brent's ping, past the
+15 s timeout. The run recorded them unsent; Telegram published both at 14:40 as ids 137 and
+138. The 15:05 run sent TTF again (139): a duplicate. 137 kept the price from before the
+bars were corrected (−7.11 % against −5.78 %), and neither could be edited or deleted, the
+bot never having learned their ids. Telegram states no bound on such a delay.
+
+Why the design is what it is:
+- The Bot API has no idempotency key and no way to fetch a message by id; bots do not
+  receive their own channel posts; `copyMessage` returns only an id. So the only read is
+  `forwardMessage`, whose answer carries the text: forwarded silently to the health chat,
+  the copy deleted.
+- A failure is "not sent" only when no connection was made; anything else is "unsure" and
+  written down (`price_monitor/telegram_ledger.py`).
+- The breaker holds a run to one unsure send.
+- Nothing on the channel is deleted unread: the bot can delete any message there.
+
+Rejected:
+- Probing an id with an edit of the expected text, reading "not modified" as a match:
+  overwrites a message that is not the one expected.
+- A second bot watching the channel: one more secret, and updates kept only 24 hours.
+- Deleting every id the bot does not know: the owner's own posts.
+
 ---
 
 ## The basket
