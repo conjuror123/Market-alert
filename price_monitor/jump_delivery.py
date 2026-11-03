@@ -1664,7 +1664,9 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
 
     Failures are logged and swallowed: this runs inside the hourly monitoring
     loop, and a Telegram outage must not bring the whole run down. A message is
-    remembered only once it is up, so a failure means a retry on the next run.
+    remembered once it is up; one refused is retried by the next run, and one
+    Telegram did not answer for is first looked for on the channel
+    (telegram_ledger).
     """
     from jump import jumps, routing
 
