@@ -1561,8 +1561,15 @@ def _post_new(cfg: Config, state: dict, week: dict, fresh: "list[tuple]",
     for form in (PUSH, ROW):
         for message in _cut(by_form[form]):
             text = format_message([m for _, m in message])
-            message_id, outcome = _send(cfg, text, silent=not ring["left"])
-            if message_id is not None:
+            claimed = ledger.claim(text)
+            if claimed is not None:
+                # Left by a run whose state was not saved: taken over, and edited
+                # to this text by _sync_messages (no hash yet). It rang already.
+                message_id, outcome = claimed, SENT
+                week["messages"][str(message_id)] = {"hash": "", "first": _first(text)}
+            else:
+                message_id, outcome = _send(cfg, text, silent=not ring["left"])
+            if message_id is not None and claimed is None:
                 ring["left"] = False
                 week["messages"][str(message_id)] = {"hash": _fingerprint(text),
                                                      "first": _first(text)}
@@ -1628,6 +1635,12 @@ def _write_note(cfg: Config, week: dict, texts: "list[str]") -> int:
                 changed += hashes[index] != mark
                 hashes[index] = mark
             continue
+        claimed = ledger.claim(text)
+        if claimed is not None:
+            ids.append(claimed)
+            hashes.append(mark if _edit(cfg, claimed, text) else "")
+            changed += 1
+            continue
         message_id, outcome = _send(cfg, text, silent=index > 0)
         if message_id is None:
             if outcome == UNSURE:
@@ -1678,6 +1691,7 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
 
     week = store.get(WEEK)
     slot = routing.digest_slot(now_ts)
+    ledger.delivering()
     if week is None or slot > int(week["slot"]):
         if week is not None:
             # The run after the week's last close: its moves' checks at that

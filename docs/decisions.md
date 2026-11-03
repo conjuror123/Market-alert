@@ -150,6 +150,12 @@ Why the design is what it is:
 - The breaker holds a run to one unsure send.
 - Nothing on the channel is deleted unread: the bot can delete any message there.
 
+A run whose state commit failed is caught the same way. Every run reads the ids just above
+the highest it knows: the channel itself shows what the bot sent that its state forgot. The
+first proposal was to compare the state's last run with the real one. Rejected: a lost state
+cannot be told from a run that never started, as on 2026-10-20, when cron-job.org's call got
+a 504.
+
 Rejected:
 - Probing an id with an edit of the expected text, reading "not modified" as a match:
   overwrites a message that is not the one expected.

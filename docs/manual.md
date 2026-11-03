@@ -602,6 +602,15 @@ a dropped connection, a 5xx or an unreadable answer is "unsure":
 - A ping the breaker kept back goes with the next run, inside its event's 24 hours.
 - The read is checked once by forwarding a known message. If the channel protects its
   content, each unsure send is named on the health chat for a hand to check instead.
+- A run whose state commit failed leaves messages the next run knows nothing of. So every
+  run also reads the ids just above the highest it knows; that is normally two silent "not
+  found" answers. A message there is a stray when:
+  - it looks like the bot's own: a move's square, the digest, the calendar, a note part;
+  - it was posted after the last run that saved its state (`saved_at`).
+
+  A message this run is about to send with the same first line takes the stray over and
+  edits it, instead of sending again. Once delivery has run, the strays left unclaimed are
+  deleted. With no `saved_at` yet, as on a state started afresh, nothing is deleted.
 
 **The calendar** (`weekly_digest.py`): the coming week's economic releases, Monday to
 Monday UTC, sent in the run that opens the note, at most 4 hours after its slot. After a
@@ -683,7 +692,7 @@ message past Telegram's 4,096 characters is cut between lines, ending "…and N 
 | pipeline, jumps (every instrument), or the step's 12 minutes | no new events | streak, named with the part it stopped in and its minutes | while it fails |
 | open months' save (refused, too, with no open months on disk: an empty archive would replace the good one) | the next run restores an older copy and fetches the difference | streak, named | while it fails |
 | delivery, calendar, digest | an exception in the monitor | streak, with the error | while it fails |
-| state commit | what the run sent and counted is lost; the next run may resend | the last step (`tools/run_died.sh`) | 1 h after the last run that delivered, then every 24 h |
+| state commit | what the run counted is lost; what it sent is taken over, or deleted when sent again, by the next run (section 8) | the last step (`tools/run_died.sh`) | 1 h after the last run that delivered, then every 24 h |
 | Telegram itself | the token revoked or Telegram down | nothing can reach the chat; the job goes red | — |
 | Telegram leaves a send unanswered | it may appear late (section 8) | "📨 Telegram": the send that may arrive late, then what became of it (taken in, or a late duplicate deleted) | when it happens |
 

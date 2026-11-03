@@ -240,7 +240,8 @@ def forward_telegram_message(bot_token: str, from_chat: str, message_id: int,
     way: forwards it, silently, to `to_chat` and returns what the answer says.
 
     {"state": "found", "text": its text ("" for none), "copy": the forward's
-    own id in `to_chat`, for the caller to delete}; {"state": "missing"}: no
+    own id in `to_chat`, for the caller to delete, "date": when it was posted
+    (0 if Telegram does not say)}; {"state": "missing"}: no
     message has that id (deleted, or not yet used); {"state": "unforwardable"}:
     one that cannot be forwarded - a service message such as a pin, or every
     message of a chat that protects its content. Raises TelegramError or
@@ -267,10 +268,12 @@ def forward_telegram_message(bot_token: str, from_chat: str, message_id: int,
         copy = int(result["message_id"])
     except (ValueError, KeyError, TypeError):
         raise TelegramUnsure("Telegram's answer could not be read") from None
-    origin = (result.get("forward_origin") or {}).get("message_id")
-    if origin is not None and int(origin) != int(message_id):
+    origin = result.get("forward_origin") or {}
+    if origin.get("message_id") is not None and int(origin["message_id"]) != int(message_id):
         return {"state": "missing", "copy": copy}
-    return {"state": "found", "text": str(result.get("text") or ""), "copy": copy}
+    when = origin.get("date") or result.get("forward_date") or 0
+    return {"state": "found", "text": str(result.get("text") or ""), "copy": copy,
+            "date": int(when)}
 
 
 # HEALTH. Every health message goes out through send_health, and every error,

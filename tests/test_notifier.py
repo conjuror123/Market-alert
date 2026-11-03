@@ -269,7 +269,8 @@ def test_forwarding_reads_a_message_and_says_when_there_is_none(monkeypatch):
         if json["message_id"] == 137:
             return FakeResponse(200, {"ok": True, "result": {
                 "message_id": 9, "text": "🟨 TTF · -7.11%",
-                "forward_origin": {"type": "channel", "message_id": 137}}})
+                "forward_origin": {"type": "channel", "message_id": 137,
+                                   "date": 1793716800}}})
         if json["message_id"] == 135:
             return FakeResponse(400, {"ok": False,
                                       "description": "Bad Request: message can't be forwarded"})
@@ -278,7 +279,7 @@ def test_forwarding_reads_a_message_and_says_when_there_is_none(monkeypatch):
 
     monkeypatch.setattr(notifier.requests, "post", answer)
     got = notifier.forward_telegram_message("token", "@chan", 137, "@health")
-    assert got == {"state": "found", "text": "🟨 TTF · -7.11%", "copy": 9}
+    assert got == {"state": "found", "text": "🟨 TTF · -7.11%", "copy": 9, "date": 1793716800}
     assert asked[0] == ("forwardMessage", {"chat_id": "@health", "from_chat_id": "@chan",
                                            "message_id": 137, "disable_notification": True})
     assert notifier.forward_telegram_message("token", "@chan", 135, "@health") == {

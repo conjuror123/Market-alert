@@ -41,7 +41,7 @@ def test_reading_stops_past_the_newest_message_and_within_its_budget(monkeypatch
                                     {"kind": "alert", "hash": "x", "first": "TTF",
                                      "at": int(NOW.timestamp()) - 3600, "after": 136}]}}
     ledger.reconcile(cfg(), state, NOW)
-    assert asked == [137, 138, 139]                 # three unused ids past the newest
+    assert asked == [137, 138]                      # two unused ids past the newest
     assert state[ledger.STATE_KEY]["pending"]       # still looked for next run
 
 

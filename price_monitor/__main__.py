@@ -180,6 +180,10 @@ def main() -> int:
         had_error = True
         error_details.append(f"Jump delivery failed ({exc})")
 
+    try:
+        found += telegram_ledger.settle_strays(cfg)
+    except Exception as exc:                     # pragma: no cover - defensive
+        log.error("Settling stray messages failed: %s", exc)
     telegram_notes = found + telegram_ledger.news()
     if telegram_notes:
         send_health("📨 <b>Telegram</b>\n" + "\n".join(f"• {quote(n)}" for n in telegram_notes),

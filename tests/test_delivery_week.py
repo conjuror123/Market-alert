@@ -3,6 +3,7 @@
 A fake channel stands in for Telegram. It holds the messages by id, so each
 test states what the reader would see, not which calls were made.
 """
+import copy
 import html
 import re
 from datetime import datetime, timedelta, timezone
@@ -47,6 +48,7 @@ class Channel:
         self.hang, self.held = 0, []
         self.hang_edit, self.held_edits = 0, []
         self.unforwardable, self.health, self.calls = set(), {}, []
+        self.clock, self.dates = 0, {}
 
     def send(self, token, chat, text, *a, **k):
         self.calls.append("send")
@@ -58,22 +60,23 @@ class Channel:
             raise TelegramUnsure("Telegram did not answer")
         return self._put(text, k.get("silent"))
 
-    def _put(self, text, silent=False):
+    def _put(self, text, silent=False, late=0):
         mid, self.next_id = self.next_id, self.next_id + 1
         self.messages[mid] = text
+        self.dates[mid] = self.clock + late
         if not silent:
             self.rang.append(text)
         return mid
 
     def publish_late(self):
-        """Telegram puts up what it held, under the next ids."""
-        ids = [self._put(text, silent) for text, silent in self.held]
+        """Telegram puts up what it held, under the next ids, half an hour on."""
+        ids = [self._put(text, silent, late=1800) for text, silent in self.held]
         self.held = []
         return ids
 
     def post(self, text):
         """Somebody else's post on the channel."""
-        return self._put(text, silent=True)
+        return self._put(text, silent=True, late=60)
 
     def edit(self, token, chat, message_id, text, *a, **k):
         self.calls.append("edit")
@@ -108,7 +111,7 @@ class Channel:
         copy = 100_000 + len(self.health) + 1
         self.health[copy] = self.messages[message_id]
         return {"state": "found", "text": as_telegram_gives_it(self.messages[message_id]),
-                "copy": copy}
+                "copy": copy, "date": self.dates.get(message_id, 0)}
 
     # what the reader sees
     def notes(self):
@@ -170,9 +173,11 @@ def run(monkeypatch, channel, readings, now, state, **over):
     the unsure sends looked for, then the delivery."""
     monkeypatch.setattr(md, "load_events", lambda c: [dict(r) for r in readings])
     config = cfg(channel, **over)
+    channel.clock = int(now.timestamp())
     ledger.reset()
     channel.found = ledger.reconcile(config, state, now)
     sent = md.maybe_deliver(config, state, now)
+    channel.found += ledger.settle_strays(config)
     channel.news = ledger.news()
     return sent
 
@@ -1095,3 +1100,51 @@ def test_without_a_health_chat_it_sends_again_as_before(monkeypatch, channel, we
     run(monkeypatch, channel, [push], run_at(0, 11), week, telegram_health_chat_id="")
     run(monkeypatch, channel, [push], run_at(0, 12), week, telegram_health_chat_id="")
     assert len(channel.pushes()) == 1
+
+
+# --- a run whose state was not saved (its commit failed) ------------------------
+# The next run starts from the state before it, knowing nothing of what it sent.
+
+def _lost(week, saved):
+    week.clear()
+    week.update(copy.deepcopy(saved))
+
+
+def test_a_lost_runs_push_is_taken_over_not_sent_again(monkeypatch, channel, week):
+    push = ev(at(0, 10), "high")
+    saved = copy.deepcopy(week)
+    run(monkeypatch, channel, [push], run_at(0, 11), week)
+    rang = len(channel.rang)
+    _lost(week, saved)
+    run(monkeypatch, channel, [push], run_at(0, 12), week)
+    assert len(channel.pushes()) == 1
+    assert channel.rings_since(rang) == []
+
+
+def test_a_lost_runs_push_corrected_since_is_replaced(monkeypatch, channel, week):
+    saved = copy.deepcopy(week)
+    run(monkeypatch, channel, [ev(at(0, 10), "high", size=6.5)], run_at(0, 11), week)
+    [stale] = [k for k, t in channel.messages.items() if t in channel.pushes()]
+    _lost(week, saved)
+    run(monkeypatch, channel, [ev(at(0, 10), "high", size=6.2)], run_at(0, 12), week)
+    assert len(channel.pushes()) == 1 and stale not in channel.messages
+    assert any(f"Deleted {stale}" in line for line in channel.found)
+
+
+def test_a_lost_runs_ping_is_taken_over_and_the_owners_post_left(monkeypatch, channel, week):
+    ping = ev(at(0, 10))
+    saved = copy.deepcopy(week)
+    run(monkeypatch, channel, [ping], run_at(0, 11), week)
+    mine = channel.post("Back on Monday")
+    rang = len(channel.rang)
+    _lost(week, saved)
+    run(monkeypatch, channel, [ping], run_at(0, 12), week)
+    assert len(channel.pings()) == 2                # the ping, and the owner's post
+    assert channel.messages[mine] == "Back on Monday"
+    assert channel.rings_since(rang) == []
+
+
+def test_a_state_started_afresh_deletes_nothing(monkeypatch, channel):
+    old = channel.post("🟨 <b>GLD</b> · Gold +1.80% · 6.0×σ")
+    run(monkeypatch, channel, [ev(OPEN - timedelta(days=3))], OPEN, {})
+    assert old in channel.messages

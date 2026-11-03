@@ -34,8 +34,16 @@ message is forwarded and its copy deleted. If the channel protects its content
 nothing can be forwarded, and every unsure send is then named on the health
 chat instead, for a hand to check (`read_ok`).
 
-What this cannot cover: a run whose state is not saved forgets its ledger with
-the rest of its state, as it forgets what it sent.
+A RUN WHOSE STATE WAS NOT SAVED (its commit failed) leaves messages the next
+run's state knows nothing of, and no ledger entry for them: the next run would
+send them all again. So every run also reads the ids just above the highest it
+knows - normally two silent "not found" answers. A message there that looks
+like the bot's own (a move's coloured square, the digest, the calendar, a
+note part) and was posted after the last run that saved its state is a STRAY:
+a message this run is about to send with the same first line takes it over
+instead (claim), and those left unclaimed once delivery has run are deleted
+(settle_strays). Nothing counts as a stray before the first such run has
+recorded its time (`saved_at`), so a state started afresh deletes nothing.
 """
 from __future__ import annotations
 
@@ -58,7 +66,7 @@ KEEP_DAYS = 7
 RECHECK_HOURS = 24
 # The reads one run may spend, and the unused ids past the newest that end them.
 PROBES_PER_RUN = 30
-MISSES_TO_STOP = 3
+MISSES_TO_STOP = 2
 
 
 class Skipped(TelegramError):
@@ -68,12 +76,16 @@ class Skipped(TelegramError):
 _down = [False]
 _bound: dict = {"ledger": None, "now": 0}
 _news: list = []
+_strays: list = []                               # this run's, until claimed or deleted
+_delivered = [False]
 
 
 def reset() -> None:
-    """A new run: the breaker closed, nothing said yet."""
+    """A new run: the breaker closed, nothing said yet, no strays."""
     _down[0] = False
     _news.clear()
+    _strays.clear()
+    _delivered[0] = False
 
 
 def down() -> bool:
@@ -132,6 +144,9 @@ def saw(message_id) -> None:
 
 
 _TAG = re.compile(r"<[^>]+>")
+# What the bot's own messages begin with, or a note part ends with.
+_OWN_START = ("⬜", "🟨", "🟧", "🟥", "📋 Digest", "📅 Economic calendar")
+_NOTE_PART = re.compile(r"part \d+ of \d+ - \d\d\.\d\d\.\d{4} to \d\d\.\d\d\.\d{4}\s*$")
 
 
 def plain(text: str) -> str:
@@ -172,6 +187,59 @@ def note_unsure(kind: str, text: str, **meta) -> "dict | None":
                  "the next runs look for it")
     log.warning("Telegram did not answer for %r: written down to be looked for", first[:60])
     return record
+
+
+def _first_line(seen: str) -> str:
+    return " ".join((seen or "").strip().split("\n", 1)[0].split())
+
+
+def _looks_own(seen: str) -> bool:
+    seen = (seen or "").strip()
+    return seen.startswith(_OWN_START) or bool(_NOTE_PART.search(seen))
+
+
+def claim(text: str) -> "int | None":
+    """A stray (see above) this run was about to send again: its id, to be taken
+    over and edited instead of sending `text`."""
+    first = _first_line(plain(text))
+    for stray in _strays:
+        if stray["first"] == first:
+            _strays.remove(stray)
+            saw(stray["id"])
+            log.info("Message %s, left by a run whose state was not saved, taken over",
+                     stray["id"])
+            return int(stray["id"])
+    return None
+
+
+def delivering() -> None:
+    """Delivery has run: what it did not claim is not wanted."""
+    _delivered[0] = True
+
+
+def settle_strays(cfg) -> "list[str]":
+    """Deletes the strays no message of this run claimed - once delivery has run
+    and so has claimed all it would - and records this run as the last that
+    can be trusted to have saved. Returns lines for the health chat."""
+    led = _bound["ledger"]
+    if led is None or not _delivered[0]:
+        return []
+    lines = []
+    for stray in list(_strays):
+        try:
+            gone = call(lambda: notifier.delete_telegram_message(
+                cfg.telegram_bot_token, cfg.telegram_chat_id, int(stray["id"])))
+        except TelegramError as exc:
+            log.warning("Could not delete stray message %s: %s", stray["id"], exc)
+            continue                             # read again by the next run
+        _strays.remove(stray)
+        led["checked"].append(int(stray["id"]))
+        if gone:
+            lines.append(f"Deleted {stray['id']} (\"{stray['first'][:60]}\"), left by a run "
+                         "whose state was not saved")
+    if not _strays:
+        led["saved_at"] = _bound["now"]
+    return lines
 
 
 def pending() -> "list[dict]":
@@ -289,7 +357,7 @@ def reconcile(cfg, state: dict, now: "datetime | None" = None) -> "list[str]":
         _self_check(cfg, state, led)
     # Not checked yet (nothing known to read back) is no reason to wait: the
     # first message read is the check.
-    if not led["pending"] or led["read_ok"] is False:
+    if led["read_ok"] is False or not (led["known"] or led["pending"]):
         if led["read_ok"] is False:
             for record in led["pending"]:
                 if not record.get("told"):
@@ -301,10 +369,13 @@ def reconcile(cfg, state: dict, now: "datetime | None" = None) -> "list[str]":
         return lines
 
     known, checked = set(led["known"]), set(led["checked"])
-    top = max(known, default=0)
-    message_id = min(int(r["after"]) for r in led["pending"]) + 1
+    top = max(known | checked, default=0)
+    # From the oldest unsure send's floor; with none, just past the newest id
+    # known - where a run whose state was lost would have left its messages.
+    message_id = (min(int(r["after"]) for r in led["pending"]) if led["pending"] else top) + 1
+    saved_at = int(led.get("saved_at") or 0)
     probes = misses = 0
-    while led["pending"] and probes < PROBES_PER_RUN:
+    while probes < PROBES_PER_RUN:
         if message_id in known or message_id in checked:
             message_id += 1
             continue
@@ -330,7 +401,13 @@ def reconcile(cfg, state: dict, now: "datetime | None" = None) -> "list[str]":
             led["read_ok"] = True
             digest = read_hash(got.get("text", ""))
             record = next((r for r in led["pending"] if r["hash"] == digest), None)
-            if record is None:
+            if record is None and saved_at and int(got.get("date") or 0) > saved_at \
+                    and _looks_own(got.get("text", "")):
+                # The bot's, posted after the last saved run: a stray, for this
+                # run to claim or, unclaimed, delete. Not marked: an unsettled
+                # stray is read again.
+                _strays.append({"id": message_id, "first": _first_line(got.get("text", ""))})
+            elif record is None:
                 checked.add(message_id)          # not ours: left alone
             else:
                 led["pending"].remove(record)

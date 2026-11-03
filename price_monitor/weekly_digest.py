@@ -396,6 +396,8 @@ def _post(cfg: Config, messages: "list[str]", week_id: str = "") -> "list[str]":
     Failures are swallowed rather than raised: the digest lives inside the
     hourly monitoring run, and a failed send must not bring the whole run down."""
     for k, text in enumerate(messages):
+        if ledger.claim(text) is not None:
+            continue                             # left by a run whose state was lost
         try:
             ledger.saw(ledger.call(lambda: send_telegram_message(
                 cfg.telegram_bot_token, cfg.telegram_chat_id, text)))
