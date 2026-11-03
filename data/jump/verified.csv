@@ -204,7 +204,7 @@ binance:XRP/USDT,1791853200,close,real,binance,"yahoo,coinbase,kraken,bitstamp,b
 binance:XRP/USDT,1792072800,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",0.027246,"0.028039,0.027661,0.027557,0.027630,0.027085,0.027873",1793664377
 binance:XRP/USDT,1792504800,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",0.025396,"0.025652,0.025503,0.026011,0.025337,0.025476,0.025899",1793664377
 binance:XRP/USDT,1793304000,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",-0.034835,"-0.034233,-0.034796,-0.034658,-0.034674,-0.034421,-0.035718",1793664377
-marketwatch:TFM=F,1793710800,close,real,marketwatch,eex,eex,-0.071085,-0.070931,1793714783
+marketwatch:TFM=F,1793710800,close,real,marketwatch,eex,eex,-0.057784,-0.057016,1793725596
 sina:AHD,1786525200,close,real,sina,wallstreetcn,wallstreetcn,-0.010778,-0.010778,1793300780
 sina:AHD,1789034400,close,real,sina,wallstreetcn,wallstreetcn,-0.016265,-0.016265,1793646371
 sina:AHD,1789603200,open,real,sina,wallstreetcn,wallstreetcn,-0.008572,-0.010112,1793646371
@@ -856,7 +856,7 @@ yahoo:CT=F,1787832000,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",0
 yahoo:CT=F,1788314400,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",-0.014495,"-0.014574,-0.014574",1791832054
 yahoo:CT=F,1789142400,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",-0.015861,"-0.017724,-0.016752",1791832054
 yahoo:CT=F,1789470000,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",-0.014710,"-0.015263,-0.015048",1791832054
-yahoo:IGLT.L,1793714400,close,real,yahoo,ft,ft,-0.004597,-0.002784,1793721989
+yahoo:IGLT.L,1793714400,close,uncertain,yahoo,ft,,-0.004597,-0.001749,1793725596
 yahoo:LE=F,1738591200,open,not_real,yahoo,"LEM25.CME,LEV25.CME",,-0.017739,"-0.006382,-0.004660",1791403338
 yahoo:LE=F,1743444000,close,not_real,yahoo,"LEM25.CME,LEV25.CME",,-0.019557,"0.000614,0.000126",1791403338
 yahoo:LE=F,1743771600,open,not_real,yahoo,LEV25.CME,,0.010929,-0.011079,1791403338
