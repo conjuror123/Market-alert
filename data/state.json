@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793729215
+    "last_run_utc": 1793732840
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -10,7 +10,7 @@
       "events": {
         "marketwatch:TFM=F|1793714400": {
           "asset": "marketwatch:TFM=F",
-          "body": "\ud83d\udfe8 <b>TTF</b> \u00b7 Dutch TTF natural gas (ICE Endex) -5.78% \u00b7 6.5\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 7 months (then 12.3\u00d7\u03c3)\n\ud83d\udd50 <b>03.11.2026 13:00 UTC</b> \u00b7 close in 3h",
+          "body": "\ud83d\udfe8 <b>TTF</b> \u00b7 Dutch TTF natural gas (ICE Endex) -5.78% \u00b7 6.5\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 7 months (then 12.3\u00d7\u03c3)\n\ud83d\udd50 <b>03.11.2026 13:00 UTC</b> \u00b7 close in 2h",
           "context": "",
           "form": "push",
           "hour": 1793710800,
@@ -23,7 +23,7 @@
           "message": 139,
           "peak": "jump:marketwatch:TFM=F:hour:1793710800",
           "ping_at": 1793718413,
-          "seen": 1793729215,
+          "seen": 1793732840,
           "shown": [
             "high",
             6.5,
@@ -57,7 +57,7 @@
           "message": 136,
           "peak": "jump:twelvedata:USD/CNH:hour:1793664000",
           "ping_at": 1793667997,
-          "seen": 1793729215,
+          "seen": 1793732840,
           "shown": [
             "noticeable",
             5.4,
@@ -91,7 +91,7 @@
           "message": null,
           "peak": null,
           "ping_at": 1793588797,
-          "seen": 1793729215,
+          "seen": 1793732840,
           "shown": [
             null,
             null,
@@ -125,20 +125,20 @@
           "members": {
             "jump:yahoo:BZ=F:hour:1793710800": [
               -0.030849058584035114,
-              0.00583521441742965
+              0.00583596846331454
             ]
           },
           "message": null,
           "peak": "jump:yahoo:BZ=F:hour:1793710800",
           "ping_at": 1793714808,
-          "seen": 1793729215,
+          "seen": 1793732840,
           "shown": [
             "noticeable",
             5.3,
             1793710800,
             -3.08
           ],
-          "size": 5.286705230897718,
+          "size": 5.286022153470374,
           "start": 1793714400,
           "story": [
             [
@@ -171,7 +171,7 @@
           "message": 140,
           "peak": "jump:yahoo:IGLT.L:hour:1793714400",
           "ping_at": 1793722007,
-          "seen": 1793729215,
+          "seen": 1793732840,
           "shown": [
             "noticeable",
             4.5,
@@ -198,7 +198,7 @@
         },
         "139": {
           "first": "\ud83d\udfe8 <b>TTF</b> \u00b7 Dutch TTF natural gas (ICE Endex) -5.78% \u00b7 6.5\u00d7\u03c3",
-          "hash": "2787ca0a0e9face8"
+          "hash": "4d8adb3bb00ed910"
         },
         "140": {
           "first": "\u2b1c <b>Gilts</b> \u00b7 UK gilts ETF (iShares Core, LSE) -0.46% \u00b7 4.5\u00d7\u03c3",
@@ -207,7 +207,7 @@
       },
       "note": {
         "hashes": [
-          "dc0237d0f5403d79"
+          "e8c6412b313d450e"
         ],
         "ids": [
           134
