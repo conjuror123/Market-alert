@@ -21,7 +21,9 @@ def _quiet(monkeypatch):
     sent = []
     from price_monitor import notifier
     monkeypatch.setattr(notifier, "send_telegram_message",
-                        lambda token, chat, text: sent.append((chat, text)) or 1)
+                        lambda token, chat, text, **k: sent.append((chat, text)) or 1)
+    monkeypatch.setattr(notifier, "forward_telegram_message",
+                        lambda *a, **k: {"state": "missing"})
     monkeypatch.setattr(entry.weekly_digest, "maybe_send_weekly_digest",
                         lambda *a, **k: 0)
     monkeypatch.setattr(entry.weekly_digest, "maybe_refresh_calendar",

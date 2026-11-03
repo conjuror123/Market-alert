@@ -73,7 +73,7 @@ def test_ops_alert_uses_the_health_chat_not_the_product_one(monkeypatch):
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "@channel")
     monkeypatch.setenv("TELEGRAM_HEALTH_CHAT_ID", "12345")
 
-    def fake_send(token, chat, text):
+    def fake_send(token, chat, text, **kwargs):
         sent.append((token, chat, text))
         return 1
 
@@ -89,7 +89,7 @@ def test_ops_alert_never_goes_to_the_channel(monkeypatch):
     monkeypatch.delenv("TELEGRAM_HEALTH_CHAT_ID", raising=False)
     monkeypatch.setattr(
         "price_monitor.notifier.send_telegram_message",
-        lambda token, chat, text: sent.append(chat) or 1)
+        lambda token, chat, text, **k: sent.append(chat) or 1)
     send_ops_alert("hello")
     assert sent == []
 
@@ -117,7 +117,7 @@ def test_a_wide_outage_fits_one_message(monkeypatch):
     from price_monitor import notifier
     sent = []
     monkeypatch.setattr(notifier, "send_telegram_message",
-                        lambda token, chat, text: sent.append(text) or 1)
+                        lambda token, chat, text, **k: sent.append(text) or 1)
     text = format_provider_failure(
         [(f"twelvedata:F{i}", "yahoo", CONNECT) for i in range(20)],
         silent={"yahoo": ["twelvedata:F1", 36], "sina": ["twelvedata:G1", 34]})
@@ -131,7 +131,7 @@ def test_a_wide_outage_fits_one_message(monkeypatch):
 def test_a_health_message_that_cannot_be_sent_does_not_raise(monkeypatch):
     from price_monitor import notifier
 
-    def refuse(token, chat, text):
+    def refuse(token, chat, text, **kwargs):
         raise notifier.TelegramError("Telegram API error 400")
 
     monkeypatch.setattr(notifier, "send_telegram_message", refuse)

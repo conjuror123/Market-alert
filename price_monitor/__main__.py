@@ -7,6 +7,10 @@ Detection lives in `jump`; this module decides nothing. Four things run:
   the pushes: they name the releases around a move on every day of the week, and
   a schedule fetched last Friday does not have the speech added on Wednesday.
 
+  the channel's unsure sends - messages Telegram may have taken without
+  answering, looked for first, so that one found is taken in rather than sent
+  again (telegram_ledger.py).
+
   the weekly calendar digest - a forecast of the coming week's scheduled
   releases, in the run that opens the week's note (after the week's last NYSE
   close, jump.routing). Once a week, a no-op every other hour (see
@@ -38,7 +42,7 @@ from datetime import datetime, timezone
 
 import requests
 
-from price_monitor import health, jump_delivery, weekly_digest
+from price_monitor import health, jump_delivery, telegram_ledger, weekly_digest
 from price_monitor.config import load_config
 from price_monitor.notifier import quote, send_health
 from price_monitor.state import CorruptState, load_state, save_state
@@ -122,6 +126,7 @@ def main() -> int:
         log.error("Refusing to run with a corrupt sent map: %s", exc)
         return 2
     session = requests.Session()
+    telegram_ledger.reset()
 
     # Hours with no run at all, which no run inside them could report. Said
     # straight away, by the first run after them, not through the streak.
@@ -131,6 +136,15 @@ def main() -> int:
     if missed:
         send_health(format_missed_runs(previous, now, missed),
                     cfg.telegram_bot_token, cfg.telegram_health_chat_id)
+
+    # Before anything goes out: a message an earlier run could not be sure of
+    # may be on the channel by now, and is then taken in, not sent again.
+    try:
+        found = telegram_ledger.reconcile(cfg, state)
+    except Exception as exc:                     # pragma: no cover - defensive
+        log.error("Looking for unsure sends failed: %s", exc)
+        found = []
+    save_state(cfg.state_path, state)
 
     had_error = False
     error_details: list[str] = []
@@ -165,6 +179,15 @@ def main() -> int:
         log.error("Jump delivery failed: %s", exc)
         had_error = True
         error_details.append(f"Jump delivery failed ({exc})")
+
+    try:
+        found += telegram_ledger.settle_strays(cfg)
+    except Exception as exc:                     # pragma: no cover - defensive
+        log.error("Settling stray messages failed: %s", exc)
+    telegram_notes = found + telegram_ledger.news()
+    if telegram_notes:
+        send_health("📨 <b>Telegram</b>\n" + "\n".join(f"• {quote(n)}" for n in telegram_notes),
+                    cfg.telegram_bot_token, cfg.telegram_health_chat_id)
 
     if jump_pipeline_crashed():
         had_error = True

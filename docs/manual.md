@@ -66,7 +66,7 @@ Local:
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q          # ~945 tests, about 1.5 minutes; run alone, several load large parquet files
+pytest -q          # ~975 tests, about 1.5 minutes; run alone, several load large parquet files
 ```
 
 Each test file also passes on its own (`pytest -q tests/test_jump_backfill.py`).
@@ -579,6 +579,39 @@ that run on.
 60 s per wait and 180 s per run (`notifier.py`). A delete Telegram refuses becomes a
 strike-through edit.
 
+**A send Telegram does not answer** (`telegram_ledger.py`) is not taken as unsent. On
+2026-11-03 two sends timed out, the run recorded them unsent, and Telegram published them
+33 minutes later; the next run's repeat was a duplicate. So only a request that never
+reached Telegram (no connection made, or refused with a 4xx) is "not sent". A read timeout,
+a dropped connection, a 5xx or an unreadable answer is "unsure":
+- Unsure sends are written down in `state["telegram_ledger"]`, with the highest channel id
+  known then. A late message takes a higher id: channel ids only grow.
+- The first unsure answer stops every further channel request of the run (the breaker), so
+  an outage costs at most one late message an hour. Health messages are not stopped. The
+  channel waits 60 s for an answer, the health chat 15 s.
+- Each run first reads the channel ids it does not know, from the lowest such id up. The Bot
+  API reads a message only by forwarding it, so each is forwarded silently to the health
+  chat, its text taken from the answer, and the copy deleted.
+- An unsure send's text found unreplaced is taken in: it is tracked and edited like any
+  message, and nothing is sent again. One already sent again is deleted, or struck through
+  after 48 h. A text that is not the bot's is left alone.
+- A week that closes, or restarts on a detector update, decides its unsure sends: a ping is
+  deleted when it appears; a push is deleted unless nothing replaced it.
+- An unsure send is looked for 7 days.
+- An unsure edit is repeated for a day, as it may land after a newer one.
+- A ping the breaker kept back goes with the next run, inside its event's 24 hours.
+- The read is checked once by forwarding a known message. If the channel protects its
+  content, each unsure send is named on the health chat for a hand to check instead.
+- A run whose state commit failed leaves messages the next run knows nothing of. So every
+  run also reads the ids just above the highest it knows; that is normally two silent "not
+  found" answers. A message there is a stray when:
+  - it looks like the bot's own: a move's square, the digest, the calendar, a note part;
+  - it was posted after the last run that saved its state (`saved_at`).
+
+  A message this run is about to send with the same first line takes the stray over and
+  edits it, instead of sending again. Once delivery has run, the strays left unclaimed are
+  deleted. With no `saved_at` yet, as on a state started afresh, nothing is deleted.
+
 **The calendar** (`weekly_digest.py`): the coming week's economic releases, Monday to
 Monday UTC, sent in the run that opens the note, at most 4 hours after its slot. After a
 longer outage the note opens with a calendar that says so. A part Telegram refuses, and
@@ -659,8 +692,9 @@ message past Telegram's 4,096 characters is cut between lines, ending "…and N 
 | pipeline, jumps (every instrument), or the step's 12 minutes | no new events | streak, named with the part it stopped in and its minutes | while it fails |
 | open months' save (refused, too, with no open months on disk: an empty archive would replace the good one) | the next run restores an older copy and fetches the difference | streak, named | while it fails |
 | delivery, calendar, digest | an exception in the monitor | streak, with the error | while it fails |
-| state commit | what the run sent and counted is lost; the next run may resend | the last step (`tools/run_died.sh`) | 1 h after the last run that delivered, then every 24 h |
+| state commit | what the run counted is lost; what it sent is taken over, or deleted when sent again, by the next run (section 8) | the last step (`tools/run_died.sh`) | 1 h after the last run that delivered, then every 24 h |
 | Telegram itself | the token revoked or Telegram down | nothing can reach the chat; the job goes red | — |
+| Telegram leaves a send unanswered | it may appear late (section 8) | "📨 Telegram": the send that may arrive late, then what became of it (taken in, or a late duplicate deleted) | when it happens |
 
 Not a health matter: a delete Telegram refuses is struck through instead, and a detector
 or basket change that changes the week's events deletes its pushes and pings once, as
@@ -729,6 +763,7 @@ health and the calendar go out, Jump's pushes, note and pings do not.
 | `price_monitor/jump_delivery.py` | messages and the week |
 | `price_monitor/weekly_digest.py`, `economic_calendar.py` | the calendar |
 | `price_monitor/notifier.py`, `health.py`, `__main__.py` | Telegram calls, health, the delivery entry point |
+| `price_monitor/telegram_ledger.py` | sends Telegram did not answer for, looked for on the channel; the breaker |
 | `price_monitor/<provider>.py` | one client per provider |
 | `tools/` | `measure.py` and `dashboard.py` (the dashboard), `stage_report.py`, `hot_bars.sh`, `run_died.sh` (the health line for a run that could not deliver), `voter_bars.py` (every live voter's bars for a measurement; the backfill's `voter-bars` mode, where the keys are) |
 

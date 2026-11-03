@@ -13,7 +13,26 @@ log = logging.getLogger("price_monitor.notifier")
 
 
 class TelegramError(RuntimeError):
-    pass
+    """Telegram did not do what was asked: refused it, or was never reached."""
+
+
+class TelegramUnsure(TelegramError):
+    """The request may have reached Telegram, but no answer said what became of
+    it: a message sent this way can still appear, at any later time.
+
+    2026-11-03 14:07: two sends timed out after 15 s, the run recorded them
+    unsent, and Telegram published both at 14:40 (ids 137 and 138) - the next
+    run's repeat was a duplicate. So only a request that certainly never
+    reached Telegram is "not sent" (_never_sent); every other failure is this,
+    and telegram_ledger finds out what happened by reading the channel."""
+
+
+# How long to wait. The channel's requests may take long when Telegram is slow,
+# and one that times out becomes "unsure", which costs a check later - so they
+# wait a minute. The health chat and the ledger's reads are only worth a short
+# wait: neither may hold up the hourly job (20 minutes in all).
+CHANNEL_TIMEOUT = (10, 60)
+SHORT_TIMEOUT = (5, 15)
 
 
 _BOT_TOKEN = re.compile(r"bot\d+:[A-Za-z0-9_-]+")
@@ -73,8 +92,53 @@ def _post(url: str, payload: dict, timeout: int):
     return resp                                  # pragma: no cover - loop returns
 
 
-def send_telegram_message(bot_token: str, chat_id: str, text: str, timeout: int = 15,
-                          silent: bool = False) -> int:
+def _never_sent(exc: requests.RequestException) -> bool:
+    """Whether a failed request certainly did not reach Telegram: no connection
+    was made at all. A read timeout, a connection dropped after the request
+    went out or an answer cut short may each have been acted on."""
+    from urllib3.exceptions import NameResolutionError, NewConnectionError
+
+    if isinstance(exc, (requests.exceptions.ConnectTimeout, requests.exceptions.SSLError)):
+        return True
+    if isinstance(exc, requests.exceptions.ConnectionError):
+        reason = exc.args[0] if exc.args else None
+        reason = getattr(reason, "reason", reason)
+        return isinstance(reason, (NewConnectionError, NameResolutionError))
+    return False
+
+
+def _failed(exc: requests.RequestException) -> TelegramError:
+    # The token is in the URL; str(exc) would put it in health/ops text.
+    if _never_sent(exc):
+        return TelegramError("Telegram request failed")
+    return TelegramUnsure("Telegram did not answer")
+
+
+def _refused(resp) -> TelegramError:
+    """A non-200 answer: a refusal (4xx), or Telegram's own trouble (5xx), after
+    which the request may still have been carried out."""
+    error = TelegramUnsure if resp.status_code >= 500 else TelegramError
+    return error(f"Telegram API error {resp.status_code}: {resp.text[:300]}")
+
+
+def _ask(url: str, payload: dict, timeout) -> dict:
+    """POST to the Bot API and return its `result`. Raises TelegramError when the
+    request certainly did nothing, TelegramUnsure when it may have."""
+    try:
+        resp = _post(url, payload, timeout)
+    except requests.RequestException as exc:
+        raise _failed(exc) from None
+    if resp.status_code != 200:
+        raise _refused(resp)
+    try:
+        return resp.json()["result"]
+    except (ValueError, KeyError, TypeError):
+        # A 200 whose body cannot be read: done, but its id is lost.
+        raise TelegramUnsure("Telegram's answer could not be read") from None
+
+
+def send_telegram_message(bot_token: str, chat_id: str, text: str,
+                          timeout=CHANNEL_TIMEOUT, silent: bool = False) -> int:
     """Send a message, returning its Telegram message_id (needed to edit it later).
 
     `silent` delivers it without a sound (disable_notification)."""
@@ -90,18 +154,15 @@ def send_telegram_message(bot_token: str, chat_id: str, text: str, timeout: int 
     }
     if silent:
         payload["disable_notification"] = True
+    result = _ask(url, payload, timeout)
     try:
-        resp = _post(url, payload, timeout)
-    except requests.RequestException:
-        # The token is in the URL; str(exc) would put it in health/ops text.
-        raise TelegramError("Telegram request failed") from None
-    if resp.status_code != 200:
-        raise TelegramError(f"Telegram API error {resp.status_code}: {resp.text[:300]}")
-    return resp.json()["result"]["message_id"]
+        return result["message_id"]
+    except (KeyError, TypeError):
+        raise TelegramUnsure("Telegram's answer carried no message id") from None
 
 
 def edit_telegram_message(
-    bot_token: str, chat_id: str, message_id: int, text: str, timeout: int = 15
+    bot_token: str, chat_id: str, message_id: int, text: str, timeout=CHANNEL_TIMEOUT
 ) -> None:
     """Replace the text of an already-sent message (used to add an explanation later)."""
     if not bot_token or not chat_id:
@@ -120,24 +181,26 @@ def edit_telegram_message(
             },
             timeout,
         )
-    except requests.RequestException:
-        raise TelegramError("Telegram request failed") from None
+    except requests.RequestException as exc:
+        raise _failed(exc) from None
     if resp.status_code != 200:
         # Telegram returns 400 when the text is already what the message says.
         # A restyle that re-renders the same string must not fail the run.
         if resp.status_code == 400 and "message is not modified" in resp.text.lower():
             return
-        raise TelegramError(f"Telegram API error {resp.status_code}: {resp.text[:300]}")
+        raise _refused(resp)
 
 
 def delete_telegram_message(
-    bot_token: str, chat_id: str, message_id: int, timeout: int = 15
+    bot_token: str, chat_id: str, message_id: int, timeout=CHANNEL_TIMEOUT
 ) -> bool:
     """Remove a message the bot sent. True if it is gone, False if it cannot be.
 
     Returns rather than raises on the expected refusals, because the caller is
     sweeping a list and one message it may no longer delete must not stop it
-    clearing the rest.
+    clearing the rest. A request that got no answer raises (TelegramError, or
+    TelegramUnsure): it said nothing about the message, and the caller tries
+    again rather than striking it through.
 
     The bot posts to a private channel where it is an administrator with
     "Delete messages" (can_delete_messages).  Telegram's Bot API limits
@@ -155,8 +218,8 @@ def delete_telegram_message(
     url = f"https://api.telegram.org/bot{bot_token}/deleteMessage"
     try:
         resp = _post(url, {"chat_id": chat_id, "message_id": message_id}, timeout)
-    except requests.RequestException:
-        return False
+    except requests.RequestException as exc:
+        raise _failed(exc) from None
     if resp.status_code == 200:
         return True
     # Already deleted, too old, or never ours: all mean "stop tracking it".
@@ -168,7 +231,49 @@ def delete_telegram_message(
         log.warning("Telegram would not delete message %s: %s",
                     message_id, redact_secrets(str(why)))
         return False
-    raise TelegramError(f"Telegram API error {resp.status_code}: {resp.text[:300]}")
+    raise _refused(resp)
+
+
+def forward_telegram_message(bot_token: str, from_chat: str, message_id: int,
+                             to_chat: str, timeout=SHORT_TIMEOUT) -> dict:
+    """Reads one message of `from_chat` by its id - the Bot API has no other
+    way: forwards it, silently, to `to_chat` and returns what the answer says.
+
+    {"state": "found", "text": its text ("" for none), "copy": the forward's
+    own id in `to_chat`, for the caller to delete, "date": when it was posted
+    (0 if Telegram does not say)}; {"state": "missing"}: no
+    message has that id (deleted, or not yet used); {"state": "unforwardable"}:
+    one that cannot be forwarded - a service message such as a pin, or every
+    message of a chat that protects its content. Raises TelegramError or
+    TelegramUnsure when Telegram did not say."""
+    if not bot_token or not from_chat or not to_chat:
+        raise TelegramError("TELEGRAM_BOT_TOKEN / the chats are not configured")
+    url = f"https://api.telegram.org/bot{bot_token}/forwardMessage"
+    payload = {"chat_id": to_chat, "from_chat_id": from_chat, "message_id": int(message_id),
+               "disable_notification": True}
+    try:
+        resp = _post(url, payload, timeout)
+    except requests.RequestException as exc:
+        raise _failed(exc) from None
+    if resp.status_code == 400:
+        why = resp.text.lower()
+        if "not found" in why:
+            return {"state": "missing"}
+        if "can't be forwarded" in why or "protected" in why:
+            return {"state": "unforwardable"}
+    if resp.status_code != 200:
+        raise _refused(resp)
+    try:
+        result = resp.json()["result"]
+        copy = int(result["message_id"])
+    except (ValueError, KeyError, TypeError):
+        raise TelegramUnsure("Telegram's answer could not be read") from None
+    origin = result.get("forward_origin") or {}
+    if origin.get("message_id") is not None and int(origin["message_id"]) != int(message_id):
+        return {"state": "missing", "copy": copy}
+    when = origin.get("date") or result.get("forward_date") or 0
+    return {"state": "found", "text": str(result.get("text") or ""), "copy": copy,
+            "date": int(when)}
 
 
 # HEALTH. Every health message goes out through send_health, and every error,
@@ -207,7 +312,7 @@ def send_health(text: str, token: "str | None" = None, chat: "str | None" = None
     while kept and len(first(kept)) > TELEGRAM_LIMIT:
         kept -= 1
     try:
-        send_telegram_message(token, chat, first(kept))
+        send_telegram_message(token, chat, first(kept), timeout=SHORT_TIMEOUT)
         return True
     except TelegramError as exc:
         log.error("Failed to send a health message: %s", exc)
