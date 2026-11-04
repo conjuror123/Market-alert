@@ -469,10 +469,21 @@ def test_the_answer_waits_for_the_bars_to_reach_the_close():
 
 # --- one instrument's error is that instrument's (F8) -------------------------
 
+def _metrics(basket, out_dir):
+    """The basket's metrics, built from the bars in git into `out_dir`. The
+    live run's own metrics are a cache no checkout has, and tests that waited
+    for them were skipped every time (2026-10-17 to 11-04)."""
+    from jump import bars, pipeline
+
+    if not all(os.path.isdir(bars.store_path(bars.DEFAULT_BARS_DIR, a.file_stem))
+               for a in basket.assets):
+        pytest.skip("needs the real bar store")
+    pipeline.write_all(basket, bars.DEFAULT_BARS_DIR, str(out_dir), ("cfg", "run"), workers=1)
+
+
 def test_an_instrument_that_fails_to_score_keeps_its_last_events(tmp_path, monkeypatch):
     # Dropped instead, delivery would read its events as gone and take its
     # messages off the channel.
-    import shutil
     from dataclasses import replace
 
     from jump.basket import load_basket
@@ -480,12 +491,8 @@ def test_an_instrument_that_fails_to_score_keeps_its_last_events(tmp_path, monke
     basket = load_basket()
     picked = [a for a in basket.instruments if a.ticker in ("SPY", "TIP")]
     assert len(picked) == 2
-    if not all(os.path.exists(os.path.join("data/jump/metrics", f"{a.file_stem}.parquet"))
-               for a in picked):
-        pytest.skip("needs the derived metrics")
-    for a in picked:
-        shutil.copy(os.path.join("data/jump/metrics", f"{a.file_stem}.parquet"), tmp_path)
     small = replace(basket, assets=tuple(picked), outside=())
+    _metrics(small, tmp_path)
     monkeypatch.setattr(jumps, "load_basket", lambda *a, **k: small)
     now = 1791300000
     whole = jumps.run(str(tmp_path), now=now, verified_path=str(tmp_path / "none.csv"))
@@ -505,7 +512,6 @@ def test_an_instrument_that_fails_to_score_keeps_its_last_events(tmp_path, monke
 def test_an_instrument_without_metrics_this_run_keeps_its_last_events(tmp_path, monkeypatch):
     # F1: missing from the table for one run, its pushes came off the channel
     # and rang again the run after.
-    import shutil
     from dataclasses import replace
 
     from jump.basket import load_basket
@@ -513,12 +519,8 @@ def test_an_instrument_without_metrics_this_run_keeps_its_last_events(tmp_path, 
     basket = load_basket()
     picked = [a for a in basket.instruments if a.ticker in ("SPY", "TIP")]
     assert len(picked) == 2
-    if not all(os.path.exists(os.path.join("data/jump/metrics", f"{a.file_stem}.parquet"))
-               for a in picked):
-        pytest.skip("needs the derived metrics")
-    for a in picked:
-        shutil.copy(os.path.join("data/jump/metrics", f"{a.file_stem}.parquet"), tmp_path)
     small = replace(basket, assets=tuple(picked), outside=())
+    _metrics(small, tmp_path)
     monkeypatch.setattr(jumps, "load_basket", lambda *a, **k: small)
     now, none = 1791300000, str(tmp_path / "none.csv")
     whole = jumps.run(str(tmp_path), now=now, verified_path=none)
