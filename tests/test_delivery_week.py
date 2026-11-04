@@ -681,22 +681,27 @@ def test_a_push_telegram_will_not_delete_is_struck_through(monkeypatch, channel,
 
 # --- a detector update --------------------------------------------------------
 
-def test_a_detector_update_restarts_the_week_under_the_same_note(monkeypatch, channel, week):
+def test_a_detector_update_keeps_the_week_and_edits_it_silently(monkeypatch, channel, week):
+    # 2026-11-04: an update deleted the week's two pushes and six pings and
+    # emptied the note's ten rows. Now what is on the channel stays, edited.
     row = ev(at(1, 10))
     push = ev(at(1, 12), "high", asset="coinbase:BTC-USD")
     run(monkeypatch, channel, [row, push], run_at(1, 13), week)
     note_id = week[md.STATE_KEY][md.WEEK]["note"]["ids"][0]
+    pushed = {m for m, t in channel.messages.items() if t in channel.pushes()}
 
     monkeypatch.setattr(jumps, "detector_version", lambda root=None: "v2")
-    fresh = ev(at(2, 9), "high")
+    fresh = ev(at(2, 9), "high", asset="binance:ETH/USDT")   # found in this run's hour
     rang = len(channel.rang)
     run(monkeypatch, channel, [row, dict(push, tier="major", z=9.0), fresh], run_at(2, 10),
         week)
+    # Only the new move rings; the push re-read as `major` is edited where it is.
     assert channel.rings_since(rang) == [md.format_push(fresh, LABELS)]
-    assert channel.pushes() == [md.format_push(fresh, LABELS)]
-    assert channel.pings() == []
+    assert pushed <= set(channel.messages)
+    assert any("BTC" in t and "9.0×σ" in t for t in channel.pushes())
+    assert len(channel.pings()) == 1                # the row's ping stays
     assert week[md.STATE_KEY][md.WEEK]["note"]["ids"][0] == note_id
-    assert "Nothing so far" in channel.messages[note_id]
+    assert "Nothing so far" not in channel.messages[note_id]
 
 
 def test_a_detector_update_that_changes_no_event_leaves_the_week_alone(
@@ -716,17 +721,20 @@ def test_a_detector_update_that_changes_no_event_leaves_the_week_alone(
     assert week[md.STATE_KEY][md.WEEK]["detector"] == "v2"
 
 
-def test_a_reading_newly_flagged_in_an_earlier_hour_is_a_changed_detector(
+def test_a_move_an_update_finds_in_hours_already_read_is_not_sent_late(
         monkeypatch, channel, week):
-    # The new detector flags a move a previous run saw unflagged: its events
-    # differ, and the week restarts rather than ringing it late.
+    # The new detector flags a move a previous run saw unflagged: it is not
+    # sent, and what is on the channel stays.
     push = ev(at(1, 12), "high", asset="coinbase:BTC-USD")
     run(monkeypatch, channel, [push], run_at(1, 13), week)
+    before = dict(channel.messages)
     monkeypatch.setattr(jumps, "detector_version", lambda root=None: "v2")
     rang = len(channel.rang)
-    run(monkeypatch, channel, [push, ev(at(1, 9))], run_at(1, 14), week)
+    run(monkeypatch, channel, [push, ev(at(1, 9)), ev(at(1, 11), "high")], run_at(1, 14), week)
+    run(monkeypatch, channel, [push, ev(at(1, 9)), ev(at(1, 11), "high")], run_at(1, 15), week)
     assert channel.rings_since(rang) == []
-    assert channel.pushes() == []
+    assert channel.pushes() == [before[m] for m in before if before[m] in channel.pushes()]
+    assert channel.pings() == []
 
 
 # --- held at the funds' close ------------------------------------------
@@ -1060,15 +1068,15 @@ def test_a_ping_that_appears_after_its_week_closed_goes_with_the_week(
     assert late[0] not in channel.messages
 
 
-def test_a_late_copy_after_a_detector_update_is_deleted_with_the_week(
-        monkeypatch, channel, week):
+def test_a_late_copy_across_a_detector_update_is_taken_in(monkeypatch, channel, week):
+    # The update keeps the week, so the push Telegram held is still its own.
     push = ev(at(0, 10), "high")
     _held(monkeypatch, channel, week, [push], run_at(0, 11))
     monkeypatch.setattr(jumps, "detector_version", lambda root=None: "v2")
     run(monkeypatch, channel, [push], run_at(0, 12), week)
     late = channel.publish_late()
     run(monkeypatch, channel, [push], run_at(0, 13), week)
-    assert late[0] not in channel.messages
+    assert late[0] in channel.messages and len(channel.pushes()) == 1
 
 
 def test_an_edit_telegram_did_not_answer_is_asserted_again(monkeypatch, channel, week):

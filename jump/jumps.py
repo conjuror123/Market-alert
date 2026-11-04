@@ -468,9 +468,9 @@ DETECTOR_DATA = (os.path.join("data", "jump", "rolls.csv"),)
 def detector_version(root: "str | None" = None) -> str:
     """A hash of what decides the set of events: the detector's code, parsed
     with docstrings stripped, and the basket and its settings, parsed so that a
-    comment does not count. A new value means the detector was updated, and
-    delivery starts the current week over from that run (see
-    price_monitor.jump_delivery)."""
+    comment does not count. A new value means the detector was updated:
+    delivery edits the week's messages to it, silently, and sends nothing for
+    hours already read (see price_monitor.jump_delivery)."""
     import hashlib
     import json
 
