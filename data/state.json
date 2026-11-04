@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793747184
+    "last_run_utc": 1793750822
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -23,7 +23,7 @@
           "message": 139,
           "peak": "jump:marketwatch:TFM=F:hour:1793710800",
           "ping_at": 1793718413,
-          "seen": 1793747184,
+          "seen": 1793750825,
           "shown": [
             "high",
             6.5,
@@ -57,7 +57,7 @@
           "message": 136,
           "peak": "jump:twelvedata:USD/CNH:hour:1793664000",
           "ping_at": 1793667997,
-          "seen": 1793747184,
+          "seen": 1793750825,
           "shown": [
             "noticeable",
             5.4,
@@ -91,7 +91,7 @@
           "message": null,
           "peak": null,
           "ping_at": 1793588797,
-          "seen": 1793747184,
+          "seen": 1793750825,
           "shown": [
             null,
             null,
@@ -131,7 +131,7 @@
           "message": null,
           "peak": "jump:yahoo:BZ=F:hour:1793710800",
           "ping_at": 1793714808,
-          "seen": 1793747184,
+          "seen": 1793750825,
           "shown": [
             "noticeable",
             5.3,
@@ -171,7 +171,7 @@
           "message": 140,
           "peak": "jump:yahoo:IGLT.L:hour:1793714400",
           "ping_at": 1793722007,
-          "seen": 1793747184,
+          "seen": 1793750825,
           "shown": [
             "noticeable",
             4.5,
@@ -218,7 +218,17 @@
       "slot": 1793390700
     }
   },
+  "telegram_ledger": {
+    "checked": [],
+    "known": [
+      140
+    ],
+    "pending": [],
+    "read_ok": true,
+    "recheck": {},
+    "saved_at": 1793750825
+  },
   "telegram_update_offset": 688283215,
-  "weekly_digest:last_refreshed": "2026-11-03",
+  "weekly_digest:last_refreshed": "2026-11-04",
   "weekly_digest:last_sent_week": "1793390700"
 }
