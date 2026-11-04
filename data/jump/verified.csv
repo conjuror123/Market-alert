@@ -205,6 +205,8 @@ binance:XRP/USDT,1792072800,close,real,binance,"yahoo,coinbase,kraken,bitstamp,b
 binance:XRP/USDT,1792504800,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",0.025396,"0.025652,0.025503,0.026011,0.025337,0.025476,0.025899",1793750776
 binance:XRP/USDT,1793304000,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",-0.034835,"-0.034233,-0.034796,-0.034658,-0.034674,-0.034421,-0.035718",1793750776
 marketwatch:TFM=F,1793710800,close,real,marketwatch,eex,eex,-0.057784,-0.057016,1793725596
+sifting:XAG/USD,1793768400,close,real,sifting,"yahoo,sina,marketwatch,wallstreetcn,tiingo","yahoo,sina,marketwatch,wallstreetcn,tiingo",0.024567,"0.024715,0.024394,0.025538,0.024600,0.024700",1793772373
+sifting:XAU/USD,1793768400,close,real,sifting,"yahoo,sina,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,sina,marketwatch,wallstreetcn,tiingo,twelvedata",0.011567,"0.012726,0.011334,0.013238,0.011479,0.011520,0.011530",1793772373
 sina:AHD,1786525200,close,real,sina,wallstreetcn,wallstreetcn,-0.010778,-0.010778,1793300780
 sina:AHD,1789034400,close,real,sina,wallstreetcn,wallstreetcn,-0.016265,-0.016265,1793732824
 sina:AHD,1789603200,open,real,sina,wallstreetcn,wallstreetcn,-0.008572,-0.010112,1793732824
@@ -222,6 +224,7 @@ sina:NID,1793581200,close,real,sina,wallstreetcn,wallstreetcn,0.012689,0.011025,
 sina:SND,1792717200,close,real,sina,wallstreetcn,wallstreetcn,-0.025290,-0.023251,1793732824
 sina:SND,1792720800,close,real,sina,wallstreetcn,wallstreetcn,0.018521,0.016483,1793732824
 sina:SND,1793757600,close,real,sina,wallstreetcn,wallstreetcn,-0.021268,-0.020566,1793761580
+sina:SND,1793768400,close,real,sina,wallstreetcn,wallstreetcn,0.024741,0.024264,1793772373
 twelvedata:ANGL,1789581600,close,real,sina,yahoo,,-0.003863,-0.004038,1791114096
 twelvedata:ANGL,1790874000,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo,marketwatch,alpaca_sip",0.003285,"0.003285,0.003285,0.003285",1791587166
 twelvedata:AUD/USD,1357099200,close,not_real,sifting,dukascopy,,0.007104,-0.001270,1791362566
@@ -851,6 +854,7 @@ twelvedata:XLY,1632142800,close,overnight,tiingo,alpaca,,-0.017921,-0.020744,179
 twelvedata:XLY,1643032800,close,overnight,tiingo,alpaca,,-0.030902,-0.020836,1791362492
 yahoo:511090.SS,1793336400,close,real,yahoo,"sina,marketwatch,wallstreetcn,tencent","sina,marketwatch,wallstreetcn,tencent",-0.003855,"-0.003946,-0.003946,-0.003855,-0.003855",1793689569
 yahoo:511090.SS,1793584800,close,real,yahoo,"sina,marketwatch,wallstreetcn,tencent","marketwatch,wallstreetcn,tencent",0.003786,",0.003769,0.003786,0.003786",1793689569
+yahoo:511090.SS,1793768400,close,real,yahoo,"sina,marketwatch,wallstreetcn,tencent","sina,marketwatch,wallstreetcn,tencent",-0.003895,"-0.003392,-0.003541,-0.003384,-0.003384",1793772373
 yahoo:BZ=F,1793710800,close,real,yahoo,"sina,marketwatch,wallstreetcn,ft","sina,marketwatch,wallstreetcn,ft",-0.030849,"-0.030156,-0.030849,-0.031335,-0.029639",1793743584
 yahoo:CC=F,1788346800,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",-0.050160,"-0.051429,-0.051429",1791828443
 yahoo:CT=F,1786550400,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",-0.013751,"-0.014355,-0.014355",1791832054
@@ -872,6 +876,7 @@ yahoo:LE=F,1762351200,open,not_real,yahoo,"LEV26.CME,LEZ26.CME,LEG27.CME,LEJ27.C
 yahoo:LE=F,1778598000,close,not_real,yahoo,"LEV26.CME,LEZ26.CME,LEG27.CME,LEJ27.CME,LEM27.CME,LEQ27.CME",,0.023924,"-0.005399,-0.005302,-0.006042,-0.006373,-0.005123,-0.002868",1791403338
 yahoo:LE=F,1778684400,close,not_real,yahoo,"LEV26.CME,LEZ26.CME,LEG27.CME,LEJ27.CME,LEM27.CME,LEQ27.CME",,0.030886,"0.005259,0.004223,0.004121,0.004346,0.003269,0.002761",1791403338
 yahoo:LE=F,1778695200,close,not_real,yahoo,"LEV26.CME,LEZ26.CME,LEG27.CME,LEJ27.CME",,-0.026943,"-0.001573,-0.001894,-0.001791,-0.001691",1791403338
+yahoo:PL=F,1793768400,close,real,yahoo,"sina,marketwatch,ft,sifting","sina,marketwatch,sifting",0.029378,"0.027485,0.028384,,0.023614",1793772373
 yahoo:SB=F,1791356400,close,real,yahoo,marketwatch,marketwatch,0.022419,0.022419,1792083986
 yahoo:SB=F,1791370800,close,real,yahoo,marketwatch,marketwatch,-0.021979,-0.021979,1792083986
 yahoo:XU100.IS,1792760400,close,real,yahoo,marketwatch,marketwatch,0.025195,0.025195,1793372775
@@ -904,8 +909,10 @@ yahoo:^BVSP,1793019600,open,real,yahoo,"marketwatch,ft","marketwatch,ft",-0.1758
 yahoo:^BVSP,1793026800,close,real,yahoo,"marketwatch,ft","marketwatch,ft",0.015548,"0.015548,0.015764",1793740011
 yahoo:^BVSP,1793041200,close,real,yahoo,"marketwatch,ft","marketwatch,ft",0.015496,"0.015496,0.011172",1793740011
 yahoo:^GSPTSE,1792072800,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,0.010311,"0.010311,",1792785976
+yahoo:^HSI,1793768400,close,uncertain,yahoo,marketwatch,,0.009611,,1793772373
 yahoo:^MXX,1793714400,open,real,yahoo,"marketwatch,ft","marketwatch,ft",0.013910,"0.013910,0.015005",1793740011
 yahoo:^N225,1793754000,close,real,yahoo,"sina,marketwatch","sina,marketwatch",-0.017979,"-0.018882,-0.018565",1793757982
+yahoo:^N225,1793768400,close,real,yahoo,"sina,marketwatch","sina,marketwatch",0.015429,"0.018996,0.014819",1793772373
 yahoo:^NSEI,1792123200,close,real,yahoo,"marketwatch,wallstreetcn","marketwatch,wallstreetcn",0.008093,"0.008494,0.008368",1792749969
 yahoo:^NSEI,1792728000,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,-0.009288,"-0.008893,",1793354769
 yahoo:^TASI.SR,1792663200,close,real,yahoo,"marketwatch,wallstreetcn","marketwatch,wallstreetcn",-0.006101,"-0.006107,-0.006161",1793275572
@@ -919,5 +926,5 @@ yahoo:^TASI.SR,1793088000,close,real,yahoo,"marketwatch,wallstreetcn",wallstreet
 yahoo:^TASI.SR,1793098800,close,real,yahoo,"marketwatch,wallstreetcn","marketwatch,wallstreetcn",-0.007586,"-0.007221,-0.007684",1793707571
 yahoo:^TASI.SR,1793174400,close,real,yahoo,"marketwatch,wallstreetcn",wallstreetcn,0.009311,",0.009018",1793707571
 yahoo:^TASI.SR,1793520000,close,uncertain,yahoo,"marketwatch,wallstreetcn",,-0.007873,",",1793707571
-yahoo:^TWII,1793674800,close,real,yahoo,"marketwatch,twse","marketwatch,twse",-0.015422,"-0.015422,-0.015422",1793685984
-yahoo:^TWII,1793764800,close,real,yahoo,"marketwatch,twse",marketwatch,0.016614,"0.016115,",1793768779
+yahoo:^TWII,1793674800,close,real,yahoo,"marketwatch,twse","marketwatch,twse",-0.015422,"-0.015422,-0.015422",1793772373
+yahoo:^TWII,1793764800,close,real,yahoo,"marketwatch,twse","marketwatch,twse",0.021800,"0.021800,0.021800",1793772373
