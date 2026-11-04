@@ -421,7 +421,10 @@ def held_at_close(metrics: pd.DataFrame, flagged: pd.DataFrame, now: int
 
     Measured in the instrument's own prices, from the price before the move to
     the last bar ending at or before the close: an hour from its open, a gap
-    from the last close before it."""
+    from the last close before it. As soon as the close has passed, from the
+    bars stored by then (the user's, 2026-11-04): a market that closes before
+    New York (TTF, the Bund, Europe's and Asia's indices) has its last bar
+    already, and a bar that comes late changes the answer on the next run."""
     from jump import routing
 
     frame = metrics.sort_values("hour_utc")
@@ -442,9 +445,7 @@ def held_at_close(metrics: pd.DataFrame, flagged: pd.DataFrame, now: int
             continue
         check[i] = close
         t = int(np.searchsorted(hours, int(hour)))
-        # Only once the bars reach the close: a store that stops short of it -
-        # a missed fetch - is not the price at the close, whatever time it is.
-        if close > now or not len(ends) or ends[-1] < close:
+        if close > now or not len(ends):
             continue
         if t >= len(hours) or hours[t] != int(hour):
             continue

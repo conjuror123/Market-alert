@@ -471,7 +471,9 @@ months under 2 years, then years.
 **Held at the close** (`held_at_close`). Every reading, a coin's and a pair's included, is
 checked at the first NYSE close after it was found (a move in the closing hour at the
 next one). `held` is the share of the move still there then: 1.0 held, 1.2 kept going,
-−0.2 reversed past its start.
+−0.2 reversed past its start. It is answered once the close has passed, from the bars
+stored by then: a market that closes earlier (TTF, the Bund, Europe's and Asia's indices)
+has its last bar already, and a bar fetched late corrects it on the next run.
 
 **Detector version** (`detector_version`): a hash of the detector's parsed code
 (`DETECTOR_CODE`: jumps, returns, pipeline, quality, routing, windows, sessions, futures),
@@ -492,7 +494,7 @@ Nearby economic events (...)
 ```
 
 The time line counts down to the close the move is checked at (`next close in 72h`), then
-shows how much held (`close 80%`); `pending` while that close's bars are late. Scheduled releases from 2 hours before the moved bar to
+shows how much held (`close 80%`). Scheduled releases from 2 hours before the moved bar to
 its close follow (a release after the close came after the move).
 
 The name after the ticker is the instrument's `label` in `config/basket.yaml`. A stock

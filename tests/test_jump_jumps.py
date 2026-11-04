@@ -458,13 +458,31 @@ def test_the_closing_hour_is_checked_at_the_next_close():
     assert np.isnan(held[0])
 
 
-def test_the_answer_waits_for_the_bars_to_reach_the_close():
+def test_a_market_closed_before_new_york_is_answered_at_the_close():
+    # TTF on 2026-11-03: its last bar ends at 17:00 UTC, the funds close at
+    # 21:00. It waited for the next morning's bar ("close pending" overnight,
+    # and on a Friday for good, the week being over by Monday).
     start = int(pd.Timestamp("2026-09-08 14:00", tz="UTC").timestamp())
-    bars = _bars(start, [0.0, 0.010, -0.002])        # the store stops at 17:00
+    bars = _bars(start, [0.0, 0.010, -0.002])        # the market shut at 17:00
     move = pd.DataFrame({"hour_utc": [start + HOUR], "found_utc": [start + 2 * HOUR],
                          "reading": ["hour"]})
-    _, held = jumps.held_at_close(bars, move, now=start + 10 * HOUR)
-    assert np.isnan(held[0])
+    _, before = jumps.held_at_close(bars, move, now=start + 5 * HOUR)
+    assert np.isnan(before[0])                       # 19:00: the close is still to come
+    _, held = jumps.held_at_close(bars, move, now=start + 6 * HOUR + 300)
+    assert held[0] == pytest.approx(0.8)
+
+
+def test_a_bar_that_comes_late_changes_the_answer():
+    # A fund's fetch missed the closing hours: what is stored is said, and the
+    # bars that arrive later correct it on the next run.
+    start = int(pd.Timestamp("2026-09-08 14:00", tz="UTC").timestamp())
+    move = pd.DataFrame({"hour_utc": [start + HOUR], "found_utc": [start + 2 * HOUR],
+                         "reading": ["hour"]})
+    short = _bars(start, [0.0, 0.010, -0.002])
+    _, first = jumps.held_at_close(short, move, now=start + 6 * HOUR + 300)
+    whole = _bars(start, [0.0, 0.010, -0.002, -0.002, 0.0, 0.0])
+    _, then = jumps.held_at_close(whole, move, now=start + 7 * HOUR + 300)
+    assert first[0] == pytest.approx(0.8) and then[0] == pytest.approx(0.6)
 
 
 # --- one instrument's error is that instrument's (F8) -------------------------
