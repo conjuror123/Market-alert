@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793808397
+    "last_run_utc": 1793812024
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -24,7 +24,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1793800800",
           "ping_at": 1793808399,
           "placed_at": 1793808399,
-          "seen": 1793808399,
+          "seen": 1793812025,
           "shown": [
             "noticeable",
             5.2,
@@ -58,7 +58,7 @@
           "message": null,
           "peak": "jump:marketwatch:TFM=F:hour:1793710800",
           "ping_at": 1793718413,
-          "seen": 1793779603,
+          "seen": 1793812025,
           "shown": [
             "high",
             6.5,
@@ -93,7 +93,7 @@
           "peak": "jump:sifting:XAG/USD:hour:1793768400",
           "ping_at": 1793772412,
           "placed_at": 1793772412,
-          "seen": 1793779603,
+          "seen": 1793812025,
           "shown": [
             "noticeable",
             4.6,
@@ -132,7 +132,7 @@
           "peak": "jump:sina:SND:hour:1793768400",
           "ping_at": 1793761600,
           "placed_at": 1793761600,
-          "seen": 1793779603,
+          "seen": 1793812025,
           "shown": [
             "noticeable",
             5.4,
@@ -173,7 +173,7 @@
           "peak": "jump:twelvedata:USD/CHF:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793779603,
+          "seen": 1793812025,
           "shown": [
             "noticeable",
             5.6,
@@ -207,7 +207,7 @@
           "message": null,
           "peak": "jump:twelvedata:USD/CNH:hour:1793664000",
           "ping_at": 1793667997,
-          "seen": 1793779603,
+          "seen": 1793812025,
           "shown": [
             "noticeable",
             5.4,
@@ -228,7 +228,7 @@
         },
         "twelvedata:USD/JPY|1793757600": {
           "asset": "twelvedata:USD/JPY",
-          "body": "\ud83d\udfe8 <b>USD/JPY</b> \u00b7 Yen -0.55% \u00b7 6.7\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 57 days (then 7.8\u00d7\u03c3)\n\ud83d\udd50 <b>04.11.2026 01:00 UTC</b> \u00b7 next close in 13h",
+          "body": "\ud83d\udfe8 <b>USD/JPY</b> \u00b7 Yen -0.55% \u00b7 6.7\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 57 days (then 7.8\u00d7\u03c3)\n\ud83d\udd50 <b>04.11.2026 01:00 UTC</b> \u00b7 next close in 4h",
           "context": "",
           "form": "push",
           "hour": 1793754000,
@@ -242,7 +242,7 @@
           "peak": "jump:twelvedata:USD/JPY:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793779603,
+          "seen": 1793812025,
           "shown": [
             "high",
             6.7,
@@ -277,7 +277,7 @@
           "peak": "jump:twelvedata:XLE:hour:1793800800",
           "ping_at": 1793808399,
           "placed_at": 1793808399,
-          "seen": 1793808399,
+          "seen": 1793812025,
           "shown": [
             "noticeable",
             5.3,
@@ -311,7 +311,7 @@
           "message": null,
           "peak": null,
           "ping_at": 1793588797,
-          "seen": 1793779603,
+          "seen": 1793812025,
           "shown": [
             null,
             null,
@@ -345,20 +345,20 @@
           "members": {
             "jump:yahoo:BZ=F:hour:1793710800": [
               -0.030849058584035114,
-              0.00583521441742965
+              0.005835324034302902
             ]
           },
           "message": null,
           "peak": "jump:yahoo:BZ=F:hour:1793710800",
           "ping_at": 1793714808,
-          "seen": 1793779603,
+          "seen": 1793812025,
           "shown": [
             "noticeable",
             5.3,
             1793710800,
             -3.08
           ],
-          "size": 5.286705230897718,
+          "size": 5.286605919857953,
           "start": 1793714400,
           "story": [
             [
@@ -376,6 +376,41 @@
           ],
           "tier": "noticeable"
         },
+        "yahoo:BZ=F|1793811600": {
+          "asset": "yahoo:BZ=F",
+          "body": "\ud83d\udfe8 <b>BZ=F</b> \u00b7 Brent crude (NYMEX) -5.12% \u00b7 8.7\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 6 months (then 8.7\u00d7\u03c3)\n\ud83d\udd50 <b>04.11.2026 16:00 UTC</b> \u00b7 close in 4h",
+          "context": "Nearby economic events (-2h+1h):\n     \ud83d\udfe0 \ud83c\uddfa\ud83c\uddf8 USD ISM Services PMI",
+          "form": "push",
+          "hour": 1793808000,
+          "members": {
+            "jump:yahoo:BZ=F:hour:1793808000": [
+              -0.051155489012100444,
+              0.005880228394891716
+            ]
+          },
+          "message": 147,
+          "peak": "jump:yahoo:BZ=F:hour:1793808000",
+          "ping_at": 1793812025,
+          "placed_at": 1793812025,
+          "seen": 1793812025,
+          "shown": [
+            "high",
+            8.7,
+            1793808000,
+            -5.12
+          ],
+          "size": 8.699575182579702,
+          "start": 1793811600,
+          "story": [
+            [
+              "high",
+              8.7,
+              1793808000,
+              ""
+            ]
+          ],
+          "tier": "high"
+        },
         "yahoo:IGLT.L|1793718000": {
           "asset": "yahoo:IGLT.L",
           "body": "\u2b1c <b>Gilts</b> \u00b7 UK gilts ETF (iShares Core, LSE) -0.46% \u00b7 4.5\u00d7\u03c3",
@@ -391,7 +426,7 @@
           "message": null,
           "peak": "jump:yahoo:IGLT.L:hour:1793714400",
           "ping_at": 1793722007,
-          "seen": 1793779603,
+          "seen": 1793812025,
           "shown": [
             "noticeable",
             4.5,
@@ -419,21 +454,21 @@
           "members": {
             "jump:yahoo:PL=F:hour:1793768400": [
               0.023239005452853533,
-              0.0047277733285495125
+              0.0047277240520536366
             ]
           },
           "message": null,
           "peak": "jump:yahoo:PL=F:hour:1793768400",
           "ping_at": 1793772412,
           "placed_at": 1793772412,
-          "seen": 1793779603,
+          "seen": 1793812025,
           "shown": [
             "noticeable",
             4.9,
             1793768400,
             2.32
           ],
-          "size": 4.915422935469559,
+          "size": 4.91547416832819,
           "start": 1793772000,
           "story": [
             [
@@ -467,7 +502,7 @@
           "peak": "jump:yahoo:^HSI:hour:1793768400",
           "ping_at": 1793779603,
           "placed_at": 1793779603,
-          "seen": 1793779603,
+          "seen": 1793812025,
           "shown": [
             "noticeable",
             4.8,
@@ -502,7 +537,7 @@
           "peak": "jump:yahoo:^N225:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793779603,
+          "seen": 1793812025,
           "shown": [
             "noticeable",
             5.5,
@@ -543,7 +578,7 @@
           "peak": "jump:yahoo:^TWII:hour:1793764800",
           "ping_at": 1793772412,
           "placed_at": 1793772412,
-          "seen": 1793779603,
+          "seen": 1793812025,
           "shown": [
             "noticeable",
             5.7,
@@ -567,11 +602,15 @@
         "146": {
           "first": "\u2b1c <b>XLE</b> \u00b7 Energy sector -2.23% \u00b7 5.3\u00d7\u03c3",
           "hash": "b55869f7ff829b63"
+        },
+        "147": {
+          "first": "\ud83d\udfe8 <b>BZ=F</b> \u00b7 Brent crude (NYMEX) -5.12% \u00b7 8.7\u00d7\u03c3",
+          "hash": "c029382beba013c4"
         }
       },
       "note": {
         "hashes": [
-          "c2bcf39b18476071"
+          "29b63602feab5dc6"
         ],
         "ids": [
           134
@@ -586,13 +625,13 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      145,
-      146
+      146,
+      147
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1793808399
+    "saved_at": 1793812025
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-04",
