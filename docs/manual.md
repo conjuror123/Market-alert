@@ -224,8 +224,9 @@ UTC run asks each day (`sessions.short_exchange_tables`): the newest library of 
 in a venv of its own, then the last major known to work if the newest fails or its hours
 differ from the table's on most of the last month (`sessions.check_agrees`); past the
 library's last day, the holidays package's exchange calendar keeps the table 60 days ahead,
-a day at a time, if it matched the table's last year within 3 weekdays
-(`sessions.package_sessions`). Nothing is raised by hand. Only if neither has the days does
+its days still to come taken again from its newest release each day, while over the year
+to today it differs from the table on 5 weekdays or fewer (`sessions.package_sessions`). A
+row up to today, or one the library vouches for, never changes. Nothing is raised by hand. Only if neither has the days does
 the table end: past its last row its usual week holds, so its holidays read as missing bars,
 and within 30 days of that, or past it, the health chat is told on Mondays.
 

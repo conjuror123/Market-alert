@@ -285,11 +285,13 @@ ends: a year only exchange-calendars 5 carries meant raising the pin, and a year
 carried meant a table run out. Now the library is the newest of any major, in a venv of its
 own (the bot's pandas stays below 3), and a major whose hours differ from the table's on most
 of its last month is set aside for the last that worked. Past the library's last day the
-holidays package (python-holidays, released monthly) fills the table 60 days ahead, a day at a
-time, so each day is written when its exchange has announced it. Over 2024-26 it lists
-Shanghai's closed weekdays exactly and Mumbai's but for closures called at short notice
-(election days: 3 in 2024, 1 in 2026); it is used only while it matches the table's last year
-within 3 weekdays. It also lists two 2026 Seoul closures the library missed (06-03, 07-17:
+holidays package (python-holidays, released monthly) fills the table 60 days ahead, and its
+days still to come are taken again from its newest release each day: an estimate written
+before the exchange announced its year (China's bridging days, in November) is corrected
+before the day comes. Over 2024-26 it lists Shanghai's closed weekdays exactly and Mumbai's but
+for closures called at short notice (election days: 3 in 2024, 1 in 2026), which it never
+adds; it is used only while it differs from the table on 5 weekdays or fewer over the year to
+today, and a release that fails changes nothing. It also lists two 2026 Seoul closures the library missed (06-03, 07-17:
 no KOSPI bars either day); the tables already written are not changed.
 
 **Each provider's calls are counted, not estimated** (the user's, 2026-10-12): the keys are
@@ -342,15 +344,18 @@ outage; once a day per source, with its instruments in one line, so a dead sourc
 stream. A rate limit is not counted: it is already named every run it stops a source. A
 failure not seen again for three days is forgotten (`verify.failing_voters`).
 
-**The FT's dates are taken off its exchange's standard time** (2026-11-04). The FT stamps a
-bar's end on the exchange's winter clock: UTC in winter, an hour late while the exchange
-keeps summer time. Read as UTC, every FT voter but São Paulo's and Mexico City's was an hour
-off from spring to autumn - Europe's to 10-25, America's to 11-01: hourly moves with the
-store 0.10–0.57 as read, 0.92–0.99 an hour back (2026-10-01 to 11-03, 14 instruments). The
-first and last bar of a day stayed put across the clock change while the session moved:
-coffee 10:00–19:00 on 10-20 and 11-03. The exchange's zone comes from the answer's
-`ExchangeId` (`ft.ZONES`); an exchange not listed is an outage. None of the 10 votes the FT
-took part in to 11-04 would have changed.
+**The FT's dates are read on its exchange's clock of the day asked** (2026-11-04). The FT
+dates a bar's end by the exchange's local clock less its offset from UTC when asked, not
+when the bar traded: after each change of clock, the bars from before it are an hour off
+for the 24 trading days it serves. Corn's WASDE hour of 2026-10-09 (−6.4%) ended at 17:00
+UTC asked on 10-16, as the vote recorded it, and at 18:00 asked on 11-04. Read as UTC, the
+summer's bars asked on 11-04 moved with the store at 0.10–0.57 (Europe's, Brent's, cocoa's)
+and about 0 (America's); on the exchange's clock, 0.87–0.99 (2026-10-01 to 11-03, 13
+instruments). The answer's offset gives the clock, its `ExchangeId` the zone (`ft.ZONES`);
+either missing is an outage. A first reading, that the FT keeps standard time all year,
+fitted the bars asked in winter but would have put every summer bar an hour early. What
+it cost: a move from before a change of clock voted after it, and the measurements of
+those weeks; none of the 10 votes the FT took part in to 11-04.
 
 **A source sees a move on its own two bars of it** (the user's, 2026-10-12): its price at the
 store's previous bar and at this one moved the same way, at least half as far. On the 58's

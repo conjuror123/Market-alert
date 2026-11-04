@@ -424,7 +424,7 @@ def main(argv: list[str] | None = None) -> int:
         until = max(load_sessions(args.out))
         for name in EXCHANGES:
             n = extend_exchange_table(name, until, library=not args.without_library)
-            print(f"{exchange_table_path(name)}: {n} trading days appended")
+            print(f"{exchange_table_path(name)}: {n} rows added or taken out")
         return 0
 
     if args.exchanges:
@@ -576,30 +576,39 @@ def previous_trading_day(day: date, name: str) -> "date | None":
 def extend_exchange_table(name: str, until: date, generate=None,
                           path: "str | None" = None, today: "date | None" = None,
                           holidays_for=None, library: bool = True) -> int:
-    """Appends an exchange's sessions after its table's last row through `until`;
-    the rows already there stay as they are (the NYSE table's rule). The calendar
-    library's first (without it, `library` False, none), then the holidays
-    package's (package_sessions) for the days the library does not know yet, up to
-    ABROAD_RETRY_DAYS from `today`."""
+    """Extends an exchange's table through `until`: the calendar library's days
+    after its last row (without it, `library` False, none), then the holidays
+    package's (package_sessions) to ABROAD_RETRY_DAYS from `today`. A row up to
+    today, or one the library vouches for, stays as it is (the NYSE table's
+    rule); the package's rows still to come follow its newest release. Returns
+    how many rows were added or taken out."""
     path = path or exchange_table_path(name)
     table, _, last = _exchange_table(path)
     if last is None or last >= until:
         return 0
+    today = today or date.today()
     new: "list[Session]" = []
+    settled = last                      # the rows through here stay
     if library:
         made = (generate or generate_exchange_sessions)(
-            name, last - timedelta(days=OVERLAP_DAYS), until)
+            name, min(last - timedelta(days=OVERLAP_DAYS), today + timedelta(days=1)), until)
         check_agrees(table, made, path)
         new = [s for s in made if s.day > last]
-    reach = max([last] + [s.day for s in new])
-    ahead = min(until, (today or date.today()) + timedelta(days=ABROAD_RETRY_DAYS))
+        # Past both today and the library's last day, the rows are the package's.
+        settled = max([today] + [s.day for s in made])
+    reach = max([settled] + [s.day for s in new])
+    ahead = min(until, today + timedelta(days=ABROAD_RETRY_DAYS))
+    rows = {**table, **{s.day: s for s in new}}
     if reach < ahead:
-        new += package_sessions(name, {**table, **{s.day: s for s in new}},
-                                reach + timedelta(days=1), ahead, holidays_for)
-    if new:
-        write_sessions(path, list(table.values()) + new)
+        package = package_sessions(name, rows, reach + timedelta(days=1), ahead, holidays_for,
+                                   checked_until=min(last, today))
+        if package is not None:
+            rows = {d: s for d, s in rows.items() if d <= reach} | {s.day: s for s in package}
+    changed = len(set(rows.items()) ^ set(table.items()))
+    if changed:
+        write_sessions(path, list(rows.values()))
         _exchange_table.cache_clear()
-    return len(new)
+    return changed
 
 
 # PAST THE LIBRARY, THE HOLIDAYS PACKAGE. exchange_calendars knows Shanghai's and
@@ -608,14 +617,16 @@ def extend_exchange_table(name: str, until: date, generate=None,
 # carries both exchanges further, its lunar festivals computed. Over 2024-26 it
 # lists the days of Shanghai's table exactly and of Mumbai's but for closures
 # called at short notice (election days: 3 in 2024, 1 in 2026, 2026-01-15). So
-# where the library stops, the days to ABROAD_RETRY_DAYS ahead come from it - a
-# day at a time, so each is written about two months before it, when the
-# exchange has announced it - if over the table's last PACKAGE_CHECK_DAYS it
-# differs from the table on no more than PACKAGE_MISMATCH_MAX weekdays. Its hours
-# are the table's usual ones (Mexico City's New York's); it knows no half
+# where the library stops, the days to ABROAD_RETRY_DAYS ahead come from it, and
+# each day still to come is taken again from its newest release every day - an
+# estimate it later corrects (China's bridging days, announced for the year in
+# November) is corrected here too, until the day itself. Only while, over the
+# year to today, it differs from the table on no more than PACKAGE_MISMATCH_MAX
+# weekdays (Mumbai's short-notice closures, 1-3 a year, it never lists). Its
+# hours are the table's usual ones (Mexico City's New York's); it knows no half
 # sessions, which neither exchange holds.
 PACKAGE_CHECK_DAYS = 365
-PACKAGE_MISMATCH_MAX = 3
+PACKAGE_MISMATCH_MAX = 5
 # The package's name for an exchange where it is not the library's.
 PACKAGE_CODES = {"XTKS": "XJPX"}
 
@@ -634,31 +645,37 @@ def _package_holidays(code: str):
 
 
 def package_sessions(name: str, table: "dict[date, Session]", start: date, end: date,
-                     holidays_for=None) -> "list[Session]":
-    """An exchange's sessions from `start` to `end` by the holidays package, or
-    none when it is missing or disagreed with the table's last year."""
+                     holidays_for=None, checked_until: "date | None" = None
+                     ) -> "list[Session] | None":
+    """An exchange's sessions from `start` to `end` by the holidays package; None
+    when it is missing, fails, or differed from the table over the year to
+    `checked_until` (default: the table's last day)."""
     import logging
     from collections import Counter
 
     log = logging.getLogger(__name__)
     holidays_for = holidays_for or _package_holidays(EXCHANGES[name][0])
     if holidays_for is None or not table or end < start:
-        return []
+        return None
     weekend = WEEKEND_DAYS.get(name, (5, 6))
 
     def weekdays(a: date, b: date) -> "list[date]":
         return [a + timedelta(days=i) for i in range((b - a).days + 1)
                 if (a + timedelta(days=i)).weekday() not in weekend]
 
-    last = max(table)
-    since = last - timedelta(days=PACKAGE_CHECK_DAYS)
-    closed = set(holidays_for(list(range(since.year, end.year + 1))))
-    differ = [d for d in weekdays(since, last) if (d in table) == (d in closed)]
+    until = min(checked_until or max(table), max(table))
+    since = max(until - timedelta(days=PACKAGE_CHECK_DAYS), min(table))
+    try:
+        closed = set(holidays_for(list(range(since.year, end.year + 1))))
+    except Exception as exc:                     # a release that broke: the table waits
+        log.warning("%s: the holidays package failed (%s); not used", name, exc)
+        return None
+    differ = [d for d in weekdays(since, until) if (d in table) == (d in closed)]
     if len(differ) > PACKAGE_MISMATCH_MAX:
         log.warning("%s: the holidays package differs from the table on %d weekdays of "
-                    "the last year (%s ...); not used", name, len(differ),
+                    "the year to %s (%s ...); not used", name, len(differ), until,
                     ", ".join(map(str, differ[:3])))
-        return []
+        return None
     recent = [table[d] for d in sorted(table)[-250:]]
     usual = Counter((s.local_open, s.local_close) for s in recent).most_common(1)[0][0]
     out = []

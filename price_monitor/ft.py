@@ -8,16 +8,19 @@ bar is dated by its END - against the stored bars, one hour on - and is stamped
 here by its start. It answers a GitHub runner as it answers here (the
 backfill's one-off ft-probe, 2026-10-10: the same bars, to the cent).
 
-THE DATES ARE ON THE EXCHANGE'S STANDARD TIME. A date is the bar's end in UTC
-while the listing's exchange keeps its winter time, and an hour later while it
-keeps summer time - the clock moved, the FT's offset did not. Its exchange
-(ExchangeId) gives the zone (ZONES), and a listing on one not there is an outage,
-not a guess. Hour by hour against the store over 2026-10-01 to 11-03: Europe's
-(the gilts fund, the FTSE, SMI, Euro Stoxx, Brent, cocoa) an hour late to
-10-23, on time from 10-26; America's (coffee, sugar, cattle, the grains,
-platinum, the Bund's Chicago index) an hour late to 10-30, on time from 11-02,
-0.93-0.99 with the store either way once moved back; Sao Paulo and Mexico City,
-which keep no summer time, on time throughout (docs/decisions.md).
+THE DATES ARE ON THE EXCHANGE'S CLOCK OF THE DAY ASKED. A date is the bar's end
+on the exchange's local clock less its offset from UTC at the time of asking
+(the answer's UtcOffsetMinutes), not at the bar's: a bar from before the
+exchange's last change of clock is an hour off, late after the autumn's, early
+after the spring's. Corn's 2026-10-09 WASDE hour, -6.4%, ended at 17:00 UTC when
+asked on 10-16 (summer, as the vote recorded it) and at 18:00 when asked on
+11-04. So the date plus the offset asked under is the local clock, read in the
+exchange's zone (ZONES, by the answer's ExchangeId); an exchange not there, or
+an answer without its offset, is an outage, not a guess. Hour by hour against
+the store over 2026-10-01 to 11-03, asked on 11-04: read as UTC, the summer's
+bars 0.10-0.57 (Europe's, Brent's, cocoa's) and about 0 (America's), read on
+the exchange's clock 0.87-0.99; Sao Paulo and Mexico City, with no summer time,
+0.97-1.00 either way (docs/decisions.md).
 
 LIVE CATTLE BY ITS CONTRACT. The FT carries each cattle contract (LCZ26:CME;
 the CME's LE, its LC) and its continuous series, which holds the nearest month:
@@ -72,7 +75,7 @@ INDICES = {"^STOXX50E": "567938", "^FTSE": "572009", "^SSMI": "567786",
 # (jump.verify).
 FUNDS = {"IGLT.L": "6141822"}
 MAX_DAYS = 24
-# Each exchange's zone, by the FT's ExchangeId: whose summer time its dates leave out.
+# Each exchange's zone, by the FT's ExchangeId: the clock its dates are read on.
 ZONES = {"LSE": "Europe/London", "FSI": "Europe/London", "IEU": "Europe/London",
          "STX": "Europe/Berlin", "SWX": "Europe/Zurich",
          "IUS": "America/New_York", "NYM": "America/New_York",
@@ -134,17 +137,18 @@ def parse(payload: dict, name: str, now: datetime | None = None) -> list[Candle]
         columns = [series[k] for k in ("Open", "High", "Low", "Close")]
     except (KeyError, IndexError, TypeError) as exc:
         raise ExchangeError(f"{name}: the FT's answer has no bars") from exc
-    exchange = element.get("ExchangeId")
-    if exchange not in ZONES:
-        raise ExchangeError(f"{name}: the FT's exchange {exchange!r} has no zone here")
-    zone = ZoneInfo(ZONES[exchange])
+    exchange, offset = element.get("ExchangeId"), element.get("UtcOffsetMinutes")
+    if exchange not in ZONES or not isinstance(offset, int):
+        raise ExchangeError(f"{name}: the FT's exchange {exchange!r} (offset {offset!r}) "
+                            "has no zone here")
+    zone, asked_under = ZoneInfo(ZONES[exchange]), timedelta(minutes=offset)
     out = []
     for i, text in enumerate(dates):
         prices = [col[i] if i < len(col) else None for col in columns]
         if any(p is None for p in prices):
             continue                             # no price that hour
-        stamped = datetime.fromisoformat(text).replace(tzinfo=timezone.utc)
-        end = int((stamped - (stamped.astimezone(zone).dst() or timedelta(0))).timestamp())
+        local = datetime.fromisoformat(text) + asked_under      # the exchange's clock
+        end = int(local.replace(tzinfo=zone).timestamp())
         if end % HOUR or end > now_ts:
             continue                             # off the hour, or not ended yet
         o, h, low, c = (float(p) for p in prices)
