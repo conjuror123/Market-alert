@@ -344,7 +344,7 @@ def check_suffix(event: dict) -> str:
     if now is None:
         return ""
     left = -int(-(check - now) // 3600)               # hours, rounded up
-    # Past the close with the bars not there yet (a missed fetch): it waits.
+    # Past the close with no answer yet (the scoring has not run since): it waits.
     return f" · {label} in {left}h" if left > 0 else f" · {label} pending"
 
 

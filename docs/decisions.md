@@ -72,6 +72,11 @@ elapsed time rounded down, so the claim stays true.
 a real fade above the noise (79% of a fund's `high` hours half held, against 95% for a
 random walk); further out a random walk alone says "gave back" for 14–26% of moves.
 
+**The close is answered from the bars stored when it passes** (the user's, 2026-11-04). It
+waited for a bar ending at the close, which a market shut before New York never has: TTF's
+push of 2026-11-03 read "close pending" overnight, and a Friday move would have read it for
+good, its week over by Monday. A late bar now corrects the answer instead.
+
 **A detector update restarts the week only if it changes the week's events**: the version
 hashes parsed code, so a comment does not count.
 
