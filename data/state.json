@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793758005
+    "last_run_utc": 1793761599
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -23,7 +23,7 @@
           "message": 139,
           "peak": "jump:marketwatch:TFM=F:hour:1793710800",
           "ping_at": 1793718413,
-          "seen": 1793758006,
+          "seen": 1793761600,
           "shown": [
             "high",
             6.5,
@@ -42,6 +42,41 @@
           ],
           "tier": "high"
         },
+        "sina:SND|1793761200": {
+          "asset": "sina:SND",
+          "body": "\u2b1c <b>SND</b> \u00b7 Tin (LME) -2.13% \u00b7 4.7\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1793757600,
+          "members": {
+            "jump:sina:SND:hour:1793757600": [
+              -0.021267600330642317,
+              0.004530791870442796
+            ]
+          },
+          "message": 143,
+          "peak": "jump:sina:SND:hour:1793757600",
+          "ping_at": 1793761600,
+          "placed_at": 1793761600,
+          "seen": 1793761600,
+          "shown": [
+            "noticeable",
+            4.7,
+            1793757600,
+            -2.13
+          ],
+          "size": 4.694013969033591,
+          "start": 1793761200,
+          "story": [
+            [
+              "noticeable",
+              4.7,
+              1793757600,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        },
         "twelvedata:USD/CHF|1793757600": {
           "asset": "twelvedata:USD/CHF",
           "body": "\u2b1c <b>USD/CHF</b> \u00b7 Franc -0.44% \u00b7 5.6\u00d7\u03c3",
@@ -58,7 +93,7 @@
           "peak": "jump:twelvedata:USD/CHF:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793758006,
+          "seen": 1793761600,
           "shown": [
             "noticeable",
             5.6,
@@ -92,7 +127,7 @@
           "message": 136,
           "peak": "jump:twelvedata:USD/CNH:hour:1793664000",
           "ping_at": 1793667997,
-          "seen": 1793758006,
+          "seen": 1793761600,
           "shown": [
             "noticeable",
             5.4,
@@ -113,7 +148,7 @@
         },
         "twelvedata:USD/JPY|1793757600": {
           "asset": "twelvedata:USD/JPY",
-          "body": "\ud83d\udfe8 <b>USD/JPY</b> \u00b7 Yen -0.55% \u00b7 6.7\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 57 days (then 7.8\u00d7\u03c3)\n\ud83d\udd50 <b>04.11.2026 01:00 UTC</b> \u00b7 next close in 19h",
+          "body": "\ud83d\udfe8 <b>USD/JPY</b> \u00b7 Yen -0.55% \u00b7 6.7\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 57 days (then 7.8\u00d7\u03c3)\n\ud83d\udd50 <b>04.11.2026 01:00 UTC</b> \u00b7 next close in 18h",
           "context": "",
           "form": "push",
           "hour": 1793754000,
@@ -127,7 +162,7 @@
           "peak": "jump:twelvedata:USD/JPY:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793758006,
+          "seen": 1793761600,
           "shown": [
             "high",
             6.7,
@@ -161,7 +196,7 @@
           "message": null,
           "peak": null,
           "ping_at": 1793588797,
-          "seen": 1793758006,
+          "seen": 1793761600,
           "shown": [
             null,
             null,
@@ -195,20 +230,20 @@
           "members": {
             "jump:yahoo:BZ=F:hour:1793710800": [
               -0.030849058584035114,
-              0.00583521441742965
+              0.00583596846331454
             ]
           },
           "message": null,
           "peak": "jump:yahoo:BZ=F:hour:1793710800",
           "ping_at": 1793714808,
-          "seen": 1793758006,
+          "seen": 1793761600,
           "shown": [
             "noticeable",
             5.3,
             1793710800,
             -3.08
           ],
-          "size": 5.286705230897718,
+          "size": 5.286022153470374,
           "start": 1793714400,
           "story": [
             [
@@ -241,7 +276,7 @@
           "message": 140,
           "peak": "jump:yahoo:IGLT.L:hour:1793714400",
           "ping_at": 1793722007,
-          "seen": 1793758006,
+          "seen": 1793761600,
           "shown": [
             "noticeable",
             4.5,
@@ -262,13 +297,13 @@
         },
         "yahoo:^N225|1793757600": {
           "asset": "yahoo:^N225",
-          "body": "\u2b1c <b>Nikkei 225</b> \u00b7 Japan -1.80% \u00b7 5.1\u00d7\u03c3",
+          "body": "\u2b1c <b>Nikkei 225</b> \u00b7 Japan -1.93% \u00b7 5.5\u00d7\u03c3",
           "context": "",
           "form": "row",
           "hour": 1793754000,
           "members": {
             "jump:yahoo:^N225:hour:1793754000": [
-              -0.017979475107615488,
+              -0.019280190351833478,
               0.003530216076936204
             ]
           },
@@ -276,14 +311,14 @@
           "peak": "jump:yahoo:^N225:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793758006,
+          "seen": 1793761600,
           "shown": [
             "noticeable",
-            5.1,
+            5.5,
             1793754000,
-            -1.8
+            -1.93
           ],
-          "size": 5.093023972407795,
+          "size": 5.461475992304224,
           "start": 1793757600,
           "story": [
             [
@@ -291,6 +326,12 @@
               5.1,
               1793754000,
               ""
+            ],
+            [
+              "noticeable",
+              5.5,
+              1793754000,
+              "price corrected"
             ]
           ],
           "tier": "noticeable"
@@ -311,16 +352,20 @@
         },
         "141": {
           "first": "\ud83d\udfe8 <b>USD/JPY</b> \u00b7 Yen -0.55% \u00b7 6.7\u00d7\u03c3",
-          "hash": "f94e9aef7aeade68"
+          "hash": "e45506aa7d52776e"
         },
         "142": {
           "first": "\u2b1c <b>USD/CHF</b> \u00b7 Franc -0.44% \u00b7 5.6\u00d7\u03c3",
-          "hash": "32e951b1fc98d265"
+          "hash": "980055d1ab7dbcb6"
+        },
+        "143": {
+          "first": "\u2b1c <b>SND</b> \u00b7 Tin (LME) -2.13% \u00b7 4.7\u00d7\u03c3",
+          "hash": "7c7f436b8ec2ec13"
         }
       },
       "note": {
         "hashes": [
-          "c6400f0f5935916b"
+          "b3b900d55f1f8f2b"
         ],
         "ids": [
           134
@@ -334,14 +379,13 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      140,
-      141,
-      142
+      142,
+      143
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1793758006
+    "saved_at": 1793761600
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-04",
