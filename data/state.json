@@ -1,16 +1,16 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793754401
+    "last_run_utc": 1793758005
   },
   "floor_pending_replies": [],
   "jump_delivery": {
     "week": {
-      "detector": "942520e9fd48",
+      "detector": "0a93c5d60614",
       "events": {
         "marketwatch:TFM=F|1793714400": {
           "asset": "marketwatch:TFM=F",
-          "body": "\ud83d\udfe8 <b>TTF</b> \u00b7 Dutch TTF natural gas (ICE Endex) -5.78% \u00b7 6.5\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 7 months (then 12.3\u00d7\u03c3)\n\ud83d\udd50 <b>03.11.2026 13:00 UTC</b> \u00b7 close pending",
+          "body": "\ud83d\udfe8 <b>TTF</b> \u00b7 Dutch TTF natural gas (ICE Endex) -5.78% \u00b7 6.5\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 7 months (then 12.3\u00d7\u03c3)\n\ud83d\udd50 <b>03.11.2026 13:00 UTC</b> \u00b7 close 60%",
           "context": "",
           "form": "push",
           "hour": 1793710800,
@@ -23,7 +23,7 @@
           "message": 139,
           "peak": "jump:marketwatch:TFM=F:hour:1793710800",
           "ping_at": 1793718413,
-          "seen": 1793754402,
+          "seen": 1793758006,
           "shown": [
             "high",
             6.5,
@@ -42,6 +42,41 @@
           ],
           "tier": "high"
         },
+        "twelvedata:USD/CHF|1793757600": {
+          "asset": "twelvedata:USD/CHF",
+          "body": "\u2b1c <b>USD/CHF</b> \u00b7 Franc -0.44% \u00b7 5.6\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1793754000,
+          "members": {
+            "jump:twelvedata:USD/CHF:hour:1793754000": [
+              -0.004443880460779875,
+              0.0008001371027993513
+            ]
+          },
+          "message": 142,
+          "peak": "jump:twelvedata:USD/CHF:hour:1793754000",
+          "ping_at": 1793758006,
+          "placed_at": 1793758006,
+          "seen": 1793758006,
+          "shown": [
+            "noticeable",
+            5.6,
+            1793754000,
+            -0.44
+          ],
+          "size": 5.553898757141196,
+          "start": 1793757600,
+          "story": [
+            [
+              "noticeable",
+              5.6,
+              1793754000,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        },
         "twelvedata:USD/CNH|1793667600": {
           "asset": "twelvedata:USD/CNH",
           "body": "\u2b1c <b>USD/CNH</b> \u00b7 Offshore yuan +0.19% \u00b7 5.4\u00d7\u03c3",
@@ -57,7 +92,7 @@
           "message": 136,
           "peak": "jump:twelvedata:USD/CNH:hour:1793664000",
           "ping_at": 1793667997,
-          "seen": 1793754402,
+          "seen": 1793758006,
           "shown": [
             "noticeable",
             5.4,
@@ -76,6 +111,41 @@
           ],
           "tier": "noticeable"
         },
+        "twelvedata:USD/JPY|1793757600": {
+          "asset": "twelvedata:USD/JPY",
+          "body": "\ud83d\udfe8 <b>USD/JPY</b> \u00b7 Yen -0.55% \u00b7 6.7\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 57 days (then 7.8\u00d7\u03c3)\n\ud83d\udd50 <b>04.11.2026 01:00 UTC</b> \u00b7 next close in 19h",
+          "context": "",
+          "form": "push",
+          "hour": 1793754000,
+          "members": {
+            "jump:twelvedata:USD/JPY:hour:1793754000": [
+              -0.005466188490048408,
+              0.0008160180478528012
+            ]
+          },
+          "message": 141,
+          "peak": "jump:twelvedata:USD/JPY:hour:1793754000",
+          "ping_at": 1793758006,
+          "placed_at": 1793758006,
+          "seen": 1793758006,
+          "shown": [
+            "high",
+            6.7,
+            1793754000,
+            -0.55
+          ],
+          "size": 6.698612248137968,
+          "start": 1793757600,
+          "story": [
+            [
+              "high",
+              6.7,
+              1793754000,
+              ""
+            ]
+          ],
+          "tier": "high"
+        },
         "yahoo:511090.SS|1793588400": {
           "asset": "yahoo:511090.SS",
           "body": "\u2b1c <b>China 30Y</b> \u00b7 China 30-year government bond ETF (SSE) +0.41% \u00b7 4.6\u00d7\u03c3",
@@ -91,7 +161,7 @@
           "message": null,
           "peak": null,
           "ping_at": 1793588797,
-          "seen": 1793754402,
+          "seen": 1793758006,
           "shown": [
             null,
             null,
@@ -131,7 +201,7 @@
           "message": null,
           "peak": "jump:yahoo:BZ=F:hour:1793710800",
           "ping_at": 1793714808,
-          "seen": 1793754402,
+          "seen": 1793758006,
           "shown": [
             "noticeable",
             5.3,
@@ -171,7 +241,7 @@
           "message": 140,
           "peak": "jump:yahoo:IGLT.L:hour:1793714400",
           "ping_at": 1793722007,
-          "seen": 1793754402,
+          "seen": 1793758006,
           "shown": [
             "noticeable",
             4.5,
@@ -189,6 +259,41 @@
             ]
           ],
           "tier": "noticeable"
+        },
+        "yahoo:^N225|1793757600": {
+          "asset": "yahoo:^N225",
+          "body": "\u2b1c <b>Nikkei 225</b> \u00b7 Japan -1.80% \u00b7 5.1\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1793754000,
+          "members": {
+            "jump:yahoo:^N225:hour:1793754000": [
+              -0.017979475107615488,
+              0.003530216076936204
+            ]
+          },
+          "message": 142,
+          "peak": "jump:yahoo:^N225:hour:1793754000",
+          "ping_at": 1793758006,
+          "placed_at": 1793758006,
+          "seen": 1793758006,
+          "shown": [
+            "noticeable",
+            5.1,
+            1793754000,
+            -1.8
+          ],
+          "size": 5.093023972407795,
+          "start": 1793757600,
+          "story": [
+            [
+              "noticeable",
+              5.1,
+              1793754000,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
         }
       },
       "messages": {
@@ -198,16 +303,24 @@
         },
         "139": {
           "first": "\ud83d\udfe8 <b>TTF</b> \u00b7 Dutch TTF natural gas (ICE Endex) -5.78% \u00b7 6.5\u00d7\u03c3",
-          "hash": "35884115928764c5"
+          "hash": "175bf0c9ddd2f482"
         },
         "140": {
           "first": "\u2b1c <b>Gilts</b> \u00b7 UK gilts ETF (iShares Core, LSE) -0.46% \u00b7 4.5\u00d7\u03c3",
           "hash": "f4de082892e4c845"
+        },
+        "141": {
+          "first": "\ud83d\udfe8 <b>USD/JPY</b> \u00b7 Yen -0.55% \u00b7 6.7\u00d7\u03c3",
+          "hash": "f94e9aef7aeade68"
+        },
+        "142": {
+          "first": "\u2b1c <b>USD/CHF</b> \u00b7 Franc -0.44% \u00b7 5.6\u00d7\u03c3",
+          "hash": "32e951b1fc98d265"
         }
       },
       "note": {
         "hashes": [
-          "8ff1c3e58fc9e812"
+          "c6400f0f5935916b"
         ],
         "ids": [
           134
@@ -221,12 +334,14 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      140
+      140,
+      141,
+      142
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1793754402
+    "saved_at": 1793758006
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-04",
