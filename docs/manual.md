@@ -596,12 +596,13 @@ and appeared 33 minutes later, and the repeat was a duplicate):
   only if it was never sent again.
 - A run whose state commit failed is caught the same way. A message that looks like the
   bot's own and was posted after the last run that saved (`saved_at`) is taken over by a
-  message this run sends with the same first line, or deleted once delivery has run. A
-  state without `saved_at` deletes nothing.
+  message this run sends with the same first line, or deleted (struck through after 48 h)
+  once delivery has run through. A state without `saved_at` deletes nothing.
 - Text not the bot's is never touched. Unsure sends are looked for 7 days; an unsure edit
   is repeated for a day; a ping the breaker held goes next run.
-- The read is checked once. If the channel protects its content, unsure sends are named on
-  the health chat to check by hand.
+- The read is checked once, and weekly while it fails. If the channel protects its content,
+  unsure sends are named on the health chat to check by hand. A health chat that is the
+  channel itself is never read through.
 
 **The calendar** (`weekly_digest.py`): the coming week's economic releases, Monday to
 Monday UTC, sent in the run that opens the note, at most 4 hours after its slot. After a
