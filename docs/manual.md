@@ -75,9 +75,10 @@ Each test file also passes on its own (`pytest -q tests/test_jump_backfill.py`).
 what runs, so a push there reaches the channel at the next :05. Before pushing, run the
 tests of the files touched (`pytest -q tests/test_<module>.py`; all of them if unsure). Push
 outside :05–:15, while the hourly run works and commits its state; a `data/` file edited
-then can fail that commit (its state lost: section 9). A change that alters the week's
-events (`jump/`, `config/basket.yaml`) restarts the week: its pushes and pings are deleted
-and the events sent again, ringing again, so push those at the weekend or through `dev`. Larger changes go through `dev`, where Tests and the dashboard check them first.
+then can fail that commit (its state lost: section 9). A change to the detector's files
+(`jumps.DETECTOR_CODE`, `config/basket.yaml`) edits the week's messages to the new numbers,
+silently (section 8). Larger changes go through `dev`, where Tests and the dashboard check
+them first.
 
 **Rule.** Every run installs the newest library versions `requirements.txt` allows, so the
 majors are held: pandas and numpy below 3, pyarrow below 27 (the live run's 26.0.0 and
@@ -594,13 +595,12 @@ alerts.
 clean event has no story line. Repeated revisions or oscillations for the same hour are
 compacted into a single step.
 
-**Rule.** A detector update that changes the week's events restarts the week. When
-`detector_version()` changes, the updated detector's view of the week is compared with the
-channel first (`_same_week`): if every event on it keeps its peak at the same word and
-numbers, and no reading a previous run saw has newly become an event, only the version is
-recorded and every message stays. Otherwise every push and ping message of the week is
-deleted; the note and the calendar stay, and the week continues with what is found from
-that run on.
+**Rule.** A detector update keeps the week. When `detector_version()` changes, the week's
+messages stay and are edited to the updated numbers by the ordinary pass, silently, rarer
+included; an event the update no longer sees leaves as a corrected one does. A move it
+finds in hours the runs before it had already read (found over an hour before the update's
+run, `week["updated"]`) is not sent. Until 2026-11-04 an update that changed any event
+restarted the week, deleting every push and ping of it.
 
 **Telegram limits.** On 429 the notifier waits as told and retries up to 3 times, at most
 60 s per wait and 180 s per run (`notifier.py`). A delete Telegram refuses becomes a
@@ -619,7 +619,7 @@ and appeared 33 minutes later, and the repeat was a duplicate):
   silent "not found" answers.
 - An unsure send found there is taken in if nothing replaced it: tracked and edited, not
   sent again. If it was sent again, the late copy is deleted (struck through after 48 h).
-  A week that closes or restarts decides in advance: a late ping goes, a late push stays
+  A week that closes decides in advance: a late ping goes, a late push stays
   only if it was never sent again.
 - A run whose state commit failed is caught the same way. A message that looks like the
   bot's own and was posted after the last run that saved (`saved_at`) is taken over by a
@@ -723,9 +723,7 @@ message past Telegram's 4,096 characters is cut between lines, ending "…and N 
 | Telegram itself | the token revoked or Telegram down | nothing can reach the chat; the job goes red | — |
 | Telegram leaves a send unanswered | it may appear late (section 8) | "📨 Telegram": the send that may arrive late, then what became of it (taken in, or a late duplicate deleted) | when it happens |
 
-Not a health matter: a delete Telegram refuses is struck through instead, and a detector
-or basket change that changes the week's events deletes its pushes and pings once, as
-expected.
+Not a health matter: a delete Telegram refuses is struck through instead.
 
 The Jump steps are `continue-on-error` so delivery still runs, and the job is failed at
 the end anyway when they did not complete: the fetch only when nothing at all could be

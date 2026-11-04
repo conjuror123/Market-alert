@@ -311,7 +311,7 @@ def test_the_detector_version_ignores_comments_and_follows_the_settings(tmp_path
 def test_a_new_session_or_roll_is_a_detector_update(tmp_path):
     # Which hours a market trades and which nights are rolls decide the events
     # as surely as the score does: the metrics rebuild for them
-    # (versioning.CONFIG_INPUTS), so the week must restart for them too.
+    # (versioning.CONFIG_INPUTS), so the week is re-read for them too.
     import shutil
 
     root = tmp_path / "repo"

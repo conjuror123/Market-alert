@@ -77,8 +77,17 @@ waited for a bar ending at the close, which a market shut before New York never 
 push of 2026-11-03 read "close pending" overnight, and a Friday move would have read it for
 good, its week over by Monday. A late bar now corrects the answer instead.
 
-**A detector update restarts the week only if it changes the week's events**: the version
-hashes parsed code, so a comment does not count.
+**A detector update keeps the week** (the user's, 2026-11-04). It restarted the week when it
+changed any event: every push and ping deleted, the note emptied, the week going on from that
+run. The version hashes whole files (`jumps.DETECTOR_CODE`), so a change to the session
+tables' extension code in `sessions.py`, which decides no event, moved it; the run that
+rebuilt every metric with it read at least one of the week's events differently (the same
+check on the bars of 15:00 finds none), and on 2026-11-04 09:05 the restart deleted two
+pushes (TTF, USD/JPY) and six pings and took the note's ten rows. A deleted alert the reader has seen is worse than
+an old one edited, so an update now edits the week's messages to it, silently, rarer included;
+an event it no longer sees leaves as a corrected one does, and a move it finds in hours
+already read is not sent late. The version still hashes parsed code, so a comment does not
+count.
 
 **1,000 warm bars for incremental scoring** (`windows.WARM_BARS`, 2026-10-31): futures
 volume filter (`futures.thin`) computes a 500-bar rolling volume median. With 500 warm bars,

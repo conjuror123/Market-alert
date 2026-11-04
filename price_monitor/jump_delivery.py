@@ -883,10 +883,11 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
 #   real          nothing is added, nor for an instrument no other source
 #                 carries.
 #
-# A detector update (a new jump.jumps.detector_version) that changes the week's
-# events starts the week over at that run (_same_week decides): every alert
-# message of the week is deleted, the note stays and shows only what is found
-# from then on. One that changes none only records the version.
+# A detector update (a new jump.jumps.detector_version) keeps the week: its
+# messages are edited to the updated numbers, silently, as corrections are -
+# rarer included - and an event it no longer sees leaves as a corrected one
+# does. A move it finds in hours the runs before it had already read is not
+# sent at all (`updated`, an hour before the update's run).
 #
 # Deleting is how a message leaves; the bot is an administrator of the
 # channel and deletes its messages within Telegram's 48-hour limit. Should Telegram refuse,
@@ -1158,12 +1159,10 @@ def _close_week(cfg: Config, week: dict) -> list:
 
 
 def _week_id(week: dict, kind: str = "alert") -> dict:
-    """Which week an unsure send belongs to. The note outlives a detector
-    restart; the alerts do not."""
+    """Which week an unsure send belongs to."""
     if kind == "note":
         return {"slot": int(week["slot"])}
-    return {"slot": int(week["slot"]), "since": int(week["since"]),
-            "detector": week.get("detector")}
+    return {"slot": int(week["slot"]), "since": int(week["since"])}
 
 
 def _placed_since(tracked: dict, snap: dict, at: int) -> bool:
@@ -1176,22 +1175,20 @@ def _placed_since(tracked: dict, snap: dict, at: int) -> bool:
                for rec in tracked.values())
 
 
-def _settle(week: dict, restart: bool = False) -> None:
-    """The week closes, or restarts: what its unsure sends will be if they
-    appear later is decided now, while the week can still be read. A ping goes
-    with its week; a push stays unless something replaced it; a note part
-    stays unless the note has it already. On a restart every alert goes, as
-    the week's messages do."""
+def _settle(week: dict) -> None:
+    """The week closes: what its unsure sends will be if they appear later is
+    decided now, while the week can still be read. A ping goes with its week; a
+    push stays unless something replaced it; a note part stays unless the note
+    has it already."""
     for record in ledger.pending():
         kind = record.get("kind")
         if kind not in ("alert", "note") or "verdict" in record \
                 or record.get("week") != _week_id(week, kind):
             continue
         if kind == "note":
-            if not restart:
-                record["verdict"] = ("delete" if len(week["note"]["ids"]) > int(record["index"])
-                                     else "keep")
-        elif restart or record.get("form") == ROW:
+            record["verdict"] = ("delete" if len(week["note"]["ids"]) > int(record["index"])
+                                 else "keep")
+        elif record.get("form") == ROW:
             record["verdict"] = "delete"
         else:
             replaced = all(_placed_since(week["events"], snap, record["at"])
@@ -1248,38 +1245,6 @@ def adopt(cfg: Config, state: dict, record: dict, message_id: int) -> str:
     week["messages"][str(int(message_id))] = {"hash": record["fingerprint"],
                                               "first": record["first_html"]}
     return taken
-
-
-def _same_week(week: dict, readings: "list[dict]", now_ts: int) -> bool:
-    """Whether the updated detector says what the channel already shows about
-    this week: every event on it has the same peak reading at the same word
-    and numbers, and no reading a previous run would have seen (found over an
-    hour ago) has newly become an event. Moves found within the hour are this
-    run's news either way."""
-    groups = _group([r for r in readings if _in_week(r, week)], week)
-    for key, rec in week.get("events", {}).items():
-        if not rec.get("form"):
-            continue
-        rows = groups.get(key) or []
-        if _shown(max(rows, key=_size) if rows else None) != rec.get("shown"):
-            return False
-    return not any(_found(r) < now_ts - 3600
-                   for key, rows in groups.items() if key not in week.get("events", {})
-                   for r in rows)
-
-
-def _restart_week(cfg: Config, week: dict, version: str, now: datetime) -> None:
-    """A detector update: the week's pushes and pings are deleted, the note
-    stays, and the week continues with what is found from this run on. What
-    could not be deleted is tried again."""
-    left = [[int(message_id), rec.get("first", "")]
-            for message_id, rec in week.get("messages", {}).items()]
-    left += [list(o) for o in week.get("orphans", [])]
-    left = [[message_id, first_line] for message_id, first_line in left
-            if not _delete(cfg, message_id, first_line)]
-    _settle(week, restart=True)
-    week.update(events={}, messages={}, orphans=left, detector=version,
-                since=int(now.timestamp()) - 3600 + 1)
 
 
 def note_due(state: dict, now: datetime) -> bool:
@@ -1454,8 +1419,10 @@ def _step(week: dict, key: str, readings: "list[dict]", now_ts: int,
                      for rid, r in members.items()})
 
     if rec is None:
-        # Found now. Only an event still inside its 24 hours goes out at all.
-        if peak is None or not open_:
+        # Found now. Only an event still inside its 24 hours goes out at all, and
+        # not one a detector update found only in hours read before it.
+        if peak is None or not open_ or \
+                all(_found(r) < int(week.get("updated", 0)) for r in readings):
             return 0
         shown = _shown(peak)
         rec = {"asset": asset, "start": int(start), "form": None, "message": None,
@@ -1476,6 +1443,8 @@ def _step(week: dict, key: str, readings: "list[dict]", now_ts: int,
     rec["story"] = clean_story(rec["story"] + [new_step])
     changed = 0
     promoted = _rank(shown[0]) > _rank(shown_before)
+    # Moved only by a detector update re-reading hours it had read: news to no one.
+    reread = all(_found(r) < int(week.get("updated", 0)) for r in readings)
 
     doubt = _doubt(asset, rec["members"], doubts) if peak is None and rec.get("form") else None
     if doubt:
@@ -1487,14 +1456,15 @@ def _step(week: dict, key: str, readings: "list[dict]", now_ts: int,
     elif peak is None:
         _leave(rec)
         changed += 1
-    elif promoted and open_:
+    elif promoted and open_ and not reread:
         # Rarer inside its 24 hours: it leaves its message and rings again in
         # this run's. Only here does anything go out, so an event with nothing
         # on the channel once its 24 hours are over - corrected away - stays gone.
         fresh.append((key, rec, before))
     elif rec.get("form") == ROW and _is_push_word(shown[0]):
-        # Rarer after its 24 hours: silent. The row leaves the note and its
-        # line in the ping message becomes a push, by an edit.
+        # Rarer after its 24 hours, or by a detector update: silent. The row
+        # leaves the note and its line in the ping message becomes a push, by
+        # an edit.
         rec["form"] = PUSH
         changed += 1
     rec.update(members=snapshot, peak=str(peak["reading_id"]) if peak else None,
@@ -1706,14 +1676,16 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         week["orphans"] = left
         save_state(cfg.state_path, state)
     elif week.get("detector") != version:
-        if _same_week(week, readings, now_ts):
-            # A change to the code that moved nothing - a refactor, an error
-            # path: the week stays as it is, messages and note alike.
-            week["detector"] = version
-            log.info("Detector updated, this week's events unchanged: kept as they are")
-        else:
-            _restart_week(cfg, week, version, now)
-            log.info("Detector updated: the week restarts from this run")
+        # A DETECTOR UPDATE KEEPS THE WEEK. What is on the channel stays and is
+        # brought to the updated numbers by the ordinary pass, as any correction
+        # is - an edit, silent; an event the update no longer sees leaves as a
+        # corrected one does. A move it sees in hours the runs before it had
+        # already read is not sent late (_step). It used to restart the week,
+        # deleting every push and ping of it: on 2026-11-04 a change to
+        # sessions.py's table code took eight messages and the note's ten rows.
+        week["detector"] = version
+        week["updated"] = now_ts - 3600
+        log.info("Detector updated: the week's messages are kept, corrected where they moved")
         save_state(cfg.state_path, state)
     changed += _pass(cfg, state, week, readings, labels, calendar, now, ring)
     # Run through: whatever stray it did not claim is not wanted (a run that
