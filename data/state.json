@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793765196
+    "last_run_utc": 1793768799
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -23,7 +23,7 @@
           "message": 139,
           "peak": "jump:marketwatch:TFM=F:hour:1793710800",
           "ping_at": 1793718413,
-          "seen": 1793765197,
+          "seen": 1793768800,
           "shown": [
             "high",
             6.5,
@@ -58,7 +58,7 @@
           "peak": "jump:sina:SND:hour:1793757600",
           "ping_at": 1793761600,
           "placed_at": 1793761600,
-          "seen": 1793765197,
+          "seen": 1793768800,
           "shown": [
             "noticeable",
             4.7,
@@ -93,7 +93,7 @@
           "peak": "jump:twelvedata:USD/CHF:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793765197,
+          "seen": 1793768800,
           "shown": [
             "noticeable",
             5.6,
@@ -127,7 +127,7 @@
           "message": 136,
           "peak": "jump:twelvedata:USD/CNH:hour:1793664000",
           "ping_at": 1793667997,
-          "seen": 1793765197,
+          "seen": 1793768800,
           "shown": [
             "noticeable",
             5.4,
@@ -148,7 +148,7 @@
         },
         "twelvedata:USD/JPY|1793757600": {
           "asset": "twelvedata:USD/JPY",
-          "body": "\ud83d\udfe8 <b>USD/JPY</b> \u00b7 Yen -0.55% \u00b7 6.7\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 57 days (then 7.8\u00d7\u03c3)\n\ud83d\udd50 <b>04.11.2026 01:00 UTC</b> \u00b7 next close in 17h",
+          "body": "\ud83d\udfe8 <b>USD/JPY</b> \u00b7 Yen -0.55% \u00b7 6.7\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 57 days (then 7.8\u00d7\u03c3)\n\ud83d\udd50 <b>04.11.2026 01:00 UTC</b> \u00b7 next close in 16h",
           "context": "",
           "form": "push",
           "hour": 1793754000,
@@ -162,7 +162,7 @@
           "peak": "jump:twelvedata:USD/JPY:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793765197,
+          "seen": 1793768800,
           "shown": [
             "high",
             6.7,
@@ -196,7 +196,7 @@
           "message": null,
           "peak": null,
           "ping_at": 1793588797,
-          "seen": 1793765197,
+          "seen": 1793768800,
           "shown": [
             null,
             null,
@@ -236,7 +236,7 @@
           "message": null,
           "peak": "jump:yahoo:BZ=F:hour:1793710800",
           "ping_at": 1793714808,
-          "seen": 1793765197,
+          "seen": 1793768800,
           "shown": [
             "noticeable",
             5.3,
@@ -276,7 +276,7 @@
           "message": 140,
           "peak": "jump:yahoo:IGLT.L:hour:1793714400",
           "ping_at": 1793722007,
-          "seen": 1793765197,
+          "seen": 1793768800,
           "shown": [
             "noticeable",
             4.5,
@@ -311,7 +311,7 @@
           "peak": "jump:yahoo:^N225:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793765197,
+          "seen": 1793768800,
           "shown": [
             "noticeable",
             5.5,
@@ -352,7 +352,7 @@
         },
         "141": {
           "first": "\ud83d\udfe8 <b>USD/JPY</b> \u00b7 Yen -0.55% \u00b7 6.7\u00d7\u03c3",
-          "hash": "5393b7193f226ade"
+          "hash": "280a6206d19bec7a"
         },
         "142": {
           "first": "\u2b1c <b>USD/CHF</b> \u00b7 Franc -0.44% \u00b7 5.6\u00d7\u03c3",
@@ -365,7 +365,7 @@
       },
       "note": {
         "hashes": [
-          "bafa644ef67c1c6e"
+          "4d63ae190d8ad2ce"
         ],
         "ids": [
           134
@@ -384,7 +384,7 @@
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1793765197
+    "saved_at": 1793768800
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-04",
