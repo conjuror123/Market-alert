@@ -518,11 +518,11 @@ def tables_running_out(basket: Basket, now: "datetime | None" = None) -> "str | 
                          f"({quote(', '.join(held))})")
     if not parts:
         return None
-    return ("⚠️ <b>Session table running out</b>\n" + "; ".join(parts) + ". The calendar "
-            "library has no later year yet: past a table's end every weekday counts as "
-            "trading, so its holidays read as missing bars. Asked again each day; if only "
-            "exchange-calendars 5 carries the year, raise the pin in "
-            ".github/workflows/price-monitor.yml.")
+    return ("⚠️ <b>Session table running out</b>\n" + "; ".join(parts) + ". Neither the "
+            "calendar library nor the holidays package gave its next days: past a table's "
+            "end every weekday counts as trading, so its holidays read as missing bars. "
+            "Asked again each day; the hourly run's step \"Extend the session table\" "
+            "says why.")
 
 
 # How far back the skip looks for the newest in-session bar: more than a

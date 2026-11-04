@@ -366,9 +366,9 @@ SOURCES: "tuple[Source, ...]" = (
     # an outage (own_rolls) - and five indices. Europe's three end their last
     # hour before the closing auction that Yahoo's bar holds: 0.08-0.19 in that
     # hour, so not asked about a move in it (the user's, 2026-10-13).
-    # Its S&P Euro-Bund index has bars only at 13:00-17:00 UTC (15:00-19:00
-    # Frankfurt in summer, 14:00 on in winter if held to UTC): the Bund's
-    # 08:00-14:00 is never served, and not asked about (2026-10-13).
+    # Its S&P Euro-Bund index has bars only at 14:00-18:00 Frankfurt (13:00-17:00
+    # UTC in winter): the Bund's 08:00-14:00 is not asked about (2026-10-13, when
+    # its summer bars still read an hour late, ft.ZONES).
     Source("ft", "FT", 30, "1h",
            {**ft.SOFTS, **ft.FUTURES_CONTINUOUS, "LE=F": _ft_cattle,
             **{t: _ft_future for t in ("ZC=F", "ZW=F", "ZS=F", "PL=F")}}, own_rolls=True,

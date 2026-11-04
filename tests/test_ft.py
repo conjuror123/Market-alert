@@ -14,25 +14,51 @@ def ts(text):
     return int(datetime.strptime(text, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc).timestamp())
 
 
-def payload(dates, opens, highs, lows, closes):
-    return {"Dates": dates, "Elements": [{"ComponentSeries": [
+def payload(dates, opens, highs, lows, closes, exchange="CME"):
+    return {"Dates": dates, "Elements": [{"ExchangeId": exchange, "ComponentSeries": [
         {"Type": "Open", "Values": opens}, {"Type": "High", "Values": highs},
         {"Type": "Low", "Values": lows}, {"Type": "Close", "Values": closes}]}]}
 
 
 def test_each_bar_is_dated_by_its_end_and_stamped_here_by_its_start():
-    answer = payload(["2026-10-09T15:00:00", "2026-10-09T16:00:00", "2026-10-09T17:00:00",
-                      "2026-10-09T18:00:00"],
+    answer = payload(["2026-11-09T15:00:00", "2026-11-09T16:00:00", "2026-11-09T17:00:00",
+                      "2026-11-09T18:00:00"],
                      [240.1, 240.5, None, 241.0], [240.6, 241.0, None, 241.2],
                      [240.0, 240.4, None, 240.9], [240.5, 240.9, None, 241.1])
-    now = datetime.fromtimestamp(ts("2026-10-09 17:30"), timezone.utc)
+    now = datetime.fromtimestamp(ts("2026-11-09 17:30"), timezone.utc)
     got = ft.parse(answer, "LCZ26", now)
     # 14:00 and 15:00; 16:00 has no price, 17:00 has not ended.
-    assert [c.open_time for c in got] == [ts("2026-10-09 14:00"), ts("2026-10-09 15:00")]
+    assert [c.open_time for c in got] == [ts("2026-11-09 14:00"), ts("2026-11-09 15:00")]
     assert (got[1].open, got[1].high, got[1].low, got[1].close) == (240.5, 241.0, 240.4, 240.9)
-    assert got[1].close_time == ts("2026-10-09 16:00") and got[1].volume == 0.0
+    assert got[1].close_time == ts("2026-11-09 16:00") and got[1].volume == 0.0
     with pytest.raises(ExchangeError):
         ft.parse({"Status": 404}, "LCZ26")
+
+
+def _ends(exchange, *dates):
+    answer = payload(list(dates), *[[1.0] * len(dates)] * 4, exchange=exchange)
+    now = datetime(2027, 1, 1, tzinfo=timezone.utc)
+    return [datetime.fromtimestamp(c.close_time, timezone.utc).strftime("%m-%d %H:%M")
+            for c in ft.parse(answer, "x", now)]
+
+
+def test_a_date_is_an_hour_late_while_its_exchange_keeps_summer_time():
+    # The FTSE's last bar of 2026-10-20 (summer) and of 11-03 (winter): the
+    # session ends 16:30 London both days, 15:30 and 16:30 UTC. The FT says 17:00
+    # both times.
+    assert _ends("FSI", "2026-10-20T17:00:00", "2026-11-03T17:00:00") == [
+        "10-20 16:00", "11-03 17:00"]
+    # Coffee the same on New York's clock, which moved a week later: still an
+    # hour late on 10-28, on time on 11-03.
+    assert _ends("IUS", "2026-10-28T19:00:00", "2026-11-03T19:00:00") == [
+        "10-28 18:00", "11-03 19:00"]
+    # Sao Paulo keeps no summer time: as dated.
+    assert _ends("SAO", "2026-10-20T21:00:00") == ["10-20 21:00"]
+
+
+def test_a_listing_on_an_exchange_without_a_zone_is_an_outage():
+    with pytest.raises(ExchangeError, match="no zone"):
+        _ends("TYO", "2026-10-20T06:00:00")
 
 
 def test_a_cattle_contract_is_named_as_the_ft_names_it():

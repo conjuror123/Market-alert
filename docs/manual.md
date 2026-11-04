@@ -66,10 +66,18 @@ Local:
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q          # ~975 tests, about 1.5 minutes; run alone, several load large parquet files
+pytest -q          # ~995 tests, about 1.5 minutes; run alone, several load large parquet files
 ```
 
 Each test file also passes on its own (`pytest -q tests/test_jump_backfill.py`).
+
+**Small fixes straight to `main`.** Allowed, the user's way for a line or two: `main` is
+what runs, so a push there reaches the channel at the next :05. Before pushing, run the
+tests of the files touched (`pytest -q tests/test_<module>.py`; all of them if unsure). Push
+outside :05–:15, while the hourly run works and commits its state; a `data/` file edited
+then can fail that commit (its state lost: section 9). A change that alters the week's
+events (`jump/`, `config/basket.yaml`) restarts the week: its pushes and pings are deleted
+and the events sent again, ringing again, so push those at the weekend or through `dev`. Larger changes go through `dev`, where Tests and the dashboard check them first.
 
 **Rule.** Every run installs the newest library versions `requirements.txt` allows, so the
 majors are held: pandas and numpy below 3, pyarrow below 27 (the live run's 26.0.0 and
@@ -211,11 +219,15 @@ each have a table in the NYSE table's format (`data/jump/sessions/<exchange code
 `exchange_calendars`): the days they trade and their hours that day. The tables extend
 themselves: with under two years left, the hourly run appends the days through the end of
 the year three years ahead. A calendar whose holidays the library knows only so far ahead
-stops there (Shanghai's and Mumbai's at 2026-12-31); past a table's last row its usual week
-holds, so its holidays read as missing bars. Within 60 days of such an end the 00:00 UTC run
-asks the library each day, until a release carries the next year
-(`sessions.short_exchange_tables`); within 30, or past it, the health chat is told on
-Mondays.
+stops there (Shanghai's and Mumbai's at 2026-12-31). Within 60 days of such an end the 00:00
+UTC run asks each day (`sessions.short_exchange_tables`): the newest library of any major,
+in a venv of its own, then the last major known to work if the newest fails or its hours
+differ from the table's on most of the last month (`sessions.check_agrees`); past the
+library's last day, the holidays package's exchange calendar keeps the table 60 days ahead,
+a day at a time, if it matched the table's last year within 3 weekdays
+(`sessions.package_sessions`). Nothing is raised by hand. Only if neither has the days does
+the table end: past its last row its usual week holds, so its holidays read as missing bars,
+and within 30 days of that, or past it, the health chat is told on Mondays.
 
 **Quality gate** (`jump/quality.py`): a bar is unusable if it has no price (a removed bar)
 or a price is not positive, OHLC is inconsistent beyond half a tick, volume is negative, it
@@ -263,7 +275,7 @@ source audit's bar (`docs/decisions.md`, "Every source on every instrument").
 | coins (4, Binance) | Coinbase, Kraken (29 days back), Bitstamp, Bitfinex, Alpaca and Yahoo dollar pairs: a wick on Binance alone is real there and not the market's |
 | the UK's gilts fund (IGLT, Yahoo) | the FT's bars of the same fund (`ft.FUNDS`, by xid), but at 08:00, 15:00 and 16:00 London - its opening hour and its last two, the 16:30 auction Yahoo's: one voter, so a move it does not see is uncertain, never not real |
 | China's 30-year bond fund (511090, Yahoo) | Sina's hourly bars (`sina.CN_FUNDS`, but at 11:00, the lunch break), Wallstreetcn's half hours (`wallstreetcn.FUNDS`), MarketWatch's five trading days (`marketwatch.CN_FUNDS`), Tencent's half hours (140 days) - so its recount runs 5 days |
-| the Bund, TTF (MarketWatch) | the Bund the FT's S&P Euro-Bund futures index (`ft.FUTURES_CONTINUOUS`, bars only at 13:00-17:00 UTC, so not asked about the Bund's 08:00-14:00 Frankfurt; its own rolls); TTF EEX's own month future, the delivery month the store holds (`verify._eex_ttf`, 9 days back; its own rolls) |
+| the Bund, TTF (MarketWatch) | the Bund the FT's S&P Euro-Bund futures index (`ft.FUTURES_CONTINUOUS`, bars only at 14:00-18:00 Frankfurt, so not asked about the Bund's 08:00-14:00; its own rolls); TTF EEX's own month future, the delivery month the store holds (`verify._eex_ttf`, 9 days back; its own rolls) |
 | LME tin, nickel, aluminium, copper (Sina) | Wallstreetcn, hourly (about 170 days back, counted again for 79 days); copper also Yahoo's COMEX future (`HG=F`) |
 | the stock indices abroad (16, Yahoo, `sessions.EXCHANGES`) | MarketWatch (`marketwatch.INDICES`, 15 of them, not the CSI 300; the KOSPI 8 trading days back, `marketwatch.FRAMES`), Wallstreetcn's Sensex, Saudi and Canadian (`wallstreetcn.INDICES`), the FT's Euro Stoxx 50, FTSE 100, SMI, Bovespa and IPC (`ft.INDICES`, by xid), Naver's KOSPI, the Taiwan exchange's TAIEX, Sina's CSI 300 (`sina.fetch_cn_bars`, each bar filed under the hour its last minute falls in) and Tencent's (half hours, 140 days), Sina's Nikkei future (`NK`, about 49 days, its own rolls) |
 
@@ -644,6 +656,13 @@ day, so it doesn't age out.
 hour (`POST /repos/<owner>/<repo>/actions/workflows/price-monitor.yml/dispatches` with a
 PAT and the branch as `ref`). GitHub's `schedule:` is not used: it fires unreliably.
 
+**Watchdog.** Every other health line comes from the hourly run, so a run that never
+starts says nothing. `.github/workflows/watchdog.yml`, on GitHub's own schedule (Monday
+10:41 UTC; it does not depend on cron-job.org), reads the last committed run's time from
+`data/state.json` and, if it is more than 3 hours old, tells the health chat "The hourly
+run has stopped" (`price_monitor/watchdog.py`). A health chat it cannot reach turns its job
+red, which GitHub e-mails. It can be run by hand from the Actions tab.
+
 **Cost.** A run takes about 2–3 minutes of its 20 (2026-10-13, the first runs on 62
 instruments: the Jump step 64 s with every metric rebuilt, 42 s extended).
 
@@ -672,7 +691,8 @@ message past Telegram's 4,096 characters is cut between lines, ending "…and N 
 | trigger | no run starts | cron-job.org, if its call failed; the first run after a gap of over 90 minutes names the hours (`health.missed_runs`) | once, when runs resume |
 | checkout, setup, the open months' restore | the run stops before delivery: nothing sent or counted | the last step, with the step's name (`tools/run_died.sh`) | 1 h after the last run that delivered, then every 24 h |
 | session table extension | a table is not extended (the NYSE's under two years left, or one abroad under 60 days) | streak, named | while it fails |
-| a table abroad within 30 days of its end, or past it (the library has no later year yet) | past its end its weekdays count as trading: its holidays read as missing bars | "Session table running out", naming the table and its instruments | Mondays, 00:00 UTC |
+| a table abroad within 30 days of its end, or past it (neither the library nor the holidays package has its next days) | past its end its weekdays count as trading: its holidays read as missing bars | "Session table running out", naming the table and its instruments | Mondays, 00:00 UTC |
+| the hourly run stopped: no run committed for 3 hours (cron-job.org's job off, its token expired) | nothing is delivered, and no other health line is sent | "The hourly run has stopped", from the watchdog | Mondays, 10:41 UTC |
 | fetch: a provider's key is missing or refused | that provider's instruments are not fetched; the others are | "X is not set" / "refused the key" | every run it happens |
 | fetch: a provider fails, or Tiingo's or SiftingIO's budget is spent | its instruments keep their stored bars | "went dark" / "request budget spent" | every run it happens |
 | fetch: Yahoo refuses (429) | its instruments wait for the next run | the stale line, "refused this run", once one is behind past its limit | past its limit, then daily |
@@ -758,6 +778,7 @@ health and the calendar go out, Jump's pushes, note and pings do not.
 | `price_monitor/weekly_digest.py`, `economic_calendar.py` | the calendar |
 | `price_monitor/notifier.py`, `health.py`, `__main__.py` | Telegram calls, health, the delivery entry point |
 | `price_monitor/telegram_ledger.py` | sends Telegram did not answer for, looked for on the channel; the breaker |
+| `price_monitor/watchdog.py` | the weekly check that the hourly run still runs (`.github/workflows/watchdog.yml`) |
 | `price_monitor/<provider>.py` | one client per provider |
 | `tools/` | `measure.py` and `dashboard.py` (the dashboard), `stage_report.py`, `hot_bars.sh`, `run_died.sh` (the health line for a run that could not deliver), `voter_bars.py` (every live voter's bars for a measurement; the backfill's `voter-bars` mode, where the keys are) |
 

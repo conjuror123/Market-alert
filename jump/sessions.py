@@ -105,8 +105,7 @@ def generate_exchange_sessions(name: str, start: date, end: date) -> list[Sessio
     rows = []
     for day, row in calendar.schedule.iterrows():
         if name == "mexico_city":
-            opened = datetime.combine(day.date(), time(9, 30), tzinfo=ny).astimezone(tz)
-            closed = datetime.combine(day.date(), time(16, 0), tzinfo=ny).astimezone(tz)
+            opened, closed = _mexico_city_bounds(day.date())
         else:
             opened, closed = row["open"].tz_convert(zone), row["close"].tz_convert(zone)
             closed = closed + timedelta(minutes=CLOSING_AUCTION_MINUTES.get(name, 0))
@@ -117,6 +116,15 @@ def generate_exchange_sessions(name: str, start: date, end: date) -> list[Sessio
         usual[year] = max(set(closes), key=closes.count)
     return [Session(day=d, local_open=o, local_close=c, is_early_close=c < usual[d.year])
             for d, o, c in rows if d >= start]
+
+
+def _mexico_city_bounds(day: date) -> "tuple[datetime, datetime]":
+    """The BMV's session: New York's 09:30-16:00 in Mexico City's time."""
+    from zoneinfo import ZoneInfo
+
+    ny, tz = ZoneInfo(EXCHANGE_TZ), ZoneInfo(EXCHANGES["mexico_city"][1])
+    return (datetime.combine(day, time(9, 30), tzinfo=ny).astimezone(tz),
+            datetime.combine(day, time(16, 0), tzinfo=ny).astimezone(tz))
 
 
 def write_sessions(path: str, sessions: list[Session]) -> None:
@@ -165,11 +173,40 @@ def extend_sessions(path: str = DEFAULT_SESSIONS_PATH, today: "date | None" = No
     table = load_sessions(path)
     last = max(table)
     until = date(today.year + EXTEND_YEARS, 12, 31)
-    new = [s for s in (generate or generate_nyse_sessions)(last + timedelta(days=1), until)
-           if s.day > last]
+    made = (generate or generate_nyse_sessions)(last - timedelta(days=OVERLAP_DAYS), until)
+    check_agrees(table, made, path)
+    new = [s for s in made if s.day > last]
     if new:
         write_sessions(path, list(table.values()) + new)
     return len(new)
+
+
+# THE NEWEST LIBRARY IS TRUSTED ONLY WHERE IT AGREES. The workflow installs the
+# newest exchange_calendars, of any major, so a year a later major carries is not
+# missed (2026-11-04: nothing to raise by hand). A major that changed what its
+# schedule means would not raise; it would write wrong hours. So each extension
+# also asks for the month before the table's last row and compares the hours on
+# the days both list: more than half different, with OVERLAP_MIN_DAYS to judge
+# by, and nothing is written (CalendarDisagrees) - the workflow tries the last
+# known major instead. A holiday added or removed is not a disagreement: the
+# rows already there stay as they are either way.
+OVERLAP_DAYS = 31
+OVERLAP_MIN_DAYS = 10
+
+
+class CalendarDisagrees(RuntimeError):
+    """The calendar library's hours differ from the table's on most days both list."""
+
+
+def check_agrees(table: "dict[date, Session]", made: "list[Session]", what: str) -> None:
+    common = [s for s in made if s.day in table]
+    if len(common) < OVERLAP_MIN_DAYS:
+        return
+    differ = [s.day for s in common
+              if (s.local_open, s.local_close) != (table[s.day].local_open, table[s.day].local_close)]
+    if 2 * len(differ) > len(common):
+        raise CalendarDisagrees(f"{what}: the calendar library's hours differ from the table's "
+                                f"on {len(differ)} of {len(common)} days, from {differ[0]}")
 
 
 def load_sessions(path: str = DEFAULT_SESSIONS_PATH) -> dict[date, Session]:
@@ -369,19 +406,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--extend-if-short", action="store_true",
                         help="append the coming years when under two remain "
                              "(append-only; what the hourly workflow runs)")
+    parser.add_argument("--without-library", action="store_true",
+                        help="with --extend-if-short: the tables abroad from the holidays "
+                             "package alone (the workflow's last try, when no calendar "
+                             "library would install or agree)")
     parser.add_argument("--exchanges", action="store_true",
                         help="write the tables of the markets abroad (EXCHANGES), from "
                              "--start to the NYSE table's last day")
     args = parser.parse_args(argv)
 
     if args.extend_if_short:
-        added = extend_sessions(args.out)
-        print(f"{args.out}: {added} trading days appended" if added
-              else f"{args.out}: reaches far enough, nothing appended")
+        if not args.without_library:
+            added = extend_sessions(args.out)
+            print(f"{args.out}: {added} trading days appended" if added
+                  else f"{args.out}: reaches far enough, nothing appended")
         # The markets abroad to the same last day as the NYSE's.
         until = max(load_sessions(args.out))
         for name in EXCHANGES:
-            n = extend_exchange_table(name, until)
+            n = extend_exchange_table(name, until, library=not args.without_library)
             print(f"{exchange_table_path(name)}: {n} trading days appended")
         return 0
 
@@ -532,20 +574,104 @@ def previous_trading_day(day: date, name: str) -> "date | None":
 
 
 def extend_exchange_table(name: str, until: date, generate=None,
-                          path: "str | None" = None) -> int:
-    """Appends an exchange's sessions after its table's last row through
-    `until`; the rows already there stay as they are (the NYSE table's rule)."""
+                          path: "str | None" = None, today: "date | None" = None,
+                          holidays_for=None, library: bool = True) -> int:
+    """Appends an exchange's sessions after its table's last row through `until`;
+    the rows already there stay as they are (the NYSE table's rule). The calendar
+    library's first (without it, `library` False, none), then the holidays
+    package's (package_sessions) for the days the library does not know yet, up to
+    ABROAD_RETRY_DAYS from `today`."""
     path = path or exchange_table_path(name)
     table, _, last = _exchange_table(path)
     if last is None or last >= until:
         return 0
-    new = [s for s in (generate or generate_exchange_sessions)(name, last + timedelta(days=1),
-                                                                until)
-           if s.day > last]
+    new: "list[Session]" = []
+    if library:
+        made = (generate or generate_exchange_sessions)(
+            name, last - timedelta(days=OVERLAP_DAYS), until)
+        check_agrees(table, made, path)
+        new = [s for s in made if s.day > last]
+    reach = max([last] + [s.day for s in new])
+    ahead = min(until, (today or date.today()) + timedelta(days=ABROAD_RETRY_DAYS))
+    if reach < ahead:
+        new += package_sessions(name, {**table, **{s.day: s for s in new}},
+                                reach + timedelta(days=1), ahead, holidays_for)
     if new:
         write_sessions(path, list(table.values()) + new)
         _exchange_table.cache_clear()
     return len(new)
+
+
+# PAST THE LIBRARY, THE HOLIDAYS PACKAGE. exchange_calendars knows Shanghai's and
+# Mumbai's holidays a year at a time, as each year is announced, and only once a
+# contributor adds it; the holidays package (python-holidays, released monthly)
+# carries both exchanges further, its lunar festivals computed. Over 2024-26 it
+# lists the days of Shanghai's table exactly and of Mumbai's but for closures
+# called at short notice (election days: 3 in 2024, 1 in 2026, 2026-01-15). So
+# where the library stops, the days to ABROAD_RETRY_DAYS ahead come from it - a
+# day at a time, so each is written about two months before it, when the
+# exchange has announced it - if over the table's last PACKAGE_CHECK_DAYS it
+# differs from the table on no more than PACKAGE_MISMATCH_MAX weekdays. Its hours
+# are the table's usual ones (Mexico City's New York's); it knows no half
+# sessions, which neither exchange holds.
+PACKAGE_CHECK_DAYS = 365
+PACKAGE_MISMATCH_MAX = 3
+# The package's name for an exchange where it is not the library's.
+PACKAGE_CODES = {"XTKS": "XJPX"}
+
+
+def _package_holidays(code: str):
+    """The holidays package's closures of an exchange, by a list of years, or
+    None without the package or the exchange."""
+    try:
+        import holidays  # local import: generation only, in the workflow's own venv
+    except ImportError:
+        return None
+    code = PACKAGE_CODES.get(code, code)
+    if code not in holidays.list_supported_financial():
+        return None
+    return lambda years: holidays.financial_holidays(code, years=years)
+
+
+def package_sessions(name: str, table: "dict[date, Session]", start: date, end: date,
+                     holidays_for=None) -> "list[Session]":
+    """An exchange's sessions from `start` to `end` by the holidays package, or
+    none when it is missing or disagreed with the table's last year."""
+    import logging
+    from collections import Counter
+
+    log = logging.getLogger(__name__)
+    holidays_for = holidays_for or _package_holidays(EXCHANGES[name][0])
+    if holidays_for is None or not table or end < start:
+        return []
+    weekend = WEEKEND_DAYS.get(name, (5, 6))
+
+    def weekdays(a: date, b: date) -> "list[date]":
+        return [a + timedelta(days=i) for i in range((b - a).days + 1)
+                if (a + timedelta(days=i)).weekday() not in weekend]
+
+    last = max(table)
+    since = last - timedelta(days=PACKAGE_CHECK_DAYS)
+    closed = set(holidays_for(list(range(since.year, end.year + 1))))
+    differ = [d for d in weekdays(since, last) if (d in table) == (d in closed)]
+    if len(differ) > PACKAGE_MISMATCH_MAX:
+        log.warning("%s: the holidays package differs from the table on %d weekdays of "
+                    "the last year (%s ...); not used", name, len(differ),
+                    ", ".join(map(str, differ[:3])))
+        return []
+    recent = [table[d] for d in sorted(table)[-250:]]
+    usual = Counter((s.local_open, s.local_close) for s in recent).most_common(1)[0][0]
+    out = []
+    for day in weekdays(start, end):
+        if day in closed:
+            continue
+        if name == "mexico_city":
+            opened, closed_at = _mexico_city_bounds(day)
+            hours = (opened.strftime("%H:%M"), closed_at.strftime("%H:%M"))
+        else:
+            hours = usual
+        out.append(Session(day, hours[0], hours[1], False))
+    return out
 
 
 # THE TABLES ABROAD RUN OUT ON THEIR OWN. A market whose holidays are announced a
@@ -553,10 +679,11 @@ def extend_exchange_table(name: str, until: date, generate=None,
 # Mumbai's to 2026-12-31, exchange-calendars 4.13.2), while the NYSE table, whose
 # shortness brings the library in, runs short about once a year: a year the library
 # learned later would wait for the next. So once a table abroad is within
-# ABROAD_RETRY_DAYS of its end the library is asked once a day, until a release
-# carries the year; within ABROAD_WARN_DAYS, or past its end, the health chat is
-# told each Monday (jump.backfill.tables_running_out) - there is nothing to do but
-# wait for the release, so a daily line would be noise.
+# ABROAD_RETRY_DAYS of its end the library and the holidays package are asked once
+# a day (the package keeps it that far ahead, a day at a time, until a library
+# release carries the year); within ABROAD_WARN_DAYS, or past its end - neither
+# had the days - the health chat is told each Monday
+# (jump.backfill.tables_running_out): a daily line would be noise.
 ABROAD_RETRY_DAYS = 60
 ABROAD_WARN_DAYS = 30
 
