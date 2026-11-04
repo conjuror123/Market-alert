@@ -337,7 +337,7 @@ def test_an_exchange_table_is_extended_append_only(tmp_path):
     sessions._exchange_table.cache_clear()
     try:
         added = sessions.extend_exchange_table(
-            "tokyo", date(2026, 1, 7), path=path,
+            "tokyo", date(2026, 1, 7), path=path, today=date(2025, 10, 1),
             generate=lambda name, a, b: [sessions.Session(date(2026, 1, 5), "09:00", "15:00", False),
                                          sessions.Session(date(2026, 1, 6), "09:00", "15:30", False)])
         assert added == 1
@@ -345,6 +345,110 @@ def test_an_exchange_table_is_extended_append_only(tmp_path):
         assert table[date(2026, 1, 5)] == first and date(2026, 1, 6) in table
     finally:
         sessions._exchange_table.cache_clear()
+
+
+# Shanghai's 2026 weekday closures (the library's table) and the package's for 2027.
+SHANGHAI_2026 = {date(2026, 1, 1), date(2026, 1, 2), *[date(2026, 2, d) for d in range(16, 21)],
+                 date(2026, 2, 23), date(2026, 4, 6), *[date(2026, 5, d) for d in range(1, 6)],
+                 date(2026, 6, 19), *[date(2026, 10, d) for d in range(1, 8)]}
+SHANGHAI_2027 = {date(2027, 1, 1), *[date(2027, 2, d) for d in range(5, 13)]}
+
+
+@pytest.fixture
+def shanghai_2026(tmp_path):
+    """Shanghai's table of 2026, ending with the year, as the library leaves it."""
+    path = str(tmp_path / "xshg.csv")
+    days = [date(2026, 1, 1) + timedelta(days=i) for i in range(365)]
+    sessions.write_sessions(path, [sessions.Session(d, "09:30", "15:00", False) for d in days
+                                   if d.weekday() < 5 and d not in SHANGHAI_2026])
+    sessions._exchange_table.cache_clear()
+    yield path
+    sessions._exchange_table.cache_clear()
+
+
+def _library_to_2026(name, start, end):
+    """The library as exchange_calendars 4.13.2 is for Shanghai: nothing past 2026."""
+    days = [start + timedelta(days=i) for i in range((min(end, date(2026, 12, 31)) - start).days + 1)]
+    return [sessions.Session(d, "09:30", "15:00", False) for d in days
+            if d.weekday() < 5 and d not in SHANGHAI_2026]
+
+
+def test_a_table_the_library_stops_short_of_is_carried_on_by_the_holidays_package(
+        shanghai_2026):
+    package = lambda years: SHANGHAI_2026 | SHANGHAI_2027
+    added = sessions.extend_exchange_table(
+        "shanghai", date(2029, 12, 31), path=shanghai_2026, today=date(2026, 12, 15),
+        generate=_library_to_2026, holidays_for=package)
+    table = sessions.load_sessions(shanghai_2026)
+    # To two months ahead and no further (2027-02-13): January's 21 weekdays but
+    # New Year's Day, February's first four, then the Spring Festival's week
+    # closed; the usual hours kept.
+    assert max(table) == date(2027, 2, 4) and added == 24
+    assert date(2027, 1, 1) not in table and date(2027, 2, 8) not in table
+    assert table[date(2027, 1, 4)] == sessions.Session(date(2027, 1, 4), "09:30", "15:00", False)
+    # A day later, a day more; the library's own days stay as they were.
+    sessions.extend_exchange_table("shanghai", date(2029, 12, 31), path=shanghai_2026,
+                                   today=date(2026, 12, 18), generate=_library_to_2026,
+                                   holidays_for=package)
+    assert max(sessions.load_sessions(shanghai_2026)) == date(2027, 2, 16)
+
+
+def test_a_day_still_to_come_follows_the_packages_newest_release(shanghai_2026):
+    first = SHANGHAI_2026 | SHANGHAI_2027
+    sessions.extend_exchange_table("shanghai", date(2029, 12, 31), path=shanghai_2026,
+                                   today=date(2026, 12, 15), generate=_library_to_2026,
+                                   holidays_for=lambda years: first)
+    # A later release: 01-04 closed after all (a day already past), 01-20 closed
+    # (still to come), and the Spring Festival a day shorter, 02-12 open.
+    later = (first - {date(2027, 2, 12)}) | {date(2027, 1, 4), date(2027, 1, 20)}
+    sessions.extend_exchange_table("shanghai", date(2029, 12, 31), path=shanghai_2026,
+                                   today=date(2027, 1, 10), generate=_library_to_2026,
+                                   holidays_for=lambda years: later)
+    table = sessions.load_sessions(shanghai_2026)
+    assert date(2027, 1, 4) in table                  # past: stays as it was
+    assert date(2027, 1, 20) not in table and date(2027, 2, 12) in table
+    assert max(table) == date(2027, 3, 11)            # 60 days on
+    assert len([d for d in table if d.year == 2026]) == 243   # the library's untouched
+
+
+def test_a_package_that_fails_leaves_the_table_as_it_is(shanghai_2026):
+    def broken(years):
+        raise KeyError("XSHG")
+
+    assert sessions.extend_exchange_table(
+        "shanghai", date(2029, 12, 31), path=shanghai_2026, today=date(2026, 12, 15),
+        generate=_library_to_2026, holidays_for=broken) == 0
+    assert max(sessions.load_sessions(shanghai_2026)) == date(2026, 12, 31)
+
+
+def test_a_package_that_disagreed_with_the_last_year_is_not_used(shanghai_2026):
+    # One that knows no Chinese holiday differs on 21 weekdays of 2026.
+    assert sessions.extend_exchange_table(
+        "shanghai", date(2029, 12, 31), path=shanghai_2026, today=date(2026, 12, 15),
+        generate=_library_to_2026, holidays_for=lambda years: set()) == 0
+
+
+def test_without_the_library_the_package_alone_extends(shanghai_2026):
+    def never(*a):
+        raise AssertionError("the library must not be asked")
+
+    assert sessions.extend_exchange_table(
+        "shanghai", date(2029, 12, 31), path=shanghai_2026, today=date(2026, 12, 15),
+        generate=never, holidays_for=lambda years: SHANGHAI_2026 | SHANGHAI_2027,
+        library=False) == 24
+
+
+def test_a_library_whose_hours_differ_on_most_days_writes_nothing(shanghai_2026):
+    # A newer major that meant something else by its schedule: an hour off on
+    # every day both list.
+    def shifted(name, start, end):
+        return [sessions.Session(s.day, "10:30", "16:00", False)
+                for s in _library_to_2026(name, start, date(2027, 3, 1))]
+
+    with pytest.raises(sessions.CalendarDisagrees, match="differ"):
+        sessions.extend_exchange_table("shanghai", date(2029, 12, 31), path=shanghai_2026,
+                                       today=date(2026, 12, 15), generate=shifted)
+    assert max(sessions.load_sessions(shanghai_2026)) == date(2026, 12, 31)
 
 
 def test_the_exchange_tables_with_the_real_calendar_library():

@@ -203,6 +203,55 @@ def _days_since(start: date) -> float:
 SETTLE_HOURS = 3
 
 
+# THE LAST HOUR YAHOO LEAVES OUT. Yahoo serves Mexico's IPC (^MXX) on a fixed
+# 13:30-20:00 UTC grid the year round, in every interval; the BMV keeps New
+# York's hours, so in winter (08:30-15:00 Mexico City, 14:30-21:00 UTC) its last
+# hour, the closing auction's, never comes (2026-11-03; the FT and MarketWatch
+# to 21:00). MarketWatch serves the same prints - 18 of 18 hours that day to the
+# cent - so a closed session's hours after Yahoo's last bar are taken from it,
+# at every run whose Yahoo answer holds that session: a bar MarketWatch served
+# early is replaced as Yahoo's are (SETTLE_HOURS). Left out, that hour's move
+# fell into the night gap: over 2026-08-14 to 10-30 the last hour's σ 0.178%,
+# the gap's 0.188%, the two together 0.259% - a winter gap read against summer's
+# at 1.38 times its size. In summer Yahoo holds the whole session and nothing
+# is asked. MarketWatch out, the session ends at Yahoo's last bar, as before.
+TRAILING_FROM_MARKETWATCH = {"^MXX": "INDEX/MX//IPC"}
+
+
+def trailing_from_marketwatch(asset: Asset, candles: list, session: requests.Session,
+                              now: datetime) -> list:
+    """MarketWatch's bars for the hours of each closed session in Yahoo's answer
+    after its last bar there (TRAILING_FROM_MARKETWATCH); none when there are
+    none, or MarketWatch fails."""
+    template, hour = asset.session_template, 3600
+    served: "dict[date, int]" = {}
+    for c in candles:
+        day = _sessions.daily_session_of(c.open_time // hour * hour, template)
+        if day is not None:
+            served[day] = max(served.get(day, 0), c.open_time // hour * hour)
+    wanted: "set[int]" = set()
+    for day, last in served.items():
+        closed = _sessions.daily_session_close(day, template)
+        if closed > now.timestamp():
+            continue                      # still trading: Yahoo's next bar may come
+        opened = _sessions.daily_session_open(day, template)
+        wanted.update(h for h in range(opened // hour * hour, closed, hour)
+                      if h > last and _sessions.daily_session_of(h, template) == day)
+    if not wanted:
+        return []
+    try:
+        theirs = marketwatch.fetch_hourly(TRAILING_FROM_MARKETWATCH[asset.ticker], session, now)
+    except (ExchangeError, Unreachable) as exc:
+        log.warning("%s: MarketWatch did not give the hours Yahoo leaves out: %s",
+                    asset.asset_id, exc)
+        return []
+    got = [c for c in theirs if c.open_time in wanted and c.close_time <= now.timestamp()]
+    if got:
+        log.info("%s: %d hour(s) after Yahoo's last bar from MarketWatch", asset.asset_id,
+                 len(got))
+    return got
+
+
 def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
                   session: requests.Session, extend_history: bool = False,
                   tiingo_key: str = "",
@@ -312,6 +361,8 @@ def fetch_missing(asset: Asset, path: str, since: date, api_key: str,
             symbol=asset.ticker, interval=asset.fetch_interval, days=days,
             base_url=YAHOO_BASE_URL, session=session, end=end,
         )
+        if asset.ticker in TRAILING_FROM_MARKETWATCH and end is None:
+            candles = candles + trailing_from_marketwatch(asset, candles, session, now)
     elif provider == "marketwatch":
         # Its last nine trading days, whatever `days` asks: the Bund's from the
         # contract the store holds, and only since the session it became front
@@ -518,11 +569,11 @@ def tables_running_out(basket: Basket, now: "datetime | None" = None) -> "str | 
                          f"({quote(', '.join(held))})")
     if not parts:
         return None
-    return ("⚠️ <b>Session table running out</b>\n" + "; ".join(parts) + ". The calendar "
-            "library has no later year yet: past a table's end every weekday counts as "
-            "trading, so its holidays read as missing bars. Asked again each day; if only "
-            "exchange-calendars 5 carries the year, raise the pin in "
-            ".github/workflows/price-monitor.yml.")
+    return ("⚠️ <b>Session table running out</b>\n" + "; ".join(parts) + ". Neither the "
+            "calendar library nor the holidays package gave its next days: past a table's "
+            "end every weekday counts as trading, so its holidays read as missing bars. "
+            "Asked again each day; the hourly run's step \"Extend the session table\" "
+            "says why.")
 
 
 # How far back the skip looks for the newest in-session bar: more than a

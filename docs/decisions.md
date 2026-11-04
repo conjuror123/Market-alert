@@ -264,6 +264,16 @@ Data refuses silver and fills its gold's weekends.
 
 **Every coin is its USDT pair on Binance**: one exchange, one quote currency.
 
+**Mexico's last winter hour comes from MarketWatch** (the user's, 2026-11-04). Yahoo serves
+the IPC on a fixed 13:30-20:00 UTC grid the year round; the BMV follows New York, 14:30-21:00
+UTC from November to March, so in winter its last hour, the closing auction's, never came.
+Its move fell into the night gap instead: over 2026-08-14 to 10-30 the last hour's σ 0.178%,
+the gap's 0.188%, the two together 0.259% - each winter night read against a summer yardstick
+at 1.38 times its size, and the last hour's own moves never seen. MarketWatch serves the same
+prints as Yahoo (18 of 18 hours on 11-03 to the cent) and that hour too. Filling only that
+hour, not moving the IPC to MarketWatch: should MarketWatch break, the IPC goes on as before
+instead of going dark, and its history (Yahoo's two years) stays one feed.
+
 **A market abroad keeps its exchange's own calendar** (`exchange_calendars`): fixed hours
 fail sixteen exchanges (Tokyo's close moved on 2024-11-05, Riyadh trades Sunday to Thursday).
 Where the calendar and Yahoo's bars disagree the wider session is kept: an empty hour is
@@ -278,6 +288,21 @@ days out the 00:00 UTC run installs it (one install a day, not 24); from 30 days
 Monday, since there is nothing to do but wait for the release. Past the end, about 20 holidays
 a year would read as missing bars for the CSI 300, China's 30-year fund and the Nifty; scores
 are not touched (a night's kind is measured from the bars).
+
+**Past the library, the holidays package; the newest library, checked** (the user's,
+2026-11-04: nothing by hand, for as many years as can be). The wait above had two manual
+ends: a year only exchange-calendars 5 carries meant raising the pin, and a year no release
+carried meant a table run out. Now the library is the newest of any major, in a venv of its
+own (the bot's pandas stays below 3), and a major whose hours differ from the table's on most
+of its last month is set aside for the last that worked. Past the library's last day the
+holidays package (python-holidays, released monthly) fills the table 60 days ahead, and its
+days still to come are taken again from its newest release each day: an estimate written
+before the exchange announced its year (China's bridging days, in November) is corrected
+before the day comes. Over 2024-26 it lists Shanghai's closed weekdays exactly and Mumbai's but
+for closures called at short notice (election days: 3 in 2024, 1 in 2026), which it never
+adds; it is used only while it differs from the table on 5 weekdays or fewer over the year to
+today, and a release that fails changes nothing. It also lists two 2026 Seoul closures the library missed (06-03, 07-17:
+no KOSPI bars either day); the tables already written are not changed.
 
 **Each provider's calls are counted, not estimated** (the user's, 2026-10-12): the keys are
 used only by this repository's workflows, so our count is the truth. Every run writes it by
@@ -328,6 +353,19 @@ showed it. A day, because a source's off hours and a provider's bad hour are not
 outage; once a day per source, with its instruments in one line, so a dead source is not a
 stream. A rate limit is not counted: it is already named every run it stops a source. A
 failure not seen again for three days is forgotten (`verify.failing_voters`).
+
+**The FT's dates are read on its exchange's clock of the day asked** (2026-11-04). The FT
+dates a bar's end by the exchange's local clock less its offset from UTC when asked, not
+when the bar traded: after each change of clock, the bars from before it are an hour off
+for the 24 trading days it serves. Corn's WASDE hour of 2026-10-09 (−6.4%) ended at 17:00
+UTC asked on 10-16, as the vote recorded it, and at 18:00 asked on 11-04. Read as UTC, the
+summer's bars asked on 11-04 moved with the store at 0.10–0.57 (Europe's, Brent's, cocoa's)
+and about 0 (America's); on the exchange's clock, 0.87–0.99 (2026-10-01 to 11-03, 13
+instruments). The answer's offset gives the clock, its `ExchangeId` the zone (`ft.ZONES`);
+either missing is an outage. A first reading, that the FT keeps standard time all year,
+fitted the bars asked in winter but would have put every summer bar an hour early. What
+it cost: a move from before a change of clock voted after it, and the measurements of
+those weeks; none of the 10 votes the FT took part in to 11-04.
 
 **A source sees a move on its own two bars of it** (the user's, 2026-10-12): its price at the
 store's previous bar and at this one moved the same way, at least half as far. On the 58's
@@ -481,6 +519,13 @@ the first, renamed Market-alert-old, is archived, then deleted. The bot's state,
 record and its usage files came across whole; the secrets were set again.
 
 **Derived data is not tracked**: it rebuilds from the bars in under a minute.
+
+**A weekly watchdog off cron-job.org** (the user's, 2026-11-04). Every health line came from
+the hourly run, so a run that never started - the cron job disabled after failures, its
+GitHub token expired - left the channel and the health chat as quiet as a calm market. A
+second workflow on GitHub's own schedule, which is unreliable to the hour but independent,
+reads the last run's time from the state each Monday. Weekly, the user's choice: a week
+late is soon enough for a bot that otherwise reports itself.
 
 **The libraries are held at their majors** (the user's, 2026-10-19): the bot runs unattended,
 and every run installs the newest versions allowed. pandas was held below 3 already; pyarrow

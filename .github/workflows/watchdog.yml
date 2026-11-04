@@ -1,0 +1,37 @@
+name: Watchdog
+
+# Tells the health chat when the hourly run has stopped (price_monitor/watchdog.py):
+# the one health line the hourly run cannot send itself. GitHub's own schedule,
+# which the hourly run does not use (it fires unreliably), is enough here: it does
+# not depend on cron-job.org, and a week late is the user's choice (2026-11-04).
+# GitHub disables a schedule after 60 days without a commit, which the hourly
+# run makes every hour; by then this has spoken eight times.
+on:
+  schedule:
+    - cron: "41 10 * * 1"   # Monday 10:41 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install "requests>=2.31,<3"
+
+      - name: Is the hourly run current
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_HEALTH_CHAT_ID: ${{ secrets.TELEGRAM_HEALTH_CHAT_ID }}
+        run: python -m price_monitor.watchdog

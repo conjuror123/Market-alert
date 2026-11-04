@@ -2455,3 +2455,79 @@ def test_a_table_abroad_running_out_is_told_on_mondays_with_its_instruments(monk
         basket, datetime(2027, 1, 4, 0, 5, tzinfo=timezone.utc))
     for later in ((2026, 12, 7, 1, 5), (2026, 12, 8, 0, 5)):
         assert backfill.tables_running_out(basket, datetime(*later, tzinfo=timezone.utc)) is None
+
+
+# Mexico's IPC: Yahoo's grid stops at 20:00 UTC; in winter the BMV trades to 21:00.
+def _ipc():
+    return asset(ticker="^MXX", source="yahoo", block="equity", tick_size=0.01,
+                 session_template="mexico_city", fetch_interval="30min", label="Mexico")
+
+
+def _half_hours(first, last, day="2026-11-03"):
+    """Yahoo's 30-minute bars of `day` from `first` to `last` (HH:MM, UTC)."""
+    start = datetime.fromisoformat(f"{day}T{first}+00:00")
+    stop = datetime.fromisoformat(f"{day}T{last}+00:00")
+    out, t = [], start
+    while t <= stop:
+        ts = int(t.timestamp())
+        out.append(Candle(ts, 70000.0, 70010.0, 69990.0, 70000.0, 0.0, ts + 1800))
+        t += timedelta(minutes=30)
+    return out
+
+
+def _marketwatch(monkeypatch, asked=None, fail=False):
+    from jump import backfill
+
+    def fetch(key, session=None, now=None, frame=None):
+        if asked is not None:
+            asked.append(key)
+        if fail:
+            raise backfill.Unreachable("MarketWatch down")
+        start = int(datetime(2026, 11, 3, 14, tzinfo=timezone.utc).timestamp())
+        return [Candle(start + i * 3600, 70100.0 + i, 70120.0, 70090.0, 70110.0 + i, 0.0,
+                       start + (i + 1) * 3600) for i in range(7)]          # 14:00 .. 20:00
+
+    monkeypatch.setattr(backfill.marketwatch, "fetch_hourly", fetch)
+
+
+def test_the_hour_yahoo_leaves_out_of_a_closed_session_comes_from_marketwatch(
+        tmp_path, monkeypatch):
+    from jump import backfill
+
+    _marketwatch(monkeypatch)
+    monkeypatch.setattr(backfill.yahoo, "fetch_full_history",
+                        lambda *a, **k: _half_hours("14:30", "19:30"))
+    path = str(tmp_path / "yahoo__MXX")
+    now = datetime(2026, 11, 3, 21, 5, tzinfo=timezone.utc)
+    backfill.fetch_missing(_ipc(), path, date(2026, 11, 1), "", None, now=now)
+    stored = bars.load(path)
+    hours = [datetime.fromtimestamp(h, timezone.utc).hour for h in stored["hour_utc"]]
+    assert hours == [14, 15, 16, 17, 18, 19, 20]
+    last = stored.iloc[-1]
+    assert (last["open"], last["close"]) == (70106.0, 70116.0)      # MarketWatch's 20:00
+    assert stored.iloc[0]["close"] == 70000.0                         # Yahoo's own hours kept
+
+
+def test_nothing_is_asked_while_the_session_trades_or_when_yahoo_has_it_all(monkeypatch):
+    from jump import backfill
+
+    asked = []
+    _marketwatch(monkeypatch, asked)
+    # 20:30: the session is still open, Yahoo's 20:00 bar may yet come.
+    assert backfill.trailing_from_marketwatch(
+        _ipc(), _half_hours("14:30", "19:30"), None,
+        datetime(2026, 11, 3, 20, 30, tzinfo=timezone.utc)) == []
+    # Summer: 13:30-20:00 UTC, all of it Yahoo's.
+    assert backfill.trailing_from_marketwatch(
+        _ipc(), _half_hours("13:30", "19:30", day="2026-10-29"), None,
+        datetime(2026, 10, 29, 21, 5, tzinfo=timezone.utc)) == []
+    assert asked == []
+
+
+def test_marketwatch_out_leaves_the_session_at_yahoos_last_bar(monkeypatch):
+    from jump import backfill
+
+    _marketwatch(monkeypatch, fail=True)
+    assert backfill.trailing_from_marketwatch(
+        _ipc(), _half_hours("14:30", "19:30"), None,
+        datetime(2026, 11, 3, 21, 5, tzinfo=timezone.utc)) == []

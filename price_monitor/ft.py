@@ -4,9 +4,23 @@ grains, platinum, the Bund, the UK's gilts fund and five stock indices abroad.
 THE ENDPOINT is the one the FT's markets pages chart from (markets.ft.com's
 chartapi/series): an instrument's hourly bars by its xid, the last
 MAX_DAYS trading days (2026-10-10: 24 answered, 25 not), without volume. Each
-bar is dated by its END in UTC - against the stored bars, one hour on - and is
-stamped here by its start. It answers a GitHub runner as it answers here (the
+bar is dated by its END - against the stored bars, one hour on - and is stamped
+here by its start. It answers a GitHub runner as it answers here (the
 backfill's one-off ft-probe, 2026-10-10: the same bars, to the cent).
+
+THE DATES ARE ON THE EXCHANGE'S CLOCK OF THE DAY ASKED. A date is the bar's end
+on the exchange's local clock less its offset from UTC at the time of asking
+(the answer's UtcOffsetMinutes), not at the bar's: a bar from before the
+exchange's last change of clock is an hour off, late after the autumn's, early
+after the spring's. Corn's 2026-10-09 WASDE hour, -6.4%, ended at 17:00 UTC when
+asked on 10-16 (summer, as the vote recorded it) and at 18:00 when asked on
+11-04. So the date plus the offset asked under is the local clock, read in the
+exchange's zone (ZONES, by the answer's ExchangeId); an exchange not there, or
+an answer without its offset, is an outage, not a guess. Hour by hour against
+the store over 2026-10-01 to 11-03, asked on 11-04: read as UTC, the summer's
+bars 0.10-0.57 (Europe's, Brent's, cocoa's) and about 0 (America's), read on
+the exchange's clock 0.87-0.99; Sao Paulo and Mexico City, with no summer time,
+0.97-1.00 either way (docs/decisions.md).
 
 LIVE CATTLE BY ITS CONTRACT. The FT carries each cattle contract (LCZ26:CME;
 the CME's LE, its LC) and its continuous series, which holds the nearest month:
@@ -31,7 +45,8 @@ from __future__ import annotations
 import json
 import math
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -60,6 +75,12 @@ INDICES = {"^STOXX50E": "567938", "^FTSE": "572009", "^SSMI": "567786",
 # (jump.verify).
 FUNDS = {"IGLT.L": "6141822"}
 MAX_DAYS = 24
+# Each exchange's zone, by the FT's ExchangeId: the clock its dates are read on.
+ZONES = {"LSE": "Europe/London", "FSI": "Europe/London", "IEU": "Europe/London",
+         "STX": "Europe/Berlin", "SWX": "Europe/Zurich",
+         "IUS": "America/New_York", "NYM": "America/New_York",
+         "CME": "America/Chicago", "CBT": "America/Chicago", "IOM": "America/Chicago",
+         "SAO": "America/Sao_Paulo", "MEX": "America/Mexico_City"}
 HOUR = 3600
 MAX_ATTEMPTS = 3
 BACKOFF_SECONDS = 2.0
@@ -111,16 +132,23 @@ def parse(payload: dict, name: str, now: datetime | None = None) -> list[Candle]
     now_ts = int((now or datetime.now(timezone.utc)).timestamp())
     try:
         dates = payload["Dates"]
-        series = {s["Type"]: s["Values"] for s in payload["Elements"][0]["ComponentSeries"]}
+        element = payload["Elements"][0]
+        series = {s["Type"]: s["Values"] for s in element["ComponentSeries"]}
         columns = [series[k] for k in ("Open", "High", "Low", "Close")]
     except (KeyError, IndexError, TypeError) as exc:
         raise ExchangeError(f"{name}: the FT's answer has no bars") from exc
+    exchange, offset = element.get("ExchangeId"), element.get("UtcOffsetMinutes")
+    if exchange not in ZONES or not isinstance(offset, int):
+        raise ExchangeError(f"{name}: the FT's exchange {exchange!r} (offset {offset!r}) "
+                            "has no zone here")
+    zone, asked_under = ZoneInfo(ZONES[exchange]), timedelta(minutes=offset)
     out = []
     for i, text in enumerate(dates):
         prices = [col[i] if i < len(col) else None for col in columns]
         if any(p is None for p in prices):
             continue                             # no price that hour
-        end = int(datetime.fromisoformat(text).replace(tzinfo=timezone.utc).timestamp())
+        local = datetime.fromisoformat(text) + asked_under      # the exchange's clock
+        end = int(local.replace(tzinfo=zone).timestamp())
         if end % HOUR or end > now_ts:
             continue                             # off the hour, or not ended yet
         o, h, low, c = (float(p) for p in prices)

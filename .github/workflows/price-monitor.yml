@@ -51,16 +51,25 @@ jobs:
       # every run once the NYSE's has under two years left - about once a year -
       # and once a day, at 00:00 UTC, while a market abroad's is within 60 days
       # of its end (Shanghai's and Mumbai's are known a year at a time). The
-      # calendar library is installed only then; the hourly run never needs it
-      # otherwise. continue-on-error: a table with weeks left is no reason to
-      # stop the run, and the next try comes.
+      # calendar library and the holidays package are installed only then, the
+      # newest of each, in a venv of their own: the bot's packages are not moved,
+      # and no pin waits to be raised by hand. A newest library that fails or
+      # disagrees with the tables (sessions.CalendarDisagrees) is tried again at
+      # the last major known to work; with neither, the tables abroad go on from
+      # the holidays package alone. continue-on-error: a table with weeks left is
+      # no reason to stop the run, and the next try comes.
       - name: Extend the session table when it runs short
         id: sessions
         continue-on-error: true
         run: |
           if python -c "import sys; from jump import sessions; sys.exit(0 if sessions.calendar_due() else 1)"; then
-            pip install "exchange-calendars>=4.13,<5"
-            python -m jump.sessions --extend-if-short
+            python -m venv "$RUNNER_TEMP/calendars"
+            cal="$RUNNER_TEMP/calendars/bin"
+            "$cal/pip" install -q --upgrade exchange-calendars holidays
+            "$cal/python" -m jump.sessions --extend-if-short \
+              || { "$cal/pip" install -q "exchange-calendars>=4.13,<5" \
+                   && "$cal/python" -m jump.sessions --extend-if-short; } \
+              || "$cal/python" -m jump.sessions --extend-if-short --without-library
           else
             echo "session table reaches far enough"
           fi

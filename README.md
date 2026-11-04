@@ -66,5 +66,6 @@ the bot, set `jump_alerts_muted: true` in `config/config.yaml`.
 | what goes to Telegram | `price_monitor/jump_delivery.py` |
 | a message Telegram did not answer for, or a run whose state was lost | `price_monitor/telegram_ledger.py` |
 | the hourly workflow | `.github/workflows/price-monitor.yml` |
+| the weekly check that the hourly run still runs | `price_monitor/watchdog.py`, `.github/workflows/watchdog.yml` |
 | rates by word and block, the biggest hours | `tools/stage_report.py` |
 | the dashboard: volume, the votes taken again, the archive | https://conjuror123.github.io/Market-alert/, measured on every code change (`tools/measure.py`, `tools/dashboard.py`) |
