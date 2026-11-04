@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793750822
+    "last_run_utc": 1793754401
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -23,7 +23,7 @@
           "message": 139,
           "peak": "jump:marketwatch:TFM=F:hour:1793710800",
           "ping_at": 1793718413,
-          "seen": 1793750825,
+          "seen": 1793754402,
           "shown": [
             "high",
             6.5,
@@ -57,7 +57,7 @@
           "message": 136,
           "peak": "jump:twelvedata:USD/CNH:hour:1793664000",
           "ping_at": 1793667997,
-          "seen": 1793750825,
+          "seen": 1793754402,
           "shown": [
             "noticeable",
             5.4,
@@ -91,7 +91,7 @@
           "message": null,
           "peak": null,
           "ping_at": 1793588797,
-          "seen": 1793750825,
+          "seen": 1793754402,
           "shown": [
             null,
             null,
@@ -125,20 +125,20 @@
           "members": {
             "jump:yahoo:BZ=F:hour:1793710800": [
               -0.030849058584035114,
-              0.00583596846331454
+              0.00583521441742965
             ]
           },
           "message": null,
           "peak": "jump:yahoo:BZ=F:hour:1793710800",
           "ping_at": 1793714808,
-          "seen": 1793750825,
+          "seen": 1793754402,
           "shown": [
             "noticeable",
             5.3,
             1793710800,
             -3.08
           ],
-          "size": 5.286022153470374,
+          "size": 5.286705230897718,
           "start": 1793714400,
           "story": [
             [
@@ -171,7 +171,7 @@
           "message": 140,
           "peak": "jump:yahoo:IGLT.L:hour:1793714400",
           "ping_at": 1793722007,
-          "seen": 1793750825,
+          "seen": 1793754402,
           "shown": [
             "noticeable",
             4.5,
@@ -226,7 +226,7 @@
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1793750825
+    "saved_at": 1793754402
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-04",
