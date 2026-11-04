@@ -66,7 +66,7 @@ Local:
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q          # ~995 tests, about 1.5 minutes; run alone, several load large parquet files
+pytest -q          # ~1,000 tests, about 1.5 minutes; run alone, several load large parquet files
 ```
 
 Each test file also passes on its own (`pytest -q tests/test_jump_backfill.py`).
@@ -125,7 +125,19 @@ standing in, a few minutes of it; that bar heals on the next fetch.
 | SiftingIO | 7 FX pairs, spot gold and silver | the bar closed at :00 served by :05; the metals from its commodities endpoint |
 | Sina | the LME's tin, nickel, aluminium, copper | the three-month contract, its last 1,023 hourly bars |
 | Binance | 4 coins | each as its USDT pair, via `data-api.binance.vision` (reachable from US runners) |
-| MarketWatch | the Bund (one contract at a time), Dutch TTF gas (its continuous series) | about 9 trading days back, hourly, without volume |
+| MarketWatch | the Bund (one contract at a time), Dutch TTF gas (its continuous series); Mexico's IPC's last winter hour | about 9 trading days back, hourly, without volume |
+
+**One series, one feed.** The detector measures a move against the instrument's own history,
+so each instrument's bars come from one feed; the other sources are equal in the vote
+(section 5), not in the series. Two feeds mixed hour by hour would add their seams as moves:
+on 2026-11-03 the IPC's 19:00 hour closed at 70,293.5 at Yahoo and MarketWatch and 70,184.3
+at the FT, 0.16% apart. The one exception is the IPC's last hour in winter: Yahoo serves it
+on a fixed 13:30-20:00 UTC grid, while the BMV keeps New York's hours and trades to 21:00
+UTC from November to March. That hour comes from MarketWatch, the same prints as Yahoo's (18
+of 18 hours that day to the cent), once the session has closed and Yahoo's answer still
+lacks it (`backfill.TRAILING_FROM_MARKETWATCH`); its bar ends before the closing auction
+(70,161.9 against the official 70,184.3, 0.03%). In summer Yahoo has the whole session and
+nothing is asked.
 
 Every other provider votes only (section 5): Alpaca's consolidated tape and coins,
 Wallstreetcn, the FT, Naver, the Taiwan exchange, Tencent, EEX, Coinbase, Kraken, Bitstamp

@@ -264,6 +264,16 @@ Data refuses silver and fills its gold's weekends.
 
 **Every coin is its USDT pair on Binance**: one exchange, one quote currency.
 
+**Mexico's last winter hour comes from MarketWatch** (the user's, 2026-11-04). Yahoo serves
+the IPC on a fixed 13:30-20:00 UTC grid the year round; the BMV follows New York, 14:30-21:00
+UTC from November to March, so in winter its last hour, the closing auction's, never came.
+Its move fell into the night gap instead: over 2026-08-14 to 10-30 the last hour's σ 0.178%,
+the gap's 0.188%, the two together 0.259% - each winter night read against a summer yardstick
+at 1.38 times its size, and the last hour's own moves never seen. MarketWatch serves the same
+prints as Yahoo (18 of 18 hours on 11-03 to the cent) and that hour too. Filling only that
+hour, not moving the IPC to MarketWatch: should MarketWatch break, the IPC goes on as before
+instead of going dark, and its history (Yahoo's two years) stays one feed.
+
 **A market abroad keeps its exchange's own calendar** (`exchange_calendars`): fixed hours
 fail sixteen exchanges (Tokyo's close moved on 2024-11-05, Riyadh trades Sunday to Thursday).
 Where the calendar and Yahoo's bars disagree the wider session is kept: an empty hour is
