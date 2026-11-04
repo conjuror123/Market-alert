@@ -1693,7 +1693,6 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
 
     week = store.get(WEEK)
     slot = routing.digest_slot(now_ts)
-    ledger.delivering()
     if week is None or slot > int(week["slot"]):
         if week is not None:
             # The run after the week's last close: its moves' checks at that
@@ -1716,7 +1715,11 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
             _restart_week(cfg, week, version, now)
             log.info("Detector updated: the week restarts from this run")
         save_state(cfg.state_path, state)
-    return changed + _pass(cfg, state, week, readings, labels, calendar, now, ring)
+    changed += _pass(cfg, state, week, readings, labels, calendar, now, ring)
+    # Run through: whatever stray it did not claim is not wanted (a run that
+    # raised part way leaves them for the next).
+    ledger.delivering()
+    return changed
 
 
 def _pass(cfg: Config, state: dict, week: dict, readings: "list[dict]", labels: dict,

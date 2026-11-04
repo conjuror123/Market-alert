@@ -141,6 +141,8 @@ def channel(monkeypatch, tmp_path):
     monkeypatch.setattr(md, "edit_telegram_message", ch.edit)
     monkeypatch.setattr(notifier, "delete_telegram_message", ch.delete)
     monkeypatch.setattr(notifier, "forward_telegram_message", ch.forward)
+    monkeypatch.setattr(notifier, "edit_telegram_message", ch.edit)
+    monkeypatch.setattr(notifier, "send_telegram_message", ch.send)
     monkeypatch.setattr(md, "_labels", lambda: LABELS)
     monkeypatch.setattr(md, "_calendar", lambda cfg: None)
     monkeypatch.setattr(md, "vix_context", lambda hour: "")
@@ -1002,9 +1004,11 @@ def test_what_is_not_ours_is_read_and_left_alone(monkeypatch, channel, week):
     by_hand = channel.post("<b>A note from the owner</b>")
     pin = channel.post("pinned a message")
     channel.unforwardable.add(pin)
+    passed_on = channel.post("🟨 an alert of another channel's, forwarded here")
+    channel.dates[passed_on] = 0                    # it carries its origin's date
     run(monkeypatch, channel, [push], run_at(0, 12), week)
     assert channel.messages[by_hand] == "<b>A note from the owner</b>"
-    assert pin in channel.messages
+    assert pin in channel.messages and passed_on in channel.messages
     assert len(channel.pushes()) == 1
 
 
@@ -1119,6 +1123,7 @@ def test_a_lost_runs_push_is_taken_over_not_sent_again(monkeypatch, channel, wee
     run(monkeypatch, channel, [push], run_at(0, 12), week)
     assert len(channel.pushes()) == 1
     assert channel.rings_since(rang) == []
+    assert any("Took over" in line for line in channel.news)
 
 
 def test_a_lost_runs_push_corrected_since_is_replaced(monkeypatch, channel, week):
@@ -1148,3 +1153,31 @@ def test_a_state_started_afresh_deletes_nothing(monkeypatch, channel):
     old = channel.post("🟨 <b>GLD</b> · Gold +1.80% · 6.0×σ")
     run(monkeypatch, channel, [ev(OPEN - timedelta(days=3))], OPEN, {})
     assert old in channel.messages
+
+
+def test_a_stray_is_kept_when_delivery_did_not_run_through(monkeypatch, channel, week):
+    push = ev(at(0, 10), "high")
+    saved = copy.deepcopy(week)
+    run(monkeypatch, channel, [push], run_at(0, 11), week)
+    [mid] = [k for k, t in channel.messages.items() if t in channel.pushes()]
+    _lost(week, saved)
+
+    def broken(*a, **k):
+        raise RuntimeError("delivery broke part way")
+
+    monkeypatch.setattr(md, "_pass", broken)
+    with pytest.raises(RuntimeError):
+        run(monkeypatch, channel, [push], run_at(0, 12), week)
+    assert ledger.settle_strays(cfg(channel)) == []   # as __main__ goes on after it
+    assert mid in channel.messages
+
+
+def test_a_stray_telegram_will_no_longer_delete_is_struck_through(monkeypatch, channel, week):
+    saved = copy.deepcopy(week)
+    run(monkeypatch, channel, [ev(at(0, 10), "high", size=6.5)], run_at(0, 11), week)
+    [stale] = [k for k, t in channel.messages.items() if t in channel.pushes()]
+    channel.refuse_delete.add(stale)                # past Telegram's 48 hours
+    _lost(week, saved)
+    run(monkeypatch, channel, [ev(at(0, 10), "high", size=6.2)], run_at(0, 12), week)
+    assert channel.messages[stale].startswith("<s>")
+    assert any(f"Struck through {stale}" in line for line in channel.found)

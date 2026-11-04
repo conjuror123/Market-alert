@@ -268,9 +268,9 @@ def forward_telegram_message(bot_token: str, from_chat: str, message_id: int,
         copy = int(result["message_id"])
     except (ValueError, KeyError, TypeError):
         raise TelegramUnsure("Telegram's answer could not be read") from None
+    # A post that is itself a forward names its own origin and that post's
+    # date, older than ours: it reads as somebody else's, as it is.
     origin = result.get("forward_origin") or {}
-    if origin.get("message_id") is not None and int(origin["message_id"]) != int(message_id):
-        return {"state": "missing", "copy": copy}
     when = origin.get("date") or result.get("forward_date") or 0
     return {"state": "found", "text": str(result.get("text") or ""), "copy": copy,
             "date": int(when)}

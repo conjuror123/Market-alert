@@ -99,3 +99,23 @@ def test_a_calendar_whose_week_ended_unsent_keeps_its_late_copy(monkeypatch):
     state = {}
     record = _calendar_record(state, "📅 <b>Economic calendar</b>")
     assert "left as it is" in weekly_digest.adopt(cfg(), state, record, 140)
+
+
+def test_the_channel_is_never_read_through_itself(monkeypatch):
+    monkeypatch.setattr(notifier, "forward_telegram_message",
+                        lambda *a, **k: pytest.fail("must not forward into the channel"))
+    state = {ledger.STATE_KEY: {"known": [1], "checked": [], "recheck": {}, "read_ok": True,
+                                "pending": [{"kind": "alert", "hash": "x", "first": "TTF",
+                                             "at": int(NOW.timestamp()), "after": 1}]}}
+    assert ledger.reconcile(cfg(telegram_health_chat_id="c"), state, NOW) == []
+
+
+def test_a_channel_that_could_not_be_read_is_checked_again_after_a_week(monkeypatch):
+    monkeypatch.setattr(notifier, "forward_telegram_message", lambda *a, **k: {
+        "state": "found", "text": "📋 Digest", "copy": 5, "date": 0})
+    monkeypatch.setattr(notifier, "delete_telegram_message", lambda *a, **k: True)
+    week_ago = int(NOW.timestamp()) - 8 * 86400
+    state = {ledger.STATE_KEY: {"known": [140], "checked": [], "recheck": {}, "pending": [],
+                                "read_ok": False, "read_checked_at": week_ago}}
+    ledger.reconcile(cfg(), state, NOW)
+    assert state[ledger.STATE_KEY]["read_ok"] is True

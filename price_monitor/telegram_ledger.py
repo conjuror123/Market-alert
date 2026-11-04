@@ -206,6 +206,8 @@ def claim(text: str) -> "int | None":
         if stray["first"] == first:
             _strays.remove(stray)
             saw(stray["id"])
+            _news.append(f"Took over {stray['id']} (\"{stray['first'][:60]}\"), left by a run "
+                         "whose state was not saved: not sent again")
             log.info("Message %s, left by a run whose state was not saved, taken over",
                      stray["id"])
             return int(stray["id"])
@@ -232,11 +234,21 @@ def settle_strays(cfg) -> "list[str]":
         except TelegramError as exc:
             log.warning("Could not delete stray message %s: %s", stray["id"], exc)
             continue                             # read again by the next run
+        if not gone:
+            # Past Telegram's 48 hours for a delete: struck through instead.
+            try:
+                call(lambda: notifier.edit_telegram_message(
+                    cfg.telegram_bot_token, cfg.telegram_chat_id, int(stray["id"]),
+                    f"<s>{html.escape(stray['first'])}</s>"))
+            except TelegramError as exc:
+                if "not found" not in str(exc).lower():
+                    log.warning("Could not strike stray message %s through: %s",
+                                stray["id"], exc)
+                    continue                     # read again by the next run
         _strays.remove(stray)
         led["checked"].append(int(stray["id"]))
-        if gone:
-            lines.append(f"Deleted {stray['id']} (\"{stray['first'][:60]}\"), left by a run "
-                         "whose state was not saved")
+        lines.append(f"{'Deleted' if gone else 'Struck through'} {stray['id']} "
+                     f"(\"{stray['first'][:60]}\"), left by a run whose state was not saved")
     if not _strays:
         led["saved_at"] = _bound["now"]
     return lines
@@ -298,12 +310,12 @@ def _self_check(cfg, state: dict, led: dict) -> None:
             return
         _drop_copy(cfg, got)
         if got["state"] == "found":
-            led["read_ok"] = True
+            led["read_ok"], led["read_checked_at"] = True, _bound["now"]
             log.info("Channel read path checked: message %s read and its copy deleted",
                      message_id)
             return
         if got["state"] == "unforwardable":
-            led["read_ok"] = False
+            led["read_ok"], led["read_checked_at"] = False, _bound["now"]
             _news.append("The channel's messages cannot be forwarded (content protection?): "
                          "a message Telegram does not answer for will be named here, for a "
                          "hand to check, instead of being found by the bot")
@@ -347,14 +359,18 @@ def reconcile(cfg, state: dict, now: "datetime | None" = None) -> "list[str]":
     led = use(state, now_ts)
     _expire(led, now_ts)
     lines: list = []
-    if not cfg.telegram_health_chat_id or not cfg.telegram_chat_id:
+    if not cfg.telegram_health_chat_id or not cfg.telegram_chat_id \
+            or str(cfg.telegram_health_chat_id) == str(cfg.telegram_chat_id):
+        # No other chat to read the channel through: a copy would land on it.
         if led["pending"]:
             log.warning("No health chat to read the channel through: %d unsure send(s) "
                         "are not looked for", len(led["pending"]))
         _prune(led)
         return lines
-    if led["read_ok"] is None:
-        _self_check(cfg, state, led)
+    if led["read_ok"] is None or (
+            led["read_ok"] is False
+            and now_ts - int(led.get("read_checked_at") or 0) > KEEP_DAYS * 86400):
+        _self_check(cfg, state, led)            # once; weekly while it cannot read
     # Not checked yet (nothing known to read back) is no reason to wait: the
     # first message read is the check.
     if led["read_ok"] is False or not (led["known"] or led["pending"]):
