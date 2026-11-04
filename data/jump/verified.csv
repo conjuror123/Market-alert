@@ -210,7 +210,6 @@ sifting:XAU/USD,1793768400,close,real,sifting,"yahoo,sina,marketwatch,wallstreet
 sina:AHD,1786525200,close,real,sina,wallstreetcn,wallstreetcn,-0.010778,-0.010778,1793300780
 sina:AHD,1789034400,close,real,sina,wallstreetcn,wallstreetcn,-0.016265,-0.016265,1793732824
 sina:AHD,1789603200,open,real,sina,wallstreetcn,wallstreetcn,-0.008572,-0.010112,1793732824
-sina:CAD,1786003200,close,real,sina,"yahoo,wallstreetcn","yahoo,wallstreetcn",0.017732,"0.018965,0.017606",1792778783
 sina:CAD,1788249600,close,real,sina,"yahoo,wallstreetcn","yahoo,wallstreetcn",-0.010083,"-0.016135,-0.009965",1793732824
 sina:CAD,1788346800,close,real,sina,"yahoo,wallstreetcn","yahoo,wallstreetcn",0.009388,"0.010861,0.009292",1793732824
 sina:CAD,1789034400,close,real,sina,"yahoo,wallstreetcn","yahoo,wallstreetcn",-0.035095,"-0.041045,-0.035220",1793732824
@@ -854,7 +853,6 @@ twelvedata:XLY,1632142800,close,overnight,tiingo,alpaca,,-0.017921,-0.020744,179
 twelvedata:XLY,1643032800,close,overnight,tiingo,alpaca,,-0.030902,-0.020836,1791362492
 yahoo:511090.SS,1793336400,close,real,yahoo,"sina,marketwatch,wallstreetcn,tencent","sina,marketwatch,wallstreetcn,tencent",-0.003855,"-0.003946,-0.003946,-0.003855,-0.003855",1793689569
 yahoo:511090.SS,1793584800,close,real,yahoo,"sina,marketwatch,wallstreetcn,tencent","marketwatch,wallstreetcn,tencent",0.003786,",0.003769,0.003786,0.003786",1793775982
-yahoo:511090.SS,1793768400,close,real,yahoo,"sina,marketwatch,wallstreetcn,tencent","sina,marketwatch,wallstreetcn,tencent",-0.003895,"-0.003392,-0.003384,-0.003384,-0.003384",1793775982
 yahoo:BZ=F,1793710800,close,real,yahoo,"sina,marketwatch,wallstreetcn,ft","sina,marketwatch,wallstreetcn,ft",-0.030849,"-0.030156,-0.030849,-0.031335,-0.029639",1793743584
 yahoo:CC=F,1788346800,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",-0.050160,"-0.051429,-0.051429",1791828443
 yahoo:CT=F,1786550400,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",-0.013751,"-0.014355,-0.014355",1791832054
