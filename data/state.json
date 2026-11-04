@@ -1,17 +1,93 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793801200
+    "last_run_utc": 1793808397
   },
   "floor_pending_replies": [],
   "jump_delivery": {
     "week": {
       "detector": "2d9898a91cc3",
-      "events": {},
-      "messages": {},
+      "events": {
+        "binance:ETH/USDT|1793804400": {
+          "asset": "binance:ETH/USDT",
+          "body": "\u2b1c <b>ETH/USDT</b> \u00b7 Ethereum +2.55% \u00b7 5.2\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1793800800,
+          "members": {
+            "jump:binance:ETH/USDT:hour:1793800800": [
+              0.02547452943228577,
+              0.004914881139386348
+            ]
+          },
+          "message": 146,
+          "peak": "jump:binance:ETH/USDT:hour:1793800800",
+          "ping_at": 1793808399,
+          "placed_at": 1793808399,
+          "seen": 1793808399,
+          "shown": [
+            "noticeable",
+            5.2,
+            1793800800,
+            2.55
+          ],
+          "size": 5.183142523659567,
+          "start": 1793804400,
+          "story": [
+            [
+              "noticeable",
+              5.2,
+              1793800800,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        },
+        "twelvedata:XLE|1793804400": {
+          "asset": "twelvedata:XLE",
+          "body": "\u2b1c <b>XLE</b> \u00b7 Energy sector -2.23% \u00b7 5.3\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1793800800,
+          "members": {
+            "jump:twelvedata:XLE:hour:1793800800": [
+              -0.022260667438302285,
+              0.0041958979836570175
+            ]
+          },
+          "message": 146,
+          "peak": "jump:twelvedata:XLE:hour:1793800800",
+          "ping_at": 1793808399,
+          "placed_at": 1793808399,
+          "seen": 1793808399,
+          "shown": [
+            "noticeable",
+            5.3,
+            1793800800,
+            -2.23
+          ],
+          "size": 5.305340483731342,
+          "start": 1793804400,
+          "story": [
+            [
+              "noticeable",
+              5.3,
+              1793800800,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        }
+      },
+      "messages": {
+        "146": {
+          "first": "\u2b1c <b>XLE</b> \u00b7 Energy sector -2.23% \u00b7 5.3\u00d7\u03c3",
+          "hash": "b55869f7ff829b63"
+        }
+      },
       "note": {
         "hashes": [
-          "5ca12a3c20933f9d"
+          "c2bcf39b18476071"
         ],
         "ids": [
           134
@@ -25,12 +101,13 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      145
+      145,
+      146
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1793801200
+    "saved_at": 1793808399
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-04",
