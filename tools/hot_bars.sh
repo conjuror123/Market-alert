@@ -67,6 +67,37 @@ assets() {  # name<TAB>id, newest first
     --jq 'sort_by(.created_at) | reverse | .[] | select(.name | startswith("bars-live")) | "\(.name)\t\(.id)"'
 }
 
+# The asset $2 of release $1 as "<id> <digest>", empty if the release does not hold it.
+held() {
+  gh api "$API/$1/assets?per_page=100" \
+    --jq ".[] | select(.name == \"$2\") | \"\\(.id) \\(.digest // \"none\")\""
+}
+
+# AN UPLOAD ANSWERED WITH AN ERROR MAY HAVE LANDED. On 2026-11-05 16:07 GitHub
+# answered 500 with the file stored whole: every retry met "already exists", and
+# the run failed with its open months saved. So after a failed attempt the release
+# is read: the same file by its sha256 is a save; another under the name is a
+# broken upload, deleted out of the next attempt's way.
+upload() {
+  local id=$1 file=$2 name want got n
+  name=$(basename "$file")
+  want="sha256:$(sha256sum "$file" | cut -d' ' -f1)"
+  for n in 1 2 3 4; do
+    if gh release upload "$TAG" "$file"; then return 0; fi
+    got=$(held "$id" "$name" 2>/dev/null || true)
+    if [ -n "$got" ] && [ "${got#* }" = "$want" ]; then
+      echo "attempt $n: answered with an error, but the release holds $name whole" >&2
+      return 0
+    fi
+    if [ -n "$got" ]; then
+      gh api -X DELETE "$API/assets/${got%% *}" >/dev/null 2>&1 || true
+    fi
+    echo "attempt $n failed: upload $name" >&2
+    sleep $((2 ** n))
+  done
+  return 1
+}
+
 restore() {
   local id newest tmp branch="${BARS_BRANCH:-$GITHUB_REF_NAME}"
   TAG="bars-live-${branch//\//-}"
@@ -109,7 +140,7 @@ save() {
       --notes "Written by every hourly run (tools/hot_bars.sh); not a release of the code."
     id=$(release_id)
   fi
-  retry gh release upload "$TAG" "$tmp/$name"
+  upload "$id" "$tmp/$name"
   retry assets "$id" | tail -n +2 | while IFS=$'\t' read -r old old_id; do
     [ "$old" = "$name" ] && continue
     gh api -X DELETE "$API/assets/$old_id" || echo "could not delete $old; the next save will" >&2

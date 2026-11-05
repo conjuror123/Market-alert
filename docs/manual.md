@@ -725,7 +725,7 @@ message past Telegram's 4,096 characters is cut between lines, ending "…and N 
 | VIX | both sources failed | "went dark" | every run it happens |
 | pipeline or jumps, one instrument (an error, or no metrics file) | that instrument keeps its stored metrics, or its events from the last run, so delivery never reads them as gone; the others are current | "Metrics failed" / "Scoring failed for N instrument(s)", each with its error | every run it happens |
 | pipeline, jumps (every instrument), or the step's 12 minutes | no new events | streak, named with the part it stopped in and its minutes | while it fails |
-| open months' save (refused, too, with no open months on disk: an empty archive would replace the good one) | the next run restores an older copy and fetches the difference | streak, named | while it fails |
+| open months' save (refused, too, with no open months on disk: an empty archive would replace the good one; an upload GitHub answers with an error but holds whole, by its sha256, is a save) | the next run restores an older copy and fetches the difference | streak, named | while it fails |
 | delivery, calendar, digest | an exception in the monitor | streak, with the error | while it fails |
 | state commit | what the run counted is lost; what it sent is taken over, or deleted when sent again, by the next run (section 8) | the last step (`tools/run_died.sh`) | 1 h after the last run that delivered, then every 24 h |
 | Telegram itself | the token revoked or Telegram down | nothing can reach the chat; the job goes red | — |
