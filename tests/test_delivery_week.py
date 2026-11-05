@@ -122,13 +122,11 @@ class Channel:
 
     def pushes(self):
         return [t for t in self.messages.values()
-                if "<b>Digest</b>" not in t and "🕐" in t
-                and "<i>part " not in t]
+                if "<b>Digest</b>" not in t and "🕐" in t]
 
     def pings(self):
         return [t for t in self.messages.values()
-                if "<b>Digest</b>" not in t and "🕐" not in t
-                and "<i>part " not in t]
+                if "<b>Digest</b>" not in t and "🕐" not in t]
 
     def rings_since(self, count):
         return self.rang[count:]
@@ -655,10 +653,10 @@ def test_a_move_after_the_note_opens_is_a_new_event_even_inside_24_hours(
 def test_a_note_that_shrinks_deletes_its_surplus_parts(monkeypatch, channel, week):
     many = [ev(at(0, 1), asset=f"twelvedata:X{i}") for i in range(120)]
     run(monkeypatch, channel, many, run_at(0, 2), week)
-    assert len([t for t in channel.messages.values() if "<i>part " in t]) > 1
+    assert len(channel.notes()) > 1
     run(monkeypatch, channel, many[:2], run_at(0, 3), week)
-    assert [t for t in channel.messages.values() if "<i>part " in t] == []
     assert len(channel.notes()) == 1 and "2 events so far" in channel.note()
+    assert " part " not in channel.note()
 
 
 def test_a_failed_send_is_retried_on_the_next_run(monkeypatch, channel, week):
@@ -897,8 +895,7 @@ def test_a_part_the_note_grows_is_silent(monkeypatch, channel, week):
     many = [ev(at(0, 1), asset=f"twelvedata:X{i}") for i in range(120)]
     rang = len(channel.rang)
     run(monkeypatch, channel, many, run_at(0, 2), week)
-    assert len(channel.notes()) == 1 and len(channel.note()) > 0
-    assert [t for t in channel.messages.values() if "<i>part " in t]
+    assert len(channel.notes()) > 1
     assert len(channel.rings_since(rang)) == 1 and channel.rang[-1].startswith("⬜")
 
 

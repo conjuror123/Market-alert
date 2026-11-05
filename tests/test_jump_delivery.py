@@ -374,6 +374,46 @@ def test_the_note_stands_in_blocks_in_the_baskets_order_each_under_its_name_line
     assert "CREDIT" not in text                     # a block with nothing is left out
 
 
+def body(part: str) -> str:
+    """A note part without its header."""
+    return part.split("\n\n", 1)[1]
+
+
+def test_every_part_of_a_long_note_has_a_header_with_its_number_and_the_count(monkeypatch):
+    # A later part read on its own says which note it is, which part and how
+    # many events the note has; the VIX line and "updated as moves are found"
+    # stay in the first, and nothing is said at the bottom.
+    use_vix(monkeypatch, vix_frame([((2026, 9, 10), (2026, 9, 11, 15), 16.61)]))
+    rows = [event(event_id=f"d{i}", channel="digest", tier="noticeable",
+                  hour_utc=SLOT + i * HOUR, asset_id="twelvedata:GLD")
+            for i in range(80)]
+    window = (SLOT, routing.next_digest_slot(SLOT))
+    texts = md.format_digest(rows, LABELS, window, None, NOW)
+    total = len(texts)
+    assert total > 1, "the fixture must be long enough to split"
+    period = md.format_digest([], LABELS, window, None, NOW)[0].splitlines()[0]
+    period = period.removeprefix("📋 <b>Digest</b> - ")
+
+    first = texts[0].splitlines()
+    assert first[0] == f"📋 <b>Digest</b> part 1 of {total} - {period}"
+    assert first[1] == "80 events so far - this message is updated as moves are found"
+    assert first[2].startswith("🌡")
+    for i, part in enumerate(texts[1:], 2):
+        lines = part.splitlines()
+        assert lines[:3] == [f"📋 <b>Digest</b> part {i} of {total} - {period}",
+                             "80 events so far", ""]
+    for part in texts:
+        assert "<i>part" not in part
+        assert len(part) <= 4096
+
+
+def test_a_note_in_one_message_names_no_part():
+    text = md.format_digest([event(channel="digest", tier="noticeable")], LABELS,
+                            (SLOT, SLOT + 200 * HOUR), None, NOW)
+    assert len(text) == 1
+    assert text[0].startswith("📋 <b>Digest</b> - ") and " part " not in text[0]
+
+
 def test_a_block_that_does_not_fit_what_is_left_opens_the_next_message_whole():
     # Two blocks of forty rows: each fits a message, both do not. The second
     # goes whole into the next message rather than being cut.
@@ -384,7 +424,7 @@ def test_a_block_that_does_not_fit_what_is_left_opens_the_next_message_whole():
     texts = md.format_digest(rows, LABELS, (SLOT, SLOT + 200 * HOUR), None, NOW)
     assert len(texts) == 2
     assert "RATES" in texts[0] and "FX" not in texts[0]
-    assert texts[1].startswith("━━━ 💱 <b>FX</b> ━━━")
+    assert body(texts[1]).startswith("━━━ 💱 <b>FX</b> ━━━")
     assert not any("continued" in t for t in texts)
 
 
@@ -397,7 +437,7 @@ def test_the_header_counts_in_the_first_messages_room():
     texts = md.format_digest(rows, LABELS, (SLOT, SLOT + 200 * HOUR), None, NOW)
     assert len(texts) == 2
     assert "━━━ 🥇 <b>PRECIOUS METALS</b> ━━━" in texts[0]
-    assert texts[1].startswith("━━━ 🥇 <b>PRECIOUS METALS</b> · continued ━━━")
+    assert body(texts[1]).startswith("━━━ 🥇 <b>PRECIOUS METALS</b> · continued ━━━")
 
 
 def test_a_part_that_opens_inside_a_block_names_it_continued():
@@ -409,7 +449,7 @@ def test_a_part_that_opens_inside_a_block_names_it_continued():
     assert len(texts) > 1, "the fixture must be long enough to split"
     assert "━━━ 🥇 <b>PRECIOUS METALS</b> ━━━" in texts[0]
     for part in texts[1:]:
-        assert part.startswith("━━━ 🥇 <b>PRECIOUS METALS</b> · continued ━━━")
+        assert body(part).startswith("━━━ 🥇 <b>PRECIOUS METALS</b> · continued ━━━")
     for part in texts[:-1]:
         assert "━━━" not in part.rstrip().splitlines()[-1]   # never a name-line alone
 

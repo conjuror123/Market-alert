@@ -551,8 +551,10 @@ it goes on in opens with its name-line, `continued`:
 🕐 28.09.2026 14:00 UTC · close 38%
 ```
 
-A note in several messages ends each with its part and period (`part 2 of 3 - 02.10.2026
-to 09.10.2026`), since only the first carries the header.
+A note in several messages names the part in each header (`📋 Digest part 2 of 3 -
+02.10.2026 to 09.10.2026`). A later part's header also gives the note's event count
+(`16 events so far`). The VIX line and `this message is updated as moves are found` appear
+only in the first part. A note in one message names no part.
 
 **One message per kind per run.** A run's pushes go out in one message and its pings in
 one more, biggest σ first. News is said once below the pushes, named by hour when the
