@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793916408
+    "last_run_utc": 1793919998
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -28,7 +28,7 @@
           "peak": "jump:binance:BTC/USDT:hour:1793890800",
           "ping_at": 1793891231,
           "placed_at": 1793894904,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "high",
             7.8,
@@ -69,7 +69,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1793800800",
           "ping_at": 1793808399,
           "placed_at": 1793808399,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             5.2,
@@ -104,7 +104,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "high",
             8.1,
@@ -139,7 +139,7 @@
           "peak": "jump:binance:SOL/USDT:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             5.2,
@@ -174,7 +174,7 @@
           "peak": "jump:binance:XRP/USDT:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             4.5,
@@ -208,7 +208,7 @@
           "message": null,
           "peak": "jump:marketwatch:TFM=F:hour:1793710800",
           "ping_at": 1793718413,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "high",
             6.5,
@@ -243,7 +243,7 @@
           "peak": "jump:sifting:XAG/USD:hour:1793768400",
           "ping_at": 1793772412,
           "placed_at": 1793772412,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             4.6,
@@ -278,7 +278,7 @@
           "peak": "jump:sina:CAD:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             5.4,
@@ -317,7 +317,7 @@
           "peak": "jump:sina:SND:hour:1793768400",
           "ping_at": 1793761600,
           "placed_at": 1793761600,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             5.4,
@@ -358,7 +358,7 @@
           "peak": "jump:sina:SND:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "high",
             6.6,
@@ -393,7 +393,7 @@
           "peak": "jump:twelvedata:IWM:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             5.0,
@@ -428,7 +428,7 @@
           "peak": "jump:twelvedata:REMX:hour:1793887200",
           "ping_at": 1793891231,
           "placed_at": 1793891231,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             5.2,
@@ -473,7 +473,7 @@
           "peak": "jump:twelvedata:SPY:hour:1793890800",
           "ping_at": 1793891231,
           "placed_at": 1793891231,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "high",
             7.5,
@@ -514,7 +514,7 @@
           "peak": "jump:twelvedata:USD/CHF:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             5.6,
@@ -548,7 +548,7 @@
           "message": null,
           "peak": "jump:twelvedata:USD/CNH:hour:1793664000",
           "ping_at": 1793667997,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             5.4,
@@ -583,7 +583,7 @@
           "peak": "jump:twelvedata:USD/JPY:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "high",
             6.7,
@@ -618,7 +618,7 @@
           "peak": "jump:twelvedata:XLE:hour:1793800800",
           "ping_at": 1793808399,
           "placed_at": 1793808399,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             5.3,
@@ -653,7 +653,7 @@
           "peak": "jump:twelvedata:XLF:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             6.3,
@@ -692,7 +692,7 @@
           "peak": "jump:twelvedata:XLK:hour:1793890800",
           "ping_at": 1793891231,
           "placed_at": 1793891231,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             4.8,
@@ -732,7 +732,7 @@
           "message": null,
           "peak": null,
           "ping_at": 1793588797,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             null,
             null,
@@ -772,7 +772,7 @@
           "message": null,
           "peak": "jump:yahoo:BZ=F:hour:1793710800",
           "ping_at": 1793714808,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             5.3,
@@ -813,7 +813,7 @@
           "peak": "jump:yahoo:BZ=F:hour:1793808000",
           "ping_at": 1793812025,
           "placed_at": 1793812025,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "high",
             8.4,
@@ -853,7 +853,7 @@
           "message": null,
           "peak": "jump:yahoo:IGLT.L:hour:1793714400",
           "ping_at": 1793722007,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             4.5,
@@ -881,21 +881,21 @@
           "members": {
             "jump:yahoo:PL=F:hour:1793768400": [
               0.023239005452853533,
-              0.004727385728354387
+              0.004727466931025523
             ]
           },
           "message": null,
           "peak": "jump:yahoo:PL=F:hour:1793768400",
           "ping_at": 1793772412,
           "placed_at": 1793772412,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             4.9,
             1793768400,
             2.32
           ],
-          "size": 4.915825952908454,
+          "size": 4.915741514835372,
           "start": 1793772000,
           "story": [
             [
@@ -921,26 +921,26 @@
           "hour": 1793890800,
           "members": {
             "jump:yahoo:ZT=F:hour:1793887200": [
-              0.0009168004309362193,
-              0.00018516334569992037
+              0.0008785836270028404,
+              0.00018514338880994282
             ],
             "jump:yahoo:ZT=F:hour:1793890800": [
               0.0009541075048756484,
-              0.00018553539907811581
+              0.00018544908004545588
             ]
           },
           "message": 149,
           "peak": "jump:yahoo:ZT=F:hour:1793890800",
           "ping_at": 1793891231,
           "placed_at": 1793891231,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             5.1,
             1793890800,
             0.1
           ],
-          "size": 5.1424553460762565,
+          "size": 5.144848950675758,
           "start": 1793890800,
           "story": [
             [
@@ -974,7 +974,7 @@
           "peak": "jump:yahoo:^GSPTSE:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             6.1,
@@ -1009,7 +1009,7 @@
           "peak": "jump:yahoo:^HSI:hour:1793768400",
           "ping_at": 1793779603,
           "placed_at": 1793779603,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             4.8,
@@ -1044,7 +1044,7 @@
           "peak": "jump:yahoo:^N225:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             5.5,
@@ -1085,7 +1085,7 @@
           "peak": "jump:yahoo:^STOXX50E:hour:1793887200",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             4.5,
@@ -1120,7 +1120,7 @@
           "peak": "jump:yahoo:^TWII:hour:1793764800",
           "ping_at": 1793772412,
           "placed_at": 1793772412,
-          "seen": 1793916409,
+          "seen": 1793919999,
           "shown": [
             "noticeable",
             5.7,
@@ -1168,7 +1168,7 @@
       },
       "note": {
         "hashes": [
-          "13402390d33f7cbe",
+          "15b5258a9f1408df",
           "1de4236f60eb6d0d"
         ],
         "ids": [
@@ -1190,7 +1190,7 @@
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1793916409
+    "saved_at": 1793919999
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-05",
