@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793909203
+    "last_run_utc": 1793912873
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -10,7 +10,7 @@
       "events": {
         "binance:BTC/USDT|1793890800": {
           "asset": "binance:BTC/USDT",
-          "body": "\ud83d\udfe8 <b>BTC/USDT</b> \u00b7 Bitcoin -2.93% \u00b7 7.8\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 4 months (then 10.5\u00d7\u03c3)\n\ud83d\udd50 <b>05.11.2026 15:00 UTC</b> \u00b7 close in 1h\n\u270f\ufe0f \u2b1c 4.6\u00d7\u03c3 14:00 \u2192 \ud83d\udfe8 7.8\u00d7\u03c3 15:00 bigger jump",
+          "body": "\ud83d\udfe8 <b>BTC/USDT</b> \u00b7 Bitcoin -2.93% \u00b7 7.8\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 4 months (then 10.5\u00d7\u03c3)\n\ud83d\udd50 <b>05.11.2026 15:00 UTC</b> \u00b7 close 91%\n\u270f\ufe0f \u2b1c 4.6\u00d7\u03c3 14:00 \u2192 \ud83d\udfe8 7.8\u00d7\u03c3 15:00 bigger jump",
           "context": "Nearby economic events (-2h+1h):\n     \ud83d\udfe0 \ud83c\uddfa\ud83c\uddf8 USD Unemployment Claims\n     \ud83d\udfe0 \ud83c\udde8\ud83c\udde6 CAD BOC Gov Macklem Speaks",
           "form": "push",
           "hour": 1793890800,
@@ -28,7 +28,7 @@
           "peak": "jump:binance:BTC/USDT:hour:1793890800",
           "ping_at": 1793891231,
           "placed_at": 1793894904,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "high",
             7.8,
@@ -69,7 +69,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1793800800",
           "ping_at": 1793808399,
           "placed_at": 1793808399,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             5.2,
@@ -90,7 +90,7 @@
         },
         "binance:ETH/USDT|1793894400": {
           "asset": "binance:ETH/USDT",
-          "body": "\ud83d\udfe8 <b>ETH/USDT</b> \u00b7 Ethereum -3.98% \u00b7 8.1\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 28 days (then 8.0\u00d7\u03c3)\n\ud83d\udd50 <b>05.11.2026 15:00 UTC</b> \u00b7 close in 1h",
+          "body": "\ud83d\udfe8 <b>ETH/USDT</b> \u00b7 Ethereum -3.98% \u00b7 8.1\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 28 days (then 8.0\u00d7\u03c3)\n\ud83d\udd50 <b>05.11.2026 15:00 UTC</b> \u00b7 close 102%",
           "context": "Nearby economic events (-2h+1h):\n     \ud83d\udfe0 \ud83c\uddfa\ud83c\uddf8 USD Unemployment Claims\n     \ud83d\udfe0 \ud83c\udde8\ud83c\udde6 CAD BOC Gov Macklem Speaks",
           "form": "push",
           "hour": 1793890800,
@@ -104,7 +104,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "high",
             8.1,
@@ -139,7 +139,7 @@
           "peak": "jump:binance:SOL/USDT:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             5.2,
@@ -174,7 +174,7 @@
           "peak": "jump:binance:XRP/USDT:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             4.5,
@@ -208,7 +208,7 @@
           "message": null,
           "peak": "jump:marketwatch:TFM=F:hour:1793710800",
           "ping_at": 1793718413,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "high",
             6.5,
@@ -243,7 +243,7 @@
           "peak": "jump:sifting:XAG/USD:hour:1793768400",
           "ping_at": 1793772412,
           "placed_at": 1793772412,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             4.6,
@@ -278,7 +278,7 @@
           "peak": "jump:sina:CAD:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             5.4,
@@ -317,7 +317,7 @@
           "peak": "jump:sina:SND:hour:1793768400",
           "ping_at": 1793761600,
           "placed_at": 1793761600,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             5.4,
@@ -344,7 +344,7 @@
         },
         "sina:SND|1793894400": {
           "asset": "sina:SND",
-          "body": "\ud83d\udfe8 <b>SND</b> \u00b7 Tin (LME) -3.00% \u00b7 6.6\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 6 months of record\n\ud83d\udd50 <b>05.11.2026 15:00 UTC</b> \u00b7 close in 1h",
+          "body": "\ud83d\udfe8 <b>SND</b> \u00b7 Tin (LME) -3.00% \u00b7 6.6\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 6 months of record\n\ud83d\udd50 <b>05.11.2026 15:00 UTC</b> \u00b7 close 66%",
           "context": "Nearby economic events (-2h+1h):\n     \ud83d\udfe0 \ud83c\uddfa\ud83c\uddf8 USD Unemployment Claims\n     \ud83d\udfe0 \ud83c\udde8\ud83c\udde6 CAD BOC Gov Macklem Speaks",
           "form": "push",
           "hour": 1793890800,
@@ -358,7 +358,7 @@
           "peak": "jump:sina:SND:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "high",
             6.6,
@@ -393,7 +393,7 @@
           "peak": "jump:twelvedata:IWM:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             5.0,
@@ -428,7 +428,7 @@
           "peak": "jump:twelvedata:REMX:hour:1793887200",
           "ping_at": 1793891231,
           "placed_at": 1793891231,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             5.2,
@@ -455,7 +455,7 @@
         },
         "twelvedata:SPY|1793890800": {
           "asset": "twelvedata:SPY",
-          "body": "\ud83d\udfe8 <b>SPY</b> \u00b7 S&amp;P 500 -1.65% \u00b7 7.5\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 11 months (then 9.0\u00d7\u03c3)\n\ud83d\udd50 <b>05.11.2026 15:00 UTC</b> \u00b7 close in 1h\n\u270f\ufe0f \ud83d\udfe8 6.8\u00d7\u03c3 14:00 \u2192 \ud83d\udfe8 7.5\u00d7\u03c3 15:00 bigger jump",
+          "body": "\ud83d\udfe8 <b>SPY</b> \u00b7 S&amp;P 500 -1.65% \u00b7 7.5\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 11 months (then 9.0\u00d7\u03c3)\n\ud83d\udd50 <b>05.11.2026 15:00 UTC</b> \u00b7 close 169%\n\u270f\ufe0f \ud83d\udfe8 6.8\u00d7\u03c3 14:00 \u2192 \ud83d\udfe8 7.5\u00d7\u03c3 15:00 bigger jump",
           "context": "Nearby economic events (-2h+1h):\n     \ud83d\udfe0 \ud83c\uddfa\ud83c\uddf8 USD Unemployment Claims\n     \ud83d\udfe0 \ud83c\udde8\ud83c\udde6 CAD BOC Gov Macklem Speaks",
           "form": "push",
           "hour": 1793890800,
@@ -473,7 +473,7 @@
           "peak": "jump:twelvedata:SPY:hour:1793890800",
           "ping_at": 1793891231,
           "placed_at": 1793891231,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "high",
             7.5,
@@ -514,7 +514,7 @@
           "peak": "jump:twelvedata:USD/CHF:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             5.6,
@@ -548,7 +548,7 @@
           "message": null,
           "peak": "jump:twelvedata:USD/CNH:hour:1793664000",
           "ping_at": 1793667997,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             5.4,
@@ -583,7 +583,7 @@
           "peak": "jump:twelvedata:USD/JPY:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "high",
             6.7,
@@ -618,7 +618,7 @@
           "peak": "jump:twelvedata:XLE:hour:1793800800",
           "ping_at": 1793808399,
           "placed_at": 1793808399,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             5.3,
@@ -653,7 +653,7 @@
           "peak": "jump:twelvedata:XLF:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             6.3,
@@ -692,7 +692,7 @@
           "peak": "jump:twelvedata:XLK:hour:1793890800",
           "ping_at": 1793891231,
           "placed_at": 1793891231,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             4.8,
@@ -732,7 +732,7 @@
           "message": null,
           "peak": null,
           "ping_at": 1793588797,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             null,
             null,
@@ -772,7 +772,7 @@
           "message": null,
           "peak": "jump:yahoo:BZ=F:hour:1793710800",
           "ping_at": 1793714808,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             5.3,
@@ -806,21 +806,21 @@
           "members": {
             "jump:yahoo:BZ=F:hour:1793808000": [
               -0.04967213004416985,
-              0.005880176016790141
+              0.00588017768491222
             ]
           },
           "message": 147,
           "peak": "jump:yahoo:BZ=F:hour:1793808000",
           "ping_at": 1793812025,
           "placed_at": 1793812025,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "high",
             8.4,
             1793808000,
             -4.97
           ],
-          "size": 8.447388292856711,
+          "size": 8.4473858964538,
           "start": 1793811600,
           "story": [
             [
@@ -853,7 +853,7 @@
           "message": null,
           "peak": "jump:yahoo:IGLT.L:hour:1793714400",
           "ping_at": 1793722007,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             4.5,
@@ -881,21 +881,21 @@
           "members": {
             "jump:yahoo:PL=F:hour:1793768400": [
               0.023239005452853533,
-              0.004727466931025523
+              0.004727385728354387
             ]
           },
           "message": null,
           "peak": "jump:yahoo:PL=F:hour:1793768400",
           "ping_at": 1793772412,
           "placed_at": 1793772412,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             4.9,
             1793768400,
             2.32
           ],
-          "size": 4.915741514835372,
+          "size": 4.915825952908454,
           "start": 1793772000,
           "story": [
             [
@@ -921,26 +921,26 @@
           "hour": 1793890800,
           "members": {
             "jump:yahoo:ZT=F:hour:1793887200": [
-              0.0008785836270028404,
-              0.00018514338880994282
+              0.0009168004309362193,
+              0.00018516334569992037
             ],
             "jump:yahoo:ZT=F:hour:1793890800": [
               0.0009541075048756484,
-              0.00018544908004545588
+              0.00018553539907811581
             ]
           },
           "message": 149,
           "peak": "jump:yahoo:ZT=F:hour:1793890800",
           "ping_at": 1793891231,
           "placed_at": 1793891231,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             5.1,
             1793890800,
             0.1
           ],
-          "size": 5.144848950675758,
+          "size": 5.1424553460762565,
           "start": 1793890800,
           "story": [
             [
@@ -974,7 +974,7 @@
           "peak": "jump:yahoo:^GSPTSE:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             6.1,
@@ -1009,7 +1009,7 @@
           "peak": "jump:yahoo:^HSI:hour:1793768400",
           "ping_at": 1793779603,
           "placed_at": 1793779603,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             4.8,
@@ -1044,7 +1044,7 @@
           "peak": "jump:yahoo:^N225:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             5.5,
@@ -1085,7 +1085,7 @@
           "peak": "jump:yahoo:^STOXX50E:hour:1793887200",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             4.5,
@@ -1120,7 +1120,7 @@
           "peak": "jump:yahoo:^TWII:hour:1793764800",
           "ping_at": 1793772412,
           "placed_at": 1793772412,
-          "seen": 1793909204,
+          "seen": 1793912874,
           "shown": [
             "noticeable",
             5.7,
@@ -1151,7 +1151,7 @@
         },
         "148": {
           "first": "\ud83d\udfe8 <b>SPY</b> \u00b7 S&amp;P 500 -1.65% \u00b7 7.5\u00d7\u03c3",
-          "hash": "994d9b4da9c94dc6"
+          "hash": "b40302a6f331d8f5"
         },
         "149": {
           "first": "\u2b1c <b>REMX</b> \u00b7 Rare earths -2.83% \u00b7 5.2\u00d7\u03c3",
@@ -1159,7 +1159,7 @@
         },
         "151": {
           "first": "\ud83d\udfe8 <b>ETH/USDT</b> \u00b7 Ethereum -3.98% \u00b7 8.1\u00d7\u03c3",
-          "hash": "993d4641dc942c4f"
+          "hash": "6d3d3d68c202f2d3"
         },
         "152": {
           "first": "\u2b1c <b>XLF</b> \u00b7 Financial sector -1.68% \u00b7 6.3\u00d7\u03c3",
@@ -1168,8 +1168,8 @@
       },
       "note": {
         "hashes": [
-          "c29edfebf7c13e96",
-          "7adf6eb7cbab4cf2"
+          "429268cb6b10d18b",
+          "770c4a4b6b33d96c"
         ],
         "ids": [
           134,
@@ -1190,7 +1190,7 @@
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1793909204
+    "saved_at": 1793912874
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-05",
