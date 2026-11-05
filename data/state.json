@@ -1,13 +1,48 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793887606
+    "last_run_utc": 1793891229
   },
   "floor_pending_replies": [],
   "jump_delivery": {
     "week": {
       "detector": "2d9898a91cc3",
       "events": {
+        "binance:BTC/USDT|1793890800": {
+          "asset": "binance:BTC/USDT",
+          "body": "\u2b1c <b>BTC/USDT</b> \u00b7 Bitcoin -1.74% \u00b7 4.6\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1793887200,
+          "members": {
+            "jump:binance:BTC/USDT:hour:1793887200": [
+              -0.017395026326942738,
+              0.003767351362795476
+            ]
+          },
+          "message": 149,
+          "peak": "jump:binance:BTC/USDT:hour:1793887200",
+          "ping_at": 1793891231,
+          "placed_at": 1793891231,
+          "seen": 1793891231,
+          "shown": [
+            "noticeable",
+            4.6,
+            1793887200,
+            -1.74
+          ],
+          "size": 4.617309258363192,
+          "start": 1793890800,
+          "story": [
+            [
+              "noticeable",
+              4.6,
+              1793887200,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        },
         "binance:ETH/USDT|1793804400": {
           "asset": "binance:ETH/USDT",
           "body": "\u2b1c <b>ETH/USDT</b> \u00b7 Ethereum +2.55% \u00b7 5.2\u00d7\u03c3",
@@ -24,7 +59,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1793800800",
           "ping_at": 1793808399,
           "placed_at": 1793808399,
-          "seen": 1793887607,
+          "seen": 1793891231,
           "shown": [
             "noticeable",
             5.2,
@@ -58,7 +93,7 @@
           "message": null,
           "peak": "jump:marketwatch:TFM=F:hour:1793710800",
           "ping_at": 1793718413,
-          "seen": 1793887607,
+          "seen": 1793891231,
           "shown": [
             "high",
             6.5,
@@ -93,7 +128,7 @@
           "peak": "jump:sifting:XAG/USD:hour:1793768400",
           "ping_at": 1793772412,
           "placed_at": 1793772412,
-          "seen": 1793887607,
+          "seen": 1793891231,
           "shown": [
             "noticeable",
             4.6,
@@ -132,7 +167,7 @@
           "peak": "jump:sina:SND:hour:1793768400",
           "ping_at": 1793761600,
           "placed_at": 1793761600,
-          "seen": 1793887607,
+          "seen": 1793891231,
           "shown": [
             "noticeable",
             5.4,
@@ -157,6 +192,76 @@
           ],
           "tier": "noticeable"
         },
+        "twelvedata:REMX|1793890800": {
+          "asset": "twelvedata:REMX",
+          "body": "\u2b1c <b>REMX</b> \u00b7 Rare earths -2.92% \u00b7 5.3\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1793887200,
+          "members": {
+            "jump:twelvedata:REMX:hour:1793887200": [
+              -0.02921480359248522,
+              0.005478976589749822
+            ]
+          },
+          "message": 149,
+          "peak": "jump:twelvedata:REMX:hour:1793887200",
+          "ping_at": 1793891231,
+          "placed_at": 1793891231,
+          "seen": 1793891231,
+          "shown": [
+            "noticeable",
+            5.3,
+            1793887200,
+            -2.92
+          ],
+          "size": 5.332164340169085,
+          "start": 1793890800,
+          "story": [
+            [
+              "noticeable",
+              5.3,
+              1793887200,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        },
+        "twelvedata:SPY|1793890800": {
+          "asset": "twelvedata:SPY",
+          "body": "\ud83d\udfe8 <b>SPY</b> \u00b7 S&amp;P 500 -1.48% \u00b7 6.8\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 3 months (then 6.5\u00d7\u03c3)\n\ud83d\udd50 <b>05.11.2026 14:00 UTC</b> \u00b7 close in 6h",
+          "context": "Nearby economic events (-2h+1h):\n     \ud83d\udd34 \ud83c\uddec\ud83c\udde7 GBP BOE Monetary Policy Report\n     \ud83d\udd34 \ud83c\uddec\ud83c\udde7 GBP Monetary Policy Summary\n     \ud83d\udd34 \ud83c\uddec\ud83c\udde7 GBP MPC Official Bank Rate Votes\n     \ud83d\udd34 \ud83c\uddec\ud83c\udde7 GBP Official Bank Rate\n     \ud83d\udd34 \ud83c\uddec\ud83c\udde7 GBP BOE Gov Bailey Speaks\n     \ud83d\udfe0 \ud83c\udde8\ud83c\udded CHF SNB Chairman Schlegel Speaks\n     \ud83d\udfe0 \ud83c\uddfa\ud83c\uddf8 USD Unemployment Claims",
+          "form": "push",
+          "hour": 1793887200,
+          "members": {
+            "jump:twelvedata:SPY:hour:1793887200": [
+              -0.01477862651097453,
+              0.002187173582759147
+            ]
+          },
+          "message": 148,
+          "peak": "jump:twelvedata:SPY:hour:1793887200",
+          "ping_at": 1793891231,
+          "placed_at": 1793891231,
+          "seen": 1793891231,
+          "shown": [
+            "high",
+            6.8,
+            1793887200,
+            -1.48
+          ],
+          "size": 6.756951815562396,
+          "start": 1793890800,
+          "story": [
+            [
+              "high",
+              6.8,
+              1793887200,
+              ""
+            ]
+          ],
+          "tier": "high"
+        },
         "twelvedata:USD/CHF|1793757600": {
           "asset": "twelvedata:USD/CHF",
           "body": "\u2b1c <b>USD/CHF</b> \u00b7 Franc -0.44% \u00b7 5.6\u00d7\u03c3",
@@ -173,7 +278,7 @@
           "peak": "jump:twelvedata:USD/CHF:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793887607,
+          "seen": 1793891231,
           "shown": [
             "noticeable",
             5.6,
@@ -207,7 +312,7 @@
           "message": null,
           "peak": "jump:twelvedata:USD/CNH:hour:1793664000",
           "ping_at": 1793667997,
-          "seen": 1793887607,
+          "seen": 1793891231,
           "shown": [
             "noticeable",
             5.4,
@@ -242,7 +347,7 @@
           "peak": "jump:twelvedata:USD/JPY:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793887607,
+          "seen": 1793891231,
           "shown": [
             "high",
             6.7,
@@ -277,7 +382,7 @@
           "peak": "jump:twelvedata:XLE:hour:1793800800",
           "ping_at": 1793808399,
           "placed_at": 1793808399,
-          "seen": 1793887607,
+          "seen": 1793891231,
           "shown": [
             "noticeable",
             5.3,
@@ -291,6 +396,41 @@
               "noticeable",
               5.3,
               1793800800,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        },
+        "twelvedata:XLK|1793890800": {
+          "asset": "twelvedata:XLK",
+          "body": "\u2b1c <b>XLK</b> \u00b7 Technology sector -2.40% \u00b7 4.6\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1793887200,
+          "members": {
+            "jump:twelvedata:XLK:hour:1793887200": [
+              -0.024031788971443337,
+              0.005262578020713662
+            ]
+          },
+          "message": 149,
+          "peak": "jump:twelvedata:XLK:hour:1793887200",
+          "ping_at": 1793891231,
+          "placed_at": 1793891231,
+          "seen": 1793891231,
+          "shown": [
+            "noticeable",
+            4.6,
+            1793887200,
+            -2.4
+          ],
+          "size": 4.566543028313026,
+          "start": 1793890800,
+          "story": [
+            [
+              "noticeable",
+              4.6,
+              1793887200,
               ""
             ]
           ],
@@ -311,7 +451,7 @@
           "message": null,
           "peak": null,
           "ping_at": 1793588797,
-          "seen": 1793887607,
+          "seen": 1793891231,
           "shown": [
             null,
             null,
@@ -351,7 +491,7 @@
           "message": null,
           "peak": "jump:yahoo:BZ=F:hour:1793710800",
           "ping_at": 1793714808,
-          "seen": 1793887607,
+          "seen": 1793891231,
           "shown": [
             "noticeable",
             5.3,
@@ -392,7 +532,7 @@
           "peak": "jump:yahoo:BZ=F:hour:1793808000",
           "ping_at": 1793812025,
           "placed_at": 1793812025,
-          "seen": 1793887607,
+          "seen": 1793891231,
           "shown": [
             "high",
             8.4,
@@ -432,7 +572,7 @@
           "message": null,
           "peak": "jump:yahoo:IGLT.L:hour:1793714400",
           "ping_at": 1793722007,
-          "seen": 1793887607,
+          "seen": 1793891231,
           "shown": [
             "noticeable",
             4.5,
@@ -467,7 +607,7 @@
           "peak": "jump:yahoo:PL=F:hour:1793768400",
           "ping_at": 1793772412,
           "placed_at": 1793772412,
-          "seen": 1793887607,
+          "seen": 1793891231,
           "shown": [
             "noticeable",
             4.9,
@@ -492,6 +632,41 @@
           ],
           "tier": "noticeable"
         },
+        "yahoo:ZT=F|1793890800": {
+          "asset": "yahoo:ZT=F",
+          "body": "\u2b1c <b>ZT=F</b> \u00b7 2-year Treasury note (CBOT) +0.09% \u00b7 4.7\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1793887200,
+          "members": {
+            "jump:yahoo:ZT=F:hour:1793887200": [
+              0.0008786171895560589,
+              0.00018516334569992037
+            ]
+          },
+          "message": 149,
+          "peak": "jump:yahoo:ZT=F:hour:1793887200",
+          "ping_at": 1793891231,
+          "placed_at": 1793891231,
+          "seen": 1793891231,
+          "shown": [
+            "noticeable",
+            4.7,
+            1793887200,
+            0.09
+          ],
+          "size": 4.7450924276339475,
+          "start": 1793890800,
+          "story": [
+            [
+              "noticeable",
+              4.7,
+              1793887200,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        },
         "yahoo:^HSI|1793772000": {
           "asset": "yahoo:^HSI",
           "body": "\u2b1c <b>Hang Seng</b> \u00b7 Hong Kong +1.09% \u00b7 4.8\u00d7\u03c3",
@@ -508,7 +683,7 @@
           "peak": "jump:yahoo:^HSI:hour:1793768400",
           "ping_at": 1793779603,
           "placed_at": 1793779603,
-          "seen": 1793887607,
+          "seen": 1793891231,
           "shown": [
             "noticeable",
             4.8,
@@ -543,7 +718,7 @@
           "peak": "jump:yahoo:^N225:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793887607,
+          "seen": 1793891231,
           "shown": [
             "noticeable",
             5.5,
@@ -584,7 +759,7 @@
           "peak": "jump:yahoo:^TWII:hour:1793764800",
           "ping_at": 1793772412,
           "placed_at": 1793772412,
-          "seen": 1793887607,
+          "seen": 1793891231,
           "shown": [
             "noticeable",
             5.7,
@@ -612,14 +787,24 @@
         "147": {
           "first": "\ud83d\udfe8 <b>BZ=F</b> \u00b7 Brent crude (NYMEX) -4.97% \u00b7 8.4\u00d7\u03c3",
           "hash": "92259e1730f1d6fa"
+        },
+        "148": {
+          "first": "\ud83d\udfe8 <b>SPY</b> \u00b7 S&amp;P 500 -1.48% \u00b7 6.8\u00d7\u03c3",
+          "hash": "9d93c814445ebec7"
+        },
+        "149": {
+          "first": "\u2b1c <b>REMX</b> \u00b7 Rare earths -2.92% \u00b7 5.3\u00d7\u03c3",
+          "hash": "aed5347e4ee17b30"
         }
       },
       "note": {
         "hashes": [
-          "b2e27204ccab8929"
+          "e45111b168c574d3",
+          "570359657ab1d9d2"
         ],
         "ids": [
-          134
+          134,
+          150
         ]
       },
       "orphans": [],
@@ -631,12 +816,15 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      147
+      147,
+      148,
+      149,
+      150
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1793887607
+    "saved_at": 1793891231
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-05",
