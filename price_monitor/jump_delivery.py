@@ -709,10 +709,10 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
     and the part it goes on in says so with the block's name-line, "continued".
 
     The header states the period the note speaks for, from the evening of one
-    week's last funds close to the next's. A note in several parts names its
-    part in every part's header, and a later part repeats the period and the
-    count, so it reads on its own (the user's, 2026-11-05); the VIX line and the
-    "updated as moves are found" stay in the first.
+    week's last funds close to the next's. A note in several parts repeats the
+    period in every part's first line and names the part and the count on the
+    second, so a later part reads on its own (the user's, 2026-11-05); the VIX
+    line and the "updated as moves are found" stay in the first.
     """
     from jump.jumps import WORDS as TIERS
 
@@ -740,11 +740,11 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
     # stretch shorter than an hour cannot contain one, and naming that day claims
     # something the note is unable to have.
     last = closes - timedelta(hours=1)
-    lead = "📋 <b>Digest</b>"
-    title = f" - {format_day(opened)} to {format_day(last)}\n{count}"
-    header = lead + title + (" - this message is updated as moves are found" if live else "")
+    lead = f"📋 <b>Digest</b> - {format_day(opened)} to {format_day(last)}"
+    header = f"{lead}\n{count}" + (" - this message is updated as moves are found"
+                                   if live else "")
     # A later part's header: the part number goes in once the parts are counted.
-    follow = lead + title
+    follow = f"{lead}\n{count}"
     # The regime the whole period sits in, read at the note's latest edit rather
     # than at its opening: a note is re-rendered every time a row is added, so
     # while it is live this tracks the market, and once the period closes it
@@ -796,8 +796,13 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
     messages.append(current)
 
     if len(messages) > 1:
+        # THE PART IS NAMED ON THE SECOND LINE. The first line is how a message
+        # sent by a run whose state was lost is recognised and taken over
+        # (telegram_ledger.claim), so it stays the same in every part and every
+        # run of the week, while the number of parts changes as the note grows.
+        # Parts that share it are taken over in the order they were sent.
         total = len(messages)
-        messages = [f"{lead} part {i} of {total}{m[len(lead):]}"
+        messages = [m.replace("\n", f"\nPart {i} of {total} · ", 1)
                     for i, m in enumerate(messages, 1)]
     return messages
 

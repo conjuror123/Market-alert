@@ -144,6 +144,13 @@ or σ revisions of the same hour and two-step oscillations (A → B → A) are c
 a single transition from initial to final state, preventing back-and-forth price adjustments
 from creating long repetitive story lines.
 
+**A digest part names itself on its second line** (the user's, 2026-11-05). Each part
+opens with the note's period and says `Part 2 of 3 · 16 events so far` under it, instead of a
+footer under the rows. On the first line, as first written, `part 2 of 3` would change as
+the note grew, and the first line is what recognises a message a run whose state was lost
+had sent (`telegram_ledger.claim`): a part 2 sent as `of 2` and wanted as `of 3` would have
+been deleted and sent again. Parts sharing a first line are taken over in the order sent.
+
 **Noticeable pings carry the event line without a footer** (the user's, 2026-11-03): the
 "Added to digest" pointer is omitted; details are read in the weekly digest note itself.
 

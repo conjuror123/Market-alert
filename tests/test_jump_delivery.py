@@ -391,17 +391,17 @@ def test_every_part_of_a_long_note_has_a_header_with_its_number_and_the_count(mo
     texts = md.format_digest(rows, LABELS, window, None, NOW)
     total = len(texts)
     assert total > 1, "the fixture must be long enough to split"
-    period = md.format_digest([], LABELS, window, None, NOW)[0].splitlines()[0]
-    period = period.removeprefix("📋 <b>Digest</b> - ")
+    title = md.format_digest([], LABELS, window, None, NOW)[0].splitlines()[0]
+    assert title.startswith("📋 <b>Digest</b> - ")
 
     first = texts[0].splitlines()
-    assert first[0] == f"📋 <b>Digest</b> part 1 of {total} - {period}"
-    assert first[1] == "80 events so far - this message is updated as moves are found"
+    assert first[0] == title
+    assert first[1] == (f"Part 1 of {total} · 80 events so far"
+                        " - this message is updated as moves are found")
     assert first[2].startswith("🌡")
     for i, part in enumerate(texts[1:], 2):
         lines = part.splitlines()
-        assert lines[:3] == [f"📋 <b>Digest</b> part {i} of {total} - {period}",
-                             "80 events so far", ""]
+        assert lines[:3] == [title, f"Part {i} of {total} · 80 events so far", ""]
     for part in texts:
         assert "<i>part" not in part
         assert len(part) <= 4096
@@ -411,7 +411,7 @@ def test_a_note_in_one_message_names_no_part():
     text = md.format_digest([event(channel="digest", tier="noticeable")], LABELS,
                             (SLOT, SLOT + 200 * HOUR), None, NOW)
     assert len(text) == 1
-    assert text[0].startswith("📋 <b>Digest</b> - ") and " part " not in text[0]
+    assert text[0].startswith("📋 <b>Digest</b> - ") and "Part " not in text[0]
 
 
 def test_a_block_that_does_not_fit_what_is_left_opens_the_next_message_whole():

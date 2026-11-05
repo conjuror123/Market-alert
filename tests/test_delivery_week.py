@@ -656,7 +656,7 @@ def test_a_note_that_shrinks_deletes_its_surplus_parts(monkeypatch, channel, wee
     assert len(channel.notes()) > 1
     run(monkeypatch, channel, many[:2], run_at(0, 3), week)
     assert len(channel.notes()) == 1 and "2 events so far" in channel.note()
-    assert " part " not in channel.note()
+    assert "Part " not in channel.note()
 
 
 def test_a_failed_send_is_retried_on_the_next_run(monkeypatch, channel, week):
@@ -1186,3 +1186,61 @@ def test_a_stray_telegram_will_no_longer_delete_is_struck_through(monkeypatch, c
     run(monkeypatch, channel, [ev(at(0, 10), "high", size=6.2)], run_at(0, 12), week)
     assert channel.messages[stale].startswith("<s>")
     assert any(f"Struck through {stale}" in line for line in channel.found)
+
+
+# --- what tells one message from another ----------------------------------------
+# A message is the bot's by its id in the state; by its whole text when Telegram
+# did not answer; and, sent by a run whose state was lost, by its first line
+# (telegram_ledger.claim).
+
+def _rows(n, hour=1):
+    return [ev(at(0, hour), asset=f"twelvedata:X{i}") for i in range(n)]
+
+
+def test_a_lost_runs_note_part_is_taken_over_when_the_note_has_grown_since(
+        monkeypatch, channel, week):
+    # The lost run grew the note to two parts; the next has three. Every part's
+    # first line is the same, so its second part is still recognised.
+    run(monkeypatch, channel, _rows(10), run_at(0, 2), week)
+    saved = copy.deepcopy(week)
+    run(monkeypatch, channel, _rows(70), run_at(0, 3), week)
+    assert len(channel.notes()) == 2
+    stray = max(m for m, t in channel.messages.items() if "<b>Digest</b>" in t)
+    _lost(week, saved)
+    run(monkeypatch, channel, _rows(150), run_at(0, 4), week)
+    notes = [m for m, t in sorted(channel.messages.items()) if "<b>Digest</b>" in t]
+    assert len(notes) == 3 and stray in notes
+    assert [channel.messages[m].split("\n")[1].split(" · ")[0] for m in notes] == [
+        "Part 1 of 3", "Part 2 of 3", "Part 3 of 3"]              # in channel order
+    assert any(f"Took over {stray}" in line for line in channel.news)
+
+
+def test_two_identical_events_are_two_messages_each_kept_by_its_own(
+        monkeypatch, channel, week):
+    # Gold +1.80% at 6.0σ twice, 30 hours apart: two events, two pings saying
+    # the same - each tracked by its message id, so a correction to the first
+    # edits only the first.
+    first, second = ev(at(0, 10)), ev(at(1, 16))
+    run(monkeypatch, channel, [first], run_at(0, 11), week)
+    run(monkeypatch, channel, [first, second], run_at(1, 17), week)
+    pings = sorted(m for m, t in channel.messages.items() if t in channel.pings())
+    assert len(pings) == 2 and channel.messages[pings[0]] == channel.messages[pings[1]]
+    run(monkeypatch, channel, [ev(at(0, 10), size=5.0), second], run_at(1, 18), week)
+    assert channel.messages[pings[0]] != channel.messages[pings[1]]
+    assert channel.messages[pings[1]] == md.ping_line(second, LABELS)
+
+
+def test_a_lost_runs_ping_identical_to_an_earlier_one_is_taken_over(
+        monkeypatch, channel, week):
+    # The earlier ping is known by its id, so only the lost run's copy is a
+    # stray: it is taken over, not sent again, and the earlier one is untouched.
+    first, second = ev(at(0, 10)), ev(at(1, 16))
+    run(monkeypatch, channel, [first], run_at(0, 11), week)
+    [known] = [m for m, t in channel.messages.items() if t in channel.pings()]
+    saved = copy.deepcopy(week)
+    run(monkeypatch, channel, [first, second], run_at(1, 17), week)
+    rang = len(channel.rang)
+    _lost(week, saved)
+    run(monkeypatch, channel, [first, second], run_at(1, 18), week)
+    assert len(channel.pings()) == 2 and known in channel.messages
+    assert channel.rings_since(rang) == []
