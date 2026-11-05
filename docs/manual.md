@@ -551,8 +551,12 @@ it goes on in opens with its name-line, `continued`:
 🕐 28.09.2026 14:00 UTC · close 38%
 ```
 
-A note in several messages ends each with its part and period (`part 2 of 3 - 02.10.2026
-to 09.10.2026`), since only the first carries the header.
+A note in several messages opens every part with the same first line, its period
+(`📋 Digest - 02.10.2026 to 09.10.2026`), and names the part and the count on the second
+(`Part 2 of 3 · 16 events so far`). The VIX line and `this message is updated as moves are
+found` appear only in the first part. A note in one message names no part. The part stays
+off the first line because the first line is how a message of a run whose state was lost
+is recognised (section 8), and the number of parts changes as the note grows.
 
 **One message per kind per run.** A run's pushes go out in one message and its pings in
 one more, biggest σ first. News is said once below the pushes, named by hour when the
@@ -624,7 +628,11 @@ and appeared 33 minutes later, and the repeat was a duplicate):
 - A run whose state commit failed is caught the same way. A message that looks like the
   bot's own and was posted after the last run that saved (`saved_at`) is taken over by a
   message this run sends with the same first line, or deleted (struck through after 48 h)
-  once delivery has run through. A state without `saved_at` deletes nothing.
+  once delivery has run through. A state without `saved_at` deletes nothing. Messages that
+  share a first line - a note's parts, or two pings of identical moves - are taken over in
+  the order they were sent; whichever is taken over is edited to what this run sends, so
+  a match between twins still leaves the channel right. Every other message is known by
+  its id, never by its text: two identical events are two messages, each edited alone.
 - Text not the bot's is never touched. Unsure sends are looked for 7 days; an unsure edit
   is repeated for a day; a ping the breaker held goes next run.
 - The read is checked once, and weekly while it fails. If the channel protects its content,
