@@ -52,7 +52,8 @@ log = logging.getLogger("price_monitor.jump_delivery")
 
 # Telegram rejects a message over 4096 characters outright rather than
 # truncating it, so the digest is cut into parts. The headroom covers the
-# "part N of M" line, which would otherwise have to be counted recursively.
+# "part N of M" in each part's header, which would otherwise have to be counted
+# recursively.
 _MESSAGE_LIMIT = 4000
 
 STATE_KEY = "jump_delivery"
@@ -708,7 +709,10 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
     and the part it goes on in says so with the block's name-line, "continued".
 
     The header states the period the note speaks for, from the evening of one
-    week's last funds close to the next's.
+    week's last funds close to the next's. A note in several parts names its
+    part in every part's header, and a later part repeats the period and the
+    count, so it reads on its own (the user's, 2026-11-05); the VIX line and the
+    "updated as moves are found" stay in the first.
     """
     from jump.jumps import WORDS as TIERS
 
@@ -736,8 +740,11 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
     # stretch shorter than an hour cannot contain one, and naming that day claims
     # something the note is unable to have.
     last = closes - timedelta(hours=1)
-    header = (f"📋 <b>Digest</b> - {format_day(opened)} to {format_day(last)}\n"
-              + count + (" - this message is updated as moves are found" if live else ""))
+    lead = "📋 <b>Digest</b>"
+    title = f" - {format_day(opened)} to {format_day(last)}\n{count}"
+    header = lead + title + (" - this message is updated as moves are found" if live else "")
+    # A later part's header: the part number goes in once the parts are counted.
+    follow = lead + title
     # The regime the whole period sits in, read at the note's latest edit rather
     # than at its opening: a note is re-rendered every time a row is added, so
     # while it is live this tracks the market, and once the period closes it
@@ -771,31 +778,26 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
         # header leaves, so a block that does not fit beside the header is cut
         # under it rather than leave the header alone; one longer than any
         # message starts the next too.
-        if len(whole) <= _MESSAGE_LIMIT and current != header:
+        if len(f"{follow}\n\n{whole}") <= _MESSAGE_LIMIT and current != header:
             messages.append(current)
-            current = whole
+            current = f"{follow}\n\n{whole}"
             continue
         opening = f"{block_line(block)}\n\n{texts[0]}"
-        if current == header:
-            current = f"{header}\n\n{opening}"
-        else:
+        if current != header:
             messages.append(current)
-            current = opening
+            current = follow
+        current = f"{current}\n\n{opening}"
         for text in texts[1:]:
             if len(f"{current}\n\n{text}") > _MESSAGE_LIMIT:
                 messages.append(current)
-                current = f"{block_line(block, continued=True)}\n\n{text}"
+                current = f"{follow}\n\n{block_line(block, continued=True)}\n\n{text}"
             else:
                 current = f"{current}\n\n{text}"
     messages.append(current)
 
     if len(messages) > 1:
-        # THE PART MARKER NAMES ITS NOTE. Only the first part carries the
-        # header, so a later part read on its own would be a wall of rows
-        # ending in "part 2 of 3" with nothing saying of what.
         total = len(messages)
-        period = f"{format_day(opened)} to {format_day(last)}"
-        messages = [f"{m}\n\n<i>part {i} of {total} - {period}</i>"
+        messages = [f"{lead} part {i} of {total}{m[len(lead):]}"
                     for i, m in enumerate(messages, 1)]
     return messages
 
