@@ -214,6 +214,7 @@ binance:XRP/USDT,1793304000,close,real,binance,"yahoo,coinbase,kraken,bitstamp,b
 binance:XRP/USDT,1793800800,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",0.026475,"0.026890,0.026738,0.026744,0.027240,0.026999,0.025736",1793923585
 binance:XRP/USDT,1793890800,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",-0.027948,"-0.028783,-0.028220,-0.028590,-0.028300,-0.027627,-0.028202",1793923585
 marketwatch:TFM=F,1793710800,close,real,marketwatch,eex,eex,-0.057784,-0.057016,1793898392
+marketwatch:TFM=F,1793952000,close,real,marketwatch,eex,eex,-0.042950,-0.039140,1793955967
 sifting:XAG/USD,1793768400,close,real,sifting,"yahoo,sina,marketwatch,wallstreetcn,tiingo","yahoo,sina,marketwatch,wallstreetcn,tiingo",0.024567,"0.022858,0.024394,0.024561,0.024600,0.024700",1793923585
 sifting:XAG/USD,1793894400,close,real,sifting,"yahoo,sina,marketwatch,wallstreetcn,tiingo","yahoo,sina,marketwatch,wallstreetcn,tiingo",0.023245,"0.023012,0.021081,0.023011,0.023324,0.023345",1793923585
 sifting:XAU/USD,1793768400,close,real,sifting,"yahoo,sina,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,sina,marketwatch,wallstreetcn,tiingo,twelvedata",0.011567,"0.010508,0.011334,0.011617,0.011479,0.011520,0.011530",1793923585
@@ -938,7 +939,7 @@ yahoo:^BVSP,1793026800,close,real,yahoo,"marketwatch,ft","marketwatch,ft",0.0155
 yahoo:^BVSP,1793041200,close,real,yahoo,"marketwatch,ft","marketwatch,ft",0.015496,"0.015496,0.011172",1793740011
 yahoo:^GSPTSE,1792072800,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,0.010311,"0.010311,",1792785976
 yahoo:^GSPTSE,1793890800,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,-0.011785,"-0.011785,",1793912780
-yahoo:^HSI,1793768400,close,uncertain,yahoo,marketwatch,,0.010909,,1793869583
+yahoo:^HSI,1793768400,close,uncertain,yahoo,marketwatch,,0.010909,,1793955967
 yahoo:^MXX,1793714400,open,real,yahoo,"marketwatch,ft","marketwatch,ft",0.013910,"0.013910,0.015005",1793912780
 yahoo:^N225,1793754000,close,real,yahoo,"sina,marketwatch","sina,marketwatch",-0.019280,"-0.018882,-0.019280",1793948778
 yahoo:^N225,1793768400,close,real,yahoo,"sina,marketwatch","sina,marketwatch",0.014731,"0.018996,0.014731",1793948778
