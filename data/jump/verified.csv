@@ -248,6 +248,7 @@ twelvedata:AUD/USD,1790942400,close,real,sifting,"yahoo,marketwatch,wallstreetcn
 twelvedata:AUD/USD,1791979200,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",-0.004993,"-0.004895,-0.005293,-0.004865,-0.004978,-0.004734",1792713984
 twelvedata:AUD/USD,1792022400,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",-0.003532,"-0.003623,-0.003590,-0.003733,-0.003510,-0.003589",1792713984
 twelvedata:AUD/USD,1793887200,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",-0.003747,"-0.003497,-0.004005,-0.003719,-0.003719,-0.003604",1793923585
+twelvedata:AUD/USD,1793973600,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",0.004115,"0.003784,0.003780,0.003781,0.004173,0.003881",1793977589
 twelvedata:BKLN,1790946000,close,real,yahoo,"sina,marketwatch,alpaca_sip","sina,marketwatch,alpaca_sip",0.001954,"0.001954,0.001465,0.001954",1791580037
 twelvedata:BNO,1636030800,close,overnight,yahoo,alpaca,,0.031922,0.035059,1791362492
 twelvedata:BNO,1638540000,close,overnight,yahoo,alpaca,,0.028851,0.032464,1791362492
@@ -877,6 +878,7 @@ twelvedata:XLV,1791550800,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip",
 twelvedata:XLV,1791896400,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.014127,"-0.011835,-0.013026,-0.017954,-0.013258",1792613181
 twelvedata:XLV,1793192400,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",0.014605,"0.013255,0.013255,0.011228,0.013365",1793912780
 twelvedata:XLV,1793894400,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.013473,"-0.013447,-0.013447,-0.013447,-0.013447",1793912780
+twelvedata:XLV,1793973600,close,real,tiingo,"yahoo,sina,marketwatch","yahoo,sina",0.017227,"0.016956,0.016034,0.001628",1793977589
 twelvedata:XLY,1632142800,close,overnight,tiingo,alpaca,,-0.017921,-0.020744,1791362492
 twelvedata:XLY,1643032800,close,overnight,tiingo,alpaca,,-0.030902,-0.020836,1791362492
 yahoo:511090.SS,1793336400,close,real,yahoo,"sina,marketwatch,wallstreetcn,tencent","sina,marketwatch,wallstreetcn,tencent",-0.003855,"-0.003946,-0.003946,-0.003855,-0.003855",1793689569

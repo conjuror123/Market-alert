@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793974001
+    "last_run_utc": 1793977610
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -28,7 +28,7 @@
           "peak": "jump:binance:BTC/USDT:hour:1793890800",
           "ping_at": 1793891231,
           "placed_at": 1793894904,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "high",
             7.8,
@@ -69,7 +69,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1793800800",
           "ping_at": 1793808399,
           "placed_at": 1793808399,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             5.2,
@@ -104,7 +104,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "high",
             8.1,
@@ -139,7 +139,7 @@
           "peak": "jump:binance:SOL/USDT:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             5.2,
@@ -174,7 +174,7 @@
           "peak": "jump:binance:XRP/USDT:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             4.5,
@@ -208,7 +208,7 @@
           "message": null,
           "peak": "jump:marketwatch:TFM=F:hour:1793710800",
           "ping_at": 1793718413,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "high",
             6.5,
@@ -243,7 +243,7 @@
           "peak": "jump:marketwatch:TFM=F:hour:1793952000",
           "ping_at": 1793955983,
           "placed_at": 1793955983,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             5.0,
@@ -284,7 +284,7 @@
           "peak": "jump:sifting:XAG/USD:hour:1793768400",
           "ping_at": 1793772412,
           "placed_at": 1793772412,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             4.6,
@@ -319,7 +319,7 @@
           "peak": "jump:sina:CAD:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             5.4,
@@ -358,7 +358,7 @@
           "peak": "jump:sina:SND:hour:1793768400",
           "ping_at": 1793761600,
           "placed_at": 1793761600,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             5.4,
@@ -399,7 +399,7 @@
           "peak": "jump:sina:SND:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "high",
             6.6,
@@ -418,6 +418,41 @@
           ],
           "tier": "high"
         },
+        "twelvedata:AUD/USD|1793977200": {
+          "asset": "twelvedata:AUD/USD",
+          "body": "\u2b1c <b>AUD/USD</b> \u00b7 Australian dollar +0.41% \u00b7 4.9\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1793973600,
+          "members": {
+            "jump:twelvedata:AUD/USD:hour:1793973600": [
+              0.004114544082309758,
+              0.0008429325222189833
+            ]
+          },
+          "message": 157,
+          "peak": "jump:twelvedata:AUD/USD:hour:1793973600",
+          "ping_at": 1793977611,
+          "placed_at": 1793977611,
+          "seen": 1793977611,
+          "shown": [
+            "noticeable",
+            4.9,
+            1793973600,
+            0.41
+          ],
+          "size": 4.881225927169591,
+          "start": 1793977200,
+          "story": [
+            [
+              "noticeable",
+              4.9,
+              1793973600,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        },
         "twelvedata:IWM|1793894400": {
           "asset": "twelvedata:IWM",
           "body": "\u2b1c <b>IWM</b> \u00b7 Russell 2000 (small caps) -1.66% \u00b7 5.0\u00d7\u03c3",
@@ -434,7 +469,7 @@
           "peak": "jump:twelvedata:IWM:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             5.0,
@@ -469,7 +504,7 @@
           "peak": "jump:twelvedata:REMX:hour:1793887200",
           "ping_at": 1793891231,
           "placed_at": 1793891231,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             5.2,
@@ -514,7 +549,7 @@
           "peak": "jump:twelvedata:SPY:hour:1793890800",
           "ping_at": 1793891231,
           "placed_at": 1793891231,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "high",
             7.5,
@@ -555,7 +590,7 @@
           "peak": "jump:twelvedata:USD/CAD:hour:1793970000",
           "ping_at": 1793974002,
           "placed_at": 1793974002,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             6.2,
@@ -590,7 +625,7 @@
           "peak": "jump:twelvedata:USD/CHF:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             5.6,
@@ -624,7 +659,7 @@
           "message": null,
           "peak": "jump:twelvedata:USD/CNH:hour:1793664000",
           "ping_at": 1793667997,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             5.4,
@@ -659,7 +694,7 @@
           "peak": "jump:twelvedata:USD/JPY:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "high",
             6.7,
@@ -694,7 +729,7 @@
           "peak": "jump:twelvedata:XLE:hour:1793800800",
           "ping_at": 1793808399,
           "placed_at": 1793808399,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             5.3,
@@ -729,7 +764,7 @@
           "peak": "jump:twelvedata:XLF:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             6.3,
@@ -768,7 +803,7 @@
           "peak": "jump:twelvedata:XLK:hour:1793890800",
           "ping_at": 1793891231,
           "placed_at": 1793891231,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             4.8,
@@ -793,6 +828,41 @@
           ],
           "tier": "noticeable"
         },
+        "twelvedata:XLV|1793977200": {
+          "asset": "twelvedata:XLV",
+          "body": "\u2b1c <b>XLV</b> \u00b7 Health care sector +1.72% \u00b7 5.4\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1793973600,
+          "members": {
+            "jump:twelvedata:XLV:hour:1793973600": [
+              0.017226719343091956,
+              0.003217110608605814
+            ]
+          },
+          "message": 157,
+          "peak": "jump:twelvedata:XLV:hour:1793973600",
+          "ping_at": 1793977611,
+          "placed_at": 1793977611,
+          "seen": 1793977611,
+          "shown": [
+            "noticeable",
+            5.4,
+            1793973600,
+            1.72
+          ],
+          "size": 5.35471776973109,
+          "start": 1793977200,
+          "story": [
+            [
+              "noticeable",
+              5.4,
+              1793973600,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        },
         "yahoo:511090.SS|1793588400": {
           "asset": "yahoo:511090.SS",
           "body": "\u2b1c <b>China 30Y</b> \u00b7 China 30-year government bond ETF (SSE) +0.41% \u00b7 4.6\u00d7\u03c3",
@@ -808,7 +878,7 @@
           "message": null,
           "peak": null,
           "ping_at": 1793588797,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             null,
             null,
@@ -848,7 +918,7 @@
           "message": null,
           "peak": "jump:yahoo:BZ=F:hour:1793710800",
           "ping_at": 1793714808,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             5.3,
@@ -889,7 +959,7 @@
           "peak": "jump:yahoo:BZ=F:hour:1793808000",
           "ping_at": 1793812025,
           "placed_at": 1793812025,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "high",
             8.4,
@@ -929,7 +999,7 @@
           "message": null,
           "peak": "jump:yahoo:IGLT.L:hour:1793714400",
           "ping_at": 1793722007,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             4.5,
@@ -964,7 +1034,7 @@
           "peak": "jump:yahoo:PL=F:hour:1793768400",
           "ping_at": 1793772412,
           "placed_at": 1793772412,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             4.9,
@@ -1009,7 +1079,7 @@
           "peak": "jump:yahoo:ZT=F:hour:1793890800",
           "ping_at": 1793891231,
           "placed_at": 1793891231,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             5.1,
@@ -1050,7 +1120,7 @@
           "peak": "jump:yahoo:^GSPTSE:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             6.1,
@@ -1085,7 +1155,7 @@
           "peak": "jump:yahoo:^HSI:hour:1793768400",
           "ping_at": 1793779603,
           "placed_at": 1793779603,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             4.8,
@@ -1120,7 +1190,7 @@
           "peak": "jump:yahoo:^N225:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             5.5,
@@ -1161,7 +1231,7 @@
           "peak": "jump:yahoo:^STOXX50E:hour:1793887200",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             4.5,
@@ -1196,7 +1266,7 @@
           "peak": "jump:yahoo:^TWII:hour:1793764800",
           "ping_at": 1793772412,
           "placed_at": 1793772412,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "noticeable",
             5.7,
@@ -1217,7 +1287,7 @@
         },
         "yahoo:^TWII|1793930400": {
           "asset": "yahoo:^TWII",
-          "body": "\ud83d\udfe8 <b>TAIEX</b> \u00b7 Taiwan +3.12% \u00b7 7.8\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 years of record\n\ud83d\udd50 <b>06.11.2026 02:00 UTC</b> \u00b7 next close in 7h\n\u270f\ufe0f \u2b1c 4.6\u00d7\u03c3 01:00 \u2192 \u2b1c 5.4\u00d7\u03c3 02:00 01:00 corrected away \u2192 \ud83d\udfe8 7.8\u00d7\u03c3 02:00 price corrected",
+          "body": "\ud83d\udfe8 <b>TAIEX</b> \u00b7 Taiwan +3.12% \u00b7 7.8\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 years of record\n\ud83d\udd50 <b>06.11.2026 02:00 UTC</b> \u00b7 next close in 6h\n\u270f\ufe0f \u2b1c 4.6\u00d7\u03c3 01:00 \u2192 \u2b1c 5.4\u00d7\u03c3 02:00 01:00 corrected away \u2192 \ud83d\udfe8 7.8\u00d7\u03c3 02:00 price corrected",
           "context": "",
           "form": "push",
           "hour": 1793930400,
@@ -1239,7 +1309,7 @@
           "peak": "jump:yahoo:^TWII:hour:1793930400",
           "ping_at": 1793930804,
           "placed_at": 1793938008,
-          "seen": 1793974002,
+          "seen": 1793977611,
           "shown": [
             "high",
             7.8,
@@ -1294,7 +1364,7 @@
         },
         "154": {
           "first": "\ud83d\udfe8 <b>TAIEX</b> \u00b7 Taiwan +3.12% \u00b7 7.8\u00d7\u03c3",
-          "hash": "5c1927f1d103d442"
+          "hash": "3026bc3b2f42d411"
         },
         "155": {
           "first": "\u2b1c <b>TTF</b> \u00b7 Dutch TTF natural gas (ICE Endex) -4.41% \u00b7 5.0\u00d7\u03c3",
@@ -1303,12 +1373,16 @@
         "156": {
           "first": "\u2b1c <b>USD/CAD</b> \u00b7 Canadian dollar +0.32% \u00b7 6.2\u00d7\u03c3",
           "hash": "2579416e80b0ed62"
+        },
+        "157": {
+          "first": "\u2b1c <b>XLV</b> \u00b7 Health care sector +1.72% \u00b7 5.4\u00d7\u03c3",
+          "hash": "7729fc73993e16a1"
         }
       },
       "note": {
         "hashes": [
-          "3e6b39ae92eddfbf",
-          "e569372864f4648f"
+          "f513174209630089",
+          "5c206aa94391bbf2"
         ],
         "ids": [
           134,
@@ -1324,13 +1398,13 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      155,
-      156
+      156,
+      157
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1793974002
+    "saved_at": 1793977611
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-06",
