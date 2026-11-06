@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793948798
+    "last_run_utc": 1793952403
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -28,7 +28,7 @@
           "peak": "jump:binance:BTC/USDT:hour:1793890800",
           "ping_at": 1793891231,
           "placed_at": 1793894904,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "high",
             7.8,
@@ -65,11 +65,11 @@
               0.004914881139386348
             ]
           },
-          "message": 146,
+          "message": null,
           "peak": "jump:binance:ETH/USDT:hour:1793800800",
           "ping_at": 1793808399,
           "placed_at": 1793808399,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             5.2,
@@ -104,7 +104,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "high",
             8.1,
@@ -139,7 +139,7 @@
           "peak": "jump:binance:SOL/USDT:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             5.2,
@@ -174,7 +174,7 @@
           "peak": "jump:binance:XRP/USDT:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             4.5,
@@ -208,7 +208,7 @@
           "message": null,
           "peak": "jump:marketwatch:TFM=F:hour:1793710800",
           "ping_at": 1793718413,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "high",
             6.5,
@@ -243,7 +243,7 @@
           "peak": "jump:sifting:XAG/USD:hour:1793768400",
           "ping_at": 1793772412,
           "placed_at": 1793772412,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             4.6,
@@ -278,7 +278,7 @@
           "peak": "jump:sina:CAD:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             5.4,
@@ -317,7 +317,7 @@
           "peak": "jump:sina:SND:hour:1793768400",
           "ping_at": 1793761600,
           "placed_at": 1793761600,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             5.4,
@@ -358,7 +358,7 @@
           "peak": "jump:sina:SND:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "high",
             6.6,
@@ -393,7 +393,7 @@
           "peak": "jump:twelvedata:IWM:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             5.0,
@@ -428,7 +428,7 @@
           "peak": "jump:twelvedata:REMX:hour:1793887200",
           "ping_at": 1793891231,
           "placed_at": 1793891231,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             5.2,
@@ -473,7 +473,7 @@
           "peak": "jump:twelvedata:SPY:hour:1793890800",
           "ping_at": 1793891231,
           "placed_at": 1793891231,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "high",
             7.5,
@@ -514,7 +514,7 @@
           "peak": "jump:twelvedata:USD/CHF:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             5.6,
@@ -548,7 +548,7 @@
           "message": null,
           "peak": "jump:twelvedata:USD/CNH:hour:1793664000",
           "ping_at": 1793667997,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             5.4,
@@ -583,7 +583,7 @@
           "peak": "jump:twelvedata:USD/JPY:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "high",
             6.7,
@@ -614,11 +614,11 @@
               0.0041958979836570175
             ]
           },
-          "message": 146,
+          "message": null,
           "peak": "jump:twelvedata:XLE:hour:1793800800",
           "ping_at": 1793808399,
           "placed_at": 1793808399,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             5.3,
@@ -653,7 +653,7 @@
           "peak": "jump:twelvedata:XLF:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             6.3,
@@ -692,7 +692,7 @@
           "peak": "jump:twelvedata:XLK:hour:1793890800",
           "ping_at": 1793891231,
           "placed_at": 1793891231,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             4.8,
@@ -732,7 +732,7 @@
           "message": null,
           "peak": null,
           "ping_at": 1793588797,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             null,
             null,
@@ -772,7 +772,7 @@
           "message": null,
           "peak": "jump:yahoo:BZ=F:hour:1793710800",
           "ping_at": 1793714808,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             5.3,
@@ -813,7 +813,7 @@
           "peak": "jump:yahoo:BZ=F:hour:1793808000",
           "ping_at": 1793812025,
           "placed_at": 1793812025,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "high",
             8.4,
@@ -853,7 +853,7 @@
           "message": null,
           "peak": "jump:yahoo:IGLT.L:hour:1793714400",
           "ping_at": 1793722007,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             4.5,
@@ -888,7 +888,7 @@
           "peak": "jump:yahoo:PL=F:hour:1793768400",
           "ping_at": 1793772412,
           "placed_at": 1793772412,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             4.9,
@@ -933,7 +933,7 @@
           "peak": "jump:yahoo:ZT=F:hour:1793890800",
           "ping_at": 1793891231,
           "placed_at": 1793891231,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             5.1,
@@ -974,7 +974,7 @@
           "peak": "jump:yahoo:^GSPTSE:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             6.1,
@@ -1009,7 +1009,7 @@
           "peak": "jump:yahoo:^HSI:hour:1793768400",
           "ping_at": 1793779603,
           "placed_at": 1793779603,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             4.8,
@@ -1044,7 +1044,7 @@
           "peak": "jump:yahoo:^N225:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             5.5,
@@ -1085,7 +1085,7 @@
           "peak": "jump:yahoo:^STOXX50E:hour:1793887200",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             4.5,
@@ -1120,7 +1120,7 @@
           "peak": "jump:yahoo:^TWII:hour:1793764800",
           "ping_at": 1793772412,
           "placed_at": 1793772412,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "noticeable",
             5.7,
@@ -1141,7 +1141,7 @@
         },
         "yahoo:^TWII|1793930400": {
           "asset": "yahoo:^TWII",
-          "body": "\ud83d\udfe8 <b>TAIEX</b> \u00b7 Taiwan +3.12% \u00b7 7.8\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 years of record\n\ud83d\udd50 <b>06.11.2026 02:00 UTC</b> \u00b7 next close in 14h\n\u270f\ufe0f \u2b1c 4.6\u00d7\u03c3 01:00 \u2192 \u2b1c 5.4\u00d7\u03c3 02:00 01:00 corrected away \u2192 \ud83d\udfe8 7.8\u00d7\u03c3 02:00 price corrected",
+          "body": "\ud83d\udfe8 <b>TAIEX</b> \u00b7 Taiwan +3.12% \u00b7 7.8\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 years of record\n\ud83d\udd50 <b>06.11.2026 02:00 UTC</b> \u00b7 next close in 13h\n\u270f\ufe0f \u2b1c 4.6\u00d7\u03c3 01:00 \u2192 \u2b1c 5.4\u00d7\u03c3 02:00 01:00 corrected away \u2192 \ud83d\udfe8 7.8\u00d7\u03c3 02:00 price corrected",
           "context": "",
           "form": "push",
           "hour": 1793930400,
@@ -1163,7 +1163,7 @@
           "peak": "jump:yahoo:^TWII:hour:1793930400",
           "ping_at": 1793930804,
           "placed_at": 1793938008,
-          "seen": 1793948800,
+          "seen": 1793952404,
           "shown": [
             "high",
             7.8,
@@ -1196,10 +1196,6 @@
         }
       },
       "messages": {
-        "146": {
-          "first": "\u2b1c <b>XLE</b> \u00b7 Energy sector -2.23% \u00b7 5.3\u00d7\u03c3",
-          "hash": "b55869f7ff829b63"
-        },
         "147": {
           "first": "\ud83d\udfe8 <b>BZ=F</b> \u00b7 Brent crude (NYMEX) -4.97% \u00b7 8.4\u00d7\u03c3",
           "hash": "92259e1730f1d6fa"
@@ -1222,7 +1218,7 @@
         },
         "154": {
           "first": "\ud83d\udfe8 <b>TAIEX</b> \u00b7 Taiwan +3.12% \u00b7 7.8\u00d7\u03c3",
-          "hash": "1f28e5797413a127"
+          "hash": "cadb2176c283afd1"
         }
       },
       "note": {
@@ -1249,7 +1245,7 @@
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1793948800
+    "saved_at": 1793952404
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-06",
