@@ -92309,6 +92309,8 @@
 {"actual": "", "country": "CHF", "date": "2026-11-05T08:00:00+00:00", "forecast": "3.1%", "impact": "Low", "previous": "3.1%", "title": "Unemployment Rate"}
 {"actual": "", "country": "EUR", "date": "2026-11-05T09:00:00+00:00", "forecast": "0.0%", "impact": "Low", "previous": "0.3%", "title": "Italian Retail Sales m/m"}
 {"actual": "", "country": "GBP", "date": "2026-11-05T09:30:00+00:00", "forecast": "46.4", "impact": "Low", "previous": "46.1", "title": "Construction PMI"}
+{"actual": "", "country": "EUR", "date": "2026-11-05T09:39:00+00:00", "forecast": "", "impact": "Low", "previous": "4.18|1.6", "title": "Spanish 10-y Bond Auction"}
+{"actual": "", "country": "EUR", "date": "2026-11-05T09:55:00+00:00", "forecast": "", "impact": "Low", "previous": "4.93|2.0", "title": "French 10-y Bond Auction"}
 {"actual": "", "country": "EUR", "date": "2026-11-05T10:00:00+00:00", "forecast": "2.5%", "impact": "Low", "previous": "1.9%", "title": "PPI m/m"}
 {"actual": "", "country": "EUR", "date": "2026-11-05T10:03:00+00:00", "forecast": "", "impact": "Low", "previous": "4.18|1.6", "title": "Spanish 10-y Bond Auction"}
 {"actual": "", "country": "EUR", "date": "2026-11-05T10:18:00+00:00", "forecast": "", "impact": "Low", "previous": "4.93|2.0", "title": "French 10-y Bond Auction"}
