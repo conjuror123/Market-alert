@@ -570,3 +570,30 @@ def test_a_feed_that_will_not_load_is_a_warning_not_a_failure(tmp_path, monkeypa
         cfg, state, now=datetime(2026, 8, 31, 9, 0, tzinfo=timezone.utc)) is False
     # Not recorded, so the next run tries again rather than waiting a day.
     assert weekly_digest._REFRESH_KEY not in state
+
+
+def test_the_week_is_on_the_first_line_and_utc_and_the_count_under_it():
+    # The user's, 2026-11-06: "📅 Economic calendar 09.11 — 15.11 / UTC · 12 events".
+    start = datetime(2026, 11, 9, tzinfo=timezone.utc)
+    end = start + timedelta(days=7)
+    events = [dict(e, date=f"2026-11-1{i}T13:30:00+00:00") for i, e in enumerate(RAW_EVENTS[:2])]
+    lines = weekly_digest.format_digest(events, start, end)[0].splitlines()
+    assert lines[:2] == ["📅 <b>Economic calendar</b> 09.11 — 15.11", "<i>UTC · 2 events</i>"]
+    assert weekly_digest.format_digest([], start, end)[0].startswith(
+        "📅 <b>Economic calendar</b> 09.11 — 15.11\n\nNo Medium/High")
+    assert weekly_digest.format_outage(start, end, "the source did not answer").startswith(
+        "📅 <b>Economic calendar</b> 09.11 — 15.11\n\n⚠️ Outage")
+
+
+def test_a_continued_part_names_its_week_too():
+    events = [{"title": f"A very long name for indicator number {i:03d}",
+               "country": "USD", "impact": "Medium",
+               "date": f"2026-11-{9 + i % 4:02d}T{i % 24:02d}:{i % 60:02d}:00+00:00",
+               "actual": "", "forecast": "1.0%", "previous": "0.9%"}
+              for i in range(120)]
+    start = datetime(2026, 11, 9, tzinfo=timezone.utc)
+    messages = weekly_digest.format_digest(events, start, start + timedelta(days=7))
+    assert len(messages) > 1
+    for message in messages[1:]:
+        assert message.splitlines()[0] == ("📅 <b>Economic calendar</b> 09.11 — 15.11 "
+                                           "<i>(continued)</i>")

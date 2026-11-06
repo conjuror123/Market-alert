@@ -203,34 +203,41 @@ def _event_lines(event: dict) -> list[str]:
     return lines
 
 
+def _span(first: "datetime | None", last: "datetime | None") -> str:
+    """' 09.11 — 15.11', or nothing without both ends."""
+    if first is None or last is None:
+        return ""
+    return f" {first.strftime('%d.%m')} — {last.strftime('%d.%m')}"
+
+
 def format_digest(events: list[dict], start: datetime | None = None,
                   end: datetime | None = None) -> list[str]:
     """The week's digest, split by day and, when needed, across several messages.
     Returns a list - the sender posts them in order.
 
-    Every event's time is UTC and that is stated once in the header rather than on
-    every line: with two or three dozen events, repeating "UTC" on each line takes
-    more space than it carries meaning.
+    Every event's time is UTC and that is stated once, under the header, rather
+    than on every line: with two or three dozen events, repeating "UTC" on each
+    line takes more space than it carries meaning.
 
     The header states the WINDOW ASKED FOR rather than the span of the events
     that happen to be in it. Those differ exactly when the week is quiet at one
     end, and a header taken from the events would then quietly narrow the claim
     the message is making.
     """
-    header = "📅 <b>Economic calendar for the week</b>"
-    if not events:
-        return [f"{header}\n\nNo Medium/High impact events found for this week."]
-
     ordered = sorted(events, key=lambda e: e["date"])
-    high = sum(1 for e in ordered if e["impact"] == "High")
-    first = start or economic_calendar.parse_event_time(ordered[0]["date"])
+    first = start or (economic_calendar.parse_event_time(ordered[0]["date"])
+                      if ordered else None)
     # A second before the end, because the window closes at midnight and
     # midnight belongs to the day that just finished.
-    last = (end - timedelta(seconds=1)) if end \
-        else economic_calendar.parse_event_time(ordered[-1]["date"])
-    intro = (f"{header}\n"
-             f"<i>{first.strftime('%d.%m')} — {last.strftime('%d.%m')}, "
-             f"times UTC · {len(ordered)} events, of them 🔴 {high}</i>")
+    last = (end - timedelta(seconds=1)) if end else (
+        economic_calendar.parse_event_time(ordered[-1]["date"]) if ordered else None)
+    # The week on the first line (the user's, 2026-11-06): it names the
+    # message, and a first line is how a message of a run whose state was lost
+    # is recognised (telegram_ledger.claim) - one week's apart from another's.
+    header = f"📅 <b>Economic calendar</b>{_span(first, last)}"
+    if not events:
+        return [f"{header}\n\nNo Medium/High impact events found for this week."]
+    intro = f"{header}\n<i>UTC · {len(ordered)} event{'s' if len(ordered) != 1 else ''}</i>"
 
     # Days are assembled whole and only then laid out across messages: a break
     # inside a day would leave its header in one message and its events in
@@ -382,8 +389,7 @@ def format_outage(start: datetime, end: datetime, why: str) -> str:
     """The calendar's place when there is no calendar to give: the header and
     the week it would have covered, empty, and why."""
     last = end - timedelta(seconds=1)
-    return ("📅 <b>Economic calendar for the week</b>\n"
-            f"<i>{start.strftime('%d.%m')} — {last.strftime('%d.%m')}</i>\n\n"
+    return (f"📅 <b>Economic calendar</b>{_span(start, last)}\n\n"
             f"⚠️ Outage: {why}. No calendar this week.")
 
 
