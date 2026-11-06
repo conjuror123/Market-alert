@@ -640,7 +640,9 @@ and appeared 33 minutes later, and the repeat was a duplicate):
   channel itself is never read through.
 
 **The calendar** (`weekly_digest.py`): the coming week's economic releases, Monday to
-Monday UTC, sent in the run that opens the note, at most 4 hours after its slot. After a
+Monday UTC, sent in the run that opens the note, at most 4 hours after its slot. Its first
+line names the week (`📅 Economic calendar 09.11 — 15.11`, a later part `(continued)`), the
+second says `UTC · 12 events`. After a
 longer outage the note opens with a calendar that says so. A part Telegram refuses, and
 every part after it, is kept in the state and sent first on the next runs while that week
 lasts, below the note by then; the parts that went are not sent again. The archive is
