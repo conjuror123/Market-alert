@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1793955982
+    "last_run_utc": 1793959597
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -28,7 +28,7 @@
           "peak": "jump:binance:BTC/USDT:hour:1793890800",
           "ping_at": 1793891231,
           "placed_at": 1793894904,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "high",
             7.8,
@@ -69,7 +69,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1793800800",
           "ping_at": 1793808399,
           "placed_at": 1793808399,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             5.2,
@@ -104,7 +104,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "high",
             8.1,
@@ -139,7 +139,7 @@
           "peak": "jump:binance:SOL/USDT:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             5.2,
@@ -174,7 +174,7 @@
           "peak": "jump:binance:XRP/USDT:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             4.5,
@@ -208,7 +208,7 @@
           "message": null,
           "peak": "jump:marketwatch:TFM=F:hour:1793710800",
           "ping_at": 1793718413,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "high",
             6.5,
@@ -229,13 +229,13 @@
         },
         "marketwatch:TFM=F|1793955600": {
           "asset": "marketwatch:TFM=F",
-          "body": "\u2b1c <b>TTF</b> \u00b7 Dutch TTF natural gas (ICE Endex) -4.30% \u00b7 4.8\u00d7\u03c3",
+          "body": "\u2b1c <b>TTF</b> \u00b7 Dutch TTF natural gas (ICE Endex) -4.41% \u00b7 5.0\u00d7\u03c3",
           "context": "",
           "form": "row",
           "hour": 1793952000,
           "members": {
             "jump:marketwatch:TFM=F:hour:1793952000": [
-              -0.04295001439328425,
+              -0.04409352509536313,
               0.008875116613644537
             ]
           },
@@ -243,14 +243,14 @@
           "peak": "jump:marketwatch:TFM=F:hour:1793952000",
           "ping_at": 1793955983,
           "placed_at": 1793955983,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
-            4.8,
+            5.0,
             1793952000,
-            -4.3
+            -4.41
           ],
-          "size": 4.839374654216173,
+          "size": 4.968219237544899,
           "start": 1793955600,
           "story": [
             [
@@ -258,6 +258,12 @@
               4.8,
               1793952000,
               ""
+            ],
+            [
+              "noticeable",
+              5.0,
+              1793952000,
+              "price corrected"
             ]
           ],
           "tier": "noticeable"
@@ -278,7 +284,7 @@
           "peak": "jump:sifting:XAG/USD:hour:1793768400",
           "ping_at": 1793772412,
           "placed_at": 1793772412,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             4.6,
@@ -313,7 +319,7 @@
           "peak": "jump:sina:CAD:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             5.4,
@@ -352,7 +358,7 @@
           "peak": "jump:sina:SND:hour:1793768400",
           "ping_at": 1793761600,
           "placed_at": 1793761600,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             5.4,
@@ -393,7 +399,7 @@
           "peak": "jump:sina:SND:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "high",
             6.6,
@@ -428,7 +434,7 @@
           "peak": "jump:twelvedata:IWM:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             5.0,
@@ -463,7 +469,7 @@
           "peak": "jump:twelvedata:REMX:hour:1793887200",
           "ping_at": 1793891231,
           "placed_at": 1793891231,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             5.2,
@@ -508,7 +514,7 @@
           "peak": "jump:twelvedata:SPY:hour:1793890800",
           "ping_at": 1793891231,
           "placed_at": 1793891231,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "high",
             7.5,
@@ -549,7 +555,7 @@
           "peak": "jump:twelvedata:USD/CHF:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             5.6,
@@ -583,7 +589,7 @@
           "message": null,
           "peak": "jump:twelvedata:USD/CNH:hour:1793664000",
           "ping_at": 1793667997,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             5.4,
@@ -618,7 +624,7 @@
           "peak": "jump:twelvedata:USD/JPY:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "high",
             6.7,
@@ -653,7 +659,7 @@
           "peak": "jump:twelvedata:XLE:hour:1793800800",
           "ping_at": 1793808399,
           "placed_at": 1793808399,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             5.3,
@@ -688,7 +694,7 @@
           "peak": "jump:twelvedata:XLF:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             6.3,
@@ -727,7 +733,7 @@
           "peak": "jump:twelvedata:XLK:hour:1793890800",
           "ping_at": 1793891231,
           "placed_at": 1793891231,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             4.8,
@@ -767,7 +773,7 @@
           "message": null,
           "peak": null,
           "ping_at": 1793588797,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             null,
             null,
@@ -807,7 +813,7 @@
           "message": null,
           "peak": "jump:yahoo:BZ=F:hour:1793710800",
           "ping_at": 1793714808,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             5.3,
@@ -848,7 +854,7 @@
           "peak": "jump:yahoo:BZ=F:hour:1793808000",
           "ping_at": 1793812025,
           "placed_at": 1793812025,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "high",
             8.4,
@@ -888,7 +894,7 @@
           "message": null,
           "peak": "jump:yahoo:IGLT.L:hour:1793714400",
           "ping_at": 1793722007,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             4.5,
@@ -923,7 +929,7 @@
           "peak": "jump:yahoo:PL=F:hour:1793768400",
           "ping_at": 1793772412,
           "placed_at": 1793772412,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             4.9,
@@ -968,7 +974,7 @@
           "peak": "jump:yahoo:ZT=F:hour:1793890800",
           "ping_at": 1793891231,
           "placed_at": 1793891231,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             5.1,
@@ -1009,7 +1015,7 @@
           "peak": "jump:yahoo:^GSPTSE:hour:1793890800",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             6.1,
@@ -1044,7 +1050,7 @@
           "peak": "jump:yahoo:^HSI:hour:1793768400",
           "ping_at": 1793779603,
           "placed_at": 1793779603,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             4.8,
@@ -1079,7 +1085,7 @@
           "peak": "jump:yahoo:^N225:hour:1793754000",
           "ping_at": 1793758006,
           "placed_at": 1793758006,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             5.5,
@@ -1120,7 +1126,7 @@
           "peak": "jump:yahoo:^STOXX50E:hour:1793887200",
           "ping_at": 1793894904,
           "placed_at": 1793894904,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             4.5,
@@ -1155,7 +1161,7 @@
           "peak": "jump:yahoo:^TWII:hour:1793764800",
           "ping_at": 1793772412,
           "placed_at": 1793772412,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "noticeable",
             5.7,
@@ -1176,7 +1182,7 @@
         },
         "yahoo:^TWII|1793930400": {
           "asset": "yahoo:^TWII",
-          "body": "\ud83d\udfe8 <b>TAIEX</b> \u00b7 Taiwan +3.12% \u00b7 7.8\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 years of record\n\ud83d\udd50 <b>06.11.2026 02:00 UTC</b> \u00b7 next close in 12h\n\u270f\ufe0f \u2b1c 4.6\u00d7\u03c3 01:00 \u2192 \u2b1c 5.4\u00d7\u03c3 02:00 01:00 corrected away \u2192 \ud83d\udfe8 7.8\u00d7\u03c3 02:00 price corrected",
+          "body": "\ud83d\udfe8 <b>TAIEX</b> \u00b7 Taiwan +3.12% \u00b7 7.8\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 years of record\n\ud83d\udd50 <b>06.11.2026 02:00 UTC</b> \u00b7 next close in 11h\n\u270f\ufe0f \u2b1c 4.6\u00d7\u03c3 01:00 \u2192 \u2b1c 5.4\u00d7\u03c3 02:00 01:00 corrected away \u2192 \ud83d\udfe8 7.8\u00d7\u03c3 02:00 price corrected",
           "context": "",
           "form": "push",
           "hour": 1793930400,
@@ -1198,7 +1204,7 @@
           "peak": "jump:yahoo:^TWII:hour:1793930400",
           "ping_at": 1793930804,
           "placed_at": 1793938008,
-          "seen": 1793955983,
+          "seen": 1793959598,
           "shown": [
             "high",
             7.8,
@@ -1253,16 +1259,16 @@
         },
         "154": {
           "first": "\ud83d\udfe8 <b>TAIEX</b> \u00b7 Taiwan +3.12% \u00b7 7.8\u00d7\u03c3",
-          "hash": "78398cb55b00513a"
+          "hash": "4a657cc622e9c857"
         },
         "155": {
-          "first": "\u2b1c <b>TTF</b> \u00b7 Dutch TTF natural gas (ICE Endex) -4.30% \u00b7 4.8\u00d7\u03c3",
-          "hash": "5d42fbbe08270a4a"
+          "first": "\u2b1c <b>TTF</b> \u00b7 Dutch TTF natural gas (ICE Endex) -4.41% \u00b7 5.0\u00d7\u03c3",
+          "hash": "b8c78c2799dfbbe7"
         }
       },
       "note": {
         "hashes": [
-          "eda79507294ccbfa",
+          "3e1c82990eb55f0f",
           "2dfcdcf5002149f6"
         ],
         "ids": [
@@ -1279,13 +1285,12 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      154,
       155
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1793955983
+    "saved_at": 1793959598
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-06",
