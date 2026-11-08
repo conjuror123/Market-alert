@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1794092760
+    "last_run_utc": 1794096409
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -30,9 +30,9 @@
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1794092761
+    "saved_at": 1794096410
   },
   "telegram_update_offset": 688283215,
-  "weekly_digest:last_refreshed": "2026-11-07",
+  "weekly_digest:last_refreshed": "2026-11-08",
   "weekly_digest:last_sent_week": "1793999100"
 }
