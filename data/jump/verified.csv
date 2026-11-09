@@ -590,6 +590,7 @@ twelvedata:USD/CHF,1790863200,close,real,sifting,"yahoo,marketwatch","yahoo,mark
 twelvedata:USD/CHF,1791979200,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",0.005411,"0.005459,0.005267,0.005388,0.005428,0.005303",1792713984
 twelvedata:USD/CHF,1793606400,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",-0.003422,"-0.003373,-0.003045,-0.003411,-0.003404,-0.003385",1794182785
 twelvedata:USD/CHF,1793754000,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",-0.004444,"-0.004420,-0.004407,-0.004407,-0.004432,-0.004346",1794182785
+twelvedata:USD/CHF,1794232800,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",0.003512,"0.003585,0.003902,0.003537,0.003603,0.003353",1794236785
 twelvedata:USD/CNH,1703523600,close,not_real,sifting,dukascopy,,-0.004096,-0.000538,1791362566
 twelvedata:USD/CNH,1703527200,close,not_real,sifting,dukascopy,,0.003770,-0.000538,1791362566
 twelvedata:USD/CNH,1781470800,open,not_real,sifting,yahoo,,0.002818,-0.000351,1791114096
@@ -911,6 +912,7 @@ yahoo:LE=F,1762351200,open,not_real,yahoo,"LEV26.CME,LEZ26.CME,LEG27.CME,LEJ27.C
 yahoo:LE=F,1778598000,close,not_real,yahoo,"LEV26.CME,LEZ26.CME,LEG27.CME,LEJ27.CME,LEM27.CME,LEQ27.CME",,0.023924,"-0.005399,-0.005302,-0.006042,-0.006373,-0.005123,-0.002868",1791403338
 yahoo:LE=F,1778684400,close,not_real,yahoo,"LEV26.CME,LEZ26.CME,LEG27.CME,LEJ27.CME,LEM27.CME,LEQ27.CME",,0.030886,"0.005259,0.004223,0.004121,0.004346,0.003269,0.002761",1791403338
 yahoo:LE=F,1778695200,close,not_real,yahoo,"LEV26.CME,LEZ26.CME,LEG27.CME,LEJ27.CME",,-0.026943,"-0.001573,-0.001894,-0.001791,-0.001691",1791403338
+yahoo:LE=F,1794232800,close,real,yahoo,"marketwatch,ft",marketwatch,0.016279,"0.017085,",1794236785
 yahoo:PL=F,1793768400,close,real,yahoo,"sina,marketwatch,ft,sifting","sina,marketwatch,sifting",0.023239,"0.027485,0.024585,,0.023614",1794002778
 yahoo:SB=F,1791356400,close,real,yahoo,marketwatch,marketwatch,0.022419,0.022419,1792083986
 yahoo:SB=F,1791370800,close,real,yahoo,marketwatch,marketwatch,-0.021979,-0.021979,1792083986
