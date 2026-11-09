@@ -948,7 +948,7 @@ yahoo:^BVSP,1793026800,close,real,yahoo,"marketwatch,ft","marketwatch,ft",0.0155
 yahoo:^BVSP,1793041200,close,real,yahoo,"marketwatch,ft","marketwatch,ft",0.015496,"0.015496,0.011172",1793740011
 yahoo:^GSPTSE,1792072800,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,0.010311,"0.010311,",1792785976
 yahoo:^GSPTSE,1793890800,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,-0.011785,"-0.011775,",1793999177
-yahoo:^HSI,1793768400,close,uncertain,yahoo,marketwatch,,0.010909,,1793955967
+yahoo:^HSI,1793768400,close,uncertain,yahoo,marketwatch,,0.010909,,1794215185
 yahoo:^MXX,1793714400,open,real,yahoo,"marketwatch,ft","marketwatch,ft",0.013910,"0.013910,0.015005",1793999177
 yahoo:^N225,1793754000,close,real,yahoo,"sina,marketwatch","sina,marketwatch",-0.019280,"-0.018882,-0.019280",1794208011
 yahoo:^N225,1793768400,close,real,yahoo,"sina,marketwatch","sina,marketwatch",0.014731,"0.018996,0.014731",1794208011
@@ -967,6 +967,7 @@ yahoo:^TASI.SR,1793088000,close,real,yahoo,"marketwatch,wallstreetcn",wallstreet
 yahoo:^TASI.SR,1793098800,close,real,yahoo,"marketwatch,wallstreetcn","marketwatch,wallstreetcn",-0.007586,"-0.007221,-0.007684",1793793980
 yahoo:^TASI.SR,1793174400,close,real,yahoo,"marketwatch,wallstreetcn",wallstreetcn,0.009307,",0.009018",1793880390
 yahoo:^TASI.SR,1793520000,close,uncertain,yahoo,"marketwatch,wallstreetcn",,-0.007873,",",1794139538
+yahoo:^TASI.SR,1794211200,close,real,yahoo,"marketwatch,wallstreetcn",wallstreetcn,0.008585,",0.008442",1794215185
 yahoo:^TWII,1793674800,close,real,yahoo,"marketwatch,twse","marketwatch,twse",-0.015422,"-0.015422,-0.015422",1794204379
 yahoo:^TWII,1793764800,close,real,yahoo,"marketwatch,twse","marketwatch,twse",0.021800,"0.021800,0.021800",1794204379
 yahoo:^TWII,1793930400,close,real,yahoo,"marketwatch,twse","marketwatch,twse",0.031197,"0.031197,0.031197",1794204379
