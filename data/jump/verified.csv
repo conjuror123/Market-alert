@@ -892,6 +892,7 @@ yahoo:511090.SS,1793336400,close,real,yahoo,"sina,marketwatch,wallstreetcn,tence
 yahoo:511090.SS,1793584800,close,real,yahoo,"sina,marketwatch,wallstreetcn,tencent","marketwatch,wallstreetcn,tencent",0.003786,",0.003769,0.003786,0.003786",1793948778
 yahoo:BZ=F,1793710800,close,real,yahoo,"sina,marketwatch,wallstreetcn,ft","sina,marketwatch,wallstreetcn,ft",-0.030849,"-0.030156,-0.030849,-0.031335,-0.029639",1794002778
 yahoo:BZ=F,1793808000,close,real,yahoo,"sina,marketwatch,wallstreetcn,ft","sina,marketwatch,wallstreetcn,ft",-0.049672,"-0.049475,-0.049148,-0.049570,-0.049773",1794002778
+yahoo:BZ=F,1794250800,close,real,yahoo,"sina,marketwatch,wallstreetcn,ft","sina,marketwatch,wallstreetcn",-0.026189,"-0.021632,-0.024984,-0.021632,",1794254773
 yahoo:CC=F,1788346800,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",-0.050160,"-0.051429,-0.051429",1791828443
 yahoo:CT=F,1786550400,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",-0.013751,"-0.014355,-0.014355",1791832054
 yahoo:CT=F,1787227200,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",0.014332,"0.013900,0.013900",1791832054
