@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1794240403
+    "last_run_utc": 1794244008
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -24,7 +24,7 @@
           "peak": "jump:binance:BTC/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794240404,
+          "seen": 1794244009,
           "shown": [
             "noticeable",
             5.7,
@@ -45,7 +45,7 @@
         },
         "binance:ETH/USDT|1794175200": {
           "asset": "binance:ETH/USDT",
-          "body": "\ud83d\udfe7 <b>ETH/USDT</b> \u00b7 Ethereum -4.57% \u00b7 9.2\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 4 months (then 10.2\u00d7\u03c3)\n\ud83d\udd50 <b>08.11.2026 21:00 UTC</b> \u00b7 next close in 5h",
+          "body": "\ud83d\udfe7 <b>ETH/USDT</b> \u00b7 Ethereum -4.57% \u00b7 9.2\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 4 months (then 10.2\u00d7\u03c3)\n\ud83d\udd50 <b>08.11.2026 21:00 UTC</b> \u00b7 next close in 4h",
           "context": "",
           "form": "push",
           "hour": 1794171600,
@@ -59,7 +59,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794240404,
+          "seen": 1794244009,
           "shown": [
             "major",
             9.2,
@@ -94,7 +94,7 @@
           "peak": "jump:binance:SOL/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794240404,
+          "seen": 1794244009,
           "shown": [
             "noticeable",
             6.1,
@@ -129,7 +129,7 @@
           "peak": "jump:binance:XRP/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794240404,
+          "seen": 1794244009,
           "shown": [
             "noticeable",
             6.3,
@@ -150,28 +150,28 @@
         },
         "yahoo:LE=F|1794236400": {
           "asset": "yahoo:LE=F",
-          "body": "\u2b1c <b>LE=F</b> \u00b7 Live cattle (CME) +1.74% \u00b7 4.9\u00d7\u03c3",
+          "body": "\u2b1c <b>LE=F</b> \u00b7 Live cattle (CME) +1.71% \u00b7 4.8\u00d7\u03c3",
           "context": "",
           "form": "row",
           "hour": 1794232800,
           "members": {
             "jump:yahoo:LE=F:hour:1794232800": [
-              0.0174238951670481,
-              0.0035601690101063157
+              0.017072727401878762,
+              0.0035585050924138726
             ]
           },
           "message": 162,
           "peak": "jump:yahoo:LE=F:hour:1794232800",
           "ping_at": 1794236808,
           "placed_at": 1794236808,
-          "seen": 1794240404,
+          "seen": 1794244009,
           "shown": [
             "noticeable",
-            4.9,
+            4.8,
             1794232800,
-            1.74
+            1.71
           ],
-          "size": 4.8941202278842875,
+          "size": 4.7977245945987015,
           "start": 1794236400,
           "story": [
             [
@@ -182,7 +182,7 @@
             ],
             [
               "noticeable",
-              4.9,
+              4.8,
               1794232800,
               "price corrected"
             ]
@@ -193,20 +193,20 @@
       "messages": {
         "160": {
           "first": "\ud83d\udfe7 <b>ETH/USDT</b> \u00b7 Ethereum -4.57% \u00b7 9.2\u00d7\u03c3",
-          "hash": "def33aedc22ee991"
+          "hash": "646c7f34dfa14502"
         },
         "161": {
           "first": "\u2b1c <b>XRP/USDT</b> \u00b7 XRP -3.90% \u00b7 6.3\u00d7\u03c3",
           "hash": "85e9b737b5c94559"
         },
         "162": {
-          "first": "\u2b1c <b>LE=F</b> \u00b7 Live cattle (CME) +1.74% \u00b7 4.9\u00d7\u03c3",
-          "hash": "7e496f13bf9b0418"
+          "first": "\u2b1c <b>LE=F</b> \u00b7 Live cattle (CME) +1.71% \u00b7 4.8\u00d7\u03c3",
+          "hash": "a25a9301e7bc23ba"
         }
       },
       "note": {
         "hashes": [
-          "436af6122703ef97"
+          "b6180f8ff2c96ec1"
         ],
         "ids": [
           159
@@ -225,7 +225,7 @@
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1794240404
+    "saved_at": 1794244009
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-09",
