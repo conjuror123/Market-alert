@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1794254788
+    "last_run_utc": 1794258402
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -24,7 +24,7 @@
           "peak": "jump:binance:BTC/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794254789,
+          "seen": 1794258403,
           "shown": [
             "noticeable",
             5.7,
@@ -45,7 +45,7 @@
         },
         "binance:ETH/USDT|1794175200": {
           "asset": "binance:ETH/USDT",
-          "body": "\ud83d\udfe7 <b>ETH/USDT</b> \u00b7 Ethereum -4.57% \u00b7 9.2\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 4 months (then 10.2\u00d7\u03c3)\n\ud83d\udd50 <b>08.11.2026 21:00 UTC</b> \u00b7 next close in 1h",
+          "body": "\ud83d\udfe7 <b>ETH/USDT</b> \u00b7 Ethereum -4.57% \u00b7 9.2\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 4 months (then 10.2\u00d7\u03c3)\n\ud83d\udd50 <b>08.11.2026 21:00 UTC</b> \u00b7 next close 98%",
           "context": "",
           "form": "push",
           "hour": 1794171600,
@@ -59,7 +59,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794254789,
+          "seen": 1794258403,
           "shown": [
             "major",
             9.2,
@@ -94,7 +94,7 @@
           "peak": "jump:binance:SOL/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794254789,
+          "seen": 1794258403,
           "shown": [
             "noticeable",
             6.1,
@@ -129,7 +129,7 @@
           "peak": "jump:binance:XRP/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794254789,
+          "seen": 1794258403,
           "shown": [
             "noticeable",
             6.3,
@@ -152,7 +152,7 @@
           "asset": "yahoo:BZ=F",
           "body": "\u2b1c <b>BZ=F</b> \u00b7 Brent crude (NYMEX) -2.62% \u00b7 4.5\u00d7\u03c3",
           "context": "",
-          "form": "row",
+          "form": null,
           "hour": 1794250800,
           "members": {
             "jump:yahoo:BZ=F:hour:1794250800": [
@@ -160,16 +160,16 @@
               0.005765099265229054
             ]
           },
-          "message": 163,
-          "peak": "jump:yahoo:BZ=F:hour:1794250800",
+          "message": null,
+          "peak": null,
           "ping_at": 1794254789,
           "placed_at": 1794254789,
-          "seen": 1794254789,
+          "seen": 1794258403,
           "shown": [
-            "noticeable",
-            4.5,
-            1794250800,
-            -2.62
+            null,
+            null,
+            null,
+            null
           ],
           "size": 4.542714771522938,
           "start": 1794254400,
@@ -179,34 +179,40 @@
               4.5,
               1794250800,
               ""
+            ],
+            [
+              null,
+              null,
+              null,
+              "corrected away"
             ]
           ],
-          "tier": "noticeable"
+          "tier": null
         },
         "yahoo:LE=F|1794236400": {
           "asset": "yahoo:LE=F",
-          "body": "\u2b1c <b>LE=F</b> \u00b7 Live cattle (CME) +1.74% \u00b7 4.9\u00d7\u03c3",
+          "body": "\u2b1c <b>LE=F</b> \u00b7 Live cattle (CME) +1.71% \u00b7 4.8\u00d7\u03c3",
           "context": "",
           "form": "row",
           "hour": 1794232800,
           "members": {
             "jump:yahoo:LE=F:hour:1794232800": [
-              0.0174238951670481,
-              0.0035601690101063157
+              0.017072727401878762,
+              0.0035585050924138726
             ]
           },
           "message": 162,
           "peak": "jump:yahoo:LE=F:hour:1794232800",
           "ping_at": 1794236808,
           "placed_at": 1794236808,
-          "seen": 1794254789,
+          "seen": 1794258403,
           "shown": [
             "noticeable",
-            4.9,
+            4.8,
             1794232800,
-            1.74
+            1.71
           ],
-          "size": 4.8941202278842875,
+          "size": 4.7977245945987015,
           "start": 1794236400,
           "story": [
             [
@@ -217,7 +223,7 @@
             ],
             [
               "noticeable",
-              4.9,
+              4.8,
               1794232800,
               "price corrected"
             ]
@@ -228,24 +234,20 @@
       "messages": {
         "160": {
           "first": "\ud83d\udfe7 <b>ETH/USDT</b> \u00b7 Ethereum -4.57% \u00b7 9.2\u00d7\u03c3",
-          "hash": "36a6fcbcde4b664a"
+          "hash": "023b1595982fe8a3"
         },
         "161": {
           "first": "\u2b1c <b>XRP/USDT</b> \u00b7 XRP -3.90% \u00b7 6.3\u00d7\u03c3",
           "hash": "85e9b737b5c94559"
         },
         "162": {
-          "first": "\u2b1c <b>LE=F</b> \u00b7 Live cattle (CME) +1.74% \u00b7 4.9\u00d7\u03c3",
-          "hash": "7e496f13bf9b0418"
-        },
-        "163": {
-          "first": "\u2b1c <b>BZ=F</b> \u00b7 Brent crude (NYMEX) -2.62% \u00b7 4.5\u00d7\u03c3",
-          "hash": "ad28d64f21038498"
+          "first": "\u2b1c <b>LE=F</b> \u00b7 Live cattle (CME) +1.71% \u00b7 4.8\u00d7\u03c3",
+          "hash": "a25a9301e7bc23ba"
         }
       },
       "note": {
         "hashes": [
-          "997f959becdefd04"
+          "e0675644d22b4498"
         ],
         "ids": [
           159
@@ -259,13 +261,12 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      162,
       163
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1794254789
+    "saved_at": 1794258403
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-09",
