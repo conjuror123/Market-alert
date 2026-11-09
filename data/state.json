@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1794197204
+    "last_run_utc": 1794200793
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -24,7 +24,7 @@
           "peak": "jump:binance:BTC/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794197205,
+          "seen": 1794200793,
           "shown": [
             "noticeable",
             5.7,
@@ -45,7 +45,7 @@
         },
         "binance:ETH/USDT|1794175200": {
           "asset": "binance:ETH/USDT",
-          "body": "\ud83d\udfe7 <b>ETH/USDT</b> \u00b7 Ethereum -4.57% \u00b7 9.2\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 4 months (then 10.2\u00d7\u03c3)\n\ud83d\udd50 <b>08.11.2026 21:00 UTC</b> \u00b7 next close in 17h",
+          "body": "\ud83d\udfe7 <b>ETH/USDT</b> \u00b7 Ethereum -4.57% \u00b7 9.2\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 4 months (then 10.2\u00d7\u03c3)\n\ud83d\udd50 <b>08.11.2026 21:00 UTC</b> \u00b7 next close in 16h",
           "context": "",
           "form": "push",
           "hour": 1794171600,
@@ -59,7 +59,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794197205,
+          "seen": 1794200793,
           "shown": [
             "major",
             9.2,
@@ -94,7 +94,7 @@
           "peak": "jump:binance:SOL/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794197205,
+          "seen": 1794200793,
           "shown": [
             "noticeable",
             6.1,
@@ -129,7 +129,7 @@
           "peak": "jump:binance:XRP/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794197205,
+          "seen": 1794200793,
           "shown": [
             "noticeable",
             6.3,
@@ -152,7 +152,7 @@
       "messages": {
         "160": {
           "first": "\ud83d\udfe7 <b>ETH/USDT</b> \u00b7 Ethereum -4.57% \u00b7 9.2\u00d7\u03c3",
-          "hash": "d1aa612db1a726bd"
+          "hash": "500858c583f592db"
         },
         "161": {
           "first": "\u2b1c <b>XRP/USDT</b> \u00b7 XRP -3.90% \u00b7 6.3\u00d7\u03c3",
@@ -161,7 +161,7 @@
       },
       "note": {
         "hashes": [
-          "d7e93194eb0a6d84"
+          "2e76bbef6d1435b4"
         ],
         "ids": [
           159
@@ -180,7 +180,7 @@
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1794197205
+    "saved_at": 1794200793
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-09",
