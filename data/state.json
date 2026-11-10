@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1794330416
+    "last_run_utc": 1794334008
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -24,7 +24,7 @@
           "peak": "jump:binance:BTC/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794330417,
+          "seen": 1794334010,
           "shown": [
             "noticeable",
             5.7,
@@ -59,7 +59,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794330417,
+          "seen": 1794334010,
           "shown": [
             "major",
             9.2,
@@ -94,7 +94,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794322800",
           "ping_at": 1794326809,
           "placed_at": 1794326809,
-          "seen": 1794330417,
+          "seen": 1794334010,
           "shown": [
             "noticeable",
             5.7,
@@ -129,7 +129,7 @@
           "peak": "jump:binance:SOL/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794330417,
+          "seen": 1794334010,
           "shown": [
             "noticeable",
             6.1,
@@ -164,7 +164,7 @@
           "peak": "jump:binance:XRP/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794330417,
+          "seen": 1794334010,
           "shown": [
             "noticeable",
             6.3,
@@ -199,7 +199,7 @@
           "peak": "jump:twelvedata:AUD/USD:hour:1794315600",
           "ping_at": 1794319618,
           "placed_at": 1794319618,
-          "seen": 1794330417,
+          "seen": 1794334010,
           "shown": [
             "noticeable",
             6.0,
@@ -238,7 +238,7 @@
           "peak": "jump:twelvedata:USD/CAD:hour:1794315600",
           "ping_at": 1794319618,
           "placed_at": 1794319618,
-          "seen": 1794330417,
+          "seen": 1794334010,
           "shown": [
             "noticeable",
             5.4,
@@ -273,7 +273,7 @@
           "peak": null,
           "ping_at": 1794254789,
           "placed_at": 1794254789,
-          "seen": 1794330417,
+          "seen": 1794334010,
           "shown": [
             null,
             null,
@@ -314,7 +314,7 @@
           "peak": "jump:yahoo:LE=F:hour:1794232800",
           "ping_at": 1794236808,
           "placed_at": 1794236808,
-          "seen": 1794330417,
+          "seen": 1794334010,
           "shown": [
             "noticeable",
             4.8,
@@ -355,7 +355,7 @@
           "peak": "jump:yahoo:ZB=F:hour:1794315600",
           "ping_at": 1794319618,
           "placed_at": 1794319618,
-          "seen": 1794330417,
+          "seen": 1794334010,
           "shown": [
             "noticeable",
             6.1,
@@ -380,6 +380,41 @@
           ],
           "tier": "noticeable"
         },
+        "yahoo:ZC=F|1794333600": {
+          "asset": "yahoo:ZC=F",
+          "body": "\ud83d\udfe8 <b>ZC=F</b> \u00b7 Corn (CBOT) +2.41% \u00b7 8.1\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 months (then 8.5\u00d7\u03c3)\n\ud83d\udd50 <b>10.11.2026 17:00 UTC</b> \u00b7 close in 3h",
+          "context": "",
+          "form": "push",
+          "hour": 1794330000,
+          "members": {
+            "jump:yahoo:ZC=F:hour:1794330000": [
+              0.02407057158472463,
+              0.00295491925722712
+            ]
+          },
+          "message": 167,
+          "peak": "jump:yahoo:ZC=F:hour:1794330000",
+          "ping_at": 1794334010,
+          "placed_at": 1794334010,
+          "seen": 1794334010,
+          "shown": [
+            "high",
+            8.1,
+            1794330000,
+            2.41
+          ],
+          "size": 8.145932084557979,
+          "start": 1794333600,
+          "story": [
+            [
+              "high",
+              8.1,
+              1794330000,
+              ""
+            ]
+          ],
+          "tier": "high"
+        },
         "yahoo:ZN=F|1794319200": {
           "asset": "yahoo:ZN=F",
           "body": "\u2b1c <b>ZN=F</b> \u00b7 10-year Treasury note (CBOT) -0.35% \u00b7 5.5\u00d7\u03c3",
@@ -396,7 +431,7 @@
           "peak": "jump:yahoo:ZN=F:hour:1794315600",
           "ping_at": 1794319618,
           "placed_at": 1794319618,
-          "seen": 1794330417,
+          "seen": 1794334010,
           "shown": [
             "noticeable",
             5.5,
@@ -420,6 +455,41 @@
             ]
           ],
           "tier": "noticeable"
+        },
+        "yahoo:ZS=F|1794333600": {
+          "asset": "yahoo:ZS=F",
+          "body": "\ud83d\udfe5 <b>ZS=F</b> \u00b7 Soybeans (CBOT) +3.19% \u00b7 14.4\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 9 months (then 14.3\u00d7\u03c3)\n\ud83d\udd50 <b>10.11.2026 17:00 UTC</b> \u00b7 close in 3h",
+          "context": "",
+          "form": "push",
+          "hour": 1794330000,
+          "members": {
+            "jump:yahoo:ZS=F:hour:1794330000": [
+              0.031899970812542124,
+              0.002210790007056349
+            ]
+          },
+          "message": 167,
+          "peak": "jump:yahoo:ZS=F:hour:1794330000",
+          "ping_at": 1794334010,
+          "placed_at": 1794334010,
+          "seen": 1794334010,
+          "shown": [
+            "extreme",
+            14.4,
+            1794330000,
+            3.19
+          ],
+          "size": 14.42921793147451,
+          "start": 1794333600,
+          "story": [
+            [
+              "extreme",
+              14.4,
+              1794330000,
+              ""
+            ]
+          ],
+          "tier": "extreme"
         },
         "yahoo:ZT=F|1794304800": {
           "asset": "yahoo:ZT=F",
@@ -445,7 +515,7 @@
           "peak": "jump:yahoo:ZT=F:hour:1794301200",
           "ping_at": 1794305195,
           "placed_at": 1794305195,
-          "seen": 1794330417,
+          "seen": 1794334010,
           "shown": [
             "noticeable",
             6.3,
@@ -491,11 +561,15 @@
         "166": {
           "first": "\u2b1c <b>ETH/USDT</b> \u00b7 Ethereum -2.86% \u00b7 5.7\u00d7\u03c3",
           "hash": "d6ed0980bc8a4ba0"
+        },
+        "167": {
+          "first": "\ud83d\udfe5 <b>ZS=F</b> \u00b7 Soybeans (CBOT) +3.19% \u00b7 14.4\u00d7\u03c3",
+          "hash": "86e13f0cf9c4fcc9"
         }
       },
       "note": {
         "hashes": [
-          "d5f0628703dd9aec"
+          "cf47f83b15286a61"
         ],
         "ids": [
           159
@@ -509,12 +583,13 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      166
+      166,
+      167
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1794330417
+    "saved_at": 1794334010
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-10",
