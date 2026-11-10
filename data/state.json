@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1794305193
+    "last_run_utc": 1794308782
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -24,7 +24,7 @@
           "peak": "jump:binance:BTC/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794305195,
+          "seen": 1794308783,
           "shown": [
             "noticeable",
             5.7,
@@ -59,7 +59,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794305195,
+          "seen": 1794308783,
           "shown": [
             "major",
             9.2,
@@ -94,7 +94,7 @@
           "peak": "jump:binance:SOL/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794305195,
+          "seen": 1794308783,
           "shown": [
             "noticeable",
             6.1,
@@ -129,7 +129,7 @@
           "peak": "jump:binance:XRP/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794305195,
+          "seen": 1794308783,
           "shown": [
             "noticeable",
             6.3,
@@ -164,7 +164,7 @@
           "peak": null,
           "ping_at": 1794254789,
           "placed_at": 1794254789,
-          "seen": 1794305195,
+          "seen": 1794308783,
           "shown": [
             null,
             null,
@@ -205,7 +205,7 @@
           "peak": "jump:yahoo:LE=F:hour:1794232800",
           "ping_at": 1794236808,
           "placed_at": 1794236808,
-          "seen": 1794305195,
+          "seen": 1794308783,
           "shown": [
             "noticeable",
             4.8,
@@ -232,13 +232,13 @@
         },
         "yahoo:ZT=F|1794304800": {
           "asset": "yahoo:ZT=F",
-          "body": "\u2b1c <b>ZT=F</b> \u00b7 2-year Treasury note (CBOT) -0.11% \u00b7 6.1\u00d7\u03c3",
+          "body": "\u2b1c <b>ZT=F</b> \u00b7 2-year Treasury note (CBOT) -0.12% \u00b7 6.3\u00d7\u03c3",
           "context": "",
           "form": "row",
           "hour": 1794301200,
           "members": {
             "jump:yahoo:ZT=F:hour:1794301200": [
-              -0.0011456067239865354,
+              -0.0011838162266945749,
               0.00018811535107805843
             ]
           },
@@ -246,14 +246,14 @@
           "peak": "jump:yahoo:ZT=F:hour:1794301200",
           "ping_at": 1794305195,
           "placed_at": 1794305195,
-          "seen": 1794305195,
+          "seen": 1794308783,
           "shown": [
             "noticeable",
-            6.1,
+            6.3,
             1794301200,
-            -0.11
+            -0.12
           ],
-          "size": 6.089916199933977,
+          "size": 6.293033608954915,
           "start": 1794304800,
           "story": [
             [
@@ -261,6 +261,12 @@
               6.1,
               1794301200,
               ""
+            ],
+            [
+              "noticeable",
+              6.3,
+              1794301200,
+              "price corrected"
             ]
           ],
           "tier": "noticeable"
@@ -280,13 +286,13 @@
           "hash": "a25a9301e7bc23ba"
         },
         "164": {
-          "first": "\u2b1c <b>ZT=F</b> \u00b7 2-year Treasury note (CBOT) -0.11% \u00b7 6.1\u00d7\u03c3",
-          "hash": "e8a075429adae2a6"
+          "first": "\u2b1c <b>ZT=F</b> \u00b7 2-year Treasury note (CBOT) -0.12% \u00b7 6.3\u00d7\u03c3",
+          "hash": "27e8d1734cbbdb4c"
         }
       },
       "note": {
         "hashes": [
-          "1c5c54a952fee797"
+          "9cf721439380b26b"
         ],
         "ids": [
           159
@@ -300,13 +306,12 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      163,
       164
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1794305195
+    "saved_at": 1794308783
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-10",
