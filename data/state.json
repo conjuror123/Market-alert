@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1794319615
+    "last_run_utc": 1794323214
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -24,7 +24,7 @@
           "peak": "jump:binance:BTC/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794319618,
+          "seen": 1794323215,
           "shown": [
             "noticeable",
             5.7,
@@ -59,7 +59,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794319618,
+          "seen": 1794323215,
           "shown": [
             "major",
             9.2,
@@ -94,7 +94,7 @@
           "peak": "jump:binance:SOL/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794319618,
+          "seen": 1794323215,
           "shown": [
             "noticeable",
             6.1,
@@ -129,7 +129,7 @@
           "peak": "jump:binance:XRP/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794319618,
+          "seen": 1794323215,
           "shown": [
             "noticeable",
             6.3,
@@ -164,7 +164,7 @@
           "peak": "jump:twelvedata:AUD/USD:hour:1794315600",
           "ping_at": 1794319618,
           "placed_at": 1794319618,
-          "seen": 1794319618,
+          "seen": 1794323215,
           "shown": [
             "noticeable",
             6.0,
@@ -199,7 +199,7 @@
           "peak": "jump:twelvedata:USD/CAD:hour:1794315600",
           "ping_at": 1794319618,
           "placed_at": 1794319618,
-          "seen": 1794319618,
+          "seen": 1794323215,
           "shown": [
             "noticeable",
             5.4,
@@ -234,7 +234,7 @@
           "peak": null,
           "ping_at": 1794254789,
           "placed_at": 1794254789,
-          "seen": 1794319618,
+          "seen": 1794323215,
           "shown": [
             null,
             null,
@@ -261,28 +261,28 @@
         },
         "yahoo:LE=F|1794236400": {
           "asset": "yahoo:LE=F",
-          "body": "\u2b1c <b>LE=F</b> \u00b7 Live cattle (CME) +1.71% \u00b7 4.8\u00d7\u03c3",
+          "body": "\u2b1c <b>LE=F</b> \u00b7 Live cattle (CME) +1.74% \u00b7 4.9\u00d7\u03c3",
           "context": "",
           "form": "row",
           "hour": 1794232800,
           "members": {
             "jump:yahoo:LE=F:hour:1794232800": [
-              0.017072727401878762,
-              0.0035585050924138726
+              0.0174238951670481,
+              0.0035601690101063157
             ]
           },
           "message": 162,
           "peak": "jump:yahoo:LE=F:hour:1794232800",
           "ping_at": 1794236808,
           "placed_at": 1794236808,
-          "seen": 1794319618,
+          "seen": 1794323215,
           "shown": [
             "noticeable",
-            4.8,
+            4.9,
             1794232800,
-            1.71
+            1.74
           ],
-          "size": 4.7977245945987015,
+          "size": 4.8941202278842875,
           "start": 1794236400,
           "story": [
             [
@@ -293,7 +293,7 @@
             ],
             [
               "noticeable",
-              4.8,
+              4.9,
               1794232800,
               "price corrected"
             ]
@@ -302,28 +302,28 @@
         },
         "yahoo:ZB=F|1794319200": {
           "asset": "yahoo:ZB=F",
-          "body": "\u2b1c <b>ZB=F</b> \u00b7 30-year Treasury bond (CBOT) -0.67% \u00b7 5.8\u00d7\u03c3",
+          "body": "\u2b1c <b>ZB=F</b> \u00b7 30-year Treasury bond (CBOT) -0.69% \u00b7 6.1\u00d7\u03c3",
           "context": "",
           "form": "row",
           "hour": 1794315600,
           "members": {
             "jump:yahoo:ZB=F:hour:1794315600": [
-              -0.006652229881874758,
-              0.0011460897112847577
+              -0.006942463521990792,
+              0.001145978710414112
             ]
           },
           "message": 165,
           "peak": "jump:yahoo:ZB=F:hour:1794315600",
           "ping_at": 1794319618,
           "placed_at": 1794319618,
-          "seen": 1794319618,
+          "seen": 1794323215,
           "shown": [
             "noticeable",
-            5.8,
+            6.1,
             1794315600,
-            -0.67
+            -0.69
           ],
-          "size": 5.804283745307913,
+          "size": 6.058108635789627,
           "start": 1794319200,
           "story": [
             [
@@ -331,34 +331,40 @@
               5.8,
               1794315600,
               ""
+            ],
+            [
+              "noticeable",
+              6.1,
+              1794315600,
+              "price corrected"
             ]
           ],
           "tier": "noticeable"
         },
         "yahoo:ZN=F|1794319200": {
           "asset": "yahoo:ZN=F",
-          "body": "\u2b1c <b>ZN=F</b> \u00b7 10-year Treasury note (CBOT) -0.34% \u00b7 5.3\u00d7\u03c3",
+          "body": "\u2b1c <b>ZN=F</b> \u00b7 10-year Treasury note (CBOT) -0.35% \u00b7 5.5\u00d7\u03c3",
           "context": "",
           "form": "row",
           "hour": 1794315600,
           "members": {
             "jump:yahoo:ZN=F:hour:1794315600": [
-              -0.0033702134618133054,
-              0.0006373173785370247
+              -0.0035170024529026316,
+              0.0006371385586684488
             ]
           },
           "message": 165,
           "peak": "jump:yahoo:ZN=F:hour:1794315600",
           "ping_at": 1794319618,
           "placed_at": 1794319618,
-          "seen": 1794319618,
+          "seen": 1794323215,
           "shown": [
             "noticeable",
-            5.3,
+            5.5,
             1794315600,
-            -0.34
+            -0.35
           ],
-          "size": 5.288124214578458,
+          "size": 5.519996247366961,
           "start": 1794319200,
           "story": [
             [
@@ -366,6 +372,12 @@
               5.3,
               1794315600,
               ""
+            ],
+            [
+              "noticeable",
+              5.5,
+              1794315600,
+              "price corrected"
             ]
           ],
           "tier": "noticeable"
@@ -379,25 +391,29 @@
           "members": {
             "jump:yahoo:ZT=F:hour:1794301200": [
               -0.0011838162266945749,
-              0.00018811535107805843
+              0.00018818069446690093
             ],
             "jump:yahoo:ZT=F:hour:1794315600": [
               -0.0009941879069116982,
-              0.00018825100856618163
+              0.00018831625813456904
+            ],
+            "jump:yahoo:ZT=F:hour:1794319200": [
+              -0.0009568829314126095,
+              0.0001886393383613265
             ]
           },
           "message": 164,
           "peak": "jump:yahoo:ZT=F:hour:1794301200",
           "ping_at": 1794305195,
           "placed_at": 1794305195,
-          "seen": 1794319618,
+          "seen": 1794323215,
           "shown": [
             "noticeable",
             6.3,
             1794301200,
             -0.12
           ],
-          "size": 6.293033608954915,
+          "size": 6.290848431866086,
           "start": 1794304800,
           "story": [
             [
@@ -422,21 +438,21 @@
           "hash": "023b1595982fe8a3"
         },
         "162": {
-          "first": "\u2b1c <b>LE=F</b> \u00b7 Live cattle (CME) +1.71% \u00b7 4.8\u00d7\u03c3",
-          "hash": "a25a9301e7bc23ba"
+          "first": "\u2b1c <b>LE=F</b> \u00b7 Live cattle (CME) +1.74% \u00b7 4.9\u00d7\u03c3",
+          "hash": "7e496f13bf9b0418"
         },
         "164": {
           "first": "\u2b1c <b>ZT=F</b> \u00b7 2-year Treasury note (CBOT) -0.12% \u00b7 6.3\u00d7\u03c3",
           "hash": "27e8d1734cbbdb4c"
         },
         "165": {
-          "first": "\u2b1c <b>AUD/USD</b> \u00b7 Australian dollar -0.51% \u00b7 6.0\u00d7\u03c3",
-          "hash": "4ac13259b2c906e6"
+          "first": "\u2b1c <b>ZB=F</b> \u00b7 30-year Treasury bond (CBOT) -0.69% \u00b7 6.1\u00d7\u03c3",
+          "hash": "b65715ea15baa82d"
         }
       },
       "note": {
         "hashes": [
-          "02c75564b96a4d23"
+          "27a9f9c8ffbcd038"
         ],
         "ids": [
           159
@@ -450,13 +466,12 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      164,
       165
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1794319618
+    "saved_at": 1794323215
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-10",
