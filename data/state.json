@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1794334008
+    "last_run_utc": 1794337607
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -24,7 +24,7 @@
           "peak": "jump:binance:BTC/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794334010,
+          "seen": 1794337608,
           "shown": [
             "noticeable",
             5.7,
@@ -59,7 +59,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794334010,
+          "seen": 1794337608,
           "shown": [
             "major",
             9.2,
@@ -94,7 +94,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794322800",
           "ping_at": 1794326809,
           "placed_at": 1794326809,
-          "seen": 1794334010,
+          "seen": 1794337608,
           "shown": [
             "noticeable",
             5.7,
@@ -129,7 +129,7 @@
           "peak": "jump:binance:SOL/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794334010,
+          "seen": 1794337608,
           "shown": [
             "noticeable",
             6.1,
@@ -164,7 +164,7 @@
           "peak": "jump:binance:XRP/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794334010,
+          "seen": 1794337608,
           "shown": [
             "noticeable",
             6.3,
@@ -199,7 +199,7 @@
           "peak": "jump:twelvedata:AUD/USD:hour:1794315600",
           "ping_at": 1794319618,
           "placed_at": 1794319618,
-          "seen": 1794334010,
+          "seen": 1794337608,
           "shown": [
             "noticeable",
             6.0,
@@ -238,7 +238,7 @@
           "peak": "jump:twelvedata:USD/CAD:hour:1794315600",
           "ping_at": 1794319618,
           "placed_at": 1794319618,
-          "seen": 1794334010,
+          "seen": 1794337608,
           "shown": [
             "noticeable",
             5.4,
@@ -273,7 +273,7 @@
           "peak": null,
           "ping_at": 1794254789,
           "placed_at": 1794254789,
-          "seen": 1794334010,
+          "seen": 1794337608,
           "shown": [
             null,
             null,
@@ -300,28 +300,28 @@
         },
         "yahoo:LE=F|1794236400": {
           "asset": "yahoo:LE=F",
-          "body": "\u2b1c <b>LE=F</b> \u00b7 Live cattle (CME) +1.71% \u00b7 4.8\u00d7\u03c3",
+          "body": "\u2b1c <b>LE=F</b> \u00b7 Live cattle (CME) +1.74% \u00b7 4.9\u00d7\u03c3",
           "context": "",
           "form": "row",
           "hour": 1794232800,
           "members": {
             "jump:yahoo:LE=F:hour:1794232800": [
-              0.017072727401878762,
-              0.0035585050924138726
+              0.0174238951670481,
+              0.0035601690101063157
             ]
           },
           "message": 162,
           "peak": "jump:yahoo:LE=F:hour:1794232800",
           "ping_at": 1794236808,
           "placed_at": 1794236808,
-          "seen": 1794334010,
+          "seen": 1794337608,
           "shown": [
             "noticeable",
-            4.8,
+            4.9,
             1794232800,
-            1.71
+            1.74
           ],
-          "size": 4.7977245945987015,
+          "size": 4.8941202278842875,
           "start": 1794236400,
           "story": [
             [
@@ -332,7 +332,7 @@
             ],
             [
               "noticeable",
-              4.8,
+              4.9,
               1794232800,
               "price corrected"
             ]
@@ -348,21 +348,21 @@
           "members": {
             "jump:yahoo:ZB=F:hour:1794315600": [
               -0.006942463521990792,
-              0.0011460897112847577
+              0.001145978710414112
             ]
           },
           "message": 165,
           "peak": "jump:yahoo:ZB=F:hour:1794315600",
           "ping_at": 1794319618,
           "placed_at": 1794319618,
-          "seen": 1794334010,
+          "seen": 1794337608,
           "shown": [
             "noticeable",
             6.1,
             1794315600,
             -0.69
           ],
-          "size": 6.05752189696245,
+          "size": 6.058108635789627,
           "start": 1794319200,
           "story": [
             [
@@ -382,28 +382,28 @@
         },
         "yahoo:ZC=F|1794333600": {
           "asset": "yahoo:ZC=F",
-          "body": "\ud83d\udfe8 <b>ZC=F</b> \u00b7 Corn (CBOT) +2.41% \u00b7 8.1\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 months (then 8.5\u00d7\u03c3)\n\ud83d\udd50 <b>10.11.2026 17:00 UTC</b> \u00b7 close in 3h",
+          "body": "\ud83d\udfe8 <b>ZC=F</b> \u00b7 Corn (CBOT) +2.46% \u00b7 8.3\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 months (then 8.5\u00d7\u03c3)\n\ud83d\udd50 <b>10.11.2026 17:00 UTC</b> \u00b7 close in 2h\n\u270f\ufe0f \ud83d\udfe8 8.1\u00d7\u03c3 17:00 \u2192 \ud83d\udfe8 8.3\u00d7\u03c3 17:00 price corrected",
           "context": "",
           "form": "push",
           "hour": 1794330000,
           "members": {
             "jump:yahoo:ZC=F:hour:1794330000": [
-              0.02407057158472463,
-              0.00295491925722712
+              0.024623516027898033,
+              0.0029546527110696544
             ]
           },
           "message": 167,
           "peak": "jump:yahoo:ZC=F:hour:1794330000",
           "ping_at": 1794334010,
           "placed_at": 1794334010,
-          "seen": 1794334010,
+          "seen": 1794337608,
           "shown": [
             "high",
-            8.1,
+            8.3,
             1794330000,
-            2.41
+            2.46
           ],
-          "size": 8.145932084557979,
+          "size": 8.33381058140797,
           "start": 1794333600,
           "story": [
             [
@@ -411,6 +411,12 @@
               8.1,
               1794330000,
               ""
+            ],
+            [
+              "high",
+              8.3,
+              1794330000,
+              "price corrected"
             ]
           ],
           "tier": "high"
@@ -424,21 +430,21 @@
           "members": {
             "jump:yahoo:ZN=F:hour:1794315600": [
               -0.0035170024529026316,
-              0.000637307988221574
+              0.0006371385586684488
             ]
           },
           "message": 165,
           "peak": "jump:yahoo:ZN=F:hour:1794315600",
           "ping_at": 1794319618,
           "placed_at": 1794319618,
-          "seen": 1794334010,
+          "seen": 1794337608,
           "shown": [
             "noticeable",
             5.5,
             1794315600,
             -0.35
           ],
-          "size": 5.518528745759059,
+          "size": 5.519996247366961,
           "start": 1794319200,
           "story": [
             [
@@ -458,28 +464,28 @@
         },
         "yahoo:ZS=F|1794333600": {
           "asset": "yahoo:ZS=F",
-          "body": "\ud83d\udfe5 <b>ZS=F</b> \u00b7 Soybeans (CBOT) +3.19% \u00b7 14.4\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 9 months (then 14.3\u00d7\u03c3)\n\ud83d\udd50 <b>10.11.2026 17:00 UTC</b> \u00b7 close in 3h",
+          "body": "\ud83d\udfe5 <b>ZS=F</b> \u00b7 Soybeans (CBOT) +3.23% \u00b7 14.6\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 9 months (then 14.3\u00d7\u03c3)\n\ud83d\udd50 <b>10.11.2026 17:00 UTC</b> \u00b7 close in 2h\n\u270f\ufe0f \ud83d\udfe5 14.4\u00d7\u03c3 17:00 \u2192 \ud83d\udfe5 14.6\u00d7\u03c3 17:00 price corrected",
           "context": "",
           "form": "push",
           "hour": 1794330000,
           "members": {
             "jump:yahoo:ZS=F:hour:1794330000": [
-              0.031899970812542124,
-              0.002210790007056349
+              0.032307634902982114,
+              0.0022105832782561576
             ]
           },
           "message": 167,
           "peak": "jump:yahoo:ZS=F:hour:1794330000",
           "ping_at": 1794334010,
           "placed_at": 1794334010,
-          "seen": 1794334010,
+          "seen": 1794337608,
           "shown": [
             "extreme",
-            14.4,
+            14.6,
             1794330000,
-            3.19
+            3.23
           ],
-          "size": 14.42921793147451,
+          "size": 14.614982036989051,
           "start": 1794333600,
           "story": [
             [
@@ -487,6 +493,12 @@
               14.4,
               1794330000,
               ""
+            ],
+            [
+              "extreme",
+              14.6,
+              1794330000,
+              "price corrected"
             ]
           ],
           "tier": "extreme"
@@ -500,29 +512,29 @@
           "members": {
             "jump:yahoo:ZT=F:hour:1794301200": [
               -0.0011838162266945749,
-              0.00018811535107805843
+              0.00018818069446690093
             ],
             "jump:yahoo:ZT=F:hour:1794315600": [
-              -0.0010324456493270157,
-              0.00018825100856618163
+              -0.0009941879069116982,
+              0.00018831625813456904
             ],
             "jump:yahoo:ZT=F:hour:1794319200": [
-              -0.0009569195578150737,
-              0.00018858728100306393
+              -0.0009951773002303949,
+              0.0001886393383613265
             ]
           },
           "message": 164,
           "peak": "jump:yahoo:ZT=F:hour:1794301200",
           "ping_at": 1794305195,
           "placed_at": 1794305195,
-          "seen": 1794334010,
+          "seen": 1794337608,
           "shown": [
             "noticeable",
             6.3,
             1794301200,
             -0.12
           ],
-          "size": 6.293033608954915,
+          "size": 6.290848431866086,
           "start": 1794304800,
           "story": [
             [
@@ -547,8 +559,8 @@
           "hash": "023b1595982fe8a3"
         },
         "162": {
-          "first": "\u2b1c <b>LE=F</b> \u00b7 Live cattle (CME) +1.71% \u00b7 4.8\u00d7\u03c3",
-          "hash": "a25a9301e7bc23ba"
+          "first": "\u2b1c <b>LE=F</b> \u00b7 Live cattle (CME) +1.74% \u00b7 4.9\u00d7\u03c3",
+          "hash": "7e496f13bf9b0418"
         },
         "164": {
           "first": "\u2b1c <b>ZT=F</b> \u00b7 2-year Treasury note (CBOT) -0.12% \u00b7 6.3\u00d7\u03c3",
@@ -563,13 +575,13 @@
           "hash": "d6ed0980bc8a4ba0"
         },
         "167": {
-          "first": "\ud83d\udfe5 <b>ZS=F</b> \u00b7 Soybeans (CBOT) +3.19% \u00b7 14.4\u00d7\u03c3",
-          "hash": "86e13f0cf9c4fcc9"
+          "first": "\ud83d\udfe5 <b>ZS=F</b> \u00b7 Soybeans (CBOT) +3.23% \u00b7 14.6\u00d7\u03c3",
+          "hash": "a2c8419878a619b0"
         }
       },
       "note": {
         "hashes": [
-          "cf47f83b15286a61"
+          "5f5f1196c77c4439"
         ],
         "ids": [
           159
@@ -583,13 +595,12 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      166,
       167
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1794334010
+    "saved_at": 1794337608
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-10",
