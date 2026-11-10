@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1794315986
+    "last_run_utc": 1794319615
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -20,11 +20,11 @@
               0.0037948766461170244
             ]
           },
-          "message": 161,
+          "message": null,
           "peak": "jump:binance:BTC/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794315986,
+          "seen": 1794319618,
           "shown": [
             "noticeable",
             5.7,
@@ -59,7 +59,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794315986,
+          "seen": 1794319618,
           "shown": [
             "major",
             9.2,
@@ -90,11 +90,11 @@
               0.005857888338433056
             ]
           },
-          "message": 161,
+          "message": null,
           "peak": "jump:binance:SOL/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794315986,
+          "seen": 1794319618,
           "shown": [
             "noticeable",
             6.1,
@@ -125,11 +125,11 @@
               0.0062183896165005385
             ]
           },
-          "message": 161,
+          "message": null,
           "peak": "jump:binance:XRP/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794315986,
+          "seen": 1794319618,
           "shown": [
             "noticeable",
             6.3,
@@ -143,6 +143,76 @@
               "noticeable",
               6.3,
               1794171600,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        },
+        "twelvedata:AUD/USD|1794319200": {
+          "asset": "twelvedata:AUD/USD",
+          "body": "\u2b1c <b>AUD/USD</b> \u00b7 Australian dollar -0.51% \u00b7 6.0\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1794315600,
+          "members": {
+            "jump:twelvedata:AUD/USD:hour:1794315600": [
+              -0.0051249776438229405,
+              0.0008536185162202355
+            ]
+          },
+          "message": 165,
+          "peak": "jump:twelvedata:AUD/USD:hour:1794315600",
+          "ping_at": 1794319618,
+          "placed_at": 1794319618,
+          "seen": 1794319618,
+          "shown": [
+            "noticeable",
+            6.0,
+            1794315600,
+            -0.51
+          ],
+          "size": 6.003826705301558,
+          "start": 1794319200,
+          "story": [
+            [
+              "noticeable",
+              6.0,
+              1794315600,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        },
+        "twelvedata:USD/CAD|1794319200": {
+          "asset": "twelvedata:USD/CAD",
+          "body": "\u2b1c <b>USD/CAD</b> \u00b7 Canadian dollar +0.27% \u00b7 5.4\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1794315600,
+          "members": {
+            "jump:twelvedata:USD/CAD:hour:1794315600": [
+              0.0027061130117835928,
+              0.0005042717586663869
+            ]
+          },
+          "message": 165,
+          "peak": "jump:twelvedata:USD/CAD:hour:1794315600",
+          "ping_at": 1794319618,
+          "placed_at": 1794319618,
+          "seen": 1794319618,
+          "shown": [
+            "noticeable",
+            5.4,
+            1794315600,
+            0.27
+          ],
+          "size": 5.366378277737118,
+          "start": 1794319200,
+          "story": [
+            [
+              "noticeable",
+              5.4,
+              1794315600,
               ""
             ]
           ],
@@ -164,7 +234,7 @@
           "peak": null,
           "ping_at": 1794254789,
           "placed_at": 1794254789,
-          "seen": 1794315986,
+          "seen": 1794319618,
           "shown": [
             null,
             null,
@@ -205,7 +275,7 @@
           "peak": "jump:yahoo:LE=F:hour:1794232800",
           "ping_at": 1794236808,
           "placed_at": 1794236808,
-          "seen": 1794315986,
+          "seen": 1794319618,
           "shown": [
             "noticeable",
             4.8,
@@ -230,6 +300,76 @@
           ],
           "tier": "noticeable"
         },
+        "yahoo:ZB=F|1794319200": {
+          "asset": "yahoo:ZB=F",
+          "body": "\u2b1c <b>ZB=F</b> \u00b7 30-year Treasury bond (CBOT) -0.67% \u00b7 5.8\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1794315600,
+          "members": {
+            "jump:yahoo:ZB=F:hour:1794315600": [
+              -0.006652229881874758,
+              0.0011460897112847577
+            ]
+          },
+          "message": 165,
+          "peak": "jump:yahoo:ZB=F:hour:1794315600",
+          "ping_at": 1794319618,
+          "placed_at": 1794319618,
+          "seen": 1794319618,
+          "shown": [
+            "noticeable",
+            5.8,
+            1794315600,
+            -0.67
+          ],
+          "size": 5.804283745307913,
+          "start": 1794319200,
+          "story": [
+            [
+              "noticeable",
+              5.8,
+              1794315600,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        },
+        "yahoo:ZN=F|1794319200": {
+          "asset": "yahoo:ZN=F",
+          "body": "\u2b1c <b>ZN=F</b> \u00b7 10-year Treasury note (CBOT) -0.34% \u00b7 5.3\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1794315600,
+          "members": {
+            "jump:yahoo:ZN=F:hour:1794315600": [
+              -0.0033702134618133054,
+              0.0006373173785370247
+            ]
+          },
+          "message": 165,
+          "peak": "jump:yahoo:ZN=F:hour:1794315600",
+          "ping_at": 1794319618,
+          "placed_at": 1794319618,
+          "seen": 1794319618,
+          "shown": [
+            "noticeable",
+            5.3,
+            1794315600,
+            -0.34
+          ],
+          "size": 5.288124214578458,
+          "start": 1794319200,
+          "story": [
+            [
+              "noticeable",
+              5.3,
+              1794315600,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        },
         "yahoo:ZT=F|1794304800": {
           "asset": "yahoo:ZT=F",
           "body": "\u2b1c <b>ZT=F</b> \u00b7 2-year Treasury note (CBOT) -0.12% \u00b7 6.3\u00d7\u03c3",
@@ -239,21 +379,25 @@
           "members": {
             "jump:yahoo:ZT=F:hour:1794301200": [
               -0.0011838162266945749,
-              0.00018818069446690093
+              0.00018811535107805843
+            ],
+            "jump:yahoo:ZT=F:hour:1794315600": [
+              -0.0009941879069116982,
+              0.00018825100856618163
             ]
           },
           "message": 164,
           "peak": "jump:yahoo:ZT=F:hour:1794301200",
           "ping_at": 1794305195,
           "placed_at": 1794305195,
-          "seen": 1794315986,
+          "seen": 1794319618,
           "shown": [
             "noticeable",
             6.3,
             1794301200,
             -0.12
           ],
-          "size": 6.290848431866086,
+          "size": 6.293033608954915,
           "start": 1794304800,
           "story": [
             [
@@ -277,10 +421,6 @@
           "first": "\ud83d\udfe7 <b>ETH/USDT</b> \u00b7 Ethereum -4.57% \u00b7 9.2\u00d7\u03c3",
           "hash": "023b1595982fe8a3"
         },
-        "161": {
-          "first": "\u2b1c <b>XRP/USDT</b> \u00b7 XRP -3.90% \u00b7 6.3\u00d7\u03c3",
-          "hash": "85e9b737b5c94559"
-        },
         "162": {
           "first": "\u2b1c <b>LE=F</b> \u00b7 Live cattle (CME) +1.71% \u00b7 4.8\u00d7\u03c3",
           "hash": "a25a9301e7bc23ba"
@@ -288,11 +428,15 @@
         "164": {
           "first": "\u2b1c <b>ZT=F</b> \u00b7 2-year Treasury note (CBOT) -0.12% \u00b7 6.3\u00d7\u03c3",
           "hash": "27e8d1734cbbdb4c"
+        },
+        "165": {
+          "first": "\u2b1c <b>AUD/USD</b> \u00b7 Australian dollar -0.51% \u00b7 6.0\u00d7\u03c3",
+          "hash": "4ac13259b2c906e6"
         }
       },
       "note": {
         "hashes": [
-          "25cee64624fb3517"
+          "02c75564b96a4d23"
         ],
         "ids": [
           159
@@ -306,12 +450,13 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      164
+      164,
+      165
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1794315986
+    "saved_at": 1794319618
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-10",
