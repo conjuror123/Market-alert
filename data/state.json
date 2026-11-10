@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1794308782
+    "last_run_utc": 1794312392
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -24,7 +24,7 @@
           "peak": "jump:binance:BTC/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794308783,
+          "seen": 1794312393,
           "shown": [
             "noticeable",
             5.7,
@@ -59,7 +59,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794308783,
+          "seen": 1794312393,
           "shown": [
             "major",
             9.2,
@@ -94,7 +94,7 @@
           "peak": "jump:binance:SOL/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794308783,
+          "seen": 1794312393,
           "shown": [
             "noticeable",
             6.1,
@@ -129,7 +129,7 @@
           "peak": "jump:binance:XRP/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794308783,
+          "seen": 1794312393,
           "shown": [
             "noticeable",
             6.3,
@@ -164,7 +164,7 @@
           "peak": null,
           "ping_at": 1794254789,
           "placed_at": 1794254789,
-          "seen": 1794308783,
+          "seen": 1794312393,
           "shown": [
             null,
             null,
@@ -205,7 +205,7 @@
           "peak": "jump:yahoo:LE=F:hour:1794232800",
           "ping_at": 1794236808,
           "placed_at": 1794236808,
-          "seen": 1794308783,
+          "seen": 1794312393,
           "shown": [
             "noticeable",
             4.8,
@@ -246,7 +246,7 @@
           "peak": "jump:yahoo:ZT=F:hour:1794301200",
           "ping_at": 1794305195,
           "placed_at": 1794305195,
-          "seen": 1794308783,
+          "seen": 1794312393,
           "shown": [
             "noticeable",
             6.3,
@@ -292,7 +292,7 @@
       },
       "note": {
         "hashes": [
-          "9cf721439380b26b"
+          "4a3d61f9a839f999"
         ],
         "ids": [
           159
@@ -311,7 +311,7 @@
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1794308783
+    "saved_at": 1794312393
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-10",
