@@ -897,6 +897,7 @@ twelvedata:XLY,1632142800,close,overnight,tiingo,alpaca,,-0.017921,-0.020744,179
 twelvedata:XLY,1643032800,close,overnight,tiingo,alpaca,,-0.030902,-0.020836,1791362492
 yahoo:511090.SS,1793336400,close,real,yahoo,"sina,marketwatch,wallstreetcn,tencent","sina,marketwatch,wallstreetcn,tencent",-0.003855,"-0.003946,-0.003946,-0.003855,-0.003855",1793689569
 yahoo:511090.SS,1793584800,close,real,yahoo,"sina,marketwatch,wallstreetcn,tencent","marketwatch,wallstreetcn,tencent",0.003786,",0.003769,0.003786,0.003786",1793948778
+yahoo:511090.SS,1794376800,close,real,yahoo,"sina,marketwatch,wallstreetcn,tencent","sina,marketwatch,wallstreetcn,tencent",-0.004083,"-0.004157,-0.004381,-0.004157,-0.004157",1794384385
 yahoo:BZ=F,1793710800,close,real,yahoo,"sina,marketwatch,wallstreetcn,ft","sina,marketwatch,wallstreetcn,ft",-0.030849,"-0.030156,-0.030849,-0.031335,-0.029639",1794348376
 yahoo:BZ=F,1793808000,close,real,yahoo,"sina,marketwatch,wallstreetcn,ft","sina,marketwatch,wallstreetcn,ft",-0.049672,"-0.049475,-0.049148,-0.049570,-0.049773",1794348376
 yahoo:CC=F,1788346800,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",-0.050160,"-0.051429,-0.051429",1791828443
@@ -934,6 +935,7 @@ yahoo:ZB=F,1792065600,close,real,yahoo,marketwatch,marketwatch,0.005614,0.005614
 yahoo:ZB=F,1793196000,close,real,yahoo,"sina,marketwatch","sina,marketwatch",-0.004658,"-0.004947,-0.004658",1793916378
 yahoo:ZB=F,1793210400,close,real,yahoo,"sina,marketwatch","sina,marketwatch",-0.005550,"-0.006773,-0.005257",1793916378
 yahoo:ZB=F,1793235600,close,real,yahoo,marketwatch,marketwatch,0.004957,0.004957,1794002778
+yahoo:ZB=F,1794265200,open,real,yahoo,marketwatch,marketwatch,-0.001731,-0.002019,1794384385
 yahoo:ZB=F,1794315600,close,real,yahoo,marketwatch,marketwatch,-0.006942,-0.006942,1794348376
 yahoo:ZB=F,1794319200,close,real,yahoo,marketwatch,marketwatch,-0.004655,-0.004655,1794348376
 yahoo:ZC=F,1791561600,close,real,yahoo,"marketwatch,ft","marketwatch,ft",-0.065101,"-0.065101,-0.065631",1792177575
