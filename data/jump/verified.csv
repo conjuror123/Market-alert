@@ -935,7 +935,6 @@ yahoo:ZB=F,1792065600,close,real,yahoo,marketwatch,marketwatch,0.005614,0.005614
 yahoo:ZB=F,1793196000,close,real,yahoo,"sina,marketwatch","sina,marketwatch",-0.004658,"-0.004947,-0.004658",1793916378
 yahoo:ZB=F,1793210400,close,real,yahoo,"sina,marketwatch","sina,marketwatch",-0.005550,"-0.006773,-0.005257",1793916378
 yahoo:ZB=F,1793235600,close,real,yahoo,marketwatch,marketwatch,0.004957,0.004957,1794002778
-yahoo:ZB=F,1794265200,open,real,yahoo,marketwatch,marketwatch,-0.001731,-0.002019,1794395182
 yahoo:ZB=F,1794315600,close,real,yahoo,marketwatch,marketwatch,-0.006942,-0.006942,1794348376
 yahoo:ZB=F,1794319200,close,real,yahoo,marketwatch,marketwatch,-0.004655,-0.004655,1794348376
 yahoo:ZC=F,1791561600,close,real,yahoo,"marketwatch,ft","marketwatch,ft",-0.065101,"-0.065101,-0.065631",1792177575
