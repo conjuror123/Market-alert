@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1794391598
+    "last_run_utc": 1794395200
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -24,7 +24,7 @@
           "peak": "jump:binance:BTC/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794391598,
+          "seen": 1794395201,
           "shown": [
             "noticeable",
             5.7,
@@ -59,7 +59,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794391598,
+          "seen": 1794395201,
           "shown": [
             "major",
             9.2,
@@ -94,7 +94,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794322800",
           "ping_at": 1794326809,
           "placed_at": 1794326809,
-          "seen": 1794391598,
+          "seen": 1794395201,
           "shown": [
             "noticeable",
             5.7,
@@ -129,7 +129,7 @@
           "peak": "jump:binance:SOL/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794391598,
+          "seen": 1794395201,
           "shown": [
             "noticeable",
             6.1,
@@ -164,7 +164,7 @@
           "peak": "jump:binance:XRP/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794391598,
+          "seen": 1794395201,
           "shown": [
             "noticeable",
             6.3,
@@ -199,7 +199,7 @@
           "peak": "jump:twelvedata:AUD/USD:hour:1794315600",
           "ping_at": 1794319618,
           "placed_at": 1794319618,
-          "seen": 1794391598,
+          "seen": 1794395201,
           "shown": [
             "noticeable",
             6.0,
@@ -238,7 +238,7 @@
           "peak": "jump:twelvedata:USD/CAD:hour:1794315600",
           "ping_at": 1794319618,
           "placed_at": 1794319618,
-          "seen": 1794391598,
+          "seen": 1794395201,
           "shown": [
             "noticeable",
             5.4,
@@ -273,7 +273,7 @@
           "peak": "jump:yahoo:511090.SS:hour:1794376800",
           "ping_at": 1794384437,
           "placed_at": 1794384437,
-          "seen": 1794391598,
+          "seen": 1794395201,
           "shown": [
             "noticeable",
             4.7,
@@ -308,7 +308,7 @@
           "peak": null,
           "ping_at": 1794254789,
           "placed_at": 1794254789,
-          "seen": 1794391598,
+          "seen": 1794395201,
           "shown": [
             null,
             null,
@@ -349,7 +349,7 @@
           "peak": "jump:yahoo:LE=F:hour:1794232800",
           "ping_at": 1794236808,
           "placed_at": 1794236808,
-          "seen": 1794391598,
+          "seen": 1794395201,
           "shown": [
             "noticeable",
             4.9,
@@ -383,21 +383,21 @@
           "members": {
             "jump:yahoo:ZB=F:hour:1794315600": [
               -0.006942463521990792,
-              0.001146001132122483
+              0.0011458459631447085
             ]
           },
           "message": 165,
           "peak": "jump:yahoo:ZB=F:hour:1794315600",
           "ping_at": 1794319618,
           "placed_at": 1794319618,
-          "seen": 1794391598,
+          "seen": 1794395201,
           "shown": [
             "noticeable",
             6.1,
             1794315600,
             -0.69
           ],
-          "size": 6.057990107856884,
+          "size": 6.05881047303915,
           "start": 1794319200,
           "story": [
             [
@@ -431,7 +431,7 @@
           "peak": "jump:yahoo:ZC=F:hour:1794330000",
           "ping_at": 1794334010,
           "placed_at": 1794334010,
-          "seen": 1794391598,
+          "seen": 1794395201,
           "shown": [
             "high",
             8.3,
@@ -465,21 +465,21 @@
           "members": {
             "jump:yahoo:ZN=F:hour:1794315600": [
               -0.0035170024529026316,
-              0.000637307988221574
+              0.0006371385586684488
             ]
           },
           "message": 165,
           "peak": "jump:yahoo:ZN=F:hour:1794315600",
           "ping_at": 1794319618,
           "placed_at": 1794319618,
-          "seen": 1794391598,
+          "seen": 1794395201,
           "shown": [
             "noticeable",
             5.5,
             1794315600,
             -0.35
           ],
-          "size": 5.518528745759059,
+          "size": 5.519996247366961,
           "start": 1794319200,
           "story": [
             [
@@ -506,21 +506,21 @@
           "members": {
             "jump:yahoo:ZS=F:hour:1794330000": [
               0.032307634902982114,
-              0.002210790007056349
+              0.0022105832782561576
             ]
           },
           "message": 167,
           "peak": "jump:yahoo:ZS=F:hour:1794330000",
           "ping_at": 1794334010,
           "placed_at": 1794334010,
-          "seen": 1794391598,
+          "seen": 1794395201,
           "shown": [
             "extreme",
             14.6,
             1794330000,
             3.23
           ],
-          "size": 14.613615404386373,
+          "size": 14.614982036989051,
           "start": 1794333600,
           "story": [
             [
@@ -547,29 +547,29 @@
           "members": {
             "jump:yahoo:ZT=F:hour:1794301200": [
               -0.0011838162266945749,
-              0.00018813711719508337
+              0.00018818069446690093
             ],
             "jump:yahoo:ZT=F:hour:1794315600": [
-              -0.0010324456493270157,
-              0.00018827274342585214
+              -0.0009941879069116982,
+              0.00018831625813456904
             ],
             "jump:yahoo:ZT=F:hour:1794319200": [
-              -0.0009569195578150737,
-              0.00018860897711148528
+              -0.0009951773002303947,
+              0.0001886393383613265
             ]
           },
           "message": 164,
           "peak": "jump:yahoo:ZT=F:hour:1794301200",
           "ping_at": 1794305195,
           "placed_at": 1794305195,
-          "seen": 1794391598,
+          "seen": 1794395201,
           "shown": [
             "noticeable",
             6.3,
             1794301200,
             -0.12
           ],
-          "size": 6.292305550036948,
+          "size": 6.290848431866086,
           "start": 1794304800,
           "story": [
             [
@@ -616,7 +616,7 @@
       },
       "note": {
         "hashes": [
-          "d81eca2170e251e2"
+          "9d07d5723d153395"
         ],
         "ids": [
           159
@@ -635,7 +635,7 @@
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1794391598
+    "saved_at": 1794395201
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-11",
