@@ -934,7 +934,6 @@ yahoo:ZB=F,1792065600,close,real,yahoo,marketwatch,marketwatch,0.005614,0.005614
 yahoo:ZB=F,1793196000,close,real,yahoo,"sina,marketwatch","sina,marketwatch",-0.004658,"-0.004947,-0.004658",1793916378
 yahoo:ZB=F,1793210400,close,real,yahoo,"sina,marketwatch","sina,marketwatch",-0.005550,"-0.006773,-0.005257",1793916378
 yahoo:ZB=F,1793235600,close,real,yahoo,marketwatch,marketwatch,0.004957,0.004957,1794002778
-yahoo:ZB=F,1794265200,open,real,yahoo,marketwatch,marketwatch,-0.001731,-0.002019,1794373576
 yahoo:ZB=F,1794315600,close,real,yahoo,marketwatch,marketwatch,-0.006942,-0.006942,1794348376
 yahoo:ZB=F,1794319200,close,real,yahoo,marketwatch,marketwatch,-0.004655,-0.004655,1794348376
 yahoo:ZC=F,1791561600,close,real,yahoo,"marketwatch,ft","marketwatch,ft",-0.065101,"-0.065101,-0.065631",1792177575
@@ -968,9 +967,9 @@ yahoo:^GSPTSE,1792072800,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch
 yahoo:^GSPTSE,1793890800,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,-0.011785,"-0.011775,",1794344775
 yahoo:^HSI,1793768400,close,uncertain,yahoo,marketwatch,,0.010909,,1794301573
 yahoo:^MXX,1793714400,open,real,yahoo,"marketwatch,ft","marketwatch,ft",0.013910,"0.013910,0.015005",1794344775
-yahoo:^N225,1793754000,close,real,yahoo,"sina,marketwatch","sina,marketwatch",-0.019280,"-0.018882,-0.019280",1794294373
-yahoo:^N225,1793768400,close,real,yahoo,"sina,marketwatch","sina,marketwatch",0.014731,"0.018996,0.014731",1794294373
-yahoo:^N225,1793923200,open,real,yahoo,"sina,marketwatch","sina,marketwatch",-0.065324,"-0.064438,-0.065137",1794294373
+yahoo:^N225,1793754000,close,real,yahoo,"sina,marketwatch","sina,marketwatch",-0.019280,"-0.018882,-0.019280",1794380784
+yahoo:^N225,1793768400,close,real,yahoo,"sina,marketwatch","sina,marketwatch",0.014731,"0.018996,0.014731",1794380784
+yahoo:^N225,1793923200,open,real,yahoo,"sina,marketwatch","sina,marketwatch",-0.065324,"-0.064438,-0.065137",1794380784
 yahoo:^NSEI,1792123200,close,real,yahoo,"marketwatch,wallstreetcn","marketwatch,wallstreetcn",0.008093,"0.008494,0.008368",1792749969
 yahoo:^NSEI,1792728000,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,-0.009288,"-0.008893,",1793354769
 yahoo:^STOXX50E,1793887200,close,real,yahoo,"marketwatch,ft","marketwatch,ft",-0.009727,"-0.009727,-0.009933",1794330390
