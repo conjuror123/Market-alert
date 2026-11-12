@@ -92431,6 +92431,7 @@
 {"actual": "", "country": "CNY", "date": "2026-11-11T09:03:00+00:00", "forecast": "80B", "impact": "Low", "previous": "1080B", "title": "New Loans"}
 {"actual": "", "country": "EUR", "date": "2026-11-11T09:45:00+00:00", "forecast": "", "impact": "Medium", "previous": "", "title": "ECB President Lagarde Speaks"}
 {"actual": "", "country": "EUR", "date": "2026-11-11T10:34:00+00:00", "forecast": "", "impact": "Low", "previous": "3.80|1.4", "title": "German 30-y Bond Auction"}
+{"actual": "", "country": "EUR", "date": "2026-11-11T10:35:00+00:00", "forecast": "", "impact": "Low", "previous": "3.80|1.4", "title": "German 30-y Bond Auction"}
 {"actual": "", "country": "GBP", "date": "2026-11-11T11:32:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "30-y Bond Auction"}
 {"actual": "", "country": "CAD", "date": "2026-11-11T13:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Bank Holiday"}
 {"actual": "", "country": "USD", "date": "2026-11-11T13:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Bank Holiday"}
@@ -92448,8 +92449,8 @@
 {"actual": "", "country": "GBP", "date": "2026-11-12T07:00:00+00:00", "forecast": "0.4%", "impact": "Low", "previous": "1.7%", "title": "Prelim Business Investment q/q"}
 {"actual": "", "country": "CNY", "date": "2026-11-12T07:02:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Foreign Direct Investment ytd/y"}
 {"actual": "", "country": "EUR", "date": "2026-11-12T09:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "ECB Economic Bulletin"}
-{"actual": "", "country": "CNY", "date": "2026-11-12T09:03:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "M2 Money Supply y/y"}
-{"actual": "", "country": "CNY", "date": "2026-11-12T09:03:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "New Loans"}
+{"actual": "", "country": "CNY", "date": "2026-11-12T09:03:00+00:00", "forecast": "7.2%", "impact": "Low", "previous": "7.2%", "title": "M2 Money Supply y/y"}
+{"actual": "", "country": "CNY", "date": "2026-11-12T09:03:00+00:00", "forecast": "80B", "impact": "Low", "previous": "1080B", "title": "New Loans"}
 {"actual": "", "country": "EUR", "date": "2026-11-12T10:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "EU Economic Forecasts"}
 {"actual": "", "country": "CAD", "date": "2026-11-12T13:30:00+00:00", "forecast": "-4.0%", "impact": "Low", "previous": "8.8%", "title": "Building Permits m/m"}
 {"actual": "", "country": "USD", "date": "2026-11-12T13:30:00+00:00", "forecast": "194K", "impact": "Medium", "previous": "189K", "title": "Unemployment Claims"}
@@ -92461,12 +92462,12 @@
 {"actual": "", "country": "AUD", "date": "2026-11-12T15:30:00+00:00", "forecast": "", "impact": "Low", "previous": "-0.3%", "title": "CB Leading Index m/m"}
 {"actual": "", "country": "USD", "date": "2026-11-12T16:15:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Goolsbee Speaks"}
 {"actual": "", "country": "USD", "date": "2026-11-12T16:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Goolsbee Speaks"}
-{"actual": "", "country": "USD", "date": "2026-11-12T17:00:00+00:00", "forecast": "", "impact": "Low", "previous": "-0.9M", "title": "Crude Oil Inventories"}
+{"actual": "", "country": "USD", "date": "2026-11-12T17:00:00+00:00", "forecast": "-0.6M", "impact": "Low", "previous": "-0.9M", "title": "Crude Oil Inventories"}
 {"actual": "", "country": "EUR", "date": "2026-11-12T17:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "German Buba President Nagel Speaks"}
 {"actual": "", "country": "USD", "date": "2026-11-12T18:01:00+00:00", "forecast": "", "impact": "Low", "previous": "5.62|2.5", "title": "30-y Bond Auction"}
 {"actual": "", "country": "USD", "date": "2026-11-12T18:10:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Daly Speaks"}
 {"actual": "", "country": "USD", "date": "2026-11-12T18:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Schmid Speaks"}
-{"actual": "", "country": "USD", "date": "2026-11-12T19:00:00+00:00", "forecast": "-286.3B", "impact": "Low", "previous": "-26.9B", "title": "Federal Budget Balance"}
+{"actual": "", "country": "USD", "date": "2026-11-12T19:00:00+00:00", "forecast": "-298.6B", "impact": "Low", "previous": "-26.9B", "title": "Federal Budget Balance"}
 {"actual": "", "country": "EUR", "date": "2026-11-12T19:30:00+00:00", "forecast": "", "impact": "Medium", "previous": "", "title": "ECB President Lagarde Speaks"}
 {"actual": "", "country": "NZD", "date": "2026-11-12T21:30:00+00:00", "forecast": "", "impact": "Low", "previous": "56.5", "title": "BusinessNZ Manufacturing Index"}
 {"actual": "", "country": "USD", "date": "2026-11-12T23:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Williams Speaks"}
@@ -92483,7 +92484,8 @@
 {"actual": "", "country": "USD", "date": "2026-11-13T13:30:00+00:00", "forecast": "0.4%", "impact": "High", "previous": "1.3%", "title": "PPI m/m"}
 {"actual": "", "country": "USD", "date": "2026-11-13T14:10:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Collins Speaks"}
 {"actual": "", "country": "GBP", "date": "2026-11-13T14:30:00+00:00", "forecast": "", "impact": "Low", "previous": "-0.1%", "title": "CB Leading Index m/m"}
-{"actual": "", "country": "USD", "date": "2026-11-13T15:30:00+00:00", "forecast": "", "impact": "Low", "previous": "77B", "title": "Natural Gas Storage"}
+{"actual": "", "country": "USD", "date": "2026-11-13T14:40:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Logan Speaks"}
+{"actual": "", "country": "USD", "date": "2026-11-13T15:30:00+00:00", "forecast": "65B", "impact": "Low", "previous": "77B", "title": "Natural Gas Storage"}
 {"actual": "", "country": "USD", "date": "2026-11-13T15:50:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Bowman Speaks"}
 {"actual": "", "country": "EUR", "date": "2026-11-13T16:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "German Buba President Nagel Speaks"}
 {"actual": "", "country": "USD", "date": "2026-11-13T17:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Daly Speaks"}
