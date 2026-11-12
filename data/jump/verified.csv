@@ -940,6 +940,7 @@ yahoo:ZB=F,1793235600,close,real,yahoo,marketwatch,marketwatch,0.004957,0.004957
 yahoo:ZB=F,1794265200,open,real,yahoo,marketwatch,marketwatch,-0.001731,-0.002019,1794495990
 yahoo:ZB=F,1794315600,close,real,yahoo,marketwatch,marketwatch,-0.006942,-0.006942,1794434786
 yahoo:ZB=F,1794319200,close,real,yahoo,marketwatch,marketwatch,-0.004655,-0.004655,1794434786
+yahoo:ZB=F,1794492000,close,real,yahoo,marketwatch,marketwatch,-0.004692,-0.004692,1794499595
 yahoo:ZC=F,1791561600,close,real,yahoo,"marketwatch,ft","marketwatch,ft",-0.065101,"-0.065101,-0.065631",1792177575
 yahoo:ZC=F,1794330000,close,real,yahoo,"marketwatch,ft","marketwatch,ft",0.024624,"0.024624,0.026117",1794427579
 yahoo:ZN=F,1791295200,close,real,yahoo,marketwatch,marketwatch,0.002393,0.002393,1792011979
@@ -950,6 +951,7 @@ yahoo:ZN=F,1793304000,close,real,yahoo,marketwatch,marketwatch,0.002644,0.002644
 yahoo:ZN=F,1793318400,close,real,yahoo,marketwatch,marketwatch,0.002490,0.002490,1794002778
 yahoo:ZN=F,1793887200,close,real,yahoo,marketwatch,marketwatch,0.002630,0.002630,1794434786
 yahoo:ZN=F,1794315600,close,real,yahoo,marketwatch,marketwatch,-0.003517,-0.003517,1794434786
+yahoo:ZN=F,1794492000,close,real,yahoo,marketwatch,marketwatch,-0.002808,-0.002808,1794499595
 yahoo:ZS=F,1794330000,close,real,yahoo,"marketwatch,ft","marketwatch,ft",0.032308,"0.032308,0.031880",1794427579
 yahoo:ZT=F,1791979200,close,real,yahoo,marketwatch,marketwatch,-0.003072,-0.003072,1792703168
 yahoo:ZT=F,1791982800,close,real,yahoo,marketwatch,marketwatch,0.000884,0.000884,1792703168
@@ -962,6 +964,7 @@ yahoo:ZT=F,1793890800,close,real,yahoo,"sina,marketwatch","sina,marketwatch",0.0
 yahoo:ZT=F,1794301200,close,real,yahoo,marketwatch,marketwatch,-0.001184,-0.001184,1794434786
 yahoo:ZT=F,1794315600,close,real,yahoo,marketwatch,marketwatch,-0.001032,-0.001032,1794434786
 yahoo:ZT=F,1794319200,close,real,yahoo,marketwatch,marketwatch,-0.000957,-0.000957,1794434786
+yahoo:ZT=F,1794492000,close,real,yahoo,marketwatch,marketwatch,-0.000805,-0.000805,1794499595
 yahoo:ZW=F,1791561600,close,real,yahoo,"marketwatch,ft","marketwatch,ft",-0.031171,"-0.031171,-0.030806",1792177575
 yahoo:^BVSP,1791205200,open,real,yahoo,"marketwatch,ft","marketwatch,ft",0.081274,"0.081274,0.078479",1791925587
 yahoo:^BVSP,1793019600,open,real,yahoo,"marketwatch,ft","marketwatch,ft",-0.175885,"-0.175885,-0.172291",1793740011
