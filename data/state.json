@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1794445576
+    "last_run_utc": 1794449202
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -24,7 +24,7 @@
           "peak": "jump:binance:BTC/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794445577,
+          "seen": 1794449203,
           "shown": [
             "noticeable",
             5.7,
@@ -59,7 +59,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794445577,
+          "seen": 1794449203,
           "shown": [
             "major",
             9.2,
@@ -94,7 +94,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794322800",
           "ping_at": 1794326809,
           "placed_at": 1794326809,
-          "seen": 1794445577,
+          "seen": 1794449203,
           "shown": [
             "noticeable",
             5.7,
@@ -129,7 +129,7 @@
           "peak": "jump:binance:SOL/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794445577,
+          "seen": 1794449203,
           "shown": [
             "noticeable",
             6.1,
@@ -164,7 +164,7 @@
           "peak": "jump:binance:XRP/USDT:hour:1794171600",
           "ping_at": 1794175586,
           "placed_at": 1794175586,
-          "seen": 1794445577,
+          "seen": 1794449203,
           "shown": [
             "noticeable",
             6.3,
@@ -199,7 +199,7 @@
           "peak": "jump:twelvedata:AUD/USD:hour:1794315600",
           "ping_at": 1794319618,
           "placed_at": 1794319618,
-          "seen": 1794445577,
+          "seen": 1794449203,
           "shown": [
             "noticeable",
             6.0,
@@ -238,7 +238,7 @@
           "peak": "jump:twelvedata:USD/CAD:hour:1794315600",
           "ping_at": 1794319618,
           "placed_at": 1794319618,
-          "seen": 1794445577,
+          "seen": 1794449203,
           "shown": [
             "noticeable",
             5.4,
@@ -273,7 +273,7 @@
           "peak": "jump:yahoo:511090.SS:hour:1794376800",
           "ping_at": 1794384437,
           "placed_at": 1794384437,
-          "seen": 1794445577,
+          "seen": 1794449203,
           "shown": [
             "noticeable",
             4.7,
@@ -308,7 +308,7 @@
           "peak": null,
           "ping_at": 1794254789,
           "placed_at": 1794254789,
-          "seen": 1794445577,
+          "seen": 1794449203,
           "shown": [
             null,
             null,
@@ -349,7 +349,7 @@
           "peak": "jump:yahoo:LE=F:hour:1794232800",
           "ping_at": 1794236808,
           "placed_at": 1794236808,
-          "seen": 1794445577,
+          "seen": 1794449203,
           "shown": [
             "noticeable",
             4.9,
@@ -390,7 +390,7 @@
           "peak": "jump:yahoo:ZB=F:hour:1794315600",
           "ping_at": 1794319618,
           "placed_at": 1794319618,
-          "seen": 1794445577,
+          "seen": 1794449203,
           "shown": [
             "noticeable",
             6.1,
@@ -431,7 +431,7 @@
           "peak": "jump:yahoo:ZC=F:hour:1794330000",
           "ping_at": 1794334010,
           "placed_at": 1794334010,
-          "seen": 1794445577,
+          "seen": 1794449203,
           "shown": [
             "high",
             8.3,
@@ -472,7 +472,7 @@
           "peak": "jump:yahoo:ZN=F:hour:1794315600",
           "ping_at": 1794319618,
           "placed_at": 1794319618,
-          "seen": 1794445577,
+          "seen": 1794449203,
           "shown": [
             "noticeable",
             5.5,
@@ -513,7 +513,7 @@
           "peak": "jump:yahoo:ZS=F:hour:1794330000",
           "ping_at": 1794334010,
           "placed_at": 1794334010,
-          "seen": 1794445577,
+          "seen": 1794449203,
           "shown": [
             "extreme",
             14.6,
@@ -554,15 +554,15 @@
               0.00018831625813456904
             ],
             "jump:yahoo:ZT=F:hour:1794319200": [
-              -0.0009951773002303947,
+              -0.0009951773002303949,
               0.0001886393383613265
             ]
           },
-          "message": 164,
+          "message": null,
           "peak": "jump:yahoo:ZT=F:hour:1794301200",
           "ping_at": 1794305195,
           "placed_at": 1794305195,
-          "seen": 1794445577,
+          "seen": 1794449203,
           "shown": [
             "noticeable",
             6.3,
@@ -592,10 +592,6 @@
         "160": {
           "first": "\ud83d\udfe7 <b>ETH/USDT</b> \u00b7 Ethereum -4.57% \u00b7 9.2\u00d7\u03c3",
           "hash": "023b1595982fe8a3"
-        },
-        "164": {
-          "first": "\u2b1c <b>ZT=F</b> \u00b7 2-year Treasury note (CBOT) -0.12% \u00b7 6.3\u00d7\u03c3",
-          "hash": "27e8d1734cbbdb4c"
         },
         "165": {
           "first": "\u2b1c <b>ZB=F</b> \u00b7 30-year Treasury bond (CBOT) -0.69% \u00b7 6.1\u00d7\u03c3",
@@ -635,7 +631,7 @@
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1794445577
+    "saved_at": 1794449203
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-12",
