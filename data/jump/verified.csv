@@ -227,6 +227,7 @@ sifting:XAG/USD,1793894400,close,real,sifting,"yahoo,sina,marketwatch,wallstreet
 sifting:XAG/USD,1794182400,close,real,sifting,"yahoo,sina,marketwatch,wallstreetcn,tiingo","yahoo,sina,marketwatch,wallstreetcn,tiingo",0.022871,"0.023247,0.022683,0.023247,0.022025,0.023183",1794441975
 sifting:XAU/USD,1793768400,close,real,sifting,"yahoo,sina,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,sina,marketwatch,wallstreetcn,tiingo,twelvedata",0.011567,"0.010508,0.011334,0.011617,0.011479,0.011553,0.011530",1794441975
 sifting:XAU/USD,1794182400,close,real,sifting,"yahoo,sina,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,sina,marketwatch,wallstreetcn,tiingo,twelvedata",0.012099,"0.012156,0.011963,0.012083,0.011946,0.012082,0.012083",1794441975
+sifting:XAU/USD,1794488400,close,real,sifting,"yahoo,sina,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,sina,marketwatch,wallstreetcn,tiingo,twelvedata",-0.011941,"-0.012174,-0.011786,-0.012148,-0.011959,-0.011954,-0.011655",1794492392
 sina:AHD,1789034400,close,real,sina,wallstreetcn,wallstreetcn,-0.016265,-0.016265,1794423985
 sina:AHD,1789603200,open,real,sina,wallstreetcn,wallstreetcn,-0.008572,-0.010112,1794423985
 sina:AHD,1794315600,close,real,sina,wallstreetcn,wallstreetcn,-0.010924,-0.010939,1794423985
@@ -935,7 +936,6 @@ yahoo:ZB=F,1792065600,close,real,yahoo,marketwatch,marketwatch,0.005614,0.005614
 yahoo:ZB=F,1793196000,close,real,yahoo,"sina,marketwatch","sina,marketwatch",-0.004658,"-0.004947,-0.004658",1793916378
 yahoo:ZB=F,1793210400,close,real,yahoo,"sina,marketwatch","sina,marketwatch",-0.005550,"-0.006773,-0.005257",1793916378
 yahoo:ZB=F,1793235600,close,real,yahoo,marketwatch,marketwatch,0.004957,0.004957,1794002778
-yahoo:ZB=F,1794265200,open,real,yahoo,marketwatch,marketwatch,-0.001731,-0.002019,1794467183
 yahoo:ZB=F,1794315600,close,real,yahoo,marketwatch,marketwatch,-0.006942,-0.006942,1794434786
 yahoo:ZB=F,1794319200,close,real,yahoo,marketwatch,marketwatch,-0.004655,-0.004655,1794434786
 yahoo:ZC=F,1791561600,close,real,yahoo,"marketwatch,ft","marketwatch,ft",-0.065101,"-0.065101,-0.065631",1792177575
