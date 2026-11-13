@@ -545,15 +545,11 @@ CALENDAR_LOOKBACK_HOURS = 2
 # arriving with a later edit.
 CALENDAR_LOOKAHEAD_HOURS = 1
 
-# High and Medium, the same two the weekly calendar shows, and each carries
-# its colour. Low is excluded everywhere for the same reason: it is dominated by
-# bank holidays and minor prints, and naming those would turn the most important
-# line of the most important message into noise.
-#
-# Medium earns its place without flooding the line: over the record the
-# three-hour window holds a median of two High-or-Medium releases against one
-# High alone, six at the ninetieth percentile against four, and fourteen at the
-# worst against twelve. 24% of events still have nothing scheduled around them.
+# High alone, as the weekly calendar shows (economic_calendar.SHOWN_IMPACTS;
+# the user's, 2026-11-13: Medium, shown until then, is left out of both). Low
+# is excluded for the reason it always was: it is dominated by bank holidays and
+# minor prints, and naming those would turn the most important line of the most
+# important message into noise.
 #
 # All of them are listed rather than capped: "and two more" would hide the tail
 # of a busy morning, which on a busy morning is the half worth reading.
@@ -565,11 +561,11 @@ def calendar_context(hour_utc: int,
     """What was scheduled around the move - before it and just after.
 
     Naming the release tells the reader the move has a known cause and they can
-    stop looking for one. NOTHING IS PRINTED WHEN NOTHING WAS SCHEDULED. 55% of
-    pushes have no Medium or High release in the window, so a "none scheduled"
-    line would appear on more than half of all messages - and a line that usually
-    says nothing stops being read, taking the half that does say something with
-    it. Silence carries the same fact in no space at all.
+    stop looking for one. NOTHING IS PRINTED WHEN NOTHING WAS SCHEDULED. Most
+    pushes have no High release in the window (55% had none even with Medium
+    counted), so a "none scheduled" line would appear on most messages - and a
+    line that usually says nothing stops being read, taking the part that does
+    say something with it. Silence carries the same fact in no space at all.
     """
     # An empty archive is not evidence of a quiet three hours: it cannot tell
     # "nothing was scheduled" from "nothing was loaded", and only one of those

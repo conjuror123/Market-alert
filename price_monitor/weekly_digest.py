@@ -1,5 +1,5 @@
 """Posts, as each weekly note opens, a digest of the coming week's
-Medium/High-impact economic calendar events to Telegram.
+High-impact economic calendar events to Telegram.
 
 Piggybacks on the existing hourly trigger (see .github/workflows/price-monitor.yml
 and README - external cron-job.org calls workflow_dispatch roughly once an hour)
@@ -32,8 +32,8 @@ up rather than hoped for, and the window does not depend on a boundary nobody
 can see. Consecutive windows ABUT EXACTLY: nothing is listed twice and no hour
 of the calendar falls between two digests.
 
-Low-impact events and holidays are both excluded (see _DIGEST_IMPACTS) - only
-Medium/High. No LLM involved on purpose: just a plain, programmatically formatted list
+Low- and Medium-impact events and holidays are excluded (see _DIGEST_IMPACTS) -
+only High. No LLM involved on purpose: just a plain, programmatically formatted list
 grouped by day - the source data already carries the impact tag and the numbers, so
 there's nothing here for an LLM to add.
 
@@ -236,7 +236,7 @@ def format_digest(events: list[dict], start: datetime | None = None,
     # is recognised (telegram_ledger.claim) - one week's apart from another's.
     header = f"📅 <b>Economic calendar</b>{_span(first, last)}"
     if not events:
-        return [f"{header}\n\nNo Medium/High impact events found for this week."]
+        return [f"{header}\n\nNo High impact events found for this week."]
     intro = f"{header}\n<i>UTC · {len(ordered)} event{'s' if len(ordered) != 1 else ''}</i>"
 
     # Days are assembled whole and only then laid out across messages: a break
@@ -447,7 +447,7 @@ def adopt(cfg: Config, state: dict, record: dict, message_id: int) -> str:
 
 def _digest_messages(cfg: Config, session: requests.Session | None,
                      now: datetime) -> "list[str]":
-    """Refreshes the archive and builds the coming week's Medium+High digest -
+    """Refreshes the archive and builds the coming week's High-impact digest -
     or, when the archive does not reach the end of that week, the empty
     calendar that says so."""
     start, end = coming_week(now)
@@ -461,7 +461,7 @@ def _digest_messages(cfg: Config, session: requests.Session | None,
     digest_events = [e for e in economic_calendar.events_in_window(archive, start, end)
                      if e["impact"] in _DIGEST_IMPACTS]
     messages = format_digest(digest_events, start, end)
-    log.info("Weekly digest: %d Medium/High events, %s .. %s, %d message(s)",
+    log.info("Weekly digest: %d High events, %s .. %s, %d message(s)",
              len(digest_events), start.date(), end.date(), len(messages))
     return messages
 

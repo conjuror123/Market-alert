@@ -151,6 +151,14 @@ the note grew, and the first line is what recognises a message a run whose state
 had sent (`telegram_ledger.claim`): a part 2 sent as `of 2` and wanted as `of 3` would have
 been deleted and sent again. Parts sharing a first line are taken over in the order sent.
 
+**Only high-impact releases are shown** (the user's, 2026-11-13). Medium ones, the orange
+circles, were listed too, in the weekly calendar and under the moves. Over the 26 weeks to
+2026-11-15 a week held a median of 10.5 high and 12.5 medium, so the calendar is about half
+as long. Over the year to 2026-11-13 a news block stood under 46% of pushes (330) and 49%
+of note rows (956); with high alone, under 31% and 34% - 15% of each had only medium
+releases near them and now say nothing. One setting decides both
+(`economic_calendar.SHOWN_IMPACTS`); the archive keeps every level.
+
 **Noticeable pings carry the event line without a footer** (the user's, 2026-11-03): the
 "Added to digest" pointer is omitted; details are read in the weekly digest note itself.
 

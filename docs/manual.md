@@ -521,7 +521,8 @@ Nearby economic events (...)
 
 The time line counts down to the close the move is checked at (`next close in 72h`), then
 shows how much held (`close 80%`). Scheduled releases from 2 hours before the moved bar to
-its close follow (a release after the close came after the move).
+its close follow (a release after the close came after the move): high-impact ones only
+(`economic_calendar.SHOWN_IMPACTS`), each with its `🔴` and its country.
 
 The name after the ticker is the instrument's `label` in `config/basket.yaml`. A stock
 index abroad leads with its own name instead of Yahoo's ticker (`display`), then its place:
@@ -639,7 +640,8 @@ and appeared 33 minutes later, and the repeat was a duplicate):
   unsure sends are named on the health chat to check by hand. A health chat that is the
   channel itself is never read through.
 
-**The calendar** (`weekly_digest.py`): the coming week's economic releases, Monday to
+**The calendar** (`weekly_digest.py`): the coming week's high-impact economic releases
+(`economic_calendar.SHOWN_IMPACTS`; medium and low stay in the archive, unshown), Monday to
 Monday UTC, sent in the run that opens the note, at most 4 hours after its slot. Its first
 line names the week (`📅 Economic calendar 09.11 — 15.11`, a later part `(continued)`), the
 second says `UTC · 12 events`. After a

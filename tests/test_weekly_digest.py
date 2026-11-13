@@ -109,6 +109,26 @@ def test_the_week_is_read_from_the_archive_not_from_the_feed(tmp_path, monkeypat
     assert "Non-Farm Payrolls" in sent[0]
 
 
+def test_only_high_impact_events_are_listed(tmp_path, monkeypatch):
+    # The user's, 2026-11-13: the orange ones (Medium) leave the calendar, as
+    # Low and holidays always did. The week holds one of each.
+    cfg = make_config(tmp_path)
+    path = weekly_digest.economic_calendar.store_path(cfg.calendar_dir)
+    weekly_digest.economic_calendar.merge_events(path, RAW_EVENTS)
+
+    sent = []
+    monkeypatch.setattr(weekly_digest.economic_calendar, "fetch_calendar",
+                        lambda session=None: [])
+    monkeypatch.setattr(weekly_digest, "send_telegram_message",
+                        lambda *a, **k: sent.append(a[2]) or 1)
+
+    assert weekly_digest.maybe_send_weekly_digest(
+        cfg, {}, session=None, now=WEEKEND_OPEN) is True
+    assert "Non-Farm Payrolls" in sent[0] and "<i>UTC · 1 event</i>" in sent[0]
+    assert "Retail Sales" not in sent[0] and "\U0001F7E0" not in sent[0]
+    assert "Minor Data Point" not in sent[0] and "Bank Holiday" not in sent[0]
+
+
 def test_a_feed_that_will_not_load_does_not_cost_the_digest(tmp_path, monkeypatch):
     cfg = make_config(tmp_path)
     path = weekly_digest.economic_calendar.store_path(cfg.calendar_dir)
@@ -241,7 +261,7 @@ def test_format_digest_excludes_low_and_holiday_and_sorts_by_time():
 def test_format_digest_handles_no_events():
     messages = weekly_digest.format_digest([])
     assert len(messages) == 1
-    assert "No Medium/High impact events" in messages[0]
+    assert "No High impact events" in messages[0]
 
 
 def test_format_digest_shows_every_field_of_an_event():
@@ -580,7 +600,7 @@ def test_the_week_is_on_the_first_line_and_utc_and_the_count_under_it():
     lines = weekly_digest.format_digest(events, start, end)[0].splitlines()
     assert lines[:2] == ["📅 <b>Economic calendar</b> 09.11 — 15.11", "<i>UTC · 2 events</i>"]
     assert weekly_digest.format_digest([], start, end)[0].startswith(
-        "📅 <b>Economic calendar</b> 09.11 — 15.11\n\nNo Medium/High")
+        "📅 <b>Economic calendar</b> 09.11 — 15.11\n\nNo High impact")
     assert weekly_digest.format_outage(start, end, "the source did not answer").startswith(
         "📅 <b>Economic calendar</b> 09.11 — 15.11\n\n⚠️ Outage")
 

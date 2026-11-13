@@ -40,7 +40,7 @@ def test_a_push_names_the_scheduled_news_behind_it():
 
 
 def test_a_push_with_nothing_scheduled_prints_no_calendar_line_at_all():
-    # 55% of pushes have no Medium or High release in the window, and a line
+    # Most pushes have no High release in the window, and a line
     # that usually says nothing stops being read. The absence says it.
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
     elsewhere = _cal([("2026-05-01T12:00:00+00:00", "USD", "Old CPI", "High")])
@@ -56,27 +56,26 @@ def test_an_empty_archive_claims_nothing_rather_than_claiming_silence():
     assert md.calendar_context(hour, []) == ""
 
 
-def test_low_impact_news_is_not_named():
-    # High and Medium are shown, the same two the Saturday calendar shows. Low
-    # is dominated by bank holidays and minor prints, and naming those would
-    # turn the most important line of the most important message into noise.
+def test_only_high_impact_news_is_named():
+    # High alone, as the weekly calendar shows (the user's, 2026-11-13: Medium,
+    # the orange circle, is left out of both). Low is dominated by bank holidays
+    # and minor prints.
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
     only_low = _cal([("2026-06-10T12:30:00+00:00", "CHF", "Bank Holiday", "Low")])
     assert md.calendar_context(hour, only_low) == ""
+    only_medium = _cal([("2026-06-10T12:45:00+00:00", "EUR", "Trade Balance", "Medium")])
+    assert md.calendar_context(hour, only_medium) == ""
 
-    medium = _cal([("2026-06-10T12:45:00+00:00", "EUR", "Trade Balance", "Medium")])
-    assert "Trade Balance" in md.calendar_context(hour, medium)
 
-
-def test_each_named_release_carries_its_impact_colour():
-    # The same circles the Saturday calendar uses, against the squares a move
-    # carries: the shape says which kind of thing the line is.
+def test_a_medium_release_beside_a_high_one_is_left_out():
+    # The circle the weekly calendar uses, against the squares a move carries:
+    # the shape says which kind of thing the line is.
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
     cal = _cal([("2026-06-10T12:30:00+00:00", "USD", "CPI", "High"),
                 ("2026-06-10T12:45:00+00:00", "EUR", "Trade Balance", "Medium")])
     out = md.calendar_context(hour, cal)
     assert "\U0001F534 \U0001F1FA\U0001F1F8 USD CPI" in out
-    assert "\U0001F7E0 \U0001F1EA\U0001F1FA EUR Trade Balance" in out
+    assert "Trade Balance" not in out and "\U0001F7E0" not in out
 
 
 def test_a_release_carries_its_country_flag_beside_the_code():

@@ -24,7 +24,7 @@ while agreeing on High (13.0 against 13.4), so an archive spanning both is
 generous in one half and frugal in the other.
 
 The price of a single source is Low events, of which ForexFactory has an order of
-magnitude fewer. That price is zero in substance: only High and Medium are used.
+magnitude fewer. That price is zero in substance: Low is never shown.
 """
 from __future__ import annotations
 
@@ -75,10 +75,11 @@ def _normalize_impact(raw: str) -> str:
 # same table drift, and the whole value of the convention is that it does not.
 IMPACT_EMOJI = {"High": "🔴", "Medium": "🟠", "Low": "⚪"}
 
-# The levels worth naming. Low is dominated by bank holidays and minor prints
-# and would turn every colour-coded line into noise, so it is carried in the
-# archive and never displayed.
-SHOWN_IMPACTS = ("High", "Medium")
+# The level worth naming: High alone (the user's, 2026-11-13; Medium was shown
+# until then, in the weekly calendar and under the moves). Low is dominated by
+# bank holidays and minor prints and would turn every line into noise. Both stay
+# in the archive and are never displayed.
+SHOWN_IMPACTS = ("High",)
 
 # The flag for a release's country, for the same reason and in the same place as
 # the impact circle: every message that names a release names its country, and
