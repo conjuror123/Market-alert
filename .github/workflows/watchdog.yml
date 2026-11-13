@@ -8,7 +8,7 @@ name: Watchdog
 # run makes every hour; by then this has spoken eight times.
 on:
   schedule:
-    - cron: "41 10 * * 1"   # Monday 10:41 UTC
+    - cron: "41 10 * * 1"   # Monday 10:41 UTC; GitHub ran the first at 21:03 (2026-11-09)
   workflow_dispatch:
 
 permissions:

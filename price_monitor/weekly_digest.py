@@ -130,8 +130,8 @@ _WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday",
 
 # Telegram rejects a message longer than 4096 characters outright rather than
 # truncating it, so the digest is cut into parts on day boundaries. The 96
-# characters of headroom cover the "part N of M" line, which would otherwise have
-# to be counted recursively.
+# characters of headroom cover the header a later part opens with (its week and
+# "(continued)").
 _MESSAGE_LIMIT = 4000
 
 

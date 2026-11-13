@@ -5,7 +5,8 @@ event belongs to, when it was found (jump.jumps, jump.routing). This module
 decides what is on the channel because of it, and keeps that in line.
 
 THE CHANNEL IS PRIVATE and the bot is an administrator of it: it can edit any of
-its messages at any age and delete any message there.
+its messages at any age and delete one within Telegram's 48 hours (past them a
+message that has to go is struck through instead).
 
 TWO KINDS OF MOVE, and the difference is how loudly they arrive. A push -
 `high` and up - goes out at once and rings. A `noticeable` move is a row in

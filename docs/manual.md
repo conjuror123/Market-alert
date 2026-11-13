@@ -557,7 +557,7 @@ A note in several messages opens every part with the same first line, its period
 (`Part 2 of 3 · 16 events so far`). The VIX line and `this message is updated as moves are
 found` appear only in the first part. A note in one message names no part. The part stays
 off the first line because the first line is how a message of a run whose state was lost
-is recognised (section 8), and the number of parts changes as the note grows.
+is recognised (below), and the number of parts changes as the note grows.
 
 **One message per kind per run.** A run's pushes go out in one message and its pings in
 one more, biggest σ first. News is said once below the pushes, named by hour when the
@@ -682,8 +682,9 @@ hour (`POST /repos/<owner>/<repo>/actions/workflows/price-monitor.yml/dispatches
 PAT and the branch as `ref`). GitHub's `schedule:` is not used: it fires unreliably.
 
 **Watchdog.** Every other health line comes from the hourly run, so a run that never
-starts says nothing. `.github/workflows/watchdog.yml`, on GitHub's own schedule (Monday
-10:41 UTC; it does not depend on cron-job.org), reads the last committed run's time from
+starts says nothing. `.github/workflows/watchdog.yml`, on GitHub's own schedule (Mondays,
+set for 10:41 UTC and run late - the first, 2026-11-09, at 21:03; it does not depend on
+cron-job.org), reads the last committed run's time from
 `data/state.json` and, if it is more than 3 hours old, tells the health chat "The hourly
 run has stopped" (`price_monitor/watchdog.py`). A health chat it cannot reach turns its job
 red, which GitHub e-mails. It can be run by hand from the Actions tab.
@@ -717,7 +718,7 @@ message past Telegram's 4,096 characters is cut between lines, ending "…and N 
 | checkout, setup, the open months' restore | the run stops before delivery: nothing sent or counted | the last step, with the step's name (`tools/run_died.sh`) | 1 h after the last run that delivered, then every 24 h |
 | session table extension | a table is not extended (the NYSE's under two years left, or one abroad under 60 days) | streak, named | while it fails |
 | a table abroad within 30 days of its end, or past it (neither the library nor the holidays package has its next days) | past its end its weekdays count as trading: its holidays read as missing bars | "Session table running out", naming the table and its instruments | Mondays, 00:00 UTC |
-| the hourly run stopped: no run committed for 3 hours (cron-job.org's job off, its token expired) | nothing is delivered, and no other health line is sent | "The hourly run has stopped", from the watchdog | Mondays, 10:41 UTC |
+| the hourly run stopped: no run committed for 3 hours (cron-job.org's job off, its token expired) | nothing is delivered, and no other health line is sent | "The hourly run has stopped", from the watchdog | Mondays |
 | fetch: a provider's key is missing or refused | that provider's instruments are not fetched; the others are | "X is not set" / "refused the key" | every run it happens |
 | fetch: a provider fails, or Tiingo's or SiftingIO's budget is spent | its instruments keep their stored bars | "went dark" / "request budget spent" | every run it happens |
 | fetch: Yahoo refuses (429) | its instruments wait for the next run | the stale line, "refused this run", once one is behind past its limit | past its limit, then daily |
@@ -746,8 +747,8 @@ has 12 of the job's 20 minutes: past them it is stopped, and delivery, health an
 commit still run. Each part of it (fetch, pipeline, jumps) notes its start, so a step that
 stops short is reported with the part it was in and its minutes.
 
-**Expected volume.** About 5 pushes and 12 note rows a week: 259 and 635 over the year to
-2026-10-19, 285 and 398 over the year before, by the dashboard's count (24-hour events, the
+**Expected volume.** About 5 pushes and 12 note rows a week: 268 and 649 over the year to
+2026-11-13, 275 and 386 over the year before, by the dashboard's count (24-hour events, the
 detector alone). The basket of 172 at 6σ made 4.0 and 10.8 a week (`docs/decisions.md`,
 "Words at 4.5 / 6.4 / 9 / 12.7σ"). A quiet day is normal: green runs mean it looked and
 found nothing.
@@ -834,4 +835,7 @@ How far back each record reaches:
 | history older than its recount | not voted (section 5): only the readings the one-off check of 2026-10-07 judged carry a vote. Elsewhere an old bad print or stale open stays flagged (14 whole shifted fund days were removed, section 5; the funds' wrong first bars of 2016–2022 were mended, section 11, but not those before 2016 or since 2023), sits in the next half-year's yardsticks, and can be the "then" of a later "rarest since" line | a second source for the old history (`docs/decisions.md`, "History is not voted again") |
 | a fund's morning open from 2023 | about 1 in 100 opens 15 bp or more off the official open (1,242 mornings to 2026-10-08); the IEX feeds take it from one exchange. Only a first hour at 4σ or more is voted (section 5) | none chosen: a mend moved the year's pushes 209 → 206 and would not stay (`docs/decisions.md`, "From 2023 the funds' opens are left as stored") |
 | the funds' 2016–2019 price levels | off the tape's in 680 fund-months (REM 7% high in 2017-12), stepping on payout days: REM's ex-dividend nights read as moves (four flagged) | rewriting those years from the tape (`docs/decisions.md`, "The funds' 2016–2019 price levels are left off the tape's") |
+| the calendar is ForexFactory's | a release it does not carry is not named under a move: USDA's crop report moved soybeans 3.2% in the hour of 2026-11-10 17:00 UTC with no line below it | another calendar for commodity reports |
+| a market abroad shut at short notice (Mumbai's election days: 3 in 2024, 1 in 2026) | no table knows it: its instruments read "no new bar" that day; no score is touched | none: nobody lists such a day ahead |
+| the runner's versions are held by major (Python 3.12, supported to 2028-10; `actions/checkout`, `setup-python` and `cache` v6; `requirements.txt`) | GitHub retires old runners and actions with months of warnings in the run's log; a retired one stops the run, which the watchdog and GitHub's e-mail report | raising the version in the workflows, with the tests |
 | repository size (87 MB at its fresh start, 2026-10-17) | grows about 10 MB a year from the bars (a month about 0.35 MB in git, a year's fold about 5), with the hourly state's small commits, and by its files whole on a commit that rewrites data | another fresh start, as on 2026-10-17 |

@@ -29,19 +29,20 @@ AN UNSURE EDIT may land after a newer one and put older text back, so the
 message is edited with its current text on every run for a day (`recheck`);
 Telegram answers "not modified" when nothing needs changing.
 
-THE READ IS CHECKED ONCE, on the first run after this was deployed: one known
-message is forwarded and its copy deleted. If the channel protects its content
-nothing can be forwarded, and every unsure send is then named on the health
-chat instead, for a hand to check (`read_ok`).
+THE READ IS CHECKED ONCE, and weekly while it fails: one known message is
+forwarded and its copy deleted. If the channel protects its content nothing
+can be forwarded, and every unsure send is then named on the health chat
+instead, for a hand to check (`read_ok`).
 
 A RUN WHOSE STATE WAS NOT SAVED (its commit failed) leaves messages the next
 run's state knows nothing of, and no ledger entry for them: the next run would
 send them all again. So every run also reads the ids just above the highest it
 knows - normally two silent "not found" answers. A message there that looks
-like the bot's own (a move's coloured square, the digest, the calendar, a
-note part) and was posted after the last run that saved its state is a STRAY:
+like the bot's own (it opens with a move's coloured square, the digest's title
+or the calendar's) and was posted after the last run that saved its state is a STRAY:
 a message this run is about to send with the same first line takes it over
-instead (claim), and those left unclaimed once delivery has run are deleted
+instead (claim; those sharing a first line, as a note's parts do, in the order
+they were sent), and those left unclaimed once delivery has run are deleted
 (settle_strays). Nothing counts as a stray before the first such run has
 recorded its time (`saved_at`), so a state started afresh deletes nothing.
 """
@@ -144,9 +145,9 @@ def saw(message_id) -> None:
 
 
 _TAG = re.compile(r"<[^>]+>")
-# What the bot's own messages begin with, or a note part ends with.
+# What the bot's own messages begin with: a move's square, or the note's or the
+# calendar's title, which every part of each opens with.
 _OWN_START = ("⬜", "🟨", "🟧", "🟥", "📋 Digest", "📅 Economic calendar")
-_NOTE_PART = re.compile(r"part \d+ of \d+ - \d\d\.\d\d\.\d{4} to \d\d\.\d\d\.\d{4}\s*$")
 
 
 def plain(text: str) -> str:
@@ -195,7 +196,7 @@ def _first_line(seen: str) -> str:
 
 def _looks_own(seen: str) -> bool:
     seen = (seen or "").strip()
-    return seen.startswith(_OWN_START) or bool(_NOTE_PART.search(seen))
+    return seen.startswith(_OWN_START)
 
 
 def claim(text: str) -> "int | None":

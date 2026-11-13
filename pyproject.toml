@@ -2,10 +2,10 @@
 pythonpath = ["."]
 testpaths = ["tests"]
 markers = [
-    # Tests of the actual backfill itself: an autouse fixture in
-    # test_weekly_digest.py stubs backfill_actuals everywhere except these, so the
+    # Tests of the calendar archive's refresh itself: an autouse fixture in
+    # test_weekly_digest.py stubs refresh_months everywhere except these, so the
     # digest tests never touch the network.
-    "real_backfill: the test exercises backfill_actuals rather than the stub",
+    "real_backfill: the test exercises refresh_months rather than the stub",
 ]
 filterwarnings = [
     # pandas 2.3 builds a keyword Timedelta (Timedelta(hours=5)) through numpy's

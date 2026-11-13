@@ -1,6 +1,6 @@
 """One hourly pass: deliver what Jump found, and say so if something broke.
 
-Detection lives in `jump`; this module decides nothing. Four things run:
+Detection lives in `jump`; this module decides nothing. Five things run:
 
   a daily top-up of the economic-calendar archive from the live weekly feed.
   Not for the digest, which refreshes the archive itself when it sends, but for

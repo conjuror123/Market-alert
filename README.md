@@ -26,7 +26,8 @@ runs entirely on GitHub Actions; nothing else needs hosting.
 1. Create a bot with [@BotFather](https://t.me/BotFather), and a channel with the bot as
    administrator (post, edit and delete messages).
 2. Add the secrets under **Settings → Secrets and variables → Actions**:
-   `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, and the provider keys listed in
+   `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_HEALTH_CHAT_ID` (a second chat for
+   the bot's own health, kept off the channel), and the provider keys listed in
    `docs/manual.md`, "Setup and tests". A missing provider key costs only that
    provider's instruments.
 3. Point an external cron service at the `price-monitor.yml` workflow's `workflow_dispatch`
@@ -60,7 +61,7 @@ the bot, set `jump_alerts_muted: true` in `config/config.yaml`.
 | how an agent works on this repository | `CLAUDE.md` |
 | which instruments, in which blocks, from which provider | `config/basket.yaml` (the source of truth) |
 | run settings: health alerts, the mute, the calendar | `config/config.yaml` |
-| how much history each instrument has | `data/jump/coverage.md` |
+| how much history each instrument has | the dashboard's "Coverage", as of its last measurement; `data/jump/coverage.md`, a dated snapshot (`python -m jump.audit`) |
 | the detector | `jump/jumps.py` |
 | fetching bars, and the sources' vote | `jump/backfill.py`, `jump/verify.py` |
 | what goes to Telegram | `price_monitor/jump_delivery.py` |
