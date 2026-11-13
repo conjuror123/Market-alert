@@ -92478,6 +92478,8 @@
 {"actual": "", "country": "EUR", "date": "2026-11-13T10:00:00+00:00", "forecast": "0.2%", "impact": "Low", "previous": "0.1%", "title": "Flash Employment Change q/q"}
 {"actual": "", "country": "EUR", "date": "2026-11-13T10:00:00+00:00", "forecast": "0.4%", "impact": "Low", "previous": "0.4%", "title": "Flash GDP q/q"}
 {"actual": "", "country": "EUR", "date": "2026-11-13T10:00:00+00:00", "forecast": "-4.5B", "impact": "Low", "previous": "-6.8B", "title": "Trade Balance"}
+{"actual": "", "country": "CNY", "date": "2026-11-13T10:03:00+00:00", "forecast": "7.2%", "impact": "Low", "previous": "7.2%", "title": "M2 Money Supply y/y"}
+{"actual": "", "country": "CNY", "date": "2026-11-13T10:03:00+00:00", "forecast": "80B", "impact": "Low", "previous": "1080B", "title": "New Loans"}
 {"actual": "", "country": "CAD", "date": "2026-11-13T13:30:00+00:00", "forecast": "0.1%", "impact": "Low", "previous": "1.5%", "title": "Manufacturing Sales m/m"}
 {"actual": "", "country": "CAD", "date": "2026-11-13T13:30:00+00:00", "forecast": "0.5%", "impact": "Low", "previous": "-1.6%", "title": "Wholesale Sales m/m"}
 {"actual": "", "country": "USD", "date": "2026-11-13T13:30:00+00:00", "forecast": "0.3%", "impact": "High", "previous": "0.7%", "title": "Core PPI m/m"}
@@ -92485,6 +92487,7 @@
 {"actual": "", "country": "USD", "date": "2026-11-13T14:10:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Collins Speaks"}
 {"actual": "", "country": "GBP", "date": "2026-11-13T14:30:00+00:00", "forecast": "", "impact": "Low", "previous": "-0.1%", "title": "CB Leading Index m/m"}
 {"actual": "", "country": "USD", "date": "2026-11-13T14:40:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Logan Speaks"}
+{"actual": "", "country": "USD", "date": "2026-11-13T15:15:00+00:00", "forecast": "", "impact": "Low", "previous": "4.37%", "title": "Mortgage Delinquencies"}
 {"actual": "", "country": "USD", "date": "2026-11-13T15:30:00+00:00", "forecast": "65B", "impact": "Low", "previous": "77B", "title": "Natural Gas Storage"}
 {"actual": "", "country": "USD", "date": "2026-11-13T15:50:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Bowman Speaks"}
 {"actual": "", "country": "EUR", "date": "2026-11-13T16:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "German Buba President Nagel Speaks"}
