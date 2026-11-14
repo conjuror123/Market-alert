@@ -1,17 +1,58 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1794686766
+    "last_run_utc": 1794690374
   },
   "floor_pending_replies": [],
   "jump_delivery": {
     "week": {
       "detector": "2d9898a91cc3",
-      "events": {},
-      "messages": {},
+      "events": {
+        "binance:ETH/USDT|1794690000": {
+          "asset": "binance:ETH/USDT",
+          "body": "\u2b1c <b>ETH/USDT</b> \u00b7 Ethereum -2.83% \u00b7 5.6\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1794686400,
+          "members": {
+            "jump:binance:ETH/USDT:hour:1794686400": [
+              -0.028347606375357968,
+              0.005041110690741348
+            ]
+          },
+          "message": 173,
+          "peak": "jump:binance:ETH/USDT:hour:1794686400",
+          "ping_at": 1794690376,
+          "placed_at": 1794690376,
+          "seen": 1794690376,
+          "shown": [
+            "noticeable",
+            5.6,
+            1794686400,
+            -2.83
+          ],
+          "size": 5.623285842031204,
+          "start": 1794690000,
+          "story": [
+            [
+              "noticeable",
+              5.6,
+              1794686400,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
+        }
+      },
+      "messages": {
+        "173": {
+          "first": "\u2b1c <b>ETH/USDT</b> \u00b7 Ethereum -2.83% \u00b7 5.6\u00d7\u03c3",
+          "hash": "bb273433747f4fcf"
+        }
+      },
       "note": {
         "hashes": [
-          "ee183a0b4b069079"
+          "2475c7a372e00ef5"
         ],
         "ids": [
           172
@@ -25,12 +66,13 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      172
+      172,
+      173
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1794686767
+    "saved_at": 1794690376
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-14",
