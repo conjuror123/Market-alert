@@ -24,7 +24,8 @@ jump_alerts_muted: false
 # How many consecutive failed runs before the bot says so, and how often it
 # repeats itself afterwards. It reports runs that FAILED, which is all a check
 # living inside the run can report: a run that never happened increments
-# nothing. Runs that never happen are cron-job.org's to notice, since the
-# trigger is its call to make - see docs/manual.md, "Running it".
+# nothing. Runs that never happen are named by the first run after them, by
+# cron-job.org when its call fails, and each Monday by the watchdog
+# (.github/workflows/watchdog.yml) - see docs/manual.md, "Running it".
 health_alert_after_failures: 3
 health_reminder_every_failures: 24

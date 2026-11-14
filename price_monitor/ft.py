@@ -5,8 +5,8 @@ THE ENDPOINT is the one the FT's markets pages chart from (markets.ft.com's
 chartapi/series): an instrument's hourly bars by its xid, the last
 MAX_DAYS trading days (2026-10-10: 24 answered, 25 not), without volume. Each
 bar is dated by its END - against the stored bars, one hour on - and is stamped
-here by its start. It answers a GitHub runner as it answers here (the
-backfill's one-off ft-probe, 2026-10-10: the same bars, to the cent).
+here by its start. It answers a GitHub runner as it answers anywhere (probed
+from one, 2026-10-10: the same bars, to the cent).
 
 THE DATES ARE ON THE EXCHANGE'S CLOCK OF THE DAY ASKED. A date is the bar's end
 on the exchange's local clock less its offset from UTC at the time of asking

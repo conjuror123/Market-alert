@@ -499,7 +499,7 @@ def detector_version(root: "str | None" = None) -> str:
 
 # Instrument fields detector_version leaves out: they decide where a bar comes
 # from and how a message names it, never what the bar is judged to be.
-NOT_DETECTOR = ("provider", "label")
+NOT_DETECTOR = ("provider", "label", "display")
 
 
 BASIS = "jump"

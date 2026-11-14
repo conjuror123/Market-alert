@@ -74,8 +74,8 @@ class Asset:
     # does not say otherwise.
     provider: str = ""
     # The name a message leads with where the ticker is only one vendor's
-    # (Yahoo's ^N225 is NI225 elsewhere): the index's own name. Defaults to the
-    # ticker.
+    # (Yahoo's ^N225 is NI225 elsewhere, its ZS=F soybeans, Sina's CAD the LME's
+    # copper): the instrument's own name. Defaults to the ticker.
     display: str = ""
 
     @property

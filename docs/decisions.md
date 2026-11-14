@@ -125,7 +125,10 @@ twenty messages a minute into a channel.
 0.024% in a usual hour and a coin several per cent. Every move is a price's, in per cent.
 
 **Names**: a pair by its other currency (`USD/JPY · Yen`); an index abroad by its own name
-and place (`Nikkei 225 · Japan`); anything else by its ticker.
+and place (`Nikkei 225 · Japan`); a future and an LME metal by its name and venue
+(`Soybeans · CBOT`, `Copper · LME`; the user's, 2026-11-14: Yahoo's `ZS=F` says nothing, and
+Sina's `CAD` for copper read as the Canadian dollar beside `USD/CAD`); a fund, a pair and a
+coin by its ticker, which is the same everywhere.
 
 **A reading is judged only once its bar has ended.**
 
@@ -150,6 +153,14 @@ footer under the rows. On the first line, as first written, `part 2 of 3` would 
 the note grew, and the first line is what recognises a message a run whose state was lost
 had sent (`telegram_ledger.claim`): a part 2 sent as `of 2` and wanted as `of 3` would have
 been deleted and sent again. Parts sharing a first line are taken over in the order sent.
+
+**Only high-impact releases are shown** (the user's, 2026-11-13). Medium ones, the orange
+circles, were listed too, in the weekly calendar and under the moves. Over the 26 weeks to
+2026-11-15 a week held a median of 10.5 high and 12.5 medium, so the calendar is about half
+as long. Over the year to 2026-11-13 a news block stood under 46% of pushes (330) and 49%
+of note rows (956); with high alone, under 31% and 34% - 15% of each had only medium
+releases near them and now say nothing. One setting decides both
+(`economic_calendar.SHOWN_IMPACTS`); the archive keeps every level.
 
 **Noticeable pings carry the event line without a footer** (the user's, 2026-11-03): the
 "Added to digest" pointer is omitted; details are read in the weekly digest note itself.
@@ -610,31 +621,29 @@ Measured or weighed, and not to be raised again.
 
 Known and left alone on purpose.
 
-**Dates to check** (every hourly run green since the merge of 2026-10-13); no work unless one
-goes wrong:
-- 10-26, the first European session after its clock change (rehearsed on the last six changes
-  2026-10-19: no session slipped, no fetch skipped wrongly); 11-02 the US one;
-- 10-29, TTF's first change of month in the store (below), and EEX's voter asked the next
-  month from that day;
-- 10-31 to 11-01, the first month end with 62 instruments: October settles from the open
-  months' archive into git;
-- about 11-12, IGLT's first payout checked live, from iShares (its night and the one
-  before unscored); 12-04, the Bund's roll to FGBLH27 (MarketWatch serves it, 22 hourly
-  bars on 10-17);
-- from 11-01 the library asked each day for Shanghai's and Mumbai's 2027; their tables end
-  2026-12-31, and from 12-07 the health chat says so each Monday until a release carries it.
+**The first live passes** (checked to 2026-11-13; nothing waits on a date).
+- Gone as rehearsed: Europe's clock change (10-26) and the US one (11-02), which showed the
+  FT's dates and Mexico's last hour, both mended since ("The sources' vote", "The basket");
+  TTF's first change of month in the store (below); October's fold from the open months'
+  archive into git, all 62 instruments; Shanghai's and Mumbai's tables past 2026-12-31, from
+  the holidays package ("Data and providers").
+- Still to come, each handled by code that has run only in rehearsal: IGLT's first payout
+  checked live (iShares lists 2026-11-19; it is added by the first run after London opens
+  that day, its night and the one before unscored); the Bund's first roll at MarketWatch,
+  2026-12-04 to FGBLH27 (served hourly already, 70 bars on 11-13); the year's fold in January;
+  the FT's dates across a spring clock change (2027-03-28).
 
 **TTF's switch day.** MarketWatch's daily TTF is Yahoo's TTF=F to the cent, but on the last
 trading day it is already the next month's (2024–26, the spread's sign as the season makes
 it), and a session earlier where a holiday moves that day (2026-08-27). So the nights into
-the day before, the day and the day after are unscored (`roll_ltd` 1). Open: a change inside
-the session rather than at its open (10-29 shows which), and a holiday on a Monday last
-trading day (next 2027-08-30). To act: mark that hour, or that Friday.
+the day before, the day and the day after are unscored (`roll_ltd` 1). On 2026-10-29, the
+first in the store, the change came at the opens (−1.7% into the day, +2.0% out of it) and
+no hour inside the sessions moved 1%. Open: a holiday on a Monday last trading day (next
+2027-08-30). To act: mark that Friday.
 
 **SiftingIO's month.** We count the calendar month; its account page showed 181 used on
-2026-10-06, so its month may start near the 6th. About 216 calls a weekday since the merge:
-5,000–6,500 a month of 10,000, far from the 80% warning either way. To act: read the account
-page about 11-06 and count its month.
+2026-10-06, so its month may start near the 6th. October took 5,065 calls of 10,000 and
+November 2,186 to the 13th: far from the 80% warning whichever day its month starts.
 
 **One voter only** for 10 instruments: the LME's tin, nickel and aluminium, the Bund, TTF
 (EEX), the BIST 100, the ASX 200, the Hang Seng, the JSE Top 40 and the UK's gilts fund (the

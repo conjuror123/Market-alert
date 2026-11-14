@@ -40,7 +40,7 @@ def test_a_push_names_the_scheduled_news_behind_it():
 
 
 def test_a_push_with_nothing_scheduled_prints_no_calendar_line_at_all():
-    # 55% of pushes have no Medium or High release in the window, and a line
+    # Most pushes have no High release in the window, and a line
     # that usually says nothing stops being read. The absence says it.
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
     elsewhere = _cal([("2026-05-01T12:00:00+00:00", "USD", "Old CPI", "High")])
@@ -56,27 +56,26 @@ def test_an_empty_archive_claims_nothing_rather_than_claiming_silence():
     assert md.calendar_context(hour, []) == ""
 
 
-def test_low_impact_news_is_not_named():
-    # High and Medium are shown, the same two the Saturday calendar shows. Low
-    # is dominated by bank holidays and minor prints, and naming those would
-    # turn the most important line of the most important message into noise.
+def test_only_high_impact_news_is_named():
+    # High alone, as the weekly calendar shows (the user's, 2026-11-13: Medium,
+    # the orange circle, is left out of both). Low is dominated by bank holidays
+    # and minor prints.
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
     only_low = _cal([("2026-06-10T12:30:00+00:00", "CHF", "Bank Holiday", "Low")])
     assert md.calendar_context(hour, only_low) == ""
+    only_medium = _cal([("2026-06-10T12:45:00+00:00", "EUR", "Trade Balance", "Medium")])
+    assert md.calendar_context(hour, only_medium) == ""
 
-    medium = _cal([("2026-06-10T12:45:00+00:00", "EUR", "Trade Balance", "Medium")])
-    assert "Trade Balance" in md.calendar_context(hour, medium)
 
-
-def test_each_named_release_carries_its_impact_colour():
-    # The same circles the Saturday calendar uses, against the squares a move
-    # carries: the shape says which kind of thing the line is.
+def test_a_medium_release_beside_a_high_one_is_left_out():
+    # The circle the weekly calendar uses, against the squares a move carries:
+    # the shape says which kind of thing the line is.
     hour = int(datetime(2026, 6, 10, 14, tzinfo=timezone.utc).timestamp())
     cal = _cal([("2026-06-10T12:30:00+00:00", "USD", "CPI", "High"),
                 ("2026-06-10T12:45:00+00:00", "EUR", "Trade Balance", "Medium")])
     out = md.calendar_context(hour, cal)
     assert "\U0001F534 \U0001F1FA\U0001F1F8 USD CPI" in out
-    assert "\U0001F7E0 \U0001F1EA\U0001F1FA EUR Trade Balance" in out
+    assert "Trade Balance" not in out and "\U0001F7E0" not in out
 
 
 def test_a_release_carries_its_country_flag_beside_the_code():
@@ -594,3 +593,21 @@ def test_an_index_leads_with_its_own_name_where_yahoos_ticker_is_yahoos_only():
                         labels).startswith("⬜ <b>CSI 300</b> · China +3.10%")
     assert md.ping_line(event(asset_id="twelvedata:SPY", tier="noticeable"),
                         labels).startswith("⬜ <b>SPY</b> · ")
+
+
+def test_a_future_and_an_lme_metal_lead_with_their_names_not_a_vendors_code():
+    # The user's, 2026-11-14: "Soybeans" for Yahoo's ZS=F, "Copper" for Sina's CAD,
+    # which reads as the Canadian dollar beside USD/CAD. No vendor code is left on
+    # the first line of any instrument but a fund's, a pair's or a coin's own ticker.
+    labels = md._labels()
+    soy = event(asset_id="yahoo:ZS=F", block="agriculture", tier="extreme", r=0.0323)
+    assert md.format_push(soy, labels).splitlines()[0].startswith(
+        "🟥 <b>Soybeans</b> · CBOT +3.23%")
+    assert md.ping_line(event(asset_id="sina:CAD", tier="noticeable", r=-0.0123),
+                        labels).startswith("⬜ <b>Copper</b> · LME -1.23%")
+    assert md.ping_line(event(asset_id="yahoo:ZN=F", tier="noticeable", r=-0.004),
+                        labels).startswith("⬜ <b>10-year Treasury</b> · CBOT future -0.40%")
+    from jump.basket import load_basket
+    coded = [a.ticker for a in load_basket().instruments
+             if not a.display and (a.ticker.endswith("=F") or a.session_template == "lme")]
+    assert coded == []

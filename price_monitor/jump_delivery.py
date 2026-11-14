@@ -5,7 +5,8 @@ event belongs to, when it was found (jump.jumps, jump.routing). This module
 decides what is on the channel because of it, and keeps that in line.
 
 THE CHANNEL IS PRIVATE and the bot is an administrator of it: it can edit any of
-its messages at any age and delete any message there.
+its messages at any age and delete one within Telegram's 48 hours (past them a
+message that has to go is struck through instead).
 
 TWO KINDS OF MOVE, and the difference is how loudly they arrive. A push -
 `high` and up - goes out at once and rings. A `noticeable` move is a row in
@@ -146,9 +147,9 @@ def _open_words(event: dict) -> "tuple[str, str]":
 
 @lru_cache(maxsize=1)
 def _tickers() -> dict:
-    """asset_id -> the name a message leads with (the ticker, or an index's own
-    name: jump.basket.Asset.shown_as), from the basket definition, read once per
-    process."""
+    """asset_id -> the name a message leads with (the ticker, or the instrument's
+    own name: jump.basket.Asset.shown_as), from the basket definition, read once
+    per process."""
     try:
         from jump.basket import load_basket
 
@@ -299,10 +300,11 @@ def describe(event: dict, labels: dict[str, str]) -> str:
     asset_id = str(event.get("asset_id", ""))
     label = labels.get(asset_id) or asset_id.split(":")[-1]
     move = _clean(event.get("r"))
-    # The ticker leads: it is what the reader types into a chart and the only name that
-    # is the same everywhere - where it is not (Yahoo's ^N225), the index's own name,
-    # which is (jump.basket.Asset.display). The move shares that line, because it is the
-    # first thing anyone wants, and its size in σ ends it.
+    # The ticker leads where it is the same everywhere (SPY, EUR/USD): it is what
+    # the reader types into a chart. Where it is one vendor's code (Yahoo's ^N225
+    # and ZS=F, Sina's CAD for the LME's copper) the instrument's own name leads
+    # instead (jump.basket.Asset.display; the user's, 2026-11-14). The move shares
+    # that line, because it is the first thing anyone wants, and its size in σ ends it.
     shown = f" {move * 100:+.2f}%" if move is not None else ""
     if shown and _overnight(event):
         # The gap is a price move from the last close to the first print, and
@@ -545,15 +547,11 @@ CALENDAR_LOOKBACK_HOURS = 2
 # arriving with a later edit.
 CALENDAR_LOOKAHEAD_HOURS = 1
 
-# High and Medium, the same two the weekly calendar shows, and each carries
-# its colour. Low is excluded everywhere for the same reason: it is dominated by
-# bank holidays and minor prints, and naming those would turn the most important
-# line of the most important message into noise.
-#
-# Medium earns its place without flooding the line: over the record the
-# three-hour window holds a median of two High-or-Medium releases against one
-# High alone, six at the ninetieth percentile against four, and fourteen at the
-# worst against twelve. 24% of events still have nothing scheduled around them.
+# High alone, as the weekly calendar shows (economic_calendar.SHOWN_IMPACTS;
+# the user's, 2026-11-13: Medium, shown until then, is left out of both). Low
+# is excluded for the reason it always was: it is dominated by bank holidays and
+# minor prints, and naming those would turn the most important line of the most
+# important message into noise.
 #
 # All of them are listed rather than capped: "and two more" would hide the tail
 # of a busy morning, which on a busy morning is the half worth reading.
@@ -565,11 +563,11 @@ def calendar_context(hour_utc: int,
     """What was scheduled around the move - before it and just after.
 
     Naming the release tells the reader the move has a known cause and they can
-    stop looking for one. NOTHING IS PRINTED WHEN NOTHING WAS SCHEDULED. 55% of
-    pushes have no Medium or High release in the window, so a "none scheduled"
-    line would appear on more than half of all messages - and a line that usually
-    says nothing stops being read, taking the half that does say something with
-    it. Silence carries the same fact in no space at all.
+    stop looking for one. NOTHING IS PRINTED WHEN NOTHING WAS SCHEDULED. Most
+    pushes have no High release in the window (55% had none even with Medium
+    counted), so a "none scheduled" line would appear on most messages - and a
+    line that usually says nothing stops being read, taking the part that does
+    say something with it. Silence carries the same fact in no space at all.
     """
     # An empty archive is not evidence of a quiet three hours: it cannot tell
     # "nothing was scheduled" from "nothing was loaded", and only one of those

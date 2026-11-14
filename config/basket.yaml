@@ -454,7 +454,8 @@ assets:
     tick_size: 0.00390625
     session_template: cbot_rates
     fetch_interval: 1h
-    label: "2-year Treasury note (CBOT)"
+    display: "2-year Treasury"
+    label: "CBOT future"
   - ticker: ZN=F
     source: yahoo
     block: rates
@@ -462,7 +463,8 @@ assets:
     tick_size: 0.015625
     session_template: cbot_rates
     fetch_interval: 1h
-    label: "10-year Treasury note (CBOT)"
+    display: "10-year Treasury"
+    label: "CBOT future"
   - ticker: ZB=F
     source: yahoo
     block: rates
@@ -470,7 +472,8 @@ assets:
     tick_size: 0.03125
     session_template: cbot_rates
     fetch_interval: 1h
-    label: "30-year Treasury bond (CBOT)"
+    display: "30-year Treasury"
+    label: "CBOT future"
   - ticker: FGBL=F
     source: marketwatch
     block: rates
@@ -552,7 +555,8 @@ assets:
     tick_size: 0.01
     session_template: nymex_globex
     fetch_interval: 1h
-    label: "Brent crude (NYMEX)"
+    display: "Brent crude"
+    label: "NYMEX"
   - ticker: UNG
     source: twelvedata
     provider: twelvedata
@@ -598,7 +602,8 @@ assets:
     tick_size: 0.1
     session_template: nymex_globex
     fetch_interval: 1h
-    label: "Platinum (NYMEX)"
+    display: "Platinum"
+    label: "NYMEX"
   # --- industrial_metals -----------------------------------------------------
   # Industrial metals.
   # The LME's metals themselves - the ETNs (JJN, JJU, JJT) are delisted, and
@@ -614,7 +619,8 @@ assets:
     tick_size: 5.0
     session_template: lme
     fetch_interval: 1h
-    label: "Tin (LME)"
+    display: "Tin"
+    label: "LME"
   - ticker: NID
     source: sina
     block: industrial_metals
@@ -622,7 +628,8 @@ assets:
     tick_size: 5.0
     session_template: lme
     fetch_interval: 1h
-    label: "Nickel (LME)"
+    display: "Nickel"
+    label: "LME"
   - ticker: AHD
     source: sina
     block: industrial_metals
@@ -630,7 +637,8 @@ assets:
     tick_size: 0.5
     session_template: lme
     fetch_interval: 1h
-    label: "Aluminium (LME)"
+    display: "Aluminium"
+    label: "LME"
   - ticker: CAD
     source: sina
     block: industrial_metals
@@ -638,7 +646,8 @@ assets:
     tick_size: 0.5
     session_template: lme
     fetch_interval: 1h
-    label: "Copper (LME)"
+    display: "Copper"
+    label: "LME"
   - ticker: REMX
     source: twelvedata
     provider: yahoo
@@ -658,7 +667,8 @@ assets:
     tick_size: 0.25
     session_template: cbot_grains
     fetch_interval: 1h
-    label: "Corn (CBOT)"
+    display: "Corn"
+    label: "CBOT"
   - ticker: ZW=F
     source: yahoo
     block: agriculture
@@ -666,7 +676,8 @@ assets:
     tick_size: 0.25
     session_template: cbot_grains
     fetch_interval: 1h
-    label: "Wheat (CBOT)"
+    display: "Wheat"
+    label: "CBOT"
   - ticker: ZS=F
     source: yahoo
     block: agriculture
@@ -674,7 +685,8 @@ assets:
     tick_size: 0.25
     session_template: cbot_grains
     fetch_interval: 1h
-    label: "Soybeans (CBOT)"
+    display: "Soybeans"
+    label: "CBOT"
   - ticker: SB=F
     source: yahoo
     block: agriculture
@@ -682,7 +694,8 @@ assets:
     tick_size: 0.01
     session_template: ice_sugar
     fetch_interval: 1h
-    label: "Sugar No. 11 (ICE)"
+    display: "Sugar"
+    label: "ICE No. 11"
   # Futures, live from Yahoo. History: coffee, cocoa and cotton from Dukascopy's
   # single-contract CFDs (2018), live cattle from Yahoo (2024-05). Each in its
   # exchange's session; a
@@ -695,7 +708,8 @@ assets:
     tick_size: 0.05
     session_template: ice_coffee
     fetch_interval: 1h
-    label: "Coffee (ICE)"
+    display: "Coffee"
+    label: "ICE"
   - ticker: CC=F
     source: yahoo
     block: agriculture
@@ -703,7 +717,8 @@ assets:
     tick_size: 1.0
     session_template: ice_cocoa
     fetch_interval: 1h
-    label: "Cocoa (ICE)"
+    display: "Cocoa"
+    label: "ICE"
   - ticker: CT=F
     source: yahoo
     block: agriculture
@@ -711,7 +726,8 @@ assets:
     tick_size: 0.01
     session_template: ice_cotton
     fetch_interval: 1h
-    label: "Cotton (ICE)"
+    display: "Cotton"
+    label: "ICE"
   - ticker: LE=F
     source: yahoo
     block: agriculture
@@ -719,7 +735,8 @@ assets:
     tick_size: 0.025
     session_template: cme_cattle
     fetch_interval: 1h
-    label: "Live cattle (CME)"
+    display: "Live cattle"
+    label: "CME"
   # --- FX --------------------------------------------------------------------
   # Major currency pairs, all quoted against the dollar.
   - ticker: EUR/USD
