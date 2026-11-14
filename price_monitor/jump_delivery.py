@@ -147,9 +147,9 @@ def _open_words(event: dict) -> "tuple[str, str]":
 
 @lru_cache(maxsize=1)
 def _tickers() -> dict:
-    """asset_id -> the name a message leads with (the ticker, or an index's own
-    name: jump.basket.Asset.shown_as), from the basket definition, read once per
-    process."""
+    """asset_id -> the name a message leads with (the ticker, or the instrument's
+    own name: jump.basket.Asset.shown_as), from the basket definition, read once
+    per process."""
     try:
         from jump.basket import load_basket
 
@@ -300,10 +300,11 @@ def describe(event: dict, labels: dict[str, str]) -> str:
     asset_id = str(event.get("asset_id", ""))
     label = labels.get(asset_id) or asset_id.split(":")[-1]
     move = _clean(event.get("r"))
-    # The ticker leads: it is what the reader types into a chart and the only name that
-    # is the same everywhere - where it is not (Yahoo's ^N225), the index's own name,
-    # which is (jump.basket.Asset.display). The move shares that line, because it is the
-    # first thing anyone wants, and its size in σ ends it.
+    # The ticker leads where it is the same everywhere (SPY, EUR/USD): it is what
+    # the reader types into a chart. Where it is one vendor's code (Yahoo's ^N225
+    # and ZS=F, Sina's CAD for the LME's copper) the instrument's own name leads
+    # instead (jump.basket.Asset.display; the user's, 2026-11-14). The move shares
+    # that line, because it is the first thing anyone wants, and its size in σ ends it.
     shown = f" {move * 100:+.2f}%" if move is not None else ""
     if shown and _overnight(event):
         # The gap is a price move from the last close to the first print, and

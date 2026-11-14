@@ -125,7 +125,10 @@ twenty messages a minute into a channel.
 0.024% in a usual hour and a coin several per cent. Every move is a price's, in per cent.
 
 **Names**: a pair by its other currency (`USD/JPY · Yen`); an index abroad by its own name
-and place (`Nikkei 225 · Japan`); anything else by its ticker.
+and place (`Nikkei 225 · Japan`); a future and an LME metal by its name and venue
+(`Soybeans · CBOT`, `Copper · LME`; the user's, 2026-11-14: Yahoo's `ZS=F` says nothing, and
+Sina's `CAD` for copper read as the Canadian dollar beside `USD/CAD`); a fund, a pair and a
+coin by its ticker, which is the same everywhere.
 
 **A reading is judged only once its bar has ended.**
 

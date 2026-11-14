@@ -593,3 +593,21 @@ def test_an_index_leads_with_its_own_name_where_yahoos_ticker_is_yahoos_only():
                         labels).startswith("⬜ <b>CSI 300</b> · China +3.10%")
     assert md.ping_line(event(asset_id="twelvedata:SPY", tier="noticeable"),
                         labels).startswith("⬜ <b>SPY</b> · ")
+
+
+def test_a_future_and_an_lme_metal_lead_with_their_names_not_a_vendors_code():
+    # The user's, 2026-11-14: "Soybeans" for Yahoo's ZS=F, "Copper" for Sina's CAD,
+    # which reads as the Canadian dollar beside USD/CAD. No vendor code is left on
+    # the first line of any instrument but a fund's, a pair's or a coin's own ticker.
+    labels = md._labels()
+    soy = event(asset_id="yahoo:ZS=F", block="agriculture", tier="extreme", r=0.0323)
+    assert md.format_push(soy, labels).splitlines()[0].startswith(
+        "🟥 <b>Soybeans</b> · CBOT +3.23%")
+    assert md.ping_line(event(asset_id="sina:CAD", tier="noticeable", r=-0.0123),
+                        labels).startswith("⬜ <b>Copper</b> · LME -1.23%")
+    assert md.ping_line(event(asset_id="yahoo:ZN=F", tier="noticeable", r=-0.004),
+                        labels).startswith("⬜ <b>10-year Treasury</b> · CBOT future -0.40%")
+    from jump.basket import load_basket
+    coded = [a.ticker for a in load_basket().instruments
+             if not a.display and (a.ticker.endswith("=F") or a.session_template == "lme")]
+    assert coded == []

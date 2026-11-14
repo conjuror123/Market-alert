@@ -524,11 +524,15 @@ shows how much held (`close 80%`). Scheduled releases from 2 hours before the mo
 its close follow (a release after the close came after the move): high-impact ones only
 (`economic_calendar.SHOWN_IMPACTS`), each with its `🔴` and its country.
 
-The name after the ticker is the instrument's `label` in `config/basket.yaml`. A stock
-index abroad leads with its own name instead of Yahoo's ticker (`display`), then its place:
-`Nikkei 225 · Japan`. A pair against
+The name after the ticker is the instrument's `label` in `config/basket.yaml`. Where the
+ticker is one vendor's code, the instrument's own name leads instead (`display`), then its
+place: a stock index abroad (`Nikkei 225 · Japan`), a future (`Soybeans · CBOT`,
+`10-year Treasury · CBOT future`), the LME's metals (`Copper · LME`, Sina's `CAD`). A fund,
+a pair and a coin keep their tickers, the same on every chart. A pair against
 the US dollar is named by its other currency (`USD/JPY · Yen`, `EUR/USD · Euro`);
-the move is the pair's, as its ticker reads, so USD/JPY +2% is the yen weaker.
+the move is the pair's, as its ticker reads, so USD/JPY +2% is the yen weaker. Both names
+are free to edit: they are in no version (`jumps.NOT_DETECTOR`), though any edit to
+`config/basket.yaml` rebuilds the metrics once (section 6).
 
 **A note row** (`noticeable`) goes into the weekly note, and a ping message notifies of it:
 
@@ -547,7 +551,7 @@ it goes on in opens with its name-line, `continued`:
 ```
 ━━━ 🏛 RATES ━━━
 
-⬜ ZB=F · 30-year Treasury bond (CBOT) -0.70% · 5.2×σ
+⬜ 30-year Treasury · CBOT future -0.70% · 5.2×σ
 📉 Rarest hour in 18 days (then 5.0×σ)
 🕐 28.09.2026 14:00 UTC · close 38%
 ```
