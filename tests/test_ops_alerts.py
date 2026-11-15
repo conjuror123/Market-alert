@@ -6,7 +6,8 @@ def test_a_dead_instrument_is_named_with_its_provider():
     text = format_provider_failure(
         [("twelvedata:SPY", "yahoo", "HTTP 500")])
     assert "twelvedata:SPY (yahoo): HTTP 500" in text
-    assert "went dark" in text
+    assert "Загрузка баров: не обновились 1 инструмент" in text
+    assert "Что делать:" in text
 
 
 def test_ops_message_redacts_an_apikey_in_the_provider_error():
@@ -18,39 +19,47 @@ def test_ops_message_redacts_an_apikey_in_the_provider_error():
     text = format_provider_failure(
         [("twelvedata:SPY", "yahoo", "HTTP 500")])
     assert "twelvedata:SPY (yahoo): HTTP 500" in text
-    assert "went dark" in text
+    assert "не обновились" in text
 
 
 def test_a_spent_tiingo_budget_says_where_and_when_it_is_asked_again():
     text = format_provider_failure(
         [], tiingo_gone=True, tiingo_skipped=12,
         tiingo_remaining="0", tiingo_trip="twelvedata:XLK")
-    assert text == ("⚠️ <b>Tiingo request budget spent at twelvedata:XLK</b>\n"
-                    "Remaining headroom 0; 12 more Tiingo instrument(s) skipped. "
-                    "Asked again next run.")
+    head, why, means, todo = text.split("\n")
+    assert head == "⚠️ <b>Tiingo: исчерпан лимит запросов (на twelvedata:XLK)</b>"
+    assert why == ("Tiingo ответил отказом 429 («слишком много запросов»): по ответу Tiingo "
+                   "осталось: 0; остальные инструменты Tiingo (12) в этот час пропущены.")
+    assert means.startswith("Что это значит:") and todo.startswith("Что делать:")
 
 
 def test_a_spent_budget_with_nothing_else_due_does_not_count_none_skipped():
     text = format_provider_failure(
         [], sifting_gone=True, sifting_skipped=0, sifting_trip="twelvedata:EUR/USD")
-    assert text == ("⚠️ <b>SiftingIO request budget spent at twelvedata:EUR/USD</b>\n"
-                    "What is left not in the 429. Asked again next run.")
+    head, why = text.split("\n")[:2]
+    assert head == "⚠️ <b>SiftingIO: исчерпан лимит запросов (на twelvedata:EUR/USD)</b>"
+    assert why == ("SiftingIO ответил отказом 429 («слишком много запросов»): сколько "
+                   "осталось, SiftingIO в ответе не сказал.")
 
 
 def test_a_missing_key_is_named_with_its_secret():
     text = format_provider_failure([], keys={"tiingo": ["TIINGO_API_KEY is not set", None, 27]})
-    assert text == ("⚠️ <b>Tiingo: TIINGO_API_KEY is not set</b>\n"
-                    "Its 27 instrument(s) are not fetched; the other providers are. "
-                    "Said every run until it is set.")
+    head, why, means, todo = text.split("\n")
+    assert head == "🚨 <b>Tiingo: не задан ключ TIINGO_API_KEY</b>"
+    assert why == ("В секретах GitHub Actions нет ключа TIINGO_API_KEY, поэтому Tiingo не "
+                   "запрашивается совсем, и все его инструменты (27) остаются без новых "
+                   "баров. Остальные источники работают как обычно.")
+    assert "Settings → Secrets and variables → Actions" in todo
 
 
 def test_a_refused_key_is_named_where_it_was_refused_and_first():
     text = format_provider_failure(
         [("twelvedata:SPY", "yahoo", "HTTP 500")],
         keys={"alpaca": ["KRE: Alpaca refused the key (403)", "twelvedata:KRE", 29]})
-    assert text.startswith("⚠️ <b>Alpaca refused the key at twelvedata:KRE</b>\n"
-                           "KRE: Alpaca refused the key (403); 29 more Alpaca "
-                           "instrument(s) skipped. Asked again next run.")
+    assert text.startswith("⚠️ <b>Alpaca не принял ключ (на twelvedata:KRE)</b>\n"
+                           "Ответ Alpaca: KRE: Alpaca refused the key (403); остальные "
+                           "инструменты Alpaca (29) в этот час пропущены.\n")
+    assert "ALPACA_KEY_ID / ALPACA_SECRET_KEY" in text
 
 
 def test_a_yahoo_rate_limit_alone_says_nothing():
@@ -63,8 +72,9 @@ def test_a_stale_instrument_of_a_refusing_yahoo_says_so():
     text = format_provider_failure([], yahoo_gone=True,
                                    stale=[("yahoo:CT=F", "yahoo", 37),
                                           ("twelvedata:UNG", "twelvedata", 15)])
-    assert "• yahoo:CT=F (yahoo, refused this run): 37 session hours" in text
-    assert "• twelvedata:UNG (twelvedata): 15 session hours" in text
+    assert "Нет новых баров: 2 инструмента" in text
+    assert "• yahoo:CT=F (yahoo, в этот час Yahoo отказал по лимиту): 37 ч торговли" in text
+    assert "• twelvedata:UNG (twelvedata): 15 ч торговли" in text
 
 
 def test_ops_alert_uses_the_health_chat_not_the_product_one(monkeypatch):
@@ -123,9 +133,9 @@ def test_a_wide_outage_fits_one_message(monkeypatch):
         silent={"yahoo": ["twelvedata:F1", 36], "sina": ["twelvedata:G1", 34]})
     assert notifier.send_health(text, "tok", "ops")
     assert len(sent[0]) <= notifier.TELEGRAM_LIMIT
-    assert sent[0].splitlines()[-1].startswith("…and ")
+    assert sent[0].splitlines()[-1].startswith("…и ещё ")
     # The summaries come first; a cut only ever trims the list of instruments.
-    assert "yahoo did not answer" in sent[0] and "sina did not answer" in sent[0]
+    assert "yahoo не отвечает" in sent[0] and "sina не отвечает" in sent[0]
 
 
 def test_a_health_message_that_cannot_be_sent_does_not_raise(monkeypatch):
@@ -136,3 +146,22 @@ def test_a_health_message_that_cannot_be_sent_does_not_raise(monkeypatch):
 
     monkeypatch.setattr(notifier, "send_telegram_message", refuse)
     assert notifier.send_health("hello", "tok", "ops") is False
+
+
+def test_counts_take_their_russian_form():
+    from price_monitor.notifier import instruments, plural
+    assert [instruments(n) for n in (1, 2, 5, 11, 12, 21, 22, 25, 111)] == [
+        "1 инструмент", "2 инструмента", "5 инструментов", "11 инструментов",
+        "12 инструментов", "21 инструмент", "22 инструмента", "25 инструментов",
+        "111 инструментов"]
+    assert plural(0, "раз", "раза", "раз") == "0 раз"
+
+
+def test_every_part_of_the_message_says_what_to_do():
+    text = format_provider_failure(
+        [("twelvedata:SPY", "yahoo", "HTTP 500")], tiingo_gone=True,
+        silent={"sina": ["sina:CAD", 3]}, stale=[("yahoo:CT=F", "yahoo", 37)],
+        keys={"tiingo": ["not set", None, 27]}, vote=["ℹ️ x"])
+    parts = text.split("\n\n")
+    assert len(parts) == 6
+    assert all("Что делать" in p for p in parts if not p.startswith("🗳"))

@@ -702,9 +702,7 @@ def main(argv: "list[str] | None" = None) -> int:
     flagged = run(args.metrics_dir, previous=previous, failures=failures)
     if failures:
         from jump.pipeline import tell_failures
-        tell_failures("Scoring", failures,
-                      "Its events from the last run are kept as they were; the other "
-                      "instruments are current.")
+        tell_failures("scoring", failures)
     atomic.write_parquet(args.out, flagged, index=False)
     # Every instrument failing is the detector, not an instrument: the run fails.
     if failures and len(failures) >= len(load_basket().instruments):

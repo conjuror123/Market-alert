@@ -44,35 +44,53 @@ import requests
 
 from price_monitor import health, jump_delivery, telegram_ledger, weekly_digest
 from price_monitor.config import load_config
-from price_monitor.notifier import quote, send_health
+from price_monitor.notifier import plural, quote, send_health
 from price_monitor.state import CorruptState, load_state, save_state
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("price_monitor")
 
 
-def format_health_down(streak: int, error_details: list[str]) -> str:
+def format_health_down(streak: int, error_details: list[str], reminder_every: int = 24) -> str:
+    """In Russian and at length, as all of the health chat is (the user's,
+    2026-11-15): what failed, what it costs the channel, what to do."""
     lines = [
-        f"⚠️ <b>Monitoring has been failing for {streak} run(s) in a row</b>",
-        "Check the Actions tab in the repository — the data source may have broken",
-        "or the Telegram token may be invalid.",
-        "",
+        f"🚨 <b>Прогоны завершаются с ошибкой: {plural(streak, 'раз', 'раза', 'раз')} подряд</b>",
+        "Что случилось: часовой прогон доходит до конца, но с ошибкой. Ошибки последнего "
+        "прогона:",
     ]
     lines.extend(f"• {quote(d)}" for d in error_details[:10])
+    lines += [
+        "Что это значит: смотря по ошибке, в канал не доходит часть сообщений или все. "
+        "Пока ошибка не уйдёт, прогон на GitHub отмечен красным.",
+        "Что делать: открыть вкладку Actions в репозитории и посмотреть лог последнего "
+        "прогона. Если ошибка разовая, она уйдёт сама. Пока она держится, напоминание "
+        + (f"приходит каждые {plural(reminder_every, 'прогон', 'прогона', 'прогонов')}, а "
+           if reminder_every > 0 else "больше не приходит, а ")
+        + "когда прогоны снова пройдут чисто, придёт ✅.",
+    ]
     return "\n".join(lines)
 
 
 def format_missed_runs(previous: int, now: int, missed: int) -> str:
     since = datetime.fromtimestamp(previous, timezone.utc)
     until = datetime.fromtimestamp(now, timezone.utc)
-    return (f"⚠️ <b>No run between {since:%Y-%m-%d %H:%M} and {until:%Y-%m-%d %H:%M} "
-            f"UTC</b>\n{missed} hourly run(s) missing: the trigger did not fire, or the "
-            "runs died before saving. Moves in that time were not sent when found; "
-            "those from its last 24 hours go out now, late.")
+    return (f"⚠️ <b>Пропущены прогоны: с {since:%Y-%m-%d %H:%M} до {until:%Y-%m-%d %H:%M} "
+            f"UTC</b>\n"
+            f"Что случилось: не было {plural(missed, 'часового прогона', 'часовых прогонов', 'часовых прогонов')}. "
+            "Либо cron-job.org их не запустил, либо они упали, не успев сохранить "
+            "состояние.\n"
+            "Что это значит: движения за это время не были отправлены, когда нашлись. Те, "
+            "что моложе суток, уходят в канал сейчас, с опозданием; более старые уже не "
+            "звенят, но попадают строкой в сводку недели.\n"
+            "Что делать: если разово, ничего: у GitHub и cron-job.org бывают сбои. Если "
+            "такое часто, проверить задание на cron-job.org: включено ли оно и что отвечает.")
 
 
 def format_health_recovered(streak: int) -> str:
-    return f"✅ Monitoring recovered after {streak} failed run(s) in a row."
+    return ("✅ <b>Прогоны снова проходят чисто</b>\n"
+            f"Перед этим {plural(streak, 'прогон', 'прогона', 'прогонов')} подряд "
+            "завершились с ошибкой. Сейчас всё в порядке; делать ничего не нужно.")
 
 
 def jump_pipeline_crashed() -> bool:
@@ -88,11 +106,14 @@ def jump_pipeline_crashed() -> bool:
 # Each is a failed run here: broken, if not yet urgent.
 SIDE_STEPS = {
     "SESSIONS_STEP_OUTCOME":
-        "the session tables could not be extended: the NYSE's has under two years "
-        "left, or a market abroad's under 60 days (jump/sessions.py)",
+        "не удалось продлить таблицы торговых сессий (шаг «Extend the session table "
+        "when it runs short», jump/sessions.py): у NYSE осталось меньше двух лет таблицы "
+        "или у биржи за рубежом меньше 60 дней. Срочности нет, но без починки праздники "
+        "этих бирж со временем начнут считаться торговыми днями",
     "HOT_SAVE_STEP_OUTCOME":
-        "the open months of the bars were not saved to the release: the next run "
-        "restores an older copy and fetches the difference again",
+        "открытые месяцы баров не сохранились в релиз (шаг «Save the open months of the "
+        "bars»): следующий прогон возьмёт более старую копию и докачает разницу заново. "
+        "Данные не теряются, но запросов к источникам больше",
 }
 
 
@@ -158,7 +179,8 @@ def main() -> int:
     except Exception as exc:                     # pragma: no cover - defensive
         log.error("Calendar refresh failed: %s", exc)
         had_error = True
-        error_details.append(f"calendar refresh failed ({exc})")
+        error_details.append("не обновился экономический календарь: под движениями могут "
+                             f"не указываться релизы. Ошибка: {exc}")
 
     # Once a week, in the run that opens the week's note, and before it: see
     # this module's docstring for the order.
@@ -167,7 +189,7 @@ def main() -> int:
     except Exception as exc:                     # pragma: no cover - defensive
         log.error("Weekly calendar digest failed: %s", exc)
         had_error = True
-        error_details.append(f"weekly calendar digest failed ({exc})")
+        error_details.append(f"не отправился недельный экономический календарь. Ошибка: {exc}")
 
     # Wrapped for the same reason it always was: a fault in a delivery layer must
     # not cost the run its health reporting, which is the thing that would tell
@@ -178,7 +200,8 @@ def main() -> int:
     except Exception as exc:                     # pragma: no cover - defensive
         log.error("Jump delivery failed: %s", exc)
         had_error = True
-        error_details.append(f"Jump delivery failed ({exc})")
+        error_details.append("сбой отправки сообщений о движениях: в этот час в канал "
+                             f"могло не уйти ничего. Ошибка: {exc}")
 
     try:
         found += telegram_ledger.settle_strays(cfg)
@@ -186,7 +209,7 @@ def main() -> int:
         log.error("Settling stray messages failed: %s", exc)
     telegram_notes = found + telegram_ledger.news()
     if telegram_notes:
-        send_health("📨 <b>Telegram</b>\n" + "\n".join(f"• {quote(n)}" for n in telegram_notes),
+        send_health("📨 <b>Telegram</b>\n" + "\n".join(f"• {quote(n, 600)}" for n in telegram_notes),
                     cfg.telegram_bot_token, cfg.telegram_health_chat_id)
 
     if jump_pipeline_crashed():
@@ -194,12 +217,14 @@ def main() -> int:
         stopped = jump_stopped_at()
         if stopped:
             # Its time limit, or a crash: the minutes say which.
-            error_details.append(f"the Jump step stopped during {stopped[0]}, "
-                                 f"about {stopped[1]} min into the step: events were "
-                                 "not refreshed")
+            error_details.append(f"шаг Jump остановился на этапе {stopped[0]}, примерно "
+                                 f"через {stopped[1]} мин после начала (лимит времени "
+                                 "шага или падение): события не обновлены, новые движения "
+                                 "в этот час не найдены")
         else:
-            error_details.append("the Jump pipeline or detector crashed: events "
-                                 "were not refreshed")
+            error_details.append("упал расчёт движений (Jump pipeline или детектор): "
+                                 "события не обновлены, новые движения в этот час не "
+                                 "найдены")
 
     for text in failed_side_steps():
         had_error = True
@@ -209,7 +234,8 @@ def main() -> int:
         streak = health.record_failure(state)
         if health.should_alert_down(streak, cfg.health_alert_after_failures,
                                     cfg.health_reminder_every_failures):
-            send_health(format_health_down(streak, error_details),
+            send_health(format_health_down(streak, error_details,
+                                           cfg.health_reminder_every_failures),
                         cfg.telegram_bot_token, cfg.telegram_health_chat_id)
     else:
         # Clean as a run, whatever one instrument did: the instrument has its

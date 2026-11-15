@@ -49,7 +49,7 @@ from jump.usage import Usage
 from price_monitor import (alpaca, binance, dukascopy, eex, marketwatch, sifting, sina,
                            tiingo, twelvedata, wallstreetcn, yahoo)
 from price_monitor.models import UNANSWERED_IN_A_ROW, ExchangeError, KeyRefused, Unreachable
-from price_monitor.notifier import quote, send_health
+from price_monitor.notifier import instruments, plural, quote, send_health
 
 log = logging.getLogger("jump.backfill")
 
@@ -124,67 +124,132 @@ def format_provider_failure(dark: list[tuple[str, str, str]],
     Said every run it happens: none of its instruments is fetched.
 
     The providers first and the instruments last, the long list of errors
-    last of all: a message cut to Telegram's limit loses only its tail."""
+    last of all: a message cut to Telegram's limit loses only its tail.
+
+    In Russian, and each part says what happened, what it means for the
+    channel and what to do, at length: only the user reads this chat (the
+    user's, 2026-11-15)."""
     lines = []
     for provider, (why, trip, skipped) in (keys or {}).items():
         name, env = PROVIDER_KEYS.get(provider, (provider, "its key"))
         if lines:
             lines.append("")
         if trip is None:
-            lines.append(f"⚠️ <b>{name}: {env} is not set</b>")
-            lines.append(f"Its {skipped} instrument(s) are not fetched; the other providers "
-                         "are. Said every run until it is set.")
+            lines.append(f"🚨 <b>{name}: не задан ключ {env}</b>")
+            lines.append(f"В секретах GitHub Actions нет ключа {env}, поэтому {name} не "
+                         f"запрашивается совсем, и все его инструменты ({skipped}) остаются "
+                         "без новых баров. Остальные источники работают как обычно.")
+            lines.append("Что это значит: по этим инструментам не приходят новые бары, и бот "
+                         "не заметит их движений, пока ключа нет.")
+            lines.append("Что делать: добавить ключ в репозитории: Settings → Secrets and "
+                         "variables → Actions. Сообщение повторяется каждый прогон, пока ключа нет.")
         else:
-            lines.append(f"⚠️ <b>{name} refused the key at {trip}</b>")
-            more = f"; {skipped} more {name} instrument(s) skipped" if skipped else ""
-            lines.append(f"{quote(why)}{more}. Asked again next run.")
+            lines.append(f"⚠️ <b>{name} не принял ключ (на {trip})</b>")
+            more = (f"; остальные инструменты {name} ({skipped}) в этот час пропущены"
+                    if skipped else "")
+            lines.append(f"Ответ {name}: {quote(why)}{more}.")
+            lines.append("Что это значит: ключ отозван, просрочен или неверен, а может быть, "
+                         f"это сбой на стороне {name}. Пока так, инструменты {name} не "
+                         "обновляются; следующий прогон спросит снова.")
+            lines.append("Что делать: если разово, ничего. Если повторяется несколько часов "
+                         f"подряд, проверить ключ в личном кабинете {name} и обновить секрет "
+                         f"{env} в Settings → Secrets and variables → Actions.")
     for name, gone, trip, left, skipped in (
             ("Tiingo", tiingo_gone, tiingo_trip,
-             f"remaining headroom {tiingo_remaining}" if tiingo_remaining is not None
-             else "remaining headroom not in the 429", tiingo_skipped),
+             f"по ответу Tiingo осталось: {tiingo_remaining}" if tiingo_remaining is not None
+             else "сколько осталось, Tiingo в ответе не сказал", tiingo_skipped),
             ("SiftingIO", sifting_gone, sifting_trip,
-             f"{sifting_remaining} left in its short window" if sifting_remaining is not None
-             else "what is left not in the 429", sifting_skipped)):
+             f"по ответу SiftingIO в его коротком окне осталось: {sifting_remaining}"
+             if sifting_remaining is not None
+             else "сколько осталось, SiftingIO в ответе не сказал", sifting_skipped)):
         if not gone:
             continue
         if lines:
             lines.append("")
-        at = f" at {trip}" if trip else ""
-        lines.append(f"⚠️ <b>{name} request budget spent{at}</b>")
-        more = f"; {skipped} more {name} instrument(s) skipped" if skipped else ""
-        lines.append(f"{left.capitalize()}{more}. Asked again next run.")
+        at = f" (на {trip})" if trip else ""
+        lines.append(f"⚠️ <b>{name}: исчерпан лимит запросов{at}</b>")
+        more = (f"; остальные инструменты {name} ({skipped}) в этот час пропущены"
+                if skipped else "")
+        lines.append(f"{name} ответил отказом 429 («слишком много запросов»): {left}{more}.")
+        lines.append(f"Что это значит: бесплатный тариф {name} даёт ограниченное число "
+                     "запросов, и сейчас оно израсходовано. Эти инструменты в этот час не "
+                     "обновились; их бары догрузятся в следующих прогонах, а движения, если "
+                     "они были, придут с опозданием.")
+        lines.append("Что делать: если разово, ничего: лимит восстановится сам. Если "
+                     "повторяется каждый час, значит, ключом пользуется кто-то ещё или бот "
+                     "стал спрашивать больше, чем рассчитано; тогда стоит разобраться.")
     for provider, (trip, skipped) in (silent or {}).items():
         if lines:
             lines.append("")
-        lines.append(f"⚠️ <b>{provider} did not answer</b>")
-        lines.append(f"{UNANSWERED_IN_A_ROW} instruments in a row timed out or got a server "
-                     f"error, the last {trip}; {skipped} remaining {provider} "
-                     "instrument(s) skipped. Asked again next run.")
+        lines.append(f"⚠️ <b>{provider} не отвечает</b>")
+        lines.append(f"{plural(UNANSWERED_IN_A_ROW, 'запрос', 'запроса', 'запросов')} подряд "
+                     "закончились тайм-аутом или "
+                     f"ошибкой сервера, последний на {trip}. Остальные инструменты {provider} "
+                     f"({skipped}) в этот час пропущены, чтобы не тратить время прогона на "
+                     "ожидание.")
+        lines.append("Что это значит: у этих инструментов в этот час нет новых баров. Если "
+                     "источник оживёт, следующий прогон догрузит пропущенное, и движения "
+                     "придут с опозданием. В проверке движений другими источниками "
+                     "(голосовании) он в этот час тоже не участвует.")
+        lines.append("Что делать: если разово, ничего: у источников бывают сбои. Если "
+                     "повторяется много часов подряд, источник мог сломаться или сменить "
+                     "адрес; тогда придёт и сообщение «Нет новых баров».")
     if stale:
         if lines:
             lines.append("")
-        lines.append(f"⚠️ <b>No new bar: {len(stale)} instrument(s)</b>")
+        lines.append(f"⚠️ <b>Нет новых баров: {instruments(len(stale))}</b>")
         for asset_id, provider, hours in stale[:20]:
-            refused = ", refused this run" if provider == "yahoo" and yahoo_gone else ""
-            lines.append(f"• {asset_id} ({provider}{refused}): {hours} session hours "
-                         "since its newest bar")
+            refused = ", в этот час Yahoo отказал по лимиту" if provider == "yahoo" and yahoo_gone \
+                else ""
+            lines.append(f"• {asset_id} ({provider}{refused}): {hours} ч торговли "
+                         "с последнего бара")
         if len(stale) > 20:
-            lines.append(f"• …and {len(stale) - 20} more")
-        lines.append("Named when it passes its limit, then once a day.")
+            lines.append(f"• …и ещё {len(stale) - 20}")
+        lines.append("Что это значит: источник отвечает, но новых баров по этим "
+                     "инструментам не даёт дольше, чем обычно (порог свой у каждого). Пока "
+                     "так, бот по ним слеп: движение не будет замечено, пока бары не пойдут "
+                     "снова. Сообщение приходит, когда порог пройден, потом раз в день.")
+        lines.append("Что делать: если тянется больше суток, источник, скорее всего, "
+                     "сломался или перестал отдавать этот тикер; нужна починка. Короткие "
+                     "задержки бывают у бирж и источников и проходят сами.")
     if vote:
         if lines:
             lines.append("")
-        lines.append("⚠️ <b>The vote</b>")
-        lines.extend(f"• {quote(note)}" for note in vote)
+        lines.append("🗳 <b>Голосование источников</b>")
+        lines.append("Перед отправкой крупного движения бот сверяет его с другими "
+                     "источниками того же инструмента. Если большинство его не видит, это, "
+                     "скорее всего, ошибка данных, и в канал оно не идёт.")
+        lines.extend(f"• {quote(note, 1000)}" for note in vote)
     if dark:
         if lines:
             lines.append("")
-        lines.append(f"⚠️ <b>Backfill: {len(dark)} instrument(s) went dark</b>")
+        lines.append(f"⚠️ <b>Загрузка баров: не обновились {instruments(len(dark))}</b>")
         for asset_id, provider, err in dark[:20]:
             lines.append(f"• {asset_id} ({provider}): {quote(err)}")
         if len(dark) > 20:
-            lines.append(f"• …and {len(dark) - 20} more")
+            lines.append(f"• …и ещё {len(dark) - 20}")
+        lines.append("Что это значит: в этот прогон источник вернул ошибку по этим "
+                     "инструментам, и новых баров по ним нет. У них остаются прежние бары, "
+                     "следующий прогон попробует снова.")
+        lines.append("Что делать: если разово, ничего. Если тот же инструмент попадает сюда "
+                     "много часов подряд, источник сломался для него; придёт и «Нет новых "
+                     "баров», и тогда нужна починка.")
     return "\n".join(lines)
+
+
+def dividend_behind(funds: "list[str]") -> str:
+    """The health chat's message on funds whose payouts went unconfirmed for
+    DIVIDEND_CHECK_STALE_DAYS or more (check_dividends, check_dividends_abroad)."""
+    return ("⚠️ <b>Отстаёт проверка дивидендов</b>\n"
+            f"Уже {DIVIDEND_CHECK_STALE_DAYS}+ дней нет подтверждённых данных о выплатах "
+            f"по: {quote(', '.join(funds))}.\n"
+            "Что это значит: в день выплаты дивиденда цена фонда открывается ниже на его "
+            "сумму, и это не движение рынка. Чтобы не принять такой разрыв за аномалию, бот "
+            "оценивает ночные разрывы (от закрытия до открытия) этих фондов только за дни, "
+            "по которым выплаты проверены. Пока проверка отстаёт, их ночные разрывы не "
+            "оцениваются; движения внутри торгового дня оцениваются как обычно.\n"
+            "Что делать: обычно догоняет само, когда источник выплат снова отвечает. Если "
+            "держится больше недели, нужно разбираться. Сообщение приходит раз в день.")
 
 
 def send_ops_alert(text: str) -> None:
@@ -564,16 +629,23 @@ def tables_running_out(basket: Basket, now: "datetime | None" = None) -> "str | 
     for name, last in _sessions.short_exchange_tables(now.date(), _sessions.ABROAD_WARN_DAYS):
         held = [a.shown_as for a in basket.instruments if a.session_template == name]
         if held:
-            parts.append(f"{name.replace('_', ' ').title()}'s "
-                         f"{'ended' if last < now.date() else 'ends'} {last} "
+            parts.append(f"• {name.replace('_', ' ').title()}: "
+                         f"{'закончилась' if last < now.date() else 'заканчивается'} {last} "
                          f"({quote(', '.join(held))})")
     if not parts:
         return None
-    return ("⚠️ <b>Session table running out</b>\n" + "; ".join(parts) + ". Neither the "
-            "calendar library nor the holidays package gave its next days: past a table's "
-            "end every weekday counts as trading, so its holidays read as missing bars. "
-            "Asked again each day; the hourly run's step \"Extend the session table\" "
-            "says why.")
+    return ("🚨 <b>Кончается таблица торговых сессий</b>\n" + "\n".join(parts) + "\n"
+            "Что случилось: бот знает расписание биржи (праздники, сокращённые дни) по "
+            "таблице сессий и сам продлевает её каждый день. Сейчас для этих бирж ни "
+            "библиотека exchange-calendars, ни пакет holidays не дали следующих дней.\n"
+            "Что это значит: после конца таблицы каждый будний день считается торговым. "
+            "В праздник бот будет ждать бары, которых нет, и сочтёт их пропавшими: возможны "
+            "ложные «Нет новых баров», а у инструментов этих бирж хуже работает поиск "
+            "движений.\n"
+            "Что делать: попытки продлить идут каждый день; почему не выходит, пишет шаг "
+            "«Extend the session table when it runs short» в логе прогона (вкладка Actions). "
+            "Если сообщение приходит несколько понедельников подряд, нужна починка: обновить "
+            "библиотеку или добавить дни вручную. Сообщение приходит по понедельникам.")
 
 
 # How far back the skip looks for the newest in-session bar: more than a
@@ -1568,7 +1640,15 @@ def record_usage(usage: Usage, now: "datetime | None" = None) -> None:
         log.warning("usage not recorded - %s", exc)
         return
     if notes:
-        send_ops_alert("⚠️ <b>Provider limits</b>\n" + "\n".join(f"• {quote(n)}" for n in notes))
+        send_ops_alert(
+            "⚠️ <b>Лимиты источников</b>\n" + "\n".join(f"• {quote(n)}" for n in notes) + "\n"
+            "Что это значит: расход запросов подошёл к лимиту бесплатного тарифа (80% за "
+            "день или месяц) или источник насчитал больше, чем бот. Если лимит кончится, "
+            "бары этого источника перестанут приходить до его обновления, и движения по его "
+            "инструментам не будут замечены.\n"
+            "Что делать: если разово, ничего. Если приходит каждый день, бот спрашивает "
+            "больше, чем рассчитано, или ключом пользуется кто-то ещё; тогда стоит "
+            "разобраться (лимиты: config/provider_limits.csv).")
 
 
 def _main(argv: "list[str] | None", usage: Usage) -> int:
@@ -2170,11 +2250,7 @@ def _main(argv: "list[str] | None", usage: Usage) -> int:
                          r["checked"], r["added"],
                          f", failed: {' '.join(r['failed'])}" if r["failed"] else "")
             if r.get("stale"):
-                send_ops_alert(
-                    "⚠️ <b>Dividend check behind</b>\n"
-                    f"No confirmed payout record for {DIVIDEND_CHECK_STALE_DAYS}+ days: "
-                    f"{', '.join(r['stale'])}. Their overnight gaps are unscored "
-                    "until it catches up.")
+                send_ops_alert(dividend_behind(r["stale"]))
         except Exception as exc:
             # Warned, not failed: the cost is gaps left unscored, which is what
             # the check exists to guarantee rather than a breakage.
@@ -2188,11 +2264,7 @@ def _main(argv: "list[str] | None", usage: Usage) -> int:
                          r["checked"], r["added"],
                          f", failed: {' '.join(r['failed'])}" if r["failed"] else "")
             if r.get("stale"):
-                send_ops_alert(
-                    "⚠️ <b>Dividend check behind</b>\n"
-                    f"No confirmed payout record for {DIVIDEND_CHECK_STALE_DAYS}+ days: "
-                    f"{', '.join(r['stale'])}. Their overnight gaps are unscored "
-                    "until it catches up.")
+                send_ops_alert(dividend_behind(r["stale"]))
         except Exception as exc:
             log.warning("dividend check abroad failed - %s", exc)
     # The tables abroad near their end, each Monday (jump.sessions).
@@ -2212,13 +2284,13 @@ def _main(argv: "list[str] | None", usage: Usage) -> int:
                               usage.session("votes"),
                               blocked=({"yahoo"} if yahoo_gone else set()) | set(silent))
             for name in (r or {}).get("stopped", []):
-                vote.append(f"{name} stopped for the run (a rate limit, or no answer twice "
-                            "in a row): an outage in the vote, left out of the count of the "
-                            "moves it is asked about until a later count")
+                vote.append(verify.stopped_line(name, (r or {}).get("stopped_why", {}).get(name)))
             for name in (r or {}).get("capped", []):
-                vote.append(f"{name} has spent the votes' share of its allowance "
-                            "(config/provider_limits.csv): an outage in the vote until "
-                            "the share renews")
+                vote.append(f"ℹ️ {verify.LABELS.get(name, name)} ({name}) израсходовал долю "
+                            "своего лимита, отведённую голосованию (config/provider_limits.csv), "
+                            "и до её обновления не голосует. Движения проверяются остальными "
+                            "источниками; если проверить некому, движение уходит в канал с "
+                            "пометкой ⚠️. Делать ничего не нужно: доля обновляется сама.")
             # A voter failing every time it is asked, for a day: named once a day.
             vote.extend(verify.failing_voters((r or {}).get("failed", []),
                                               (r or {}).get("answered", [])))
@@ -2226,8 +2298,9 @@ def _main(argv: "list[str] | None", usage: Usage) -> int:
             # Not a failed run: an unvoted move is scored, as every move never
             # voted is. Named, though.
             log.warning("the vote failed - %s", exc)
-            vote.append(f"the vote failed ({exc}): this hour's far moves are scored "
-                        "unvoted")
+            vote.append(f"⚠️ Голосование упало с ошибкой ({exc}): крупные движения этого "
+                        "часа уходят в канал без проверки другими источниками. Если разово, "
+                        "ничего; если повторяется, это ошибка в коде, нужна починка.")
 
     if not args.skip_vix:
         try:

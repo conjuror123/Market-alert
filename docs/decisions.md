@@ -186,6 +186,17 @@ another message; a second bot watching the channel, since that is one more secre
 updates are kept 24 hours; deleting every unknown id, since that would take the owner's
 own posts too.
 
+**The health chat speaks Russian, at length** (the user's, 2026-11-15). Only the user reads
+it, and the English one-liners took knowing the code: "alpaca_crypto stopped for the run (a
+rate limit, or no answer twice in a row): an outage in the vote, left out of the count…"
+(2026-11-15 00:06) did not say whether anything was wrong. Each part now says what happened,
+what it means for the channel and what to do, or that nothing needs doing; the title leads
+with the urgency (🚨 act, ⚠️ watch whether it repeats, ℹ️ and ✅ for information). A stopped
+voter says why (a rate limit, a refused key, silence), since what to do differs. The log and
+the code stay in English. The stage failures' words moved to `price_monitor/health.py`:
+`jumps.py` and `pipeline.py` are the detector's code, and rewording them would be a detector
+update.
+
 ---
 
 ## The basket

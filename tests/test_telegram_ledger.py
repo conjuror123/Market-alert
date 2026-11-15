@@ -79,7 +79,7 @@ def test_a_calendar_part_put_up_late_is_taken_off_what_is_still_to_send():
     state = {weekly_digest._PENDING_KEY: {"week": "1789000000", "remaining": list(parts)}}
     record = _calendar_record(state, parts[0])
     line = weekly_digest.adopt(cfg(), state, record, 140)
-    assert "taken in" in line
+    assert "взято под учёт" in line
     assert state[weekly_digest._PENDING_KEY]["remaining"] == parts[1:]
 
 
@@ -89,7 +89,7 @@ def test_a_calendar_sent_again_has_its_late_copy_deleted(monkeypatch):
                         lambda token, chat, message_id, **k: deleted.append(message_id) or True)
     state = {weekly_digest._STATE_KEY: "1789000000"}
     record = _calendar_record(state, "📅 <b>Economic calendar</b>")
-    assert "Deleted late duplicate 140" in weekly_digest.adopt(cfg(), state, record, 140)
+    assert "Удалён дубль 140" in weekly_digest.adopt(cfg(), state, record, 140)
     assert deleted == [140]
 
 
@@ -98,7 +98,7 @@ def test_a_calendar_whose_week_ended_unsent_keeps_its_late_copy(monkeypatch):
                         lambda *a, **k: pytest.fail("must not delete"))
     state = {}
     record = _calendar_record(state, "📅 <b>Economic calendar</b>")
-    assert "left as it is" in weekly_digest.adopt(cfg(), state, record, 140)
+    assert "оставлено как есть" in weekly_digest.adopt(cfg(), state, record, 140)
 
 
 def test_the_channel_is_never_read_through_itself(monkeypatch):

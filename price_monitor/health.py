@@ -63,3 +63,37 @@ def missed_runs(previous: int | None, now: int) -> int:
     if previous is None or now - previous <= MISSED_RUN_GAP_SECONDS:
         return 0
     return max(1, round((now - previous) / 3600) - 1)
+
+
+# What a stage's failure for some instruments means (jump.pipeline.tell_failures).
+STAGES = {
+    "metrics": ("Расчёт метрик",
+                "Что это значит: метрики — это обычный для инструмента размах движений, "
+                "с которым бот сравнивает каждое новое. У этих инструментов остались прежние "
+                "метрики, поэтому их новые бары будут оценены, как только расчёт снова "
+                "пройдёт; до тех пор их движения не ищутся. Остальные инструменты в порядке."),
+    "scoring": ("Поиск движений",
+                "Что это значит: у этих инструментов остались события прошлого прогона, как "
+                "были, а новые движения по ним не ищутся, пока ошибка не уйдёт. Остальные "
+                "инструменты в порядке."),
+}
+
+
+def stage_failed(stage: str, failures: "list[tuple[str, str]]") -> str:
+    """The health chat's message on the instruments one stage could not compute,
+    each with its error. In Russian and at length, as all of that chat is (the
+    user's, 2026-11-15)."""
+    from price_monitor.notifier import instruments, quote
+
+    title, means = STAGES.get(stage, (stage, ""))
+    lines = [f"⚠️ <b>{title}: не удалось для {instruments(len(failures))}</b>"]
+    lines += [f"• {asset_id}: {quote(error)}" for asset_id, error in failures[:20]]
+    if len(failures) > 20:
+        lines.append(f"• …и ещё {len(failures) - 20}")
+    if means:
+        lines.append(means)
+    lines.append("Что делать: если разово, ничего: следующий прогон попробует снова. Если "
+                 "тот же инструмент попадает сюда несколько часов подряд, это ошибка в коде "
+                 "или в данных этого инструмента; нужна починка. Сообщение приходит каждый "
+                 "прогон, пока ошибка есть.")
+    return "\n".join(lines)

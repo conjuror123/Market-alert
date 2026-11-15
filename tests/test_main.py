@@ -72,7 +72,7 @@ def test_the_health_alert_waits_for_the_configured_streak(tmp_path, monkeypatch,
     entry.main()
     assert _quiet == []                      # one failure is not yet news
     entry.main()
-    assert len(_quiet) == 1 and "failing for 2" in _quiet[0][1]
+    assert len(_quiet) == 1 and "с ошибкой: 2 раза подряд" in _quiet[0][1]
     assert _quiet[0][0] == "ops"
 
 
@@ -89,7 +89,7 @@ def test_recovery_is_announced_only_after_a_reported_outage(tmp_path, monkeypatc
     _quiet.clear()
     monkeypatch.setattr(entry.jump_delivery, "maybe_deliver", lambda cfg_, state: 0)
     assert entry.main() == 0
-    assert len(_quiet) == 1 and "recovered" in _quiet[0][1]
+    assert len(_quiet) == 1 and "Прогоны снова проходят чисто" in _quiet[0][1]
     assert _quiet[0][0] == "ops"
 
 
@@ -110,11 +110,11 @@ def test_the_streak_is_about_the_run_not_one_instrument(tmp_path, monkeypatch, _
             entry.main()
 
     runs(2, crashed=True)
-    assert len(_quiet) == 1 and "failing for 2" in _quiet[0][1]
+    assert len(_quiet) == 1 and "с ошибкой: 2 раза подряд" in _quiet[0][1]
     runs(3, crashed=False)
-    assert len(_quiet) == 2 and "recovered" in _quiet[1][1]
+    assert len(_quiet) == 2 and "Прогоны снова проходят чисто" in _quiet[1][1]
     runs(2, crashed=True)
-    assert len(_quiet) == 3 and "failing for 2" in _quiet[2][1]
+    assert len(_quiet) == 3 and "с ошибкой: 2 раза подряд" in _quiet[2][1]
 
 
 def test_a_corrupt_state_file_stops_the_run(tmp_path, monkeypatch, _quiet):
@@ -150,7 +150,7 @@ def test_a_pipeline_that_crashed_is_a_failure_and_alerts_after_the_streak(
     assert _quiet == []                          # the first failure waits for the streak
     assert entry.main() == 1
     assert len(_quiet) == 1 and _quiet[0][0] == "ops"
-    assert "events were not refreshed" in _quiet[0][1]
+    assert "события не обновлены" in _quiet[0][1]
 
 
 def test_a_step_stopped_part_way_says_where_and_after_how_long(
@@ -167,7 +167,7 @@ def test_a_step_stopped_part_way_says_where_and_after_how_long(
     monkeypatch.setenv("JUMP_STAGE_FILE", str(stages))
     entry.main()
     entry.main()
-    assert "stopped during pipeline, about 12 min into the step" in _quiet[0][1]
+    assert "остановился на этапе pipeline, примерно через 12 мин после начала" in _quiet[0][1]
 
 
 def test_a_malformed_stage_file_cannot_take_the_monitor_down(tmp_path, monkeypatch, _quiet):
@@ -181,12 +181,12 @@ def test_a_malformed_stage_file_cannot_take_the_monitor_down(tmp_path, monkeypat
     monkeypatch.setenv("JUMP_STAGE_FILE", str(stages))
     assert entry.main() == 1
     assert entry.main() == 1
-    assert "crashed: events were not refreshed" in _quiet[0][1]
+    assert "упал расчёт движений (Jump pipeline или детектор): события не обновлены" in _quiet[0][1]
 
 
 @pytest.mark.parametrize("env, words", [
-    ("SESSIONS_STEP_OUTCOME", "session tables could not be extended"),
-    ("HOT_SAVE_STEP_OUTCOME", "open months of the bars were not saved"),
+    ("SESSIONS_STEP_OUTCOME", "не удалось продлить таблицы торговых сессий"),
+    ("HOT_SAVE_STEP_OUTCOME", "открытые месяцы баров не сохранились в релиз"),
 ])
 def test_a_side_step_that_failed_counts_as_a_failed_run(tmp_path, monkeypatch, _quiet,
                                                        env, words):
@@ -218,9 +218,9 @@ def test_hours_without_a_run_are_named_by_the_next_run(tmp_path, monkeypatch, _q
                                     "last_run_utc": int(time.time()) - 5 * 3600}}
     entry.save_state(str(tmp_path / "state.json"), state)
     assert entry.main() == 0
-    assert len(_quiet) == 1 and "4 hourly run(s) missing" in _quiet[0][1]
+    assert len(_quiet) == 1 and "не было 4 часовых прогонов" in _quiet[0][1]
     # Not "reached no one": what was found in the gap's last 24 hours still goes.
-    assert "last 24 hours go out now, late" in _quiet[0][1]
+    assert "моложе суток, уходят в канал сейчас, с опозданием" in _quiet[0][1]
     # The next run, an hour on, has nothing to say.
     assert entry.main() == 0
     assert len(_quiet) == 1
@@ -247,6 +247,6 @@ def test_the_first_run_ever_names_no_gap(tmp_path, monkeypatch, _quiet):
 
 def test_the_down_alert_quotes_its_errors_and_fits():
     from price_monitor import notifier
-    text = entry.format_health_down(3, ["Jump delivery failed (<html>" + "x" * 900 + ")"] * 10)
+    text = entry.format_health_down(3, ["сбой отправки. Ошибка: <html>" + "x" * 900] * 10)
     assert "<html>" not in text
     assert len(text) <= notifier.TELEGRAM_LIMIT
