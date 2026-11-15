@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1794704753
+    "last_run_utc": 1794708357
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -24,7 +24,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794686400",
           "ping_at": 1794690376,
           "placed_at": 1794690376,
-          "seen": 1794704754,
+          "seen": 1794708358,
           "shown": [
             "noticeable",
             5.6,
@@ -52,7 +52,7 @@
       },
       "note": {
         "hashes": [
-          "b16738e3a843f8ab"
+          "61705298608b70a4"
         ],
         "ids": [
           172
@@ -72,7 +72,7 @@
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1794704754
+    "saved_at": 1794708358
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-15",
