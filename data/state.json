@@ -1,37 +1,76 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1794708357
+    "last_run_utc": 1794711971
   },
   "floor_pending_replies": [],
   "jump_delivery": {
     "week": {
       "detector": "50c4d633ab0f",
       "events": {
+        "binance:BTC/USDT|1794711600": {
+          "asset": "binance:BTC/USDT",
+          "body": "\ud83d\udfe7 <b>BTC/USDT</b> \u00b7 Bitcoin +3.57% \u00b7 9.2\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 months (then 9.1\u00d7\u03c3)\n\ud83d\udd50 <b>15.11.2026 02:00 UTC</b> \u00b7 next close in 42h",
+          "context": "",
+          "form": "push",
+          "hour": 1794708000,
+          "members": {
+            "jump:binance:BTC/USDT:hour:1794708000": [
+              0.035683064305015506,
+              0.0038842574049017674
+            ]
+          },
+          "message": 174,
+          "peak": "jump:binance:BTC/USDT:hour:1794708000",
+          "ping_at": 1794711972,
+          "placed_at": 1794711972,
+          "seen": 1794711972,
+          "shown": [
+            "major",
+            9.2,
+            1794708000,
+            3.57
+          ],
+          "size": 9.186585899272535,
+          "start": 1794711600,
+          "story": [
+            [
+              "major",
+              9.2,
+              1794708000,
+              ""
+            ]
+          ],
+          "tier": "major"
+        },
         "binance:ETH/USDT|1794690000": {
           "asset": "binance:ETH/USDT",
-          "body": "\u2b1c <b>ETH/USDT</b> \u00b7 Ethereum -2.83% \u00b7 5.6\u00d7\u03c3",
+          "body": "\ud83d\udfe7 <b>ETH/USDT</b> \u00b7 Ethereum +4.78% \u00b7 9.4\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 months (then 9.2\u00d7\u03c3)\n\ud83d\udd50 <b>15.11.2026 02:00 UTC</b> \u00b7 next close in 42h\n\u270f\ufe0f \u2b1c 5.6\u00d7\u03c3 14.11 20:00 \u2192 \ud83d\udfe7 9.4\u00d7\u03c3 02:00 bigger jump",
           "context": "",
-          "form": "row",
-          "hour": 1794686400,
+          "form": "push",
+          "hour": 1794708000,
           "members": {
             "jump:binance:ETH/USDT:hour:1794686400": [
               -0.028347606375357968,
               0.005041110690741348
+            ],
+            "jump:binance:ETH/USDT:hour:1794708000": [
+              0.04780984763948726,
+              0.005069504519242402
             ]
           },
-          "message": 173,
-          "peak": "jump:binance:ETH/USDT:hour:1794686400",
+          "message": 174,
+          "peak": "jump:binance:ETH/USDT:hour:1794708000",
           "ping_at": 1794690376,
-          "placed_at": 1794690376,
-          "seen": 1794708358,
+          "placed_at": 1794711972,
+          "seen": 1794711972,
           "shown": [
-            "noticeable",
-            5.6,
-            1794686400,
-            -2.83
+            "major",
+            9.4,
+            1794708000,
+            4.78
           ],
-          "size": 5.623285842031204,
+          "size": 9.430871884621983,
           "start": 1794690000,
           "story": [
             [
@@ -39,20 +78,96 @@
               5.6,
               1794686400,
               ""
+            ],
+            [
+              "major",
+              9.4,
+              1794708000,
+              "bigger jump"
             ]
           ],
-          "tier": "noticeable"
+          "tier": "major"
+        },
+        "binance:SOL/USDT|1794711600": {
+          "asset": "binance:SOL/USDT",
+          "body": "\ud83d\udfe8 <b>SOL/USDT</b> \u00b7 Solana +5.00% \u00b7 8.4\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 19 months (then 9.4\u00d7\u03c3)\n\ud83d\udd50 <b>15.11.2026 02:00 UTC</b> \u00b7 next close in 42h",
+          "context": "",
+          "form": "push",
+          "hour": 1794708000,
+          "members": {
+            "jump:binance:SOL/USDT:hour:1794708000": [
+              0.050010420574661416,
+              0.005935361862205149
+            ]
+          },
+          "message": 174,
+          "peak": "jump:binance:SOL/USDT:hour:1794708000",
+          "ping_at": 1794711972,
+          "placed_at": 1794711972,
+          "seen": 1794711972,
+          "shown": [
+            "high",
+            8.4,
+            1794708000,
+            5.0
+          ],
+          "size": 8.42584188389841,
+          "start": 1794711600,
+          "story": [
+            [
+              "high",
+              8.4,
+              1794708000,
+              ""
+            ]
+          ],
+          "tier": "high"
+        },
+        "binance:XRP/USDT|1794711600": {
+          "asset": "binance:XRP/USDT",
+          "body": "\ud83d\udfe8 <b>XRP/USDT</b> \u00b7 XRP +5.02% \u00b7 8.0\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 months (then 11.2\u00d7\u03c3)\n\ud83d\udd50 <b>15.11.2026 02:00 UTC</b> \u00b7 next close in 42h",
+          "context": "",
+          "form": "push",
+          "hour": 1794708000,
+          "members": {
+            "jump:binance:XRP/USDT:hour:1794708000": [
+              0.05019051527270325,
+              0.006245750006651987
+            ]
+          },
+          "message": 174,
+          "peak": "jump:binance:XRP/USDT:hour:1794708000",
+          "ping_at": 1794711972,
+          "placed_at": 1794711972,
+          "seen": 1794711972,
+          "shown": [
+            "high",
+            8.0,
+            1794708000,
+            5.02
+          ],
+          "size": 8.03594687895741,
+          "start": 1794711600,
+          "story": [
+            [
+              "high",
+              8.0,
+              1794708000,
+              ""
+            ]
+          ],
+          "tier": "high"
         }
       },
       "messages": {
-        "173": {
-          "first": "\u2b1c <b>ETH/USDT</b> \u00b7 Ethereum -2.83% \u00b7 5.6\u00d7\u03c3",
-          "hash": "bb273433747f4fcf"
+        "174": {
+          "first": "\ud83d\udfe7 <b>ETH/USDT</b> \u00b7 Ethereum +4.78% \u00b7 9.4\u00d7\u03c3",
+          "hash": "f815fdad6ab5c083"
         }
       },
       "note": {
         "hashes": [
-          "61705298608b70a4"
+          "ee183a0b4b069079"
         ],
         "ids": [
           172
@@ -67,12 +182,13 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      173
+      173,
+      174
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1794708358
+    "saved_at": 1794711972
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-15",
