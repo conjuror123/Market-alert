@@ -1,12 +1,12 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1794701219
+    "last_run_utc": 1794704753
   },
   "floor_pending_replies": [],
   "jump_delivery": {
     "week": {
-      "detector": "a1ed8cf20afe",
+      "detector": "50c4d633ab0f",
       "events": {
         "binance:ETH/USDT|1794690000": {
           "asset": "binance:ETH/USDT",
@@ -24,7 +24,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794686400",
           "ping_at": 1794690376,
           "placed_at": 1794690376,
-          "seen": 1794701220,
+          "seen": 1794704754,
           "shown": [
             "noticeable",
             5.6,
@@ -52,7 +52,7 @@
       },
       "note": {
         "hashes": [
-          "06351eb6fa36fe51"
+          "b16738e3a843f8ab"
         ],
         "ids": [
           172
@@ -61,7 +61,7 @@
       "orphans": [],
       "since": 1794603900,
       "slot": 1794603900,
-      "updated": 1794690370
+      "updated": 1794701154
     }
   },
   "telegram_ledger": {
@@ -72,7 +72,7 @@
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1794701220
+    "saved_at": 1794704754
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-15",
