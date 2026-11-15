@@ -284,6 +284,20 @@ def forward_telegram_message(bot_token: str, from_chat: str, message_id: int,
 TELEGRAM_LIMIT = 4096
 
 
+def plural(n: int, one: str, few: str, many: str) -> str:
+    """`n` with the Russian form of its noun: 1 инструмент, 3 инструмента,
+    5 инструментов, 21 инструмент. The health chat is in Russian (the user's,
+    2026-11-15)."""
+    tail, tens = abs(n) % 10, abs(n) % 100
+    word = (one if tail == 1 and tens != 11 else
+            few if 2 <= tail <= 4 and not 12 <= tens <= 14 else many)
+    return f"{n} {word}"
+
+
+def instruments(n: int) -> str:
+    return plural(n, "инструмент", "инструмента", "инструментов")
+
+
 def quote(text: str, limit: int = 300) -> str:
     """Outside text, as text: secrets out, HTML escaped, at most `limit` long."""
     text = redact_secrets(str(text))
@@ -305,7 +319,9 @@ def send_health(text: str, token: "str | None" = None, chat: "str | None" = None
     lines = text.splitlines()
 
     def first(n: int) -> str:
-        tail = [f"…and {len(lines) - n} more lines"] if n < len(lines) else []
+        tail = ([f"…и ещё {plural(len(lines) - n, 'строка', 'строки', 'строк')}: "
+                 "сообщение длиннее, чем позволяет Telegram, остальное в логе прогона"]
+                if n < len(lines) else [])
         return "\n".join(lines[:n] + tail)
 
     kept = len(lines)

@@ -184,8 +184,9 @@ def note_unsure(kind: str, text: str, **meta) -> "dict | None":
     record = {"kind": kind, "hash": sent_hash(text), "first": first[:80],
               "at": _bound["now"], "after": max(led["known"], default=0), **meta}
     led["pending"].append(record)
-    _news.append(f"Telegram did not answer for \"{first[:60]}\": it may still appear; "
-                 "the next runs look for it")
+    _news.append(f"Telegram не ответил на отправку «{first[:60]}»: сообщение могло всё-таки "
+                 "дойти. Следующие прогоны поищут его в канале и, если найдут, возьмут под "
+                 "учёт, а не отправят второй раз. Делать ничего не нужно.")
     log.warning("Telegram did not answer for %r: written down to be looked for", first[:60])
     return record
 
@@ -207,8 +208,10 @@ def claim(text: str) -> "int | None":
         if stray["first"] == first:
             _strays.remove(stray)
             saw(stray["id"])
-            _news.append(f"Took over {stray['id']} (\"{stray['first'][:60]}\"), left by a run "
-                         "whose state was not saved: not sent again")
+            _news.append(f"Сообщение {stray['id']} («{stray['first'][:60]}») осталось в "
+                         "канале от прогона, чьё состояние не сохранилось. Бот взял его "
+                         "под учёт и дальше правит его, а не отправил такое же второй раз. "
+                         "Делать ничего не нужно.")
             log.info("Message %s, left by a run whose state was not saved, taken over",
                      stray["id"])
             return int(stray["id"])
@@ -248,8 +251,11 @@ def settle_strays(cfg) -> "list[str]":
                     continue                     # read again by the next run
         _strays.remove(stray)
         led["checked"].append(int(stray["id"]))
-        lines.append(f"{'Deleted' if gone else 'Struck through'} {stray['id']} "
-                     f"(\"{stray['first'][:60]}\"), left by a run whose state was not saved")
+        lines.append(f"{'Удалено' if gone else 'Зачёркнуто'} сообщение {stray['id']} "
+                     f"(«{stray['first'][:60]}»): его оставил в канале прогон, чьё состояние "
+                     "не сохранилось, и оно больше не нужно"
+                     + ("" if gone else " (удалить нельзя: Telegram даёт боту удалять "
+                        "только сообщения моложе 48 часов)") + ". Делать ничего не нужно.")
     if not _strays:
         led["saved_at"] = _bound["now"]
     return lines
@@ -317,9 +323,12 @@ def _self_check(cfg, state: dict, led: dict) -> None:
             return
         if got["state"] == "unforwardable":
             led["read_ok"], led["read_checked_at"] = False, _bound["now"]
-            _news.append("The channel's messages cannot be forwarded (content protection?): "
-                         "a message Telegram does not answer for will be named here, for a "
-                         "hand to check, instead of being found by the bot")
+            _news.append("Бот не может переслать себе сообщение канала, чтобы прочитать "
+                         "его: похоже, в канале включена защита контента (запрет копирования "
+                         "и пересылки). Из-за этого бот не сможет сам найти сообщение, на "
+                         "отправку которого Telegram не ответил: такие будут названы здесь, "
+                         "чтобы проверить руками. Что делать: чтобы бот справлялся сам, "
+                         "выключить защиту контента в настройках канала.")
             return
 
 
@@ -379,9 +388,11 @@ def reconcile(cfg, state: dict, now: "datetime | None" = None) -> "list[str]":
             for record in led["pending"]:
                 if not record.get("told"):
                     record["told"] = True
-                    lines.append(f"Telegram did not answer for \"{record['first'][:60]}\" "
-                                 f"({_when(record['at'])}): if it appears after message "
-                                 f"{record['after']}, it may be a duplicate to delete by hand")
+                    lines.append(f"Telegram не ответил на отправку «{record['first'][:60]}» "
+                                 f"({_when(record['at'])}), а читать канал бот не может. Что "
+                                 "делать: посмотреть канал; если такое сообщение появилось "
+                                 f"после сообщения {record['after']} дважды, лишнее — дубль, "
+                                 "его нужно удалить вручную.")
         _prune(led)
         return lines
 

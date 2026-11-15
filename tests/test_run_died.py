@@ -16,7 +16,7 @@ SCRIPT = os.path.join(ROOT, "tools", "run_died.sh")
 WORKFLOW = os.path.join(ROOT, ".github", "workflows", "price-monitor.yml")
 
 CURL = """#!/usr/bin/env bash
-printf '%s\\n' "$@" >> "$CURL_LOG"
+printf '%s\\0' "$@" >> "$CURL_LOG"
 echo 200
 """
 
@@ -64,8 +64,9 @@ def run(tmp_path):
                    CURL_LOG=str(log))
         out = subprocess.run(["bash", SCRIPT], cwd=repo, env=env, capture_output=True,
                              text=True)
-        sent = [line[len("text="):] for line in log.read_text().splitlines()
-                if line.startswith("text=")] if log.exists() else []
+        # NUL-separated: the message runs over several lines.
+        sent = [arg[len("text="):] for arg in log.read_text().split("\0")
+                if arg.startswith("text=")] if log.exists() else []
         log.unlink(missing_ok=True)
         return out, sent
     return go
@@ -75,20 +76,21 @@ def test_a_run_stopped_before_the_monitor_names_the_step(run):
     out, sent = run(DEAD, hours_ago=1)
     assert out.returncode == 0
     assert len(sent) == 1
-    assert 'stopped at "Restore the open months of the bars"' in sent[0]
+    assert "упал на шаге «Restore the open months of the bars»" in sent[0]
+    assert "Что делать:" in sent[0] and sent[0].endswith("/actions/runs/9")
     assert "SECRET" not in out.stdout + out.stderr
 
 
 def test_a_step_allowed_to_fail_is_not_blamed(run):
     _, sent = run(_steps(sessions="failure", hot="failure", monitor="skipped",
                          commit="skipped"), hours_ago=1)
-    assert 'stopped at "Restore the open months of the bars"' in sent[0]
+    assert "упал на шаге «Restore the open months of the bars»" in sent[0]
 
 
 @pytest.mark.parametrize("commit", ["failure", "cancelled"])
 def test_a_state_that_was_not_committed_is_reported(run, commit):
     _, sent = run(_steps(monitor="success", commit=commit), hours_ago=1)
-    assert len(sent) == 1 and "could not commit its state" in sent[0]
+    assert len(sent) == 1 and "не смог сохранить своё состояние" in sent[0]
 
 
 def test_a_committed_run_sends_nothing(run):
@@ -102,7 +104,7 @@ def test_an_outage_is_reported_at_its_first_hour_then_daily(run):
     # it reported - hourly from the second day.
     sent = {h: run(DEAD, hours_ago=h)[1] for h in (1, 2, 24, 25, 26, 49, 73)}
     assert {h for h, s in sent.items() if s} == {1, 25, 49, 73}
-    assert "(25 h since the last run that delivered.)" in sent[25][0]
+    assert "Последний прогон, который сохранил своё состояние, был 25 ч назад." in sent[25][0]
 
 
 def test_with_no_record_it_reports(run):

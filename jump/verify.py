@@ -107,6 +107,7 @@ import requests
 from price_monitor import (alpaca, coinbase, eex, ft, kraken, marketwatch, sina, tencent,
                            wallstreetcn)
 from price_monitor.models import UNANSWERED_IN_A_ROW, Unreachable
+from price_monitor.notifier import plural
 from jump import atomic, bars, sessions
 from jump.basket import Asset
 
@@ -1061,6 +1062,7 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
              alpaca.RateLimited, twelvedata.DailyQuotaExhausted, KeyRefused)
     counts = {REAL: 0, UNCERTAIN: 0, NOT_REAL: 0, OVERNIGHT: 0}
     unanswered: dict[str, int] = {}
+    why: dict[str, str] = {}                     # a stopped source: limit, key or silent
     requests_left = MAX_REQUESTS
     room = vote_room(now_dt)
     capped: set[str] = set()
@@ -1108,6 +1110,7 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
                 asked.append((name, None))
                 if isinstance(exc, stops) or "answered 429" in str(exc):
                     blocked.add(name)
+                    why.setdefault(name, "key" if isinstance(exc, KeyRefused) else "limit")
                     continue
                 failed.append((name, asset.ticker, str(exc)[:160]))
                 if isinstance(exc, Unreachable):
@@ -1116,6 +1119,7 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
                         log.warning("verify: %s did not answer %d requests in a row; "
                                     "not asked again this run", name, unanswered[name])
                         blocked.add(name)
+                        why.setdefault(name, "silent")
                 else:
                     unanswered.pop(name, None)              # it answered
         for c, (verdict, stored, names, moves, seen) in judge_found(
@@ -1140,8 +1144,47 @@ def verify(instruments, bars_dir: str, table, session=None, now: "datetime | Non
     log.info("verify: %s", ", ".join(f"{k} {n}" for k, n in counts.items()))
     # The sources stopped during this pass, by a rate limit or silence; the
     # providers past the votes' share of their allowance.
-    return dict(counts, not_real_moves=doubted, stopped=sorted(blocked - told),
+    stopped = sorted(blocked - told)
+    return dict(counts, not_real_moves=doubted, stopped=stopped,
+                stopped_why={n: why[n] for n in stopped if n in why},
                 capped=sorted(capped), failed=failed, answered=sorted(answered))
+
+
+# Why a source left the vote for the run, as the health chat says it.
+STOPPED_WHY = {
+    "limit": "получил отказ по лимиту запросов (429)",
+    "key": "не принял ключ",
+    "silent": f"{plural(UNANSWERED_IN_A_ROW, 'раз', 'раза', 'раз')} подряд не ответил",
+}
+
+
+STOPPED_ADVICE = {
+    # A rate limit is a stop, not a failure: failing_voters never counts it.
+    "limit": "Что делать: если разово, ничего. Если так каждый час много часов подряд, "
+             "лимит тратит кто-то ещё или бот спрашивает слишком много; стоит разобраться.",
+    "key": "Что делать: если повторяется, проверить ключ этого источника в Settings → "
+           "Secrets and variables → Actions.",
+    "silent": "Что делать: ничего; если источник будет отказывать каждый раз целые сутки, "
+              "придёт отдельная строка об этом.",
+}
+
+
+def stopped_line(name: str, why: "str | None") -> str:
+    """The health chat's line on a source stopped for this run's vote."""
+    reason = STOPPED_WHY.get(why or "", "получил отказ по лимиту или дважды не ответил")
+    # 2026-11-15 00:06: a 429 after 10 of the run's requests, Alpaca's own count
+    # of what was left 0 of 200 (data/jump/usage/hourly.csv): the key-free coin
+    # bars are limited per address, and a runner's address is shared.
+    shared = (" Бары монет Alpaca отдаёт без ключа, и лимит, судя по всему, общий на "
+              "адрес сервера GitHub, где идёт прогон: его тратят и чужие программы на том "
+              "же сервере, поэтому отказ бывает, даже когда бот спросил немного."
+              if name == "alpaca_crypto" and why == "limit" else "")
+    return (f"ℹ️ {LABELS.get(name, name)} ({name}) {reason} и до конца этого прогона "
+            "выбыл из голосования." + shared + " Движения, которые он должен был "
+            "проверить, проверены остальными источниками, а его голос записан как «нет "
+            "данных»; при следующем пересчёте этих движений его спросят снова. Если "
+            "проверить больше некому, движение уходит в канал с пометкой ⚠️. "
+            + STOPPED_ADVICE.get(why or "", STOPPED_ADVICE["limit"]))
 
 
 def failing_voters(failed: "list[tuple[str, str, str]]", answered,
@@ -1193,9 +1236,14 @@ def failing_voters(failed: "list[tuple[str, str, str]]", answered,
     for name, failing in due.items():
         since = min(int(r["since_utc"]) for r in failing)
         what = ", ".join(r["ticker"] for r in failing)
-        lines.append(f"{LABELS.get(name, name)} has failed every time it was asked since "
-                     f"{day(since)} UTC, on {what} ({failing[-1]['error']}): an outage in "
-                     "those votes until it answers")
+        lines.append(f"⚠️ {LABELS.get(name, name)} ({name}) отказывает каждый раз, когда "
+                     f"его спрашивают, начиная с {day(since)} UTC: по {what} (ошибка: "
+                     f"{failing[-1]['error']}). Это не лимит запросов, а ошибка, которая сама "
+                     "не проходит. Пока так, его голос по этим инструментам не учитывается: "
+                     "движения проверяются остальными источниками, а если проверить некому, "
+                     "уходят в канал с пометкой ⚠️. Что делать: если тянется дольше пары "
+                     "дней, источник, вероятно, сменил формат или адрес; нужна починка. "
+                     "Строка повторяется раз в день, пока он не ответит.")
     return lines
 
 

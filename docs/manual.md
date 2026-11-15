@@ -325,7 +325,10 @@ not a move.
 **The vote** (`combine`, `judge_all`). The store's provider is one vote that saw it; each
 other source that answers is one vote; an outage is left out of the count and named on the
 line. Every source of an instrument is asked or none that run. A rate limit, or two
-requests in a row unanswered, stops a source for the run, and the health chat names it. A
+requests in a row unanswered, stops a source for the run, and the health chat names it,
+with why (`stopped_why`: a rate limit, a refused key, or silence; Alpaca's key-free coin bars
+are limited per address, and a GitHub runner's address is shared, so a 429 can follow a
+handful of the run's own requests: 2026-11-15 00:06, 10 asked, 0 of 200 left). A
 source that has failed every time it was asked for 24 hours (any error but a rate limit:
 a 400, a page that changed) is named on the health chat once a day, with its instruments
 and its last error, until it answers (`verify.failing_voters`, `voter_failures.csv`).
@@ -689,8 +692,8 @@ PAT and the branch as `ref`). GitHub's `schedule:` is not used: it fires unrelia
 starts says nothing. `.github/workflows/watchdog.yml`, on GitHub's own schedule (Mondays,
 set for 10:41 UTC and run late - the first, 2026-11-09, at 21:03; it does not depend on
 cron-job.org), reads the last committed run's time from
-`data/state.json` and, if it is more than 3 hours old, tells the health chat "The hourly
-run has stopped" (`price_monitor/watchdog.py`). A health chat it cannot reach turns its job
+`data/state.json` and, if it is more than 3 hours old, tells the health chat «Часовой
+прогон остановился» (`price_monitor/watchdog.py`). A health chat it cannot reach turns its job
 red, which GitHub e-mails. It can be run by hand from the Actions tab.
 
 **Cost.** A run takes about 2–3 minutes of its 20 (2026-10-13, the first runs on 62
@@ -711,34 +714,39 @@ instruments: the Jump step 64 s with every metric rebuilt, 42 s extended).
 **Health, in the order of the hourly run.** Everything below goes to the health chat
 (`TELEGRAM_HEALTH_CHAT_ID`), never the channel. "Streak" means a failed run: the down
 alert comes on the 3rd in a row (`health_alert_after_failures`) and again every 24
-(`health_reminder_every_failures`), and "recovered" when they stop. One function sends all
+(`health_reminder_every_failures`), and «Прогоны снова проходят чисто» when they stop.
+Every message is in Russian, and each part of one says what happened, what it means for the
+channel and what to do (or that nothing needs doing), at length: only the user reads this
+chat (the user's, 2026-11-15). The urgency leads the title: 🚨 act, ⚠️ watch whether it
+repeats, ℹ️ and ✅ for information; the vote's lines carry their own. The log stays in
+English. One function sends all
 of it (`notifier.send_health`): every quoted error is escaped and stripped of keys
 (`notifier.quote`: a bot token, `apikey=` and `api_key=` values, an Authorization header), and a
-message past Telegram's 4,096 characters is cut between lines, ending "…and N more lines".
+message past Telegram's 4,096 characters is cut between lines, ending «…и ещё N строк».
 
 | where | what goes wrong | what tells you | how often |
 |---|---|---|---|
 | trigger | no run starts | cron-job.org, if its call failed; the first run after a gap of over 90 minutes names the hours (`health.missed_runs`) | once, when runs resume |
 | checkout, setup, the open months' restore | the run stops before delivery: nothing sent or counted | the last step, with the step's name (`tools/run_died.sh`) | 1 h after the last run that delivered, then every 24 h |
 | session table extension | a table is not extended (the NYSE's under two years left, or one abroad under 60 days) | streak, named | while it fails |
-| a table abroad within 30 days of its end, or past it (neither the library nor the holidays package has its next days) | past its end its weekdays count as trading: its holidays read as missing bars | "Session table running out", naming the table and its instruments | Mondays, 00:00 UTC |
-| the hourly run stopped: no run committed for 3 hours (cron-job.org's job off, its token expired) | nothing is delivered, and no other health line is sent | "The hourly run has stopped", from the watchdog | Mondays |
-| fetch: a provider's key is missing or refused | that provider's instruments are not fetched; the others are | "X is not set" / "refused the key" | every run it happens |
-| fetch: a provider fails, or Tiingo's or SiftingIO's budget is spent | its instruments keep their stored bars | "went dark" / "request budget spent" | every run it happens |
-| fetch: Yahoo refuses (429) | its instruments wait for the next run | the stale line, "refused this run", once one is behind past its limit | past its limit, then daily |
-| fetch: a provider does not answer twice in a row | stopped for the run, left out of the dividend check, and an outage in the vote | "did not answer" message | every run it happens |
-| fetch: answered, but no new bar | the instrument goes stale (`stale_hours`) | "no new bar" | past its limit, then daily |
-| dividend check | a fund's payouts unconfirmed 5+ days: its overnight gaps go unscored | "Dividend check behind" | daily |
-| the vote | a source stopped for the run: an outage, left out of the count of the moves it is asked about (uncertain where none is left), until a later count; the pass crashed: the hour's moves are scored unvoted | "The vote" lines | every run it happens |
-| the vote: a source failing every time it is asked, 24 hours on (an error, not a rate limit) | an outage in those votes until it answers | "… has failed every time it was asked since …", under "The vote" | once a day per source |
-| VIX | both sources failed | "went dark" | every run it happens |
-| pipeline or jumps, one instrument (an error, or no metrics file) | that instrument keeps its stored metrics, or its events from the last run, so delivery never reads them as gone; the others are current | "Metrics failed" / "Scoring failed for N instrument(s)", each with its error | every run it happens |
+| a table abroad within 30 days of its end, or past it (neither the library nor the holidays package has its next days) | past its end its weekdays count as trading: its holidays read as missing bars | «Кончается таблица торговых сессий», naming the table and its instruments | Mondays, 00:00 UTC |
+| the hourly run stopped: no run committed for 3 hours (cron-job.org's job off, its token expired) | nothing is delivered, and no other health line is sent | «Часовой прогон остановился», from the watchdog | Mondays |
+| fetch: a provider's key is missing or refused | that provider's instruments are not fetched; the others are | «X: не задан ключ» / «X не принял ключ» | every run it happens |
+| fetch: a provider fails, or Tiingo's or SiftingIO's budget is spent | its instruments keep their stored bars | «Загрузка баров: не обновились» / «исчерпан лимит запросов» | every run it happens |
+| fetch: Yahoo refuses (429) | its instruments wait for the next run | the stale line, «в этот час Yahoo отказал по лимиту», once one is behind past its limit | past its limit, then daily |
+| fetch: a provider does not answer twice in a row | stopped for the run, left out of the dividend check, and an outage in the vote | «X не отвечает» | every run it happens |
+| fetch: answered, but no new bar | the instrument goes stale (`stale_hours`) | «Нет новых баров» | past its limit, then daily |
+| dividend check | a fund's payouts unconfirmed 5+ days: its overnight gaps go unscored | «Отстаёт проверка дивидендов» | daily |
+| the vote | a source stopped for the run: an outage, left out of the count of the moves it is asked about (uncertain where none is left), until a later count; the pass crashed: the hour's moves are scored unvoted | «Голосование источников», a line per source with why it stopped | every run it happens |
+| the vote: a source failing every time it is asked, 24 hours on (an error, not a rate limit) | an outage in those votes until it answers | «… отказывает каждый раз, когда его спрашивают, начиная с …», under «Голосование источников» | once a day per source |
+| VIX | both sources failed | «Загрузка баров: не обновились» | every run it happens |
+| pipeline or jumps, one instrument (an error, or no metrics file) | that instrument keeps its stored metrics, or its events from the last run, so delivery never reads them as gone; the others are current | «Расчёт метрик: не удалось» / «Поиск движений: не удалось для N инструментов», each with its error (the words in `price_monitor/health.py`, outside the detector's code) | every run it happens |
 | pipeline, jumps (every instrument), or the step's 12 minutes | no new events | streak, named with the part it stopped in and its minutes | while it fails |
 | open months' save (refused, too, with no open months on disk: an empty archive would replace the good one; an upload GitHub answers with an error but holds whole, by its sha256, is a save) | the next run restores an older copy and fetches the difference | streak, named | while it fails |
 | delivery, calendar, digest | an exception in the monitor | streak, with the error | while it fails |
 | state commit | what the run counted is lost; what it sent is taken over, or deleted when sent again, by the next run (section 8) | the last step (`tools/run_died.sh`) | 1 h after the last run that delivered, then every 24 h |
 | Telegram itself | the token revoked or Telegram down | nothing can reach the chat; the job goes red | — |
-| Telegram leaves a send unanswered | it may appear late (section 8) | "📨 Telegram": the send that may arrive late, then what became of it (taken in, or a late duplicate deleted) | when it happens |
+| Telegram leaves a send unanswered | it may appear late (section 8) | «📨 Telegram»: the send that may arrive late, then what became of it (taken in, or a late duplicate deleted) | when it happens |
 
 Not a health matter: a delete Telegram refuses is struck through instead.
 

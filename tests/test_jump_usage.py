@@ -238,7 +238,7 @@ def test_a_day_past_four_fifths_of_its_limit_is_named_once():
     before = _table([["2026-10-12", "tiingo", "fetch", 790, "", "", ""]])
     after = _table([["2026-10-12", "tiingo", "fetch", 810, "", "", ""]])
     later = _table([["2026-10-12", "tiingo", "fetch", 830, "", "", ""]])
-    assert u.warnings(before, after, limits, now) == ["tiingo: 810 of 1,000 this day (81%)"]
+    assert u.warnings(before, after, limits, now) == ["tiingo: 810 из 1 000 запросов за сегодня (UTC) (81%)"]
     assert u.warnings(after, later, limits, now) == []
 
 
@@ -255,7 +255,7 @@ def test_sifting_is_counted_by_its_month():
     after = _table([["2026-09-30", "sifting", "fetch", 9000, "", "", ""],
                     ["2026-10-29", "sifting", "fetch", 7990, "", "", ""],
                     ["2026-10-30", "sifting", "fetch", 20, "", "", ""]])
-    assert u.warnings(before, after, limits, now) == ["sifting: 8,010 of 10,000 this month (80%)"]
+    assert u.warnings(before, after, limits, now) == ["sifting: 8 010 из 10 000 запросов за этот месяц (80%)"]
 
 
 def test_twelve_datas_count_ahead_of_ours_is_named_once():
@@ -271,8 +271,8 @@ def test_twelve_datas_count_ahead_of_ours_is_named_once():
     before = _table([["2026-10-12", "twelvedata", "fetch", 9, "", "", ""]])
     after = _table([["2026-10-12", "twelvedata", "fetch", 10, "40", "", ""]])
     assert u.warnings(before, after, limits, now) == [
-        "twelvedata counts 40 today, we counted 10: another caller on the key, "
-        "or one of ours not counted"]
+        "twelvedata насчитал за сегодня 40 запросов, а бот 10: тем же ключом пользуется "
+        "кто-то ещё, или часть запросов бота не посчитана"]
     again = _table([["2026-10-12", "twelvedata", "fetch", 11, "41", "", ""]])
     assert u.warnings(after, again, limits, now) == []
 
@@ -328,4 +328,4 @@ def test_the_hourly_run_records_its_count_and_names_what_it_crossed(tmp_path, mo
     table = u.read(str(usage_file))
     assert list(table[["provider", "purpose", "calls"]].itertuples(index=False, name=None)) \
         == [("binance", "fetch", 1)]
-    assert len(sent) == 1 and "binance: 1 of 1 this day (100%)" in sent[0]
+    assert len(sent) == 1 and "binance: 1 из 1 запросов за сегодня (UTC) (100%)" in sent[0]

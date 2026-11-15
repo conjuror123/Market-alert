@@ -441,24 +441,20 @@ def main(argv: list[str] | None = None) -> int:
                       workers=args.workers, full=args.full, failures=failures)
     print(f"metrics computed for {built} instruments")
     if failures:
-        tell_failures("Metrics", failures,
-                      "Its stored metrics are kept, so its new bars are scored once "
-                      "it computes again; the other instruments are current.")
+        tell_failures("metrics", failures)
     # Every instrument failing is the pipeline, not an instrument: the run fails.
     return 1 if failures and not built else 0
 
 
-def tell_failures(stage: str, failures: "list[tuple[str, str]]", after: str) -> None:
-    """The health chat, every run it happens: the instruments one stage could
-    not compute, each with its error. A per-instrument problem, not the run's."""
-    from price_monitor.notifier import quote, send_health
+def tell_failures(stage: str, failures: "list[tuple[str, str]]") -> None:
+    """The health chat, every run it happens: the instruments one stage
+    ("metrics", "scoring") could not compute, each with its error. A
+    per-instrument problem, not the run's. The words are price_monitor.health's,
+    outside the detector's code, so rewording them is not a detector update."""
+    from price_monitor.health import stage_failed
+    from price_monitor.notifier import send_health
 
-    lines = [f"⚠️ <b>{stage} failed for {len(failures)} instrument(s)</b>"]
-    lines += [f"• {asset_id}: {quote(error)}" for asset_id, error in failures[:20]]
-    if len(failures) > 20:
-        lines.append(f"• …and {len(failures) - 20} more")
-    lines.append(after)
-    send_health("\n".join(lines))
+    send_health(stage_failed(stage, failures))
 
 
 if __name__ == "__main__":

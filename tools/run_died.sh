@@ -50,13 +50,17 @@ elif [ "$monitor" != "success" ] && [ "$monitor" != "failure" ]; then
                  | select(.value.outcome == "failure" or .value.outcome == "cancelled")
                  | .key][0] // ""' <<<"$STEPS")
   if [ -n "$first" ]; then
-    why="it stopped at \"$(name_of "$first")\""
+    why="он упал на шаге «$(name_of "$first")»"
   else
-    why="it was cancelled or ran out of time before the monitor"
+    why="его отменили, или он не уложился во время до шага отправки"
   fi
-  text="⚠️ Hourly run could not deliver: ${why}. Nothing was sent to the channel and no health was counted."
+  text="⚠️ Часовой прогон ничего не отправил: ${why}.
+Что это значит: в канал в этот час ничего не ушло, и сообщения здоровья этого прогона тоже не посчитаны. Найденные движения не пропадут: следующий удачный прогон отправит те, что моложе суток.
+Что делать: если разово, ничего: у GitHub бывают сбои. Если повторяется, открыть ссылку на прогон ниже и посмотреть, что упало. Сообщение приходит через час после последнего удачного прогона, потом раз в сутки, пока не починится."
 else
-  text="⚠️ Hourly run delivered but could not commit its state (\"$(name_of commit)\" did not succeed). What it sent and the health it counted are lost; the next run may send the same messages again."
+  text="⚠️ Часовой прогон отправил сообщения, но не смог сохранить своё состояние (шаг «$(name_of commit)» не прошёл).
+Что это значит: потеряна запись о том, что он отправил, и его счёт ошибок. Следующий прогон поищет эти сообщения в канале и возьмёт их под учёт, а если всё же отправит что-то второй раз, лишнее удалит.
+Что делать: если разово, ничего. Если повторяется, открыть ссылку на прогон ниже: обычно это отказ GitHub при сохранении. Сообщение приходит через час после последнего удачного прогона, потом раз в сутки, пока не починится."
 fi
 
 # The state this run started from: after a failed commit the file on disk is
@@ -69,7 +73,8 @@ if [ -n "$last" ]; then
     echo "$hours h since the last run that delivered; said at 1 h, then every 24"
     exit 0
   fi
-  text="$text ($hours h since the last run that delivered.)"
+  text="$text
+Последний прогон, который сохранил своё состояние, был $hours ч назад."
 fi
 text="$text
 $RUN_URL"

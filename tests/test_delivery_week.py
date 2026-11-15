@@ -976,7 +976,8 @@ def test_a_push_telegram_put_up_late_is_taken_in_not_sent_again(monkeypatch, cha
     assert channel.pushes() == [channel.messages[late[0]]]
     assert "-1.86%" in channel.messages[late[0]] or "1.86%" in channel.messages[late[0]]
     assert channel.rings_since(rang) == []          # it rang once, at 14:40
-    assert any(f"Found late message {late[0]}" in line for line in channel.found)
+    assert any(f"Нашлось сообщение {late[0]}" in line and "взято под учёт" in line
+               for line in channel.found)
     assert channel.health == {}                     # the read copies are gone
 
 
@@ -988,7 +989,7 @@ def test_a_late_copy_that_appears_after_the_repeat_is_deleted(monkeypatch, chann
     late = channel.publish_late()
     run(monkeypatch, channel, [push], run_at(0, 13), week)
     assert len(channel.pushes()) == 1 and late[0] not in channel.messages
-    assert any(f"Deleted late duplicate {late[0]}" in line for line in channel.found)
+    assert any(f"Удалён дубль {late[0]}" in line for line in channel.found)
 
 
 def test_a_send_that_never_appears_is_sent_again_and_forgotten_in_a_week(
@@ -1098,8 +1099,8 @@ def test_without_a_way_to_read_the_channel_it_says_so_and_sends_again(
     late = channel.publish_late()
     run(monkeypatch, channel, [push], run_at(0, 12), week)
     assert week["telegram_ledger"]["read_ok"] is False
-    assert any("cannot be forwarded" in n for n in told)
-    assert any("duplicate to delete by hand" in n for n in channel.found)
+    assert any("защита контента" in n for n in told)
+    assert any("его нужно удалить вручную" in n for n in channel.found)
     assert late[0] in channel.messages              # nothing deleted unread
 
 
@@ -1128,7 +1129,7 @@ def test_a_lost_runs_push_is_taken_over_not_sent_again(monkeypatch, channel, wee
     run(monkeypatch, channel, [push], run_at(0, 12), week)
     assert len(channel.pushes()) == 1
     assert channel.rings_since(rang) == []
-    assert any("Took over" in line for line in channel.news)
+    assert any("взял его под учёт" in line for line in channel.news)
 
 
 def test_a_lost_runs_push_corrected_since_is_replaced(monkeypatch, channel, week):
@@ -1138,7 +1139,7 @@ def test_a_lost_runs_push_corrected_since_is_replaced(monkeypatch, channel, week
     _lost(week, saved)
     run(monkeypatch, channel, [ev(at(0, 10), "high", size=6.2)], run_at(0, 12), week)
     assert len(channel.pushes()) == 1 and stale not in channel.messages
-    assert any(f"Deleted {stale}" in line for line in channel.found)
+    assert any(f"Удалено сообщение {stale}" in line for line in channel.found)
 
 
 def test_a_lost_runs_ping_is_taken_over_and_the_owners_post_left(monkeypatch, channel, week):
@@ -1185,7 +1186,8 @@ def test_a_stray_telegram_will_no_longer_delete_is_struck_through(monkeypatch, c
     _lost(week, saved)
     run(monkeypatch, channel, [ev(at(0, 10), "high", size=6.2)], run_at(0, 12), week)
     assert channel.messages[stale].startswith("<s>")
-    assert any(f"Struck through {stale}" in line for line in channel.found)
+    assert any(f"Зачёркнуто сообщение {stale}" in line and "48 часов" in line
+               for line in channel.found)
 
 
 # --- what tells one message from another ----------------------------------------
@@ -1212,7 +1214,8 @@ def test_a_lost_runs_note_part_is_taken_over_when_the_note_has_grown_since(
     assert len(notes) == 3 and stray in notes
     assert [channel.messages[m].split("\n")[1].split(" · ")[0] for m in notes] == [
         "Part 1 of 3", "Part 2 of 3", "Part 3 of 3"]              # in channel order
-    assert any(f"Took over {stray}" in line for line in channel.news)
+    assert any(f"Сообщение {stray} " in line and "взял его под учёт" in line
+               for line in channel.news)
 
 
 def test_two_identical_events_are_two_messages_each_kept_by_its_own(

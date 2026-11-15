@@ -434,15 +434,21 @@ def adopt(cfg: Config, state: dict, record: dict, message_id: int) -> str:
         else:
             state.pop(_PENDING_KEY, None)
             state[_STATE_KEY] = record.get("week")
-        return f"Found late message {message_id} (\"{first}\"): taken in, not sent again"
+        return (f"Нашлось сообщение {message_id} («{first}»), на отправку которого Telegram "
+                "не ответил: оно всё-таки дошло, взято под учёт, второй раз не отправлено. "
+                "Делать ничего не нужно.")
     if state.get(_STATE_KEY) == record.get("week"):
         try:
             ledger.call(lambda: notifier.delete_telegram_message(
                 cfg.telegram_bot_token, cfg.telegram_chat_id, int(message_id)))
         except TelegramError as exc:
             log.warning("Could not delete the late calendar part %s: %s", message_id, exc)
-        return f"Deleted late duplicate {message_id} (\"{first}\"): it had gone out again"
-    return f"Found late message {message_id} (\"{first}\"): its week is over, left as it is"
+        return (f"Удалён дубль {message_id} («{first}»): Telegram не ответил на его отправку, "
+            "сообщение отправили ещё раз, а первое всё-таки дошло. Лишнее удалено, делать "
+            "ничего не нужно.")
+    return (f"Нашлось сообщение {message_id} («{first}»), на отправку которого Telegram "
+            "не ответил: оно всё-таки дошло, но его неделя уже закончилась, поэтому оставлено "
+            "как есть. Делать ничего не нужно.")
 
 
 def _digest_messages(cfg: Config, session: requests.Session | None,

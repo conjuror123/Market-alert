@@ -30,24 +30,30 @@ STALE_SECONDS = 3 * 3600
 
 def _ago(seconds: int) -> str:
     hours = seconds // 3600
-    return f"{hours} h ago" if hours < 48 else f"{hours // 24} days ago"
+    return f"{hours} ч назад" if hours < 48 else f"{hours // 24} дн. назад"
 
 
 def message(state: "dict | None", now: int) -> "str | None":
     """The health line when the last committed run is older than STALE_SECONDS,
-    or there is no record of one (state None: the file could not be read)."""
+    or there is no record of one (state None: the file could not be read). In
+    Russian and at length, as all of the health chat is (the user's, 2026-11-15)."""
     last = ((state or {}).get(health.STATE_KEY) or {}).get("last_run_utc")
     if last is not None and now - int(last) <= STALE_SECONDS:
         return None
     if last is None:
-        when = "no run on record in data/state.json"
+        when = "в data/state.json нет записи ни об одном прогоне"
     else:
         stamp = datetime.fromtimestamp(int(last), timezone.utc).strftime("%Y-%m-%d %H:%M")
-        when = f"last run {stamp} UTC, {_ago(now - int(last))}"
-    return ("🚨 <b>The hourly run has stopped</b>\n"
-            f"Watchdog: {when}. Nothing reaches the channel or this chat until it runs "
-            "again. Check the cron-job.org job (enabled, its last answers) and the GitHub "
-            "token it calls with (not expired); then the workflow's last runs.")
+        when = f"последний прогон был {stamp} UTC, {_ago(now - int(last))}"
+    return ("🚨 <b>Часовой прогон остановился</b>\n"
+            f"Сторож (раз в неделю, по понедельникам): {when}.\n"
+            "Что это значит: пока прогон не запустится снова, в канал не приходит ничего, "
+            "и сюда тоже: остальные сообщения здоровья шлёт сам прогон. Канал молчит не "
+            "потому, что рынок спокоен.\n"
+            "Что делать, по порядку: 1) на cron-job.org: включено ли задание и что оно "
+            "отвечало последние разы; 2) не истёк ли токен GitHub, с которым оно запускает "
+            "прогон (если истёк, выпустить новый и вставить в задание); 3) последние "
+            "прогоны во вкладке Actions репозитория.")
 
 
 def main(path: str = STATE_PATH, now: "int | None" = None) -> int:

@@ -1390,8 +1390,8 @@ def test_a_provider_that_does_not_answer_twice_in_a_row_is_stopped_for_the_run(
     # Yahoo went dark, not the run: SiftingIO's funds were fetched.
     assert rc == 0
     assert asked == ["UGA", "SPY", "UNG", "QQQ"]
-    assert "yahoo did not answer" in alerts[0]
-    assert "2 remaining" in alerts[0] and "UNG" in alerts[0]
+    assert "yahoo не отвечает" in alerts[0]
+    assert "Остальные инструменты yahoo (2) в этот час пропущены" in alerts[0] and "UNG" in alerts[0]
     assert "2 instrument(s) not asked: their provider did not answer" in caplog.text
 
 
@@ -1474,8 +1474,8 @@ def test_a_sifting_budget_skips_remaining_pairs_and_says_so(tmp_path, monkeypatc
 
     assert backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)]) == 0
     assert asked == ["EUR/USD", "UGA"]
-    assert "SiftingIO request budget spent" in alerts[0]
-    assert "0 left in its short window" in alerts[0]
+    assert "SiftingIO: исчерпан лимит запросов" in alerts[0]
+    assert "в его коротком окне осталось: 0" in alerts[0]
 
 
 def _pairs_and_a_fund():
@@ -1502,8 +1502,8 @@ def test_a_missing_key_costs_only_its_providers_instruments(tmp_path, monkeypatc
 
     assert backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)]) == 0
     assert asked == ["UGA"]
-    assert "SiftingIO: SIFTING_API_KEY is not set" in alerts[0]
-    assert "Its 2 instrument(s) are not fetched" in alerts[0]
+    assert "SiftingIO: не задан ключ SIFTING_API_KEY" in alerts[0]
+    assert "все его инструменты (2) остаются без новых баров" in alerts[0]
 
 
 def test_a_refused_key_stops_its_provider_and_says_so(tmp_path, monkeypatch):
@@ -1528,8 +1528,8 @@ def test_a_refused_key_stops_its_provider_and_says_so(tmp_path, monkeypatch):
 
     assert backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)]) == 0
     assert asked == ["EUR/USD", "UGA"]
-    assert "SiftingIO refused the key at twelvedata:EUR/USD" in alerts[0]
-    assert "1 more SiftingIO instrument(s) skipped. Asked again next run." in alerts[0]
+    assert "SiftingIO не принял ключ (на twelvedata:EUR/USD)" in alerts[0]
+    assert "остальные инструменты SiftingIO (1) в этот час пропущены." in alerts[0]
 
 
 def test_the_fetch_asks_sifting_for_a_sifting_pair(tmp_path, monkeypatch):
@@ -1683,7 +1683,7 @@ def test_alpaca_funds_need_the_alpaca_keys(tmp_path, monkeypatch):
                         lambda *a, **k: pytest.fail("an Alpaca fund was asked without a key"))
     monkeypatch.setattr(backfill, "send_ops_alert", alerts.append)
     assert backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)]) == 0
-    assert "Alpaca: ALPACA_KEY_ID / ALPACA_SECRET_KEY is not set" in alerts[0]
+    assert "Alpaca: не задан ключ ALPACA_KEY_ID / ALPACA_SECRET_KEY" in alerts[0]
 
 
 # --- Twelve Data live: batched, in the background -----------------------------
@@ -1960,7 +1960,7 @@ def test_stale_instruments_are_named_once_and_not_beside_a_failure(tmp_path, mon
 
     backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
 
-    stale = alerts[0].split("No new bar")[1].split("\n\n")[0]
+    stale = alerts[0].split("Нет новых баров")[1].split("\n\n")[0]
     assert "UNG" in stale
     assert "UGA" not in stale and "CPER" not in stale
 
@@ -1989,17 +1989,20 @@ def test_an_instrument_yahoo_keeps_refusing_is_named_when_it_falls_behind(
     backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
 
     assert len(alerts) == 1
-    assert "UNG (yahoo, refused this run): 8 session hours" in alerts[0]
+    assert "UNG (yahoo, в этот час Yahoo отказал по лимиту): 8 ч торговли" in alerts[0]
     assert "UGA" not in alerts[0]
 
 
 @pytest.mark.parametrize("outcome, words", [
     (RuntimeError("bad shard"),
-     "the vote failed (bad shard): this hour's far moves are scored unvoted"),
-    ({"stopped": ["marketwatch"]},
-     "marketwatch stopped for the run (a rate limit, or no answer twice in a row): an "
-     "outage in the vote, left out of the count of the moves it is asked about until a "
-     "later count"),
+     "⚠️ Голосование упало с ошибкой (bad shard): крупные движения этого часа уходят в "
+     "канал без проверки другими источниками."),
+    ({"stopped": ["marketwatch"], "stopped_why": {"marketwatch": "silent"}},
+     "ℹ️ MarketWatch (marketwatch) 2 раза подряд не ответил и до конца этого прогона "
+     "выбыл из голосования."),
+    ({"stopped": ["alpaca_crypto"], "stopped_why": {"alpaca_crypto": "limit"}},
+     "ℹ️ Alpaca (alpaca_crypto) получил отказ по лимиту запросов (429) и до конца этого "
+     "прогона выбыл из голосования. Бары монет Alpaca отдаёт без ключа"),
 ])
 def test_a_vote_that_failed_or_a_stopped_source_is_named(tmp_path, monkeypatch,
                                                          outcome, words):
@@ -2026,7 +2029,7 @@ def test_a_vote_that_failed_or_a_stopped_source_is_named(tmp_path, monkeypatch,
     backfill.main(["--skip-vix", "--bars-dir", str(tmp_path)])
 
     assert len(alerts) == 1 and words in alerts[0]
-    assert "⚠️ <b>The vote</b>" in alerts[0]
+    assert "🗳 <b>Голосование источников</b>" in alerts[0]
 
 
 def test_a_rolled_future_re_asks_its_front_contract_from_the_roll(tmp_path, monkeypatch):
@@ -2449,9 +2452,9 @@ def test_a_table_abroad_running_out_is_told_on_mondays_with_its_instruments(monk
         asset(ticker="511090.SS", session_template="shanghai", display="China 30Y"),
         asset(ticker="^N225", session_template="tokyo")])
     line = backfill.tables_running_out(basket, datetime(2026, 12, 7, 0, 5, tzinfo=timezone.utc))
-    assert "Shanghai's ends 2026-12-31 (CSI 300, China 30Y)" in line
+    assert "• Shanghai: заканчивается 2026-12-31 (CSI 300, China 30Y)" in line
     assert "N225" not in line
-    assert "ended 2026-12-31" in backfill.tables_running_out(
+    assert "закончилась 2026-12-31" in backfill.tables_running_out(
         basket, datetime(2027, 1, 4, 0, 5, tzinfo=timezone.utc))
     for later in ((2026, 12, 7, 1, 5), (2026, 12, 8, 0, 5)):
         assert backfill.tables_running_out(basket, datetime(*later, tzinfo=timezone.utc)) is None

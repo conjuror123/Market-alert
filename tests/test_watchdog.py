@@ -33,7 +33,8 @@ def test_a_run_stopped_for_days_is_told_to_the_health_chat(tmp_path, monkeypatch
     last = int(datetime(2026, 11, 6, 7, 5, tzinfo=timezone.utc).timestamp())
     assert watchdog.main(_state(tmp_path, last), NOW) == 0
     assert len(sent) == 1
-    assert "hourly run has stopped" in sent[0] and "2026-11-06 07:05 UTC, 3 days ago" in sent[0]
+    assert "Часовой прогон остановился" in sent[0]
+    assert "последний прогон был 2026-11-06 07:05 UTC, 3 дн. назад" in sent[0]
     assert "cron-job.org" in sent[0]
 
 
@@ -41,7 +42,7 @@ def test_no_record_and_an_unreadable_file_are_told_too(tmp_path, monkeypatch):
     sent = _sent(monkeypatch)
     assert watchdog.main(str(tmp_path / "missing.json"), NOW) == 0
     assert watchdog.main(_state(tmp_path, text="{trunc"), NOW) == 0
-    assert len(sent) == 2 and all("no run on record" in s for s in sent)
+    assert len(sent) == 2 and all("нет записи ни об одном прогоне" in s for s in sent)
 
 
 def test_a_health_chat_that_cannot_be_told_fails_the_job(tmp_path, monkeypatch):

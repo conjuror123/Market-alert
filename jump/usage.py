@@ -284,6 +284,11 @@ def ask_twelvedata(usage: "Usage", api_key: str, now: "datetime | None" = None) 
         return
 
 
+def _n(x: int) -> str:
+    """A count as the health chat writes it: 9 600, not 9,600."""
+    return f"{int(x):,}".replace(",", " ")
+
+
 def warnings(before: pd.DataFrame, after: pd.DataFrame, table: pd.DataFrame,
              now: "datetime | None" = None) -> "list[str]":
     """What this run's count newly crossed: a day or month past WARN_SHARE of a
@@ -298,12 +303,14 @@ def warnings(before: pd.DataFrame, after: pd.DataFrame, table: pd.DataFrame,
         is_ = spent_in(after, row.provider, row.window, now)
         line = WARN_SHARE * row.limit
         if was < line <= is_:
-            out.append(f"{row.provider}: {is_:,} of {row.limit:,} this {row.window} "
+            window = {"day": "за сегодня (UTC)", "month": "за этот месяц"}[row.window]
+            out.append(f"{row.provider}: {_n(is_)} из {_n(row.limit)} запросов {window} "
                        f"({is_ / row.limit:.0%})")
         if row.window == "day":
             told, said = _reported(before, row.provider, now), _reported(after, row.provider, now)
             if said is not None and said - is_ > GAP_MARGIN and \
                     (told is None or told - was <= GAP_MARGIN):
-                out.append(f"{row.provider} counts {said:,} today, we counted {is_:,}: "
-                           "another caller on the key, or one of ours not counted")
+                out.append(f"{row.provider} насчитал за сегодня {_n(said)} запросов, а бот "
+                           f"{_n(is_)}: тем же ключом пользуется кто-то ещё, или часть "
+                           "запросов бота не посчитана")
     return out

@@ -862,6 +862,10 @@ def test_the_pass_says_which_voters_failed_and_which_answered(monkeypatch, tmp_p
     assert r["failed"] == [("yahoo", asset.ticker, "EURUSD=X: Yahoo answered 400")]
     assert r["answered"] == [("wallstreetcn", asset.ticker)]
     assert r["stopped"] == ["marketwatch"]
+    # Why, for the health chat: a rate limit, not silence.
+    assert r["stopped_why"] == {"marketwatch": "limit"}
+    assert "получил отказ по лимиту запросов (429)" in verify.stopped_line(
+        "marketwatch", r["stopped_why"]["marketwatch"])
 
 
 def test_a_voter_failing_for_a_day_is_named_once_a_day_until_it_answers(tmp_path):
@@ -871,9 +875,11 @@ def test_a_voter_failing_for_a_day_is_named_once_a_day_until_it_answers(tmp_path
     assert verify.failing_voters(kospi, [], at(0), path) == []          # a first failure
     assert verify.failing_voters(kospi, [], at(23), path) == []         # under a day
     told = verify.failing_voters(kospi, [], at(24), path)
-    assert told == ["MarketWatch has failed every time it was asked since 2026-10-14 12:05 "
-                    "UTC, on ^KS11 (INDEX/KR/XKRX/180721: MarketWatch answered 400): an "
-                    "outage in those votes until it answers"]
+    assert len(told) == 1 and told[0].startswith(
+        "⚠️ MarketWatch (marketwatch) отказывает каждый раз, когда его спрашивают, начиная "
+        "с 2026-10-14 12:05 UTC: по ^KS11 (ошибка: INDEX/KR/XKRX/180721: MarketWatch "
+        "answered 400). Это не лимит запросов")
+    assert "Что делать:" in told[0]
     assert verify.failing_voters(kospi, [], at(30), path) == []         # told today
     assert verify.failing_voters([], [], at(48), path) == []            # not asked: quiet
     assert len(verify.failing_voters(kospi, [], at(49), path)) == 1     # a day on
@@ -931,8 +937,10 @@ def test_a_source_that_does_not_answer_twice_in_a_row_is_stopped(monkeypatch, tm
                       path=str(tmp_path / "verified.csv"))
     assert asked == ["yahoo", "marketwatch", "wallstreetcn", "yahoo", "marketwatch",
                      "wallstreetcn", "yahoo", "wallstreetcn"]
-    # Said, so the health chat can name it.
+    # Said, so the health chat can name it, and why.
     assert r["stopped"] == ["marketwatch"]
+    assert r["stopped_why"] == {"marketwatch": "silent"}
+    assert "2 раза подряд не ответил" in verify.stopped_line("marketwatch", "silent")
 
 
 def test_an_unconfirmed_verdict_outlives_the_rest_of_the_record(tmp_path):

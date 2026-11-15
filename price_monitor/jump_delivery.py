@@ -1205,7 +1205,9 @@ def _drop_late(cfg: Config, week: "dict | None", message_id: int, record: dict) 
     first = record.get("first", "")
     if not _delete(cfg, int(message_id), record.get("first_html", "")) and week is not None:
         week.setdefault("orphans", []).append([int(message_id), record.get("first_html", "")])
-    return f"Deleted late duplicate {message_id} (\"{first}\"): it had gone out again"
+    return (f"Удалён дубль {message_id} («{first}»): Telegram не ответил на его отправку, "
+            "сообщение отправили ещё раз, а первое всё-таки дошло. Лишнее удалено, делать "
+            "ничего не нужно.")
 
 
 def adopt(cfg: Config, state: dict, record: dict, message_id: int) -> str:
@@ -1220,10 +1222,14 @@ def adopt(cfg: Config, state: dict, record: dict, message_id: int) -> str:
                             or record.get("week") != _week_id(week, record["kind"])):
         verdict = "keep"                         # a week it was not settled for
     if verdict == "keep":
-        return f"Found late message {message_id} (\"{first}\"): its week is over, left as it is"
+        return (f"Нашлось сообщение {message_id} («{first}»), на отправку которого Telegram "
+            "не ответил: оно всё-таки дошло, но его неделя уже закончилась, поэтому оставлено "
+            "как есть. Делать ничего не нужно.")
     if verdict == "delete":
         return _drop_late(cfg, week, message_id, record)
-    taken = f"Found late message {message_id} (\"{first}\"): taken in, nothing sent again"
+    taken = (f"Нашлось сообщение {message_id} («{first}»), на отправку которого Telegram "
+             "не ответил: оно всё-таки дошло, взято под учёт, второй раз не отправлено. "
+             "Делать ничего не нужно.")
     if record["kind"] == "note":
         note = week["note"]
         if len(note["ids"]) != int(record["index"]):
