@@ -118,6 +118,7 @@ binance:ETH/USDT,1794538800,close,real,binance,"yahoo,coinbase,kraken,bitstamp,b
 binance:ETH/USDT,1794664800,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",-0.021288,"-0.021413,-0.021151,-0.021478,-0.020863,-0.021562,-0.021482",1794787587
 binance:ETH/USDT,1794686400,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",-0.028348,"-0.029023,-0.028591,-0.028599,-0.028638,-0.028746,-0.028429",1794787587
 binance:ETH/USDT,1794708000,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",0.047810,"0.048351,0.047846,0.048776,0.047670,0.048427,0.048093",1794787587
+binance:ETH/USDT,1794837600,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",0.023386,"0.023407,0.023424,0.023482,0.023592,0.023176,0.023454",1794841608
 binance:FIL/USDT,1760130000,close,not_real,binance,coinbase,,-0.293749,-0.020619,1791316800
 binance:FIL/USDT,1760133600,close,not_real,binance,coinbase,,0.041411,0.005797,1791316800
 binance:FIL/USDT,1760137200,close,not_real,binance,coinbase,,0.035028,-0.132156,1791316800
