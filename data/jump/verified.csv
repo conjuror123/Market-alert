@@ -545,6 +545,7 @@ twelvedata:SPTL,1790604000,close,real,alpaca,yahoo,,-0.006444,-0.006444,17911140
 twelvedata:SPTL,1791475200,close,real,alpaca,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",0.005475,"0.005967,0.005967,0.005967,0.005967",1791839250
 twelvedata:SPY,1793887200,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip,sifting","yahoo,sina,marketwatch,alpaca_sip,sifting",-0.014779,"-0.014925,-0.014925,-0.017092,-0.014925,-0.014805",1794603985
 twelvedata:SPY,1793890800,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip,sifting","yahoo,sina,marketwatch,alpaca_sip,sifting",-0.016542,"-0.016350,-0.016350,-0.016350,-0.016350,-0.016429",1794603985
+twelvedata:SPY,1794927600,close,real,tiingo,"yahoo,sina,marketwatch,sifting","yahoo,sina,marketwatch,sifting",-0.011000,"-0.010880,-0.015663,-0.010880,-0.010821",1794931591
 twelvedata:SRLN,1790600400,close,real,yahoo,sina,,-0.002098,-0.001605,1791114096
 twelvedata:STIP,1789581600,close,real,sina,yahoo,,-0.003193,-0.003193,1791114096
 twelvedata:STIP,1790866800,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo,marketwatch,alpaca_sip",0.001407,"0.001407,0.001407,0.001407",1791583607
@@ -904,6 +905,7 @@ twelvedata:XLF,1793800800,open,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","
 twelvedata:XLF,1793804400,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",0.011825,"0.011825,0.011825,0.011825,0.011825",1794517587
 twelvedata:XLF,1793887200,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.011325,"-0.011410,-0.011410,-0.011289,-0.011410",1794603985
 twelvedata:XLF,1793890800,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.016846,"-0.016933,-0.016933,-0.016933,-0.016933",1794603985
+twelvedata:XLF,1794927600,close,real,tiingo,"yahoo,sina,marketwatch","yahoo,sina,marketwatch",-0.011642,"-0.011729,-0.013215,-0.011729",1794931591
 twelvedata:XLK,1641823200,close,overnight,tiingo,alpaca,,-0.022674,-0.014455,1791362492
 twelvedata:XLK,1643205600,close,overnight,tiingo,alpaca,,0.024831,0.026297,1791362492
 twelvedata:XLK,1793887200,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.024032,"-0.023544,-0.023544,-0.029273,-0.023486",1794603985
@@ -972,6 +974,7 @@ yahoo:ZN=F,1793318400,close,real,yahoo,marketwatch,marketwatch,0.002490,0.002490
 yahoo:ZN=F,1793887200,close,real,yahoo,marketwatch,marketwatch,0.002630,0.002630,1794607583
 yahoo:ZN=F,1794315600,close,real,yahoo,marketwatch,marketwatch,-0.003517,-0.003517,1794866799
 yahoo:ZN=F,1794492000,close,real,yahoo,marketwatch,marketwatch,-0.002808,-0.002808,1794866799
+yahoo:ZN=F,1794927600,close,real,yahoo,"sina,marketwatch","sina,marketwatch",0.003112,"0.003378,0.002669",1794931591
 yahoo:ZS=F,1794330000,close,real,yahoo,"marketwatch,ft","marketwatch,ft",0.032308,"0.032308,0.032308",1794859574
 yahoo:ZT=F,1791979200,close,real,yahoo,marketwatch,marketwatch,-0.003072,-0.003072,1792703168
 yahoo:ZT=F,1791982800,close,real,yahoo,marketwatch,marketwatch,0.000884,0.000884,1792703168
@@ -985,6 +988,7 @@ yahoo:ZT=F,1794301200,close,real,yahoo,marketwatch,marketwatch,-0.001184,-0.0011
 yahoo:ZT=F,1794315600,close,real,yahoo,marketwatch,marketwatch,-0.001032,-0.001032,1794866799
 yahoo:ZT=F,1794319200,close,real,yahoo,marketwatch,marketwatch,-0.000957,-0.000957,1794866799
 yahoo:ZT=F,1794492000,close,real,yahoo,marketwatch,marketwatch,-0.000805,-0.000805,1794866799
+yahoo:ZT=F,1794927600,close,real,yahoo,"sina,marketwatch","sina,marketwatch",0.001035,"0.000983,0.000805",1794931591
 yahoo:ZW=F,1791561600,close,real,yahoo,"marketwatch,ft","marketwatch,ft",-0.031171,"-0.031171,-0.030806",1792177575
 yahoo:^BVSP,1791205200,open,real,yahoo,"marketwatch,ft","marketwatch,ft",0.081274,"0.081274,0.078479",1791925587
 yahoo:^BVSP,1793019600,open,real,yahoo,"marketwatch,ft","marketwatch,ft",-0.175885,"-0.175885,-0.172291",1793740011
