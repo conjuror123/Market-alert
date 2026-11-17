@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1794874047
+    "last_run_utc": 1794877609
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -28,7 +28,7 @@
           "peak": "jump:binance:BTC/USDT:hour:1794708000",
           "ping_at": 1794711972,
           "placed_at": 1794711972,
-          "seen": 1794874048,
+          "seen": 1794877610,
           "shown": [
             "major",
             9.2,
@@ -67,7 +67,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794708000",
           "ping_at": 1794690376,
           "placed_at": 1794711972,
-          "seen": 1794874048,
+          "seen": 1794877610,
           "shown": [
             "major",
             9.4,
@@ -108,7 +108,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794837600",
           "ping_at": 1794841633,
           "placed_at": 1794841633,
-          "seen": 1794874048,
+          "seen": 1794877610,
           "shown": [
             "noticeable",
             4.6,
@@ -143,7 +143,7 @@
           "peak": "jump:binance:SOL/USDT:hour:1794708000",
           "ping_at": 1794711972,
           "placed_at": 1794711972,
-          "seen": 1794874048,
+          "seen": 1794877610,
           "shown": [
             "high",
             8.4,
@@ -178,7 +178,7 @@
           "peak": "jump:binance:XRP/USDT:hour:1794708000",
           "ping_at": 1794711972,
           "placed_at": 1794711972,
-          "seen": 1794874048,
+          "seen": 1794877610,
           "shown": [
             "high",
             8.0,
@@ -213,7 +213,7 @@
           "peak": "jump:sifting:XAG/USD:hour:1794790800",
           "ping_at": 1794794800,
           "placed_at": 1794794800,
-          "seen": 1794874048,
+          "seen": 1794877610,
           "shown": [
             "noticeable",
             5.2,
@@ -248,7 +248,7 @@
           "peak": "jump:yahoo:PL=F:hour:1794790800",
           "ping_at": 1794794800,
           "placed_at": 1794794800,
-          "seen": 1794874048,
+          "seen": 1794877610,
           "shown": [
             "noticeable",
             4.8,
@@ -310,7 +310,7 @@
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1794874048
+    "saved_at": 1794877610
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-17",
