@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1794985604
+    "last_run_utc": 1794989195
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -28,7 +28,7 @@
           "peak": "jump:binance:BTC/USDT:hour:1794708000",
           "ping_at": 1794711972,
           "placed_at": 1794711972,
-          "seen": 1794985605,
+          "seen": 1794989196,
           "shown": [
             "major",
             9.2,
@@ -67,7 +67,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794708000",
           "ping_at": 1794690376,
           "placed_at": 1794711972,
-          "seen": 1794985605,
+          "seen": 1794989196,
           "shown": [
             "major",
             9.4,
@@ -104,11 +104,11 @@
               0.005103934946273
             ]
           },
-          "message": 176,
+          "message": null,
           "peak": "jump:binance:ETH/USDT:hour:1794837600",
           "ping_at": 1794841633,
           "placed_at": 1794841633,
-          "seen": 1794985605,
+          "seen": 1794989196,
           "shown": [
             "noticeable",
             4.6,
@@ -143,7 +143,7 @@
           "peak": "jump:binance:SOL/USDT:hour:1794708000",
           "ping_at": 1794711972,
           "placed_at": 1794711972,
-          "seen": 1794985605,
+          "seen": 1794989196,
           "shown": [
             "high",
             8.4,
@@ -178,7 +178,7 @@
           "peak": "jump:binance:XRP/USDT:hour:1794708000",
           "ping_at": 1794711972,
           "placed_at": 1794711972,
-          "seen": 1794985605,
+          "seen": 1794989196,
           "shown": [
             "high",
             8.0,
@@ -213,7 +213,7 @@
           "peak": "jump:sifting:XAG/USD:hour:1794790800",
           "ping_at": 1794794800,
           "placed_at": 1794794800,
-          "seen": 1794985605,
+          "seen": 1794989196,
           "shown": [
             "noticeable",
             5.2,
@@ -248,7 +248,7 @@
           "peak": "jump:sina:NID:hour:1794924000",
           "ping_at": 1794927997,
           "placed_at": 1794927997,
-          "seen": 1794985605,
+          "seen": 1794989196,
           "shown": [
             "noticeable",
             6.4,
@@ -283,7 +283,7 @@
           "peak": "jump:sina:SND:hour:1794920400",
           "ping_at": 1794924408,
           "placed_at": 1794924408,
-          "seen": 1794985605,
+          "seen": 1794989196,
           "shown": [
             "high",
             6.7,
@@ -318,7 +318,7 @@
           "peak": "jump:twelvedata:SPY:hour:1794927600",
           "ping_at": 1794931617,
           "placed_at": 1794931617,
-          "seen": 1794985605,
+          "seen": 1794989196,
           "shown": [
             "noticeable",
             4.7,
@@ -353,7 +353,7 @@
           "peak": "jump:yahoo:PL=F:hour:1794790800",
           "ping_at": 1794794800,
           "placed_at": 1794794800,
-          "seen": 1794985605,
+          "seen": 1794989196,
           "shown": [
             "noticeable",
             4.8,
@@ -394,7 +394,7 @@
           "peak": null,
           "ping_at": 1794931617,
           "placed_at": 1794931617,
-          "seen": 1794985605,
+          "seen": 1794989196,
           "shown": [
             null,
             null,
@@ -435,7 +435,7 @@
           "peak": null,
           "ping_at": 1794931617,
           "placed_at": 1794931617,
-          "seen": 1794985605,
+          "seen": 1794989196,
           "shown": [
             null,
             null,
@@ -476,7 +476,7 @@
           "peak": "jump:yahoo:^N225:hour:1794963600",
           "ping_at": 1794971193,
           "placed_at": 1794971193,
-          "seen": 1794985605,
+          "seen": 1794989196,
           "shown": [
             "noticeable",
             4.7,
@@ -501,10 +501,6 @@
           "first": "\ud83d\udfe7 <b>ETH/USDT</b> \u00b7 Ethereum +4.78% \u00b7 9.4\u00d7\u03c3",
           "hash": "14d4ed47df14ba0a"
         },
-        "176": {
-          "first": "\u2b1c <b>ETH/USDT</b> \u00b7 Ethereum +2.34% \u00b7 4.6\u00d7\u03c3",
-          "hash": "a953cacb5ee603c5"
-        },
         "177": {
           "first": "\ud83d\udfe8 <b>Tin</b> \u00b7 LME -2.98% \u00b7 6.7\u00d7\u03c3",
           "hash": "72970cda4b11e76f"
@@ -524,7 +520,7 @@
       },
       "note": {
         "hashes": [
-          "7159bbb7ebf57035"
+          "55fada143bee7f2a"
         ],
         "ids": [
           172
@@ -544,7 +540,7 @@
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1794985605
+    "saved_at": 1794989196
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-18",
