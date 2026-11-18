@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1794967584
+    "last_run_utc": 1794971192
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -28,7 +28,7 @@
           "peak": "jump:binance:BTC/USDT:hour:1794708000",
           "ping_at": 1794711972,
           "placed_at": 1794711972,
-          "seen": 1794967585,
+          "seen": 1794971193,
           "shown": [
             "major",
             9.2,
@@ -67,7 +67,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794708000",
           "ping_at": 1794690376,
           "placed_at": 1794711972,
-          "seen": 1794967585,
+          "seen": 1794971193,
           "shown": [
             "major",
             9.4,
@@ -108,7 +108,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794837600",
           "ping_at": 1794841633,
           "placed_at": 1794841633,
-          "seen": 1794967585,
+          "seen": 1794971193,
           "shown": [
             "noticeable",
             4.6,
@@ -143,7 +143,7 @@
           "peak": "jump:binance:SOL/USDT:hour:1794708000",
           "ping_at": 1794711972,
           "placed_at": 1794711972,
-          "seen": 1794967585,
+          "seen": 1794971193,
           "shown": [
             "high",
             8.4,
@@ -178,7 +178,7 @@
           "peak": "jump:binance:XRP/USDT:hour:1794708000",
           "ping_at": 1794711972,
           "placed_at": 1794711972,
-          "seen": 1794967585,
+          "seen": 1794971193,
           "shown": [
             "high",
             8.0,
@@ -213,7 +213,7 @@
           "peak": "jump:sifting:XAG/USD:hour:1794790800",
           "ping_at": 1794794800,
           "placed_at": 1794794800,
-          "seen": 1794967585,
+          "seen": 1794971193,
           "shown": [
             "noticeable",
             5.2,
@@ -248,7 +248,7 @@
           "peak": "jump:sina:NID:hour:1794924000",
           "ping_at": 1794927997,
           "placed_at": 1794927997,
-          "seen": 1794967585,
+          "seen": 1794971193,
           "shown": [
             "noticeable",
             6.4,
@@ -283,7 +283,7 @@
           "peak": "jump:sina:SND:hour:1794920400",
           "ping_at": 1794924408,
           "placed_at": 1794924408,
-          "seen": 1794967585,
+          "seen": 1794971193,
           "shown": [
             "high",
             6.7,
@@ -318,7 +318,7 @@
           "peak": "jump:twelvedata:SPY:hour:1794927600",
           "ping_at": 1794931617,
           "placed_at": 1794931617,
-          "seen": 1794967585,
+          "seen": 1794971193,
           "shown": [
             "noticeable",
             4.7,
@@ -353,7 +353,7 @@
           "peak": "jump:yahoo:PL=F:hour:1794790800",
           "ping_at": 1794794800,
           "placed_at": 1794794800,
-          "seen": 1794967585,
+          "seen": 1794971193,
           "shown": [
             "noticeable",
             4.8,
@@ -394,7 +394,7 @@
           "peak": null,
           "ping_at": 1794931617,
           "placed_at": 1794931617,
-          "seen": 1794967585,
+          "seen": 1794971193,
           "shown": [
             null,
             null,
@@ -435,7 +435,7 @@
           "peak": null,
           "ping_at": 1794931617,
           "placed_at": 1794931617,
-          "seen": 1794967585,
+          "seen": 1794971193,
           "shown": [
             null,
             null,
@@ -459,6 +459,41 @@
             ]
           ],
           "tier": null
+        },
+        "yahoo:^N225|1794967200": {
+          "asset": "yahoo:^N225",
+          "body": "\u2b1c <b>Nikkei 225</b> \u00b7 Japan -1.74% \u00b7 4.7\u00d7\u03c3",
+          "context": "",
+          "form": "row",
+          "hour": 1794963600,
+          "members": {
+            "jump:yahoo:^N225:hour:1794963600": [
+              -0.017404823584333425,
+              0.0036681587732378114
+            ]
+          },
+          "message": 180,
+          "peak": "jump:yahoo:^N225:hour:1794963600",
+          "ping_at": 1794971193,
+          "placed_at": 1794971193,
+          "seen": 1794971193,
+          "shown": [
+            "noticeable",
+            4.7,
+            1794963600,
+            -1.74
+          ],
+          "size": 4.7448392123360925,
+          "start": 1794967200,
+          "story": [
+            [
+              "noticeable",
+              4.7,
+              1794963600,
+              ""
+            ]
+          ],
+          "tier": "noticeable"
         }
       },
       "messages": {
@@ -481,11 +516,15 @@
         "179": {
           "first": "\u2b1c <b>SPY</b> \u00b7 S&amp;P 500 -1.10% \u00b7 4.7\u00d7\u03c3",
           "hash": "cec26bc344eb26ac"
+        },
+        "180": {
+          "first": "\u2b1c <b>Nikkei 225</b> \u00b7 Japan -1.74% \u00b7 4.7\u00d7\u03c3",
+          "hash": "bcefbf6582e59d71"
         }
       },
       "note": {
         "hashes": [
-          "2fb05d614c55a865"
+          "ebc2d090e4038bc9"
         ],
         "ids": [
           172
@@ -500,12 +539,13 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      179
+      179,
+      180
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1794967585
+    "saved_at": 1794971193
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-18",
