@@ -92531,6 +92531,7 @@
 {"actual": "", "country": "AUD", "date": "2026-11-16T22:50:00+00:00", "forecast": "", "impact": "High", "previous": "", "title": "RBA Gov Bullock Speaks"}
 {"actual": "", "country": "USD", "date": "2026-11-16T23:10:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Barkin Speaks"}
 {"actual": "", "country": "USD", "date": "2026-11-16T23:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Goolsbee Speaks"}
+{"actual": "", "country": "NZD", "date": "2026-11-17T00:00:00+00:00", "forecast": "", "impact": "Medium", "previous": "", "title": "RBNZ Gov Breman Speaks"}
 {"actual": "", "country": "AUD", "date": "2026-11-17T00:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Monetary Policy Meeting Minutes"}
 {"actual": "", "country": "NZD", "date": "2026-11-17T02:00:00+00:00", "forecast": "", "impact": "High", "previous": "2.34%", "title": "Inflation Expectations q/q"}
 {"actual": "", "country": "JPY", "date": "2026-11-17T04:30:00+00:00", "forecast": "0.1%", "impact": "Low", "previous": "-0.1%", "title": "Tertiary Industry Activity m/m"}
@@ -92550,6 +92551,7 @@
 {"actual": "", "country": "USD", "date": "2026-11-17T14:10:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Waller Speaks"}
 {"actual": "", "country": "USD", "date": "2026-11-17T14:15:00+00:00", "forecast": "76.8%", "impact": "Low", "previous": "76.9%", "title": "Capacity Utilization Rate"}
 {"actual": "", "country": "USD", "date": "2026-11-17T14:15:00+00:00", "forecast": "0.0%", "impact": "Low", "previous": "0.7%", "title": "Industrial Production m/m"}
+{"actual": "", "country": "NZD", "date": "2026-11-17T14:29:00+00:00", "forecast": "", "impact": "Low", "previous": "3.0%", "title": "GDT Price Index"}
 {"actual": "", "country": "USD", "date": "2026-11-17T14:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Hammack Speaks"}
 {"actual": "", "country": "USD", "date": "2026-11-17T15:00:00+00:00", "forecast": "0.5%", "impact": "Low", "previous": "0.4%", "title": "Business Inventories m/m"}
 {"actual": "", "country": "USD", "date": "2026-11-17T15:00:00+00:00", "forecast": "29", "impact": "Low", "previous": "29", "title": "NAHB Housing Market Index"}
@@ -92559,6 +92561,7 @@
 {"actual": "", "country": "NZD", "date": "2026-11-17T21:45:00+00:00", "forecast": "1.5%", "impact": "Low", "previous": "2.9%", "title": "PPI Input q/q"}
 {"actual": "", "country": "NZD", "date": "2026-11-17T21:45:00+00:00", "forecast": "1.1%", "impact": "Low", "previous": "1.6%", "title": "PPI Output q/q"}
 {"actual": "", "country": "AUD", "date": "2026-11-17T23:30:00+00:00", "forecast": "", "impact": "Low", "previous": "-0.1%", "title": "MI Leading Index m/m"}
+{"actual": "", "country": "AUD", "date": "2026-11-17T23:39:00+00:00", "forecast": "", "impact": "Low", "previous": "-0.1%", "title": "MI Leading Index m/m"}
 {"actual": "", "country": "JPY", "date": "2026-11-17T23:50:00+00:00", "forecast": "-0.90T", "impact": "Low", "previous": "-0.70T", "title": "Trade Balance"}
 {"actual": "", "country": "AUD", "date": "2026-11-18T00:30:00+00:00", "forecast": "1.0%", "impact": "Medium", "previous": "0.8%", "title": "Wage Price Index q/q"}
 {"actual": "", "country": "EUR", "date": "2026-11-18T02:45:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "German Buba President Nagel Speaks"}
@@ -92578,9 +92581,9 @@
 {"actual": "", "country": "USD", "date": "2026-11-18T13:30:00+00:00", "forecast": "1.25M", "impact": "Low", "previous": "1.22M", "title": "Housing Starts"}
 {"actual": "", "country": "CAD", "date": "2026-11-18T13:30:00+00:00", "forecast": "0.1%", "impact": "Low", "previous": "-0.2%", "title": "NHPI m/m"}
 {"actual": "", "country": "EUR", "date": "2026-11-18T14:25:00+00:00", "forecast": "", "impact": "Medium", "previous": "", "title": "ECB President Lagarde Speaks"}
-{"actual": "", "country": "USD", "date": "2026-11-18T15:00:00+00:00", "forecast": "-2.1%", "impact": "Low", "previous": "-7.3%", "title": "Pending Home Sales m/m"}
+{"actual": "", "country": "USD", "date": "2026-11-18T15:00:00+00:00", "forecast": "-2.0%", "impact": "Low", "previous": "-7.3%", "title": "Pending Home Sales m/m"}
 {"actual": "", "country": "GBP", "date": "2026-11-18T15:00:00+00:00", "forecast": "", "impact": "High", "previous": "", "title": "BOE Gov Bailey Speaks"}
-{"actual": "", "country": "USD", "date": "2026-11-18T15:30:00+00:00", "forecast": "", "impact": "Low", "previous": "4.7M", "title": "Crude Oil Inventories"}
+{"actual": "", "country": "USD", "date": "2026-11-18T15:30:00+00:00", "forecast": "0.4M", "impact": "Low", "previous": "4.7M", "title": "Crude Oil Inventories"}
 {"actual": "", "country": "USD", "date": "2026-11-18T17:15:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Daly Speaks"}
 {"actual": "", "country": "CAD", "date": "2026-11-18T17:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Gov Council Member Gravelle Speaks"}
 {"actual": "", "country": "NZD", "date": "2026-11-18T18:00:00+00:00", "forecast": "", "impact": "Medium", "previous": "", "title": "RBNZ Gov Breman Speaks"}
@@ -92598,16 +92601,16 @@
 {"actual": "", "country": "EUR", "date": "2026-11-19T11:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "German Buba Monthly Report"}
 {"actual": "", "country": "GBP", "date": "2026-11-19T11:00:00+00:00", "forecast": "-29", "impact": "Low", "previous": "-32", "title": "CBI Industrial Order Expectations"}
 {"actual": "", "country": "GBP", "date": "2026-11-19T12:15:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "MPC Member Dhingra Speaks"}
-{"actual": "", "country": "CAD", "date": "2026-11-19T13:30:00+00:00", "forecast": "1.2%", "impact": "Low", "previous": "2.0%", "title": "IPPI m/m"}
-{"actual": "", "country": "CAD", "date": "2026-11-19T13:30:00+00:00", "forecast": "2.0%", "impact": "Low", "previous": "4.8%", "title": "RMPI m/m"}
-{"actual": "", "country": "USD", "date": "2026-11-19T13:30:00+00:00", "forecast": "19.2", "impact": "Medium", "previous": "20.9", "title": "Philly Fed Manufacturing Index"}
-{"actual": "", "country": "USD", "date": "2026-11-19T13:30:00+00:00", "forecast": "199K", "impact": "Medium", "previous": "200K", "title": "Unemployment Claims"}
+{"actual": "", "country": "CAD", "date": "2026-11-19T13:30:00+00:00", "forecast": "0.4%", "impact": "Low", "previous": "2.0%", "title": "IPPI m/m"}
+{"actual": "", "country": "CAD", "date": "2026-11-19T13:30:00+00:00", "forecast": "0.9%", "impact": "Low", "previous": "4.8%", "title": "RMPI m/m"}
+{"actual": "", "country": "USD", "date": "2026-11-19T13:30:00+00:00", "forecast": "20.6", "impact": "Medium", "previous": "20.9", "title": "Philly Fed Manufacturing Index"}
+{"actual": "", "country": "USD", "date": "2026-11-19T13:30:00+00:00", "forecast": "198K", "impact": "Medium", "previous": "200K", "title": "Unemployment Claims"}
 {"actual": "", "country": "EUR", "date": "2026-11-19T13:30:00+00:00", "forecast": "", "impact": "Medium", "previous": "", "title": "ECB President Lagarde Speaks"}
 {"actual": "", "country": "USD", "date": "2026-11-19T13:50:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Hammack Speaks"}
 {"actual": "", "country": "USD", "date": "2026-11-19T14:25:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Jefferson Speaks"}
 {"actual": "", "country": "USD", "date": "2026-11-19T15:00:00+00:00", "forecast": "0.0%", "impact": "Low", "previous": "0.0%", "title": "CB Leading Index m/m"}
 {"actual": "", "country": "USD", "date": "2026-11-19T15:15:00+00:00", "forecast": "", "impact": "Low", "previous": "4.37%", "title": "Mortgage Delinquencies"}
-{"actual": "", "country": "USD", "date": "2026-11-19T15:30:00+00:00", "forecast": "", "impact": "Low", "previous": "61B", "title": "Natural Gas Storage"}
+{"actual": "", "country": "USD", "date": "2026-11-19T15:30:00+00:00", "forecast": "25B", "impact": "Low", "previous": "61B", "title": "Natural Gas Storage"}
 {"actual": "", "country": "USD", "date": "2026-11-19T17:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Goolsbee Speaks"}
 {"actual": "", "country": "USD", "date": "2026-11-19T19:15:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Barr Speaks"}
 {"actual": "", "country": "USD", "date": "2026-11-19T21:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Barkin Speaks"}
@@ -92627,7 +92630,7 @@
 {"actual": "", "country": "CAD", "date": "2026-11-20T13:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "NHPI m/m"}
 {"actual": "", "country": "CAD", "date": "2026-11-20T13:30:00+00:00", "forecast": "0.7%", "impact": "Low", "previous": "1.2%", "title": "Retail Sales m/m"}
 {"actual": "", "country": "EUR", "date": "2026-11-20T15:00:00+00:00", "forecast": "-18", "impact": "Low", "previous": "-18", "title": "Consumer Confidence"}
-{"actual": "", "country": "USD", "date": "2026-11-20T15:00:00+00:00", "forecast": "52.1", "impact": "Medium", "previous": "51.0", "title": "Revised UoM Consumer Sentiment"}
+{"actual": "", "country": "USD", "date": "2026-11-20T15:00:00+00:00", "forecast": "51.7", "impact": "Medium", "previous": "51.0", "title": "Revised UoM Consumer Sentiment"}
 {"actual": "", "country": "USD", "date": "2026-11-20T15:00:00+00:00", "forecast": "", "impact": "Medium", "previous": "4.3%", "title": "Revised UoM Inflation Expectations"}
 {"actual": "", "country": "USD", "date": "2026-11-20T16:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Fed Monetary Policy Report"}
 {"actual": "", "country": "USD", "date": "2026-11-20T17:15:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Cook Speaks"}
