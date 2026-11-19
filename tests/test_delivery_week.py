@@ -746,6 +746,29 @@ def test_what_an_update_no_longer_counts_stays_as_it_went_out(monkeypatch, chann
     assert not any(rec.get("kept") for rec in events.values())
 
 
+def test_an_update_that_no_longer_counts_the_hour_a_push_shows_leaves_it_as_it_went_out(
+        monkeypatch, channel, week):
+    # 2026-11-19 23:05: ETH's event opened as a row (-2.83%, noticeable) and
+    # became a push at +4.78% (major); the day filter no longer counts the
+    # major hour, and the push was edited down to the first hour's line.
+    first = ev(at(1, 10), asset="binance:ETH/USDT")
+    bigger = ev(at(1, 15), "major", asset="binance:ETH/USDT")
+    run(monkeypatch, channel, [first], run_at(1, 11), week)
+    run(monkeypatch, channel, [first, bigger], run_at(1, 16), week)
+    before = dict(channel.messages)
+    assert len(channel.pushes()) == 1 and "🟧" in channel.pushes()[0]
+
+    monkeypatch.setattr(jumps, "detector_version", lambda root=None: "v2")
+    rang = len(channel.rang)
+    for hour in (17, 18):
+        run(monkeypatch, channel, [first], run_at(1, hour), week)
+        assert channel.messages == before
+    assert channel.rings_since(rang) == []
+    rec = next(iter(r for r in week[md.STATE_KEY][md.WEEK]["events"].values()
+                    if r["asset"] == "binance:ETH/USDT"))
+    assert rec.get("kept") and rec["tier"] == "major"
+
+
 def test_a_move_an_update_finds_in_hours_already_read_is_not_sent_late(
         monkeypatch, channel, week):
     # The new detector flags a move a previous run saw unflagged: it is not

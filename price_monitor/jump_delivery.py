@@ -1450,15 +1450,19 @@ def _step(week: dict, key: str, readings: "list[dict]", now_ts: int,
     open_ = now_ts < int(start) + PUSH_WINDOW_HOURS * 3600
     members = {str(r["reading_id"]): r for r in readings}
     peak = max(readings, key=_size) if readings else None
-    if rec is not None and rec.get("form") and peak is None \
-            and (rec.get("kept") or _updating(week, now_ts)):
+    if rec is not None and rec.get("form") and (rec.get("kept") or _updating(week, now_ts)) \
+            and str(rec.get("peak")) not in members \
+            and (peak is None or _size(peak) <= float(rec["shown"][1] or 0.0)):
         # KEPT BY A DETECTOR UPDATE. What went out stays as it went out when an
-        # update no longer counts its hours - the day filter, or a setting
-        # changed - and stays so for the week, unless its readings come back. A
-        # correction in any other run still takes it down (_leave).
+        # update no longer counts the hour it shows - the day filter, or a
+        # setting changed - whether the event's other hours still count or not:
+        # on 2026-11-19 ETH's push of 15.11, +4.78% major, was edited down to
+        # its first hour's -2.83% noticeable. It stays so for the week, unless
+        # that hour comes back or a bigger one comes. A correction in any other
+        # run still moves or takes it down.
         rec.update(kept=True, seen=now_ts)
         return 0
-    if rec is not None and peak is not None:
+    if rec is not None:
         rec.pop("kept", None)
     # Every reading the event has shown, kept after it vanishes: one that comes
     # back was corrected back, it did not arrive late.
@@ -1782,7 +1786,8 @@ def _pass(cfg: Config, state: dict, week: dict, readings: "list[dict]", labels: 
     moving = {key for key, _, _ in fresh}
     for key, rec in week["events"].items():
         rows = groups.get(key) or []
-        if rows and rec.get("form") and key not in moving and not rec.get("doubt"):
+        if rows and rec.get("form") and key not in moving and not rec.get("doubt") \
+                and not rec.get("kept"):
             _member(rec, max(rows, key=_size), rec["form"], labels, calendar)
     changed += _post_new(cfg, state, week, fresh, groups, labels, calendar, ring, now_ts)
     # After the new moves: a delete Telegram does not answer must not hold them.
@@ -1793,10 +1798,11 @@ def _pass(cfg: Config, state: dict, week: dict, readings: "list[dict]", labels: 
     changed += _expire_pings(cfg, week, now_ts)
     save_state(cfg.state_path, state)
 
-    note_rows = [_render(rec, max(groups[key], key=_size) if groups.get(key) else rec["row"])
+    note_rows = [_render(rec, rec["row"] if rec.get("kept") else max(groups[key], key=_size))
                  for key, rec in week["events"].items()
                  if rec.get("form") == ROW and not rec.get("doubt")
-                 and (groups.get(key) or (rec.get("kept") and rec.get("row")))]
+                 and ((rec.get("kept") and rec.get("row")) or
+                      (groups.get(key) and not rec.get("kept")))]
     changed += _write_note(cfg, week, format_digest(note_rows, labels, window, calendar, now))
     save_state(cfg.state_path, state)
     return changed
