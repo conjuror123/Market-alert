@@ -139,7 +139,9 @@ footer{margin-top:48px;color:var(--muted);font-size:.82rem;max-width:90ch}
 <section id="volume">
   <h2>Volume, the detector alone</h2>
   <p class="note">An event is an instrument's flags inside 24 hours from its first, worded by
-  its rarest; it counts in the window its first reading was found in. A push rings at once;
+  its rarest; it counts in the window its first reading was found in. A flag counts only on a
+  day that has moved too: the day so far at least the day filter's daily sigmas (header),
+  either way. A push rings at once;
   a note row goes into the weekly note. Every reading counts here: no vote. What the votes
   change is below, inside the windows the bot votes in.</p>
   <div class="tablebox"><table id="t-volume"></table></div>
@@ -269,6 +271,7 @@ const meta = M.meta;
 $("meta").innerHTML = `Commit <a href="${repo}/commit/${esc(meta.commit)}"><b>${esc(String(meta.commit).slice(0,7))}</b></a>
   on ${esc(meta.branch)} · ${esc(meta.subject)} · measured ${esc(meta.measured_at)}`;
 $("meta2").innerHTML = `<b>${meta.instruments}</b> instruments · levels <b>${meta.levels.join(" / ")}σ</b>
+  · day filter <b>${meta.day_sigmas == null ? "—" : (meta.day_sigmas ? meta.day_sigmas + "σ of a day" : "off")}</b>
   · pushed: ${esc(meta.push_words.join(", "))} · half-year window ${meta.window_days} days
   · measured to ${hour(meta.end)} UTC · newest bar ${hour(meta.last_bar)}`;
 const failed = M.checks.filter(c => !c.ok);

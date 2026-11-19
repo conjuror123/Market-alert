@@ -1339,6 +1339,33 @@ def _render(rec: dict, peak: dict) -> dict:
     return dict(peak, story=story_line(rec["story"], int(peak["hour_utc"])))
 
 
+def _updating(week: dict, now_ts: int) -> bool:
+    """Whether this run is the one that found the detector updated (maybe_deliver
+    stamps `updated` an hour before it)."""
+    return int(week.get("updated", -1)) == now_ts - 3600
+
+
+def _portable(reading: dict) -> dict:
+    """A reading as the state can keep it: plain numbers, text and None."""
+    import numpy as np
+
+    out: dict = {}
+    for key, value in reading.items():
+        if value is None or isinstance(value, (str, bool)):
+            out[key] = value
+        elif isinstance(value, np.bool_):
+            out[key] = bool(value)
+        elif pd.isna(value):
+            out[key] = None
+        elif isinstance(value, (int, np.integer)):
+            out[key] = int(value)
+        elif isinstance(value, (float, np.floating)):
+            out[key] = float(value)
+        else:
+            out[key] = str(value)
+    return out
+
+
 
 
 def _doubt(asset: str, reading_ids, doubts: "dict | None") -> "dict | None":
@@ -1423,6 +1450,16 @@ def _step(week: dict, key: str, readings: "list[dict]", now_ts: int,
     open_ = now_ts < int(start) + PUSH_WINDOW_HOURS * 3600
     members = {str(r["reading_id"]): r for r in readings}
     peak = max(readings, key=_size) if readings else None
+    if rec is not None and rec.get("form") and peak is None \
+            and (rec.get("kept") or _updating(week, now_ts)):
+        # KEPT BY A DETECTOR UPDATE. What went out stays as it went out when an
+        # update no longer counts its hours - the day filter, or a setting
+        # changed - and stays so for the week, unless its readings come back. A
+        # correction in any other run still takes it down (_leave).
+        rec.update(kept=True, seen=now_ts)
+        return 0
+    if rec is not None and peak is not None:
+        rec.pop("kept", None)
     # Every reading the event has shown, kept after it vanishes: one that comes
     # back was corrected back, it did not arrive late.
     snapshot = dict(rec["members"]) if rec else {}
@@ -1490,6 +1527,8 @@ def _member(rec: dict, peak: dict, form: str, labels: dict, calendar) -> dict:
         body, context = push_parts(_render(rec, peak), labels, calendar)
     else:
         body, context = ping_line(peak, labels), ""
+        # Its row as the note shows it, for when an update no longer sees it.
+        rec["row"] = _portable(peak)
     rec.update(body=body, context=context, size=_size(peak), hour=int(peak["hour_utc"]))
     return {"form": form, "size": rec["size"], "body": body, "context": context,
             "hour": rec["hour"]}
@@ -1689,9 +1728,10 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
     elif week.get("detector") != version:
         # A DETECTOR UPDATE KEEPS THE WEEK. What is on the channel stays and is
         # brought to the updated numbers by the ordinary pass, as any correction
-        # is - an edit, silent; an event the update no longer sees leaves as a
-        # corrected one does. A move it sees in hours the runs before it had
-        # already read is not sent late (_step). It used to restart the week,
+        # is - an edit, silent; an event the update no longer sees stays as it
+        # went out (_step: kept - the day filter's first run would otherwise
+        # have taken down Tin's push of 2026-11-19). A move it sees in hours the
+        # runs before it had already read is not sent late (_step). It used to restart the week,
         # deleting every push and ping of it: on 2026-11-04 a change to
         # sessions.py's table code took eight messages and the note's ten rows.
         week["detector"] = version
@@ -1753,9 +1793,10 @@ def _pass(cfg: Config, state: dict, week: dict, readings: "list[dict]", labels: 
     changed += _expire_pings(cfg, week, now_ts)
     save_state(cfg.state_path, state)
 
-    note_rows = [_render(rec, max(groups[key], key=_size))
+    note_rows = [_render(rec, max(groups[key], key=_size) if groups.get(key) else rec["row"])
                  for key, rec in week["events"].items()
-                 if rec.get("form") == ROW and groups.get(key) and not rec.get("doubt")]
+                 if rec.get("form") == ROW and not rec.get("doubt")
+                 and (groups.get(key) or (rec.get("kept") and rec.get("row")))]
     changed += _write_note(cfg, week, format_digest(note_rows, labels, window, calendar, now))
     save_state(cfg.state_path, state)
     return changed

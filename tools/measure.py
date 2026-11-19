@@ -481,6 +481,7 @@ def measure(bars_dir: str, voters_dir: "str | None", work_dir: str) -> dict:
                  "measured_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
                  "end": end, "instruments": len(basket.instruments),
                  "levels": list(levels), "window_days": window_days,
+                 "day_sigmas": jumps.day_sigmas(),
                  "push_words": list(routing.PUSH_TIERS),
                  # Each provider and source by the name the channel gives it.
                  "labels": dict(verify.LABELS),

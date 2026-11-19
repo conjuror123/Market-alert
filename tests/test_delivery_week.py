@@ -719,6 +719,33 @@ def test_a_detector_update_that_changes_no_event_leaves_the_week_alone(
     assert week[md.STATE_KEY][md.WEEK]["detector"] == "v2"
 
 
+def test_what_an_update_no_longer_counts_stays_as_it_went_out(monkeypatch, channel, week):
+    # The day filter's first run (2026-11-19) no longer counts hours already on
+    # the channel - Tin's push of that night among them. They stay, the push,
+    # the ping and the note's row, through that run and the ones after; only a
+    # correction outside an update takes a message down.
+    row = ev(at(1, 10))
+    push = ev(at(1, 12), "high", asset="coinbase:BTC-USD")
+    bystander = ev(at(1, 3), asset="binance:ETH/USDT", found=at(-3, 0))
+    run(monkeypatch, channel, [row, push, bystander], run_at(1, 13), week)
+    before = dict(channel.messages)
+    note_id = week[md.STATE_KEY][md.WEEK]["note"]["ids"][0]
+    assert "Gold" in channel.messages[note_id]
+
+    monkeypatch.setattr(jumps, "detector_version", lambda root=None: "v2")
+    rang = len(channel.rang)
+    for hour in (14, 15, 16):
+        run(monkeypatch, channel, [bystander], run_at(1, hour), week)
+        assert channel.messages == before            # the note's row too, word for word
+    assert channel.rings_since(rang) == []
+    events = week[md.STATE_KEY][md.WEEK]["events"]
+    assert all(rec.get("kept") for rec in events.values() if rec["asset"] != "binance:ETH/USDT")
+
+    # Its readings back, it is an event like any other again.
+    run(monkeypatch, channel, [row, push, bystander], run_at(1, 17), week)
+    assert not any(rec.get("kept") for rec in events.values())
+
+
 def test_a_move_an_update_finds_in_hours_already_read_is_not_sent_late(
         monkeypatch, channel, week):
     # The new detector flags a move a previous run saw unflagged: it is not

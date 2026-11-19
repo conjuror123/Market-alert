@@ -495,3 +495,41 @@ def test_a_shanghai_night_across_a_missing_trading_day_is_not_scored():
         (cst(2025, 9, 24, 9), 4550, 4560, 4540, 4555, 0.0, 12),
     ]), dividends=dividends(ticker="SPY"))
     assert out["gap"].isna().all()
+
+
+# The day the day filter measures from (jump.jumps.day_moves): a session
+# market's starts at the previous close, a pair's at 17:00 New York, a coin's
+# at midnight UTC.
+def _utc(y, m, d, h):
+    return int(datetime(y, m, d, h, tzinfo=timezone.utc).timestamp())
+
+
+def test_a_coins_day_is_the_utc_day():
+    coin = asset(ticker="BTC/USDT", source="binance", block="crypto",
+                 session_template="crypto_24_7")
+    hours = pd.Series([_utc(2026, 11, 14, 23), _utc(2026, 11, 15, 0)])
+    assert list(returns.trading_day_ids(coin, hours)) == ["2026-11-14", "2026-11-15"]
+
+
+def test_a_pairs_day_turns_at_five_in_new_york_summer_and_winter():
+    pair = asset(ticker="EUR/USD", block="FX", session_template="fx_continuous")
+    # 16:00 and 17:00 New York, in July (UTC-4) and in November (UTC-5).
+    hours = pd.Series([_utc(2026, 7, 14, 20), _utc(2026, 7, 14, 21),
+                       _utc(2026, 11, 17, 21), _utc(2026, 11, 17, 22)])
+    assert list(returns.trading_day_ids(pair, hours)) == [
+        "2026-07-14", "2026-07-15", "2026-11-17", "2026-11-18"]
+
+
+def test_a_funds_day_is_its_session():
+    fund = asset()
+    hours = pd.Series([et(2026, 11, 17, 15), et(2026, 11, 18, 9)])
+    assert list(returns.trading_day_ids(fund, hours)) == ["2026-11-17", "2026-11-18"]
+
+
+def test_a_futures_day_starts_at_the_evening_open():
+    # The CBOT's rates trade from 17:00 Chicago, 23:00 UTC in November: that
+    # hour is the next day's.
+    rates = asset(ticker="ZT=F", source="yahoo", block="rates",
+                  session_template="cbot_rates")
+    hours = pd.Series([_utc(2026, 11, 18, 21), _utc(2026, 11, 18, 23)])
+    assert list(returns.trading_day_ids(rates, hours)) == ["2026-11-18", "2026-11-19"]

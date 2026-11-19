@@ -30,12 +30,19 @@ most sources did not see (jump.verify, not real) is left out too (without_not_re
 and a first hour the feeds saw happen overnight is scored with their night in its
 gap (with_nights).
 
+THE DAY FILTER (the user's, 2026-11-19). A worded reading counts only when its
+day has moved too: from the start of its trading day to the end of the hour, at
+least DAY_SIGMAS (config: `day_sigmas`) daily sigmas either way, the daily sigma
+by the same rule on whole days (day_moves, day_filter). A rare hour on a quiet
+day is no event, rung or noted.
+
 EVENTS. An instrument's first flagged reading opens an event of 24 real hours
 from when it was found (event_starts); its word is its rarest reading's, its
 numbers its biggest's. Each reading carries what delivery reads: an id, its word
 as `tier`, its channel, its event's start, `r`, `sigma_lt`, the rarest-since
-reading (`since_utc`, `since_z`; rarest_since) and the check at the first NYSE
-close after it was found (`check_utc`, `held`; held_at_close).
+reading (`since_utc`, `since_z`; rarest_since), the check at the first NYSE
+close after it was found (`check_utc`, `held`; held_at_close) and its day so far
+in daily sigmas (`day_r`, `sigma_day`).
 
     python -m jump.jumps            reads data/jump/metrics, writes
                                       data/jump/jumps.parquet
@@ -139,6 +146,33 @@ def levels() -> "tuple[float, ...]":
     return settings()[1]
 
 
+# THE DAY FILTER (the user's, 2026-11-19). A rare hour counts only when the day
+# it falls in has moved at least this many daily sigmas from its start to the
+# end of that hour, either way. The daily sigma is the hourly one's rule on
+# daily moves: bipower, the window before the day, from the same cleaned
+# returns. Overridable as `day_sigmas` under `detector:`; 0 turns it off.
+DAY_SIGMAS = 1.5
+
+
+def day_sigmas(path: str = DEFAULT_BASKET_PATH) -> float:
+    """The day filter's threshold, in daily sigmas, from config/basket.yaml or
+    DAY_SIGMAS. 0 is off; anything negative or not a number is refused."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            raw = (yaml.safe_load(f) or {}).get("detector") or {}
+    except OSError:
+        raw = {}
+    value = raw.get("day_sigmas", DAY_SIGMAS)
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        number = float("nan")
+    if not (math.isfinite(number) and number >= 0) or isinstance(value, bool):
+        raise ValueError(f"detector settings out of range: day_sigmas={value!r} "
+                         "(a number of daily sigmas, 0 for off)")
+    return number
+
+
 def half_year_sigma(hour_utc, values, window_days: float = WINDOW_DAYS,
                     min_count: int = 78) -> np.ndarray:
     """Per reading, the bipower volatility of the readings strictly before it
@@ -229,6 +263,75 @@ def score(frame: pd.DataFrame, template: str, window_days: float = WINDOW_DAYS,
     return pd.DataFrame({"hour_utc": hours, "reading": HOUR, "r": r, "sigma": sigma,
                          "z": z, "word": pd.array(word_of(z, levels), dtype="string"),
                          "young": young})
+
+
+def day_moves(hours, moves, day_ids, window_days: float = WINDOW_DAYS,
+              unscored=None) -> "tuple[np.ndarray, np.ndarray]":
+    """THE DAY SO FAR, AND THE DAILY SIGMA, for one instrument's hours.
+
+    `moves` is each hour's log move as the detector scores it - the hour's own,
+    plus the gap when the hour opens a session - NaN where nothing is scored (a
+    broken print, a move most sources did not see, an unscored roll or payout).
+    `day_ids` is each hour's trading day (jump.returns.trading_day_ids).
+    `unscored` is any move the price made that no reading holds - across a
+    missing hour - added to the path, not to whether the hour was scored.
+
+    Returns, per hour, (so_far, sigma_day): the move from the start of its day
+    to the end of that hour, and the bipower volatility of whole days over
+    `window_days` BEFORE its day - the hourly yardstick's rule on daily moves,
+    with the paper's minimum for one reading a day (16), NaN until then. A day
+    with nothing scored in it is no day of the yardstick."""
+    hours = np.asarray(hours, dtype="int64")
+    moves = np.asarray(moves, dtype="float64")
+    days = pd.Series(np.asarray(day_ids), index=np.arange(len(hours)))
+    extra = np.zeros(len(hours)) if unscored is None else \
+        np.nan_to_num(np.asarray(unscored, dtype="float64"))
+    filled = pd.Series(np.nan_to_num(moves) + extra, index=days.index)
+    so_far = filled.groupby(days, sort=False).cumsum().to_numpy()
+    scored = pd.Series(np.isfinite(moves), index=days.index)
+    whole = pd.DataFrame({"move": filled, "scored": scored, "hour": hours}).groupby(
+        days, sort=False).agg(move=("move", "sum"), scored=("scored", "any"), end=("hour", "max"))
+    whole = whole[whole["scored"]].sort_values("end")
+    sigma = half_year_sigma(whole["end"].to_numpy(), whole["move"].to_numpy(),
+                            window_days, minimum_count(1))
+    by_day = pd.Series(sigma, index=whole.index)
+    return so_far, days.map(by_day).to_numpy(dtype="float64")
+
+
+def day_filter(scored: pd.DataFrame, metrics: pd.DataFrame, asset,
+               window_days: float, threshold: float) -> pd.DataFrame:
+    """Adds `day_r` and `sigma_day` to one instrument's readings (day_moves) and
+    `day_ok`: whether the day so far is at least `threshold` daily sigmas, either
+    way. An hour's day so far runs to its end; a gap is the first move of its
+    day, so its day so far is the gap itself - nothing after it is known when it
+    is judged at the open. A day with no yardstick yet (a young series), or a
+    threshold of 0, holds nothing back."""
+    from jump.returns import trading_day_ids
+
+    metrics = metrics.sort_values("hour_utc").reset_index(drop=True)
+    hours = metrics["hour_utc"].to_numpy(dtype="int64")
+    day_ids = trading_day_ids(asset, metrics["hour_utc"]).to_numpy()
+    hour_r = scored[scored["reading"] == HOUR].set_index("hour_utc")["r"]
+    gap_r = scored[scored["reading"] != HOUR].groupby("hour_utc")["r"].sum()
+    own = pd.Series(hours).map(hour_r).to_numpy(dtype="float64")
+    gap = pd.Series(hours).map(gap_r).to_numpy(dtype="float64")
+    hole = (np.nan_to_num(metrics["hole"].to_numpy(dtype="float64"))
+            if "hole" in metrics else np.zeros(len(hours)))
+    moves = np.where(np.isfinite(own) | np.isfinite(gap),
+                     np.nan_to_num(own) + np.nan_to_num(gap), np.nan)
+    # The price moved across a missing hour too, though no reading holds it.
+    so_far, sigma = day_moves(hours, moves, day_ids, window_days, unscored=hole)
+    at = pd.Series(np.arange(len(hours)), index=hours)
+    rows = at.reindex(scored["hour_utc"].to_numpy()).to_numpy()
+    found = ~pd.isna(rows)
+    index = np.where(found, rows, 0).astype("int64")
+    day_r = np.where(scored["reading"].to_numpy() == HOUR, so_far[index],
+                     scored["r"].to_numpy(dtype="float64"))
+    sigma_day = np.where(found, sigma[index], np.nan)
+    with np.errstate(invalid="ignore"):
+        ok = (threshold <= 0) | ~np.isfinite(sigma_day) | \
+            (np.abs(day_r) >= threshold * sigma_day)
+    return scored.assign(day_r=day_r, sigma_day=sigma_day, day_ok=ok)
 
 
 def gap_kinds(elapsed_hours, template: "str | None" = None) -> np.ndarray:
@@ -617,6 +720,7 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
     now = int(time.time()) if now is None else int(now)
     basket = load_basket(basket_path)
     window, ladder = settings(basket_path)
+    threshold = day_sigmas(basket_path)
     doubts = verify.not_real(verified_path)
     nights = verify.overnight(verified_path)
     parts, kept = [], []
@@ -635,7 +739,7 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
                     failures.append((asset.asset_id, "no metrics file"))
             continue
         try:
-            flagged = _flag(asset, path, window, ladder, doubts, now, nights)
+            flagged = _flag(asset, path, window, ladder, doubts, now, nights, threshold)
         except Exception as exc:
             log.error("%s: scoring failed - %s", asset.asset_id, exc)
             if failures is not None:
@@ -657,8 +761,10 @@ def run(metrics_dir: str = DEFAULT_METRICS_DIR, basket_path: str = DEFAULT_BASKE
 
 
 def _flag(asset, path: str, window: float, ladder, doubts: dict, now: int,
-          nights: "dict | None" = None) -> "pd.DataFrame | None":
-    """One instrument's flagged readings, or None when it has none."""
+          nights: "dict | None" = None,
+          threshold: float = DAY_SIGMAS) -> "pd.DataFrame | None":
+    """One instrument's flagged readings, or None when it has none: worded,
+    and on a day that has moved `threshold` daily sigmas by then (day_filter)."""
     nights = {k: m for k, m in (nights or {}).items() if k[0] == asset.asset_id}
     stored = pd.read_parquet(path, columns=["hour_utc", "r", "hole", "gap"]
                              + (["close"] if nights else []))
@@ -669,9 +775,13 @@ def _flag(asset, path: str, window: float, ladder, doubts: dict, now: int,
     scored = pd.concat([f for f in readings if not f.empty], ignore_index=True)
     if scored.empty:
         return None
+    scored = day_filter(scored, metrics, asset, window, threshold)
     scored = rarest_since(ended(scored, asset.session_template, now), ladder[0])
     scored["record_start"] = int(metrics["hour_utc"].min())
-    flagged = scored[scored["word"].notna()].sort_values("found_utc").reset_index(drop=True)
+    # Rarest-since is measured among every reading of its kind, held back or
+    # not: the day filter decides what counts, not how rare an hour was.
+    flagged = scored[scored["word"].notna() & scored["day_ok"]].drop(columns="day_ok") \
+        .sort_values("found_utc").reset_index(drop=True)
     flagged["event_start"] = event_starts(flagged["found_utc"])
     # The close check follows the price as stored: a move not real is
     # not a reading, but leaving it out of the path would shift every
