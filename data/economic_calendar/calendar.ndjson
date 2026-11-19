@@ -92623,6 +92623,7 @@
 {"actual": "", "country": "EUR", "date": "2026-11-20T07:00:00+00:00", "forecast": "0.9%", "impact": "Low", "previous": "1.9%", "title": "German PPI m/m"}
 {"actual": "", "country": "GBP", "date": "2026-11-20T07:00:00+00:00", "forecast": "18.0B", "impact": "Low", "previous": "24.5B", "title": "Public Sector Net Borrowing"}
 {"actual": "", "country": "GBP", "date": "2026-11-20T07:00:00+00:00", "forecast": "0.0%", "impact": "Medium", "previous": "-0.4%", "title": "Retail Sales m/m"}
+{"actual": "", "country": "CNY", "date": "2026-11-20T07:02:00+00:00", "forecast": "", "impact": "Low", "previous": "-4.3%", "title": "Foreign Direct Investment ytd/y"}
 {"actual": "", "country": "EUR", "date": "2026-11-20T08:15:00+00:00", "forecast": "", "impact": "Medium", "previous": "", "title": "ECB President Lagarde Speaks"}
 {"actual": "", "country": "EUR", "date": "2026-11-20T13:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "German Buba President Nagel Speaks"}
 {"actual": "", "country": "USD", "date": "2026-11-20T13:25:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Waller Speaks"}
