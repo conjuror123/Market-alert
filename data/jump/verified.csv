@@ -992,6 +992,7 @@ yahoo:ZT=F,1794319200,close,real,yahoo,marketwatch,marketwatch,-0.000995,-0.0009
 yahoo:ZT=F,1794492000,close,real,yahoo,marketwatch,marketwatch,-0.000805,-0.000805,1795039576
 yahoo:ZT=F,1794927600,close,real,yahoo,"sina,marketwatch","sina,marketwatch",0.000844,"0.000800,0.000844",1795039576
 yahoo:ZW=F,1791561600,close,real,yahoo,"marketwatch,ft","marketwatch,ft",-0.031171,"-0.031171,-0.030806",1792177575
+yahoo:^AXJO,1795046400,close,real,yahoo,marketwatch,marketwatch,0.005918,0.004741,1795050386
 yahoo:^BVSP,1791205200,open,real,yahoo,"marketwatch,ft","marketwatch,ft",0.081274,"0.081274,0.078479",1791925587
 yahoo:^BVSP,1793019600,open,real,yahoo,"marketwatch,ft","marketwatch,ft",-0.175885,"-0.175885,-0.172291",1793740011
 yahoo:^BVSP,1793026800,close,real,yahoo,"marketwatch,ft","marketwatch,ft",0.015548,"0.015548,0.015764",1793740011
