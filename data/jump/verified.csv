@@ -554,7 +554,7 @@ twelvedata:SPTL,1790604000,close,real,alpaca,yahoo,,-0.006444,-0.006444,17911140
 twelvedata:SPTL,1791475200,close,real,alpaca,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",0.005475,"0.005967,0.005967,0.005967,0.005967",1791839250
 twelvedata:SPY,1793887200,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip,sifting","yahoo,sina,marketwatch,alpaca_sip,sifting",-0.014779,"-0.014925,-0.014925,-0.017092,-0.014925,-0.014805",1794603985
 twelvedata:SPY,1793890800,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip,sifting","yahoo,sina,marketwatch,alpaca_sip,sifting",-0.016542,"-0.016350,-0.016350,-0.016350,-0.016350,-0.016429",1794603985
-twelvedata:SPY,1794927600,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip,sifting","yahoo,sina,marketwatch,alpaca_sip,sifting",-0.011000,"-0.010798,-0.010798,-0.010798,-0.010798,-0.010821",1795035991
+twelvedata:SPY,1794927600,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip,sifting","yahoo,sina,marketwatch,alpaca_sip,sifting",-0.011000,"-0.010798,-0.010798,-0.010798,-0.010798,-0.010821",1795122386
 twelvedata:SRLN,1790600400,close,real,yahoo,sina,,-0.002098,-0.001605,1791114096
 twelvedata:STIP,1789581600,close,real,sina,yahoo,,-0.003193,-0.003193,1791114096
 twelvedata:STIP,1790866800,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo,marketwatch,alpaca_sip",0.001407,"0.001407,0.001407,0.001407",1791583607
@@ -566,7 +566,7 @@ twelvedata:TIP,1790866800,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip",
 twelvedata:TIP,1790949600,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.002396,"-0.002491,-0.002491,-0.002491,-0.002491",1791576441
 twelvedata:TIP,1791295200,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",0.002593,"0.002593,0.002593,0.002593,0.002593",1792008375
 twelvedata:TIP,1792069200,open,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",0.006940,"0.006940,0.006940,0.005992,0.006940",1792785976
-twelvedata:TIP,1794492000,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,alpaca_sip",-0.002998,"-0.002284,-0.002094,0.000762,-0.002094",1795035991
+twelvedata:TIP,1794492000,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,alpaca_sip",-0.002998,"-0.002284,-0.002094,0.000762,-0.002094",1795122386
 twelvedata:TLH,1458565200,close,overnight,tiingo,alpaca,,-0.007149,-0.002430,1791362492
 twelvedata:TLH,1582812000,close,overnight,tiingo,alpaca,,0.009516,0.010970,1791362492
 twelvedata:TLH,1583758800,close,overnight,tiingo,alpaca,,0.037691,0.046599,1791362492
@@ -915,7 +915,7 @@ twelvedata:XLF,1793800800,open,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","
 twelvedata:XLF,1793804400,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",0.011825,"0.011825,0.011825,0.011825,0.011825",1794517587
 twelvedata:XLF,1793887200,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.011325,"-0.011410,-0.011410,-0.011289,-0.011410",1794603985
 twelvedata:XLF,1793890800,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.016846,"-0.016933,-0.016933,-0.016933,-0.016933",1794603985
-twelvedata:XLF,1794927600,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.011642,"-0.011641,-0.011641,-0.011641,-0.011641",1795035991
+twelvedata:XLF,1794927600,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.011642,"-0.011641,-0.011641,-0.011641,-0.011641",1795122386
 twelvedata:XLK,1641823200,close,overnight,tiingo,alpaca,,-0.022674,-0.014455,1791362492
 twelvedata:XLK,1643205600,close,overnight,tiingo,alpaca,,0.024831,0.026297,1791362492
 twelvedata:XLK,1793887200,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.024032,"-0.023544,-0.023544,-0.029273,-0.023486",1794603985
