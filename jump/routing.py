@@ -25,7 +25,7 @@ that counts its own alerts and goes quiet on the third one is answering a
 question about the reader's patience with an instrument's price history, and
 the two have nothing to do with each other: the week the franc is unpegged is
 exactly the week a budget would start silencing things. Volume is controlled
-where it is generated - by the jump detector's words (jump.jumps).
+where it is generated - by the jump detector's words and its day filter (jump.jumps).
 """
 from __future__ import annotations
 

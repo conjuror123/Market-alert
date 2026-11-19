@@ -15,8 +15,11 @@ with the jump test of Lee & Mykland (2008), and the message says how far out it 
 ```
 
 The colour is the word: ⬜ noticeable at 4.5σ, 🟨 high at 6.4σ, 🟧 major at 9σ, 🟥 extreme
-at 12.7σ, each about three times rarer to reach than the one below. `high` and up arrive at
-once (about 5 a week); `noticeable` goes into one weekly note (about 12 rows). Every other
+at 12.7σ, each about three times rarer to reach than the one below. A rare hour counts only
+when its day has moved too: from the start of its trading day to the end of that hour, at
+least 1.5 of the instrument's daily sigmas, either way - a soybean hour the daily chart does
+not show is not news. `high` and up arrive at once (about 3.7 a week); `noticeable` goes
+into one weekly note (about 5.7 rows). Every other
 data feed that carries the instrument votes on a far move: one most did not see is marked
 `❌` with each feed's own move and kept out of the statistics, a tie `⚠️` and kept in. It
 runs entirely on GitHub Actions; nothing else needs hosting.
@@ -44,12 +47,14 @@ Under `detector:` in `config/basket.yaml`:
 detector:
   window_days: 182.6              # how far back "usual" reaches
   levels: [4.5, 6.4, 9.0, 12.7]   # noticeable, high, major, extreme, in sigmas
+  day_sigmas: 1.5                 # the day so far a rare hour needs, in daily sigmas; 0 = off
 ```
 
-The bottom level sets how much you hear: 4.5 gives about 3.8 pushes and 10.5 note rows a
-week, 3.9 about 7.0 and 15.8, 6 about 1.4 and 3.3 (the stage report's count over the year
-to 2026-10-05, on the 58 instruments of then; the 62 make about 5 and 12 at 4.5). Which
-words push is `PUSH_TIERS` in `jump/routing.py`. To silence the channel without stopping
+The bottom level and the day filter set how much you hear. Over the year to 2026-11-19 on
+the 62 instruments, 4.5 with the filter at 1.5 gives about 3.7 pushes and 5.7 note rows a
+week; with the filter off, about 5.0 and 12.1. Without the filter, 3.9 gave about 7.0 and
+15.8 and 6 about 1.4 and 3.3 (the stage report's count over the year to 2026-10-05, on the
+58 instruments of then). Which words push is `PUSH_TIERS` in `jump/routing.py`. To silence the channel without stopping
 the bot, set `jump_alerts_muted: true` in `config/config.yaml`.
 
 ## Where to find what

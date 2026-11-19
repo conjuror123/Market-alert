@@ -556,3 +556,147 @@ def test_an_instrument_without_metrics_this_run_keeps_its_last_events(tmp_path, 
     failures = []
     jumps.run(str(tmp_path), now=now, verified_path=none, previous=None, failures=failures)
     assert failures == []
+
+
+# --- the day filter (the user's, 2026-11-19) -----------------------------------
+# A rare hour counts only when its day has moved jumps.DAY_SIGMAS daily sigmas
+# from its start to the end of that hour, either way.
+
+H = 3600
+DAY0 = 1793750400                      # 2026-11-04 00:00 UTC
+
+
+def _coin():
+    from jump.basket import Asset
+    return Asset(ticker="BTC/USDT", source="binance", block="crypto", has_volume=True,
+                 tick_size=0.01, session_template="crypto_24_7", fetch_interval="1h",
+                 label="Bitcoin", in_basket=True)
+
+
+def _days(n, last=None):
+    """`n` UTC days of hours, each day trending: +0.001 an hour on even days,
+    -0.001 on odd ones - an hourly sigma of 0.00125 and a daily one of 0.030.
+    `last` replaces the final day's 24 moves."""
+    moves = []
+    for k in range(n):
+        moves += [0.001 if k % 2 == 0 else -0.001] * 24
+    if last is not None:
+        moves[-24:] = last
+    hours = DAY0 + H * np.arange(len(moves))
+    return pd.DataFrame({"hour_utc": hours, "r": moves, "hole": np.nan, "gap": np.nan})
+
+
+def _flagged(tmp_path, metrics, threshold=jumps.DAY_SIGMAS):
+    path = tmp_path / "coin.parquet"
+    metrics.to_parquet(path)
+    now = int(metrics["hour_utc"].max()) + 2 * H
+    out = jumps._flag(_coin(), str(path), jumps.WINDOW_DAYS, jumps.LEVELS, {}, now,
+                      threshold=threshold)
+    return pd.DataFrame() if out is None else out
+
+
+def _hour(day, h):
+    return DAY0 + (day * 24 + h) * H
+
+
+# The test day, the 41st: ten hours down 0.001, then a rare hour up 0.008 (6.4
+# hourly sigmas, `high`) that leaves the day at -0.002 - nothing on a daily
+# chart - three hours up, and at 14:00 a rare hour up 0.060 that takes the day
+# to +0.061, two daily sigmas.
+TEST_DAY = [-0.001] * 10 + [0.008] + [0.001] * 3 + [0.060] + [0.0] * 9
+
+
+def test_a_rare_hour_on_a_quiet_day_does_not_count_and_one_on_a_moving_day_does(tmp_path):
+    out = _flagged(tmp_path, _days(41, TEST_DAY))
+    hours = set(out["hour_utc"])
+    assert _hour(40, 10) not in hours
+    assert _hour(40, 14) in hours
+    row = out[out["hour_utc"] == _hour(40, 14)].iloc[0]
+    assert row["day_r"] == pytest.approx(0.061)
+    assert row["sigma_day"] == pytest.approx(math.sqrt(math.pi / 2) * 0.024, rel=0.01)
+    # The event starts at the hour that counted, not at the one held back.
+    assert row["event_start"] == _hour(40, 15)
+
+
+def test_the_filter_is_off_at_zero(tmp_path):
+    out = _flagged(tmp_path, _days(41, TEST_DAY), threshold=0)
+    assert {_hour(40, 10), _hour(40, 14)} <= set(out["hour_utc"])
+
+
+def test_a_day_is_measured_either_way(tmp_path):
+    # Down 0.060 by 13:00, then a rare hour back up 0.010: the day is still
+    # 0.050 down, past 1.5 daily sigmas - the rebound counts.
+    day = [0.0] * 12 + [-0.060] + [0.010] + [0.0] * 10
+    out = _flagged(tmp_path, _days(41, day))
+    assert _hour(40, 13) in set(out["hour_utc"])
+    rebound = out[out["hour_utc"] == _hour(40, 13)].iloc[0]
+    assert rebound["r"] > 0 and rebound["day_r"] == pytest.approx(-0.050)
+
+
+def test_a_young_series_is_not_held_back(tmp_path):
+    # Ten days: no daily yardstick yet (the paper's minimum is 16), so the rare
+    # hour counts as it did before the filter.
+    out = _flagged(tmp_path, _days(10, TEST_DAY))
+    assert _hour(9, 10) in set(out["hour_utc"])
+    assert np.isnan(out[out["hour_utc"] == _hour(9, 10)].iloc[0]["sigma_day"])
+
+
+def test_the_daily_yardstick_never_sees_its_own_day_or_later():
+    m = _days(41)
+    days = pd.to_datetime(m["hour_utc"], unit="s", utc=True).dt.strftime("%Y-%m-%d")
+    _, sigma = jumps.day_moves(m["hour_utc"], m["r"], days)
+    moved = m["r"].to_numpy().copy()
+    moved[-24:] = 0.05                               # the last day, wild
+    _, again = jumps.day_moves(m["hour_utc"], moved, days)
+    np.testing.assert_array_equal(sigma, again)
+
+
+def test_an_unscored_move_never_reaches_the_daily_yardstick():
+    # A contract roll is an unscored gap (NaN): ZT=F's rolls in the raw prices
+    # put every 2-year Treasury day under the filter (2026-11-19).
+    m = _days(41)
+    days = pd.to_datetime(m["hour_utc"], unit="s", utc=True).dt.strftime("%Y-%m-%d")
+    roll = m["r"].to_numpy().copy()
+    roll[20 * 24] = np.nan
+    flat = m["r"].to_numpy().copy()
+    flat[20 * 24] = 0.0
+    jump = m["r"].to_numpy().copy()
+    jump[20 * 24] = 0.3
+    _, with_roll = jumps.day_moves(m["hour_utc"], roll, days)
+    _, without = jumps.day_moves(m["hour_utc"], flat, days)
+    _, inflated = jumps.day_moves(m["hour_utc"], jump, days)
+    np.testing.assert_array_equal(with_roll, without)
+    # Bipower dulls one jump (it enters two products of forty), but not to nothing.
+    assert inflated[-1] > 1.2 * with_roll[-1]
+
+
+def test_a_gaps_day_so_far_is_the_gap_itself():
+    scored = pd.DataFrame({"hour_utc": [_hour(0, 0), _hour(0, 1)], "reading": ["night", "hour"],
+                           "r": [0.02, 0.01]})
+    metrics = pd.DataFrame({"hour_utc": [_hour(0, 0), _hour(0, 1)], "r": [0.005, 0.01],
+                            "hole": np.nan, "gap": [0.02, np.nan]})
+    out = jumps.day_filter(scored, metrics, _coin(), jumps.WINDOW_DAYS, 1.5)
+    assert list(out["day_r"]) == pytest.approx([0.02, 0.03])
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("detector:\n  levels: [4.5, 6.4, 9.0, 12.7]\n", jumps.DAY_SIGMAS),
+    ("detector:\n  day_sigmas: 2\n", 2.0),
+    ("detector:\n  day_sigmas: 0\n", 0.0),
+])
+def test_the_day_filter_is_its_own_setting(tmp_path, text, expected):
+    basket = tmp_path / "basket.yaml"
+    basket.write_text(text)
+    assert jumps.day_sigmas(str(basket)) == expected
+
+
+@pytest.mark.parametrize("value", ["-1", "abc", "true", ".inf"])
+def test_a_day_filter_setting_out_of_range_is_refused(tmp_path, value):
+    basket = tmp_path / "basket.yaml"
+    basket.write_text(f"detector:\n  day_sigmas: {value}\n")
+    with pytest.raises(ValueError):
+        jumps.day_sigmas(str(basket))
+
+
+def test_the_basket_sets_the_day_filter_at_one_and_a_half():
+    assert jumps.day_sigmas() == 1.5

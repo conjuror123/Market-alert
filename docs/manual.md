@@ -15,7 +15,8 @@ Running it · 11 Modules and data layout · 12 Known limitations
 An hourly bot on GitHub Actions. It watches 62 instruments and posts to a Telegram
 channel when one moves unusually **for itself**: each move is measured against that
 instrument's own last half-year (the jump test of Lee & Mykland, 2008), not against a
-shared percentage.
+shared percentage - and only on a day that has moved too, by the instrument's own daily
+yardstick (the day filter, section 7).
 
 | block | instruments |
 |---|---|
@@ -458,6 +459,35 @@ Extreme has no ceiling, so as a band of its own it is about two and a half times
 than major's (304 against 752). `high` and up push
 (`routing.PUSH_TIERS`); `noticeable` goes into the weekly note.
 
+**The day filter** (`day_filter`, `day_moves`; the user's, 2026-11-19). A worded reading
+counts - rings, or stands in the note - only when its day has moved at least
+`detector.day_sigmas` (1.5, `DAY_SIGMAS`) daily sigmas, either way, from the start of its
+trading day to the end of that hour. Below it the reading is no event at all, though its
+word and its rarity are kept for the readings after it (`rarest_since` reads them all).
+
+- **The day** (`returns.trading_day_ids`): a market with sessions - a fund, an index, a
+  future, the LME - from the previous session's close, so the night's gap is the day's
+  first move; a pair from 17:00 New York; a coin from 00:00 UTC.
+- **The daily sigma** is the hourly one's rule on whole days: bipower over `window_days`
+  before the day, from the same cleaned moves (no roll, payout, broken print or move voted
+  not real; the move across a missing hour counts to the day, as it does to the close
+  check). It starts at 16 days, the paper's minimum for a reading a day; before that
+  nothing is held back.
+- **A gap's day so far is the gap itself**: judged at the open, nothing after it is known.
+- **Measured at the hour, not at the close.** A day that turns back later does not take a
+  counted hour back.
+- An event starts at its first reading that counts: a rare hour held back opens nothing.
+- 0 turns it off. A change is a detector update (`detector_version`): the history is
+  rescored, and what is on the channel stays (section 8, "A detector update keeps the
+  week").
+
+Over the year to 2026-11-19 it kept 193 of 261 pushes and 295 of 630 note rows. Soybeans'
+six report-day pushes became three (04.02, 16.06, 10.11: the three candles the daily chart
+shows); 09.10's hour of −1.83% on a day that closed +0.43% is gone.
+
+**Rule.** The yardstick of raw daily prices is not the detector's: with its contract rolls,
+the 2-year Treasury future's daily sigma held back all 41 of its events of the year.
+
 **Gaps** are scored by the same rules against earlier gaps **of their own kind** over the
 same half-year: nights against nights, weekends against weekends. A gap of 48 hours or
 more is a weekend. A pair has no nights: its holiday closures count as weekends. Scoring
@@ -609,7 +639,10 @@ compacted into a single step.
 
 **Rule.** A detector update keeps the week. When `detector_version()` changes, the week's
 messages stay and are edited to the updated numbers by the ordinary pass, silently, rarer
-included; an event the update no longer sees leaves as a corrected one does. A move it
+included. An event the update no longer sees stays as it went out, its push, ping and note
+row (`kept`; the note's row from the reading it last had, `row`), for the rest of the week
+or until its readings come back; outside an update's run, a reading corrected away still
+takes its event down. A move it
 finds in hours the runs before it had already read (found over an hour before the update's
 run, `week["updated"]`) is not sent. Until 2026-11-04 an update that changed any event
 restarted the week, deleting every push and ping of it.
@@ -759,10 +792,11 @@ has 12 of the job's 20 minutes: past them it is stopped, and delivery, health an
 commit still run. Each part of it (fetch, pipeline, jumps) notes its start, so a step that
 stops short is reported with the part it was in and its minutes.
 
-**Expected volume.** About 5 pushes and 12 note rows a week: 268 and 649 over the year to
-2026-11-13, 275 and 386 over the year before, by the dashboard's count (24-hour events, the
-detector alone). The basket of 172 at 6σ made 4.0 and 10.8 a week (`docs/decisions.md`,
-"Words at 4.5 / 6.4 / 9 / 12.7σ"). A quiet day is normal: green runs mean it looked and
+**Expected volume.** About 3.7 pushes and 5.7 note rows a week: 193 and 295 over the year
+to 2026-11-19 with the day filter at 1.5 (24-hour events, the detector alone); without it
+261 and 630 over the same year, 268 and 649 over the year to 2026-11-13 and 275 and 386 over
+the year before, by the dashboard's count. The basket of 172 at 6σ made 4.0 and 10.8 a week
+(`docs/decisions.md`, "Words at 4.5 / 6.4 / 9 / 12.7σ"). A quiet day is normal: green runs mean it looked and
 found nothing.
 
 **Checking on it.** The dashboard (https://conjuror123.github.io/Market-alert/) is measured

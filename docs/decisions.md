@@ -95,6 +95,39 @@ bars near the boundary of the 48-bar recomputed tail oscillated across runs betw
 and valid as the window edge moved, causing phantom event revisions. 1,000 bars ensures the
 volume filter is fully warmed over the entire recomputed tail.
 
+**A rare hour counts only on a day that has moved too** (the user's, 2026-11-19). Friends
+teased that soybeans were the planet's most important asset: six pushes in the year, hours
+of 6.8 to 14.6 hourly sigmas (the USDA's WASDE days among them), and on a daily chart four of
+the six days were ordinary. Soybeans barely move an hour, so 2% in one hour is a record for
+the hour and nothing for the day: 09.10 rang at −1.83% on a day that closed +0.43%. 56%
+of all the year's pushes fell on days within two daily sigmas.
+
+So a worded reading counts only when the move from the start of its trading day to the end
+of that hour is at least 1.5 daily sigmas, either way, the daily sigma by the hourly one's
+rule (bipower over the half-year before) on the same cleaned moves. It holds back in the
+note too, not only the ring: the user wanted the whole bot filtered, not a quieter phone.
+Over the year to 2026-11-19: pushes 261 → 193, note rows 630 → 295; soybeans six → three,
+the three days the daily chart shows.
+
+- **The day so far, not the hour.** Measured against the hour itself (|hour| ≥ 1.5 daily σ)
+  soybeans kept five of six - a report hour is most of its day - and the note fell to 110
+  rows a year.
+- **1.5, not 2.** At 2 the start of tin's 10% fall on 2026-11-17 (1.8 daily σ by then)
+  went too.
+- **Measured at the hour**, not at the day's close: a push cannot wait for the close, and
+  a counted hour cannot be taken back.
+- **Either way**, as the user put it: a rebound on a day already 2σ down counts.
+- **The daily sigma from the cleaned moves.** From raw closes, the 2-year Treasury
+  future's contract rolls inflated it until all 41 of its events of the year were held
+  back.
+- **16 days** before the daily sigma exists, the paper's minimum for a reading a day, and
+  nothing is held back until then. A longer minimum was considered and not taken: it
+  lengthens the stretch with no filter at all, and the shortest history (CSI 300) is 63
+  days.
+- **What is on the channel stays through an update.** The filter's first run would have
+  taken down the week's pushes it no longer counts (tin's of 2026-11-19); an event an
+  update no longer sees is kept as it went out.
+
 ---
 
 ## Delivery

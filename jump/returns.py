@@ -97,6 +97,26 @@ def session_ids(asset: Asset, hours: pd.Series, anchor_tz: str = "America/New_Yo
     raise ValueError(f"{asset.ticker}: unknown session template '{asset.session_template}'")
 
 
+def trading_day_ids(asset: Asset, hours: pd.Series,
+                    anchor_tz: str = "America/New_York") -> pd.Series:
+    """The trading day each hour belongs to, as "YYYY-MM-DD" - the day the day
+    filter measures from its start (jump.jumps.day_moves; the user's, 2026-11-19).
+
+    A market with sessions - a fund, an index, a future, the LME - has its own
+    session day (session_ids): it starts at the previous session's close, so
+    the night's gap is the first move of the day. A currency pair has no
+    session days inside its week, so its day is the market's own: it ends at
+    17:00 New York. A coin's is the UTC day."""
+    moments = pd.to_datetime(hours, unit="s", utc=True)
+    if asset.session_template == "crypto_24_7":
+        return moments.dt.strftime("%Y-%m-%d")
+    if asset.session_template == "fx_continuous":
+        # Seven hours on from New York puts 17:00 at midnight: a new day.
+        local = moments.dt.tz_convert(anchor_tz).dt.tz_localize(None)
+        return (local + pd.Timedelta(7, unit="h")).dt.strftime("%Y-%m-%d")
+    return session_ids(asset, hours, anchor_tz).astype(str)
+
+
 def fx_holiday_closed(prev_hour: np.ndarray, hours: np.ndarray,
                       anchor_tz: str = "America/New_York") -> np.ndarray:
     """Per bar: do the missing hours before it touch Christmas Day or New Year's

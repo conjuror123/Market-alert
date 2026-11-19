@@ -54,12 +54,23 @@ fetch_since: "2002-01-01"
 #       before it (calendar time, the same for every instrument)
 #   the word from |z|: noticeable, high, major, extreme at the four `levels`.
 #
+#   and only when the day so far has moved at least `day_sigmas` of its own
+#   daily sigma, measured the same way on daily moves (jump.jumps.day_moves).
+#
 # window_days: half a year, inside the paper's valid range for every calendar.
 # levels: about sqrt(2) apart, each word about three times rarer to reach than
 #   the one below; the bottom sets the volume (docs/decisions.md, "The detector").
+# day_sigmas: THE DAY FILTER. A rare hour counts - rings, or stands in the note -
+#   only when the move from the start of its trading day to the end of that
+#   hour is at least this many daily sigmas, either way. 0 turns it off. Over
+#   the year to 2026-11-19, 1.5 kept 190 of 261 pushes and 292 of 630 note rows
+#   (the user's, 2026-11-19: a soybean hour the daily chart does not show is not
+#   news). A change is a detector update: the history is rescored, the week's
+#   messages stay.
 detector:
   window_days: 182.6
   levels: [4.5, 6.4, 9.0, 12.7]
+  day_sigmas: 1.5
 
 # Session templates: here only the names the assets refer to; the calendars
 # are in jump/sessions.py and data/jump/sessions/.
