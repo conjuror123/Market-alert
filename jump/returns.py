@@ -113,7 +113,7 @@ def trading_day_ids(asset: Asset, hours: pd.Series,
     if asset.session_template == "fx_continuous":
         # Seven hours on from New York puts 17:00 at midnight: a new day.
         local = moments.dt.tz_convert(anchor_tz).dt.tz_localize(None)
-        return (local + pd.Timedelta(hours=7)).dt.strftime("%Y-%m-%d")
+        return (local + pd.Timedelta(7, unit="h")).dt.strftime("%Y-%m-%d")
     return session_ids(asset, hours, anchor_tz).astype(str)
 
 
