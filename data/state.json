@@ -1,12 +1,12 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1795126002
+    "last_run_utc": 1795129597
   },
   "floor_pending_replies": [],
   "jump_delivery": {
     "week": {
-      "detector": "50c4d633ab0f",
+      "detector": "a4f636895fc6",
       "events": {
         "binance:BTC/USDT|1794711600": {
           "asset": "binance:BTC/USDT",
@@ -14,6 +14,7 @@
           "context": "",
           "form": "push",
           "hour": 1794708000,
+          "kept": true,
           "members": {
             "jump:binance:BTC/USDT:hour:1794708000": [
               0.035683064305015506,
@@ -28,7 +29,7 @@
           "peak": "jump:binance:BTC/USDT:hour:1794708000",
           "ping_at": 1794711972,
           "placed_at": 1794711972,
-          "seen": 1795126003,
+          "seen": 1795129598,
           "shown": [
             "major",
             9.2,
@@ -49,10 +50,10 @@
         },
         "binance:ETH/USDT|1794690000": {
           "asset": "binance:ETH/USDT",
-          "body": "\ud83d\udfe7 <b>ETH/USDT</b> \u00b7 Ethereum +4.78% \u00b7 9.4\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 months (then 9.2\u00d7\u03c3)\n\ud83d\udd50 <b>15.11.2026 02:00 UTC</b> \u00b7 next close 107%\n\u270f\ufe0f \u2b1c 5.6\u00d7\u03c3 14.11 20:00 \u2192 \ud83d\udfe7 9.4\u00d7\u03c3 02:00 bigger jump",
+          "body": "\u2b1c <b>ETH/USDT</b> \u00b7 Ethereum -2.83% \u00b7 5.6\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 41 hours (then 5.7\u00d7\u03c3)\n\ud83d\udd50 <b>14.11.2026 20:00 UTC</b> \u00b7 next close 27%",
           "context": "",
           "form": "push",
-          "hour": 1794708000,
+          "hour": 1794686400,
           "members": {
             "jump:binance:ETH/USDT:hour:1794686400": [
               -0.028347606375357968,
@@ -64,17 +65,17 @@
             ]
           },
           "message": 174,
-          "peak": "jump:binance:ETH/USDT:hour:1794708000",
+          "peak": "jump:binance:ETH/USDT:hour:1794686400",
           "ping_at": 1794690376,
           "placed_at": 1794711972,
-          "seen": 1795126003,
+          "seen": 1795129598,
           "shown": [
-            "major",
-            9.4,
-            1794708000,
-            4.78
+            "noticeable",
+            5.6,
+            1794686400,
+            -2.83
           ],
-          "size": 9.430871884621983,
+          "size": 5.623285842031204,
           "start": 1794690000,
           "story": [
             [
@@ -82,15 +83,9 @@
               5.6,
               1794686400,
               ""
-            ],
-            [
-              "major",
-              9.4,
-              1794708000,
-              "bigger jump"
             ]
           ],
-          "tier": "major"
+          "tier": "noticeable"
         },
         "binance:ETH/USDT|1794841200": {
           "asset": "binance:ETH/USDT",
@@ -98,6 +93,7 @@
           "context": "",
           "form": "row",
           "hour": 1794837600,
+          "kept": true,
           "members": {
             "jump:binance:ETH/USDT:hour:1794837600": [
               0.023385829486649887,
@@ -108,7 +104,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794837600",
           "ping_at": 1794841633,
           "placed_at": 1794841633,
-          "seen": 1795126003,
+          "seen": 1795129598,
           "shown": [
             "noticeable",
             4.6,
@@ -133,6 +129,7 @@
           "context": "",
           "form": "push",
           "hour": 1794708000,
+          "kept": true,
           "members": {
             "jump:binance:SOL/USDT:hour:1794708000": [
               0.050010420574661416,
@@ -143,7 +140,7 @@
           "peak": "jump:binance:SOL/USDT:hour:1794708000",
           "ping_at": 1794711972,
           "placed_at": 1794711972,
-          "seen": 1795126003,
+          "seen": 1795129598,
           "shown": [
             "high",
             8.4,
@@ -168,6 +165,7 @@
           "context": "",
           "form": "push",
           "hour": 1794708000,
+          "kept": true,
           "members": {
             "jump:binance:XRP/USDT:hour:1794708000": [
               0.05019051527270325,
@@ -178,7 +176,7 @@
           "peak": "jump:binance:XRP/USDT:hour:1794708000",
           "ping_at": 1794711972,
           "placed_at": 1794711972,
-          "seen": 1795126003,
+          "seen": 1795129598,
           "shown": [
             "high",
             8.0,
@@ -203,6 +201,7 @@
           "context": "",
           "form": "row",
           "hour": 1794790800,
+          "kept": true,
           "members": {
             "jump:sifting:XAG/USD:hour:1794790800": [
               -0.027022079178490057,
@@ -213,7 +212,7 @@
           "peak": "jump:sifting:XAG/USD:hour:1794790800",
           "ping_at": 1794794800,
           "placed_at": 1794794800,
-          "seen": 1795126003,
+          "seen": 1795129598,
           "shown": [
             "noticeable",
             5.2,
@@ -248,7 +247,38 @@
           "peak": "jump:sifting:XAG/USD:hour:1795122000",
           "ping_at": 1795126003,
           "placed_at": 1795126003,
-          "seen": 1795126003,
+          "row": {
+            "asset_id": "sifting:XAG/USD",
+            "basis": "jump",
+            "block": "precious_metals",
+            "channel": "digest",
+            "check_utc": 1795208400,
+            "day_r": -0.04957445652563343,
+            "event_start": 1795125600,
+            "found_utc": 1795125600,
+            "gap_kind": null,
+            "held": null,
+            "hour_utc": 1795122000,
+            "now_utc": 1795129598,
+            "overnight": false,
+            "r": -0.023806836563242496,
+            "reading": "hour",
+            "reading_id": "jump:sifting:XAG/USD:hour:1795122000",
+            "record_start": 1052089200,
+            "sigma": 0.005178284868971346,
+            "sigma_day": 0.026361866918531835,
+            "sigma_lt": 0.005178284868971346,
+            "since_utc": 1794790800,
+            "since_z": -5.186096514815265,
+            "template": "fx_continuous",
+            "ticker": "XAG/USD",
+            "tier": "noticeable",
+            "vote": "",
+            "word": "noticeable",
+            "young": false,
+            "z": -4.597436635032338
+          },
+          "seen": 1795129598,
           "shown": [
             "noticeable",
             4.6,
@@ -273,6 +303,7 @@
           "context": "",
           "form": "row",
           "hour": 1795053600,
+          "kept": true,
           "members": {
             "jump:sina:CAD:hour:1795053600": [
               -0.01170652495580375,
@@ -283,7 +314,7 @@
           "peak": "jump:sina:CAD:hour:1795053600",
           "ping_at": 1795057667,
           "placed_at": 1795057667,
-          "seen": 1795126003,
+          "seen": 1795129598,
           "shown": [
             "noticeable",
             5.1,
@@ -318,7 +349,38 @@
           "peak": "jump:sina:NID:hour:1794924000",
           "ping_at": 1794927997,
           "placed_at": 1794927997,
-          "seen": 1795126003,
+          "row": {
+            "asset_id": "sina:NID",
+            "basis": "jump",
+            "block": "industrial_metals",
+            "channel": "digest",
+            "check_utc": 1794949200,
+            "day_r": 0.031072052276361894,
+            "event_start": 1794927600,
+            "found_utc": 1794927600,
+            "gap_kind": null,
+            "held": 1.3561996987860583,
+            "hour_utc": 1794924000,
+            "now_utc": 1795129598,
+            "overnight": false,
+            "r": 0.01816969859433149,
+            "reading": "hour",
+            "reading_id": "jump:sina:NID:hour:1794924000",
+            "record_start": 1776830400,
+            "sigma": 0.002855975489056413,
+            "sigma_day": 0.012183852134094274,
+            "sigma_lt": 0.002855975489056413,
+            "since_utc": null,
+            "since_z": null,
+            "template": "lme",
+            "ticker": "NID",
+            "tier": "noticeable",
+            "vote": "",
+            "word": "noticeable",
+            "young": false,
+            "z": 6.361993884035252
+          },
+          "seen": 1795129598,
           "shown": [
             "noticeable",
             6.4,
@@ -357,7 +419,7 @@
           "peak": "jump:sina:SND:hour:1794920400",
           "ping_at": 1794924408,
           "placed_at": 1794924408,
-          "seen": 1795126003,
+          "seen": 1795129598,
           "shown": [
             "high",
             6.7,
@@ -382,6 +444,7 @@
           "context": "Nearby economic events (-2h+1h):\n     \ud83d\udd34 \ud83c\udde6\ud83c\uddfa AUD Employment Change\n     \ud83d\udd34 \ud83c\udde6\ud83c\uddfa AUD Unemployment Rate",
           "form": "push",
           "hour": 1795053600,
+          "kept": true,
           "members": {
             "jump:sina:SND:hour:1795053600": [
               -0.029829786538726834,
@@ -392,7 +455,7 @@
           "peak": "jump:sina:SND:hour:1795053600",
           "ping_at": 1795057667,
           "placed_at": 1795057667,
-          "seen": 1795126003,
+          "seen": 1795129598,
           "shown": [
             "high",
             6.6,
@@ -417,6 +480,7 @@
           "context": "",
           "form": "row",
           "hour": 1794927600,
+          "kept": true,
           "members": {
             "jump:twelvedata:SPY:hour:1794927600": [
               -0.010999879766977472,
@@ -427,7 +491,7 @@
           "peak": "jump:twelvedata:SPY:hour:1794927600",
           "ping_at": 1794931617,
           "placed_at": 1794931617,
-          "seen": 1795126003,
+          "seen": 1795129598,
           "shown": [
             "noticeable",
             4.7,
@@ -462,7 +526,7 @@
           "peak": "jump:twelvedata:USD/CNH:hour:1795100400",
           "ping_at": 1795104397,
           "placed_at": 1795104397,
-          "seen": 1795126003,
+          "seen": 1795129598,
           "shown": [
             "high",
             8.3,
@@ -487,6 +551,7 @@
           "context": "",
           "form": "row",
           "hour": 1794790800,
+          "kept": true,
           "members": {
             "jump:yahoo:PL=F:hour:1794790800": [
               -0.02263227828768786,
@@ -497,7 +562,7 @@
           "peak": "jump:yahoo:PL=F:hour:1794790800",
           "ping_at": 1794794800,
           "placed_at": 1794794800,
-          "seen": 1795126003,
+          "seen": 1795129598,
           "shown": [
             "noticeable",
             4.8,
@@ -538,7 +603,7 @@
           "peak": null,
           "ping_at": 1794931617,
           "placed_at": 1794931617,
-          "seen": 1795126003,
+          "seen": 1795129598,
           "shown": [
             null,
             null,
@@ -569,6 +634,7 @@
           "context": "",
           "form": "row",
           "hour": 1795100400,
+          "kept": true,
           "members": {
             "jump:yahoo:ZS=F:hour:1795100400": [
               -0.010886417466606927,
@@ -579,7 +645,7 @@
           "peak": "jump:yahoo:ZS=F:hour:1795100400",
           "ping_at": 1795104397,
           "placed_at": 1795104397,
-          "seen": 1795126003,
+          "seen": 1795129598,
           "shown": [
             "noticeable",
             5.0,
@@ -620,7 +686,7 @@
           "peak": null,
           "ping_at": 1794931617,
           "placed_at": 1794931617,
-          "seen": 1795126003,
+          "seen": 1795129598,
           "shown": [
             null,
             null,
@@ -651,6 +717,7 @@
           "context": "",
           "form": "row",
           "hour": 1794963600,
+          "kept": true,
           "members": {
             "jump:yahoo:^N225:hour:1794963600": [
               -0.017404823584333425,
@@ -661,7 +728,7 @@
           "peak": "jump:yahoo:^N225:hour:1794963600",
           "ping_at": 1794971193,
           "placed_at": 1794971193,
-          "seen": 1795126003,
+          "seen": 1795129598,
           "shown": [
             "noticeable",
             4.7,
@@ -683,8 +750,8 @@
       },
       "messages": {
         "174": {
-          "first": "\ud83d\udfe7 <b>ETH/USDT</b> \u00b7 Ethereum +4.78% \u00b7 9.4\u00d7\u03c3",
-          "hash": "14d4ed47df14ba0a"
+          "first": "\ud83d\udfe7 <b>BTC/USDT</b> \u00b7 Bitcoin +3.57% \u00b7 9.2\u00d7\u03c3",
+          "hash": "05126063f1084c3f"
         },
         "177": {
           "first": "\ud83d\udfe8 <b>Tin</b> \u00b7 LME -2.98% \u00b7 6.7\u00d7\u03c3",
@@ -713,7 +780,7 @@
       },
       "note": {
         "hashes": [
-          "4ab9997ebc808055"
+          "ac66d22d93315bfa"
         ],
         "ids": [
           172
@@ -722,19 +789,18 @@
       "orphans": [],
       "since": 1794603900,
       "slot": 1794603900,
-      "updated": 1794701154
+      "updated": 1795125998
     }
   },
   "telegram_ledger": {
     "checked": [],
     "known": [
-      184,
       185
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1795126003
+    "saved_at": 1795129598
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-19",
