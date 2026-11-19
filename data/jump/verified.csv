@@ -285,6 +285,7 @@ twelvedata:AUD/USD,1792022400,close,real,sifting,"yahoo,marketwatch,wallstreetcn
 twelvedata:AUD/USD,1793887200,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",-0.003747,"-0.003497,-0.004005,-0.003719,-0.003712,-0.003604",1794614764
 twelvedata:AUD/USD,1793973600,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",0.004115,"0.003784,0.003780,0.003781,0.004129,0.003881",1794701168
 twelvedata:AUD/USD,1794315600,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",-0.005125,"-0.005305,-0.005226,-0.004937,-0.005081,-0.005154",1795046806
+twelvedata:AUD/USD,1795100400,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",-0.003706,"-0.003749,-0.003885,-0.003736,-0.003676,-0.003616",1795104380
 twelvedata:BKLN,1790946000,close,real,yahoo,"sina,marketwatch,alpaca_sip","sina,marketwatch,alpaca_sip",0.001954,"0.001954,0.001465,0.001954",1791580037
 twelvedata:BNO,1636030800,close,overnight,yahoo,alpaca,,0.031922,0.035059,1791362492
 twelvedata:BNO,1638540000,close,overnight,yahoo,alpaca,,0.028851,0.032464,1791362492
@@ -641,6 +642,7 @@ twelvedata:USD/CNH,1785366000,close,not_real,sifting,yahoo,,-0.002149,-0.000037,
 twelvedata:USD/CNH,1786309200,close,overnight,sifting,dukascopy,,-0.003562,0.000157,1791362566
 twelvedata:USD/CNH,1786914000,close,not_real,sifting,dukascopy,,-0.003039,-0.000019,1791362566
 twelvedata:USD/CNH,1793664000,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo","yahoo,marketwatch,wallstreetcn,tiingo",0.001945,"0.001897,0.001910,0.001924,0.001921",1794355583
+twelvedata:USD/CNH,1795100400,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo","yahoo,marketwatch,wallstreetcn,tiingo",0.002942,"0.002931,0.002963,0.002828,0.002928",1795104380
 twelvedata:USD/INR,1730844000,close,not_real,sifting,yahoo,,0.001389,-0.000012,1791114096
 twelvedata:USD/INR,1730847600,close,not_real,sifting,yahoo,,-0.001332,0.000024,1791114096
 twelvedata:USD/INR,1731016800,close,not_real,sifting,yahoo,,0.001361,0.000107,1791114096
@@ -982,6 +984,7 @@ yahoo:ZN=F,1793887200,close,real,yahoo,marketwatch,marketwatch,0.002630,0.002630
 yahoo:ZN=F,1794315600,close,real,yahoo,marketwatch,marketwatch,-0.003517,-0.003517,1795039576
 yahoo:ZN=F,1794492000,close,real,yahoo,marketwatch,marketwatch,-0.002808,-0.002808,1795039576
 yahoo:ZS=F,1794330000,close,real,yahoo,"marketwatch,ft","marketwatch,ft",0.032308,"0.032308,0.032308",1795032379
+yahoo:ZS=F,1795100400,close,real,yahoo,"marketwatch,ft",marketwatch,-0.010061,"-0.010061,",1795104380
 yahoo:ZT=F,1791979200,close,real,yahoo,marketwatch,marketwatch,-0.003072,-0.003072,1792703168
 yahoo:ZT=F,1791982800,close,real,yahoo,marketwatch,marketwatch,0.000884,0.000884,1792703168
 yahoo:ZT=F,1792069200,close,real,yahoo,marketwatch,marketwatch,0.000766,0.000728,1792789570
