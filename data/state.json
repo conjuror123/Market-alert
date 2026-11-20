@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1795140409
+    "last_run_utc": 1795144000
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -29,7 +29,7 @@
           "peak": "jump:binance:BTC/USDT:hour:1794708000",
           "ping_at": 1794711972,
           "placed_at": 1794711972,
-          "seen": 1795140410,
+          "seen": 1795144001,
           "shown": [
             "major",
             9.2,
@@ -68,7 +68,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794686400",
           "ping_at": 1794690376,
           "placed_at": 1794711972,
-          "seen": 1795140410,
+          "seen": 1795144001,
           "shown": [
             "noticeable",
             5.6,
@@ -104,7 +104,7 @@
           "peak": "jump:binance:ETH/USDT:hour:1794837600",
           "ping_at": 1794841633,
           "placed_at": 1794841633,
-          "seen": 1795140410,
+          "seen": 1795144001,
           "shown": [
             "noticeable",
             4.6,
@@ -140,7 +140,7 @@
           "peak": "jump:binance:SOL/USDT:hour:1794708000",
           "ping_at": 1794711972,
           "placed_at": 1794711972,
-          "seen": 1795140410,
+          "seen": 1795144001,
           "shown": [
             "high",
             8.4,
@@ -176,7 +176,7 @@
           "peak": "jump:binance:XRP/USDT:hour:1794708000",
           "ping_at": 1794711972,
           "placed_at": 1794711972,
-          "seen": 1795140410,
+          "seen": 1795144001,
           "shown": [
             "high",
             8.0,
@@ -212,7 +212,7 @@
           "peak": "jump:sifting:XAG/USD:hour:1794790800",
           "ping_at": 1794794800,
           "placed_at": 1794794800,
-          "seen": 1795140410,
+          "seen": 1795144001,
           "shown": [
             "noticeable",
             5.2,
@@ -253,13 +253,13 @@
             "block": "precious_metals",
             "channel": "digest",
             "check_utc": 1795208400,
-            "day_r": -0.04957445652563342,
+            "day_r": -0.04957445652563343,
             "event_start": 1795125600,
             "found_utc": 1795125600,
             "gap_kind": null,
             "held": null,
             "hour_utc": 1795122000,
-            "now_utc": 1795140410,
+            "now_utc": 1795144001,
             "overnight": false,
             "r": -0.023806836563242496,
             "reading": "hour",
@@ -278,7 +278,7 @@
             "young": false,
             "z": -4.597436635032338
           },
-          "seen": 1795140410,
+          "seen": 1795144001,
           "shown": [
             "noticeable",
             4.6,
@@ -299,7 +299,7 @@
         },
         "sina:CAD|1795057200": {
           "asset": "sina:CAD",
-          "body": "\ud83d\udfe7 <b>Copper</b> \u00b7 LME -2.36% \u00b7 10.2\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 2 months (then 15.4\u00d7\u03c3)\n\ud83d\udd50 <b>20.11.2026 01:00 UTC</b> \u00b7 next close in 19h\n\u270f\ufe0f \u2b1c 5.1\u00d7\u03c3 19.11 02:00 \u2192 \ud83d\udfe7 10.2\u00d7\u03c3 01:00 19.11 02:00 corrected away",
+          "body": "\ud83d\udfe7 <b>Copper</b> \u00b7 LME -2.36% \u00b7 10.2\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 2 months (then 15.4\u00d7\u03c3)\n\ud83d\udd50 <b>20.11.2026 01:00 UTC</b> \u00b7 next close in 18h\n\u270f\ufe0f \u2b1c 5.1\u00d7\u03c3 19.11 02:00 \u2192 \ud83d\udfe7 10.2\u00d7\u03c3 01:00 19.11 02:00 corrected away",
           "context": "",
           "form": "push",
           "hour": 1795136400,
@@ -317,7 +317,7 @@
           "peak": "jump:sina:CAD:hour:1795136400",
           "ping_at": 1795057667,
           "placed_at": 1795140410,
-          "seen": 1795140410,
+          "seen": 1795144001,
           "shown": [
             "major",
             10.2,
@@ -370,7 +370,7 @@
             "gap_kind": null,
             "held": 1.3561996987860583,
             "hour_utc": 1794924000,
-            "now_utc": 1795140410,
+            "now_utc": 1795144001,
             "overnight": false,
             "r": 0.01816969859433149,
             "reading": "hour",
@@ -389,7 +389,7 @@
             "young": false,
             "z": 6.361993884035252
           },
-          "seen": 1795140410,
+          "seen": 1795144001,
           "shown": [
             "noticeable",
             6.4,
@@ -428,7 +428,7 @@
           "peak": "jump:sina:SND:hour:1794920400",
           "ping_at": 1794924408,
           "placed_at": 1794924408,
-          "seen": 1795140410,
+          "seen": 1795144001,
           "shown": [
             "high",
             6.7,
@@ -449,7 +449,7 @@
         },
         "sina:SND|1795057200": {
           "asset": "sina:SND",
-          "body": "\u2b1c <b>Tin</b> \u00b7 LME -2.23% \u00b7 4.9\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 23 hours (then 6.6\u00d7\u03c3)\n\ud83d\udd50 <b>20.11.2026 01:00 UTC</b> \u00b7 next close in 19h\n\u270f\ufe0f \ud83d\udfe8 6.6\u00d7\u03c3 19.11 02:00 \u2192 \u2b1c 4.9\u00d7\u03c3 01:00 19.11 02:00 corrected away",
+          "body": "\u2b1c <b>Tin</b> \u00b7 LME -2.23% \u00b7 4.9\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 23 hours (then 6.6\u00d7\u03c3)\n\ud83d\udd50 <b>20.11.2026 01:00 UTC</b> \u00b7 next close in 18h\n\u270f\ufe0f \ud83d\udfe8 6.6\u00d7\u03c3 19.11 02:00 \u2192 \u2b1c 4.9\u00d7\u03c3 01:00 19.11 02:00 corrected away",
           "context": "",
           "form": "push",
           "hour": 1795136400,
@@ -467,7 +467,7 @@
           "peak": "jump:sina:SND:hour:1795136400",
           "ping_at": 1795057667,
           "placed_at": 1795057667,
-          "seen": 1795140410,
+          "seen": 1795144001,
           "shown": [
             "noticeable",
             4.9,
@@ -509,7 +509,7 @@
           "peak": "jump:twelvedata:SPY:hour:1794927600",
           "ping_at": 1794931617,
           "placed_at": 1794931617,
-          "seen": 1795140410,
+          "seen": 1795144001,
           "shown": [
             "noticeable",
             4.7,
@@ -544,7 +544,7 @@
           "peak": "jump:twelvedata:USD/CNH:hour:1795100400",
           "ping_at": 1795104397,
           "placed_at": 1795104397,
-          "seen": 1795140410,
+          "seen": 1795144001,
           "shown": [
             "high",
             8.3,
@@ -580,7 +580,7 @@
           "peak": "jump:yahoo:PL=F:hour:1794790800",
           "ping_at": 1794794800,
           "placed_at": 1794794800,
-          "seen": 1795140410,
+          "seen": 1795144001,
           "shown": [
             "noticeable",
             4.8,
@@ -621,7 +621,7 @@
           "peak": null,
           "ping_at": 1794931617,
           "placed_at": 1794931617,
-          "seen": 1795140410,
+          "seen": 1795144001,
           "shown": [
             null,
             null,
@@ -663,7 +663,7 @@
           "peak": "jump:yahoo:ZS=F:hour:1795100400",
           "ping_at": 1795104397,
           "placed_at": 1795104397,
-          "seen": 1795140410,
+          "seen": 1795144001,
           "shown": [
             "noticeable",
             5.0,
@@ -704,7 +704,7 @@
           "peak": null,
           "ping_at": 1794931617,
           "placed_at": 1794931617,
-          "seen": 1795140410,
+          "seen": 1795144001,
           "shown": [
             null,
             null,
@@ -746,7 +746,7 @@
           "peak": "jump:yahoo:^N225:hour:1794963600",
           "ping_at": 1794971193,
           "placed_at": 1794971193,
-          "seen": 1795140410,
+          "seen": 1795144001,
           "shown": [
             "noticeable",
             4.7,
@@ -777,7 +777,7 @@
         },
         "181": {
           "first": "\u2b1c <b>Tin</b> \u00b7 LME -2.23% \u00b7 4.9\u00d7\u03c3",
-          "hash": "bbc02d8997002adb"
+          "hash": "81b8d492470e858e"
         },
         "183": {
           "first": "\ud83d\udfe8 <b>USD/CNH</b> \u00b7 Offshore yuan +0.29% \u00b7 8.3\u00d7\u03c3",
@@ -793,12 +793,12 @@
         },
         "186": {
           "first": "\ud83d\udfe7 <b>Copper</b> \u00b7 LME -2.36% \u00b7 10.2\u00d7\u03c3",
-          "hash": "3293a22441ecac37"
+          "hash": "cc1db3f0fed367ff"
         }
       },
       "note": {
         "hashes": [
-          "6753872efaf0f682"
+          "48bd676681e7a787"
         ],
         "ids": [
           172
@@ -813,13 +813,12 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      185,
       186
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1795140410
+    "saved_at": 1795144001
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-20",
