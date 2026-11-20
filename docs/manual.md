@@ -639,9 +639,10 @@ compacted into a single step.
 
 **Rule.** A detector update keeps the week. When `detector_version()` changes, the week's
 messages stay and are edited to the updated numbers by the ordinary pass, silently, rarer
-included. An event the update no longer sees stays as it went out, its push, ping and note
-row (`kept`; the note's row from the reading it last had, `row`), for the rest of the week
-or until its readings come back; outside an update's run, a reading corrected away still
+included. An event whose shown hour the update no longer counts stays as it went out, its
+push, ping and note row (`kept`; the note's row from the reading it last had, `row`), even
+when its other hours still count - for the rest of the week, or until that hour comes back
+or a bigger one comes; outside an update's run, a reading corrected away still moves or
 takes its event down. A move it
 finds in hours the runs before it had already read (found over an hour before the update's
 run, `week["updated"]`) is not sent. Until 2026-11-04 an update that changed any event

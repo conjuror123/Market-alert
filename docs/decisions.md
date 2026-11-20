@@ -125,8 +125,10 @@ the three days the daily chart shows.
   lengthens the stretch with no filter at all, and the shortest history (CSI 300) is 63
   days.
 - **What is on the channel stays through an update.** The filter's first run would have
-  taken down the week's pushes it no longer counts (tin's of 2026-11-19); an event an
-  update no longer sees is kept as it went out.
+  taken down the week's pushes it no longer counts (tin's of 2026-11-19); an event whose
+  shown hour an update no longer counts is kept as it went out. The first version kept
+  only events with no hour left, and the deploy (2026-11-19 23:05) edited ETH's push of
+  15.11, +4.78% major, down to its first hour's -2.83% noticeable; the push was put back.
 
 ---
 
