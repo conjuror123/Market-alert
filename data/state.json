@@ -50,10 +50,11 @@
         },
         "binance:ETH/USDT|1794690000": {
           "asset": "binance:ETH/USDT",
-          "body": "\u2b1c <b>ETH/USDT</b> \u00b7 Ethereum -2.83% \u00b7 5.6\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 41 hours (then 5.7\u00d7\u03c3)\n\ud83d\udd50 <b>14.11.2026 20:00 UTC</b> \u00b7 next close 27%",
+          "body": "\ud83d\udfe7 <b>ETH/USDT</b> \u00b7 Ethereum +4.78% \u00b7 9.4\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 months (then 9.2\u00d7\u03c3)\n\ud83d\udd50 <b>15.11.2026 02:00 UTC</b> \u00b7 next close 107%\n\u270f\ufe0f \u2b1c 5.6\u00d7\u03c3 14.11 20:00 \u2192 \ud83d\udfe7 9.4\u00d7\u03c3 02:00 bigger jump",
           "context": "",
           "form": "push",
-          "hour": 1794686400,
+          "hour": 1794708000,
+          "kept": true,
           "members": {
             "jump:binance:ETH/USDT:hour:1794686400": [
               -0.028347606375357968,
@@ -65,17 +66,17 @@
             ]
           },
           "message": 174,
-          "peak": "jump:binance:ETH/USDT:hour:1794686400",
+          "peak": "jump:binance:ETH/USDT:hour:1794708000",
           "ping_at": 1794690376,
           "placed_at": 1794711972,
           "seen": 1795147603,
           "shown": [
-            "noticeable",
-            5.6,
-            1794686400,
-            -2.83
+            "major",
+            9.4,
+            1794708000,
+            4.78
           ],
-          "size": 5.623285842031204,
+          "size": 9.430871884621983,
           "start": 1794690000,
           "story": [
             [
@@ -83,9 +84,15 @@
               5.6,
               1794686400,
               ""
+            ],
+            [
+              "major",
+              9.4,
+              1794708000,
+              "bigger jump"
             ]
           ],
-          "tier": "noticeable"
+          "tier": "major"
         },
         "binance:ETH/USDT|1794841200": {
           "asset": "binance:ETH/USDT",
@@ -449,32 +456,29 @@
         },
         "sina:SND|1795057200": {
           "asset": "sina:SND",
-          "body": "\u2b1c <b>Tin</b> \u00b7 LME -2.23% \u00b7 4.9\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 23 hours (then 6.6\u00d7\u03c3)\n\ud83d\udd50 <b>20.11.2026 01:00 UTC</b> \u00b7 next close in 17h\n\u270f\ufe0f \ud83d\udfe8 6.6\u00d7\u03c3 19.11 02:00 \u2192 \u2b1c 4.9\u00d7\u03c3 01:00 19.11 02:00 corrected away",
-          "context": "",
+          "body": "\ud83d\udfe8 <b>Tin</b> \u00b7 LME -2.98% \u00b7 6.6\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 18 hours (then 6.4\u00d7\u03c3)\n\ud83d\udd50 <b>19.11.2026 02:00 UTC</b> \u00b7 next close 87%",
+          "context": "Nearby economic events (-2h+1h):\n     \ud83d\udd34 \ud83c\udde6\ud83c\uddfa AUD Employment Change\n     \ud83d\udd34 \ud83c\udde6\ud83c\uddfa AUD Unemployment Rate",
           "form": "push",
-          "hour": 1795136400,
+          "hour": 1795053600,
+          "kept": true,
           "members": {
             "jump:sina:SND:hour:1795053600": [
               -0.029829786538726834,
               0.004512399771456809
-            ],
-            "jump:sina:SND:hour:1795136400": [
-              -0.022336446952530502,
-              0.004541631356150401
             ]
           },
           "message": 181,
-          "peak": "jump:sina:SND:hour:1795136400",
+          "peak": "jump:sina:SND:hour:1795053600",
           "ping_at": 1795057667,
           "placed_at": 1795057667,
           "seen": 1795147603,
           "shown": [
-            "noticeable",
-            4.9,
-            1795136400,
-            -2.23
+            "high",
+            6.6,
+            1795053600,
+            -2.98
           ],
-          "size": 4.918154997825149,
+          "size": 6.610625842022063,
           "start": 1795057200,
           "story": [
             [
@@ -482,15 +486,9 @@
               6.6,
               1795053600,
               ""
-            ],
-            [
-              "noticeable",
-              4.9,
-              1795136400,
-              "19.11 02:00 corrected away"
             ]
           ],
-          "tier": "noticeable"
+          "tier": "high"
         },
         "twelvedata:SPY|1794931200": {
           "asset": "twelvedata:SPY",
