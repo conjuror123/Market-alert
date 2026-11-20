@@ -2289,8 +2289,8 @@ def _main(argv: "list[str] | None", usage: Usage) -> int:
                 vote.append(f"ℹ️ {verify.LABELS.get(name, name)} ({name}) израсходовал долю "
                             "своего лимита, отведённую голосованию (config/provider_limits.csv), "
                             "и до её обновления не голосует. Движения проверяются остальными "
-                            "источниками; если проверить некому, движение уходит в канал с "
-                            "пометкой ⚠️. Делать ничего не нужно: доля обновляется сама.")
+                            "источниками; если проверить некому, движение считается настоящим "
+                            "и уходит в канал. Делать ничего не нужно: доля обновляется сама.")
             # A voter failing every time it is asked, for a day: named once a day.
             vote.extend(verify.failing_voters((r or {}).get("failed", []),
                                               (r or {}).get("answered", [])))

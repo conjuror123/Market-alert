@@ -5,17 +5,19 @@ bar that moved far is put to every other source that carries the instrument,
 right after the hourly fetch and before anything is scored. The store's own
 provider is one vote that saw it; each other source that can answer is one
 vote, and one that is down or has no bars around the move - an outage - is
-left out of the count, and named:
+left out of the count, and named in the vote's line (the channel does not show
+it):
 
-    most saw it       real          scored, nothing said
-    a tie             uncertain     scored, `⚠️ Yahoo(-2.50%), Alpaca(-2.50%), Sina(outage), MarketWatch(-0.50%)`
+    most saw it       real          scored
+    a tie             uncertain     scored as real, `⚠️ Yahoo(-2.50%), Alpaca(-2.50%), Sina(outage), MarketWatch(-0.50%)`
     most did not      not real      not scored, `❌ Binance(+2.03%), Coinbase(-0.10%), Kraken(-0.10%)`
-    none could tell   uncertain     scored, `⚠️ SiftingIO(+2.10%), Yahoo(outage), MarketWatch(outage)`
+    none could tell   uncertain     scored as real, `⚠️ SiftingIO(+2.10%), Yahoo(outage), MarketWatch(outage)`
 
-A MOVE NOT REAL IS NOT SCORED, AND NOTHING IS DELETED. The detector leaves its
+A MOVE NOT REAL IS NOT SCORED, AND NO BAR IS DELETED. The detector leaves its
 reading out - not flagged, and not in any yardstick (jump.jumps) - but its bar
 stays in the store as the provider served it. A message already sent for it
-stays on the channel with the line under it (price_monitor.jump_delivery).
+goes as any move gone (price_monitor.jump_delivery): deleted, or its line
+struck through.
 Which feed was wrong cannot always be told - sources lag by an hour, miss hours
 and print their own bad ticks - so the vote is "not seen elsewhere", never "a
 mistake".
@@ -1183,7 +1185,7 @@ def stopped_line(name: str, why: "str | None") -> str:
             "выбыл из голосования." + shared + " Движения, которые он должен был "
             "проверить, проверены остальными источниками, а его голос записан как «нет "
             "данных»; при следующем пересчёте этих движений его спросят снова. Если "
-            "проверить больше некому, движение уходит в канал с пометкой ⚠️. "
+            "проверить больше некому, движение считается настоящим и уходит в канал. "
             + STOPPED_ADVICE.get(why or "", STOPPED_ADVICE["limit"]))
 
 
@@ -1241,7 +1243,7 @@ def failing_voters(failed: "list[tuple[str, str, str]]", answered,
                      f"{failing[-1]['error']}). Это не лимит запросов, а ошибка, которая сама "
                      "не проходит. Пока так, его голос по этим инструментам не учитывается: "
                      "движения проверяются остальными источниками, а если проверить некому, "
-                     "уходят в канал с пометкой ⚠️. Что делать: если тянется дольше пары "
+                     "считаются настоящими и уходят в канал. Что делать: если тянется дольше пары "
                      "дней, источник, вероятно, сменил формат или адрес; нужна починка. "
                      "Строка повторяется раз в день, пока он не ответит.")
     return lines

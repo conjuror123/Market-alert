@@ -149,8 +149,29 @@ closed record or post its difference as new alerts.
 
 **The note is read by block, in time inside** (the user's, 2026-10-08), cut between blocks.
 
-**Rarer rings again inside the 24 hours; milder never rings.** A change says so on one line;
-after the 24 hours a fix corrects silently.
+**Only a new hour brings a new message; past hours are edits** (the user's, 2026-11-20,
+replacing "rarer rings again inside the 24 hours, and a change says so on one line"). The
+story line had grown unreadable - `✏️ ⬜ 5.1×σ 19.11 02:00 → 🟧 10.2×σ 01:00 19.11 02:00
+corrected away` - and a rarer hour took the earlier, real message down with it. "A
+channel of notices, not of statistics":
+
+- A new hour of a rarer word rings in a new message; what the event had on the channel
+  stays. Bigger in the same word, it is a silent edit with no line.
+- A past hour's data - a bar late, revised, its yardstick moved - edits the part that shows
+  it, with `✏️ 6.5×σ 🟨 → 6.4×σ 🟨 corrected` (the state before the first correction and
+  the state now, no hours), the colour too, without a ring. A past hour that turns out to
+  move with no event of its own shows nowhere: missed is missed.
+- A move gone - corrected away, or voted not real - goes: deleted when alone in its
+  message, its line struck among others, its note row struck and kept.
+- A new hour: found after the run before, or within 3 hours, which Yahoo's HSI and TAIEX
+  bars needed (2.1 hours, 2 of 65 events from 2026-10-19), and never one the event read
+  before. Missed runs' hours are new, so they go out late.
+
+Over 2026-10-19 to 11-20 (84 events on the channel) that is: 46 price or σ corrections in
+the same colour, now `✏️ … corrected` without hours; 1 that raised the colour, now an edit
+instead of a new ring; 4 bigger hours of the same word, now silent with no line; 2 rarer
+hours, now leaving the earlier message in place; 3 shown hours gone with others left,
+corrected to them; 8 events gone, deleted or struck; 4 ties, no longer marked.
 
 **The moves one run finds share messages, biggest first, and only the first rings**: news
 moves dozens at once (91 events in the FOMC hour of 2024-12-18), and Telegram takes about
@@ -177,10 +198,8 @@ pings struck through (`<s>...</s>`) instead of cleanly deleted. Deleting pings a
 (`PING_MAX_AGE_HOURS`) keeps deletion safely within Telegram's window while leaving the
 event row in the weekly digest note.
 
-**Story lines compact repeated corrections and oscillations** (2026-10-31): repeated price
-or σ revisions of the same hour and two-step oscillations (A → B → A) are compacted into
-a single transition from initial to final state, preventing back-and-forth price adjustments
-from creating long repetitive story lines.
+**One ✏️ line, from the first state to the last** (2026-10-31, made two states only on
+2026-11-20): back-and-forth revisions of an hour do not pile up on the channel.
 
 **A digest part names itself on its second line** (the user's, 2026-11-05). Each part
 opens with the note's period and says `Part 2 of 3 · 16 events so far` under it, instead of a
@@ -409,8 +428,10 @@ longer lists them (404), so they stay.
 feeds that have the hour. "Any feed saw it" keeps bad prints; "all must agree" lets one
 feed's bad tick take a real move out.
 
-**A move not real is not scored, and a sent message is marked, not deleted**: out of the
-yardstick it cannot inflate σ; marked, a wrong vote costs a line.
+**A move not real is not scored, and a sent message goes as any move gone**: out of the
+yardstick it cannot inflate σ. Until 2026-11-20 a sent message was marked `❌` with every
+source's move, and a tie `⚠️`; the user's: the vote is not said on the channel, a move is
+real (a tie included) or it is not.
 
 **A tie is uncertain, and stays scored** (the user's, 2026-10-08): nothing tells which side
 is wrong.

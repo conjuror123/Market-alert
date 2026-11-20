@@ -334,27 +334,29 @@ source that has failed every time it was asked for 24 hours (any error but a rat
 a 400, a page that changed) is named on the health chat once a day, with its instruments
 and its last error, until it answers (`verify.failing_voters`, `voter_failures.csv`).
 
-| the votes | result | scored | under the move on the channel (section 8) |
+| the votes | result | scored | on the channel (section 8) |
 |---|---|---|---|
-| most saw it | real | yes | nothing |
-| a tie | uncertain | yes | `⚠️ Yahoo(-2.50%), Alpaca(-2.50%), Sina(outage), MarketWatch(-0.50%)` |
-| most did not | not real | no | `❌ Binance(+2.03%), Coinbase(-0.10%), Kraken(-0.10%)` |
-| no other source could answer | uncertain | yes | `⚠️ SiftingIO(+2.10%), Yahoo(outage), MarketWatch(outage)` |
+| most saw it | real | yes | as any move |
+| a tie | uncertain | yes | as any move |
+| most did not | not real | no | as a move gone: its message deleted, or its line struck |
+| no other source could answer | uncertain | yes | as any move |
 
-The line names the store's provider first with the stored move, then every source with its
-own move over the same two bars, or `(outage)`. With one other source every disagreement is
-a tie: on the 10 instruments with one voter (the LME's tin, nickel and aluminium, the Bund,
-TTF, IGLT and four indices) a bad print stays scored, uncertain.
+The vote is not said on the channel (the user's, 2026-11-20): a move is real or it is not.
+Each vote keeps the store's provider with the stored move and every source with its own
+move over the same two bars, or an outage, in `verified.csv` and on the dashboard. With one
+other source every disagreement is a tie: on the 10 instruments with one voter (the LME's
+tin, nickel and aluminium, the Bund, TTF, IGLT and four indices) a bad print stays scored,
+uncertain.
 
 **Overnight** (`overnight_move`), for a session's first hour voted not real: if most voters
 saw the move from the previous session's close to that bar's close, the store one of them,
 it happened in the night - the store's first print was a stale one at the old price (TLH
 2020-03-09: gap +0.03%, first hour +3.8%). Each source on its own bars, as for a vote.
 `jumps` (`with_nights`) puts the median of their nights in the gap and the rest in the hour,
-so the total stays the store's. Kept for good, and the message is not marked.
+so the total stays the store's. Kept for good.
 
-**A move not real is not scored, and nothing is deleted**: `jumps` leaves its reading out of
-every word and yardstick; the bar stays in the store; a message already sent is marked
+**A move not real is not scored**: `jumps` leaves its reading out of every word and
+yardstick; the bar stays in the store; a message already sent goes as any move gone
 (section 8).
 
 **Voted when found, then at each session end** (`verify.due`, `sessions.last_close`,
@@ -613,40 +615,45 @@ the events table. Anything of an earlier week is never touched, except that at t
 note the old week's ping lines are taken down (and pings older than 40 hours are deleted
 early to stay within Telegram's 48-hour Bot API deletion limit).
 
-| the event | inside its 24 hours | after them |
-|---|---|---|
-| new | in this run's message; rings if first | never sent |
-| rarer | leaves its message (and the note), goes out in this run's message at the new word, rings | silent edit; a row turning `high` leaves the note and its ping line becomes the push |
-| milder | edited (a push falling to `noticeable` shows ⬜; a `noticeable` falling away is taken out) | edited |
-| same word, new numbers | edited | edited |
-| gone | taken out; it can come back and ring | taken out for good |
-| not real (section 5) | line kept, `❌ Binance(+2.03%), Coinbase(-0.10%), Kraken(-0.10%)` added, silently; a row leaves the note | the same |
-| not real, then a reading back or a new move | the mark comes off by a silent edit; only a move rarer than the word shown before the mark rings | the same, silently |
-| uncertain | scored as usual, its line under the move (`⚠️ Yahoo(-2.50%), Alpaca(-2.50%), Sina(outage), MarketWatch(-0.50%)`), in a push and in the note's row; a recount that turns the vote edits it, silently | the same |
+**Rule.** Only a new hour brings a new message (the user's, 2026-11-20: a channel of
+notices, not of statistics). A new hour is one this run is the first able to read: found
+after the run before it, or within 3 hours (`NEW_HOURS`: a source can bring a bar a run
+late, as Yahoo's HSI and TAIEX did by 2.1 hours), and never one the event had read before.
+After missed runs their hours are new, so they go out late. Anything about a past hour is
+an edit of what is on the channel, or nothing: missed is missed.
 
-A message is edited when what it carries changes and deleted once it carries nothing. A
-ping message is deleted after 40 hours (`PING_MAX_AGE_HOURS`, well inside Telegram's 48-hour
-Bot API limit) or once its row is gone; its row remains in the weekly digest note. Nothing
-rings more than 24 hours after its
-event's first move was found (`PUSH_WINDOW_HOURS`), so a long outage cannot release old
-alerts.
+| what happens | on the channel |
+|---|---|
+| a new hour, no event of the instrument in the last 24 hours | a new event: a push, or a ping and a row in the note; rings if the run's first message |
+| a new hour in the event, no bigger than what it shows | nothing |
+| a new hour, bigger, the same word | the event's newest message is edited to it, silently, no ✏️ |
+| a new hour, a rarer word | a new message, rings; what the event had on the channel stays as it is (`earlier`) |
+| a past hour's data changed - a bar late, revised, its yardstick moved - in a message | that message is edited with `✏️ 6.5×σ 🟨 → 6.4×σ 🟨 corrected`, the colour too, silently; a ping turning a push word becomes a push where it stands and keeps its note row |
+| a past hour that turns out to move, no event of it | nothing, anywhere |
+| the hour a part shows is no move any more (corrected away, voted not real), others of the event left | the part shows the biggest of them, with ✏️ |
+| ... none left | alone in its message, deleted; among others, its line struck through; a note row struck and kept |
+| the hours of a move gone come back | nothing: a message deleted stays deleted |
 
-**The story.** A changed event carries one line of what it went through:
-`✏️ ⬜ 6.2×σ 10:00 → 🟧 12.4×σ 12:00 bigger jump`. The reasons are `bigger jump`,
-`arrived late`, `price corrected`, `σ corrected`, `corrected away` and `not real`. A
-clean event has no story line. Repeated revisions or oscillations for the same hour are
-compacted into a single step.
+The ✏️ line has two states: what the part showed before its data was first corrected,
+and what it shows now, in σ with the word's square and no hours (`edit_line`). It is
+there whenever the data was corrected, the word changed or not, and goes when a new hour
+takes the part over. Each part of an event follows its own hour: an earlier message is
+edited only for its hour's data.
 
-**Rule.** A detector update keeps the week. When `detector_version()` changes, the week's
-messages stay and are edited to the updated numbers by the ordinary pass, silently, rarer
-included. An event whose shown hour the update no longer counts stays as it went out, its
-push, ping and note row (`kept`; the note's row from the reading it last had, `row`), even
-when its other hours still count - for the rest of the week, or until that hour comes back
-or a bigger one comes; outside an update's run, a reading corrected away still moves or
-takes its event down. A move it
-finds in hours the runs before it had already read (found over an hour before the update's
-run, `week["updated"]`) is not sent. Until 2026-11-04 an update that changed any event
-restarted the week, deleting every push and ping of it.
+A message is edited when what it carries changes and deleted once it carries nothing, or
+nothing but struck lines. A ping message is deleted after 40 hours (`PING_MAX_AGE_HOURS`,
+well inside Telegram's 48-hour Bot API limit); its row remains in the weekly digest note.
+Nothing rings more than 24 hours after its event's first move was found
+(`PUSH_WINDOW_HOURS`), so a long outage cannot release old alerts.
+
+**Rule.** A detector update keeps the week and changes nothing on it. When
+`detector_version()` changes, what it reads becomes each event's baseline and every
+message stays as it went out (`kept`, drawn from the reading it last showed, `row`), until
+that hour's data really changes or a new hour comes. A move it finds in hours the runs
+before it had already read (found over an hour before the update's run,
+`week["updated"]`) is not sent. Until 2026-11-04 an update that changed any event
+restarted the week, deleting every push and ping of it; until 2026-11-20 it edited the
+week's messages to its numbers.
 
 **Telegram limits.** On 429 the notifier waits as told and retries up to 3 times, at most
 60 s per wait and 180 s per run (`notifier.py`). A delete Telegram refuses becomes a

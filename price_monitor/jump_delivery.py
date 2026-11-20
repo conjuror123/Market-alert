@@ -610,8 +610,6 @@ def push_parts(event: dict, labels: dict[str, str],
     body = describe(event, labels)
     if event.get("story"):
         body += "\n" + event["story"]
-    if event.get("vote"):
-        body += "\n" + event["vote"]
     return body, _escape(calendar_context(int(event["hour_utc"]), calendar))
 
 
@@ -637,17 +635,16 @@ def format_push(event: dict, labels: dict[str, str],
 # 3.9-sigma bottom sends 26.0 messages a week for 69 events, and the FOMC
 # hour's run 5 alert messages, against 131 (8.6 a week for 14.5 events at 6
 # sigma; bars to 2026-10-08). Each move keeps its
-# own life inside the message (the week below): it is edited there, and leaves
-# it when it turns rarer and rings again in the run that finds that.
+# own life inside the message (the week below): it is edited there, struck
+# there, and stays there when a rarer new hour of it rings in a new message.
 #
 # BIGGEST FIRST. Inside a message the moves are ordered by size in σ, largest
 # to smallest, pushes before pings. The note is a record and runs by time; a
 # message is an alarm and leads with what matters most.
 #
 # A message is cut at this many characters when it is first sent, rather than at
-# Telegram's 4096: its moves stay with it for their lives, and a story line or
-# a filled-in close has to fit later without moving anything to another
-# message.
+# Telegram's 4096: its moves stay with it for their lives, and a ✏️ line or a
+# filled-in close has to fit later without moving anything to another message.
 MESSAGE_BUDGET = 3000
 
 
@@ -755,8 +752,9 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
         line = describe(event, labels)
         if event.get("story"):
             line += "\n" + event["story"]
-        if event.get("vote"):
-            line += "\n" + event["vote"]
+        if event.get("struck"):
+            # No longer a move, and a note's row cannot be deleted alone.
+            return struck(line)
         context = calendar_context(int(event["hour_utc"]), calendar)
         return f"{line}\n     {_escape(context)}" if context else line
 
@@ -827,9 +825,10 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
     NOW has to keep opening it. This is the buzz: ticker, name, size. The
     calendar context stays in the note, one tap away.
 
-    A line lives exactly as long as its row: gone when the row leaves the note,
-    when the move becomes a push, and when the next note opens - so what
-    remains is a clean run of notes rather than a scroll of pings around them.
+    A line lives at most PING_MAX_AGE_HOURS and never past the next note's
+    opening - so what remains is a clean run of notes rather than a scroll of
+    pings around them. A rarer new hour leaves it where it is; its move gone,
+    it goes, or is struck among others.
     """
     return format_message([dict(form=ROW, size=0.0, body=ping_line(event, labels),
                                 context="")])
@@ -847,52 +846,38 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
 # HELD AT THE CLOSE. Every message counts down on its time line to
 # the funds' close its move is checked at, and then says how much of the move
 # was still there (check_suffix). The edits are silent and are not a change to
-# the event: they add no story.
+# the event: they carry no ✏️.
 #
 # AN EVENT is 24 hours of real time from its first move being found
-# (jump.jumps.event_starts). Its word is its rarest reading's and the numbers
-# it shows its biggest reading's. What happens to it on the channel:
+# (jump.jumps.event_starts). ONLY A NEW HOUR BRINGS A NEW MESSAGE (_new; the
+# user's, 2026-11-20 - a channel of notices, not of statistics):
 #
-#   within its 24 hours     rarer (any cause but a detector update) -> it leaves
-#                           its message - and the note - and goes out again in
-#                           this run's message at the new word, and rings.
-#                           Milder -> edited in place: a push that falls to
-#                           `noticeable` shows ⬜; a `noticeable` that falls away
-#                           is taken out, row and ping line. Same word, other
-#                           numbers -> edited in place.
-#   after its 24 hours      complete: a new move starts a new event. It changes
-#                           only when a bar is corrected or arrives late, and
-#                           never rings: rarer or milder is an edit - a row that
-#                           becomes `high` leaves the note and its ping line
-#                           becomes the push, in the same message - and gone is
-#                           taken out, for good.
+#   a new hour          opens an event: a push, or a ping and a note row. In an
+#                       event: no bigger than shown, nothing; bigger in the same
+#                       word, the event's newest message is edited, silently and
+#                       with no line; a rarer word rings in a new message, and
+#                       what the event had on the channel stays (`earlier`).
+#   a past hour         its data changed - a bar late, revised, its yardstick
+#                       moved - edits the part that shows it, with the ✏️ line
+#                       (edit_line), the colour too, and never rings; a ping that
+#                       turns a push word becomes a push where it stands and
+#                       keeps its note row. A past hour of no event shows
+#                       nowhere: missed is missed.
+#   a move gone         corrected away, or voted not real (jump.verify; the vote
+#                       is not said on the channel): with others of the event
+#                       left, the part shows the biggest of them, with ✏️; with
+#                       none, deleted when alone in its message, its line struck
+#                       among others, its note row struck and kept.
 #
-# A MESSAGE carries the moves it was sent with (each event's `message`), is
-# edited as they change and deleted once none is left in it (_sync_messages).
+# A MESSAGE carries the parts it was sent with (_members_of), is edited as they
+# change and deleted once nothing, or nothing but struck lines, is left in it
+# (_sync_messages).
 #
-# A CHANGED EVENT TELLS ITS STORY: one line under the time, every state it has
-# been in with why it moved (story_line). A clean event says nothing.
-#
-# THE SOURCES' VOTE (jump.verify) is said under the move (vote_line), the
-# store's provider and every source with its own move, or `(outage)`:
-#
-#   not real      most sources did not see it: no longer scored. If it is on
-#                 the channel, its line stays where it is with
-#                 `❌ Binance(+2.03%), Coinbase(-0.10%), Kraken(-0.10%)` under
-#                 it, silently; a row leaves the note. Should a reading of it
-#                 come back - the bar healed, or the vote turned - or a new
-#                 move come inside its 24 hours, it is an event like any other
-#                 again.
-#   uncertain     a tie: scored as usual, `⚠️ Yahoo(-2.50%), Alpaca(-2.50%),
-#                 Sina(outage), MarketWatch(-0.50%)` under it.
-#   real          nothing is added, nor for an instrument no other source
-#                 carries.
-#
-# A detector update (a new jump.jumps.detector_version) keeps the week: its
-# messages are edited to the updated numbers, silently, as corrections are -
-# rarer included - and an event it no longer sees leaves as a corrected one
-# does. A move it finds in hours the runs before it had already read is not
-# sent at all (`updated`, an hour before the update's run).
+# A detector update (a new jump.jumps.detector_version) keeps the week and
+# changes nothing on it: what it reads becomes the baseline, each part stays as
+# it went out (`kept`) until its hour's data really changes or a new hour comes,
+# and a move it finds in hours the runs before it had already read is not sent
+# (`updated`, an hour before the update's run).
 #
 # Deleting is how a message leaves; the bot is an administrator of the
 # channel and deletes its messages within Telegram's 48-hour limit. Should Telegram refuse,
@@ -910,14 +895,13 @@ PING_MAX_AGE_HOURS = 40
 
 ROW, PUSH = "row", "push"
 
-# Why an event's message changed, in the jump detector's own terms: its size is
-# |move| / σ of its biggest reading, and only these move it.
-BIGGER = "bigger jump"            # a new hour in the event jumped further
-LATE = "arrived late"             # a bar or gap that was missing came in
-PRICE = "price corrected"         # the provider revised the bar
-SIGMA = "σ corrected"             # older bars revised, so the half-year yardstick moved
-AWAY = "corrected away"           # no longer a jump
-UNSEEN = "not real"               # most sources did not see the move (jump.verify)
+# A NEW HOUR is one this run is the first able to read: found after the run
+# before it, or within NEW_HOURS - a source can bring an hour's bar a run late
+# (HSI and TAIEX by 2.1 hours, 2026-10/11) - and not in hours a detector
+# update found already read. Only a new hour brings a new message; anything
+# else about past hours is an edit of what is on the channel, or nothing (the
+# user's, 2026-11-20: "this is a channel of notices, not of statistics").
+NEW_HOURS = 3
 
 
 def _fingerprint(text: str) -> str:
@@ -960,70 +944,24 @@ def _size(reading: dict) -> float:
     return abs(z)
 
 
-def _hour_of(reading_id: str) -> int:
-    return int(str(reading_id).rsplit(":", 1)[1])
-
-
-def _clock(hour_utc: int, headline: int) -> str:
-    """HH:MM, with the day in front when it is not the headline's day."""
-    at = datetime.fromtimestamp(int(hour_utc), tz=timezone.utc)
-    same = at.date() == datetime.fromtimestamp(int(headline), tz=timezone.utc).date()
-    return at.strftime("%H:%M") if same else at.strftime("%d.%m %H:%M")
-
-
-def clean_story(story: "list[list]") -> "list[list]":
-    """Compacts an event's story so that repeated adjustments to the same hour
-    or back-and-forth oscillations do not accumulate in the message."""
-    if not story or len(story) <= 1:
-        return [list(s) for s in story]
-    out: list[list] = []
-    for step in story:
-        item = list(step)
-        if not out:
-            out.append(item)
-            continue
-        last = out[-1]
-        # 1. Skip exact duplicate step
-        if (item[0] == last[0] and
-                (item[1] == last[1] or (item[1] is not None and last[1] is not None and
-                                        round(float(item[1]), 1) == round(float(last[1]), 1))) and
-                item[2] == last[2] and item[3] == last[3]):
-            continue
-        # 2. Consecutive revisions of the same hour and same reason
-        # (e.g. repeated price or sigma corrections of that hour)
-        if (item[2] is not None and item[2] == last[2] and
-                item[3] in (PRICE, SIGMA) and last[3] == item[3]):
-            out[-1] = item
-            continue
-        # 3. Two-step oscillations (A -> B -> A), collapsing back to A
-        # unless B was an explicit disappearance (corrected away / not real).
-        if (len(out) >= 2 and item[0] == out[-2][0] and
-                (item[1] == out[-2][1] or (item[1] is not None and out[-2][1] is not None and
-                                           round(float(item[1]), 1) == round(float(out[-2][1]), 1))) and
-                item[2] == out[-2][2] and
-                last[0] is not None and not str(last[3]).endswith((AWAY, UNSEEN))):
-            out.pop()
-            continue
-        out.append(item)
-    return out
-
-
-def story_line(story: "list[list]", headline: int) -> str:
-    """✏️ 🟨 6.0×σ 02:00 → 🟧 8.1×σ 03:00 bigger jump → ✖ corrected away ...
-
-    Every state the event has been in, oldest first, and why it moved into
-    each. Empty for an event that never changed."""
-    cleaned = clean_story(story)
-    if len(cleaned) < 2:
+def edit_line(was: "list | None", now: "list | None") -> str:
+    """✏️ 6.5×σ 🟨 → 6.4×σ 🟨 corrected: what a move showed before its data was
+    corrected - a bar late, revised, or its yardstick moved - and what it shows
+    now. Empty for a move never corrected. Nothing else is said on the channel
+    about a change (the user's, 2026-11-20)."""
+    if not was or not now or now[0] is None or was[0] is None:
         return ""
-    steps = []
-    for tier, size, hour, why in cleaned:
-        if tier is None:
-            steps.append(f"✖ {why}".rstrip())
-            continue
-        step = f"{TIER_EMOJI.get(tier, '⚪')} {size:.1f}×σ {_clock(hour, headline)}"
-        steps.append(f"{step} {why}" if why else step)
-    return "✏️ " + " → ".join(_escape(s) for s in steps)
+
+    def state(shown: list) -> str:
+        return f"{float(shown[1]):.1f}×σ {TIER_EMOJI.get(str(shown[0]), '⚪')}"
+
+    return f"✏️ {state(was)} → {state(now)} corrected"
+
+
+def struck(text: str) -> str:
+    """Each line through, so a struck move reads as one in any message."""
+    return "\n".join(f"<s>{line}</s>" if line.strip() else line
+                     for line in text.split("\n"))
 
 
 SENT, FAILED, UNSURE, SKIPPED = "sent", "failed", "unsure", "skipped"
@@ -1131,18 +1069,17 @@ def _expire_pings(cfg: Config, week: dict, now_ts: int) -> int:
     cutoff = now_ts - PING_MAX_AGE_HOURS * 3600
     changed = 0
     for rec in week.get("events", {}).values():
-        if rec.get("form") != ROW or rec.get("message") is None:
-            continue
-        # rec["ping_at"] is when the event was first discovered (unix ts).
-        # Fall back to rec["start"] (the bar's hour) for older state records.
-        sent_ts = int(rec.get("ping_at") or rec.get("start") or 0)
-        if sent_ts and sent_ts < cutoff:
-            log.info("Ping for %s expired (%.1f h old): clearing message %s",
-                     rec.get("asset", "?"),
-                     (now_ts - sent_ts) / 3600,
-                     rec["message"])
-            rec["message"] = None
-            changed += 1
+        for part in _parts(rec):
+            if part.get("form") != ROW or part.get("message") is None:
+                continue
+            # When the ping went out; for older state records the event's start.
+            sent_ts = int(part.get("ping_at") or rec.get("start") or 0)
+            if sent_ts and sent_ts < cutoff:
+                log.info("Ping for %s expired (%.1f h old): clearing message %s",
+                         rec.get("asset", "?"), (now_ts - sent_ts) / 3600,
+                         part["message"])
+                part["message"] = None
+                changed += 1
     if changed:
         # Clean up messages that now carry nothing.
         changed += _sync_messages(cfg, week)
@@ -1154,8 +1091,9 @@ def _close_week(cfg: Config, week: dict) -> list:
     A message that carried pings and pushes keeps its pushes. Returns what
     could not be deleted, for the next week to try again."""
     for rec in week.get("events", {}).values():
-        if rec.get("form") == ROW:
-            rec["message"] = None
+        for part in _parts(rec):
+            if part.get("form") == ROW:
+                part["message"] = None
     _sync_messages(cfg, week)
     left = [[message_id, first_line] for message_id, first_line in week.get("orphans", [])
             if not _delete(cfg, message_id, first_line)]
@@ -1297,35 +1235,8 @@ def _group(readings: "list[dict]", week: dict) -> "dict[str, list[dict]]":
     return out
 
 
-def _moved(before: "list[float]", reading: dict) -> "str | None":
-    """Why one reading's numbers differ from what was seen before, if they do."""
-    import math
-
-    r, sigma = _clean(reading.get("r")), _clean(reading.get("sigma_lt"))
-    if r is None or not math.isclose(before[0], r, rel_tol=1e-9, abs_tol=1e-12):
-        return PRICE
-    if sigma is None or not math.isclose(before[1], sigma, rel_tol=1e-9, abs_tol=1e-12):
-        return SIGMA
-    return None
-
-
-def _why(rec: dict, members: "dict[str, dict]", peak: "dict | None",
-         doubts: "dict | None" = None) -> str:
-    """Why the event now shows `peak` rather than what it showed."""
-    if peak is None:
-        return AWAY
-    seen, old_peak = rec["members"], rec.get("peak")
-    pid = str(peak["reading_id"])
-    if old_peak and old_peak not in members:
-        gone = UNSEEN if _doubt(rec["asset"], [old_peak], doubts) else AWAY
-        return f"{_clock(_hour_of(old_peak), int(peak['hour_utc']))} {gone}"
-    if old_peak and old_peak in seen:
-        moved = _moved(seen[old_peak], members[old_peak])
-        if moved:
-            return moved
-    if pid in seen:
-        return _moved(seen[pid], peak) or PRICE
-    return BIGGER if _found(peak) > int(rec.get("seen", 0)) else LATE
+def _nums(reading: dict) -> "list[float]":
+    return [_clean(reading.get("r")) or 0.0, _clean(reading.get("sigma_lt")) or 0.0]
 
 
 def _shown(peak: "dict | None") -> list:
@@ -1335,14 +1246,26 @@ def _shown(peak: "dict | None") -> list:
             round(float(_clean(peak.get("r")) or 0.0) * 100, 2)]
 
 
-def _render(rec: dict, peak: dict) -> dict:
-    return dict(peak, story=story_line(rec["story"], int(peak["hour_utc"])))
+def _render(part: dict, reading: dict) -> dict:
+    """A reading as a part of the channel shows it: its ✏️ line, and whether
+    it is struck."""
+    return dict(reading, story=edit_line(part.get("was"), part.get("shown")),
+                struck=bool(part.get("struck")))
 
 
 def _updating(week: dict, now_ts: int) -> bool:
     """Whether this run is the one that found the detector updated (maybe_deliver
     stamps `updated` an hour before it)."""
     return int(week.get("updated", -1)) == now_ts - 3600
+
+
+def _new(reading: dict, week: dict, now_ts: int) -> bool:
+    """A new hour (NEW_HOURS): one this run is the first able to read."""
+    found = _found(reading)
+    if found < int(week.get("updated", 0)):
+        return False
+    ran = int(week.get("ran_at") or now_ts - 3600)
+    return found > ran or found >= now_ts - NEW_HOURS * 3600
 
 
 def _portable(reading: dict) -> dict:
@@ -1366,187 +1289,235 @@ def _portable(reading: dict) -> dict:
     return out
 
 
+# A PART is what one message, ping or note row shows of an event: the event
+# record itself (the part that follows the event's new hours) and, in
+# `earlier`, the parts a rarer new hour left where they were. A part holds
+# `form`, `message`, `peak` (the reading it shows), `shown`, `was` (what it
+# showed before its data was first corrected), `row` (that reading, as kept)
+# and the text it went out with.
+PART_KEYS = ("form", "message", "peak", "shown", "was", "row", "body", "context",
+             "size", "hour", "struck", "kept", "note_row", "ping_at", "placed_at")
 
 
-def _doubt(asset: str, reading_ids, doubts: "dict | None") -> "dict | None":
-    """The sources' vote on one of these readings, if `doubts` holds one: an
-    hour's reading by the `close` check, a gap's by the `open`."""
-    for reading_id in reading_ids:
-        _, _, kind, hour = str(reading_id).rsplit(":", 3)
-        row = (doubts or {}).get((asset, int(hour), "close" if kind == "hour" else "open"))
-        if row:
-            return row
-    return None
+def _parts(rec: dict) -> "list[dict]":
+    return [rec, *rec.get("earlier", [])]
 
 
-def vote_line(row: "dict | None") -> str:
-    """The sources' vote under a move that is not plainly real: `❌` when
-    most did not see it, `⚠️` on a tie, then the store's provider with the
-    stored move and every source with its own, or `(outage)`:
-    `❌ Binance(+2.03%), Coinbase(-0.10%), Kraken(-0.10%)`. Nothing for a real
-    move or one no other source carries."""
-    import math
-
-    from jump import verify
-
-    mark = {verify.NOT_REAL: "❌", verify.UNCERTAIN: "⚠️"}.get((row or {}).get("verdict"))
-    if not mark:
-        return ""
-
-    def label(name: str) -> str:
-        return _escape(verify.LABELS.get(name, name.capitalize()))
-
-    def shown(move: str) -> str:
-        try:
-            return f"{(math.exp(float(move)) - 1) * 100:+.2f}%"
-        except (TypeError, ValueError):
-            return "outage"
-
-    names = [n for n in str(row.get("verifier") or "").split(",") if n]
-    moves = str(row.get("verifier_move") or "").split(",")
-    parts = [f"{label(str(row.get('provider') or ''))}({shown(row.get('stored_move'))})"]
-    parts += [f"{label(n)}({shown(moves[i] if i < len(moves) else '')})"
-              for i, n in enumerate(names)]
-    return f"{mark} " + ", ".join(parts)
+def _display(part: dict, members: "dict[str, dict]", now_ts: int) -> "dict | None":
+    """The reading a part is drawn from: its own, as the table has it now; or,
+    for a part kept as it went out (a detector update) or struck, the reading
+    it last showed - with this run's clock and close check, so it still counts
+    down."""
+    live = members.get(str(part.get("peak")))
+    if live is not None and not part.get("kept") and not part.get("struck"):
+        return live
+    row = part.get("row")
+    if not row:
+        return live
+    out = dict(row, now_utc=now_ts)
+    if live is not None:
+        out.update(check_utc=live.get("check_utc"), held=live.get("held"))
+    return out
 
 
-def _mark(rec: dict, row: dict) -> None:
-    """Most sources did not see the move: its line stays in its message with
-    the mark under it, and a row leaves the note - until a reading of the
-    event is back (_step)."""
-    mark = vote_line(row)
-    body = rec.get("body", "")
-    rec.update(doubt={k: row.get(k) for k in ("verifier", "verifier_move")},
-               body=f"{body}\n{mark}" if rec.get("form") == PUSH else f"{body} {mark}",
-               context="")
+def _corrected(part: dict, reading: dict) -> None:
+    """The part shows `reading` now because its data changed: the ✏️ line
+    keeps what it showed before the first correction. A ping whose move turns
+    a push word becomes a push where it stands, silently, and keeps its row in
+    the note."""
+    part["was"] = part.get("was") or part.get("shown")
+    part.update(peak=str(reading["reading_id"]), shown=_shown(reading), kept=False,
+                struck=False)
+    if part.get("form") == ROW and _is_push_word(reading.get("tier")):
+        part.update(form=PUSH, note_row=True)
 
 
-def _leave(rec: dict) -> None:
-    """The event comes off the channel: out of its message, and out of the
-    note with the next render. Its message is edited without it, or deleted
-    once nothing is left in it (_sync_messages)."""
-    rec.update(form=None, message=None)
+def _follow(part: dict, members: "dict[str, dict]", baseline: dict, updating: bool) -> int:
+    """An earlier part follows its own hour only: its numbers corrected - an
+    edit with ✏️ - or gone - struck (_sync_messages deletes what is struck
+    alone). A detector update moves nothing on the channel: what it reads
+    becomes the part's new baseline, and the part stays as it went out."""
+    if not part.get("form"):
+        return 0
+    rid = str(part.get("peak"))
+    reading = members.get(rid)
+    if updating:
+        part["kept"] = True
+        if reading is not None:
+            baseline[rid] = _nums(reading)
+        return 0
+    if reading is None:
+        if part.get("kept") or part.get("struck") or rid not in baseline:
+            return 0
+        part["struck"] = True
+        return 1
+    if _shown(reading) == part.get("shown") and not part.get("struck"):
+        part["kept"] = False                # back as it went out
+        return 0
+    if part.get("kept") and rid in baseline and not _moved(baseline[rid], reading):
+        return 0
+    _corrected(part, reading)
+    return 1
 
 
 def _step(week: dict, key: str, readings: "list[dict]", now_ts: int,
-          fresh: "list[tuple]", doubts: "dict | None" = None) -> int:
-    """One event, one run: its state brought in line with the table. What has
+          fresh: "list[tuple]") -> int:
+    """One event, one run: its parts brought in line with the table. What has
     to go out in a new message is appended to `fresh` as (key, rec, before) -
     `before` the record to fall back to should the send fail, None for an
-    event not on the channel yet. Returns how many events changed in place."""
+    event not on the channel yet. Returns how many parts changed in place.
+
+    ONLY A NEW HOUR BRINGS A NEW MESSAGE (_new). A new hour rarer in word than
+    what the event shows rings in a new message, and what was on the channel
+    stays; bigger in the same word, it is a silent edit. Anything about a past
+    hour - a bar late, revised, its yardstick moved, a move gone - is an edit
+    of the part that shows it, with the ✏️ line, or a strike."""
     tracked = week["events"]
     asset, start = key.rsplit("|", 1)
     rec = tracked.get(key)
-    shown_before = rec.get("tier") if rec is not None else None
-    if rec is not None and rec.get("doubt"):
-        if not readings:
-            return 0                   # marked not real, and still nothing
-        # A reading is back - the bar healed and was confirmed - or a new move
-        # came inside its 24 hours: an event like any other again. Rarer is
-        # measured against the word the channel last showed, so a doubt lifted
-        # is a silent edit and only a move rarer than that rings.
-        rec.pop("doubt")
-        shown_before = next((step[0] for step in reversed(rec["story"]) if step[0]), None)
     open_ = now_ts < int(start) + PUSH_WINDOW_HOURS * 3600
     members = {str(r["reading_id"]): r for r in readings}
-    peak = max(readings, key=_size) if readings else None
-    if rec is not None and rec.get("form") and (rec.get("kept") or _updating(week, now_ts)) \
-            and str(rec.get("peak")) not in members \
-            and (peak is None or _size(peak) <= float(rec["shown"][1] or 0.0)):
-        # KEPT BY A DETECTOR UPDATE. What went out stays as it went out when an
-        # update no longer counts the hour it shows - the day filter, or a
-        # setting changed - whether the event's other hours still count or not:
-        # on 2026-11-19 ETH's push of 15.11, +4.78% major, was edited down to
-        # its first hour's -2.83% noticeable. It stays so for the week, unless
-        # that hour comes back or a bigger one comes. A correction in any other
-        # run still moves or takes it down.
-        rec.update(kept=True, seen=now_ts)
-        return 0
-    if rec is not None:
-        rec.pop("kept", None)
-    # Every reading the event has shown, kept after it vanishes: one that comes
-    # back was corrected back, it did not arrive late.
-    snapshot = dict(rec["members"]) if rec else {}
-    snapshot.update({rid: [_clean(r.get("r")) or 0.0, _clean(r.get("sigma_lt")) or 0.0]
-                     for rid, r in members.items()})
+    # Every hour the event has read is past, gone and back included.
+    ever = set((rec or {}).get("ever") or []) | set((rec or {}).get("members") or {})
+    new = {rid: r for rid, r in members.items()
+           if _new(r, week, now_ts) and rid not in ever}
 
     if rec is None:
-        # Found now. Only an event still inside its 24 hours goes out at all, and
-        # not one a detector update found only in hours read before it.
-        if peak is None or not open_ or \
-                all(_found(r) < int(week.get("updated", 0)) for r in readings):
+        # Found now: only a new hour opens an event on the channel. A past
+        # hour that turns out to have moved - a bar late, a revision - shows
+        # nowhere: missed is missed.
+        if not new or not open_:
             return 0
-        shown = _shown(peak)
+        peak = max(readings, key=_size)
         rec = {"asset": asset, "start": int(start), "form": None, "message": None,
-               "members": snapshot, "peak": str(peak["reading_id"]), "tier": shown[0],
-               "shown": shown, "story": [shown[:3] + [""]], "seen": now_ts,
-               "ping_at": now_ts}
+               "members": {rid: _nums(r) for rid, r in members.items()},
+               "peak": str(peak["reading_id"]), "tier": _shown(peak)[0],
+               "shown": _shown(peak), "was": None, "seen": now_ts, "ping_at": now_ts,
+               "ever": sorted(members)}
         fresh.append((key, rec, None))
         return 0
 
-    shown = _shown(peak)
-    if shown == rec["shown"]:
-        rec.update(members=snapshot, seen=now_ts)
-        return 0
-
-    before = dict(rec)
-    why = _why(rec, members, peak, doubts)
-    new_step = shown[:3] + [why] if peak is not None else [None, None, None, why]
-    rec["story"] = clean_story(rec["story"] + [new_step])
+    baseline = rec.setdefault("members", {})
+    if rec.get("kept") and "ever" not in rec:
+        # Kept by the code before 2026-11-20, which left the hour an update no
+        # longer counts in the baseline: that hour went with the update.
+        baseline.pop(str(rec.get("peak")), None)
+    updating = _updating(week, now_ts)
     changed = 0
-    promoted = _rank(shown[0]) > _rank(shown_before)
-    # Moved only by a detector update re-reading hours it had read: news to no one.
-    reread = all(_found(r) < int(week.get("updated", 0)) for r in readings)
+    for part in rec.get("earlier", []):
+        changed += _follow(part, members, baseline, updating)
+    rec["ever"] = sorted(ever | set(members))
+    if not rec.get("form") and not rec.get("struck"):
+        rec.update(members={**baseline, **{rid: _nums(r) for rid, r in members.items()}},
+                   seen=now_ts)
+        return changed                      # gone from the channel: stays gone
+    if updating:
+        # A DETECTOR UPDATE MOVES NOTHING ON THE CHANNEL: what it reads now is
+        # the baseline, and the event stays as it went out until its data
+        # really changes or a new hour comes (2026-11-19: the day filter's
+        # first run edited ETH's push of 15.11 down to a smaller hour).
+        rec.update(kept=True, members={rid: _nums(r) for rid, r in members.items()},
+                   seen=now_ts)
+        return changed
 
-    doubt = _doubt(asset, rec["members"], doubts) if peak is None and rec.get("form") else None
-    if doubt:
-        # Silent, inside its 24 hours or after them: an edit never rings.
-        rec["story"][-1][3] = UNSEEN
-        rec["story"] = clean_story(rec["story"])
-        _mark(rec, doubt)
+    rid = str(rec.get("peak"))
+    cur = members.get(rid)
+    before = copy.deepcopy(rec)
+    display, data = cur, False
+    if cur is None:
+        if rec.get("kept") and rid not in baseline:
+            display = None                  # gone with the update: as it went out
+        else:
+            # The hour it showed is no move any more: the biggest of the past
+            # hours left, corrected; with none, struck.
+            past = [r for k, r in members.items() if k not in new]
+            if past:
+                display, data = max(past, key=_size), True
+            elif not rec.get("struck"):
+                rec["struck"] = True
+                changed += 1
+    elif rec.get("struck") or (_shown(cur) != rec.get("shown") and not (
+            rec.get("kept") and rid in baseline and not _moved(baseline[rid], cur))):
+        data = True
+    elif _shown(cur) == rec.get("shown"):
+        rec["kept"] = False                 # back as it went out
+    # A past hour that arrived or changed and is now bigger: corrected too.
+    old = [r for k, r in members.items()
+           if k not in new and k != rid and (k not in baseline or _moved(baseline[k], r))]
+    shown_size = _size(display) if display is not None else float((rec.get("shown") or [0, 0])[1] or 0)
+    bigger_old = [r for r in old if _size(r) > shown_size]
+    if bigger_old:
+        display, data = max(bigger_old, key=_size), True
+    if data and display is not None:
+        _corrected(rec, display)
         changed += 1
-    elif peak is None:
-        _leave(rec)
-        changed += 1
-    elif promoted and open_ and not reread:
-        # Rarer inside its 24 hours: it leaves its message and rings again in
-        # this run's. Only here does anything go out, so an event with nothing
-        # on the channel once its 24 hours are over - corrected away - stays gone.
-        fresh.append((key, rec, before))
-    elif rec.get("form") == ROW and _is_push_word(shown[0]):
-        # Rarer after its 24 hours, or by a detector update: silent. The row
-        # leaves the note and its line in the ping message becomes a push, by
-        # an edit.
-        rec["form"] = PUSH
-        changed += 1
-    rec.update(members=snapshot, peak=str(peak["reading_id"]) if peak else None,
-               tier=shown[0], shown=shown, seen=now_ts)
+    # A new hour bigger than what the event shows.
+    shown_now = rec.get("shown") or [None, 0.0]
+    bigger_new = [r for r in new.values()
+                  if _size(r) > float(shown_now[1] or 0.0) or rec.get("struck")]
+    if bigger_new and open_:
+        top = max(bigger_new, key=_size)
+        rarer = _rank(top.get("tier")) > _rank(shown_now[0]) or rec.get("struck")
+        if rarer:
+            # Rarer in word: a new message rings, and what was on the channel
+            # stays there as it is (the user's, 2026-11-20).
+            if rec.get("message") is not None or (rec.get("form") == ROW and rec.get("row")):
+                rec.setdefault("earlier", []).append(
+                    {k: copy.deepcopy(rec.get(k)) for k in PART_KEYS})
+            rec.update(form=None, message=None, peak=str(top["reading_id"]),
+                       shown=_shown(top), tier=_shown(top)[0], was=None, kept=False,
+                       struck=False, row=None)
+            rec.pop("ping_due", None)
+            fresh.append((key, rec, before))
+        else:
+            # Bigger in the same word: the numbers move, silently, no ✏️.
+            rec.update(peak=str(top["reading_id"]), shown=_shown(top), was=None,
+                       kept=False, struck=False)
+            changed += 1
+    rec.update(members={rid: _nums(r) for rid, r in members.items()}, seen=now_ts,
+               tier=(rec.get("shown") or [None])[0])
     return changed
 
 
-def _member(rec: dict, peak: dict, form: str, labels: dict, calendar) -> dict:
-    """The event as a message shows it, kept on the record so that a message
-    can be put back together without the events table (_close_week)."""
+def _moved(before: "list[float]", reading: dict) -> bool:
+    """Whether one reading's numbers differ from what was seen before."""
+    import math
+
+    r, sigma = _clean(reading.get("r")), _clean(reading.get("sigma_lt"))
+    return (r is None or sigma is None
+            or not math.isclose(before[0], r, rel_tol=1e-9, abs_tol=1e-12)
+            or not math.isclose(before[1], sigma, rel_tol=1e-9, abs_tol=1e-12))
+
+
+def _member(part: dict, peak: dict, form: str, labels: dict, calendar) -> dict:
+    """A part as a message shows it, kept on the record so that a message can
+    be put back together without the events table (_close_week)."""
+    shown = _render(part, peak)
     if form == PUSH:
-        body, context = push_parts(_render(rec, peak), labels, calendar)
+        body, context = push_parts(shown, labels, calendar)
     else:
-        body, context = ping_line(peak, labels), ""
-        # Its row as the note shows it, for when an update no longer sees it.
-        rec["row"] = _portable(peak)
-    rec.update(body=body, context=context, size=_size(peak), hour=int(peak["hour_utc"]))
-    return {"form": form, "size": rec["size"], "body": body, "context": context,
-            "hour": rec["hour"]}
+        body = ping_line(peak, labels) + (f"\n{shown['story']}" if shown["story"] else "")
+        context = ""
+    # The reading it shows, for when an update or a strike leaves it as it is.
+    part["row"] = _portable(peak)
+    part.update(body=body, context=context, size=_size(peak), hour=int(peak["hour_utc"]))
+    return {"form": form, "size": part["size"], "body": body, "context": context,
+            "hour": part["hour"]}
 
 
-def _members_of(week: dict) -> "dict[str, list[dict]]":
-    """{message id: what it carries}, from the events' own records."""
+def _members_of(week: dict) -> "dict[str, list[tuple]]":
+    """{message id: [(part, what it carries)]}, from the events' own records. A
+    struck part carries its lines struck through and no news."""
     out: dict = {}
     for rec in week["events"].values():
-        if rec.get("form") and rec.get("message") is not None:
-            out.setdefault(str(rec["message"]), []).append(
-                {"form": rec["form"], "size": float(rec.get("size") or 0.0),
-                 "body": rec.get("body", ""), "context": rec.get("context", ""),
-                 "hour": int(rec.get("hour") or 0)})
+        for part in _parts(rec):
+            if part.get("form") and part.get("message") is not None:
+                body = part.get("body", "")
+                out.setdefault(str(part["message"]), []).append((part, {
+                    "form": part["form"], "size": float(part.get("size") or 0.0),
+                    "body": struck(body) if part.get("struck") else body,
+                    "context": "" if part.get("struck") else part.get("context", ""),
+                    "hour": int(part.get("hour") or 0)}))
     return out
 
 
@@ -1577,7 +1548,9 @@ def _post_new(cfg: Config, state: dict, week: dict, fresh: "list[tuple]",
     tracked = week["events"]
     by_form: dict = {PUSH: [], ROW: []}
     for key, rec, before in fresh:
-        peak = max(groups[key], key=_size)
+        rows = groups[key]
+        peak = next((r for r in rows if str(r["reading_id"]) == str(rec.get("peak"))),
+                    max(rows, key=_size))
         form = PUSH if _is_push_word(peak.get("tier")) else ROW
         by_form[form].append((key, _member(rec, peak, form, labels, calendar)))
     sent = 0
@@ -1613,6 +1586,8 @@ def _post_new(cfg: Config, state: dict, week: dict, fresh: "list[tuple]",
                 rec.update(form=form, message=message_id)
                 if message_id is not None:
                     rec["placed_at"] = now_ts
+                    if form == ROW:
+                        rec["ping_at"] = now_ts
                 if outcome == SKIPPED:
                     rec["ping_due"] = True
                 else:
@@ -1624,17 +1599,26 @@ def _post_new(cfg: Config, state: dict, week: dict, fresh: "list[tuple]",
 
 def _sync_messages(cfg: Config, week: dict) -> int:
     """Every alert message of the week brought in line with what it carries:
-    edited where its text changed, deleted once nothing is left in it."""
+    edited where its text changed, deleted once nothing is left in it or all it
+    carries is struck - a move no longer real goes, and only a line among
+    others that are still real is struck through instead (the user's,
+    2026-11-20)."""
     carried = _members_of(week)
     changed = 0
     for message_id, rec in list(week["messages"].items()):
         members = carried.get(message_id)
-        if not members:
+        if not members or all(part.get("struck") for part, _ in members):
             _discard(cfg, week, int(message_id), rec.get("first", ""))
             del week["messages"][message_id]
+            for part, _ in members or []:
+                part["message"] = None
+                if part.get("form") == PUSH:
+                    # A ping's row stays in the note, and so does a ping's
+                    # turned push.
+                    part["form"] = ROW if part.get("note_row") else None
             changed += 1
             continue
-        text = format_message(members)
+        text = format_message([m for _, m in members])
         mark = _fingerprint(text)
         if (mark != rec.get("hash") or ledger.rechecking(message_id)) \
                 and _edit(cfg, int(message_id), text):
@@ -1730,12 +1714,11 @@ def maybe_deliver(cfg: Config, state: dict, now: datetime | None = None) -> int:
         week["orphans"] = left
         save_state(cfg.state_path, state)
     elif week.get("detector") != version:
-        # A DETECTOR UPDATE KEEPS THE WEEK. What is on the channel stays and is
-        # brought to the updated numbers by the ordinary pass, as any correction
-        # is - an edit, silent; an event the update no longer sees stays as it
-        # went out (_step: kept - the day filter's first run would otherwise
-        # have taken down Tin's push of 2026-11-19). A move it sees in hours the
-        # runs before it had already read is not sent late (_step). It used to restart the week,
+        # A DETECTOR UPDATE KEEPS THE WEEK AND CHANGES NOTHING ON IT: what it
+        # reads becomes each event's baseline, and every part stays as it went
+        # out (_step, _follow: kept - the day filter's first run edited ETH's
+        # push of 15.11 down to a smaller hour). A move it sees in hours the runs
+        # before it had already read is not sent late (_new). It used to restart the week,
         # deleting every push and ping of it: on 2026-11-04 a change to
         # sessions.py's table code took eight messages and the note's ten rows.
         week["detector"] = version
@@ -1763,32 +1746,30 @@ def _pass(cfg: Config, state: dict, week: dict, readings: "list[dict]", labels: 
         # note, then the moves - the closing hour's among them.
         changed += _write_note(cfg, week, format_digest([], labels, window, calendar, now))
 
-    from jump import verify
-
-    # The sources' vote on each reading, said under it (vote_line).
-    record = verify.votes()
-    for r in readings:
-        r["vote"] = vote_line(_doubt(r["asset_id"], [r["reading_id"]], record))
+    # The sources' vote is not said on the channel: a move most did not see is
+    # no reading (jump.jumps), and is struck or deleted like any move gone.
     groups = _group([r for r in readings if _in_week(r, week)], week)
-    doubts = {k: row for k, row in record.items() if row.get("verdict") == verify.NOT_REAL}
     fresh: list = []
     for key in sorted(groups, key=lambda k: int(k.rsplit("|", 1)[1])):
-        changed += _step(week, key, groups[key], now_ts, fresh, doubts)
+        changed += _step(week, key, groups[key], now_ts, fresh)
     # A ping the breaker kept from going (Telegram silent earlier in that run)
     # goes now, inside the event's 24 hours.
     queued = {key for key, _, _ in fresh}
     for key, rec in week["events"].items():
         if (rec.get("ping_due") and rec.get("form") == ROW and rec.get("message") is None
-                and key not in queued and groups.get(key) and not rec.get("doubt")
+                and key not in queued and groups.get(key) and not rec.get("struck")
                 and now_ts < int(rec["start"]) + PUSH_WINDOW_HOURS * 3600):
             fresh.append((key, rec, copy.deepcopy(rec)))
     # What stays where it is shows its moves as they now stand.
     moving = {key for key, _, _ in fresh}
     for key, rec in week["events"].items():
-        rows = groups.get(key) or []
-        if rows and rec.get("form") and key not in moving and not rec.get("doubt") \
-                and not rec.get("kept"):
-            _member(rec, max(rows, key=_size), rec["form"], labels, calendar)
+        members = {str(r["reading_id"]): r for r in groups.get(key) or []}
+        for part in _parts(rec):
+            if not part.get("form") or (part is rec and key in moving):
+                continue
+            reading = _display(part, members, now_ts)
+            if reading is not None:
+                _member(part, reading, part["form"], labels, calendar)
     changed += _post_new(cfg, state, week, fresh, groups, labels, calendar, ring, now_ts)
     # After the new moves: a delete Telegram does not answer must not hold them.
     orphans, week["orphans"] = week.get("orphans", []), []
@@ -1798,11 +1779,15 @@ def _pass(cfg: Config, state: dict, week: dict, readings: "list[dict]", labels: 
     changed += _expire_pings(cfg, week, now_ts)
     save_state(cfg.state_path, state)
 
-    note_rows = [_render(rec, rec["row"] if rec.get("kept") else max(groups[key], key=_size))
-                 for key, rec in week["events"].items()
-                 if rec.get("form") == ROW and not rec.get("doubt")
-                 and ((rec.get("kept") and rec.get("row")) or
-                      (groups.get(key) and not rec.get("kept")))]
+    note_rows = []
+    for key, rec in week["events"].items():
+        members = {str(r["reading_id"]): r for r in groups.get(key) or []}
+        for part in _parts(rec):
+            if part.get("form") == ROW or (part.get("form") and part.get("note_row")):
+                reading = _display(part, members, now_ts)
+                if reading is not None:
+                    note_rows.append(_render(part, reading))
+    week["ran_at"] = now_ts
     changed += _write_note(cfg, week, format_digest(note_rows, labels, window, calendar, now))
     save_state(cfg.state_path, state)
     return changed

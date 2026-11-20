@@ -20,9 +20,11 @@ when its day has moved too: from the start of its trading day to the end of that
 least 1.5 of the instrument's daily sigmas, either way - a soybean hour the daily chart does
 not show is not news. `high` and up arrive at once (about 3.7 a week); `noticeable` goes
 into one weekly note (about 5.7 rows). Every other
-data feed that carries the instrument votes on a far move: one most did not see is marked
-`❌` with each feed's own move and kept out of the statistics, a tie `⚠️` and kept in. It
-runs entirely on GitHub Actions; nothing else needs hosting.
+data feed that carries the instrument votes on a far move: one most did not see is no move
+- its message goes, or its line is struck through - and a tie counts as real; the vote
+itself is not said on the channel. A new message comes only for a new hour: a past hour's
+bar late or revised is a quiet edit of what is there, marked `✏️ 6.5×σ 🟨 → 6.4×σ 🟨
+corrected`. It runs entirely on GitHub Actions; nothing else needs hosting.
 
 ## Quick start
 
