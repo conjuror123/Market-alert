@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1795287973
+    "last_run_utc": 1795291569
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -10,7 +10,7 @@
       "events": {
         "binance:BTC/USDT|1795233600": {
           "asset": "binance:BTC/USDT",
-          "body": "\ud83d\udfe8 <b>BTC/USDT</b> \u00b7 Bitcoin -3.21% \u00b7 8.0\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 12 hours (then 9.5\u00d7\u03c3)\n\ud83d\udd50 <b>21.11.2026 03:00 UTC</b> \u00b7 next close in 50h",
+          "body": "\ud83d\udfe8 <b>BTC/USDT</b> \u00b7 Bitcoin -3.21% \u00b7 8.0\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 12 hours (then 9.5\u00d7\u03c3)\n\ud83d\udd50 <b>21.11.2026 03:00 UTC</b> \u00b7 next close in 49h",
           "context": "",
           "ever": [
             "jump:binance:BTC/USDT:hour:1795230000"
@@ -40,7 +40,7 @@
             "gap_kind": null,
             "held": null,
             "hour_utc": 1795230000,
-            "now_utc": 1795287974,
+            "now_utc": 1795291570,
             "overnight": false,
             "r": -0.03206371283615196,
             "reading": "hour",
@@ -58,7 +58,7 @@
             "young": false,
             "z": -8.033305099966798
           },
-          "seen": 1795287974,
+          "seen": 1795291570,
           "shown": [
             "high",
             8.0,
@@ -74,7 +74,7 @@
       "messages": {
         "192": {
           "first": "\ud83d\udfe8 <b>BTC/USDT</b> \u00b7 Bitcoin -3.21% \u00b7 8.0\u00d7\u03c3",
-          "hash": "580f779aaabe8357"
+          "hash": "6eb842927e1bb4db"
         }
       },
       "note": {
@@ -86,7 +86,7 @@
         ]
       },
       "orphans": [],
-      "ran_at": 1795287974,
+      "ran_at": 1795291570,
       "since": 1795208700,
       "slot": 1795208700
     }
@@ -99,7 +99,7 @@
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1795287974
+    "saved_at": 1795291570
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-21",
