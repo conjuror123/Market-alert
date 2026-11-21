@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1795226761
+    "last_run_utc": 1795230372
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -11,14 +11,14 @@
       "messages": {},
       "note": {
         "hashes": [
-          "7243fe9ea6c8c46b"
+          "e46ce79dfacac0cc"
         ],
         "ids": [
           191
         ]
       },
       "orphans": [],
-      "ran_at": 1795226762,
+      "ran_at": 1795230374,
       "since": 1795208700,
       "slot": 1795208700
     }
@@ -31,7 +31,7 @@
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1795226762
+    "saved_at": 1795230374
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-21",
