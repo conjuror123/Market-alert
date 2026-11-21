@@ -1,14 +1,81 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1795230372
+    "last_run_utc": 1795233989
   },
   "floor_pending_replies": [],
   "jump_delivery": {
     "week": {
       "detector": "a4f636895fc6",
-      "events": {},
-      "messages": {},
+      "events": {
+        "binance:BTC/USDT|1795233600": {
+          "asset": "binance:BTC/USDT",
+          "body": "\ud83d\udfe8 <b>BTC/USDT</b> \u00b7 Bitcoin -3.21% \u00b7 8.0\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 12 hours (then 9.5\u00d7\u03c3)\n\ud83d\udd50 <b>21.11.2026 03:00 UTC</b> \u00b7 next close in 65h",
+          "context": "",
+          "ever": [
+            "jump:binance:BTC/USDT:hour:1795230000"
+          ],
+          "form": "push",
+          "hour": 1795230000,
+          "members": {
+            "jump:binance:BTC/USDT:hour:1795230000": [
+              -0.03206371283615196,
+              0.003991347575767349
+            ]
+          },
+          "message": 192,
+          "peak": "jump:binance:BTC/USDT:hour:1795230000",
+          "ping_at": 1795233990,
+          "placed_at": 1795233990,
+          "row": {
+            "asset_id": "binance:BTC/USDT",
+            "basis": "jump",
+            "block": "crypto",
+            "channel": "push",
+            "check_utc": 1795467600,
+            "day_r": -0.03822823380332242,
+            "event_start": 1795190400,
+            "found_utc": 1795233600,
+            "gap_kind": null,
+            "held": null,
+            "hour_utc": 1795230000,
+            "now_utc": 1795233990,
+            "overnight": false,
+            "r": -0.03206371283615196,
+            "reading": "hour",
+            "reading_id": "jump:binance:BTC/USDT:hour:1795230000",
+            "record_start": 1359680400,
+            "sigma": 0.003991347575767349,
+            "sigma_day": 0.019595443570522546,
+            "sigma_lt": 0.003991347575767349,
+            "since_utc": 1795186800,
+            "since_z": -9.512816155631539,
+            "template": "crypto_24_7",
+            "ticker": "BTC/USDT",
+            "tier": "high",
+            "word": "high",
+            "young": false,
+            "z": -8.033305099966798
+          },
+          "seen": 1795233990,
+          "shown": [
+            "high",
+            8.0,
+            1795230000,
+            -3.21
+          ],
+          "size": 8.033305099966798,
+          "start": 1795233600,
+          "tier": "high",
+          "was": null
+        }
+      },
+      "messages": {
+        "192": {
+          "first": "\ud83d\udfe8 <b>BTC/USDT</b> \u00b7 Bitcoin -3.21% \u00b7 8.0\u00d7\u03c3",
+          "hash": "fae9a35f1a4da333"
+        }
+      },
       "note": {
         "hashes": [
           "e46ce79dfacac0cc"
@@ -18,7 +85,7 @@
         ]
       },
       "orphans": [],
-      "ran_at": 1795230374,
+      "ran_at": 1795233990,
       "since": 1795208700,
       "slot": 1795208700
     }
@@ -26,12 +93,13 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      191
+      191,
+      192
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1795230374
+    "saved_at": 1795233990
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-21",

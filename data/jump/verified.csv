@@ -83,6 +83,7 @@ binance:BTC/USDT,1794538800,close,real,binance,"yahoo,coinbase,kraken,bitstamp,b
 binance:BTC/USDT,1794708000,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",0.035683,"0.036144,0.035981,0.035959,0.035727,0.036071,0.035878",1795219556
 binance:BTC/USDT,1794729600,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",0.018625,"0.018913,0.018602,0.018758,0.018886,0.018581,0.018667",1795219556
 binance:BTC/USDT,1795186800,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",-0.037854,"-0.038297,-0.038091,-0.037940,-0.038051,-0.037652,-0.037885",1795219556
+binance:BTC/USDT,1795230000,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",-0.032064,"-0.031965,-0.032147,-0.032151,-0.031919,-0.030414,-0.032242",1795233951
 binance:DOGE/USDT,1760133600,close,not_real,binance,coinbase,,0.041977,-0.008741,1791316800
 binance:DOGE/USDT,1789131600,close,real,binance,"coinbase,kraken","coinbase,kraken",0.026189,"0.026084,0.025929",1791590777
 binance:DOGE/USDT,1790002800,close,real,binance,"coinbase,kraken","coinbase,kraken",0.024652,"0.024441,0.024260",1791850009
@@ -121,6 +122,7 @@ binance:ETH/USDT,1794686400,close,real,binance,"yahoo,coinbase,kraken,bitstamp,b
 binance:ETH/USDT,1794708000,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",0.047810,"0.048351,0.047846,0.048776,0.047670,0.048427,0.048093",1795219556
 binance:ETH/USDT,1794837600,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",0.023386,"0.023407,0.023424,0.023482,0.023592,0.023176,0.023454",1795219556
 binance:ETH/USDT,1795186800,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",-0.051600,"-0.051826,-0.051687,-0.051966,-0.051781,-0.051239,-0.051819",1795219556
+binance:ETH/USDT,1795230000,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",-0.030103,"-0.030169,-0.030119,-0.030673,-0.029880,-0.030105,-0.029758",1795233951
 binance:FIL/USDT,1760130000,close,not_real,binance,coinbase,,-0.293749,-0.020619,1791316800
 binance:FIL/USDT,1760133600,close,not_real,binance,coinbase,,0.041411,0.005797,1791316800
 binance:FIL/USDT,1760137200,close,not_real,binance,coinbase,,0.035028,-0.132156,1791316800
@@ -202,6 +204,7 @@ binance:SOL/USDT,1794322800,close,real,binance,"yahoo,coinbase,kraken,bitstamp,b
 binance:SOL/USDT,1794686400,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",-0.023956,"-0.023831,-0.023976,-0.024256,-0.024048,-0.024412,-0.024464",1795219556
 binance:SOL/USDT,1794708000,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",0.050010,"0.050320,0.050334,0.049759,0.049855,0.050145,0.049737",1795219556
 binance:SOL/USDT,1795186800,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",-0.038877,"-0.039508,-0.038922,-0.038629,-0.037970,-0.038340,-0.038926",1795219556
+binance:SOL/USDT,1795230000,close,real,binance,"yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto","yahoo,coinbase,kraken,bitstamp,bitfinex,alpaca_crypto",-0.033967,"-0.033720,-0.033871,-0.033569,-0.033800,-0.033521,-0.033578",1795233951
 binance:UNI/USDT,1789128000,close,real,binance,"coinbase,kraken","coinbase,kraken",0.037355,"0.033599,0.037748",1791594373
 binance:UNI/USDT,1789131600,close,real,binance,"coinbase,kraken","coinbase,kraken",0.046858,"0.049577,0.045508",1791594373
 binance:UNI/USDT,1789480800,close,real,binance,"coinbase,kraken","coinbase,kraken",-0.036852,"-0.037942,-0.037967",1791853608
