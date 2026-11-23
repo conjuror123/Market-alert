@@ -92658,7 +92658,7 @@
 {"actual": "", "country": "GBP", "date": "2026-11-23T11:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "CBI Industrial Order Expectations"}
 {"actual": "", "country": "GBP", "date": "2026-11-23T11:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "CBI Realized Sales"}
 {"actual": "", "country": "GBP", "date": "2026-11-23T13:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "MPC Member Pill Speaks"}
-{"actual": "", "country": "CAD", "date": "2026-11-23T13:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Corporate Profits q/q"}
+{"actual": "", "country": "CAD", "date": "2026-11-23T13:30:00+00:00", "forecast": "", "impact": "Low", "previous": "8.7%", "title": "Corporate Profits q/q"}
 {"actual": "", "country": "USD", "date": "2026-11-23T14:45:00+00:00", "forecast": "54.5", "impact": "Medium", "previous": "56.0", "title": "Flash Manufacturing PMI"}
 {"actual": "", "country": "USD", "date": "2026-11-23T14:45:00+00:00", "forecast": "55.6", "impact": "Medium", "previous": "57.9", "title": "Flash Services PMI"}
 {"actual": "", "country": "USD", "date": "2026-11-23T21:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Williams Speaks"}
