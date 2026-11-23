@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1795403209
+    "last_run_utc": 1795406814
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -10,7 +10,7 @@
       "events": {
         "binance:BTC/USDT|1795233600": {
           "asset": "binance:BTC/USDT",
-          "body": "\ud83d\udfe8 <b>BTC/USDT</b> \u00b7 Bitcoin -3.21% \u00b7 8.0\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 12 hours (then 9.5\u00d7\u03c3)\n\ud83d\udd50 <b>21.11.2026 03:00 UTC</b> \u00b7 next close in 18h",
+          "body": "\ud83d\udfe8 <b>BTC/USDT</b> \u00b7 Bitcoin -3.21% \u00b7 8.0\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 12 hours (then 9.5\u00d7\u03c3)\n\ud83d\udd50 <b>21.11.2026 03:00 UTC</b> \u00b7 next close in 17h",
           "context": "",
           "ever": [
             "jump:binance:BTC/USDT:hour:1795230000"
@@ -40,7 +40,7 @@
             "gap_kind": null,
             "held": null,
             "hour_utc": 1795230000,
-            "now_utc": 1795403210,
+            "now_utc": 1795406815,
             "overnight": false,
             "r": -0.03206371283615196,
             "reading": "hour",
@@ -58,7 +58,7 @@
             "young": false,
             "z": -8.033305099966798
           },
-          "seen": 1795403210,
+          "seen": 1795406815,
           "shown": [
             "high",
             8.0,
@@ -69,24 +69,89 @@
           "start": 1795233600,
           "tier": "high",
           "was": null
+        },
+        "yahoo:^TWII|1795406400": {
+          "asset": "yahoo:^TWII",
+          "body": "\u2b1c <b>TAIEX</b> \u00b7 Taiwan +2.78% \u00b7 5.9\u00d7\u03c3",
+          "context": "",
+          "ever": [
+            "jump:yahoo:^TWII:hour:1795402800"
+          ],
+          "form": "row",
+          "hour": 1795402800,
+          "members": {
+            "jump:yahoo:^TWII:hour:1795402800": [
+              0.027774895396129786,
+              0.0047387073836248975
+            ]
+          },
+          "message": 193,
+          "peak": "jump:yahoo:^TWII:hour:1795402800",
+          "ping_at": 1795406815,
+          "placed_at": 1795406815,
+          "row": {
+            "asset_id": "yahoo:^TWII",
+            "basis": "jump",
+            "block": "equity",
+            "channel": "digest",
+            "check_utc": 1795467600,
+            "day_r": 0.031513486042979814,
+            "event_start": 1795406400,
+            "found_utc": 1795406400,
+            "gap_kind": null,
+            "held": null,
+            "hour_utc": 1795402800,
+            "now_utc": 1795406815,
+            "overnight": false,
+            "r": 0.027774895396129786,
+            "reading": "hour",
+            "reading_id": "jump:yahoo:^TWII:hour:1795402800",
+            "record_start": 1728867600,
+            "sigma": 0.0047387073836248975,
+            "sigma_day": 0.019932665306408824,
+            "sigma_lt": 0.0047387073836248975,
+            "since_utc": 1793930400,
+            "since_z": 7.789659571200452,
+            "template": "taipei",
+            "ticker": "^TWII",
+            "tier": "noticeable",
+            "word": "noticeable",
+            "young": false,
+            "z": 5.8612809670647446
+          },
+          "seen": 1795406815,
+          "shown": [
+            "noticeable",
+            5.9,
+            1795402800,
+            2.78
+          ],
+          "size": 5.8612809670647446,
+          "start": 1795406400,
+          "tier": "noticeable",
+          "was": null
         }
       },
       "messages": {
         "192": {
           "first": "\ud83d\udfe8 <b>BTC/USDT</b> \u00b7 Bitcoin -3.21% \u00b7 8.0\u00d7\u03c3",
-          "hash": "036ee8c22e4bf33c"
+          "hash": "3bcce98131b4edae"
+        },
+        "193": {
+          "first": "\u2b1c <b>TAIEX</b> \u00b7 Taiwan +2.78% \u00b7 5.9\u00d7\u03c3",
+          "hash": "db891a0e923b76c2"
         }
       },
       "note": {
         "hashes": [
-          "e46ce79dfacac0cc"
+          "088d7402e5b1b476"
         ],
         "ids": [
           191
         ]
       },
       "orphans": [],
-      "ran_at": 1795403210,
+      "ran_at": 1795406815,
       "since": 1795208700,
       "slot": 1795208700
     }
@@ -94,12 +159,13 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      192
+      192,
+      193
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1795403210
+    "saved_at": 1795406815
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-23",
