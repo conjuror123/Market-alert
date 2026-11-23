@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1795439198
+    "last_run_utc": 1795442853
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -10,7 +10,7 @@
       "events": {
         "binance:BTC/USDT|1795233600": {
           "asset": "binance:BTC/USDT",
-          "body": "\ud83d\udfe8 <b>BTC/USDT</b> \u00b7 Bitcoin -3.21% \u00b7 8.0\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 12 hours (then 9.5\u00d7\u03c3)\n\ud83d\udd50 <b>21.11.2026 03:00 UTC</b> \u00b7 next close in 8h",
+          "body": "\ud83d\udfe8 <b>BTC/USDT</b> \u00b7 Bitcoin -3.21% \u00b7 8.0\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 12 hours (then 9.5\u00d7\u03c3)\n\ud83d\udd50 <b>21.11.2026 03:00 UTC</b> \u00b7 next close in 7h",
           "context": "",
           "ever": [
             "jump:binance:BTC/USDT:hour:1795230000"
@@ -40,7 +40,7 @@
             "gap_kind": null,
             "held": null,
             "hour_utc": 1795230000,
-            "now_utc": 1795439198,
+            "now_utc": 1795442853,
             "overnight": false,
             "r": -0.03206371283615196,
             "reading": "hour",
@@ -58,7 +58,7 @@
             "young": false,
             "z": -8.033305099966798
           },
-          "seen": 1795439198,
+          "seen": 1795442853,
           "shown": [
             "high",
             8.0,
@@ -68,6 +68,311 @@
           "size": 8.033305099966798,
           "start": 1795233600,
           "tier": "high",
+          "was": null
+        },
+        "binance:BTC/USDT|1795442400": {
+          "asset": "binance:BTC/USDT",
+          "body": "\ud83d\udfe7 <b>BTC/USDT</b> \u00b7 Bitcoin +4.01% \u00b7 9.9\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 days (then 9.9\u00d7\u03c3)\n\ud83d\udd50 <b>23.11.2026 13:00 UTC</b> \u00b7 close in 7h",
+          "context": "",
+          "ever": [
+            "jump:binance:BTC/USDT:hour:1795438800"
+          ],
+          "form": "push",
+          "hour": 1795438800,
+          "members": {
+            "jump:binance:BTC/USDT:hour:1795438800": [
+              0.04014740054165896,
+              0.004066674362195303
+            ]
+          },
+          "message": 194,
+          "peak": "jump:binance:BTC/USDT:hour:1795438800",
+          "ping_at": 1795442853,
+          "placed_at": 1795442853,
+          "row": {
+            "asset_id": "binance:BTC/USDT",
+            "basis": "jump",
+            "block": "crypto",
+            "channel": "push",
+            "check_utc": 1795467600,
+            "day_r": 0.04108688050366301,
+            "event_start": 1795442400,
+            "found_utc": 1795442400,
+            "gap_kind": null,
+            "held": null,
+            "hour_utc": 1795438800,
+            "now_utc": 1795442853,
+            "overnight": false,
+            "r": 0.04014740054165896,
+            "reading": "hour",
+            "reading_id": "jump:binance:BTC/USDT:hour:1795438800",
+            "record_start": 1359680400,
+            "sigma": 0.004066674362195303,
+            "sigma_day": 0.019849208843699156,
+            "sigma_lt": 0.004066674362195303,
+            "since_utc": 1795240800,
+            "since_z": 9.948864020767369,
+            "template": "crypto_24_7",
+            "ticker": "BTC/USDT",
+            "tier": "major",
+            "word": "major",
+            "young": false,
+            "z": 9.872292926839188
+          },
+          "seen": 1795442853,
+          "shown": [
+            "major",
+            9.9,
+            1795438800,
+            4.01
+          ],
+          "size": 9.872292926839188,
+          "start": 1795442400,
+          "tier": "major",
+          "was": null
+        },
+        "binance:ETH/USDT|1795442400": {
+          "asset": "binance:ETH/USDT",
+          "body": "\ud83d\udfe7 <b>ETH/USDT</b> \u00b7 Ethereum +4.99% \u00b7 9.6\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 days (then 9.4\u00d7\u03c3)\n\ud83d\udd50 <b>23.11.2026 13:00 UTC</b> \u00b7 close in 7h",
+          "context": "",
+          "ever": [
+            "jump:binance:ETH/USDT:hour:1795438800"
+          ],
+          "form": "push",
+          "hour": 1795438800,
+          "members": {
+            "jump:binance:ETH/USDT:hour:1795438800": [
+              0.04994625490994155,
+              0.005197383138829973
+            ]
+          },
+          "message": 194,
+          "peak": "jump:binance:ETH/USDT:hour:1795438800",
+          "ping_at": 1795442853,
+          "placed_at": 1795442853,
+          "row": {
+            "asset_id": "binance:ETH/USDT",
+            "basis": "jump",
+            "block": "crypto",
+            "channel": "push",
+            "check_utc": 1795467600,
+            "day_r": 0.0485766699237824,
+            "event_start": 1795442400,
+            "found_utc": 1795442400,
+            "gap_kind": null,
+            "held": null,
+            "hour_utc": 1795438800,
+            "now_utc": 1795442853,
+            "overnight": false,
+            "r": 0.04994625490994155,
+            "reading": "hour",
+            "reading_id": "jump:binance:ETH/USDT:hour:1795438800",
+            "record_start": 1459468800,
+            "sigma": 0.005197383138829973,
+            "sigma_day": 0.025069074334242228,
+            "sigma_lt": 0.005197383138829973,
+            "since_utc": 1795240800,
+            "since_z": 9.43982768198395,
+            "template": "crypto_24_7",
+            "ticker": "ETH/USDT",
+            "tier": "major",
+            "word": "major",
+            "young": false,
+            "z": 9.609885124071374
+          },
+          "seen": 1795442853,
+          "shown": [
+            "major",
+            9.6,
+            1795438800,
+            4.99
+          ],
+          "size": 9.609885124071374,
+          "start": 1795442400,
+          "tier": "major",
+          "was": null
+        },
+        "binance:SOL/USDT|1795442400": {
+          "asset": "binance:SOL/USDT",
+          "body": "\ud83d\udfe7 <b>SOL/USDT</b> \u00b7 Solana +5.87% \u00b7 9.6\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 19 months (then 9.4\u00d7\u03c3)\n\ud83d\udd50 <b>23.11.2026 13:00 UTC</b> \u00b7 close in 7h",
+          "context": "",
+          "ever": [
+            "jump:binance:SOL/USDT:hour:1795438800"
+          ],
+          "form": "push",
+          "hour": 1795438800,
+          "members": {
+            "jump:binance:SOL/USDT:hour:1795438800": [
+              0.058741604683789986,
+              0.006103930749586083
+            ]
+          },
+          "message": 194,
+          "peak": "jump:binance:SOL/USDT:hour:1795438800",
+          "ping_at": 1795442853,
+          "placed_at": 1795442853,
+          "row": {
+            "asset_id": "binance:SOL/USDT",
+            "basis": "jump",
+            "block": "crypto",
+            "channel": "push",
+            "check_utc": 1795467600,
+            "day_r": 0.0797272656986468,
+            "event_start": 1795442400,
+            "found_utc": 1795442400,
+            "gap_kind": null,
+            "held": null,
+            "hour_utc": 1795438800,
+            "now_utc": 1795442853,
+            "overnight": false,
+            "r": 0.058741604683789986,
+            "reading": "hour",
+            "reading_id": "jump:binance:SOL/USDT:hour:1795438800",
+            "record_start": 1597125600,
+            "sigma": 0.006103930749586083,
+            "sigma_day": 0.028382087239745675,
+            "sigma_lt": 0.006103930749586083,
+            "since_utc": 1744218000,
+            "since_z": 9.411697971953865,
+            "template": "crypto_24_7",
+            "ticker": "SOL/USDT",
+            "tier": "major",
+            "word": "major",
+            "young": false,
+            "z": 9.623569973786703
+          },
+          "seen": 1795442853,
+          "shown": [
+            "major",
+            9.6,
+            1795438800,
+            5.87
+          ],
+          "size": 9.623569973786703,
+          "start": 1795442400,
+          "tier": "major",
+          "was": null
+        },
+        "binance:XRP/USDT|1795442400": {
+          "asset": "binance:XRP/USDT",
+          "body": "\ud83d\udfe8 <b>XRP/USDT</b> \u00b7 XRP +4.95% \u00b7 7.7\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 8 days (then 8.0\u00d7\u03c3)\n\ud83d\udd50 <b>23.11.2026 13:00 UTC</b> \u00b7 close in 7h",
+          "context": "",
+          "ever": [
+            "jump:binance:XRP/USDT:hour:1795438800"
+          ],
+          "form": "push",
+          "hour": 1795438800,
+          "members": {
+            "jump:binance:XRP/USDT:hour:1795438800": [
+              0.04947345767056454,
+              0.006392807697523996
+            ]
+          },
+          "message": 194,
+          "peak": "jump:binance:XRP/USDT:hour:1795438800",
+          "ping_at": 1795442853,
+          "placed_at": 1795442853,
+          "row": {
+            "asset_id": "binance:XRP/USDT",
+            "basis": "jump",
+            "block": "crypto",
+            "channel": "push",
+            "check_utc": 1795467600,
+            "day_r": 0.0617763675978113,
+            "event_start": 1795442400,
+            "found_utc": 1795442400,
+            "gap_kind": null,
+            "held": null,
+            "hour_utc": 1795438800,
+            "now_utc": 1795442853,
+            "overnight": false,
+            "r": 0.04947345767056454,
+            "reading": "hour",
+            "reading_id": "jump:binance:XRP/USDT:hour:1795438800",
+            "record_start": 1488326400,
+            "sigma": 0.006392807697523996,
+            "sigma_day": 0.031101869725911717,
+            "sigma_lt": 0.006392807697523996,
+            "since_utc": 1794708000,
+            "since_z": 8.03594687895741,
+            "template": "crypto_24_7",
+            "ticker": "XRP/USDT",
+            "tier": "high",
+            "word": "high",
+            "young": false,
+            "z": 7.738924743462273
+          },
+          "seen": 1795442853,
+          "shown": [
+            "high",
+            7.7,
+            1795438800,
+            4.95
+          ],
+          "size": 7.738924743462273,
+          "start": 1795442400,
+          "tier": "high",
+          "was": null
+        },
+        "sina:SND|1795442400": {
+          "asset": "sina:SND",
+          "body": "\u2b1c <b>Tin</b> \u00b7 LME +2.77% \u00b7 6.0\u00d7\u03c3",
+          "context": "",
+          "ever": [
+            "jump:sina:SND:hour:1795438800"
+          ],
+          "form": "row",
+          "hour": 1795438800,
+          "members": {
+            "jump:sina:SND:hour:1795438800": [
+              0.02772045320515474,
+              0.004630408701660207
+            ]
+          },
+          "message": 195,
+          "peak": "jump:sina:SND:hour:1795438800",
+          "ping_at": 1795442853,
+          "placed_at": 1795442853,
+          "row": {
+            "asset_id": "sina:SND",
+            "basis": "jump",
+            "block": "industrial_metals",
+            "channel": "digest",
+            "check_utc": 1795467600,
+            "day_r": 0.0293697892090881,
+            "event_start": 1795442400,
+            "found_utc": 1795442400,
+            "gap_kind": null,
+            "held": null,
+            "hour_utc": 1795438800,
+            "now_utc": 1795442853,
+            "overnight": false,
+            "r": 0.02772045320515474,
+            "reading": "hour",
+            "reading_id": "jump:sina:SND:hour:1795438800",
+            "record_start": 1776834000,
+            "sigma": 0.004630408701660207,
+            "sigma_day": 0.018117936525013225,
+            "sigma_lt": 0.004630408701660207,
+            "since_utc": 1783040400,
+            "since_z": 5.93641286376484,
+            "template": "lme",
+            "ticker": "SND",
+            "tier": "noticeable",
+            "word": "noticeable",
+            "young": false,
+            "z": 5.9866104681463055
+          },
+          "seen": 1795442853,
+          "shown": [
+            "noticeable",
+            6.0,
+            1795438800,
+            2.77
+          ],
+          "size": 5.9866104681463055,
+          "start": 1795442400,
+          "tier": "noticeable",
           "was": null
         },
         "yahoo:^TWII|1795406400": {
@@ -96,7 +401,7 @@
             "gap_kind": null,
             "held": null,
             "hour_utc": 1795402800,
-            "now_utc": 1795439198,
+            "now_utc": 1795442853,
             "overnight": false,
             "r": 0.027774895396129786,
             "reading": "hour",
@@ -114,7 +419,7 @@
             "young": false,
             "z": 5.8612809670647446
           },
-          "seen": 1795439198,
+          "seen": 1795442853,
           "shown": [
             "noticeable",
             5.9,
@@ -131,19 +436,27 @@
       "messages": {
         "192": {
           "first": "\ud83d\udfe8 <b>BTC/USDT</b> \u00b7 Bitcoin -3.21% \u00b7 8.0\u00d7\u03c3",
-          "hash": "25bfe464017c2d98"
+          "hash": "c14a6a6b40f7c70d"
+        },
+        "194": {
+          "first": "\ud83d\udfe7 <b>BTC/USDT</b> \u00b7 Bitcoin +4.01% \u00b7 9.9\u00d7\u03c3",
+          "hash": "8f810dffbba9c20b"
+        },
+        "195": {
+          "first": "\u2b1c <b>Tin</b> \u00b7 LME +2.77% \u00b7 6.0\u00d7\u03c3",
+          "hash": "6658d0204683a42e"
         }
       },
       "note": {
         "hashes": [
-          "f284df752723ecc1"
+          "8fb35a8ae685b45c"
         ],
         "ids": [
           191
         ]
       },
       "orphans": [],
-      "ran_at": 1795439198,
+      "ran_at": 1795442853,
       "since": 1795208700,
       "slot": 1795208700
     }
@@ -151,12 +464,14 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      193
+      193,
+      194,
+      195
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1795439198
+    "saved_at": 1795442853
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-23",
