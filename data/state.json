@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1795464387
+    "last_run_utc": 1795468021
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -10,7 +10,7 @@
       "events": {
         "binance:BTC/USDT|1795233600": {
           "asset": "binance:BTC/USDT",
-          "body": "\ud83d\udfe8 <b>BTC/USDT</b> \u00b7 Bitcoin -3.21% \u00b7 8.0\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 12 hours (then 9.5\u00d7\u03c3)\n\ud83d\udd50 <b>21.11.2026 03:00 UTC</b> \u00b7 next close in 1h",
+          "body": "\ud83d\udfe8 <b>BTC/USDT</b> \u00b7 Bitcoin -3.21% \u00b7 8.0\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 12 hours (then 9.5\u00d7\u03c3)\n\ud83d\udd50 <b>21.11.2026 03:00 UTC</b> \u00b7 next close -138%",
           "context": "",
           "ever": [
             "jump:binance:BTC/USDT:hour:1795230000"
@@ -38,9 +38,9 @@
             "event_start": 1795190400,
             "found_utc": 1795233600,
             "gap_kind": null,
-            "held": null,
+            "held": -1.3795508046599,
             "hour_utc": 1795230000,
-            "now_utc": 1795464387,
+            "now_utc": 1795468022,
             "overnight": false,
             "r": -0.03206371283615196,
             "reading": "hour",
@@ -58,7 +58,7 @@
             "young": false,
             "z": -8.033305099966798
           },
-          "seen": 1795464387,
+          "seen": 1795468022,
           "shown": [
             "high",
             8.0,
@@ -72,7 +72,7 @@
         },
         "binance:BTC/USDT|1795442400": {
           "asset": "binance:BTC/USDT",
-          "body": "\ud83d\udfe7 <b>BTC/USDT</b> \u00b7 Bitcoin +4.01% \u00b7 9.9\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 days (then 9.9\u00d7\u03c3)\n\ud83d\udd50 <b>23.11.2026 13:00 UTC</b> \u00b7 close in 1h",
+          "body": "\ud83d\udfe7 <b>BTC/USDT</b> \u00b7 Bitcoin +4.01% \u00b7 9.9\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 days (then 9.9\u00d7\u03c3)\n\ud83d\udd50 <b>23.11.2026 13:00 UTC</b> \u00b7 close -4%",
           "context": "",
           "ever": [
             "jump:binance:BTC/USDT:hour:1795438800"
@@ -100,9 +100,9 @@
             "event_start": 1795442400,
             "found_utc": 1795442400,
             "gap_kind": null,
-            "held": null,
+            "held": -0.036445497398501385,
             "hour_utc": 1795438800,
-            "now_utc": 1795464387,
+            "now_utc": 1795468022,
             "overnight": false,
             "r": 0.04014740054165896,
             "reading": "hour",
@@ -120,7 +120,7 @@
             "young": false,
             "z": 9.872292926839188
           },
-          "seen": 1795464387,
+          "seen": 1795468022,
           "shown": [
             "major",
             9.9,
@@ -134,7 +134,7 @@
         },
         "binance:ETH/USDT|1795442400": {
           "asset": "binance:ETH/USDT",
-          "body": "\ud83d\udfe7 <b>ETH/USDT</b> \u00b7 Ethereum +4.99% \u00b7 9.6\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 days (then 9.4\u00d7\u03c3)\n\ud83d\udd50 <b>23.11.2026 13:00 UTC</b> \u00b7 close in 1h",
+          "body": "\ud83d\udfe7 <b>ETH/USDT</b> \u00b7 Ethereum +4.99% \u00b7 9.6\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 days (then 9.4\u00d7\u03c3)\n\ud83d\udd50 <b>23.11.2026 13:00 UTC</b> \u00b7 close 4%",
           "context": "",
           "ever": [
             "jump:binance:ETH/USDT:hour:1795438800"
@@ -162,9 +162,9 @@
             "event_start": 1795442400,
             "found_utc": 1795442400,
             "gap_kind": null,
-            "held": null,
+            "held": 0.04111769167586757,
             "hour_utc": 1795438800,
-            "now_utc": 1795464387,
+            "now_utc": 1795468022,
             "overnight": false,
             "r": 0.04994625490994155,
             "reading": "hour",
@@ -182,7 +182,7 @@
             "young": false,
             "z": 9.609885124071374
           },
-          "seen": 1795464387,
+          "seen": 1795468022,
           "shown": [
             "major",
             9.6,
@@ -196,7 +196,7 @@
         },
         "binance:SOL/USDT|1795442400": {
           "asset": "binance:SOL/USDT",
-          "body": "\ud83d\udfe7 <b>SOL/USDT</b> \u00b7 Solana +5.87% \u00b7 9.6\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 19 months (then 9.4\u00d7\u03c3)\n\ud83d\udd50 <b>23.11.2026 13:00 UTC</b> \u00b7 close in 1h",
+          "body": "\ud83d\udfe7 <b>SOL/USDT</b> \u00b7 Solana +5.87% \u00b7 9.6\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 19 months (then 9.4\u00d7\u03c3)\n\ud83d\udd50 <b>23.11.2026 13:00 UTC</b> \u00b7 close 14%",
           "context": "",
           "ever": [
             "jump:binance:SOL/USDT:hour:1795438800"
@@ -224,9 +224,9 @@
             "event_start": 1795442400,
             "found_utc": 1795442400,
             "gap_kind": null,
-            "held": null,
+            "held": 0.14316569732682338,
             "hour_utc": 1795438800,
-            "now_utc": 1795464387,
+            "now_utc": 1795468022,
             "overnight": false,
             "r": 0.058741604683789986,
             "reading": "hour",
@@ -244,7 +244,7 @@
             "young": false,
             "z": 9.623569973786703
           },
-          "seen": 1795464387,
+          "seen": 1795468022,
           "shown": [
             "major",
             9.6,
@@ -258,7 +258,7 @@
         },
         "binance:XRP/USDT|1795442400": {
           "asset": "binance:XRP/USDT",
-          "body": "\ud83d\udfe8 <b>XRP/USDT</b> \u00b7 XRP +4.95% \u00b7 7.7\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 8 days (then 8.0\u00d7\u03c3)\n\ud83d\udd50 <b>23.11.2026 13:00 UTC</b> \u00b7 close in 1h",
+          "body": "\ud83d\udfe8 <b>XRP/USDT</b> \u00b7 XRP +4.95% \u00b7 7.7\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 8 days (then 8.0\u00d7\u03c3)\n\ud83d\udd50 <b>23.11.2026 13:00 UTC</b> \u00b7 close -6%",
           "context": "",
           "ever": [
             "jump:binance:XRP/USDT:hour:1795438800"
@@ -286,9 +286,9 @@
             "event_start": 1795442400,
             "found_utc": 1795442400,
             "gap_kind": null,
-            "held": null,
+            "held": -0.06457787765294827,
             "hour_utc": 1795438800,
-            "now_utc": 1795464387,
+            "now_utc": 1795468022,
             "overnight": false,
             "r": 0.04947345767056454,
             "reading": "hour",
@@ -306,7 +306,7 @@
             "young": false,
             "z": 7.738924743462273
           },
-          "seen": 1795464387,
+          "seen": 1795468022,
           "shown": [
             "high",
             7.7,
@@ -320,7 +320,7 @@
         },
         "sina:CAD|1795446000": {
           "asset": "sina:CAD",
-          "body": "\ud83d\udfe7 <b>Copper</b> \u00b7 LME +2.67% \u00b7 10.8\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 7 months of record\n\ud83d\udd50 <b>23.11.2026 14:00 UTC</b> \u00b7 close in 1h",
+          "body": "\ud83d\udfe7 <b>Copper</b> \u00b7 LME +2.67% \u00b7 10.8\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 7 months of record\n\ud83d\udd50 <b>23.11.2026 14:00 UTC</b> \u00b7 close 47%",
           "context": "",
           "ever": [
             "jump:sina:CAD:hour:1795442400"
@@ -348,9 +348,9 @@
             "event_start": 1795446000,
             "found_utc": 1795446000,
             "gap_kind": null,
-            "held": null,
+            "held": 0.47150452834327955,
             "hour_utc": 1795442400,
-            "now_utc": 1795464387,
+            "now_utc": 1795468022,
             "overnight": false,
             "r": 0.026673811197133,
             "reading": "hour",
@@ -368,7 +368,7 @@
             "young": false,
             "z": 10.82278710939746
           },
-          "seen": 1795464387,
+          "seen": 1795468022,
           "shown": [
             "major",
             10.8,
@@ -410,9 +410,9 @@
             "event_start": 1795442400,
             "found_utc": 1795442400,
             "gap_kind": null,
-            "held": null,
+            "held": 1.0574792944370677,
             "hour_utc": 1795438800,
-            "now_utc": 1795464387,
+            "now_utc": 1795468022,
             "overnight": false,
             "r": 0.02772045320515474,
             "reading": "hour",
@@ -430,7 +430,7 @@
             "young": false,
             "z": 5.9866104681463055
           },
-          "seen": 1795464387,
+          "seen": 1795468022,
           "shown": [
             "noticeable",
             6.0,
@@ -472,9 +472,9 @@
             "event_start": 1795446000,
             "found_utc": 1795446000,
             "gap_kind": "weekend",
-            "held": null,
+            "held": 0.9552742789366211,
             "hour_utc": 1795442400,
-            "now_utc": 1795464387,
+            "now_utc": 1795468022,
             "overnight": true,
             "r": 0.036169962062550055,
             "reading": "weekend",
@@ -492,7 +492,7 @@
             "young": false,
             "z": 4.658407427965116
           },
-          "seen": 1795464387,
+          "seen": 1795468022,
           "shown": [
             "noticeable",
             4.7,
@@ -506,7 +506,7 @@
         },
         "twelvedata:SPY|1795446000": {
           "asset": "twelvedata:SPY",
-          "body": "\ud83d\udfe8 <b>SPY</b> \u00b7 S&amp;P 500 +4.73% at the open after the weekend \u00b7 8.3\u00d7\u03c3\n\ud83d\udcc8 Rarest weekend in 16 years (then 7.9\u00d7\u03c3)\n\ud83d\udd50 <b>23.11.2026 14:00 UTC</b> \u00b7 close in 1h",
+          "body": "\ud83d\udfe8 <b>SPY</b> \u00b7 S&amp;P 500 +4.73% at the open after the weekend \u00b7 8.3\u00d7\u03c3\n\ud83d\udcc8 Rarest weekend in 16 years (then 7.9\u00d7\u03c3)\n\ud83d\udd50 <b>23.11.2026 14:00 UTC</b> \u00b7 close 94%",
           "context": "",
           "ever": [
             "jump:twelvedata:SPY:weekend:1795442400"
@@ -534,9 +534,9 @@
             "event_start": 1795446000,
             "found_utc": 1795446000,
             "gap_kind": "weekend",
-            "held": null,
+            "held": 0.944285194889292,
             "hour_utc": 1795442400,
-            "now_utc": 1795464387,
+            "now_utc": 1795468022,
             "overnight": true,
             "r": 0.04729823001611533,
             "reading": "weekend",
@@ -554,7 +554,7 @@
             "young": false,
             "z": 8.258552931343102
           },
-          "seen": 1795464387,
+          "seen": 1795468022,
           "shown": [
             "high",
             8.3,
@@ -568,7 +568,7 @@
         },
         "twelvedata:XLK|1795446000": {
           "asset": "twelvedata:XLK",
-          "body": "\ud83d\udfe8 <b>XLK</b> \u00b7 Technology sector +9.66% at the open after the weekend \u00b7 7.0\u00d7\u03c3\n\ud83d\udcc8 Rarest weekend in 10 years of record\n\ud83d\udd50 <b>23.11.2026 14:00 UTC</b> \u00b7 close in 1h",
+          "body": "\ud83d\udfe8 <b>XLK</b> \u00b7 Technology sector +9.66% at the open after the weekend \u00b7 7.0\u00d7\u03c3\n\ud83d\udcc8 Rarest weekend in 10 years of record\n\ud83d\udd50 <b>23.11.2026 14:00 UTC</b> \u00b7 close 86%",
           "context": "",
           "ever": [
             "jump:twelvedata:XLK:weekend:1795442400"
@@ -596,9 +596,9 @@
             "event_start": 1795446000,
             "found_utc": 1795446000,
             "gap_kind": "weekend",
-            "held": null,
+            "held": 0.8618275337942174,
             "hour_utc": 1795442400,
-            "now_utc": 1795464387,
+            "now_utc": 1795468022,
             "overnight": true,
             "r": 0.09658189109649341,
             "reading": "weekend",
@@ -616,7 +616,7 @@
             "young": false,
             "z": 7.033422907364394
           },
-          "seen": 1795464387,
+          "seen": 1795468022,
           "shown": [
             "high",
             7.0,
@@ -654,7 +654,7 @@
             "gap_kind": null,
             "held": null,
             "hour_utc": 1795402800,
-            "now_utc": 1795464387,
+            "now_utc": 1795468022,
             "overnight": false,
             "r": 0.027774895396129786,
             "reading": "hour",
@@ -672,7 +672,7 @@
             "young": false,
             "z": 5.8612809670647446
           },
-          "seen": 1795464387,
+          "seen": 1795468022,
           "shown": [
             "noticeable",
             5.9,
@@ -689,11 +689,11 @@
       "messages": {
         "192": {
           "first": "\ud83d\udfe8 <b>BTC/USDT</b> \u00b7 Bitcoin -3.21% \u00b7 8.0\u00d7\u03c3",
-          "hash": "6f39d90812637438"
+          "hash": "f4dfe6416b886cf3"
         },
         "194": {
           "first": "\ud83d\udfe7 <b>BTC/USDT</b> \u00b7 Bitcoin +4.01% \u00b7 9.9\u00d7\u03c3",
-          "hash": "ddb019aaf7355535"
+          "hash": "dc9eb7f1d3a290e9"
         },
         "195": {
           "first": "\u2b1c <b>Tin</b> \u00b7 LME +2.77% \u00b7 6.0\u00d7\u03c3",
@@ -701,7 +701,7 @@
         },
         "196": {
           "first": "\ud83d\udfe7 <b>Copper</b> \u00b7 LME +2.67% \u00b7 10.8\u00d7\u03c3",
-          "hash": "e6b59338ae0d7cc7"
+          "hash": "278d0e07a12163c6"
         },
         "197": {
           "first": "\u2b1c <b>IWM</b> \u00b7 Russell 2000 (small caps) +3.62% \u00b7 4.7\u00d7\u03c3",
@@ -710,14 +710,14 @@
       },
       "note": {
         "hashes": [
-          "79c39a7dd5661012"
+          "35d9e1a326a15cfa"
         ],
         "ids": [
           191
         ]
       },
       "orphans": [],
-      "ran_at": 1795464387,
+      "ran_at": 1795468022,
       "since": 1795208700,
       "slot": 1795208700
     }
@@ -730,7 +730,7 @@
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1795464387
+    "saved_at": 1795468022
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-23",
