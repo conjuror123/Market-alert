@@ -286,6 +286,7 @@ sina:CAD,1795186800,close,real,sina,"yahoo,wallstreetcn","yahoo,wallstreetcn",-0
 sina:CAD,1795399200,close,real,sina,"yahoo,wallstreetcn","yahoo,wallstreetcn",-0.011593,"-0.010132,-0.011593",1795403185
 sina:CAD,1795402800,close,real,sina,"yahoo,wallstreetcn","yahoo,wallstreetcn",0.014802,"0.014389,0.014989",1795406785
 sina:CAD,1795438800,close,real,sina,"yahoo,wallstreetcn",wallstreetcn,0.019593,"0.004814,0.019693",1795442808
+sina:CAD,1795442400,close,real,sina,"yahoo,wallstreetcn","yahoo,wallstreetcn",0.026674,"0.027870,0.026673",1795446399
 sina:NID,1788354000,close,real,sina,wallstreetcn,wallstreetcn,0.017179,0.017458,1795115188
 sina:NID,1789480800,close,real,sina,wallstreetcn,wallstreetcn,-0.013771,-0.014144,1795201581
 sina:NID,1793581200,close,real,sina,wallstreetcn,wallstreetcn,0.012689,0.011025,1795201581
@@ -306,6 +307,7 @@ sina:SND,1795053600,close,real,sina,wallstreetcn,wallstreetcn,-0.029830,-0.02983
 sina:SND,1795136400,close,real,sina,wallstreetcn,wallstreetcn,-0.022336,-0.022336,1795201581
 sina:SND,1795161600,close,real,sina,wallstreetcn,wallstreetcn,-0.025006,-0.025006,1795201581
 sina:SND,1795438800,close,real,sina,wallstreetcn,wallstreetcn,0.027720,0.028360,1795442808
+sina:SND,1795442400,close,real,sina,wallstreetcn,wallstreetcn,0.019034,0.018394,1795446399
 twelvedata:ANGL,1789581600,close,real,sina,yahoo,,-0.003863,-0.004038,1791114096
 twelvedata:ANGL,1790874000,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo,marketwatch,alpaca_sip",0.003285,"0.003285,0.003285,0.003285",1791587166
 twelvedata:AUD/USD,1357099200,close,not_real,sifting,dukascopy,,0.007104,-0.001270,1791362566
@@ -426,6 +428,7 @@ twelvedata:IHI,1626699600,close,overnight,alpaca,alpaca,,-1.794200,-0.007237,179
 twelvedata:IHI,1626699600,open,not_real,alpaca,alpaca,,1.791049,-0.007237,1791362492
 twelvedata:ITB,1625749200,close,overnight,sina,alpaca,,-0.033545,-0.023517,1791362492
 twelvedata:IWM,1793890800,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.016632,"-0.016722,-0.016722,-0.016722,-0.016722",1794603985
+twelvedata:IWM,1795442400,open,real,tiingo,"yahoo,sina,marketwatch","yahoo,sina,marketwatch",0.036170,"0.034513,0.034513,0.028691",1795446399
 twelvedata:JMBS,1789581600,close,real,sina,yahoo,,-0.004771,-0.004771,1791114096
 twelvedata:JMBS,1790168400,close,real,sina,yahoo,,-0.003806,-0.003806,1791114096
 twelvedata:JMBS,1790258400,close,real,sina,yahoo,,-0.005000,-0.005000,1791114096
@@ -591,6 +594,7 @@ twelvedata:SPY,1793887200,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip,s
 twelvedata:SPY,1793890800,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip,sifting","yahoo,sina,marketwatch,alpaca_sip,sifting",-0.016542,"-0.016350,-0.016350,-0.016350,-0.016350,-0.016429",1794603985
 twelvedata:SPY,1794927600,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip,sifting","yahoo,sina,marketwatch,alpaca_sip,sifting",-0.011000,"-0.010798,-0.010798,-0.010798,-0.010798,-0.010821",1795208782
 twelvedata:SPY,1795186800,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip,sifting","yahoo,sina,marketwatch,alpaca_sip,sifting",-0.013118,"-0.013236,-0.013236,-0.013250,-0.013250,-0.013247",1795208782
+twelvedata:SPY,1795442400,open,real,tiingo,"yahoo,sina,marketwatch,sifting","yahoo,sina,marketwatch,sifting",0.047298,"0.047224,0.047382,0.041956,0.048060",1795446399
 twelvedata:SRLN,1790600400,close,real,yahoo,sina,,-0.002098,-0.001605,1791114096
 twelvedata:STIP,1789581600,close,real,sina,yahoo,,-0.003193,-0.003193,1791114096
 twelvedata:STIP,1790866800,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo,marketwatch,alpaca_sip",0.001407,"0.001407,0.001407,0.001407",1791583607
@@ -957,6 +961,7 @@ twelvedata:XLK,1643205600,close,overnight,tiingo,alpaca,,0.024831,0.026297,17913
 twelvedata:XLK,1793887200,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.024032,"-0.023544,-0.023544,-0.029273,-0.023486",1794603985
 twelvedata:XLK,1793890800,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.025080,"-0.025208,-0.025208,-0.025208,-0.025208",1794603985
 twelvedata:XLK,1795186800,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.025414,"-0.025444,-0.025444,-0.025444,-0.025444",1795208782
+twelvedata:XLK,1795442400,open,real,tiingo,"yahoo,sina,marketwatch","yahoo,sina,marketwatch",0.096582,"0.099921,0.100189,0.083977",1795446399
 twelvedata:XLV,1791550800,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",0.014417,"0.010221,0.014149,0.010162,0.014149",1792181166
 twelvedata:XLV,1791896400,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",-0.014127,"-0.011835,-0.013026,-0.017954,-0.013258",1792613181
 twelvedata:XLV,1793192400,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",0.014605,"0.013255,0.013255,0.011228,0.013365",1793912780
@@ -992,6 +997,7 @@ yahoo:LE=F,1778695200,close,not_real,yahoo,"LEV26.CME,LEZ26.CME,LEG27.CME,LEJ27.
 yahoo:LE=F,1794232800,close,real,yahoo,"marketwatch,ft","marketwatch,ft",0.017424,"0.017771,0.016004",1794942392
 yahoo:PL=F,1793768400,close,real,yahoo,"sina,marketwatch,ft,sifting","sina,marketwatch,sifting",0.023239,"0.027485,0.024585,,0.023614",1794521181
 yahoo:PL=F,1794790800,close,real,yahoo,"sina,marketwatch,ft,sifting","sina,marketwatch,sifting",-0.022632,"-0.021911,-0.022632,,-0.021091",1795212380
+yahoo:PL=F,1795438800,close,real,yahoo,"sina,marketwatch,ft,sifting","sina,marketwatch,ft,sifting",0.021625,"0.020297,0.021550,0.024848,0.021210",1795446399
 yahoo:SB=F,1791356400,close,real,yahoo,marketwatch,marketwatch,0.022419,0.022419,1792083986
 yahoo:SB=F,1791370800,close,real,yahoo,marketwatch,marketwatch,-0.021979,-0.021979,1792083986
 yahoo:XU100.IS,1792760400,close,real,yahoo,marketwatch,marketwatch,0.025195,0.025195,1793372775
@@ -1047,6 +1053,7 @@ yahoo:^BVSP,1793041200,close,real,yahoo,"marketwatch,ft","marketwatch,ft",0.0154
 yahoo:^GSPTSE,1792072800,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,0.010311,"0.010311,",1792785976
 yahoo:^GSPTSE,1793890800,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,-0.011785,"-0.011775,",1794603985
 yahoo:^GSPTSE,1795186800,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,-0.009252,"-0.009252,",1795208782
+yahoo:^GSPTSE,1795442400,open,real,yahoo,"marketwatch,wallstreetcn",marketwatch,0.024768,"0.026373,",1795446399
 yahoo:^HSI,1793768400,close,uncertain,yahoo,marketwatch,,0.010909,,1794474378
 yahoo:^HSI,1795402800,close,real,yahoo,marketwatch,marketwatch,0.010094,0.010094,1795424784
 yahoo:^MXX,1793714400,open,real,yahoo,"marketwatch,ft","marketwatch,ft",0.013910,"0.013910,0.015005",1794431181
@@ -1058,6 +1065,7 @@ yahoo:^NSEI,1792123200,close,real,yahoo,"marketwatch,wallstreetcn","marketwatch,
 yahoo:^NSEI,1792728000,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,-0.009288,"-0.008893,",1793354769
 yahoo:^STOXX50E,1793887200,close,real,yahoo,"marketwatch,ft","marketwatch,ft",-0.009727,"-0.009727,-0.009933",1794589577
 yahoo:^STOXX50E,1795186800,close,real,yahoo,"marketwatch,ft","marketwatch,ft",-0.009015,"-0.008760,-0.010008",1795194389
+yahoo:^STOXX50E,1795438800,close,real,yahoo,"marketwatch,ft","marketwatch,ft",0.008775,"0.008775,0.010453",1795446399
 yahoo:^TASI.SR,1792663200,close,real,yahoo,"marketwatch,wallstreetcn","marketwatch,wallstreetcn",-0.006101,"-0.006107,-0.006161",1793275572
 yahoo:^TASI.SR,1792915200,close,uncertain,yahoo,"marketwatch,wallstreetcn",,-0.017024,",",1793621182
 yahoo:^TASI.SR,1792922400,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,-0.007132,"-0.007106,",1793621182
