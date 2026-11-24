@@ -1,23 +1,792 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1795208808
+    "last_run_utc": 1795489597
   },
   "floor_pending_replies": [],
   "jump_delivery": {
     "week": {
       "detector": "a4f636895fc6",
-      "events": {},
-      "messages": {},
+      "events": {
+        "binance:BTC/USDT|1795233600": {
+          "asset": "binance:BTC/USDT",
+          "body": "\ud83d\udfe8 <b>BTC/USDT</b> \u00b7 Bitcoin -3.21% \u00b7 8.0\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 12 hours (then 9.5\u00d7\u03c3)\n\ud83d\udd50 <b>21.11.2026 03:00 UTC</b> \u00b7 next close -138%",
+          "context": "",
+          "ever": [
+            "jump:binance:BTC/USDT:hour:1795230000"
+          ],
+          "form": "push",
+          "hour": 1795230000,
+          "kept": false,
+          "members": {
+            "jump:binance:BTC/USDT:hour:1795230000": [
+              -0.03206371283615196,
+              0.003991347575767349
+            ]
+          },
+          "message": 192,
+          "peak": "jump:binance:BTC/USDT:hour:1795230000",
+          "ping_at": 1795233990,
+          "placed_at": 1795233990,
+          "row": {
+            "asset_id": "binance:BTC/USDT",
+            "basis": "jump",
+            "block": "crypto",
+            "channel": "push",
+            "check_utc": 1795467600,
+            "day_r": -0.03822823380332242,
+            "event_start": 1795190400,
+            "found_utc": 1795233600,
+            "gap_kind": null,
+            "held": -1.3795508046599,
+            "hour_utc": 1795230000,
+            "now_utc": 1795489598,
+            "overnight": false,
+            "r": -0.03206371283615196,
+            "reading": "hour",
+            "reading_id": "jump:binance:BTC/USDT:hour:1795230000",
+            "record_start": 1359680400,
+            "sigma": 0.003991347575767349,
+            "sigma_day": 0.01964434557071784,
+            "sigma_lt": 0.003991347575767349,
+            "since_utc": 1795186800,
+            "since_z": -9.512816155631539,
+            "template": "crypto_24_7",
+            "ticker": "BTC/USDT",
+            "tier": "high",
+            "word": "high",
+            "young": false,
+            "z": -8.033305099966798
+          },
+          "seen": 1795489598,
+          "shown": [
+            "high",
+            8.0,
+            1795230000,
+            -3.21
+          ],
+          "size": 8.033305099966798,
+          "start": 1795233600,
+          "tier": "high",
+          "was": null
+        },
+        "binance:BTC/USDT|1795442400": {
+          "asset": "binance:BTC/USDT",
+          "body": "\ud83d\udfe7 <b>BTC/USDT</b> \u00b7 Bitcoin +4.01% \u00b7 9.9\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 days (then 9.9\u00d7\u03c3)\n\ud83d\udd50 <b>23.11.2026 13:00 UTC</b> \u00b7 close -4%",
+          "context": "",
+          "ever": [
+            "jump:binance:BTC/USDT:hour:1795438800"
+          ],
+          "form": "push",
+          "hour": 1795438800,
+          "kept": false,
+          "members": {
+            "jump:binance:BTC/USDT:hour:1795438800": [
+              0.04014740054165896,
+              0.004066674362195303
+            ]
+          },
+          "message": 194,
+          "peak": "jump:binance:BTC/USDT:hour:1795438800",
+          "ping_at": 1795442853,
+          "placed_at": 1795442853,
+          "row": {
+            "asset_id": "binance:BTC/USDT",
+            "basis": "jump",
+            "block": "crypto",
+            "channel": "push",
+            "check_utc": 1795467600,
+            "day_r": 0.04108688050366301,
+            "event_start": 1795442400,
+            "found_utc": 1795442400,
+            "gap_kind": null,
+            "held": -0.036445497398501385,
+            "hour_utc": 1795438800,
+            "now_utc": 1795489598,
+            "overnight": false,
+            "r": 0.04014740054165896,
+            "reading": "hour",
+            "reading_id": "jump:binance:BTC/USDT:hour:1795438800",
+            "record_start": 1359680400,
+            "sigma": 0.004066674362195303,
+            "sigma_day": 0.019849208843699156,
+            "sigma_lt": 0.004066674362195303,
+            "since_utc": 1795240800,
+            "since_z": 9.948864020767369,
+            "template": "crypto_24_7",
+            "ticker": "BTC/USDT",
+            "tier": "major",
+            "word": "major",
+            "young": false,
+            "z": 9.872292926839188
+          },
+          "seen": 1795489598,
+          "shown": [
+            "major",
+            9.9,
+            1795438800,
+            4.01
+          ],
+          "size": 9.872292926839188,
+          "start": 1795442400,
+          "tier": "major",
+          "was": null
+        },
+        "binance:ETH/USDT|1795442400": {
+          "asset": "binance:ETH/USDT",
+          "body": "\ud83d\udfe7 <b>ETH/USDT</b> \u00b7 Ethereum +4.99% \u00b7 9.6\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 2 days (then 9.4\u00d7\u03c3)\n\ud83d\udd50 <b>23.11.2026 13:00 UTC</b> \u00b7 close 4%",
+          "context": "",
+          "ever": [
+            "jump:binance:ETH/USDT:hour:1795438800"
+          ],
+          "form": "push",
+          "hour": 1795438800,
+          "kept": false,
+          "members": {
+            "jump:binance:ETH/USDT:hour:1795438800": [
+              0.04994625490994155,
+              0.005197383138829973
+            ]
+          },
+          "message": 194,
+          "peak": "jump:binance:ETH/USDT:hour:1795438800",
+          "ping_at": 1795442853,
+          "placed_at": 1795442853,
+          "row": {
+            "asset_id": "binance:ETH/USDT",
+            "basis": "jump",
+            "block": "crypto",
+            "channel": "push",
+            "check_utc": 1795467600,
+            "day_r": 0.0485766699237824,
+            "event_start": 1795442400,
+            "found_utc": 1795442400,
+            "gap_kind": null,
+            "held": 0.04111769167586757,
+            "hour_utc": 1795438800,
+            "now_utc": 1795489598,
+            "overnight": false,
+            "r": 0.04994625490994155,
+            "reading": "hour",
+            "reading_id": "jump:binance:ETH/USDT:hour:1795438800",
+            "record_start": 1459468800,
+            "sigma": 0.005197383138829973,
+            "sigma_day": 0.025069074334242228,
+            "sigma_lt": 0.005197383138829973,
+            "since_utc": 1795240800,
+            "since_z": 9.43982768198395,
+            "template": "crypto_24_7",
+            "ticker": "ETH/USDT",
+            "tier": "major",
+            "word": "major",
+            "young": false,
+            "z": 9.609885124071374
+          },
+          "seen": 1795489598,
+          "shown": [
+            "major",
+            9.6,
+            1795438800,
+            4.99
+          ],
+          "size": 9.609885124071374,
+          "start": 1795442400,
+          "tier": "major",
+          "was": null
+        },
+        "binance:SOL/USDT|1795442400": {
+          "asset": "binance:SOL/USDT",
+          "body": "\ud83d\udfe7 <b>SOL/USDT</b> \u00b7 Solana +5.87% \u00b7 9.6\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 19 months (then 9.4\u00d7\u03c3)\n\ud83d\udd50 <b>23.11.2026 13:00 UTC</b> \u00b7 close 14%",
+          "context": "",
+          "ever": [
+            "jump:binance:SOL/USDT:hour:1795438800"
+          ],
+          "form": "push",
+          "hour": 1795438800,
+          "kept": false,
+          "members": {
+            "jump:binance:SOL/USDT:hour:1795438800": [
+              0.058741604683789986,
+              0.006103930749586083
+            ]
+          },
+          "message": 194,
+          "peak": "jump:binance:SOL/USDT:hour:1795438800",
+          "ping_at": 1795442853,
+          "placed_at": 1795442853,
+          "row": {
+            "asset_id": "binance:SOL/USDT",
+            "basis": "jump",
+            "block": "crypto",
+            "channel": "push",
+            "check_utc": 1795467600,
+            "day_r": 0.0797272656986468,
+            "event_start": 1795442400,
+            "found_utc": 1795442400,
+            "gap_kind": null,
+            "held": 0.14316569732682338,
+            "hour_utc": 1795438800,
+            "now_utc": 1795489598,
+            "overnight": false,
+            "r": 0.058741604683789986,
+            "reading": "hour",
+            "reading_id": "jump:binance:SOL/USDT:hour:1795438800",
+            "record_start": 1597125600,
+            "sigma": 0.006103930749586083,
+            "sigma_day": 0.028382087239745675,
+            "sigma_lt": 0.006103930749586083,
+            "since_utc": 1744218000,
+            "since_z": 9.411697971953865,
+            "template": "crypto_24_7",
+            "ticker": "SOL/USDT",
+            "tier": "major",
+            "word": "major",
+            "young": false,
+            "z": 9.623569973786703
+          },
+          "seen": 1795489598,
+          "shown": [
+            "major",
+            9.6,
+            1795438800,
+            5.87
+          ],
+          "size": 9.623569973786703,
+          "start": 1795442400,
+          "tier": "major",
+          "was": null
+        },
+        "binance:XRP/USDT|1795442400": {
+          "asset": "binance:XRP/USDT",
+          "body": "\ud83d\udfe8 <b>XRP/USDT</b> \u00b7 XRP +4.95% \u00b7 7.7\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 8 days (then 8.0\u00d7\u03c3)\n\ud83d\udd50 <b>23.11.2026 13:00 UTC</b> \u00b7 close -6%",
+          "context": "",
+          "ever": [
+            "jump:binance:XRP/USDT:hour:1795438800"
+          ],
+          "form": "push",
+          "hour": 1795438800,
+          "kept": false,
+          "members": {
+            "jump:binance:XRP/USDT:hour:1795438800": [
+              0.04947345767056454,
+              0.006392807697523996
+            ]
+          },
+          "message": 194,
+          "peak": "jump:binance:XRP/USDT:hour:1795438800",
+          "ping_at": 1795442853,
+          "placed_at": 1795442853,
+          "row": {
+            "asset_id": "binance:XRP/USDT",
+            "basis": "jump",
+            "block": "crypto",
+            "channel": "push",
+            "check_utc": 1795467600,
+            "day_r": 0.0617763675978113,
+            "event_start": 1795442400,
+            "found_utc": 1795442400,
+            "gap_kind": null,
+            "held": -0.06457787765294827,
+            "hour_utc": 1795438800,
+            "now_utc": 1795489598,
+            "overnight": false,
+            "r": 0.04947345767056454,
+            "reading": "hour",
+            "reading_id": "jump:binance:XRP/USDT:hour:1795438800",
+            "record_start": 1488326400,
+            "sigma": 0.006392807697523996,
+            "sigma_day": 0.031101869725911717,
+            "sigma_lt": 0.006392807697523996,
+            "since_utc": 1794708000,
+            "since_z": 8.03594687895741,
+            "template": "crypto_24_7",
+            "ticker": "XRP/USDT",
+            "tier": "high",
+            "word": "high",
+            "young": false,
+            "z": 7.738924743462273
+          },
+          "seen": 1795489598,
+          "shown": [
+            "high",
+            7.7,
+            1795438800,
+            4.95
+          ],
+          "size": 7.738924743462273,
+          "start": 1795442400,
+          "tier": "high",
+          "was": null
+        },
+        "sina:CAD|1795446000": {
+          "asset": "sina:CAD",
+          "body": "\ud83d\udfe7 <b>Copper</b> \u00b7 LME +2.67% \u00b7 10.8\u00d7\u03c3\n\ud83d\udcc8 Rarest hour in 7 months of record\n\ud83d\udd50 <b>23.11.2026 14:00 UTC</b> \u00b7 close 47%",
+          "context": "",
+          "ever": [
+            "jump:sina:CAD:hour:1795442400"
+          ],
+          "form": "push",
+          "hour": 1795442400,
+          "kept": false,
+          "members": {
+            "jump:sina:CAD:hour:1795442400": [
+              0.026673811197133,
+              0.002464597236138189
+            ]
+          },
+          "message": 196,
+          "peak": "jump:sina:CAD:hour:1795442400",
+          "ping_at": 1795446432,
+          "placed_at": 1795446432,
+          "row": {
+            "asset_id": "sina:CAD",
+            "basis": "jump",
+            "block": "industrial_metals",
+            "channel": "push",
+            "check_utc": 1795467600,
+            "day_r": 0.04255001192104861,
+            "event_start": 1795446000,
+            "found_utc": 1795446000,
+            "gap_kind": null,
+            "held": 0.47150452834327955,
+            "hour_utc": 1795442400,
+            "now_utc": 1795489598,
+            "overnight": false,
+            "r": 0.026673811197133,
+            "reading": "hour",
+            "reading_id": "jump:sina:CAD:hour:1795442400",
+            "record_start": 1776920400,
+            "sigma": 0.002464597236138189,
+            "sigma_day": 0.01077024339337371,
+            "sigma_lt": 0.002464597236138189,
+            "since_utc": null,
+            "since_z": null,
+            "template": "lme",
+            "ticker": "CAD",
+            "tier": "major",
+            "word": "major",
+            "young": false,
+            "z": 10.82278710939746
+          },
+          "seen": 1795489598,
+          "shown": [
+            "major",
+            10.8,
+            1795442400,
+            2.67
+          ],
+          "size": 10.82278710939746,
+          "start": 1795446000,
+          "tier": "major",
+          "was": null
+        },
+        "sina:SND|1795442400": {
+          "asset": "sina:SND",
+          "body": "\u2b1c <b>Tin</b> \u00b7 LME +2.77% \u00b7 6.0\u00d7\u03c3",
+          "context": "",
+          "ever": [
+            "jump:sina:SND:hour:1795438800"
+          ],
+          "form": "row",
+          "hour": 1795438800,
+          "kept": false,
+          "members": {
+            "jump:sina:SND:hour:1795438800": [
+              0.02772045320515474,
+              0.004630408701660207
+            ]
+          },
+          "message": 195,
+          "peak": "jump:sina:SND:hour:1795438800",
+          "ping_at": 1795442853,
+          "placed_at": 1795442853,
+          "row": {
+            "asset_id": "sina:SND",
+            "basis": "jump",
+            "block": "industrial_metals",
+            "channel": "digest",
+            "check_utc": 1795467600,
+            "day_r": 0.0293697892090881,
+            "event_start": 1795442400,
+            "found_utc": 1795442400,
+            "gap_kind": null,
+            "held": 1.0574792944370677,
+            "hour_utc": 1795438800,
+            "now_utc": 1795489598,
+            "overnight": false,
+            "r": 0.02772045320515474,
+            "reading": "hour",
+            "reading_id": "jump:sina:SND:hour:1795438800",
+            "record_start": 1776834000,
+            "sigma": 0.004630408701660207,
+            "sigma_day": 0.018117936525013225,
+            "sigma_lt": 0.004630408701660207,
+            "since_utc": 1783040400,
+            "since_z": 5.93641286376484,
+            "template": "lme",
+            "ticker": "SND",
+            "tier": "noticeable",
+            "word": "noticeable",
+            "young": false,
+            "z": 5.9866104681463055
+          },
+          "seen": 1795489598,
+          "shown": [
+            "noticeable",
+            6.0,
+            1795438800,
+            2.77
+          ],
+          "size": 5.9866104681463055,
+          "start": 1795442400,
+          "tier": "noticeable",
+          "was": null
+        },
+        "twelvedata:IWM|1795446000": {
+          "asset": "twelvedata:IWM",
+          "body": "\u2b1c <b>IWM</b> \u00b7 Russell 2000 (small caps) +3.62% \u00b7 4.7\u00d7\u03c3",
+          "context": "",
+          "ever": [
+            "jump:twelvedata:IWM:weekend:1795442400"
+          ],
+          "form": "row",
+          "hour": 1795442400,
+          "kept": false,
+          "members": {
+            "jump:twelvedata:IWM:weekend:1795442400": [
+              0.036169962062550055,
+              0.0077644479624981635
+            ]
+          },
+          "message": 197,
+          "peak": "jump:twelvedata:IWM:weekend:1795442400",
+          "ping_at": 1795446432,
+          "placed_at": 1795446432,
+          "row": {
+            "asset_id": "twelvedata:IWM",
+            "basis": "jump",
+            "block": "equity",
+            "channel": "digest",
+            "check_utc": 1795467600,
+            "day_r": 0.036169962062550055,
+            "event_start": 1795446000,
+            "found_utc": 1795446000,
+            "gap_kind": "weekend",
+            "held": 0.9552742789366211,
+            "hour_utc": 1795442400,
+            "now_utc": 1795489598,
+            "overnight": true,
+            "r": 0.036169962062550055,
+            "reading": "weekend",
+            "reading_id": "jump:twelvedata:IWM:weekend:1795442400",
+            "record_start": 1041256800,
+            "sigma": 0.0077644479624981635,
+            "sigma_day": 0.011370625336536865,
+            "sigma_lt": 0.0077644479624981635,
+            "since_utc": 1512396000,
+            "since_z": 4.797085083363855,
+            "template": "us_equity",
+            "ticker": "IWM",
+            "tier": "noticeable",
+            "word": "noticeable",
+            "young": false,
+            "z": 4.658407427965116
+          },
+          "seen": 1795489598,
+          "shown": [
+            "noticeable",
+            4.7,
+            1795442400,
+            3.62
+          ],
+          "size": 4.658407427965116,
+          "start": 1795446000,
+          "tier": "noticeable",
+          "was": null
+        },
+        "twelvedata:SPY|1795446000": {
+          "asset": "twelvedata:SPY",
+          "body": "\ud83d\udfe8 <b>SPY</b> \u00b7 S&amp;P 500 +4.73% at the open after the weekend \u00b7 8.3\u00d7\u03c3\n\ud83d\udcc8 Rarest weekend in 16 years (then 7.9\u00d7\u03c3)\n\ud83d\udd50 <b>23.11.2026 14:00 UTC</b> \u00b7 close 94%",
+          "context": "",
+          "ever": [
+            "jump:twelvedata:SPY:weekend:1795442400"
+          ],
+          "form": "push",
+          "hour": 1795442400,
+          "kept": false,
+          "members": {
+            "jump:twelvedata:SPY:weekend:1795442400": [
+              0.04729823001611533,
+              0.005727181312431589
+            ]
+          },
+          "message": 196,
+          "peak": "jump:twelvedata:SPY:weekend:1795442400",
+          "ping_at": 1795446432,
+          "placed_at": 1795446432,
+          "row": {
+            "asset_id": "twelvedata:SPY",
+            "basis": "jump",
+            "block": "equity",
+            "channel": "push",
+            "check_utc": 1795467600,
+            "day_r": 0.04729823001611533,
+            "event_start": 1795446000,
+            "found_utc": 1795446000,
+            "gap_kind": "weekend",
+            "held": 0.944285194889292,
+            "hour_utc": 1795442400,
+            "now_utc": 1795489598,
+            "overnight": true,
+            "r": 0.04729823001611533,
+            "reading": "weekend",
+            "reading_id": "jump:twelvedata:SPY:weekend:1795442400",
+            "record_start": 1041256800,
+            "sigma": 0.005727181312431589,
+            "sigma_day": 0.008712416906569419,
+            "sigma_lt": 0.005727181312431589,
+            "since_utc": 1273496400,
+            "since_z": 7.910162622363883,
+            "template": "us_equity",
+            "ticker": "SPY",
+            "tier": "high",
+            "word": "high",
+            "young": false,
+            "z": 8.258552931343102
+          },
+          "seen": 1795489598,
+          "shown": [
+            "high",
+            8.3,
+            1795442400,
+            4.73
+          ],
+          "size": 8.258552931343102,
+          "start": 1795446000,
+          "tier": "high",
+          "was": null
+        },
+        "twelvedata:XLK|1795446000": {
+          "asset": "twelvedata:XLK",
+          "body": "\ud83d\udfe8 <b>XLK</b> \u00b7 Technology sector +9.66% at the open after the weekend \u00b7 7.0\u00d7\u03c3\n\ud83d\udcc8 Rarest weekend in 10 years of record\n\ud83d\udd50 <b>23.11.2026 14:00 UTC</b> \u00b7 close 86%",
+          "context": "",
+          "ever": [
+            "jump:twelvedata:XLK:weekend:1795442400"
+          ],
+          "form": "push",
+          "hour": 1795442400,
+          "kept": false,
+          "members": {
+            "jump:twelvedata:XLK:weekend:1795442400": [
+              0.09658189109649341,
+              0.013731847546856123
+            ]
+          },
+          "message": 196,
+          "peak": "jump:twelvedata:XLK:weekend:1795442400",
+          "ping_at": 1795446432,
+          "placed_at": 1795446432,
+          "row": {
+            "asset_id": "twelvedata:XLK",
+            "basis": "jump",
+            "block": "equity",
+            "channel": "push",
+            "check_utc": 1795467600,
+            "day_r": 0.09658189109649341,
+            "event_start": 1795446000,
+            "found_utc": 1795446000,
+            "gap_kind": "weekend",
+            "held": 0.8618275337942174,
+            "hour_utc": 1795442400,
+            "now_utc": 1795489598,
+            "overnight": true,
+            "r": 0.09658189109649341,
+            "reading": "weekend",
+            "reading_id": "jump:twelvedata:XLK:weekend:1795442400",
+            "record_start": 1451916000,
+            "sigma": 0.013731847546856123,
+            "sigma_day": 0.019758885080023273,
+            "sigma_lt": 0.013731847546856123,
+            "since_utc": null,
+            "since_z": null,
+            "template": "us_equity",
+            "ticker": "XLK",
+            "tier": "high",
+            "word": "high",
+            "young": false,
+            "z": 7.033422907364394
+          },
+          "seen": 1795489598,
+          "shown": [
+            "high",
+            7.0,
+            1795442400,
+            9.66
+          ],
+          "size": 7.033422907364394,
+          "start": 1795446000,
+          "tier": "high",
+          "was": null
+        },
+        "yahoo:^TWII|1795406400": {
+          "asset": "yahoo:^TWII",
+          "body": "\u2b1c <b>TAIEX</b> \u00b7 Taiwan +8.47% \u00b7 4.6\u00d7\u03c3\n\u270f\ufe0f 4.6\u00d7\u03c3 \u2b1c \u2192 4.6\u00d7\u03c3 \u2b1c corrected",
+          "context": "",
+          "earlier": [
+            {
+              "body": "\u2b1c <b>TAIEX</b> \u00b7 Taiwan +2.78% \u00b7 5.9\u00d7\u03c3",
+              "context": "",
+              "form": "row",
+              "hour": 1795402800,
+              "kept": null,
+              "message": null,
+              "note_row": null,
+              "peak": "jump:yahoo:^TWII:hour:1795402800",
+              "ping_at": 1795406815,
+              "placed_at": 1795406815,
+              "row": {
+                "asset_id": "yahoo:^TWII",
+                "basis": "jump",
+                "block": "equity",
+                "channel": "digest",
+                "check_utc": 1795467600,
+                "day_r": 0.031513486042979814,
+                "event_start": 1795406400,
+                "found_utc": 1795406400,
+                "gap_kind": null,
+                "held": null,
+                "hour_utc": 1795402800,
+                "now_utc": 1795489598,
+                "overnight": false,
+                "r": 0.027774895396129786,
+                "reading": "hour",
+                "reading_id": "jump:yahoo:^TWII:hour:1795402800",
+                "record_start": 1728867600,
+                "sigma": 0.0047387073836248975,
+                "sigma_day": 0.019932665306408824,
+                "sigma_lt": 0.0047387073836248975,
+                "since_utc": 1793930400,
+                "since_z": 7.789659571200452,
+                "template": "taipei",
+                "ticker": "^TWII",
+                "tier": "noticeable",
+                "word": "noticeable",
+                "young": false,
+                "z": 5.8612809670647446
+              },
+              "shown": [
+                "noticeable",
+                5.9,
+                1795402800,
+                2.78
+              ],
+              "size": 5.8612809670647446,
+              "struck": true,
+              "was": null
+            }
+          ],
+          "ever": [
+            "jump:yahoo:^TWII:hour:1795402800",
+            "jump:yahoo:^TWII:night:1795482000"
+          ],
+          "form": "row",
+          "hour": 1795482000,
+          "kept": false,
+          "members": {
+            "jump:yahoo:^TWII:night:1795482000": [
+              0.08466021060463208,
+              0.018402957921728587
+            ]
+          },
+          "message": 198,
+          "peak": "jump:yahoo:^TWII:night:1795482000",
+          "ping_at": 1795486004,
+          "placed_at": 1795486004,
+          "row": {
+            "asset_id": "yahoo:^TWII",
+            "basis": "jump",
+            "block": "equity",
+            "channel": "digest",
+            "check_utc": 1795554000,
+            "day_r": 0.08466021060463208,
+            "event_start": 1795485600,
+            "found_utc": 1795485600,
+            "gap_kind": "night",
+            "held": null,
+            "hour_utc": 1795482000,
+            "now_utc": 1795489598,
+            "overnight": true,
+            "r": 0.08466021060463208,
+            "reading": "night",
+            "reading_id": "jump:yahoo:^TWII:night:1795482000",
+            "record_start": 1728867600,
+            "sigma": 0.018402957921728587,
+            "sigma_day": 0.02033124951442209,
+            "sigma_lt": 0.018402957921728587,
+            "since_utc": 1744246800,
+            "since_z": 8.920981439505073,
+            "template": "taipei",
+            "ticker": "^TWII",
+            "tier": "noticeable",
+            "word": "noticeable",
+            "young": false,
+            "z": 4.600358864303699
+          },
+          "seen": 1795489598,
+          "shown": [
+            "noticeable",
+            4.6,
+            1795482000,
+            8.47
+          ],
+          "size": 4.600358864303699,
+          "start": 1795406400,
+          "struck": false,
+          "tier": "noticeable",
+          "was": [
+            "noticeable",
+            4.6,
+            1795482000,
+            8.5
+          ]
+        }
+      },
+      "messages": {
+        "192": {
+          "first": "\ud83d\udfe8 <b>BTC/USDT</b> \u00b7 Bitcoin -3.21% \u00b7 8.0\u00d7\u03c3",
+          "hash": "f4dfe6416b886cf3"
+        },
+        "194": {
+          "first": "\ud83d\udfe7 <b>BTC/USDT</b> \u00b7 Bitcoin +4.01% \u00b7 9.9\u00d7\u03c3",
+          "hash": "dc9eb7f1d3a290e9"
+        },
+        "195": {
+          "first": "\u2b1c <b>Tin</b> \u00b7 LME +2.77% \u00b7 6.0\u00d7\u03c3",
+          "hash": "6658d0204683a42e"
+        },
+        "196": {
+          "first": "\ud83d\udfe7 <b>Copper</b> \u00b7 LME +2.67% \u00b7 10.8\u00d7\u03c3",
+          "hash": "278d0e07a12163c6"
+        },
+        "197": {
+          "first": "\u2b1c <b>IWM</b> \u00b7 Russell 2000 (small caps) +3.62% \u00b7 4.7\u00d7\u03c3",
+          "hash": "8d0d3f821a04fabc"
+        },
+        "198": {
+          "first": "\u2b1c <b>TAIEX</b> \u00b7 Taiwan +8.47% \u00b7 4.6\u00d7\u03c3",
+          "hash": "7702783aa634d726"
+        }
+      },
       "note": {
         "hashes": [
-          "7243fe9ea6c8c46b"
+          "6609f46d1f38e7f1"
         ],
         "ids": [
           191
         ]
       },
       "orphans": [],
+      "ran_at": 1795489598,
       "since": 1795208700,
       "slot": 1795208700
     }
@@ -25,16 +794,14 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      189,
-      190,
-      191
+      198
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1795208811
+    "saved_at": 1795489598
   },
   "telegram_update_offset": 688283215,
-  "weekly_digest:last_refreshed": "2026-11-20",
+  "weekly_digest:last_refreshed": "2026-11-24",
   "weekly_digest:last_sent_week": "1795208700"
 }
