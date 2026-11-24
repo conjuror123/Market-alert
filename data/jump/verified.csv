@@ -1086,5 +1086,5 @@ yahoo:^TASI.SR,1793520000,close,uncertain,yahoo,"marketwatch,wallstreetcn",,-0.0
 yahoo:^TWII,1793674800,close,real,yahoo,"marketwatch,twse","marketwatch,twse",-0.015422,"-0.015422,-0.015422",1794377180
 yahoo:^TWII,1793764800,close,real,yahoo,"marketwatch,twse","marketwatch,twse",0.021800,"0.021800,0.021800",1794463580
 yahoo:^TWII,1793930400,close,real,yahoo,"marketwatch,twse","marketwatch,twse",0.031197,"0.031197,0.031197",1794549991
-yahoo:^TWII,1795402800,close,real,yahoo,"marketwatch,twse","marketwatch,twse",0.023626,"0.023626,0.023626",1795413980
-yahoo:^TWII,1795482000,open,real,yahoo,"marketwatch,twse",marketwatch,0.085000,"0.086895,",1795485973
+yahoo:^TWII,1795402800,close,real,yahoo,"marketwatch,twse","marketwatch,twse",0.023626,"0.023626,0.023626",1795500376
+yahoo:^TWII,1795482000,open,real,yahoo,"marketwatch,twse","marketwatch,twse",0.084660,"0.086492,0.086492",1795500376
