@@ -271,6 +271,7 @@ sina:AHD,1794315600,close,real,sina,wallstreetcn,wallstreetcn,-0.010924,-0.01093
 sina:AHD,1794790800,close,real,sina,wallstreetcn,wallstreetcn,-0.011192,-0.011192,1795460783
 sina:AHD,1795014000,close,real,sina,wallstreetcn,wallstreetcn,-0.011317,-0.011394,1795460783
 sina:AHD,1795161600,close,real,sina,wallstreetcn,wallstreetcn,-0.012712,-0.012457,1795460783
+sina:AHD,1795482000,close,real,sina,wallstreetcn,wallstreetcn,-0.014102,-0.013228,1795485973
 sina:CAD,1788249600,close,real,sina,"yahoo,wallstreetcn","yahoo,wallstreetcn",-0.010083,"-0.016135,-0.009965",1795028772
 sina:CAD,1788346800,close,real,sina,"yahoo,wallstreetcn","yahoo,wallstreetcn",0.009388,"0.010861,0.009292",1795115188
 sina:CAD,1789034400,close,real,sina,"yahoo,wallstreetcn","yahoo,wallstreetcn",-0.035095,"-0.041045,-0.035220",1795460783
@@ -288,6 +289,7 @@ sina:CAD,1795402800,close,real,sina,"yahoo,wallstreetcn","yahoo,wallstreetcn",0.
 sina:CAD,1795438800,close,real,sina,"yahoo,wallstreetcn","yahoo,wallstreetcn",0.019593,"0.017958,0.019693",1795460783
 sina:CAD,1795442400,close,real,sina,"yahoo,wallstreetcn","yahoo,wallstreetcn",0.026674,"0.024647,0.026673",1795460783
 sina:CAD,1795446000,close,real,sina,"yahoo,wallstreetcn","yahoo,wallstreetcn",-0.010578,"-0.013087,-0.010124",1795460783
+sina:CAD,1795482000,close,real,sina,"yahoo,wallstreetcn","yahoo,wallstreetcn",-0.014844,"-0.014210,-0.015493",1795485973
 sina:NID,1788354000,close,real,sina,wallstreetcn,wallstreetcn,0.017179,0.017458,1795115188
 sina:NID,1789480800,close,real,sina,wallstreetcn,wallstreetcn,-0.013771,-0.014144,1795460783
 sina:NID,1793581200,close,real,sina,wallstreetcn,wallstreetcn,0.012689,0.011025,1795460783
@@ -309,6 +311,7 @@ sina:SND,1795136400,close,real,sina,wallstreetcn,wallstreetcn,-0.022336,-0.02233
 sina:SND,1795161600,close,real,sina,wallstreetcn,wallstreetcn,-0.025006,-0.025006,1795460783
 sina:SND,1795438800,close,real,sina,wallstreetcn,wallstreetcn,0.027720,0.028360,1795460783
 sina:SND,1795442400,close,real,sina,wallstreetcn,wallstreetcn,0.019034,0.018394,1795460783
+sina:SND,1795482000,close,real,sina,wallstreetcn,wallstreetcn,-0.019901,-0.019901,1795485973
 twelvedata:ANGL,1789581600,close,real,sina,yahoo,,-0.003863,-0.004038,1791114096
 twelvedata:ANGL,1790874000,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo,marketwatch,alpaca_sip",0.003285,"0.003285,0.003285,0.003285",1791587166
 twelvedata:AUD/USD,1357099200,close,not_real,sifting,dukascopy,,0.007104,-0.001270,1791362566
@@ -1083,3 +1086,4 @@ yahoo:^TWII,1793674800,close,real,yahoo,"marketwatch,twse","marketwatch,twse",-0
 yahoo:^TWII,1793764800,close,real,yahoo,"marketwatch,twse","marketwatch,twse",0.021800,"0.021800,0.021800",1794463580
 yahoo:^TWII,1793930400,close,real,yahoo,"marketwatch,twse","marketwatch,twse",0.031197,"0.031197,0.031197",1794549991
 yahoo:^TWII,1795402800,close,real,yahoo,"marketwatch,twse","marketwatch,twse",0.023626,"0.023626,0.023626",1795413980
+yahoo:^TWII,1795482000,open,real,yahoo,"marketwatch,twse",marketwatch,0.085000,"0.086895,",1795485973
