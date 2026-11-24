@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1795532823
+    "last_run_utc": 1795536443
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -40,7 +40,7 @@
             "gap_kind": null,
             "held": -1.3795508046599,
             "hour_utc": 1795230000,
-            "now_utc": 1795532825,
+            "now_utc": 1795536444,
             "overnight": false,
             "r": -0.03206371283615196,
             "reading": "hour",
@@ -58,7 +58,7 @@
             "young": false,
             "z": -8.033305099966798
           },
-          "seen": 1795532825,
+          "seen": 1795536444,
           "shown": [
             "high",
             8.0,
@@ -102,7 +102,7 @@
             "gap_kind": null,
             "held": -0.036445497398501385,
             "hour_utc": 1795438800,
-            "now_utc": 1795532825,
+            "now_utc": 1795536444,
             "overnight": false,
             "r": 0.04014740054165896,
             "reading": "hour",
@@ -120,7 +120,7 @@
             "young": false,
             "z": 9.872292926839188
           },
-          "seen": 1795532825,
+          "seen": 1795536444,
           "shown": [
             "major",
             9.9,
@@ -164,7 +164,7 @@
             "gap_kind": null,
             "held": 0.04111769167586757,
             "hour_utc": 1795438800,
-            "now_utc": 1795532825,
+            "now_utc": 1795536444,
             "overnight": false,
             "r": 0.04994625490994155,
             "reading": "hour",
@@ -182,7 +182,7 @@
             "young": false,
             "z": 9.609885124071374
           },
-          "seen": 1795532825,
+          "seen": 1795536444,
           "shown": [
             "major",
             9.6,
@@ -226,7 +226,7 @@
             "gap_kind": null,
             "held": 0.14316569732682338,
             "hour_utc": 1795438800,
-            "now_utc": 1795532825,
+            "now_utc": 1795536444,
             "overnight": false,
             "r": 0.058741604683789986,
             "reading": "hour",
@@ -244,7 +244,7 @@
             "young": false,
             "z": 9.623569973786703
           },
-          "seen": 1795532825,
+          "seen": 1795536444,
           "shown": [
             "major",
             9.6,
@@ -288,7 +288,7 @@
             "gap_kind": null,
             "held": -0.06457787765294827,
             "hour_utc": 1795438800,
-            "now_utc": 1795532825,
+            "now_utc": 1795536444,
             "overnight": false,
             "r": 0.04947345767056454,
             "reading": "hour",
@@ -306,7 +306,7 @@
             "young": false,
             "z": 7.738924743462273
           },
-          "seen": 1795532825,
+          "seen": 1795536444,
           "shown": [
             "high",
             7.7,
@@ -316,6 +316,128 @@
           "size": 7.738924743462273,
           "start": 1795442400,
           "tier": "high",
+          "was": null
+        },
+        "sifting:XAG/USD|1795536000": {
+          "asset": "sifting:XAG/USD",
+          "body": "\u2b1c <b>XAG/USD</b> \u00b7 Silver -2.92% \u00b7 5.5\u00d7\u03c3",
+          "context": "",
+          "ever": [
+            "jump:sifting:XAG/USD:hour:1795532400"
+          ],
+          "form": "row",
+          "hour": 1795532400,
+          "members": {
+            "jump:sifting:XAG/USD:hour:1795532400": [
+              -0.029156191739588937,
+              0.005260915525907497
+            ]
+          },
+          "message": 201,
+          "peak": "jump:sifting:XAG/USD:hour:1795532400",
+          "ping_at": 1795536444,
+          "placed_at": 1795536444,
+          "row": {
+            "asset_id": "sifting:XAG/USD",
+            "basis": "jump",
+            "block": "precious_metals",
+            "channel": "digest",
+            "check_utc": 1795554000,
+            "day_r": -0.05155891292357878,
+            "event_start": 1795536000,
+            "found_utc": 1795536000,
+            "gap_kind": null,
+            "held": null,
+            "hour_utc": 1795532400,
+            "now_utc": 1795536444,
+            "overnight": false,
+            "r": -0.029156191739588937,
+            "reading": "hour",
+            "reading_id": "jump:sifting:XAG/USD:hour:1795532400",
+            "record_start": 1052089200,
+            "sigma": 0.005260915525907497,
+            "sigma_day": 0.027552457158380207,
+            "sigma_lt": 0.005260915525907497,
+            "since_utc": 1770912000,
+            "since_z": -9.314294217527694,
+            "template": "fx_continuous",
+            "ticker": "XAG/USD",
+            "tier": "noticeable",
+            "word": "noticeable",
+            "young": false,
+            "z": -5.542037616078155
+          },
+          "seen": 1795536444,
+          "shown": [
+            "noticeable",
+            5.5,
+            1795532400,
+            -2.92
+          ],
+          "size": 5.542037616078155,
+          "start": 1795536000,
+          "tier": "noticeable",
+          "was": null
+        },
+        "sina:AHD|1795536000": {
+          "asset": "sina:AHD",
+          "body": "\u2b1c <b>Aluminium</b> \u00b7 LME -1.53% \u00b7 5.7\u00d7\u03c3",
+          "context": "",
+          "ever": [
+            "jump:sina:AHD:hour:1795532400"
+          ],
+          "form": "row",
+          "hour": 1795532400,
+          "members": {
+            "jump:sina:AHD:hour:1795532400": [
+              -0.015338789881587954,
+              0.0026879434966216643
+            ]
+          },
+          "message": 201,
+          "peak": "jump:sina:AHD:hour:1795532400",
+          "ping_at": 1795536444,
+          "placed_at": 1795536444,
+          "row": {
+            "asset_id": "sina:AHD",
+            "basis": "jump",
+            "block": "industrial_metals",
+            "channel": "digest",
+            "check_utc": 1795554000,
+            "day_r": -0.0323838160131312,
+            "event_start": 1795536000,
+            "found_utc": 1795536000,
+            "gap_kind": null,
+            "held": null,
+            "hour_utc": 1795532400,
+            "now_utc": 1795536444,
+            "overnight": false,
+            "r": -0.015338789881587954,
+            "reading": "hour",
+            "reading_id": "jump:sina:AHD:hour:1795532400",
+            "record_start": 1776830400,
+            "sigma": 0.0026879434966216643,
+            "sigma_day": 0.012610407317824701,
+            "sigma_lt": 0.0026879434966216643,
+            "since_utc": 1789034400,
+            "since_z": -6.207232866439677,
+            "template": "lme",
+            "ticker": "AHD",
+            "tier": "noticeable",
+            "word": "noticeable",
+            "young": false,
+            "z": -5.7065149996145665
+          },
+          "seen": 1795536444,
+          "shown": [
+            "noticeable",
+            5.7,
+            1795532400,
+            -1.53
+          ],
+          "size": 5.7065149996145665,
+          "start": 1795536000,
+          "tier": "noticeable",
           "was": null
         },
         "sina:CAD|1795446000": {
@@ -350,7 +472,7 @@
             "gap_kind": null,
             "held": 0.47150452834327955,
             "hour_utc": 1795442400,
-            "now_utc": 1795532825,
+            "now_utc": 1795536444,
             "overnight": false,
             "r": 0.026673811197133,
             "reading": "hour",
@@ -368,7 +490,7 @@
             "young": false,
             "z": 10.82278710939746
           },
-          "seen": 1795532825,
+          "seen": 1795536444,
           "shown": [
             "major",
             10.8,
@@ -378,6 +500,67 @@
           "size": 10.82278710939746,
           "start": 1795446000,
           "tier": "major",
+          "was": null
+        },
+        "sina:CAD|1795536000": {
+          "asset": "sina:CAD",
+          "body": "\ud83d\udfe8 <b>Copper</b> \u00b7 LME -1.82% \u00b7 7.0\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 4 days (then 10.2\u00d7\u03c3)\n\ud83d\udd50 <b>24.11.2026 15:00 UTC</b> \u00b7 close in 5h",
+          "context": "",
+          "ever": [
+            "jump:sina:CAD:hour:1795532400"
+          ],
+          "form": "push",
+          "hour": 1795532400,
+          "members": {
+            "jump:sina:CAD:hour:1795532400": [
+              -0.01822061886573135,
+              0.002602136697542997
+            ]
+          },
+          "message": 200,
+          "peak": "jump:sina:CAD:hour:1795532400",
+          "ping_at": 1795536444,
+          "placed_at": 1795536444,
+          "row": {
+            "asset_id": "sina:CAD",
+            "basis": "jump",
+            "block": "industrial_metals",
+            "channel": "push",
+            "check_utc": 1795554000,
+            "day_r": -0.05459112222332682,
+            "event_start": 1795536000,
+            "found_utc": 1795536000,
+            "gap_kind": null,
+            "held": null,
+            "hour_utc": 1795532400,
+            "now_utc": 1795536444,
+            "overnight": false,
+            "r": -0.01822061886573135,
+            "reading": "hour",
+            "reading_id": "jump:sina:CAD:hour:1795532400",
+            "record_start": 1776920400,
+            "sigma": 0.002602136697542997,
+            "sigma_day": 0.0111145064360709,
+            "sigma_lt": 0.002602136697542997,
+            "since_utc": 1795136400,
+            "since_z": -10.206664264613295,
+            "template": "lme",
+            "ticker": "CAD",
+            "tier": "high",
+            "word": "high",
+            "young": false,
+            "z": -7.002175897575142
+          },
+          "seen": 1795536444,
+          "shown": [
+            "high",
+            7.0,
+            1795532400,
+            -1.82
+          ],
+          "size": 7.002175897575142,
+          "start": 1795536000,
+          "tier": "high",
           "was": null
         },
         "sina:SND|1795442400": {
@@ -412,7 +595,7 @@
             "gap_kind": null,
             "held": 1.0574792944370677,
             "hour_utc": 1795438800,
-            "now_utc": 1795532825,
+            "now_utc": 1795536444,
             "overnight": false,
             "r": 0.02772045320515474,
             "reading": "hour",
@@ -430,7 +613,7 @@
             "young": false,
             "z": 5.9866104681463055
           },
-          "seen": 1795532825,
+          "seen": 1795536444,
           "shown": [
             "noticeable",
             6.0,
@@ -474,7 +657,7 @@
             "gap_kind": "weekend",
             "held": 0.9552742789366211,
             "hour_utc": 1795442400,
-            "now_utc": 1795532825,
+            "now_utc": 1795536444,
             "overnight": true,
             "r": 0.036169962062550055,
             "reading": "weekend",
@@ -492,7 +675,7 @@
             "young": false,
             "z": 4.658407427965116
           },
-          "seen": 1795532825,
+          "seen": 1795536444,
           "shown": [
             "noticeable",
             4.7,
@@ -536,7 +719,7 @@
             "gap_kind": "weekend",
             "held": 0.944285194889292,
             "hour_utc": 1795442400,
-            "now_utc": 1795532825,
+            "now_utc": 1795536444,
             "overnight": true,
             "r": 0.04729823001611533,
             "reading": "weekend",
@@ -554,7 +737,7 @@
             "young": false,
             "z": 8.258552931343102
           },
-          "seen": 1795532825,
+          "seen": 1795536444,
           "shown": [
             "high",
             8.3,
@@ -575,6 +758,7 @@
           ],
           "form": "row",
           "hour": 1795528800,
+          "kept": false,
           "members": {
             "jump:twelvedata:USD/CAD:hour:1795528800": [
               -0.002466971455325737,
@@ -597,7 +781,7 @@
             "gap_kind": null,
             "held": null,
             "hour_utc": 1795528800,
-            "now_utc": 1795532825,
+            "now_utc": 1795536444,
             "overnight": false,
             "r": -0.002466971455325737,
             "reading": "hour",
@@ -615,7 +799,7 @@
             "young": false,
             "z": -4.86629955986098
           },
-          "seen": 1795532825,
+          "seen": 1795536444,
           "shown": [
             "noticeable",
             4.9,
@@ -659,7 +843,7 @@
             "gap_kind": "weekend",
             "held": 0.8618275337942174,
             "hour_utc": 1795442400,
-            "now_utc": 1795532825,
+            "now_utc": 1795536444,
             "overnight": true,
             "r": 0.09658189109649341,
             "reading": "weekend",
@@ -677,7 +861,7 @@
             "young": false,
             "z": 7.033422907364394
           },
-          "seen": 1795532825,
+          "seen": 1795536444,
           "shown": [
             "high",
             7.0,
@@ -698,6 +882,7 @@
           ],
           "form": "row",
           "hour": 1795528800,
+          "kept": false,
           "members": {
             "jump:twelvedata:XLV:hour:1795528800": [
               0.019139604137626515,
@@ -720,7 +905,7 @@
             "gap_kind": null,
             "held": null,
             "hour_utc": 1795528800,
-            "now_utc": 1795532825,
+            "now_utc": 1795536444,
             "overnight": false,
             "r": 0.019139604137626515,
             "reading": "hour",
@@ -738,7 +923,7 @@
             "young": false,
             "z": 5.904273124421065
           },
-          "seen": 1795532825,
+          "seen": 1795536444,
           "shown": [
             "noticeable",
             5.9,
@@ -778,7 +963,7 @@
                 "gap_kind": null,
                 "held": null,
                 "hour_utc": 1795402800,
-                "now_utc": 1795532825,
+                "now_utc": 1795536444,
                 "overnight": false,
                 "r": 0.027774895396129786,
                 "reading": "hour",
@@ -836,7 +1021,7 @@
             "gap_kind": "night",
             "held": null,
             "hour_utc": 1795482000,
-            "now_utc": 1795532825,
+            "now_utc": 1795536444,
             "overnight": true,
             "r": 0.08466021060463208,
             "reading": "night",
@@ -854,7 +1039,7 @@
             "young": false,
             "z": 4.600358864303699
           },
-          "seen": 1795532825,
+          "seen": 1795536444,
           "shown": [
             "noticeable",
             4.6,
@@ -901,18 +1086,26 @@
         "199": {
           "first": "\u2b1c <b>XLV</b> \u00b7 Health care sector +1.91% \u00b7 5.9\u00d7\u03c3",
           "hash": "a9a16facf2383db5"
+        },
+        "200": {
+          "first": "\ud83d\udfe8 <b>Copper</b> \u00b7 LME -1.82% \u00b7 7.0\u00d7\u03c3",
+          "hash": "e95b1fc3cb5055bf"
+        },
+        "201": {
+          "first": "\u2b1c <b>Aluminium</b> \u00b7 LME -1.53% \u00b7 5.7\u00d7\u03c3",
+          "hash": "8ac69977b655505e"
         }
       },
       "note": {
         "hashes": [
-          "9239f852e262c164"
+          "fe98494c811002d6"
         ],
         "ids": [
           191
         ]
       },
       "orphans": [],
-      "ran_at": 1795532825,
+      "ran_at": 1795536444,
       "since": 1795208700,
       "slot": 1795208700
     }
@@ -920,13 +1113,14 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      198,
-      199
+      199,
+      200,
+      201
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1795532825
+    "saved_at": 1795536444
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-24",
