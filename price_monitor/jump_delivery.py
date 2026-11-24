@@ -947,14 +947,18 @@ def _size(reading: dict) -> float:
 def edit_line(was: "list | None", now: "list | None") -> str:
     """✏️ 6.5×σ 🟨 → 6.4×σ 🟨 corrected: what a move showed before its data was
     corrected - a bar late, revised, or its yardstick moved - and what it shows
-    now. Empty for a move never corrected. Nothing else is said on the channel
-    about a change (the user's, 2026-11-20)."""
+    now. Empty for a move never corrected, and for one whose σ and word read
+    as before: TAIEX's gap revised from +8.50% to +8.47% (2026-11-24) said
+    `4.6×σ ⬜ → 4.6×σ ⬜`. Nothing else is said on the channel about a change
+    (the user's, 2026-11-20 and 2026-11-24)."""
     if not was or not now or now[0] is None or was[0] is None:
         return ""
 
     def state(shown: list) -> str:
         return f"{float(shown[1]):.1f}×σ {TIER_EMOJI.get(str(shown[0]), '⚪')}"
 
+    if state(was) == state(now):
+        return ""
     return f"✏️ {state(was)} → {state(now)} corrected"
 
 

@@ -637,7 +637,8 @@ an edit of what is on the channel, or nothing: missed is missed.
 The ✏️ line has two states: what the part showed before its data was first corrected,
 and what it shows now, in σ with the word's square and no hours (`edit_line`). It is
 there whenever the data was corrected, the word changed or not, and goes when a new hour
-takes the part over. Each part of an event follows its own hour: an earlier message is
+takes the part over. A correction after which σ and the word read as before - a price
+revised by a few hundredths - is a silent edit, without the line. Each part of an event follows its own hour: an earlier message is
 edited only for its hour's data.
 
 A message is edited when what it carries changes and deleted once it carries nothing, or

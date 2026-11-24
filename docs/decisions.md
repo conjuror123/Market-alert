@@ -199,7 +199,10 @@ pings struck through (`<s>...</s>`) instead of cleanly deleted. Deleting pings a
 event row in the weekly digest note.
 
 **One ✏️ line, from the first state to the last** (2026-10-31, made two states only on
-2026-11-20): back-and-forth revisions of an hour do not pile up on the channel.
+2026-11-20): back-and-forth revisions of an hour do not pile up on the channel. When the
+two states read the same, there is no line (the user's, 2026-11-24): TAIEX's gap revised
+from +8.50% to +8.47% said `✏️ 4.6×σ ⬜ → 4.6×σ ⬜ corrected`, the first such correction
+since 2026-10-19 - none of the 49 before it left σ and the word as they read.
 
 **A digest part names itself on its second line** (the user's, 2026-11-05). Each part
 opens with the note's period and says `Part 2 of 3 · 16 events so far` under it, instead of a

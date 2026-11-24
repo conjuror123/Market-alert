@@ -580,6 +580,18 @@ def test_the_edit_line_is_two_states_and_no_hours():
     assert md.edit_line(None, ["high", 6.4, 1793210400, 1.8]) == ""
 
 
+def test_a_correction_that_leaves_sigma_and_word_as_they_read_says_nothing(
+        monkeypatch, channel, week):
+    # 2026-11-24 03:06: TAIEX's gap revised from +8.50% to +8.47% said
+    # `✏️ 4.6×σ ⬜ → 4.6×σ ⬜ corrected`. The price is edited, silently.
+    gap = ev(at(1, 1), size=4.6, reading="night")
+    run(monkeypatch, channel, [gap], run_at(1, 2), week)
+    revised = dict(gap, r=gap["r"] * 0.996, z=gap["z"] * 0.996)
+    run(monkeypatch, channel, [revised], run_at(1, 3), week)
+    assert md.format_ping(revised, LABELS).split("\n")[0] in channel.pings()[0]
+    assert "✏️" not in channel.pings()[0] and "✏️" not in channel.note()
+
+
 def test_an_event_is_24_hours_so_the_next_move_is_a_new_event(monkeypatch, channel, week):
     run(monkeypatch, channel, [ev(at(0, 10))], run_at(0, 11), week)
     again = [ev(at(0, 10)), ev(at(1, 12))]           # 26 hours on
