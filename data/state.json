@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1795529217
+    "last_run_utc": 1795532823
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -40,7 +40,7 @@
             "gap_kind": null,
             "held": -1.3795508046599,
             "hour_utc": 1795230000,
-            "now_utc": 1795529218,
+            "now_utc": 1795532825,
             "overnight": false,
             "r": -0.03206371283615196,
             "reading": "hour",
@@ -58,7 +58,7 @@
             "young": false,
             "z": -8.033305099966798
           },
-          "seen": 1795529218,
+          "seen": 1795532825,
           "shown": [
             "high",
             8.0,
@@ -102,7 +102,7 @@
             "gap_kind": null,
             "held": -0.036445497398501385,
             "hour_utc": 1795438800,
-            "now_utc": 1795529218,
+            "now_utc": 1795532825,
             "overnight": false,
             "r": 0.04014740054165896,
             "reading": "hour",
@@ -120,7 +120,7 @@
             "young": false,
             "z": 9.872292926839188
           },
-          "seen": 1795529218,
+          "seen": 1795532825,
           "shown": [
             "major",
             9.9,
@@ -164,7 +164,7 @@
             "gap_kind": null,
             "held": 0.04111769167586757,
             "hour_utc": 1795438800,
-            "now_utc": 1795529218,
+            "now_utc": 1795532825,
             "overnight": false,
             "r": 0.04994625490994155,
             "reading": "hour",
@@ -182,7 +182,7 @@
             "young": false,
             "z": 9.609885124071374
           },
-          "seen": 1795529218,
+          "seen": 1795532825,
           "shown": [
             "major",
             9.6,
@@ -226,7 +226,7 @@
             "gap_kind": null,
             "held": 0.14316569732682338,
             "hour_utc": 1795438800,
-            "now_utc": 1795529218,
+            "now_utc": 1795532825,
             "overnight": false,
             "r": 0.058741604683789986,
             "reading": "hour",
@@ -244,7 +244,7 @@
             "young": false,
             "z": 9.623569973786703
           },
-          "seen": 1795529218,
+          "seen": 1795532825,
           "shown": [
             "major",
             9.6,
@@ -288,7 +288,7 @@
             "gap_kind": null,
             "held": -0.06457787765294827,
             "hour_utc": 1795438800,
-            "now_utc": 1795529218,
+            "now_utc": 1795532825,
             "overnight": false,
             "r": 0.04947345767056454,
             "reading": "hour",
@@ -306,7 +306,7 @@
             "young": false,
             "z": 7.738924743462273
           },
-          "seen": 1795529218,
+          "seen": 1795532825,
           "shown": [
             "high",
             7.7,
@@ -350,7 +350,7 @@
             "gap_kind": null,
             "held": 0.47150452834327955,
             "hour_utc": 1795442400,
-            "now_utc": 1795529218,
+            "now_utc": 1795532825,
             "overnight": false,
             "r": 0.026673811197133,
             "reading": "hour",
@@ -368,7 +368,7 @@
             "young": false,
             "z": 10.82278710939746
           },
-          "seen": 1795529218,
+          "seen": 1795532825,
           "shown": [
             "major",
             10.8,
@@ -412,7 +412,7 @@
             "gap_kind": null,
             "held": 1.0574792944370677,
             "hour_utc": 1795438800,
-            "now_utc": 1795529218,
+            "now_utc": 1795532825,
             "overnight": false,
             "r": 0.02772045320515474,
             "reading": "hour",
@@ -430,7 +430,7 @@
             "young": false,
             "z": 5.9866104681463055
           },
-          "seen": 1795529218,
+          "seen": 1795532825,
           "shown": [
             "noticeable",
             6.0,
@@ -474,7 +474,7 @@
             "gap_kind": "weekend",
             "held": 0.9552742789366211,
             "hour_utc": 1795442400,
-            "now_utc": 1795529218,
+            "now_utc": 1795532825,
             "overnight": true,
             "r": 0.036169962062550055,
             "reading": "weekend",
@@ -492,7 +492,7 @@
             "young": false,
             "z": 4.658407427965116
           },
-          "seen": 1795529218,
+          "seen": 1795532825,
           "shown": [
             "noticeable",
             4.7,
@@ -536,7 +536,7 @@
             "gap_kind": "weekend",
             "held": 0.944285194889292,
             "hour_utc": 1795442400,
-            "now_utc": 1795529218,
+            "now_utc": 1795532825,
             "overnight": true,
             "r": 0.04729823001611533,
             "reading": "weekend",
@@ -554,7 +554,7 @@
             "young": false,
             "z": 8.258552931343102
           },
-          "seen": 1795529218,
+          "seen": 1795532825,
           "shown": [
             "high",
             8.3,
@@ -564,6 +564,67 @@
           "size": 8.258552931343102,
           "start": 1795446000,
           "tier": "high",
+          "was": null
+        },
+        "twelvedata:USD/CAD|1795532400": {
+          "asset": "twelvedata:USD/CAD",
+          "body": "\u2b1c <b>USD/CAD</b> \u00b7 Canadian dollar -0.25% \u00b7 4.9\u00d7\u03c3",
+          "context": "",
+          "ever": [
+            "jump:twelvedata:USD/CAD:hour:1795528800"
+          ],
+          "form": "row",
+          "hour": 1795528800,
+          "members": {
+            "jump:twelvedata:USD/CAD:hour:1795528800": [
+              -0.002466971455325737,
+              0.0005069501836003316
+            ]
+          },
+          "message": 199,
+          "peak": "jump:twelvedata:USD/CAD:hour:1795528800",
+          "ping_at": 1795532825,
+          "placed_at": 1795532825,
+          "row": {
+            "asset_id": "twelvedata:USD/CAD",
+            "basis": "jump",
+            "block": "FX",
+            "channel": "digest",
+            "check_utc": 1795554000,
+            "day_r": -0.0049417974764760465,
+            "event_start": 1795532400,
+            "found_utc": 1795532400,
+            "gap_kind": null,
+            "held": null,
+            "hour_utc": 1795528800,
+            "now_utc": 1795532825,
+            "overnight": false,
+            "r": -0.002466971455325737,
+            "reading": "hour",
+            "reading_id": "jump:twelvedata:USD/CAD:hour:1795528800",
+            "record_start": 1059944400,
+            "sigma": 0.0005069501836003316,
+            "sigma_day": 0.0024195921614191406,
+            "sigma_lt": 0.0005069501836003316,
+            "since_utc": 1792389600,
+            "since_z": -4.7584339422953805,
+            "template": "fx_continuous",
+            "ticker": "USD/CAD",
+            "tier": "noticeable",
+            "word": "noticeable",
+            "young": false,
+            "z": -4.86629955986098
+          },
+          "seen": 1795532825,
+          "shown": [
+            "noticeable",
+            4.9,
+            1795528800,
+            -0.25
+          ],
+          "size": 4.86629955986098,
+          "start": 1795532400,
+          "tier": "noticeable",
           "was": null
         },
         "twelvedata:XLK|1795446000": {
@@ -598,7 +659,7 @@
             "gap_kind": "weekend",
             "held": 0.8618275337942174,
             "hour_utc": 1795442400,
-            "now_utc": 1795529218,
+            "now_utc": 1795532825,
             "overnight": true,
             "r": 0.09658189109649341,
             "reading": "weekend",
@@ -616,7 +677,7 @@
             "young": false,
             "z": 7.033422907364394
           },
-          "seen": 1795529218,
+          "seen": 1795532825,
           "shown": [
             "high",
             7.0,
@@ -626,6 +687,67 @@
           "size": 7.033422907364394,
           "start": 1795446000,
           "tier": "high",
+          "was": null
+        },
+        "twelvedata:XLV|1795532400": {
+          "asset": "twelvedata:XLV",
+          "body": "\u2b1c <b>XLV</b> \u00b7 Health care sector +1.91% \u00b7 5.9\u00d7\u03c3",
+          "context": "",
+          "ever": [
+            "jump:twelvedata:XLV:hour:1795528800"
+          ],
+          "form": "row",
+          "hour": 1795528800,
+          "members": {
+            "jump:twelvedata:XLV:hour:1795528800": [
+              0.019139604137626515,
+              0.0032416529070211707
+            ]
+          },
+          "message": 199,
+          "peak": "jump:twelvedata:XLV:hour:1795528800",
+          "ping_at": 1795532825,
+          "placed_at": 1795532825,
+          "row": {
+            "asset_id": "twelvedata:XLV",
+            "basis": "jump",
+            "block": "equity",
+            "channel": "digest",
+            "check_utc": 1795554000,
+            "day_r": 0.01958521212138268,
+            "event_start": 1795532400,
+            "found_utc": 1795532400,
+            "gap_kind": null,
+            "held": null,
+            "hour_utc": 1795528800,
+            "now_utc": 1795532825,
+            "overnight": false,
+            "r": 0.019139604137626515,
+            "reading": "hour",
+            "reading_id": "jump:twelvedata:XLV:hour:1795528800",
+            "record_start": 1041256800,
+            "sigma": 0.0032416529070211707,
+            "sigma_day": 0.011647181514259655,
+            "sigma_lt": 0.0032416529070211707,
+            "since_utc": 1782478800,
+            "since_z": 7.3555261998269375,
+            "template": "us_equity",
+            "ticker": "XLV",
+            "tier": "noticeable",
+            "word": "noticeable",
+            "young": false,
+            "z": 5.904273124421065
+          },
+          "seen": 1795532825,
+          "shown": [
+            "noticeable",
+            5.9,
+            1795528800,
+            1.91
+          ],
+          "size": 5.904273124421065,
+          "start": 1795532400,
+          "tier": "noticeable",
           "was": null
         },
         "yahoo:^TWII|1795406400": {
@@ -656,7 +778,7 @@
                 "gap_kind": null,
                 "held": null,
                 "hour_utc": 1795402800,
-                "now_utc": 1795529218,
+                "now_utc": 1795532825,
                 "overnight": false,
                 "r": 0.027774895396129786,
                 "reading": "hour",
@@ -714,7 +836,7 @@
             "gap_kind": "night",
             "held": null,
             "hour_utc": 1795482000,
-            "now_utc": 1795529218,
+            "now_utc": 1795532825,
             "overnight": true,
             "r": 0.08466021060463208,
             "reading": "night",
@@ -732,7 +854,7 @@
             "young": false,
             "z": 4.600358864303699
           },
-          "seen": 1795529218,
+          "seen": 1795532825,
           "shown": [
             "noticeable",
             4.6,
@@ -775,18 +897,22 @@
         "198": {
           "first": "\u2b1c <b>TAIEX</b> \u00b7 Taiwan +8.47% \u00b7 4.6\u00d7\u03c3",
           "hash": "a6c50a006195cda3"
+        },
+        "199": {
+          "first": "\u2b1c <b>XLV</b> \u00b7 Health care sector +1.91% \u00b7 5.9\u00d7\u03c3",
+          "hash": "a9a16facf2383db5"
         }
       },
       "note": {
         "hashes": [
-          "2f7986c13da4c2b7"
+          "9239f852e262c164"
         ],
         "ids": [
           191
         ]
       },
       "orphans": [],
-      "ran_at": 1795529218,
+      "ran_at": 1795532825,
       "since": 1795208700,
       "slot": 1795208700
     }
@@ -794,12 +920,13 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      198
+      198,
+      199
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1795529218
+    "saved_at": 1795532825
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-24",
