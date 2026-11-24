@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1795547193
+    "last_run_utc": 1795550819
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -40,7 +40,7 @@
             "gap_kind": null,
             "held": -1.3795508046599,
             "hour_utc": 1795230000,
-            "now_utc": 1795547194,
+            "now_utc": 1795550820,
             "overnight": false,
             "r": -0.03206371283615196,
             "reading": "hour",
@@ -58,7 +58,7 @@
             "young": false,
             "z": -8.033305099966798
           },
-          "seen": 1795547194,
+          "seen": 1795550820,
           "shown": [
             "high",
             8.0,
@@ -102,7 +102,7 @@
             "gap_kind": null,
             "held": -0.036445497398501385,
             "hour_utc": 1795438800,
-            "now_utc": 1795547194,
+            "now_utc": 1795550820,
             "overnight": false,
             "r": 0.04014740054165896,
             "reading": "hour",
@@ -120,7 +120,7 @@
             "young": false,
             "z": 9.872292926839188
           },
-          "seen": 1795547194,
+          "seen": 1795550820,
           "shown": [
             "major",
             9.9,
@@ -164,7 +164,7 @@
             "gap_kind": null,
             "held": 0.04111769167586757,
             "hour_utc": 1795438800,
-            "now_utc": 1795547194,
+            "now_utc": 1795550820,
             "overnight": false,
             "r": 0.04994625490994155,
             "reading": "hour",
@@ -182,7 +182,7 @@
             "young": false,
             "z": 9.609885124071374
           },
-          "seen": 1795547194,
+          "seen": 1795550820,
           "shown": [
             "major",
             9.6,
@@ -226,7 +226,7 @@
             "gap_kind": null,
             "held": 0.14316569732682338,
             "hour_utc": 1795438800,
-            "now_utc": 1795547194,
+            "now_utc": 1795550820,
             "overnight": false,
             "r": 0.058741604683789986,
             "reading": "hour",
@@ -244,7 +244,7 @@
             "young": false,
             "z": 9.623569973786703
           },
-          "seen": 1795547194,
+          "seen": 1795550820,
           "shown": [
             "major",
             9.6,
@@ -288,7 +288,7 @@
             "gap_kind": null,
             "held": -0.06457787765294827,
             "hour_utc": 1795438800,
-            "now_utc": 1795547194,
+            "now_utc": 1795550820,
             "overnight": false,
             "r": 0.04947345767056454,
             "reading": "hour",
@@ -306,7 +306,7 @@
             "young": false,
             "z": 7.738924743462273
           },
-          "seen": 1795547194,
+          "seen": 1795550820,
           "shown": [
             "high",
             7.7,
@@ -350,7 +350,7 @@
             "gap_kind": null,
             "held": null,
             "hour_utc": 1795532400,
-            "now_utc": 1795547194,
+            "now_utc": 1795550820,
             "overnight": false,
             "r": -0.029156191739588937,
             "reading": "hour",
@@ -368,7 +368,7 @@
             "young": false,
             "z": -5.542037616078155
           },
-          "seen": 1795547194,
+          "seen": 1795550820,
           "shown": [
             "noticeable",
             5.5,
@@ -412,7 +412,7 @@
             "gap_kind": null,
             "held": null,
             "hour_utc": 1795532400,
-            "now_utc": 1795547194,
+            "now_utc": 1795550820,
             "overnight": false,
             "r": -0.015338789881587954,
             "reading": "hour",
@@ -430,7 +430,7 @@
             "young": false,
             "z": -5.7065149996145665
           },
-          "seen": 1795547194,
+          "seen": 1795550820,
           "shown": [
             "noticeable",
             5.7,
@@ -474,7 +474,7 @@
             "gap_kind": null,
             "held": 0.47150452834327955,
             "hour_utc": 1795442400,
-            "now_utc": 1795547194,
+            "now_utc": 1795550820,
             "overnight": false,
             "r": 0.026673811197133,
             "reading": "hour",
@@ -492,7 +492,7 @@
             "young": false,
             "z": 10.82278710939746
           },
-          "seen": 1795547194,
+          "seen": 1795550820,
           "shown": [
             "major",
             10.8,
@@ -506,7 +506,7 @@
         },
         "sina:CAD|1795536000": {
           "asset": "sina:CAD",
-          "body": "\ud83d\udfe8 <b>Copper</b> \u00b7 LME -1.82% \u00b7 7.0\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 4 days (then 10.2\u00d7\u03c3)\n\ud83d\udd50 <b>24.11.2026 15:00 UTC</b> \u00b7 close in 2h",
+          "body": "\ud83d\udfe8 <b>Copper</b> \u00b7 LME -1.82% \u00b7 7.0\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 4 days (then 10.2\u00d7\u03c3)\n\ud83d\udd50 <b>24.11.2026 15:00 UTC</b> \u00b7 close in 1h",
           "context": "",
           "ever": [
             "jump:sina:CAD:hour:1795532400"
@@ -536,7 +536,7 @@
             "gap_kind": null,
             "held": null,
             "hour_utc": 1795532400,
-            "now_utc": 1795547194,
+            "now_utc": 1795550820,
             "overnight": false,
             "r": -0.01822061886573135,
             "reading": "hour",
@@ -554,7 +554,7 @@
             "young": false,
             "z": -7.002175897575142
           },
-          "seen": 1795547194,
+          "seen": 1795550820,
           "shown": [
             "high",
             7.0,
@@ -598,7 +598,7 @@
             "gap_kind": null,
             "held": 1.0574792944370677,
             "hour_utc": 1795438800,
-            "now_utc": 1795547194,
+            "now_utc": 1795550820,
             "overnight": false,
             "r": 0.02772045320515474,
             "reading": "hour",
@@ -616,7 +616,7 @@
             "young": false,
             "z": 5.9866104681463055
           },
-          "seen": 1795547194,
+          "seen": 1795550820,
           "shown": [
             "noticeable",
             6.0,
@@ -660,7 +660,7 @@
             "gap_kind": "weekend",
             "held": 0.9552742789366211,
             "hour_utc": 1795442400,
-            "now_utc": 1795547194,
+            "now_utc": 1795550820,
             "overnight": true,
             "r": 0.036169962062550055,
             "reading": "weekend",
@@ -678,7 +678,7 @@
             "young": false,
             "z": 4.658407427965116
           },
-          "seen": 1795547194,
+          "seen": 1795550820,
           "shown": [
             "noticeable",
             4.7,
@@ -722,7 +722,7 @@
             "gap_kind": "weekend",
             "held": 0.944285194889292,
             "hour_utc": 1795442400,
-            "now_utc": 1795547194,
+            "now_utc": 1795550820,
             "overnight": true,
             "r": 0.04729823001611533,
             "reading": "weekend",
@@ -740,7 +740,7 @@
             "young": false,
             "z": 8.258552931343102
           },
-          "seen": 1795547194,
+          "seen": 1795550820,
           "shown": [
             "high",
             8.3,
@@ -789,7 +789,7 @@
             "gap_kind": null,
             "held": null,
             "hour_utc": 1795528800,
-            "now_utc": 1795547194,
+            "now_utc": 1795550820,
             "overnight": false,
             "r": -0.002466971455325737,
             "reading": "hour",
@@ -807,7 +807,7 @@
             "young": false,
             "z": -4.86629955986098
           },
-          "seen": 1795547194,
+          "seen": 1795550820,
           "shown": [
             "noticeable",
             4.9,
@@ -851,7 +851,7 @@
             "gap_kind": "weekend",
             "held": 0.8618275337942174,
             "hour_utc": 1795442400,
-            "now_utc": 1795547194,
+            "now_utc": 1795550820,
             "overnight": true,
             "r": 0.09658189109649341,
             "reading": "weekend",
@@ -869,7 +869,7 @@
             "young": false,
             "z": 7.033422907364394
           },
-          "seen": 1795547194,
+          "seen": 1795550820,
           "shown": [
             "high",
             7.0,
@@ -913,7 +913,7 @@
             "gap_kind": null,
             "held": null,
             "hour_utc": 1795528800,
-            "now_utc": 1795547194,
+            "now_utc": 1795550820,
             "overnight": false,
             "r": 0.019139604137626515,
             "reading": "hour",
@@ -931,7 +931,7 @@
             "young": false,
             "z": 5.904273124421065
           },
-          "seen": 1795547194,
+          "seen": 1795550820,
           "shown": [
             "noticeable",
             5.9,
@@ -956,7 +956,7 @@
           "members": {
             "jump:yahoo:PL=F:hour:1795532400": [
               -0.025297834591770985,
-              0.004808570429397746
+              0.00480821839493692
             ]
           },
           "message": 202,
@@ -975,15 +975,15 @@
             "gap_kind": null,
             "held": null,
             "hour_utc": 1795532400,
-            "now_utc": 1795547194,
+            "now_utc": 1795550820,
             "overnight": false,
             "r": -0.025297834591770985,
             "reading": "hour",
             "reading_id": "jump:yahoo:PL=F:hour:1795532400",
             "record_start": 1635724800,
-            "sigma": 0.004808570429397746,
-            "sigma_day": 0.022482149639166275,
-            "sigma_lt": 0.004808570429397746,
+            "sigma": 0.00480821839493692,
+            "sigma_day": 0.022485088334001438,
+            "sigma_lt": 0.00480821839493692,
             "since_utc": 1772546400,
             "since_z": -5.919318078652051,
             "template": "nymex_globex",
@@ -991,16 +991,16 @@
             "tier": "noticeable",
             "word": "noticeable",
             "young": false,
-            "z": -5.260988679111316
+            "z": -5.26137386321922
           },
-          "seen": 1795547194,
+          "seen": 1795550820,
           "shown": [
             "noticeable",
             5.3,
             1795532400,
             -2.53
           ],
-          "size": 5.260988679111316,
+          "size": 5.26137386321922,
           "start": 1795536000,
           "tier": "noticeable",
           "was": null
@@ -1033,7 +1033,7 @@
                 "gap_kind": null,
                 "held": null,
                 "hour_utc": 1795402800,
-                "now_utc": 1795547194,
+                "now_utc": 1795550820,
                 "overnight": false,
                 "r": 0.027774895396129786,
                 "reading": "hour",
@@ -1091,7 +1091,7 @@
             "gap_kind": "night",
             "held": null,
             "hour_utc": 1795482000,
-            "now_utc": 1795547194,
+            "now_utc": 1795550820,
             "overnight": true,
             "r": 0.08466021060463208,
             "reading": "night",
@@ -1109,7 +1109,7 @@
             "young": false,
             "z": 4.600358864303699
           },
-          "seen": 1795547194,
+          "seen": 1795550820,
           "shown": [
             "noticeable",
             4.6,
@@ -1159,7 +1159,7 @@
         },
         "200": {
           "first": "\ud83d\udfe8 <b>Copper</b> \u00b7 LME -1.82% \u00b7 7.0\u00d7\u03c3",
-          "hash": "c57f3614fb693eba"
+          "hash": "74ef4060e7154995"
         },
         "201": {
           "first": "\u2b1c <b>Aluminium</b> \u00b7 LME -1.53% \u00b7 5.7\u00d7\u03c3",
@@ -1172,14 +1172,14 @@
       },
       "note": {
         "hashes": [
-          "147a5bf7aa382b53"
+          "adbf6fad4989e445"
         ],
         "ids": [
           191
         ]
       },
       "orphans": [],
-      "ran_at": 1795547194,
+      "ran_at": 1795550820,
       "since": 1795208700,
       "slot": 1795208700
     }
@@ -1192,7 +1192,7 @@
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1795547194
+    "saved_at": 1795550820
   },
   "telegram_update_offset": 688283215,
   "weekly_digest:last_refreshed": "2026-11-24",
