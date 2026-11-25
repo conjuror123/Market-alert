@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1795489597
+    "last_run_utc": 1795615605
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -40,7 +40,7 @@
             "gap_kind": null,
             "held": -1.3795508046599,
             "hour_utc": 1795230000,
-            "now_utc": 1795489598,
+            "now_utc": 1795615605,
             "overnight": false,
             "r": -0.03206371283615196,
             "reading": "hour",
@@ -58,7 +58,7 @@
             "young": false,
             "z": -8.033305099966798
           },
-          "seen": 1795489598,
+          "seen": 1795615605,
           "shown": [
             "high",
             8.0,
@@ -102,7 +102,7 @@
             "gap_kind": null,
             "held": -0.036445497398501385,
             "hour_utc": 1795438800,
-            "now_utc": 1795489598,
+            "now_utc": 1795615605,
             "overnight": false,
             "r": 0.04014740054165896,
             "reading": "hour",
@@ -120,7 +120,7 @@
             "young": false,
             "z": 9.872292926839188
           },
-          "seen": 1795489598,
+          "seen": 1795615605,
           "shown": [
             "major",
             9.9,
@@ -164,7 +164,7 @@
             "gap_kind": null,
             "held": 0.04111769167586757,
             "hour_utc": 1795438800,
-            "now_utc": 1795489598,
+            "now_utc": 1795615605,
             "overnight": false,
             "r": 0.04994625490994155,
             "reading": "hour",
@@ -182,7 +182,7 @@
             "young": false,
             "z": 9.609885124071374
           },
-          "seen": 1795489598,
+          "seen": 1795615605,
           "shown": [
             "major",
             9.6,
@@ -226,7 +226,7 @@
             "gap_kind": null,
             "held": 0.14316569732682338,
             "hour_utc": 1795438800,
-            "now_utc": 1795489598,
+            "now_utc": 1795615605,
             "overnight": false,
             "r": 0.058741604683789986,
             "reading": "hour",
@@ -244,7 +244,7 @@
             "young": false,
             "z": 9.623569973786703
           },
-          "seen": 1795489598,
+          "seen": 1795615605,
           "shown": [
             "major",
             9.6,
@@ -288,7 +288,7 @@
             "gap_kind": null,
             "held": -0.06457787765294827,
             "hour_utc": 1795438800,
-            "now_utc": 1795489598,
+            "now_utc": 1795615605,
             "overnight": false,
             "r": 0.04947345767056454,
             "reading": "hour",
@@ -306,7 +306,7 @@
             "young": false,
             "z": 7.738924743462273
           },
-          "seen": 1795489598,
+          "seen": 1795615605,
           "shown": [
             "high",
             7.7,
@@ -316,6 +316,130 @@
           "size": 7.738924743462273,
           "start": 1795442400,
           "tier": "high",
+          "was": null
+        },
+        "sifting:XAG/USD|1795536000": {
+          "asset": "sifting:XAG/USD",
+          "body": "\u2b1c <b>XAG/USD</b> \u00b7 Silver -2.92% \u00b7 5.5\u00d7\u03c3",
+          "context": "",
+          "ever": [
+            "jump:sifting:XAG/USD:hour:1795532400"
+          ],
+          "form": "row",
+          "hour": 1795532400,
+          "kept": false,
+          "members": {
+            "jump:sifting:XAG/USD:hour:1795532400": [
+              -0.029156191739588937,
+              0.005260915525907497
+            ]
+          },
+          "message": 201,
+          "peak": "jump:sifting:XAG/USD:hour:1795532400",
+          "ping_at": 1795536444,
+          "placed_at": 1795536444,
+          "row": {
+            "asset_id": "sifting:XAG/USD",
+            "basis": "jump",
+            "block": "precious_metals",
+            "channel": "digest",
+            "check_utc": 1795554000,
+            "day_r": -0.05155891292357878,
+            "event_start": 1795536000,
+            "found_utc": 1795536000,
+            "gap_kind": null,
+            "held": 1.15009296328599,
+            "hour_utc": 1795532400,
+            "now_utc": 1795615605,
+            "overnight": false,
+            "r": -0.029156191739588937,
+            "reading": "hour",
+            "reading_id": "jump:sifting:XAG/USD:hour:1795532400",
+            "record_start": 1052089200,
+            "sigma": 0.005260915525907497,
+            "sigma_day": 0.027552457158380207,
+            "sigma_lt": 0.005260915525907497,
+            "since_utc": 1770912000,
+            "since_z": -9.314294217527694,
+            "template": "fx_continuous",
+            "ticker": "XAG/USD",
+            "tier": "noticeable",
+            "word": "noticeable",
+            "young": false,
+            "z": -5.542037616078155
+          },
+          "seen": 1795615605,
+          "shown": [
+            "noticeable",
+            5.5,
+            1795532400,
+            -2.92
+          ],
+          "size": 5.542037616078155,
+          "start": 1795536000,
+          "tier": "noticeable",
+          "was": null
+        },
+        "sina:AHD|1795536000": {
+          "asset": "sina:AHD",
+          "body": "\u2b1c <b>Aluminium</b> \u00b7 LME -1.53% \u00b7 5.7\u00d7\u03c3",
+          "context": "",
+          "ever": [
+            "jump:sina:AHD:hour:1795532400"
+          ],
+          "form": "row",
+          "hour": 1795532400,
+          "kept": false,
+          "members": {
+            "jump:sina:AHD:hour:1795532400": [
+              -0.015338789881587954,
+              0.0026879434966216643
+            ]
+          },
+          "message": 201,
+          "peak": "jump:sina:AHD:hour:1795532400",
+          "ping_at": 1795536444,
+          "placed_at": 1795536444,
+          "row": {
+            "asset_id": "sina:AHD",
+            "basis": "jump",
+            "block": "industrial_metals",
+            "channel": "digest",
+            "check_utc": 1795554000,
+            "day_r": -0.0323838160131312,
+            "event_start": 1795536000,
+            "found_utc": 1795536000,
+            "gap_kind": null,
+            "held": 0.8650568884348925,
+            "hour_utc": 1795532400,
+            "now_utc": 1795615605,
+            "overnight": false,
+            "r": -0.015338789881587954,
+            "reading": "hour",
+            "reading_id": "jump:sina:AHD:hour:1795532400",
+            "record_start": 1776830400,
+            "sigma": 0.0026879434966216643,
+            "sigma_day": 0.012610407317824701,
+            "sigma_lt": 0.0026879434966216643,
+            "since_utc": 1789034400,
+            "since_z": -6.207232866439677,
+            "template": "lme",
+            "ticker": "AHD",
+            "tier": "noticeable",
+            "word": "noticeable",
+            "young": false,
+            "z": -5.7065149996145665
+          },
+          "seen": 1795615605,
+          "shown": [
+            "noticeable",
+            5.7,
+            1795532400,
+            -1.53
+          ],
+          "size": 5.7065149996145665,
+          "start": 1795536000,
+          "tier": "noticeable",
           "was": null
         },
         "sina:CAD|1795446000": {
@@ -350,7 +474,7 @@
             "gap_kind": null,
             "held": 0.47150452834327955,
             "hour_utc": 1795442400,
-            "now_utc": 1795489598,
+            "now_utc": 1795615605,
             "overnight": false,
             "r": 0.026673811197133,
             "reading": "hour",
@@ -368,7 +492,7 @@
             "young": false,
             "z": 10.82278710939746
           },
-          "seen": 1795489598,
+          "seen": 1795615605,
           "shown": [
             "major",
             10.8,
@@ -378,6 +502,68 @@
           "size": 10.82278710939746,
           "start": 1795446000,
           "tier": "major",
+          "was": null
+        },
+        "sina:CAD|1795536000": {
+          "asset": "sina:CAD",
+          "body": "\ud83d\udfe8 <b>Copper</b> \u00b7 LME -1.82% \u00b7 7.0\u00d7\u03c3\n\ud83d\udcc9 Rarest hour in 4 days (then 10.2\u00d7\u03c3)\n\ud83d\udd50 <b>24.11.2026 15:00 UTC</b> \u00b7 close 74%",
+          "context": "",
+          "ever": [
+            "jump:sina:CAD:hour:1795532400"
+          ],
+          "form": "push",
+          "hour": 1795532400,
+          "kept": false,
+          "members": {
+            "jump:sina:CAD:hour:1795532400": [
+              -0.01822061886573135,
+              0.002602136697542997
+            ]
+          },
+          "message": 200,
+          "peak": "jump:sina:CAD:hour:1795532400",
+          "ping_at": 1795536444,
+          "placed_at": 1795536444,
+          "row": {
+            "asset_id": "sina:CAD",
+            "basis": "jump",
+            "block": "industrial_metals",
+            "channel": "push",
+            "check_utc": 1795554000,
+            "day_r": -0.05459112222332682,
+            "event_start": 1795536000,
+            "found_utc": 1795536000,
+            "gap_kind": null,
+            "held": 0.7355027993915367,
+            "hour_utc": 1795532400,
+            "now_utc": 1795615605,
+            "overnight": false,
+            "r": -0.01822061886573135,
+            "reading": "hour",
+            "reading_id": "jump:sina:CAD:hour:1795532400",
+            "record_start": 1776920400,
+            "sigma": 0.002602136697542997,
+            "sigma_day": 0.0111145064360709,
+            "sigma_lt": 0.002602136697542997,
+            "since_utc": 1795136400,
+            "since_z": -10.206664264613295,
+            "template": "lme",
+            "ticker": "CAD",
+            "tier": "high",
+            "word": "high",
+            "young": false,
+            "z": -7.002175897575142
+          },
+          "seen": 1795615605,
+          "shown": [
+            "high",
+            7.0,
+            1795532400,
+            -1.82
+          ],
+          "size": 7.002175897575142,
+          "start": 1795536000,
+          "tier": "high",
           "was": null
         },
         "sina:SND|1795442400": {
@@ -396,7 +582,7 @@
               0.004630408701660207
             ]
           },
-          "message": 195,
+          "message": null,
           "peak": "jump:sina:SND:hour:1795438800",
           "ping_at": 1795442853,
           "placed_at": 1795442853,
@@ -412,7 +598,7 @@
             "gap_kind": null,
             "held": 1.0574792944370677,
             "hour_utc": 1795438800,
-            "now_utc": 1795489598,
+            "now_utc": 1795615605,
             "overnight": false,
             "r": 0.02772045320515474,
             "reading": "hour",
@@ -430,7 +616,7 @@
             "young": false,
             "z": 5.9866104681463055
           },
-          "seen": 1795489598,
+          "seen": 1795615605,
           "shown": [
             "noticeable",
             6.0,
@@ -439,6 +625,67 @@
           ],
           "size": 5.9866104681463055,
           "start": 1795442400,
+          "tier": "noticeable",
+          "was": null
+        },
+        "sina:SND|1795615200": {
+          "asset": "sina:SND",
+          "body": "\u2b1c <b>Tin</b> \u00b7 LME -2.19% \u00b7 4.6\u00d7\u03c3",
+          "context": "",
+          "ever": [
+            "jump:sina:SND:hour:1795611600"
+          ],
+          "form": "row",
+          "hour": 1795611600,
+          "members": {
+            "jump:sina:SND:hour:1795611600": [
+              -0.02188259484243072,
+              0.004791849258431183
+            ]
+          },
+          "message": 205,
+          "peak": "jump:sina:SND:hour:1795611600",
+          "ping_at": 1795615605,
+          "placed_at": 1795615605,
+          "row": {
+            "asset_id": "sina:SND",
+            "basis": "jump",
+            "block": "industrial_metals",
+            "channel": "digest",
+            "check_utc": 1795640400,
+            "day_r": -0.06113619245616311,
+            "event_start": 1795615200,
+            "found_utc": 1795615200,
+            "gap_kind": null,
+            "held": null,
+            "hour_utc": 1795611600,
+            "now_utc": 1795615605,
+            "overnight": false,
+            "r": -0.02188259484243072,
+            "reading": "hour",
+            "reading_id": "jump:sina:SND:hour:1795611600",
+            "record_start": 1776834000,
+            "sigma": 0.004791849258431183,
+            "sigma_day": 0.018943875254654303,
+            "sigma_lt": 0.004791849258431183,
+            "since_utc": 1795582800,
+            "since_z": -4.740485124774863,
+            "template": "lme",
+            "ticker": "SND",
+            "tier": "noticeable",
+            "word": "noticeable",
+            "young": false,
+            "z": -4.566628385466976
+          },
+          "seen": 1795615605,
+          "shown": [
+            "noticeable",
+            4.6,
+            1795611600,
+            -2.19
+          ],
+          "size": 4.566628385466976,
+          "start": 1795615200,
           "tier": "noticeable",
           "was": null
         },
@@ -458,7 +705,7 @@
               0.0077644479624981635
             ]
           },
-          "message": 197,
+          "message": null,
           "peak": "jump:twelvedata:IWM:weekend:1795442400",
           "ping_at": 1795446432,
           "placed_at": 1795446432,
@@ -474,7 +721,7 @@
             "gap_kind": "weekend",
             "held": 0.9552742789366211,
             "hour_utc": 1795442400,
-            "now_utc": 1795489598,
+            "now_utc": 1795615605,
             "overnight": true,
             "r": 0.036169962062550055,
             "reading": "weekend",
@@ -492,7 +739,7 @@
             "young": false,
             "z": 4.658407427965116
           },
-          "seen": 1795489598,
+          "seen": 1795615605,
           "shown": [
             "noticeable",
             4.7,
@@ -536,7 +783,7 @@
             "gap_kind": "weekend",
             "held": 0.944285194889292,
             "hour_utc": 1795442400,
-            "now_utc": 1795489598,
+            "now_utc": 1795615605,
             "overnight": true,
             "r": 0.04729823001611533,
             "reading": "weekend",
@@ -554,7 +801,7 @@
             "young": false,
             "z": 8.258552931343102
           },
-          "seen": 1795489598,
+          "seen": 1795615605,
           "shown": [
             "high",
             8.3,
@@ -564,6 +811,73 @@
           "size": 8.258552931343102,
           "start": 1795446000,
           "tier": "high",
+          "was": null
+        },
+        "twelvedata:USD/CAD|1795532400": {
+          "asset": "twelvedata:USD/CAD",
+          "body": "\u2b1c <b>USD/CAD</b> \u00b7 Canadian dollar -0.25% \u00b7 4.9\u00d7\u03c3",
+          "context": "",
+          "ever": [
+            "jump:twelvedata:USD/CAD:hour:1795528800",
+            "jump:twelvedata:USD/CAD:hour:1795539600"
+          ],
+          "form": "row",
+          "hour": 1795528800,
+          "kept": false,
+          "members": {
+            "jump:twelvedata:USD/CAD:hour:1795528800": [
+              -0.002466971455325737,
+              0.0005069501836003316
+            ],
+            "jump:twelvedata:USD/CAD:hour:1795539600": [
+              -0.0024763916118166586,
+              0.0005090914278799664
+            ]
+          },
+          "message": 199,
+          "peak": "jump:twelvedata:USD/CAD:hour:1795528800",
+          "ping_at": 1795532825,
+          "placed_at": 1795532825,
+          "row": {
+            "asset_id": "twelvedata:USD/CAD",
+            "basis": "jump",
+            "block": "FX",
+            "channel": "digest",
+            "check_utc": 1795554000,
+            "day_r": -0.0049417974764760465,
+            "event_start": 1795532400,
+            "found_utc": 1795532400,
+            "gap_kind": null,
+            "held": 1.6187981974962091,
+            "hour_utc": 1795528800,
+            "now_utc": 1795615605,
+            "overnight": false,
+            "r": -0.002466971455325737,
+            "reading": "hour",
+            "reading_id": "jump:twelvedata:USD/CAD:hour:1795528800",
+            "record_start": 1059944400,
+            "sigma": 0.0005069501836003316,
+            "sigma_day": 0.0024195921614191406,
+            "sigma_lt": 0.0005069501836003316,
+            "since_utc": 1792389600,
+            "since_z": -4.7584339422953805,
+            "template": "fx_continuous",
+            "ticker": "USD/CAD",
+            "tier": "noticeable",
+            "word": "noticeable",
+            "young": false,
+            "z": -4.86629955986098
+          },
+          "seen": 1795615605,
+          "shown": [
+            "noticeable",
+            4.9,
+            1795528800,
+            -0.25
+          ],
+          "size": 4.86629955986098,
+          "start": 1795532400,
+          "tier": "noticeable",
           "was": null
         },
         "twelvedata:XLK|1795446000": {
@@ -598,7 +912,7 @@
             "gap_kind": "weekend",
             "held": 0.8618275337942174,
             "hour_utc": 1795442400,
-            "now_utc": 1795489598,
+            "now_utc": 1795615605,
             "overnight": true,
             "r": 0.09658189109649341,
             "reading": "weekend",
@@ -616,7 +930,7 @@
             "young": false,
             "z": 7.033422907364394
           },
-          "seen": 1795489598,
+          "seen": 1795615605,
           "shown": [
             "high",
             7.0,
@@ -628,9 +942,195 @@
           "tier": "high",
           "was": null
         },
+        "twelvedata:XLV|1795532400": {
+          "asset": "twelvedata:XLV",
+          "body": "\u2b1c <b>XLV</b> \u00b7 Health care sector +1.91% \u00b7 5.9\u00d7\u03c3",
+          "context": "",
+          "ever": [
+            "jump:twelvedata:XLV:hour:1795528800"
+          ],
+          "form": "row",
+          "hour": 1795528800,
+          "kept": false,
+          "members": {
+            "jump:twelvedata:XLV:hour:1795528800": [
+              0.019139604137626515,
+              0.0032416529070211707
+            ]
+          },
+          "message": 199,
+          "peak": "jump:twelvedata:XLV:hour:1795528800",
+          "ping_at": 1795532825,
+          "placed_at": 1795532825,
+          "row": {
+            "asset_id": "twelvedata:XLV",
+            "basis": "jump",
+            "block": "equity",
+            "channel": "digest",
+            "check_utc": 1795554000,
+            "day_r": 0.01958521212138268,
+            "event_start": 1795532400,
+            "found_utc": 1795532400,
+            "gap_kind": null,
+            "held": 1.4872574585693976,
+            "hour_utc": 1795528800,
+            "now_utc": 1795615605,
+            "overnight": false,
+            "r": 0.019139604137626515,
+            "reading": "hour",
+            "reading_id": "jump:twelvedata:XLV:hour:1795528800",
+            "record_start": 1041256800,
+            "sigma": 0.0032416529070211707,
+            "sigma_day": 0.011647181514259655,
+            "sigma_lt": 0.0032416529070211707,
+            "since_utc": 1782478800,
+            "since_z": 7.3555261998269375,
+            "template": "us_equity",
+            "ticker": "XLV",
+            "tier": "noticeable",
+            "word": "noticeable",
+            "young": false,
+            "z": 5.904273124421065
+          },
+          "seen": 1795615605,
+          "shown": [
+            "noticeable",
+            5.9,
+            1795528800,
+            1.91
+          ],
+          "size": 5.904273124421065,
+          "start": 1795532400,
+          "tier": "noticeable",
+          "was": null
+        },
+        "yahoo:PL=F|1795536000": {
+          "asset": "yahoo:PL=F",
+          "body": "\u2b1c <b>Platinum</b> \u00b7 NYMEX -2.53% \u00b7 5.3\u00d7\u03c3",
+          "context": "",
+          "ever": [
+            "jump:yahoo:PL=F:hour:1795532400"
+          ],
+          "form": "row",
+          "hour": 1795532400,
+          "kept": false,
+          "members": {
+            "jump:yahoo:PL=F:hour:1795532400": [
+              -0.025297834591770985,
+              0.004808299523913422
+            ]
+          },
+          "message": 202,
+          "peak": "jump:yahoo:PL=F:hour:1795532400",
+          "ping_at": 1795540022,
+          "placed_at": 1795540022,
+          "row": {
+            "asset_id": "yahoo:PL=F",
+            "basis": "jump",
+            "block": "precious_metals",
+            "channel": "digest",
+            "check_utc": 1795554000,
+            "day_r": -0.04951581619881509,
+            "event_start": 1795536000,
+            "found_utc": 1795536000,
+            "gap_kind": null,
+            "held": 0.8331396477771064,
+            "hour_utc": 1795532400,
+            "now_utc": 1795615605,
+            "overnight": false,
+            "r": -0.025297834591770985,
+            "reading": "hour",
+            "reading_id": "jump:yahoo:PL=F:hour:1795532400",
+            "record_start": 1635724800,
+            "sigma": 0.004808299523913422,
+            "sigma_day": 0.022485088334001438,
+            "sigma_lt": 0.004808299523913422,
+            "since_utc": 1772546400,
+            "since_z": -5.919318078652051,
+            "template": "nymex_globex",
+            "ticker": "PL=F",
+            "tier": "noticeable",
+            "word": "noticeable",
+            "young": false,
+            "z": -5.261285089657093
+          },
+          "seen": 1795615605,
+          "shown": [
+            "noticeable",
+            5.3,
+            1795532400,
+            -2.53
+          ],
+          "size": 5.261285089657093,
+          "start": 1795536000,
+          "tier": "noticeable",
+          "was": null
+        },
+        "yahoo:SB=F|1795604400": {
+          "asset": "yahoo:SB=F",
+          "body": "\u2b1c <b>Sugar</b> \u00b7 ICE No. 11 +2.46% \u00b7 4.6\u00d7\u03c3",
+          "context": "",
+          "ever": [
+            "jump:yahoo:SB=F:hour:1795600800"
+          ],
+          "form": "row",
+          "hour": 1795600800,
+          "kept": false,
+          "members": {
+            "jump:yahoo:SB=F:hour:1795600800": [
+              0.02459601494846646,
+              0.005392842282985281
+            ]
+          },
+          "message": 204,
+          "peak": "jump:yahoo:SB=F:hour:1795600800",
+          "ping_at": 1795608417,
+          "placed_at": 1795608417,
+          "row": {
+            "asset_id": "yahoo:SB=F",
+            "basis": "jump",
+            "block": "agriculture",
+            "channel": "digest",
+            "check_utc": 1795640400,
+            "day_r": 0.026295289619566155,
+            "event_start": 1795604400,
+            "found_utc": 1795604400,
+            "gap_kind": null,
+            "held": null,
+            "hour_utc": 1795600800,
+            "now_utc": 1795615605,
+            "overnight": false,
+            "r": 0.02459601494846646,
+            "reading": "hour",
+            "reading_id": "jump:yahoo:SB=F:hour:1795600800",
+            "record_start": 1770105600,
+            "sigma": 0.005392842282985281,
+            "sigma_day": 0.01578764472876382,
+            "sigma_lt": 0.005392842282985281,
+            "since_utc": 1791356400,
+            "since_z": 4.391591871983692,
+            "template": "ice_sugar",
+            "ticker": "SB=F",
+            "tier": "noticeable",
+            "word": "noticeable",
+            "young": false,
+            "z": 4.560863021354854
+          },
+          "seen": 1795615605,
+          "shown": [
+            "noticeable",
+            4.6,
+            1795600800,
+            2.46
+          ],
+          "size": 4.560863021354854,
+          "start": 1795604400,
+          "tier": "noticeable",
+          "was": null
+        },
         "yahoo:^TWII|1795406400": {
           "asset": "yahoo:^TWII",
-          "body": "\u2b1c <b>TAIEX</b> \u00b7 Taiwan +8.47% \u00b7 4.6\u00d7\u03c3\n\u270f\ufe0f 4.6\u00d7\u03c3 \u2b1c \u2192 4.6\u00d7\u03c3 \u2b1c corrected",
+          "body": "\u2b1c <b>TAIEX</b> \u00b7 Taiwan +8.47% \u00b7 4.6\u00d7\u03c3",
           "context": "",
           "earlier": [
             {
@@ -656,7 +1156,7 @@
                 "gap_kind": null,
                 "held": null,
                 "hour_utc": 1795402800,
-                "now_utc": 1795489598,
+                "now_utc": 1795615605,
                 "overnight": false,
                 "r": 0.027774895396129786,
                 "reading": "hour",
@@ -712,9 +1212,9 @@
             "event_start": 1795485600,
             "found_utc": 1795485600,
             "gap_kind": "night",
-            "held": null,
+            "held": 0.9949868806371673,
             "hour_utc": 1795482000,
-            "now_utc": 1795489598,
+            "now_utc": 1795615605,
             "overnight": true,
             "r": 0.08466021060463208,
             "reading": "night",
@@ -732,7 +1232,7 @@
             "young": false,
             "z": 4.600358864303699
           },
-          "seen": 1795489598,
+          "seen": 1795615605,
           "shown": [
             "noticeable",
             4.6,
@@ -749,6 +1249,68 @@
             1795482000,
             8.5
           ]
+        },
+        "yahoo:^TWII|1795579200": {
+          "asset": "yahoo:^TWII",
+          "body": "\u2b1c <b>TAIEX</b> \u00b7 Taiwan +2.61% \u00b7 5.4\u00d7\u03c3",
+          "context": "",
+          "ever": [
+            "jump:yahoo:^TWII:hour:1795575600"
+          ],
+          "form": "row",
+          "hour": 1795575600,
+          "kept": false,
+          "members": {
+            "jump:yahoo:^TWII:hour:1795575600": [
+              0.026061709418412776,
+              0.004860729523872681
+            ]
+          },
+          "message": 203,
+          "peak": "jump:yahoo:^TWII:hour:1795575600",
+          "ping_at": 1795583205,
+          "placed_at": 1795583205,
+          "row": {
+            "asset_id": "yahoo:^TWII",
+            "basis": "jump",
+            "block": "equity",
+            "channel": "digest",
+            "check_utc": 1795640400,
+            "day_r": -0.04802140557197154,
+            "event_start": 1795579200,
+            "found_utc": 1795579200,
+            "gap_kind": null,
+            "held": null,
+            "hour_utc": 1795575600,
+            "now_utc": 1795615605,
+            "overnight": false,
+            "r": 0.026061709418412776,
+            "reading": "hour",
+            "reading_id": "jump:yahoo:^TWII:hour:1795575600",
+            "record_start": 1728867600,
+            "sigma": 0.004860729523872681,
+            "sigma_day": 0.02103450939124842,
+            "sigma_lt": 0.004860729523872681,
+            "since_utc": 1793930400,
+            "since_z": 7.789659571200452,
+            "template": "taipei",
+            "ticker": "^TWII",
+            "tier": "noticeable",
+            "word": "noticeable",
+            "young": false,
+            "z": 5.361686818905462
+          },
+          "seen": 1795615605,
+          "shown": [
+            "noticeable",
+            5.4,
+            1795575600,
+            2.61
+          ],
+          "size": 5.361686818905462,
+          "start": 1795579200,
+          "tier": "noticeable",
+          "was": null
         }
       },
       "messages": {
@@ -760,33 +1322,53 @@
           "first": "\ud83d\udfe7 <b>BTC/USDT</b> \u00b7 Bitcoin +4.01% \u00b7 9.9\u00d7\u03c3",
           "hash": "dc9eb7f1d3a290e9"
         },
-        "195": {
-          "first": "\u2b1c <b>Tin</b> \u00b7 LME +2.77% \u00b7 6.0\u00d7\u03c3",
-          "hash": "6658d0204683a42e"
-        },
         "196": {
           "first": "\ud83d\udfe7 <b>Copper</b> \u00b7 LME +2.67% \u00b7 10.8\u00d7\u03c3",
           "hash": "278d0e07a12163c6"
         },
-        "197": {
-          "first": "\u2b1c <b>IWM</b> \u00b7 Russell 2000 (small caps) +3.62% \u00b7 4.7\u00d7\u03c3",
-          "hash": "8d0d3f821a04fabc"
-        },
         "198": {
           "first": "\u2b1c <b>TAIEX</b> \u00b7 Taiwan +8.47% \u00b7 4.6\u00d7\u03c3",
-          "hash": "7702783aa634d726"
+          "hash": "a6c50a006195cda3"
+        },
+        "199": {
+          "first": "\u2b1c <b>XLV</b> \u00b7 Health care sector +1.91% \u00b7 5.9\u00d7\u03c3",
+          "hash": "a9a16facf2383db5"
+        },
+        "200": {
+          "first": "\ud83d\udfe8 <b>Copper</b> \u00b7 LME -1.82% \u00b7 7.0\u00d7\u03c3",
+          "hash": "bc752ce736e9864a"
+        },
+        "201": {
+          "first": "\u2b1c <b>Aluminium</b> \u00b7 LME -1.53% \u00b7 5.7\u00d7\u03c3",
+          "hash": "8ac69977b655505e"
+        },
+        "202": {
+          "first": "\u2b1c <b>Platinum</b> \u00b7 NYMEX -2.53% \u00b7 5.3\u00d7\u03c3",
+          "hash": "596e1d80c690676a"
+        },
+        "203": {
+          "first": "\u2b1c <b>TAIEX</b> \u00b7 Taiwan +2.61% \u00b7 5.4\u00d7\u03c3",
+          "hash": "38a6e9de914e58a0"
+        },
+        "204": {
+          "first": "\u2b1c <b>Sugar</b> \u00b7 ICE No. 11 +2.46% \u00b7 4.6\u00d7\u03c3",
+          "hash": "ee2d0a4e336c9740"
+        },
+        "205": {
+          "first": "\u2b1c <b>Tin</b> \u00b7 LME -2.19% \u00b7 4.6\u00d7\u03c3",
+          "hash": "c1d367867e72fe67"
         }
       },
       "note": {
         "hashes": [
-          "6609f46d1f38e7f1"
+          "5e292cfad19b9979"
         ],
         "ids": [
           191
         ]
       },
       "orphans": [],
-      "ran_at": 1795489598,
+      "ran_at": 1795615605,
       "since": 1795208700,
       "slot": 1795208700
     }
@@ -794,14 +1376,15 @@
   "telegram_ledger": {
     "checked": [],
     "known": [
-      198
+      204,
+      205
     ],
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1795489598
+    "saved_at": 1795615605
   },
   "telegram_update_offset": 688283215,
-  "weekly_digest:last_refreshed": "2026-11-24",
+  "weekly_digest:last_refreshed": "2026-11-25",
   "weekly_digest:last_sent_week": "1795208700"
 }
