@@ -43,7 +43,7 @@ jobs:
     timeout-minutes: 30
     environment:
       name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+      url: ${{ steps.deploy.outputs.page_url || steps.deploy_again.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -138,6 +138,23 @@ jobs:
         with:
           path: site
 
+      # GitHub lists a run's artifacts a little after the upload is finalised:
+      # on 2026-11-20 and twice on 2026-11-25 the publish half a second
+      # after the upload found no page ("Found 0 artifact(s)"). So it waits,
+      # and once more if the first try still finds none.
+      - name: Let GitHub list the page
+        run: sleep 15
+
       - name: Publish
         id: deploy
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Wait before publishing again
+        if: steps.deploy.outcome == 'failure'
+        run: sleep 60
+
+      - name: Publish again
+        id: deploy_again
+        if: steps.deploy.outcome == 'failure'
         uses: actions/deploy-pages@v4

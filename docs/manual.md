@@ -813,7 +813,10 @@ found nothing.
 
 **Checking on it.** The dashboard (https://conjuror123.github.io/Market-alert/) is measured
 on every push of code to `dev` and by hand (`.github/workflows/measure.yml`), and drawn by
-`tools/dashboard.py`; check it by loading the page, not only its `latest.json`.
+`tools/dashboard.py`; check it by loading the page, not only its `latest.json`. The publish
+waits 15 seconds after the upload and tries once more a minute later: GitHub sometimes
+lists the page's upload late ("No artifacts named github-pages"), which failed the run
+with the measurement done.
 - Its bars are the checkout's closed months and the live run's open months; an instrument
   the live run does not fetch yet is brought up to now by the bot's own fetch
   (`jump.backfill --live-pass`), except on Tiingo or Twelve Data, whose quotas are the live
