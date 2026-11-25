@@ -318,6 +318,7 @@ sina:SND,1795161600,close,real,sina,wallstreetcn,wallstreetcn,-0.025006,-0.02500
 sina:SND,1795438800,close,real,sina,wallstreetcn,wallstreetcn,0.027720,0.028360,1795547174
 sina:SND,1795442400,close,real,sina,wallstreetcn,wallstreetcn,0.019034,0.018394,1795547174
 sina:SND,1795482000,close,real,sina,wallstreetcn,wallstreetcn,-0.019901,-0.019901,1795547174
+sina:SND,1795582800,close,real,sina,wallstreetcn,wallstreetcn,-0.022602,-0.021149,1795586778
 twelvedata:ANGL,1789581600,close,real,sina,yahoo,,-0.003863,-0.004038,1791114096
 twelvedata:ANGL,1790874000,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo,marketwatch,alpaca_sip",0.003285,"0.003285,0.003285,0.003285",1791587166
 twelvedata:AUD/USD,1357099200,close,not_real,sifting,dukascopy,,0.007104,-0.001270,1791362566
@@ -1098,6 +1099,6 @@ yahoo:^TASI.SR,1793520000,close,uncertain,yahoo,"marketwatch,wallstreetcn",,-0.0
 yahoo:^TWII,1793674800,close,real,yahoo,"marketwatch,twse","marketwatch,twse",-0.015422,"-0.015422,-0.015422",1794377180
 yahoo:^TWII,1793764800,close,real,yahoo,"marketwatch,twse","marketwatch,twse",0.021800,"0.021800,0.021800",1794463580
 yahoo:^TWII,1793930400,close,real,yahoo,"marketwatch,twse","marketwatch,twse",0.031197,"0.031197,0.031197",1794549991
-yahoo:^TWII,1795402800,close,real,yahoo,"marketwatch,twse","marketwatch,twse",0.023626,"0.023626,0.023626",1795500376
-yahoo:^TWII,1795482000,open,real,yahoo,"marketwatch,twse","marketwatch,twse",0.084660,"0.086492,0.086492",1795500376
-yahoo:^TWII,1795575600,close,real,yahoo,"marketwatch,twse",marketwatch,0.026062,"0.026062,",1795583180
+yahoo:^TWII,1795402800,close,real,yahoo,"marketwatch,twse","marketwatch,twse",0.023626,"0.023626,0.023626",1795586778
+yahoo:^TWII,1795482000,open,real,yahoo,"marketwatch,twse","marketwatch,twse",0.084660,"0.086492,0.086492",1795586778
+yahoo:^TWII,1795575600,close,real,yahoo,"marketwatch,twse","marketwatch,twse",0.026062,"0.026062,0.026062",1795586778
