@@ -270,6 +270,7 @@ sifting:XAU/USD,1795053600,close,real,sifting,"yahoo,sina,marketwatch,wallstreet
 sifting:XAU/USD,1795388400,close,real,sifting,"yahoo,sina,marketwatch,wallstreetcn,tiingo,twelvedata","tiingo,twelvedata",0.014469,",,,,0.016364,0.013906",1795565188
 sifting:XAU/USD,1795532400,close,real,sifting,"yahoo,sina,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,sina,marketwatch,wallstreetcn,tiingo,twelvedata",-0.014849,"-0.014800,-0.014925,-0.014717,-0.014608,-0.014807,-0.015826",1795565188
 sifting:XAU/USD,1795604400,close,real,sifting,"yahoo,sina,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,sina,marketwatch,wallstreetcn,tiingo,twelvedata",-0.011959,"-0.006312,-0.011793,-0.006307,-0.011793,-0.011985,-0.009434",1795608386
+sifting:XAU/USD,1795611600,close,real,sifting,"yahoo,sina,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,sina,marketwatch,wallstreetcn,tiingo,twelvedata",-0.012956,"-0.014216,-0.012465,-0.012202,-0.012465,-0.012916,-0.015452",1795615579
 sina:AHD,1789034400,close,real,sina,wallstreetcn,wallstreetcn,-0.016265,-0.016265,1795547174
 sina:AHD,1789603200,open,real,sina,wallstreetcn,wallstreetcn,-0.008572,-0.010112,1795547174
 sina:AHD,1794315600,close,real,sina,wallstreetcn,wallstreetcn,-0.010924,-0.010939,1795547174
@@ -321,6 +322,7 @@ sina:SND,1795438800,close,real,sina,wallstreetcn,wallstreetcn,0.027720,0.028360,
 sina:SND,1795442400,close,real,sina,wallstreetcn,wallstreetcn,0.019034,0.018394,1795547174
 sina:SND,1795482000,close,real,sina,wallstreetcn,wallstreetcn,-0.019901,-0.019901,1795547174
 sina:SND,1795582800,close,real,sina,wallstreetcn,wallstreetcn,-0.022602,-0.021149,1795586778
+sina:SND,1795611600,close,real,sina,wallstreetcn,wallstreetcn,-0.021883,-0.021883,1795615579
 twelvedata:ANGL,1789581600,close,real,sina,yahoo,,-0.003863,-0.004038,1791114096
 twelvedata:ANGL,1790874000,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo,marketwatch,alpaca_sip",0.003285,"0.003285,0.003285,0.003285",1791587166
 twelvedata:AUD/USD,1357099200,close,not_real,sifting,dukascopy,,0.007104,-0.001270,1791362566
