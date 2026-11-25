@@ -613,6 +613,7 @@ twelvedata:SPY,1793890800,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip,s
 twelvedata:SPY,1794927600,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip,sifting","yahoo,sina,marketwatch,alpaca_sip,sifting",-0.011000,"-0.010798,-0.010798,-0.010798,-0.010798,-0.010821",1795554380
 twelvedata:SPY,1795186800,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip,sifting","yahoo,sina,marketwatch,alpaca_sip,sifting",-0.013118,"-0.013236,-0.013236,-0.013250,-0.013250,-0.013247",1795554380
 twelvedata:SPY,1795442400,open,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip,sifting","yahoo,sina,marketwatch,alpaca_sip,sifting",0.047298,"0.047238,0.047382,0.036723,0.047451,0.048060",1795554380
+twelvedata:SPY,1795615200,open,real,tiingo,"yahoo,sina,marketwatch,sifting","yahoo,sina,marketwatch,sifting",-0.022497,"-0.022739,-0.021928,-0.030497,-0.021645",1795619184
 twelvedata:SRLN,1790600400,close,real,yahoo,sina,,-0.002098,-0.001605,1791114096
 twelvedata:STIP,1789581600,close,real,sina,yahoo,,-0.003193,-0.003193,1791114096
 twelvedata:STIP,1790866800,close,real,sina,"yahoo,marketwatch,alpaca_sip","yahoo,marketwatch,alpaca_sip",0.001407,"0.001407,0.001407,0.001407",1791583607
