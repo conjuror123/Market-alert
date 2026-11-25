@@ -564,7 +564,9 @@ fund, a pair and a coin: its `label` in `config/basket.yaml`, then its ticker
 (`Silver · XAG/USD`, `Bitcoin · BTC/USDT`; a US fund says so, `US Technology sector · XLK`).
 Where the label is not the name, `display` leads and the label follows: a stock index
 abroad by its place, then the index (`Japan · Nikkei 225`), a future (`Soybeans · CBOT`,
-`10-year Treasury · CBOT future`), the LME's metals (`Copper · LME`; Sina's `CAD`). A pair
+`German 10-year Bund · Eurex future`), the LME's metals (`Copper · LME`; Sina's `CAD`), a
+fund abroad (`China 30-year bonds · Shanghai ETF`). After the dot comes a ticker or a
+venue, never a description. A pair
 against the US dollar is named by its other currency (`Yen · USD/JPY`, `Euro · EUR/USD`);
 the move is the pair's, as its ticker reads, so USD/JPY +2% is the yen weaker. Both names
 are free to edit: they are in no version (`jumps.NOT_DETECTOR`), though any edit to

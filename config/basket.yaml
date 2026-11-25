@@ -492,8 +492,8 @@ assets:
     tick_size: 0.01
     session_template: eurex_bund
     fetch_interval: 1h
-    display: "Bund"
-    label: "German 10-year Bund (Eurex)"
+    display: "German 10-year Bund"
+    label: "Eurex future"
   # The UK's and China's government bonds as ETFs, in place of the long gilt and
   # China's 10-year futures, which no other free source carried (the user's,
   # 2026-10-18): each from Yahoo's half hours on its exchange's own calendar, as
@@ -506,8 +506,8 @@ assets:
     tick_size: 0.0005
     session_template: london
     fetch_interval: 30min
-    display: "Gilts"
-    label: "UK gilts ETF (iShares Core, LSE)"
+    display: "UK gilts, all maturities"
+    label: "IGLT"
   - ticker: "511090.SS"
     source: yahoo
     block: rates
@@ -515,8 +515,8 @@ assets:
     tick_size: 0.001
     session_template: shanghai
     fetch_interval: 30min
-    display: "China 30Y"
-    label: "China 30-year government bond ETF (SSE)"
+    display: "China 30-year bonds"
+    label: "Shanghai ETF"
   - ticker: TIP
     source: twelvedata
     provider: tiingo
@@ -588,8 +588,8 @@ assets:
     tick_size: 0.005
     session_template: ice_endex
     fetch_interval: 1h
-    display: "TTF"
-    label: "Dutch TTF natural gas (ICE Endex)"
+    display: "European natural gas"
+    label: "ICE Endex"
   - ticker: XAU/USD
     source: sifting
     block: precious_metals

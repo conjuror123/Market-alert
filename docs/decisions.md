@@ -187,8 +187,11 @@ by its other currency (`Yen · USD/JPY`); an index abroad by its place, then the
 copper read as the Canadian dollar beside `USD/CAD`); a fund and a coin by what it holds,
 then its ticker (`Silver · XAG/USD`, `Bitcoin · BTC/USDT`), and a fund of the US market
 says US (`US Technology sector · XLK`; not the S&P 500, Treasuries, emerging-market bonds
-or the world's rare-earth miners). From 2026-11-14 to 11-25 a ticker the same on every
-chart led, as what a reader types into a chart (`XAG/USD · Silver`, `TAIEX · Taiwan`);
+or the world's rare-earth miners). What follows the dot is a ticker or a venue, never a
+description: `German 10-year Bund · Eurex future`, `UK gilts, all maturities · IGLT` (the
+fund holds every term), `China 30-year bonds · Shanghai ETF` (its code, 511090, says
+nothing), `European natural gas · ICE Endex` (`TTF`, the Dutch hub, said nothing to the
+user). From 2026-11-14 to 11-25 a ticker the same on every chart led, as what a reader types into a chart (`XAG/USD · Silver`, `TAIEX · Taiwan`);
 read beside `Sugar · ICE No. 11` it was the odd one out.
 
 **A reading is judged only once its bar has ended.**

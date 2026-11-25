@@ -579,7 +579,7 @@ def test_a_move_is_said_in_per_cent_on_every_instrument():
     labels = md._labels()
     bund = event(asset_id="marketwatch:FGBL=F", block="rates", tier="high", r=0.0042)
     assert md.format_push(bund, labels).splitlines()[0].startswith(
-        "🟨 <b>Bund</b> · German 10-year Bund (Eurex) +0.42%")
+        "🟨 <b>German 10-year Bund</b> · Eurex future +0.42%")
     assert "+0.42%" in md.ping_line(dict(bund, tier="noticeable"), labels)
 
 
