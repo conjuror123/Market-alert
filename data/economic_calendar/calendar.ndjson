@@ -92670,6 +92670,7 @@
 {"actual": "", "country": "GBP", "date": "2026-11-24T11:00:00+00:00", "forecast": "-27", "impact": "Low", "previous": "-10", "title": "CBI Realized Sales"}
 {"actual": "", "country": "GBP", "date": "2026-11-24T12:30:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "MPC Member Greene Speaks"}
 {"actual": "", "country": "USD", "date": "2026-11-24T13:15:00+00:00", "forecast": "", "impact": "Low", "previous": "23.8K", "title": "ADP Weekly Employment Change"}
+{"actual": "", "country": "CNY", "date": "2026-11-24T13:51:00+00:00", "forecast": "", "impact": "Low", "previous": "-0.1%", "title": "CB Leading Index m/m"}
 {"actual": "", "country": "CNY", "date": "2026-11-24T14:00:00+00:00", "forecast": "", "impact": "Low", "previous": "-0.1%", "title": "CB Leading Index m/m"}
 {"actual": "", "country": "EUR", "date": "2026-11-24T14:00:00+00:00", "forecast": "-9.4", "impact": "Low", "previous": "-9.8", "title": "Belgian NBB Business Climate"}
 {"actual": "", "country": "USD", "date": "2026-11-24T14:00:00+00:00", "forecast": "0.2%", "impact": "Low", "previous": "0.3%", "title": "HPI m/m"}
@@ -92689,6 +92690,7 @@
 {"actual": "", "country": "EUR", "date": "2026-11-25T09:00:00+00:00", "forecast": "", "impact": "Medium", "previous": "", "title": "ECB Financial Stability Review"}
 {"actual": "", "country": "CHF", "date": "2026-11-25T09:00:00+00:00", "forecast": "", "impact": "Low", "previous": "-15.3", "title": "UBS Economic Expectations"}
 {"actual": "", "country": "EUR", "date": "2026-11-25T10:42:00+00:00", "forecast": "", "impact": "Low", "previous": "3.37|1.1", "title": "German 10-y Bond Auction"}
+{"actual": "", "country": "USD", "date": "2026-11-25T12:25:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Bowman Speaks"}
 {"actual": "", "country": "USD", "date": "2026-11-25T13:30:00+00:00", "forecast": "0.3%", "impact": "High", "previous": "0.3%", "title": "Core PCE Price Index m/m"}
 {"actual": "", "country": "USD", "date": "2026-11-25T13:30:00+00:00", "forecast": "3.5%", "impact": "High", "previous": "3.4%", "title": "Prelim GDP q/q"}
 {"actual": "", "country": "USD", "date": "2026-11-25T13:30:00+00:00", "forecast": "2.3%", "impact": "Medium", "previous": "2.3%", "title": "Prelim GDP Price Index q/q"}
@@ -92720,7 +92722,7 @@
 {"actual": "", "country": "EUR", "date": "2026-11-27T07:45:00+00:00", "forecast": "-0.1%", "impact": "Low", "previous": "-0.1%", "title": "French Prelim GDP q/q"}
 {"actual": "", "country": "EUR", "date": "2026-11-27T08:00:00+00:00", "forecast": "4.7%", "impact": "Low", "previous": "4.9%", "title": "Spanish Flash CPI y/y"}
 {"actual": "", "country": "EUR", "date": "2026-11-27T08:55:00+00:00", "forecast": "5K", "impact": "Low", "previous": "4K", "title": "German Unemployment Change"}
-{"actual": "", "country": "EUR", "date": "2026-11-27T10:33:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Italian 10-y Bond Auction"}
+{"actual": "", "country": "EUR", "date": "2026-11-27T10:33:00+00:00", "forecast": "", "impact": "Low", "previous": "4.49|1.6", "title": "Italian 10-y Bond Auction"}
 {"actual": "", "country": "EUR", "date": "2026-11-27T12:40:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "German Buba President Nagel Speaks"}
 {"actual": "", "country": "CAD", "date": "2026-11-27T13:30:00+00:00", "forecast": "9.5B", "impact": "Low", "previous": "8.8B", "title": "Current Account"}
 {"actual": "", "country": "USD", "date": "2026-11-27T13:30:00+00:00", "forecast": "-135.9B", "impact": "Low", "previous": "-134.9B", "title": "Goods Trade Balance"}
