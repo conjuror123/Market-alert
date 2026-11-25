@@ -332,6 +332,7 @@ twelvedata:AUD/USD,1793973600,close,real,sifting,"yahoo,marketwatch,wallstreetcn
 twelvedata:AUD/USD,1794315600,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",-0.005125,"-0.005305,-0.005226,-0.004937,-0.005081,-0.005154",1795046806
 twelvedata:AUD/USD,1795100400,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",-0.003706,"-0.003749,-0.003885,-0.003736,-0.003706,-0.003616",1795565188
 twelvedata:AUD/USD,1795186800,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",-0.003530,"-0.003530,-0.003605,-0.003756,-0.003507,-0.003380",1795565188
+twelvedata:AUD/USD,1795572000,close,real,sifting,"yahoo,marketwatch,wallstreetcn,tiingo,twelvedata","yahoo,marketwatch,wallstreetcn,tiingo,twelvedata",-0.003623,"-0.003777,-0.003925,-0.003472,-0.003623,-0.003457",1795575979
 twelvedata:BKLN,1790946000,close,real,yahoo,"sina,marketwatch,alpaca_sip","sina,marketwatch,alpaca_sip",0.001954,"0.001954,0.001465,0.001954",1791580037
 twelvedata:BNO,1636030800,close,overnight,yahoo,alpaca,,0.031922,0.035059,1791362492
 twelvedata:BNO,1638540000,close,overnight,yahoo,alpaca,,0.028851,0.032464,1791362492
