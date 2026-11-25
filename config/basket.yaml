@@ -253,7 +253,7 @@ assets:
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "Technology sector"
+    label: "US Technology sector"
   - ticker: XLF
     source: twelvedata
     provider: tiingo
@@ -262,7 +262,7 @@ assets:
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "Financial sector"
+    label: "US Financial sector"
   - ticker: XLE
     source: twelvedata
     provider: tiingo
@@ -271,7 +271,7 @@ assets:
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "Energy sector"
+    label: "US Energy sector"
   - ticker: XLV
     source: twelvedata
     provider: tiingo
@@ -280,7 +280,7 @@ assets:
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "Health care sector"
+    label: "US Health care sector"
   - ticker: SPY
     source: twelvedata
     provider: tiingo
@@ -298,15 +298,15 @@ assets:
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "Russell 2000 (small caps)"
+    label: "US Russell 2000 (small caps)"
   # The stock indices abroad, each in its own exchange's hours and calendar
   # (jump/sessions.py, EXCHANGES), in the order the day reaches them. Yahoo's bars,
   # live at 30 minutes (the Nifty at 15) folded onto the round hour; history from
   # Yahoo's hourly bars where they agree with those, back to 2024-10 - the CSI 300,
   # BIST 100, TSX and IPC only the last 58 days, their older bars having failed the
   # import gate (jump.backfill, deepen_from_yahoo). An index has no volume here.
-  # `display` is the name a message leads with, as Yahoo's ticker is Yahoo's
-  # only; `label` the market's place.
+  # `display` is the name a message leads with, the market's place; `label`
+  # the index, after it (`Japan · Nikkei 225`).
   - ticker: "^AXJO"
     source: yahoo
     block: equity
@@ -314,8 +314,8 @@ assets:
     tick_size: 0.01
     session_template: sydney
     fetch_interval: 30min
-    display: "ASX 200"
-    label: "Australia"
+    display: "Australia"
+    label: "ASX 200"
   - ticker: "^N225"
     source: yahoo
     block: equity
@@ -323,8 +323,8 @@ assets:
     tick_size: 0.01
     session_template: tokyo
     fetch_interval: 30min
-    display: "Nikkei 225"
-    label: "Japan"
+    display: "Japan"
+    label: "Nikkei 225"
   - ticker: "^KS11"
     source: yahoo
     block: equity
@@ -332,8 +332,8 @@ assets:
     tick_size: 0.01
     session_template: seoul
     fetch_interval: 30min
-    display: "KOSPI"
-    label: "South Korea"
+    display: "South Korea"
+    label: "KOSPI"
   - ticker: "^TWII"
     source: yahoo
     block: equity
@@ -341,8 +341,8 @@ assets:
     tick_size: 0.01
     session_template: taipei
     fetch_interval: 30min
-    display: "TAIEX"
-    label: "Taiwan"
+    display: "Taiwan"
+    label: "TAIEX"
   - ticker: "000300.SS"
     source: yahoo
     block: equity
@@ -350,8 +350,8 @@ assets:
     tick_size: 0.01
     session_template: shanghai
     fetch_interval: 30min
-    display: "CSI 300"
-    label: "China"
+    display: "China"
+    label: "CSI 300"
   - ticker: "^HSI"
     source: yahoo
     block: equity
@@ -359,8 +359,8 @@ assets:
     tick_size: 0.01
     session_template: hong_kong
     fetch_interval: 30min
-    display: "Hang Seng"
-    label: "Hong Kong"
+    display: "Hong Kong"
+    label: "Hang Seng"
   - ticker: "^NSEI"
     source: yahoo
     block: equity
@@ -368,8 +368,8 @@ assets:
     tick_size: 0.01
     session_template: mumbai
     fetch_interval: 15min
-    display: "Nifty 50"
-    label: "India"
+    display: "India"
+    label: "Nifty 50"
   - ticker: "^STOXX50E"
     source: yahoo
     block: equity
@@ -377,8 +377,8 @@ assets:
     tick_size: 0.01
     session_template: frankfurt
     fetch_interval: 30min
-    display: "Euro Stoxx 50"
-    label: "Euro area"
+    display: "Euro area"
+    label: "Euro Stoxx 50"
   - ticker: "^FTSE"
     source: yahoo
     block: equity
@@ -386,8 +386,8 @@ assets:
     tick_size: 0.01
     session_template: london
     fetch_interval: 30min
-    display: "FTSE 100"
-    label: "UK"
+    display: "UK"
+    label: "FTSE 100"
   - ticker: "^SSMI"
     source: yahoo
     block: equity
@@ -395,8 +395,8 @@ assets:
     tick_size: 0.01
     session_template: zurich
     fetch_interval: 30min
-    display: "SMI"
-    label: "Switzerland"
+    display: "Switzerland"
+    label: "SMI"
   - ticker: "XU100.IS"
     source: yahoo
     block: equity
@@ -404,8 +404,8 @@ assets:
     tick_size: 0.01
     session_template: istanbul
     fetch_interval: 30min
-    display: "BIST 100"
-    label: "Turkey"
+    display: "Turkey"
+    label: "BIST 100"
   - ticker: "^TASI.SR"
     source: yahoo
     block: equity
@@ -413,8 +413,8 @@ assets:
     tick_size: 0.01
     session_template: riyadh
     fetch_interval: 30min
-    display: "Tadawul"
-    label: "Saudi Arabia"
+    display: "Saudi Arabia"
+    label: "Tadawul"
   - ticker: "^J200.JO"
     source: yahoo
     block: equity
@@ -422,8 +422,8 @@ assets:
     tick_size: 0.01
     session_template: johannesburg
     fetch_interval: 30min
-    display: "JSE Top 40"
-    label: "South Africa"
+    display: "South Africa"
+    label: "JSE Top 40"
   - ticker: "^GSPTSE"
     source: yahoo
     block: equity
@@ -431,8 +431,8 @@ assets:
     tick_size: 0.01
     session_template: toronto
     fetch_interval: 30min
-    display: "TSX"
-    label: "Canada"
+    display: "Canada"
+    label: "TSX"
   - ticker: "^BVSP"
     source: yahoo
     block: equity
@@ -440,8 +440,8 @@ assets:
     tick_size: 0.01
     session_template: sao_paulo
     fetch_interval: 30min
-    display: "Bovespa"
-    label: "Brazil"
+    display: "Brazil"
+    label: "Bovespa"
   - ticker: "^MXX"
     source: yahoo
     block: equity
@@ -449,8 +449,8 @@ assets:
     tick_size: 0.01
     session_template: mexico_city
     fetch_interval: 30min
-    display: "IPC"
-    label: "Mexico"
+    display: "Mexico"
+    label: "IPC"
   # --- rates -----------------------------------------------------------------
   # US Treasuries by maturity - the 2-, 10- and 30-year futures, live from Yahoo
   # one contract at a time (jump/futures.py) - and inflation-protected; the Bund,
@@ -536,7 +536,7 @@ assets:
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "Investment-grade corporate bonds"
+    label: "US Investment-grade corporate bonds"
   - ticker: HYG
     source: twelvedata
     provider: tiingo
@@ -545,7 +545,7 @@ assets:
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "High-yield corporate bonds"
+    label: "US High-yield corporate bonds"
   - ticker: EMB
     source: twelvedata
     provider: tiingo
@@ -576,7 +576,7 @@ assets:
     tick_size: 0.01
     session_template: us_equity
     fetch_interval: 30min
-    label: "Natural gas"
+    label: "US Natural gas"
   # --- precious_metals -------------------------------------------------------
   # Precious metals. Spot gold and silver round the clock on the pairs' week, from
   # SiftingIO's commodities endpoint over Dukascopy's history from 2003; platinum's

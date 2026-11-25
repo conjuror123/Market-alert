@@ -9,7 +9,7 @@ percentage works. Each move is measured against the instrument's own last half-y
 with the jump test of Lee & Mykland (2008), and the message says how far out it is:
 
 ```
-🟨 KOSPI · South Korea -5.98% · 6.5×σ
+🟨 South Korea · KOSPI -5.98% · 6.5×σ
 📉 Rarest hour in 2 months (then 8.2×σ)
 🕐 29.07.2026 01:00 UTC · next close 129%
 ```

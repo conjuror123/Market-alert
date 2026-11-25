@@ -73,14 +73,16 @@ class Asset:
     # Who is asked for the bars. Defaults to `source` when the configuration
     # does not say otherwise.
     provider: str = ""
-    # The name a message leads with where the ticker is only one vendor's
-    # (Yahoo's ^N225 is NI225 elsewhere, its ZS=F soybeans, Sina's CAD the LME's
-    # copper): the instrument's own name. Defaults to the ticker.
+    # The name a message leads with where the label is not it: an index's
+    # place (`Japan · Nikkei 225`), a future's or an LME metal's own name
+    # (`Soybeans · CBOT`, `Copper · LME`; Yahoo's ZS=F, Sina's CAD). Without
+    # it the label leads and the ticker follows (`Silver · XAG/USD`;
+    # price_monitor.jump_delivery.title).
     display: str = ""
 
     @property
     def shown_as(self) -> str:
-        """The name a message leads with: `display`, or the ticker."""
+        """The instrument's short name: `display`, or the ticker."""
         return self.display or self.ticker
 
     @property

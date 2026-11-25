@@ -548,7 +548,7 @@ channel in line with them.
 **A push** (`high` and up):
 
 ```
-🟨 KOSPI · South Korea -5.98% · 6.5×σ
+🟨 South Korea · KOSPI -5.98% · 6.5×σ
 📉 Rarest hour in 2 months (then 8.2×σ)
 🕐 29.07.2026 01:00 UTC · next close in 17h
 Nearby economic events (...)
@@ -559,12 +559,13 @@ shows how much held (`close 80%`). Scheduled releases from 2 hours before the mo
 its close follow (a release after the close came after the move): high-impact ones only
 (`economic_calendar.SHOWN_IMPACTS`), each with its `🔴` and its country.
 
-The name after the ticker is the instrument's `label` in `config/basket.yaml`. Where the
-ticker is one vendor's code, the instrument's own name leads instead (`display`), then its
-place: a stock index abroad (`Nikkei 225 · Japan`), a future (`Soybeans · CBOT`,
-`10-year Treasury · CBOT future`), the LME's metals (`Copper · LME`, Sina's `CAD`). A fund,
-a pair and a coin keep their tickers, the same on every chart. A pair against
-the US dollar is named by its other currency (`USD/JPY · Yen`, `EUR/USD · Euro`);
+Every instrument leads with what it is, in bold, then what tells it apart (`title`). A
+fund, a pair and a coin: its `label` in `config/basket.yaml`, then its ticker
+(`Silver · XAG/USD`, `Bitcoin · BTC/USDT`; a US fund says so, `US Technology sector · XLK`).
+Where the label is not the name, `display` leads and the label follows: a stock index
+abroad by its place, then the index (`Japan · Nikkei 225`), a future (`Soybeans · CBOT`,
+`10-year Treasury · CBOT future`), the LME's metals (`Copper · LME`; Sina's `CAD`). A pair
+against the US dollar is named by its other currency (`Yen · USD/JPY`, `Euro · EUR/USD`);
 the move is the pair's, as its ticker reads, so USD/JPY +2% is the yen weaker. Both names
 are free to edit: they are in no version (`jumps.NOT_DETECTOR`), though any edit to
 `config/basket.yaml` rebuilds the metrics once (section 6).
@@ -572,7 +573,7 @@ are free to edit: they are in no version (`jumps.NOT_DETECTOR`), though any edit
 **A note row** (`noticeable`) goes into the weekly note, and a ping message notifies of it:
 
 ```
-⬜ EUR/USD · Euro -0.31% · 5.2×σ
+⬜ Euro · EUR/USD -0.31% · 5.2×σ
 ```
 
 **The note stands in blocks**, in the basket's order (equity, rates, credit, energy,
@@ -591,10 +592,10 @@ it goes on in opens with its name-line, `continued`:
 🕐 28.09.2026 14:00 UTC · close 38%
 ```
 
-A note in several messages opens every part with the same first line, its period
-(`📋 Digest - 02.10.2026 to 09.10.2026`), and names the part and the count on the second
-(`Part 2 of 3 · 16 events so far`). The VIX line and `this message is updated as moves are
-found` appear only in the first part. A note in one message names no part. The part stays
+The note does not count its rows; only an empty one says `Nothing so far`. A note in
+several messages opens every part with the same first line, its period
+(`📋 Digest - 02.10.2026 to 09.10.2026`), and names the part on the second (`Part 2 of 3`).
+The VIX line appears only in the first part. A note in one message names no part. The part stays
 off the first line because the first line is how a message of a run whose state was lost
 is recognised (below), and the number of parts changes as the note grows.
 

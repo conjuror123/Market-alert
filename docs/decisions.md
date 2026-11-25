@@ -180,11 +180,16 @@ twenty messages a minute into a channel.
 **Size in σ, word as the colour**: a percentage means nothing where short Treasuries move
 0.024% in a usual hour and a coin several per cent. Every move is a price's, in per cent.
 
-**Names**: a pair by its other currency (`USD/JPY · Yen`); an index abroad by its own name
-and place (`Nikkei 225 · Japan`); a future and an LME metal by its name and venue
-(`Soybeans · CBOT`, `Copper · LME`; the user's, 2026-11-14: Yahoo's `ZS=F` says nothing, and
-Sina's `CAD` for copper read as the Canadian dollar beside `USD/CAD`); a fund, a pair and a
-coin by its ticker, which is the same everywhere.
+**Names: what it is first, then the ticker or the venue** (the user's, 2026-11-25). A pair
+by its other currency (`Yen · USD/JPY`); an index abroad by its place, then the index
+(`Japan · Nikkei 225`); a future and an LME metal by its name and venue (`Soybeans · CBOT`,
+`Copper · LME`; the user's, 2026-11-14: Yahoo's `ZS=F` says nothing, and Sina's `CAD` for
+copper read as the Canadian dollar beside `USD/CAD`); a fund and a coin by what it holds,
+then its ticker (`Silver · XAG/USD`, `Bitcoin · BTC/USDT`), and a fund of the US market
+says US (`US Technology sector · XLK`; not the S&P 500, Treasuries, emerging-market bonds
+or the world's rare-earth miners). From 2026-11-14 to 11-25 a ticker the same on every
+chart led, as what a reader types into a chart (`XAG/USD · Silver`, `TAIEX · Taiwan`);
+read beside `Sugar · ICE No. 11` it was the odd one out.
 
 **A reading is judged only once its bar has ended.**
 
@@ -204,9 +209,13 @@ two states read the same, there is no line (the user's, 2026-11-24): TAIEX's gap
 from +8.50% to +8.47% said `✏️ 4.6×σ ⬜ → 4.6×σ ⬜ corrected`, the first such correction
 since 2026-10-19 - none of the 49 before it left σ and the word as they read.
 
+**The note does not count its rows** (the user's, 2026-11-25): `12 events so far - this
+message is updated as moves are found` went from under the period; an empty note still
+says `Nothing so far`.
+
 **A digest part names itself on its second line** (the user's, 2026-11-05). Each part
-opens with the note's period and says `Part 2 of 3 · 16 events so far` under it, instead of a
-footer under the rows. On the first line, as first written, `part 2 of 3` would change as
+opens with the note's period and says `Part 2 of 3` under it (with the count until
+2026-11-25), instead of a footer under the rows. On the first line, as first written, `part 2 of 3` would change as
 the note grew, and the first line is what recognises a message a run whose state was lost
 had sent (`telegram_ledger.claim`): a part 2 sent as `of 2` and wanted as `of 3` would have
 been deleted and sent again. Parts sharing a first line are taken over in the order sent.

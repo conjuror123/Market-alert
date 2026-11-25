@@ -250,7 +250,7 @@ def test_a_noticeable_move_is_a_row_with_one_ping_and_no_story(monkeypatch, chan
     run(monkeypatch, channel, [row], run_at(0, 12), week)
     assert channel.rings_since(rang) == []
     assert "Gold" in channel.note() and story(channel.note()) == ""
-    assert channel.pings() == ["⬜ <b>GLD</b> · Gold +1.35% · 4.5×σ"]
+    assert channel.pings() == ["⬜ <b>Gold</b> · GLD +1.35% · 4.5×σ"]
 
 
 def test_a_high_move_is_a_push_that_rings_once_and_says_no_story(monkeypatch, channel, week):
@@ -308,7 +308,7 @@ def test_a_row_not_seen_is_struck_in_the_note_and_its_ping_goes(monkeypatch, cha
     run(monkeypatch, channel, [row], run_at(0, 11), week)
     _unseen(at(0, 10))
     run(monkeypatch, channel, [BYSTANDER], run_at(1, 14), week)    # after its 24 hours too
-    assert "<s>⬜ <b>GLD</b> · Gold +1.35% · 4.5×σ</s>" in channel.note()
+    assert "<s>⬜ <b>Gold</b> · GLD +1.35% · 4.5×σ</s>" in channel.note()
     assert channel.pings() == []
     assert "❌" not in channel.note()
 
@@ -343,7 +343,7 @@ def test_a_tie_with_a_source_down_says_nothing_in_the_note(monkeypatch, channel,
     _unseen(at(0, 10), verifier="yahoo,sina,marketwatch", seen="sina",
             verdict=verify.UNCERTAIN, moves=",0.015,0.000200")
     run(monkeypatch, channel, [row], run_at(0, 11), week)
-    assert "Gold +1.35%" in channel.note() and "⚠️" not in channel.note()
+    assert "GLD +1.35%" in channel.note() and "⚠️" not in channel.note()
 
 
 def test_a_reading_without_a_vote_says_nothing_of_one(monkeypatch, channel, week):
@@ -351,7 +351,7 @@ def test_a_reading_without_a_vote_says_nothing_of_one(monkeypatch, channel, week
     row = ev(at(0, 10), asset="sina:AHD")
     run(monkeypatch, channel, [row], run_at(0, 11), week)
     note = channel.note()
-    assert "AHD" in note and "⚠️" not in note and "❌" not in note and "single" not in note
+    assert "Aluminium" in note and "⚠️" not in note and "❌" not in note and "single" not in note
 
 
 def test_a_new_hour_inside_a_gone_events_day_rings_clean(monkeypatch, channel, week):
@@ -400,7 +400,7 @@ def test_a_bigger_hour_of_the_same_word_is_edited_in_place_and_says_nothing(
     assert channel.rings_since(rang) == []
     assert "5.0×σ" in channel.note() and "4.5×σ" not in channel.note()
     assert story(channel.note()) == ""
-    assert channel.pings()[0] == "⬜ <b>GLD</b> · Gold +1.50% · 5.0×σ"
+    assert channel.pings()[0] == "⬜ <b>Gold</b> · GLD +1.50% · 5.0×σ"
 
 
 def test_a_row_a_new_high_hour_outgrows_stays_and_the_hour_rings_as_a_push(
@@ -411,8 +411,8 @@ def test_a_row_a_new_high_hour_outgrows_stays_and_the_hour_rings_as_a_push(
     rarer = ev(at(0, 14), "high")
     run(monkeypatch, channel, [first, rarer], run_at(0, 15), week)
     assert len(channel.rings_since(rang)) == 1
-    assert channel.pings() == ["⬜ <b>GLD</b> · Gold +1.35% · 4.5×σ"]
-    assert "Gold +1.35%" in channel.note()
+    assert channel.pings() == ["⬜ <b>Gold</b> · GLD +1.35% · 4.5×σ"]
+    assert "GLD +1.35%" in channel.note()
     assert channel.pushes() == [md.format_push(rarer, LABELS)]
 
 
@@ -435,7 +435,7 @@ def test_a_push_that_falls_to_noticeable_turns_white_and_says_corrected(
     run(monkeypatch, channel, [ev(at(0, 10), size=4.6)], run_at(0, 12), week)
     assert channel.rings_since(rang) == []
     push = channel.pushes()[0]
-    assert push.startswith("⬜ <b>GLD</b>")
+    assert push.startswith("⬜ <b>Gold</b> · GLD")
     assert story(push) == "✏️ 6.0×σ 🟨 → 4.6×σ ⬜ corrected"
     assert channel.pings() == [] and "Gold" not in channel.note()
 
@@ -479,7 +479,7 @@ def test_a_shown_hour_gone_shows_the_biggest_left_corrected(monkeypatch, channel
     run(monkeypatch, channel, [first], run_at(0, 13), week)
     assert channel.rings_since(rang) == []
     assert story(channel.note()) == "✏️ 5.0×σ ⬜ → 4.5×σ ⬜ corrected"
-    assert channel.pings()[0].startswith("⬜ <b>GLD</b> · Gold +1.35% · 4.5×σ")
+    assert channel.pings()[0].startswith("⬜ <b>Gold</b> · GLD +1.35% · 4.5×σ")
 
 
 def test_a_push_that_falls_between_push_words_is_edited_silently(monkeypatch, channel, week):
@@ -494,7 +494,7 @@ def test_a_row_that_falls_away_is_struck_in_the_note_and_takes_its_ping(
         monkeypatch, channel, week):
     run(monkeypatch, channel, [ev(at(0, 10))], run_at(0, 11), week)
     run(monkeypatch, channel, [ev(at(0, 3), asset="coinbase:BTC-USD")], run_at(0, 12), week)
-    assert "<s>⬜ <b>GLD</b> · Gold +1.35% · 4.5×σ</s>" in channel.note()
+    assert "<s>⬜ <b>Gold</b> · GLD +1.35% · 4.5×σ</s>" in channel.note()
     assert not any("GLD" in p for p in channel.pings())
 
 
@@ -597,7 +597,7 @@ def test_an_event_is_24_hours_so_the_next_move_is_a_new_event(monkeypatch, chann
     again = [ev(at(0, 10)), ev(at(1, 12))]           # 26 hours on
     run(monkeypatch, channel, again, run_at(1, 13), week)
     assert len(channel.pings()) == 2
-    assert "2 events so far" in channel.note()
+    assert channel.note().count("<b>Gold</b> · GLD") == 2
 
 
 def test_a_funds_next_morning_is_the_same_event(monkeypatch, channel, week):
@@ -606,7 +606,7 @@ def test_a_funds_next_morning_is_the_same_event(monkeypatch, channel, week):
     morning = ev(at(1, 13), size=5.0, reading="night")
     run(monkeypatch, channel, [evening], run_at(0, 20), week)
     run(monkeypatch, channel, [evening, morning], run_at(1, 14), week)
-    assert len(channel.pings()) == 1 and "1 event so far" in channel.note()
+    assert len(channel.pings()) == 1 and channel.note().count("<b>Gold</b> · GLD") == 1
 
 
 # --- after its 24 hours -------------------------------------------------------
@@ -619,9 +619,9 @@ def test_after_a_day_a_row_that_turns_high_becomes_a_push_in_its_ping_and_keeps_
     assert channel.rings_since(rang) == []
     assert channel.pings() == []
     push = channel.pushes()[0]
-    assert push.startswith("🟨 <b>GLD</b>")
+    assert push.startswith("🟨 <b>Gold</b> · GLD")
     assert story(push) == "✏️ 4.5×σ ⬜ → 6.0×σ 🟨 corrected"
-    assert "🟨 <b>GLD</b>" in channel.note() and story(channel.note()) == story(push)
+    assert "🟨 <b>Gold</b> · GLD" in channel.note() and story(channel.note()) == story(push)
 
 
 def test_after_a_day_a_rarer_push_is_an_edit(monkeypatch, channel, week):
@@ -676,7 +676,7 @@ def test_the_next_note_clears_the_pings_and_leaves_the_rest_as_history(
     turn = datetime.fromtimestamp(NEXT, tz=timezone.utc)
     run(monkeypatch, channel, [row, push], turn, week)
     old_note = channel.notes()[0]
-    assert "1 event\n" in old_note                   # its last render: no longer "so far"
+    assert "Gold" in old_note                        # its last render
     # From the turn on it is history: a later change to its move changes nothing.
     run(monkeypatch, channel, [row, dict(push, tier="noticeable", z=4.0)],
         turn + timedelta(hours=1), week)
@@ -896,7 +896,7 @@ def test_the_turn_fills_in_the_old_week_then_opens_the_new_note_then_the_closing
     assert time_line(old).endswith(" · close -20%")
     new = channel.rings_since(rang)
     assert "<b>Digest</b>" in new[0] and "Nothing so far" in new[0]
-    assert new[1].startswith("🟨 <b>BTC-USD</b>")
+    assert new[1].startswith("🟨 <b>Bitcoin</b> · BTC-USD")
     assert time_line(new[1]).endswith(" · next close in 72h")
 
 
@@ -933,8 +933,8 @@ def test_pushes_and_pings_of_one_run_are_two_messages_and_only_the_first_rings(
     assert len(channel.rings_since(rang)) == 1
     assert channel.rings_since(rang)[0].startswith("🟨 <b>F0</b>")
     [ping] = channel.pings()
-    assert ping == ("⬜ <b>F2</b> · F2 +1.50% · 5.0×σ\n"
-                    "⬜ <b>F1</b> · F1 +1.20% · 4.0×σ")
+    assert ping == ("⬜ <b>F2</b> +1.50% · 5.0×σ\n"
+                    "⬜ <b>F1</b> +1.20% · 4.0×σ")
 
 
 def test_news_shared_by_every_push_is_said_once_at_the_end(monkeypatch, channel, week):
@@ -1001,7 +1001,7 @@ def test_the_turn_takes_the_pings_out_of_a_message_and_keeps_its_pushes(
     later = [dict(rows[0], tier="high", z=6.0, r=6.0 * SIGMA), rows[1]]
     run(monkeypatch, channel, later, run_at(4, 12), week)
     [message] = alerts(channel)
-    assert message.startswith("🟨 <b>F0</b>") and message.endswith("⬜ <b>F1</b> · F1 +1.20% · 4.0×σ")
+    assert message.startswith("🟨 <b>F0</b>") and message.endswith("⬜ <b>F1</b> +1.20% · 4.0×σ")
     run(monkeypatch, channel, later, datetime.fromtimestamp(NEXT, tz=timezone.utc), week)
     [message] = alerts(channel)
     assert message.startswith("🟨 <b>F0</b>") and "F1" not in message
@@ -1298,7 +1298,7 @@ def test_a_lost_runs_ping_is_taken_over_and_the_owners_post_left(monkeypatch, ch
 
 
 def test_a_state_started_afresh_deletes_nothing(monkeypatch, channel):
-    old = channel.post("🟨 <b>GLD</b> · Gold +1.80% · 6.0×σ")
+    old = channel.post("🟨 <b>Gold</b> · GLD +1.80% · 6.0×σ")
     run(monkeypatch, channel, [ev(OPEN - timedelta(days=3))], OPEN, {})
     assert old in channel.messages
 

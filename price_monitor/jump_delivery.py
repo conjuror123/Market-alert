@@ -146,21 +146,30 @@ def _open_words(event: dict) -> "tuple[str, str]":
 
 
 @lru_cache(maxsize=1)
-def _tickers() -> dict:
-    """asset_id -> the name a message leads with (the ticker, or the instrument's
-    own name: jump.basket.Asset.shown_as), from the basket definition, read once
-    per process."""
+def _displays() -> dict:
+    """asset_id -> the instrument's own name where it has one besides its label
+    (jump.basket.Asset.display), from the basket definition, read once per
+    process."""
     try:
         from jump.basket import load_basket
 
-        return {a.asset_id: a.shown_as for a in load_basket().instruments}
+        return {a.asset_id: a.display for a in load_basket().instruments if a.display}
     except Exception as exc:                     # pragma: no cover - defensive
         log.warning("Could not read the basket composition: %s", exc)
         return {}
 
 
-def _ticker(asset_id: str) -> str:
-    return _tickers().get(asset_id) or str(asset_id).split(":")[-1]
+def title(asset_id: str, labels: dict[str, str]) -> str:
+    """How a message names an instrument: what it is, in bold, then what tells
+    it apart - its ticker, its exchange, its index (`Silver · XAG/USD`,
+    `Sugar · ICE No. 11`, `Taiwan · TAIEX`). The name leads on every instrument
+    (the user's, 2026-11-25); from 2026-11-14 a ticker the same on every chart
+    led (`XAG/USD · Silver`), and before that every ticker did."""
+    ticker = str(asset_id).split(":")[-1]
+    label = labels.get(asset_id)
+    display = _displays().get(asset_id)
+    name, detail = (display, label) if display else (label, ticker) if label else (ticker, "")
+    return f"<b>{_escape(name)}</b>" + (f" · {_escape(detail)}" if detail else "")
 
 
 @lru_cache(maxsize=1)
@@ -298,20 +307,17 @@ def describe(event: dict, labels: dict[str, str]) -> str:
     when = datetime.fromtimestamp(int(event["hour_utc"]), tz=timezone.utc)
 
     asset_id = str(event.get("asset_id", ""))
-    label = labels.get(asset_id) or asset_id.split(":")[-1]
     move = _clean(event.get("r"))
-    # The ticker leads where it is the same everywhere (SPY, EUR/USD): it is what
-    # the reader types into a chart. Where it is one vendor's code (Yahoo's ^N225
-    # and ZS=F, Sina's CAD for the LME's copper) the instrument's own name leads
-    # instead (jump.basket.Asset.display; the user's, 2026-11-14). The move shares
-    # that line, because it is the first thing anyone wants, and its size in σ ends it.
+    # The instrument's name leads, then its ticker or exchange (title). The move
+    # shares that line, because it is the first thing anyone wants, and its
+    # size in σ ends it.
     shown = f" {move * 100:+.2f}%" if move is not None else ""
     if shown and _overnight(event):
         # The gap is a price move from the last close to the first print, and
         # it is said as one - never as the hour it was scored alongside.
         shown += f" {_open_words(event)[0]}"
     shown += _sigma_multiple(event)
-    lines = [f"{emoji} <b>{_escape(_ticker(asset_id))}</b> · {_escape(label)}{shown}"]
+    lines = [f"{emoji} {title(asset_id, labels)}{shown}"]
     rarest = rarest_line(event)
     if rarest:
         lines.append(rarest)
@@ -704,10 +710,12 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
     and the part it goes on in says so with the block's name-line, "continued".
 
     The header states the period the note speaks for, from the evening of one
-    week's last funds close to the next's. A note in several parts repeats the
-    period in every part's first line and names the part and the count on the
+    week's last funds close to the next's. It does not count the rows (the
+    user's, 2026-11-25: `12 events so far - this message is updated as moves
+    are found` went); only an empty note says so. A note in several parts
+    repeats the period in every part's first line and names the part on the
     second, so a later part reads on its own (the user's, 2026-11-05); the VIX
-    line and the "updated as moves are found" stay in the first.
+    line stays in the first.
     """
     from jump.jumps import WORDS as TIERS
 
@@ -720,11 +728,7 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
     rank = {name: i for i, name in enumerate(TIERS)}
     ordered = sorted(events, key=lambda e: (int(e["hour_utc"]),
                                             -rank.get(str(e.get("tier")), 0), -_size(e)))
-    if ordered:
-        count = (f"{len(ordered)} event{'s' if len(ordered) != 1 else ''}"
-                 + (" so far" if live else ""))
-    else:
-        count = "Nothing so far" if live else "Nothing in this period"
+    empty = "" if ordered else "\nNothing so far" if live else "\nNothing in this period"
     # THE LAST DAY THE NOTE CAN HOLD ANYTHING, not the moment it stops. A note
     # runs to the instant the next one opens, five minutes after a close - so a
     # boundary just past midnight UTC would otherwise name a day the note
@@ -736,10 +740,9 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
     # something the note is unable to have.
     last = closes - timedelta(hours=1)
     lead = f"📋 <b>Digest</b> - {format_day(opened)} to {format_day(last)}"
-    header = f"{lead}\n{count}" + (" - this message is updated as moves are found"
-                                   if live else "")
+    header = lead + empty
     # A later part's header: the part number goes in once the parts are counted.
-    follow = f"{lead}\n{count}"
+    follow = lead
     # The regime the whole period sits in, read at the note's latest edit rather
     # than at its opening: a note is re-rendered every time a row is added, so
     # while it is live this tracks the market, and once the period closes it
@@ -798,22 +801,19 @@ def format_digest(events: "list[dict]", labels: dict[str, str],
         # run of the week, while the number of parts changes as the note grows.
         # Parts that share it are taken over in the order they were sent.
         total = len(messages)
-        messages = [m.replace("\n", f"\nPart {i} of {total} · ", 1)
+        messages = [m.replace("\n", f"\nPart {i} of {total}\n", 1)
                     for i, m in enumerate(messages, 1)]
     return messages
 
 
 def ping_line(event: dict, labels: dict[str, str]) -> str:
-    """One noticeable move in a ping: ticker, name, size."""
+    """One noticeable move in a ping: name, ticker, size."""
     tier = str(event.get("tier") or "noticeable")
     emoji = TIER_EMOJI.get(tier, "⚪")
     asset_id = str(event.get("asset_id", ""))
     move = _clean(event.get("r"))
     shown = f" {move * 100:+.2f}%" if move is not None else ""
-    ticker = _ticker(asset_id)
-    label = labels.get(asset_id) or ticker
-    return (f"{emoji} <b>{_escape(ticker)}</b> · {_escape(label)}"
-            f"{shown}{_sigma_multiple(event)}")
+    return f"{emoji} {title(asset_id, labels)}{shown}{_sigma_multiple(event)}"
 
 
 def format_ping(event: dict, labels: dict[str, str]) -> str:
@@ -822,7 +822,7 @@ def format_ping(event: dict, labels: dict[str, str]) -> str:
 
     A digest row is written the hour its move is found, but the note stays
     silent - Telegram does not notify on an edit - so a reader who wants to know
-    NOW has to keep opening it. This is the buzz: ticker, name, size. The
+    NOW has to keep opening it. This is the buzz: name, ticker, size. The
     calendar context stays in the note, one tap away.
 
     A line lives at most PING_MAX_AGE_HOURS and never past the next note's

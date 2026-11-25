@@ -80,15 +80,15 @@ def test_every_message_shape_follows_the_copy_rules(monkeypatch, tmp_path):
     # The note carries the regime; nothing else does.
     digest = samples["digest"]
     assert "Fear gauge" in digest and "Added to digest" not in digest
-    assert "⬜ <b>DBB</b> · Base metals (aluminium, zinc, copper) -0.80% · 4.2×σ" in digest
+    assert "⬜ <b>Base metals (aluminium, zinc, copper)</b> · DBB -0.80% · 4.2×σ" in digest
 
     ping = samples["ping"]
-    assert ping == "⬜ <b>DBB</b> · Base metals (aluminium, zinc, copper) -0.80% · 4.2×σ"
+    assert ping == "⬜ <b>Base metals (aluminium, zinc, copper)</b> · DBB -0.80% · 4.2×σ"
 
     # The square is the word, so the word is never written; the size is |move|
     # over its half-year sigma, to one decimal, at the end of the first line.
     push = samples["push_major"]
-    assert push.splitlines()[0] == "🟧 <b>XLF</b> · Financial sector -0.88% · 8.1×σ"
+    assert push.splitlines()[0] == "🟧 <b>Financial sector</b> · XLF -0.88% · 8.1×σ"
     assert push.splitlines()[1] == "📉 Rarest hour in 6 months (then 9.6×σ)"
     assert push.splitlines()[2] == "🕐 <b>14.09.2026 17:00 UTC</b>"
     assert "Lagarde" in push
@@ -103,7 +103,7 @@ def test_every_message_shape_follows_the_copy_rules(monkeypatch, tmp_path):
     assert samples["push_high_gap_weekend"].splitlines()[1].startswith("📉 Rarest weekend in")
 
     # A gap is said as a move from the last close to the first print.
-    assert "SPY</b> · S&amp;P 500 -4.21% at the open · 6.3×σ" in samples["push_high_gap_night"]
+    assert "S&amp;P 500</b> · SPY -4.21% at the open · 6.3×σ" in samples["push_high_gap_night"]
     assert "-4.21% at the open after the weekend · 6.3×σ" in samples["push_high_gap_weekend"]
     assert "+1.44% at the weekly open · 9.0×σ" in samples["push_major_fx_weekend"]
 

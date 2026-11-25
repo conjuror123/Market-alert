@@ -178,7 +178,7 @@ def test_the_headline_leads_with_the_rarity_the_ticker_and_the_move():
     # what a reader types into a chart; the move is the number they came for.
     text = md.describe(event(asset_id="twelvedata:GLD"), LABELS)
     first = text.split("\n")[0]
-    assert first == md.TIER_EMOJI["major"] + " <b>GLD</b> · Gold +2.10% · 7.0×σ"
+    assert first == md.TIER_EMOJI["major"] + " <b>Gold</b> · GLD +2.10% · 7.0×σ"
 
 
 def test_the_hour_is_the_last_line_and_is_bold():
@@ -317,7 +317,7 @@ def test_a_ticker_ping_puts_percent_and_size_after_the_name():
         event(event_id="p", tier="noticeable", channel="digest",
               asset_id="twelvedata:BKLN", r=-0.008, sigma_lt=0.008 / 2.7),
         {"twelvedata:BKLN": "Senior bank loans"})
-    assert text == "⬜ <b>BKLN</b> · Senior bank loans -0.80% · 2.7×σ"
+    assert text == "⬜ <b>Senior bank loans</b> · BKLN -0.80% · 2.7×σ"
     assert " · -0.80%" not in text
 
 
@@ -378,10 +378,10 @@ def body(part: str) -> str:
     return part.split("\n\n", 1)[1]
 
 
-def test_every_part_of_a_long_note_has_a_header_with_its_number_and_the_count(monkeypatch):
-    # A later part read on its own says which note it is, which part and how
-    # many events the note has; the VIX line and "updated as moves are found"
-    # stay in the first, and nothing is said at the bottom.
+def test_every_part_of_a_long_note_has_a_header_with_its_number(monkeypatch):
+    # A later part read on its own says which note it is and which part; the VIX
+    # line stays in the first, and nothing is said at the bottom. No part counts
+    # the rows (the user's, 2026-11-25).
     use_vix(monkeypatch, vix_frame([((2026, 9, 10), (2026, 9, 11, 15), 16.61)]))
     rows = [event(event_id=f"d{i}", channel="digest", tier="noticeable",
                   hour_utc=SLOT + i * HOUR, asset_id="twelvedata:GLD")
@@ -395,12 +395,12 @@ def test_every_part_of_a_long_note_has_a_header_with_its_number_and_the_count(mo
 
     first = texts[0].splitlines()
     assert first[0] == title
-    assert first[1] == (f"Part 1 of {total} · 80 events so far"
-                        " - this message is updated as moves are found")
+    assert first[1] == f"Part 1 of {total}"
     assert first[2].startswith("🌡")
     for i, part in enumerate(texts[1:], 2):
         lines = part.splitlines()
-        assert lines[:3] == [title, f"Part {i} of {total} · 80 events so far", ""]
+        assert lines[:3] == [title, f"Part {i} of {total}", ""]
+    assert not any("so far" in part or "updated as moves" in part for part in texts)
     for part in texts:
         assert "<i>part" not in part
         assert len(part) <= 4096
@@ -411,6 +411,8 @@ def test_a_note_in_one_message_names_no_part():
                             (SLOT, SLOT + 200 * HOUR), None, NOW)
     assert len(text) == 1
     assert text[0].startswith("📋 <b>Digest</b> - ") and "Part " not in text[0]
+    # No count under the period (the user's, 2026-11-25).
+    assert "1 event" not in text[0] and "updated as moves" not in text[0]
 
 
 def test_a_block_that_does_not_fit_what_is_left_opens_the_next_message_whole():
@@ -476,7 +478,7 @@ def test_a_jump_says_its_size_in_sigma_on_the_first_line_and_no_word():
     # The colour of the square is the word; the size is |move| / half-year σ.
     text = md.format_push(jump(), LABELS)
     lines = text.splitlines()
-    assert lines[0] == "🟨 <b>GLD</b> · Gold +1.20% · 6.0×σ"
+    assert lines[0] == "🟨 <b>Gold</b> · GLD +1.20% · 6.0×σ"
     assert "high" not in text and "usual" not in text
 
 
@@ -487,7 +489,7 @@ def test_a_jump_is_dated_day_dot_month_dot_year():
 
 def test_a_jump_ping_says_its_size_in_sigma():
     ping = md.format_ping(jump(tier="noticeable", r=0.0106), LABELS)
-    assert ping.splitlines()[0] == "⬜ <b>GLD</b> · Gold +1.06% · 5.3×σ"
+    assert ping.splitlines()[0] == "⬜ <b>Gold</b> · GLD +1.06% · 5.3×σ"
 
 
 def test_a_gap_jump_names_no_yardstick_either():
@@ -581,18 +583,25 @@ def test_a_move_is_said_in_per_cent_on_every_instrument():
     assert "+0.42%" in md.ping_line(dict(bund, tier="noticeable"), labels)
 
 
-def test_an_index_leads_with_its_own_name_where_yahoos_ticker_is_yahoos_only():
-    # ^N225 is NI225 on another chart: the Nikkei's name is the one a reader
-    # types anywhere (jump.basket.Asset.display). A fund still leads with its
-    # ticker.
+def test_every_instrument_leads_with_its_name_then_its_ticker_or_exchange():
+    # The user's, 2026-11-25: `TAIEX · Taiwan` and `XAG/USD · Silver` read
+    # better as `Sugar · ICE No. 11` and `Platinum · NYMEX` do. An index leads
+    # with its place, a fund, a pair and a coin with what they are, and a US
+    # fund says US.
     labels = md._labels()
     nikkei = event(asset_id="yahoo:^N225", block="equity", tier="high", r=-0.042)
     assert md.format_push(nikkei, labels).splitlines()[0].startswith(
-        "🟨 <b>Nikkei 225</b> · Japan -4.20%")
-    assert md.ping_line(event(asset_id="yahoo:000300.SS", tier="noticeable", r=0.031),
-                        labels).startswith("⬜ <b>CSI 300</b> · China +3.10%")
-    assert md.ping_line(event(asset_id="twelvedata:SPY", tier="noticeable"),
-                        labels).startswith("⬜ <b>SPY</b> · ")
+        "🟨 <b>Japan</b> · Nikkei 225 -4.20%")
+    assert md.ping_line(event(asset_id="yahoo:^TWII", tier="noticeable", r=0.0261),
+                        labels).startswith("⬜ <b>Taiwan</b> · TAIEX +2.61%")
+    assert md.ping_line(event(asset_id="sifting:XAG/USD", tier="noticeable", r=-0.0292),
+                        labels).startswith("⬜ <b>Silver</b> · XAG/USD -2.92%")
+    assert md.ping_line(event(asset_id="twelvedata:XLK", tier="noticeable"),
+                        labels).startswith("⬜ <b>US Technology sector</b> · XLK ")
+    from jump.basket import load_basket
+    led_by_a_code = [a.ticker for a in load_basket().instruments
+                     if md.title(a.asset_id, labels).startswith(f"<b>{a.ticker}</b>")]
+    assert led_by_a_code == []
 
 
 def test_a_future_and_an_lme_metal_lead_with_their_names_not_a_vendors_code():
