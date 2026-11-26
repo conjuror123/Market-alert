@@ -1085,6 +1085,7 @@ yahoo:^BVSP,1791205200,open,real,yahoo,"marketwatch,ft","marketwatch,ft",0.08127
 yahoo:^BVSP,1793019600,open,real,yahoo,"marketwatch,ft","marketwatch,ft",-0.175885,"-0.175885,-0.172291",1793740011
 yahoo:^BVSP,1793026800,close,real,yahoo,"marketwatch,ft","marketwatch,ft",0.015548,"0.015548,0.015764",1793740011
 yahoo:^BVSP,1793041200,close,real,yahoo,"marketwatch,ft","marketwatch,ft",0.015496,"0.015496,0.011172",1793740011
+yahoo:^BVSP,1795698000,open,real,yahoo,"marketwatch,ft",marketwatch,0.035439,"0.034694,",1795701982
 yahoo:^GSPTSE,1792072800,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,0.010311,"0.010311,",1792785976
 yahoo:^GSPTSE,1793890800,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,-0.011785,"-0.011775,",1794603985
 yahoo:^GSPTSE,1795186800,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,-0.009252,"-0.009252,",1795640792
