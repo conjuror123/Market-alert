@@ -92689,6 +92689,7 @@
 {"actual": "", "country": "EUR", "date": "2026-11-25T07:00:00+00:00", "forecast": "0.2%", "impact": "Low", "previous": "0.2%", "title": "German Final GDP q/q"}
 {"actual": "", "country": "EUR", "date": "2026-11-25T09:00:00+00:00", "forecast": "", "impact": "Medium", "previous": "", "title": "ECB Financial Stability Review"}
 {"actual": "", "country": "CHF", "date": "2026-11-25T09:00:00+00:00", "forecast": "", "impact": "Low", "previous": "-15.3", "title": "UBS Economic Expectations"}
+{"actual": "", "country": "EUR", "date": "2026-11-25T10:32:00+00:00", "forecast": "", "impact": "Low", "previous": "3.37|1.1", "title": "German 10-y Bond Auction"}
 {"actual": "", "country": "EUR", "date": "2026-11-25T10:42:00+00:00", "forecast": "", "impact": "Low", "previous": "3.37|1.1", "title": "German 10-y Bond Auction"}
 {"actual": "", "country": "USD", "date": "2026-11-25T12:25:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "FOMC Member Bowman Speaks"}
 {"actual": "", "country": "USD", "date": "2026-11-25T13:30:00+00:00", "forecast": "0.3%", "impact": "High", "previous": "0.3%", "title": "Core PCE Price Index m/m"}
@@ -92699,8 +92700,9 @@
 {"actual": "", "country": "USD", "date": "2026-11-25T13:30:00+00:00", "forecast": "0.7%", "impact": "Low", "previous": "1.8%", "title": "Durable Goods Orders m/m"}
 {"actual": "", "country": "USD", "date": "2026-11-25T13:30:00+00:00", "forecast": "0.4%", "impact": "Low", "previous": "0.2%", "title": "Personal Income m/m"}
 {"actual": "", "country": "USD", "date": "2026-11-25T13:30:00+00:00", "forecast": "0.4%", "impact": "Low", "previous": "0.5%", "title": "Personal Spending m/m"}
+{"actual": "", "country": "GBP", "date": "2026-11-25T14:15:00+00:00", "forecast": "", "impact": "Medium", "previous": "", "title": "Monetary Policy Report Hearings"}
 {"actual": "", "country": "USD", "date": "2026-11-25T15:00:00+00:00", "forecast": "650K", "impact": "Low", "previous": "676K", "title": "New Home Sales"}
-{"actual": "", "country": "USD", "date": "2026-11-25T15:30:00+00:00", "forecast": "", "impact": "Low", "previous": "3.4M", "title": "Crude Oil Inventories"}
+{"actual": "", "country": "USD", "date": "2026-11-25T15:30:00+00:00", "forecast": "2.0M", "impact": "Low", "previous": "3.4M", "title": "Crude Oil Inventories"}
 {"actual": "", "country": "USD", "date": "2026-11-25T17:00:00+00:00", "forecast": "-19B", "impact": "Low", "previous": "20B", "title": "Natural Gas Storage"}
 {"actual": "", "country": "USD", "date": "2026-11-25T19:00:00+00:00", "forecast": "", "impact": "Low", "previous": "", "title": "Beige Book"}
 {"actual": "", "country": "AUD", "date": "2026-11-26T00:30:00+00:00", "forecast": "4.5%", "impact": "Low", "previous": "-3.6%", "title": "Private Capital Expenditure q/q"}
