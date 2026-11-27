@@ -1097,8 +1097,8 @@ yahoo:^GSPTSE,1795186800,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch
 yahoo:^GSPTSE,1795442400,open,real,yahoo,"marketwatch,wallstreetcn",marketwatch,0.024768,"0.024768,",1795727180
 yahoo:^GSPTSE,1795626000,close,real,yahoo,"marketwatch,wallstreetcn",marketwatch,0.010197,"0.010197,",1795727180
 yahoo:^HSI,1793768400,close,uncertain,yahoo,marketwatch,,0.010909,,1794474378
-yahoo:^HSI,1795402800,close,real,yahoo,marketwatch,marketwatch,0.010094,0.010094,1795683975
-yahoo:^HSI,1795755600,close,real,yahoo,marketwatch,marketwatch,0.012904,0.011290,1795759582
+yahoo:^HSI,1795402800,close,real,yahoo,marketwatch,marketwatch,0.010094,0.010094,1795770374
+yahoo:^HSI,1795755600,close,real,yahoo,marketwatch,marketwatch,0.013026,0.013026,1795770374
 yahoo:^MXX,1793714400,open,real,yahoo,"marketwatch,ft","marketwatch,ft",0.013910,"0.013910,0.015005",1794431181
 yahoo:^N225,1793754000,close,real,yahoo,"sina,marketwatch","sina,marketwatch",-0.019280,"-0.018882,-0.019280",1794467183
 yahoo:^N225,1793768400,close,real,yahoo,"sina,marketwatch","sina,marketwatch",0.014731,"0.018996,0.014731",1794467183
