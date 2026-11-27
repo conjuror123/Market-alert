@@ -1007,12 +1007,11 @@ twelvedata:XLV,1793973600,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip",
 twelvedata:XLV,1795528800,close,real,tiingo,"yahoo,sina,marketwatch,alpaca_sip","yahoo,sina,marketwatch,alpaca_sip",0.019140,"0.018640,0.018640,0.015749,0.018640",1795640792
 twelvedata:XLY,1632142800,close,overnight,tiingo,alpaca,,-0.017921,-0.020744,1791362492
 twelvedata:XLY,1643032800,close,overnight,tiingo,alpaca,,-0.030902,-0.020836,1791362492
-yahoo:000300.SS,1795755600,close,real,yahoo,"sina,tencent","sina,tencent",0.034309,"0.033083,0.035000",1795759582
+yahoo:000300.SS,1795755600,close,real,yahoo,"sina,tencent","sina,tencent",0.032676,"0.033083,0.035000",1795763194
 yahoo:511090.SS,1793336400,close,real,yahoo,"sina,marketwatch,wallstreetcn,tencent","sina,marketwatch,wallstreetcn,tencent",-0.003855,"-0.003946,-0.003946,-0.003855,-0.003855",1793689569
 yahoo:511090.SS,1793584800,close,real,yahoo,"sina,marketwatch,wallstreetcn,tencent","marketwatch,wallstreetcn,tencent",0.003786,",0.003769,0.003786,0.003786",1793948778
 yahoo:511090.SS,1794376800,close,real,yahoo,"sina,marketwatch,wallstreetcn,tencent","sina,marketwatch,wallstreetcn,tencent",-0.004083,"-0.004157,-0.004381,-0.004157,-0.004157",1794553614
 yahoo:511090.SS,1794805200,close,real,yahoo,"sina,marketwatch,wallstreetcn,tencent","sina,marketwatch,wallstreetcn,tencent",-0.003774,"-0.003657,-0.003724,-0.003740,-0.003774",1795158385
-yahoo:511090.SS,1795755600,close,real,yahoo,"sina,marketwatch,wallstreetcn,tencent","sina,marketwatch,wallstreetcn,tencent",-0.003795,"-0.003753,-0.003562,-0.003521,-0.003521",1795759582
 yahoo:BZ=F,1793710800,close,real,yahoo,"sina,marketwatch,wallstreetcn,ft","sina,marketwatch,wallstreetcn,ft",-0.030849,"-0.030156,-0.030849,-0.031335,-0.029639",1794434786
 yahoo:BZ=F,1793808000,close,real,yahoo,"sina,marketwatch,wallstreetcn,ft","sina,marketwatch,wallstreetcn,ft",-0.049672,"-0.049475,-0.049148,-0.049570,-0.049773",1794521181
 yahoo:CC=F,1788346800,close,real,yahoo,"sina,wallstreetcn","sina,wallstreetcn",-0.050160,"-0.051429,-0.051429",1791828443
