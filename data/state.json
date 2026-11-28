@@ -1,7 +1,7 @@
 {
   "_monitoring_health": {
     "consecutive_failures": 0,
-    "last_run_utc": 1795820787
+    "last_run_utc": 1795824411
   },
   "floor_pending_replies": [],
   "jump_delivery": {
@@ -18,7 +18,7 @@
         ]
       },
       "orphans": [],
-      "ran_at": 1795820788,
+      "ran_at": 1795824412,
       "since": 1795802700,
       "slot": 1795802700
     }
@@ -31,9 +31,9 @@
     "pending": [],
     "read_ok": true,
     "recheck": {},
-    "saved_at": 1795820788
+    "saved_at": 1795824412
   },
   "telegram_update_offset": 688283215,
-  "weekly_digest:last_refreshed": "2026-11-27",
+  "weekly_digest:last_refreshed": "2026-11-28",
   "weekly_digest:last_sent_week": "1795802700"
 }
